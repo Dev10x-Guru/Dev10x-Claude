@@ -80,7 +80,7 @@ Always apply `references/review-checks-common.md`.
 | `skill-invocation.md` | Skill() syntax, named parameters, delegation | `reviewer-skill.md` (items 8g, 9a) | Mandatory for skill reviews |
 | `task-orchestration.md` | Orchestration patterns, auto-advance, batched decisions | All skills (via `## Orchestration` section) | Referenced, not auto-loaded |
 | `code-sharing-patterns.md` | MCP imports, PEP 723 inlining, cross-context code | Review agents (false positive prevention) | Referenced, not auto-loaded |
-| `permission-architecture.md` | Permission → hook execution order, hook-enabled rules | `permission-auditor` agent, `upgrade-cleanup` skill | Referenced, not auto-loaded |
+| `permission-architecture.md` | Permission → hook execution order, hook-enabled rules | `permission-auditor` agent, `plugin-maintenance` skill (and the `upgrade-cleanup` entry point) | Referenced, not auto-loaded |
 | `execution-modes.md` | Structural modes, per-step mode mappings, mode precedence | `work-on` skill, `playbook` skill | Referenced, not auto-loaded |
 | `friction-levels.md` | Friction levels, gate behavior, playbook integration | `work-on` skill, `verify-acc-dod` skill | Referenced, not auto-loaded |
 | `model-tiers.md` | Model assignments, tier framework, per-project overrides | `model-selection.md` rule, playbook system | Referenced, not auto-loaded |
