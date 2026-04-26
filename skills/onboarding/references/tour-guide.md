@@ -73,6 +73,36 @@ Options:
 
 If user chooses setup: `Skill(skill="Dev10x:git-alias-setup")`
 
+### 2.2b Permission Setup
+
+**Skip if:** Base Dev10x permissions are already present in
+`~/.claude/settings.json` (look for entries like
+`Bash(/tmp/Dev10x/bin/mktmp.sh:*)` and any
+`Bash(~/.claude/plugins/cache/**/skills/git-commit/scripts/...)`
+patterns).
+
+```
+Dev10x ships with a curated set of allow rules so common skills
+run without per-invocation approval prompts. The bootstrap pass
+ensures those rules are present in your user settings.
+```
+
+**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text).
+Options:
+- Set up permissions now (Recommended) — runs the fast bootstrap
+- Skip — I'll run `/Dev10x:upgrade-cleanup` later
+
+If user chooses setup:
+`Skill(skill="Dev10x:plugin-maintenance", args="bootstrap")`
+
+The bootstrap pass runs only the steps a new user needs:
+migrate any leftover legacy config files, ensure base
+permissions, and confirm script coverage. It skips the heavier
+post-upgrade steps (path version bumps, generalization, full
+permission audit, project-settings dedup) — those remain
+available via `/Dev10x:upgrade-cleanup` whenever the user wants
+the comprehensive sweep.
+
 ### 2.3 PR Pipeline Demo
 
 ```

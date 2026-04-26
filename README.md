@@ -222,7 +222,7 @@ review comment) is concise enough to evaluate in seconds.
 | **DB** | [`db`](skills/db/SKILL.md), [`db-psql`](skills/db-psql/SKILL.md) | Safe database query planning and execution |
 | **Tooling** | [`py-uv`](skills/py-uv/SKILL.md), [`slack`](skills/slack/SKILL.md), [`slack-review-request`](skills/slack-review-request/SKILL.md), [`slack-setup`](skills/slack-setup/SKILL.md), [`ask`](skills/ask/SKILL.md) | Python packaging, Slack notifications, interactive prompts |
 | **Meta** | [`skill-create`](skills/skill-create/SKILL.md), [`skill-audit`](skills/skill-audit/SKILL.md), [`skill-index`](skills/skill-index/SKILL.md), [`audit-report`](skills/audit-report/SKILL.md), [`playbook`](skills/playbook/SKILL.md), [`skill-reinforcement`](skills/skill-reinforcement/SKILL.md), [`onboarding`](skills/onboarding/SKILL.md) | Create, audit, discover, and learn skills |
-| **Maintenance** | [`memory-maintenance`](skills/memory-maintenance/SKILL.md), [`upgrade-cleanup`](skills/upgrade-cleanup/SKILL.md), [`playbook-maintenance`](skills/playbook-maintenance/SKILL.md), [`context-audit`](skills/context-audit/SKILL.md) | Memory, permission, playbook, and context hygiene |
+| **Maintenance** | [`memory-maintenance`](skills/memory-maintenance/SKILL.md), [`plugin-maintenance`](skills/plugin-maintenance/SKILL.md), [`upgrade-cleanup`](skills/upgrade-cleanup/SKILL.md), [`playbook-maintenance`](skills/playbook-maintenance/SKILL.md), [`context-audit`](skills/context-audit/SKILL.md) | Memory, permission, playbook, and context hygiene |
 
 All skills use the `Dev10x:` prefix — type `/Dev10x:git-commit` in the Claude
 Code CLI to run it. Run `/Dev10x:skill-index` for the full reference.

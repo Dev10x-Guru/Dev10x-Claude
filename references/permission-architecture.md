@@ -65,7 +65,7 @@ When adding a new SkillRedirectValidator entry:
 |------|------------|
 | `permission-auditor` agent | Must classify hook-enabled rules as `HOOK_ENABLED`, not `DEAD_RULE` |
 | `clean-project-files.py` | Must detect and skip hook-enabled rules during cleanup |
-| `upgrade-cleanup` skill | Must not strip hook-enabled rules from project settings |
+| `plugin-maintenance` skill (invoked directly or via `upgrade-cleanup`) | Must not strip hook-enabled rules from project settings |
 
 ## References
 
