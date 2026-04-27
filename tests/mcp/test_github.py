@@ -381,6 +381,100 @@ class TestResolveReviewThreadDirect:
         assert "thread_ids" in result.error
 
 
+class TestMinimizeComments:
+    @pytest.fixture
+    def batch_response(self) -> str:
+        return json.dumps(
+            {
+                "data": {
+                    "m0": {
+                        "minimizedComment": {
+                            "isMinimized": True,
+                            "minimizedReason": "OUTDATED",
+                        }
+                    },
+                    "m1": {
+                        "minimizedComment": {
+                            "isMinimized": True,
+                            "minimizedReason": "OUTDATED",
+                        }
+                    },
+                }
+            }
+        )
+
+    @pytest.mark.asyncio
+    @patch("dev10x.mcp.github._gh_api", new_callable=AsyncMock)
+    async def test_batches_into_single_request(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+        batch_response: str,
+    ) -> None:
+        mock_api.return_value = _completed(stdout=batch_response)
+
+        result = await gh.minimize_comments(
+            node_ids=["PRRC_a", "PRRC_b"],
+        )
+
+        assert isinstance(result, SuccessResult)
+        assert mock_api.call_count == 1
+        query = mock_api.call_args.kwargs["fields"]["query"]
+        assert "m0: minimizeComment" in query
+        assert "m1: minimizeComment" in query
+        assert "classifier: OUTDATED" in query
+
+    @pytest.mark.asyncio
+    @patch("dev10x.mcp.github._gh_api", new_callable=AsyncMock)
+    async def test_accepts_alternate_classifier(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+        batch_response: str,
+    ) -> None:
+        mock_api.return_value = _completed(stdout=batch_response)
+
+        result = await gh.minimize_comments(
+            node_ids=["PRRC_a"],
+            classifier="RESOLVED",
+        )
+
+        assert isinstance(result, SuccessResult)
+        query = mock_api.call_args.kwargs["fields"]["query"]
+        assert "classifier: RESOLVED" in query
+
+    @pytest.mark.asyncio
+    async def test_rejects_empty_node_ids(self) -> None:
+        result = await gh.minimize_comments(node_ids=[])
+
+        assert isinstance(result, ErrorResult)
+        assert "node_ids required" in result.error
+
+    @pytest.mark.asyncio
+    async def test_rejects_invalid_classifier(self) -> None:
+        result = await gh.minimize_comments(
+            node_ids=["PRRC_a"],
+            classifier="INVALID",
+        )
+
+        assert isinstance(result, ErrorResult)
+        assert "Invalid classifier" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.mcp.github._gh_api", new_callable=AsyncMock)
+    async def test_returns_error_on_api_failure(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(returncode=1, stderr="Forbidden")
+
+        result = await gh.minimize_comments(node_ids=["PRRC_a"])
+
+        assert isinstance(result, ErrorResult)
+        assert "Forbidden" in result.error
+
+
 class TestResolveRepo:
     @pytest.mark.asyncio
     async def test_returns_repository_ref(self) -> None:

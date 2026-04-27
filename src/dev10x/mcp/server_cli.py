@@ -177,6 +177,39 @@ async def pr_comment_reply(
 
 
 @server.tool()
+async def minimize_comments(
+    node_ids: list[str],
+    classifier: str = "OUTDATED",
+    repo: str | None = None,
+) -> dict:
+    """Minimize (hide) one or more PR review comments via batched GraphQL.
+
+    Replaces a per-comment `gh api graphql -f query=@file` loop with a
+    single GraphQL mutation that aliases `minimizeComment` calls — one
+    request, no loop.
+
+    Args:
+        node_ids: GraphQL node IDs of the comments to minimize (PRRC_...)
+        classifier: Reason category. One of: ABUSE, DUPLICATE,
+            OFF_TOPIC, OUTDATED (default), RESOLVED, SPAM
+        repo: Repository (owner/repo). If omitted, uses current repo
+
+    Returns:
+        Dictionary with batched mutation results keyed as m0, m1, ...
+        each containing minimizedComment { isMinimized, minimizedReason }
+    """
+    from dev10x.mcp import github as gh
+
+    return (
+        await gh.minimize_comments(
+            node_ids=node_ids,
+            classifier=classifier,
+            repo=repo,
+        )
+    ).to_dict()
+
+
+@server.tool()
 async def request_review(
     pr_number: int,
     reviewers: list[str],

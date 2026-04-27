@@ -287,6 +287,41 @@ _PR_COMMENT_ACTIONS: dict[str, Any] = {
 }
 
 
+_MINIMIZE_CLASSIFIERS = frozenset(
+    {"ABUSE", "DUPLICATE", "OFF_TOPIC", "OUTDATED", "RESOLVED", "SPAM"}
+)
+
+
+async def minimize_comments(
+    *,
+    node_ids: list[str],
+    classifier: str = "OUTDATED",
+    repo: str | None = None,
+) -> Result[dict[str, Any]]:
+    if not node_ids:
+        return err("node_ids required (non-empty list of GraphQL node IDs)")
+    if classifier not in _MINIMIZE_CLASSIFIERS:
+        valid = ", ".join(sorted(_MINIMIZE_CLASSIFIERS))
+        return err(f"Invalid classifier: {classifier!r}. Must be one of: {valid}")
+    repo_result = await _resolve_repo(repo)
+    if isinstance(repo_result, ErrorResult):
+        return repo_result
+
+    fragments = " ".join(
+        f"m{i}: minimizeComment(input: "
+        f"{{subjectId: {json.dumps(nid)}, classifier: {classifier}}}) "
+        f"{{ minimizedComment {{ isMinimized minimizedReason }} }}"
+        for i, nid in enumerate(node_ids)
+    )
+    result = await _gh_api(
+        "graphql",
+        fields={"query": f"mutation {{ {fragments} }}"},
+    )
+    if result.returncode != 0:
+        return err(result.stderr.strip())
+    return ok(json.loads(result.stdout))
+
+
 async def resolve_review_thread(
     *,
     thread_ids: list[str] | None = None,
