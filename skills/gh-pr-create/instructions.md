@@ -291,10 +291,25 @@ ${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-create/scripts/pre-pr-checks.sh
 Automatically skips if no Python files changed. Runs ruff, formatting,
 mypy, and pytest. Exits on first failure.
 
-**If any check fails:**
-- Stop the workflow
-- Display the error output
-- Suggest fix commands
+**STOP on failure (REQUIRED):**
+
+If `pre-pr-checks.sh` exits non-zero, or
+`mcp__plugin_Dev10x_cli__pre_pr_checks` returns
+`{"error": "..."}` or any non-success structure:
+
+1. STOP the PR creation workflow immediately
+2. Display the error output to the user
+3. Suggest fix commands or delegate to the appropriate skill
+   (`Skill(test)` for pytest failures, project lint runner for
+   ruff/black, etc.)
+
+Do NOT attempt to debug by running `uv run mypy`, `.venv/bin/mypy`,
+`ruff check`, `black --check`, or any other lint/test tool directly
+in the main session. The check failure is the signal to halt — not
+to investigate. The agent must hand control back to the user (or to
+a test/lint skill) instead of looping on raw tool invocations. This
+applies whether the failure was reported by the script path or the
+MCP tool path.
 
 ### Step 6: Push and Create Draft PR
 
