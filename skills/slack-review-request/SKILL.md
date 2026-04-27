@@ -87,7 +87,13 @@ fixups, where the caller has already validated state).
 
 ### Step 1: Prepare
 
-Resolve project config and format the Slack message:
+**REQUIRED:** Run the `prepare` subcommand to resolve project config
+and format the Slack message. Do NOT inline `yq` reads of
+`slack-config.yaml`, manual mention resolution, or hand-built message
+strings — the script handles user-group → `<!subteam^ID>` resolution,
+user → `<@SLACK_ID>` resolution, JTBD extraction from the PR body,
+and channel lookup in one call. Inlining bypasses these and produces
+malformed mentions.
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/skills/slack-review-request/scripts/slack-review-request.py \
