@@ -51,6 +51,14 @@ Determine which tracker to use. Priority:
 3. **Repo default** — if no prefix, check autolinks to determine project's
    primary tracker. GitHub Issues if no autolinks exist.
 
+**Fast-fail rule:** Make ONE attempt at the `detect_tracker` MCP call.
+If the tool is unavailable, returns an error, or `ToolSearch` does not
+surface it on the first lookup, fall through to step 3 (repo default)
+immediately. Do NOT retry `ToolSearch` for Linear, JIRA, or
+`detect_tracker` MCP names. Repeated retries block the skill for
+many minutes and produce no new information — the absence of a tool
+on the first lookup means it is not registered in this session.
+
 | Tracker | Required | Creation method |
 |---------|----------|----------------|
 | GitHub | `gh` CLI | `gh issue create` |
@@ -160,42 +168,39 @@ Select appropriate labels based on the context:
 
 ### Step 5: Create the Ticket
 
-**REQUIRED:** Delegate ticket creation to a background haiku agent.
-This prevents raw API responses (full issue JSON, project lookups)
-from consuming main session context. The agent returns only the
-ticket ID and URL.
+**REQUIRED: Dispatch a background haiku agent to create the ticket.**
+Execute this `Agent` call (do NOT inline ticket creation in the main
+session). This prevents raw API responses (full issue JSON, project
+lookups) from consuming main session context — the agent returns only
+the ticket ID and URL.
 
-**Dispatch:**
+1. `Agent(subagent_type="general-purpose", model="haiku", description="Create {tracker} ticket: {short_title}", prompt="<see template below>", run_in_background=true)`
+
+The agent prompt template (substitute placeholders before dispatching):
 
 ```
-Agent(
-    subagent_type="general-purpose",
-    model="haiku",
-    description="Create {tracker} ticket: {short_title}",
-    prompt="""
-    Create a ticket with the following details:
+Create a ticket with the following details:
 
-    Tracker: {tracker_type}
-    Title: {title}
-    Description: {description}
-    Labels: {labels}
-    {tracker-specific config: team UUID, project UUID, repo}
+Tracker: {tracker_type}
+Title: {title}
+Description: {description}
+Labels: {labels}
+{tracker-specific config: team UUID, project UUID, repo}
 
-    {include the tracker-specific instructions below}
+{include the tracker-specific instructions below}
 
-    Return ONLY:
-    - Tracker: {GitHub Issues | Linear | JIRA}
-    - ID: {ticket ID}
-    - URL: {ticket URL}
-    Do NOT return full API response bodies.
-    """,
-    run_in_background=true
-)
+Return ONLY:
+- Tracker: {GitHub Issues | Linear | JIRA}
+- ID: {ticket ID}
+- URL: {ticket URL}
+Do NOT return full API response bodies.
 ```
 
 The main session waits for the agent result and passes it to
 Step 6. The tracker-specific instructions below describe what
-the agent executes — include the relevant section in its prompt.
+the agent executes — include the relevant section in the agent's
+prompt (the fenced blocks under each tracker are reference material
+for the dispatched agent, not instructions for the main session).
 
 **Nested invocation:** When invoked from a background agent
 (e.g., from `project-scope`'s Phase 3 agent), skip the
