@@ -117,6 +117,8 @@ async def pr_comments(
     comment_id: int | str | None = None,
     comment_ids: list[str] | None = None,
     body: str | None = None,
+    review_id: int | None = None,
+    unresolved_only: bool = False,
     repo: str | None = None,
 ) -> dict:
     """Manage GitHub PR review comments and threads.
@@ -127,6 +129,13 @@ async def pr_comments(
         comment_id: Comment ID (required for get, reply, resolve single)
         comment_ids: List of GraphQL node_ids for batch resolve
         body: Comment body text (required for reply)
+        review_id: When set with action="list", return only comments
+            whose pull_request_review_id matches. Useful for filtering
+            "the comments from review X" without overflowing the
+            response budget.
+        unresolved_only: When True with action="list", switch to a
+            GraphQL reviewThreads query and return only the root
+            comments of unresolved threads.
         repo: Repository (owner/repo). If omitted, uses current repo
 
     Returns:
@@ -141,6 +150,8 @@ async def pr_comments(
             comment_id=comment_id,
             comment_ids=comment_ids,
             body=body,
+            review_id=review_id,
+            unresolved_only=unresolved_only,
             repo=repo,
         )
     ).to_dict()

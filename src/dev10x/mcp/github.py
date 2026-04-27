@@ -186,14 +186,78 @@ async def _pr_comment_list(
     *,
     resolved_repo: str,
     pr_number: int | None = None,
+    review_id: int | None = None,
+    unresolved_only: bool = False,
     **_: Any,
 ) -> Result[dict[str, Any]]:
     if pr_number is None:
         return err("pr_number required for 'list' action")
+    if unresolved_only:
+        return await _list_unresolved_threads(
+            resolved_repo=resolved_repo,
+            pr_number=pr_number,
+        )
     result = await _gh_api(
         f"repos/{resolved_repo}/pulls/{pr_number}/comments?per_page=100",
     )
-    return _parse_gh_api_result(result)
+    parsed = _parse_gh_api_result(result)
+    if isinstance(parsed, ErrorResult) or review_id is None:
+        return parsed
+    if isinstance(parsed.value, list):
+        filtered = [c for c in parsed.value if c.get("pull_request_review_id") == review_id]
+        return ok(filtered)
+    return parsed
+
+
+async def _list_unresolved_threads(
+    *,
+    resolved_repo: str,
+    pr_number: int,
+) -> Result[dict[str, Any]]:
+    repo_ref = (
+        resolved_repo
+        if isinstance(resolved_repo, RepositoryRef)
+        else RepositoryRef.parse(str(resolved_repo))
+    )
+    query = (
+        "query { "
+        f"repository(owner: {json.dumps(repo_ref.owner)}, "
+        f"name: {json.dumps(repo_ref.name)}) "
+        f"{{ pullRequest(number: {pr_number}) "
+        "{ reviewThreads(first: 100) { nodes { "
+        "id isResolved isOutdated "
+        "comments(first: 1) { nodes { "
+        "databaseId body path line "
+        "author { login } "
+        "pullRequestReview { databaseId } "
+        "} } "
+        "} } } } }"
+    )
+    result = await _gh_api("graphql", fields={"query": query})
+    if result.returncode != 0:
+        return err(result.stderr.strip())
+    data = json.loads(result.stdout)
+    threads = (
+        data.get("data", {})
+        .get("repository", {})
+        .get("pullRequest", {})
+        .get("reviewThreads", {})
+        .get("nodes", [])
+    )
+    unresolved: list[dict[str, Any]] = []
+    for thread in threads:
+        if thread.get("isResolved"):
+            continue
+        comments = thread.get("comments", {}).get("nodes", [])
+        first = comments[0] if comments else {}
+        unresolved.append(
+            {
+                "thread_id": thread.get("id"),
+                "is_outdated": thread.get("isOutdated"),
+                **first,
+            }
+        )
+    return ok({"unresolved_threads": unresolved, "count": len(unresolved)})
 
 
 async def _pr_comment_reply(
@@ -374,6 +438,8 @@ async def pr_comments(
     comment_id: int | str | None = None,
     comment_ids: list[str] | None = None,
     body: str | None = None,
+    review_id: int | None = None,
+    unresolved_only: bool = False,
     repo: str | None = None,
 ) -> Result[dict[str, Any]]:
     repo_result = await _resolve_repo(repo)
@@ -391,6 +457,8 @@ async def pr_comments(
         comment_id=comment_id,
         comment_ids=comment_ids,
         body=body,
+        review_id=review_id,
+        unresolved_only=unresolved_only,
     )
 
 
