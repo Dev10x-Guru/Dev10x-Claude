@@ -531,6 +531,77 @@ class TestPrCommentReply:
 
         assert isinstance(result, ErrorResult)
 
+    @pytest.mark.asyncio
+    @patch("dev10x.mcp.github._gh_api", new_callable=AsyncMock)
+    async def test_coerces_numeric_string_comment_id_to_int(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(stdout=json.dumps({"id": 1}))
+
+        result = await gh.pr_comment_reply(
+            pr_number=42,
+            comment_id="3130499018",  # type: ignore[arg-type]
+            body="text",
+        )
+
+        assert isinstance(result, SuccessResult)
+        assert mock_api.call_args.kwargs["fields"]["in_reply_to"] == 3130499018
+
+    @pytest.mark.asyncio
+    @patch("dev10x.mcp.github._gh_api", new_callable=AsyncMock)
+    async def test_rejects_non_numeric_comment_id(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        result = await gh.pr_comment_reply(
+            pr_number=42,
+            comment_id="PRRC_abc",  # type: ignore[arg-type]
+            body="text",
+        )
+
+        assert isinstance(result, ErrorResult)
+        assert "must be an integer" in result.error
+        assert mock_api.call_count == 0
+
+
+class TestPrCommentsActionReply:
+    @pytest.mark.asyncio
+    @patch("dev10x.mcp.github._gh_api", new_callable=AsyncMock)
+    async def test_coerces_numeric_string_to_int(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(stdout=json.dumps({"id": 1}))
+
+        result = await gh.pr_comments(
+            action="reply",
+            pr_number=42,
+            comment_id="3130499018",
+            body="text",
+        )
+
+        assert isinstance(result, SuccessResult)
+        assert mock_api.call_args.kwargs["fields"]["in_reply_to"] == 3130499018
+
+    @pytest.mark.asyncio
+    async def test_rejects_non_numeric_comment_id(
+        self,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        result = await gh.pr_comments(
+            action="reply",
+            pr_number=42,
+            comment_id="PRRC_abc",
+            body="text",
+        )
+
+        assert isinstance(result, ErrorResult)
+        assert "must be an integer" in result.error
+
 
 class TestRequestReview:
     @pytest.mark.asyncio

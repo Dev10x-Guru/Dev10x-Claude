@@ -206,10 +206,17 @@ async def _pr_comment_reply(
 ) -> Result[dict[str, Any]]:
     if pr_number is None or comment_id is None or body is None:
         return err("pr_number, comment_id, and body required for 'reply'")
+    try:
+        comment_id_int = int(comment_id)
+    except (TypeError, ValueError):
+        return err(
+            f"comment_id must be an integer for 'reply' "
+            f"(GitHub rejects strings as in_reply_to). Got: {comment_id!r}"
+        )
     result = await _gh_api(
         f"repos/{resolved_repo}/pulls/{pr_number}/comments",
         method="POST",
-        fields={"body": body, "in_reply_to": comment_id},
+        fields={"body": body, "in_reply_to": comment_id_int},
     )
     return _parse_gh_api_result(result)
 
@@ -399,10 +406,18 @@ async def pr_comment_reply(
         return repo_result
     resolved_repo = repo_result.value
 
+    try:
+        comment_id_int = int(comment_id)
+    except (TypeError, ValueError):
+        return err(
+            f"comment_id must be an integer "
+            f"(GitHub rejects strings as in_reply_to). Got: {comment_id!r}"
+        )
+
     result = await _gh_api(
         f"repos/{resolved_repo}/pulls/{pr_number}/comments",
         method="POST",
-        fields={"body": body, "in_reply_to": comment_id},
+        fields={"body": body, "in_reply_to": comment_id_int},
     )
 
     return _parse_gh_api_result(result)

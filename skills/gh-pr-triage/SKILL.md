@@ -227,7 +227,23 @@ Action: Acknowledged (thread left open for user to resolve)
 
 ## Reply Mechanics
 
-**Post reply in the thread (not top-level):**
+**Post reply in the thread (not top-level) via the MCP tool:**
+
+```
+mcp__plugin_Dev10x_cli__pr_comment_reply(
+    pr_number=<int>,
+    comment_id=<int>,
+    body="<reply_text>",
+    repo="<owner>/<repo>",
+)
+```
+
+The tool posts to `/pulls/{pr_number}/comments` with
+`in_reply_to=<comment_id>` and coerces numeric-string IDs to
+`int` defensively (GitHub rejects strings as `in_reply_to`).
+
+**Fallback** (only when the MCP server is unavailable):
+
 ```bash
 gh api \
   --method POST \
