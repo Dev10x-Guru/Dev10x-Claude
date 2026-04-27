@@ -381,6 +381,126 @@ class TestResolveReviewThreadDirect:
         assert "thread_ids" in result.error
 
 
+class TestPrCommentListFilters:
+    @pytest.mark.asyncio
+    @patch("dev10x.mcp.github._gh_api", new_callable=AsyncMock)
+    async def test_filters_by_review_id(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(
+            stdout=json.dumps(
+                [
+                    {"id": 1, "pull_request_review_id": 100},
+                    {"id": 2, "pull_request_review_id": 200},
+                    {"id": 3, "pull_request_review_id": 100},
+                ]
+            ),
+        )
+
+        result = await gh.pr_comments(
+            action="list",
+            pr_number=42,
+            review_id=100,
+        )
+
+        assert isinstance(result, SuccessResult)
+        assert {c["id"] for c in result.value} == {1, 3}
+
+    @pytest.mark.asyncio
+    @patch("dev10x.mcp.github._gh_api", new_callable=AsyncMock)
+    async def test_returns_all_when_no_review_id(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(
+            stdout=json.dumps(
+                [
+                    {"id": 1, "pull_request_review_id": 100},
+                    {"id": 2, "pull_request_review_id": 200},
+                ]
+            ),
+        )
+
+        result = await gh.pr_comments(action="list", pr_number=42)
+
+        assert isinstance(result, SuccessResult)
+        assert len(result.value) == 2
+
+    @pytest.mark.asyncio
+    @patch("dev10x.mcp.github._gh_api", new_callable=AsyncMock)
+    async def test_unresolved_only_uses_graphql(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(
+            stdout=json.dumps(
+                {
+                    "data": {
+                        "repository": {
+                            "pullRequest": {
+                                "reviewThreads": {
+                                    "nodes": [
+                                        {
+                                            "id": "PRRT_1",
+                                            "isResolved": False,
+                                            "isOutdated": False,
+                                            "comments": {
+                                                "nodes": [
+                                                    {
+                                                        "databaseId": 11,
+                                                        "body": "open",
+                                                        "path": "a.py",
+                                                        "line": 1,
+                                                        "author": {"login": "alice"},
+                                                        "pullRequestReview": {"databaseId": 100},
+                                                    }
+                                                ]
+                                            },
+                                        },
+                                        {
+                                            "id": "PRRT_2",
+                                            "isResolved": True,
+                                            "isOutdated": False,
+                                            "comments": {
+                                                "nodes": [
+                                                    {
+                                                        "databaseId": 22,
+                                                        "body": "closed",
+                                                        "path": "b.py",
+                                                        "line": 2,
+                                                        "author": {"login": "bob"},
+                                                        "pullRequestReview": {"databaseId": 200},
+                                                    }
+                                                ]
+                                            },
+                                        },
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            ),
+        )
+
+        result = await gh.pr_comments(
+            action="list",
+            pr_number=42,
+            unresolved_only=True,
+        )
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["count"] == 1
+        assert result.value["unresolved_threads"][0]["thread_id"] == "PRRT_1"
+        assert result.value["unresolved_threads"][0]["databaseId"] == 11
+        # Verify the GraphQL endpoint was called, not the REST list
+        assert mock_api.call_args.args[0] == "graphql"
+
+
 class TestMinimizeComments:
     @pytest.fixture
     def batch_response(self) -> str:
