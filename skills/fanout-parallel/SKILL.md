@@ -22,6 +22,7 @@ allowed-tools:
   - Skill(skill="Dev10x:session-wrap-up")
   - Write(~/.claude/Dev10x/**)
   - mcp__plugin_Dev10x_cli__*
+  - Bash(gh pr view:*)
 ---
 
 # Dev10x:fanout-parallel — Experimental Parallel Fanout

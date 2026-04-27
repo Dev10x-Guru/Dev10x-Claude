@@ -12,6 +12,10 @@ invocation-name: Dev10x:gh-pr-fixup
 allowed-tools:
   - mcp__plugin_Dev10x_cli__pr_comment_reply
   - mcp__plugin_Dev10x_cli__pr_comments
+  - Bash(gh pr comment:*)
+  - Bash(gh api:*)
+  - Bash(pytest:*)
+  - mcp__plugin_Dev10x_cli__push_safe
 ---
 
 # Implement Fix for PR Review Comment

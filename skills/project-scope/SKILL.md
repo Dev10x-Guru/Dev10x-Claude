@@ -26,6 +26,10 @@ allowed-tools:
   - Bash(gh api repos/:*)
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
   - Skill(Dev10x:ticket-create)
+  - Bash(gh issue view:*)
+  - Bash(gh issue edit:*)
+  - Bash(gh api:*)
+  - mcp__plugin_Dev10x_cli__detect_tracker
 ---
 
 # Project Scope - Multi-Ticket Project Creation

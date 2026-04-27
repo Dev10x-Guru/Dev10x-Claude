@@ -13,6 +13,9 @@ invocation-name: Dev10x:git-fixup
 allowed-tools:
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
   - Write(/tmp/Dev10x/git/**)
+  - Bash(gh repo view:*)
+  - Bash(gh api:*)
+  - mcp__plugin_Dev10x_cli__push_safe
 ---
 
 # Create Fixup Commit

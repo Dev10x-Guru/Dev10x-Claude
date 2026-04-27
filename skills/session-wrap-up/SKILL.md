@@ -9,6 +9,8 @@ description: >
   list, or starting new work (use Dev10x:work-on).
 user-invocable: true
 invocation-name: Dev10x:session-wrap-up
+allowed-tools:
+  - Bash(gh pr list:*)
 ---
 
 # Dev10x:session-wrap-up — Session End Orchestrator

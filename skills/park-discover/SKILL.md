@@ -9,6 +9,11 @@ description: >
   deferred items.
 user-invocable: true
 invocation-name: Dev10x:park-discover
+allowed-tools:
+  - Bash(gh pr view:*)
+  - Bash(gh pr list:*)
+  - Bash(jq:*)
+  - mcp__claude_ai_Slack__slack_search_public_and_private
 ---
 
 # Dev10x:park-discover — Gather Deferred Items

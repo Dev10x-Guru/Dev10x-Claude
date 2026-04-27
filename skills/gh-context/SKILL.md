@@ -13,6 +13,9 @@ allowed-tools:
   - mcp__plugin_Dev10x_cli__*
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-context/scripts/:*)
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
+  - Bash(gh pr view:*)
+  - Bash(gh repo view:*)
+  - Bash(gh api:*)
 ---
 
 # Dev10x:gh-context — GitHub CLI helpers

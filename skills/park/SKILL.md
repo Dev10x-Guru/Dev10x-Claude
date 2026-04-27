@@ -10,6 +10,13 @@ description: >
   Dev10x:park-remind).
 user-invocable: true
 invocation-name: Dev10x:park
+allowed-tools:
+  - Bash(gh pr view:*)
+  - Bash(gh pr list:*)
+  - Bash(gh pr comment:*)
+  - Bash(gh api:*)
+  - mcp__plugin_Dev10x_cli__pr_comments
+  - AskUserQuestion
 ---
 
 # Dev10x:park — Smart Deferral Router

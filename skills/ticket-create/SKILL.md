@@ -21,6 +21,7 @@ allowed-tools:
   - mcp__claude_ai_Linear__list_projects
   - Bash(secret-tool lookup:*)
   - Bash(curl:*atlassian.net*)
+  - mcp__plugin_Dev10x_cli__detect_tracker
 ---
 
 # Create Issue Tracker Ticket

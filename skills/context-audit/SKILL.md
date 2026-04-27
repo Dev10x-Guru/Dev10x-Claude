@@ -19,6 +19,7 @@ allowed-tools:
   - TaskCreate
   - TaskUpdate
   - Edit
+  - Bash(pytest:*)
 ---
 
 # Dev10x:context-audit — Context Window Optimizer

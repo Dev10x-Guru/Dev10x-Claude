@@ -9,8 +9,13 @@ user-invocable: true
 invocation-name: Dev10x:gh-pr-request-review
 allowed-tools:
   - mcp__plugin_Dev10x_cli__request_review
+  - mcp__plugin_Dev10x_cli__pr_detect
   - Bash(gh repo view:*)
+  - Bash(gh pr view:*)
+  - Bash(gh pr ready:*)
+  - Bash(gh api:*)
   - Bash(yq:*)
+  - Bash(jq:*)
   - AskUserQuestion
 ---
 

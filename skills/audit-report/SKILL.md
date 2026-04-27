@@ -14,6 +14,7 @@ allowed-tools:
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
   - Skill(Dev10x:ticket-create)
   - Bash(ls ~/.claude/plugins/cache/:*)
+  - Bash(gh issue create:*)
 ---
 
 # Audit Report — File Findings Upstream

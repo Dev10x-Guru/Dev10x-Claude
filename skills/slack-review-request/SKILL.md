@@ -11,6 +11,7 @@ user-invocable: true
 invocation-name: Dev10x:slack-review-request
 allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/slack-review-request/scripts/:*)
+  - Bash(gh pr view:*)
 ---
 
 # Slack Review Request

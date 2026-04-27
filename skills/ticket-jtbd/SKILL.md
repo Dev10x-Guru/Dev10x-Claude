@@ -24,6 +24,8 @@ allowed-tools:
   - mcp__claude_ai_Linear__update_issue
   - Bash(secret-tool lookup:*)
   - Bash(curl:*atlassian.net*)
+  - Bash(gh issue comment:*)
+  - mcp__plugin_Dev10x_cli__detect_tracker
 ---
 
 # Write JTBD Story to Target

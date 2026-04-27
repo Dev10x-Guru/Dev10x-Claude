@@ -14,6 +14,8 @@ allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-context/scripts/:*)
   - Skill(Dev10x:gh-pr-request-review)
   - Skill(Dev10x:slack-review-request)
+  - Bash(gh pr view:*)
+  - Bash(gh pr comment:*)
 ---
 
 ## Orchestration

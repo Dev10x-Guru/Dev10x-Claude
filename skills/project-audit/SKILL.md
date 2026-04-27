@@ -27,6 +27,7 @@ allowed-tools:
   - Skill(Dev10x:project-scope)
   - Skill(Dev10x:adr)
   - Skill(Dev10x:ticket-create)
+  - mcp__plugin_Dev10x_cli__detect_tracker
 ---
 
 # Dev10x:project-audit — Comprehensive Architecture Audit
