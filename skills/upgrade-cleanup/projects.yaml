@@ -240,9 +240,8 @@ base_permissions:
   - "Bash(yq:*)"
 
   # --- SSH probes (GH-20) ---
-  # Push/PR setup paths verify GitHub SSH access and key state.
+  # Push/PR setup paths verify GitHub SSH access.
   - "Bash(ssh -T git@github.com)"
-  - "Bash(ssh-add -l)"
 
   # --- Git aliases (GH-852, GH-853) ---
   # All base branch aliases from Dev10x:git-alias-setup.
