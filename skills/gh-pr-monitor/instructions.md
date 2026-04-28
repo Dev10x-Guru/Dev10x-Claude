@@ -319,27 +319,23 @@ For each CI fix:
 
 When `gh pr view` reports `mergeable: CONFLICTING`:
 
-1. Fetch latest base branch:
-   ```bash
-   gh pr view {pr_number} --repo {repo} --json baseRefName -q '.baseRefName'
-   git fetch origin {base_branch}
-   ```
+1. Resolve the base branch via `mcp__plugin_Dev10x_cli__pr_detect`
+   (returns `baseRefName`).
 
-2. Rebase onto the base branch:
-   ```bash
-   git rebase origin/{base_branch}
-   ```
+2. Delegate the rebase + force-push to `Skill(Dev10x:git-groom)` —
+   it fetches the base, rebases, and runs the protected-branch
+   safety checks before force-pushing. Do NOT call `git rebase` or
+   `git push --force-with-lease` directly from this skill: routing
+   through the wrapper preserves the autosquash, gitmoji, and
+   protected-branch guardrails (see Skill Routing Enforcement in
+   `skills/work-on/instructions.md`).
 
-3. If rebase succeeds, force-push:
-   ```bash
-   git push --force-with-lease origin {branch}
-   ```
-
-4. If rebase has conflicts that cannot be auto-resolved, stop the
+3. If `Dev10x:git-groom` reports unresolved conflicts, stop the
    monitor and report the conflicting files to the user.
 
-5. After force-push, wait 30 seconds for GitHub to re-compute
-   mergeability and re-run CI, then restart the Phase 1 loop.
+4. After the wrapper completes the force-push, wait 30 seconds for
+   GitHub to re-compute mergeability and re-run CI, then restart the
+   Phase 1 loop.
 
 ### Post-CI Comment Re-check (REQUIRED)
 

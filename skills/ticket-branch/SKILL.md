@@ -197,7 +197,13 @@ Worktree (e.g., in `/work/example/.worktrees/app-pos-7`):
 
 ### Step 6: Create the Branch
 
-Create and checkout the new branch:
+This skill IS the project wrapper for branch creation — the raw
+`git checkout -b` calls below are the implementation, not user-facing
+guidance. Other skills MUST delegate to `Skill(Dev10x:ticket-branch)`
+rather than embedding `git checkout -b` directly (see Skill Routing
+Enforcement in `skills/work-on/instructions.md`). The cli-friction
+scanner exempts this skill via the `GIT_IMPLEMENTERS` allowlist in
+`src/dev10x/skills/audit/cli_friction.py`.
 
 ```bash
 git checkout -b username/TICKET-ID/slug

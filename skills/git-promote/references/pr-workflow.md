@@ -14,7 +14,12 @@ The workflow automatically:
 
 ## Fish Function Reference
 
-Original fish function for reference:
+Original fish function for reference. The raw `git push` and
+`gh pr create` calls below are historical — modern invocations
+must route through `Skill(Dev10x:git)` (push) and
+`Skill(Dev10x:gh-pr-create)` (PR creation) per the Skill Routing
+Enforcement table in `skills/work-on/instructions.md`. See the
+"Bash Equivalent" section below for the wrapper-based form.
 
 ```fish
 function gpr-develop
@@ -46,39 +51,26 @@ function gpr-develop
 end
 ```
 
-## Bash Equivalent
+## Wrapper-Based Equivalent
 
-For the commit-to-linear-ticket workflow, simplified version:
+For the commit-to-linear-ticket workflow, route all side-effecting
+operations through skill wrappers. Pseudo-flow (each numbered step
+maps to one wrapper invocation, not a raw command):
 
-```bash
-#!/bin/bash
+1. Extract metadata in-process: read the latest commit message and
+   parse the ticket ID from `git symbolic-ref --short HEAD`.
+2. Push the branch via `Skill(Dev10x:git)` — it enforces protected
+   branch rules and `--set-upstream` semantics. Do NOT invoke
+   `git push --set-upstream origin <branch>` directly here.
+3. Create the draft PR via `Skill(Dev10x:gh-pr-create)` with title,
+   body referencing the Linear issue, and `--unattended` if running
+   without supervision. The skill handles `gh pr create`,
+   checklist-comment posting, and the final `gh pr view --web`
+   handoff via `mcp__plugin_Dev10x_cli__create_pr`.
 
-# Extract information
-TITLE=$(git log -1 --format=%s)
-ISSUE=$(git branch --show-current | rev | cut -d"/" -f2 | rev)
-BRANCH_NAME=$(git symbolic-ref --short HEAD)
-
-# Display information
-echo "Linear issue: $ISSUE"
-echo "Title: $TITLE"
-echo "For: $BRANCH_NAME -> develop"
-
-# Push branch
-git push --set-upstream origin "$BRANCH_NAME"
-
-# Create draft PR
-gh pr create --draft \
-  --title "$TITLE" \
-  --body "Fixes: https://linear.app/example/issue/$ISSUE"
-
-# Post checklist comment if template exists
-if [ -f .github/checklist.md ]; then
-  gh pr comment --body "$(sed -e "s/ISSUE-NO/$ISSUE/" .github/checklist.md)"
-fi
-
-# Open PR in browser
-gh pr view --web
-```
+Routing through these skills preserves gitmoji/JTBD validation,
+protected-branch checks, and the JTBD-driven PR body — all of which
+raw `git push` + `gh pr create` skip.
 
 ## Key Differences
 
