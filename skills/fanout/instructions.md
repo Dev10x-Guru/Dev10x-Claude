@@ -321,11 +321,10 @@ Work-on executes the pr-continuation play:
 
 **Fixup race condition guard (GH-724):** Before creating any
 fixup commit for a PR that is also being monitored in Phase 4,
-verify the PR is still open:
-```bash
-gh pr view N --json state -q '.state'
-```
-If the result is not `OPEN`, the PR was merged by the monitor
+verify the PR is still open via
+`mcp__plugin_Dev10x_cli__pr_detect(arg="<pr-number>")` and check
+the returned `state` field. If the result is not `OPEN`, the PR
+was merged by the monitor
 while you were preparing the fix. Do NOT push the fixup commit
 to the dead branch — create a follow-up branch from develop
 and open a new PR instead.
@@ -384,11 +383,17 @@ GH-555).
 After merging any item, check if downstream items in the
 same sequential chain are affected:
 
-1. `git fetch origin develop`
-2. For each active branch in the chain:
-   `git rebase origin/develop`
-3. If rebase conflicts → resolve, commit, force-push
-4. If rebase succeeds → continue processing
+1. Fetch the base via `mcp__plugin_Dev10x_cli__detect_base_branch`
+   to determine the merge target.
+2. For each active branch in the chain, delegate the rebase to
+   `Skill(Dev10x:git-groom)` — it rebases onto the resolved base
+   and force-pushes through `Skill(Dev10x:git)` (protected-branch
+   safety). Never invoke `git rebase origin/<base>` directly from
+   this skill — see Skill Routing Enforcement in
+   `skills/work-on/instructions.md`.
+3. If rebase conflicts → resolve, commit, then re-invoke
+   `Skill(Dev10x:git-groom)` to complete the force-push.
+4. If rebase succeeds → continue processing.
 
 ### Merge Mode (GH-688)
 
