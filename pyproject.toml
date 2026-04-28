@@ -1,6 +1,6 @@
 [project]
 name = "Dev10x"
-version = "0.68.0.dev0"
+version = "0.68.0"
 description = "Claude Code plugin providing reusable skills, hooks, and commands"
 readme = "README.md"
 license = { file = "LICENSE" }

@@ -1,4 +1,4 @@
-version: "0.68.0.dev0"
+version: "0.68.0"
 
 # playbook.yaml — Reusable play templates for orchestration skills
 # Default location: ${CLAUDE_PLUGIN_ROOT}/skills/playbook/references/playbook.yaml
