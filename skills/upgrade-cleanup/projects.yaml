@@ -201,6 +201,9 @@ base_permissions:
   - "Bash(gh run view:*)"
   - "Bash(gh run list:*)"
   - "Bash(gh run watch:*)"
+  - "Bash(gh repo view:*)"
+  - "Bash(gh repo clone:*)"
+  - "Bash(gh repo set-default:*)"
 
   # --- Common git operations ---
   - "Bash(git log:*)"
@@ -216,6 +219,31 @@ base_permissions:
   - "Bash(git reset --soft:*)"
   - "Bash(git reset --hard:*)"
   - "Bash(git rebase:*)"
+  - "Bash(git stash:*)"
+  - "Bash(git remote:*)"
+
+  # --- Python project tooling (GH-20) ---
+  # PEP 723 shebangs (#!/usr/bin/env -S uv run --script) execute
+  # via direct script paths already enumerated under "Plugin
+  # scripts". The rules below cover explicit Bash invocations
+  # of `uv run` for tests, lint, and CLI usage.
+  - "Bash(uv run pytest:*)"
+  - "Bash(uv run --extra dev pytest:*)"
+  - "Bash(uv run ruff:*)"
+  - "Bash(uv run dev10x:*)"
+  - "Bash(uv run python:*)"
+
+  # --- YAML config parsing (GH-20) ---
+  # Skills like slack-review-request, verify-acc-dod, and
+  # request-review shell out to `yq` to read user config under
+  # ~/.claude/memory/Dev10x/*.yaml. Read access on the file is
+  # already covered above; this rule covers the yq invocation.
+  - "Bash(yq:*)"
+
+  # --- SSH probes (GH-20) ---
+  # Push/PR setup paths verify GitHub SSH access and key state.
+  - "Bash(ssh -T git@github.com)"
+  - "Bash(ssh-add -l)"
 
   # --- Git aliases (GH-852, GH-853) ---
   # All base branch aliases from Dev10x:git-alias-setup.
