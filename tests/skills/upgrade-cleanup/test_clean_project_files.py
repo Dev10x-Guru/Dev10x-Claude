@@ -44,12 +44,18 @@ class TestIsShellFragment:
 
 class TestIsOldVersion:
     def test_detects_old_version(self) -> None:
-        rule = "Bash(/home/user/.claude/plugins/cache/Dev10x-Guru/dev10x-claude/0.16.0/scripts/foo.sh:*)"
+        rule = (
+            "Bash(/home/user/.claude/plugins/cache/Dev10x-Guru/"
+            "dev10x-claude/0.16.0/scripts/foo.sh:*)"
+        )
 
         assert clean_mod.is_old_version(rule, "0.33.0") is True
 
     def test_current_version_is_not_old(self) -> None:
-        rule = "Bash(/home/user/.claude/plugins/cache/Dev10x-Guru/dev10x-claude/0.33.0/scripts/foo.sh:*)"
+        rule = (
+            "Bash(/home/user/.claude/plugins/cache/Dev10x-Guru/"
+            "dev10x-claude/0.33.0/scripts/foo.sh:*)"
+        )
 
         assert clean_mod.is_old_version(rule, "0.33.0") is False
 
@@ -57,7 +63,10 @@ class TestIsOldVersion:
         assert clean_mod.is_old_version("Bash(git log:*)", "0.33.0") is False
 
     def test_returns_false_when_no_current_version(self) -> None:
-        rule = "Bash(/home/user/.claude/plugins/cache/Dev10x-Guru/dev10x-claude/0.16.0/scripts/foo.sh:*)"
+        rule = (
+            "Bash(/home/user/.claude/plugins/cache/Dev10x-Guru/"
+            "dev10x-claude/0.16.0/scripts/foo.sh:*)"
+        )
 
         assert clean_mod.is_old_version(rule, None) is False
 

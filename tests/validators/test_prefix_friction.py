@@ -124,7 +124,10 @@ class TestCdNoopChain:
 
     def test_blocks_cd_matching_cwd_with_env_git(self, validator: PrefixFrictionValidator) -> None:
         inp = _make_input(
-            command="cd /work/example/.worktrees/app-pos-4 && GIT_SEQUENCE_EDITOR=true git develop-rebase --autosquash",
+            command=(
+                "cd /work/example/.worktrees/app-pos-4 && "
+                "GIT_SEQUENCE_EDITOR=true git develop-rebase --autosquash"
+            ),
             cwd="/work/example/.worktrees/app-pos-4",
         )
         result = validator.validate(inp=inp)

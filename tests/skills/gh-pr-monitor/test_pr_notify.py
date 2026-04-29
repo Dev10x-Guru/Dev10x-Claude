@@ -106,7 +106,10 @@ class TestFormatSlackMessage:
 
 class TestExtractJtbd:
     def test_extracts_when_block(self):
-        body = "## Summary\n\n**When** reconciling payments\n**wants to** see order number\n\n## Details"
+        body = (
+            "## Summary\n\n**When** reconciling payments\n"
+            "**wants to** see order number\n\n## Details"
+        )
         assert (
             extract_jtbd(body=body)
             == "**When** reconciling payments **wants to** see order number"

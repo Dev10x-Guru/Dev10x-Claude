@@ -287,7 +287,9 @@ class TestPythonEntryPointLoadability:
             pytest.param(
                 "dev10x.hooks.edit_validator",
                 marks=pytest.mark.xfail(
-                    reason="Circular import: edit_validator → domain → rule_engine → edit_validator"
+                    reason=(
+                        "Circular import: edit_validator → domain → rule_engine → edit_validator"
+                    )
                 ),
             ),
             "dev10x.commands.hook",
