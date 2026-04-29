@@ -8,9 +8,12 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from dev10x.domain.hook_input import HookResult
+
+if TYPE_CHECKING:
+    from dev10x.domain.rule_engine import RuleEngine
 
 _YAML_PATH = Path(__file__).parent.parent / "validators" / "command-skill-map.yaml"
 
