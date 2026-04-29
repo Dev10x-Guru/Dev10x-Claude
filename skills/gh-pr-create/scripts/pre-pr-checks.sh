@@ -27,7 +27,10 @@ echo "  [2/3] ruff format check..."
 ruff format --check . || { echo "❌ Formatting check failed. Run: ruff format ."; exit 1; }
 
 echo "  [3/3] MyPy type check..."
-mypy . || { echo "❌ MyPy check failed. Fix type errors."; exit 1; }
+# Match the [tool.mypy] mypy_path = "src" config in pyproject.toml.
+# Running `mypy .` tripped on hyphenated test directories (e.g.
+# tests/skills/gh-pr-monitor) which are not valid package names.
+mypy src || { echo "❌ MyPy check failed. Fix type errors."; exit 1; }
 
 echo "✅ All pre-PR static checks passed!"
 echo "ℹ️  Tests are run separately via Skill(Dev10x:py-test) in the shipping pipeline."
