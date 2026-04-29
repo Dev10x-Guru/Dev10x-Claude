@@ -225,6 +225,8 @@ def summarize(*, records: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             elif phase == "wrap":
                 wrap_only.append(rec)
             continue
+        if not isinstance(phase, str):
+            continue
         bucket = by_span.setdefault(span_id, {})
         bucket[phase] = rec
 
