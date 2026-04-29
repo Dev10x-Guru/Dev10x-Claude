@@ -31,6 +31,45 @@ Options:
 - Adjust boundaries — I want to change how the split is organized
 - Abort — Keep the original monolithic commit
 
+## Hook Bypass Rationale (Documented Exception)
+
+CLAUDE.md guidance states: *"Never skip hooks (`--no-verify`) or
+bypass signing unless the user has explicitly asked for it."*
+This skill is one of the few **documented exceptions** to that
+rule, and the bypass is contained to interactive split-rebase
+only.
+
+**Why bypass is permitted here:**
+
+- Every commit produced during a split is an **intermediate state**
+  of an in-progress rebase. Pre-commit hooks that run lint,
+  typecheck, or test gates routinely fail on intentionally
+  incomplete intermediate states (e.g., a refactor commit that
+  removes a class before the new-feature commit adds its
+  replacement).
+- Forcing hooks at every intermediate commit would either block
+  the split entirely or push authors toward worse workarounds
+  (combining commits to satisfy hooks, defeating the skill's
+  purpose).
+- Hooks **are** enforced after the rebase completes — Step 8 runs
+  `git rebase --exec "pre-commit run --all-files" develop`, which
+  re-validates every commit against the full project state.
+
+**Scope of this exception:**
+
+- ✅ Inside `git rebase -i` workflow described below — `--no-verify`
+  used during incremental commit creation, with the rebase exec
+  step running hooks at the end.
+- ❌ Routine standalone commits — MUST use the
+  `Dev10x:git-commit` skill, which never bypasses hooks.
+- ❌ Force pushes, signing bypass, or other guardrails — out of
+  scope for this skill.
+
+Each `git commit --no-verify` in the examples below is annotated
+with a `cli-friction:` comment naming this rationale. If you
+copy a snippet outside the rebase workflow, drop the
+`--no-verify` flag — the bypass justification does not travel.
+
 ## Core Principles
 
 ### Atomic Commits
@@ -169,7 +208,12 @@ EOF
 )"
 ```
 
-**Note**: Use `--no-verify` to skip pre-commit hooks during splitting. Run hooks after all commits are created.
+**Note on `--no-verify`**: This flag is used **only** because each
+intermediate commit may not satisfy lint/typecheck hooks during
+split-rebase. See the "Hook Bypass Rationale" section above for
+the full justification. Step 8 re-runs all hooks via
+`git rebase --exec` once the rebase completes, so the final
+branch state is hook-clean.
 
 ### Step 4: Create Subsequent Commits
 
