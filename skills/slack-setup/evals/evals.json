@@ -4,68 +4,133 @@
     {
       "id": "state_detection",
       "name": "Current State Detection",
-      "description": "Correctly detects existing Slack config, keyring tokens, and env vars before proceeding"
+      "description": "Locates existing tokens (arg, keyring, env) and config before prompting"
     },
     {
-      "id": "decision_gates",
-      "name": "Decision Gate Enforcement",
-      "description": "Uses AskUserQuestion for all 4 decision gates (token type, storage method, config details, verification)"
+      "id": "auth_validation",
+      "name": "auth.test Validation",
+      "description": "Calls auth.test on any located token and short-circuits setup when ok:true; falls through on invalid_auth/token_revoked"
     },
     {
-      "id": "platform_detection",
-      "name": "Cross-Platform Support",
-      "description": "Detects OS and provides correct keyring commands for Linux (secret-tool) and macOS (security)"
+      "id": "keyring_auto_detect",
+      "name": "Keyring Auto-Detection",
+      "description": "Detects running keyring backend (secret-tool + gnome-keyring-daemon/kwalletd on Linux, security on macOS) and defaults to keyring without prompting"
     },
     {
-      "id": "config_generation",
-      "name": "Config File Generation",
-      "description": "Generates valid slack-config.yaml with correct structure (self_user_id, bot_username, user_groups)"
+      "id": "field_derivation",
+      "name": "Config Field Derivation",
+      "description": "Derives bot_username/bot_user_id/team_id from auth.test, self_user_id from users.lookupByEmail, defaults user_groups to {} — only prompts on derivation failure"
+    },
+    {
+      "id": "minimal_prompts",
+      "name": "Prompt Minimization",
+      "description": "Prompts only fire when discovery genuinely fails; pre-configured users see zero AskUserQuestion calls"
     }
   ],
   "evals": [
     {
       "id": 1,
-      "name": "fresh-setup",
+      "name": "preconfigured-token-keyring",
       "prompt": "/Dev10x:slack-setup",
-      "description": "Fresh setup with no existing config or token. Tests full happy-path workflow.",
+      "description": "Token already in keyring, daemon running, config absent. Should auto-validate, derive fields, write config — zero AskUserQuestion calls.",
       "assertions": [
         {
           "check": "tool_called",
-          "tool": "AskUserQuestion",
-          "assertion": "gate1_token_type",
-          "signal": "AskUserQuestion is called for token type selection"
+          "tool": "Bash",
+          "assertion": "calls_auth_test",
+          "signal": "curl POST to slack.com/api/auth.test fires after locating the token"
         },
         {
-          "check": "tool_called",
+          "check": "tool_not_called",
           "tool": "AskUserQuestion",
-          "assertion": "gate2_storage_method",
-          "signal": "AskUserQuestion is called for storage method selection"
+          "assertion": "no_prompts_in_happy_path",
+          "signal": "Zero AskUserQuestion calls when keyring token is valid and fields are derivable"
         },
         {
-          "check": "tool_called",
-          "tool": "AskUserQuestion",
-          "assertion": "gate3_config_details",
-          "signal": "AskUserQuestion is called for config details (user ID, bot name)"
-        },
-        {
-          "check": "tool_called",
-          "tool": "AskUserQuestion",
-          "assertion": "gate4_verification",
-          "signal": "AskUserQuestion is called for verification method selection"
+          "check": "output_contains",
+          "value": "auth.test ok",
+          "assertion": "reports_validation_result",
+          "signal": "Final state report mentions successful auth.test result"
         }
       ]
     },
     {
       "id": 2,
-      "name": "partial-setup-token-exists",
+      "name": "token-via-argument",
+      "prompt": "/Dev10x:slack-setup xoxb-test-token",
+      "description": "Token passed as argument. Should validate via auth.test and skip the token-source prompt.",
+      "assertions": [
+        {
+          "check": "tool_called",
+          "tool": "Bash",
+          "assertion": "validates_arg_token",
+          "signal": "auth.test fires against the argument token"
+        },
+        {
+          "check": "tool_not_called",
+          "tool": "AskUserQuestion",
+          "assertion": "skips_token_source_gate",
+          "signal": "No 'token source' AskUserQuestion when token is passed as arg"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "fresh-setup-no-token",
       "prompt": "/Dev10x:slack-setup",
-      "description": "Token already in keyring but no config file. Should skip token setup steps.",
+      "description": "No token in keyring, env, or args. Should prompt for token source — but not for storage method when keyring daemon is running.",
+      "assertions": [
+        {
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "assertion": "prompts_token_source",
+          "signal": "AskUserQuestion fires for token source (existing/new/user)"
+        },
+        {
+          "check": "tool_called",
+          "tool": "Bash",
+          "assertion": "detects_keyring_backend",
+          "signal": "command -v secret-tool / pgrep keyring-daemon runs to auto-detect storage"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "invalid-token-fallthrough",
+      "prompt": "/Dev10x:slack-setup",
+      "description": "Stale token in keyring returns invalid_auth. Should discard token, report diagnostic, fall through to Step 2.",
       "assertions": [
         {
           "check": "output_contains",
-          "value": "token found",
-          "assertion": "detects_existing_token",
-          "signal": "Agent detects and reports existing token in keyring"
+          "value": "invalid_auth",
+          "assertion": "reports_validation_failure",
+          "signal": "Diagnostic line reports the auth.test error code"
+        },
+        {
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "assertion": "prompts_for_replacement",
+          "signal": "Step 2 token-source prompt fires after invalid token is discarded"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "self-user-id-derivation",
+      "prompt": "/Dev10x:slack-setup",
+      "description": "After auth.test ok, derives self_user_id via users.lookupByEmail using git user.email — without prompting.",
+      "assertions": [
+        {
+          "check": "tool_called",
+          "tool": "Bash",
+          "assertion": "calls_lookup_by_email",
+          "signal": "curl to users.lookupByEmail fires with git config user.email value"
+        },
+        {
+          "check": "tool_not_called",
+          "tool": "AskUserQuestion",
+          "assertion": "no_self_user_id_prompt",
+          "signal": "self_user_id is not prompted when lookup succeeds"
         }
       ]
     }
