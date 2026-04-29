@@ -424,7 +424,7 @@ async def resolve_review_thread(
         if isinstance(repo_result, ErrorResult):
             return repo_result
         return await _pr_comment_resolve(
-            resolved_repo=repo_result.value,
+            resolved_repo=str(repo_result.value),
             comment_ids=comment_ids,
         )
 
@@ -503,7 +503,7 @@ async def request_review(
         return repo_result
     resolved_repo = repo_result.value
 
-    fields: dict[str, str | list[str]] = {}
+    fields: dict[str, str | int | list[str]] = {}
     if team:
         fields["team_reviewers"] = [r.split("/")[-1] for r in reviewers]
     else:
