@@ -2,6 +2,19 @@
 
 This document shows a complete real-world example of splitting a monolithic commit into atomic commits following the principles in the split-commit skill.
 
+## Note on `--no-verify` in this example
+
+The `git commit --no-verify` invocations in the snippets below
+are **scoped to the interactive split-rebase workflow** and are
+the documented exception to CLAUDE.md's general "never skip
+hooks" rule. See `instructions.md` § "Hook Bypass Rationale" for
+the full justification. The exception only covers intermediate
+commits during an active `git rebase -i`; hooks run via
+`git rebase --exec "pre-commit run --all-files"` once the
+rebase completes. Do **not** copy these snippets into routine
+commit flows — use the `Dev10x:git-commit` skill instead, which
+respects hooks.
+
 ## Original Commit
 
 **Commit:** `01b5189e Return remaining item qty with pending return order`
