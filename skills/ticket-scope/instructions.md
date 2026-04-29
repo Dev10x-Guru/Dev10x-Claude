@@ -145,11 +145,26 @@ Order steps by dependencies:
 
 After estimating complexity, draft a Job Story for the ticket using the JTBD framework. This captures the business "why" early — before implementation begins — and will later be used in the PR description and release notes.
 
-**Invoke the `Dev10x:jtbd` base skill in attended mode:**
+**REQUIRED: Call `Skill(Dev10x:jtbd)` in attended mode** (do NOT
+draft the Job Story inline as prose inside the scope document).
+Inline drafting bypasses jtbd's own context-gathering and
+approval gate and breaks reusable orchestration (GH-27).
 
-1. Pass the ticket context already gathered in Phase 1 (ticket details, parent ticket, related tickets) via the `context` parameter to avoid redundant API calls
-2. The `Dev10x:jtbd` skill handles: situation identification, drafting, and user approval
-3. Include the approved Job Story in the scoping document under a `## Job Story` section (right after the title)
+1. Pass the ticket context already gathered in Phase 1 (ticket
+   details, parent ticket, related tickets) via the `context`
+   parameter to avoid redundant API calls
+2. The `Dev10x:jtbd` skill handles: situation identification,
+   drafting, and user approval
+3. Include the approved Job Story (the string returned by the
+   skill) in the scoping document under a `## Job Story` section
+   right after the title
+
+**Anti-pattern (GH-27):** Writing a Job Story sentence directly
+into the scope document Write call without a preceding
+`Skill(Dev10x:jtbd)` invocation. Even when the resulting story
+reads correctly, the skipped delegation is a compliance
+violation — the jtbd skill's own attended-mode approval gate
+must fire.
 
 **Do NOT update the Linear ticket description at this point** — the story is saved in the scoping document and will be applied to the PR later via `Dev10x:ticket-jtbd` or `Dev10x:gh-pr-create`.
 
