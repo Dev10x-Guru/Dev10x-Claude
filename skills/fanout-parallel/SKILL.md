@@ -271,6 +271,31 @@ Present findings via `AskUserQuestion`:
 - File issue — Create GH issue documenting findings
 - Done — Keep findings in this session only
 
+## Child `claude -p` Gotchas
+
+These are non-obvious behaviors of the child subprocess that
+skill authors must know when constructing prompts and budgets.
+
+### `--bare` strips OAuth credentials (GH-30)
+
+Do **NOT** pass `--bare` to a child `claude -p` invocation. The
+flag strips OAuth credentials needed by the child to talk to the
+API, causing immediate authentication failure on the first tool
+call. This is not documented anywhere in the Claude Code CLI
+help text and burned a smoke-test iteration in the GH-4 PoC.
+
+```bash
+# ❌ WRONG — child fails with auth error
+claude -p --bare --max-budget-usd 1.50 "..."
+
+# ✅ CORRECT — child inherits parent's OAuth
+claude -p --max-budget-usd 1.50 "..."
+```
+
+If a child needs to run without parent-context inheritance, find
+an isolation flag that does not strip credentials. As of
+2026-04, no such flag exists — children always inherit OAuth.
+
 ## Known Limitations
 
 - **This is experimental.** Results may vary across Claude Code
