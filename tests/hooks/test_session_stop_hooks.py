@@ -22,14 +22,10 @@ class TestSessionPersist:
     def test_creates_state_file(self, runner: CliRunner, tmp_path: Path) -> None:
         import dev10x.hooks.session as mod
 
-        state_dir = tmp_path / ".claude" / "projects" / "_session_state"
-
         def fake_toplevel() -> str:
             return str(tmp_path / "myproject")
 
         (tmp_path / "myproject").mkdir(parents=True)
-
-        original_home = Path.home
 
         def fake_home() -> Path:
             return tmp_path

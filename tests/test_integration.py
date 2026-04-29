@@ -56,7 +56,6 @@ class TestConfigCaching:
         if not yaml_path.exists():
             pytest.skip("command-skill-map.yaml not found")
 
-        cache_path = tmp_path / "config.msgpack"
         yaml_copy = tmp_path / "config.yaml"
         yaml_copy.write_text(yaml_path.read_text())
 

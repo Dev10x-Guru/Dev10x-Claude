@@ -100,7 +100,7 @@ class TestFormatPlanSummary:
 
     def test_excludes_completed_from_remaining(self, plan: dict) -> None:
         result = _format_plan_summary(plan=plan)
-        lines = [l for l in result.splitlines() if "Set up workspace" in l]
+        lines = [line for line in result.splitlines() if "Set up workspace" in line]
         assert not lines
 
     def test_includes_work_type(self, plan: dict) -> None:

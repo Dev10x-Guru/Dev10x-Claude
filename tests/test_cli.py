@@ -71,7 +71,7 @@ class TestLazyGroup:
         group._lazy_subcommands["dummy"] = f"{dummy_cmd.__module__}.dummy_cmd"
 
         ctx = click.Context(group)
-        cmd = group.get_command(ctx=ctx, cmd_name="hook")
+        group.get_command(ctx=ctx, cmd_name="hook")
 
         # hook is a real lazy subcommand in cli
         result = cli.get_command(ctx=click.Context(cli), cmd_name="hook")
