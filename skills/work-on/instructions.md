@@ -832,6 +832,36 @@ reviews are separate GitHub check runs that may still be PENDING
 when core CI passes. Verify via `gh pr checks` that zero checks
 remain in PENDING or IN_PROGRESS state before marking complete.
 
+### Skill Partial-Read Downgrade Prohibition (GH-44)
+
+**Hard rule:** Once you invoke a `Skill()`, you MUST follow its
+documented orchestration through to completion. Reading the first
+N lines, deciding the skill is "too heavy" or "dispatches a
+background agent we don't need", and substituting a "lighter"
+direct-CLI alternative is a violation. The skill's design — including
+background dispatch, gates, and side effects — is the contract.
+
+**Anti-pattern (GH-44):** Agent invokes
+`Skill(Dev10x:gh-pr-monitor)`, partially reads instructions.md
+(e.g., `Read(..., limit=100)`), encounters background-agent
+dispatch logic, rationalizes "this is overkill, let me just run
+`gh pr checks --watch` synchronously", and bypasses the skill.
+The rationalization "auto-advance pressure means I should pick
+the lightest path" is exactly what GH-932 warned against:
+"unattended mode changes the *pace*, not the *rules*."
+
+**Detection signal:** If you find yourself thinking "this skill
+is heavy, let me do simpler X instead" while inside a Skill()
+invocation, STOP. Either complete the skill as documented or
+abort the invocation explicitly and re-justify the substitution
+to the user via `AskUserQuestion`. Silent downgrade is forbidden.
+
+**Read fully before acting:** When delegating to a skill, read
+its `instructions.md` to completion (or until you hit the section
+relevant to your invocation context) before executing any
+substitute. Partial reads followed by substitutions miss
+guardrails that appear later in the file.
+
 ### Post-PR Review-Comment Routing (GH-43)
 
 **Hard rule:** ANY review comment on the PR — human OR bot
