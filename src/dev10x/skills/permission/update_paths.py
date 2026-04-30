@@ -21,12 +21,16 @@ from pathlib import Path
 import yaml
 
 MEMORY_CONFIG = Path.home() / ".claude" / "memory" / "Dev10x" / "projects.yaml"
-USERSPACE_CONFIG = Path.home() / ".claude" / "skills" / "Dev10x:upgrade-cleanup" / "projects.yaml"
+USERSPACE_CONFIG = (
+    Path.home() / ".claude" / "skills" / "Dev10x:upgrade-cleanup" / "projects.yaml"
+)
 PLUGIN_CONFIG = (
     Path(__file__).resolve().parents[4] / "skills" / "upgrade-cleanup" / "projects.yaml"
 )
 PLUGIN_NAMES = r"(?:Dev10x|dev10x-claude)"
-VERSION_PATTERN = re.compile(rf"(plugins/cache/)([^/]+)(/{PLUGIN_NAMES}/)(\d+\.\d+\.\d+)")
+VERSION_PATTERN = re.compile(
+    rf"(plugins/cache/)([^/]+)(/{PLUGIN_NAMES}/)(\d+\.\d+\.\d+)"
+)
 
 
 def extract_cache_publisher(plugin_cache: str) -> str | None:
@@ -216,8 +220,12 @@ def ensure_base_permissions(
             live_data["permissions"]["allow"].extend(expanded_tools)
             live_data["permissions"]["allow"].extend(missing)
 
-    messages = [f"  - {wc}  (non-functional MCP wildcard removed)" for wc in stale_wildcards]
-    messages.extend(f"  + {tool}  (expanded from MCP wildcard)" for tool in expanded_tools)
+    messages = [
+        f"  - {wc}  (non-functional MCP wildcard removed)" for wc in stale_wildcards
+    ]
+    messages.extend(
+        f"  + {tool}  (expanded from MCP wildcard)" for tool in expanded_tools
+    )
     messages.extend(f"  + {p}" for p in missing)
     return len(missing) + len(stale_wildcards) + len(expanded_tools), messages
 
@@ -443,6 +451,98 @@ def _load_global_allow_rules() -> tuple[set[str], list[str]]:
         return set(), []
 
 
+def ensure_workspace_directories(
+    path: Path,
+    workspace_dirs: list[str],
+    *,
+    dry_run: bool = False,
+) -> tuple[int, list[str]]:
+    """Add missing entries to permissions.additionalDirectories.
+
+    Allow-rules like Write(/tmp/Dev10x/**) don't cover paths outside
+    the project root — Claude Code requires the directory to be
+    registered as an additional working directory (GH-40). This
+    function ensures the configured workspace dirs are present.
+
+    Returns (count_added, messages).
+    """
+    content = path.read_text()
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError as e:
+        return 0, [f"  SKIP (invalid JSON): {e}"]
+
+    permissions = data.get("permissions", {})
+    existing = list(permissions.get("additionalDirectories", []))
+    missing = [d for d in workspace_dirs if d not in existing]
+
+    if not missing:
+        return 0, []
+
+    if not dry_run:
+        from dev10x.skills.permission.backup import create_backup
+        from dev10x.skills.permission.file_lock import locked_json_update
+
+        create_backup(path)
+        with locked_json_update(path=path) as live_data:
+            if "permissions" not in live_data:
+                live_data["permissions"] = {}
+            current = live_data["permissions"].get("additionalDirectories", [])
+            for d in workspace_dirs:
+                if d not in current:
+                    current.append(d)
+            live_data["permissions"]["additionalDirectories"] = current
+
+    messages = [f"  + additionalDirectories: {d}" for d in missing]
+    return len(missing), messages
+
+
+def _ensure_workspace(
+    *,
+    config: dict,
+    settings_files: list[Path],
+    dry_run: bool,
+    quiet: bool = False,
+) -> int:
+    workspace_dirs = config.get("workspace_directories", [])
+    if not workspace_dirs:
+        if not quiet:
+            print("No workspace_directories defined in config.")
+        return 0
+
+    if not quiet:
+        print(f"Workspace directories: {len(workspace_dirs)} entr(ies)")
+        for d in workspace_dirs:
+            print(f"  - {d}")
+        if dry_run:
+            print("(dry run — no files will be modified)\n")
+
+    total_added = 0
+    files_changed = 0
+
+    for path in sorted(settings_files):
+        count, messages = ensure_workspace_directories(
+            path,
+            workspace_dirs,
+            dry_run=dry_run,
+        )
+        if count > 0:
+            if not quiet:
+                print(f"\n{path}")
+                for msg in messages:
+                    print(msg)
+            total_added += count
+            files_changed += 1
+
+    if total_added == 0:
+        print("All settings files already register the workspace directories.")
+    else:
+        verb = "Would add" if dry_run else "Added"
+        print(f"{verb} {total_added} workspace entries across {files_changed} files.")
+
+    return 0
+
+
 def _ensure_base(
     *,
     config: dict,
@@ -622,12 +722,16 @@ def _detect_plugin_cache() -> str:
                 candidates.append(plugin_dir)
                 break
     if len(candidates) == 1:
-        return f"~/.claude/plugins/cache/{candidates[0].parent.name}/{candidates[0].name}"
+        return (
+            f"~/.claude/plugins/cache/{candidates[0].parent.name}/{candidates[0].name}"
+        )
     if len(candidates) > 1:
         names = ", ".join(f"{c.parent.name}/{c.name}" for c in candidates)
         print(f"Multiple plugin cache entries found: {names}")
         print(f"Using first match: {candidates[0].parent.name}/{candidates[0].name}")
-        return f"~/.claude/plugins/cache/{candidates[0].parent.name}/{candidates[0].name}"
+        return (
+            f"~/.claude/plugins/cache/{candidates[0].parent.name}/{candidates[0].name}"
+        )
     return "~/.claude/plugins/cache/Dev10x-Guru/Dev10x"
 
 
@@ -639,7 +743,9 @@ def _init_userspace_config() -> int:
         print(f"Config already exists: {USERSPACE_CONFIG}")
         return 0
     if not PLUGIN_CONFIG.is_file():
-        print(f"ERROR: Plugin default config not found: {PLUGIN_CONFIG}", file=sys.stderr)
+        print(
+            f"ERROR: Plugin default config not found: {PLUGIN_CONFIG}", file=sys.stderr
+        )
         return 1
     USERSPACE_CONFIG.parent.mkdir(parents=True, exist_ok=True)
     content = PLUGIN_CONFIG.read_text()

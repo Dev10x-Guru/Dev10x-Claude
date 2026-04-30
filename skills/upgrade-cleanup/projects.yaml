@@ -15,6 +15,14 @@ roots: []
 
 include_user_settings: true
 
+# Workspace directories that must be registered with Claude Code for
+# Write/Edit/Read tools to operate without per-call permission prompts.
+# Allow-rules alone are NOT sufficient for paths outside the project
+# root (GH-40). These are added under permissions.additionalDirectories
+# in every settings file.
+workspace_directories:
+  - /tmp/Dev10x
+
 # Base permissions that update-paths.py --ensure-base will add to every
 # settings.local.json if missing.  These are stable, version-independent
 # rules that every Dev10x plugin user needs.
@@ -227,8 +235,8 @@ base_permissions:
   # via direct script paths already enumerated under "Plugin
   # scripts". The rules below cover explicit Bash invocations
   # of `uv run` for tests, lint, and CLI usage.
-  - "Bash(uv run pytest:*)"
-  - "Bash(uv run --extra dev pytest:*)"
+  - "Bash(uv run pytest:*)" # cli-friction: allow raw-pytest — base allow rule for plugin-maintenance, not a skill doc
+  - "Bash(uv run --extra dev pytest:*)" # cli-friction: allow raw-pytest — base allow rule for plugin-maintenance, not a skill doc
   - "Bash(uv run ruff:*)"
   - "Bash(uv run dev10x:*)"
 

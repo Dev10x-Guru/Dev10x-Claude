@@ -14,7 +14,10 @@ def permission() -> None:
 @permission.command(name="update-paths")
 @click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
 @click.option(
-    "--version", "target_version", default=None, help="Target version (default: auto-detect)"
+    "--version",
+    "target_version",
+    default=None,
+    help="Target version (default: auto-detect)",
 )
 @click.option("--quiet", is_flag=True, help="Suppress per-file details")
 @click.option(
@@ -22,7 +25,9 @@ def permission() -> None:
     is_flag=True,
     help="Print one line per changed file (count) instead of full per-file details",
 )
-@click.option("--restore", is_flag=True, help="Restore settings from most recent backups")
+@click.option(
+    "--restore", is_flag=True, help="Restore settings from most recent backups"
+)
 def update_paths(
     *,
     dry_run: bool,
@@ -148,6 +153,39 @@ def generalize(*, dry_run: bool, quiet: bool) -> None:
     )
 
 
+@permission.command(name="ensure-workspace")
+@click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
+@click.option("--quiet", is_flag=True, help="Suppress per-file details")
+def ensure_workspace(*, dry_run: bool, quiet: bool) -> None:
+    """Register workspace directories (e.g. /tmp/Dev10x) in settings files.
+
+    Paths outside the project root require registration under
+    permissions.additionalDirectories — allow-rules alone are not
+    sufficient (GH-40).
+    """
+    from dev10x.skills.permission import update_paths as mod
+
+    config_path = mod.find_config()
+    config = mod.load_config(config_path)
+
+    settings_files = mod.find_settings_files(
+        roots=config.get("roots", []),
+        include_user=config.get("include_user_settings", True),
+    )
+    if not settings_files:
+        click.echo("No settings files found.")
+        return
+
+    sys.exit(
+        mod._ensure_workspace(
+            config=config,
+            settings_files=settings_files,
+            dry_run=dry_run,
+            quiet=quiet,
+        )
+    )
+
+
 @permission.command(name="ensure-scripts")
 @click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
 @click.option("--quiet", is_flag=True, help="Suppress per-file details")
@@ -192,7 +230,9 @@ def init() -> None:
     is_flag=True,
     help="Print one line per changed file (count) instead of full per-file details",
 )
-@click.option("--restore", is_flag=True, help="Restore settings from most recent backups")
+@click.option(
+    "--restore", is_flag=True, help="Restore settings from most recent backups"
+)
 def clean(*, dry_run: bool, verbose: bool, summary: bool, restore: bool) -> None:
     """Clean redundant permissions from project settings files."""
     from dev10x.skills.permission import clean_project_files as mod
@@ -314,7 +354,9 @@ def enumerate_mcp(*, dry_run: bool, quiet: bool) -> None:
 
 @permission.command(name="merge-worktree")
 @click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
-@click.option("--restore", is_flag=True, help="Restore settings from most recent backups")
+@click.option(
+    "--restore", is_flag=True, help="Restore settings from most recent backups"
+)
 def merge_worktree(*, dry_run: bool, restore: bool) -> None:
     """Merge worktree permissions back into main project settings."""
     from dev10x.skills.permission import merge_worktree_permissions as mod
@@ -356,10 +398,14 @@ def merge_worktree(*, dry_run: bool, restore: bool) -> None:
             total_merged += count
             projects_changed += 1
         else:
-            click.echo(f"\n{main_project} — up to date ({len(worktree_dirs)} worktrees)")
+            click.echo(
+                f"\n{main_project} — up to date ({len(worktree_dirs)} worktrees)"
+            )
 
     if total_merged == 0:
         click.echo("\nAll projects up to date.")
     else:
         verb = "Would merge" if dry_run else "Merged"
-        click.echo(f"\n{verb} {total_merged} permissions into {projects_changed} projects.")
+        click.echo(
+            f"\n{verb} {total_merged} permissions into {projects_changed} projects."
+        )

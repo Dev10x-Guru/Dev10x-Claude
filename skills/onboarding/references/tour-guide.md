@@ -96,12 +96,14 @@ If user chooses setup:
 `Skill(skill="Dev10x:plugin-maintenance", args="bootstrap")`
 
 The bootstrap pass runs only the steps a new user needs:
-migrate any leftover legacy config files, ensure base
-permissions, and confirm script coverage. It skips the heavier
-post-upgrade steps (path version bumps, generalization, full
-permission audit, project-settings dedup) — those remain
-available via `/Dev10x:upgrade-cleanup` whenever the user wants
-the comprehensive sweep.
+migrate any leftover legacy config files, register the
+`/tmp/Dev10x` workspace directory (GH-40 — without this every
+Write/Edit to `/tmp/Dev10x/...` prompts despite allow-rules),
+ensure base permissions, and confirm script coverage. It skips
+the heavier post-upgrade steps (path version bumps,
+generalization, full permission audit, project-settings dedup)
+— those remain available via `/Dev10x:upgrade-cleanup` whenever
+the user wants the comprehensive sweep.
 
 ### 2.3 PR Pipeline Demo
 

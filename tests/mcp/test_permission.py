@@ -82,6 +82,7 @@ class TestUpdatePathsSubCommandRoute:
             ensure_base=True,
             generalize=False,
             ensure_scripts=False,
+            ensure_workspace=False,
             dry_run=True,
             quiet=False,
         )
@@ -99,6 +100,7 @@ class TestUpdatePathsSubCommandRoute:
             ensure_base=False,
             generalize=True,
             ensure_scripts=False,
+            ensure_workspace=False,
             dry_run=False,
             quiet=False,
         )
@@ -116,6 +118,7 @@ class TestUpdatePathsSubCommandRoute:
             ensure_base=False,
             generalize=False,
             ensure_scripts=True,
+            ensure_workspace=False,
             dry_run=False,
             quiet=False,
         )

@@ -19,6 +19,7 @@ def _run_sub_command(
     ensure_base: bool = False,
     generalize: bool = False,
     ensure_scripts: bool = False,
+    ensure_workspace: bool = False,
     dry_run: bool = False,
     quiet: bool = False,
 ) -> dict[str, Any]:
@@ -37,7 +38,14 @@ def _run_sub_command(
     rc = 0
 
     with redirect_stdout(buf):
-        if ensure_base:
+        if ensure_workspace:
+            rc = mod._ensure_workspace(
+                config=config,
+                settings_files=settings_files,
+                dry_run=dry_run,
+                quiet=quiet,
+            )
+        if ensure_base and rc == 0:
             rc = mod._ensure_base(
                 config=config,
                 settings_files=settings_files,
@@ -71,15 +79,17 @@ async def update_paths(
     ensure_base: bool = False,
     generalize: bool = False,
     ensure_scripts: bool = False,
+    ensure_workspace: bool = False,
     init: bool = False,
     quiet: bool = False,
 ) -> dict[str, Any]:
-    if ensure_base or generalize or ensure_scripts:
+    if ensure_base or generalize or ensure_scripts or ensure_workspace:
         return await asyncio.to_thread(
             _run_sub_command,
             ensure_base=ensure_base,
             generalize=generalize,
             ensure_scripts=ensure_scripts,
+            ensure_workspace=ensure_workspace,
             dry_run=dry_run,
             quiet=quiet,
         )

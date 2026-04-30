@@ -67,20 +67,22 @@ on the mode. Execute these `TaskCreate` calls at startup:
 **Bootstrap mode:**
 
 1. `TaskCreate(subject="Migrate config files", activeForm="Migrating configs")`
-2. `TaskCreate(subject="Ensure base permissions", activeForm="Ensuring base perms")`
-3. `TaskCreate(subject="Ensure script coverage", activeForm="Verifying script rules")`
+2. `TaskCreate(subject="Ensure workspace directories", activeForm="Registering workspace dirs")`
+3. `TaskCreate(subject="Ensure base permissions", activeForm="Ensuring base perms")`
+4. `TaskCreate(subject="Ensure script coverage", activeForm="Verifying script rules")`
 
 **Full mode:**
 
 1. `TaskCreate(subject="Update version paths", activeForm="Updating paths")`
 2. `TaskCreate(subject="Migrate config files", activeForm="Migrating configs")`
-3. `TaskCreate(subject="Ensure base permissions", activeForm="Ensuring base perms")`
-4. `TaskCreate(subject="Generalize session-specific permissions", activeForm="Generalizing perms")`
-5. `TaskCreate(subject="Enumerate MCP tool globs", activeForm="Enumerating MCP globs")`
-6. `TaskCreate(subject="Ensure script coverage", activeForm="Verifying script rules")`
-7. `TaskCreate(subject="Merge worktree permissions", activeForm="Merging worktree perms")`
-8. `TaskCreate(subject="Audit permissions for friction", activeForm="Auditing permissions")`
-9. `TaskCreate(subject="Clean project files", activeForm="Cleaning project files")`
+3. `TaskCreate(subject="Ensure workspace directories", activeForm="Registering workspace dirs")`
+4. `TaskCreate(subject="Ensure base permissions", activeForm="Ensuring base perms")`
+5. `TaskCreate(subject="Generalize session-specific permissions", activeForm="Generalizing perms")`
+6. `TaskCreate(subject="Enumerate MCP tool globs", activeForm="Enumerating MCP globs")`
+7. `TaskCreate(subject="Ensure script coverage", activeForm="Verifying script rules")`
+8. `TaskCreate(subject="Merge worktree permissions", activeForm="Merging worktree perms")`
+9. `TaskCreate(subject="Audit permissions for friction", activeForm="Auditing permissions")`
+10. `TaskCreate(subject="Clean project files", activeForm="Cleaning project files")`
 
 Set sequential dependencies. Mark each step `in_progress` when
 starting and `completed` when done. Steps that produce no
@@ -148,7 +150,24 @@ For each file:
 4. `mv` source to destination
 5. Report what moved
 
-### 3. Ensure base permissions **[bootstrap]**
+### 3. Ensure workspace directories **[bootstrap]** (GH-40)
+
+Register paths outside the project root (e.g. `/tmp/Dev10x`) under
+`permissions.additionalDirectories` in every settings file. Allow-rules
+like `Write(/tmp/Dev10x/**)` are NOT sufficient — Claude Code requires
+the directory to be registered as an additional working directory
+or it prompts on every Write/Edit/Read until the user runs
+`/permissions add /tmp/Dev10x` interactively.
+
+Directories registered come from `workspace_directories:` in
+`${CLAUDE_PLUGIN_ROOT}/skills/upgrade-cleanup/projects.yaml`.
+
+```bash
+mcp__plugin_Dev10x_cli__update_paths(ensure_workspace=true, dry_run=true)
+mcp__plugin_Dev10x_cli__update_paths(ensure_workspace=true)
+```
+
+### 4. Ensure base permissions **[bootstrap]**
 
 Add missing base permissions (gh CLI, /tmp/Dev10x paths, git ops,
 MCP tools, Dev10x config file RWE access) to all settings files.
@@ -178,7 +197,7 @@ mcp__plugin_Dev10x_cli__update_paths(ensure_base=true, dry_run=true)
 mcp__plugin_Dev10x_cli__update_paths(ensure_base=true)
 ```
 
-### 4. Generalize session-specific permissions *(full only)*
+### 5. Generalize session-specific permissions *(full only)*
 
 Replace permission rules containing session-specific arguments
 (ticket IDs, PR numbers, temp file hashes) with generalized
@@ -203,7 +222,7 @@ mcp__plugin_Dev10x_cli__update_paths(generalize=true)
 - `generate-commit-list.sh 42` → `generate-commit-list.sh *`
 - `/tmp/Dev10x/git/msg.AbCdEf.txt` → `/tmp/Dev10x/git/**`
 
-### 5. Enumerate MCP tool globs *(full only)*
+### 6. Enumerate MCP tool globs *(full only)*
 
 Claude Code does not expand `mcp__plugin_Dev10x_*` globs in allow
 rules — glob-shaped MCP rules match nothing. This step discovers
@@ -226,7 +245,7 @@ ${CLAUDE_PLUGIN_ROOT}/skills/upgrade-cleanup/scripts/enumerate-mcp.py --dry-run
 ${CLAUDE_PLUGIN_ROOT}/skills/upgrade-cleanup/scripts/enumerate-mcp.py
 ```
 
-### 6. Ensure script coverage **[bootstrap]**
+### 7. Ensure script coverage **[bootstrap]**
 
 Verify that all callable scripts in the current plugin version
 have individual allow rules in each settings file. New plugin
@@ -249,7 +268,7 @@ mcp__plugin_Dev10x_cli__update_paths(ensure_scripts=true)
 - `hooks/scripts/*.py`, `hooks/scripts/*.sh` — hook implementations
 - `skills/*/scripts/*.py`, `skills/*/scripts/*.sh` — skill scripts
 
-### 7. Merge worktree permissions *(full only)*
+### 8. Merge worktree permissions *(full only)*
 
 Worktrees accumulate allow rules during sessions that the main
 project never sees. This script collects stable permissions from
@@ -270,7 +289,7 @@ ${CLAUDE_PLUGIN_ROOT}/skills/upgrade-cleanup/scripts/merge-worktree-permissions.
 Session-specific noise is filtered out automatically; only
 stable, reusable permissions are merged.
 
-### 8. Audit permissions for friction *(full only)*
+### 9. Audit permissions for friction *(full only)*
 
 Dispatch the `permission-auditor` agent to perform a comprehensive
 7-phase security and friction audit. The agent analyzes:
@@ -296,7 +315,7 @@ Agent(subagent_type="Dev10x:permission-auditor",
 The agent produces a severity-categorized report with specific
 fix proposals. Review and apply selectively.
 
-### 9. Clean project files *(full only)*
+### 10. Clean project files *(full only)*
 
 Strip redundant rules from project `settings.local.json` files
 that are now covered by global `~/.claude/settings.json`. Also
