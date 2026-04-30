@@ -5,12 +5,12 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-rel_mod = pytest.importorskip("dev10x.mcp.release", reason="dev10x not installed")
+rel_mod = pytest.importorskip("dev10x.release", reason="dev10x not installed")
 
 
 class TestCollectPrs:
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.release.async_run", new_callable=AsyncMock)
+    @patch("dev10x.release.async_run", new_callable=AsyncMock)
     async def test_returns_output_on_success(
         self,
         mock_run: AsyncMock,
@@ -25,7 +25,7 @@ class TestCollectPrs:
         assert result["success"] is True
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.release.async_run", new_callable=AsyncMock)
+    @patch("dev10x.release.async_run", new_callable=AsyncMock)
     async def test_returns_error_on_failure(
         self,
         mock_run: AsyncMock,
@@ -40,7 +40,7 @@ class TestCollectPrs:
         assert "error" in result
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.release.async_run", new_callable=AsyncMock)
+    @patch("dev10x.release.async_run", new_callable=AsyncMock)
     async def test_passes_optional_args(
         self,
         mock_run: AsyncMock,

@@ -26,7 +26,7 @@ async def query(
     Returns:
         Dictionary with keys: columns (list), rows (list of tuples), row_count (int)
     """
-    from dev10x.mcp import db as db_tools
+    from dev10x import db as db_tools
 
     return db_tools.query(database=database, sql=sql).to_dict()
 

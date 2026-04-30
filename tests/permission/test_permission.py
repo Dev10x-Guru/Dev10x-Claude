@@ -5,14 +5,14 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-perm_mod = pytest.importorskip("dev10x.mcp.permission", reason="dev10x not installed")
+perm_mod = pytest.importorskip("dev10x.permission", reason="dev10x not installed")
 
 MOD_PATH = "dev10x.skills.permission.update_paths"
 
 
 class TestUpdatePathsScriptRoute:
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.permission.async_run", new_callable=AsyncMock)
+    @patch("dev10x.permission.async_run", new_callable=AsyncMock)
     async def test_returns_output_on_success(
         self,
         mock_run: AsyncMock,
@@ -28,7 +28,7 @@ class TestUpdatePathsScriptRoute:
         assert "Updated 3 files" in result["output"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.permission.async_run", new_callable=AsyncMock)
+    @patch("dev10x.permission.async_run", new_callable=AsyncMock)
     async def test_returns_error_on_failure(
         self,
         mock_run: AsyncMock,
@@ -43,7 +43,7 @@ class TestUpdatePathsScriptRoute:
         assert "error" in result
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.permission.async_run", new_callable=AsyncMock)
+    @patch("dev10x.permission.async_run", new_callable=AsyncMock)
     async def test_passes_script_flags(
         self,
         mock_run: AsyncMock,
@@ -70,7 +70,7 @@ class TestUpdatePathsScriptRoute:
 
 class TestUpdatePathsSubCommandRoute:
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.permission._run_sub_command")
+    @patch("dev10x.permission._run_sub_command")
     async def test_ensure_base_routes_to_sub_command(
         self,
         mock_sub: AsyncMock,
@@ -89,7 +89,7 @@ class TestUpdatePathsSubCommandRoute:
         )
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.permission._run_sub_command")
+    @patch("dev10x.permission._run_sub_command")
     async def test_generalize_routes_to_sub_command(
         self,
         mock_sub: AsyncMock,
@@ -108,7 +108,7 @@ class TestUpdatePathsSubCommandRoute:
         )
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.permission._run_sub_command")
+    @patch("dev10x.permission._run_sub_command")
     async def test_ensure_scripts_routes_to_sub_command(
         self,
         mock_sub: AsyncMock,
@@ -146,8 +146,8 @@ class TestUpdatePathsSubCommandRoute:
         )
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.permission.async_run", new_callable=AsyncMock)
-    @patch("dev10x.mcp.permission._run_sub_command")
+    @patch("dev10x.permission.async_run", new_callable=AsyncMock)
+    @patch("dev10x.permission._run_sub_command")
     async def test_sub_command_flags_do_not_reach_script(
         self,
         mock_sub: AsyncMock,

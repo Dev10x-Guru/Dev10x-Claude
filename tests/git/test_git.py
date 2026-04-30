@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from dev10x.domain.result import ErrorResult, SuccessResult
-from dev10x.mcp.git import mass_rewrite, rebase_groom
+from dev10x.git import mass_rewrite, rebase_groom
 
 
 def _completed(
@@ -45,7 +45,7 @@ class TestRebaseGroomConflictDetection:
         return _completed(stdout="commits_rewritten=3")
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.git.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
     async def test_returns_conflict_info_on_conflict(
         self,
         mock_run_script: AsyncMock,
@@ -61,7 +61,7 @@ class TestRebaseGroomConflictDetection:
         assert result.details["rebase_head"] == "abc1234"
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.git.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
     async def test_returns_error_on_non_conflict_failure(
         self,
         mock_run_script: AsyncMock,
@@ -76,7 +76,7 @@ class TestRebaseGroomConflictDetection:
         assert result.error == "fatal: invalid upstream"
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.git.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
     async def test_returns_parsed_output_on_success(
         self,
         mock_run_script: AsyncMock,
@@ -118,7 +118,7 @@ class TestMassRewriteConflictDetection:
         return _completed(stdout="Done. New log:\nabc1234 Enable feature")
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.git.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
     async def test_returns_conflict_info_on_conflict(
         self,
         mock_run_script: AsyncMock,
@@ -134,7 +134,7 @@ class TestMassRewriteConflictDetection:
         assert result.details["rebase_head"] == "def5678"
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.git.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
     async def test_returns_error_on_non_conflict_failure(
         self,
         mock_run_script: AsyncMock,
@@ -149,7 +149,7 @@ class TestMassRewriteConflictDetection:
         assert result.error == "Rebase failed."
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.git.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
     async def test_returns_output_on_success(
         self,
         mock_run_script: AsyncMock,

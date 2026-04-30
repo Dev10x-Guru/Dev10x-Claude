@@ -5,12 +5,12 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-monitor_mod = pytest.importorskip("dev10x.mcp.monitor", reason="dev10x not installed")
+monitor_mod = pytest.importorskip("dev10x.monitor", reason="dev10x not installed")
 
 
 class TestCiCheckStatus:
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.monitor.async_run", new_callable=AsyncMock)
+    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
     async def test_returns_verdict_on_success(
         self,
         mock_run: AsyncMock,
@@ -26,7 +26,7 @@ class TestCiCheckStatus:
         assert result["total"] == 3
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.monitor.async_run", new_callable=AsyncMock)
+    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
     async def test_returns_error_on_failure(
         self,
         mock_run: AsyncMock,
@@ -41,7 +41,7 @@ class TestCiCheckStatus:
         assert "error" in result
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.monitor.async_run", new_callable=AsyncMock)
+    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
     async def test_returns_error_on_invalid_json(
         self,
         mock_run: AsyncMock,
@@ -56,7 +56,7 @@ class TestCiCheckStatus:
         assert "error" in result
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.monitor.async_run", new_callable=AsyncMock)
+    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
     async def test_passes_wait_flags(
         self,
         mock_run: AsyncMock,
@@ -82,7 +82,7 @@ class TestCiCheckStatus:
         assert "10" in args_list
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.monitor.async_run", new_callable=AsyncMock)
+    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
     async def test_passes_required_only_flag(
         self,
         mock_run: AsyncMock,

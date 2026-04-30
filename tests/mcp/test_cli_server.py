@@ -233,18 +233,14 @@ class TestDetectTracker:
 
 class TestMktmp:
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.utilities.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.utilities.async_run_script", new_callable=AsyncMock)
     async def test_returns_path_without_creating_file_by_default(
         self,
         mock_run: AsyncMock,
     ) -> None:
-        mock_run.return_value = _completed(
-            stdout="/tmp/Dev10x/git/commit-msg.abc123.txt"
-        )
+        mock_run.return_value = _completed(stdout="/tmp/Dev10x/git/commit-msg.abc123.txt")
 
-        result = await cli_server.mktmp(
-            namespace="git", prefix="commit-msg", ext=".txt"
-        )
+        result = await cli_server.mktmp(namespace="git", prefix="commit-msg", ext=".txt")
 
         assert result["path"] == "/tmp/Dev10x/git/commit-msg.abc123.txt"
         called_args = mock_run.call_args.args
@@ -252,7 +248,7 @@ class TestMktmp:
         assert "-d" not in called_args
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.utilities.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.utilities.async_run_script", new_callable=AsyncMock)
     async def test_passes_create_flag_when_requested(
         self,
         mock_run: AsyncMock,
@@ -271,16 +267,14 @@ class TestMktmp:
         assert "-d" not in called_args
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.utilities.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.utilities.async_run_script", new_callable=AsyncMock)
     async def test_creates_temp_directory(
         self,
         mock_run: AsyncMock,
     ) -> None:
         mock_run.return_value = _completed(stdout="/tmp/Dev10x/audit/session.abc123")
 
-        result = await cli_server.mktmp(
-            namespace="audit", prefix="session", directory=True
-        )
+        result = await cli_server.mktmp(namespace="audit", prefix="session", directory=True)
 
         assert result["path"] == "/tmp/Dev10x/audit/session.abc123"
         called_args = mock_run.call_args.args
@@ -288,7 +282,7 @@ class TestMktmp:
         assert "--create" not in called_args
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.utilities.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.utilities.async_run_script", new_callable=AsyncMock)
     async def test_directory_mode_ignores_create_flag(
         self,
         mock_run: AsyncMock,
@@ -307,7 +301,7 @@ class TestMktmp:
         assert "--create" not in called_args
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.utilities.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.utilities.async_run_script", new_callable=AsyncMock)
     async def test_returns_error_on_failure(
         self,
         mock_run: AsyncMock,
@@ -430,7 +424,7 @@ class TestPrDetect:
 
 class TestNextWorktreeName:
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.git.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
     async def test_calculates_next_worktree_number(
         self,
         mock_run: AsyncMock,
@@ -442,7 +436,7 @@ class TestNextWorktreeName:
         assert "path" in result
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.git.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
     async def test_handles_error_in_calculation(
         self,
         mock_run: AsyncMock,
@@ -456,7 +450,7 @@ class TestNextWorktreeName:
 
 class TestSetupAliases:
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.git.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
     async def test_sets_up_git_aliases(
         self,
         mock_run: AsyncMock,
@@ -469,7 +463,7 @@ class TestSetupAliases:
         assert result.get("success") is True
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.git.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
     async def test_handles_alias_setup_error(
         self,
         mock_run: AsyncMock,
@@ -542,7 +536,7 @@ class TestPrePrChecks:
 
 class TestRebaseGroom:
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.git.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
     async def test_rebases_and_grooms_commits(
         self,
         mock_run: AsyncMock,
@@ -556,7 +550,7 @@ class TestRebaseGroom:
 
 class TestCreateWorktree:
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.git.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
     async def test_creates_worktree(
         self,
         mock_run: AsyncMock,
@@ -570,7 +564,7 @@ class TestCreateWorktree:
         assert "WORKTREE_PATH" in result
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.git.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
     async def test_handles_worktree_creation_error(
         self,
         mock_run: AsyncMock,

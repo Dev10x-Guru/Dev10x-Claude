@@ -5,12 +5,12 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-audit_mod = pytest.importorskip("dev10x.mcp.audit", reason="dev10x not installed")
+audit_mod = pytest.importorskip("dev10x.audit", reason="dev10x not installed")
 
 
 class TestExtractSession:
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.audit.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.audit.async_run_script", new_callable=AsyncMock)
     async def test_returns_output_on_success(
         self,
         mock_run: AsyncMock,
@@ -25,7 +25,7 @@ class TestExtractSession:
         assert result["success"] is True
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.audit.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.audit.async_run_script", new_callable=AsyncMock)
     async def test_returns_error_on_failure(
         self,
         mock_run: AsyncMock,
@@ -40,7 +40,7 @@ class TestExtractSession:
         assert "error" in result
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.audit.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.audit.async_run_script", new_callable=AsyncMock)
     async def test_passes_output_path(
         self,
         mock_run: AsyncMock,
@@ -61,7 +61,7 @@ class TestExtractSession:
 
 class TestAnalyzeActions:
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.audit.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.audit.async_run_script", new_callable=AsyncMock)
     async def test_returns_output_on_success(
         self,
         mock_run: AsyncMock,
@@ -76,7 +76,7 @@ class TestAnalyzeActions:
         assert result["success"] is True
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.audit.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.audit.async_run_script", new_callable=AsyncMock)
     async def test_returns_error_on_failure(
         self,
         mock_run: AsyncMock,
@@ -93,7 +93,7 @@ class TestAnalyzeActions:
 
 class TestAnalyzePermissions:
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.audit.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.audit.async_run_script", new_callable=AsyncMock)
     async def test_returns_output_on_success(
         self,
         mock_run: AsyncMock,
@@ -108,7 +108,7 @@ class TestAnalyzePermissions:
         assert result["success"] is True
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.audit.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.audit.async_run_script", new_callable=AsyncMock)
     async def test_returns_error_on_failure(
         self,
         mock_run: AsyncMock,
@@ -123,7 +123,7 @@ class TestAnalyzePermissions:
         assert "error" in result
 
     @pytest.mark.asyncio
-    @patch("dev10x.mcp.audit.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.audit.async_run_script", new_callable=AsyncMock)
     async def test_passes_optional_paths(
         self,
         mock_run: AsyncMock,

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-plan_mod = pytest.importorskip("dev10x.mcp.plan", reason="dev10x not installed")
+plan_mod = pytest.importorskip("dev10x.plan", reason="dev10x not installed")
 
 TASK_PLAN_SYNC = "dev10x.hooks.task_plan_sync"
 

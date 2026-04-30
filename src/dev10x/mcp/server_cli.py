@@ -425,7 +425,7 @@ async def push_safe(args: list[str], protected_branches: list[str] | None = None
     Returns:
         Dictionary with keys: success (bool), branch, remote, blocked_reason (if blocked)
     """
-    from dev10x.mcp import git as git_tools
+    from dev10x import git as git_tools
 
     return (await git_tools.push_safe(args=args, protected_branches=protected_branches)).to_dict()
 
@@ -441,7 +441,7 @@ async def rebase_groom(seq_path: str, base_ref: str) -> dict:
     Returns:
         Dictionary with keys: success (bool), commits_rewritten (int)
     """
-    from dev10x.mcp import git as git_tools
+    from dev10x import git as git_tools
 
     return (await git_tools.rebase_groom(seq_path=seq_path, base_ref=base_ref)).to_dict()
 
@@ -462,7 +462,7 @@ async def create_worktree(
     Returns:
         Dictionary with keys: worktree_path, branch, created (bool)
     """
-    from dev10x.mcp import git as git_tools
+    from dev10x import git as git_tools
 
     return (await git_tools.create_worktree(branch=branch, base=base, path=path)).to_dict()
 
@@ -477,7 +477,7 @@ async def mass_rewrite(config_path: str) -> dict:
     Returns:
         Dictionary with keys: success (bool), output (str), error (str if failed)
     """
-    from dev10x.mcp import git as git_tools
+    from dev10x import git as git_tools
 
     return (await git_tools.mass_rewrite(config_path=config_path)).to_dict()
 
@@ -493,7 +493,7 @@ async def start_split_rebase(commit_hash: str, base_branch: str = "develop") -> 
     Returns:
         Dictionary with keys: success (bool), output (str), error (str if failed)
     """
-    from dev10x.mcp import git as git_tools
+    from dev10x import git as git_tools
 
     return (
         await git_tools.start_split_rebase(commit_hash=commit_hash, base_branch=base_branch)
@@ -510,7 +510,7 @@ async def next_worktree_name(base_dir: str | None = None) -> dict:
     Returns:
         Dictionary with keys: path (str)
     """
-    from dev10x.mcp import git as git_tools
+    from dev10x import git as git_tools
 
     return (await git_tools.next_worktree_name(base_dir=base_dir)).to_dict()
 
@@ -522,7 +522,7 @@ async def setup_aliases() -> dict:
     Returns:
         Dictionary with keys: success (bool), output (str)
     """
-    from dev10x.mcp import git as git_tools
+    from dev10x import git as git_tools
 
     return (await git_tools.setup_aliases()).to_dict()
 
@@ -556,7 +556,7 @@ async def mktmp(
     Returns:
         Dictionary with key: path (str) — the temp file/directory path
     """
-    from dev10x.mcp import utilities as util
+    from dev10x import utilities as util
 
     return await util.mktmp(
         namespace=namespace,
@@ -582,7 +582,7 @@ async def plan_sync_set_context(
     Returns:
         Dictionary with keys: success (bool), updated_keys (list[str])
     """
-    from dev10x.mcp import plan as plan_tools
+    from dev10x import plan as plan_tools
 
     return await plan_tools.set_context(args=args)
 
@@ -595,7 +595,7 @@ async def plan_sync_json_summary() -> dict:
         Dictionary with plan metadata, context, and task list.
         Empty dict if no plan exists.
     """
-    from dev10x.mcp import plan as plan_tools
+    from dev10x import plan as plan_tools
 
     return await plan_tools.json_summary()
 
@@ -607,7 +607,7 @@ async def plan_sync_archive() -> dict:
     Returns:
         Dictionary with keys: success (bool), archive_name (str)
     """
-    from dev10x.mcp import plan as plan_tools
+    from dev10x import plan as plan_tools
 
     return await plan_tools.archive()
 
@@ -710,7 +710,7 @@ async def ci_check_status(
     Returns:
         Dictionary with verdict, mergeable status, and check details
     """
-    from dev10x.mcp import monitor as mon
+    from dev10x import monitor as mon
 
     return await mon.ci_check_status(
         pr_number=pr_number,
@@ -752,7 +752,7 @@ async def update_paths(
     Returns:
         Dictionary with keys: success (bool), output (str)
     """
-    from dev10x.mcp import permission as perm
+    from dev10x import permission as perm
 
     return await perm.update_paths(
         version=version,
@@ -787,7 +787,7 @@ async def collect_prs(
     Returns:
         Dictionary with keys: success (bool), output (str)
     """
-    from dev10x.mcp import release as rel
+    from dev10x import release as rel
 
     return await rel.collect_prs(
         repo_path=repo_path,
@@ -812,7 +812,7 @@ async def generate_skill_index(
     Returns:
         Dictionary with keys: success (bool), output (str)
     """
-    from dev10x.mcp import skill_index as idx
+    from dev10x import skill_index as idx
 
     return await idx.generate_all(force=force)
 
@@ -834,7 +834,7 @@ async def audit_extract_session(
     Returns:
         Dictionary with keys: success (bool), output (str)
     """
-    from dev10x.mcp import audit
+    from dev10x import audit
 
     return await audit.extract_session(
         jsonl_path=jsonl_path,
@@ -856,7 +856,7 @@ async def audit_analyze_actions(
     Returns:
         Dictionary with keys: success (bool), output (str)
     """
-    from dev10x.mcp import audit
+    from dev10x import audit
 
     return await audit.analyze_actions(
         transcript_path=transcript_path,
@@ -880,7 +880,7 @@ async def audit_analyze_permissions(
     Returns:
         Dictionary with keys: success (bool), output (str)
     """
-    from dev10x.mcp import audit
+    from dev10x import audit
 
     return await audit.analyze_permissions(
         transcript_path=transcript_path,
@@ -900,7 +900,7 @@ async def audit_hook_log_path() -> dict:
         Dictionary with keys: audit_dir, today_log, today_log_exists,
         audit_dir_exists, available_logs, audit_disabled
     """
-    from dev10x.mcp import audit
+    from dev10x import audit
 
     return await audit.hook_log_path()
 
@@ -923,7 +923,7 @@ async def audit_hook_recent(
     Returns:
         Dictionary with keys: log_path, exists, count, records
     """
-    from dev10x.mcp import audit
+    from dev10x import audit
 
     return await audit.hook_recent(
         limit=limit,
