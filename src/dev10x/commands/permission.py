@@ -25,9 +25,7 @@ def permission() -> None:
     is_flag=True,
     help="Print one line per changed file (count) instead of full per-file details",
 )
-@click.option(
-    "--restore", is_flag=True, help="Restore settings from most recent backups"
-)
+@click.option("--restore", is_flag=True, help="Restore settings from most recent backups")
 def update_paths(
     *,
     dry_run: bool,
@@ -258,9 +256,7 @@ def init() -> None:
     is_flag=True,
     help="Print one line per changed file (count) instead of full per-file details",
 )
-@click.option(
-    "--restore", is_flag=True, help="Restore settings from most recent backups"
-)
+@click.option("--restore", is_flag=True, help="Restore settings from most recent backups")
 def clean(*, dry_run: bool, verbose: bool, summary: bool, restore: bool) -> None:
     """Clean redundant permissions from project settings files."""
     from dev10x.skills.permission import clean_project_files as mod
@@ -382,9 +378,7 @@ def enumerate_mcp(*, dry_run: bool, quiet: bool) -> None:
 
 @permission.command(name="merge-worktree")
 @click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
-@click.option(
-    "--restore", is_flag=True, help="Restore settings from most recent backups"
-)
+@click.option("--restore", is_flag=True, help="Restore settings from most recent backups")
 def merge_worktree(*, dry_run: bool, restore: bool) -> None:
     """Merge worktree permissions back into main project settings."""
     from dev10x.skills.permission import merge_worktree_permissions as mod
@@ -426,14 +420,324 @@ def merge_worktree(*, dry_run: bool, restore: bool) -> None:
             total_merged += count
             projects_changed += 1
         else:
-            click.echo(
-                f"\n{main_project} — up to date ({len(worktree_dirs)} worktrees)"
-            )
+            click.echo(f"\n{main_project} — up to date ({len(worktree_dirs)} worktrees)")
 
     if total_merged == 0:
         click.echo("\nAll projects up to date.")
     else:
         verb = "Would merge" if dry_run else "Merged"
-        click.echo(
-            f"\n{verb} {total_merged} permissions into {projects_changed} projects."
+        click.echo(f"\n{verb} {total_merged} permissions into {projects_changed} projects.")
+
+
+@permission.group()
+def investigate() -> None:
+    """Permission Pattern Investigator (GH-47).
+
+    Materialize fixtures, mutate settings with candidate rule shapes,
+    and aggregate per-shape outcomes into a markdown report. The
+    subagent dispatch loop that exercises each cell is orchestrated
+    from the ``Dev10x:permission-investigator`` skill.
+    """
+
+
+_INVESTIGATOR_NS = "permission-investigator"
+
+
+def _investigator_workdir() -> Path:
+    return Path("/tmp/Dev10x") / _INVESTIGATOR_NS
+
+
+def _matrix_state_path(*, workdir: Path | None = None) -> Path:
+    """Return the matrix.json path for the given workdir.
+
+    When ``workdir`` is None, falls back to the default workdir.
+    Apply/record/report/restore commands resolve workdir from the
+    persisted state so a `prepare --workdir X` run can be driven
+    end-to-end without losing track of the matrix.
+    """
+    return (workdir or _investigator_workdir()) / "matrix.json"
+
+
+def _resolve_state_path() -> Path:
+    """Find matrix.json by checking the default workdir first.
+
+    The default location is the bootstrap point — `prepare` always
+    writes the initial copy there. If a non-default workdir was
+    supplied to `prepare`, the state file at the default location
+    contains a `redirect` pointer to the real matrix path.
+    """
+    default = _matrix_state_path()
+    if not default.is_file():
+        return default
+    try:
+        import json as _json
+
+        data = _json.loads(default.read_text())
+        redirect = data.get("redirect")
+        if redirect:
+            return Path(redirect)
+    except (OSError, ValueError):
+        pass
+    return default
+
+
+@investigate.command(name="prepare")
+@click.option(
+    "--workdir",
+    type=click.Path(),
+    default=None,
+    help="Override workdir (default: /tmp/Dev10x/permission-investigator)",
+)
+def investigate_prepare(*, workdir: str | None) -> None:
+    """Materialize fixtures and snapshot the user's settings files."""
+    import json as _json
+    from dataclasses import asdict
+
+    from dev10x.skills.permission_investigator import fixtures
+    from dev10x.skills.permission_investigator.matrix import generate_matrix
+
+    work = Path(workdir) if workdir else _investigator_workdir()
+    paths = fixtures.materialize_fixtures(workdir=work, user_home=Path.home())
+
+    snapshot_dir = work / "snapshots"
+    fixtures.snapshot_settings(
+        settings_path=paths.global_settings,
+        snapshot_dir=snapshot_dir,
+    )
+    fixtures.snapshot_settings(
+        settings_path=paths.project_settings,
+        snapshot_dir=snapshot_dir,
+    )
+
+    matrix = generate_matrix()
+    state = {
+        "fixture": {
+            "fixture_root": str(paths.fixture_root),
+            "fixture_relpath": str(paths.fixture_relpath),
+            "plugin_skill_file": str(paths.plugin_skill_file),
+            "project_settings": str(paths.project_settings),
+            "global_settings": str(paths.global_settings),
+            "workdir": str(paths.workdir),
+            "publisher_root": str(paths.publisher_root),
+        },
+        "cells": [
+            {
+                "cell_id": cell.cell_id,
+                "shape": asdict(cell.shape),
+                "location": cell.location,
+            }
+            for cell in matrix.cells
+        ],
+        "results": {},
+    }
+    real_state_path = _matrix_state_path(workdir=work)
+    real_state_path.parent.mkdir(parents=True, exist_ok=True)
+    real_state_path.write_text(_json.dumps(state, indent=2))
+
+    if work != _investigator_workdir():
+        default_state_path = _matrix_state_path()
+        default_state_path.parent.mkdir(parents=True, exist_ok=True)
+        default_state_path.write_text(_json.dumps({"redirect": str(real_state_path)}, indent=2))
+
+    click.echo(f"Workdir: {work}")
+    click.echo(f"Fixture: {paths.plugin_skill_file}")
+    click.echo(f"Cells: {len(matrix.cells)}")
+
+
+@investigate.command(name="apply")
+@click.argument("cell_id")
+def investigate_apply(*, cell_id: str) -> None:
+    """Apply the rule shape for ``cell_id`` to the appropriate target file(s)."""
+    import json as _json
+
+    from dev10x.skills.permission_investigator import fixtures
+    from dev10x.skills.permission_investigator.matrix import RuleShape
+
+    state_path = _resolve_state_path()
+    if not state_path.is_file():
+        click.echo("ERROR: state missing — run `prepare` first.", err=True)
+        sys.exit(1)
+    state = _json.loads(state_path.read_text())
+
+    cell = next((c for c in state["cells"] if c["cell_id"] == cell_id), None)
+    if cell is None:
+        click.echo(f"ERROR: unknown cell_id {cell_id}", err=True)
+        sys.exit(1)
+
+    shape = RuleShape(**cell["shape"])
+    rule = shape.render(
+        fixture_relpath=state["fixture"]["fixture_relpath"],
+        user_home=str(Path.home()),
+    )
+
+    targets: list[Path] = []
+    if cell["location"] in ("project", "both"):
+        targets.append(Path(state["fixture"]["project_settings"]))
+    if cell["location"] in ("global", "both"):
+        targets.append(Path(state["fixture"]["global_settings"]))
+
+    for target in targets:
+        fixtures.apply_rule(rule=rule, target=target)
+
+    click.echo(f"Applied rule: {rule}")
+    click.echo(f"Targets: {len(targets)}")
+
+
+@investigate.command(name="record")
+@click.argument("cell_id")
+@click.option(
+    "--auto-approved/--prompted",
+    default=False,
+    help="Whether the dispatcher tool call was auto-approved",
+)
+@click.option("--error", default=None, help="Error message, if any")
+@click.option("--notes", default="", help="Free-form notes from the dispatcher")
+def investigate_record(
+    *,
+    cell_id: str,
+    auto_approved: bool,
+    error: str | None,
+    notes: str,
+) -> None:
+    """Record the outcome for one cell into the persisted matrix."""
+    import json as _json
+
+    state_path = _resolve_state_path()
+    if not state_path.is_file():
+        click.echo("ERROR: state missing — run `prepare` first.", err=True)
+        sys.exit(1)
+    state = _json.loads(state_path.read_text())
+
+    state.setdefault("results", {})[cell_id] = {
+        "cell_id": cell_id,
+        "auto_approved": bool(auto_approved),
+        "prompted": not bool(auto_approved),
+        "error": error,
+        "notes": notes,
+    }
+    state_path.write_text(_json.dumps(state, indent=2))
+    click.echo(f"Recorded {cell_id}")
+
+
+@investigate.command(name="restore")
+def investigate_restore() -> None:
+    """Restore settings files from the pre-run snapshots."""
+    import json as _json
+
+    from dev10x.skills.permission_investigator import fixtures
+
+    state_path = _resolve_state_path()
+    if not state_path.is_file():
+        click.echo("Nothing to restore — state missing.")
+        return
+    state = _json.loads(state_path.read_text())
+    snapshot_dir = Path(state["fixture"]["workdir"]) / "snapshots"
+
+    for key in ("global_settings", "project_settings"):
+        target = Path(state["fixture"][key])
+        snap = snapshot_dir / f"{target.name}.snapshot"
+        if snap.is_file():
+            fixtures.restore_settings(snapshot_path=snap, target_path=target)
+            click.echo(f"Restored {target}")
+
+    publisher_root_str = state["fixture"].get("publisher_root")
+    if publisher_root_str:
+        publisher_root = Path(publisher_root_str)
+        if publisher_root.is_dir():
+            import shutil as _shutil
+
+            _shutil.rmtree(publisher_root)
+            click.echo(f"Removed fixture publisher tree {publisher_root}")
+
+
+@investigate.command(name="report")
+@click.option(
+    "--output",
+    type=click.Path(),
+    default=None,
+    help="Write the report to this path (default: stdout)",
+)
+def investigate_report(*, output: str | None) -> None:
+    """Render the populated matrix as a markdown report."""
+    import json as _json
+
+    from dev10x.skills.permission_investigator.matrix import (
+        Matrix,
+        MatrixCell,
+        MatrixResult,
+        RuleShape,
+    )
+    from dev10x.skills.permission_investigator.report import render_markdown_report
+
+    state_path = _resolve_state_path()
+    if not state_path.is_file():
+        click.echo("ERROR: state missing — run `prepare` first.", err=True)
+        sys.exit(1)
+    state = _json.loads(state_path.read_text())
+
+    matrix = Matrix()
+    for cell_data in state.get("cells", []):
+        shape = RuleShape(**cell_data["shape"])
+        matrix.cells.append(
+            MatrixCell(
+                shape=shape,
+                location=cell_data["location"],
+                cell_id=cell_data["cell_id"],
+            )
         )
+    for cell_id, result_data in state.get("results", {}).items():
+        matrix.add_result(MatrixResult(**result_data))
+
+    rendered = render_markdown_report(matrix)
+    if output:
+        Path(output).write_text(rendered)
+        click.echo(f"Wrote report to {output}")
+    else:
+        click.echo(rendered)
+
+
+@investigate.command(name="delta")
+def investigate_delta() -> None:
+    """Compare matrix outcomes against current plugin-maintenance rules."""
+    import json as _json
+
+    from dev10x.skills.permission import update_paths as paths_mod
+    from dev10x.skills.permission_investigator.matrix import (
+        Matrix,
+        MatrixCell,
+        MatrixResult,
+        RuleShape,
+    )
+    from dev10x.skills.permission_investigator.report import compute_delta
+
+    state_path = _resolve_state_path()
+    if not state_path.is_file():
+        click.echo("ERROR: state missing — run `prepare` first.", err=True)
+        sys.exit(1)
+    state = _json.loads(state_path.read_text())
+
+    matrix = Matrix()
+    for cell_data in state.get("cells", []):
+        matrix.cells.append(
+            MatrixCell(
+                shape=RuleShape(**cell_data["shape"]),
+                location=cell_data["location"],
+                cell_id=cell_data["cell_id"],
+            )
+        )
+    for cell_id, result_data in state.get("results", {}).items():
+        matrix.add_result(MatrixResult(**result_data))
+
+    config_path = paths_mod.find_config()
+    config = paths_mod.load_config(config_path)
+    base_permissions = config.get("base_permissions", [])
+
+    delta = compute_delta(matrix=matrix, base_permissions=base_permissions)
+
+    click.echo("Ineffective rules currently shipped:")
+    for rule in delta.ineffective_rules or ["  (none)"]:
+        click.echo(f"  - {rule}")
+    click.echo()
+    click.echo("Suggested replacements:")
+    for line in delta.suggested_rules or ["  (none — matrix incomplete or all prompt)"]:
+        click.echo(f"  * {line}")
