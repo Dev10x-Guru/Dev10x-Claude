@@ -62,6 +62,18 @@ DANGEROUS_COMMANDS = re.compile(
     r"--force"
 )
 
+# Paths matching mktmp's high-entropy suffix — Write to these triggers
+# the Write tool's overwrite gate even with explicit allow-rules (GH-39).
+MKTMP_PATH_RE = re.compile(r"/tmp/Dev10x/[^/]+/[^/]+\.[A-Za-z0-9]{6,}\.\w+$")
+
+# Known commands that exit non-zero on benign deprecation warnings while
+# the operation actually succeeded (GH-41 — Projects classic on `gh pr edit`).
+EXIT_FALSE_POSITIVE_RE = re.compile(r"^gh\s+pr\s+edit\b")
+
+# PreToolUse hook denial signal in tool result text (best-effort —
+# only available when the parser captures result blocks).
+HOOK_BLOCK_RE = re.compile(r"^BLOCKED:|hook error", re.MULTILINE)
+
 
 @dataclass
 class ToolCall:
@@ -168,6 +180,102 @@ def parse_allow_rules(settings_path: str) -> list[AllowRule]:
             rules.append(AllowRule(tool=m.group(1), pattern=m.group(2), raw=raw))
 
     return rules
+
+
+def parse_additional_directories(settings_path: str) -> list[str]:
+    """Return permissions.additionalDirectories entries (GH-40, GH-46)."""
+    path = Path(settings_path)
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError:
+        return []
+    return list(data.get("permissions", {}).get("additionalDirectories", []))
+
+
+def detect_known_friction(
+    calls: list[ToolCall],
+    *,
+    additional_dirs: list[str],
+    project_root: str | None = None,
+) -> list[Finding]:
+    """Detect friction patterns no allow-rule can prevent (GH-46).
+
+    The base allow-rule analysis only catches Bash command vs allow-rule
+    mismatch. Real sessions hit other gates that allow-rules cannot
+    bypass:
+
+    - WRITE_OVERWRITE_GATE — Write to an existing file (typical with
+      mktmp paths) prompts on every call.
+    - WORKSPACE_GATE — Write/Edit/Read to a path outside the project
+      root prompts unless the dir is in additionalDirectories.
+    - EXIT_CODE_FALSE_POSITIVE — `gh pr edit` exits 1 on the
+      Projects-classic deprecation while the operation succeeds.
+
+    These findings are added on top of the standard unmatched-call list
+    even when allow-rules formally cover the call.
+    """
+    findings: list[Finding] = []
+    idx = 0
+    project_prefix = (project_root or os.getcwd()).rstrip("/") + "/"
+    home_prefix = os.path.expanduser("~/").rstrip("/") + "/"
+
+    for tc in calls:
+        if tc.tool == "Bash":
+            if EXIT_FALSE_POSITIVE_RE.match(tc.command):
+                idx += 1
+                findings.append(
+                    Finding(
+                        index=idx,
+                        turn=tc.turn,
+                        time=tc.time,
+                        tool=tc.tool,
+                        command_display=tc.command[:60],
+                        classification="EXIT_CODE_FALSE_POSITIVE",
+                        fix="Use REST API (`gh api PATCH …/pulls/<n>`) instead",
+                    )
+                )
+            continue
+
+        target = tc.file_path or tc.command
+        if not target:
+            continue
+
+        if tc.tool == "Write" and MKTMP_PATH_RE.search(target):
+            idx += 1
+            findings.append(
+                Finding(
+                    index=idx,
+                    turn=tc.turn,
+                    time=tc.time,
+                    tool=tc.tool,
+                    command_display=target[:60],
+                    classification="WRITE_OVERWRITE_GATE",
+                    fix="Make mktmp return path without pre-creating (GH-39)",
+                )
+            )
+
+        if not (target.startswith(project_prefix) or target.startswith(home_prefix)):
+            covered = any(target.startswith(d.rstrip("/") + "/") for d in additional_dirs)
+            if not covered:
+                idx += 1
+                findings.append(
+                    Finding(
+                        index=idx,
+                        turn=tc.turn,
+                        time=tc.time,
+                        tool=tc.tool,
+                        command_display=target[:60],
+                        classification="WORKSPACE_GATE",
+                        fix=(
+                            f"Register parent dir under additionalDirectories"
+                            f" (e.g. `/permissions add {Path(target).parent}`)"
+                        ),
+                    )
+                )
+
+    return findings
 
 
 def matches_allow_rule(tc: ToolCall, rules: list[AllowRule]) -> bool:
@@ -489,8 +597,15 @@ def main() -> None:
     transcript = Path(transcript_path).read_text()
     calls = parse_tool_calls(text=transcript)
     rules = parse_allow_rules(settings_path=settings_path)
+    additional_dirs = parse_additional_directories(settings_path=settings_path)
     findings = analyze_permissions(calls=calls, rules=rules)
     findings = count_nuisance_patterns(findings=findings)
+    extra = detect_known_friction(calls=calls, additional_dirs=additional_dirs)
+    # Renumber the extra findings to continue past the base ones
+    base_count = len(findings)
+    for offset, finding in enumerate(extra, start=1):
+        finding.index = base_count + offset
+    findings.extend(extra)
 
     skills_dir = os.path.expanduser("~/.claude/skills")
     tools_dir = os.path.expanduser("~/.claude/tools")
