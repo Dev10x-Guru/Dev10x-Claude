@@ -214,6 +214,34 @@ def ensure_scripts(*, dry_run: bool, quiet: bool) -> None:
     )
 
 
+@permission.command(name="ensure-reads")
+@click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
+@click.option("--quiet", is_flag=True, help="Suppress per-file details")
+def ensure_reads(*, dry_run: bool, quiet: bool) -> None:
+    """Emit per-skill folder Read rules with ~/ + /home/<user>/ twins."""
+    from dev10x.skills.permission import update_paths as mod
+
+    config_path = mod.find_config()
+    config = mod.load_config(config_path)
+
+    settings_files = mod.find_settings_files(
+        roots=config.get("roots", []),
+        include_user=config.get("include_user_settings", True),
+    )
+    if not settings_files:
+        click.echo("No settings files found.")
+        return
+
+    sys.exit(
+        mod._ensure_reads(
+            config=config,
+            settings_files=settings_files,
+            dry_run=dry_run,
+            quiet=quiet,
+        )
+    )
+
+
 @permission.command()
 def init() -> None:
     """Create userspace config from plugin default."""

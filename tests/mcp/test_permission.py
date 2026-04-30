@@ -83,6 +83,7 @@ class TestUpdatePathsSubCommandRoute:
             generalize=False,
             ensure_scripts=False,
             ensure_workspace=False,
+            ensure_reads=False,
             dry_run=True,
             quiet=False,
         )
@@ -101,6 +102,7 @@ class TestUpdatePathsSubCommandRoute:
             generalize=True,
             ensure_scripts=False,
             ensure_workspace=False,
+            ensure_reads=False,
             dry_run=False,
             quiet=False,
         )
@@ -119,6 +121,26 @@ class TestUpdatePathsSubCommandRoute:
             generalize=False,
             ensure_scripts=True,
             ensure_workspace=False,
+            ensure_reads=False,
+            dry_run=False,
+            quiet=False,
+        )
+
+    @pytest.mark.asyncio
+    @patch("dev10x.mcp.permission._run_sub_command")
+    async def test_ensure_reads_routes_to_sub_command(
+        self,
+        mock_sub: AsyncMock,
+    ) -> None:
+        mock_sub.return_value = {"success": True, "output": "Added 12 Read rules"}
+        result = await perm_mod.update_paths(ensure_reads=True)
+        assert result["success"] is True
+        mock_sub.assert_called_once_with(
+            ensure_base=False,
+            generalize=False,
+            ensure_scripts=False,
+            ensure_workspace=False,
+            ensure_reads=True,
             dry_run=False,
             quiet=False,
         )
@@ -182,6 +204,16 @@ class TestRunSubCommand:
         result = perm_mod._run_sub_command(ensure_scripts=True)
         assert result["success"] is True
         mock_scripts.assert_called_once()
+
+    @patch(f"{MOD_PATH}._ensure_reads", return_value=0)
+    def test_ensure_reads_calls_underlying_function(
+        self,
+        mock_reads: AsyncMock,
+        mock_mod: dict,
+    ) -> None:
+        result = perm_mod._run_sub_command(ensure_reads=True)
+        assert result["success"] is True
+        mock_reads.assert_called_once()
 
     @patch(f"{MOD_PATH}._ensure_base", return_value=1)
     def test_returns_error_on_nonzero_exit(

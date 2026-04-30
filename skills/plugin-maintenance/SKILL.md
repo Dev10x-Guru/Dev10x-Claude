@@ -70,6 +70,7 @@ on the mode. Execute these `TaskCreate` calls at startup:
 2. `TaskCreate(subject="Ensure workspace directories", activeForm="Registering workspace dirs")`
 3. `TaskCreate(subject="Ensure base permissions", activeForm="Ensuring base perms")`
 4. `TaskCreate(subject="Ensure script coverage", activeForm="Verifying script rules")`
+5. `TaskCreate(subject="Ensure read coverage", activeForm="Verifying Read rules")`
 
 **Full mode:**
 
@@ -80,9 +81,10 @@ on the mode. Execute these `TaskCreate` calls at startup:
 5. `TaskCreate(subject="Generalize session-specific permissions", activeForm="Generalizing perms")`
 6. `TaskCreate(subject="Enumerate MCP tool globs", activeForm="Enumerating MCP globs")`
 7. `TaskCreate(subject="Ensure script coverage", activeForm="Verifying script rules")`
-8. `TaskCreate(subject="Merge worktree permissions", activeForm="Merging worktree perms")`
-9. `TaskCreate(subject="Audit permissions for friction", activeForm="Auditing permissions")`
-10. `TaskCreate(subject="Clean project files", activeForm="Cleaning project files")`
+8. `TaskCreate(subject="Ensure read coverage", activeForm="Verifying Read rules")`
+9. `TaskCreate(subject="Merge worktree permissions", activeForm="Merging worktree perms")`
+10. `TaskCreate(subject="Audit permissions for friction", activeForm="Auditing permissions")`
+11. `TaskCreate(subject="Clean project files", activeForm="Cleaning project files")`
 
 Set sequential dependencies. Mark each step `in_progress` when
 starting and `completed` when done. Steps that produce no
@@ -268,7 +270,39 @@ mcp__plugin_Dev10x_cli__update_paths(ensure_scripts=true)
 - `hooks/scripts/*.py`, `hooks/scripts/*.sh` — hook implementations
 - `skills/*/scripts/*.py`, `skills/*/scripts/*.sh` — skill scripts
 
-### 8. Merge worktree permissions *(full only)*
+### 8. Ensure read coverage **[bootstrap]**
+
+Verify that every skill folder and recognized top-level plugin
+directory has a per-folder `Read(...)` allow rule. Empirical
+evidence shows the engine matches rule strings literally against
+the prompt-displayed path, so each rule ships in two variants —
+`Read(~/...)` and `Read(/home/<user>/...)` — and uses a single
+`*` wildcard rather than `*/**` (GH-47).
+
+> **Why both variants:** The permission engine does not normalize
+> `~/` and `/home/<user>/`, so emitting both shapes is the
+> belt-and-suspenders fix until the engine learns to.
+
+1. Dry run:
+
+```
+mcp__plugin_Dev10x_cli__update_paths(ensure_reads=true, dry_run=true)
+```
+
+2. Apply:
+
+```
+mcp__plugin_Dev10x_cli__update_paths(ensure_reads=true)
+```
+
+**What gets emitted (per skill, per top-level dir):**
+- `Read(~/.claude/plugins/cache/<pub>/<plugin>/<version>/skills/<name>/*)`
+- `Read(/home/<user>/.claude/plugins/cache/<pub>/<plugin>/<version>/skills/<name>/*)`
+
+The version segment is shared with `update-paths`, so both
+variants update in lockstep on plugin upgrade.
+
+### 9. Merge worktree permissions *(full only)*
 
 Worktrees accumulate allow rules during sessions that the main
 project never sees. This script collects stable permissions from
@@ -289,7 +323,7 @@ ${CLAUDE_PLUGIN_ROOT}/skills/upgrade-cleanup/scripts/merge-worktree-permissions.
 Session-specific noise is filtered out automatically; only
 stable, reusable permissions are merged.
 
-### 9. Audit permissions for friction *(full only)*
+### 10. Audit permissions for friction *(full only)*
 
 Dispatch the `permission-auditor` agent to perform a comprehensive
 7-phase security and friction audit. The agent analyzes:
@@ -315,7 +349,7 @@ Agent(subagent_type="Dev10x:permission-auditor",
 The agent produces a severity-categorized report with specific
 fix proposals. Review and apply selectively.
 
-### 10. Clean project files *(full only)*
+### 11. Clean project files *(full only)*
 
 Strip redundant rules from project `settings.local.json` files
 that are now covered by global `~/.claude/settings.json`. Also
@@ -371,6 +405,7 @@ users do not need to migrate config files.
 | `ensure_base` | Add missing base permissions from projects.yaml |
 | `generalize` | Replace session-specific args with wildcard patterns |
 | `ensure_scripts` | Verify all plugin scripts have allow rules; add missing |
+| `ensure_reads` | Emit per-skill folder Read rules with `~/` + `/home/<user>/` twins |
 
 ### update-paths.py CLI
 

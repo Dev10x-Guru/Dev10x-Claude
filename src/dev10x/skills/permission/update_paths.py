@@ -276,6 +276,17 @@ SCRIPT_SCAN_GLOBS: list[str] = [
     "skills/*/scripts/*.sh",
 ]
 
+READ_TOP_LEVEL_DIRS: tuple[str, ...] = (
+    "agents",
+    "commands",
+    "references",
+    "hooks",
+    "hooks/scripts",
+    "bin",
+    "servers",
+    "lib",
+)
+
 
 def scan_plugin_scripts(plugin_root: Path) -> list[Path]:
     scripts: list[Path] = []
@@ -323,6 +334,125 @@ def verify_script_coverage(
         else:
             missing.append(rule)
     return covered, missing
+
+
+def scan_skill_directories(
+    plugin_root: Path,
+) -> list[str]:
+    """Return the list of skill directory names under plugin_root/skills."""
+    skills_dir = plugin_root / "skills"
+    if not skills_dir.is_dir():
+        return []
+    return sorted(p.name for p in skills_dir.iterdir() if p.is_dir())
+
+
+def scan_top_level_dirs(
+    plugin_root: Path,
+) -> list[str]:
+    """Return top-level subpaths under plugin_root that exist and contain files."""
+    present: list[str] = []
+    for sub in READ_TOP_LEVEL_DIRS:
+        target = plugin_root / sub
+        if target.is_dir():
+            present.append(sub)
+    return present
+
+
+def build_read_allow_rules(
+    *,
+    plugin_root: Path,
+    user_home: Path,
+) -> list[str]:
+    """Build per-skill and per-top-level Read rules with ~/ + /home/<user>/ twins.
+
+    For each skill folder and recognized top-level dir under
+    plugin_root, emit two Read rules — one anchored at ``~/`` and
+    one anchored at ``/home/<user>/`` — so the permission engine
+    matches whichever shape the prompt uses.
+
+    Both variants share the version segment, so :func:`update_file`'s
+    version regex updates them in lockstep when the plugin upgrades.
+    """
+    home = user_home.expanduser().resolve()
+    try:
+        relative = plugin_root.relative_to(home)
+    except ValueError:
+        return []
+
+    base_rel = str(relative)
+    relpaths: list[str] = [base_rel]
+    for skill in scan_skill_directories(plugin_root):
+        relpaths.append(f"{base_rel}/skills/{skill}")
+    for top in scan_top_level_dirs(plugin_root):
+        relpaths.append(f"{base_rel}/{top}")
+
+    rules: list[str] = []
+    for rel in relpaths:
+        rules.append(f"Read(~/{rel}/*)")
+        rules.append(f"Read({home}/{rel}/*)")
+    return rules
+
+
+def verify_read_coverage(
+    settings_path: Path,
+    expected_rules: list[str],
+) -> tuple[list[str], list[str]]:
+    """Return (covered, missing) Read rules for the given settings file.
+
+    Matching is exact — Claude Code's permission engine compares
+    rule strings literally. Wildcard expansion is not attempted.
+    """
+    content = settings_path.read_text()
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError:
+        return [], expected_rules
+
+    allow_list: list[str] = data.get("permissions", {}).get("allow", [])
+    allow_set = set(allow_list)
+
+    covered: list[str] = []
+    missing: list[str] = []
+    for rule in expected_rules:
+        if rule in allow_set:
+            covered.append(rule)
+        else:
+            missing.append(rule)
+    return covered, missing
+
+
+def ensure_read_rules(
+    settings_path: Path,
+    missing_rules: list[str],
+    *,
+    dry_run: bool = False,
+) -> tuple[int, list[str]]:
+    """Append missing Read rules to ``settings_path``.
+
+    Idempotent — only appends rules not already present. Backed up
+    via :mod:`dev10x.skills.permission.backup`.
+    """
+    if not missing_rules:
+        return 0, []
+
+    if not dry_run:
+        from dev10x.skills.permission.backup import create_backup
+        from dev10x.skills.permission.file_lock import locked_json_update
+
+        create_backup(settings_path)
+        with locked_json_update(path=settings_path) as data:
+            if "permissions" not in data:
+                data["permissions"] = {}
+            if "allow" not in data["permissions"]:
+                data["permissions"]["allow"] = []
+            existing = set(data["permissions"]["allow"])
+            for rule in missing_rules:
+                if rule not in existing:
+                    data["permissions"]["allow"].append(rule)
+                    existing.add(rule)
+
+    messages = [f"  + {rule}" for rule in missing_rules]
+    return len(missing_rules), messages
 
 
 def ensure_script_rules(
@@ -701,6 +831,67 @@ def _ensure_scripts(
     else:
         verb = "Would add" if dry_run else "Added"
         print(f"{verb} {total_added} script rules across {files_changed} files.")
+
+    return 0
+
+
+def _ensure_reads(
+    *,
+    config: dict,
+    settings_files: list[Path],
+    dry_run: bool,
+    quiet: bool = False,
+) -> int:
+    cache_dir = Path(config["plugin_cache"]).expanduser()
+    target_version = detect_latest_version(cache_dir)
+    if not target_version:
+        print(f"ERROR: No versions found in {cache_dir}", file=sys.stderr)
+        return 1
+
+    plugin_root = cache_dir / target_version
+    expected_rules = build_read_allow_rules(
+        plugin_root=plugin_root,
+        user_home=Path.home(),
+    )
+    if not expected_rules:
+        print(f"No Read rules to emit for {plugin_root}")
+        return 0
+
+    if not quiet:
+        print(f"Plugin root: {plugin_root}")
+        print(f"Read rules expected: {len(expected_rules)} (twins included)")
+        if dry_run:
+            print("(dry run — no files will be modified)\n")
+
+    total_added = 0
+    files_changed = 0
+
+    for path in sorted(settings_files):
+        _covered, missing = verify_read_coverage(
+            settings_path=path,
+            expected_rules=expected_rules,
+        )
+        if not missing:
+            continue
+
+        count, messages = ensure_read_rules(
+            settings_path=path,
+            missing_rules=missing,
+            dry_run=dry_run,
+        )
+        if count > 0:
+            if not quiet:
+                print(f"\n{path}")
+                for msg in messages:
+                    print(msg)
+            total_added += count
+            files_changed += 1
+
+    if total_added == 0:
+        print("All settings files have complete Read coverage.")
+    else:
+        verb = "Would add" if dry_run else "Added"
+        print(f"{verb} {total_added} Read rules across {files_changed} files.")
 
     return 0
 

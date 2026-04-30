@@ -136,6 +136,31 @@ class TestIsHookEnabled:
         assert clean_mod.is_hook_enabled(rule) is False
 
 
+class TestIsDeprecatedReadGlob:
+    @pytest.mark.parametrize(
+        "rule",
+        [
+            "Read(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/*/**)",
+            "Read(/home/janusz/.claude/plugins/cache/Dev10x-Guru/Dev10x/*/**)",
+            "Read(~/.claude/plugins/cache/Other-Org/dev10x-claude/*/**)",
+        ],
+    )
+    def test_detects_deprecated_globs(self, rule: str) -> None:
+        assert clean_mod.is_deprecated_read_glob(rule) is True
+
+    @pytest.mark.parametrize(
+        "rule",
+        [
+            "Read(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.68.0/skills/git/*)",
+            "Read(/home/janusz/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.68.0/*)",
+            "Read(~/.claude/memory/Dev10x/**)",
+            "Bash(git log:*)",
+        ],
+    )
+    def test_rejects_non_deprecated_rules(self, rule: str) -> None:
+        assert clean_mod.is_deprecated_read_glob(rule) is False
+
+
 class TestClassifyRules:
     GLOBAL_RULES = {
         "Bash(git log:*)",
@@ -180,6 +205,22 @@ class TestClassifyRules:
 
         assert len(result.old_versions) == 1
         assert result.kept == []
+
+    def test_classifies_deprecated_read_globs(self) -> None:
+        rules = [
+            "Read(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/*/**)",
+            "Read(/home/janusz/.claude/plugins/cache/Dev10x-Guru/Dev10x/*/**)",
+        ]
+
+        result = clean_mod.classify_rules(
+            rules,
+            global_rules=self.GLOBAL_RULES,
+            current_version="0.69.0",
+        )
+
+        assert result.deprecated_globs == rules
+        assert result.kept == []
+        assert result.total_removed == 2
 
     def test_classifies_env_noise(self) -> None:
         rules = [

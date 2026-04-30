@@ -22,14 +22,18 @@ from pathlib import Path
 
 import yaml
 
-USERSPACE_CONFIG = Path.home() / ".claude" / "skills" / "Dev10x:upgrade-cleanup" / "projects.yaml"
+USERSPACE_CONFIG = (
+    Path.home() / ".claude" / "skills" / "Dev10x:upgrade-cleanup" / "projects.yaml"
+)
 PLUGIN_CONFIG = (
     Path(__file__).resolve().parents[4] / "skills" / "upgrade-cleanup" / "projects.yaml"
 )
 GLOBAL_SETTINGS = Path.home() / ".claude" / "settings.json"
 
 PLUGIN_NAMES = r"(?:Dev10x|dev10x(?:-claude)?)"
-VERSION_PATTERN = re.compile(rf"plugins/cache/[^/]+/{PLUGIN_NAMES}/(\d+\.\d+\.\d+)", re.IGNORECASE)
+VERSION_PATTERN = re.compile(
+    rf"plugins/cache/[^/]+/{PLUGIN_NAMES}/(\d+\.\d+\.\d+)", re.IGNORECASE
+)
 PUBLISHER_PATTERN = re.compile(rf"plugins/cache/([^/]+)/{PLUGIN_NAMES}/", re.IGNORECASE)
 
 ENV_PREFIX_PATTERN = re.compile(r"^Bash\([A-Z_]+=")
@@ -53,6 +57,23 @@ SHELL_FRAGMENTS = frozenset(
 )
 
 DOUBLE_SLASH_PATTERN = re.compile(r"\(//")
+
+# Patterns superseded by ensure-reads per-skill enumeration (GH-48).
+# The `Read(...Dev10x/*/**)` glob does not reliably match in Claude
+# Code's permission engine — keep the deprecated rule list narrow and
+# explicit so future deprecations stay searchable.
+DEPRECATED_READ_GLOBS: tuple[re.Pattern[str], ...] = (
+    re.compile(
+        r"^Read\((?:~|/home/[^/]+)/\.claude/plugins/cache/[^/]+/"
+        rf"{PLUGIN_NAMES}/\*/\*\*\)$",
+        re.IGNORECASE,
+    ),
+)
+
+
+def is_deprecated_read_glob(rule: str) -> bool:
+    return any(p.match(rule) for p in DEPRECATED_READ_GLOBS)
+
 
 HOOK_ENABLED_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"^Bash\(gh pr create"),
@@ -95,6 +116,7 @@ class RemovalResult:
     wildcard_bypasses: list[str] = field(default_factory=list)
     allow_deny_contradictions: list[tuple[str, str]] = field(default_factory=list)
     ask_shadowed_by_allow: list[tuple[str, str]] = field(default_factory=list)
+    deprecated_globs: list[str] = field(default_factory=list)
     kept: list[str] = field(default_factory=list)
 
     @property
@@ -106,6 +128,7 @@ class RemovalResult:
             + len(self.env_noise)
             + len(self.shell_fragments)
             + len(self.double_slash)
+            + len(self.deprecated_globs)
         )
 
 
@@ -295,6 +318,10 @@ def classify_rules(
             result.double_slash.append(rule)
             continue
 
+        if is_deprecated_read_glob(rule):
+            result.deprecated_globs.append(rule)
+            continue
+
         result.kept.append(rule)
 
     return result
@@ -381,13 +408,17 @@ def _format_messages(
             messages.append(f"    deny:  {deny}")
 
     if result.ask_shadowed_by_allow:
-        messages.append(f"  ⚠ ASK SHADOWED BY ALLOW ({len(result.ask_shadowed_by_allow)}):")
+        messages.append(
+            f"  ⚠ ASK SHADOWED BY ALLOW ({len(result.ask_shadowed_by_allow)}):"
+        )
         for ask, allow in result.ask_shadowed_by_allow:
             messages.append(f"    ask:   {ask}")
             messages.append(f"    allow: {allow}")
 
     if result.exact_duplicates:
-        messages.append(f"  - {len(result.exact_duplicates)} exact duplicates of global rules")
+        messages.append(
+            f"  - {len(result.exact_duplicates)} exact duplicates of global rules"
+        )
         if verbose:
             for rule in result.exact_duplicates:
                 messages.append(f"    {rule}")
@@ -411,7 +442,9 @@ def _format_messages(
                 messages.append(f"    {rule}")
 
     if result.shell_fragments:
-        messages.append(f"  - {len(result.shell_fragments)} shell control flow fragments")
+        messages.append(
+            f"  - {len(result.shell_fragments)} shell control flow fragments"
+        )
         if verbose:
             for rule in result.shell_fragments:
                 messages.append(f"    {rule}")
@@ -420,6 +453,15 @@ def _format_messages(
         messages.append(f"  - {len(result.double_slash)} double-slash paths")
         if verbose:
             for rule in result.double_slash:
+                messages.append(f"    {rule}")
+
+    if result.deprecated_globs:
+        messages.append(
+            f"  - {len(result.deprecated_globs)} deprecated Read globs"
+            " (superseded by ensure-reads)"
+        )
+        if verbose:
+            for rule in result.deprecated_globs:
                 messages.append(f"    {rule}")
 
     if result.hook_enabled:

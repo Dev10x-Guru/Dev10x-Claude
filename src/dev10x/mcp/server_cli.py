@@ -344,9 +344,7 @@ async def generate_commit_list(pr_number: int, base_branch: str | None = None) -
     """
     from dev10x.mcp import github as gh
 
-    return (
-        await gh.generate_commit_list(pr_number=pr_number, base_branch=base_branch)
-    ).to_dict()
+    return (await gh.generate_commit_list(pr_number=pr_number, base_branch=base_branch)).to_dict()
 
 
 @server.tool()
@@ -362,9 +360,7 @@ async def post_summary_comment(issue_id: str, summary_text: str) -> dict:
     """
     from dev10x.mcp import github as gh
 
-    return (
-        await gh.post_summary_comment(issue_id=issue_id, summary_text=summary_text)
-    ).to_dict()
+    return (await gh.post_summary_comment(issue_id=issue_id, summary_text=summary_text)).to_dict()
 
 
 @server.tool()
@@ -419,9 +415,7 @@ async def pr_notify(
 
 
 @server.tool()
-async def push_safe(
-    args: list[str], protected_branches: list[str] | None = None
-) -> dict:
+async def push_safe(args: list[str], protected_branches: list[str] | None = None) -> dict:
     """Safely push git branches with protection for main/develop.
 
     Args:
@@ -433,9 +427,7 @@ async def push_safe(
     """
     from dev10x.mcp import git as git_tools
 
-    return (
-        await git_tools.push_safe(args=args, protected_branches=protected_branches)
-    ).to_dict()
+    return (await git_tools.push_safe(args=args, protected_branches=protected_branches)).to_dict()
 
 
 @server.tool()
@@ -451,9 +443,7 @@ async def rebase_groom(seq_path: str, base_ref: str) -> dict:
     """
     from dev10x.mcp import git as git_tools
 
-    return (
-        await git_tools.rebase_groom(seq_path=seq_path, base_ref=base_ref)
-    ).to_dict()
+    return (await git_tools.rebase_groom(seq_path=seq_path, base_ref=base_ref)).to_dict()
 
 
 @server.tool()
@@ -474,9 +464,7 @@ async def create_worktree(
     """
     from dev10x.mcp import git as git_tools
 
-    return (
-        await git_tools.create_worktree(branch=branch, base=base, path=path)
-    ).to_dict()
+    return (await git_tools.create_worktree(branch=branch, base=base, path=path)).to_dict()
 
 
 @server.tool()
@@ -508,9 +496,7 @@ async def start_split_rebase(commit_hash: str, base_branch: str = "develop") -> 
     from dev10x.mcp import git as git_tools
 
     return (
-        await git_tools.start_split_rebase(
-            commit_hash=commit_hash, base_branch=base_branch
-        )
+        await git_tools.start_split_rebase(commit_hash=commit_hash, base_branch=base_branch)
     ).to_dict()
 
 
@@ -747,6 +733,7 @@ async def update_paths(
     ensure_base: bool = False,
     generalize: bool = False,
     ensure_scripts: bool = False,
+    ensure_reads: bool = False,
     init: bool = False,
     quiet: bool = False,
 ) -> dict:
@@ -758,6 +745,7 @@ async def update_paths(
         ensure_base: Add missing base permissions from projects.yaml
         generalize: Replace session-specific args with wildcards
         ensure_scripts: Verify all plugin scripts have allow rules
+        ensure_reads: Emit per-skill Read rules with ~/ + /home/<user>/ twins
         init: Create userspace config from plugin default
         quiet: Suppress per-file details
 
@@ -772,6 +760,7 @@ async def update_paths(
         ensure_base=ensure_base,
         generalize=generalize,
         ensure_scripts=ensure_scripts,
+        ensure_reads=ensure_reads,
         init=init,
         quiet=quiet,
     )
