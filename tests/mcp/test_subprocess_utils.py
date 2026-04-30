@@ -13,6 +13,7 @@ from dev10x.mcp.subprocess_utils import (
     get_plugin_root,
     parse_json_output,
     parse_key_value_output,
+    resolve_script_path,
     run_script,
 )
 
@@ -24,6 +25,71 @@ class TestGetPluginRoot:
         assert isinstance(result, Path)
         assert result.name != "lib"
         assert (result / "servers").is_dir()
+
+
+class TestResolveScriptPath:
+    @pytest.fixture()
+    def fake_plugin_source(self, tmp_path: Path) -> Path:
+        """A directory that looks like a plugin source repo."""
+        marker_dir = tmp_path / ".claude-plugin"
+        marker_dir.mkdir()
+        (marker_dir / "plugin.json").write_text("{}")
+        return tmp_path
+
+    def test_prefers_working_dir_when_script_exists_locally(
+        self,
+        fake_plugin_source: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        local_script = fake_plugin_source / "bin" / "mktmp.sh"
+        local_script.parent.mkdir(parents=True)
+        local_script.write_text("#!/bin/sh\n")
+        monkeypatch.chdir(fake_plugin_source)
+
+        resolved = resolve_script_path("bin/mktmp.sh")
+
+        assert resolved == local_script
+
+    def test_falls_back_to_cached_when_script_missing_locally(
+        self,
+        fake_plugin_source: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # plugin.json marker exists but the requested script does not
+        monkeypatch.chdir(fake_plugin_source)
+
+        resolved = resolve_script_path("bin/mktmp.sh")
+
+        assert resolved == get_plugin_root() / "bin/mktmp.sh"
+
+    def test_falls_back_to_cached_when_cwd_not_plugin_source(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # tmp_path has no .claude-plugin/ — looks like a regular project
+        monkeypatch.chdir(tmp_path)
+
+        resolved = resolve_script_path("bin/mktmp.sh")
+
+        assert resolved == get_plugin_root() / "bin/mktmp.sh"
+
+    def test_walks_up_to_find_plugin_marker(
+        self,
+        fake_plugin_source: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """CWD is a subdir of the plugin source — marker is in an ancestor."""
+        local_script = fake_plugin_source / "skills" / "x" / "run.sh"
+        local_script.parent.mkdir(parents=True)
+        local_script.write_text("#!/bin/sh\n")
+        nested = fake_plugin_source / "subdir" / "deep"
+        nested.mkdir(parents=True)
+        monkeypatch.chdir(nested)
+
+        resolved = resolve_script_path("skills/x/run.sh")
+
+        assert resolved == local_script
 
 
 class TestRunScript:

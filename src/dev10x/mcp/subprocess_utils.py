@@ -14,13 +14,43 @@ def get_plugin_root() -> Path:
     return Path(__file__).parents[3]
 
 
+def _matches_plugin_root(candidate: Path) -> bool:
+    """Return True if `candidate` looks like the Dev10x plugin source.
+
+    A directory matches when it contains `.claude-plugin/plugin.json`
+    naming this plugin. We tolerate both publisher.name pairs by
+    checking the marker file's existence — version drift between the
+    cached install and the working tree is the whole point of GH-42.
+    """
+    return (candidate / ".claude-plugin" / "plugin.json").is_file()
+
+
+def resolve_script_path(script_path: str) -> Path:
+    """Return the script path to invoke, preferring the working tree.
+
+    When CWD (or any ancestor) is the plugin source repo — detected by
+    the presence of `.claude-plugin/plugin.json` — and the script
+    exists at the same relative path under it, return that path. This
+    lets plugin developers exercise their unsaved/uncached edits via
+    MCP tools (GH-42). Otherwise fall back to the cached install
+    discovered via `get_plugin_root()`.
+    """
+    cwd = Path.cwd().resolve()
+    for candidate in (cwd, *cwd.parents):
+        if _matches_plugin_root(candidate):
+            local_script = candidate / script_path
+            if local_script.exists():
+                return local_script
+            break
+    return get_plugin_root() / script_path
+
+
 def run_script(
     script_path: str,
     *args: str,
     env_vars: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    plugin_root = get_plugin_root()
-    full_path = plugin_root / script_path
+    full_path = resolve_script_path(script_path)
 
     if not full_path.exists():
         raise FileNotFoundError(f"Script not found: {full_path}")
@@ -77,8 +107,7 @@ async def async_run_script(
     *args: str,
     env_vars: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    plugin_root = get_plugin_root()
-    full_path = plugin_root / script_path
+    full_path = resolve_script_path(script_path)
 
     if not full_path.exists():
         raise FileNotFoundError(f"Script not found: {full_path}")
