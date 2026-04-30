@@ -832,6 +832,31 @@ reviews are separate GitHub check runs that may still be PENDING
 when core CI passes. Verify via `gh pr checks` that zero checks
 remain in PENDING or IN_PROGRESS state before marking complete.
 
+### Post-PR Review-Comment Routing (GH-43)
+
+**Hard rule:** ANY review comment on the PR — human OR bot
+(claude-review, hygiene-review, openai-review) — MUST be
+addressed via `Skill(Dev10x:gh-pr-respond)`. Do NOT use raw
+`gh api PATCH`, `gh pr edit`, or `gh pr comment` to "just edit
+the PR body" or "just post a quick reply" inline. The
+gh-pr-respond skill runs the documented triage → fixup →
+resolve flow that bypasses get skipped when the agent edits
+directly.
+
+**Anti-pattern (GH-43):** Bot review surfaces "Fix JTBD voice"
+on PR body; agent runs `gh api -X PATCH .../pulls/N -F body=@...`
+followed by `gh pr comment N --body "..."`. The fix lands but
+the skill's triage/fixup/resolve flow is bypassed. The agent
+rationalizes "this is a one-liner, the skill is overkill" — that
+rationalization is the violation. Skill delegation is mandatory
+regardless of the comment's apparent simplicity.
+
+**Detection signal:** If you are about to call `gh api PATCH
+.../pulls/`, `gh pr edit`, or `gh pr comment` to respond to a
+PR review comment, STOP and invoke `Skill(Dev10x:gh-pr-respond)`
+instead. The skill handles single-comment cases just as well as
+batch.
+
 ### Auto-Advance Rule
 
 See `references/task-orchestration.md` for the full pattern.
