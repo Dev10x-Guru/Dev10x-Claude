@@ -267,9 +267,9 @@ Released 2026-04-20
   and drop the non-existent `claude plugin add --local`
   subcommand from the local-development path
 
-[GH-965]: https://github.com/Dev10x-Guru/dev10x-claude/issues/965
-[GH-966]: https://github.com/Dev10x-Guru/dev10x-claude/issues/966
-[GH-970]: https://github.com/Dev10x-Guru/dev10x-claude/issues/970
+[GH-965]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/965
+[GH-966]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/966
+[GH-970]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/970
 
 ## 0.65.0 — Hook Performance & Control
 
@@ -303,10 +303,10 @@ Released 2026-04-19
   for `DEV10X_SKIP_CMD_VALIDATION`, which users reject for
   transient outages ([GH-957])
 
-[GH-413]: https://github.com/Dev10x-Guru/dev10x-claude/issues/413
-[GH-860]: https://github.com/Dev10x-Guru/dev10x-claude/issues/860
-[GH-957]: https://github.com/Dev10x-Guru/dev10x-claude/issues/957
-[GH-959]: https://github.com/Dev10x-Guru/dev10x-claude/issues/959
+[GH-413]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/413
+[GH-860]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/860
+[GH-957]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/957
+[GH-959]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/959
 
 ## 0.64.0 — Platform Reach & Merge Safety
 
@@ -369,16 +369,16 @@ Released 2026-04-18
   session-local scheduler lock file is now gitignored so it
   cannot land alongside unrelated skill changes ([GH-955])
 
-[GH-882]: https://github.com/Dev10x-Guru/dev10x-claude/issues/882
-[GH-906]: https://github.com/Dev10x-Guru/dev10x-claude/issues/906
-[GH-908]: https://github.com/Dev10x-Guru/dev10x-claude/issues/908
-[GH-946]: https://github.com/Dev10x-Guru/dev10x-claude/issues/946
-[GH-947]: https://github.com/Dev10x-Guru/dev10x-claude/issues/947
-[GH-948]: https://github.com/Dev10x-Guru/dev10x-claude/issues/948
-[GH-949]: https://github.com/Dev10x-Guru/dev10x-claude/issues/949
-[GH-952]: https://github.com/Dev10x-Guru/dev10x-claude/issues/952
-[GH-953]: https://github.com/Dev10x-Guru/dev10x-claude/issues/953
-[GH-955]: https://github.com/Dev10x-Guru/dev10x-claude/issues/955
+[GH-882]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/882
+[GH-906]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/906
+[GH-908]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/908
+[GH-946]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/946
+[GH-947]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/947
+[GH-948]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/948
+[GH-949]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/949
+[GH-952]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/952
+[GH-953]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/953
+[GH-955]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/955
 
 ## 0.63.0 — Solo Shipping & Playbook Resilience
 
@@ -434,17 +434,17 @@ Released 2026-04-15
 - **Update gitignore for backup settings files** — settings
   backup files are now excluded from version control
 
-[GH-897]: https://github.com/Dev10x-Guru/dev10x-claude/issues/897
-[GH-907]: https://github.com/Dev10x-Guru/dev10x-claude/issues/907
-[GH-910]: https://github.com/Dev10x-Guru/dev10x-claude/issues/910
-[GH-934]: https://github.com/Dev10x-Guru/dev10x-claude/issues/934
-[GH-936]: https://github.com/Dev10x-Guru/dev10x-claude/issues/936
-[GH-938]: https://github.com/Dev10x-Guru/dev10x-claude/issues/938
-[GH-939]: https://github.com/Dev10x-Guru/dev10x-claude/issues/939
-[GH-940]: https://github.com/Dev10x-Guru/dev10x-claude/issues/940
-[GH-941]: https://github.com/Dev10x-Guru/dev10x-claude/issues/941
-[GH-942]: https://github.com/Dev10x-Guru/dev10x-claude/issues/942
-[GH-943]: https://github.com/Dev10x-Guru/dev10x-claude/issues/943
+[GH-897]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/897
+[GH-907]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/907
+[GH-910]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/910
+[GH-934]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/934
+[GH-936]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/936
+[GH-938]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/938
+[GH-939]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/939
+[GH-940]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/940
+[GH-941]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/941
+[GH-942]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/942
+[GH-943]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/943
 
 ## 0.62.0 — Issue Milestones & Permission Safety
 
@@ -1225,34 +1225,34 @@ Released 2026-03-30
 - **Tighten git commit -F allow pattern** — CI allow rules
   match the mktmp-based commit flow ([GH-418])
 
-[GH-418]: https://github.com/Dev10x-Guru/dev10x-claude/issues/418
-[GH-483]: https://github.com/Dev10x-Guru/dev10x-claude/issues/483
-[GH-484]: https://github.com/Dev10x-Guru/dev10x-claude/issues/484
-[GH-485]: https://github.com/Dev10x-Guru/dev10x-claude/issues/485
-[GH-486]: https://github.com/Dev10x-Guru/dev10x-claude/issues/486
-[GH-487]: https://github.com/Dev10x-Guru/dev10x-claude/issues/487
-[GH-488]: https://github.com/Dev10x-Guru/dev10x-claude/issues/488
-[GH-489]: https://github.com/Dev10x-Guru/dev10x-claude/issues/489
-[GH-490]: https://github.com/Dev10x-Guru/dev10x-claude/issues/490
-[GH-491]: https://github.com/Dev10x-Guru/dev10x-claude/issues/491
-[GH-492]: https://github.com/Dev10x-Guru/dev10x-claude/issues/492
-[GH-493]: https://github.com/Dev10x-Guru/dev10x-claude/issues/493
-[GH-503]: https://github.com/Dev10x-Guru/dev10x-claude/issues/503
-[GH-504]: https://github.com/Dev10x-Guru/dev10x-claude/issues/504
-[GH-506]: https://github.com/Dev10x-Guru/dev10x-claude/issues/506
-[GH-507]: https://github.com/Dev10x-Guru/dev10x-claude/issues/507
-[GH-508]: https://github.com/Dev10x-Guru/dev10x-claude/issues/508
-[GH-515]: https://github.com/Dev10x-Guru/dev10x-claude/issues/515
-[GH-528]: https://github.com/Dev10x-Guru/dev10x-claude/issues/528
-[GH-531]: https://github.com/Dev10x-Guru/dev10x-claude/issues/531
-[GH-532]: https://github.com/Dev10x-Guru/dev10x-claude/issues/532
-[GH-533]: https://github.com/Dev10x-Guru/dev10x-claude/issues/533
-[GH-534]: https://github.com/Dev10x-Guru/dev10x-claude/issues/534
-[GH-535]: https://github.com/Dev10x-Guru/dev10x-claude/issues/535
-[GH-536]: https://github.com/Dev10x-Guru/dev10x-claude/issues/536
-[GH-537]: https://github.com/Dev10x-Guru/dev10x-claude/issues/537
-[GH-539]: https://github.com/Dev10x-Guru/dev10x-claude/issues/539
-[GH-549]: https://github.com/Dev10x-Guru/dev10x-claude/issues/549
+[GH-418]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/418
+[GH-483]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/483
+[GH-484]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/484
+[GH-485]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/485
+[GH-486]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/486
+[GH-487]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/487
+[GH-488]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/488
+[GH-489]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/489
+[GH-490]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/490
+[GH-491]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/491
+[GH-492]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/492
+[GH-493]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/493
+[GH-503]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/503
+[GH-504]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/504
+[GH-506]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/506
+[GH-507]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/507
+[GH-508]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/508
+[GH-515]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/515
+[GH-528]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/528
+[GH-531]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/531
+[GH-532]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/532
+[GH-533]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/533
+[GH-534]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/534
+[GH-535]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/535
+[GH-536]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/536
+[GH-537]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/537
+[GH-539]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/539
+[GH-549]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/549
 [9630a11]: https://github.com/Dev10x-Guru/dev10x-claude/commit/9630a11
 [d88ef81]: https://github.com/Dev10x-Guru/dev10x-claude/commit/d88ef81
 [d0acaf4]: https://github.com/Dev10x-Guru/dev10x-claude/commit/d0acaf4
@@ -1282,13 +1282,13 @@ Released 2026-03-28
 - **Prevent groom step bypass via self-assessment** — groom
   skill always presents strategy gate ([GH-505])
 
-[GH-482]: https://github.com/Dev10x-Guru/dev10x-claude/issues/482
-[GH-496]: https://github.com/Dev10x-Guru/dev10x-claude/issues/496
-[GH-498]: https://github.com/Dev10x-Guru/dev10x-claude/issues/498
-[GH-499]: https://github.com/Dev10x-Guru/dev10x-claude/issues/499
-[GH-501]: https://github.com/Dev10x-Guru/dev10x-claude/issues/501
-[GH-502]: https://github.com/Dev10x-Guru/dev10x-claude/issues/502
-[GH-505]: https://github.com/Dev10x-Guru/dev10x-claude/issues/505
+[GH-482]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/482
+[GH-496]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/496
+[GH-498]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/498
+[GH-499]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/499
+[GH-501]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/501
+[GH-502]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/502
+[GH-505]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/505
 
 ## 0.41.0 — Orchestration Guardrails & Plan Persistence
 
@@ -1324,12 +1324,12 @@ Released 2026-03-27
 - **Ensure dispatcher tests match commit hook rules** —
   test suite validates hook-to-skill routing ([GH-473])
 
-[GH-414]: https://github.com/Dev10x-Guru/dev10x-claude/issues/414
-[GH-465]: https://github.com/Dev10x-Guru/dev10x-claude/issues/465
-[GH-470]: https://github.com/Dev10x-Guru/dev10x-claude/issues/470
-[GH-473]: https://github.com/Dev10x-Guru/dev10x-claude/issues/473
-[GH-475]: https://github.com/Dev10x-Guru/dev10x-claude/issues/475
-[GH-477]: https://github.com/Dev10x-Guru/dev10x-claude/issues/477
+[GH-414]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/414
+[GH-465]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/465
+[GH-470]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/470
+[GH-473]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/473
+[GH-475]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/475
+[GH-477]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/477
 
 ## 0.40.0 — Delegation Hardening & Fixup Skill Gaps
 
@@ -1377,13 +1377,13 @@ Released 2026-03-26
 - **Embed asciinema demo in README** — interactive terminal demo
   on the project landing page ([64d4a2e])
 
-[GH-445]: https://github.com/Dev10x-Guru/dev10x-claude/issues/445
-[GH-447]: https://github.com/Dev10x-Guru/dev10x-claude/issues/447
-[GH-448]: https://github.com/Dev10x-Guru/dev10x-claude/issues/448
-[GH-458]: https://github.com/Dev10x-Guru/dev10x-claude/issues/458
-[GH-459]: https://github.com/Dev10x-Guru/dev10x-claude/issues/459
-[GH-463]: https://github.com/Dev10x-Guru/dev10x-claude/issues/463
-[GH-464]: https://github.com/Dev10x-Guru/dev10x-claude/issues/464
+[GH-445]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/445
+[GH-447]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/447
+[GH-448]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/448
+[GH-458]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/458
+[GH-459]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/459
+[GH-463]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/463
+[GH-464]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/464
 [a09a2d6]: https://github.com/Dev10x-Guru/dev10x-claude/commit/a09a2d6
 [cf14b16]: https://github.com/Dev10x-Guru/dev10x-claude/commit/cf14b16
 [64d4a2e]: https://github.com/Dev10x-Guru/dev10x-claude/commit/64d4a2e
@@ -1426,12 +1426,12 @@ Released 2026-03-25
   that allow rules enabling hooks must not be removed even when
   the hook redirects the command ([GH-419])
 
-[GH-419]: https://github.com/Dev10x-Guru/dev10x-claude/issues/419
-[GH-426]: https://github.com/Dev10x-Guru/dev10x-claude/issues/426
-[GH-427]: https://github.com/Dev10x-Guru/dev10x-claude/issues/427
-[GH-428]: https://github.com/Dev10x-Guru/dev10x-claude/issues/428
-[GH-429]: https://github.com/Dev10x-Guru/dev10x-claude/issues/429
-[GH-441]: https://github.com/Dev10x-Guru/dev10x-claude/issues/441
+[GH-419]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/419
+[GH-426]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/426
+[GH-427]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/427
+[GH-428]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/428
+[GH-429]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/429
+[GH-441]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/441
 [#442]: https://github.com/Dev10x-Guru/dev10x-claude/pull/442
 [23229f3]: https://github.com/Dev10x-Guru/dev10x-claude/commit/23229f3
 [57e3830]: https://github.com/Dev10x-Guru/dev10x-claude/commit/57e3830
@@ -1468,8 +1468,8 @@ Released 2026-03-24
 - **Data-driven skill redirect ADR** — propose friction-level
   based redirect system for hook validators ([GH-417])
 
-[GH-417]: https://github.com/Dev10x-Guru/dev10x-claude/issues/417
-[GH-422]: https://github.com/Dev10x-Guru/dev10x-claude/issues/422
+[GH-417]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/417
+[GH-422]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/422
 
 ## 0.37.0 — Skill Compliance Enforcement
 
@@ -1508,11 +1508,11 @@ eliminates the permission friction that incentivized bypasses.
   documents Skill() invocation assertion patterns, enabling
   detection of enforcement bypass regressions ([b90c5de])
 
-[GH-397]: https://github.com/Dev10x-Guru/dev10x-claude/issues/397
-[GH-399]: https://github.com/Dev10x-Guru/dev10x-claude/issues/399
-[GH-400]: https://github.com/Dev10x-Guru/dev10x-claude/issues/400
-[GH-401]: https://github.com/Dev10x-Guru/dev10x-claude/issues/401
-[GH-407]: https://github.com/Dev10x-Guru/dev10x-claude/issues/407
+[GH-397]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/397
+[GH-399]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/399
+[GH-400]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/400
+[GH-401]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/401
+[GH-407]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/407
 [b90c5de]: https://github.com/Dev10x-Guru/dev10x-claude/commit/b90c5de
 
 ## 0.36.0 — PR Monitor Visibility & MCP Bugfix
@@ -1535,8 +1535,8 @@ blocked all comment operations.
   `--pr` in cli_server.py so reply, resolve, and thread
   operations work correctly ([GH-393])
 
-[GH-392]: https://github.com/Dev10x-Guru/dev10x-claude/issues/392
-[GH-393]: https://github.com/Dev10x-Guru/dev10x-claude/issues/393
+[GH-392]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/392
+[GH-393]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/393
 
 ## 0.35.0 — Orchestration Integrity & Maintenance Skills
 
@@ -2325,99 +2325,99 @@ in a single plugin.
 
 ---
 
-[GH-1]: https://github.com/Dev10x-Guru/dev10x-claude/issues/1
-[GH-7]: https://github.com/Dev10x-Guru/dev10x-claude/issues/7
-[GH-10]: https://github.com/Dev10x-Guru/dev10x-claude/issues/10
-[GH-15]: https://github.com/Dev10x-Guru/dev10x-claude/issues/15
-[GH-17]: https://github.com/Dev10x-Guru/dev10x-claude/issues/17
-[GH-19]: https://github.com/Dev10x-Guru/dev10x-claude/issues/19
-[GH-31]: https://github.com/Dev10x-Guru/dev10x-claude/issues/31
-[GH-33]: https://github.com/Dev10x-Guru/dev10x-claude/issues/33
-[GH-35]: https://github.com/Dev10x-Guru/dev10x-claude/issues/35
-[GH-44]: https://github.com/Dev10x-Guru/dev10x-claude/issues/44
-[GH-45]: https://github.com/Dev10x-Guru/dev10x-claude/issues/45
-[GH-50]: https://github.com/Dev10x-Guru/dev10x-claude/issues/50
-[GH-54]: https://github.com/Dev10x-Guru/dev10x-claude/issues/54
-[GH-59]: https://github.com/Dev10x-Guru/dev10x-claude/issues/59
-[GH-68]: https://github.com/Dev10x-Guru/dev10x-claude/issues/68
-[GH-70]: https://github.com/Dev10x-Guru/dev10x-claude/issues/70
-[GH-79]: https://github.com/Dev10x-Guru/dev10x-claude/issues/79
-[GH-84]: https://github.com/Dev10x-Guru/dev10x-claude/issues/84
-[GH-86]: https://github.com/Dev10x-Guru/dev10x-claude/issues/86
-[GH-87]: https://github.com/Dev10x-Guru/dev10x-claude/issues/87
-[GH-118]: https://github.com/Dev10x-Guru/dev10x-claude/issues/118
-[GH-121]: https://github.com/Dev10x-Guru/dev10x-claude/issues/121
-[GH-126]: https://github.com/Dev10x-Guru/dev10x-claude/issues/126
-[GH-131]: https://github.com/Dev10x-Guru/dev10x-claude/issues/131
-[GH-133]: https://github.com/Dev10x-Guru/dev10x-claude/issues/133
-[GH-134]: https://github.com/Dev10x-Guru/dev10x-claude/issues/134
-[GH-135]: https://github.com/Dev10x-Guru/dev10x-claude/issues/135
-[GH-140]: https://github.com/Dev10x-Guru/dev10x-claude/issues/140
-[GH-143]: https://github.com/Dev10x-Guru/dev10x-claude/issues/143
-[GH-144]: https://github.com/Dev10x-Guru/dev10x-claude/issues/144
-[GH-151]: https://github.com/Dev10x-Guru/dev10x-claude/issues/151
-[GH-153]: https://github.com/Dev10x-Guru/dev10x-claude/issues/153
-[GH-154]: https://github.com/Dev10x-Guru/dev10x-claude/issues/154
-[GH-157]: https://github.com/Dev10x-Guru/dev10x-claude/issues/157
-[GH-159]: https://github.com/Dev10x-Guru/dev10x-claude/issues/159
-[GH-179]: https://github.com/Dev10x-Guru/dev10x-claude/issues/179
-[GH-180]: https://github.com/Dev10x-Guru/dev10x-claude/issues/180
-[GH-187]: https://github.com/Dev10x-Guru/dev10x-claude/issues/187
-[GH-188]: https://github.com/Dev10x-Guru/dev10x-claude/issues/188
-[GH-196]: https://github.com/Dev10x-Guru/dev10x-claude/issues/196
-[GH-200]: https://github.com/Dev10x-Guru/dev10x-claude/issues/200
-[GH-208]: https://github.com/Dev10x-Guru/dev10x-claude/issues/208
-[GH-209]: https://github.com/Dev10x-Guru/dev10x-claude/issues/209
-[GH-213]: https://github.com/Dev10x-Guru/dev10x-claude/issues/213
-[GH-219]: https://github.com/Dev10x-Guru/dev10x-claude/issues/219
-[GH-225]: https://github.com/Dev10x-Guru/dev10x-claude/issues/225
-[GH-226]: https://github.com/Dev10x-Guru/dev10x-claude/issues/226
-[GH-227]: https://github.com/Dev10x-Guru/dev10x-claude/issues/227
-[GH-231]: https://github.com/Dev10x-Guru/dev10x-claude/issues/231
-[GH-232]: https://github.com/Dev10x-Guru/dev10x-claude/issues/232
-[GH-237]: https://github.com/Dev10x-Guru/dev10x-claude/issues/237
-[GH-244]: https://github.com/Dev10x-Guru/dev10x-claude/issues/244
-[GH-247]: https://github.com/Dev10x-Guru/dev10x-claude/issues/247
-[GH-251]: https://github.com/Dev10x-Guru/dev10x-claude/issues/251
-[GH-252]: https://github.com/Dev10x-Guru/dev10x-claude/issues/252
-[GH-253]: https://github.com/Dev10x-Guru/dev10x-claude/issues/253
-[GH-258]: https://github.com/Dev10x-Guru/dev10x-claude/issues/258
-[GH-259]: https://github.com/Dev10x-Guru/dev10x-claude/issues/259
-[GH-260]: https://github.com/Dev10x-Guru/dev10x-claude/issues/260
-[GH-261]: https://github.com/Dev10x-Guru/dev10x-claude/issues/261
-[GH-263]: https://github.com/Dev10x-Guru/dev10x-claude/issues/263
-[GH-267]: https://github.com/Dev10x-Guru/dev10x-claude/issues/267
-[GH-269]: https://github.com/Dev10x-Guru/dev10x-claude/issues/269
-[GH-270]: https://github.com/Dev10x-Guru/dev10x-claude/issues/270
-[GH-271]: https://github.com/Dev10x-Guru/dev10x-claude/issues/271
-[GH-272]: https://github.com/Dev10x-Guru/dev10x-claude/issues/272
-[GH-273]: https://github.com/Dev10x-Guru/dev10x-claude/issues/273
-[GH-274]: https://github.com/Dev10x-Guru/dev10x-claude/issues/274
-[GH-275]: https://github.com/Dev10x-Guru/dev10x-claude/issues/275
-[GH-277]: https://github.com/Dev10x-Guru/dev10x-claude/issues/277
-[GH-280]: https://github.com/Dev10x-Guru/dev10x-claude/issues/280
-[GH-283]: https://github.com/Dev10x-Guru/dev10x-claude/issues/283
-[GH-288]: https://github.com/Dev10x-Guru/dev10x-claude/issues/288
-[GH-313]: https://github.com/Dev10x-Guru/dev10x-claude/issues/313
-[GH-345]: https://github.com/Dev10x-Guru/dev10x-claude/issues/345
-[GH-348]: https://github.com/Dev10x-Guru/dev10x-claude/issues/348
-[GH-351]: https://github.com/Dev10x-Guru/dev10x-claude/issues/351
-[GH-353]: https://github.com/Dev10x-Guru/dev10x-claude/issues/353
-[GH-354]: https://github.com/Dev10x-Guru/dev10x-claude/issues/354
-[GH-355]: https://github.com/Dev10x-Guru/dev10x-claude/issues/355
-[GH-356]: https://github.com/Dev10x-Guru/dev10x-claude/issues/356
-[GH-357]: https://github.com/Dev10x-Guru/dev10x-claude/issues/357
-[GH-358]: https://github.com/Dev10x-Guru/dev10x-claude/issues/358
-[GH-363]: https://github.com/Dev10x-Guru/dev10x-claude/issues/363
-[GH-366]: https://github.com/Dev10x-Guru/dev10x-claude/issues/366
-[GH-367]: https://github.com/Dev10x-Guru/dev10x-claude/issues/367
-[GH-371]: https://github.com/Dev10x-Guru/dev10x-claude/issues/371
-[GH-375]: https://github.com/Dev10x-Guru/dev10x-claude/issues/375
-[GH-376]: https://github.com/Dev10x-Guru/dev10x-claude/issues/376
-[GH-382]: https://github.com/Dev10x-Guru/dev10x-claude/issues/382
-[GH-384]: https://github.com/Dev10x-Guru/dev10x-claude/issues/384
-[GH-385]: https://github.com/Dev10x-Guru/dev10x-claude/issues/385
-[GH-386]: https://github.com/Dev10x-Guru/dev10x-claude/issues/386
+[GH-1]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/1
+[GH-7]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/7
+[GH-10]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/10
+[GH-15]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/15
+[GH-17]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/17
+[GH-19]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/19
+[GH-31]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/31
+[GH-33]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/33
+[GH-35]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/35
+[GH-44]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/44
+[GH-45]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/45
+[GH-50]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/50
+[GH-54]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/54
+[GH-59]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/59
+[GH-68]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/68
+[GH-70]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/70
+[GH-79]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/79
+[GH-84]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/84
+[GH-86]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/86
+[GH-87]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/87
+[GH-118]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/118
+[GH-121]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/121
+[GH-126]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/126
+[GH-131]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/131
+[GH-133]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/133
+[GH-134]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/134
+[GH-135]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/135
+[GH-140]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/140
+[GH-143]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/143
+[GH-144]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/144
+[GH-151]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/151
+[GH-153]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/153
+[GH-154]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/154
+[GH-157]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/157
+[GH-159]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/159
+[GH-179]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/179
+[GH-180]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/180
+[GH-187]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/187
+[GH-188]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/188
+[GH-196]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/196
+[GH-200]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/200
+[GH-208]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/208
+[GH-209]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/209
+[GH-213]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/213
+[GH-219]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/219
+[GH-225]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/225
+[GH-226]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/226
+[GH-227]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/227
+[GH-231]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/231
+[GH-232]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/232
+[GH-237]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/237
+[GH-244]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/244
+[GH-247]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/247
+[GH-251]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/251
+[GH-252]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/252
+[GH-253]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/253
+[GH-258]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/258
+[GH-259]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/259
+[GH-260]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/260
+[GH-261]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/261
+[GH-263]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/263
+[GH-267]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/267
+[GH-269]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/269
+[GH-270]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/270
+[GH-271]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/271
+[GH-272]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/272
+[GH-273]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/273
+[GH-274]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/274
+[GH-275]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/275
+[GH-277]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/277
+[GH-280]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/280
+[GH-283]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/283
+[GH-288]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/288
+[GH-313]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/313
+[GH-345]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/345
+[GH-348]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/348
+[GH-351]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/351
+[GH-353]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/353
+[GH-354]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/354
+[GH-355]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/355
+[GH-356]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/356
+[GH-357]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/357
+[GH-358]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/358
+[GH-363]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/363
+[GH-366]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/366
+[GH-367]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/367
+[GH-371]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/371
+[GH-375]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/375
+[GH-376]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/376
+[GH-382]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/382
+[GH-384]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/384
+[GH-385]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/385
+[GH-386]: https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/386
 [#243]: https://github.com/Dev10x-Guru/dev10x-claude/pull/243
 [#267]: https://github.com/Dev10x-Guru/dev10x-claude/pull/267
 [#270]: https://github.com/Dev10x-Guru/dev10x-claude/pull/270
