@@ -131,10 +131,10 @@ Released 2026-04-29
   these skills run without approval friction ([GH-11](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/11))
 - **Allow scoped `pr_comments` listings on heavily reviewed PRs**
   — pagination + filtering avoid response-size limits on PRs with
-  hundreds of threads ([GH-997](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/997))
+  hundreds of threads ([GH-997](https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/997))
 - **Enable batched comment hiding via single GraphQL mutation** —
   one round-trip hides many comments instead of N requests
-  ([GH-987](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/987))
+  ([GH-987](https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/987))
 - **Enable bootstrap coverage for uv/yq/git/gh patterns** —
   bootstrap allow rules cover the toolchain seen across skills
   out of the box ([GH-20](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/20))
@@ -143,16 +143,16 @@ Released 2026-04-29
 
 - **Halt PR creation when pre-PR checks fail** — `gh-pr-create`
   no longer pushes a draft PR when type-check or test gates
-  failed ([GH-998](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/998))
+  failed ([GH-998](https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/998))
 - **Enforce ticket-create haiku dispatch and tracker fast-fail**
   — tracker mismatches surface immediately and ticket creation
-  uses the right model tier ([GH-998](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/998))
+  uses the right model tier ([GH-998](https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/998))
 - **Enforce slack-review-request prepare script use** — Slack
   notifications go through the prepared script so token handling
-  stays consistent ([GH-998](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/998))
+  stays consistent ([GH-998](https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/998))
 - **Allow numeric-string comment IDs on `pr_comment` reply** —
   reply tool accepts both forms returned by upstream APIs
-  ([GH-995](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/995))
+  ([GH-995](https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/995))
 
 ### Refactors
 
@@ -160,7 +160,7 @@ Released 2026-04-29
   through MCP wrappers, fixing audit findings and removing the
   raw-CLI bypass ([GH-12](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/12))
 - **Guard `request-review` against approved PR pings** — already-
-  approved PRs no longer ping reviewers redundantly ([GH-993](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/993))
+  approved PRs no longer ping reviewers redundantly ([GH-993](https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/993))
 
 ## 0.67.0 — Maintenance & Repository History Pruning
 
