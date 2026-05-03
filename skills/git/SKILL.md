@@ -44,12 +44,37 @@ Mark completed when done: `TaskUpdate(taskId, status="completed")`
 **Primary: MCP tool call** (no permission friction):
 
 ```
-mcp__plugin_Dev10x_cli__push_safe(flags="[flags]", remote="origin", refspec="branch")
+mcp__plugin_Dev10x_cli__push_safe(args=["origin", "branch"])
 ```
 
 MCP calls avoid `Bash()` allow-rule matching and provide
 structured responses. Use the MCP tool as the default for
 all push operations.
+
+### Configuring `protected_branches`
+
+By default `push_safe` blocks pushes to `main` and `develop`.
+The `protected_branches` parameter overrides that list per call —
+this is the solo-maintainer escape valve.
+
+| Recipe | Call | When |
+|---|---|---|
+| Default (team workflow) | `push_safe(args=["origin","feature"])` | Feature branches; default protection of `main`/`develop` |
+| Push directly to `develop` | `push_safe(args=["origin","develop"], protected_branches=["main"])` | Solo maintainer flow that uses `develop` as integration |
+| Push directly to `main` (solo) | `push_safe(args=["origin","main"], protected_branches=[])` | Single-developer repo where `main` is the only branch |
+| Add a custom protected branch | `push_safe(args=["origin","feature"], protected_branches=["main","develop","release"])` | Long-lived release branches that must never be force-pushed |
+
+**Solo-maintainer rule of thumb:** when a hook denial says
+`Skill: Dev10x:git`, the fix is almost always to re-invoke
+`push_safe` with the right `protected_branches` list — not to
+set `DEV10X_SKIP_CMD_VALIDATION=true`. The skip-flag is reserved
+for skill-internal exceptions; bypassing it from outside the
+skill defeats the safety contract.
+
+If the call still blocks after adjusting `protected_branches`,
+read the returned `blocked_reason` field — it names the exact
+flag (`--force` on a protected branch, divergent ref, etc.) so
+you can adjust the call rather than escalating.
 
 **MCP server unavailable.** If `mcp__plugin_Dev10x_cli__push_safe`
 is listed as "no longer available" in system-reminders, STOP and
