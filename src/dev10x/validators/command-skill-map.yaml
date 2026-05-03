@@ -102,10 +102,20 @@ rules:
         skill: Dev10x:git
         guardrails: protected branch checks, force-push safety
         fallback: >
-          If Skill(Dev10x:git) fails, apply guardrails manually:
-          (1) verify branch is not develop/main before pushing,
-          (2) use --force-with-lease (never --force) if rebased,
-          (3) push with upstream tracking (-u flag).
+          Re-invoke the skill with the right parameters before
+          escalating. The MCP form is
+          `mcp__plugin_Dev10x_cli__push_safe(args=["origin","BRANCH"])`
+          and the `protected_branches` parameter overrides the
+          default `[main, develop]` block list per call. Solo
+          maintainers pushing to develop pass
+          `protected_branches=["main"]`; pushing to main passes
+          `protected_branches=[]`. Do NOT use
+          DEV10X_SKIP_CMD_VALIDATION=true to bypass — that flag is
+          reserved for skill-internal exceptions, not for callers.
+          Manual fallback only when the MCP tool is unavailable:
+          (1) verify branch is not develop/main, (2) use
+          --force-with-lease (never --force) if rebased, (3) push
+          with upstream tracking (-u flag).
     reason: >
       Direct git push bypasses force-push protection on
       develop/main branches.

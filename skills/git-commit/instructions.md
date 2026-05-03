@@ -41,9 +41,30 @@ by draft, create blocked by review.
 
 **Nested-mode exemption:** When invoked as a nested skill within
 a parent orchestrator (e.g., via `Skill()` from `Dev10x:work-on`),
-startup task creation is optional — at most 1 summary task. The
-parent provides progress visibility. See
-`references/task-orchestration.md` § Delegated Invocation Exception.
+the four startup tasks above are condensed into **exactly one**
+summary task — not zero. The parent's task list provides phase
+visibility; the nested summary task makes the commit step itself
+visible. See `references/task-orchestration.md` § Delegated
+Invocation Exception.
+
+Required nested-mode startup call:
+
+1. `TaskCreate(subject="Commit outstanding changes", activeForm="Committing")`
+
+Mark this task `in_progress` on entry and `completed` after the
+commit succeeds (or `deleted` if the run aborts). Skipping the
+task entirely is a compliance violation — it leaves the parent
+orchestrator with no record that the commit step ran.
+
+**Decision gates in nested mode:** ALL `AskUserQuestion` gates
+documented below are skipped only when **both** unattended-mode
+conditions in the next paragraph are met (invoked via
+`Skill(Dev10x:git-commit)` AND the parent has an active task
+list). When in doubt — for example, when called from a script
+or one-off invocation with no parent task list — default to
+**attended mode** and fire all gates. "Nested" alone does not
+imply "unattended"; the active-task-list signal is what
+authorizes auto-advance.
 
 **Task creation in unattended mode (top-level only):** All 4
 startup tasks MUST be created when running as a top-level
@@ -501,13 +522,47 @@ Create this commit? (y/n/edit)
 ### Step 10: Stage Files (if needed)
 
 **Hard rule: NEVER stage individual files by name** (e.g.,
-`git add file1.py file2.py`). Selective staging bypasses the
-skill contract — all changes in the working directory belong
-to this commit. Use `git add -A` or `git add .` exclusively.
+`git add file1.py file2.py`) to PICK files into a commit.
+Selective staging bypasses the skill contract — all changes
+in the working directory belong to this commit. Use
+`git add -A` or `git add .` as the staging primitive.
+
+**Escape valve — excluding unrelated paths.** When the working
+tree contains changes that genuinely do not belong in this
+commit (e.g., a session-scoped config touch in `.claude/`
+captured incidentally while editing `skills/`), prefer **one of**
+the following over selective `git add`:
+
+1. **Commit the unrelated paths first.** Re-invoke
+   `Skill(Dev10x:git-commit)` for the unrelated change with
+   its own message, then return to this commit with a clean
+   working tree. This is the default — keep commits atomic by
+   *time*, not by `git add` argument lists.
+2. **Pathspec exclusion.** When unrelated paths cannot be
+   committed first (e.g., generated noise that should stay
+   out of the commit altogether), pass an exclude pathspec
+   to `git add` so the staging primitive remains the same:
+   ```bash
+   git add -A -- ':!path/to/excluded' ':!other/path'
+   ```
+   This is NOT selective staging — it stages everything except
+   the named paths and is allowed by the contract.
+3. **Post-add unstage** (last resort). After `git add -A`,
+   remove specific paths from the index with
+   `git restore --staged <pathspec>`. Document in the commit
+   message body why those paths were excluded so the rationale
+   is preserved.
+
+Never use `git reset HEAD <path>` or `git rm --cached <path>`
+as exclusion shortcuts — they create the same selective-staging
+anti-pattern the hard rule prohibits.
 
 **Unattended mode:** Auto-stage all changes (`git add -A`)
 without prompting. The orchestrator's approved plan implies
-all current changes are intended for this commit.
+all current changes are intended for this commit. If the
+orchestrator wants to exclude paths, it MUST pass them via
+the pathspec-exclusion form above — the unattended default
+does not silently drop files.
 
 **Attended mode — if unstaged changes exist:**
 

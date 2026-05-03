@@ -1007,17 +1007,37 @@ of upstream-relevant findings and two options: "File issue
 
 If the user selects **Skip**, mark Phase 7 completed and end.
 
-**Sub-step C: Delegate to Dev10x:audit-report**
+**Sub-step C: Scrub findings before delegating**
 
-Write a findings summary to a temp file so the delegated
-skill can read it without needing the full transcript:
+**REQUIRED before writing the findings file.** The upstream
+issue is public; the source session is treated as private by
+default. Apply the replacement table, allow-list, and 5-step
+algorithm in `Dev10x:audit-report` →
+`references/privacy-scrub.md` to the findings text **before**
+writing it to the temp file.
+
+**Local-only sections** (e.g., "Local fixes (not relevant
+upstream)", project-specific memory notes, `settings.local.json`
+allow-rule packs) MUST be omitted from the findings file
+entirely — they are private context, not signal for the
+plugin maintainers.
+
+If a finding cannot be reported without a private identifier,
+mark it `[needs-user-decision]` in the findings file and let
+`Dev10x:audit-report` Step 3 raise the `AskUserQuestion` gate.
+Do NOT silently include unscrubbed text.
+
+**Sub-step D: Delegate to Dev10x:audit-report**
+
+Write the **scrubbed** findings summary to a temp file so the
+delegated skill can read it without needing the full transcript:
 
 ```bash
 /tmp/Dev10x/bin/mktmp.sh skill-audit findings .md
 ```
 
-Write the upstream-relevant findings table and proposed fixes
-to that file, then invoke:
+Write the scrubbed upstream-relevant findings table and proposed
+fixes to that file, then invoke:
 
 ```
 Skill(skill="Dev10x:audit-report", args="<findings-file-path>")
@@ -1071,3 +1091,14 @@ completed after delegation returns.
   `Dev10x:audit-report` rather than implementing it inline. This
   keeps skill-audit focused on analysis and lets users who don't
   want upstream reporting skip the skill entirely.
+- **Source session is private by default**: Audit reports MUST NOT
+  disclose information about non-public repositories, projects,
+  branches, ticket trackers, file paths, hostnames, or people.
+  Scrub all such identifiers in Phase 7 sub-step C before they
+  reach the upstream issue body. The plugin maintainers only need
+  the public Dev10x context (skill names, plugin file paths, PR
+  numbers) to act on a finding — anything tied to the source
+  codebase belongs in the auditor's local notes, not in the
+  filed issue. See `Dev10x:audit-report` Step 3 for the full
+  scrubbing rules and the `AskUserQuestion` gate that handles
+  findings that cannot be scrubbed without losing meaning.
