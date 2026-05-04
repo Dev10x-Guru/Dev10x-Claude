@@ -21,16 +21,12 @@ from pathlib import Path
 import yaml
 
 MEMORY_CONFIG = Path.home() / ".claude" / "memory" / "Dev10x" / "projects.yaml"
-USERSPACE_CONFIG = (
-    Path.home() / ".claude" / "skills" / "Dev10x:upgrade-cleanup" / "projects.yaml"
-)
+USERSPACE_CONFIG = Path.home() / ".claude" / "skills" / "Dev10x:upgrade-cleanup" / "projects.yaml"
 PLUGIN_CONFIG = (
     Path(__file__).resolve().parents[4] / "skills" / "upgrade-cleanup" / "projects.yaml"
 )
 PLUGIN_NAMES = r"(?:Dev10x|dev10x-claude)"
-VERSION_PATTERN = re.compile(
-    rf"(plugins/cache/)([^/]+)(/{PLUGIN_NAMES}/)(\d+\.\d+\.\d+)"
-)
+VERSION_PATTERN = re.compile(rf"(plugins/cache/)([^/]+)(/{PLUGIN_NAMES}/)(\d+\.\d+\.\d+)")
 
 
 def extract_cache_publisher(plugin_cache: str) -> str | None:
@@ -86,9 +82,11 @@ def find_settings_files(
 ) -> list[Path]:
     files: list[Path] = []
     if include_user:
-        user_settings = Path.home() / ".claude" / "settings.local.json"
-        if user_settings.exists():
-            files.append(user_settings)
+        user_dir = Path.home() / ".claude"
+        for name in ("settings.json", "settings.local.json"):
+            candidate = user_dir / name
+            if candidate.exists():
+                files.append(candidate)
 
     project_settings_dir = Path.home() / ".claude" / "projects"
     if project_settings_dir.is_dir():
@@ -220,12 +218,8 @@ def ensure_base_permissions(
             live_data["permissions"]["allow"].extend(expanded_tools)
             live_data["permissions"]["allow"].extend(missing)
 
-    messages = [
-        f"  - {wc}  (non-functional MCP wildcard removed)" for wc in stale_wildcards
-    ]
-    messages.extend(
-        f"  + {tool}  (expanded from MCP wildcard)" for tool in expanded_tools
-    )
+    messages = [f"  - {wc}  (non-functional MCP wildcard removed)" for wc in stale_wildcards]
+    messages.extend(f"  + {tool}  (expanded from MCP wildcard)" for tool in expanded_tools)
     messages.extend(f"  + {p}" for p in missing)
     return len(missing) + len(stale_wildcards) + len(expanded_tools), messages
 
@@ -913,16 +907,12 @@ def _detect_plugin_cache() -> str:
                 candidates.append(plugin_dir)
                 break
     if len(candidates) == 1:
-        return (
-            f"~/.claude/plugins/cache/{candidates[0].parent.name}/{candidates[0].name}"
-        )
+        return f"~/.claude/plugins/cache/{candidates[0].parent.name}/{candidates[0].name}"
     if len(candidates) > 1:
         names = ", ".join(f"{c.parent.name}/{c.name}" for c in candidates)
         print(f"Multiple plugin cache entries found: {names}")
         print(f"Using first match: {candidates[0].parent.name}/{candidates[0].name}")
-        return (
-            f"~/.claude/plugins/cache/{candidates[0].parent.name}/{candidates[0].name}"
-        )
+        return f"~/.claude/plugins/cache/{candidates[0].parent.name}/{candidates[0].name}"
     return "~/.claude/plugins/cache/Dev10x-Guru/Dev10x"
 
 
@@ -934,9 +924,7 @@ def _init_userspace_config() -> int:
         print(f"Config already exists: {USERSPACE_CONFIG}")
         return 0
     if not PLUGIN_CONFIG.is_file():
-        print(
-            f"ERROR: Plugin default config not found: {PLUGIN_CONFIG}", file=sys.stderr
-        )
+        print(f"ERROR: Plugin default config not found: {PLUGIN_CONFIG}", file=sys.stderr)
         return 1
     USERSPACE_CONFIG.parent.mkdir(parents=True, exist_ok=True)
     content = PLUGIN_CONFIG.read_text()
