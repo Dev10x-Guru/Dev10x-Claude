@@ -5,7 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from dev10x.skills.permission.update_paths import extract_cache_publisher, update_file
+from dev10x.skills.permission.update_paths import (
+    extract_cache_publisher,
+    find_settings_files,
+    update_file,
+)
 
 
 class TestExtractCachePublisher:
@@ -208,3 +212,52 @@ class TestUpdateFilePublisher:
 
         assert count == 1
         assert settings_file.read_text() == content
+
+
+class TestFindSettingsFilesUserGlobal:
+    """Regression: ~/.claude/settings.json was skipped by find_settings_files
+    when include_user=True (Dev10x-Claude2#982). Both user-global files must
+    be discovered so versioned plugin paths are rewritten there too."""
+
+    @pytest.fixture()
+    def fake_home(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+        home = tmp_path / "home"
+        (home / ".claude").mkdir(parents=True)
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+        return home
+
+    def test_includes_both_user_global_files_when_include_user(
+        self,
+        fake_home: Path,
+    ) -> None:
+        local = fake_home / ".claude" / "settings.local.json"
+        global_ = fake_home / ".claude" / "settings.json"
+        local.write_text("{}")
+        global_.write_text("{}")
+
+        files = find_settings_files(roots=[], include_user=True)
+
+        assert local.resolve() in files
+        assert global_.resolve() in files
+
+    def test_includes_settings_json_even_when_local_missing(
+        self,
+        fake_home: Path,
+    ) -> None:
+        global_ = fake_home / ".claude" / "settings.json"
+        global_.write_text("{}")
+
+        files = find_settings_files(roots=[], include_user=True)
+
+        assert global_.resolve() in files
+
+    def test_skips_user_global_files_when_include_user_false(
+        self,
+        fake_home: Path,
+    ) -> None:
+        (fake_home / ".claude" / "settings.json").write_text("{}")
+        (fake_home / ".claude" / "settings.local.json").write_text("{}")
+
+        files = find_settings_files(roots=[], include_user=False)
+
+        assert files == []
