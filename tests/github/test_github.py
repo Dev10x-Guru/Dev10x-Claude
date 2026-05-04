@@ -873,3 +873,99 @@ class TestPrCommentsStrategyDispatch:
 
         assert isinstance(result, ErrorResult)
         assert "Invalid repository reference" in result.error
+
+
+class TestUpdatePr:
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api", new_callable=AsyncMock)
+    async def test_updates_body(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(stdout="{}")
+
+        result = await gh.update_pr(pr_number=42, body="new body")
+
+        assert isinstance(result, SuccessResult)
+        assert result.value == {
+            "pr_number": 42,
+            "url": "https://github.com/owner/repo/pull/42",
+        }
+        mock_api.assert_awaited_once()
+        call = mock_api.call_args
+        assert call.args[0] == "repos/owner/repo/pulls/42"
+        assert call.kwargs["method"] == "PATCH"
+        assert call.kwargs["fields"] == {"body": "new body"}
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api", new_callable=AsyncMock)
+    async def test_updates_title_and_base(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(stdout="{}")
+
+        result = await gh.update_pr(
+            pr_number=7,
+            title="New title",
+            base_branch="main",
+        )
+
+        assert isinstance(result, SuccessResult)
+        assert mock_api.call_args.kwargs["fields"] == {
+            "title": "New title",
+            "base": "main",
+        }
+
+    @pytest.mark.asyncio
+    async def test_returns_error_when_no_fields_provided(self) -> None:
+        result = await gh.update_pr(pr_number=1)
+
+        assert isinstance(result, ErrorResult)
+        assert "at least one" in result.error.lower()
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api", new_callable=AsyncMock)
+    async def test_returns_error_when_repo_unresolved(
+        self,
+        mock_api: AsyncMock,
+    ) -> None:
+        with patch.object(gh, "_detect_repo", new_callable=AsyncMock, return_value=None):
+            result = await gh.update_pr(pr_number=1, body="x")
+
+        assert isinstance(result, ErrorResult)
+        mock_api.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api", new_callable=AsyncMock)
+    async def test_returns_error_on_api_failure(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(returncode=1, stderr="HTTP 422: Validation Failed")
+
+        result = await gh.update_pr(pr_number=42, body="x")
+
+        assert isinstance(result, ErrorResult)
+        assert "422" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api", new_callable=AsyncMock)
+    async def test_uses_explicit_repo_when_provided(
+        self,
+        mock_api: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(stdout="{}")
+
+        result = await gh.update_pr(
+            pr_number=99,
+            body="x",
+            repo="other/proj",
+        )
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["url"] == "https://github.com/other/proj/pull/99"
+        assert mock_api.call_args.args[0] == "repos/other/proj/pulls/99"

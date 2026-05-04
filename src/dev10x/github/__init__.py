@@ -604,6 +604,43 @@ async def create_pr(
     return ok({"pr_number": int(pr_number), "url": url})
 
 
+async def update_pr(
+    *,
+    pr_number: int,
+    body: str | None = None,
+    title: str | None = None,
+    base_branch: str | None = None,
+    repo: str | None = None,
+) -> Result[dict[str, Any]]:
+    if body is None and title is None and base_branch is None:
+        return err("update_pr requires at least one of: body, title, base_branch")
+
+    repo_result = await _resolve_repo(repo)
+    if isinstance(repo_result, ErrorResult):
+        return err(repo_result.error)
+    repo_ref = repo_result.value
+
+    fields: dict[str, str | int | list[str]] = {}
+    if body is not None:
+        fields["body"] = body
+    if title is not None:
+        fields["title"] = title
+    if base_branch is not None:
+        fields["base"] = base_branch
+
+    result = await _gh_api(
+        f"repos/{repo_ref}/pulls/{pr_number}",
+        method="PATCH",
+        fields=fields,
+    )
+
+    if result.returncode != 0:
+        return err(result.stderr.strip())
+
+    url = f"https://github.com/{repo_ref}/pull/{pr_number}"
+    return ok({"pr_number": pr_number, "url": url})
+
+
 async def generate_commit_list(
     *,
     pr_number: int,

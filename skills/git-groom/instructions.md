@@ -314,7 +314,12 @@ the full rewrite lifecycle including reference updates.
    - If no PR or PR is closed/merged → skip Phase 4, mark done
    - If PR is open → proceed with updates
 2. Get the new commit hash(es): `git log --oneline develop..HEAD`
-3. Update the PR body commit links with new hashes
+3. Update the PR body commit links with new hashes via the
+   `mcp__plugin_Dev10x_cli__update_pr` MCP tool (auto-permitted under
+   `mcp__plugin_Dev10x_cli__*`; pass the rebuilt body string):
+   ```
+   mcp__plugin_Dev10x_cli__update_pr(pr_number=<N>, body=<rebuilt_body>)
+   ```
 4. Update the summary comment (first comment by the author) with new hashes
 5. If the PR body has a Job Story, preserve it unchanged
 

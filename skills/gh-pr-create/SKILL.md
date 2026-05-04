@@ -17,6 +17,7 @@ allowed-tools:
   - mcp__plugin_Dev10x_cli__verify_pr_state
   - mcp__plugin_Dev10x_cli__pre_pr_checks
   - mcp__plugin_Dev10x_cli__create_pr
+  - mcp__plugin_Dev10x_cli__update_pr
   - mcp__plugin_Dev10x_cli__generate_commit_list
   - mcp__plugin_Dev10x_cli__post_summary_comment
   - mcp__plugin_Dev10x_cli__detect_tracker

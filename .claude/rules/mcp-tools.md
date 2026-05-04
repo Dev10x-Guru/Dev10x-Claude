@@ -66,6 +66,7 @@ supporting each tool:
 | `verify_pr_state` | `cli` | PR #191 | v0.30.0+ |
 | `pre_pr_checks` | `cli` | PR #191 | v0.30.0+ |
 | `create_pr` | `cli` | PR #191 | v0.30.0+ |
+| `update_pr` | `cli` | GH-60 | v0.70.0+ |
 | `generate_commit_list` | `cli` | PR #191 | v0.30.0+ |
 | `post_summary_comment` | `cli` | PR #191 | v0.30.0+ |
 | `pr_notify` | `cli` | PR #191 | v0.30.0+ |

@@ -332,6 +332,44 @@ async def create_pr(
 
 
 @server.tool()
+async def update_pr(
+    pr_number: int,
+    body: str | None = None,
+    title: str | None = None,
+    base_branch: str | None = None,
+    repo: str | None = None,
+) -> dict:
+    """Update an existing PR's body, title, or base branch.
+
+    Mirrors create_pr for in-place updates after force-push or scope
+    changes. Wraps `gh api -X PATCH repos/{repo}/pulls/{N}`.
+
+    Args:
+        pr_number: PR number to update
+        body: New PR body (markdown). Omit to leave unchanged.
+        title: New PR title. Omit to leave unchanged.
+        base_branch: New base branch (re-target). Omit to leave unchanged.
+        repo: Repository (owner/repo). Auto-detected if omitted.
+
+    At least one of body, title, or base_branch is required.
+
+    Returns:
+        Dictionary with keys: pr_number (int), url (str)
+    """
+    from dev10x import github as gh
+
+    return (
+        await gh.update_pr(
+            pr_number=pr_number,
+            body=body,
+            title=title,
+            base_branch=base_branch,
+            repo=repo,
+        )
+    ).to_dict()
+
+
+@server.tool()
 async def generate_commit_list(pr_number: int, base_branch: str | None = None) -> dict:
     """Generate a linked commit list for a PR body.
 

@@ -13,6 +13,7 @@ invocation-name: Dev10x:git-groom
 allowed-tools:
   - mcp__plugin_Dev10x_cli__mass_rewrite
   - mcp__plugin_Dev10x_cli__rebase_groom
+  - mcp__plugin_Dev10x_cli__update_pr
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git-groom/scripts/:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git/scripts/git-rebase-groom.sh:*)
   - Bash(git reset --soft:*)

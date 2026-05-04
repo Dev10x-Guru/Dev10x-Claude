@@ -336,18 +336,20 @@ don't apply to this PR, then update the PR body with strikethroughs:
 
 **Strike-through format:** Replace `- [ ] item text` with `- ~item text~`
 
-**Update PR body:** Use the REST API rather than `gh pr edit` to
-avoid GraphQL Projects-classic deprecation warnings causing exit 1
-on a successful update (GH-41):
+**Update PR body:** Call the `update_pr` MCP tool. It wraps the
+REST PATCH endpoint internally (avoiding the `gh pr edit` GraphQL
+Projects-classic deprecation that exits 1 on success — GH-41) and
+is auto-permitted under `mcp__plugin_Dev10x_cli__*`:
 
-```bash
-PR_NUMBER=$(gh pr view --json number -q .number)
-REPO_NWO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
-BODY_FILE=$(mktemp)
-trap 'rm -f "$BODY_FILE"' EXIT
-printf '%s' "$UPDATED_BODY" > "$BODY_FILE"
-gh api -X PATCH "repos/$REPO_NWO/pulls/$PR_NUMBER" -F "body=@$BODY_FILE"
 ```
+mcp__plugin_Dev10x_cli__update_pr(
+    pr_number=<N>,
+    body=<updated_body>,
+)
+```
+
+Returns `{pr_number, url}`. Pass `repo` only when not detectable
+from CWD.
 
 ### Step 8: Open PR in Browser
 
