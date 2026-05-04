@@ -270,6 +270,19 @@ This is the session you are auditing.
 
 Locate the skills directory: `~/.claude/skills/`
 
+**Read session friction context (GH-55 F9).** Look for
+`.claude/Dev10x/session.yaml` in the project root and load
+`friction_level` and `active_modes`. If the file is missing,
+default to `friction_level: guided` and `active_modes: []`.
+
+Persist both values for downstream use — pass them into the
+Phase 3 (Compliance Check) subagent prompt in Step 7. Without
+this, the Phase 3 subagent cannot tell which gates auto-select
+at the active level (e.g., `work-on` Phase 3 plan-approval
+auto-selects at `adaptive` per GH-808) and will produce false-
+positive `SKIPPED_STEP` regressions for documented auto-advance
+behavior.
+
 ### Step 5: Create output files
 
 Create a temp file for each analysis phase's output:
@@ -332,7 +345,7 @@ instructions from the Phase Reference section in each prompt.
 
 1. `Agent(subagent_type="general-purpose", model="sonnet", description="Phase 2: Skill coverage", prompt="You are running Phase 2 (Skill Coverage Analysis). Return your complete findings as your response. Also attempt to write them to <PHASE2_OUTPUT> — if the write fails, the main agent will capture your findings from the returned result. Phase 1 action inventory: <PHASE1_OUTPUT>. Skills directory: <SKILLS_DIR>. Read the Phase 1 output, then [include full Phase 2: Skill Coverage Analysis instructions from the Phase Reference section].")`
 
-2. `Agent(subagent_type="general-purpose", model="sonnet", description="Phase 3: Compliance check", prompt="You are running Phase 3 (Compliance Check). Return your complete findings as your response. Also attempt to write them to <PHASE3_OUTPUT> — if the write fails, the main agent will capture your findings from the returned result. Phase 1 action inventory: <PHASE1_OUTPUT>. Session transcript: <TRANSCRIPT_PATH>. Skills directory: <SKILLS_DIR>. Read the Phase 1 output, then [include full Phase 3: Compliance Check instructions from the Phase Reference section].")`
+2. `Agent(subagent_type="general-purpose", model="sonnet", description="Phase 3: Compliance check", prompt="You are running Phase 3 (Compliance Check). Return your complete findings as your response. Also attempt to write them to <PHASE3_OUTPUT> — if the write fails, the main agent will capture your findings from the returned result. Phase 1 action inventory: <PHASE1_OUTPUT>. Session transcript: <TRANSCRIPT_PATH>. Skills directory: <SKILLS_DIR>. Session friction context: friction_level=<FRICTION_LEVEL>, active_modes=<ACTIVE_MODES>. When evaluating compliance, treat documented auto-select gates (e.g., `work-on` Phase 3 plan-approval at adaptive — GH-808) as COMPLIANT when the agent auto-selected the recommended option, NOT as SKIPPED_STEP. Read the Phase 1 output, then [include full Phase 3: Compliance Check instructions from the Phase Reference section].")`
 
 3. `Agent(subagent_type="general-purpose", model="sonnet", description="Phase 5: Lessons learned", prompt="You are running Phase 5 (Lessons Learned Extraction). Return your complete findings as your response. Also attempt to write them to <PHASE5_OUTPUT> — if the write fails, the main agent will capture your findings from the returned result. Phase 1 action inventory: <PHASE1_OUTPUT>. Session transcript: <TRANSCRIPT_PATH>. Memory directory: <MEMORY_DIR>. Read the Phase 1 output, then [include full Phase 5: Lessons Learned Extraction instructions from the Phase Reference section].")`
 
