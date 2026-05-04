@@ -129,7 +129,9 @@ points. In unattended mode, these gates are skipped:
 
 1. Check if we're in a git repository
 2. Check if there are staged or unstaged changes
-3. Check current branch (should not be develop/main/master)
+3. Check current branch (should not be develop/main/master,
+   unless `solo_maintainer: true` is set in
+   `.claude/Dev10x/session.yaml`)
 4. Verify branch follows naming convention (username/TICKET-ID/[worktree/]description)
 
 ## When to Use This Skill
@@ -189,9 +191,22 @@ BRANCH=$(git symbolic-ref --short HEAD)
 git status --porcelain
 ```
 
+**Solo-maintainer escape (GH-57):** Before applying the
+base-branch block, read `.claude/Dev10x/session.yaml`. If it
+contains `solo_maintainer: true`, skip the develop/main/master
+block — single-author projects with no PR workflow legitimately
+commit to the base branch. The `solo-maintainer` mode entry in
+`active_modes:` does NOT enable this escape on its own; the
+explicit `solo_maintainer: true` flag is required so the
+configuration choice is auditable.
+
 **Validations:**
 - ❌ If not in git repo → Error: "Not in a git repository"
-- ❌ If on develop/main/master → Error: "Cannot commit directly to develop/main/master"
+- ❌ If on develop/main/master AND `solo_maintainer` flag is
+  not set → Error: "Cannot commit directly to develop/main/master.
+  Create a feature branch first, or set `solo_maintainer: true`
+  in `.claude/Dev10x/session.yaml` if this is a single-author
+  repo with no PR workflow."
 - ❌ If no changes → Error: "No changes to commit"
 - ✅ If staged changes exist → Continue
 - ⚠️ If only unstaged changes → Ask: "Stage all changes? (y/n)"
@@ -813,7 +828,9 @@ Dev10x:git-commit
 
 **"Cannot commit to develop/main/master":**
 - Error and stop
-- Suggest: Create feature branch first
+- Suggest: Create feature branch first, or set
+  `solo_maintainer: true` in `.claude/Dev10x/session.yaml`
+  for single-author repos with no PR workflow (GH-57)
 
 **"Title too long":**
 - Show character count
