@@ -387,6 +387,31 @@ rules:
       where dev dependencies are available by default. Use
       uv run directly.
 
+  - name: mktmp-bash-fallback
+    matcher: Bash
+    patterns:
+      - /tmp/Dev10x/bin/mktmp\.sh
+      - bin/mktmp\.sh
+    hook_block: false
+    compensations:
+      - type: use-tool
+        tool: mcp__plugin_Dev10x_cli__mktmp
+        guardrails: structured response, no Bash permission friction
+        description: >
+          Call the MCP tool with namespace, prefix, ext, and (optional)
+          directory/create flags. The shell script is the deployed
+          fallback and should only run inside other shell scripts that
+          execute outside Claude's tool-use protocol.
+    reason: >
+      The bash fallback works but adds permission friction (Bash
+      allow-rule needed) and returns plain stdout. The MCP tool
+      returns structured JSON with the path, matches the file-
+      not-pre-created semantics introduced by GH-39, and lives in
+      the routing table for skills.
+    related:
+      - Dev10x:git-commit
+      - Dev10x:gh-pr-create
+
   # ── Edit|Write rules ───────────────────────────────────────
 
   - name: eval-in-skills

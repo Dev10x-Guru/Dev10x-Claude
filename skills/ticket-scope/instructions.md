@@ -100,6 +100,24 @@ Follow the base `scope` skill for:
    - Identify reusable components
 3. **Identify components** (existing vs. new)
 
+**Tool routing rules during research (GH-55 F6, F7, F8):**
+
+| Goal | Use | Do NOT use |
+|------|-----|-----------|
+| Search code by pattern/keyword | `Grep` tool with `output_mode: count` or `head_limit` | Bash `grep -rn ... \| head` or `grep \| wc -l` |
+| Read a file or excerpt | `Read` tool (with `offset`/`limit` for excerpts) | Bash `cat`, `head`, `tail` |
+| Combine setup + search | Two separate Bash calls | `cat ... && grep ...` or `;`-chained shells |
+| Create a temp file path | `mcp__plugin_Dev10x_cli__mktmp` | `/tmp/Dev10x/bin/mktmp.sh` (bash fallback) |
+
+The bash forms are blocked by security hooks (heredoc/redirect
+checks, chained commands) or trip Claude's prefix-matching allow
+rules. The Grep/Read tools are also faster — they stream results
+without spawning a shell. The audit caught six bash `grep`
+invocations and three `cat`-based commands hitting the hook
+across one ticket-scope research phase; CLAUDE.md §2 already
+prohibits these but the rule needs to live next to the work,
+not only at the global level.
+
 ### Phase 3: Design Solution
 
 #### 3.1 Determine Task Type
@@ -237,10 +255,18 @@ Ask for feedback on:
 
 #### 7.1 Save Scoping Document
 
-```bash
-# Save to /tmp for reference
-/tmp/Dev10x/ticket-scope/TICKET-ID-scope.md
+Generate the scope-document path via the mktmp MCP tool, then
+write the rendered template to it:
+
 ```
+mcp__plugin_Dev10x_cli__mktmp(namespace="ticket-scope",
+    prefix="<TICKET-ID>-scope", ext=".md")
+```
+
+Take the returned `path` and `Write` the document there. Do NOT
+hardcode `/tmp/Dev10x/ticket-scope/<TICKET-ID>-scope.md` and do
+NOT shell out to `/tmp/Dev10x/bin/mktmp.sh` — the MCP tool is the
+preferred path (GH-55 F8).
 
 #### 7.2 Update Linear Ticket (Optional)
 
