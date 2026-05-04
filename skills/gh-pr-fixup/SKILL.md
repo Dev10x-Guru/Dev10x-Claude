@@ -209,10 +209,15 @@ Get the commit hash and build both link types for the reply:
 ```bash
 commit_hash=$(git rev-parse --short HEAD)
 full_hash=$(git rev-parse HEAD)
-# PR-relative link — shows diff within PR context (becomes 404 after groom)
+# PR-relative link — most useful while the PR is in flight: clicks
+# land in the inline-diff view inside the PR and reviewers can comment
+# on the change without leaving the page. Becomes 404 once the commit
+# vanishes (after groom, after merge with squash strategy).
 pr_commit_url="https://github.com/{owner}/{repo}/pull/{pr_number}/commits/${full_hash}"
-# Absolute repo link — survives grooming, useful for post-groom audit
-repo_commit_url="https://github.com/{owner}/{repo}/commit/${full_hash}"
+# Absolute repo permalink — survives grooming and merge: rebase
+# rewrites the SHA on the branch but the original commit remains
+# reachable in the repo, so the permalink stays valid post-merge.
+permalink="https://github.com/{owner}/{repo}/commit/${full_hash}"
 ```
 
 ### Step 7: Reply to Comment Thread
@@ -224,7 +229,7 @@ Reply **in the review comment thread** (not as a top-level PR comment).
 mcp__plugin_Dev10x_cli__pr_comment_reply(
     pr_number={pr_number},
     comment_id={comment_id},
-    body="Fixed in [`{short_hash}`]({pr_commit_url}) · [permalink]({repo_commit_url}) - {brief_explanation}"
+    body="Fixed in [`{short_hash}`]({pr_commit_url}) · [permalink]({permalink}) - {brief_explanation}"
 )
 ```
 
@@ -232,19 +237,24 @@ mcp__plugin_Dev10x_cli__pr_comment_reply(
 ```bash
 gh api --method POST \
   repos/{owner}/{repo}/pulls/{pr_number}/comments/{comment_id}/replies \
-  -f body="Fixed in [\`{short_hash}\`]({pr_commit_url}) · [permalink]({repo_commit_url}) - {brief_explanation}"
+  -f body="Fixed in [\`{short_hash}\`]({pr_commit_url}) · [permalink]({permalink}) - {brief_explanation}"
 ```
 
-**Reply format (GH-777):**
+**Reply format (GH-777, GH-52):**
 ```markdown
-Fixed in [`{short_hash}`]({pr_commit_url}) · [permalink]({repo_commit_url}) - {brief explanation}.
+Fixed in [`{short_hash}`]({pr_commit_url}) · [permalink]({permalink}) - {brief explanation}.
 ```
 
-Both links are included because:
-- **PR link** (`/pull/N/commits/HASH`): shows diff within PR
-  context, allows reviewers to comment on the change
-- **Permalink** (`/commit/HASH`): survives grooming (rebase
-  rewrites SHAs, breaking PR-relative links)
+Both links are intentional:
+- The `{short_hash}` link points at the **PR-relative** URL
+  (`/pull/N/commits/HASH`) so a click during review lands inside
+  the PR's inline-diff view — reviewers can comment on the change
+  without navigating away. This URL 404s after groom or squash-
+  merge, but that's after the review is done.
+- The trailing `[permalink]` points at the **absolute repo URL**
+  (`/commit/HASH`) which survives grooming and merge: useful as a
+  long-lived audit trail and the only one that still resolves
+  after the SHA leaves the branch tip.
 
 **When reusing a fixup for another comment:**
 - Reference the same commit
