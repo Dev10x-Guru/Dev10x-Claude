@@ -120,6 +120,7 @@ evaluation, and testing — usable on any project.
 | `code-reviewer.md` | Review branch changes against standards |
 | `pytest-tester.md` | Run tests and verify coverage |
 | `pytest-test-writer.md` | Write/review pytest tests |
+| `spec-reviewer.md` | Verify diff matches ticket AC (Phase 0 of review) |
 
 ### Architecture Evaluation Agents (for ADRs)
 

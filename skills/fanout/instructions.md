@@ -587,6 +587,30 @@ At any pause signal, invoke `Dev10x:session-wrap-up`.
 Active worktrees and in-progress PRs are bookmarked
 automatically.
 
+## Subagent Status Protocol (GH-69)
+
+When fanout dispatches `Agent()` for read-only work (per the
+Permission-Aware Dispatch table) — including the
+`Agent(subagent_type="gh-pr-monitor")` fallback — every prompt
+MUST instruct the agent to end its output with one of:
+
+- `DONE` — task complete
+- `DONE_WITH_CONCERNS: <text>` — complete but flagged
+- `NEEDS_CONTEXT: <what>` — re-dispatch needed
+- `BLOCKED: <reason>` — permission wall or unrecoverable error
+
+The main-session controller parses the trailing line and
+branches deterministically: continue, queue concern, re-dispatch
+with more context, or escalate to the user via
+`AskUserQuestion`. A `BLOCKED:` status replaces today's
+heuristic agent-failure detection — the agent self-reports the
+failure, no guesswork.
+
+See [`references/orchestration/subagent-status-protocol.md`](
+../../references/orchestration/subagent-status-protocol.md)
+for the full prompt template, parse pattern, and migration
+notes.
+
 ## Known Limitations
 
 - **`bypassPermissions` non-propagation:** The
@@ -595,8 +619,9 @@ automatically.
   permissions, causing Write/Edit tool blocks when the user's
   settings require approval. **Mitigation:** Use the
   Permission-Aware Dispatch table in Phase 3 to route
-  write-requiring tasks to the main session (GH-549 F-04,
-  GH-555, GH-562).
+  write-requiring tasks to the main session, and the Subagent
+  Status Protocol above to surface permission walls as explicit
+  `BLOCKED:` results (GH-549 F-04, GH-555, GH-562, GH-69).
 
 - **`Skill()` unavailable in subagents:** Background agents
   cannot call `Skill()` — only the main session has access.

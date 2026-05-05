@@ -647,35 +647,71 @@ failing checks, or incomplete work that earlier phases missed.
 
 **Permission failure propagation (GH-760 F4):** If the
 background agent hits permission limits and cannot complete
-`verify-acc-dod`, it MUST report this explicitly as
-"Acceptance criteria: INCOMPLETE — permission failure" in the
-final status report. The parent orchestrator MUST re-invoke
-`Skill(Dev10x:verify-acc-dod)` in the main session when it
-sees this status. Do NOT mark the parent's acceptance task
-as `completed` when the agent reports incomplete.
+`verify-acc-dod`, it MUST emit `BLOCKED: verify-acc-dod
+permission failure` as the status line (per the Subagent Status
+Protocol below). The parent orchestrator parses the
+`BLOCKED:` prefix and re-invokes
+`Skill(Dev10x:verify-acc-dod)` in the main session. Do NOT
+mark the parent's acceptance task as `completed` when the agent
+reports `BLOCKED:`.
 
-### Main-Session Fallback (GH-901)
+## Final Status Line (GH-69)
 
-**Hard rule:** When a background agent launched with
-`mode: dontAsk` still lacks Bash permissions or fails to
-complete any phase due to permission friction, the parent
-orchestrator MUST immediately re-run the failed phase in
-the main session. Do NOT treat a permission-failed background
-agent as a successful completion.
+After all phase reports are emitted, end your output with
+**exactly one** status line per the Subagent Status Protocol
+(see
+[`references/orchestration/subagent-status-protocol.md`](../../../references/orchestration/subagent-status-protocol.md)):
 
-**Detection:** The background agent's completion notification
-includes its final status. Check for:
-- Explicit "permission failure" or "INCOMPLETE" in the result
+- `DONE` — all phases (0–4) completed, CI green, comments
+  addressed, acceptance verified
+- `DONE_WITH_CONCERNS: <text>` — phases completed but a concern
+  was discovered (e.g., flaky CI, comment unresolved by design,
+  new tangential bug) — main session queues for batched
+  decision presentation
+- `NEEDS_CONTEXT: <what>` — phase blocked by missing context
+  the main session can provide (e.g., uncommitted local changes
+  that need to be staged) — main session re-dispatches with
+  context
+- `BLOCKED: <reason>` — permission failure, missing tool, CI
+  failure exceeding max retries, or unrecoverable error — main
+  session falls back per "Main-Session Fallback (GH-901)" below
+
+The status line MUST be the **last non-empty line** of the
+output. Do not write anything after it. The main-session
+controller reads the trailing line via strict prefix match.
+
+### Main-Session Fallback (GH-901, GH-69)
+
+**Hard rule:** When a background agent emits `BLOCKED:` as its
+status line — or fails the protocol entirely (no recognizable
+status line) — the parent orchestrator MUST immediately re-run
+the failed phase in the main session. Do NOT treat a
+permission-failed background agent as a successful completion.
+
+**Detection (primary — explicit signal, GH-69):** Parse the
+last non-empty line of the agent result:
+- `DONE` → success, mark task completed
+- `DONE_WITH_CONCERNS: <text>` → success; queue concern for
+  batched decision presentation
+- `NEEDS_CONTEXT: <what>` → re-dispatch with the requested
+  context inlined into the new prompt
+- `BLOCKED: <reason>` → fallback (this section)
+- *Anything else (no recognizable status, or status missing)*
+  → treat as `BLOCKED: protocol violation` and fall back
+
+**Detection (legacy heuristic — kept as a safety net for older
+agents that ignore the status protocol):**
 - Agent completing in under 60 seconds (suspect — likely
   skipped phases due to permission denials)
 - Missing phase completion markers in the result summary
 
 **Fallback protocol:**
-1. Log: "Background agent failed — re-running in main session"
+1. Log: "Background agent reported BLOCKED: {reason} — re-running
+   in main session"
 2. Re-invoke the monitoring skill directly (not as a background
    agent) so it inherits the main session's permissions
 3. Mark the background agent's tracking task as `completed`
-   with description "Failed — re-ran in main session"
+   with description "BLOCKED — re-ran in main session ({reason})"
 4. The main-session re-run replaces the background agent's
    results entirely
 

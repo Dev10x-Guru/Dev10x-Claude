@@ -89,6 +89,35 @@ When executing a playbook step with `model:`, use that model
 for any agent dispatch during the step instead of the skill's
 hardcoded default.
 
+## Inline Context vs Read-on-Demand
+
+Orthogonal to model tier: decide whether the subagent should Read
+files dynamically or receive full file content inlined into its
+prompt by the controller.
+
+| Strategy | When to use | Trade-off |
+|----------|-------------|-----------|
+| **Inline context** | Files are known upfront, ≤10 files, ≤200 lines each | Larger prompt, zero Read permission prompts in subagent |
+| **Read-on-demand** | File set unknown, broad exploration, large repos | Smaller prompt, but each Read may prompt the user |
+
+**Default to inline context** for Gather, Replicate, and Analyze
+tier dispatches. The orchestrator pre-reads files (cheap at the
+controller level) and pastes content into the prompt under
+`<file path="...">...</file>` blocks. This eliminates a class of
+"agent stalled waiting for Read approval" failures and removes
+the dependency on `mode: "dontAsk"` propagating into the
+subagent.
+
+**Use read-on-demand** only for Investigate and Explore tier
+tasks where the file set legitimately cannot be predicted. Even
+then, prefer dispatching the dedicated `Explore` subagent type,
+which has read-broad permissions baked in.
+
+Pattern adapted from
+[obra/superpowers](https://github.com/obra/superpowers) — its
+implementer/reviewer subagents receive complete file text in the
+prompt rather than reading dynamically.
+
 ## When to Revisit
 
 - Adding a new agent spec → choose model per tier table

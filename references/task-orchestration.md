@@ -22,6 +22,7 @@ Skills reference this index; per-pattern detail files in
 | 1 + 2 | Out-of-order execution and plan mutation | [`orchestration/plan-mutation.md`](orchestration/plan-mutation.md) |
 | 3 | `AskUserQuestion` for decisions | [`orchestration/decision-gates.md`](orchestration/decision-gates.md) |
 | 4 | Subagent dispatch, wave orchestration, fanout, permission-aware dispatch | [`orchestration/subagent-dispatch.md`](orchestration/subagent-dispatch.md) |
+| 4a | Subagent status protocol (DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED) | [`orchestration/subagent-status-protocol.md`](orchestration/subagent-status-protocol.md) |
 | 5 + 6 + 7 | Teams and orchestration templates | [`orchestration/teams-and-templates.md`](orchestration/teams-and-templates.md) |
 | 8 | Progress compaction for long runs | [`orchestration/compaction.md`](orchestration/compaction.md) |
 | 9 | Task reconciliation after delegation + script operations map | [`orchestration/reconciliation.md`](orchestration/reconciliation.md) |

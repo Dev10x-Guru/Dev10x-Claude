@@ -97,6 +97,38 @@ full dispatch pattern.
   reference itself grows beyond the cap (see
   `references/task-orchestration.md` → `references/orchestration/`)
 
+## Subagent context budget
+
+SessionStart-injected context (MOTD, SKILLS.md, plan-sync,
+session guidance) appears in the orchestrator session, but
+subagents dispatched via `Agent()` start with a fresh system
+prompt. Treat this as a feature, not a bug:
+
+- **Do NOT** rely on session context being available in
+  subagents. Inline anything the subagent needs into its prompt.
+- **Do NOT** instruct subagents to "follow the orchestration
+  contract" — they don't see it. Re-state the relevant phase
+  inline (see `references/orchestration/subagent-dispatch.md`
+  Phase Reference pattern).
+- **DO** mark sections of skill bodies that are session-only
+  (e.g., MOTD, plan-sync greetings) so future SessionStart
+  additions don't accidentally bloat subagent prompts. Use a
+  `<!-- session-only -->` HTML comment marker in the source
+  document so reviewers can spot it.
+
+When the controller passes file content inline (per
+`.claude/rules/model-selection.md` "Inline Context vs
+Read-on-Demand"), wrap each file in a clearly-delimited block:
+
+```
+<file path="src/foo.py">
+...full content...
+</file>
+```
+
+This eliminates Read permission prompts in the subagent and
+keeps the controller's pre-read cheap.
+
 ## Reviewer checklist
 
 When reviewing a skill refactor that extracts content:
