@@ -3,6 +3,100 @@
 All notable changes to the Dev10x Claude Code Plugin are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.70.0 — Subagent Protocols & Privacy Hardening
+
+Released 2026-05-05
+
+### Features
+
+- **Enable subagent status protocol parsing** — orchestrators
+  read explicit `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT /
+  BLOCKED` final-status lines from dispatched agents instead of
+  guessing from free-form prose, and `gh-pr-monitor`'s GH-901
+  fallback parses `BLOCKED:` as the primary signal
+  ([GH-69](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/69))
+- **Enable bot identity for agent-generated PR replies** — opt-in
+  GitHub App identity routes review-thread replies and PR summary
+  comments through `dev10x-bot[bot]` while keeping PR creation,
+  reviewer assignment, and thread resolution under the engineer's
+  account ([GH-65](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/65))
+- **Enable in-place PR body updates via MCP tool** — new
+  `mcp__plugin_Dev10x_cli__update_pr` lets `gh-pr-create` update
+  mode and `git-groom` Phase 4 refresh PR body, title, or base
+  branch without raw `gh api PATCH` permission prompts
+  ([GH-60](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/60))
+- **Stabilize fixup! reply links across grooming** — fixup reply
+  comments use absolute `/commit/HASH` permalinks so links keep
+  resolving after rebase rewrites SHAs
+  ([GH-52](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/52))
+- **Detect privacy and external service drift in CI** — a new
+  privacy-audit workflow scans source for external services and
+  outbound network usage, cross-checks against `PRIVACY_POLICY.md`,
+  and comments on PRs that introduce undocumented integrations
+  ([GH-6](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/6))
+
+### Fixes
+
+- **Allow MCP tools to target session worktree** — MCP tools that
+  shell out to `git`/`gh` honor a per-call `cwd` so EnterWorktree
+  sessions stop hitting the spawning repo's branch and dirty-tree
+  state ([GH-979](https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/979))
+- **Cover user-global `settings.json` in upgrade-cleanup
+  rewrites** — `update-paths.py` now discovers both
+  `~/.claude/settings.json` and `settings.local.json` when
+  `include_user_settings: true`, so versioned plugin paths no
+  longer go stale after every upgrade
+  ([GH-982](https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/982))
+
+### Security
+
+- **Scrub private context from skill-audit upstream reports** —
+  audit-report and skill-audit Phase 7 redact private repo
+  names, branches, tracker IDs, paths, and free-text excerpts
+  before filing upstream issues, with `AskUserQuestion` gating
+  unscrubbable findings ([GH-56](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/56))
+
+### Refactors
+
+- **Reduce agent dispatch tokens via body extraction** — apply
+  the skill-body-extraction strategy to plugin-distributed
+  agents; `permission-auditor.md` shrinks from 226 → 159 lines
+  with bulk content moved under
+  `references/agents/permission-auditor/`
+  ([GH-983](https://github.com/Dev10x-Guru/Dev10x-Claude2/issues/983))
+- **Defer pre-PR checks to project pre-commit settings** —
+  `pre-pr-checks.sh` delegates to `pre-commit run` when
+  `.pre-commit-config.yaml` is present so projects own their
+  ruff/mypy versions and excludes end-to-end
+  ([GH-38](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/38))
+- **Allow direct-to-base commits in solo-maintainer mode** —
+  `git-commit` reads `solo_maintainer` from session config and
+  skips the develop/main/master block so single-author repos
+  can commit directly to the base branch
+  ([GH-57](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/57))
+
+### Docs
+
+- **Inject friction context into skill-audit Wave 2** — Phase 3
+  compliance subagent receives `friction_level` and
+  `active_modes` so documented auto-select gates score as
+  COMPLIANT instead of SKIPPED_STEP
+  ([GH-55](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/55))
+- **Tighten `ticket-scope` research tool routing** — Phase 2
+  mandates Grep/Read tools over bash `grep`/`cat` and Phase 7.1
+  routes through the `mktmp` MCP tool
+  ([GH-55](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/55))
+- **Strengthen `work-on` Phase 1 + Phase 2 enforcement** — route
+  workspace detection through `gh-context`, inline the TaskList
+  self-check, mark subtask creation REQUIRED before any Agent
+  dispatch, and prohibit Explore-subagent dispatch for source
+  fetch ([GH-55](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/55))
+- **Repoint changelog GH refs to the right repo** — convert
+  footnote-style refs to inline links and pin pre-0.67 entries
+  plus 0.68 high-number refs to the archived
+  `Dev10x-Claude2` repo so historical links keep resolving
+  ([GH-53](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/53))
+
 ## 0.69.0 — Permission Friction & Audit Empiricism
 
 Released 2026-05-01
