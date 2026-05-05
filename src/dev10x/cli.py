@@ -40,6 +40,7 @@ class LazyGroup(click.Group):
 @click.group(
     cls=LazyGroup,
     lazy_subcommands={
+        "github-app": "dev10x.commands.github_app.github_app",
         "hook": "dev10x.commands.hook.hook",
         "init": "dev10x.commands.init.init",
         "permission": "dev10x.commands.permission.permission",

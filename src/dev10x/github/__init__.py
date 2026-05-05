@@ -8,12 +8,14 @@ All public functions are async to avoid blocking the MCP event loop.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 from typing import Any
 
 from dev10x.domain.repository_ref import RepositoryRef
 from dev10x.domain.result import ErrorResult, Result, err, ok
+from dev10x.github.app_auth import get_bot_token
 from dev10x.subprocess_utils import (
     async_run,
     async_run_script,
@@ -37,6 +39,8 @@ async def _gh_api(
     method: str = "GET",
     fields: dict[str, str | int | list[str]] | None = None,
     jq: str | None = None,
+    repo: str | None = None,
+    as_bot: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     args = ["gh", "api"]
     if method != "GET":
@@ -54,7 +58,15 @@ async def _gh_api(
                 args.extend(["-f", f"{key}={value}"])
     args.append(endpoint)
 
-    return await async_run(args=args, timeout=30)
+    env = await _bot_env(repo=repo) if as_bot and repo else None
+    return await async_run(args=args, timeout=30, env=env)
+
+
+async def _bot_env(*, repo: str) -> dict[str, str] | None:
+    token = await get_bot_token(repo=repo)
+    if token is None:
+        return None
+    return {**os.environ, "GH_TOKEN": token, "GITHUB_TOKEN": token}
 
 
 async def _resolve_repo(
@@ -281,6 +293,8 @@ async def _pr_comment_reply(
         f"repos/{resolved_repo}/pulls/{pr_number}/comments",
         method="POST",
         fields={"body": body, "in_reply_to": comment_id_int},
+        repo=str(resolved_repo),
+        as_bot=True,
     )
     return _parse_gh_api_result(result)
 
@@ -486,6 +500,8 @@ async def pr_comment_reply(
         f"repos/{resolved_repo}/pulls/{pr_number}/comments",
         method="POST",
         fields={"body": body, "in_reply_to": comment_id_int},
+        repo=str(resolved_repo),
+        as_bot=True,
     )
 
     return _parse_gh_api_result(result)
@@ -665,11 +681,20 @@ async def post_summary_comment(
     *,
     issue_id: str,
     summary_text: str,
+    repo: str | None = None,
 ) -> Result[dict[str, Any]]:
+    env_vars: dict[str, str] = {}
+    resolved_repo = repo or await _detect_repo()
+    if resolved_repo:
+        bot_env = await _bot_env(repo=resolved_repo)
+        if bot_env is not None:
+            env_vars["GH_TOKEN"] = bot_env["GH_TOKEN"]
+            env_vars["GITHUB_TOKEN"] = bot_env["GITHUB_TOKEN"]
     result = await async_run_script(
         "skills/gh-pr-create/scripts/post-summary-comment.sh",
         issue_id,
         summary_text,
+        env_vars=env_vars or None,
     )
 
     if result.returncode != 0:
