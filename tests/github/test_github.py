@@ -630,6 +630,8 @@ class TestPrCommentReply:
         assert call_kwargs["method"] == "POST"
         assert call_kwargs["fields"]["body"] == "reply text"
         assert call_kwargs["fields"]["in_reply_to"] == 123
+        assert call_kwargs["as_bot"] is True
+        assert call_kwargs["repo"] == "owner/repo"
 
     @pytest.mark.asyncio
     @patch("dev10x.github._gh_api", new_callable=AsyncMock)
@@ -706,6 +708,8 @@ class TestPrCommentsActionReply:
 
         assert isinstance(result, SuccessResult)
         assert mock_api.call_args.kwargs["fields"]["in_reply_to"] == 3130499018
+        assert mock_api.call_args.kwargs["as_bot"] is True
+        assert mock_api.call_args.kwargs["repo"] == "owner/repo"
 
     @pytest.mark.asyncio
     async def test_rejects_non_numeric_comment_id(
@@ -969,3 +973,78 @@ class TestUpdatePr:
         assert isinstance(result, SuccessResult)
         assert result.value["url"] == "https://github.com/other/proj/pull/99"
         assert mock_api.call_args.args[0] == "repos/other/proj/pulls/99"
+
+
+class TestGhApiBotIdentity:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    @patch("dev10x.github.get_bot_token", new_callable=AsyncMock)
+    async def test_swaps_env_when_as_bot_and_token_available(
+        self,
+        mock_token: AsyncMock,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_token.return_value = "ghs_bot_token"
+        mock_run.return_value = _completed(stdout="{}")
+
+        await gh._gh_api(
+            "repos/x/y/pulls/1/comments",
+            method="POST",
+            fields={"body": "hi"},
+            repo="x/y",
+            as_bot=True,
+        )
+
+        env = mock_run.call_args.kwargs["env"]
+        assert env is not None
+        assert env["GH_TOKEN"] == "ghs_bot_token"
+        assert env["GITHUB_TOKEN"] == "ghs_bot_token"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    @patch("dev10x.github.get_bot_token", new_callable=AsyncMock)
+    async def test_falls_back_to_user_auth_when_token_unavailable(
+        self,
+        mock_token: AsyncMock,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_token.return_value = None
+        mock_run.return_value = _completed(stdout="{}")
+
+        await gh._gh_api(
+            "repos/x/y/pulls/1/comments",
+            method="POST",
+            repo="x/y",
+            as_bot=True,
+        )
+
+        assert mock_run.call_args.kwargs["env"] is None
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    @patch("dev10x.github.get_bot_token", new_callable=AsyncMock)
+    async def test_does_not_call_token_resolver_when_not_as_bot(
+        self,
+        mock_token: AsyncMock,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="{}")
+
+        await gh._gh_api("repos/x/y/issues/1", repo="x/y", as_bot=False)
+
+        assert mock_token.call_count == 0
+        assert mock_run.call_args.kwargs["env"] is None
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    @patch("dev10x.github.get_bot_token", new_callable=AsyncMock)
+    async def test_does_not_call_token_resolver_without_repo(
+        self,
+        mock_token: AsyncMock,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="{}")
+
+        await gh._gh_api("rate_limit", as_bot=True)
+
+        assert mock_token.call_count == 0

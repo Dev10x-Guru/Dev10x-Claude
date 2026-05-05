@@ -264,6 +264,7 @@ source = { editable = "." }
 dependencies = [
     { name = "click" },
     { name = "msgpack" },
+    { name = "pyjwt", extra = ["crypto"] },
     { name = "pyyaml" },
 ]
 
@@ -286,6 +287,7 @@ requires-dist = [
     { name = "faker", marker = "extra == 'dev'", specifier = ">=33.0" },
     { name = "mcp", marker = "extra == 'dev'", specifier = ">=1.0" },
     { name = "msgpack", specifier = ">=1.0" },
+    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.8" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
     { name = "pytest-benchmark", marker = "extra == 'dev'", specifier = ">=5.0" },
