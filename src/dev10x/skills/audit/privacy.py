@@ -142,6 +142,10 @@ _NET_IMPORT_EXEMPT_PATHS: tuple[str, ...] = (
     # outbound integrations. They are exempt from the no-outbound rule
     # because the policy explicitly covers them.
     "skills/qa-self/scripts/upload-screenshots.py",
+    # `dev10x github-app setup` wizard module: explicitly verifies App
+    # credentials against api.github.com before writing config. Covered
+    # by the GitHub row in PRIVACY_POLICY.md.
+    "src/dev10x/commands/github_app_api.py",
 )
 
 # Files exempt from service detection. The scanner defines the

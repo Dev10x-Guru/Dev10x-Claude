@@ -60,6 +60,7 @@ with credentials you supply:
 | Integration | Credentials | Data exchanged |
 |-------------|-------------|----------------|
 | GitHub (`gh` CLI, MCP) | Your GitHub token | Issue / PR payloads you explicitly create or fetch |
+| GitHub App API (`dev10x github-app setup` wizard) | App ID + private key you provide | Direct calls to `api.github.com` to verify the App key matches, list installations, exchange a JWT for an installation token, and read one repo per installation before writing config |
 | Linear (MCP) | Your Linear OAuth session | Issues and comments you read or write |
 | JIRA (`Dev10x:jira`) | API token from your OS keyring | Issue lookups and comments you request |
 | Slack (MCP) | Your Slack app token | Channel reads and messages you post |

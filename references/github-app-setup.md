@@ -41,11 +41,28 @@ Then run the wizard:
 dev10x github-app setup
 ```
 
-It walks through App registration, prompts for the App ID,
-Installation ID (optional), and pasted private key, validates the
-key locally with a self-signed JWT, and writes
-`~/.claude/Dev10x/github-bot/{github-app.yaml,dev10x-bot.pem}`
-with `chmod 600`.
+It walks through:
+
+1. **Picking an install target** — Personal, Organization, or
+   Manual. The wizard switches the registration URL accordingly
+   and tells you which "Where can this App be installed?" radio
+   to pick (see table below).
+2. **Registering the App** — opens the right URL for the chosen
+   target.
+3. **Installing it on at least one repo.**
+4. **Pointing the wizard at the downloaded `.pem`** — defaults to
+   the newest `*.private-key.pem` in `~/Downloads`. The file is
+   moved to `~/.claude/Dev10x/github-bot/dev10x-bot.pem` and
+   `chmod 600`'d. Use `--paste` for headless setups.
+5. **End-to-end verification** before writing config:
+   - `GET /app` confirms the key matches the App ID you entered
+   - `GET /app/installations` confirms the App is installed
+     somewhere
+   - Token exchange + `GET /repos/<owner>/<repo>` per
+     installation confirms the bot can actually read a target repo
+
+Failed verification leaves no config behind. On success the
+wizard prints the verified installations and target repos.
 
 Run `dev10x github-app status` to confirm the config is in place.
 
@@ -53,6 +70,37 @@ To upgrade later: `uv tool upgrade Dev10x`.
 
 The rest of this doc covers the manual flow if you prefer to wire
 things up yourself, or want context on what each value means.
+
+### Install-target choices
+
+| Choice | Registration URL | "Where can this App be installed?" |
+|--------|------------------|------------------------------------|
+| Personal account (multi-target) | `https://github.com/settings/apps/new` | **"Any account"** — required to install on org accounts you belong to |
+| Organization | `https://github.com/organizations/<org>/settings/apps/new` | Implicit — the App is owned by the org |
+| Manual | (you open the settings page yourself) | Match the scope to where the bot will comment |
+
+Picking "Only on this account" on a personal-account App blocks
+you from installing it on any org. The wizard's Personal flow
+explicitly steers you to "Any account" to avoid this trap.
+
+### Advanced: pinning a single installation
+
+`dev10x github-app setup` no longer prompts for an Installation
+ID. The bot resolves the right installation per repo at call
+time, which is the correct behavior for any user with more than
+one installation.
+
+If you specifically need to pin every call to one installation
+(rare — typically a multi-org constraint), add the field to the
+yaml by hand after running setup:
+
+```yaml
+github_app:
+  app_id: "123456"
+  private_key_path: "~/.claude/Dev10x/github-bot/dev10x-bot.pem"
+  installation_id: "78901234"   # optional pin
+  enabled: true
+```
 
 ## One-time GitHub App registration
 
@@ -70,8 +118,11 @@ things up yourself, or want context on what each value means.
    - `Contents` → `Read-only` — required so the App can read the
      repo before commenting
    - All others → `No access`
-4. **Where can this App be installed:** "Only on this account" is
-   fine for personal use.
+4. **Where can this App be installed:**
+   - Personal-account App that needs to install on orgs → **"Any
+     account"**.
+   - Org-owned App → leave the default (scope is the org).
+   - Personal-only with no org installs → "Only on this account".
 5. Create the App, then on the App settings page:
    - Note the **App ID** (numeric)
    - Click **Generate a private key** — a `.pem` file downloads.
@@ -98,6 +149,27 @@ github_app:
 To temporarily disable the bot identity for a session, flip
 `enabled: false` (or delete the file). Calls fall back to user
 auth.
+
+## Verify the setup end-to-end
+
+The wizard runs this automatically; if you set things up
+manually, you can prove the credentials work without opening a
+draft PR:
+
+1. Mint an App JWT (PyJWT + the `.pem`, 5-minute expiry).
+2. `GET https://api.github.com/app` with `Authorization: Bearer
+   <jwt>` — the `id` field must match your `app_id`.
+3. `GET https://api.github.com/app/installations` — must return
+   at least one entry.
+4. `POST /app/installations/<id>/access_tokens` — should return
+   a short-lived `token`.
+5. `GET https://api.github.com/repos/<owner>/<repo>` with
+   `Authorization: Bearer <token>` — should return the repo.
+
+If step 2 returns a different `id`, you pasted the wrong `.pem`
+or entered the wrong `app_id`. If step 3 is empty, the App is
+registered but not installed. If step 5 fails, the installation
+exists but doesn't include the target repo.
 
 ## Verify the bot identity is in effect
 
