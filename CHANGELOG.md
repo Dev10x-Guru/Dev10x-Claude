@@ -3,6 +3,46 @@
 All notable changes to the Dev10x Claude Code Plugin are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.71.0 — GitHub App Verification & Acknowledgments
+
+Released 2026-05-08
+
+### Features
+
+- **Prove github-app setup credentials end-to-end** — setup flow
+  prompts for install scope (Personal/Org/Manual), accepts a
+  `.pem` file path (defaulting to the newest key in `~/Downloads`)
+  and stores it under `~/.claude/Dev10x/github-bot/` with chmod
+  600, then verifies the App JWT against `GET /app`,
+  `GET /app/installations`, and a per-installation token+repo
+  read before writing config — failed verification exits without
+  saving ([GH-72](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/72))
+
+### Refactors
+
+- **Discourage agents from misusing skip-validation flag** —
+  rewrite the skill-redirect block-message hint as a ⚠️ warning
+  that names the lazy-bypass pattern and reserves
+  `DEV10X_SKIP_CMD_VALIDATION=true` for skill authors, so agents
+  stop copy-pasting it as a shortcut around recommended skills
+
+### Docs
+
+- **Acknowledge external contributors and inspirations** — add
+  `ACKNOWLEDGMENTS.md` crediting @tiretutor-paul as project
+  godfather alongside external bug reporters, and list the
+  projects, talks, and writing that shaped Dev10x's design
+  (QRSPI / HumanLayer, obra/superpowers, Fowler PoEAA,
+  Refactoring Guru, Software Archetypes, gitmoji,
+  semantic-release, JTBD community)
+
+### Internal
+
+- **Apply ruff format to permission-related files** — bring six
+  pre-existing files under `src/dev10x/skills/permission*` and
+  matching tests in line with project style after pre-PR checks
+  flagged them on develop
+
 ## 0.70.0 — Subagent Protocols & Privacy Hardening
 
 Released 2026-05-05
