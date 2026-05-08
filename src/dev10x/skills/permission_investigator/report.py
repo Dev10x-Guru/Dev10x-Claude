@@ -101,9 +101,7 @@ def compute_delta(
 
     suggestions: list[str] = []
     for prefix, wildcard in sorted(working_shapes):
-        suggestions.append(
-            f"prefer prefix={prefix} wildcard={wildcard} in plugin-maintenance"
-        )
+        suggestions.append(f"prefer prefix={prefix} wildcard={wildcard} in plugin-maintenance")
 
     return Delta(ineffective_rules=ineffective, suggested_rules=suggestions)
 

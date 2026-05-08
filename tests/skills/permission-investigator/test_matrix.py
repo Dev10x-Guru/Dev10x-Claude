@@ -45,9 +45,7 @@ class TestRuleShapeRender:
 
         rendered = shape.render(fixture_relpath=fixture_relpath, user_home=home)
 
-        expected_dir = (
-            "/home/janusz/.claude/plugins/cache/Test/Plugin/9.9.9/skills/probe"
-        )
+        expected_dir = "/home/janusz/.claude/plugins/cache/Test/Plugin/9.9.9/skills/probe"
         assert rendered == f"Read({expected_dir}/*)"
 
     def test_env_home_double_star(
