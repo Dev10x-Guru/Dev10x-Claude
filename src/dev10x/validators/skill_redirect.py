@@ -56,8 +56,18 @@ SKIP_ENV_VAR = "DEV10X_SKIP_CMD_VALIDATION"
 SKIP_PREFIX_RE = re.compile(rf"^{SKIP_ENV_VAR}=(true|1)\s+", re.IGNORECASE)
 
 OVERRIDE_HINT = (
-    "\n\nTo force this command (e.g., from inside a skill that "
-    "legitimately needs it), prefix it with:\n"
+    f"\n\n⚠️  Do NOT use {SKIP_ENV_VAR} as a shortcut "
+    "to silence this block. That flag is reserved for SKILL AUTHORS "
+    "whose skill legitimately needs the raw command — it is NOT an "
+    "escape hatch for agents reacting to a hook message.\n\n"
+    "If you reached this hint because a command was blocked, the "
+    "correct response is to invoke the skill named above. Reaching "
+    "for the skip flag because the task “looks simple”, "
+    "because you already prepared inputs, or out of inertia is a "
+    "procedural error — the skill exists precisely to enforce the "
+    "guardrails you would otherwise skip.\n\n"
+    "ONLY if you are authoring or executing inside such a skill, "
+    "prefix it with:\n"
     f"  {SKIP_ENV_VAR}=true <command>"
 )
 
