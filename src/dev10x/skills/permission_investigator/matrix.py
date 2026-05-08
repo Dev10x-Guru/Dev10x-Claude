@@ -194,9 +194,7 @@ def generate_matrix(
 ) -> Matrix:
     """Generate the cartesian product of dimensions as a Matrix."""
     matrix = Matrix()
-    for tool, prefix, wildcard, location in product(
-        tools, prefixes, wildcards, locations
-    ):
+    for tool, prefix, wildcard, location in product(tools, prefixes, wildcards, locations):
         shape = RuleShape(tool=tool, prefix=prefix, wildcard=wildcard)
         cell = MatrixCell(
             shape=shape,

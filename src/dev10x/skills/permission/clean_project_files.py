@@ -22,18 +22,14 @@ from pathlib import Path
 
 import yaml
 
-USERSPACE_CONFIG = (
-    Path.home() / ".claude" / "skills" / "Dev10x:upgrade-cleanup" / "projects.yaml"
-)
+USERSPACE_CONFIG = Path.home() / ".claude" / "skills" / "Dev10x:upgrade-cleanup" / "projects.yaml"
 PLUGIN_CONFIG = (
     Path(__file__).resolve().parents[4] / "skills" / "upgrade-cleanup" / "projects.yaml"
 )
 GLOBAL_SETTINGS = Path.home() / ".claude" / "settings.json"
 
 PLUGIN_NAMES = r"(?:Dev10x|dev10x(?:-claude)?)"
-VERSION_PATTERN = re.compile(
-    rf"plugins/cache/[^/]+/{PLUGIN_NAMES}/(\d+\.\d+\.\d+)", re.IGNORECASE
-)
+VERSION_PATTERN = re.compile(rf"plugins/cache/[^/]+/{PLUGIN_NAMES}/(\d+\.\d+\.\d+)", re.IGNORECASE)
 PUBLISHER_PATTERN = re.compile(rf"plugins/cache/([^/]+)/{PLUGIN_NAMES}/", re.IGNORECASE)
 
 ENV_PREFIX_PATTERN = re.compile(r"^Bash\([A-Z_]+=")
@@ -408,17 +404,13 @@ def _format_messages(
             messages.append(f"    deny:  {deny}")
 
     if result.ask_shadowed_by_allow:
-        messages.append(
-            f"  ⚠ ASK SHADOWED BY ALLOW ({len(result.ask_shadowed_by_allow)}):"
-        )
+        messages.append(f"  ⚠ ASK SHADOWED BY ALLOW ({len(result.ask_shadowed_by_allow)}):")
         for ask, allow in result.ask_shadowed_by_allow:
             messages.append(f"    ask:   {ask}")
             messages.append(f"    allow: {allow}")
 
     if result.exact_duplicates:
-        messages.append(
-            f"  - {len(result.exact_duplicates)} exact duplicates of global rules"
-        )
+        messages.append(f"  - {len(result.exact_duplicates)} exact duplicates of global rules")
         if verbose:
             for rule in result.exact_duplicates:
                 messages.append(f"    {rule}")
@@ -442,9 +434,7 @@ def _format_messages(
                 messages.append(f"    {rule}")
 
     if result.shell_fragments:
-        messages.append(
-            f"  - {len(result.shell_fragments)} shell control flow fragments"
-        )
+        messages.append(f"  - {len(result.shell_fragments)} shell control flow fragments")
         if verbose:
             for rule in result.shell_fragments:
                 messages.append(f"    {rule}")

@@ -43,9 +43,7 @@ def fake_plugin_root(fake_home: Path) -> Path:
         bin/
         ...
     """
-    plugin_root = (
-        fake_home / ".claude" / "plugins" / "cache" / "Dev10x-Guru" / "Dev10x" / "9.9.9"
-    )
+    plugin_root = fake_home / ".claude" / "plugins" / "cache" / "Dev10x-Guru" / "Dev10x" / "9.9.9"
     skills_dir = plugin_root / "skills"
     for skill in ["alpha-skill", "beta-skill"]:
         (skills_dir / skill).mkdir(parents=True)
@@ -71,9 +69,7 @@ class TestScanSkillDirectories:
 
         assert scan_skill_directories(empty_root) == []
 
-    def test_ignores_files_only_returns_directories(
-        self, fake_plugin_root: Path
-    ) -> None:
+    def test_ignores_files_only_returns_directories(self, fake_plugin_root: Path) -> None:
         (fake_plugin_root / "skills" / "stray-file.txt").write_text("not a skill")
 
         result = scan_skill_directories(fake_plugin_root)

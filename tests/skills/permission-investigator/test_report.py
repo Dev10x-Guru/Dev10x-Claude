@@ -67,9 +67,7 @@ class TestAggregateResults:
 
     def test_ignores_results_without_matching_cell(self) -> None:
         matrix = Matrix()
-        matrix.add_result(
-            MatrixResult(cell_id="orphan", auto_approved=True, prompted=False)
-        )
+        matrix.add_result(MatrixResult(cell_id="orphan", auto_approved=True, prompted=False))
 
         grouped = aggregate_results(matrix)
 
@@ -114,12 +112,12 @@ class TestComputeDelta:
             ],
         )
 
-        assert any(
-            "*/**" in rule for rule in delta.ineffective_rules
-        ), "Expected the */** rule to be flagged"
-        assert all(
-            "git log" not in rule for rule in delta.ineffective_rules
-        ), "Bash rules should not be flagged by Read prompts"
+        assert any("*/**" in rule for rule in delta.ineffective_rules), (
+            "Expected the */** rule to be flagged"
+        )
+        assert all("git log" not in rule for rule in delta.ineffective_rules), (
+            "Bash rules should not be flagged by Read prompts"
+        )
 
     def test_no_rules_flagged_when_all_cells_work(self) -> None:
         matrix = Matrix()
