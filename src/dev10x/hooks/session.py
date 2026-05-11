@@ -19,6 +19,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from dev10x.domain.file_locks import atomic_write_text, file_lock
 from dev10x.domain.git_context import GitContext
 
 _git = GitContext()
@@ -428,29 +429,26 @@ def session_migrate_permissions() -> None:
 
     for settings_file in settings_files:
         try:
-            settings = json.loads(settings_file.read_text())
+            with file_lock(settings_file):
+                settings = json.loads(settings_file.read_text())
+                permissions = settings.get("permissions", {})
+                changed = False
+                for key in ("allow", "deny"):
+                    raw = permissions.get(key, [])
+                    if not raw:
+                        continue
+                    new_rules, count = _migrate_rules(rules=raw, replacements=replacements)
+                    new_rules = _deduplicate_rules(rules=new_rules)
+                    total_migrated += count
+                    if count:
+                        permissions[key] = new_rules
+                        changed = True
+                if not changed:
+                    continue
+                atomic_write_text(settings_file, json.dumps(settings, indent=2) + "\n")
+            files_changed.append(settings_file.name)
         except (json.JSONDecodeError, OSError):
             continue
-
-        permissions = settings.get("permissions", {})
-        changed = False
-        for key in ("allow", "deny"):
-            raw = permissions.get(key, [])
-            if not raw:
-                continue
-            new_rules, count = _migrate_rules(rules=raw, replacements=replacements)
-            new_rules = _deduplicate_rules(rules=new_rules)
-            total_migrated += count
-            if count:
-                permissions[key] = new_rules
-                changed = True
-
-        if changed:
-            try:
-                settings_file.write_text(json.dumps(settings, indent=2) + "\n")
-            except OSError:
-                continue
-            files_changed.append(settings_file.name)
 
     if total_migrated > 0:
         files_str = ", ".join(files_changed)

@@ -7,6 +7,8 @@ from pathlib import Path
 
 import yaml
 
+from dev10x.domain.file_locks import atomic_write_text
+
 REGISTRY_FILE = Path.home() / ".claude" / "memory" / "Dev10x" / "platforms.yaml"
 
 
@@ -105,9 +107,8 @@ class Registry:
         return {entry["name"]: PlatformConfig.from_dict(entry) for entry in entries}
 
     def save(self, platforms: dict[str, PlatformConfig]) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
         serialised = {"platforms": [platforms[name].to_dict() for name in sorted(platforms)]}
-        self.path.write_text(yaml.safe_dump(serialised, sort_keys=False))
+        atomic_write_text(self.path, yaml.safe_dump(serialised, sort_keys=False))
 
     def add(
         self,

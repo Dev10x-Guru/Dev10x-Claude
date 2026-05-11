@@ -51,12 +51,16 @@ class TestLockedJsonUpdate:
 
         assert path.exists()
 
-    def test_cleans_up_lock_file(self, settings_file: Path) -> None:
+    def test_leaves_sidecar_in_place(self, settings_file: Path) -> None:
+        # GH-77: lock sidecar is intentionally NOT unlinked on release.
+        # Unlinking races: a third writer between unlink and the next
+        # open(O_CREAT) gets a fresh inode and an independent flock,
+        # breaking mutual exclusion.
         with locked_json_update(path=settings_file) as data:
             data["test"] = True
 
         lock_path = settings_file.with_suffix(".lock")
-        assert not lock_path.exists()
+        assert lock_path.exists()
 
     def test_no_temp_files_left(self, settings_file: Path) -> None:
         parent = settings_file.parent

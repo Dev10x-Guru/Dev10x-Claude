@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from dev10x.domain.file_locks import file_lock
 from dev10x.domain.git_context import GitContext
 from dev10x.domain.plan import Plan
 
@@ -121,24 +122,28 @@ def cmd_hook() -> None:
         sys.exit(0)
 
     plan_path = get_plan_path(toplevel=toplevel)
-    plan = Plan.load(path=plan_path)
-    is_new_plan = plan.is_new
-    plan.ensure_metadata()
+    # Lock spans the full load→mutate→save cycle: without it, two
+    # concurrent TaskCreate hooks both read the same baseline plan
+    # and the second save clobbers the first task entry.
+    with file_lock(plan_path):
+        plan = Plan.load(path=plan_path)
+        is_new_plan = plan.is_new
+        plan.ensure_metadata()
 
-    changed = False
-    if tool_name == "TaskCreate":
-        changed = plan.handle_task_create(
-            tool_input=tool_input,
-            tool_result=tool_result,
-        )
-    elif tool_name == "TaskUpdate":
-        plan.handle_task_update(tool_input=tool_input)
-        changed = True
-    else:
-        sys.exit(0)
+        changed = False
+        if tool_name == "TaskCreate":
+            changed = plan.handle_task_create(
+                tool_input=tool_input,
+                tool_result=tool_result,
+            )
+        elif tool_name == "TaskUpdate":
+            plan.handle_task_update(tool_input=tool_input)
+            changed = True
+        else:
+            sys.exit(0)
 
-    if is_new_plan and not changed:
-        sys.exit(0)
+        if is_new_plan and not changed:
+            sys.exit(0)
 
-    plan.check_all_completed()
-    plan.save(path=plan_path)
+        plan.check_all_completed()
+        plan.save(path=plan_path)
