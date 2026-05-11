@@ -9,6 +9,7 @@ import msgpack
 import yaml
 
 from dev10x.domain.config_loader import ConfigLoader
+from dev10x.domain.file_locks import atomic_write_bytes
 from dev10x.domain.validation_rule import Compensation, Config, Rule
 
 DEFAULT_TTL_SECONDS = 1800
@@ -66,7 +67,7 @@ def _read_cache(
 def _write_cache(*, cache_path: Path, config: Config) -> None:
     try:
         data = asdict(config)
-        cache_path.write_bytes(msgpack.packb(data, use_bin_type=True))
+        atomic_write_bytes(cache_path, msgpack.packb(data, use_bin_type=True))
     except (msgpack.PackException, OSError):
         pass
 
