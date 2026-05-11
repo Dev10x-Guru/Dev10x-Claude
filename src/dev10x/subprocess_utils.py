@@ -88,7 +88,16 @@ def run_script(
     full_path = resolve_script_path(script_path)
 
     if not full_path.exists():
-        raise FileNotFoundError(f"Script not found: {full_path}")
+        # Mirror async_run's timeout sentinel so MCP modules can map the
+        # missing-script case onto their existing returncode-based error
+        # handling instead of leaking FileNotFoundError through the MCP
+        # boundary as an unstructured server error (GH-89).
+        return subprocess.CompletedProcess(
+            args=[str(full_path), *args],
+            returncode=-1,
+            stdout="",
+            stderr=f"Script not found: {full_path}",
+        )
 
     env = os.environ.copy()
     if env_vars:
@@ -149,7 +158,13 @@ async def async_run_script(
     full_path = resolve_script_path(script_path)
 
     if not full_path.exists():
-        raise FileNotFoundError(f"Script not found: {full_path}")
+        # See run_script for rationale (GH-89).
+        return subprocess.CompletedProcess(
+            args=[str(full_path), *[str(a) for a in args]],
+            returncode=-1,
+            stdout="",
+            stderr=f"Script not found: {full_path}",
+        )
 
     env = os.environ.copy()
     if env_vars:

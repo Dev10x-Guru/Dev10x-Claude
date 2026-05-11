@@ -93,9 +93,13 @@ class TestResolveScriptPath:
 
 
 class TestRunScript:
-    def test_raises_file_not_found_for_missing_script(self) -> None:
-        with pytest.raises(FileNotFoundError, match="Script not found"):
-            run_script("nonexistent/script.sh")
+    def test_returns_sentinel_for_missing_script(self) -> None:
+        result = run_script("nonexistent/script.sh")
+
+        assert result.returncode == -1
+        assert result.stdout == ""
+        assert "Script not found" in result.stderr
+        assert "nonexistent/script.sh" in result.stderr
 
     @patch("dev10x.subprocess_utils.subprocess.run")
     def test_calls_subprocess_with_full_path(
@@ -258,9 +262,13 @@ class TestAsyncRunScript:
         return async_run_script
 
     @pytest.mark.asyncio
-    async def test_raises_file_not_found_for_missing_script(self, sut) -> None:
-        with pytest.raises(FileNotFoundError, match="Script not found"):
-            await sut("nonexistent/script.sh")
+    async def test_returns_sentinel_for_missing_script(self, sut) -> None:
+        result = await sut("nonexistent/script.sh")
+
+        assert result.returncode == -1
+        assert result.stdout == ""
+        assert "Script not found" in result.stderr
+        assert "nonexistent/script.sh" in result.stderr
 
     @pytest.mark.asyncio
     async def test_runs_existing_script(self, sut) -> None:
