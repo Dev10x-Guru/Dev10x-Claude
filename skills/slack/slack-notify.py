@@ -451,13 +451,13 @@ def main() -> None:
             sys.exit(1)
 
     if args.files:
-        upload_slack_files(
+        file_id = upload_slack_files(
             channel=args.channel,
             file_paths=args.files,
             message=message,
             thread_ts=args.thread_ts,
         )
-        sys.exit(0)
+        sys.exit(0 if file_id else 1)
 
     if not message:
         print("❌ --message or --message-file required", file=sys.stderr)
