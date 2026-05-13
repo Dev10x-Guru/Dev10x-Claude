@@ -86,6 +86,14 @@ def _parse_expires_at(raw: str | None) -> float:
         return time.time() + 3600
 
 
+def _bearer_env() -> dict[str, str]:
+    # GH_TOKEN/GITHUB_TOKEN must be unset before invoking gh with an App
+    # JWT; otherwise gh sends `Authorization: token <jwt>`, but the App
+    # endpoints (`/repos/{repo}/installation`, `/app/installations/...`)
+    # require the `Bearer` scheme and return 401 for `token`.
+    return {k: v for k, v in os.environ.items() if k not in {"GH_TOKEN", "GITHUB_TOKEN"}}
+
+
 async def _resolve_installation_id(
     *,
     repo: str,
@@ -96,10 +104,12 @@ async def _resolve_installation_id(
             "gh",
             "api",
             "-H",
+            f"Authorization: Bearer {app_jwt}",
+            "-H",
             "Accept: application/vnd.github+json",
             f"/repos/{repo}/installation",
         ],
-        env={**os.environ, "GH_TOKEN": app_jwt, "GITHUB_TOKEN": app_jwt},
+        env=_bearer_env(),
     )
     if result.returncode != 0:
         return None
@@ -120,9 +130,13 @@ async def _exchange_for_installation_token(
             "api",
             "-X",
             "POST",
+            "-H",
+            f"Authorization: Bearer {app_jwt}",
+            "-H",
+            "Accept: application/vnd.github+json",
             f"/app/installations/{installation_id}/access_tokens",
         ],
-        env={**os.environ, "GH_TOKEN": app_jwt, "GITHUB_TOKEN": app_jwt},
+        env=_bearer_env(),
     )
     if result.returncode != 0:
         return None

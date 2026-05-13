@@ -1022,6 +1022,56 @@ class TestGhApiBotIdentity:
 
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    @patch("dev10x.github.AppConfig.load")
+    @patch("dev10x.github.get_bot_token", new_callable=AsyncMock)
+    async def test_warns_when_app_configured_but_token_exchange_fails(
+        self,
+        mock_token: AsyncMock,
+        mock_load: AsyncMock,
+        mock_run: AsyncMock,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        mock_token.return_value = None
+        mock_load.return_value = object()
+        mock_run.return_value = _completed(stdout="{}")
+
+        with caplog.at_level("WARNING", logger="dev10x.github"):
+            await gh._gh_api(
+                "repos/x/y/pulls/1/comments",
+                repo="x/y",
+                as_bot=True,
+            )
+
+        assert any("bot token exchange failed" in r.message for r in caplog.records), (
+            f"Expected warning when App configured but exchange fails; got {caplog.records}"
+        )
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    @patch("dev10x.github.AppConfig.load")
+    @patch("dev10x.github.get_bot_token", new_callable=AsyncMock)
+    async def test_silent_when_app_not_configured(
+        self,
+        mock_token: AsyncMock,
+        mock_load: AsyncMock,
+        mock_run: AsyncMock,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        mock_token.return_value = None
+        mock_load.return_value = None
+        mock_run.return_value = _completed(stdout="{}")
+
+        with caplog.at_level("WARNING", logger="dev10x.github"):
+            await gh._gh_api(
+                "repos/x/y/pulls/1/comments",
+                repo="x/y",
+                as_bot=True,
+            )
+
+        assert not any("bot token exchange failed" in r.message for r in caplog.records)
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
     @patch("dev10x.github.get_bot_token", new_callable=AsyncMock)
     async def test_does_not_call_token_resolver_when_not_as_bot(
         self,

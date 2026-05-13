@@ -201,6 +201,48 @@ class TestGetBotToken:
         assert token == "fresh"
 
     @pytest.mark.asyncio
+    async def test_resolve_installation_uses_bearer_header_and_strips_gh_token(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("GH_TOKEN", "engineer-token")
+        monkeypatch.setenv("GITHUB_TOKEN", "engineer-token")
+        key_path = tmp_path / "bot.pem"
+        key_path.write_text("KEY")
+        config = auth.AppConfig(app_id="1", private_key_path=key_path)
+
+        responses = [
+            _completed(stdout=json.dumps({"id": 99})),
+            _completed(
+                stdout=json.dumps({"token": "ghs_x", "expires_at": "2099-01-01T00:00:00Z"})
+            ),
+        ]
+        with (
+            patch.object(auth, "_create_app_jwt", return_value="jwt"),
+            patch(
+                "dev10x.github.app_auth.async_run",
+                new_callable=AsyncMock,
+                side_effect=responses,
+            ) as mock_run,
+        ):
+            await auth.get_bot_token(repo="owner/repo", config=config)
+
+        resolve_call = mock_run.call_args_list[0]
+        exchange_call = mock_run.call_args_list[1]
+
+        for call in (resolve_call, exchange_call):
+            args = call.kwargs["args"]
+            assert "Authorization: Bearer jwt" in args, (
+                f"App-auth call must include Bearer header; got args={args}"
+            )
+            env = call.kwargs["env"]
+            assert "GH_TOKEN" not in env, (
+                "GH_TOKEN must be stripped — gh would send 'token' scheme instead of Bearer"
+            )
+            assert "GITHUB_TOKEN" not in env, "GITHUB_TOKEN must be stripped for same reason"
+
+    @pytest.mark.asyncio
     async def test_falls_back_when_response_missing_token(
         self,
         app_config: auth.AppConfig,

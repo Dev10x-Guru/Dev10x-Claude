@@ -8,6 +8,7 @@ All public functions are async to avoid blocking the MCP event loop.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import subprocess
 from pathlib import Path
@@ -15,7 +16,9 @@ from typing import Any
 
 from dev10x.domain.repository_ref import RepositoryRef
 from dev10x.domain.result import ErrorResult, Result, err, ok
-from dev10x.github.app_auth import get_bot_token
+from dev10x.github.app_auth import AppConfig, get_bot_token
+
+logger = logging.getLogger(__name__)
 from dev10x.subprocess_utils import (
     async_run,
     async_run_script,
@@ -65,6 +68,13 @@ async def _gh_api(
 async def _bot_env(*, repo: str) -> dict[str, str] | None:
     token = await get_bot_token(repo=repo)
     if token is None:
+        if AppConfig.load() is not None:
+            logger.warning(
+                "GitHub App auth configured but bot token exchange failed for %s — "
+                "falling back to engineer credentials. Verify the App is installed "
+                "on the repo and the private key matches the app_id.",
+                repo,
+            )
         return None
     return {**os.environ, "GH_TOKEN": token, "GITHUB_TOKEN": token}
 
