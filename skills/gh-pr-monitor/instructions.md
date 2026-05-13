@@ -2,9 +2,14 @@
 
 ## Overview
 
-This skill launches a **background agent** that autonomously monitors a PR
-through its full lifecycle — CI checks, review comments, and team
-notification. The user continues working while the agent handles everything.
+This skill drives a supervised PR-shepherding loop in the
+supervisor's own session, dispatching narrow read-only haiku
+micro-agents for the bounded mechanical work (CI polling, thread
+scanning). The supervisor interprets every signal and owns every
+decision. The historical "launch a background agent that
+autonomously monitors everything" design was retired in GH-68
+after a recurring incident where the background haiku decided
+on its own to revert reviewer-directed code.
 
 **When to use this skill:**
 - After creating a draft PR with `/Dev10x:gh-pr-create`
@@ -17,8 +22,8 @@ This skill follows `references/task-orchestration.md` patterns.
 **Auto-advance:** Complete each phase, immediately start the next.
 Never pause to ask "should I continue?" between phases.
 
-**REQUIRED: Create tasks after launch.** The background agent
-executes these `TaskCreate` calls before any monitoring work:
+**REQUIRED: Create tasks at session start.** The supervisor
+creates these `TaskCreate` calls before dispatching any micro-agent:
 
 1. `TaskCreate(subject="Detect PR context and launch agent", activeForm="Detecting PR context")`
 2. `TaskCreate(subject="Check JTBD Job Story (Phase 0)", activeForm="Checking Job Story")`
@@ -42,21 +47,42 @@ sees progress without reading the agent output file.
 ```
 User invokes /Dev10x:gh-pr-monitor
     │
-    ├── 1. Detect PR number, repo, URL
-    ├── 2. Launch background Task agent
-    ├── 3. Tell user: "Monitoring in background, output at {path}"
-    │
-    └── User continues working
+    └── Supervisor session IS the orchestrator (GH-68)
             │
-            └── Background agent runs autonomously:
-                ├── Phase 0: JTBD Job Story check (autonomous)
-                ├── Phase 1: CI monitoring (autonomous)
-                ├── Phase 2: Comment handling (autonomous)
-                ├── Phase 2.5: QA scope assessment (asks user)
-                ├── Phase 2.7: Re-review notification (asks user)
-                ├── Phase 3: Notification (asks user first)
-                └── Phase 4: Acceptance criteria verification (autonomous)
+            ├── Phase 0: JTBD Job Story check (supervisor)
+            │       └── Skill(Dev10x:ticket-jtbd) if missing
+            │
+            ├── Phase 1: CI monitoring
+            │       ├── dispatch micro-agent: haiku-ci-poll
+            │       │     (loops ci-check-status until verdict ≠ pending)
+            │       └── supervisor interprets verdict → next action
+            │
+            ├── Phase 2: Comment monitoring
+            │       ├── dispatch micro-agent: haiku-thread-scan
+            │       │     (read-only enumerate unresolved threads + findings)
+            │       └── supervisor invokes Skill(Dev10x:gh-pr-respond)
+            │
+            ├── Phase 2.5: QA scope (supervisor + Skill(qa-scope))
+            ├── Phase 2.7: Re-review notification (supervisor)
+            ├── Phase 3: Notification (supervisor + AskUserQuestion)
+            └── Phase 4: Acceptance criteria (Skill(verify-acc-dod))
 ```
+
+**Why this shape (GH-68 incident #2):** the prior model dispatched
+a single fat haiku agent in background with `mode: dontAsk` and
+`max_turns: 200`. That agent encountered a CI failure, rationalised
+that the right fix was to revert reviewer-directed code, and
+auto-grooved the regression into the squashed history. Removing
+decision-making capacity from the place it kept being abused —
+the haiku — and keeping orchestration in the supervisor's session
+removes the entire failure surface.
+
+**Trade-off:** the skill no longer runs unattended after launch.
+The supervisor must remain available to interpret micro-agent
+signals between turns. In exchange, micro-agents cannot mutate
+source files, cannot decide between code changes, and cannot
+delegate further. The user explicitly chose this trade-off
+(GH-68 follow-up).
 
 ## Launch Instructions
 
@@ -88,161 +114,186 @@ Both methods fetch `BRANCH` via `gh pr view --json headRefName`
 
 If the script exits non-zero, tell the user and stop.
 
-### Step 2: Check for poll mode
+### Step 2: Check for resume state
 
 Read the state file at `/tmp/Dev10x/pr-monitor/state-{pr_number}.json`
-(if it exists). If the state file contains `phases_completed` that includes
-**both** `phase0` and `phase3`, offer **lightweight polling** instead:
+(if it exists). If `phases_completed` contains both `phase0` and
+`phase3`, the supervisor can skip directly to a lightweight CI-poll
+loop instead of re-running every phase — dispatch only
+`haiku-ci-poll` and emit a fresh ready/notify cycle if anything
+changed. The earlier "background poll vs full agent" choice no
+longer applies — there is only one execution model now (foreground
+supervisor + micro-agents), this is just a phase-skip optimisation.
 
-Use `AskUserQuestion`:
-- **"Start polling (Recommended)"** — launches poll in a background shell
-- **"Full agent"** — launches a full background agent as before
+### Step 3: Enter orchestrator loop (GH-68)
 
-### Step 3: Launch background agent
+This skill no longer launches a background agent. The supervisor's
+session is the orchestrator and dispatches narrow micro-agents
+for the bounded read-only work. See "Micro-Agents" below for the
+two specs (`haiku-ci-poll`, `haiku-thread-scan`).
 
-Use the **Task tool** with these parameters:
+The supervisor walks Phases 0 → 4, interpreting each micro-agent's
+returned JSON between dispatches.
+
+### Micro-Agents (GH-68)
+
+Two narrow haiku sub-agents replace the prior monolithic background
+agent. Each has a minimal tool allowlist, a hard turn budget, no
+ability to delegate further, and no ability to mutate state.
+
+#### Micro-agent A: haiku-ci-poll
+
+Polls CI until the verdict changes from `pending`, then returns
+the verdict JSON. No decision-making.
 
 ```
 subagent_type: "general-purpose"
 model: "haiku"
-mode: "dontAsk"
-run_in_background: true
-max_turns: 200
-description: "Monitor PR #{pr_number}"
-allowed_tools: <see "Background Agent Allowed Tools" below>
-disallowed_tools: <see "Background Agent Allowed Tools" below>
-prompt: <see "Agent Prompt Template" below, with variables filled in>
+run_in_background: true        # supervisor keeps working
+max_turns: 50                  # not 200 — bounded work
+description: "Poll CI for PR #{pr_number}"
+allowed_tools:
+  - mcp__plugin_Dev10x_cli__ci_check_status
+  - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-monitor/scripts/ci-check-status.py:*)
+  - Bash(sleep:*)
+disallowed_tools:
+  - Edit, Write, NotebookEdit
+  - Bash(git:*), Bash(gh pr ready:*), Bash(gh pr edit:*),
+    Bash(gh pr merge:*)
+  - Skill(*)                   # cannot delegate further
+  - mcp__plugin_Dev10x_cli__push_safe
+  - mcp__plugin_Dev10x_cli__update_pr
+prompt: |
+  You are a CI-polling micro-agent. Your ONLY job is to loop
+  ci-check-status.py until verdict changes from "pending", then
+  output the final JSON verdict and exit.
+
+  Loop:
+    1. Run: ci-check-status.py --pr {pr_number} --repo {repo}
+    2. Parse the JSON. If verdict == "pending" or "empty", sleep 30s.
+    3. If verdict in ["green", "failing", "conflicting"], emit
+       the verdict JSON as the LAST line of output and exit.
+
+  You MUST NOT:
+    - Decide what to do about the verdict — that is the supervisor's
+      job.
+    - Mark the PR ready, edit anything, comment, or push.
+    - Invoke any Skill or further Agent.
+    - Continue looping past 50 turns. If you reach turn 45 with the
+      verdict still pending, emit
+      {"verdict": "timeout", "polled_turns": <N>} and exit.
+
+  Output JSON only on the final line. Anything else is debug.
 ```
 
-### Background Agent Allowed Tools (GH-68, Fix A)
+#### Micro-agent B: haiku-thread-scan
 
-The background haiku agent is **read-only by contract**. Pass an
-explicit tool allowlist (and matching denylist) on the Task call
-so the agent cannot silently mutate source files even if its
-prompt instructs it to.
-
-**Allowed tools (read + polling + status updates only):**
-
-- `Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-monitor/scripts/:*)`
-- `Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-merge/scripts/:*)`
-- `Bash(gh pr view:*)`, `Bash(gh pr checks:*)`,
-  `Bash(gh pr ready:*)`, `Bash(gh api:*)`
-- `Bash(git log:*)`, `Bash(git reflog:*)`, `Bash(git status:*)`,
-  `Bash(git rev-parse:*)`, `Bash(git symbolic-ref:*)`,
-  `Bash(git merge-base:*)`
-- `Bash(git reset --hard HEAD~1)`, `Bash(git revert HEAD)` —
-  scoped exception for the self-introduced regression recovery
-  in Phase 1 (GH-68, Fix C). The agent MUST NOT use any other
-  form of `git reset` or `git revert`.
-- `Read`, `Grep`, `Glob`
-- `mcp__plugin_Dev10x_cli__pr_detect`,
-  `mcp__plugin_Dev10x_cli__verify_pr_state`,
-  `mcp__plugin_Dev10x_cli__ci_check_status`,
-  `mcp__plugin_Dev10x_cli__check_top_level_comments`,
-  `mcp__plugin_Dev10x_cli__pr_notify`,
-  `mcp__plugin_Dev10x_cli__update_pr` (PR-body checklist only,
-  see Phase 3 Step 3b)
-- `AskUserQuestion` (Phase 2.5, 2.7, 3 gates)
-- `Skill(Dev10x:gh-pr-respond)`, `Skill(Dev10x:qa-scope)`,
-  `Skill(Dev10x:request-review)`, `Skill(Dev10x:slack-review-request)`,
-  `Skill(Dev10x:verify-acc-dod)`, `Skill(Dev10x:ticket-jtbd)`,
-  `Skill(Dev10x:git-groom)` (autosquash-only path, see CI
-  Failure Handling)
-- `TaskCreate`, `TaskUpdate`, `TaskGet`, `TaskList`
-
-**Explicitly denied (escalate via `BLOCKED:` status line):**
-
-- `Edit`, `Write`, `NotebookEdit`
-- `Bash(git commit:*)`, `Bash(git push:*)`,
-  `Bash(git rebase:*)`, `Bash(git autosquash-*:*)`,
-  `Bash(git checkout -b:*)`, `Bash(git merge:*)`,
-  `Bash(git cherry-pick:*)`, `Bash(git stash:*)`
-- `mcp__plugin_Dev10x_cli__push_safe` — explicitly removed; the
-  only path to a push for a monitor agent is via
-  `Skill(Dev10x:git-groom)` under the autosquash-only exception.
-
-**Anti-pattern (GH-68):** Adding `Edit` or `Write` back "just for
-this one CI fix". The point of the contract is that the agent
-cannot decide on its own that a code change is needed — the
-supervisor decides, in the main session, with full reasoning
-context.
-
-**REQUIRED: `mode: "dontAsk"` on the Agent call.** Without
-this, background agents lack Bash permissions to run CI
-polling scripts and `gh` commands. They fall back to raw
-alternatives which also hit permission friction, effectively
-skipping the re-monitoring step (GH-695). The `dontAsk` mode
-grants the agent permission to execute tools without prompts
-— safe here because the agent only runs read-only CI checks
-and `gh pr ready`.
-
-**REQUIRED: `max_turns: 200` on the Agent call.** Without this,
-haiku agents exhaust their default budget (~19 Bash calls) before
-CI completes on long-running suites. Sessions GH-446 and GH-931
-confirmed this failure mode — session `da0d9c73` saw the agent
-exit after 18 tool calls with CI still pending. Always include
-`max_turns: 200` in the Agent parameters — it is not optional.
-
-**Anti-pattern (GH-931):** When the monitor agent exhausts its
-budget, the parent orchestrator must NOT retry by dispatching a
-raw `Agent()` call instead of re-invoking `Skill(Dev10x:gh-pr-
-monitor)`. Raw Agent dispatch bypasses the skill's max_turns,
-mode, and task tracking guarantees. If the monitor fails,
-re-invoke the skill — not a raw agent.
-
-**Why haiku?** Monitoring agents run `gh pr checks --watch` and
-report pass/fail — they do not need Opus-level reasoning. Using
-haiku reduces cost without affecting monitoring quality.
-
-**Long CI suites (> 10 min):** Haiku agents may still exhaust
-their budget on test suites that take 10+ minutes (GH-497 F5).
-If the project's CI regularly exceeds 10 minutes, use
-`model: "sonnet"` instead of `model: "haiku"` for the monitor
-agent. The main session should also set `max_turns: 400` for
-these projects.
-
-### Step 4: Report to user
-
-**DO NOT SKIP this step in any mode (full agent or poll).**
-
-**REQUIRED: Create a caller-side tracking task (GH-854).**
-After launching the background agent, create a visible task
-in the calling session so the supervisor sees ongoing work:
+Read-only enumerates unresolved review threads, body findings,
+and top-level automated comments. Returns structured JSON. No
+decision-making, no replies, no state changes.
 
 ```
-TaskCreate(
-    subject="PR #{pr_number} monitor running (background)",
-    description="Background agent monitoring CI and review "
-                "cycle. Output at {output_file}",
-    activeForm="Monitoring PR #{pr_number}")
-TaskUpdate(taskId=..., status="in_progress")
+subagent_type: "general-purpose"
+model: "haiku"
+run_in_background: false       # cheap, run inline
+max_turns: 20
+description: "Scan PR #{pr_number} threads"
+allowed_tools:
+  - Bash(gh api graphql:*)
+  - Bash(gh api repos/:*)
+  - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-merge/scripts/check-top-level-comments.sh:*)
+  - mcp__plugin_Dev10x_cli__check_top_level_comments
+disallowed_tools:
+  - Edit, Write, NotebookEdit
+  - Bash(git:*), Bash(gh pr ready:*), Bash(gh pr edit:*),
+    Bash(gh api -X POST:*), Bash(gh api -X PATCH:*),
+    Bash(gh api -X DELETE:*)
+  - Skill(*)
+  - mcp__plugin_Dev10x_cli__push_safe
+  - mcp__plugin_Dev10x_cli__update_pr
+prompt: |
+  You are a PR-thread-scanning micro-agent. Your ONLY job is to
+  enumerate unaddressed review surfaces on PR #{pr_number} and
+  return structured JSON. You do not reply, edit, or change state.
+
+  Steps:
+    1. GraphQL query reviewThreads where isResolved == false.
+       Capture: thread id, first comment author, body, file:line.
+    2. Fetch reviews via REST; for each review with a non-empty
+       body, detect structured findings (CRITICAL:, BLOCKING:,
+       INFO:, **[BLOCKING]**, numbered items with file:line).
+       Mark as unaddressed if no top-level PR comment replies
+       with `Re:` matching the finding ID.
+    3. Run check-top-level-comments.sh — capture unaddressed
+       automated review findings.
+
+  Output as the LAST line, single-line JSON:
+    {
+      "unresolved_threads": [{"id": ..., "author": ..., "path": ..., "body": ...}],
+      "body_findings": [{"review_id": ..., "summary": ...}],
+      "top_level_findings": [{"comment_id": ..., "summary": ...}]
+    }
+
+  You MUST NOT:
+    - Reply to any thread, even with "acknowledged".
+    - Resolve any thread.
+    - Edit the PR body or any comment.
+    - Invoke any Skill, gh pr ready, or gh api with -X POST/PATCH/DELETE.
+    - Speculate on which threads are "actionable" vs not — return
+      all unresolved, the supervisor classifies.
 ```
 
-Mark this task `completed` ONLY when the background agent's
-completion notification arrives. Do NOT mark it completed on
-dispatch — the task must remain `in_progress` while the agent
-runs. Without this task, the session appears idle and the
-supervisor may close it prematurely.
+**Why split into two micro-agents?** CI polling is long-running
+and runs in the background while the supervisor works on other
+things. Thread scanning is cheap and runs inline so the supervisor
+has the result immediately. Combining them would force the cheap
+scan to wait for the slow poll.
 
-Tell the user:
-- PR monitor is running in the background
-- Show the output file path from the Task result
-- They can check progress anytime by reading that file
-- The agent will ask for confirmation before posting notifications
+**Why haiku for both?** Polling and structured enumeration are
+mechanical work — no reasoning needed. Haiku is cheap and its
+narrow tool list prevents it from doing anything else.
+
+**Anti-pattern (GH-68 incident #2):** Combining the orchestrator
+and the poller into one big haiku with `max_turns: 200` and
+`mode: dontAsk` is exactly what caused the issue. Do NOT do that.
+Each micro-agent has a single observable job and a single-line
+JSON output contract.
+
+### Step 4: Announce orchestration to user
+
+There is no background agent to point at. The supervisor IS the
+orchestrator. Announce the plan briefly so the user understands
+the new model:
+
+> Monitoring PR #{pr_number} ({pr_url}). I'll run Phase 0–4 in
+> this session: ci-poll runs in the background while I work on
+> other things; thread-scan runs inline. I'll surface
+> `AskUserQuestion` gates at Phase 2.5 (QA), 2.7 (re-review),
+> and 3 (notification).
+
+Task tracking from the parent orchestration contract (the eight
+phase tasks at the top of this file) provides per-phase
+visibility — no extra "monitor running" task is needed because
+the supervisor's foreground turns ARE the monitoring.
 
 ---
 
-## Agent Prompt Template
+## Orchestrator Phase Reference
 
-Fill in `{pr_number}`, `{repo}`, `{pr_url}`, `{branch}`,
-`{blocked_operations}`, `{memory_guardrails}` and pass as the prompt.
+These are the procedures the supervisor walks while monitoring
+PR `#{pr_number}`. They are NOT a prompt to embed in a background
+agent — the supervisor session executes them directly, dispatching
+the two micro-agents (`haiku-ci-poll`, `haiku-thread-scan`) for
+the bounded read-only work and interpreting their JSON returns.
 
-### Pre-render: Extract BLOCKED OPERATIONS (GH-68, Fix B)
+### Step 0: Load supervisor directives and memory (GH-68, Fix B + D)
 
-Before rendering the template, scan the *user's invocation arguments*
-(the args passed to `/Dev10x:gh-pr-monitor`) for directive phrases
-that must be enforced as hard prohibitions, not advisories. Match
-case-insensitively:
+Before entering Phase 0, the supervisor loads two sources of
+constraints into its own context and treats them with the same
+authority as user instructions:
+
+**Directives from the user's invocation arguments.** Scan the
+args passed to `/Dev10x:gh-pr-monitor` (case-insensitive) for:
 
 - `do NOT ...` / `do not ...` (capture trailing clause up to
   newline or `.`)
@@ -252,21 +303,16 @@ case-insensitively:
 - `keep ... open` / `do not resolve`
 - Any line beginning with `MUST NOT` or `NEVER`
 
-Render each matched phrase verbatim as a bullet in
-`{blocked_operations}`. If no matches, set `{blocked_operations}`
-to `(none specified by supervisor)`.
+Restate each matched directive verbatim at the start of the
+supervisor's monitoring plan ("Per the dispatch prompt: …"). Before
+invoking `Skill(Dev10x:git-groom)`, `Skill(Dev10x:gh-pr-respond)`,
+or making any code change, re-read these directives and confirm
+the planned action does not match a prohibition. If it does,
+stop, summarise the conflict, and ask the user — never improvise
+around the prohibition.
 
-The agent prompt embeds these as a top-level
-`## BLOCKED OPERATIONS` section above all phase instructions so
-the haiku model encounters them before any operational steps. The
-agent is instructed to scan this list before invoking groom,
-edit, write, or commit — and to refuse with a `BLOCKED:` status
-line if any operation matches.
-
-### Pre-render: Load memory guardrails (GH-68, Fix D)
-
-Grep the user's memory directory for files matching
-`feedback_monitor*` or `feedback_*monitor*`:
+**Persistent guardrails from supervisor memory.** Read files
+matching `feedback_monitor*` or `feedback_*monitor*` from:
 
 ```bash
 ls "$CLAUDE_PROJECT_DIR/.claude/memory/" 2>/dev/null \
@@ -277,57 +323,18 @@ ls "$HOME/.claude/projects/$(basename "$PWD")/memory/" 2>/dev/null \
   || true
 ```
 
-For each matched file, Read its full body and inline it under
-`{memory_guardrails}` as a fenced block labeled with the source
-filename. If no matches, set `{memory_guardrails}` to
-`(no monitor-specific memory entries found)`.
+For each match, Read the file body and incorporate it into the
+monitoring plan as durable guardrails. The GH-68 incident #2
+finding: the user had `feedback_monitor_agent_respects_design_
+decisions.md` written 13 days before the second incident, and the
+prior implementation never read it.
 
-This addresses the GH-68 incident #2 finding: the user had
-`feedback_monitor_agent_respects_design_decisions.md` written 13
-days before the second incident, and the skill never read it.
+### Mission
 
-### Template
-
-````
-You are a PR monitoring agent running in the background.
-
-**Target:** PR #{pr_number} in {repo}
-**URL:** {pr_url}
-**Branch:** {branch}
-
-## BLOCKED OPERATIONS
-
-The supervisor has explicitly prohibited the following operations
-for this PR. Refuse to perform any of them. If a phase instruction
-appears to require one of these operations, STOP and emit
-`BLOCKED: prohibited-operation <which>` as the status line — do
-NOT improvise around the prohibition.
-
-{blocked_operations}
-
-Before invoking `Skill(Dev10x:git-groom)`, `git autosquash-*`,
-`Edit`, `Write`, `git commit`, or `git push`, re-read this list
-and confirm none of the entries match the operation you are
-about to perform. If any do, refuse and exit.
-
-## Persistent Guardrails (from supervisor memory)
-
-These notes come from prior incidents the supervisor recorded as
-durable guardrails. Treat them with the same authority as the
-BLOCKED OPERATIONS section.
-
-{memory_guardrails}
-
-## Mission
-
-Your job: autonomously shepherd this PR from draft → CI passing →
-comments addressed → review requested. Execute the early-exit check
-first, then Phase 0, 1, 2, 2.5, and 3 in order.
-
-Source-file mutations are out of scope (see "Read-only-by-default"
-in the parent skill's instructions). When a CI failure requires a
-code change, emit `BLOCKED: ci-failure <type> <summary>` and exit
-— the supervisor's main session will run the fix.
+Shepherd this PR from draft → CI passing → comments addressed →
+review requested → acceptance verified. Source-file mutations
+require explicit supervisor reasoning (this session) — not a
+sub-agent. Sub-agents only return signals.
 
 ---
 
@@ -373,122 +380,104 @@ The PR body **must** start with a JTBD Job Story as its first paragraph.
 
 ---
 
-## Phase 1: CI Monitoring Loop
+## Phase 1: CI Monitoring (orchestrator + ci-poll micro-agent)
 
-Repeat until all CI checks pass:
+The supervisor does not loop on CI itself. It dispatches the
+`haiku-ci-poll` micro-agent (see "Micro-agent A" above) which
+loops `ci-check-status.py` until the verdict changes from
+`"pending"` and returns the final JSON. The supervisor then
+branches on the returned `verdict`.
 
-1. Check CI and merge conflict status using the structured verdict script
-   (the script checks both CI checks and PR mergeable status):
-   ```bash
-   ${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-monitor/scripts/ci-check-status.py \
-     --pr {pr_number} --repo {repo}
-   ```
-   The script returns JSON with a `verdict` field:
-   ```json
-   {"verdict": "green|pending|failing|conflicting|empty",
-    "mergeable": "MERGEABLE|CONFLICTING|UNKNOWN",
-    "total": 5, "pass": 3, "fail": 0, "pending": 2, ...}
-   ```
+### Dispatch ci-poll
 
-2. Act on the `verdict` field — **nothing else**:
-   - `"green"` → **re-check for review comments before marking
-     ready** (see Post-CI Comment Re-check below), then Phase 2
-   - `"conflicting"` → PR has merge conflicts. Rebase onto base
-     branch and force-push (see Conflict Handling below). The
-     script checks `mergeable` status from the GitHub API — this
-     verdict takes priority over CI check results (GH-563).
-   - `"pending"` → wait 30 seconds via `sleep 30`, re-run the
-     script. **Hard rule: Do NOT exit Phase 1 while verdict is
-     "pending".** The loop MUST continue until verdict changes
-     to `"green"` or `"failing"`. Exiting early with pending
-     checks was the #1 monitor regression (GH-447 F1, GH-553).
-   - `"failing"` → read the `checks` array to identify which
-     checks failed, then fix (see CI Failure Handling below)
-   - `"empty"` → GitHub hasn't registered check suites yet.
-     Wait 60 seconds and re-run. This is expected immediately
-     after a push or after converting a draft PR to ready.
+```
+Agent(
+    subagent_type="general-purpose",
+    model="haiku",
+    run_in_background=True,
+    max_turns=50,
+    description="Poll CI for PR #{pr_number}",
+    allowed_tools=[<see Micro-agent A spec>],
+    disallowed_tools=[<see Micro-agent A spec>],
+    prompt=<see Micro-agent A prompt, with {pr_number}, {repo} filled in>
+)
+```
 
-   **Draft-to-ready SKIPPED guard (GH-774):** When a draft PR
-   is converted to ready via `gh pr ready`, GitHub marks
-   existing check runs as SKIPPED before new suites start.
-   The script returns `"empty"` when all checks are SKIPPED
-   (non_skipping == 0). This is NOT CI-green — it means
-   GitHub has not registered new check suites yet. The agent
-   MUST loop until at least one non-skipping check appears.
-   A monitor completing in under 60 seconds on a freshly-
-   readied PR is suspect — SKIPPED checks are not terminal.
+Because `run_in_background=True`, the supervisor receives a
+completion notification when the poll ends — there is no need to
+poll the poller. The supervisor can work on Phase 2 (thread scan)
+or other unrelated tasks in the meantime.
 
-   **Do NOT parse `gh pr checks` text output directly.**
-   Always use the script — it handles bucket classification,
-   SKIPPING exclusion, and check counting reliably (GH-553).
+### Interpret verdict
 
-3. After fixing CI failures or pushing new commits, wait **60
-   seconds** before the first re-check. GitHub needs time to
-   register new check suites after a push — checking too early
-   returns stale results from the previous commit.
+When the micro-agent returns, parse the JSON. The `verdict` field
+drives the next action:
 
-4. **Check count is handled by the script.** The `total` and
-   `pass` fields in the verdict JSON include the count. If
-   `verdict` is `"empty"` after a push, wait and retry — the
-   script already excludes SKIPPING checks from the pass count.
+| `verdict`       | Supervisor action |
+|-----------------|-------------------|
+| `green`         | Run Post-CI comment re-check (below), then Phase 2 |
+| `failing`       | Read `checks` array, branch on failure type (see CI Failure Handling) |
+| `conflicting`   | Rebase onto base branch (see Conflict Handling) |
+| `empty`         | Re-dispatch ci-poll after 60s — GitHub hasn't registered checks yet |
+| `timeout`       | Micro-agent hit the 50-turn cap. Re-dispatch with note "session #2"; if it times out twice, surface to user |
+
+**Pending verdict is impossible** at this layer — the micro-agent's
+contract is "loop until verdict ≠ pending". If the supervisor ever
+sees `"pending"` in the returned JSON, something is wrong with the
+micro-agent prompt; treat as `BLOCKED: ci-poll-protocol-violation`
+and stop.
+
+**Draft-to-ready SKIPPED guard (GH-774):** The script returns
+`"empty"` when all checks are SKIPPED (non_skipping == 0). The
+supervisor must re-dispatch after 60s rather than treating this
+as green — GitHub re-registers checks after `gh pr ready`. The
+micro-agent already returns `"empty"` not `"green"` in this case.
+
+**Why not loop in the supervisor's session?** Because each loop
+iteration costs a supervisor turn, and supervisor turns are
+expensive context. Pushing the loop into a haiku sub-process
+saves cost AND removes any chance of the loop "deciding" to do
+something else mid-wait.
 
 ### CI Failure Handling
 
-**Read-only-by-default (GH-68):** Background haiku monitor agents
-MUST NOT mutate source files, create commits, or push. Source-file
-mutations escalate to the main session via the
-`BLOCKED: ci-failure <type> <summary>` status line — the parent
-orchestrator re-runs the fix in the supervisor's session, where
-human gates apply. The only mutation allowed from the background
-agent is the autosquash-only path described below for
-`git-history-linting`, and only when no other CI failure is
-present.
+The supervisor handles CI failures directly — it has full
+reasoning context, sees the BLOCKED OPERATIONS list and memory
+guardrails loaded in Step 0, and can ask the user before any
+ambiguous change. There is no `BLOCKED:` status line in this
+architecture; the supervisor is the parent, and it decides
+in-band.
 
-Anti-pattern (the incident in GH-68): the agent ran `Edit` to
-"fix" a test it had no business changing, then created a fixup
-that re-introduced reviewer-rejected code, then auto-grooved
-the regression into the squashed commit. The new contract removes
-the agent's ability to do any of that.
+Anti-pattern (the incident in GH-68 incident #2): a background
+haiku agent received `verdict: failing`, ran `Edit` to "fix" a
+test it had no business changing, created a fixup that
+re-introduced reviewer-rejected code, then auto-grooved the
+regression. The new architecture removes this failure surface
+because the supervisor's reasoning capacity is in the loop.
 
-| Failure Type | How to Handle (background agent) |
+| Failure Type | Supervisor action |
 |---|---|
-| ruff/black/isort | Emit `BLOCKED: ci-failure formatter <files>` and exit |
-| mypy | Emit `BLOCKED: ci-failure mypy <file:line>` and exit |
-| flake8 | Emit `BLOCKED: ci-failure flake8 <file:line>` and exit |
-| gitlint (title > 72 chars) | Emit `BLOCKED: ci-failure gitlint <commit>` and exit |
-| pytest failures | Emit `BLOCKED: ci-failure pytest <test-id>` and exit |
-| Import errors | Emit `BLOCKED: ci-failure import <module>` and exit |
-| Coverage < 100% | Emit `BLOCKED: ci-failure coverage <file>` and exit |
-| git-history-linting (fixup! commits, no source change needed) | Auto-groom path (see "Autosquash-only exception" below) |
+| ruff/black/isort | Run the formatter; commit via `Skill(Dev10x:git-commit)` |
+| mypy / flake8 / import errors | Apply fix; commit via `Skill(Dev10x:git-commit)` |
+| pytest failures | Read the test + code; decide between fix and ticket; act |
+| Coverage < 100% | Add tests for uncovered lines |
+| gitlint (title > 72 chars) | Reword via `git commit --amend` or `Skill(Dev10x:git-groom)` |
+| git-history-linting (fixup! only) | Delegate to `Skill(Dev10x:git-groom)` — groom enforces its own preconditions, including the thread-open refusal (GH-68, Fix E) |
 
-**Autosquash-only exception:** When the ONLY failing check is
-`git-history-linting` (fixup! commits present) AND the dispatch
-prompt does NOT contain any `BLOCKED OPERATIONS` matching
-`auto-groom`, `autosquash`, `groom`, `leave UNSQUASHED`, the
-agent may delegate to `Skill(Dev10x:git-groom)` to autosquash and
-force-push. The groom skill enforces its own preconditions
-(thread-open refusal — see Fix E in GH-68). The agent MUST NOT
-call `git autosquash-*`, `git rebase`, or `git push` directly.
+**Before any commit/groom**, the supervisor MUST:
 
-**Self-introduced regression guard (GH-68, Fix C):** Before
-delegating to groom, the agent MUST verify it is not autosquashing
-its own regression:
-
-1. Read `git reflog` and identify commits authored within the
-   current monitor session (HEAD reachable from this agent's
-   work).
-2. If the most recent commit (HEAD) was authored by this agent
-   AND a failing test was passing on `HEAD~1`, the recovery is
-   `git reset --hard HEAD~1` (or `git revert HEAD`) — NOT a
-   counter-fixup, NOT autosquash.
-3. After reset/revert, emit
-   `BLOCKED: ci-failure self-introduced <test-id>` so the
-   supervisor can decide whether to re-attempt the fix.
-
-The historical guidance "implement the fix, stage, fixup, push"
-applied when the agent had Edit/Write/commit/push tools. After
-GH-68 it does not — those tools are not in the agent's
-allowed-tools (see "Background Agent Allowed Tools" below).
+1. Re-read the BLOCKED OPERATIONS extracted in Step 0. If the
+   intended action matches any directive (e.g., `leave UNSQUASHED`
+   vs. an autosquash plan), stop and ask the user.
+2. Apply the self-introduced regression guard (GH-68, Fix C):
+   read `git reflog`, identify commits authored within this
+   monitoring session. If HEAD is one of them AND the failing
+   test was passing on `HEAD~1`, recover with `git reset --hard
+   HEAD~1` or `git revert HEAD` instead of a counter-fixup. This
+   guard exists because the supervisor itself might have just
+   pushed the regression a few turns ago.
+3. Re-dispatch `haiku-ci-poll` after the fix lands; wait 60s
+   first so GitHub registers new check suites.
 
 ### Conflict Handling
 
@@ -514,69 +503,65 @@ When `gh pr view` reports `mergeable: CONFLICTING`:
 
 ### Post-CI Comment Re-check (REQUIRED)
 
-**Hard rule (GH-465):** After ALL CI checks pass, re-check for
-review comments BEFORE marking the PR ready. CI hygiene reviews
-(automated code review workflows) post comments *during* the CI
-run — they arrive after the initial comment check at Phase 1
-startup. Without this re-check, the PR gets marked ready with
-unaddressed comments.
+**Hard rule (GH-465):** After CI returns `green`, the supervisor
+re-scans for review comments before marking the PR ready. CI
+hygiene reviews post comments during the CI run, so the initial
+comment scan at session start can miss them.
 
-1. Fetch unresolved review threads (use the GraphQL query from
-   Phase 2's "Counting Unaddressed Comments" section)
-2. Fetch all reviews and check for **unaddressed body-only
-   findings** (GH-564). For each review, if the body contains
-   structured findings (severity markers like `CRITICAL:`,
-   `BLOCKING:`, `INFO:`, numbered items with file:line refs,
-   or bold-prefixed items like `**[BLOCKING]**`) that have not
-   been replied to with a top-level PR comment, count them as
-   unaddressed. Query reviews via:
-   ```bash
-   gh api repos/{owner}/{repo}/pulls/{pr_number}/reviews \
-     --jq '[.[] | select(.body != "" and .body != null)
-     | {id, user: .user.login, body, state}]'
-   ```
-   Then check if each review body's findings have corresponding
-   top-level PR comment replies (matching `Re:` prefix pattern).
-3. Fetch top-level PR comments (GH-698) and check for
-   unaddressed automated review findings:
-   ```bash
-   ${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-merge/scripts/check-top-level-comments.sh \
-     {owner} {repo} {pr_number}
-   ```
-   Returns a JSON array of unaddressed findings (empty = pass).
-   Top-level comments are invisible to the `reviewThreads`
-   GraphQL query — they use a separate API surface
-   (`issueComments`). Without this check, automated review
-   findings posted as top-level comments are silently skipped.
-4. If unresolved threads OR unaddressed body findings OR
-   unaddressed top-level comments exist → enter Phase 2 to
-   address them. Do NOT mark PR ready yet.
-5. If no unresolved threads AND no unaddressed body findings
-   AND no unaddressed top-level comments → mark PR ready
-   (`gh pr ready {pr_number}`) and proceed to Phase 2 for
-   a final check.
+Dispatch `haiku-thread-scan` (Micro-agent B). It returns:
 
-This re-check prevents the race condition where automated
-reviewers post during CI, and ensures body-only review
-findings and top-level automated comments are not silently
-skipped.
+```json
+{
+  "unresolved_threads": [...],
+  "body_findings": [...],
+  "top_level_findings": [...]
+}
+```
+
+Sum the three arrays. If any are non-empty → enter Phase 2. If
+all three are empty → mark the PR ready (`gh pr ready
+{pr_number}`) and proceed to Phase 2.5.
 
 ---
 
-## Phase 2: Review Comment Monitoring Loop
+## Phase 2: Review Comment Handling (orchestrator + thread-scan)
 
-Repeat until no unaddressed comments remain:
+The supervisor handles comment response in-band, with full
+reasoning context and the user available for `AskUserQuestion`
+gates. Loop until no unaddressed comments remain.
 
-1. Delegate to `Dev10x:gh-pr-respond` in **batch mode** with the PR URL:
+1. Dispatch `haiku-thread-scan` (Micro-agent B) inline (not
+   background — it's cheap and the supervisor needs the result
+   before the next decision).
+
+2. Parse the returned JSON. If all three arrays are empty, exit
+   Phase 2 and proceed to Phase 2.5.
+
+3. Invoke `Skill(Dev10x:gh-pr-respond)` in batch mode with the PR
+   URL — that skill runs in the supervisor session, has full
+   reasoning + user gates, and handles validation, fixup commits,
+   and reply posting:
+
    ```
-   Skill(skill="Dev10x:gh-pr-respond", args="{pr_url}")
+   Skill("Dev10x:gh-pr-respond", "{pr_url}")
    ```
 
-2. After all comments are addressed, return to Phase 1 (CI may re-run
-   after pushes).
+   The supervisor's BLOCKED OPERATIONS list (Step 0) is preserved
+   across this delegation — `gh-pr-respond` does not see it
+   automatically, so if a thread asks for an operation that
+   matches a directive (e.g., reviewer requests "squash these
+   fixups now" when the dispatch prompt said `leave UNSQUASHED`),
+   the supervisor refuses the action and explains to the reviewer
+   via a reply.
 
-3. When Phase 1 passes AND no unaddressed comments remain → go to
-   Phase 2.5.
+4. After `gh-pr-respond` completes, fixups have been pushed; CI
+   will re-run. Re-dispatch `haiku-ci-poll` (Phase 1) until
+   verdict is green again, then re-dispatch `haiku-thread-scan`
+   in case more comments arrived during the cycle.
+
+5. When `haiku-thread-scan` returns three empty arrays AND
+   `haiku-ci-poll` returns `green` AND at least one approval
+   exists (or no reviews yet) → Phase 2 complete.
 
 ### Counting Unaddressed Comments (Thread Resolution Awareness)
 
@@ -701,12 +686,14 @@ The Dev10x:slack-review-request skill will:
 
 **CRITICAL: Do NOT post notifications without user confirmation.**
 
-**Background agent auto-advance (GH-851 F1):** When dispatched
-as a background agent with `mode: dontAsk`, auto-advance through
-Phase 3 without stopping for confirmation. The `dontAsk` mode
-from the parent implies blanket authorization for shipping
-pipeline steps. Skip Step 2 (AskUserQuestion) and proceed
-directly to Step 3 (execute notification).
+Phase 3 always fires `AskUserQuestion` in this architecture —
+the supervisor is in-session and the user is present, so the
+prior background-agent dontAsk auto-advance does not apply.
+If the session friction level is `adaptive` and the user
+pre-authorised shipping pipeline auto-advance (in
+`.claude/Dev10x/session.yaml`), `AskUserQuestion` still fires
+but the recommended option is auto-selected — that is the
+correct adaptive behaviour.
 
 ### Step 0: Verify PR state via MCP
 
@@ -820,159 +807,103 @@ failing checks, or incomplete work that earlier phases missed.
    earlier phases — report the failures and let the supervisor
    decide next steps.
 
-**Permission failure propagation (GH-760 F4):** If the
-background agent hits permission limits and cannot complete
-`verify-acc-dod`, it MUST emit `BLOCKED: verify-acc-dod
-permission failure` as the status line (per the Subagent Status
-Protocol below). The parent orchestrator parses the
-`BLOCKED:` prefix and re-invokes
-`Skill(Dev10x:verify-acc-dod)` in the main session. Do NOT
-mark the parent's acceptance task as `completed` when the agent
-reports `BLOCKED:`.
+## Micro-Agent Status Protocol
 
-## Final Status Line (GH-69)
+The two micro-agents (`haiku-ci-poll`, `haiku-thread-scan`) end
+their output with a single-line JSON payload. The supervisor
+parses this payload as the last non-empty line. There is no
+`DONE` / `BLOCKED:` text protocol in this architecture — the
+JSON IS the contract.
 
-After all phase reports are emitted, end your output with
-**exactly one** status line per the Subagent Status Protocol
-(see
-[`references/orchestration/subagent-status-protocol.md`](../../../references/orchestration/subagent-status-protocol.md)):
+If a micro-agent returns:
 
-- `DONE` — all phases (0–4) completed, CI green, comments
-  addressed, acceptance verified
-- `DONE_WITH_CONCERNS: <text>` — phases completed but a concern
-  was discovered (e.g., flaky CI, comment unresolved by design,
-  new tangential bug) — main session queues for batched
-  decision presentation
-- `NEEDS_CONTEXT: <what>` — phase blocked by missing context
-  the main session can provide (e.g., uncommitted local changes
-  that need to be staged) — main session re-dispatches with
-  context
-- `BLOCKED: <reason>` — permission failure, missing tool, CI
-  failure exceeding max retries, or unrecoverable error — main
-  session falls back per "Main-Session Fallback (GH-901)" below
+- **No JSON on the last line** → treat as a protocol violation;
+  surface to the user with the agent's stdout for diagnosis,
+  do not retry blindly.
+- **`{"verdict": "timeout", ...}`** (ci-poll only) → re-dispatch
+  once. If it times out twice, surface to the user — the CI is
+  unusually slow or stuck.
+- **Empty arrays** (thread-scan) → no unaddressed surfaces,
+  proceed to next phase.
 
-The status line MUST be the **last non-empty line** of the
-output. Do not write anything after it. The main-session
-controller reads the trailing line via strict prefix match.
-
-### Main-Session Fallback (GH-901, GH-69)
-
-**Hard rule:** When a background agent emits `BLOCKED:` as its
-status line — or fails the protocol entirely (no recognizable
-status line) — the parent orchestrator MUST immediately re-run
-the failed phase in the main session. Do NOT treat a
-permission-failed background agent as a successful completion.
-
-**Detection (primary — explicit signal, GH-69):** Parse the
-last non-empty line of the agent result:
-- `DONE` → success, mark task completed
-- `DONE_WITH_CONCERNS: <text>` → success; queue concern for
-  batched decision presentation
-- `NEEDS_CONTEXT: <what>` → re-dispatch with the requested
-  context inlined into the new prompt
-- `BLOCKED: <reason>` → fallback (this section)
-- *Anything else (no recognizable status, or status missing)*
-  → treat as `BLOCKED: protocol violation` and fall back
-
-**Detection (legacy heuristic — kept as a safety net for older
-agents that ignore the status protocol):**
-- Agent completing in under 60 seconds (suspect — likely
-  skipped phases due to permission denials)
-- Missing phase completion markers in the result summary
-
-**Fallback protocol:**
-1. Log: "Background agent reported BLOCKED: {reason} — re-running
-   in main session"
-2. Re-invoke the monitoring skill directly (not as a background
-   agent) so it inherits the main session's permissions
-3. Mark the background agent's tracking task as `completed`
-   with description "BLOCKED — re-ran in main session ({reason})"
-4. The main-session re-run replaces the background agent's
-   results entirely
-
-````
+There is no main-session fallback path because the supervisor
+session already IS the main session. Permission failures cannot
+occur silently because the supervisor sees every tool denial
+directly.
 
 ---
 
 ## Important Rules
 
-- **Monitoring scope**: This skill monitors CI checks and review
-  comments up through review request (Phase 3), then verifies
-  acceptance criteria (Phase 4). It does NOT monitor through to
-  merge. After Phase 4 completes, the agent exits. To monitor
-  post-approval activity or wait for merge, re-invoke the skill
-  or check manually.
-- **Do NOT merge PRs.** The monitoring agent must never run
-  `gh pr merge`, `git merge`, or any merge operation. Merging
-  is the supervisor's responsibility. If the agent merges
-  autonomously, the main session may attempt a duplicate merge
-  and hit "already merged" errors.
-- **Autonomous execution**: Phase 1 and Phase 2 run without asking the
-  user. Phase 2.5 (QA) and Phase 3 (notification) need confirmation.
-- **One fixup per comment**: Each review comment gets exactly one fixup
-  commit.
-- **Poll interval**: Wait 30 seconds between CI checks and comment checks.
-- **Max CI retries**: If CI fails 5 times in a row on the same issue,
-  stop and report the problem.
-- **No regular force push**: Use `mcp__plugin_Dev10x_cli__push_safe` for normal pushes.
-  Exception: after conflict rebase, use `git push --force-with-lease`.
-- **Working directory**: Use `gh pr view {pr_number} --repo {repo}
-  --json headRefName` to get the branch. Never hardcode a working
-  directory — the PR branch may live in a different worktree.
-- **Background agent permissions (GH-68)**: Background agents
-  are launched with `mode: "dontAsk"` (GH-695) to avoid
-  permission friction on CI polling and `gh` commands. They
-  are **read-only by contract** — Edit, Write, raw `git
-  commit`/`git push`, and any source-file mutation are
-  prohibited. The agent escalates required mutations to the
-  main session via `BLOCKED:` status. The only push path
-  available to the agent is autosquash-only delegation to
-  `Skill(Dev10x:git-groom)` for `git-history-linting`
-  failures, gated by the self-introduced-regression guard and
-  the BLOCKED OPERATIONS dispatch directives.
+- **Monitoring scope**: CI checks and review comments through
+  review request (Phase 3), then acceptance verification
+  (Phase 4). Does NOT cover merge.
+- **Do NOT merge PRs.** Merging is the supervisor's manual
+  responsibility (or a separate `Dev10x:gh-pr-merge` invocation).
+- **Phase gates**: 2.5 (QA), 2.7 (re-review), 3 (notification) fire
+  `AskUserQuestion` regardless of friction level (adaptive
+  auto-selects the recommended option but still surfaces the
+  gate).
+- **One fixup per comment**: Enforced by `gh-pr-respond`.
+- **Poll interval**: `haiku-ci-poll` sleeps 30s per iteration
+  internally.
+- **Max CI retries**: After 5 consecutive CI failures on the same
+  signature, stop and ask the user. The supervisor tracks the
+  retry count in its task list, not in the micro-agent.
+- **No regular force push**: Use
+  `mcp__plugin_Dev10x_cli__push_safe`. Exception: post-rebase
+  force-with-lease goes through `Skill(Dev10x:git-groom)`.
+- **Working directory**: Resolve branch via `gh pr view --json
+  headRefName` — never hardcode a worktree path.
+- **Micro-agent contract (GH-68)**: `haiku-ci-poll` and
+  `haiku-thread-scan` are read-only by construction. They cannot
+  Edit, Write, `gh pr ready`, push, or invoke further `Skill()`
+  calls. The supervisor owns every state change.
 
 ---
 
 ## Integration with Other Skills
 
 1. **Dev10x:gh-pr-create** — Use before this skill to create the draft PR
-2. **Dev10x:ticket-jtbd** — Delegated to by the agent in Phase 0
-3. **Dev10x:gh-pr-respond** — Delegated to by the agent for review comments (Phase 2)
-4. **Dev10x:qa-scope** — Delegated to by the agent for QA risk assessment (Phase 2.5)
-5. **Dev10x:request-review** — Delegated to by the agent in Phase 3 (combined GitHub + Slack review request)
-6. **Dev10x:slack-review-request** — Delegated to by the agent in Phase 2.7 (re-review notification)
-7. **Dev10x:verify-acc-dod** — Delegated to by the agent in Phase 4 (acceptance criteria)
-8. **pr-notify.py** — Phase 3 helper script (checklist update only)
+2. **Dev10x:ticket-jtbd** — Delegated by the supervisor in Phase 0
+3. **Dev10x:gh-pr-respond** — Delegated by the supervisor for review comments (Phase 2)
+4. **Dev10x:qa-scope** — Delegated by the supervisor in Phase 2.5
+5. **Dev10x:request-review** — Delegated by the supervisor in Phase 3
+6. **Dev10x:slack-review-request** — Delegated by the supervisor in Phase 2.7
+7. **Dev10x:verify-acc-dod** — Delegated by the supervisor in Phase 4
+8. **pr-notify.py** — Phase 3 helper (checklist update only)
 
 ## Delegation Pattern
 
 ```
-/Dev10x:gh-pr-monitor (this skill — launches background agent)
+/Dev10x:gh-pr-monitor (supervisor session)
     │
-    └── Background Task Agent
-        │
-        ├── Phase 0: JTBD Job Story check
-        │       ├── Fetch PR body, check first paragraph
-        │       └── If missing → Skill(skill="Dev10x:ticket-jtbd") to generate
-        │
-        ├── Phase 1: CI monitoring (handled directly by agent)
-        │
-        ├── Phase 2: Comment monitoring
-        │       └── Skill(skill="Dev10x:gh-pr-respond", args="{pr_url}") — batch mode
-        │
-        ├── Phase 2.5: QA scope assessment
-        │       └── Skill(skill="Dev10x:qa-scope")
-        │
-        ├── Phase 2.7: Re-review notification (after comments addressed)
-        │       ├── AskUserQuestion → confirm notification
-        │       └── Skill(skill="Dev10x:slack-review-request") → post to Slack
-        │
-        ├── Phase 3: Notification (initial review request)
-        │       ├── AskUserQuestion → confirm message
-        │       └── If approved, execute two delegated steps:
-        │           ├── Skill(skill="Dev10x:request-review") → assign GitHub reviewers + post Slack
-        │           └── pr-notify.py send (checklist-only mode)
-        │
-        └── Phase 4: Acceptance criteria verification
-                └── Skill(skill="Dev10x:verify-acc-dod") → auto-pass/fail at adaptive level
+    ├── Step 0: Load BLOCKED OPERATIONS + memory guardrails
+    │
+    ├── Phase 0: JTBD Job Story check
+    │       └── Skill(Dev10x:ticket-jtbd) if missing
+    │
+    ├── Phase 1: CI monitoring
+    │       └── Agent(haiku-ci-poll) — background, returns verdict JSON
+    │       (on failing → supervisor handles in-band, may delegate
+    │        to Skill(Dev10x:git-commit) / Skill(Dev10x:git-groom))
+    │
+    ├── Phase 2: Comment monitoring
+    │       ├── Agent(haiku-thread-scan) — inline, returns surfaces JSON
+    │       └── Skill(Dev10x:gh-pr-respond) batch mode if surfaces non-empty
+    │
+    ├── Phase 2.5: QA scope
+    │       └── Skill(Dev10x:qa-scope)
+    │
+    ├── Phase 2.7: Re-review notification
+    │       ├── AskUserQuestion → confirm
+    │       └── Skill(Dev10x:slack-review-request)
+    │
+    ├── Phase 3: Notification
+    │       ├── AskUserQuestion → confirm
+    │       ├── Skill(Dev10x:request-review)
+    │       └── pr-notify.py send (checklist-only)
+    │
+    └── Phase 4: Acceptance criteria
+            └── Skill(Dev10x:verify-acc-dod)
 ```
