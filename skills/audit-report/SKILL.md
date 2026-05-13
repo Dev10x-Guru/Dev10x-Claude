@@ -73,7 +73,7 @@ ls ~/.claude/plugins/cache/Dev10x-Guru/dev10x-claude/
 Use the version directory name (e.g., `0.19.0.dev0`). If the
 cache directory is not found, use `unknown`.
 
-### Step 3: Scrub proprietary information (REQUIRED)
+### Step 3: Fictionalize proprietary information (REQUIRED)
 
 **Treat the source session as private by default.** The upstream
 issue is a public artifact at `Dev10x-Guru/Dev10x-Claude` and MUST
@@ -81,52 +81,66 @@ NOT disclose any identifier from a non-public repository, project,
 branch, ticket tracker, file path, person, or service that is not
 part of the public Dev10x plugin.
 
-Apply the replacement table, allow-list, and 5-step algorithm in
+Instead of redacting private identifiers with bracketed
+placeholders (`<private-repo>`, `TICKET-NN`), **replace them with
+similar-sounding fictional counterparts drawn from pop culture** —
+movies, books, TV, cartoons, video games. The resulting issue
+reads as a coherent story while leaking nothing. Real precedents:
+issue #68 used `initech/initech-pos` + reviewer `skywalker`;
+issue #98 used Tyrell Corp + Aperture Labs.
+
+Apply the vibe-matching guide, consistency rule, and 6-step
+algorithm in
 [`references/privacy-scrub.md`](references/privacy-scrub.md) to
 the verbatim findings text **before** assembling the issue body.
 
-**REQUIRED: Call `AskUserQuestion`** when a finding cannot be
-reported without a private identifier (do NOT use plain text).
-Options:
+**REQUIRED: Call `AskUserQuestion`** when a finding is
+fundamentally about a private codebase pattern that cannot be
+retold through fictional stand-ins without losing the technical
+point (do NOT use plain text). Options:
 
-- Scrub aggressively and file (Recommended) — abstract the
-  identifier even at the cost of specificity
+- Fictionalize aggressively and file (Recommended) — pick the
+  closest pop-culture stand-in even at the cost of some
+  specificity
 - Skip this finding — exclude from upstream, keep in local notes
 
-Never auto-include unscrubbed text. Re-read the assembled body
-and verify no disallowed identifier remains before continuing
-to Step 4.
+Never auto-include unfictionalized text. Re-read the assembled
+body and verify every named entity is fictional (pop-culture
+sourced, not a real company / person / product) before
+continuing to Step 4.
 
 ### Step 4: Generate issue body
 
-Build the issue body from the **scrubbed** findings:
+Build the issue body from the **fictionalized** findings:
 
 ```markdown
 ## Audit Findings
 
 **Plugin version**: Dev10x {version}
-**Session context**: <private-project> / <private-branch>
+**Session context**: {fictional-org}/{fictional-repo} / {fictional-branch}
 **Audit date**: {date}
 
 ### Findings
 
 | # | Phase | Classification | Skill | Description |
 |---|-------|---------------|-------|-------------|
-{scrubbed rows}
+{fictionalized rows}
 
 ### Proposed Fixes
 
-{scrubbed fixes, grouped by skill}
+{fictionalized fixes, grouped by skill}
 
 ### Evidence
 
-{scrubbed transcript excerpts — 2-3 lines per finding, no
-private file paths or identifiers}
+{fictionalized transcript excerpts — 2-3 lines per finding, no
+real file paths, real handles, or real product names}
 ```
 
-The "Session context" line is intentionally generic — the
-upstream maintainer does not need the original repo or branch
-to act on a Dev10x plugin finding.
+The "Session context" line uses fictional stand-ins (e.g.,
+`initech/initech-pos / skywalker/CORE-401/death-star-3/...`) so
+the report reads as a coherent narrative — the upstream
+maintainer does not need the real repo or branch to act on a
+Dev10x plugin finding.
 
 ### Step 5: Derive issue title
 
@@ -175,9 +189,12 @@ and the temp file path so the user can file manually.
 - **One issue per audit**: Batch all findings into a single
   issue per audit session to avoid issue spam.
 - **Privacy by default (Step 3)**: The source session may belong
-  to a private codebase. Scrub repo names, owners, branches,
-  tracker IDs, file paths, hostnames, and personal identifiers
-  before assembling the issue body. Only the public Dev10x
-  plugin context — skill names, plugin file paths, and
-  `Dev10x-Guru/Dev10x-Claude` issue/PR numbers — is allowed
-  verbatim. Re-verify the body is clean before filing.
+  to a private codebase. Fictionalize repo names, owners,
+  branches, tracker IDs, file paths, hostnames, and personal
+  identifiers using pop-culture stand-ins (movies, books,
+  cartoons, games) before assembling the issue body. Never use
+  real company, product, or person names — even ones that *sound*
+  fictional. Only the public Dev10x plugin context — skill names,
+  plugin file paths, and `Dev10x-Guru/Dev10x-Claude` issue/PR
+  numbers — is allowed verbatim. Re-verify every named entity is
+  fictional before filing.
