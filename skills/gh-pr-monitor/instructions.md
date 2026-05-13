@@ -109,8 +109,63 @@ mode: "dontAsk"
 run_in_background: true
 max_turns: 200
 description: "Monitor PR #{pr_number}"
+allowed_tools: <see "Background Agent Allowed Tools" below>
+disallowed_tools: <see "Background Agent Allowed Tools" below>
 prompt: <see "Agent Prompt Template" below, with variables filled in>
 ```
+
+### Background Agent Allowed Tools (GH-68, Fix A)
+
+The background haiku agent is **read-only by contract**. Pass an
+explicit tool allowlist (and matching denylist) on the Task call
+so the agent cannot silently mutate source files even if its
+prompt instructs it to.
+
+**Allowed tools (read + polling + status updates only):**
+
+- `Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-monitor/scripts/:*)`
+- `Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-merge/scripts/:*)`
+- `Bash(gh pr view:*)`, `Bash(gh pr checks:*)`,
+  `Bash(gh pr ready:*)`, `Bash(gh api:*)`
+- `Bash(git log:*)`, `Bash(git reflog:*)`, `Bash(git status:*)`,
+  `Bash(git rev-parse:*)`, `Bash(git symbolic-ref:*)`,
+  `Bash(git merge-base:*)`
+- `Bash(git reset --hard HEAD~1)`, `Bash(git revert HEAD)` —
+  scoped exception for the self-introduced regression recovery
+  in Phase 1 (GH-68, Fix C). The agent MUST NOT use any other
+  form of `git reset` or `git revert`.
+- `Read`, `Grep`, `Glob`
+- `mcp__plugin_Dev10x_cli__pr_detect`,
+  `mcp__plugin_Dev10x_cli__verify_pr_state`,
+  `mcp__plugin_Dev10x_cli__ci_check_status`,
+  `mcp__plugin_Dev10x_cli__check_top_level_comments`,
+  `mcp__plugin_Dev10x_cli__pr_notify`,
+  `mcp__plugin_Dev10x_cli__update_pr` (PR-body checklist only,
+  see Phase 3 Step 3b)
+- `AskUserQuestion` (Phase 2.5, 2.7, 3 gates)
+- `Skill(Dev10x:gh-pr-respond)`, `Skill(Dev10x:qa-scope)`,
+  `Skill(Dev10x:request-review)`, `Skill(Dev10x:slack-review-request)`,
+  `Skill(Dev10x:verify-acc-dod)`, `Skill(Dev10x:ticket-jtbd)`,
+  `Skill(Dev10x:git-groom)` (autosquash-only path, see CI
+  Failure Handling)
+- `TaskCreate`, `TaskUpdate`, `TaskGet`, `TaskList`
+
+**Explicitly denied (escalate via `BLOCKED:` status line):**
+
+- `Edit`, `Write`, `NotebookEdit`
+- `Bash(git commit:*)`, `Bash(git push:*)`,
+  `Bash(git rebase:*)`, `Bash(git autosquash-*:*)`,
+  `Bash(git checkout -b:*)`, `Bash(git merge:*)`,
+  `Bash(git cherry-pick:*)`, `Bash(git stash:*)`
+- `mcp__plugin_Dev10x_cli__push_safe` — explicitly removed; the
+  only path to a push for a monitor agent is via
+  `Skill(Dev10x:git-groom)` under the autosquash-only exception.
+
+**Anti-pattern (GH-68):** Adding `Edit` or `Write` back "just for
+this one CI fix". The point of the contract is that the agent
+cannot decide on its own that a code change is needed — the
+supervisor decides, in the main session, with full reasoning
+context.
 
 **REQUIRED: `mode: "dontAsk"` on the Agent call.** Without
 this, background agents lack Bash permissions to run CI
@@ -179,8 +234,59 @@ Tell the user:
 
 ## Agent Prompt Template
 
-Fill in `{pr_number}`, `{repo}`, `{pr_url}`, `{branch}` and pass as
-the prompt:
+Fill in `{pr_number}`, `{repo}`, `{pr_url}`, `{branch}`,
+`{blocked_operations}`, `{memory_guardrails}` and pass as the prompt.
+
+### Pre-render: Extract BLOCKED OPERATIONS (GH-68, Fix B)
+
+Before rendering the template, scan the *user's invocation arguments*
+(the args passed to `/Dev10x:gh-pr-monitor`) for directive phrases
+that must be enforced as hard prohibitions, not advisories. Match
+case-insensitively:
+
+- `do NOT ...` / `do not ...` (capture trailing clause up to
+  newline or `.`)
+- `INTENTIONALLY ...`
+- `leave UNSQUASHED` / `leave unsquashed`
+- `do NOT auto-groom` / `no auto-groom`
+- `keep ... open` / `do not resolve`
+- Any line beginning with `MUST NOT` or `NEVER`
+
+Render each matched phrase verbatim as a bullet in
+`{blocked_operations}`. If no matches, set `{blocked_operations}`
+to `(none specified by supervisor)`.
+
+The agent prompt embeds these as a top-level
+`## BLOCKED OPERATIONS` section above all phase instructions so
+the haiku model encounters them before any operational steps. The
+agent is instructed to scan this list before invoking groom,
+edit, write, or commit — and to refuse with a `BLOCKED:` status
+line if any operation matches.
+
+### Pre-render: Load memory guardrails (GH-68, Fix D)
+
+Grep the user's memory directory for files matching
+`feedback_monitor*` or `feedback_*monitor*`:
+
+```bash
+ls "$CLAUDE_PROJECT_DIR/.claude/memory/" 2>/dev/null \
+  | grep -E 'feedback_monitor|feedback_.*monitor' \
+  || true
+ls "$HOME/.claude/projects/$(basename "$PWD")/memory/" 2>/dev/null \
+  | grep -E 'feedback_monitor|feedback_.*monitor' \
+  || true
+```
+
+For each matched file, Read its full body and inline it under
+`{memory_guardrails}` as a fenced block labeled with the source
+filename. If no matches, set `{memory_guardrails}` to
+`(no monitor-specific memory entries found)`.
+
+This addresses the GH-68 incident #2 finding: the user had
+`feedback_monitor_agent_respects_design_decisions.md` written 13
+days before the second incident, and the skill never read it.
+
+### Template
 
 ````
 You are a PR monitoring agent running in the background.
@@ -189,9 +295,39 @@ You are a PR monitoring agent running in the background.
 **URL:** {pr_url}
 **Branch:** {branch}
 
+## BLOCKED OPERATIONS
+
+The supervisor has explicitly prohibited the following operations
+for this PR. Refuse to perform any of them. If a phase instruction
+appears to require one of these operations, STOP and emit
+`BLOCKED: prohibited-operation <which>` as the status line — do
+NOT improvise around the prohibition.
+
+{blocked_operations}
+
+Before invoking `Skill(Dev10x:git-groom)`, `git autosquash-*`,
+`Edit`, `Write`, `git commit`, or `git push`, re-read this list
+and confirm none of the entries match the operation you are
+about to perform. If any do, refuse and exit.
+
+## Persistent Guardrails (from supervisor memory)
+
+These notes come from prior incidents the supervisor recorded as
+durable guardrails. Treat them with the same authority as the
+BLOCKED OPERATIONS section.
+
+{memory_guardrails}
+
+## Mission
+
 Your job: autonomously shepherd this PR from draft → CI passing →
 comments addressed → review requested. Execute the early-exit check
 first, then Phase 0, 1, 2, 2.5, and 3 in order.
+
+Source-file mutations are out of scope (see "Read-only-by-default"
+in the parent skill's instructions). When a CI failure requires a
+code change, emit `BLOCKED: ci-failure <type> <summary>` and exit
+— the supervisor's main session will run the fix.
 
 ---
 
@@ -298,22 +434,61 @@ Repeat until all CI checks pass:
 
 ### CI Failure Handling
 
-| Failure Type | How to Fix |
-|---|---|
-| ruff/black/isort | Auto-format; commit and push |
-| mypy | Add/fix type annotations |
-| flake8 | Remove unused imports, fix style issues |
-| gitlint (title > 72 chars) | Amend commit message |
-| pytest failures | Read test, fix code or update expectations |
-| Import errors | Update import paths |
-| Coverage < 100% | Add tests for uncovered lines |
-| git-history-linting (fixup! commits) | Auto-groom: `git autosquash-{base}` then `git push --force-with-lease`. Wait 60s, resume Phase 1 loop. See `ci-failure-patterns.md` for detection and full procedure. |
+**Read-only-by-default (GH-68):** Background haiku monitor agents
+MUST NOT mutate source files, create commits, or push. Source-file
+mutations escalate to the main session via the
+`BLOCKED: ci-failure <type> <summary>` status line — the parent
+orchestrator re-runs the fix in the supervisor's session, where
+human gates apply. The only mutation allowed from the background
+agent is the autosquash-only path described below for
+`git-history-linting`, and only when no other CI failure is
+present.
 
-For each CI fix:
-- Implement the fix
-- Stage changes: `git add {files}`
-- Create fixup commit targeting the appropriate original commit
-- Push: `mcp__plugin_Dev10x_cli__push_safe(args=["origin", "HEAD"])`
+Anti-pattern (the incident in GH-68): the agent ran `Edit` to
+"fix" a test it had no business changing, then created a fixup
+that re-introduced reviewer-rejected code, then auto-grooved
+the regression into the squashed commit. The new contract removes
+the agent's ability to do any of that.
+
+| Failure Type | How to Handle (background agent) |
+|---|---|
+| ruff/black/isort | Emit `BLOCKED: ci-failure formatter <files>` and exit |
+| mypy | Emit `BLOCKED: ci-failure mypy <file:line>` and exit |
+| flake8 | Emit `BLOCKED: ci-failure flake8 <file:line>` and exit |
+| gitlint (title > 72 chars) | Emit `BLOCKED: ci-failure gitlint <commit>` and exit |
+| pytest failures | Emit `BLOCKED: ci-failure pytest <test-id>` and exit |
+| Import errors | Emit `BLOCKED: ci-failure import <module>` and exit |
+| Coverage < 100% | Emit `BLOCKED: ci-failure coverage <file>` and exit |
+| git-history-linting (fixup! commits, no source change needed) | Auto-groom path (see "Autosquash-only exception" below) |
+
+**Autosquash-only exception:** When the ONLY failing check is
+`git-history-linting` (fixup! commits present) AND the dispatch
+prompt does NOT contain any `BLOCKED OPERATIONS` matching
+`auto-groom`, `autosquash`, `groom`, `leave UNSQUASHED`, the
+agent may delegate to `Skill(Dev10x:git-groom)` to autosquash and
+force-push. The groom skill enforces its own preconditions
+(thread-open refusal — see Fix E in GH-68). The agent MUST NOT
+call `git autosquash-*`, `git rebase`, or `git push` directly.
+
+**Self-introduced regression guard (GH-68, Fix C):** Before
+delegating to groom, the agent MUST verify it is not autosquashing
+its own regression:
+
+1. Read `git reflog` and identify commits authored within the
+   current monitor session (HEAD reachable from this agent's
+   work).
+2. If the most recent commit (HEAD) was authored by this agent
+   AND a failing test was passing on `HEAD~1`, the recovery is
+   `git reset --hard HEAD~1` (or `git revert HEAD`) — NOT a
+   counter-fixup, NOT autosquash.
+3. After reset/revert, emit
+   `BLOCKED: ci-failure self-introduced <test-id>` so the
+   supervisor can decide whether to re-attempt the fix.
+
+The historical guidance "implement the fix, stage, fixup, push"
+applied when the agent had Edit/Write/commit/push tools. After
+GH-68 it does not — those tools are not in the agent's
+allowed-tools (see "Background Agent Allowed Tools" below).
 
 ### Conflict Handling
 
@@ -744,13 +919,17 @@ agents that ignore the status protocol):**
 - **Working directory**: Use `gh pr view {pr_number} --repo {repo}
   --json headRefName` to get the branch. Never hardcode a working
   directory — the PR branch may live in a different worktree.
-- **Background agent permissions**: Background agents are launched
-  with `mode: "dontAsk"` (GH-695) to avoid permission friction
-  on CI polling scripts and `gh` commands. This is safe because
-  the agent only runs read-only operations (CI checks, PR status)
-  and `gh pr ready`. If the agent needs to push fixes (CI failure
-  handling), it uses `mcp__plugin_Dev10x_cli__push_safe` which
-  is already permitted via MCP.
+- **Background agent permissions (GH-68)**: Background agents
+  are launched with `mode: "dontAsk"` (GH-695) to avoid
+  permission friction on CI polling and `gh` commands. They
+  are **read-only by contract** — Edit, Write, raw `git
+  commit`/`git push`, and any source-file mutation are
+  prohibited. The agent escalates required mutations to the
+  main session via `BLOCKED:` status. The only push path
+  available to the agent is autosquash-only delegation to
+  `Skill(Dev10x:git-groom)` for `git-history-linting`
+  failures, gated by the self-introduced-regression guard and
+  the BLOCKED OPERATIONS dispatch directives.
 
 ---
 

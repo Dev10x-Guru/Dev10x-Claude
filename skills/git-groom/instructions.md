@@ -56,6 +56,64 @@ without presenting the strategy gate in nested mode.
 
 ## Workflow
 
+### Phase 0 Precondition: Refuse pre-merge groom with open threads (GH-68, Fix E)
+
+Squashing a PR with unresolved review threads orphans every
+permalink in every reply: the old SHAs no longer exist on the
+branch, so `https://github.com/{owner}/{repo}/pull/{N}/commits/{sha}`
+URLs return 404 and the per-comment audit trail is destroyed.
+Reviewers who post fixups expect the SHAs they reference to
+remain reachable until they resolve their threads.
+
+**Hard rule:** When git-groom is invoked **as a nested skill from
+`Dev10x:gh-pr-monitor`** (or any other background agent), refuse
+to groom if any unresolved review thread exists. The supervisor's
+main session may still groom under their direct control — only
+agent-initiated grooming is blocked.
+
+**Detection:**
+
+1. Determine the invocation context. The parent skill MUST pass
+   `invoker={parent-skill-name}` in the args (e.g.,
+   `invoker=Dev10x:gh-pr-monitor`). Absent any `invoker=` arg,
+   assume the invocation is supervisor-driven and skip this
+   precondition.
+
+2. If `invoker` matches `Dev10x:gh-pr-monitor` or another
+   background-agent skill, fetch the PR and count unresolved
+   threads via MCP tools:
+
+   - `mcp__plugin_Dev10x_cli__pr_detect()` → returns `pr_number`
+     (skip the precondition if no open PR exists — there are
+     no permalinks to break)
+   - `mcp__plugin_Dev10x_cli__pr_comments(action="list",
+     pr_number=N, unresolved_only=True)` → returns the root
+     comments of every unresolved thread; the count is the
+     length of the returned `comments` list
+
+3. If the count is greater than zero, refuse:
+
+   ```
+   BLOCKED: groom-refused-open-threads <count>
+
+   git-groom refused: {count} unresolved review threads exist on
+   this PR. Squashing pre-merge would orphan every commit-link
+   permalink in the thread replies (the SHAs would no longer
+   exist on the branch) and destroy the per-comment audit trail
+   reviewers rely on.
+
+   The fact that fixup commits exist IS the signal that a
+   reviewer is mid-conversation. Wait for thread resolution
+   before grooming, or invoke git-groom from the supervisor's
+   main session (without `invoker=Dev10x:gh-pr-monitor`) if you
+   explicitly want to override.
+   ```
+
+   Exit non-zero. Do NOT continue to Phase 1.
+
+4. If zero unresolved threads OR `invoker` indicates supervisor
+   session, proceed to Phase 1 normally.
+
 ### Phase 1: Analyze Current State
 
 ```bash
@@ -314,14 +372,50 @@ the full rewrite lifecycle including reference updates.
    - If no PR or PR is closed/merged → skip Phase 4, mark done
    - If PR is open → proceed with updates
 2. Get the new commit hash(es): `git log --oneline develop..HEAD`
+   and record the mapping `old_sha → new_sha` for each commit that
+   was rewritten (read it from the pre-rebase reflog snapshot
+   captured in Phase 3).
 3. Update the PR body commit links with new hashes via the
    `mcp__plugin_Dev10x_cli__update_pr` MCP tool (auto-permitted under
    `mcp__plugin_Dev10x_cli__*`; pass the rebuilt body string):
    ```
    mcp__plugin_Dev10x_cli__update_pr(pr_number=<N>, body=<rebuilt_body>)
    ```
-4. Update the summary comment (first comment by the author) with new hashes
-5. If the PR body has a Job Story, preserve it unchanged
+4. Update the summary comment (first comment by the author) with new hashes.
+5. **Rewrite permalinks in review-thread replies (GH-68, Fix F).**
+   The PR body and summary comment are not the only surfaces
+   that hold commit permalinks — replies inside review threads
+   reference SHAs too (e.g., `Fixed in <permalink>`). After a
+   force-push those replies point at orphaned SHAs and 404.
+
+   For each rewritten commit, list every thread comment that
+   contains the old SHA and replace it with the new SHA.
+
+   List the thread comments via the MCP tool:
+
+   - `mcp__plugin_Dev10x_cli__pr_comments(action="list",
+     pr_number=N)` → returns all review-thread comments with
+     `id`, `body`, etc. Filter the returned list to those whose
+     body matches `/commits/[0-9a-f]{7,40}` (case-insensitive).
+
+   For each match, substitute `old_sha → new_sha` in the body
+   (full-SHA substring replace — careful not to match a prefix
+   of an unrelated hash) and patch the comment body via the
+   GitHub REST API:
+
+   ```bash
+   gh api -X PATCH "/repos/$OWNER/$REPO/pulls/comments/$comment_id" -f body="$rewritten_body"  # cli-friction: allow raw-gh-api — no MCP edit action exists for PR-review-comment bodies; pr_comments supports list/get/reply/resolve only
+   ```
+
+   Top-level PR comments live on a different REST endpoint
+   (`/repos/$OWNER/$REPO/issues/comments/$id`); same `body`
+   field. Walk both surfaces.
+
+   If a SHA is referenced but does not appear in the
+   `old_sha → new_sha` map, leave it untouched (it predates the
+   groom and is still reachable) and log a warning.
+
+6. If the PR body has a Job Story, preserve it unchanged.
 
 After completing, mark all tasks done: `TaskUpdate(taskId=push_task, status="completed")`
 
