@@ -14,6 +14,7 @@ import shlex
 from dataclasses import dataclass
 
 from dev10x.domain import HookInput, HookResult
+from dev10x.domain.result import ErrorResult, Result, err, ok
 
 POSTGRES_CONN_RE = re.compile(r"postgres(?:ql)?://[^'\"\s]+:[^@'\"\s]+@[a-zA-Z0-9._-]+")
 
@@ -129,22 +130,22 @@ def _extract_sql_from_command(command: str) -> str | None:
 _SINGLE_QUOTED_RE = re.compile(r"'[^']*'")
 
 
-def _validate_sql(sql: str) -> tuple[bool, str]:
+def _validate_sql(sql: str) -> Result[str]:
     stripped = sql.strip().rstrip(";").strip()
 
     if not stripped:
-        return True, ""
+        return ok("")
 
     without_strings = _SINGLE_QUOTED_RE.sub("", stripped)
     if ";" in without_strings:
-        return False, (
+        return err(
             "Multi-statement SQL is not allowed.\n"
             "Submit one statement at a time.\n\n"
             f"Blocked SQL:\n{sql}"
         )
 
     if not SAFE_PREFIXES.match(stripped):
-        return False, (
+        return err(
             "Query does not start with SELECT/WITH/EXPLAIN/SHOW.\n"
             "Only read-only queries are allowed.\n\n"
             f"Blocked SQL:\n{sql}"
@@ -153,13 +154,13 @@ def _validate_sql(sql: str) -> tuple[bool, str]:
     match = BLOCKED_KEYWORDS.search(stripped)
     if match:
         keyword = match.group(0).upper()
-        return False, (
+        return err(
             f"Query contains blocked keyword: {keyword}\n"
             "Only read-only queries are allowed.\n\n"
             f"Blocked SQL:\n{sql}"
         )
 
-    return True, ""
+    return ok("")
 
 
 @dataclass
@@ -239,13 +240,13 @@ class SqlSafetyValidator:
         if sql is None:
             return None
 
-        ok, err = _validate_sql(sql)
-        if ok:
+        result = _validate_sql(sql)
+        if not isinstance(result, ErrorResult):
             return None
 
         return HookResult(
             message=(
-                f"BLOCKED by db safety hook: {err}\n\n"
+                f"BLOCKED by db safety hook: {result.error}\n\n"
                 "This query modifies data and cannot be run through the "
                 "read-only tool. Print the SQL for the user to run manually."
             )

@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from dev10x.domain import HookInput, HookResult
+from dev10x.domain.result import ErrorResult, Result, err, ok
 
 _VERB_BASES = [
     "Add",
@@ -154,12 +155,12 @@ def _strip_prefix(title: str) -> str:
     return desc
 
 
-def _check_jtbd(title: str) -> tuple[bool, str]:
+def _check_jtbd(title: str) -> Result[str]:
     desc = _strip_prefix(title)
     match = VERB_RE.match(desc)
     if match:
-        return False, match.group(1)
-    return True, ""
+        return err(match.group(1))
+    return ok("")
 
 
 @dataclass
@@ -187,12 +188,12 @@ class CommitJtbdValidator:
         if gitmoji in self.bypass_gitmoji:
             return None
 
-        is_ok, verb = _check_jtbd(title)
-        if not is_ok:
+        result = _check_jtbd(title)
+        if isinstance(result, ErrorResult):
             return HookResult(
                 message=BLOCK_MSG.format(
                     title=title,
-                    verb=verb,
+                    verb=result.error,
                     jtbd_verbs=JTBD_VERBS,
                 )
             )
