@@ -17,13 +17,13 @@ from typing import Any
 from dev10x.domain.repository_ref import RepositoryRef
 from dev10x.domain.result import ErrorResult, Result, err, ok
 from dev10x.github.app_auth import AppConfig, get_bot_token
-
-logger = logging.getLogger(__name__)
 from dev10x.subprocess_utils import (
     async_run,
     async_run_script,
     parse_key_value_output,
 )
+
+logger = logging.getLogger(__name__)
 
 
 async def _detect_repo() -> str | None:
