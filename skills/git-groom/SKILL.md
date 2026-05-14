@@ -38,3 +38,18 @@ in [`instructions.md`](instructions.md).
 When this skill is invoked, Read `instructions.md` now and
 follow it end-to-end. The strategy `AskUserQuestion` gate
 documented there is REQUIRED.
+
+## Legacy script path warning (GH-97)
+
+This skill MUST be invoked via `Skill('Dev10x:git-groom')`.
+Direct script invocation is unsupported and the historical
+path `~/.claude/skills/dx:git/scripts/git-rebase-groom.sh`
+no longer exists (it predates the current plugin layout).
+Audit sessions show agents reaching for that path from
+muscle memory, then falling back to raw
+`git -c sequence.editor=... rebase -i --autosquash` when it
+ENOENTs. Neither path is correct — both bypass the safety
+checks this skill wraps around `git rebase` (protected-branch
+guard, autosquash sanity, force-push-with-lease). If you see
+the ENOENT, the corrective action is to invoke the skill,
+not to retry the script.

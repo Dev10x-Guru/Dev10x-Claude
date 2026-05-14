@@ -42,6 +42,33 @@ verify the triage decisions without searching through hidden threads.
 - Called by `Dev10x:gh-pr-respond` before delegating to `Dev10x:gh-pr-fixup`
 - Standalone when you want to validate a comment without committing to a fix
 
+## NEVER inline triage (GH-463, GH-97)
+
+This is a `Skill()`-only entry point. The verdicts above
+(`VALID`/`INVALID`/`QUESTION`/`OUT_OF_SCOPE`) are this skill's
+output contract — they MUST NOT appear in narrative text as a
+substitute for invoking the skill.
+
+If you find yourself writing:
+
+> "Comment 3 is VALID — the test does need a fixture."
+
+without a preceding `Skill(Dev10x:gh-pr-triage)` tool call, you
+have bypassed the delegation. The bypass typically happens under
+context pressure when the verdict feels obvious. It is exactly
+the regression GH-463 and GH-97 caught (~42% compliance in the
+audited session) — the agent classified five comments inline
+across one PR cycle, all without a single `Skill()` call. The
+verdict feeling obvious is precisely the rationalization that
+triggers the bypass.
+
+**Detection hint for parent skills:** When `Dev10x:gh-pr-respond`
+or another caller observes inline classification language
+without a preceding `Skill(Dev10x:gh-pr-triage)` call in the
+same turn, the caller MUST abort the current comment and
+re-enter via this skill. See `Dev10x:gh-pr-respond/instructions.md`
+§ Critical: Delegation is Mandatory.
+
 ## Orchestration
 
 This skill follows `references/task-orchestration.md` patterns.

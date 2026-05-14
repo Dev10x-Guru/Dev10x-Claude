@@ -727,6 +727,73 @@ class TestPrCommentsActionReply:
         assert "must be an integer" in result.error
 
 
+class TestPrCommentsActionEdit:
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api", new_callable=AsyncMock)
+    async def test_patches_comment_body(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(
+            stdout=json.dumps({"id": 3130499018, "body": "refreshed"}),
+        )
+
+        result = await gh.pr_comments(
+            action="edit",
+            comment_id=3130499018,
+            body="refreshed",
+        )
+
+        assert isinstance(result, SuccessResult)
+        assert mock_api.call_args.args[0] == ("repos/owner/repo/pulls/comments/3130499018")
+        assert mock_api.call_args.kwargs["method"] == "PATCH"
+        assert mock_api.call_args.kwargs["fields"] == {"body": "refreshed"}
+        assert mock_api.call_args.kwargs["as_bot"] is True
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api", new_callable=AsyncMock)
+    async def test_coerces_numeric_string_to_int(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(stdout=json.dumps({"id": 1}))
+
+        result = await gh.pr_comments(
+            action="edit",
+            comment_id="3130499018",
+            body="refreshed",
+        )
+
+        assert isinstance(result, SuccessResult)
+        assert mock_api.call_args.args[0] == ("repos/owner/repo/pulls/comments/3130499018")
+
+    @pytest.mark.asyncio
+    async def test_rejects_non_numeric_comment_id(
+        self,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        result = await gh.pr_comments(
+            action="edit",
+            comment_id="PRRC_abc",
+            body="refreshed",
+        )
+
+        assert isinstance(result, ErrorResult)
+        assert "must be an integer" in result.error
+
+    @pytest.mark.asyncio
+    async def test_requires_comment_id_and_body(
+        self,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        result = await gh.pr_comments(action="edit")
+
+        assert isinstance(result, ErrorResult)
+        assert "comment_id and body required" in result.error
+
+
 class TestRequestReview:
     @pytest.mark.asyncio
     @patch("dev10x.github._gh_api", new_callable=AsyncMock)
@@ -780,7 +847,7 @@ class TestPrCommentsStrategyDispatch:
 
         assert isinstance(result, ErrorResult)
         assert "Unknown action" in result.error
-        assert "get, list, reply, resolve" in result.error
+        assert "get, list, reply, edit, resolve" in result.error
 
     @pytest.mark.asyncio
     @patch("dev10x.github._gh_api", new_callable=AsyncMock)

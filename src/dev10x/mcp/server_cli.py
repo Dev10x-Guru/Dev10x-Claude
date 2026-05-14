@@ -149,7 +149,7 @@ async def pr_comments(
     """Manage GitHub PR review comments and threads.
 
     Args:
-        action: One of: list, get, reply, resolve
+        action: One of: list, get, reply, edit, resolve
         pr_number: PR number (required for list, reply)
         comment_id: Comment ID (required for get, reply, resolve single)
         comment_ids: List of GraphQL node_ids for batch resolve
