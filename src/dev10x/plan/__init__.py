@@ -45,7 +45,7 @@ async def json_summary() -> dict[str, Any]:
 
     toplevel = get_toplevel()
     if not toplevel:
-        return {}
+        return {"error": "Not in a git repository"}
 
     plan_path = get_plan_path(toplevel=toplevel)
     plan = Plan.load(path=plan_path)
