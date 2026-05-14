@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import functools
 import json
 import os
 import subprocess
+from collections.abc import Awaitable, Callable
 from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
@@ -41,6 +43,33 @@ def use_cwd(cwd: str | None):
 def effective_cwd() -> str | None:
     """Return the bound effective CWD or None if unbound."""
     return _effective_cwd.get()
+
+
+def requires_cwd[R](
+    func: Callable[..., Awaitable[R]],
+) -> Callable[..., Awaitable[R]]:
+    """Decorator: bind `cwd=` kwarg to the effective-CWD ContextVar.
+
+    Applied to async MCP tool handlers that accept a `cwd: str | None`
+    keyword argument. The decorator extracts `cwd` from kwargs and
+    invokes the wrapped function inside a `use_cwd(cwd)` block so
+    subprocess calls automatically route to the caller's working
+    directory (GH-979).
+
+    Enforces the contract at handler-definition time: the wrapped
+    function MUST declare a `cwd` keyword parameter. New MCP handlers
+    that forget the wrapper are caught by `tests/test_cwd_enforcement.py`
+    which fails CI when a `@server.tool()` handler with a `cwd`
+    parameter is missing `with use_cwd(...)` or `@requires_cwd`.
+    """
+
+    @functools.wraps(func)
+    async def wrapper(*args: Any, **kwargs: Any) -> R:
+        cwd = kwargs.get("cwd")
+        with use_cwd(cwd):
+            return await func(*args, **kwargs)
+
+    return wrapper
 
 
 def get_plugin_root() -> Path:
