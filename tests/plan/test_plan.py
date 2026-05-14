@@ -56,12 +56,12 @@ class TestSetContext:
 class TestJsonSummary:
     @pytest.mark.asyncio
     @patch(f"{TASK_PLAN_SYNC}.get_toplevel", return_value=None)
-    async def test_returns_empty_when_not_in_git_repo(
+    async def test_returns_error_when_not_in_git_repo(
         self,
         mock_toplevel: MagicMock,
     ) -> None:
         result = await plan_mod.json_summary()
-        assert result == {}
+        assert result == {"error": "Not in a git repository"}
 
     @pytest.mark.asyncio
     @patch(f"{TASK_PLAN_SYNC}.get_toplevel", return_value="/tmp/repo")

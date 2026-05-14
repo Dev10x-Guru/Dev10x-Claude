@@ -758,7 +758,8 @@ async def plan_sync_json_summary(cwd: str | None = None) -> dict:
 
     Returns:
         Dictionary with plan metadata, context, and task list.
-        Empty dict if no plan exists.
+        Empty dict if a plan file exists but holds no metadata.
+        `{"error": "Not in a git repository"}` when run outside a repo.
     """
     from dev10x import plan as plan_tools
     from dev10x.subprocess_utils import use_cwd
