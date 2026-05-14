@@ -160,6 +160,108 @@ sessions caught this exact pattern — the agent says it will
 delegate, then does the work itself. Stating intent is not
 execution. Only a `Skill()` tool call counts as delegation.
 
+**Pre-push TaskList self-check (GH-97):** Before any `git push`
+or `Skill(Dev10x:git)` invocation that ships fixup commits,
+call `TaskList` and verify that every comment marked
+"completed" with verdict VALID has an associated
+`Skill(Dev10x:gh-pr-fixup)` call recorded in the task
+metadata or a sibling subtask. If a VALID comment is marked
+completed but no `Skill()` invocation is recorded for it, STOP
+and re-run that comment through `Skill(Dev10x:gh-pr-fixup)`.
+This guardrail exists because at `adaptive` friction, three
+audit sessions in a row bypassed the delegation under context
+pressure (~42% compliance). The REQUIRED markers above are
+necessary but not sufficient — the TaskList evidence check is
+the trailing audit that catches the bypass before it ships.
+
+## Bundled Fixup Mode (GH-86, GH-97)
+
+Default behavior is one `fixup!` commit per comment. The bundled
+mode is the explicit carve-out for refactors that naturally
+address several review threads at once — e.g., a single rename
+that closes three comments, or a helper extraction that closes
+two threads on the same file region.
+
+### Trigger criteria
+
+Enter bundled mode when ALL of the following are true:
+
+1. Two or more VALID comments target the same file/region or
+   share the same underlying issue.
+2. The fix is a single coherent change — splitting it into one
+   fixup per comment would produce duplicate diffs or
+   semantically identical commits.
+3. The user has not explicitly asked for separate fixups.
+
+When in doubt, default to one fixup per comment. Bundling is
+opt-in for the agent: offer it via `AskUserQuestion` rather
+than auto-bundling silently.
+
+### Bundled-reply template
+
+When a single `fixup!` addresses N comments, every reply MUST
+include the same template, hyperlinked. Plain-text SHA tails
+(e.g., `` (fixup `<sha>`) ``) are PROHIBITED — they become
+orphan references the moment `Dev10x:git-groom` rewrites
+history.
+
+```markdown
+{contextual response to the reviewer's point}
+
+**Fix commit:** [`<short-sha>`](https://github.com/{repo}/pull/{pr}/commits/<sha>)
+**Code change:** [`<file>:<lines>`](https://github.com/{repo}/blob/<branch-head-sha>/<path>#L<start>-L<end>)
+
+Note: this fix is bundled with {N-1} other thread(s) into a single
+`fixup!` commit and will be squashed into its parent during
+`Dev10x:git-groom`.
+```
+
+Rules:
+
+- The `Fix commit:` URL uses the `/pull/{N}/commits/<sha>` form,
+  which GitHub resolves in the PR commits tab even after force
+  push (the bare `/commit/<sha>` form does not).
+- The blob URL pins to the **current branch HEAD SHA**, not the
+  fixup SHA. The fixup SHA disappears at squash time; the
+  branch-head SHA stays valid until the next force push (and
+  the post-groom refresh step below re-pins it then).
+- Every bundled reply explicitly states it is bundled. Reviewers
+  must be able to tell from any single thread that the same fix
+  resolves siblings.
+- Track the comment IDs grouped under each fixup in skill state
+  so the post-groom refresh phase can locate them.
+
+### Post-Groom SHA Refresh (sub-phase of shipping pipeline)
+
+After `Skill(Dev10x:git-groom)` rewrites history (fixups
+squashed, force push complete), any reply posted earlier in
+this session that references a pre-groom SHA is now stale.
+Refresh those replies before the merge gate.
+
+Sequence (runs between groom and push-monitor steps):
+
+1. Collect every reply this skill posted in the current session
+   that referenced a `fixup!` SHA or its pre-rebase parent. The
+   bundled-mode grouping (above) is the authoritative source.
+2. For each tracked reply:
+   a. Resolve the new parent SHA (the squashed-into commit).
+   b. Rewrite the reply body using the bundled-reply template,
+      substituting the new parent SHA for `Fix commit:` and the
+      new branch-head SHA for the blob URL.
+   c. PATCH the reply via
+      `mcp__plugin_Dev10x_cli__pr_comments(action="edit", ...)`.
+      Never drop to raw `gh api -X PATCH` — the `edit` action
+      exists precisely so the post-groom refresh stays inside
+      the structured tool surface.
+3. Mark the refresh task complete only after every tracked
+   reply was successfully PATCHed. A 404 (comment deleted by
+   reviewer) is acceptable; any other failure must abort the
+   refresh and surface the error.
+
+Skip this sub-phase when no replies were posted in the current
+session (e.g., resumed from a different process) OR when no
+fixup commits exist on the branch.
+
 ## Preamble: Branch Location Check
 
 Before processing comments, verify the PR branch is accessible
@@ -467,8 +569,13 @@ For each approved comment:
   wait for user input between comments. The triage-to-fixup
   transition is atomic: verdict received → `Skill()` invoked,
   no pause. Never manually implement fixes or post replies via
-  raw commands. The fixup skill handles the entire lifecycle
-  (one fixup commit per comment).
+  raw commands. The fixup skill handles the entire lifecycle.
+
+  **Default cardinality is one fixup commit per comment.** When
+  several VALID comments share a coherent fix, see the **Bundled
+  Fixup Mode** section above — bundling is opt-in and requires
+  every affected reply to use the hyperlinked bundled-reply
+  template plus the post-groom SHA refresh sub-phase.
 - **INVALID / QUESTION / OUT_OF_SCOPE** → post reply using MCP tool:
   ```
   mcp__plugin_Dev10x_cli__pr_comment_reply(
@@ -647,15 +754,21 @@ Options:
   post-response shipping sequence. **REQUIRED: Use `Skill()` for
   each step** — never run raw git/gh commands directly:
   1. `Skill(Dev10x:git-groom)` — squash fixup commits
-  2. `Skill(Dev10x:git)` — push with `--force-with-lease`
-  3. `Skill(Dev10x:gh-pr-monitor)` — watch CI after force push
-  4. **CI guard (GH-684):** Only after CI passes, run
+  2. **Post-Groom SHA Refresh** — PATCH any session-posted
+     replies that referenced pre-groom SHAs. See the
+     **Bundled Fixup Mode → Post-Groom SHA Refresh** section
+     above. Use `mcp__plugin_Dev10x_cli__pr_comments(action="edit")`,
+     never raw `gh api -X PATCH`. Skip when no replies were
+     posted this session.
+  3. `Skill(Dev10x:git)` — push with `--force-with-lease`
+  4. `Skill(Dev10x:gh-pr-monitor)` — watch CI after force push
+  5. **CI guard (GH-684):** Only after CI passes, run
      `gh pr ready` to mark the PR ready for review. Do NOT
      run `gh pr ready` before CI is green — this was the #1
      bypass pattern: marking ready then discovering CI failures.
      Also verify no unresolved review threads remain before
      marking ready.
-  5. If CI passes and no new comments → merge via
+  6. If CI passes and no new comments → merge via
      `Skill(Dev10x:gh-pr-merge)` — NEVER raw `gh pr merge`
      (GH-759 F3). The skill validates 8 pre-merge conditions
      including unaddressed review comments that raw merge

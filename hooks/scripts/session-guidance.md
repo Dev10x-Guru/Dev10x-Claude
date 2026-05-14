@@ -25,6 +25,7 @@ prompts or brittle command matching.
 | `# comment` as first line | Leading `#` can break prefix matching and parser expectations | Use Bash tool `description` parameter |
 | `uv run --script` on executable scripts | Redundant wrapper can miss direct path-based allow rules | Call script directly (shebang handles uv) |
 | `cd /worktree/path && command` | Redundant when CWD is already the worktree; can trigger chaining checks | Run command directly — session switched on worktree creation |
+| `git -C /worktree/path command` | Symmetric to the `cd` form: `-C` shifts the effective command prefix and breaks allow-rule matching when the path is already the CWD (GH-97 caught this 20× in one session) | Drop `-C` — git already operates on the current worktree |
 | `--jq '"\(.x): \(.y)"'` (jq interpolation) | Escaped quotes trigger "consecutive quote characters" obfuscation check | Use jq concatenation: `-q '.x + ": " + .y'` |
 
 ## Preferred Patterns

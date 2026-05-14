@@ -309,6 +309,31 @@ async def _pr_comment_reply(
     return _parse_gh_api_result(result)
 
 
+async def _pr_comment_edit(
+    *,
+    resolved_repo: str,
+    comment_id: int | str | None = None,
+    body: str | None = None,
+    **_: Any,
+) -> Result[dict[str, Any]]:
+    if comment_id is None or body is None:
+        return err("comment_id and body required for 'edit' action")
+    try:
+        comment_id_int = int(comment_id)
+    except (TypeError, ValueError):
+        return err(
+            f"comment_id must be an integer for 'edit' (REST comment id). Got: {comment_id!r}"
+        )
+    result = await _gh_api(
+        f"repos/{resolved_repo}/pulls/comments/{comment_id_int}",
+        method="PATCH",
+        fields={"body": body},
+        repo=str(resolved_repo),
+        as_bot=True,
+    )
+    return _parse_gh_api_result(result)
+
+
 async def _pr_comment_resolve(
     *,
     resolved_repo: str,
@@ -378,6 +403,7 @@ _PR_COMMENT_ACTIONS: dict[str, Any] = {
     "get": _pr_comment_get,
     "list": _pr_comment_list,
     "reply": _pr_comment_reply,
+    "edit": _pr_comment_edit,
     "resolve": _pr_comment_resolve,
 }
 
