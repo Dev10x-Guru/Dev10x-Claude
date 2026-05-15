@@ -5,6 +5,26 @@ from dataclasses import dataclass, field
 from functools import cached_property
 from typing import Any
 
+_SUBCOMMAND_BOUNDARY = r"(?![-\w])"
+
+
+def _anchor_subcommand(*, pattern: str) -> str:
+    """Anchor a CLI subcommand pattern at the right edge.
+
+    YAML patterns like ``git commit`` or ``gh pr create`` are
+    command-name prefixes; without a right-edge boundary, ``git commit``
+    matches inside ``git commit-msg`` (an argument value), producing
+    false positives (GH-84). Append a negative lookahead so the
+    pattern's last token cannot be followed by another word or hyphen
+    character.
+
+    Patterns already ending in a regex anchor (``$``, ``\\b``) or an
+    explicit lookaround are left untouched.
+    """
+    if pattern.endswith(("$", r"\b")) or pattern.endswith((")", "]")):
+        return pattern
+    return pattern + _SUBCOMMAND_BOUNDARY
+
 
 @dataclass(frozen=True)
 class Compensation:
@@ -40,7 +60,7 @@ class Rule:
 
     @cached_property
     def compiled_patterns(self) -> list[re.Pattern[str]]:
-        return [re.compile(p) for p in self.patterns]
+        return [re.compile(_anchor_subcommand(pattern=p)) for p in self.patterns]
 
     @cached_property
     def compiled_file_pattern(self) -> re.Pattern[str] | None:

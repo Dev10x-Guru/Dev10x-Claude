@@ -231,3 +231,55 @@ class TestRuleEngineEvaluateCommand:
         result = engine.evaluate_command(command="git push --dry-run")
 
         assert result is None
+
+
+class TestSubcommandBoundary:
+    """Regression coverage for GH-84: `git commit` matching `git commit-msg`."""
+
+    @pytest.fixture()
+    def engine(self) -> RuleEngine:
+        return RuleEngine(
+            command_rules=[
+                Rule(
+                    name="git-commit",
+                    matcher="Bash",
+                    patterns=["git commit"],
+                    compensations=[Compensation(type="use-skill", skill="Dev10x:git-commit")],
+                ),
+                Rule(
+                    name="gh-pr-create",
+                    matcher="Bash",
+                    patterns=["gh pr create"],
+                    compensations=[Compensation(type="use-skill", skill="Dev10x:gh-pr-create")],
+                ),
+            ],
+        )
+
+    def test_real_git_commit_still_blocked(self, engine: RuleEngine) -> None:
+        result = engine.evaluate_command(command="git commit -m 'msg'")
+
+        assert result is not None
+        assert result.name == "git-commit"
+
+    def test_git_commit_msg_argument_passes(self, engine: RuleEngine) -> None:
+        result = engine.evaluate_command(
+            command="/tmp/Dev10x/bin/mktmp.sh git commit-msg .txt",
+        )
+
+        assert result is None
+
+    def test_git_commits_word_extension_passes(self, engine: RuleEngine) -> None:
+        result = engine.evaluate_command(command="echo git commits today")
+
+        assert result is None
+
+    def test_gh_pr_create_real_invocation_blocked(self, engine: RuleEngine) -> None:
+        result = engine.evaluate_command(command="gh pr create --draft")
+
+        assert result is not None
+        assert result.name == "gh-pr-create"
+
+    def test_gh_pr_create_hyphenated_argument_passes(self, engine: RuleEngine) -> None:
+        result = engine.evaluate_command(command="echo gh pr create-something")
+
+        assert result is None
