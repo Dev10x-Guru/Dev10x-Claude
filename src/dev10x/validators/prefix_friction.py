@@ -15,9 +15,11 @@ import json
 import os
 import re
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from dev10x.domain import HookInput, HookResult
+from dev10x.domain.profile_tier import ProfileTier
+from dev10x.validators.base import ValidatorBase
 
 if TYPE_CHECKING:
     from dev10x.domain import HookRetry
@@ -189,8 +191,11 @@ def _suggest_alias(*, branch: str, subcommand: str | None) -> str:
 
 
 @dataclass
-class PrefixFrictionValidator:
-    name: str = "prefix-friction"
+class PrefixFrictionValidator(ValidatorBase):
+    name: ClassVar[str] = "prefix-friction"
+    rule_id: ClassVar[str] = "DX007"
+    profile: ClassVar[ProfileTier] = ProfileTier.STANDARD
+    capabilities: ClassVar[frozenset[str]] = frozenset({"validate", "correct"})
     _allow_patterns: list[str] | None = field(default=None, repr=False)
 
     def should_run(self, inp: HookInput) -> bool:

@@ -12,8 +12,11 @@ from __future__ import annotations
 import re
 import subprocess
 from dataclasses import dataclass
+from typing import ClassVar
 
 from dev10x.domain import HookInput, HookResult
+from dev10x.domain.profile_tier import ProfileTier
+from dev10x.validators.base import ValidatorBase
 
 GH_PR_CREATE_RE = re.compile(r"gh\s+pr\s+create")
 
@@ -33,8 +36,10 @@ def _detect_base_branch() -> str | None:
 
 
 @dataclass
-class PrBaseValidator:
-    name: str = "pr-base"
+class PrBaseValidator(ValidatorBase):
+    name: ClassVar[str] = "pr-base"
+    rule_id: ClassVar[str] = "DX005"
+    profile: ClassVar[ProfileTier] = ProfileTier.MINIMAL
 
     def should_run(self, inp: HookInput) -> bool:
         return GH_PR_CREATE_RE.search(inp.command) is not None

@@ -15,8 +15,11 @@ command via HookAllow.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import ClassVar
 
 from dev10x.domain import HookAllow, HookInput, HookResult
+from dev10x.domain.profile_tier import ProfileTier
+from dev10x.validators.base import ValidatorBase
 
 SAFE_SUBSHELL_PREFIXES = (
     "git rev-parse",
@@ -109,8 +112,10 @@ def _outer_command_token(command: str) -> str:
 
 
 @dataclass
-class SafeSubshellValidator:
-    name: str = "safe-subshell"
+class SafeSubshellValidator(ValidatorBase):
+    name: ClassVar[str] = "safe-subshell"
+    rule_id: ClassVar[str] = "DX001"
+    profile: ClassVar[ProfileTier] = ProfileTier.MINIMAL
 
     def should_run(self, inp: HookInput) -> bool:
         return "$(" in inp.command

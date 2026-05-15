@@ -32,7 +32,7 @@ def validate_bash() -> None:
 
 def _validate_bash_body() -> None:
     from dev10x.domain import HookInput
-    from dev10x.validators import get_validators
+    from dev10x.validators import get_chain
 
     inp = HookInput.from_stdin()
     if inp.tool_name != "Bash":
@@ -40,20 +40,8 @@ def _validate_bash_body() -> None:
     if not inp.command:
         sys.exit(0)
 
-    for validator in get_validators():
-        try:
-            if validator.should_run(inp=inp):
-                result = validator.validate(inp=inp)
-                if result is not None:
-                    result.emit()
-        except Exception:
-            if _DEBUG:
-                print(
-                    f"[HOOK_DEBUG] {validator.name} raised:",
-                    file=sys.stderr,
-                )
-                traceback.print_exc(file=sys.stderr)
-            continue
+    for result in get_chain().run(inp=inp):
+        result.emit()
 
     sys.exit(0)
 
@@ -109,29 +97,14 @@ def permission_denied() -> None:
     Exit codes: 0 always (retry decision is in JSON output).
     """
     from dev10x.domain import HookInput
-    from dev10x.validators import get_validators
-    from dev10x.validators.base import Corrector
+    from dev10x.validators import get_chain
 
     inp = HookInput.from_stdin()
 
     if inp.command:
-        for validator in get_validators():
-            try:
-                if not validator.should_run(inp=inp):
-                    continue
-                if not isinstance(validator, Corrector):
-                    continue
-                result = validator.correct(inp=inp)
-                if result is not None:
-                    result.emit()
-            except Exception:
-                if _DEBUG:
-                    print(
-                        f"[HOOK_DEBUG] {validator.name} correct() raised:",
-                        file=sys.stderr,
-                    )
-                    traceback.print_exc(file=sys.stderr)
-                continue
+        result = get_chain().correct(inp=inp)
+        if result is not None:
+            result.emit()
 
     _run_permission_diagnostics(raw=inp.raw, cwd=inp.cwd)
     sys.exit(0)
