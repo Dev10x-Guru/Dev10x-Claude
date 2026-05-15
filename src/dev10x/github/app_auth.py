@@ -21,9 +21,10 @@ from pathlib import Path
 
 import yaml
 
+from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.subprocess_utils import async_run
 
-DEFAULT_CONFIG_PATH = Path.home() / ".claude" / "Dev10x" / "github-bot" / "github-app.yaml"
+DEFAULT_CONFIG_PATH = ClaudeDir.github_app_yaml()
 
 
 @dataclass(frozen=True)

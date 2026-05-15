@@ -15,6 +15,7 @@ import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.git_context import GitContext
 
 _git = GitContext()
@@ -64,7 +65,7 @@ def skill_metrics(data: dict | None = None) -> None:
     timestamp = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     date_tag = now.strftime("%Y-%m-%d")
 
-    metrics_dir = Path.home() / ".claude" / "projects" / "_metrics"
+    metrics_dir = ClaudeDir.metrics_dir()
     metrics_dir.mkdir(parents=True, exist_ok=True)
 
     metrics_file = metrics_dir / f"{project_hash}_{date_tag}.jsonl"

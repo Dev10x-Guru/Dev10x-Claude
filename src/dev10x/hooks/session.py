@@ -19,6 +19,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.file_locks import atomic_write_text, file_lock
 from dev10x.domain.git_context import GitContext
 
@@ -138,7 +139,7 @@ def build_reload_context() -> str:
         return ""
 
     project_hash = hashlib.md5(toplevel.encode()).hexdigest()
-    state_dir = Path.home() / ".claude" / "projects" / "_session_state"
+    state_dir = ClaudeDir.session_state_dir()
     state_file = state_dir / f"{project_hash}.json"
     plan_file = Path(toplevel) / ".claude" / "session" / "plan.yaml"
 
@@ -475,7 +476,7 @@ def session_persist(data: dict | None = None) -> None:
         return
 
     project_hash = hashlib.md5(toplevel.encode()).hexdigest()
-    state_dir = Path.home() / ".claude" / "projects" / "_session_state"
+    state_dir = ClaudeDir.session_state_dir()
     state_dir.mkdir(parents=True, exist_ok=True)
     state_dir.chmod(0o700)
     state_file = state_dir / f"{project_hash}.json"

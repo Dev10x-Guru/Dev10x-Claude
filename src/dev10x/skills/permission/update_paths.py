@@ -20,8 +20,10 @@ from pathlib import Path
 
 import yaml
 
-MEMORY_CONFIG = Path.home() / ".claude" / "memory" / "Dev10x" / "projects.yaml"
-USERSPACE_CONFIG = Path.home() / ".claude" / "skills" / "Dev10x:upgrade-cleanup" / "projects.yaml"
+from dev10x.domain.claude_paths import ClaudeDir
+
+MEMORY_CONFIG = ClaudeDir.memory_projects_yaml()
+USERSPACE_CONFIG = ClaudeDir.upgrade_cleanup_projects_yaml()
 PLUGIN_CONFIG = (
     Path(__file__).resolve().parents[4] / "skills" / "upgrade-cleanup" / "projects.yaml"
 )
@@ -82,13 +84,13 @@ def find_settings_files(
 ) -> list[Path]:
     files: list[Path] = []
     if include_user:
-        user_dir = Path.home() / ".claude"
+        user_dir = ClaudeDir.home()
         for name in ("settings.json", "settings.local.json"):
             candidate = user_dir / name
             if candidate.exists():
                 files.append(candidate)
 
-    project_settings_dir = Path.home() / ".claude" / "projects"
+    project_settings_dir = ClaudeDir.projects_dir()
     if project_settings_dir.is_dir():
         for settings_file in project_settings_dir.rglob("settings.local.json"):
             files.append(settings_file)
@@ -562,7 +564,7 @@ def _is_nonfunctional_mcp_wildcard(rule: str) -> bool:
 
 
 def _load_global_allow_rules() -> tuple[set[str], list[str]]:
-    global_settings = Path.home() / ".claude" / "settings.json"
+    global_settings = ClaudeDir.settings_json()
     if not global_settings.is_file():
         return set(), []
     try:
@@ -894,7 +896,7 @@ KNOWN_PLUGIN_DIRS = ("Dev10x", "dev10x-claude")
 
 
 def _detect_plugin_cache() -> str:
-    cache_root = Path.home() / ".claude" / "plugins" / "cache"
+    cache_root = ClaudeDir.plugins_cache_dir()
     if not cache_root.is_dir():
         return "~/.claude/plugins/cache/Dev10x-Guru/Dev10x"
     candidates: list[Path] = []

@@ -7,9 +7,10 @@ from pathlib import Path
 
 import yaml
 
+from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.file_locks import atomic_write_text
 
-REGISTRY_FILE = Path.home() / ".claude" / "memory" / "Dev10x" / "platforms.yaml"
+REGISTRY_FILE = ClaudeDir.platforms_yaml()
 
 
 @dataclass(frozen=True)

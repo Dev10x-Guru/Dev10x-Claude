@@ -22,11 +22,13 @@ from pathlib import Path
 
 import yaml
 
-USERSPACE_CONFIG = Path.home() / ".claude" / "skills" / "Dev10x:upgrade-cleanup" / "projects.yaml"
+from dev10x.domain.claude_paths import ClaudeDir
+
+USERSPACE_CONFIG = ClaudeDir.upgrade_cleanup_projects_yaml()
 PLUGIN_CONFIG = (
     Path(__file__).resolve().parents[4] / "skills" / "upgrade-cleanup" / "projects.yaml"
 )
-GLOBAL_SETTINGS = Path.home() / ".claude" / "settings.json"
+GLOBAL_SETTINGS = ClaudeDir.settings_json()
 
 PLUGIN_NAMES = r"(?:Dev10x|dev10x(?:-claude)?)"
 VERSION_PATTERN = re.compile(rf"plugins/cache/[^/]+/{PLUGIN_NAMES}/(\d+\.\d+\.\d+)", re.IGNORECASE)
@@ -467,7 +469,7 @@ def _format_messages(
 def find_settings_files(roots: list[str]) -> list[Path]:
     files: list[Path] = []
 
-    project_settings_dir = Path.home() / ".claude" / "projects"
+    project_settings_dir = ClaudeDir.projects_dir()
     if project_settings_dir.is_dir():
         for settings_file in project_settings_dir.rglob("settings.local.json"):
             files.append(settings_file)
