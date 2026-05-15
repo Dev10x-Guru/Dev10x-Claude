@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -741,3 +742,182 @@ def investigate_delta() -> None:
     click.echo("Suggested replacements:")
     for line in delta.suggested_rules or ["  (none — matrix incomplete or all prompt)"]:
         click.echo(f"  * {line}")
+
+
+@permission.group()
+def doctor() -> None:
+    """Diagnose and fix common allow-rule friction patterns (GH-99)."""
+
+
+@doctor.command(name="canonicalize")
+@click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
+@click.option("--quiet", is_flag=True, help="Suppress per-file details")
+def doctor_canonicalize(*, dry_run: bool, quiet: bool) -> None:
+    """Rewrite version-pinned plugin paths to ~/.claude/plugins/cache/**/ form.
+
+    Rules of the form ``Bash(/home/<user>/.claude/plugins/cache/Dev10x-Guru/
+    Dev10x/0.71.0/...)`` rot on every plugin upgrade. This command rewrites
+    them to the version-wildcard form so they survive future updates.
+    """
+    from dev10x.skills.permission import doctor as mod
+    from dev10x.skills.permission import update_paths as paths_mod
+
+    config_path = paths_mod.find_config()
+    config = paths_mod.load_config(config_path)
+    settings_files = paths_mod.find_settings_files(
+        roots=config.get("roots", []),
+        include_user=config.get("include_user_settings", True),
+    )
+    if not settings_files:
+        click.echo("No settings files found.")
+        return
+
+    if dry_run and not quiet:
+        click.echo("(dry run — no files will be modified)\n")
+
+    total_rewrites = 0
+    files_changed = 0
+    for path in sorted(settings_files):
+        result = mod.canonicalize_settings_file(path, dry_run=dry_run)
+        if result.changed:
+            files_changed += 1
+            total_rewrites += result.changed
+            if not quiet:
+                click.echo(f"\n{path} — {result.changed} rewrites")
+                for original, rewritten in result.rewrites:
+                    click.echo(f"  - {original}")
+                    click.echo(f"  + {rewritten}")
+    verb = "Would rewrite" if dry_run else "Rewrote"
+    click.echo(f"\n{verb} {total_rewrites} pinned paths across {files_changed} files.")
+
+
+@doctor.command(name="cross-contamination")
+@click.option(
+    "--cwd", type=click.Path(exists=True), default=None, help="Project root (default: $PWD)"
+)
+@click.option("--quiet", is_flag=True, help="Suppress per-rule details")
+def doctor_cross_contamination(*, cwd: str | None, quiet: bool) -> None:
+    """Flag allow rules whose paths point outside the current project.
+
+    Detects two contamination patterns:
+      1. Foreign-project paths (copy-pasted settings).
+      2. Source-repo paths when CWD is a worktree (use relative paths
+         inside the worktree instead).
+    """
+    from dev10x.skills.permission import doctor as mod
+
+    root = Path(cwd) if cwd else Path.cwd()
+    workspace = mod.detect_workspace(root)
+    settings_path = workspace.project_root / ".claude" / "settings.local.json"
+    if not settings_path.is_file():
+        click.echo(f"No settings file at {settings_path}")
+        return
+    data = json.loads(settings_path.read_text())
+    rules: list[str] = []
+    perms = data.get("permissions", {})
+    for bucket in ("allow", "deny", "ask"):
+        rules.extend(perms.get(bucket, []) or [])
+    findings = mod.detect_cross_contamination(rules, workspace=workspace)
+    if not findings:
+        click.echo(f"{settings_path} — no cross-contamination findings.")
+        return
+    click.echo(f"\n{settings_path} — {len(findings)} findings")
+    for finding in findings:
+        click.echo(f"  ! {finding.rule}")
+        if not quiet:
+            click.echo(f"      reason: {finding.reason}")
+            click.echo(f"      suggestion: {finding.suggestion}")
+
+
+@doctor.command(name="apply-deprecations")
+@click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
+def doctor_apply_deprecations(*, dry_run: bool) -> None:
+    """Apply catalog deprecations (canonicalize / remove) to settings files."""
+    from dev10x.skills.permission import doctor as mod
+    from dev10x.skills.permission import update_paths as paths_mod
+
+    catalog = mod.load_catalog()
+    config_path = paths_mod.find_config()
+    config = paths_mod.load_config(config_path)
+    settings_files = paths_mod.find_settings_files(
+        roots=config.get("roots", []),
+        include_user=config.get("include_user_settings", True),
+    )
+    if not settings_files:
+        click.echo("No settings files found.")
+        return
+
+    if dry_run:
+        click.echo("(dry run — no files will be modified)\n")
+
+    total_actions = 0
+    for path in sorted(settings_files):
+        data = json.loads(path.read_text())
+        perms = data.get("permissions", {})
+        changes_in_file = 0
+        for bucket in ("allow", "deny", "ask"):
+            rules = perms.get(bucket)
+            if not isinstance(rules, list):
+                continue
+            new_rules, outcomes = mod.apply_deprecations(rules, catalog=catalog)
+            if outcomes:
+                changes_in_file += len(outcomes)
+                click.echo(f"\n{path} [{bucket}] — {len(outcomes)} actions")
+                for outcome in outcomes:
+                    if outcome.action == "remove":
+                        click.echo(f"  - REMOVE: {outcome.rule}  # {outcome.reason}")
+                    elif outcome.action == "canonicalize":
+                        click.echo(f"  ~ CANON:  {outcome.rule}")
+                        click.echo(f"           → {outcome.replacement}")
+                    else:
+                        click.echo(f"  ? {outcome.action.upper()}: {outcome.rule}")
+            perms[bucket] = new_rules
+        if changes_in_file and not dry_run:
+            data["permissions"] = perms
+            path.write_text(json.dumps(data, indent=2) + "\n")
+        total_actions += changes_in_file
+    verb = "Would apply" if dry_run else "Applied"
+    click.echo(f"\n{verb} {total_actions} deprecation actions.")
+
+
+@doctor.command(name="enable-group")
+@click.argument("group_name")
+@click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
+def doctor_enable_group(*, group_name: str, dry_run: bool) -> None:
+    """Add a Tier 3 group's rules from the baseline-permissions catalog."""
+    from dev10x.skills.permission import doctor as mod
+    from dev10x.skills.permission import update_paths as paths_mod
+
+    catalog = mod.load_catalog()
+    rules = catalog.group_rules(group_name)
+    if not rules:
+        click.echo(f"ERROR: unknown group {group_name!r}")
+        sys.exit(1)
+    config_path = paths_mod.find_config()
+    config = paths_mod.load_config(config_path)
+    settings_files = paths_mod.find_settings_files(
+        roots=config.get("roots", []),
+        include_user=config.get("include_user_settings", True),
+    )
+    if not settings_files:
+        click.echo("No settings files found.")
+        return
+    if dry_run:
+        click.echo("(dry run — no files will be modified)\n")
+    total_added = 0
+    for path in sorted(settings_files):
+        data = json.loads(path.read_text())
+        perms = data.setdefault("permissions", {})
+        allow = perms.setdefault("allow", [])
+        added_here = [rule for rule in rules if rule not in allow]
+        if not added_here:
+            continue
+        click.echo(f"\n{path} — adding {len(added_here)} rules from {group_name!r}")
+        for rule in added_here:
+            click.echo(f"  + {rule}")
+        if not dry_run:
+            allow.extend(added_here)
+            path.write_text(json.dumps(data, indent=2) + "\n")
+        total_added += len(added_here)
+    verb = "Would add" if dry_run else "Added"
+    click.echo(f"\n{verb} {total_added} rules from group {group_name!r}.")

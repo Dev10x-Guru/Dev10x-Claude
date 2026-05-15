@@ -85,6 +85,7 @@ on the mode. Execute these `TaskCreate` calls at startup:
 9. `TaskCreate(subject="Merge worktree permissions", activeForm="Merging worktree perms")`
 10. `TaskCreate(subject="Audit permissions for friction", activeForm="Auditing permissions")`
 11. `TaskCreate(subject="Clean project files", activeForm="Cleaning project files")`
+12. `TaskCreate(subject="Run permission doctor", activeForm="Running doctor sweep")`
 
 Set sequential dependencies. Mark each step `in_progress` when
 starting and `completed` when done. Steps that produce no
@@ -383,6 +384,53 @@ ${CLAUDE_PLUGIN_ROOT}/skills/upgrade-cleanup/scripts/clean-project-files.py
 
 **Leaked secret detection:** Rules containing plaintext
 credentials are flagged with warnings so users can rotate them.
+
+### 12. Run permission doctor *(full only)* (GH-99)
+
+Apply the baseline-permissions catalog and detect cross-project /
+worktree↔source-repo contamination. The doctor handles three classes
+of friction not covered by the other steps:
+
+- **Pinned plugin paths** — version-rotted rules like
+  `Bash(/home/u/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.71.0/...)`
+  are rewritten to the version-wildcard form
+  `Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/...)` so they
+  survive `claude plugin update`.
+- **Catalog deprecations** — entries from
+  `references/baseline-permissions.yaml` with
+  `action: canonicalize` are rewritten; `action: remove` entries
+  (e.g., legacy `/tmp/claude/bin/mktmp.sh:*`) are dropped.
+- **Cross-contamination** — rules whose absolute paths point outside
+  the current project, or into the source repo when CWD is a worktree,
+  are flagged so the user can remove them.
+
+1. Canonicalize pinned paths (idempotent, safe to re-run):
+
+```bash
+uv run dev10x permission doctor canonicalize --dry-run
+uv run dev10x permission doctor canonicalize
+```
+
+2. Apply catalog deprecations:
+
+```bash
+uv run dev10x permission doctor apply-deprecations --dry-run
+uv run dev10x permission doctor apply-deprecations
+```
+
+3. Scan for cross-contamination (no auto-fix — surfaces findings only):
+
+```bash
+uv run dev10x permission doctor cross-contamination
+```
+
+4. Enable an opt-in Tier 3 group when needed (e.g., `kubernetes-readonly`,
+   `network-diagnostics`, `obsidian-cli`):
+
+```bash
+uv run dev10x permission doctor enable-group kubernetes-readonly --dry-run
+uv run dev10x permission doctor enable-group kubernetes-readonly
+```
 
 ## Configuration
 

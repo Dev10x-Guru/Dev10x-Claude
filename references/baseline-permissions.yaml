@@ -1,0 +1,560 @@
+# Dev10x Baseline Permissions (GH-99)
+#
+# Catalog of safe-to-allow tools the plugin's permission doctor should
+# seed by default into every project's allow list. Grouped by application
+# target so maintainers can prune/extend per audience.
+#
+# Conventions:
+#   - Use `${CLAUDE_PLUGIN_ROOT}/...` for plugin-script rules. Never paste
+#     resolved cache paths (e.g. `/plugins/cache/Dev10x-Guru/Dev10x/0.71.0/`)
+#     — those rot on every plugin upgrade. The `~/.claude/plugins/cache/**/`
+#     form is also acceptable; the doctor canonicalizes pinned paths to
+#     that form.
+#   - Trailing wildcard form: prefer `Bash(cmd *)` (space). The `Bash(cmd:*)`
+#     form is equivalent per Claude Code docs but the UI writes the space
+#     form on "always allow", so we standardize on it.
+#   - Built-in read-only commands (`ls`, `cat`, `head`, `tail`, `grep`,
+#     `find`, `wc`, `diff`, `stat`, `du`, `cd`) are NOT listed — they
+#     never prompt for the command itself. Path access still gated by
+#     `additionalDirectories`.
+#
+# Tiers:
+#   tier-1: ship as plugin base permissions (universal — git/gh/skills/scaffold)
+#   tier-2: ship as plugin base permissions (common dev tools — uv, node, docker)
+#   tier-3: ship as opt-in groups (heavier or domain-specific)
+
+version: 1
+last_audited: 2026-05-15
+source_issue: GH-99
+
+groups:
+
+  # ─── TIER 1 ─────────────────────────────────────────────────────────
+
+  git-core:
+    tier: 1
+    description: Day-to-day git porcelain. Universal across every project.
+    rules:
+      - Bash(git status:*)
+      - Bash(git branch:*)
+      - Bash(git checkout:*)
+      - Bash(git switch:*)
+      - Bash(git add:*)
+      - Bash(git commit:*)
+      - Bash(git commit -m:*)
+      - Bash(git log:*)
+      - Bash(git diff:*)
+      - Bash(git fetch:*)
+      - Bash(git push:*)
+      - Bash(git pull:*)
+      - Bash(git rebase:*)
+      - Bash(git rebase -i:*)
+      - Bash(git reset:*)
+      - Bash(git reset --soft:*)
+      - Bash(git reset --hard:*)
+      - Bash(git restore:*)
+      - Bash(git restore --staged:*)
+      - Bash(git stash:*)
+      - Bash(git show:*)
+      - Bash(git symbolic-ref:*)
+      - Bash(git rev-parse:*)
+      - Bash(git rev-list:*)
+      - Bash(git reflog:*)
+      - Bash(git remote:*)
+      - Bash(git merge:*)
+      - Bash(git merge-base:*)
+      - Bash(git merge-tree:*)
+      - Bash(git mv:*)
+      - Bash(git tag:*)
+      - Bash(git cherry-pick:*)
+      - Bash(git cherry:*)
+      - Bash(git blame:*)
+      - Bash(git ls-files:*)
+      - Bash(git ls-remote:*)
+      - Bash(git ls-tree:*)
+      - Bash(git describe:*)
+      - Bash(git shortlog:*)
+      - Bash(git worktree:*)
+      - Bash(git check-ignore:*)
+      - Bash(git grep:*)
+      - Bash(git config --get:*)
+      - Bash(git config --list:*)
+      - Bash(git config --show-origin:*)
+      - Bash(git diff-tree:*)
+
+  git-aliases-dev10x:
+    tier: 1
+    description: Aliases installed by Dev10x:git-alias-setup.
+    rules:
+      - Bash(git develop-log:*)
+      - Bash(git develop-diff:*)
+      - Bash(git develop-rebase:*)
+      - Bash(git autosquash-develop:*)
+      - Bash(git development-log:*)
+      - Bash(git development-diff:*)
+      - Bash(git development-rebase:*)
+      - Bash(git autosquash-development:*)
+      - Bash(git main-log:*)
+      - Bash(git main-diff:*)
+      - Bash(git main-rebase:*)
+      - Bash(git autosquash-main:*)
+      - Bash(git master-log:*)
+      - Bash(git master-diff:*)
+      - Bash(git master-rebase:*)
+      - Bash(git autosquash-master:*)
+      - Bash(git trunk-log:*)
+      - Bash(git trunk-diff:*)
+      - Bash(git trunk-rebase:*)
+      - Bash(git autosquash-trunk:*)
+
+  github-cli:
+    tier: 1
+    description: >
+      GitHub CLI ops for PRs, issues, runs, workflows. Writes flow
+      through gh-pr-create / ticket-create skills.
+    rules:
+      - Bash(gh auth:*)
+      - Bash(gh auth login:*)
+      - Bash(gh auth status:*)
+      - Bash(gh api:*)
+      - Bash(gh browse:*)
+      - Bash(gh repo clone:*)
+      - Bash(gh repo list:*)
+      - Bash(gh repo view:*)
+      - Bash(gh search:*)
+      - Bash(gh pr view:*)
+      - Bash(gh pr list:*)
+      - Bash(gh pr status:*)
+      - Bash(gh pr diff:*)
+      - Bash(gh pr checks:*)
+      - Bash(gh pr edit:*)
+      - Bash(gh pr review:*)
+      - Bash(gh pr ready:*)
+      - Bash(gh pr reopen:*)
+      - Bash(gh pr create:*)
+      - Bash(gh pr comment:*)
+      - Bash(gh pr merge:*)
+      - Bash(gh issue view:*)
+      - Bash(gh issue list:*)
+      - Bash(gh issue status:*)
+      - Bash(gh issue create:*)
+      - Bash(gh issue close:*)
+      - Bash(gh issue edit:*)
+      - Bash(gh issue comment:*)
+      - Bash(gh label list:*)
+      - Bash(gh label create:*)
+      - Bash(gh label edit:*)
+      - Bash(gh milestone:*)
+      - Bash(gh release list:*)
+      - Bash(gh release view:*)
+      - Bash(gh run list:*)
+      - Bash(gh run view:*)
+      - Bash(gh run watch:*)
+      - Bash(gh run download:*)
+      - Bash(gh run rerun:*)
+      - Bash(gh workflow list:*)
+      - Bash(gh workflow view:*)
+
+  dev10x-scaffolding:
+    tier: 1
+    description: >
+      Shared scaffolding for Dev10x skills. Plugin scripts use
+      `${CLAUDE_PLUGIN_ROOT}` so they survive upgrades.
+    rules:
+      - Skill(Dev10x:*)
+      - Read(/tmp/claude/git/**)
+      - Write(/tmp/claude/git/**)
+      - Read(/tmp/Dev10x/**)
+      - Write(/tmp/Dev10x/**)
+      - "Bash(${CLAUDE_PLUGIN_ROOT}/bin/**)"
+      - "Bash(${CLAUDE_PLUGIN_ROOT}/hooks/scripts/**)"
+      - "Bash(${CLAUDE_PLUGIN_ROOT}/skills/**)"
+      - "Bash(${CLAUDE_PLUGIN_ROOT}/lib/**)"
+
+  # ─── TIER 2 ─────────────────────────────────────────────────────────
+
+  shell-helpers:
+    tier: 2
+    description: >
+      Common shell utilities not on Claude Code's built-in read-only
+      list. Built-ins (find, grep, ls, cat, head, tail, wc, diff,
+      stat, du, cd) intentionally absent.
+    rules:
+      - Bash(jq:*)
+      - Bash(yq:*)
+      - Bash(rg *)
+      - Bash(rg --files *)
+      - Bash(sed *)
+      - Bash(awk *)
+      - Bash(awk:*)
+      - Bash(xargs cat:*)
+      - Bash(xargs ls:*)
+      - Bash(xargs rg:*)
+      - Bash(chmod:*)
+      - Bash(chmod +x:*)
+      - Bash(chmod a+x:*)
+      - Bash(chmod u+x:*)
+      - Bash(chmod -x:*)
+      - Bash(mkdir:*)
+      - Bash(cp /tmp:*)
+      - Bash(mv /tmp:*)
+      - Bash(ln:*)
+      - Bash(basename:*)
+      - Bash(printenv:*)
+      - Bash(env:*)
+      - Bash(date:*)
+      - Bash(pwd:*)
+      - Bash(alias:*)
+      - Bash(comm:*)
+      - Bash(source:*)
+      - Bash(tar *)
+      - Bash(gzip *)
+      - Bash(base64:*)
+      - Bash(curl -fsSL:*)
+      - Bash(curl -s*:*)
+      - Bash(curl -si:*)
+      - Bash(curl -sI:*)
+      - Bash(which *)
+      - Bash([ -f .git ])
+
+  python-toolchain:
+    tier: 2
+    description: >
+      Python dev tools. `uv:*` is broad because uv has no destructive
+      subcommands unless `publish` is explicitly invoked.
+    rules:
+      - Bash(uv:*)
+      - Bash(pip list:*)
+      - Bash(pip show:*)
+      - Bash(pip index:*)
+      - Bash(pip install:*)
+      - Bash(pipx list:*)
+      - Bash(python:*)
+      - Bash(python3:*)
+      - Bash(ipython:*)
+      - Bash(ruff check:*)
+      - Bash(ruff format:*)
+      - Bash(black:*)
+      - Bash(isort:*)
+      - Bash(mypy:*)
+      - Bash(python -m pytest *)
+      - Bash(pytest:*)
+
+  node-toolchain:
+    tier: 2
+    description: JavaScript / TypeScript runtime + package managers.
+    rules:
+      - Bash(node *)
+      - Bash(node:*)
+      - Bash(node --version)
+      - Bash(npm:*)
+      - Bash(npm run:*)
+      - Bash(npm test:*)
+      - Bash(npm view:*)
+      - Bash(npm run lint:*)
+      - Bash(npx:*)
+      - Bash(npx eslint:*)
+      - Bash(npx prettier:*)
+      - Bash(npx prettier --write:*)
+      - Bash(npx tsc:*)
+      - Bash(npx jest:*)
+      - Bash(npx vitest:*)
+      - Bash(npx vitest run:*)
+      - Bash(pnpm:*)
+      - Bash(pnpm test:*)
+      - Bash(pnpm lint:*)
+      - Bash(pnpm build:*)
+      - Bash(pnpm check:*)
+      - Bash(pnpm exec:*)
+      - Bash(pnpm remove:*)
+      - Bash(yarn:*)
+      - Bash(yarn test)
+      - Bash(yarn build *)
+      - Bash(yarn install *)
+      - Bash(yarn eslint *)
+      - Bash(yarn prettier *)
+      - Bash(yarn lint:eslint:*)
+      - Bash(yarn lint:tsc)
+
+  docker:
+    tier: 2
+    description: >
+      Docker / docker-compose for local dev environments. Write ops
+      scoped — no broad `docker run *` without `--rm`.
+    rules:
+      - Bash(docker compose:*)
+      - Bash(docker ps:*)
+      - Bash(docker logs:*)
+      - Bash(docker inspect:*)
+      - Bash(docker exec:*)
+      - Bash(docker image:*)
+      - Bash(docker images:*)
+      - Bash(docker network:*)
+      - Bash(docker pull:*)
+      - Bash(docker run --rm:*)
+      - Bash(docker start:*)
+      - Bash(docker stop:*)
+      - Bash(docker rm:*)
+      - Bash(docker info:*)
+      - Bash(docker history:*)
+
+  database-readonly:
+    tier: 2
+    description: >
+      Read-only DB inspection. Writes always require explicit user
+      approval per Dev10x CLAUDE.md rule.
+    rules:
+      - Bash(psql:*)
+      - Bash(pg_dump:*)
+
+  apt-and-system:
+    tier: 2
+    description: System inspection (read-only). Package install excluded.
+    rules:
+      - Bash(apt list:*)
+      - Bash(apt-cache policy:*)
+      - Bash(dpkg:*)
+      - Bash(flatpak list:*)
+      - Bash(pgrep:*)
+      - Bash(lsmod)
+      - Bash(lspci)
+
+  # ─── TIER 3 ─────────────────────────────────────────────────────────
+
+  media-and-format:
+    tier: 3
+    description: Image/video/PDF tooling. Opt-in for content/design workflows.
+    rules:
+      - Bash(ffmpeg:*)
+      - Bash(ffprobe:*)
+      - Bash(convert:*)
+      - Bash(java -jar ~/.local/bin/plantuml.jar:*)
+
+  aws-readonly:
+    tier: 3
+    description: >
+      AWS CLI read-only ops via aws-vault. Writes blocked at the skill
+      level.
+    rules:
+      - Bash(aws ecr describe-images:*)
+      - Bash(aws ecr describe-repositories:*)
+
+  bigquery-readonly:
+    tier: 3
+    description: BigQuery inspection.
+    rules:
+      - Bash(bq ls:*)
+      - Bash(bq show:*)
+
+  kubernetes-readonly:
+    tier: 3
+    description: >
+      kubectl read-only inspection. Namespace-scoped wildcards because
+      real-world usage always passes `-n <namespace>`. Excludes
+      apply/delete/patch/exec/scale/rollout/edit/create — those mutate
+      cluster state and must stay prompted. `port-forward`, `proxy`,
+      `exec`, and `cp` intentionally excluded (escape hatches / arbitrary
+      code).
+    rules:
+      - Bash(kubectl get:*)
+      - Bash(kubectl -n * get:*)
+      - Bash(kubectl describe:*)
+      - Bash(kubectl -n * describe:*)
+      - Bash(kubectl logs:*)
+      - Bash(kubectl -n * logs:*)
+      - Bash(kubectl top:*)
+      - Bash(kubectl -n * top:*)
+      - Bash(kubectl explain:*)
+      - Bash(kubectl api-resources:*)
+      - Bash(kubectl api-versions:*)
+      - Bash(kubectl version:*)
+      - Bash(kubectl cluster-info:*)
+      - Bash(kubectl config get-contexts:*)
+      - Bash(kubectl config current-context:*)
+      - Bash(kubectl config view:*)
+
+  network-diagnostics:
+    tier: 3
+    description: >
+      Read-only network/VPN/system inspection. Opt-in. Write forms
+      (ip route add, nmcli connection modify, iptables -A/-D/-I)
+      intentionally excluded — they change system state.
+    rules:
+      - Bash(ip route:*)
+      - Bash(ip addr:*)
+      - Bash(ip -4 addr:*)
+      - Bash(ip -6 addr:*)
+      - Bash(ip link:*)
+      - Bash(resolvectl:*)
+      - Bash(nmcli:*)
+      - Bash(nmcli -t:*)
+      - Bash(nmcli connection show:*)
+      - Bash(nmcli device:*)
+      - Bash(ss:*)
+      - Bash(ss -tlnp:*)
+      - Bash(netstat:*)
+      - Bash(dig:*)
+      - Bash(nslookup:*)
+      - Bash(host:*)
+      - Bash(traceroute:*)
+      - Bash(ping -c:*)
+      - Bash(ps -ef:*)
+      - Bash(ps aux:*)
+      - Bash(pgrep:*)
+
+  build-tools:
+    tier: 3
+    description: Make and language-agnostic build runners.
+    rules:
+      - Bash(make:*)
+      - Bash(pre-commit run:*)
+      - Bash(gitlint:*)
+      - Bash(bump-my-version:*)
+
+  webfetch-public-docs:
+    tier: 3
+    description: Public documentation domains used by tooling skills.
+    rules:
+      - WebFetch(domain:docs.docker.com)
+      - WebFetch(domain:docs.gunicorn.org)
+      - WebFetch(domain:gunicorn.org)
+      - WebFetch(domain:health.aws.amazon.com)
+
+  obsidian-cli:
+    tier: 3
+    description: >
+      Obsidian CLI (v1.12+) for vault automation via IPC to a running
+      Obsidian desktop. Read + safe-write ops only. Destructive or
+      arbitrary-code commands (`delete`, `eval`, `dev:*`,
+      `plugin:install`, `plugin:uninstall`, `theme:install`,
+      `theme:uninstall`, `reload`, `restart`) intentionally excluded.
+      Known gotcha: snap-installed Obsidian may hang silently on
+      multi-line `daily:append` content; fall back to direct vault-file
+      Write.
+    rules:
+      - Bash(obsidian read:*)
+      - Bash(obsidian create:*)
+      - Bash(obsidian append:*)
+      - Bash(obsidian prepend:*)
+      - Bash(obsidian move:*)
+      - Bash(obsidian rename:*)
+      - Bash(obsidian files:*)
+      - Bash(obsidian folders:*)
+      - Bash(obsidian file:*)
+      - Bash(obsidian random:*)
+      - Bash(obsidian daily:*)
+      - Bash(obsidian search:*)
+      - Bash(obsidian properties:*)
+      - Bash(obsidian property:*)
+      - Bash(obsidian aliases:*)
+      - Bash(obsidian tags:*)
+      - Bash(obsidian tag:*)
+      - Bash(obsidian tasks:*)
+      - Bash(obsidian task:*)
+      - Bash(obsidian backlinks:*)
+      - Bash(obsidian links:*)
+      - Bash(obsidian unresolved:*)
+      - Bash(obsidian orphans:*)
+      - Bash(obsidian deadends:*)
+      - Bash(obsidian bookmarks:*)
+      - Bash(obsidian bookmark:*)
+      - Bash(obsidian templates:*)
+      - Bash(obsidian template:read:*)
+      - Bash(obsidian template:insert:*)
+      - Bash(obsidian plugins:*)
+      - Bash(obsidian plugin:enable:*)
+      - Bash(obsidian plugin:disable:*)
+      - Bash(obsidian sync:status:*)
+      - Bash(obsidian sync:history:*)
+      - Bash(obsidian sync:read:*)
+      - Bash(obsidian sync:deleted:*)
+      - Bash(obsidian themes:*)
+      - Bash(obsidian theme:set:*)
+      - Bash(obsidian snippets:*)
+      - Bash(obsidian snippet:enable:*)
+      - Bash(obsidian snippet:disable:*)
+      - Bash(obsidian commands:*)
+      - Bash(obsidian command:*)
+      - Bash(obsidian hotkeys:*)
+      - Bash(obsidian hotkey:*)
+      - Bash(obsidian bases:*)
+      - Bash(obsidian base:query:*)
+      - Bash(obsidian base:views:*)
+      - Bash(obsidian history:list:*)
+      - Bash(obsidian history:read:*)
+      - Bash(obsidian workspace:*)
+      - Bash(obsidian tabs:*)
+      - Bash(obsidian tab:open:*)
+      - Bash(obsidian diff:*)
+      - Bash(obsidian vault:*)
+      - Bash(obsidian vaults:*)
+      - Bash(obsidian version:*)
+      - Bash(obsidian outline:*)
+      - Bash(obsidian wordcount:*)
+      - Bash(obsidian recents:*)
+      - Skill(obsidian-cli:*)
+
+# ─── DEPRECATIONS ─────────────────────────────────────────────────────
+# Rules the doctor should rewrite or remove on sweep.
+
+deprecations:
+  - pattern: 'Bash\(/home/[^/]+/\.claude/plugins/cache/Dev10x-Guru/Dev10x/\d+\.\d+\.\d+/'
+    reason: >
+      Version-pinned plugin path with resolved username. Rotted on every
+      `claude plugin update` — the version segment becomes orphan.
+    action: canonicalize
+    canonical_replacement: '~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/'
+
+  - pattern: 'Bash\(~/\.claude/plugins/cache/Dev10x-Guru/Dev10x/\d+\.\d+\.\d+/'
+    reason: >
+      Version-pinned plugin path. Already uses `~/` but still rots on
+      upgrade because the version segment is hardcoded.
+    action: canonicalize
+    canonical_replacement: '~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/'
+
+  - pattern: '^Bash\(/tmp/claude/bin/mktmp\.sh:\*\)$'
+    reason: >
+      Legacy mktmp shell helper. Superseded by MCP tool
+      `mcp__plugin_Dev10x_cli__mktmp`.
+    action: remove
+
+# ─── INVARIANTS THE DOCTOR ENFORCES ───────────────────────────────────
+
+invariants:
+  - id: no-resolved-plugin-cache
+    description: >
+      No allow rule may reference a resolved plugin cache path. Use
+      `${CLAUDE_PLUGIN_ROOT}` or `~/.claude/plugins/cache/**/`.
+  - id: no-cross-project-paths
+    description: >
+      No allow rule may reference another project's absolute path
+      (cross-contamination from copy-pasted settings).
+  - id: no-worktree-source-paths
+    description: >
+      When CWD is a worktree, allow rules must not reference the source
+      repository by absolute path — the same files exist inside the
+      worktree at relative paths. Detect via `git rev-parse --git-common-dir`.
+  - id: additional-directories-not-bash
+    description: >
+      Bash allow rules cannot substitute for `additionalDirectories`.
+      When a prompt persists with a matching Bash rule, diagnose path
+      scope first.
+  - id: no-redundant-readonly-builtins
+    description: >
+      Built-in read-only commands (find, grep, ls, cat, head, tail, wc,
+      diff, stat, du, cd) must NOT be added as allow rules — they're
+      redundant and clutter the list.
+
+# ─── DOCTOR CONSUMPTION ───────────────────────────────────────────────
+# How `Dev10x:plugin-maintenance` consumes this catalog:
+#
+# 1. Tier 1 + Tier 2 groups: merged into the active base_permissions
+#    set during `ensure-base`. Missing rules are added.
+# 2. Tier 3 groups: opt-in via `dev10x permission doctor
+#    --enable-group=<name>`. Not added by default.
+# 3. Deprecations:
+#    - `action: canonicalize` → rewrite rule string to
+#      `canonical_replacement`.
+#    - `action: remove` → drop the rule entirely.
+# 4. Invariants: surfaced as warnings during `dev10x permission doctor`;
+#    not auto-applied (require user confirmation).

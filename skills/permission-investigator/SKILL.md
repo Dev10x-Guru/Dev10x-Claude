@@ -174,6 +174,36 @@ overwrites it.
 Adaptive friction auto-selects the recommended option. Strict
 and guided friction prompt for confirmation.
 
+## additionalDirectories Diagnostic (GH-99)
+
+When a permission prompt persists **despite a matching Bash allow
+rule**, the friction is almost always path scope, not the Bash command.
+The prompt's third option ("Yes, allow reading from `<dir>` from this
+project") is the only UI signal that the issue is
+`additionalDirectories`. Without it, agents keep widening Bash rules
+that have no effect.
+
+Use `dev10x.skills.permission.doctor.diagnose_additional_directories`
+when investigating such cases:
+
+```python
+from dev10x.skills.permission.doctor import diagnose_additional_directories
+
+msg = diagnose_additional_directories(
+    rule="Bash(rg:*)",
+    path_arguments=["/work/other-repo/src/foo.py"],
+    additional_directories=["/work/this-project"],
+)
+# → "Bash rule 'Bash(rg:*)' matched, but path '...' is outside
+#    registered additionalDirectories. Add /work/other-repo to
+#    additionalDirectories in .claude/settings.local.json —
+#    this is a path-scope issue, not a Bash allow-rule issue."
+```
+
+The investigator should surface this diagnosis explicitly in its
+report when a cell remains `PROMPTED` after the rule was applied AND
+the fixture path lies outside `additionalDirectories`.
+
 ## Notes
 
 - **Workdir:** `/tmp/Dev10x/permission-investigator/` — fixtures,
