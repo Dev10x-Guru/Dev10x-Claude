@@ -7,17 +7,29 @@ GH-493 and will be completed incrementally.
 
 from __future__ import annotations
 
+import json
 import subprocess
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from dev10x.domain.repository_ref import RepositoryRef
-from dev10x.domain.result import ErrorResult, SuccessResult
+from dev10x.domain.result import ErrorResult, SuccessResult, err, ok
 
 cli_server = pytest.importorskip("dev10x.mcp.server_cli", reason="mcp not installed")
 
 gh = pytest.importorskip("dev10x.github", reason="dev10x not installed")
+
+
+@pytest.fixture
+def mock_resolve_repo():
+    with patch.object(
+        gh,
+        "_resolve_repo",
+        new_callable=AsyncMock,
+        return_value=ok(RepositoryRef(owner="owner", name="repo")),
+    ) as mock:
+        yield mock
 
 
 def _completed(
@@ -574,3 +586,664 @@ class TestCreateWorktree:
         result = await cli_server.create_worktree(branch="existing-branch")
 
         assert "error" in result
+
+
+# ── MCP handler coverage (GH-79 #G1, #G2b) ──────────────────────
+
+
+class TestPrCommentReply:
+    """#G2b — MCP handler must propagate as_bot=True down to _gh_api."""
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api", new_callable=AsyncMock)
+    async def test_propagates_as_bot_true_to_gh_api(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(stdout=json.dumps({"id": 999}))
+
+        result = await cli_server.pr_comment_reply(
+            pr_number=42,
+            comment_id=123,
+            body="reply text",
+        )
+
+        assert "error" not in result
+        mock_api.assert_called_once()
+        assert mock_api.call_args.kwargs["as_bot"] is True
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api", new_callable=AsyncMock)
+    async def test_returns_error_dict_on_api_failure(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(returncode=1, stderr="Not Found")
+
+        result = await cli_server.pr_comment_reply(
+            pr_number=42,
+            comment_id=123,
+            body="x",
+        )
+
+        assert "error" in result
+
+
+class TestPrComments:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.pr_comments", new_callable=AsyncMock)
+    async def test_delegates_to_github_module(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = ok({"comments": []})
+
+        result = await cli_server.pr_comments(action="list", pr_number=42)
+
+        assert result == {"comments": []}
+        assert mock_fn.call_args.kwargs["action"] == "list"
+        assert mock_fn.call_args.kwargs["pr_number"] == 42
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.pr_comments", new_callable=AsyncMock)
+    async def test_returns_error_dict_on_failure(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = err("invalid action")
+
+        result = await cli_server.pr_comments(action="bogus")
+
+        assert "error" in result
+
+
+class TestPostSummaryCommentMcp:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.github._bot_env", new_callable=AsyncMock, return_value=None)
+    @patch("dev10x.github._detect_repo", new_callable=AsyncMock, return_value="owner/repo")
+    async def test_posts_summary(
+        self,
+        _mock_repo: AsyncMock,
+        _mock_bot_env: AsyncMock,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="posted")
+
+        result = await cli_server.post_summary_comment(
+            issue_id="GH-79",
+            summary_text="- summary",
+        )
+
+        assert result["success"] is True
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.github._bot_env", new_callable=AsyncMock, return_value=None)
+    @patch("dev10x.github._detect_repo", new_callable=AsyncMock, return_value="owner/repo")
+    async def test_returns_error_on_failure(
+        self,
+        _mock_repo: AsyncMock,
+        _mock_bot_env: AsyncMock,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(returncode=1, stderr="boom")
+
+        result = await cli_server.post_summary_comment(issue_id="GH-1", summary_text="x")
+
+        assert "error" in result
+
+
+class TestCreatePrMcp:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_creates_pr_returns_number_and_url(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(
+            stdout="https://github.com/o/r/pull/7\n7",
+        )
+
+        result = await cli_server.create_pr(title="t", job_story="js", issue_id="GH-1")
+
+        assert result["pr_number"] == 7
+        assert "github.com" in result["url"]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_returns_error_on_failure(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(returncode=1, stderr="no branch")
+
+        result = await cli_server.create_pr(title="t", job_story="js", issue_id="GH-1")
+
+        assert "error" in result
+
+
+class TestUpdatePrMcp:
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api", new_callable=AsyncMock)
+    async def test_updates_body(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(stdout="{}")
+
+        result = await cli_server.update_pr(pr_number=1, body="new")
+
+        assert result["pr_number"] == 1
+        assert "url" in result
+
+    @pytest.mark.asyncio
+    async def test_returns_error_when_no_fields(self) -> None:
+        result = await cli_server.update_pr(pr_number=1)
+
+        assert "error" in result
+
+
+class TestGenerateCommitListMcp:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_returns_commit_list(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="- abc First\n- def Second\n")
+
+        result = await cli_server.generate_commit_list(pr_number=42)
+
+        assert "commit_list" in result
+        assert "First" in result["commit_list"]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_returns_error_on_failure(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(returncode=1, stderr="no commits")
+
+        result = await cli_server.generate_commit_list(pr_number=42)
+
+        assert "error" in result
+
+
+class TestPushSafe:
+    @pytest.mark.asyncio
+    @patch("dev10x.git.push_safe", new_callable=AsyncMock)
+    async def test_delegates_to_git_module(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = ok({"success": True, "branch": "feature"})
+
+        result = await cli_server.push_safe(args=["origin", "feature"])
+
+        assert result["success"] is True
+        assert mock_fn.call_args.kwargs["args"] == ["origin", "feature"]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.git.push_safe", new_callable=AsyncMock)
+    async def test_returns_error_when_blocked(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = err("protected branch")
+
+        result = await cli_server.push_safe(args=["origin", "main"])
+
+        assert "error" in result
+
+
+class TestPrNotify:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.pr_notify", new_callable=AsyncMock)
+    async def test_delegates_with_action_prepare(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = ok({"prepared": True})
+
+        result = await cli_server.pr_notify(pr_number=1, repo="o/r")
+
+        assert result == {"prepared": True}
+        assert mock_fn.call_args.kwargs["action"] == "prepare"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.pr_notify", new_callable=AsyncMock)
+    async def test_returns_error_on_failure(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = err("script missing")
+
+        result = await cli_server.pr_notify(pr_number=1, repo="o/r")
+
+        assert "error" in result
+
+
+class TestCheckTopLevelComments:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_returns_findings_and_count(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout=json.dumps([{"id": 1}, {"id": 2}]))
+
+        result = await cli_server.check_top_level_comments(pr_number=42, repo="o/r")
+
+        assert result["count"] == 2
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_returns_error_on_invalid_json(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="not json")
+
+        result = await cli_server.check_top_level_comments(pr_number=42, repo="o/r")
+
+        assert "error" in result
+
+
+class TestUnresolvedThreadsMcp:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_returns_prs_and_count(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout=json.dumps([{"number": 1}]))
+
+        result = await cli_server.unresolved_threads(repo="o/r")
+
+        assert result["count"] == 1
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_returns_error_on_failure(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(returncode=1, stderr="rate limit")
+
+        result = await cli_server.unresolved_threads(repo="o/r")
+
+        assert "error" in result
+
+
+class TestIssueGet:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.issue_get", new_callable=AsyncMock)
+    async def test_delegates_to_github_module(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = ok({"title": "T", "state": "OPEN"})
+
+        result = await cli_server.issue_get(number=1, repo="o/r")
+
+        assert result["title"] == "T"
+        assert mock_fn.call_args.kwargs == {"number": 1, "repo": "o/r"}
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.issue_get", new_callable=AsyncMock)
+    async def test_returns_error_on_failure(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = err("Not Found")
+
+        result = await cli_server.issue_get(number=999)
+
+        assert "error" in result
+
+
+class TestIssueComments:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.issue_comments", new_callable=AsyncMock)
+    async def test_returns_comment_list(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = ok({"comments": [{"id": 1}]})
+
+        result = await cli_server.issue_comments(number=1, repo="o/r")
+
+        assert result == {"comments": [{"id": 1}]}
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.issue_comments", new_callable=AsyncMock)
+    async def test_returns_error_on_failure(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = err("Not Found")
+
+        result = await cli_server.issue_comments(number=999)
+
+        assert "error" in result
+
+
+class TestStartSplitRebase:
+    @pytest.mark.asyncio
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    async def test_starts_rebase(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="SUCCESS=true")
+
+        result = await cli_server.start_split_rebase(commit_hash="abc1234")
+
+        assert isinstance(result, dict)
+
+    @pytest.mark.asyncio
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    async def test_returns_error_on_failure(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(returncode=1, stderr="dirty tree")
+
+        result = await cli_server.start_split_rebase(commit_hash="abc1234")
+
+        assert "error" in result
+
+
+class TestMassRewrite:
+    @pytest.mark.asyncio
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    async def test_rewrites_with_config(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="ok")
+
+        result = await cli_server.mass_rewrite(config_path="/tmp/rewrite.json")
+
+        assert isinstance(result, dict)
+
+    @pytest.mark.asyncio
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    async def test_returns_error_on_failure(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(returncode=1, stderr="bad config")
+
+        result = await cli_server.mass_rewrite(config_path="/tmp/x.json")
+
+        assert "error" in result
+
+
+class TestPlanSyncSetContext:
+    @pytest.mark.asyncio
+    @patch("dev10x.plan.set_context", new_callable=AsyncMock)
+    async def test_delegates_to_plan_module(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = {"success": True, "updated_keys": ["x"]}
+
+        result = await cli_server.plan_sync_set_context(args=["x=1"])
+
+        assert result["success"] is True
+        assert mock_fn.call_args.kwargs["args"] == ["x=1"]
+
+
+class TestPlanSyncJsonSummary:
+    @pytest.mark.asyncio
+    @patch("dev10x.plan.json_summary", new_callable=AsyncMock)
+    async def test_returns_summary(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = {"tasks": []}
+
+        result = await cli_server.plan_sync_json_summary()
+
+        assert result == {"tasks": []}
+
+
+class TestPlanSyncArchive:
+    @pytest.mark.asyncio
+    @patch("dev10x.plan.archive", new_callable=AsyncMock)
+    async def test_archives_plan(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = {"success": True, "archive_name": "plan-2026-01-01.md"}
+
+        result = await cli_server.plan_sync_archive()
+
+        assert result["success"] is True
+
+
+class TestGenerateSkillIndex:
+    @pytest.mark.asyncio
+    @patch("dev10x.skill_index.generate_all", new_callable=AsyncMock)
+    async def test_generates_index(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = {"success": True, "output": "done"}
+
+        result = await cli_server.generate_skill_index()
+
+        assert result["success"] is True
+        assert mock_fn.call_args.kwargs == {"force": False}
+
+    @pytest.mark.asyncio
+    @patch("dev10x.skill_index.generate_all", new_callable=AsyncMock)
+    async def test_passes_force_flag(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = {"success": True}
+
+        await cli_server.generate_skill_index(force=True)
+
+        assert mock_fn.call_args.kwargs == {"force": True}
+
+
+class TestAuditExtractSession:
+    @pytest.mark.asyncio
+    @patch("dev10x.audit.extract_session", new_callable=AsyncMock)
+    async def test_extracts_session(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = {"success": True, "output": "extracted"}
+
+        result = await cli_server.audit_extract_session(jsonl_path="/tmp/x.jsonl")
+
+        assert result["success"] is True
+
+
+class TestAuditAnalyzeActions:
+    @pytest.mark.asyncio
+    @patch("dev10x.audit.analyze_actions", new_callable=AsyncMock)
+    async def test_analyzes_actions(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = {"success": True}
+
+        result = await cli_server.audit_analyze_actions(transcript_path="/tmp/x.md")
+
+        assert result["success"] is True
+
+
+class TestAuditAnalyzePermissions:
+    @pytest.mark.asyncio
+    @patch("dev10x.audit.analyze_permissions", new_callable=AsyncMock)
+    async def test_analyzes_permissions(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = {"success": True}
+
+        result = await cli_server.audit_analyze_permissions(transcript_path="/tmp/x.md")
+
+        assert result["success"] is True
+
+
+class TestAuditHookLogPath:
+    @pytest.mark.asyncio
+    @patch("dev10x.audit.hook_log_path", new_callable=AsyncMock)
+    async def test_returns_log_path(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = {
+            "audit_dir": "/tmp/Dev10x/hook-audit",
+            "today_log": "/tmp/Dev10x/hook-audit/2026-01-01.jsonl",
+            "today_log_exists": False,
+            "audit_dir_exists": True,
+            "available_logs": [],
+            "audit_disabled": False,
+        }
+
+        result = await cli_server.audit_hook_log_path()
+
+        assert "audit_dir" in result
+
+
+class TestAuditHookRecent:
+    @pytest.mark.asyncio
+    @patch("dev10x.audit.hook_recent", new_callable=AsyncMock)
+    async def test_returns_recent_records(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = {
+            "log_path": "/tmp/x.jsonl",
+            "exists": True,
+            "count": 0,
+            "records": [],
+        }
+
+        result = await cli_server.audit_hook_recent(limit=10)
+
+        assert result["count"] == 0
+        assert mock_fn.call_args.kwargs["limit"] == 10
+
+
+# ── #G1b: cwd activation per CWD-sensitive handler ──────────────
+
+
+CWD_HANDLERS: list[tuple[str, dict]] = [
+    (
+        "detect_tracker",
+        {"ticket_id": "GH-1"},
+    ),
+    (
+        "pr_detect",
+        {"arg": "#1"},
+    ),
+    (
+        "issue_get",
+        {"number": 1},
+    ),
+    (
+        "issue_comments",
+        {"number": 1},
+    ),
+    (
+        "issue_create",
+        {"title": "t"},
+    ),
+    (
+        "pr_comments",
+        {"action": "list", "pr_number": 1},
+    ),
+    (
+        "verify_pr_state",
+        {},
+    ),
+    (
+        "pre_pr_checks",
+        {},
+    ),
+    (
+        "generate_commit_list",
+        {"pr_number": 1},
+    ),
+    (
+        "post_summary_comment",
+        {"issue_id": "GH-1", "summary_text": "x"},
+    ),
+    (
+        "check_top_level_comments",
+        {"pr_number": 1, "repo": "o/r"},
+    ),
+    (
+        "unresolved_threads",
+        {"repo": "o/r"},
+    ),
+    (
+        "rebase_groom",
+        {"seq_path": "/tmp/seq", "base_ref": "develop"},
+    ),
+    (
+        "create_worktree",
+        {"branch": "feature"},
+    ),
+    (
+        "mass_rewrite",
+        {"config_path": "/tmp/x.json"},
+    ),
+    (
+        "start_split_rebase",
+        {"commit_hash": "abc1234"},
+    ),
+    (
+        "next_worktree_name",
+        {},
+    ),
+    (
+        "plan_sync_json_summary",
+        {},
+    ),
+    (
+        "plan_sync_archive",
+        {},
+    ),
+]
+
+
+class TestCwdParameterActivation:
+    """#G1b — every CWD-sensitive MCP handler must invoke use_cwd(cwd)."""
+
+    @pytest.mark.parametrize(
+        "handler_name,kwargs",
+        CWD_HANDLERS,
+        ids=[h for h, _ in CWD_HANDLERS],
+    )
+    @pytest.mark.asyncio
+    async def test_use_cwd_activates_when_cwd_passed(
+        self,
+        handler_name: str,
+        kwargs: dict,
+        tmp_path,
+    ) -> None:
+        handler = getattr(cli_server, handler_name)
+
+        with patch("dev10x.subprocess_utils.use_cwd") as mock_use_cwd:
+            try:
+                await handler(**kwargs, cwd=str(tmp_path))
+            except Exception:
+                # The handler's underlying call may fail (no real
+                # subprocess); we only care that use_cwd was entered.
+                pass
+
+        mock_use_cwd.assert_called_once_with(str(tmp_path))

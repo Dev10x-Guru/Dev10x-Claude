@@ -1165,3 +1165,176 @@ class TestGhApiBotIdentity:
         await gh._gh_api("rate_limit", as_bot=True)
 
         assert mock_token.call_count == 0
+
+
+class TestPostSummaryComment:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.github._bot_env", new_callable=AsyncMock, return_value=None)
+    @patch("dev10x.github._detect_repo", new_callable=AsyncMock, return_value="owner/repo")
+    async def test_posts_summary_successfully(
+        self,
+        _mock_repo: AsyncMock,
+        _mock_bot_env: AsyncMock,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="Comment posted")
+
+        result = await gh.post_summary_comment(
+            issue_id="GH-79",
+            summary_text="- Did the thing\n- And another",
+        )
+
+        assert isinstance(result, SuccessResult)
+        assert result.value == {"success": True, "output": "Comment posted"}
+        called_args = mock_run.call_args.args
+        assert "GH-79" in called_args
+        assert "- Did the thing\n- And another" in called_args
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.github._bot_env", new_callable=AsyncMock)
+    @patch("dev10x.github._detect_repo", new_callable=AsyncMock, return_value="owner/repo")
+    async def test_passes_bot_env_when_available(
+        self,
+        _mock_repo: AsyncMock,
+        mock_bot_env: AsyncMock,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_bot_env.return_value = {
+            "GH_TOKEN": "ghs_bot",
+            "GITHUB_TOKEN": "ghs_bot",
+        }
+        mock_run.return_value = _completed(stdout="ok")
+
+        await gh.post_summary_comment(issue_id="GH-1", summary_text="x")
+
+        env_vars = mock_run.call_args.kwargs.get("env_vars")
+        assert env_vars is not None
+        assert env_vars["GH_TOKEN"] == "ghs_bot"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.github._bot_env", new_callable=AsyncMock, return_value=None)
+    @patch("dev10x.github._detect_repo", new_callable=AsyncMock, return_value="owner/repo")
+    async def test_returns_error_on_script_failure(
+        self,
+        _mock_repo: AsyncMock,
+        _mock_bot_env: AsyncMock,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(returncode=1, stderr="API rate limit")
+
+        result = await gh.post_summary_comment(issue_id="GH-1", summary_text="x")
+
+        assert isinstance(result, ErrorResult)
+        assert "rate limit" in result.error
+
+
+class TestCreatePr:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_creates_pr_and_parses_number_and_url(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(
+            stdout="https://github.com/owner/repo/pull/42\n42",
+        )
+
+        result = await gh.create_pr(
+            title="My PR",
+            job_story="When ... I want to ... so ... can ...",
+            issue_id="GH-79",
+            fixes_url="https://github.com/owner/repo/issues/79",
+        )
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["pr_number"] == 42
+        assert result.value["url"] == "https://github.com/owner/repo/pull/42"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_passes_blank_fixes_url_and_base_when_omitted(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="https://github.com/o/r/pull/1\n1")
+
+        await gh.create_pr(
+            title="t",
+            job_story="js",
+            issue_id="GH-1",
+        )
+
+        called_args = mock_run.call_args.args
+        assert called_args[-2:] == ("", "")
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_falls_back_to_synthetic_url_when_stdout_lacks_http(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="99")
+
+        result = await gh.create_pr(title="t", job_story="js", issue_id="GH-1")
+
+        assert isinstance(result, SuccessResult)
+        assert result.value == {"pr_number": 99, "url": "PR #99"}
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_returns_error_on_script_failure(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(returncode=1, stderr="branch not pushed")
+
+        result = await gh.create_pr(title="t", job_story="js", issue_id="GH-1")
+
+        assert isinstance(result, ErrorResult)
+        assert "branch not pushed" in result.error
+
+
+class TestGenerateCommitList:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_returns_commit_list_on_success(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        commit_list = "- abc1234 First commit\n- def5678 Second commit"
+        mock_run.return_value = _completed(stdout=commit_list + "\n")
+
+        result = await gh.generate_commit_list(pr_number=42)
+
+        assert isinstance(result, SuccessResult)
+        assert result.value == {"commit_list": commit_list}
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_passes_base_branch_when_supplied(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="")
+
+        await gh.generate_commit_list(pr_number=42, base_branch="main")
+
+        called_args = mock_run.call_args.args
+        assert "42" in called_args
+        assert "main" in called_args
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_returns_error_on_script_failure(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(returncode=1, stderr="no commits")
+
+        result = await gh.generate_commit_list(pr_number=42)
+
+        assert isinstance(result, ErrorResult)
+        assert "no commits" in result.error
