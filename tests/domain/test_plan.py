@@ -6,7 +6,14 @@ from unittest.mock import patch
 import pytest
 import yaml
 
-from dev10x.domain.plan import Plan, _extract_task_id, _set_nested
+from dev10x.domain.plan import (
+    TASK_TRANSITIONS,
+    Plan,
+    TaskStatus,
+    _extract_task_id,
+    _set_nested,
+    get_plan_path,
+)
 
 
 class TestExtractTaskId:
@@ -287,3 +294,70 @@ class TestPlanEnsureMetadata:
 
         assert plan.metadata["branch"] == "old"
         assert "last_synced" in plan.metadata
+
+
+class TestPlanArchive:
+    def test_stamps_archived_at_and_saves(self, tmp_path: Path) -> None:
+        plan = Plan(metadata={"status": "completed"})
+        archive_path = tmp_path / "archive" / "plan.yaml"
+
+        plan.archive(path=archive_path)
+
+        assert archive_path.exists()
+        assert "archived_at" in plan.metadata
+        loaded = Plan.load(path=archive_path)
+        assert "archived_at" in loaded.metadata
+
+
+class TestPlanContextKeys:
+    def test_returns_empty_when_no_context(self) -> None:
+        assert Plan(metadata={"status": "x"}).context_keys() == []
+
+    def test_returns_context_keys(self) -> None:
+        plan = Plan(metadata={"context": {"work_type": "feature", "tickets": []}})
+
+        assert sorted(plan.context_keys()) == ["tickets", "work_type"]
+
+    def test_returns_empty_when_context_not_dict(self) -> None:
+        plan = Plan(metadata={"context": "broken"})
+
+        assert plan.context_keys() == []
+
+
+class TestTaskTransitions:
+    def test_pending_has_no_timestamp(self) -> None:
+        assert TASK_TRANSITIONS[TaskStatus.PENDING].timestamp_field is None
+
+    def test_in_progress_writes_started_at(self) -> None:
+        assert TASK_TRANSITIONS[TaskStatus.IN_PROGRESS].timestamp_field == "started_at"
+
+    def test_completed_writes_completed_at(self) -> None:
+        assert TASK_TRANSITIONS[TaskStatus.COMPLETED].timestamp_field == "completed_at"
+
+    def test_completed_to_in_progress_rejected(self) -> None:
+        plan = Plan(
+            metadata={"status": "in_progress"},
+            tasks=[{"id": "1", "status": "completed", "completed_at": "old"}],
+        )
+
+        plan.handle_task_update(tool_input={"taskId": "1", "status": "in_progress"})
+
+        assert plan.tasks[0]["status"] == "completed"
+        assert "started_at" not in plan.tasks[0]
+
+    def test_unknown_status_silently_skipped(self) -> None:
+        plan = Plan(
+            metadata={"status": "in_progress"},
+            tasks=[{"id": "1", "status": "pending"}],
+        )
+
+        plan.handle_task_update(tool_input={"taskId": "1", "status": "bogus"})
+
+        assert plan.tasks[0]["status"] == "pending"
+
+
+class TestGetPlanPath:
+    def test_joins_toplevel_with_session_plan(self, tmp_path: Path) -> None:
+        path = get_plan_path(toplevel=str(tmp_path))
+
+        assert path == tmp_path / ".claude" / "session" / "plan.yaml"
