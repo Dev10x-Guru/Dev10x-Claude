@@ -1,0 +1,20 @@
+--- a/.claude/agents/reviewer-generic.md
++++ b/.claude/agents/reviewer-generic.md
+@@ -40,6 +40,15 @@ between code behavior and documentation causes user confusion.
+ 9b. **Hook guidance alignment** — when a new hook pattern is added,
+     verify that session-guidance.md or .claude/rules/* are updated
+     with the same pattern name, reason, and alternative. Mismatch
+     between code behavior and documentation causes user confusion.
++9c. **Hook refactoring behavior equivalence** — when a PR modifies
++    the core hook dispatcher (ValidatorChain, filter logic, exception
++    handling), explicitly verify that the new implementation preserves
++    all observed behaviors of the old: single validator exception does
++    not prevent subsequent validators from running; validation results
++    are emitted in registration order; PermissionDenied correction
++    short-circuits at first non-None result; HOOK_DEBUG logging
++    captures the same details; disabled/filtered validators are never
++    imported. Compare hook.py integration points before/after and flag
++    as WARNING if behavior changes without explicit PR body justification.
+ 10. **New class without test suite** — when a PR adds a new `.py`
+     file with production logic (classes or functions), or adds
+     behavior methods to an existing model, check whether a
