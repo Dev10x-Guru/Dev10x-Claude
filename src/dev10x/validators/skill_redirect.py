@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from dev10x.domain import HookInput, HookResult
+from dev10x.domain.friction_level import FrictionLevel
 from dev10x.domain.validation_rule import Compensation, Config
 
 if TYPE_CHECKING:
@@ -125,7 +126,7 @@ def _format_skill_msg(
     *,
     label: str,
     comp: Compensation,
-    friction_level: str,
+    friction_level: FrictionLevel,
     plugin_repo: str,
 ) -> str:
     file_issue_hint = (
@@ -135,7 +136,7 @@ def _format_skill_msg(
         else ""
     )
     if comp.type == "use-tool":
-        if friction_level == "guided" and comp.description:
+        if friction_level is FrictionLevel.GUIDED and comp.description:
             return (
                 f"\u26d4  `{label}` blocked — use the MCP tool instead.\n\n"
                 f"  Tool: `{comp.tool}`\n\n"
@@ -155,7 +156,7 @@ def _format_skill_msg(
             f"{file_issue_hint}{OVERRIDE_HINT}"
         )
 
-    if friction_level == "guided" and comp.fallback:
+    if friction_level is FrictionLevel.GUIDED and comp.fallback:
         return (
             f"\u26d4  `{label}` blocked — use the skill instead.\n\n"
             f"  Skill: `Skill({comp.skill})`\n\n"

@@ -10,6 +10,7 @@ import yaml
 
 from dev10x.domain.config_loader import ConfigLoader
 from dev10x.domain.file_locks import atomic_write_bytes
+from dev10x.domain.friction_level import FrictionLevel
 from dev10x.domain.validation_rule import Compensation, Config, Rule
 
 DEFAULT_TTL_SECONDS = 1800
@@ -79,7 +80,7 @@ def _parse_yaml(*, yaml_path: Path) -> Config:
     rules = [Rule.from_yaml_entry(entry=entry) for entry in data.get("rules", [])]
 
     return Config(
-        friction_level=cfg_data.get("friction_level", "strict"),
+        friction_level=FrictionLevel.from_yaml(cfg_data.get("friction_level")),
         plugin_repo=cfg_data.get("plugin_repo", ""),
         rules=rules,
     )
@@ -106,7 +107,7 @@ def _dict_to_config(*, raw: dict[str, Any]) -> Config:
         for r in raw.get("rules", [])
     ]
     return Config(
-        friction_level=raw.get("friction_level", "strict"),
+        friction_level=FrictionLevel.from_yaml(raw.get("friction_level")),
         plugin_repo=raw.get("plugin_repo", ""),
         rules=rules,
     )
