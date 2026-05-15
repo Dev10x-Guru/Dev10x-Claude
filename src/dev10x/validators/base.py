@@ -29,8 +29,6 @@ from typing import Protocol, runtime_checkable
 
 from dev10x.domain import HookAllow, HookInput, HookResult, HookRetry
 
-PROFILE_HIERARCHY: tuple[str, ...] = ("minimal", "standard", "strict")
-
 
 @runtime_checkable
 class Validator(Protocol):

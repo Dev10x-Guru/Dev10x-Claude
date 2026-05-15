@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import pytest
 
+from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators import (
     _load_profile_config,
-    _profile_includes,
     get_validators,
     reset_registry,
 )
@@ -32,48 +32,22 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("DEV10X_HOOK_EXPERIMENTAL", raising=False)
 
 
-class TestProfileIncludes:
-    def test_minimal_runs_at_minimal(self) -> None:
-        assert _profile_includes(validator_profile="minimal", active_profile="minimal")
-
-    def test_minimal_runs_at_standard(self) -> None:
-        assert _profile_includes(validator_profile="minimal", active_profile="standard")
-
-    def test_minimal_runs_at_strict(self) -> None:
-        assert _profile_includes(validator_profile="minimal", active_profile="strict")
-
-    def test_standard_skipped_at_minimal(self) -> None:
-        assert not _profile_includes(validator_profile="standard", active_profile="minimal")
-
-    def test_standard_runs_at_standard(self) -> None:
-        assert _profile_includes(validator_profile="standard", active_profile="standard")
-
-    def test_strict_skipped_at_standard(self) -> None:
-        assert not _profile_includes(validator_profile="strict", active_profile="standard")
-
-    def test_strict_runs_at_strict(self) -> None:
-        assert _profile_includes(validator_profile="strict", active_profile="strict")
-
-    def test_unknown_profile_defaults_to_standard(self) -> None:
-        assert _profile_includes(validator_profile="bogus", active_profile="bogus")
-
-
 class TestLoadProfileConfig:
     def test_defaults_to_standard(self) -> None:
         active, disabled, experimental = _load_profile_config()
-        assert active == "standard"
+        assert active is ProfileTier.STANDARD
         assert disabled == set()
         assert experimental is False
 
     def test_reads_profile_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("DEV10X_HOOK_PROFILE", "minimal")
         active, _, _ = _load_profile_config()
-        assert active == "minimal"
+        assert active is ProfileTier.MINIMAL
 
     def test_invalid_profile_falls_back_to_standard(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("DEV10X_HOOK_PROFILE", "paranoid")
         active, _, _ = _load_profile_config()
-        assert active == "standard"
+        assert active is ProfileTier.STANDARD
 
     def test_disable_list_parsed(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("DEV10X_HOOK_DISABLE", "DX001, dx002,DX003 ")
@@ -105,7 +79,8 @@ class TestLoadProfileConfig:
 class TestGetValidatorsProfileFiltering:
     def test_default_profile_is_standard(self) -> None:
         validators = get_validators()
-        assert all(v.profile in ("minimal", "standard") for v in validators), (
+        allowed = {ProfileTier.MINIMAL, ProfileTier.STANDARD}
+        assert all(v.profile in allowed for v in validators), (
             f"Unexpected profiles: {[v.profile for v in validators]}"
         )
 
@@ -114,7 +89,7 @@ class TestGetValidatorsProfileFiltering:
     ) -> None:
         monkeypatch.setenv("DEV10X_HOOK_PROFILE", "minimal")
         validators = get_validators()
-        assert all(v.profile == "minimal" for v in validators)
+        assert all(v.profile is ProfileTier.MINIMAL for v in validators)
         # Should include skill_redirect only at standard+, so it's excluded here
         names = {v.name for v in validators}
         assert "skill-redirect" not in names
@@ -166,7 +141,7 @@ class TestRuleIdAssignment:
         validators = get_validators()
         for v in validators:
             assert hasattr(v, "profile")
-            assert v.profile in ("minimal", "standard", "strict")
+            assert isinstance(v.profile, ProfileTier)
 
     def test_rule_ids_are_unique(self) -> None:
         # Use strict profile to get all validators
