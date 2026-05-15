@@ -29,6 +29,8 @@ from functools import wraps
 from pathlib import Path
 from typing import Any, TypeVar
 
+from dev10x.domain.hook_telemetry import HookOutcome, HookPhase
+
 SPAN_ID_ENV = "DEV10X_HOOK_SPAN_ID"
 AUDIT_ENABLE_ENV = "DEV10X_HOOK_AUDIT"
 AUDIT_DIR_ENV = "DEV10X_HOOK_AUDIT_DIR"
@@ -75,14 +77,8 @@ def _write_record(*, record: dict[str, Any]) -> None:
         pass
 
 
-def _classify_outcome(*, exit_code: int) -> str:
-    if exit_code == 0:
-        return "ok"
-    if exit_code == 2:
-        return "block"
-    if exit_code == 1:
-        return "error"
-    return "unknown"
+def _classify_outcome(*, exit_code: int) -> HookOutcome:
+    return HookOutcome.from_exit_code(exit_code)
 
 
 def audit_hook(name: str, *, event: str = "") -> Callable[[F], F]:
@@ -128,7 +124,7 @@ def audit_hook(name: str, *, event: str = "") -> Callable[[F], F]:
             finally:
                 body_ms = int((time.perf_counter() - start) * 1000)
                 record = {
-                    "phase": "body",
+                    "phase": HookPhase.BODY,
                     "ts": datetime.now(UTC).isoformat(),
                     "hook": name,
                     "event": event,
@@ -161,7 +157,7 @@ def write_wrap_record(
     if not _audit_enabled():
         return
     record = {
-        "phase": "wrap",
+        "phase": HookPhase.WRAP,
         "ts": datetime.now(UTC).isoformat(),
         "hook": hook,
         "argv": argv,
@@ -220,9 +216,9 @@ def summarize(*, records: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         phase = rec.get("phase")
         span_id = rec.get("span_id", "")
         if not span_id:
-            if phase == "body":
+            if phase == HookPhase.BODY:
                 body_only.append(rec)
-            elif phase == "wrap":
+            elif phase == HookPhase.WRAP:
                 wrap_only.append(rec)
             continue
         if not isinstance(phase, str):
@@ -232,8 +228,8 @@ def summarize(*, records: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
 
     hook_stats: dict[str, dict[str, Any]] = {}
     for span in by_span.values():
-        body = span.get("body")
-        wrap = span.get("wrap")
+        body = span.get(HookPhase.BODY)
+        wrap = span.get(HookPhase.WRAP)
         record = body or wrap
         if record is None:
             continue
@@ -252,9 +248,9 @@ def summarize(*, records: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         )
         stats["count"] += 1
         outcome = record.get("outcome", "")
-        if outcome == "error":
+        if outcome == HookOutcome.ERROR:
             stats["error_count"] += 1
-        elif outcome == "block":
+        elif outcome == HookOutcome.BLOCK:
             stats["block_count"] += 1
         if body and wrap:
             total = int(wrap.get("total_ms") or 0)
