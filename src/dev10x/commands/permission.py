@@ -12,6 +12,15 @@ def permission() -> None:
     """Maintain Dev10x plugin permission settings."""
 
 
+def _emit_result(result: dict) -> int:
+    """Print messages/errors from a public-API result dict and return its exit_code."""
+    for msg in result.get("messages", []):
+        click.echo(msg)
+    for err in result.get("errors", []):
+        click.echo(err, err=True)
+    return int(result.get("exit_code", 0))
+
+
 @permission.command(name="update-paths")
 @click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
 @click.option(
@@ -116,11 +125,13 @@ def ensure_base(*, dry_run: bool, quiet: bool) -> None:
         return
 
     sys.exit(
-        mod._ensure_base(
-            config=config,
-            settings_files=settings_files,
-            dry_run=dry_run,
-            quiet=quiet,
+        _emit_result(
+            mod.ensure_base(
+                config=config,
+                settings_files=settings_files,
+                dry_run=dry_run,
+                quiet=quiet,
+            )
         )
     )
 
@@ -144,10 +155,12 @@ def generalize(*, dry_run: bool, quiet: bool) -> None:
         return
 
     sys.exit(
-        mod._generalize(
-            settings_files=settings_files,
-            dry_run=dry_run,
-            quiet=quiet,
+        _emit_result(
+            mod.generalize(
+                settings_files=settings_files,
+                dry_run=dry_run,
+                quiet=quiet,
+            )
         )
     )
 
@@ -176,11 +189,13 @@ def ensure_workspace(*, dry_run: bool, quiet: bool) -> None:
         return
 
     sys.exit(
-        mod._ensure_workspace(
-            config=config,
-            settings_files=settings_files,
-            dry_run=dry_run,
-            quiet=quiet,
+        _emit_result(
+            mod.ensure_workspace(
+                config=config,
+                settings_files=settings_files,
+                dry_run=dry_run,
+                quiet=quiet,
+            )
         )
     )
 
@@ -204,11 +219,13 @@ def ensure_scripts(*, dry_run: bool, quiet: bool) -> None:
         return
 
     sys.exit(
-        mod._ensure_scripts(
-            config=config,
-            settings_files=settings_files,
-            dry_run=dry_run,
-            quiet=quiet,
+        _emit_result(
+            mod.ensure_scripts(
+                config=config,
+                settings_files=settings_files,
+                dry_run=dry_run,
+                quiet=quiet,
+            )
         )
     )
 
@@ -232,11 +249,13 @@ def ensure_reads(*, dry_run: bool, quiet: bool) -> None:
         return
 
     sys.exit(
-        mod._ensure_reads(
-            config=config,
-            settings_files=settings_files,
-            dry_run=dry_run,
-            quiet=quiet,
+        _emit_result(
+            mod.ensure_reads(
+                config=config,
+                settings_files=settings_files,
+                dry_run=dry_run,
+                quiet=quiet,
+            )
         )
     )
 
@@ -244,9 +263,9 @@ def ensure_reads(*, dry_run: bool, quiet: bool) -> None:
 @permission.command()
 def init() -> None:
     """Create userspace config from plugin default."""
-    from dev10x.skills.permission.update_paths import _init_userspace_config
+    from dev10x.skills.permission.update_paths import init_userspace_config
 
-    sys.exit(_init_userspace_config())
+    sys.exit(_emit_result(init_userspace_config()))
 
 
 @permission.command()

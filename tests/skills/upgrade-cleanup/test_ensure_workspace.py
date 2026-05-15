@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from dev10x.skills.permission.update_paths import (
-    _ensure_workspace,
+    ensure_workspace,
     ensure_workspace_directories,
 )
 
@@ -122,14 +122,16 @@ class TestEnsureWorkspaceOrchestrator:
         two_files: list[Path],
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        rc = _ensure_workspace(
+        result = ensure_workspace(
             config={"workspace_directories": ["/tmp/Dev10x"]},
             settings_files=two_files,
             dry_run=False,
             quiet=True,
         )
 
-        assert rc == 0
+        assert result["exit_code"] == 0
+        assert result["files_changed"] == 2
+        assert capsys.readouterr().out == ""
         for path in two_files:
             data = json.loads(path.read_text())
             assert data["permissions"]["additionalDirectories"] == ["/tmp/Dev10x"]
@@ -138,14 +140,14 @@ class TestEnsureWorkspaceOrchestrator:
         self,
         two_files: list[Path],
     ) -> None:
-        rc = _ensure_workspace(
+        result = ensure_workspace(
             config={},
             settings_files=two_files,
             dry_run=False,
             quiet=True,
         )
 
-        assert rc == 0
+        assert result["exit_code"] == 0
         for path in two_files:
             data = json.loads(path.read_text())
             assert "additionalDirectories" not in data.get("permissions", {})
