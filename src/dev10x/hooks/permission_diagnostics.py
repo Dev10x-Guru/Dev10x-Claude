@@ -26,6 +26,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from dev10x.domain.claude_paths import ClaudeDir
+
 
 @dataclass(frozen=True)
 class SettingsFile:
@@ -62,7 +64,7 @@ SETTINGS_PRECEDENCE: list[SettingsFile] = [
     ),
     SettingsFile(
         label="user settings",
-        path=Path.home() / ".claude" / "settings.json",
+        path=ClaudeDir.settings_json(),
         precedence=5,
     ),
 ]
