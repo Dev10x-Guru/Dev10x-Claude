@@ -159,6 +159,25 @@ class TestPlanSummaryFormatForDisplay:
         assert "can be archived" in summary.format_for_display()
 
 
+class TestPlanSummaryPendingTasks:
+    def test_excludes_completed_and_deleted(self) -> None:
+        summary = PlanSummary(
+            tasks=[
+                {"id": "1", "subject": "A", "status": "pending"},
+                {"id": "2", "subject": "B", "status": "in_progress"},
+                {"id": "3", "subject": "C", "status": "completed"},
+                {"id": "4", "subject": "D", "status": "deleted"},
+            ],
+        )
+
+        ids = [t["id"] for t in summary.pending_tasks]
+
+        assert ids == ["1", "2"]
+
+    def test_empty_when_no_tasks(self) -> None:
+        assert PlanSummary().pending_tasks == []
+
+
 class TestPlanSummaryPendingDecisions:
     def test_returns_tasks_with_decision_needed(self) -> None:
         summary = PlanSummary(

@@ -1,7 +1,9 @@
-"""Task plan synchronizer — persists task state to a YAML plan file.
+"""Task plan synchronizer — CLI entry points for plan operations.
 
-Triggered on TaskCreate and TaskUpdate. Maintains a per-project
-plan file that survives context compaction and session restarts.
+Triggered on TaskCreate and TaskUpdate (via `cmd_hook`) or invoked
+directly from `dev10x hook plan ...` commands. The mutation logic
+lives in `dev10x.plan.service`; this module is the thin CLI adapter
+that handles stdin parsing, locking, and stdout/exit-code shaping.
 
 Plan file location:
     <git-toplevel>/.claude/session/plan.yaml
@@ -11,93 +13,57 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from dev10x.domain.file_locks import file_lock
-from dev10x.domain.git_context import GitContext
-from dev10x.domain.plan import Plan
-
-
-def get_toplevel() -> str | None:
-    # GH-979: Fresh GitContext per call so the MCP server (long-lived
-    # process) sees the caller's effective CWD on every invocation
-    # instead of caching the directory the first call happened to hit.
-    return GitContext().toplevel
-
-
-def get_plan_path(*, toplevel: str) -> Path:
-    return Path(toplevel) / ".claude" / "session" / "plan.yaml"
+from dev10x.domain.plan import Plan, get_plan_path, get_toplevel
+from dev10x.plan.service import (
+    PlanServiceError,
+    archive_plan,
+    plan_summary,
+    set_plan_context,
+)
 
 
 def read_plan(*, plan_path: Path) -> dict[str, Any]:
-    plan = Plan.load(path=plan_path)
-    return plan._to_dict()
+    """Load plan YAML into a dict. Consumed by `dev10x.hooks.session`."""
+    return Plan.load(path=plan_path)._to_dict()
 
 
 def cmd_set_context(*, args: list[str]) -> None:
-    toplevel = get_toplevel()
-    if not toplevel:
-        print("Not in a git repository", file=sys.stderr)
+    try:
+        updated = set_plan_context(args=args)
+    except PlanServiceError as exc:
+        print(str(exc), file=sys.stderr)
         sys.exit(1)
-
-    plan_path = get_plan_path(toplevel=toplevel)
-    plan = Plan.load(path=plan_path)
-    plan.ensure_metadata()
-
-    for arg in args:
-        if "=" not in arg:
-            print(f"Invalid argument (expected K=V): {arg}", file=sys.stderr)
-            sys.exit(1)
-        key, value = arg.split("=", 1)
-        plan.set_context(key=key, value=value)
-
-    plan.save(path=plan_path)
-    context = plan.metadata.get("context", {})
-    print(f"Updated plan context: {list(context.keys())}")
+    print(f"Updated plan context: {updated}")
 
 
 def cmd_archive() -> None:
-    toplevel = get_toplevel()
-    if not toplevel:
-        print("Not in a git repository", file=sys.stderr)
+    try:
+        result = archive_plan()
+    except PlanServiceError as exc:
+        print(str(exc), file=sys.stderr)
         sys.exit(1)
-
-    plan_path = get_plan_path(toplevel=toplevel)
-    if not plan_path.exists():
+    if not result["archived"]:
         print("No plan file to archive")
         sys.exit(0)
-
-    plan = Plan.load(path=plan_path)
-    archive_dir = Path(toplevel) / ".claude" / "session" / "archive"
-    archive_dir.mkdir(parents=True, exist_ok=True)
-
-    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
-    branch_slug = plan.metadata.get("branch", "unknown")
-    branch_slug = branch_slug.replace("/", "-")[:50]
-    archive_name = f"plan-{timestamp}-{branch_slug}.yaml"
-    archive_path = archive_dir / archive_name
-
-    plan.metadata["archived_at"] = datetime.now(UTC).isoformat()
-    plan.save(path=archive_path)
-    plan_path.unlink()
-    print(f"Archived plan to {archive_path.name}")
+    print(f"Archived plan to {result['archive_name']}")
 
 
 def cmd_json_summary() -> None:
-    toplevel = get_toplevel()
-    if not toplevel:
+    try:
+        summary = plan_summary()
+    except PlanServiceError:
         json.dump({}, sys.stdout)
         sys.exit(0)
 
-    plan_path = get_plan_path(toplevel=toplevel)
-    plan = Plan.load(path=plan_path)
-    if not plan.metadata:
+    if not summary:
         json.dump({}, sys.stdout)
         sys.exit(0)
 
-    json.dump(plan._to_dict(), sys.stdout, indent=2)
+    json.dump(summary, sys.stdout, indent=2)
 
 
 def cmd_hook() -> None:

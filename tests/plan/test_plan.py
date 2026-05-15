@@ -7,12 +7,12 @@ import pytest
 
 plan_mod = pytest.importorskip("dev10x.plan", reason="dev10x not installed")
 
-TASK_PLAN_SYNC = "dev10x.hooks.task_plan_sync"
+SERVICE = "dev10x.plan.service"
 
 
 class TestSetContext:
     @pytest.mark.asyncio
-    @patch(f"{TASK_PLAN_SYNC}.get_toplevel", return_value=None)
+    @patch(f"{SERVICE}.get_toplevel", return_value=None)
     async def test_returns_error_when_not_in_git_repo(
         self,
         mock_toplevel: MagicMock,
@@ -21,9 +21,9 @@ class TestSetContext:
         assert result == {"error": "Not in a git repository"}
 
     @pytest.mark.asyncio
-    @patch(f"{TASK_PLAN_SYNC}.get_toplevel", return_value="/tmp/repo")
-    @patch(f"{TASK_PLAN_SYNC}.get_plan_path")
-    @patch(f"{TASK_PLAN_SYNC}.Plan")
+    @patch(f"{SERVICE}.get_toplevel", return_value="/tmp/repo")
+    @patch(f"{SERVICE}.get_plan_path")
+    @patch(f"{SERVICE}.Plan")
     async def test_returns_error_for_invalid_arg(
         self,
         mock_plan_cls: MagicMock,
@@ -36,9 +36,9 @@ class TestSetContext:
         assert "error" in result
 
     @pytest.mark.asyncio
-    @patch(f"{TASK_PLAN_SYNC}.get_toplevel", return_value="/tmp/repo")
-    @patch(f"{TASK_PLAN_SYNC}.get_plan_path")
-    @patch(f"{TASK_PLAN_SYNC}.Plan")
+    @patch(f"{SERVICE}.get_toplevel", return_value="/tmp/repo")
+    @patch(f"{SERVICE}.get_plan_path")
+    @patch(f"{SERVICE}.Plan")
     async def test_sets_context_successfully(
         self,
         mock_plan_cls: MagicMock,
@@ -46,7 +46,7 @@ class TestSetContext:
         mock_toplevel: MagicMock,
     ) -> None:
         mock_plan = MagicMock()
-        mock_plan.metadata = {"context": {"key": "value"}}
+        mock_plan.context_keys.return_value = ["key"]
         mock_plan_cls.load.return_value = mock_plan
         result = await plan_mod.set_context(args=["key=value"])
         assert result["success"] is True
@@ -55,7 +55,7 @@ class TestSetContext:
 
 class TestJsonSummary:
     @pytest.mark.asyncio
-    @patch(f"{TASK_PLAN_SYNC}.get_toplevel", return_value=None)
+    @patch(f"{SERVICE}.get_toplevel", return_value=None)
     async def test_returns_error_when_not_in_git_repo(
         self,
         mock_toplevel: MagicMock,
@@ -64,9 +64,9 @@ class TestJsonSummary:
         assert result == {"error": "Not in a git repository"}
 
     @pytest.mark.asyncio
-    @patch(f"{TASK_PLAN_SYNC}.get_toplevel", return_value="/tmp/repo")
-    @patch(f"{TASK_PLAN_SYNC}.get_plan_path")
-    @patch(f"{TASK_PLAN_SYNC}.Plan")
+    @patch(f"{SERVICE}.get_toplevel", return_value="/tmp/repo")
+    @patch(f"{SERVICE}.get_plan_path")
+    @patch(f"{SERVICE}.Plan")
     async def test_returns_empty_when_no_metadata(
         self,
         mock_plan_cls: MagicMock,
@@ -74,15 +74,15 @@ class TestJsonSummary:
         mock_toplevel: MagicMock,
     ) -> None:
         mock_plan = MagicMock()
-        mock_plan.metadata = {}
+        mock_plan.is_new = True
         mock_plan_cls.load.return_value = mock_plan
         result = await plan_mod.json_summary()
         assert result == {}
 
     @pytest.mark.asyncio
-    @patch(f"{TASK_PLAN_SYNC}.get_toplevel", return_value="/tmp/repo")
-    @patch(f"{TASK_PLAN_SYNC}.get_plan_path")
-    @patch(f"{TASK_PLAN_SYNC}.Plan")
+    @patch(f"{SERVICE}.get_toplevel", return_value="/tmp/repo")
+    @patch(f"{SERVICE}.get_plan_path")
+    @patch(f"{SERVICE}.Plan")
     async def test_returns_plan_dict(
         self,
         mock_plan_cls: MagicMock,
@@ -90,7 +90,7 @@ class TestJsonSummary:
         mock_toplevel: MagicMock,
     ) -> None:
         mock_plan = MagicMock()
-        mock_plan.metadata = {"branch": "feature"}
+        mock_plan.is_new = False
         mock_plan._to_dict.return_value = {"metadata": {"branch": "feature"}}
         mock_plan_cls.load.return_value = mock_plan
         result = await plan_mod.json_summary()
@@ -99,7 +99,7 @@ class TestJsonSummary:
 
 class TestArchive:
     @pytest.mark.asyncio
-    @patch(f"{TASK_PLAN_SYNC}.get_toplevel", return_value=None)
+    @patch(f"{SERVICE}.get_toplevel", return_value=None)
     async def test_returns_error_when_not_in_git_repo(
         self,
         mock_toplevel: MagicMock,
@@ -108,8 +108,8 @@ class TestArchive:
         assert result == {"error": "Not in a git repository"}
 
     @pytest.mark.asyncio
-    @patch(f"{TASK_PLAN_SYNC}.get_toplevel", return_value="/tmp/repo")
-    @patch(f"{TASK_PLAN_SYNC}.get_plan_path")
+    @patch(f"{SERVICE}.get_toplevel", return_value="/tmp/repo")
+    @patch(f"{SERVICE}.get_plan_path")
     async def test_returns_success_when_no_plan_file(
         self,
         mock_plan_path: MagicMock,

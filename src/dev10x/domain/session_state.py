@@ -100,21 +100,19 @@ class PlanSummary:
         )
 
     @property
+    def pending_tasks(self) -> list[dict[str, Any]]:
+        return [t for t in self.tasks if t.get("status") not in ("completed", "deleted")]
+
+    @property
     def pending_decisions(self) -> list[dict[str, Any]]:
-        return [
-            t
-            for t in self.tasks
-            if t.get("status") not in ("completed", "deleted")
-            and t.get("metadata", {}).get("decision_needed")
-        ]
+        return [t for t in self.pending_tasks if t.get("metadata", {}).get("decision_needed")]
 
     def format_for_display(self) -> str:
         completed = sum(1 for t in self.tasks if t.get("status") == "completed")
         total = len(self.tasks)
         pending = [
             f"  - [{t.get('status')}] #{t.get('id')} {t.get('subject')}"
-            for t in self.tasks
-            if t.get("status") not in ("completed", "deleted")
+            for t in self.pending_tasks
         ]
 
         lines = [f"Persisted plan detected ({completed}/{total} tasks completed):"]
