@@ -90,6 +90,28 @@ rules:
       Direct gh pr create skips Job Story drafting, commit list
       generation, and issue tracker linking.
 
+  - name: gh-pr-merge
+    matcher: Bash
+    patterns:
+      - gh pr merge
+    except: []
+    hook_block: true
+    compensations:
+      - type: use-skill
+        skill: Dev10x:gh-pr-merge
+        guardrails: 8 pre-merge checks (unresolved threads, CI, draft, mergeability, working copy, fixup commits, approval, branch protection)
+        fallback: >
+          If Skill(Dev10x:gh-pr-merge) fails, manually verify all 8
+          pre-merge conditions: (1) all review threads resolved, (2)
+          CI green, (3) PR not draft, (4) MERGEABLE state, (5) no
+          uncommitted changes, (6) no unsquashed fixup! commits, (7)
+          approval or solo-maintainer override, (8) protected-branch
+          policy honored.
+    reason: >
+      Direct gh pr merge bypasses the 8 pre-merge checks the skill
+      enforces. Adaptive friction does not waive the skill body —
+      see references/friction-levels.md.
+
   - name: git-push
     matcher: Bash
     patterns:

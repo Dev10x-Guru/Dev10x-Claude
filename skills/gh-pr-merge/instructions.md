@@ -49,6 +49,19 @@ All fields are optional. Defaults:
 - `delete_branch`: `true`
 - `solo_maintainer`: `false`
 
+## Self-Check Before Pre-Merge Validation
+
+**REQUIRED — call `TaskList` now.** Verify the 8 pre-merge subtasks
+exist under the merge task. If fewer are present, create the missing
+ones before proceeding. Do NOT shortcut to `gh pr merge` based on a
+single `gh pr view` JSON read — that is the regression this check
+exists to catch (GH-112).
+
+Adaptive friction does NOT waive this skill body. The friction level
+only governs `AskUserQuestion` gates marked `(Recommended)`; the 8
+checks below still run. See `references/friction-levels.md` §
+"Adaptive does not waive skill bodies".
+
 ## Pre-Merge Validation Checks
 
 Run ALL 8 checks before merging. Report results as a checklist.
