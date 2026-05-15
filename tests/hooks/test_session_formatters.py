@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from dev10x.domain.friction_level import FrictionLevel
 from dev10x.hooks.session import (
     _format_decision_guidance,
     _format_plan_summary,
@@ -153,30 +154,30 @@ class TestReadFrictionLevel:
 
         result = _read_friction_level(toplevel=str(tmp_path))
 
-        assert result == "adaptive"
+        assert result is FrictionLevel.ADAPTIVE
 
-    def test_returns_empty_when_file_missing(self, tmp_path: Path) -> None:
+    def test_returns_default_when_file_missing(self, tmp_path: Path) -> None:
         result = _read_friction_level(toplevel=str(tmp_path))
 
-        assert result == ""
+        assert result is FrictionLevel.STRICT
 
-    def test_returns_empty_for_invalid_yaml(self, tmp_path: Path) -> None:
+    def test_returns_default_for_invalid_yaml(self, tmp_path: Path) -> None:
         session_dir = tmp_path / ".claude" / "Dev10x"
         session_dir.mkdir(parents=True)
         (session_dir / "session.yaml").write_text(": invalid: yaml: [")
 
         result = _read_friction_level(toplevel=str(tmp_path))
 
-        assert result == ""
+        assert result is FrictionLevel.STRICT
 
-    def test_returns_empty_when_key_missing(self, tmp_path: Path) -> None:
+    def test_returns_default_when_key_missing(self, tmp_path: Path) -> None:
         session_dir = tmp_path / ".claude" / "Dev10x"
         session_dir.mkdir(parents=True)
         (session_dir / "session.yaml").write_text("active_modes: []\n")
 
         result = _read_friction_level(toplevel=str(tmp_path))
 
-        assert result == ""
+        assert result is FrictionLevel.STRICT
 
 
 class TestFormatDecisionGuidance:
@@ -213,7 +214,7 @@ class TestFormatDecisionGuidance:
     ) -> None:
         result = _format_decision_guidance(
             plan=plan_with_decision,
-            friction_level="adaptive",
+            friction_level=FrictionLevel.ADAPTIVE,
         )
 
         assert "auto-select" in result
@@ -225,7 +226,7 @@ class TestFormatDecisionGuidance:
     ) -> None:
         result = _format_decision_guidance(
             plan=plan_with_decision,
-            friction_level="guided",
+            friction_level=FrictionLevel.GUIDED,
         )
 
         assert "AskUserQuestion" in result
@@ -236,7 +237,7 @@ class TestFormatDecisionGuidance:
     ) -> None:
         result = _format_decision_guidance(
             plan=plan_with_decision,
-            friction_level="strict",
+            friction_level=FrictionLevel.STRICT,
         )
 
         assert "AskUserQuestion" in result
@@ -247,7 +248,7 @@ class TestFormatDecisionGuidance:
     ) -> None:
         result = _format_decision_guidance(
             plan=plan_without_decision,
-            friction_level="guided",
+            friction_level=FrictionLevel.GUIDED,
         )
 
         assert "Auto-advance" in result
@@ -262,18 +263,18 @@ class TestFormatDecisionGuidance:
 
         result = _format_decision_guidance(
             plan=plan,
-            friction_level="guided",
+            friction_level=FrictionLevel.GUIDED,
         )
 
         assert result == ""
 
-    def test_empty_friction_level_re_asks(
+    def test_default_friction_level_re_asks(
         self,
         plan_with_decision: dict,
     ) -> None:
         result = _format_decision_guidance(
             plan=plan_with_decision,
-            friction_level="",
+            friction_level=FrictionLevel.default(),
         )
 
         assert "AskUserQuestion" in result

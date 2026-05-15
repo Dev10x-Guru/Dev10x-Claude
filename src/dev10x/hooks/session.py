@@ -21,6 +21,7 @@ from typing import Any
 
 from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.file_locks import atomic_write_text, file_lock
+from dev10x.domain.friction_level import FrictionLevel
 from dev10x.domain.git_context import GitContext
 
 _git = GitContext()
@@ -90,24 +91,24 @@ def _format_plan_summary(plan: dict[str, Any]) -> str:
     return PlanSummary.from_dict(data=plan).format_for_display()
 
 
-def _read_friction_level(*, toplevel: str) -> str:
+def _read_friction_level(*, toplevel: str) -> FrictionLevel:
     session_yaml = Path(toplevel) / ".claude" / "Dev10x" / "session.yaml"
     if not session_yaml.exists():
-        return ""
+        return FrictionLevel.default()
     try:
         import yaml
 
         with open(session_yaml) as f:
             data = yaml.safe_load(f) or {}
-        return data.get("friction_level", "")
+        return FrictionLevel.from_yaml(data.get("friction_level"))
     except Exception:
-        return ""
+        return FrictionLevel.default()
 
 
 def _format_decision_guidance(
     *,
     plan: dict[str, Any],
-    friction_level: str,
+    friction_level: FrictionLevel,
 ) -> str:
     from dev10x.domain.session_state import PlanSummary
 
@@ -119,7 +120,7 @@ def _format_decision_guidance(
             return "Session resumed with tasks remaining. Auto-advance through the task list."
         return ""
 
-    if friction_level == "adaptive":
+    if friction_level is FrictionLevel.ADAPTIVE:
         return (
             "Session resumed with pending decisions. Friction level is adaptive — "
             "auto-select recommended options for all queued decisions and continue "
