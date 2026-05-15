@@ -175,7 +175,10 @@ class TestRunSubCommand:
                 "find_settings_files": find_sf,
             }
 
-    @patch(f"{MOD_PATH}._ensure_base", return_value=0)
+    @patch(
+        f"{MOD_PATH}.ensure_base",
+        return_value={"exit_code": 0, "messages": ["ok"], "errors": []},
+    )
     def test_ensure_base_calls_underlying_function(
         self,
         mock_ensure: AsyncMock,
@@ -185,7 +188,10 @@ class TestRunSubCommand:
         assert result["success"] is True
         mock_ensure.assert_called_once()
 
-    @patch(f"{MOD_PATH}._generalize", return_value=0)
+    @patch(
+        f"{MOD_PATH}.generalize",
+        return_value={"exit_code": 0, "messages": [], "errors": []},
+    )
     def test_generalize_calls_underlying_function(
         self,
         mock_gen: AsyncMock,
@@ -195,7 +201,10 @@ class TestRunSubCommand:
         assert result["success"] is True
         mock_gen.assert_called_once()
 
-    @patch(f"{MOD_PATH}._ensure_scripts", return_value=0)
+    @patch(
+        f"{MOD_PATH}.ensure_scripts",
+        return_value={"exit_code": 0, "messages": [], "errors": []},
+    )
     def test_ensure_scripts_calls_underlying_function(
         self,
         mock_scripts: AsyncMock,
@@ -205,7 +214,10 @@ class TestRunSubCommand:
         assert result["success"] is True
         mock_scripts.assert_called_once()
 
-    @patch(f"{MOD_PATH}._ensure_reads", return_value=0)
+    @patch(
+        f"{MOD_PATH}.ensure_reads",
+        return_value={"exit_code": 0, "messages": [], "errors": []},
+    )
     def test_ensure_reads_calls_underlying_function(
         self,
         mock_reads: AsyncMock,
@@ -215,7 +227,14 @@ class TestRunSubCommand:
         assert result["success"] is True
         mock_reads.assert_called_once()
 
-    @patch(f"{MOD_PATH}._ensure_base", return_value=1)
+    @patch(
+        f"{MOD_PATH}.ensure_base",
+        return_value={
+            "exit_code": 1,
+            "messages": [],
+            "errors": ["boom"],
+        },
+    )
     def test_returns_error_on_nonzero_exit(
         self,
         mock_ensure: AsyncMock,
@@ -223,9 +242,16 @@ class TestRunSubCommand:
     ) -> None:
         result = perm_mod._run_sub_command(ensure_base=True)
         assert "error" in result
+        assert result["error"] == "boom"
 
-    @patch(f"{MOD_PATH}._generalize", return_value=0)
-    @patch(f"{MOD_PATH}._ensure_base", return_value=1)
+    @patch(
+        f"{MOD_PATH}.generalize",
+        return_value={"exit_code": 0, "messages": [], "errors": []},
+    )
+    @patch(
+        f"{MOD_PATH}.ensure_base",
+        return_value={"exit_code": 1, "messages": [], "errors": ["boom"]},
+    )
     def test_skips_generalize_when_ensure_base_fails(
         self,
         mock_ensure: AsyncMock,
@@ -235,6 +261,52 @@ class TestRunSubCommand:
         result = perm_mod._run_sub_command(ensure_base=True, generalize=True)
         assert "error" in result
         mock_gen.assert_not_called()
+
+    def test_does_not_capture_stdout(
+        self,
+        mock_mod: dict,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """MCP service must not redirect_stdout — helpers return structured data."""
+        with patch(
+            f"{MOD_PATH}.ensure_base",
+            return_value={
+                "exit_code": 0,
+                "messages": ["Added 2 base permissions"],
+                "errors": [],
+            },
+        ):
+            result = perm_mod._run_sub_command(ensure_base=True)
+
+        assert result["success"] is True
+        assert "Added 2 base permissions" in result["output"]
+        # Helper did not print to real stdout — capsys captures nothing.
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == ""
+
+    def test_error_path_surfaces_helper_errors(
+        self,
+        mock_mod: dict,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Error envelope carries structured errors list — no stdout capture."""
+        with patch(
+            f"{MOD_PATH}.ensure_scripts",
+            return_value={
+                "exit_code": 1,
+                "messages": [],
+                "errors": ["ERROR: No versions found in /fake/cache"],
+            },
+        ):
+            result = perm_mod._run_sub_command(ensure_scripts=True)
+
+        assert "error" in result
+        assert "No versions found" in result["error"]
+        assert result["errors"] == ["ERROR: No versions found in /fake/cache"]
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == ""
 
     def test_returns_error_when_no_settings_files(self) -> None:
         with (

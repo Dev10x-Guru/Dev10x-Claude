@@ -621,89 +621,128 @@ def ensure_workspace_directories(
     return len(missing), messages
 
 
-def _ensure_workspace(
+def _result(
+    *,
+    exit_code: int,
+    messages: list[str],
+    errors: list[str],
+    total_added: int = 0,
+    files_changed: int = 0,
+) -> dict[str, object]:
+    return {
+        "exit_code": exit_code,
+        "messages": messages,
+        "errors": errors,
+        "total_added": total_added,
+        "files_changed": files_changed,
+    }
+
+
+def ensure_workspace(
     *,
     config: dict,
     settings_files: list[Path],
     dry_run: bool,
     quiet: bool = False,
-) -> int:
+) -> dict[str, object]:
+    """Add workspace directory registrations to settings files.
+
+    Returns a result dict: ``{exit_code, messages, errors, total_added,
+    files_changed}``. Callers print ``messages`` (stdout) and ``errors``
+    (stderr) and act on ``exit_code``. No print() side effects.
+    """
+    messages: list[str] = []
+    errors: list[str] = []
+
     workspace_dirs = config.get("workspace_directories", [])
     if not workspace_dirs:
         if not quiet:
-            print("No workspace_directories defined in config.")
-        return 0
+            messages.append("No workspace_directories defined in config.")
+        return _result(
+            exit_code=0,
+            messages=messages,
+            errors=errors,
+            total_added=0,
+            files_changed=0,
+        )
 
     if not quiet:
-        print(f"Workspace directories: {len(workspace_dirs)} entr(ies)")
+        messages.append(f"Workspace directories: {len(workspace_dirs)} entr(ies)")
         for d in workspace_dirs:
-            print(f"  - {d}")
+            messages.append(f"  - {d}")
         if dry_run:
-            print("(dry run — no files will be modified)\n")
+            messages.append("(dry run — no files will be modified)\n")
 
     total_added = 0
     files_changed = 0
 
     for path in sorted(settings_files):
-        count, messages = ensure_workspace_directories(
+        count, file_messages = ensure_workspace_directories(
             path,
             workspace_dirs,
             dry_run=dry_run,
         )
         if count > 0:
             if not quiet:
-                print(f"\n{path}")
-                for msg in messages:
-                    print(msg)
+                messages.append(f"\n{path}")
+                messages.extend(file_messages)
             total_added += count
             files_changed += 1
 
     if total_added == 0:
-        print("All settings files already register the workspace directories.")
+        messages.append("All settings files already register the workspace directories.")
     else:
         verb = "Would add" if dry_run else "Added"
-        print(f"{verb} {total_added} workspace entries across {files_changed} files.")
+        messages.append(f"{verb} {total_added} workspace entries across {files_changed} files.")
 
-    return 0
+    return _result(
+        exit_code=0,
+        messages=messages,
+        errors=errors,
+        total_added=total_added,
+        files_changed=files_changed,
+    )
 
 
-def _ensure_base(
+def ensure_base(
     *,
     config: dict,
     settings_files: list[Path],
     dry_run: bool,
     quiet: bool = False,
-) -> int:
+) -> dict[str, object]:
+    """Add missing base permissions to each settings file. Returns result dict."""
+    messages: list[str] = []
+    errors: list[str] = []
+
     base_permissions = config.get("base_permissions", [])
     if not base_permissions:
-        print("No base_permissions defined in config.")
-        return 0
+        messages.append("No base_permissions defined in config.")
+        return _result(exit_code=0, messages=messages, errors=errors)
 
     global_rules, stale_wildcards = _load_global_allow_rules()
     filtered = [p for p in base_permissions if p not in global_rules]
     skipped = len(base_permissions) - len(filtered)
 
     if not quiet:
-        print(f"Base permissions: {len(base_permissions)} rules")
+        messages.append(f"Base permissions: {len(base_permissions)} rules")
         if stale_wildcards:
-            print(
+            messages.append(
                 f"  WARNING: {len(stale_wildcards)} non-functional MCP wildcard(s)"
                 " in global settings.json:"
             )
             for wc in stale_wildcards:
-                print(f"    - {wc}  (Claude Code ignores MCP wildcards)")
+                messages.append(f"    - {wc}  (Claude Code ignores MCP wildcards)")
         if skipped > 0:
-            print(f"  Skipping {skipped} already in global settings.json")
+            messages.append(f"  Skipping {skipped} already in global settings.json")
         if dry_run:
-            print("(dry run — no files will be modified)\n")
+            messages.append("(dry run — no files will be modified)\n")
 
     if not filtered:
         if not quiet:
-            print("All base permissions already covered by global settings.")
-        return 0
+            messages.append("All base permissions already covered by global settings.")
+        return _result(exit_code=0, messages=messages, errors=errors)
 
-    # Discover MCP catalog once — reused across all settings files
-    # so we don't re-parse the AST per file.
     from dev10x.skills.permission.enumerate_mcp import discover_mcp_tools
 
     mcp_catalog = discover_mcp_tools()
@@ -712,7 +751,7 @@ def _ensure_base(
     files_changed = 0
 
     for path in sorted(settings_files):
-        count, messages = ensure_base_permissions(
+        count, file_messages = ensure_base_permissions(
             path,
             filtered,
             dry_run=dry_run,
@@ -720,70 +759,88 @@ def _ensure_base(
         )
         if count > 0:
             if not quiet:
-                print(f"\n{path}")
-                for msg in messages:
-                    print(msg)
+                messages.append(f"\n{path}")
+                messages.extend(file_messages)
             total_added += count
             files_changed += 1
 
     if total_added == 0:
-        print("All files already have base permissions.")
+        messages.append("All files already have base permissions.")
     else:
         verb = "Would add" if dry_run else "Added"
-        print(f"{verb} {total_added} permissions across {files_changed} files.")
+        messages.append(f"{verb} {total_added} permissions across {files_changed} files.")
 
-    return 0
+    return _result(
+        exit_code=0,
+        messages=messages,
+        errors=errors,
+        total_added=total_added,
+        files_changed=files_changed,
+    )
 
 
-def _generalize(
+def generalize(
     *,
     settings_files: list[Path],
     dry_run: bool,
     quiet: bool = False,
-) -> int:
+) -> dict[str, object]:
+    """Replace session-specific permission args with wildcards. Returns result dict."""
+    messages: list[str] = []
+    errors: list[str] = []
+
     if dry_run and not quiet:
-        print("(dry run — no files will be modified)\n")
+        messages.append("(dry run — no files will be modified)\n")
 
     total_generalized = 0
     files_changed = 0
 
     for path in sorted(settings_files):
-        count, messages = generalize_permissions(path, dry_run=dry_run)
+        count, file_messages = generalize_permissions(path, dry_run=dry_run)
         if count > 0:
             if not quiet:
-                print(f"\n{path}")
-                for msg in messages:
-                    print(msg)
+                messages.append(f"\n{path}")
+                messages.extend(file_messages)
             total_generalized += count
             files_changed += 1
 
     if total_generalized == 0:
-        print("No session-specific permissions found.")
+        messages.append("No session-specific permissions found.")
     else:
         verb = "Would generalize" if dry_run else "Generalized"
-        print(f"{verb} {total_generalized} permissions in {files_changed} files.")
+        messages.append(f"{verb} {total_generalized} permissions in {files_changed} files.")
 
-    return 0
+    return _result(
+        exit_code=0,
+        messages=messages,
+        errors=errors,
+        total_added=total_generalized,
+        files_changed=files_changed,
+    )
 
 
-def _ensure_scripts(
+def ensure_scripts(
     *,
     config: dict,
     settings_files: list[Path],
     dry_run: bool,
     quiet: bool = False,
-) -> int:
+) -> dict[str, object]:
+    """Add missing per-script allow rules for plugin scripts. Returns result dict."""
+    messages: list[str] = []
+    errors: list[str] = []
+
     cache_dir = Path(config["plugin_cache"]).expanduser()
     target_version = detect_latest_version(cache_dir)
     if not target_version:
-        print(f"ERROR: No versions found in {cache_dir}", file=sys.stderr)
-        return 1
+        errors.append(f"ERROR: No versions found in {cache_dir}")
+        return _result(exit_code=1, messages=messages, errors=errors)
 
     plugin_root = cache_dir / target_version
     scripts = scan_plugin_scripts(plugin_root)
     if not scripts:
-        print(f"No callable scripts found in {plugin_root}")
-        return 0
+        messages.append(f"No callable scripts found in {plugin_root}")
+        return _result(exit_code=0, messages=messages, errors=errors)
 
     expected_rules = build_script_allow_rules(
         scripts,
@@ -791,10 +848,10 @@ def _ensure_scripts(
     )
 
     if not quiet:
-        print(f"Plugin root: {plugin_root}")
-        print(f"Scripts found: {len(scripts)}")
+        messages.append(f"Plugin root: {plugin_root}")
+        messages.append(f"Scripts found: {len(scripts)}")
         if dry_run:
-            print("(dry run — no files will be modified)\n")
+            messages.append("(dry run — no files will be modified)\n")
 
     total_added = 0
     files_changed = 0
@@ -807,40 +864,49 @@ def _ensure_scripts(
         if not missing:
             continue
 
-        count, messages = ensure_script_rules(
+        count, file_messages = ensure_script_rules(
             settings_path=path,
             missing_rules=missing,
             dry_run=dry_run,
         )
         if count > 0:
             if not quiet:
-                print(f"\n{path}")
-                for msg in messages:
-                    print(msg)
+                messages.append(f"\n{path}")
+                messages.extend(file_messages)
             total_added += count
             files_changed += 1
 
     if total_added == 0:
-        print("All settings files have complete script coverage.")
+        messages.append("All settings files have complete script coverage.")
     else:
         verb = "Would add" if dry_run else "Added"
-        print(f"{verb} {total_added} script rules across {files_changed} files.")
+        messages.append(f"{verb} {total_added} script rules across {files_changed} files.")
 
-    return 0
+    return _result(
+        exit_code=0,
+        messages=messages,
+        errors=errors,
+        total_added=total_added,
+        files_changed=files_changed,
+    )
 
 
-def _ensure_reads(
+def ensure_reads(
     *,
     config: dict,
     settings_files: list[Path],
     dry_run: bool,
     quiet: bool = False,
-) -> int:
+) -> dict[str, object]:
+    """Emit per-skill folder Read rules with ~/ + /home/<user>/ twins. Returns result dict."""
+    messages: list[str] = []
+    errors: list[str] = []
+
     cache_dir = Path(config["plugin_cache"]).expanduser()
     target_version = detect_latest_version(cache_dir)
     if not target_version:
-        print(f"ERROR: No versions found in {cache_dir}", file=sys.stderr)
-        return 1
+        errors.append(f"ERROR: No versions found in {cache_dir}")
+        return _result(exit_code=1, messages=messages, errors=errors)
 
     plugin_root = cache_dir / target_version
     expected_rules = build_read_allow_rules(
@@ -848,14 +914,14 @@ def _ensure_reads(
         user_home=Path.home(),
     )
     if not expected_rules:
-        print(f"No Read rules to emit for {plugin_root}")
-        return 0
+        messages.append(f"No Read rules to emit for {plugin_root}")
+        return _result(exit_code=0, messages=messages, errors=errors)
 
     if not quiet:
-        print(f"Plugin root: {plugin_root}")
-        print(f"Read rules expected: {len(expected_rules)} (twins included)")
+        messages.append(f"Plugin root: {plugin_root}")
+        messages.append(f"Read rules expected: {len(expected_rules)} (twins included)")
         if dry_run:
-            print("(dry run — no files will be modified)\n")
+            messages.append("(dry run — no files will be modified)\n")
 
     total_added = 0
     files_changed = 0
@@ -868,26 +934,31 @@ def _ensure_reads(
         if not missing:
             continue
 
-        count, messages = ensure_read_rules(
+        count, file_messages = ensure_read_rules(
             settings_path=path,
             missing_rules=missing,
             dry_run=dry_run,
         )
         if count > 0:
             if not quiet:
-                print(f"\n{path}")
-                for msg in messages:
-                    print(msg)
+                messages.append(f"\n{path}")
+                messages.extend(file_messages)
             total_added += count
             files_changed += 1
 
     if total_added == 0:
-        print("All settings files have complete Read coverage.")
+        messages.append("All settings files have complete Read coverage.")
     else:
         verb = "Would add" if dry_run else "Added"
-        print(f"{verb} {total_added} Read rules across {files_changed} files.")
+        messages.append(f"{verb} {total_added} Read rules across {files_changed} files.")
 
-    return 0
+    return _result(
+        exit_code=0,
+        messages=messages,
+        errors=errors,
+        total_added=total_added,
+        files_changed=files_changed,
+    )
 
 
 KNOWN_PLUGIN_DIRS = ("Dev10x", "dev10x-claude")
@@ -916,16 +987,20 @@ def _detect_plugin_cache() -> str:
     return "~/.claude/plugins/cache/Dev10x-Guru/Dev10x"
 
 
-def _init_userspace_config() -> int:
+def init_userspace_config() -> dict[str, object]:
+    """Create userspace config from plugin default. Returns result dict."""
+    messages: list[str] = []
+    errors: list[str] = []
+
     if MEMORY_CONFIG.is_file():
-        print(f"Config already exists: {MEMORY_CONFIG}")
-        return 0
+        messages.append(f"Config already exists: {MEMORY_CONFIG}")
+        return _result(exit_code=0, messages=messages, errors=errors)
     if USERSPACE_CONFIG.is_file():
-        print(f"Config already exists: {USERSPACE_CONFIG}")
-        return 0
+        messages.append(f"Config already exists: {USERSPACE_CONFIG}")
+        return _result(exit_code=0, messages=messages, errors=errors)
     if not PLUGIN_CONFIG.is_file():
-        print(f"ERROR: Plugin default config not found: {PLUGIN_CONFIG}", file=sys.stderr)
-        return 1
+        errors.append(f"ERROR: Plugin default config not found: {PLUGIN_CONFIG}")
+        return _result(exit_code=1, messages=messages, errors=errors)
     USERSPACE_CONFIG.parent.mkdir(parents=True, exist_ok=True)
     content = PLUGIN_CONFIG.read_text()
     detected_cache = _detect_plugin_cache()
@@ -934,7 +1009,7 @@ def _init_userspace_config() -> int:
         detected_cache,
     )
     USERSPACE_CONFIG.write_text(content)
-    print(f"Created: {USERSPACE_CONFIG}")
-    print(f"Plugin cache: {detected_cache}")
-    print("Edit this file to add your project roots.")
-    return 0
+    messages.append(f"Created: {USERSPACE_CONFIG}")
+    messages.append(f"Plugin cache: {detected_cache}")
+    messages.append("Edit this file to add your project roots.")
+    return _result(exit_code=0, messages=messages, errors=errors)

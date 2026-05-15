@@ -2,13 +2,16 @@
 
 Wraps permission sub-commands as an MCP tool so skills can update
 plugin permission settings without Bash allow-rule friction.
+
+Calls the public ``ensure_*`` / ``generalize`` helpers in
+``dev10x.skills.permission.update_paths``, which return structured
+result dicts (``exit_code``, ``messages``, ``errors``, stats). No
+``redirect_stdout`` capture — the helpers do not print to stdout.
 """
 
 from __future__ import annotations
 
 import asyncio
-import io
-from contextlib import redirect_stdout
 from typing import Any
 
 from dev10x.subprocess_utils import async_run, get_plugin_root
@@ -35,49 +38,85 @@ def _run_sub_command(
     if not settings_files:
         return {"error": "No settings files found."}
 
-    buf = io.StringIO()
-    rc = 0
+    combined_messages: list[str] = []
+    combined_errors: list[str] = []
+    exit_code = 0
 
-    with redirect_stdout(buf):
-        if ensure_workspace:
-            rc = mod._ensure_workspace(
-                config=config,
-                settings_files=settings_files,
-                dry_run=dry_run,
-                quiet=quiet,
-            )
-        if ensure_base and rc == 0:
-            rc = mod._ensure_base(
-                config=config,
-                settings_files=settings_files,
-                dry_run=dry_run,
-                quiet=quiet,
-            )
-        if generalize and rc == 0:
-            rc = mod._generalize(
-                settings_files=settings_files,
-                dry_run=dry_run,
-                quiet=quiet,
-            )
-        if ensure_scripts and rc == 0:
-            rc = mod._ensure_scripts(
-                config=config,
-                settings_files=settings_files,
-                dry_run=dry_run,
-                quiet=quiet,
-            )
-        if ensure_reads and rc == 0:
-            rc = mod._ensure_reads(
-                config=config,
-                settings_files=settings_files,
-                dry_run=dry_run,
-                quiet=quiet,
-            )
+    def _run(result: dict[str, Any]) -> bool:
+        """Append result's messages/errors and return True if it succeeded."""
+        nonlocal exit_code
+        combined_messages.extend(result.get("messages", []))
+        combined_errors.extend(result.get("errors", []))
+        rc = int(result.get("exit_code", 0))
+        if rc != 0:
+            exit_code = rc
+            return False
+        return True
 
-    output = buf.getvalue().strip()
-    if rc != 0:
-        return {"error": output or f"Sub-command failed with exit code {rc}"}
-    return {"success": True, "output": output}
+    if ensure_workspace:
+        if not _run(
+            mod.ensure_workspace(
+                config=config,
+                settings_files=settings_files,
+                dry_run=dry_run,
+                quiet=quiet,
+            )
+        ):
+            return _format_failure(combined_messages, combined_errors, exit_code)
+    if ensure_base:
+        if not _run(
+            mod.ensure_base(
+                config=config,
+                settings_files=settings_files,
+                dry_run=dry_run,
+                quiet=quiet,
+            )
+        ):
+            return _format_failure(combined_messages, combined_errors, exit_code)
+    if generalize:
+        if not _run(
+            mod.generalize(
+                settings_files=settings_files,
+                dry_run=dry_run,
+                quiet=quiet,
+            )
+        ):
+            return _format_failure(combined_messages, combined_errors, exit_code)
+    if ensure_scripts:
+        if not _run(
+            mod.ensure_scripts(
+                config=config,
+                settings_files=settings_files,
+                dry_run=dry_run,
+                quiet=quiet,
+            )
+        ):
+            return _format_failure(combined_messages, combined_errors, exit_code)
+    if ensure_reads:
+        if not _run(
+            mod.ensure_reads(
+                config=config,
+                settings_files=settings_files,
+                dry_run=dry_run,
+                quiet=quiet,
+            )
+        ):
+            return _format_failure(combined_messages, combined_errors, exit_code)
+
+    output = "\n".join(combined_messages).strip()
+    return {"success": True, "output": output, "messages": combined_messages}
+
+
+def _format_failure(
+    messages: list[str],
+    errors: list[str],
+    exit_code: int,
+) -> dict[str, Any]:
+    error_text = "\n".join(errors).strip()
+    if not error_text:
+        body = "\n".join(messages).strip()
+        error_text = body or f"Sub-command failed with exit code {exit_code}"
+    return {"error": error_text, "messages": messages, "errors": errors}
 
 
 async def update_paths(
