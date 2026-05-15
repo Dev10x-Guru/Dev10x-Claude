@@ -75,6 +75,31 @@ execute the recommended option's action (e.g., approve the plan,
 start execution). Skipping the gate entirely means the plan is
 never approved and execution never starts.
 
+### Adaptive does not waive skill bodies (GH-112)
+
+**Adaptive friction only suppresses `AskUserQuestion` gates marked
+`(Recommended)`.** When a skill's invocation prompt says _"Read
+`instructions.md` and follow it end-to-end. `TaskCreate` and
+`AskUserQuestion` calls documented there are REQUIRED"_, that
+instruction is **not waivable by friction level**. The skill's
+`TaskCreate`/`TaskUpdate`/checklist work still runs at every level,
+including adaptive.
+
+**Anti-pattern (GH-112):** Agent invokes `Skill(Dev10x:gh-pr-merge)`,
+reads the first part of `instructions.md`, decides adaptive mode
+licenses a "shortcut" to a one-line `gh pr view --json
+mergeable,isDraft,reviewDecision` followed by `gh pr merge` directly.
+The skill's 8 pre-merge checks (unresolved threads, CI, draft state,
+mergeability, working copy, fixup commits, approval, branch
+protection) never execute. Adaptive friction does not authorize this
+substitution — it only auto-selects `(Recommended)` options at
+`AskUserQuestion` gates.
+
+**Detection signal:** If you are reasoning _"I'm in adaptive mode,
+so I can skip the skill body and just run the CLI"_, STOP. That
+reasoning is the violation. Adaptive changes the **pace** at gates,
+not the **rules** of the skill body.
+
 **How to mark a gate as ALWAYS_ASK:**
 
 ```markdown

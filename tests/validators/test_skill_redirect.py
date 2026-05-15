@@ -214,6 +214,36 @@ class TestGhPrChecksWatchRedirect:
         assert result is None
 
 
+class TestGhPrMergeRedirect:
+    def test_blocks_gh_pr_merge(self, validator: SkillRedirectValidator) -> None:
+        inp = _make_input(command="gh pr merge 111 --squash --delete-branch")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "Dev10x:gh-pr-merge" in result.message
+
+    def test_blocks_gh_pr_merge_minimal(self, validator: SkillRedirectValidator) -> None:
+        inp = _make_input(command="gh pr merge")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "Dev10x:gh-pr-merge" in result.message
+
+    def test_blocks_gh_pr_merge_rebase(self, validator: SkillRedirectValidator) -> None:
+        inp = _make_input(command="gh pr merge 42 --rebase")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "Dev10x:gh-pr-merge" in result.message
+
+    def test_should_run_true_for_gh_pr_merge(self, validator: SkillRedirectValidator) -> None:
+        inp = _make_input(command="gh pr merge 111 --squash")
+        assert validator.should_run(inp=inp) is True
+
+    def test_message_includes_pre_merge_checks(self, validator: SkillRedirectValidator) -> None:
+        inp = _make_input(command="gh pr merge 111 --squash")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "pre-merge checks" in result.message
+
+
 class TestGhIssueViewRedirect:
     def test_blocks_gh_issue_view(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="gh issue view 539 --repo Dev10x-Guru/dev10x-claude")
@@ -306,7 +336,8 @@ class TestFrictionLevels:
         comp_type: str = "use-skill",
     ) -> str:
         skill_or_tool = "skill" if comp_type == "use-skill" else "tool"
-        return textwrap.dedent(f"""\
+        return textwrap.dedent(
+            f"""\
             config:
               friction_level: {friction_level}
               plugin_repo: https://github.com/Dev10x-Guru/dev10x-claude
@@ -322,7 +353,8 @@ class TestFrictionLevels:
                     {skill_or_tool}: Dev10x:test-skill
                     guardrails: test guardrail
                     fallback: "{fallback}"
-        """)
+        """
+        )
 
     def test_guided_mode_includes_fallback(self, tmp_path: Path) -> None:
         yaml_file = tmp_path / "map.yaml"
@@ -378,7 +410,8 @@ class TestFrictionLevels:
     def test_hook_block_false_entries_not_loaded(self, tmp_path: Path) -> None:
         yaml_file = tmp_path / "map.yaml"
         yaml_file.write_text(
-            textwrap.dedent("""\
+            textwrap.dedent(
+                """\
                 config:
                   friction_level: guided
                 rules:
@@ -390,7 +423,8 @@ class TestFrictionLevels:
                     compensations:
                       - type: use-skill
                         skill: Dev10x:ignored
-            """)
+            """
+            )
         )
         config, engine = _load_config(yaml_path=yaml_file)
         assert config.rules == []
@@ -473,9 +507,10 @@ class TestYamlSchema:
         data = yaml.safe_load(_YAML_PATH.read_text())
         for entry in data["rules"]:
             assert "matcher" in entry, f"{entry['name']} missing matcher"
-            assert entry["matcher"] in {"Bash", "Edit|Write"}, (
-                f"{entry['name']} has invalid matcher: {entry['matcher']}"
-            )
+            assert entry["matcher"] in {
+                "Bash",
+                "Edit|Write",
+            }, f"{entry['name']} has invalid matcher: {entry['matcher']}"
 
     def test_compensation_types_are_valid(self) -> None:
         valid_types = {
@@ -645,6 +680,9 @@ class TestBlockedVsAllowed:
             ("gh pr checks -w", True),
             ("gh pr checks 42", False),
             ("gh pr checks", False),
+            ("gh pr merge 111 --squash --delete-branch", True),
+            ("gh pr merge", True),
+            ("gh pr merge 42 --rebase", True),
         ],
     )
     def test_blocked_vs_allowed(
