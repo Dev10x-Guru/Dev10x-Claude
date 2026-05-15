@@ -1,74 +1,93 @@
 """Bash command validators for Claude Code PreToolUse hooks.
 
 Single-dispatcher architecture: one Python process validates all Bash
-commands by iterating a registry of Validator implementations. Each
-validator has a fast `should_run` predicate and a `validate` method.
+commands by iterating a :class:`ValidatorRegistry`. Each validator
+declares its profile tier, rule_id, and capabilities as class
+attributes (see :mod:`dev10x.validators.base`).
 
 Ordering matters: allow-validators run before deny-validators so safe
 patterns get auto-approved before a deny-validator would block them.
 
-Validators are lazily imported — only loaded when the registry is
-first accessed via get_validators(). This avoids paying the import
+Validators are lazily imported — the registry only loads modules for
+specs surviving the active filter set. This avoids paying the import
 cost of all 8 modules at module-level on every hook invocation.
 
-Profile filtering (GH-413): validators declare a ProfileTier
-(MINIMAL, STANDARD, STRICT) and a stable rule_id. The registry
-filters the active set based on DEV10X_HOOK_PROFILE (default:
-STANDARD), DEV10X_HOOK_DISABLE (comma-separated rule_ids), and
-DEV10X_HOOK_EXPERIMENTAL (opt-in flag for experimental validators).
+Profile filtering (GH-413): each :class:`ValidatorSpec` carries a
+:class:`ProfileTier` and a rule_id. The registry composes three
+filters built from environment variables:
+
+  DEV10X_HOOK_PROFILE        — active tier (default ``STANDARD``)
+  DEV10X_HOOK_DISABLE        — comma-separated rule_ids to drop
+  DEV10X_HOOK_EXPERIMENTAL   — opt-in flag for experimental validators
 """
 
 from __future__ import annotations
 
-import importlib
 import os
 from typing import TYPE_CHECKING
 
 from dev10x.domain.profile_tier import ProfileTier
+from dev10x.validators.registry import (
+    DisableListFilter,
+    ExperimentalFilter,
+    ProfileFilter,
+    ValidatorChain,
+    ValidatorRegistry,
+    ValidatorSpec,
+)
 
 if TYPE_CHECKING:
     from dev10x.validators.base import Validator
 
-_VALIDATOR_SPECS: list[tuple[str, str, str, ProfileTier, bool]] = [
-    # (module_path, class_name, rule_id, profile, experimental)
-    (
-        "dev10x.validators.safe_subshell",
-        "SafeSubshellValidator",
-        "DX001",
-        ProfileTier.MINIMAL,
-        False,
+_SPECS: list[ValidatorSpec] = [
+    ValidatorSpec(
+        module_path="dev10x.validators.safe_subshell",
+        class_name="SafeSubshellValidator",
+        rule_id="DX001",
+        profile=ProfileTier.MINIMAL,
     ),
-    (
-        "dev10x.validators.command_substitution",
-        "CommandSubstitutionValidator",
-        "DX002",
-        ProfileTier.MINIMAL,
-        False,
+    ValidatorSpec(
+        module_path="dev10x.validators.command_substitution",
+        class_name="CommandSubstitutionValidator",
+        rule_id="DX002",
+        profile=ProfileTier.MINIMAL,
     ),
-    (
-        "dev10x.validators.execution_safety",
-        "ExecutionSafetyValidator",
-        "DX003",
-        ProfileTier.MINIMAL,
-        False,
+    ValidatorSpec(
+        module_path="dev10x.validators.execution_safety",
+        class_name="ExecutionSafetyValidator",
+        rule_id="DX003",
+        profile=ProfileTier.MINIMAL,
     ),
-    ("dev10x.validators.sql_safety", "SqlSafetyValidator", "DX004", ProfileTier.MINIMAL, False),
-    ("dev10x.validators.pr_base", "PrBaseValidator", "DX005", ProfileTier.MINIMAL, False),
-    (
-        "dev10x.validators.skill_redirect",
-        "SkillRedirectValidator",
-        "DX006",
-        ProfileTier.STANDARD,
-        False,
+    ValidatorSpec(
+        module_path="dev10x.validators.sql_safety",
+        class_name="SqlSafetyValidator",
+        rule_id="DX004",
+        profile=ProfileTier.MINIMAL,
     ),
-    (
-        "dev10x.validators.prefix_friction",
-        "PrefixFrictionValidator",
-        "DX007",
-        ProfileTier.STANDARD,
-        False,
+    ValidatorSpec(
+        module_path="dev10x.validators.pr_base",
+        class_name="PrBaseValidator",
+        rule_id="DX005",
+        profile=ProfileTier.MINIMAL,
     ),
-    ("dev10x.validators.commit_jtbd", "CommitJtbdValidator", "DX008", ProfileTier.STRICT, False),
+    ValidatorSpec(
+        module_path="dev10x.validators.skill_redirect",
+        class_name="SkillRedirectValidator",
+        rule_id="DX006",
+        profile=ProfileTier.STANDARD,
+    ),
+    ValidatorSpec(
+        module_path="dev10x.validators.prefix_friction",
+        class_name="PrefixFrictionValidator",
+        rule_id="DX007",
+        profile=ProfileTier.STANDARD,
+    ),
+    ValidatorSpec(
+        module_path="dev10x.validators.commit_jtbd",
+        class_name="CommitJtbdValidator",
+        rule_id="DX008",
+        profile=ProfileTier.STRICT,
+    ),
 ]
 
 
@@ -89,41 +108,55 @@ def _load_profile_config() -> tuple[ProfileTier, set[str], bool]:
     return active, disabled, experimental_enabled
 
 
-_validators: list[Validator] | None = None
+def _build_registry() -> ValidatorRegistry:
+    """Construct a registry seeded with module specs and env-driven filters."""
+    active, disabled, experimental = _load_profile_config()
+    return ValidatorRegistry(
+        specs=list(_SPECS),
+        filters=[
+            ProfileFilter(active=active),
+            DisableListFilter(disabled=frozenset(disabled)),
+            ExperimentalFilter(enabled=experimental),
+        ],
+    )
+
+
+_registry: ValidatorRegistry | None = None
+
+
+def get_registry() -> ValidatorRegistry:
+    """Return the process-wide registry, building it on first access."""
+    global _registry
+    if _registry is None:
+        _registry = _build_registry()
+    return _registry
 
 
 def get_validators() -> list[Validator]:
-    global _validators
-    if _validators is None:
-        from dev10x.validators.base import Validator as V
-
-        active_profile, disabled, experimental_enabled = _load_profile_config()
-        _validators = []
-        for module_path, class_name, rule_id, profile, experimental in _VALIDATOR_SPECS:
-            if rule_id.upper() in disabled:
-                continue
-            if experimental and not experimental_enabled:
-                continue
-            if not active_profile.includes(validator_tier=profile):
-                continue
-            mod = importlib.import_module(module_path)
-            cls = getattr(mod, class_name)
-            instance = cls()
-            if not hasattr(instance, "rule_id"):
-                instance.rule_id = rule_id
-            if not hasattr(instance, "profile"):
-                instance.profile = profile
-            if not hasattr(instance, "experimental"):
-                instance.experimental = experimental
-            assert isinstance(instance, V), f"{class_name} does not implement Validator"
-            _validators.append(instance)
-    return _validators
+    """Return active validator instances (lazy-loaded on first call)."""
+    return get_registry().active()
 
 
 def reset_registry() -> None:
     """Clear the cached validator registry — used by tests."""
-    global _validators
-    _validators = None
+    global _registry
+    _registry = None
 
 
-__all__ = ["get_validators", "reset_registry"]
+def get_chain() -> ValidatorChain:
+    """Return a chain bound to the process-wide registry."""
+    return ValidatorChain(registry=get_registry())
+
+
+__all__ = [
+    "DisableListFilter",
+    "ExperimentalFilter",
+    "ProfileFilter",
+    "ValidatorChain",
+    "ValidatorRegistry",
+    "ValidatorSpec",
+    "get_chain",
+    "get_registry",
+    "get_validators",
+    "reset_registry",
+]

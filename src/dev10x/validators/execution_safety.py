@@ -15,8 +15,11 @@ import os
 import re
 import shlex
 from dataclasses import dataclass
+from typing import ClassVar
 
 from dev10x.domain import HookInput, HookResult
+from dev10x.domain.profile_tier import ProfileTier
+from dev10x.validators.base import ValidatorBase
 
 SHELL_WRITE_RE = re.compile(
     r"\bcat\b\s*(>|<<|>\s*\S)"
@@ -80,8 +83,10 @@ def _is_approved_path(path: str) -> bool:
 
 
 @dataclass
-class ExecutionSafetyValidator:
-    name: str = "execution-safety"
+class ExecutionSafetyValidator(ValidatorBase):
+    name: ClassVar[str] = "execution-safety"
+    rule_id: ClassVar[str] = "DX003"
+    profile: ClassVar[ProfileTier] = ProfileTier.MINIMAL
 
     def should_run(self, inp: HookInput) -> bool:
         return True

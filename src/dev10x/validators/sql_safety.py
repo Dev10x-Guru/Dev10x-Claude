@@ -12,9 +12,12 @@ import os
 import re
 import shlex
 from dataclasses import dataclass
+from typing import ClassVar
 
 from dev10x.domain import HookInput, HookResult
+from dev10x.domain.profile_tier import ProfileTier
 from dev10x.domain.result import ErrorResult, Result, err, ok
+from dev10x.validators.base import ValidatorBase
 
 POSTGRES_CONN_RE = re.compile(r"postgres(?:ql)?://[^'\"\s]+:[^@'\"\s]+@[a-zA-Z0-9._-]+")
 
@@ -164,8 +167,10 @@ def _validate_sql(sql: str) -> Result[str]:
 
 
 @dataclass
-class SqlSafetyValidator:
-    name: str = "sql-safety"
+class SqlSafetyValidator(ValidatorBase):
+    name: ClassVar[str] = "sql-safety"
+    rule_id: ClassVar[str] = "DX004"
+    profile: ClassVar[ProfileTier] = ProfileTier.MINIMAL
 
     def should_run(self, inp: HookInput) -> bool:
         cmd = inp.command

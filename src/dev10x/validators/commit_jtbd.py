@@ -14,9 +14,12 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import ClassVar
 
 from dev10x.domain import HookInput, HookResult
+from dev10x.domain.profile_tier import ProfileTier
 from dev10x.domain.result import ErrorResult, Result, err, ok
+from dev10x.validators.base import ValidatorBase
 
 _VERB_BASES = [
     "Add",
@@ -164,8 +167,10 @@ def _check_jtbd(title: str) -> Result[str]:
 
 
 @dataclass
-class CommitJtbdValidator:
-    name: str = "commit-jtbd"
+class CommitJtbdValidator(ValidatorBase):
+    name: ClassVar[str] = "commit-jtbd"
+    rule_id: ClassVar[str] = "DX008"
+    profile: ClassVar[ProfileTier] = ProfileTier.STRICT
     bypass_gitmoji: frozenset[str] = BYPASS_GITMOJI
 
     def should_run(self, inp: HookInput) -> bool:

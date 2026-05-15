@@ -19,11 +19,13 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from dev10x.domain import HookInput, HookResult
 from dev10x.domain.friction_level import FrictionLevel
+from dev10x.domain.profile_tier import ProfileTier
 from dev10x.domain.validation_rule import Compensation, Config
+from dev10x.validators.base import ValidatorBase
 
 if TYPE_CHECKING:
     from dev10x.domain import HookRetry
@@ -174,8 +176,11 @@ def _format_skill_msg(
 
 
 @dataclass
-class SkillRedirectValidator:
-    name: str = "skill-redirect"
+class SkillRedirectValidator(ValidatorBase):
+    name: ClassVar[str] = "skill-redirect"
+    rule_id: ClassVar[str] = "DX006"
+    profile: ClassVar[ProfileTier] = ProfileTier.STANDARD
+    capabilities: ClassVar[frozenset[str]] = frozenset({"validate", "correct"})
 
     def should_run(self, inp: HookInput) -> bool:
         if SKIP_PREFIX_RE.match(inp.command):
