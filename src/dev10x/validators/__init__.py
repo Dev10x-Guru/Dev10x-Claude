@@ -11,10 +11,10 @@ Validators are lazily imported — only loaded when the registry is
 first accessed via get_validators(). This avoids paying the import
 cost of all 8 modules at module-level on every hook invocation.
 
-Profile filtering (GH-413): validators declare a profile tier
-("minimal", "standard", "strict") and a stable rule_id. The registry
+Profile filtering (GH-413): validators declare a ProfileTier
+(MINIMAL, STANDARD, STRICT) and a stable rule_id. The registry
 filters the active set based on DEV10X_HOOK_PROFILE (default:
-"standard"), DEV10X_HOOK_DISABLE (comma-separated rule_ids), and
+STANDARD), DEV10X_HOOK_DISABLE (comma-separated rule_ids), and
 DEV10X_HOOK_EXPERIMENTAL (opt-in flag for experimental validators).
 """
 
@@ -24,56 +24,61 @@ import importlib
 import os
 from typing import TYPE_CHECKING
 
-from dev10x.validators.base import PROFILE_HIERARCHY
+from dev10x.domain.profile_tier import ProfileTier
 
 if TYPE_CHECKING:
     from dev10x.validators.base import Validator
 
-_VALIDATOR_SPECS: list[tuple[str, str, str, str, bool]] = [
+_VALIDATOR_SPECS: list[tuple[str, str, str, ProfileTier, bool]] = [
     # (module_path, class_name, rule_id, profile, experimental)
-    ("dev10x.validators.safe_subshell", "SafeSubshellValidator", "DX001", "minimal", False),
+    (
+        "dev10x.validators.safe_subshell",
+        "SafeSubshellValidator",
+        "DX001",
+        ProfileTier.MINIMAL,
+        False,
+    ),
     (
         "dev10x.validators.command_substitution",
         "CommandSubstitutionValidator",
         "DX002",
-        "minimal",
+        ProfileTier.MINIMAL,
         False,
     ),
-    ("dev10x.validators.execution_safety", "ExecutionSafetyValidator", "DX003", "minimal", False),
-    ("dev10x.validators.sql_safety", "SqlSafetyValidator", "DX004", "minimal", False),
-    ("dev10x.validators.pr_base", "PrBaseValidator", "DX005", "minimal", False),
-    ("dev10x.validators.skill_redirect", "SkillRedirectValidator", "DX006", "standard", False),
-    ("dev10x.validators.prefix_friction", "PrefixFrictionValidator", "DX007", "standard", False),
-    ("dev10x.validators.commit_jtbd", "CommitJtbdValidator", "DX008", "strict", False),
+    (
+        "dev10x.validators.execution_safety",
+        "ExecutionSafetyValidator",
+        "DX003",
+        ProfileTier.MINIMAL,
+        False,
+    ),
+    ("dev10x.validators.sql_safety", "SqlSafetyValidator", "DX004", ProfileTier.MINIMAL, False),
+    ("dev10x.validators.pr_base", "PrBaseValidator", "DX005", ProfileTier.MINIMAL, False),
+    (
+        "dev10x.validators.skill_redirect",
+        "SkillRedirectValidator",
+        "DX006",
+        ProfileTier.STANDARD,
+        False,
+    ),
+    (
+        "dev10x.validators.prefix_friction",
+        "PrefixFrictionValidator",
+        "DX007",
+        ProfileTier.STANDARD,
+        False,
+    ),
+    ("dev10x.validators.commit_jtbd", "CommitJtbdValidator", "DX008", ProfileTier.STRICT, False),
 ]
 
-_DEFAULT_PROFILE = "standard"
 
-
-def _profile_includes(*, validator_profile: str, active_profile: str) -> bool:
-    """Return True if validator runs at the active profile level.
-
-    Lower-tier validators run at all higher tiers. Unknown profiles
-    default to "standard".
-    """
-    try:
-        validator_tier = PROFILE_HIERARCHY.index(validator_profile)
-        active_tier = PROFILE_HIERARCHY.index(active_profile)
-    except ValueError:
-        validator_tier = PROFILE_HIERARCHY.index(_DEFAULT_PROFILE)
-        active_tier = PROFILE_HIERARCHY.index(_DEFAULT_PROFILE)
-    return validator_tier <= active_tier
-
-
-def _load_profile_config() -> tuple[str, set[str], bool]:
+def _load_profile_config() -> tuple[ProfileTier, set[str], bool]:
     """Read profile configuration from environment variables.
 
     Returns:
         (active_profile, disabled_rule_ids, experimental_enabled)
     """
-    active = os.environ.get("DEV10X_HOOK_PROFILE", _DEFAULT_PROFILE).strip().lower()
-    if active not in PROFILE_HIERARCHY:
-        active = _DEFAULT_PROFILE
+    active = ProfileTier.from_raw(os.environ.get("DEV10X_HOOK_PROFILE"))
 
     disabled_raw = os.environ.get("DEV10X_HOOK_DISABLE", "")
     disabled = {rid.strip().upper() for rid in disabled_raw.split(",") if rid.strip()}
@@ -99,7 +104,7 @@ def get_validators() -> list[Validator]:
                 continue
             if experimental and not experimental_enabled:
                 continue
-            if not _profile_includes(validator_profile=profile, active_profile=active_profile):
+            if not active_profile.includes(validator_tier=profile):
                 continue
             mod = importlib.import_module(module_path)
             cls = getattr(mod, class_name)
