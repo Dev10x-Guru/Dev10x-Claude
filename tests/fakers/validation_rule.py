@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import factory
 
-from dev10x.domain.validation_rule import Compensation, Config, Rule
+from dev10x.domain.config_document import Config
+from dev10x.domain.validation_rule import Compensation, Rule
 
 
 class CompensationFaker(factory.Factory):
