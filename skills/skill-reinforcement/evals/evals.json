@@ -86,6 +86,45 @@
       ]
     },
     {
+      "name": "permission-friction-audit-suggests-simpler-form",
+      "description": "When a rejected command was packed with chaining/prefixes but the unchained form is pre-approved, the audit surfaces the simpler form and cites the allow-rule",
+      "setup": "Agent ran 'git fetch origin && git checkout develop' which was rejected; .claude/settings.local.json contains Bash(git fetch:*) and Bash(git checkout:*) in permissions.allow",
+      "checks": [
+        {
+          "type": "behavioral",
+          "assertion": "reads_settings_files",
+          "signal": "Output references at least one of: .claude/settings.local.json, .claude/settings.json, or ~/.claude/settings.json as the source of pre-approved rules"
+        },
+        {
+          "type": "behavioral",
+          "assertion": "surfaces_preapproved_alternative",
+          "signal": "Output recommends splitting the command into separate Bash calls and names the matching allow-rule(s) (e.g., Bash(git fetch:*))"
+        },
+        {
+          "type": "behavioral",
+          "assertion": "identifies_chaining_as_friction_cause",
+          "signal": "Output explains that && / ; chaining (or env-var prefix / cd prefix) shifts the effective allow-rule prefix"
+        }
+      ]
+    },
+    {
+      "name": "permission-friction-audit-proposes-new-rule",
+      "description": "When no allow-rule covers even the simplified command, the audit proposes a targeted (narrow) allow-rule addition rather than a broad one",
+      "setup": "Agent ran a command whose simplified form still has no matching allow-rule in any settings file",
+      "checks": [
+        {
+          "type": "behavioral",
+          "assertion": "proposes_targeted_allow_rule",
+          "signal": "Output suggests a narrow Bash(<prefix>:*) snippet and names the settings file it should be added to (typically .claude/settings.local.json)"
+        },
+        {
+          "type": "behavioral",
+          "assertion": "avoids_broad_or_destructive_rules",
+          "signal": "Proposed rule does not include Bash(*) or wildcards that span destructive verbs"
+        }
+      ]
+    },
+    {
       "name": "no-follow-up-when-informational",
       "description": "When invoked informationally (not after a rejection), no follow-up gate is fired",
       "setup": "User invoked '/Dev10x:skill-reinforcement kubectl' to learn the recommended skill, no prior rejection",
