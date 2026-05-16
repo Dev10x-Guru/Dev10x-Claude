@@ -60,8 +60,13 @@ Store the command string for matching.
 
 ### Step 2: Match against command-skill map
 
-Read the command-skill mapping from the canonical location:
-`${CLAUDE_PLUGIN_ROOT}/src/dev10x/validators/command-skill-map.yaml`.
+**REQUIRED — `Read` the canonical map first (GH-181 F9).** Do
+NOT inline knowledge from the parent skill's SKILL.md or
+recall mappings from training. The hook's YAML is authoritative
+and ships updates ahead of skill docs; skipping the Read is a
+documented Step 2 violation.
+
+1. `Read(file_path="${CLAUDE_PLUGIN_ROOT}/src/dev10x/validators/command-skill-map.yaml")`
 
 The YAML in `skills/skill-reinforcement/references/command-skill-map.yaml`
 is a legacy copy — prefer the hook's YAML which is the single
