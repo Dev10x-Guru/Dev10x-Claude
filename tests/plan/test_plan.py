@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 plan_mod = pytest.importorskip("dev10x.plan", reason="dev10x not installed")
-from dev10x.domain.result import ErrorResult, SuccessResult  # noqa: E402
+from dev10x.domain.common.result import ErrorResult, SuccessResult  # noqa: E402
 
 SERVICE = "dev10x.plan.service"
 

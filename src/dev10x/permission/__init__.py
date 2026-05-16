@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from dev10x.domain.result import Result, err, ok
+from dev10x.domain.common.result import Result, err, ok
 from dev10x.subprocess_utils import async_run, get_plugin_root
 
 

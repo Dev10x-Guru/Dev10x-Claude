@@ -13,9 +13,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from dev10x.domain.documents.session_state import PlanSummary
 from dev10x.domain.file_locks import atomic_write_text, file_lock
 from dev10x.domain.friction_level import FrictionLevel
-from dev10x.domain.session_state import PlanSummary
 
 
 class UnknownFrictionLevelError(ValueError):

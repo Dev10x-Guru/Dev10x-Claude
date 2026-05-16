@@ -1,6 +1,6 @@
 import pytest
 
-from dev10x.domain.result import ErrorResult, SuccessResult, err, ok
+from dev10x.domain.common.result import ErrorResult, SuccessResult, err, ok
 
 
 class TestOk:

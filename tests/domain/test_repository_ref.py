@@ -1,6 +1,6 @@
 import pytest
 
-from dev10x.domain.repository_ref import RepositoryRef
+from dev10x.domain.common.repository_ref import RepositoryRef
 
 
 class TestParse:

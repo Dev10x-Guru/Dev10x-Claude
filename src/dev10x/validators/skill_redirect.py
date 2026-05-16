@@ -22,15 +22,15 @@ from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 from dev10x.domain import HookInput, HookResult
-from dev10x.domain.config_document import Config
+from dev10x.domain.documents.config_document import Config
 from dev10x.domain.friction_level import FrictionLevel
 from dev10x.domain.profile_tier import ProfileTier
-from dev10x.domain.validation_rule import Compensation
+from dev10x.domain.rules.validation_rule import Compensation
 from dev10x.validators.base import ValidatorBase
 
 if TYPE_CHECKING:
     from dev10x.domain import HookRetry
-    from dev10x.domain.rule_engine import RuleEngine
+    from dev10x.domain.rules.rule_engine import RuleEngine
 
 
 def _format_correction_msg(
@@ -91,7 +91,7 @@ _ENGINE: RuleEngine | None = None
 
 def _load_config(yaml_path: Path = _YAML_PATH) -> tuple[Config, RuleEngine]:
     from dev10x.config.loader import load_config
-    from dev10x.domain.rule_engine import RuleEngine
+    from dev10x.domain.rules.rule_engine import RuleEngine
 
     full = load_config(yaml_path=yaml_path)
     engine = RuleEngine.from_config(config=full)

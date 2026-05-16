@@ -17,7 +17,7 @@ from click.testing import CliRunner
 
 from dev10x.cli import cli
 from dev10x.config.loader import load_config
-from dev10x.domain.rule_engine import RuleEngine
+from dev10x.domain.rules.rule_engine import RuleEngine
 from dev10x.hooks.edit_validator import validate_edit_write
 
 REPO_ROOT = Path(__file__).resolve().parent.parent

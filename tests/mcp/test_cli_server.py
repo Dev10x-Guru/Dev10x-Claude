@@ -13,8 +13,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from dev10x.domain.repository_ref import RepositoryRef
-from dev10x.domain.result import ErrorResult, SuccessResult, err, ok
+from dev10x.domain.common.repository_ref import RepositoryRef
+from dev10x.domain.common.result import ErrorResult, SuccessResult, err, ok
 
 cli_server = pytest.importorskip("dev10x.mcp.server_cli", reason="mcp not installed")
 

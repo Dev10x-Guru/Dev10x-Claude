@@ -15,8 +15,8 @@ from dataclasses import dataclass
 from typing import ClassVar
 
 from dev10x.domain import HookInput, HookResult
+from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.domain.profile_tier import ProfileTier
-from dev10x.domain.result import ErrorResult, Result, err, ok
 from dev10x.validators.base import ValidatorBase
 
 POSTGRES_CONN_RE = re.compile(r"postgres(?:ql)?://[^'\"\s]+:[^@'\"\s]+@[a-zA-Z0-9._-]+")

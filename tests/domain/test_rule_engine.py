@@ -5,9 +5,9 @@ from pathlib import Path
 import pytest
 import yaml
 
-from dev10x.domain.config_document import Config
-from dev10x.domain.rule_engine import RuleEngine
-from dev10x.domain.validation_rule import Compensation, Rule
+from dev10x.domain.documents.config_document import Config
+from dev10x.domain.rules.rule_engine import RuleEngine
+from dev10x.domain.rules.validation_rule import Compensation, Rule
 
 
 class TestRuleFromYamlEntry:
@@ -178,7 +178,10 @@ class TestRuleEngineEvaluateFile:
         engine = RuleEngine(
             edit_rules=[
                 Rule(
-                    name="block-env", matcher="Edit|Write", file_names=[".env"], message="BLOCKED"
+                    name="block-env",
+                    matcher="Edit|Write",
+                    file_names=[".env"],
+                    message="BLOCKED",
                 ),
             ],
         )
@@ -192,7 +195,10 @@ class TestRuleEngineEvaluateFile:
         engine = RuleEngine(
             edit_rules=[
                 Rule(
-                    name="block-env", matcher="Edit|Write", file_names=[".env"], message="BLOCKED"
+                    name="block-env",
+                    matcher="Edit|Write",
+                    file_names=[".env"],
+                    message="BLOCKED",
                 ),
             ],
         )
