@@ -63,23 +63,31 @@ Mentions are resolved against `~/.claude/memory/Dev10x/slack-config.yaml`
 
 ## Flow
 
-### Step 0: Approval state precheck (GH-993)
+### Step 0: Approval state precheck (GH-993, GH-128)
 
 Before posting a Slack ping, verify the PR is not already approved
-on its current HEAD. Re-pinging reviewers on an approved PR is
-noise — the human supervisor's next action is merge, not another
-review pass.
+on its current HEAD **by a human reviewer**. Re-pinging reviewers
+on a human-approved PR is noise — the supervisor's next action is
+merge, not another review pass. Bot approvals (`claude[bot]`,
+`github-actions[bot]`, etc.) MUST NOT short-circuit the Slack ping.
 
-1. Fetch review state:
+1. Fetch review state (no MCP wrapper exists for review-decision
+   data — `gh pr view` is the supported call site):
    ```bash
-   gh pr view {pr_number} --repo {repo} \
-     --json reviewDecision,reviews,headRefOid
+   gh pr view {pr_number} --repo {repo} --json reviewDecision,reviews,headRefOid  # cli-friction: allow raw-gh-pr — review-state precheck
    ```
-2. **If `reviewDecision == "APPROVED"`** and the latest review's
-   `commit.oid` matches `headRefOid`: skip the Slack notification.
+2. **Filter bot approvals first (GH-128).** Drop any review whose
+   `author.login` ends with `[bot]` or whose `author.type == "Bot"`
+   before matching against `headRefOid`. Bot approvals do not
+   satisfy the "human review" requirement.
+3. **If a HUMAN review with `state == "APPROVED"`** and matching
+   `commit.oid == headRefOid` exists: skip the Slack notification.
    Report "Slack notification skipped — PR already approved on
-   current HEAD" and stop.
-3. **Otherwise**: proceed to Step 1.
+   current HEAD by {login}" and stop.
+4. **Otherwise** (only bot approvals, stale approvals, or no
+   approvals): proceed to Step 1. When only bot approvals exist on
+   the current HEAD, log "PR has only a bot approval — posting
+   human review ping" so the rationale is visible.
 
 Skip this precheck when invoked with `--force` flag or when the
 caller passes `bypass_approval_check: true` (e.g., re-review
