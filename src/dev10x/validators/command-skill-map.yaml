@@ -330,13 +330,20 @@ rules:
       - pytest
       - python -m pytest
       - uv run pytest
-    hook_block: false
+    hook_block: true
     compensations:
       - type: use-skill
         skill: test
+        guardrails: 100% coverage gate, concise pass/fail summaries, cwd-aware uv run wrapping
+        fallback: >
+          If the test skill is unavailable, run pytest with coverage
+          (`pytest --cov --cov-report=term-missing`) and verify 100%
+          coverage on changed files manually.
     reason: >
-      The test skill ensures consistent coverage reporting and
-      concise summaries. Use it for standardized test execution.
+      Bare pytest invocations bypass the test skill's coverage gate
+      and concise summary formatting. Audit (GH-155) caught 4 bare
+      pytest calls before commits/PR with no coverage verification.
+      The test skill ensures consistent coverage reporting.
 
   - name: gh-pr-comment-reply
     matcher: Bash
