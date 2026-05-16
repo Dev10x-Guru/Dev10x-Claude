@@ -155,6 +155,26 @@ Parse `tracker`, `ticket_number`, and `fixes_url` from the response.
 Each classified input becomes a **source** entry with its type and
 extracted identifiers. Collect all sources into a list for Phase 2.
 
+### Multi-Ticket Detection (GH-196)
+
+After classification, count sources whose type is a ticket or
+GitHub issue (`github-issue`, `linear-ticket`, `jira-ticket`).
+When the count is **≥ 2**, set `bundling_candidate = true` on the
+Phase 1 output. This flag is the trigger that surfaces the Phase 3
+Multi-Issue Strategy gate (see § Multi-Issue Execution) instead of
+auto-routing into a single-ticket play.
+
+`github-pr` inputs do NOT count toward the bundling-candidate
+threshold — a PR is the unit of shipping, so combining a ticket
+with its own PR is PR-continuation, not a bundle. Mixed input
+where multiple tickets accompany one PR is still PR-continuation
+on the PR, with the tickets used as additional context.
+
+The flag is a *candidate* marker — it does not commit the session
+to bundling. Phase 3 resolves the actual strategy (separate PRs vs
+single bundled PR with batches) using the Same-Milestone Heuristic
+and, if needed, the explicit strategy gate.
+
 ### Ambiguous Input Fallback (GH-886)
 
 When ALL inputs classify as `note` (no URLs, ticket IDs, or PR
@@ -830,6 +850,7 @@ calls immediately — do NOT defer or skip:
 
 1. `mcp__plugin_Dev10x_cli__plan_sync_set_context(args=["work_type=<detected_work_type>", "tickets=<JSON array of ticket IDs>", "routing_table={\"commit\":\"Skill(Dev10x:git-commit)\",\"create_pr\":\"Skill(Dev10x:gh-pr-create)\",\"monitor_ci\":\"Skill(Dev10x:gh-pr-monitor)\",\"monitor_pr\":\"Skill(Dev10x:gh-pr-monitor)\",\"push\":\"Skill(Dev10x:git)\",\"groom\":\"Skill(Dev10x:git-groom)\",\"branch\":\"Skill(Dev10x:ticket-branch)\",\"verify_acceptance\":\"Skill(Dev10x:verify-acc-dod)\",\"merge_pr\":\"Skill(Dev10x:gh-pr-merge)\",\"work_on\":\"work-on\"}"])`
 2. `mcp__plugin_Dev10x_cli__plan_sync_set_context(args=["gathered_summary=<1-3 sentence summary>"])`
+3. **When bundling (GH-196):** `mcp__plugin_Dev10x_cli__plan_sync_set_context(args=["bundling=true", "batches=<JSON array of arrays, e.g. [[\"GH-12\",\"GH-14\"],[\"GH-21\"]]>"])`. Skip this call entirely when `tickets` has fewer than 2 ticket IDs or the user chose Strategy A (fanout). When skipped, downstream consumers treat the absence as `bundling=false`.
 
 **Attribution keys (GH-152):** The `work_on` key with value
 `"work-on"` is the audit attribution string — skill audits
@@ -1376,19 +1397,103 @@ related, and benefit from a single review cycle.
 **Bundled execution pattern:**
 ```
 1. Set up workspace (one branch for all issues)
-2. For each issue (sequentially):
-   a. Design approach for this issue
+2. Batch the issues (see § Batch Detection below)
+3. For each BATCH (sequentially):
+   a. Design approach for this batch
    b. Implement changes
-   c. Create atomic commit (one per issue, ticket ID in msg)
-3. Verify (run tests once for all changes)
-4. Shipping pipeline (review → PR → CI → groom → merge)
+   c. Create atomic commit (one per batch; ticket IDs of
+      every batch member appear in the commit body)
+4. Verify (run tests once for all changes)
+5. Shipping pipeline (review → PR → CI → groom → merge)
 ```
 
 The "Implement changes" epic expands to one sub-task per
-issue. Each sub-task produces exactly one commit with the
-issue's ticket ID in the message. The shipping pipeline
-runs once — the PR references all bundled issues via
-multiple `Fixes:` lines.
+**batch** — not per individual issue. Each sub-task produces
+exactly one commit. When a batch has a single member, the
+commit references that one ticket; when a batch covers
+multiple overlapping tickets, the commit body lists every
+ticket ID and `Fixes:` line. The shipping pipeline runs
+once — the PR references all bundled issues via multiple
+`Fixes:` lines aggregated across batches.
+
+#### Batch Detection (GH-196)
+
+Bundled execution allows two layouts: **sequential** (one
+commit per ticket) and **batched** (one commit per group of
+overlapping tickets). Default to the sequential layout. Promote
+tickets into a shared batch only when overlap signals justify
+it; arbitrary grouping muddies review.
+
+**Overlap signals** (gathered from Phase 2 context):
+
+1. **Shared component** — Sentry issues report failures in the
+   same file/module/class, or ticket bodies name the same path
+2. **Shared error class** — Sentry traces show the same
+   exception type from the same code path
+3. **Same parent ticket** — Linear tickets share a parent, or
+   GitHub issues link to the same tracking issue
+4. **Repeated label set** — every ticket carries the same
+   non-milestone label (e.g., `audit:patterns`, `flaky-test`)
+5. **Explicit reference** — one ticket body mentions another
+   by ID with intent to fix together
+
+Two tickets share a batch when **at least 2** of the signals
+above hold simultaneously. Tickets without overlap signals
+form singleton batches. Never put more than 5 tickets in a
+single batch — review readability degrades past that point.
+
+**Surfacing the batch plan:**
+
+After detection, present the proposed batch layout via
+`AskUserQuestion`. Each option below is REQUIRED — do not
+collapse to plain-text confirmation:
+
+1. `AskUserQuestion(questions=[{question: "Proposed batch layout for bundled execution:\n\n<batch_summary>\n\nHow would you like to proceed?", header: "Batches", options: [{label: "Accept (Recommended)", description: "Use the proposed batches; one commit per batch"}, {label: "Sequential (no batching)", description: "Treat every ticket as its own batch — one commit per ticket"}, {label: "Edit batches", description: "Describe regrouping (which tickets merge or split)"}], multiSelect: false}])`
+
+The `<batch_summary>` placeholder enumerates each proposed
+batch, e.g.:
+
+```
+Batch 1: GH-12, GH-14
+  Signals: shared component (payments/service.py),
+           shared error class (SquareTimeoutError)
+Batch 2: GH-21
+  Signals: singleton — no overlap with others
+```
+
+**Adaptive friction:** Auto-select "Accept (Recommended)" when
+every proposed batch has ≥3 overlap signals OR every batch is a
+singleton. When any proposed batch sits at exactly 2 signals, do
+NOT auto-accept — fire the gate even at adaptive level so the
+supervisor can confirm or regroup. Ambiguous batches are the one
+case where bundling needs explicit human sign-off.
+
+**Persisting the batch plan:** After approval, extend the
+Phase 3 plan-sync context with the batch layout so it survives
+compaction:
+
+```
+mcp__plugin_Dev10x_cli__plan_sync_set_context(args=[
+  "bundling=true",
+  "batches=[[\"GH-12\",\"GH-14\"],[\"GH-21\"]]"
+])
+```
+
+**Per-batch commit message convention:** Use the gitmoji of the
+dominant change type, followed by the first ticket ID in the
+batch as the canonical ticket reference. The commit body lists
+every batch member with one `Fixes:` line per ticket. Example:
+
+```
+♻️ GH-12 Tighten Square timeout handling across payment paths
+
+Bundle members:
+- GH-12 Retry transient SquareTimeoutError on capture
+- GH-14 Surface timeout reason in refund response
+
+Fixes: GH-12
+Fixes: GH-14
+```
 
 **Commit step positioning (GH-164):** The shipping-pipeline
 `Commit outstanding changes` step (4.7 in the solo-maintainer
@@ -1694,3 +1799,63 @@ User is at task 4 of 7 and says "let's wrap up for today".
 
 Next session: user runs `Dev10x:discover` to find bookmarks and
 resume where they left off.
+
+### Example 5: Bundled Execution with Batches (GH-196)
+
+**User:** `/Dev10x:work-on GH-12 GH-14 GH-21`
+
+**Phase 1:** Classify three `github-issue` sources.
+`bundling_candidate = true` (3 ticket inputs).
+
+**Phase 2:** Fetch all three in parallel.
+- GH-12: "Retry transient SquareTimeoutError on capture"
+  (label: `payments`, mentions `payments/service.py`)
+- GH-14: "Surface timeout reason in refund response"
+  (label: `payments`, mentions `payments/service.py`)
+- GH-21: "Add metrics for retry attempts"
+  (label: `observability`, mentions `metrics/`)
+
+All three share the `audit:payments` milestone. GH-12 and GH-14
+overlap on **shared component** (`payments/service.py`) AND
+**shared label** (`payments`) — 2 signals → same batch. GH-21
+has no overlap with either → singleton batch.
+
+**Phase 3:** Same-Milestone Heuristic favors Strategy B
+(bundled). Solo-maintainer mode is active.
+
+Batch Detection proposes:
+```
+Batch 1: GH-12, GH-14
+  Signals: shared component (payments/service.py),
+           shared label (payments)
+Batch 2: GH-21
+  Signals: singleton — no overlap with others
+```
+
+`AskUserQuestion` Batches gate fires (Batch 1 has only 2
+signals → not auto-accepted). User picks "Accept (Recommended)".
+
+Persist plan context with `bundling=true` and
+`batches=[["GH-12","GH-14"],["GH-21"]]`.
+
+Plan template (feature play, bundle layout):
+```
+4.1  [detailed] Set up workspace
+4.2  [epic]     Implement Batch 1 (GH-12 + GH-14)
+       ├─ Read payments/service.py
+       ├─ Apply both fixes
+       └─ Atomic commit: "♻️ GH-12 Tighten Square timeout
+           handling across payment paths" (Fixes: GH-12,
+           GH-14)
+4.3  [epic]     Implement Batch 2 (GH-21)
+       ├─ Add retry metrics
+       └─ Atomic commit: "✨ GH-21 Add retry-attempt metrics"
+           (Fixes: GH-21)
+4.4  [epic]     Verify (run tests once for all batches)
+4.5+ [shipping pipeline — runs once for the whole bundle]
+```
+
+**Phase 4:** Each "Implement Batch" epic produces exactly one
+commit. The shipping pipeline runs once and creates a PR whose
+body lists all three `Fixes:` lines, so each issue auto-closes
+on merge.
