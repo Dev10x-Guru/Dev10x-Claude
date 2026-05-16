@@ -977,6 +977,37 @@ This applies to the shipping pipeline sequence:
 ... → Groom (force push) → RE-MONITOR CI → Update PR → ...
 ```
 
+### Solo-Maintainer Post-Create Monitor Mandate (GH-185)
+
+**Hard rule:** When `.claude/Dev10x/session.yaml` has
+`active_modes` containing `solo-maintainer`, the Phase 4
+shipping sequence MUST invoke `Skill(Dev10x:gh-pr-monitor)`
+immediately after `Skill(Dev10x:gh-pr-create)` completes
+(success OR "PR already exists"). This is NOT suppressible by
+`friction_level: adaptive` — adaptive mode auto-advances
+through gates, but it must NOT auto-advance past the monitor
+step. The monitor task remains a blocking step that runs in
+the same session, not a deferred follow-up.
+
+**Anti-pattern (GH-185):** A solo-maintainer + adaptive session
+created the PR and returned control to the user without
+dispatching the monitor. The user had to prompt explicitly
+~40 minutes later; by then the PR had already auto-merged and
+the monitor's only remaining work was milestone cleanup (which
+hit a separate permission gap — see GH-187).
+
+**Why solo-maintainer is the load-bearing case:** in
+team-review sessions, GitHub's review-required gate keeps the
+PR open long enough that the monitor catching up later is
+harmless. In solo-maintainer mode, there is no review gate,
+auto-merge may fire on the next CI tick, and skipping the
+monitor means skipping all of Phase 2 (fixup handling),
+Phase 3.5 (milestone cleanup), and Phase 4 (acceptance
+verification).
+
+The orchestrator MUST NOT mark the shipping phase complete
+until `Skill(Dev10x:gh-pr-monitor)` has run end-to-end.
+
 ### Apply Fixups Completion Guard (GH-851 F2)
 
 **Hard rule:** The "Apply fixups" task (4.10) CANNOT be marked

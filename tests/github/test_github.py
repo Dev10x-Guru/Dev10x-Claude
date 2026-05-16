@@ -946,6 +946,56 @@ class TestPrCommentsStrategyDispatch:
         assert "Invalid repository reference" in result.error
 
 
+class TestMilestoneClose:
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api", new_callable=AsyncMock)
+    async def test_closes_milestone(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(stdout="{}")
+
+        result = await gh.milestone_close(number=38)
+
+        assert isinstance(result, SuccessResult)
+        assert result.value == {
+            "number": 38,
+            "state": "closed",
+            "url": "https://github.com/owner/repo/milestone/38",
+        }
+        call = mock_api.call_args
+        assert call.args[0] == "repos/owner/repo/milestones/38"
+        assert call.kwargs["method"] == "PATCH"
+        assert call.kwargs["fields"] == {"state": "closed"}
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api", new_callable=AsyncMock)
+    async def test_returns_error_when_repo_unresolved(
+        self,
+        mock_api: AsyncMock,
+    ) -> None:
+        with patch.object(gh, "_detect_repo", new_callable=AsyncMock, return_value=None):
+            result = await gh.milestone_close(number=1)
+
+        assert isinstance(result, ErrorResult)
+        mock_api.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api", new_callable=AsyncMock)
+    async def test_returns_error_on_api_failure(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(returncode=1, stderr="HTTP 403")
+
+        result = await gh.milestone_close(number=5)
+
+        assert isinstance(result, ErrorResult)
+        assert "403" in result.error
+
+
 class TestUpdatePr:
     @pytest.mark.asyncio
     @patch("dev10x.github._gh_api", new_callable=AsyncMock)
@@ -1268,7 +1318,27 @@ class TestCreatePr:
         )
 
         called_args = mock_run.call_args.args
-        assert called_args[-2:] == ("", "")
+        # Trailing args: fixes_url, base_branch, closes_csv, draft
+        assert called_args[-4:] == ("", "", "", "true")
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_emits_closes_csv_and_draft_false(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="https://github.com/o/r/pull/9\n9")
+
+        await gh.create_pr(
+            title="t",
+            job_story="js",
+            issue_id="GH-1",
+            closes=[184, 185, 186],
+            draft=False,
+        )
+
+        called_args = mock_run.call_args.args
+        assert called_args[-2:] == ("184,185,186", "false")
 
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
