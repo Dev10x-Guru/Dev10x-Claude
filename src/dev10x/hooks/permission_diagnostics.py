@@ -42,6 +42,12 @@ class RuleMatch:
     matching_rule: str | None
     has_allow_list: bool
 
+    def is_matched(self) -> bool:
+        return self.matching_rule is not None
+
+    def is_unmatched_with_allow_list(self) -> bool:
+        return self.has_allow_list and self.matching_rule is None
+
 
 @dataclass(frozen=True)
 class DiagnosticResult:
@@ -49,6 +55,12 @@ class DiagnosticResult:
     matches: list[RuleMatch]
     diagnosis: str
     fix_suggestion: str
+
+    def matched(self) -> list[RuleMatch]:
+        return [m for m in self.matches if m.is_matched()]
+
+    def has_any_match(self) -> bool:
+        return any(m.is_matched() for m in self.matches)
 
 
 SETTINGS_PRECEDENCE: list[SettingsFile] = [
@@ -111,47 +123,57 @@ def _load_allow_rules(path: Path) -> list[str] | None:
     return allow
 
 
-def _matches_rule(
-    *,
-    signature: str,
-    rule: str,
-) -> bool:
-    if signature.startswith("mcp__"):
-        return fnmatch.fnmatch(name=signature, pat=rule)
+class PermissionResolutionPolicy:
+    """Encapsulates how an allow-rule string is matched against a tool signature.
 
-    paren_idx = rule.find("(")
-    if paren_idx == -1:
-        return fnmatch.fnmatch(name=signature, pat=rule)
+    Lives as a named class so the matching semantics — MCP tools by
+    fnmatch over the whole signature, Bash rules by tool+pattern with
+    ``:*`` prefix expansion — can be unit-tested and extended without
+    touching ``diagnose()``.
+    """
 
-    rule_tool = rule[:paren_idx]
-    rule_pattern = rule[paren_idx + 1 :].rstrip(")")
+    @staticmethod
+    def matches(*, signature: str, rule: str) -> bool:
+        if signature.startswith("mcp__"):
+            return fnmatch.fnmatch(name=signature, pat=rule)
 
-    sig_paren_idx = signature.find("(")
-    if sig_paren_idx == -1:
-        return False
+        paren_idx = rule.find("(")
+        if paren_idx == -1:
+            return fnmatch.fnmatch(name=signature, pat=rule)
 
-    sig_tool = signature[:sig_paren_idx]
-    sig_value = signature[sig_paren_idx + 1 :].rstrip(")")
+        rule_tool = rule[:paren_idx]
+        rule_pattern = rule[paren_idx + 1 :].rstrip(")")
 
-    if rule_tool != sig_tool:
-        return False
+        sig_paren_idx = signature.find("(")
+        if sig_paren_idx == -1:
+            return False
 
-    if rule_pattern.endswith(":*"):
-        prefix = rule_pattern[:-2]
-        return sig_value == prefix or sig_value.startswith(prefix + " ")
+        sig_tool = signature[:sig_paren_idx]
+        sig_value = signature[sig_paren_idx + 1 :].rstrip(")")
 
-    return fnmatch.fnmatch(name=sig_value, pat=rule_pattern)
+        if rule_tool != sig_tool:
+            return False
+
+        if rule_pattern.endswith(":*"):
+            prefix = rule_pattern[:-2]
+            return sig_value == prefix or sig_value.startswith(prefix + " ")
+
+        return fnmatch.fnmatch(name=sig_value, pat=rule_pattern)
+
+    @classmethod
+    def find_matching(cls, *, signature: str, rules: list[str]) -> str | None:
+        for rule in rules:
+            if cls.matches(signature=signature, rule=rule):
+                return rule
+        return None
 
 
-def _find_matching_rule(
-    *,
-    signature: str,
-    rules: list[str],
-) -> str | None:
-    for rule in rules:
-        if _matches_rule(signature=signature, rule=rule):
-            return rule
-    return None
+def _matches_rule(*, signature: str, rule: str) -> bool:
+    return PermissionResolutionPolicy.matches(signature=signature, rule=rule)
+
+
+def _find_matching_rule(*, signature: str, rules: list[str]) -> str | None:
+    return PermissionResolutionPolicy.find_matching(signature=signature, rules=rules)
 
 
 def _resolve_settings_files(*, cwd: str) -> list[SettingsFile]:
@@ -230,9 +252,9 @@ def _build_diagnosis(
     matches: list[RuleMatch],
     winning_file: SettingsFile | None,
 ) -> str:
-    files_with_match = [m for m in matches if m.matching_rule is not None]
+    files_with_match = [m for m in matches if m.is_matched()]
     files_with_allow_list = [m for m in matches if m.has_allow_list]
-    files_without_match = [m for m in matches if m.has_allow_list and m.matching_rule is None]
+    files_without_match = [m for m in matches if m.is_unmatched_with_allow_list()]
 
     if not files_with_match:
         return "No matching allow rule found in any settings file."
@@ -271,7 +293,7 @@ def _build_fix_suggestion(
     matches: list[RuleMatch],
     winning_file: SettingsFile | None,
 ) -> str:
-    files_with_match = [m for m in matches if m.matching_rule is not None]
+    files_with_match = [m for m in matches if m.is_matched()]
 
     if not files_with_match:
         if winning_file:

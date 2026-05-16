@@ -719,40 +719,19 @@ def investigate_report(*, output: str | None) -> None:
 @investigate.command(name="delta")
 def investigate_delta() -> None:
     """Compare matrix outcomes against current plugin-maintenance rules."""
-    import json as _json
-
     from dev10x.skills.permission import update_paths as paths_mod
-    from dev10x.skills.permission_investigator.matrix import (
-        Matrix,
-        MatrixCell,
-        MatrixResult,
-        RuleShape,
-    )
-    from dev10x.skills.permission_investigator.report import compute_delta
-
-    state_path = _resolve_state_path()
-    if not state_path.is_file():
-        click.echo("ERROR: state missing — run `prepare` first.", err=True)
-        sys.exit(1)
-    state = _json.loads(state_path.read_text())
-
-    matrix = Matrix()
-    for cell_data in state.get("cells", []):
-        matrix.cells.append(
-            MatrixCell(
-                shape=RuleShape(**cell_data["shape"]),
-                location=cell_data["location"],
-                cell_id=cell_data["cell_id"],
-            )
-        )
-    for cell_id, result_data in state.get("results", {}).items():
-        matrix.add_result(MatrixResult(**result_data))
+    from dev10x.skills.permission_investigator import PermissionDeltaQuery
 
     config_path = paths_mod.find_config()
     config = paths_mod.load_config(config_path)
-    base_permissions = config.get("base_permissions", [])
-
-    delta = compute_delta(matrix=matrix, base_permissions=base_permissions)
+    query = PermissionDeltaQuery(
+        state_path=_resolve_state_path(),
+        base_permissions=config.get("base_permissions", []),
+    )
+    if not query.state_exists():
+        click.echo("ERROR: state missing — run `prepare` first.", err=True)
+        sys.exit(1)
+    delta = query.execute()
 
     click.echo("Ineffective rules currently shipped:")
     for rule in delta.ineffective_rules or ["  (none)"]:
