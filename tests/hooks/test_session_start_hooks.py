@@ -92,26 +92,14 @@ class TestSessionGuidance:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        import dev10x.hooks.session as mod
+        import dev10x.hooks.session_dispatch as mod
 
-        monkeypatch.setattr(
-            mod,
-            "_escape_for_json",
-            lambda s: s,
-        )
         fake_root = Path("/tmp/nonexistent-plugin-root-xyz")
-        monkeypatch.setattr(
-            mod,
-            "Path",
-            type(
-                "PatchedPath",
-                (Path,),
-                {"parents": property(lambda self: [self, self, self, fake_root])},
-            ),
-        )
+        monkeypatch.setattr(mod, "_plugin_root", lambda: fake_root)
 
-        with pytest.raises((SystemExit, Exception)):
+        with pytest.raises(SystemExit) as exc_info:
             mod.session_guidance()
+        assert exc_info.value.code == 0
 
 
 class TestSessionGitAliases:
@@ -138,7 +126,7 @@ class TestSessionGitAliases:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        import dev10x.hooks.session as mod
+        import dev10x.hooks.session_place as mod
 
         monkeypatch.setattr(mod, "_run_git", lambda *args: "")
 
@@ -157,7 +145,7 @@ class TestSessionGitAliases:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        import dev10x.hooks.session as mod
+        import dev10x.hooks.session_place as mod
 
         call_count = 0
 

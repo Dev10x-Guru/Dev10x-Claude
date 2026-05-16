@@ -278,3 +278,15 @@ class TestFormatDecisionGuidance:
         )
 
         assert "AskUserQuestion" in result
+
+    def test_raises_on_unknown_friction_level(
+        self,
+        plan_with_decision: dict,
+    ) -> None:
+        from dev10x.hooks.session_policy import UnknownFrictionLevelError
+
+        with pytest.raises(UnknownFrictionLevelError):
+            _format_decision_guidance(
+                plan=plan_with_decision,
+                friction_level="bogus",  # type: ignore[arg-type]
+            )

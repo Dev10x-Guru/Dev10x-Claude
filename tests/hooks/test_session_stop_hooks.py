@@ -20,7 +20,7 @@ def runner() -> CliRunner:
 
 class TestSessionPersist:
     def test_creates_state_file(self, runner: CliRunner, tmp_path: Path) -> None:
-        import dev10x.hooks.session as mod
+        import dev10x.hooks.session_dispatch as mod
 
         def fake_toplevel() -> str:
             return str(tmp_path / "myproject")
@@ -50,7 +50,7 @@ class TestSessionPersist:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        import dev10x.hooks.session as mod
+        import dev10x.hooks.session_dispatch as mod
 
         project_dir = tmp_path / "myproject"
         project_dir.mkdir(parents=True)
@@ -109,7 +109,7 @@ class TestSessionPersist:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        import dev10x.hooks.session as mod
+        import dev10x.hooks.session_dispatch as mod
 
         project_dir = tmp_path / "myproject"
         project_dir.mkdir(parents=True)
