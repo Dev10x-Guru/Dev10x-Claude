@@ -313,13 +313,37 @@ MCP tool path.
 
 ### Step 6: Push and Create Draft PR
 
+**Strict order: push FIRST, then create PR (GH-159).** The
+push must complete successfully before `create_pr` runs.
+Audit GH-159 caught a session where `create_pr` ran before
+any successful `push_safe`; GitHub accepted the PR but a
+PostToolUse hook had silently rewound HEAD between commits,
+and subsequent `push_safe` calls returned `{}` while the
+remote and local refs diverged. Recovery required
+`git reflog` and `git reset --hard <sha>`.
+
+Verification before `create_pr`:
+
+1. Run `mcp__plugin_Dev10x_cli__push_safe` (or the wrapper
+   script) and confirm a non-error return.
+2. Sanity-check the remote ref with
+   `git ls-remote --heads origin <branch>` — local HEAD SHA
+   must match the remote ref.
+3. ONLY then invoke `create_pr`.
+
+If push verification fails, STOP. Do NOT fall back to a raw
+`git push` (it is hook-blocked) and do NOT call `create_pr`
+on an unpushed branch.
+
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-create/scripts/create-pr.sh "$TITLE" "$JOB_STORY" "$ISSUE" "$FIXES_URL"
 ```
 
 This script:
-1. Pushes the branch with upstream tracking
-2. Creates a draft PR targeting `develop` with plain commit list + checklist template
+1. Pushes the branch with upstream tracking (fails fast if
+   push does not succeed)
+2. Creates a draft PR targeting `develop` with plain commit
+   list + checklist template
 3. Gets the PR number
 4. Updates the body with linked commits (using `generate-commit-list.sh`)
 5. Outputs the PR number
