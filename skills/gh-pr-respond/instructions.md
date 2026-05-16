@@ -197,6 +197,60 @@ When in doubt, default to one fixup per comment. Bundling is
 opt-in for the agent: offer it via `AskUserQuestion` rather
 than auto-bundling silently.
 
+### Rationalization Watchlist (GH-123)
+
+**Reject bundled mode** when the agent's stated rationale matches
+any of the patterns below. These are well-formed but invalid
+rationalizations that audit session GH-123 caught a 9-comment
+review cycle silently bundling under. The trigger criteria above
+require shared *fix scope*, not shared *commit topology* or
+*implementation efficiency*.
+
+Prohibited rationalizations:
+
+- "Both comments touch the same parent commit"
+- "Autosquash will collapse them anyway"
+- "Fewer stash / checkout / rebase dances"
+- "About the same area of code" (without single-fix coherence)
+- "These are all in the same file"
+- "Easier to land one fixup than three"
+
+These patterns describe convenience or commit topology — neither
+satisfies the "single coherent change" criterion. If the rationale
+for bundling fits any pattern above, STOP and produce one fixup
+per comment. The trigger criteria are about the *fix*, not the
+*workflow*; if splitting produces three distinct diffs, those
+distinct diffs need three distinct fixups.
+
+### Pre-fixup comment-ID checkpoint (GH-123)
+
+Before invoking `Skill(Dev10x:gh-pr-fixup)`, record which review
+comment ID(s) the fixup addresses in the task metadata for that
+step:
+
+```
+TaskUpdate(taskId, metadata={"comment_ids": ["<id1>"], "bundled": false})
+```
+
+For bundled fixups, the metadata MUST list every grouped comment
+ID and the bundle rationale:
+
+```
+TaskUpdate(taskId, metadata={
+    "comment_ids": ["<id1>", "<id2>", "<id3>"],
+    "bundled": true,
+    "bundle_rationale": "<one-sentence shared-fix-scope reason>",
+})
+```
+
+The `bundle_rationale` field is the audit trail. If the rationale
+matches the Rationalization Watchlist above, the task MUST be
+rejected and split into separate fixups before invoking
+`Skill(Dev10x:gh-pr-fixup)`. This makes the "memory-only" rule a
+mechanical guardrail: the metadata records the decision, the
+watchlist filters bad rationales, and `Dev10x:skill-audit` can
+surface patterns of bundling decisions across sessions.
+
 ### Bundled-reply template
 
 When a single `fixup!` addresses N comments, every reply MUST
