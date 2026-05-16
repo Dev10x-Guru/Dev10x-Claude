@@ -43,3 +43,12 @@ When this skill is invoked, Read `instructions.md` now and
 follow it end-to-end. `TaskCreate` and `AskUserQuestion` calls
 documented there are REQUIRED (unless invoked with
 `--unattended`, which auto-advances the preview gate).
+
+**End-to-end read enforcement (GH-166):** Consume
+`instructions.md` via a full `Read` of the file. Do NOT use
+`Grep`, partial `Read(offset=...)`, or token-budget skimming
+to locate specific steps — the push-then-create order, the
+ticket-detection fallbacks, the Job Story sourcing rules, and
+the summary-comment side effects are scattered across the
+document. Partial reads that skip later sections routinely
+miss guardrails added after the read window.

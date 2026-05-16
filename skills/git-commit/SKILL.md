@@ -34,3 +34,13 @@ line-length validation, staging, and commit creation — lives in
 When this skill is invoked, Read `instructions.md` now and
 follow it end-to-end. `AskUserQuestion` gates documented there
 are REQUIRED.
+
+**End-to-end read enforcement (GH-166):** Consume
+`instructions.md` via a full `Read` of the file. Do NOT use
+`Grep`, partial `Read(offset=...)`, or token-budget skimming
+to locate specific steps — guardrails (e.g., the Scope
+Invariant, the Pre-staging Gate, the 72-char validation, the
+mktmp-only temp path) are scattered across the document, and
+agents that read only the section they "need" routinely miss
+them. If file size is a concern, request the entire body
+once and rely on the parsed context for subsequent steps.
