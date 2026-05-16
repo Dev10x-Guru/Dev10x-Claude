@@ -211,6 +211,78 @@ configuration choice is auditable.
 - ✅ If staged changes exist → Continue
 - ⚠️ If only unstaged changes → Ask: "Stage all changes? (y/n)"
 
+### Step 1.5: Detect Branch Drift (GH-147)
+
+**Why this step exists.** Step 1's base-branch block catches HEAD
+on `develop`/`main`/`master`, but `solo_maintainer: true` disables
+that block, and any *other* non-base branch passes silently. In
+long sessions a `rebase --continue`, a forgotten `git checkout`,
+or a script can move HEAD to a different feature branch (or back
+to develop in solo-maintainer mode) without the user noticing.
+The commit then lands on the wrong branch and recovery requires
+reflog archaeology.
+
+**Source the expected ticket from plan-sync context:**
+
+```
+mcp__plugin_Dev10x_cli__plan_sync_json_summary()
+```
+
+Read `plan.context.tickets` from the response. If the call returns
+an empty dict, the `tickets` list is missing, or the list is
+empty, **skip this step entirely** — no orchestrator is tracking
+expected work, so drift cannot be detected. This preserves
+backward compatibility for ad-hoc `/Dev10x:git-commit`
+invocations outside `Dev10x:work-on`.
+
+**Compare against current HEAD:**
+
+```bash
+git symbolic-ref --short HEAD
+```
+
+For each ticket ID in `context.tickets`, check whether the
+branch name contains it as a `/`-delimited segment (avoid
+substring false positives — `GH-14` must not match a branch
+containing `GH-147`). Match passes when ANY expected ticket is
+present.
+
+**On match → continue to Step 2 silently.**
+
+**On mismatch → drift detected.** Fire the decision gate:
+
+**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text,
+call spec: [ask-branch-drift.md](./tool-calls/ask-branch-drift.md)).
+This gate is `ALWAYS_ASK` — it fires at every friction level
+including `adaptive`, because auto-selecting either branch
+silently masks the drift the gate exists to catch.
+
+Substitute the placeholders in the call spec:
+- `<actual-branch>` — output of `git symbolic-ref --short HEAD`
+- `<expected-ticket>` — first ticket from `context.tickets`
+- `<expected-branch>` — most recent `checkout: moving to <name>`
+  entry in `git reflog -n 50` whose target contains the expected
+  ticket ID; fall back to `<user>/<expected-ticket>/...` if no
+  reflog entry matches
+
+**Handling the user's choice:**
+
+- **Switch back to expected branch** — run `git checkout
+  <expected-branch>` and stop the skill. The orchestrator (or
+  user) re-invokes `Dev10x:git-commit` after the checkout. Do
+  NOT auto-resume — the working tree state on the expected
+  branch may differ and Step 1's status check must re-run.
+- **Continue on current branch** — proceed to Step 2. The
+  ticket ID extracted in Step 2 will reflect the actual branch,
+  not the expected one. This is the intentional-switch path.
+- **Abort** — stop the skill without changing branches.
+
+**Nested-mode behavior.** Unattended mode does NOT bypass this
+gate. The orchestrator's plan approval covers *what* to commit,
+not *where*; a wrong-branch commit is a higher-severity error
+than the friction this gate adds. Treat the gate as a safety
+interlock that fires even when every other prompt is auto-advanced.
+
 ### Step 2: Extract Ticket ID from Branch
 
 **Branch naming convention:** `username/TICKET-ID/[worktree-name/]description`

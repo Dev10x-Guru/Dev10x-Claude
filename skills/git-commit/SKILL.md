@@ -13,6 +13,7 @@ invocation-name: Dev10x:git-commit
 allowed-tools:
   - AskUserQuestion
   - mcp__plugin_Dev10x_cli__mktmp
+  - mcp__plugin_Dev10x_cli__plan_sync_json_summary
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
   - Write(/tmp/Dev10x/git/**)
 ---
