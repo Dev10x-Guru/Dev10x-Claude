@@ -87,6 +87,7 @@ on the mode. Execute these `TaskCreate` calls at startup:
 10. `TaskCreate(subject="Audit permissions for friction", activeForm="Auditing permissions")`
 11. `TaskCreate(subject="Clean project files", activeForm="Cleaning project files")`
 12. `TaskCreate(subject="Run permission doctor", activeForm="Running doctor sweep")`
+13. `TaskCreate(subject="Diff user playbooks against defaults", activeForm="Diffing playbooks")`
 
 Set sequential dependencies. Mark each step `in_progress` when
 starting and `completed` when done. Steps that produce no
@@ -431,6 +432,40 @@ uv run dev10x permission doctor cross-contamination
 ```bash
 uv run dev10x permission doctor enable-group kubernetes-readonly --dry-run
 uv run dev10x permission doctor enable-group kubernetes-readonly
+```
+
+### 13. Diff user playbooks against plugin defaults *(full only)* (GH-192)
+
+User playbook overrides under `.claude/Dev10x/playbooks/` and
+`~/.claude/memory/Dev10x/playbooks/` drift from the plugin defaults as
+new versions ship new steps, fragments, or field changes. This step
+surfaces those upstream changes without overwriting user customizations.
+
+```bash
+uv run dev10x playbook diff
+```
+
+The report distinguishes:
+
+- **New** steps present in the plugin default but missing from the user
+  override — typically upstream additions worth pulling in
+- **Removed** steps or plays the user overrides that no longer exist in
+  the default — either intentional pruning or upstream removal
+- **Changed** steps where the user has not overridden a field whose
+  default value moved upstream
+- **Customized** fields the user has explicitly set — flagged as
+  preserved; the diff never proposes overwriting them
+
+To pull in upstream changes interactively, run:
+
+```bash
+/Dev10x:playbook edit <skill> <play>
+```
+
+To target one skill (skip the rest):
+
+```bash
+uv run dev10x playbook diff --skill work-on
 ```
 
 ## Configuration
