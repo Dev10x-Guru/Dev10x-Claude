@@ -83,6 +83,33 @@ fall back to the wrapper script (blocked by
 `validate-bash-command.py`) or use `DEV10X_SKIP_CMD_VALIDATION` —
 see `references/mcp-unavailable-escape-hatch.md`.
 
+### Post-push CI monitoring (GH-117 #2)
+
+**On successful push to a branch with an open PR, the next
+action is `Skill(Dev10x:gh-pr-monitor)` — not "wait and see".**
+A push to a PR branch retriggers CI; failing to monitor it
+turns a deviation into an oversight.
+
+After `push_safe` returns (empty dict `{}` means success — see
+`.claude/rules/mcp-tools.md`):
+
+1. Resolve PR state for the pushed branch via
+   `mcp__plugin_Dev10x_cli__pr_detect`.
+2. If a PR exists and is OPEN, immediately invoke
+   `Skill(Dev10x:gh-pr-monitor)` so the supervisor's CI-poll
+   micro-agent dispatches before the user has to ask.
+3. If no PR exists (push is the first push of a new branch),
+   skip this auto-chain — the next step is `Dev10x:gh-pr-create`
+   in the work-on plan.
+
+When this skill is invoked from inside `Dev10x:work-on`,
+work-on's pr-continuation play moves `Monitor CI` to
+`in_progress` automatically (see work-on instructions §
+Post-push auto-advance). When invoked standalone, the user is
+responsible for the chain, but this skill's success message
+should still surface a "Next: `Skill(Dev10x:gh-pr-monitor)`"
+hint so the next move is unambiguous.
+
 **Fallback: wrapper script** (only when MCP is healthy but the
 tool call errored for another reason):
 

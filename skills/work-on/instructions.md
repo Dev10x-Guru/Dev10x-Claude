@@ -720,6 +720,30 @@ specific file/line, that is the starting point for investigation.
 4.10 [detailed] Verify acceptance criteria
 ```
 
+**Pr-continuation deletion guard (GH-117 #1).** Tasks 4.6
+(Monitor CI), 4.8 (Update PR description), 4.9 (Request
+re-review), and 4.10 (Verify acceptance criteria) MUST NOT be
+marked `status=deleted` while still `pending`. The terminal
+gate is `Dev10x:verify-acc-dod`, NOT a mid-session pivot to an
+inline edit. When the user pivots inside Phase 4 — for example,
+"actually, also fix this nit" — the pivot becomes a **new
+subtask inserted before 4.10**; it does not replace the existing
+Phase 4 plan. Deleting still-pending pr-continuation tasks
+empties the task list, kills CI monitoring, and lets unaddressed
+review comments slip through. The recurrence in GH-117 evidence
+(deletion happened twice in the same session) shows the
+regression is easy to repeat under user-pivot pressure.
+
+**Post-push auto-advance (GH-117 #2).** After
+`Skill(Dev10x:git)` returns a successful push on a branch that
+already has an open PR, the next active task is **always**
+`Monitor CI`. Move task 4.6 to `in_progress` immediately on
+push success — do not wait for the user to ask "did CI run?".
+A missed CI failure on an unattended post-push is documented as
+the most common pr-continuation oversight; auto-moving the
+monitor task converts it from oversight to deviation (visible
+in `TaskList`).
+
 **Local-only work (no ticket, no PR):**
 ```
 4.1  [detailed] Summarize the work from gathered context
