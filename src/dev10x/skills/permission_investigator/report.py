@@ -50,8 +50,7 @@ def render_markdown_report(matrix: Matrix) -> str:
 
     lines: list[str] = ["# Permission Pattern Investigation"]
     lines.append("")
-    seen, total = matrix.coverage()
-    lines.append(f"Cells executed: **{seen}/{total}**")
+    lines.append(f"Cells executed: **{matrix.coverage_label()}**")
     lines.append("")
 
     lines.append("## Outcome counts")

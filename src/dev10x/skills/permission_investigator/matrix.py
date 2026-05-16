@@ -95,6 +95,10 @@ class Matrix:
     def coverage(self) -> tuple[int, int]:
         return len(self.results), len(self.cells)
 
+    def coverage_label(self) -> str:
+        seen, total = self.coverage()
+        return f"{seen}/{total}"
+
 
 def _tilde_prefix(*, user_home: str) -> str:
     del user_home
