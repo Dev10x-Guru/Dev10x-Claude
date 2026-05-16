@@ -722,14 +722,21 @@ or use Claude Code's built-in plan mode.
 **REQUIRED: Call `AskUserQuestion`** when the plan was
 agent-generated (do NOT use plain text).
 
-**Adaptive friction behavior (GH-808):** At adaptive level,
-auto-select "Approve (Recommended)" — proceed directly to
-Phase 4 without calling `AskUserQuestion`. This means: approve
-the plan and start execution immediately. Do NOT skip the gate
-entirely (which would leave the plan unapproved and execution
-blocked). Auto-select = execute the recommended action.
+**Adaptive friction behavior (GH-808, refined GH-158):** At
+adaptive level, the `AskUserQuestion` tool call MUST still
+emit so the user retains override capability — do not skip
+the gate. The agent auto-selects "Approve (Recommended)" and
+proceeds to Phase 4 only if the user does not override within
+the harness's interactive window. Skipping the gate as plain
+text (audit GH-158: ~45-minute response delay because the A/B
+choice was presented as prose, not a structured widget) is a
+compliance violation regardless of friction level.
 
-**Guided/Strict friction:** Call `AskUserQuestion`:
+Implementation: always call `AskUserQuestion` below; treat
+adaptive as "auto-recommend, but block briefly for override"
+rather than "fire-and-forget approval".
+
+**All friction levels:** Call `AskUserQuestion`:
 
 1. `AskUserQuestion(questions=[{question: "How would you like to proceed with the work plan?", header: "Plan", options: [{label: "Approve (Recommended)", description: "Start execution immediately"}, {label: "Edit", description: "Describe what to change (add/remove/reorder steps)"}], multiSelect: false}])`
 
