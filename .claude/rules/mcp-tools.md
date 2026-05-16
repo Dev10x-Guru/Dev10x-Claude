@@ -44,8 +44,14 @@ its docstring. Examples:
 - `mktmp`: returns `{"path": "/tmp/file"}`
 - Some tools return `{"success": True, "data": result}`
 - Some tools return only tool-specific fields without a `success` flag
+- `push_safe`: returns `{}` on a clean fast-forward push (GH-152) —
+  emptiness is NOT failure; only `{"error": ...}` is failure. Verify
+  the remote with `git ls-remote --heads origin <branch>` if a
+  payload is needed.
 
-Callers must know each tool's specific success response format.
+Callers must know each tool's specific success response format. Branch
+on the presence of an `"error"` key, never on whether the dict is
+empty.
 
 ## Tool Availability by Plugin Version
 

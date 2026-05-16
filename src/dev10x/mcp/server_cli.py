@@ -555,6 +555,17 @@ async def push_safe(
 
     Returns:
         Dictionary with keys: success (bool), branch, remote, blocked_reason (if blocked)
+
+    Success semantics (GH-152):
+        An empty dict `{}` IS a successful push — the underlying
+        `git push` script may emit no key/value output on a clean
+        fast-forward. Callers MUST NOT interpret `{}` as failure
+        and MUST NOT fall back to raw `git push` (which is
+        hook-blocked). To verify the remote actually received the
+        push, run `git ls-remote --heads origin <branch>` and
+        compare against the local HEAD SHA. A real failure
+        returns `{"error": "<message>"}` — branch on the `error`
+        key, not on emptiness.
     """
     from dev10x import git as git_tools
     from dev10x.subprocess_utils import use_cwd
