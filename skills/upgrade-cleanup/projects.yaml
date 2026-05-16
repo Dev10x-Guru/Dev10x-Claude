@@ -109,15 +109,19 @@ base_permissions:
   - "Bash(~/.claude/plugins/cache/**/skills/upgrade-cleanup/scripts/merge-worktree-permissions.py:*)"
   - "Bash(~/.claude/plugins/cache/**/skills/upgrade-cleanup/scripts/update-paths.py:*)"
 
-  # --- Dev10x config file access (GH-878) ---
+  # --- Dev10x config file access (GH-878, GH-135) ---
   # Skills read/write playbook overrides, session config, slack config,
-  # reviewer config, database config under these directories.
+  # reviewer config, database config under these directories. Grep
+  # rules cover skill investigations that scan plugin config and the
+  # plugin cache for allow rules, scripts, and references.
   - "Read(~/.claude/memory/Dev10x/**)"
   - "Write(~/.claude/memory/Dev10x/**)"
   - "Edit(~/.claude/memory/Dev10x/**)"
   - "Read(.claude/Dev10x/**)"
   - "Write(.claude/Dev10x/**)"
   - "Edit(.claude/Dev10x/**)"
+  - "Bash(grep:*~/.claude/memory/Dev10x/**)"
+  - "Bash(grep:*~/.claude/plugins/cache/Dev10x-Guru/**)"
 
   # --- Dev10x MCP tools: cli server (GH-878) ---
   - "mcp__plugin_Dev10x_cli__detect_tracker"
