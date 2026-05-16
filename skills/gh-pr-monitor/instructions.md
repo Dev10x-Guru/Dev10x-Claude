@@ -806,6 +806,30 @@ Include the full output in the agent's final report to the supervisor.
 
 ---
 
+## Phase 3.5: Post-Merge Milestone Cleanup (GH-187)
+
+If the PR has merged (state observed by `haiku-ci-poll` as
+`MERGED`, or `gh pr view --json state,milestone` shows
+`state: MERGED`) and the PR was assigned to a milestone,
+check whether the milestone can now be closed.
+
+1. Read `milestone.number` and `milestone.open_issues` from
+   `gh pr view --json milestone`.
+2. If `open_issues == 0`, call the MCP tool:
+   ```
+   mcp__plugin_Dev10x_cli__milestone_close(number=<N>)
+   ```
+   This wraps `gh api -X PATCH repos/{repo}/milestones/{N} -f
+   state=closed` — which the plugin's permission manifest blocks
+   at the Bash layer. The MCP tool has the permission baked in.
+3. If `open_issues > 0`, skip the close — the milestone still
+   has work. Report `Milestone #{N}: {open_issues} open issues
+   remaining` in the final status.
+
+Skip this phase if `milestone == null`. Never invoke
+`milestone_close` via raw `gh api` — the permission gap is
+intentional outside the MCP tool.
+
 ## Phase 4: Acceptance Criteria Verification
 
 After Phase 3 completes, verify acceptance criteria before the

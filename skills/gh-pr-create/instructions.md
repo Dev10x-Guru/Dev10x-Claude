@@ -409,7 +409,19 @@ Next steps:
   script as fallback) for PR creation. Raw commands bypass
   protected branch checks and body formatting. Audit sessions
   GH-448 and GH-446 confirmed this regression pattern.
-- Always create PRs as drafts initially
+- Create PRs as drafts initially — **exception:** when
+  `.claude/Dev10x/session.yaml` has `active_modes` containing
+  `solo-maintainer`, pass `draft=False` to `create_pr` so the PR
+  is immediately ready-for-review. There is no reviewer in
+  solo-maintainer mode, so leaving the PR draft just adds a
+  manual flip step (GH-184).
+- **Milestone-bundle PRs:** when a single PR ships multiple
+  issues (e.g., closing several sub-tickets of a milestone),
+  pass the issue numbers as `closes=[N, M, ...]` to `create_pr`.
+  The script emits a `Closes #N` block after the commit list
+  and before the trailer, which GitHub uses to auto-close the
+  constituent issues on merge (GH-186). Without this, only the
+  primary `issue_id` (Fixes: link) auto-closes.
 - **Base branch is auto-detected** — `detect-base-branch.sh` checks for
   `develop`/`development` first, falls back to `main`/`master`/`trunk`.
   Pass `--force` to `verify-state.sh` to override when a dev branch exists

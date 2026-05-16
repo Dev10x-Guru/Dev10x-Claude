@@ -360,9 +360,11 @@ async def create_pr(
     issue_id: str,
     fixes_url: str | None = None,
     base_branch: str | None = None,
+    closes: list[int] | None = None,
+    draft: bool = True,
     cwd: str | None = None,
 ) -> dict:
-    """Create a draft PR with two-pass body generation.
+    """Create a PR with two-pass body generation.
 
     Args:
         title: PR title
@@ -370,6 +372,12 @@ async def create_pr(
         issue_id: Ticket ID extracted from branch name
         fixes_url: Issue URL for the Fixes: line
         base_branch: Base branch. Auto-detected if omitted.
+        closes: Issue numbers to close on merge — emitted as
+            `Closes #N` lines (GH-186). Use for milestone-bundle
+            PRs that ship multiple issues.
+        draft: Create as draft (default True). Pass False in
+            solo-maintainer mode so the PR is immediately
+            ready-for-review (GH-184).
         cwd: Effective working directory (GH-979). Pass the worktree
             path after EnterWorktree so the PR is created from the
             worktree's branch, not the main repo's.
@@ -388,6 +396,8 @@ async def create_pr(
                 issue_id=issue_id,
                 fixes_url=fixes_url,
                 base_branch=base_branch,
+                closes=closes,
+                draft=draft,
             )
         ).to_dict()
 
@@ -430,6 +440,38 @@ async def update_pr(
                 body=body,
                 title=title,
                 base_branch=base_branch,
+                repo=repo,
+            )
+        ).to_dict()
+
+
+@server.tool()
+async def milestone_close(
+    number: int,
+    repo: str | None = None,
+    cwd: str | None = None,
+) -> dict:
+    """Close a GitHub milestone via REST API (GH-187).
+
+    Use from gh-pr-monitor after all milestone issues are closed.
+    Wraps `gh api -X PATCH repos/{repo}/milestones/{N} -f state=closed`,
+    which the plugin permission manifest blocks at the Bash layer.
+
+    Args:
+        number: Milestone number to close
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: number (int), state ("closed"), url (str)
+    """
+    from dev10x import github as gh
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return (
+            await gh.milestone_close(
+                number=number,
                 repo=repo,
             )
         ).to_dict()

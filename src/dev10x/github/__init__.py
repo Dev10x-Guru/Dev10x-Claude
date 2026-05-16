@@ -637,10 +637,14 @@ async def create_pr(
     issue_id: str,
     fixes_url: str | None = None,
     base_branch: str | None = None,
+    closes: list[int] | None = None,
+    draft: bool = True,
 ) -> Result[dict[str, Any]]:
     args = [title, job_story, issue_id]
     args.append(fixes_url or "")
     args.append(base_branch or "")
+    args.append(",".join(str(n) for n in closes) if closes else "")
+    args.append("true" if draft else "false")
 
     result = await async_run_script(
         "skills/gh-pr-create/scripts/create-pr.sh",
@@ -691,6 +695,29 @@ async def update_pr(
 
     url = f"https://github.com/{repo_ref}/pull/{pr_number}"
     return ok({"pr_number": pr_number, "url": url})
+
+
+async def milestone_close(
+    *,
+    number: int,
+    repo: str | None = None,
+) -> Result[dict[str, Any]]:
+    repo_result = await _resolve_repo(repo)
+    if isinstance(repo_result, ErrorResult):
+        return err(repo_result.error)
+    repo_ref = repo_result.value
+
+    result = await _gh_api(
+        f"repos/{repo_ref}/milestones/{number}",
+        method="PATCH",
+        fields={"state": "closed"},
+    )
+
+    if result.returncode != 0:
+        return err(result.stderr.strip())
+
+    url = f"https://github.com/{repo_ref}/milestone/{number}"
+    return ok({"number": number, "state": "closed", "url": url})
 
 
 async def generate_commit_list(
