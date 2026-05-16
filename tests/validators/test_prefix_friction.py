@@ -365,3 +365,50 @@ class TestSemicolonChain:
         inp = _make_input(command="find /home -name '*.py' -type f")
         result = validator.validate(inp=inp)
         assert result is None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git status; git fetch",
+            "git log -1; git diff HEAD~1",
+            "gh pr view 1; gh pr checks 1",
+            "pwd; whoami",
+            "echo a; echo b",
+            "uv run pytest; uv run ruff check",
+            "docker ps; docker images",
+            "kubectl get pods; kubectl get svc",
+            "python3 -V; which python3",
+            "env; printenv HOME",
+        ],
+    )
+    def test_blocks_widened_chain_heads(
+        self,
+        validator: PrefixFrictionValidator,
+        command: str,
+    ) -> None:
+        """GH-127 #5: widened head set catches documented nuisance chains."""
+        inp = _make_input(command=command)
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "separate Bash tool calls" in result.message
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # State-changing commands intentionally NOT widened.
+            "rm a.txt; rm b.txt",
+            "mkdir foo; cd foo",
+            "mv a b; mv c d",
+            "touch x; touch y",
+        ],
+    )
+    def test_allows_state_changing_chains(
+        self,
+        validator: PrefixFrictionValidator,
+        command: str,
+    ) -> None:
+        """State-changing chains stay out of scope — splitting would be
+        more disruptive than helpful."""
+        inp = _make_input(command=command)
+        result = validator.validate(inp=inp)
+        assert result is None

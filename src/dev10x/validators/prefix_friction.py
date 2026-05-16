@@ -64,13 +64,27 @@ REDIRECT_THEN_POSITIONAL_RE = re.compile(
 
 # GH-119: ';' chains match the whole command string against allow rules
 # rather than individual clauses. Detect non-trivial chains (two
-# read-only commands) so the agent splits them into separate tool calls.
-# Excludes `; ` inside quoted strings via a lookbehind heuristic — the
-# initial filter is by token shape on the chain head/tail.
+# read-only or low-risk commands) so the agent splits them into separate
+# tool calls. Excludes `; ` inside quoted strings via a lookbehind
+# heuristic — the initial filter is by token shape on the chain head/tail.
+#
+# GH-127 #5: head/tail set widened to catch the documented nuisance
+# patterns (e.g., `git status; git fetch`, `ls dir1; ls dir2`,
+# `pwd; whoami`). Each entry is a command that does not, in its most
+# common forms, mutate global state beyond the working directory —
+# chains of these are nearly always two probes that should be split
+# into two Bash tool calls. State-changing commands (rm, mv, cp,
+# mkdir, touch, kubectl apply, docker run, etc.) are intentionally
+# absent: forcing a split there would be more disruptive than helpful.
+_CHAIN_HEAD_RE = (
+    r"(?:find|grep|ls|rg|cat|head|tail|wc|"
+    r"git|gh|pwd|which|whoami|env|date|printenv|"
+    r"echo|sleep|uv|python|python3|docker|kubectl)"
+)
 SEMICOLON_CHAIN_RE = re.compile(
-    r"^\s*(?P<head>(?:find|grep|ls|rg|cat|head|tail|wc)\b[^;]*?)"
+    rf"^\s*(?P<head>{_CHAIN_HEAD_RE}\b[^;]*?)"
     r"\s*;\s*"
-    r"(?P<tail>(?:find|grep|ls|rg|cat|head|tail|wc)\b.*)$"
+    rf"(?P<tail>{_CHAIN_HEAD_RE}\b.*)$"
 )
 
 CD_REVPARSE_MSG = (
