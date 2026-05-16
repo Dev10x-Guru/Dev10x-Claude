@@ -47,6 +47,32 @@ can consume to create fixup commits.
 **Not for remote PR review** — use `Dev10x:gh-pr-review` to post
 findings to GitHub.
 
+## Solo-Maintainer Auto-Skip Threshold (GH-161)
+
+Audit GH-161 caught a session where `Dev10x:review` and
+`simplify` were auto-completed with the marker
+`Auto-skipped: solo-maintainer` despite the diff touching 8+
+files including domain restructuring and a platform Registry
+split. Blanket auto-skip in `solo-maintainer` mode defeats the
+purpose of the review gate.
+
+**Threshold rule:** When `active_modes` contains
+`solo-maintainer`, auto-skip applies ONLY to small-surface
+changes. Compute the touched-files count from
+`git develop-diff --name-only | wc -l`:
+
+| Files touched | Solo-maintainer behavior |
+|---|---|
+| ≤ 3 files | Auto-skip allowed (Auto-skipped: solo-maintainer) |
+| 4–7 files | Run review in `--unattended` mode (no gate) |
+| ≥ 8 files | Run review in `--unattended` mode; if findings
+exist, emit `AskUserQuestion` so the user retains override |
+
+Orchestrators (e.g., `Dev10x:work-on`) MUST NOT mark the
+review task `completed` with the auto-skip marker when the
+diff exceeds the small-surface threshold. The same rule
+applies to the `simplify` step that follows review.
+
 ## Orchestration
 
 This skill follows `references/task-orchestration.md` patterns
