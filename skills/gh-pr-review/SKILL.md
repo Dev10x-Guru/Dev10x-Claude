@@ -12,7 +12,10 @@ invocation-name: Dev10x:gh-pr-review
 allowed-tools:
   - Bash(gh:*)
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
+  - Bash(~/.claude/tools/gh-bot-comment.py:*)
   - Write(/tmp/Dev10x/git/**)
+  - mcp__plugin_Dev10x_cli__pr_detect
+  - mcp__plugin_Dev10x_cli__mktmp
 ---
 
 # GitHub PR Review
@@ -67,10 +70,14 @@ number is given, use the current git remote origin.
 
 ### Step 2: Gather PR Context
 
-Run in parallel:
-1. `gh pr view {N} --json title,body,baseRefName,headRefName,
-   state,author,labels,commits,files`
-2. `gh pr diff {N}`
+**REQUIRED first call:** `mcp__plugin_Dev10x_cli__pr_detect` to
+resolve PR number, repo, state, base/head refs, and merge status
+in one structured response (GH-181 F4). Raw `gh pr view --json`
+is fallback only when the MCP tool is unavailable.
+
+Then run in parallel:
+1. `mcp__plugin_Dev10x_cli__pr_detect` (state, refs, merge state, labels)
+2. `gh pr diff {N}` — full diff
 3. `gh pr view {N} --json comments` — existing bot/human comments
 4. `gh api repos/{owner}/{repo}/pulls/{N}/reviews` — existing reviews
 5. `gh api repos/{owner}/{repo}/pulls/{N}/comments` — inline comments
@@ -78,6 +85,20 @@ Run in parallel:
 **Why all 5?** Avoids duplicating feedback from previous review cycles
 (per `review-guidelines.md` — "NEVER repeat feedback from previous
 review cycles").
+
+**Oversize-diff fallback (GH-181 F5).** GitHub's `gh pr diff` fails
+with `HTTP 406: Sorry, the diff exceeded the maximum number of
+lines (20000)` for very large PRs. When this happens:
+
+1. Fall back to file-list-only context:
+   `gh pr view {N} --json files,additions,deletions,changedFiles`
+2. Read changed files individually at the PR head SHA via
+   `gh api repos/{owner}/{repo}/contents/{path}?ref={head_sha}`
+   (or from local checkout if present — but DO NOT `git checkout`
+   the PR branch; see Step 3 REQUIRED).
+3. Record `oversize_diff=true` so Step 8 selects the bot-comment
+   transport (inline review threads anchor on diff hunks, which
+   are unavailable).
 
 ### Step 2b: Phase 0 — Spec Compliance Gate (GH-69)
 
@@ -155,17 +176,31 @@ For each file in the PR's file list, use the Read tool to read the
 file at the current HEAD of the PR's base branch. Compare with the
 diff to understand the full context.
 
-**Important**: Read files from your local checkout. If the PR branch
-is not checked out locally, the diff from Step 2 is sufficient for
-review — do not checkout the branch.
+**REQUIRED: do NOT run `git checkout` on the PR branch (GH-181
+F2).** If the PR branch is not checked out locally, the diff from
+Step 2 is sufficient for review. When you need a file's full text
+at the PR head, fetch it via
+`gh api repos/{owner}/{repo}/contents/{path}?ref={head_sha}` (or
+the equivalent `pr_detect` head SHA) — never disrupt the working
+tree by checking out the PR branch. Checking out the branch risks
+overwriting in-flight worktree changes and is a documented
+regression.
 
 ### Step 4: Impact Analysis
+
+**REQUIRED — main agent runs the grep pass (GH-181 F6).** Subagents
+may help, but the main agent must perform (or summarize subagent
+output of) the grep-for-callers sweep and include the findings in
+the draft review's impact-analysis section. A skipped or
+silently-delegated grep pass is a Step 4 violation.
 
 For changed interfaces (renamed methods, changed signatures, modified
 DTOs):
 - Grep for all callers/consumers of the changed interface
 - Verify the PR updates all call sites
 - Flag any missed references
+- Summarize the grep results in the draft review body (one bullet
+  per affected call site or "no other callers found").
 
 ### Step 4b: Architecture Evaluation (GH-916)
 
@@ -195,16 +230,25 @@ structural evaluation regardless of prior feedback.
 
 ### Step 5: Apply Review Guidelines
 
-Load project review guidelines from `references/`:
-- `review-guidelines.md` — workflow, threads, summaries
-- `review-checks-common.md` — false positive prevention
-- Domain-specific agents from `.claude/agents/` based on file types
+**REQUIRED — Read the reference files (GH-181 F1).** Skipping
+these because "I know the rules" is the regression that
+prompted this requirement. Apply the gate to every drafted
+inline comment, not just to a sample.
 
-Apply the **False Positive Prevention Gate** before drafting any
-inline comment:
+1. `Read(file_path=".../references/review-guidelines.md")` — workflow,
+   threads, summaries
+2. `Read(file_path=".../references/review-checks-common.md")` —
+   false positive prevention
+3. Load domain-specific agents from `.claude/agents/` for the
+   changed file types
+
+Apply the **False Positive Prevention Gate** (defined in
+`review-checks-common.md`) before drafting any inline comment:
 1. Does this violate a documented rule? (No rule = preference)
 2. Does this contradict an established codebase pattern?
 3. Quality improvement or just preference?
+
+If the gate fails any criterion, do not file the comment.
 
 ### Step 6: Draft Review
 
@@ -221,8 +265,14 @@ Compose:
 
 ### Step 7: Hide Obsolete Review Summaries
 
-Before posting the new review, minimize previous Claude review
-summaries that are fully resolved (per `review-guidelines.md` step 6):
+**Skip Step 7 entirely on closed/merged PRs (GH-181 F7).** The
+`minimizeComment` mutation only meaningfully affects the
+reviewer's pane on open PRs; on merged PRs nobody reads it and
+the call is a no-op. Closed/merged PR → jump straight to Step 8.
+
+Before posting the new review on an **open** PR, minimize previous
+Claude review summaries that are fully resolved (per
+`review-guidelines.md` step 6):
 
 1. Query review threads via GraphQL — check `isResolved` and group
    by `pullRequestReview.databaseId`
@@ -241,14 +291,30 @@ Skip this step on the first review (no previous summaries exist).
 
 ### Step 8: Post Review to GitHub
 
+**Transport selection (GH-181 F3, F8).** Pick the transport based
+on the PR state and diff size detected in Step 2:
+
+| Condition | Transport |
+|---|---|
+| PR is OPEN AND diff fits in `gh pr diff` (≤ ~5,000 LOC, no 406) | A. `gh api .../pulls/{N}/reviews` with inline comments |
+| PR is MERGED / CLOSED, OR `oversize_diff=true`, OR inline anchors infeasible | B. Bot top-level comment via `~/.claude/tools/gh-bot-comment.py` |
+
+#### A. Standard review payload (open PR, normal diff)
+
 Use the Write tool to create the review JSON, then post via `gh api --input`:
 
-1. Create a unique temp file:
-```bash
-/tmp/Dev10x/bin/mktmp.sh git pr-review .json
-```
+1. **MUST** create the unique temp path via the MCP tool — the shell
+   `mktmp.sh` is a fallback for when the MCP server is unavailable.
+   Reaching for the shell first is the regression GH-181 F8 closes:
 
-2. Write the review payload to the unique path:
+   ```
+   mcp__plugin_Dev10x_cli__mktmp(namespace="git", prefix="pr-review", ext=".json")
+   ```
+
+   Shell fallback (only when MCP unavailable):
+   `/tmp/Dev10x/bin/mktmp.sh git pr-review .json`
+
+2. Write the review payload to the returned path:
 ```json
 {
   "event": "COMMENT",
@@ -277,6 +343,58 @@ gh api repos/{owner}/{repo}/pulls/{N}/reviews \
 - Always use `"event": "COMMENT"` — never REQUEST_CHANGES or APPROVE
 - Include `commit_id` from the PR's latest commit
 - Inline comments must reference lines that exist in the PR diff
+
+#### B. Bot top-level comment (merged PR / oversize diff)
+
+The `pulls/{N}/reviews` endpoint requires every entry in
+`comments[]` to anchor on a line that exists in the diff. On
+merged PRs the diff is finalized and inline anchors still work,
+but the bot-identity transport is preferred because it preserves
+review attribution after merge. For oversize diffs, inline
+anchors are unavailable (no diff fetched). In both cases,
+restructure the review into a single top-level issue comment
+posted as the GitHub App.
+
+1. **Detect bot config:** `Read(file_path="~/.claude/Dev10x/github-bot/github-app.yaml")`.
+   If `enabled: true`, proceed; otherwise fall back to transport A
+   (best-effort with whatever inline anchors are available).
+
+2. **Restructure the payload:** convert each `comments[]` entry
+   into a quoted `file:line` block inside the body:
+
+   ```markdown
+   ## Review Summary
+
+   <summary text>
+
+   ### Findings
+
+   **`src/file.py:42`** — Issue description
+
+   ```suggestion
+   fix
+   ```
+
+   **`src/other.py:101`** — …
+   ```
+
+3. **Create the body file** via the MCP tool (MUST, not shell):
+   ```
+   mcp__plugin_Dev10x_cli__mktmp(namespace="git", prefix="pr-review-body", ext=".md")
+   ```
+   Write the restructured body to the returned path.
+
+4. **Post via the bot tool:**
+   ```bash
+   ~/.claude/tools/gh-bot-comment.py OWNER/REPO PR_NUMBER <body-path>
+   ```
+
+   This posts a top-level issue comment using the GitHub App
+   identity configured in `github-app.yaml`. The bot transport
+   does NOT support inline review threads — every finding must
+   be in the body with explicit `path:line` references.
+
+5. Report the resulting comment URL to the user in Step 9.
 
 ### Step 9: Report to User
 
