@@ -74,7 +74,27 @@ Use `TaskUpdate` with the task ID and new `status`:
 - `completed` — done
 - `pending` — deferred within this session
 
+## Task List Invariant (GH-149)
+
+The session task list must never be empty. When all work items are
+`completed`, this skill MUST seed a `Verify AC and close session`
+task before returning control to the supervisor:
+
+```
+TaskCreate(subject="Verify AC and close session",
+    description="<summary of shipped changes, PR links, CI status>",
+    activeForm="Verifying AC")
+```
+
+See `.claude/rules/essentials.md` § Task List Invariant for the full
+contract. Standalone `session-tasks` invocations that find an empty
+task list at the end MUST create this task before completing — a
+new prompt arriving on an empty list competes for attention with
+whatever is in flight; with `Verify AC` present, the new prompt
+lands as a TODO under the existing plan.
+
 ## Used By
 
 - `Dev10x:park` — when user picks "keep for this session"
 - `Dev10x:session-wrap-up` — Phase 1 auto-scan reads the task list
+- `Dev10x:verify-acc-dod` — owns the `Verify AC` task completion
