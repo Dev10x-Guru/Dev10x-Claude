@@ -18,6 +18,32 @@ allowed-tools:
 **Announce:** "Using Dev10x:session-wrap-up to capture open loops
 before closing this session."
 
+## Mandatory Invocation Triggers (GH-163)
+
+Audit GH-163 caught a session that wound down with CI still
+unconfirmed, 5 newly-created follow-up issues unlinked to the
+parent ticket, no plan-sync archive, and no parking note —
+`Dev10x:session-wrap-up` matched every trigger but was never
+invoked, and the parent orchestrator marked its wrap-up task
+`completed` without a `Skill()` call.
+
+**Hard trigger signals that REQUIRE this skill (do not skip):**
+
+- User signals end-of-session: "wrap up", "pause", "done for
+  today", "that's it"
+- CI on a session-created PR is still pending or unconfirmed
+  and the user is stepping away
+- Open loops (PRs awaiting review, deferred tasks, unfiled
+  follow-ups) exist with no plan-sync archive
+- Orchestrators (`Dev10x:work-on`, `Dev10x:fanout`) reach the
+  plan completion gate with non-empty pending tasks
+
+**Anti-pattern (PROHIBITED):** Marking a "Session wrap-up" or
+"Park items" task `completed` in an orchestrator's task list
+without calling `Skill(Dev10x:session-wrap-up)` first. The task
+completion is the side effect of the skill running — not a
+substitute for running it.
+
 ## Overview
 
 Collect all open loops, present them to the user, and help defer
