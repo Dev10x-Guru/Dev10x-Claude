@@ -26,21 +26,42 @@ registration:
 
 ## Tool Declaration Pattern
 
-All MCP tools must follow this structure:
+All MCP tools follow a two-layer pattern: internal functions return a
+typed `Result[T]` (`SuccessResult` or `ErrorResult` from
+`dev10x.domain.common.result`), and the `@server.tool()` handler at the
+MCP boundary calls `.to_dict()` to produce the wire-format dict.
 
 ```python
-@server.tool()
-async def function_name(param: str, optional: str | None = None) -> dict:
-    """Brief description of what the tool does."""
-    # implementation
+# Internal module (audit/release/monitor/permission/plan/skill_index/
+# utilities/github/db): public functions return Result[T].
+from dev10x.domain.common.result import Result, err, ok
+
+async def collect_prs(...) -> Result[dict[str, Any]]:
     if error_occurs:
-        return {"error": "descriptive message"}
-    return {tool-specific fields}  # see examples below
+        return err("descriptive message")
+    return ok({tool-specific fields})
+
+# MCP server boundary (src/dev10x/mcp/server_cli.py): unwrap via
+# .to_dict() so external consumers see the uniform wire format.
+@server.tool()
+async def collect_prs(...) -> dict:
+    """Brief description of what the tool does."""
+    return (await rel.collect_prs(...)).to_dict()
 ```
 
-**Important**: Error responses are uniform (`{"error": msg}`), but success
-responses are **tool-specific**. Document your tool's return structure in
-its docstring. Examples:
+**Wire format** (what callers see):
+- `SuccessResult.to_dict()` → `{tool-specific fields}` (no `success` flag
+  is added automatically — keep success payloads tool-specific).
+- `ErrorResult.to_dict()` → `{"error": "descriptive message", ...}`
+  (extra metadata like `messages`/`errors` is preserved).
+
+**Why two layers**: internal callers branch on `isinstance(result,
+SuccessResult)` for type-safe error handling; the MCP boundary keeps
+the legacy dict shape so existing tool consumers don't break. New
+modules MUST mirror the pattern — return `Result[T]` internally, call
+`.to_dict()` at the `@server.tool()` boundary.
+
+**Tool-specific success payloads**:
 - `mktmp`: returns `{"path": "/tmp/file"}`
 - Some tools return `{"success": True, "data": result}`
 - Some tools return only tool-specific fields without a `success` flag
