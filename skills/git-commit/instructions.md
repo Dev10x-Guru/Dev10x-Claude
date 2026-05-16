@@ -123,6 +123,28 @@ points. In unattended mode, these gates are skipped:
   - Edit message — revise before creating
   - Abort — cancel commit
 
+## Scope Invariant (GH-153)
+
+**One commit scope per invocation.** If a second unrelated change
+surfaces mid-flow (e.g., during staging review, the agent spots an
+incidental edit in a different module), finish the current
+invocation first, then re-invoke `Dev10x:git-commit` for the new
+scope. Do NOT extend the in-flight invocation to cover multiple
+scopes.
+
+**Recovery for a blocked raw `git commit`:** When the PreToolUse
+hook denies a raw `git commit -F <path>` you reached for mid-flow
+because a second scope appeared, the correct response is to:
+
+1. Complete the current `Dev10x:git-commit` invocation with the
+   original scope.
+2. Re-invoke `Skill(Dev10x:git-commit)` for the new scope.
+
+**Do NOT use `DEV10X_SKIP_CMD_VALIDATION=true` as a workaround.**
+That flag is reserved for skill-internal exceptions, not caller
+escape hatches. See `references/commit-examples.md` for atomic
+commit guidance.
+
 ## Prerequisites Check
 
 **IMPORTANT:** Verify git state before committing:
