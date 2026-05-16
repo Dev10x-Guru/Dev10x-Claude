@@ -769,8 +769,15 @@ begin Phase 4.
 **REQUIRED after plan approval (GH-760 F2).** Execute these
 calls immediately — do NOT defer or skip:
 
-1. `mcp__plugin_Dev10x_cli__plan_sync_set_context(args=["work_type=<detected_work_type>", "tickets=<JSON array of ticket IDs>", "routing_table={\"commit\":\"Skill(Dev10x:git-commit)\",\"create_pr\":\"Skill(Dev10x:gh-pr-create)\",\"monitor_ci\":\"Skill(Dev10x:gh-pr-monitor)\",\"push\":\"Skill(Dev10x:git)\",\"groom\":\"Skill(Dev10x:git-groom)\",\"branch\":\"Skill(Dev10x:ticket-branch)\",\"verify_acceptance\":\"Skill(Dev10x:verify-acc-dod)\",\"merge_pr\":\"Skill(Dev10x:gh-pr-merge)\"}"])`
+1. `mcp__plugin_Dev10x_cli__plan_sync_set_context(args=["work_type=<detected_work_type>", "tickets=<JSON array of ticket IDs>", "routing_table={\"commit\":\"Skill(Dev10x:git-commit)\",\"create_pr\":\"Skill(Dev10x:gh-pr-create)\",\"monitor_ci\":\"Skill(Dev10x:gh-pr-monitor)\",\"monitor_pr\":\"Skill(Dev10x:gh-pr-monitor)\",\"push\":\"Skill(Dev10x:git)\",\"groom\":\"Skill(Dev10x:git-groom)\",\"branch\":\"Skill(Dev10x:ticket-branch)\",\"verify_acceptance\":\"Skill(Dev10x:verify-acc-dod)\",\"merge_pr\":\"Skill(Dev10x:gh-pr-merge)\",\"work_on\":\"work-on\"}"])`
 2. `mcp__plugin_Dev10x_cli__plan_sync_set_context(args=["gathered_summary=<1-3 sentence summary>"])`
+
+**Attribution keys (GH-152):** The `work_on` key with value
+`"work-on"` is the audit attribution string — skill audits
+match on this exact value to confirm `Dev10x:work-on`
+orchestrated the plan. Include both `monitor_ci` and
+`monitor_pr` keys with the same value so callers can use
+either name without losing the routing.
 
 This ensures the PreCompact hook can inject the routing table
 and work type into the recovery context. Without this, the

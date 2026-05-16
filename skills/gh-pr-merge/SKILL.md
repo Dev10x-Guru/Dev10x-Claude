@@ -38,3 +38,21 @@ lives in [`instructions.md`](instructions.md).
 When this skill is invoked, Read `instructions.md` now and
 follow it end-to-end. `TaskCreate` and `AskUserQuestion` calls
 documented there are REQUIRED.
+
+## Skill Wrapper is Mandatory (GH-152)
+
+**Hard rule:** Do NOT call `gh pr merge` directly. Every PR
+merge MUST go through `Skill(Dev10x:gh-pr-merge)` so the
+8-check pre-merge gate (unresolved threads, top-level
+comments, inline review comments, CI buckets, draft state,
+mergeability, working copy, review approval) runs. Audit
+GH-152 caught a session where the agent ran
+`gh pr merge <N> --rebase --delete-branch` directly after
+partially reading this SKILL.md — only the CI check was
+performed inline, every other check was skipped.
+
+The PreToolUse hook for raw `gh pr merge` is tracked
+separately (extends the existing blocks on `git commit`,
+`git push`, and `git checkout -b`). Until the hook lands,
+the contract is enforced by convention: agent self-discipline
+plus orchestrator skill-routing tables.
