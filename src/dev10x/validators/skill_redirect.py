@@ -22,9 +22,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 from dev10x.domain import HookInput, HookResult
+from dev10x.domain.config_document import Config
 from dev10x.domain.friction_level import FrictionLevel
 from dev10x.domain.profile_tier import ProfileTier
-from dev10x.domain.validation_rule import Compensation, Config
+from dev10x.domain.validation_rule import Compensation
 from dev10x.validators.base import ValidatorBase
 
 if TYPE_CHECKING:

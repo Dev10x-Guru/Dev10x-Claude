@@ -11,7 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
-from dev10x.domain.validation_rule import Config
+from dev10x.domain.config_document import Config
 
 
 @runtime_checkable

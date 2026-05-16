@@ -13,7 +13,8 @@ from typing import Any
 
 import yaml
 
-from dev10x.domain.validation_rule import Config, Rule
+from dev10x.domain.config_document import Config
+from dev10x.domain.validation_rule import Rule
 
 
 @dataclass(frozen=True)

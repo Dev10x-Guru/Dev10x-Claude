@@ -5,8 +5,9 @@ from pathlib import Path
 import pytest
 import yaml
 
+from dev10x.domain.config_document import Config
 from dev10x.domain.rule_engine import RuleEngine
-from dev10x.domain.validation_rule import Compensation, Config, Rule
+from dev10x.domain.validation_rule import Compensation, Rule
 
 
 class TestRuleFromYamlEntry:

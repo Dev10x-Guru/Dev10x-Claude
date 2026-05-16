@@ -5,8 +5,6 @@ from dataclasses import dataclass, field
 from functools import cached_property
 from typing import Any
 
-from dev10x.domain.friction_level import FrictionLevel
-
 _SUBCOMMAND_BOUNDARY = r"(?![-\w])"
 
 
@@ -124,10 +122,3 @@ class Rule:
             file_substrings=entry.get("file_substrings", []),
             content_pattern=entry.get("content_pattern", ""),
         )
-
-
-@dataclass(frozen=True)
-class Config:
-    friction_level: FrictionLevel = FrictionLevel.STRICT
-    plugin_repo: str = ""
-    rules: list[Rule] = field(default_factory=list)
