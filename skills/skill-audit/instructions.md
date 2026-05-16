@@ -10,7 +10,103 @@ This skill follows `references/task-orchestration.md` patterns.
 **Auto-advance:** Complete each phase, immediately start the next.
 Never pause between phases.
 
+### Phase 0: Early-Insight Gate
+
+**Runs before Step 0.** Lets the skill short-circuit the wave
+subagents when the user's question is already answered by the
+visible transcript, while preserving the structured
+select-and-file step that Phase 7 owns.
+
+**The early-insight branch is an optimization, not the new
+default.** When in doubt, fall through to the full wave.
+
+#### Detection heuristic
+
+Pick the early-insight branch ONLY when ALL of the following
+hold:
+
+1. The user's argument names a **specific incident** — a PR
+   URL, a session event, a single observed behavior — and not
+   a generic "audit this session".
+2. The relevant evidence is already in the **current
+   conversation context**. No need to re-extract a transcript
+   from a JSONL file or grep external logs.
+3. The agent can state the violation, root cause, and
+   persistable lesson **without re-reading skill bodies or
+   files**.
+
+If any of the three conditions fails, fall through to Step 0
+and run the standard waves.
+
+#### Branch flow
+
+1. **Read the argument.** If the argument is empty, a directory,
+   or a JSONL path with no accompanying narrow question, the
+   heuristic fails — fall through to Step 0.
+2. **Evaluate the heuristic.** If all three conditions hold,
+   continue; otherwise fall through to Step 0.
+3. **Present early-insight findings inline.** Write 1–3 bullets
+   covering: the violation observed, the root cause, and the
+   persistable lesson. Cite turn numbers or quoted evidence
+   when available. Do NOT modify any files at this point.
+4. **REQUIRED: Call `AskUserQuestion`** (do NOT use plain text,
+   call spec: [`tool-calls/ask-early-insight.md`](tool-calls/ask-early-insight.md)).
+   Options:
+   - **Select & file now (Recommended for clear findings)** —
+     skip to Phase 7 with the inline findings as the
+     pre-formed findings file.
+   - **Step back and run full audit** — fall through to
+     Step 0 and dispatch the standard wave subagents.
+   - **Discard — no action needed** — exit without filing.
+
+**Adaptive friction behavior:** This gate is **ALWAYS_ASK** —
+fires at every friction level, including `adaptive`. The
+choice between filing, stepping back, and discarding is a
+disposition decision that must be explicit. Auto-selecting
+the recommended option would defeat the gate's purpose of
+forcing the supervisor to confirm what gets persisted
+upstream.
+
+#### Disposition handling
+
+| User choice | Next action |
+|-------------|-------------|
+| Select & file now | Create a minimal task list: `TaskCreate(subject="Phase 0: Early-insight findings", activeForm="Presenting findings")` followed by `TaskCreate(subject="Phase 7: Upstream reporting", activeForm="Reporting upstream")`. Skip Steps 0–8 and Phases 1–6 entirely. Jump directly to Phase 7 (Upstream Reporting) using the inline findings as the scrubbed findings file. Phase 7's sub-steps A–D still run — only the wave-driven analysis is skipped. |
+| Step back and run full audit | Fall through to Step 0. Create the full task list and proceed with the standard Wave 1 + Wave 2 orchestration. |
+| Discard | Exit the skill without creating wave tasks and without invoking `Dev10x:audit-report`. |
+
+#### Why this matters
+
+- **Avoids wasted subagent dispatches** when the question is
+  already answered by the visible transcript. The full audit
+  waves are expensive (multiple haiku/sonnet calls); spending
+  them on a question the supervisor already framed precisely
+  is overkill.
+- **Preserves the supervisor selection gate**, which is the
+  part of the skill that has real procedural value — agents
+  are biased toward "file everything I noticed" or "file
+  nothing"; the structured selection step is what makes
+  upstream issues actually useful.
+- **Closes the audit loop reliably.** Without the gate, an
+  agent that answers a narrow audit question conversationally
+  can easily forget the file-upstream step. The
+  `AskUserQuestion` call forces the disposition decision into
+  the conversation.
+
+#### Anti-pattern this prevents
+
+Agent invokes `/Dev10x:skill-audit` with a narrow question,
+answers conversationally, offers to "save memory or file
+upstream", then defers to the supervisor for the choice
+without a structured selection step. The supervisor has to
+remember the workflow and prompt for the missing step.
+
 ### Step 0: Initialize task tracking (MANDATORY)
+
+**Applies when Phase 0 falls through.** If Phase 0 routed to
+"Select & file now" or "Discard", the minimal task list defined
+in Phase 0 is authoritative — do NOT create the wave task list
+below.
 
 **REQUIRED: Create all tasks before ANY other work.**
 Do NOT skip task creation or improvise an ad-hoc workflow.
