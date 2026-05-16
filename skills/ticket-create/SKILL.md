@@ -75,6 +75,21 @@ Use this skill when:
 - Documenting an improvement or enhancement
 - Need a properly structured ticket with consistent formatting
 
+### Anti-pattern: Bypassing the wrapper (GH-156)
+
+**Do NOT call `mcp__plugin_Dev10x_cli__issue_create` (or any
+tracker MCP `save_issue` / `gh issue create`) directly when
+creating a new ticket.** Audit GH-156 caught 5 follow-up tickets
+created via raw `issue_create` calls; the resulting tickets
+lacked the Root Cause / Solution / Files Changed scaffolding
+that this skill enforces.
+
+The raw MCP tool is a low-level primitive — this skill is the
+project wrapper that adds structured description formatting,
+label inference, and tracker-detection. Always reach for
+`Skill(Dev10x:ticket-create)` first; the skill's Step 5 will
+dispatch the appropriate MCP tool internally.
+
 ## Input Requirements
 
 This skill requires:
