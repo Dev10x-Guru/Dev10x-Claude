@@ -75,21 +75,36 @@ async def analyze_permissions(
     settings_path: str | None = None,
     output_path: str | None = None,
 ) -> dict[str, Any]:
-    args = [transcript_path]
-    if settings_path:
-        args.append(settings_path)
+    """Run permission-friction analysis in-process (GH-142).
+
+    Previously shelled out to skills/skill-audit/scripts/analyze-permissions.py;
+    now calls dev10x.audit.analyze.build_audit_report() directly so MCP
+    callers consume structured data without a subprocess hop.
+    """
+
+    from dev10x.audit.analyze import build_audit_report
+
+    transcript_file = Path(transcript_path)
+    if not transcript_file.exists():
+        return {"error": f"transcript not found: {transcript_path}"}
+
+    settings_file = Path(settings_path or os.path.expanduser("~/.claude/settings.local.json"))
+
+    try:
+        report = build_audit_report(
+            transcript=transcript_file.read_text(),
+            settings_path=settings_file,
+        )
+    except Exception as exc:  # noqa: BLE001 — surface any analysis failure to caller
+        return {"error": f"analyze_permissions failed: {exc}"}
+
+    output = report.render_markdown()
+
     if output_path:
-        args.append(output_path)
+        Path(output_path).write_text(output)
+        return {"success": True, "output": f"Phase 4 output written to {output_path}"}
 
-    result = await async_run_script(
-        "skills/skill-audit/scripts/analyze-permissions.py",
-        *args,
-    )
-
-    if result.returncode != 0:
-        return {"error": result.stderr.strip()}
-
-    return {"success": True, "output": result.stdout.strip()}
+    return {"success": True, "output": output.strip()}
 
 
 async def hook_log_path() -> dict[str, Any]:

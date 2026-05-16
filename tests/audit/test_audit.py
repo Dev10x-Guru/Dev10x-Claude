@@ -92,56 +92,64 @@ class TestAnalyzeActions:
 
 
 class TestAnalyzePermissions:
-    @pytest.mark.asyncio
-    @patch("dev10x.audit.async_run_script", new_callable=AsyncMock)
-    async def test_returns_output_on_success(
-        self,
-        mock_run: AsyncMock,
-    ) -> None:
-        mock_run.return_value = subprocess.CompletedProcess(
-            args=[],
-            returncode=0,
-            stdout="Found 3 friction points",
-            stderr="",
-        )
-        result = await audit_mod.analyze_permissions(transcript_path="/tmp/transcript.md")
-        assert result["success"] is True
+    """GH-142: analyze_permissions now runs in-process via the factory."""
 
     @pytest.mark.asyncio
-    @patch("dev10x.audit.async_run_script", new_callable=AsyncMock)
-    async def test_returns_error_on_failure(
-        self,
-        mock_run: AsyncMock,
-    ) -> None:
-        mock_run.return_value = subprocess.CompletedProcess(
-            args=[],
-            returncode=1,
-            stdout="",
-            stderr="Settings not found",
+    async def test_missing_transcript_returns_error(self, tmp_path) -> None:
+        result = await audit_mod.analyze_permissions(
+            transcript_path=str(tmp_path / "missing.md"),
         )
-        result = await audit_mod.analyze_permissions(transcript_path="/tmp/transcript.md")
         assert "error" in result
+        assert "not found" in result["error"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.audit.async_run_script", new_callable=AsyncMock)
-    async def test_passes_optional_paths(
-        self,
-        mock_run: AsyncMock,
-    ) -> None:
-        mock_run.return_value = subprocess.CompletedProcess(
-            args=[],
-            returncode=0,
-            stdout="OK",
-            stderr="",
+    async def test_empty_transcript_produces_report(self, tmp_path) -> None:
+        transcript = tmp_path / "transcript.md"
+        transcript.write_text("# empty transcript\n")
+        settings = tmp_path / "settings.json"
+        settings.write_text('{"permissions": {"allow": []}}')
+
+        result = await audit_mod.analyze_permissions(
+            transcript_path=str(transcript),
+            settings_path=str(settings),
         )
-        await audit_mod.analyze_permissions(
-            transcript_path="/tmp/transcript.md",
-            settings_path="/tmp/settings.json",
-            output_path="/tmp/output.md",
+
+        assert result["success"] is True
+        assert "Permission Friction Analysis" in result["output"]
+
+    @pytest.mark.asyncio
+    async def test_writes_to_output_path(self, tmp_path) -> None:
+        transcript = tmp_path / "transcript.md"
+        transcript.write_text("# empty\n")
+        settings = tmp_path / "settings.json"
+        settings.write_text('{"permissions": {"allow": []}}')
+        output = tmp_path / "report.md"
+
+        result = await audit_mod.analyze_permissions(
+            transcript_path=str(transcript),
+            settings_path=str(settings),
+            output_path=str(output),
         )
-        call_args = mock_run.call_args
-        assert "/tmp/settings.json" in call_args.args[1:]
-        assert "/tmp/output.md" in call_args.args[1:]
+
+        assert result["success"] is True
+        assert output.exists()
+        assert "Permission Friction Analysis" in output.read_text()
+
+    @pytest.mark.asyncio
+    async def test_factory_failure_returns_error(self, tmp_path) -> None:
+        transcript = tmp_path / "transcript.md"
+        transcript.write_text("# transcript\n")
+
+        with patch(
+            "dev10x.audit.analyze.build_audit_report",
+            side_effect=RuntimeError("boom"),
+        ):
+            result = await audit_mod.analyze_permissions(
+                transcript_path=str(transcript),
+            )
+
+        assert "error" in result
+        assert "boom" in result["error"]
 
 
 class TestHookLogPath:
