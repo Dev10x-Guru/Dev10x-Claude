@@ -160,6 +160,39 @@ fragments:
         reads friction_level and adapts its own gates.
       skills: [Dev10x:verify-acc-dod]
 
+  # Bundled multi-issue implementation (GH-196).
+  # Replaces the single "Implement changes" epic when work-on
+  # is run with ≥ 2 ticket inputs and Strategy B (bundled PR)
+  # is selected. One commit per batch; batches are computed in
+  # Phase 3 via overlap signals (see work-on instructions § Batch
+  # Detection). The bundle-aware variant of the Implement epic
+  # expands at Phase 4 time into one sub-step per batch — this
+  # fragment exists so project overrides can substitute it for
+  # the default "Implement changes" epic without duplicating the
+  # surrounding shipping pipeline.
+  bundle-implementation:
+    - subject: Implement bundle batches
+      type: epic
+      prompt: >
+        Iterate the batches resolved in Phase 3 (read
+        `batches` from plan-sync context). For each batch,
+        execute the per-batch loop in order:
+        (a) Design approach for this batch using the
+        gathered context for every batch member.
+        (b) Implement the changes that close every batch
+        member.
+        (c) Delegate exactly one commit via
+        Skill(Dev10x:git-commit) — body must enumerate
+        every batch member and emit one `Fixes:` line per
+        ticket so each issue auto-closes on merge.
+        Do NOT delegate a commit between batch members of
+        the same batch. Do NOT skip a batch because its
+        changes "feel" trivial — singleton batches still
+        get their own commit so the PR history maps cleanly
+        to the bundled tickets. After all batches commit,
+        the surrounding shipping pipeline runs once for the
+        whole PR.
+
   shipping-pipeline-continuation:
     - subject: Code review
       type: detailed
