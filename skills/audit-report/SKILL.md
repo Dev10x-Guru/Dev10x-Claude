@@ -16,6 +16,8 @@ allowed-tools:
   - Skill(Dev10x:ticket-create)
   - Bash(ls ~/.claude/plugins/cache/:*)
   - Bash(gh issue create:*)
+  - Bash(gh label list:*)
+  - Bash(gh label create:*)
 ---
 
 # Audit Report — File Findings Upstream
@@ -157,22 +159,71 @@ Use the primary skill name (most findings) as the title anchor:
 
 Write the assembled body to that file using the Write tool.
 
-### Step 7: File the issue
+### Step 7: Derive bundling labels (REQUIRED)
+
+Audit issues are batched by an automated session, so similar
+findings should cluster under a shared label and be discoverable
+as a bundle during implementation. Derive the label set from the
+fictionalized findings BEFORE filing — never hardcode a single
+`enhancement` label.
+
+Apply the resolution algorithm in
+[`references/labels.md`](references/labels.md):
+
+1. Start with `enhancement`
+2. Add the audit-session bundle: `audit-YYYY-MM-DD` (parse from the
+   findings file's "Audit date" line)
+3. Add one `skill:<name>` per unique skill referenced in the
+   findings table (strip the `Dev10x:` prefix; fictionalized names
+   only — see Step 3)
+4. Scan finding descriptions + proposed fixes against the topical
+   heuristic table in `references/labels.md` § 4; add each matching
+   topical label once
+5. De-duplicate and cap at 8 labels per issue
+
+Collect the result as a comma-separated string (e.g.,
+`enhancement,audit-2026-05-16,skill:work-on,routing-bypass`).
+Store it as `$LABELS` for Step 8.
+
+### Step 8: Ensure labels exist on the repo
+
+GitHub fails issue creation if any label is missing. Before
+filing, fetch the current label set once and create only the
+missing ones:
+
+```bash
+gh label list --repo Dev10x-Guru/Dev10x-Claude --limit 200 \
+    --json name -q '.[].name' > /tmp/Dev10x/skill-audit/existing-labels.txt
+
+for label in $(echo "$LABELS" | tr ',' ' '); do
+    grep -qxF "$label" /tmp/Dev10x/skill-audit/existing-labels.txt || \
+        gh label create "$label" --repo Dev10x-Guru/Dev10x-Claude \
+            --color "$COLOR_FOR_CATEGORY" \
+            --description "$DESC_FOR_CATEGORY"
+done
+```
+
+Colors and descriptions per category live in
+`references/labels.md`. `gh label create` is idempotent here
+because the loop only runs for missing labels.
+
+### Step 9: File the issue
 
 Delegate to `Dev10x:ticket-create` — never use raw `gh issue create`.
 Write the title as the first line of the temp file (followed by a
 blank line and the body) to avoid permission friction from special
-characters in the args string:
+characters in the args string. Pass the comma-separated label set
+derived in Step 7:
 
 ```
 Skill(skill="Dev10x:ticket-create",
-  args="--repo Dev10x-Guru/dev10x-claude --body-file {temp-file-path} --label enhancement")
+  args="--repo Dev10x-Guru/dev10x-claude --body-file {temp-file-path} --label {LABELS}")
 ```
 
 The ticket-create skill reads the first line as the title when
 no `--title` flag is provided.
 
-### Step 8: Report result
+### Step 10: Report result
 
 Display the created issue URL. If filing fails, show the error
 and the temp file path so the user can file manually.
@@ -188,6 +239,10 @@ and the temp file path so the user can file manually.
   of context per finding, not raw transcript blocks.
 - **One issue per audit**: Batch all findings into a single
   issue per audit session to avoid issue spam.
+- **Bundle via labels, not separate issues**: Apply the label
+  taxonomy in `references/labels.md` so similar issues can be
+  filtered and worked together during implementation. Never
+  file with only the default `enhancement` label.
 - **Privacy by default (Step 3)**: The source session may belong
   to a private codebase. Fictionalize repo names, owners,
   branches, tracker IDs, file paths, hostnames, and personal
