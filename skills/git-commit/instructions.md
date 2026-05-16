@@ -608,6 +608,30 @@ Create this commit? (y/n/edit)
 
 ### Step 10: Stage Files (if needed)
 
+**Pre-staging gate (GH-157):** If the index already contains
+staged files when this skill is invoked (`git diff --cached
+--name-only` returns non-empty), the caller may have staged
+manually and the staged set is now a hidden boundary the skill
+would silently accept.
+
+**Attended mode — REQUIRED: Call `AskUserQuestion`** (do NOT
+use plain text):
+- **Use existing staging (Recommended)** — commit only the
+  currently staged files; do not run `git add -A`
+- **Unstage and re-select** — run `git restore --staged .` and
+  follow the normal staging flow below
+
+**Unattended mode:** Honor pre-existing staging as-is when the
+orchestrator explicitly requested partial staging via pathspec;
+otherwise log a warning and proceed with `git add -A` on the
+union of staged and unstaged changes. Document the decision in
+the commit body if it deviates from the staged set.
+
+Audit GH-157 caught a session where manual `git reset HEAD` +
+selective `git add` set an irreversible boundary that the skill
+inherited without confirmation — remediation required invoking
+`Dev10x:git-commit-split` from scratch.
+
 **Hard rule: NEVER stage individual files by name** (e.g.,
 `git add file1.py file2.py`) to PICK files into a commit.
 Selective staging bypasses the skill contract — all changes
