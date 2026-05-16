@@ -17,6 +17,19 @@ the plan, and can pause at any point with `Dev10x:session-wrap-up`.
 The visible task list is the supervisor's interface for adding
 new tasks mid-session. Skipping it removes that capability.
 
+**Invariant: never leave the session with an empty task list
+(GH-149).** Until the supervisor explicitly closes the session
+(`Dev10x:session-wrap-up` or session restart), the task list MUST
+contain at least one open task. The terminal task is always
+`Verify acceptance criteria` — it is the last task in every play
+and it MUST NOT be marked `completed` or `deleted` until the
+supervisor confirms the work is shippable (PR linked, CI green,
+no unresolved review comments, AC satisfied). When new
+instructions arrive mid-session, the new TODOs land **before**
+the Verify-AC task — they do not replace it. An empty task list
+at the moment of a new prompt creates competition for attention
+and is a Phase 4 violation.
+
 **REQUIRED: Create phase tasks before ANY work.** At session
 start, create exactly 4 top-level tasks — one per phase:
 
@@ -592,7 +605,29 @@ The last subtask is always acceptance criteria verification.
 ### Acceptance Criteria Verification
 
 The **last task** in every plan verifies the work is shippable
-or ready for handover.
+or ready for handover. This task is the session's terminal
+gate — see the empty-task-list invariant above (GH-149). It
+remains `pending` (or `in_progress` while the supervisor is
+reviewing) until the supervisor explicitly confirms closure.
+Never mark Verify-AC `completed` without an explicit supervisor
+"ship it" / "looks good" / "close session" / equivalent
+affirmation; never mark it `deleted` while pending — that
+empties the task list and breaks the invariant.
+
+**Verify-AC summary contents.** When invoked, the verification
+must surface a structured summary so the supervisor can confirm
+closure without re-reading the conversation:
+
+- PR link(s) and merge state
+- Per-ticket: ID, title, link, "addressed by commit(s) …"
+- CI status (green/red/pending; link to failing checks)
+- Open review comments (count + links) — should be zero to ship
+- Working-copy state (clean / staged / uncommitted)
+- Acceptance criteria items, each `[x]` or `[ ]`
+
+The supervisor may extend or modify the AC at this point —
+treat new instructions as additional tasks inserted **before**
+Verify-AC, never as replacements for it.
 
 **REQUIRED:** Delegate to `Dev10x:verify-acc-dod` skill:
 
