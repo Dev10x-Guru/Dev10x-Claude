@@ -346,6 +346,23 @@ gh api repos/{owner}/{repo}/pulls/{N}/reviews \
 
 #### B. Bot top-level comment (merged PR / oversize diff)
 
+**Prerequisites.** Transport B requires two user-provided
+resources outside this plugin:
+
+- `~/.claude/tools/gh-bot-comment.py` — user-installed script
+  that posts comments under a GitHub App identity. Not bundled
+  with Dev10x. Users wire it up alongside their own GitHub App
+  credentials.
+- `~/.claude/Dev10x/github-bot/github-app.yaml` — App identity
+  config (App ID, private-key path, installation ID). Users
+  create this file when setting up the bot. Step 1 below checks
+  `enabled: true` before selecting Transport B.
+
+If either is missing, Transport B falls back to Transport A even
+for merged or oversize PRs. The fallback posts under the user's
+own GitHub identity rather than the App's — document the chosen
+identity in the eventual review summary.
+
 The `pulls/{N}/reviews` endpoint requires every entry in
 `comments[]` to anchor on a line that exists in the diff. On
 merged PRs the diff is finalized and inline anchors still work,
