@@ -10,18 +10,20 @@ from pathlib import Path
 
 import pytest
 
-from dev10x.hooks.audit import (
+from dev10x.audit.log_reader import (
     AUDIT_DIR_ENV,
     AUDIT_ENABLE_ENV,
     AUDIT_RETAIN_ENV,
     SPAN_ID_ENV,
+    iter_records,
+    prune,
+    summarize,
+)
+from dev10x.hooks.audit_emit import (
     audit_hook,
     cli_wrap_record,
     finish_wrap_context,
-    iter_records,
     new_wrap_context,
-    prune,
-    summarize,
     write_wrap_record,
 )
 

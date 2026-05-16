@@ -24,7 +24,7 @@ def validate_bash() -> None:
     Reads JSON from stdin, dispatches to registered validators.
     Exit codes: 0=allow, 2=block.
     """
-    from dev10x.hooks.audit import audit_hook
+    from dev10x.hooks.audit_emit import audit_hook
 
     _run = audit_hook(name="validate-bash", event="PreToolUse")(_validate_bash_body)
     _run()
@@ -278,7 +278,7 @@ def audit_group() -> None:
 def audit_summary(since: str | None, hook_filter: str | None) -> None:
     """Summarize hook execution timing by hook name."""
 
-    from dev10x.hooks.audit import iter_records, summarize
+    from dev10x.audit import iter_records, summarize
 
     since_dt = None
     if since:
@@ -312,7 +312,7 @@ def audit_summary(since: str | None, hook_filter: str | None) -> None:
 @click.option("--days", type=int, default=None, help="Override retention days.")
 def audit_prune(days: int | None) -> None:
     """Delete log files older than the retention window."""
-    from dev10x.hooks.audit import prune
+    from dev10x.audit import prune
 
     deleted = prune(retain_days=days)
     click.echo(f"Deleted {deleted} log file(s).")

@@ -6,17 +6,31 @@ skill-audit skill can process sessions without Bash allow-rules.
 Also exposes hook-audit log discovery tools so agents can
 inspect the audit-wrap JSONL stream without hunting for the
 log directory with raw shell commands (GH-29).
+
+JSONL parsing delegates to `dev10x.audit.log_reader.iter_records`
+(GH-143) so there is one parser for hook audit logs.
 """
 
 from __future__ import annotations
 
-import json
 import os
 from datetime import date
 from pathlib import Path
 from typing import Any
 
+from dev10x.audit.log_reader import iter_records, prune, summarize
 from dev10x.subprocess_utils import async_run_script
+
+__all__ = [
+    "iter_records",
+    "summarize",
+    "prune",
+    "extract_session",
+    "analyze_actions",
+    "analyze_permissions",
+    "hook_log_path",
+    "hook_recent",
+]
 
 _DEFAULT_HOOK_AUDIT_DIR = "/tmp/Dev10x/hook-audit"
 
@@ -88,7 +102,9 @@ async def analyze_permissions(
     if not transcript_file.exists():
         return {"error": f"transcript not found: {transcript_path}"}
 
-    settings_file = Path(settings_path or os.path.expanduser("~/.claude/settings.local.json"))
+    settings_file = Path(
+        settings_path or os.path.expanduser("~/.claude/settings.local.json")
+    )
 
     try:
         report = build_audit_report(
@@ -133,7 +149,8 @@ async def hook_recent(
     span_id: str | None = None,
     log_path: str | None = None,
 ) -> dict[str, Any]:
-    target = Path(log_path) if log_path else _today_log_path(_resolve_audit_dir())
+    audit_dir = _resolve_audit_dir()
+    target = Path(log_path) if log_path else _today_log_path(audit_dir)
 
     if not target.exists():
         return {
@@ -143,21 +160,15 @@ async def hook_recent(
             "error": f"audit log not found: {target}",
         }
 
-    records: list[dict[str, Any]] = []
-    with target.open("r", encoding="utf-8", errors="replace") as fh:
-        for line in fh:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                rec = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if hook_name and rec.get("hook") != hook_name:
-                continue
-            if span_id and rec.get("span_id") != span_id:
-                continue
-            records.append(rec)
+    if log_path:
+        records = iter_records(paths=[target])
+    else:
+        records = iter_records(base_dir=audit_dir)
+
+    if hook_name:
+        records = [rec for rec in records if rec.get("hook") == hook_name]
+    if span_id:
+        records = [rec for rec in records if rec.get("span_id") == span_id]
 
     if limit > 0:
         records = records[-limit:]

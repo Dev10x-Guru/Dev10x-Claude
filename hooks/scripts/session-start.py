@@ -32,13 +32,13 @@ def _load_stdin() -> dict:
 def _import_session_modules() -> tuple:
     try:
         from dev10x.hooks import session as s
-        from dev10x.hooks.audit import audit_hook
+        from dev10x.hooks.audit_emit import audit_hook
     except ImportError:
         from pathlib import Path
 
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "src"))
         from dev10x.hooks import session as s
-        from dev10x.hooks.audit import audit_hook
+        from dev10x.hooks.audit_emit import audit_hook
 
     return s, audit_hook
 
