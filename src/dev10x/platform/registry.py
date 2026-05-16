@@ -48,13 +48,33 @@ def _home_relative(*parts: str) -> Path:
     return Path.home().joinpath(*parts)
 
 
-def known_platforms() -> dict[str, PlatformConfig]:
-    """Return the built-in catalog of supported platforms.
+class PlatformCatalog:
+    """Static, read-only catalog of supported target platforms.
 
-    Paths use the platform's default install location. Users who override
-    locations can pass ``--config-dir`` to ``dev10x platform add`` to
-    record the custom path.
+    Encapsulates the built-in platform definitions and exposes a small
+    query surface (``lookup`` / ``names`` / ``contains``) so callers do
+    not poke at the raw dict.
     """
+
+    def __init__(self, entries: dict[str, PlatformConfig] | None = None) -> None:
+        self._entries = entries if entries is not None else _default_entries()
+
+    def lookup(self, name: str) -> PlatformConfig:
+        if name not in self._entries:
+            raise KeyError(f"Unknown platform '{name}'. Known: {', '.join(self.names())}")
+        return self._entries[name]
+
+    def names(self) -> list[str]:
+        return sorted(self._entries)
+
+    def contains(self, name: str) -> bool:
+        return name in self._entries
+
+    def as_dict(self) -> dict[str, PlatformConfig]:
+        return dict(self._entries)
+
+
+def _default_entries() -> dict[str, PlatformConfig]:
     return {
         "claude-code": PlatformConfig(
             name="claude-code",
@@ -94,6 +114,11 @@ def known_platforms() -> dict[str, PlatformConfig]:
     }
 
 
+def known_platforms() -> dict[str, PlatformConfig]:
+    """Backward-compatible accessor — returns the default catalog as a dict."""
+    return PlatformCatalog().as_dict()
+
+
 class Registry:
     """Persisted list of platforms the current user has registered."""
 
@@ -117,11 +142,12 @@ class Registry:
         *,
         config_dir: Path | None = None,
         playbook_override: str | None = None,
+        catalog: PlatformCatalog | None = None,
     ) -> PlatformConfig:
-        catalog = known_platforms()
-        if name not in catalog:
-            raise ValueError(f"Unknown platform '{name}'. Known: {', '.join(sorted(catalog))}")
-        base = catalog[name]
+        catalog = catalog or PlatformCatalog()
+        if not catalog.contains(name):
+            raise ValueError(f"Unknown platform '{name}'. Known: {', '.join(catalog.names())}")
+        base = catalog.lookup(name)
         if config_dir:
             base = PlatformConfig(
                 name=base.name,
@@ -155,4 +181,14 @@ class Registry:
         return True
 
     def list(self) -> list[PlatformConfig]:
-        return [self.load()[name] for name in sorted(self.load())]
+        registered = self.load()
+        return [registered[name] for name in sorted(registered)]
+
+
+def registered_platforms(*, registry: Registry | None = None) -> list[PlatformConfig]:
+    """Service function: combine catalog defaults with user registrations.
+
+    Returns the list of platforms the user has actively registered. Use
+    :class:`PlatformCatalog` directly for the static built-in list.
+    """
+    return (registry or Registry()).list()

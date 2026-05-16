@@ -9,6 +9,18 @@ per-user path editing, no symlinks (so Windows stays safe).
 
 from __future__ import annotations
 
-from dev10x.platform.registry import PlatformConfig, Registry, known_platforms
+from dev10x.platform.registry import (
+    PlatformCatalog,
+    PlatformConfig,
+    Registry,
+    known_platforms,
+    registered_platforms,
+)
 
-__all__ = ["PlatformConfig", "Registry", "known_platforms"]
+__all__ = [
+    "PlatformCatalog",
+    "PlatformConfig",
+    "Registry",
+    "known_platforms",
+    "registered_platforms",
+]
