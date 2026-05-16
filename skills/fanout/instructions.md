@@ -265,47 +265,99 @@ Fanout agents degrade after the first 1–2 items, falling back
 to inline implementation and raw CLI commands for the rest of
 the batch. This check catches the drift before it cascades.
 
-### Permission-Aware Dispatch
+### Agent Isolation Matrix (GH-36)
 
-Classify each work item before dispatch to avoid Write/Edit
-failures in background agents:
+Native `Agent` isolation supersedes the prior Permission-Aware
+Dispatch table. Background agents now have full `Tools: *`
+(Skill, Write, Edit, Bash, MCP) when dispatched as
+`general-purpose`, and `isolation: "worktree"` provides a
+per-agent temp worktree with automatic cleanup. The historic
+"write-requiring tasks must run in the main session"
+constraint no longer applies for the dispatch surface this
+skill targets.
 
-| Task type | Needs Write/Edit? | Dispatch method |
-|-----------|-------------------|----------------|
-| Issue implementation | Yes | Main session via `Skill()` |
-| PR with code fixes needed | Yes | Main session via `Skill()` |
-| PR ready to merge (CI green, no comments) | No | Background `Agent()` OK |
-| CI monitoring only | No | Background `Agent()` OK |
-| Investigation / research | No | Background `Agent()` OK |
+| Task type | Dispatch | Why |
+|-----------|----------|-----|
+| Issue implementation, PR fixes, rebase | `Agent(subagent_type="general-purpose", isolation="worktree", run_in_background=true, model="sonnet", mode="acceptEdits")` | Has Skill + Write + Edit; worktree isolates file changes; auto-cleanup if no changes |
+| PR ready-to-merge (CI green, no comments) | `Agent(subagent_type="general-purpose", run_in_background=true, model="haiku")` | Read-only merge orchestration; no isolation needed |
+| CI monitoring, status polling | `Agent(subagent_type="general-purpose", run_in_background=true, model="haiku")` | Read-only; cheaper without isolation |
+| Investigation, research | `Agent(subagent_type="Explore" or "issue-investigator")` | Specialized agents with the right tools |
 
-**Decision rule:** If the task MAY require creating or editing
-files (implementation, fixups, conflict resolution), it MUST
-run in the main session via `Skill()`. Background agents are
-only safe for read-only operations (monitoring, fetching,
-reviewing without fixes).
+**Decision rule:** Default to `isolation="worktree"` for any
+write-touching work item. Drop isolation only when the work
+is provably read-only (monitoring, fetching, reviewing).
 
-**Pre-dispatch check:** Before dispatching a background agent,
-verify the item does NOT need Write/Edit by checking:
-1. PR has no unaddressed review comments requiring code changes
-2. PR CI is passing (no fixup commits needed)
-3. PR has no merge conflicts (no rebase needed)
+### Swarm Dispatch (REQUIRED, GH-36)
 
-If any check fails → route to main session instead.
+**Every work item MUST be delegated to a worktree-isolated
+background `Agent` whose prompt invokes
+`Skill(Dev10x:work-on)`.** Do NOT implement issues inline in
+the orchestrator session, and do NOT inline the work-on
+contract into the agent prompt — the spawned agent calls
+`Skill(Dev10x:work-on)` directly so work-on remains the
+single source of truth for the implementation lifecycle.
 
-### Work-On Delegation
+**Wave-based dispatch.** Group non-conflicting items into
+waves of size `max_concurrency` (default 3). Send all agents
+in one wave as a **single assistant turn with multiple Agent
+tool uses** so they run concurrently and share the
+parent's prompt-cache prefix. Wait for completion
+notifications before dispatching the next wave; do NOT poll.
 
-**REQUIRED: Every issue MUST be delegated to `Dev10x:work-on`.**
-Do NOT implement issues inline within the fanout session. Fanout
-dispatches work to `Dev10x:work-on` and tracks results. Inline
-implementation bypasses work-on's structured lifecycle (branch
-setup, Job Story, code review, shipping pipeline) and produces
-untracked work.
+**Per-item agent prompt template:**
 
-**Enforcement:**
-- Each issue → `Skill(skill="Dev10x:work-on", args="<issue-url>")`
-- Each PR → `Skill(skill="Dev10x:work-on", args="<pr-url>")`
-- After work-on completes → invoke `Dev10x:gh-pr-monitor` to
-  track the resulting PR through CI and merge
+```
+You are working as part of a Dev10x:fanout swarm.
+
+Swarm context:
+- wave_id: <uuid>
+- siblings: ["<item_id_a>", "<item_id_b>", ...]
+- your_item_id: <item_id>
+- conflict_group: <group_id>
+- shared_files_with_siblings: [<paths>]  # should be empty within a wave
+
+Bootstrap (REQUIRED first, before Skill invocation):
+1. Write .claude/Dev10x/session.yaml inside your isolated
+   worktree with:
+       friction_level: adaptive
+       active_modes: [solo-maintainer, swarm-child]
+   This signals Dev10x:work-on to skip its Phase 0 friction
+   prompt and inherits the fanout session's friction level.
+
+Task:
+Invoke Skill(Dev10x:work-on) with this input: <issue or PR URL>
+
+Etiquette (REQUIRED):
+- You are running concurrently with siblings. Do NOT call
+  Skill(Dev10x:fanout) recursively.
+- If you discover a file conflict with a sibling mid-work,
+  pause, report via your result message, and do not push.
+  The orchestrator will resolve.
+- Do not force-push and do not touch main/develop directly.
+- Your worktree is ephemeral; assume it is destroyed if you
+  make no changes.
+
+Return on completion:
+- PR URL (or "no PR produced — <reason>")
+- Cost (total_cost_usd if known)
+- Any sibling-coordination signals raised
+- One of: DONE | DONE_WITH_CONCERNS: <text> |
+  NEEDS_CONTEXT: <what> | BLOCKED: <reason>
+```
+
+**Subtask tracking.** Before dispatching the wave, create one
+subtask per item under the Phase 3 parent and mark it
+`in_progress`. Mark `completed` only when the agent's
+completion notification arrives — never on dispatch (see
+`references/orchestration/subagent-dispatch.md` Background
+Agent Tracking).
+
+**Serial fallback.** When the Agent tool is unavailable or
+the user opts out (`mode: serial` playbook override),
+invoke `Skill(skill="Dev10x:work-on", args="<item-url>")` in
+the orchestrator session, sequentially. This trades
+parallelism for compatibility with environments where
+background agents are disabled.
 
 ### Processing PRs
 
@@ -350,33 +402,31 @@ cycle if the review is informational only.
 
 ### Processing Issues
 
-For each issue (or parallel group of issues):
+Each issue (or parallel group of issues) is dispatched as a
+worktree-isolated background Agent per the Swarm Dispatch
+section above. The agent's `Skill(Dev10x:work-on)` invocation
+runs the full lifecycle inside its isolated worktree:
+branch setup, design, implementation, code review, commit,
+PR creation, CI monitoring through merge. By the time the
+agent's completion notification arrives, the PR is either
+merged or surfaced via the agent's structured result for
+follow-up.
 
-1. Create a worktree or branch per issue
-2. **REQUIRED:** Delegate to `Dev10x:work-on` with the issue URL
-3. After work-on completes → invoke `Dev10x:gh-pr-monitor`
-   to track the resulting PR through CI and merge
-4. After merge → update develop, rebase downstream items
+After all agents in a wave complete, before starting the
+next wave: fetch the merge base for the conflict-chain
+successor items and rebase downstream branches if any
+in-wave merges affected them.
 
-**Parallel execution:** Background `Agent()` subagents
-**cannot invoke `Skill()`** — the Skill tool is only
-available in the main session. This means background agents
-bypass the full `Dev10x:work-on` lifecycle (branch setup,
-code review, shipping pipeline, CI monitoring).
-
-**REQUIRED: Use Permission-Aware Dispatch (see above).**
-Issues always need Write/Edit → process sequentially via
-`Skill()` in the main session:
-
-```
-Skill(skill="Dev10x:work-on", args="<issue-url>")
-```
-
-Background `Agent()` dispatch is only permitted for
-read-only operations per the Permission-Aware Dispatch
-table. For write-requiring work, background agents fail
-on Write/Edit due to permission non-propagation (GH-549,
-GH-555).
+**Note on work-on inside spawned agents.** A spawned agent
+inherits no SessionStart context (memory, plan-sync, MOTD),
+so `Dev10x:work-on`'s Phase 0 friction-level prompt would
+fire fresh each time. The skill recognises fanout-nested
+invocations via the swarm-context marker in the dispatch
+prompt and skips Phase 0 accordingly. If work-on later
+adds context dependencies that the spawned agent cannot
+satisfy, surface them as `BLOCKED: <reason>` in the agent
+result; the orchestrator will fall back to serial mode for
+that item.
 
 ### Post-Merge Rebase
 
@@ -469,38 +519,38 @@ compact progress per `references/task-orchestration.md`
 Pattern 8. Summarize completed items in task metadata to
 free context for remaining work.
 
-## Phase 4: Monitor
+## Phase 4: Collect
 
-After all items have been processed in Phase 3, track every
-PR created during this session through to merge.
+In the swarm model, each spawned agent runs the full
+`Dev10x:work-on` lifecycle inside its isolated worktree —
+including `Dev10x:gh-pr-monitor` for its own PR through to
+merge. By the time the agent completes, its PR is either
+merged or surfaced as a failure mode in the result.
 
-**REQUIRED: Create one subtask per PR** under the Phase 4
-parent task:
+Phase 4's job is therefore **collection**, not orchestration:
 
-```
-TaskCreate(subject="Monitor: PR #101 — GH-10 implementation",
-    parentTaskId=phase4TaskId)
-```
+1. As each background agent's completion notification
+   arrives, parse its result for: PR URL, status (DONE /
+   DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED), cost, and
+   any sibling-coordination signals.
+2. Mark the matching Phase 3 subtask `completed` (or
+   `pending` again if the agent reported `NEEDS_CONTEXT`).
+3. For `BLOCKED` results, queue an `AskUserQuestion` so the
+   orchestrator can decide between retry, fallback to
+   serial, or skip.
+4. After a full wave drains, before dispatching the next
+   wave: rebase downstream conflict-chain successors onto
+   the latest develop via `Skill(Dev10x:git-groom)`.
 
-**REQUIRED: Use `Skill(Dev10x:gh-pr-monitor)` for every PR
-(GH-724).** Raw `Agent(general-purpose)` monitoring bypasses
-CI failure detection, review comment handling, and merge safety
-gates — it is NOT a valid substitute. If the named skill is
-unavailable, use `Agent(subagent_type="gh-pr-monitor")` with
-the agent spec. Never use a bare `Agent(general-purpose)` for
-PR monitoring.
+**Do NOT poll.** The harness notifies the orchestrator
+session when each background agent finishes (per Agent
+tool semantics). Polling, sleeping in a loop, or running a
+`Monitor` over the agent state is wasted context.
 
-For each PR:
-1. Invoke `Dev10x:gh-pr-monitor` to watch CI and review status
-2. If CI fails → fix with fixup commits, push, re-monitor
-3. If new review comments → delegate to `Dev10x:gh-pr-respond`
-4. When CI passes and PR is approved → merge via
-   `Skill(Dev10x:gh-pr-merge)` (validates all pre-merge
-   conditions, uses configured merge strategy)
-5. After merge → rebase downstream branches if needed
-
-Mark each subtask `completed` when the PR is merged or
-handed off for external review.
+**Serial-fallback mode.** When the swarm was skipped in
+favour of in-session `Skill(Dev10x:work-on)`, this phase
+collapses to "verify each call returned successfully"
+since the lifecycle already ran inline.
 
 ## Phase 5: Verify
 
@@ -589,9 +639,9 @@ automatically.
 
 ## Subagent Status Protocol (GH-69)
 
-When fanout dispatches `Agent()` for read-only work (per the
-Permission-Aware Dispatch table) — including the
-`Agent(subagent_type="gh-pr-monitor")` fallback — every prompt
+When fanout dispatches `Agent()` for either swarm work (per
+the Agent Isolation Matrix) or read-only monitoring fallback,
+every prompt
 MUST instruct the agent to end its output with one of:
 
 - `DONE` — task complete
@@ -611,27 +661,55 @@ See [`references/orchestration/subagent-status-protocol.md`](
 for the full prompt template, parse pattern, and migration
 notes.
 
+## Recursive-Fanout Guard (GH-36)
+
+A spawned swarm child MUST NOT re-invoke
+`Skill(Dev10x:fanout)` — that would runaway-fork into a
+swarm-of-swarms. Guards in priority order:
+
+1. **Prompt etiquette (always).** Every Phase 3 agent
+   prompt explicitly states "Do NOT call
+   Skill(Dev10x:fanout) recursively" (see Swarm Dispatch
+   template).
+2. **Skill self-check (always).** When `Dev10x:fanout`
+   starts, scan the incoming prompt and
+   `.claude/Dev10x/session.yaml` for swarm-child markers —
+   the dispatch prompt's literal `wave_id` line, or
+   `swarm-child` appearing in `active_modes`. If detected,
+   exit with an explicit error message directing the agent
+   to use `Skill(Dev10x:work-on)` instead.
+3. **Hook (future, v2).** A PreToolUse hook on
+   `Skill(Dev10x:fanout)` invocations could check a
+   global marker file written by the orchestrator before
+   dispatch. Deferred to a follow-up ticket — prompt + skill
+   self-check covers the surface today.
+
 ## Known Limitations
 
-- **`bypassPermissions` non-propagation:** The
-  `bypassPermissions` flag does not propagate into background
-  `Agent()` subagents. All background agents run with default
-  permissions, causing Write/Edit tool blocks when the user's
-  settings require approval. **Mitigation:** Use the
-  Permission-Aware Dispatch table in Phase 3 to route
-  write-requiring tasks to the main session, and the Subagent
-  Status Protocol above to surface permission walls as explicit
-  `BLOCKED:` results (GH-549 F-04, GH-555, GH-562, GH-69).
+- **No native per-agent cost cap.** The Agent tool does
+  not expose a hard budget knob equivalent to
+  `claude -p --max-budget-usd`. The orchestrator can
+  observe `total_cost_usd` post-hoc from agent results but
+  cannot kill a runaway child mid-flight. Tracked as
+  YAGNI until a real overrun is observed.
 
-- **`Skill()` unavailable in subagents:** Background agents
-  cannot call `Skill()` — only the main session has access.
-  All implementation work MUST run in the main session via
-  `Skill(Dev10x:work-on)`. Background agents are limited to
-  monitoring and read-only operations (GH-549 F-02).
+- **Pub/sub between siblings is not yet implemented.**
+  When mid-wave file-scope drift is detected (sibling
+  needs a file Phase 2 assigned to another sibling), the
+  spawned agent reports the conflict via its result
+  message and the orchestrator resolves between waves.
+  Real-time sibling-to-sibling coordination via a JSONL
+  bus or MCP `fanout_bus` server is planned as a
+  follow-up (see ADR 0004).
 
-- **Worktree Write/Edit restriction:** Agents with
-  `isolation: "worktree"` cannot use Write/Edit tools. See
-  `Dev10x:work-on` parallelism policy for workarounds.
+- **SessionStart context is not inherited by spawned
+  agents.** Memory, plan-sync state, and MOTD-injected
+  context do not propagate into `Agent` subagents. The
+  swarm dispatch prompt carries everything the child
+  needs inline. If `Dev10x:work-on` evolves to depend
+  on session-start state, the spawned agent will surface
+  the gap as `BLOCKED:` and the orchestrator falls back
+  to serial mode.
 
 ## Examples
 

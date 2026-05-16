@@ -170,8 +170,9 @@ cohesive, justified by scope):
   5 complete play definitions and subagent dispatch patterns
 - `skill-audit` (1042 lines) — multi-wave audit with per-skill
   behavioral analysis patterns
-- `fanout` (434 lines) — parallel work stream orchestrator with
-  6-phase execution model and parallel group management
+- `fanout` (~737 lines instructions) — native-Agent swarm
+  orchestrator with 6-phase execution model, swarm context
+  payload, recursive-fanout guard, and conflict-wave management
 
 ## Budget Overrides
 

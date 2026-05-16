@@ -1,17 +1,20 @@
 ---
 name: Dev10x:fanout
 description: >
-  Close multiple open loops in parallel — PRs waiting for review,
-  issues ready for implementation, tickets needing attention. Honors
-  dependencies, minimizes conflict risk, auto-advances by default.
+  Process multiple independent work items as a worktree-isolated
+  swarm — each item runs the full Dev10x:work-on lifecycle inside
+  its own background Agent with isolation="worktree". Honors
+  dependencies, minimizes conflicts, auto-advances by default.
   TRIGGER when: 2+ independent work items need parallel processing
   (PRs, issues, tickets).
   DO NOT TRIGGER when: single task or sequential dependency chain
-  (use Dev10x:work-on).
+  (use Dev10x:work-on); already running as a swarm child (see
+  recursive-fanout guard).
 user-invocable: true
 invocation-name: Dev10x:fanout
 allowed-tools:
   - AskUserQuestion
+  - Agent
   - Skill(skill="Dev10x:work-on")
   - Skill(skill="Dev10x:gh-pr-respond")
   - Skill(skill="Dev10x:gh-pr-monitor")
