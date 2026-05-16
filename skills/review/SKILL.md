@@ -59,9 +59,10 @@ Never pause between steps to ask "should I continue?".
 `TaskCreate` calls at startup:
 
 1. `TaskCreate(subject="Verify branch state", activeForm="Checking branch")`
-2. `TaskCreate(subject="Run automated checks", activeForm="Running checks")`
-3. `TaskCreate(subject="Review changed files", activeForm="Reviewing files")`
-4. `TaskCreate(subject="Present findings", activeForm="Presenting findings")`
+2. `TaskCreate(subject="Run spec compliance gate", activeForm="Checking spec compliance")`
+3. `TaskCreate(subject="Run automated checks", activeForm="Running checks")`
+4. `TaskCreate(subject="Review changed files", activeForm="Reviewing files")`
+5. `TaskCreate(subject="Present findings", activeForm="Presenting findings")`
 
 Set sequential dependencies.
 
@@ -80,6 +81,79 @@ parent provides progress visibility. See
    ahead of develop. If alias fails, fall back to `origin/develop`
 3. Verify branch has commits ahead of base (warn if nothing to review)
 4. Check for uncommitted changes — warn but continue
+
+### Step 1b: Phase 0 — Spec Compliance Gate (GH-69)
+
+Before running automated checks or per-file review, dispatch the
+`spec-reviewer` agent to confirm the diff matches its declared
+specification. Domain-level review is wasted effort when scope is
+wrong or acceptance criteria are unmet — surfacing that early
+short-circuits the rest of the pipeline.
+
+**Skip Phase 0 when:**
+- The branch has no linked ticket and no Job Story (e.g., trivial
+  typo fixes, plugin-maintenance commits)
+- The diff is purely additive infra (e.g., a new agent spec file)
+  where scope is self-evident
+- The caller invoked `Dev10x:review` with `--skip-spec` (reserved
+  flag for explicit opt-out)
+
+**Pre-read inputs (controller side):** Read the linked ticket
+body (via `mcp__plugin_Dev10x_cli__issue_get` or the appropriate
+tracker MCP) and the PR Job Story if present, plus the full
+`git develop-diff` output. Inline both into the dispatch prompt
+under `<ticket>` and `<diff>` blocks — `spec-reviewer` will not
+Read files dynamically (see `agents/spec-reviewer.md`).
+
+**Dispatch:**
+
+```
+Agent(
+    subagent_type="spec-reviewer",
+    description="Spec compliance check for current branch",
+    prompt="""Verify the following diff matches the linked ticket's
+    acceptance criteria and Job Story.
+
+    <ticket>
+    {inlined ticket body + AC}
+    </ticket>
+
+    <job_story>
+    {inlined Job Story from latest commit or PR body}
+    </job_story>
+
+    <diff>
+    {inlined output of `git develop-diff`}
+    </diff>
+
+    Follow the checklist in your spec. Return one paragraph per
+    finding (AC ref / file:line / verdict).
+
+    Report your final status as the LAST line of your output,
+    with exactly one of these prefixes:
+
+    - DONE                       — PASS
+    - DONE_WITH_CONCERNS: <text> — PARTIAL (proceed but flag)
+    - NEEDS_CONTEXT: <what>      — re-dispatch needed
+    - BLOCKED: <verdict>: <reason> — FAIL_SCOPE / FAIL_MISSING /
+                                     FAIL_OVER
+
+    Do not write anything after the status line.""")
+```
+
+**Parse the trailing status line** and branch:
+
+- `DONE` → continue to Step 2 (automated checks)
+- `DONE_WITH_CONCERNS: <text>` → continue, queue the concern for
+  the final findings summary (severity WARNING, source `spec`)
+- `NEEDS_CONTEXT: <what>` → re-dispatch with the requested
+  additional inline context once
+- `BLOCKED: <verdict>: <reason>` → short-circuit the review and
+  call `AskUserQuestion` with options:
+  - **Address spec gap first (Recommended)** — stop and let the
+    user fix scope/missing AC before continuing
+  - **Continue review anyway** — proceed to Step 2; record the
+    verdict as an INFO finding
 
 ### Step 2: Get Branch Diff
 
