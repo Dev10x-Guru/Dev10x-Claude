@@ -10,17 +10,17 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from dev10x.domain.hook_input import HookResult
+from dev10x.domain.events.hook_input import HookResult
 
 if TYPE_CHECKING:
-    from dev10x.domain.rule_engine import RuleEngine
+    from dev10x.domain.rules.rule_engine import RuleEngine
 
 _YAML_PATH = Path(__file__).parent.parent / "validators" / "command-skill-map.yaml"
 
 
 def _build_engine(*, yaml_path: Path) -> RuleEngine:
     from dev10x.config.loader import load_config
-    from dev10x.domain.rule_engine import RuleEngine
+    from dev10x.domain.rules.rule_engine import RuleEngine
 
     config = load_config(yaml_path=yaml_path)
     return RuleEngine.from_config(config=config)
@@ -49,7 +49,10 @@ def validate_edit_write(
     match = engine.evaluate(file_path=file_path, content=content)
     if match:
         if debug:
-            print(f"[DEBUG] Rule '{match.rule_name}' matched: {file_path}", file=sys.stderr)
+            print(
+                f"[DEBUG] Rule '{match.rule_name}' matched: {file_path}",
+                file=sys.stderr,
+            )
         HookResult(message=match.message).emit()
 
     sys.exit(0)

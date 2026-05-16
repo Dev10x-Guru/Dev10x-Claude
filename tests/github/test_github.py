@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from dev10x.domain.repository_ref import RepositoryRef
-from dev10x.domain.result import ErrorResult, SuccessResult, ok
+from dev10x.domain.common.repository_ref import RepositoryRef
+from dev10x.domain.common.result import ErrorResult, SuccessResult, ok
 
 gh = pytest.importorskip("dev10x.github", reason="dev10x not installed")
 

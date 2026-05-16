@@ -14,8 +14,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from dev10x.domain.repository_ref import RepositoryRef
-from dev10x.domain.result import ErrorResult, Result, err, ok
+from dev10x.domain.common.repository_ref import RepositoryRef
+from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.github.app_auth import AppConfig, get_bot_token
 from dev10x.subprocess_utils import (
     async_run,

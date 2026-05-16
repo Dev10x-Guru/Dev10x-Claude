@@ -45,14 +45,14 @@ from dev10x.hooks.session_policy import (
 
 def _format_session_state(*, state):
     """Compatibility shim — prefer ``SessionState.from_dict(...).format_for_display()``."""
-    from dev10x.domain.session_state import SessionState
+    from dev10x.domain.documents.session_state import SessionState
 
     return SessionState.from_dict(data=state).format_for_display()
 
 
 def _format_plan_summary(*, plan):
     """Compatibility shim — prefer ``PlanSummary.from_dict(...).format_for_display()``."""
-    from dev10x.domain.session_state import PlanSummary
+    from dev10x.domain.documents.session_state import PlanSummary
 
     return PlanSummary.from_dict(data=plan).format_for_display()
 

@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from dev10x.domain.result import ErrorResult, SuccessResult
+from dev10x.domain.common.result import ErrorResult, SuccessResult
 
 idx_mod = pytest.importorskip("dev10x.skill_index", reason="dev10x not installed")
 

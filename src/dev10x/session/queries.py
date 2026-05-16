@@ -110,7 +110,7 @@ def _format_files(*, files: list[str]) -> str:
 
 def format_reload_context(*, ctx: SessionContextQuery) -> str:
     """Render a SessionContextQuery as the SessionStart additionalContext."""
-    from dev10x.domain.session_state import PlanSummary, SessionState
+    from dev10x.domain.documents.session_state import PlanSummary, SessionState
     from dev10x.hooks.session_policy import DecisionGuidanceRule
 
     if not ctx.state and not ctx.plan_exists:
@@ -135,7 +135,7 @@ def format_reload_context(*, ctx: SessionContextQuery) -> str:
 
 def format_compaction_summary(*, ctx: SessionContextQuery, plugin_root: Path) -> str:
     """Render a SessionContextQuery as the PreCompact systemMessage body."""
-    from dev10x.domain.session_state import PlanSummary
+    from dev10x.domain.documents.session_state import PlanSummary
     from dev10x.hooks.session_policy import DecisionGuidanceRule
 
     essentials_file = plugin_root / ".claude" / "rules" / "essentials.md"

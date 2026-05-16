@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from dev10x.domain.hook_input import HookRetry
+from dev10x.domain.events.hook_input import HookRetry
 from tests.fakers import BashHookInputFaker
 
 

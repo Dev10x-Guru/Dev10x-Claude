@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 import yaml
 
-from dev10x.domain.plan import (
+from dev10x.domain.documents.plan import (
     TASK_TRANSITIONS,
     Plan,
     TaskStatus,
@@ -275,7 +275,7 @@ class TestPlanSetContext:
 
 
 class TestPlanEnsureMetadata:
-    @patch("dev10x.domain.plan._get_branch", return_value="feature/test")
+    @patch("dev10x.domain.documents.plan._get_branch", return_value="feature/test")
     def test_initializes_empty_metadata(self, _mock_branch: object) -> None:
         plan = Plan()
 
@@ -286,7 +286,7 @@ class TestPlanEnsureMetadata:
         assert "created_at" in plan.metadata
         assert "last_synced" in plan.metadata
 
-    @patch("dev10x.domain.plan._get_branch", return_value="feature/test")
+    @patch("dev10x.domain.documents.plan._get_branch", return_value="feature/test")
     def test_updates_last_synced_on_existing(self, _mock_branch: object) -> None:
         plan = Plan(metadata={"status": "in_progress", "branch": "old"})
 

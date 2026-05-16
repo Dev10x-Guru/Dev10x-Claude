@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from dev10x.domain.result import ErrorResult, SuccessResult
+from dev10x.domain.common.result import ErrorResult, SuccessResult
 from dev10x.git import mass_rewrite, rebase_groom
 
 

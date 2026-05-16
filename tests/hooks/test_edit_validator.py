@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from dev10x.domain.rule_engine import RuleEngine
-from dev10x.domain.validation_rule import Rule
+from dev10x.domain.rules.rule_engine import RuleEngine
+from dev10x.domain.rules.validation_rule import Rule
 
 
 @pytest.fixture()
@@ -127,7 +127,7 @@ class TestFormatMessage:
         assert result == "BLOCKED: /work/.env"
 
     def test_appends_compensation_descriptions(self) -> None:
-        from dev10x.domain.validation_rule import Compensation
+        from dev10x.domain.rules.validation_rule import Compensation
 
         rule = Rule(
             name="test",

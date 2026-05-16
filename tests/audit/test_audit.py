@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 audit_mod = pytest.importorskip("dev10x.audit", reason="dev10x not installed")
-from dev10x.domain.result import ErrorResult, SuccessResult  # noqa: E402
+from dev10x.domain.common.result import ErrorResult, SuccessResult  # noqa: E402
 
 
 class TestExtractSession:

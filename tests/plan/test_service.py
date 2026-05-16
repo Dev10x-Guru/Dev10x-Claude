@@ -29,7 +29,7 @@ class TestSetPlanContext:
     def test_returns_updated_keys(self, tmp_path: Path) -> None:
         with (
             patch(f"{SERVICE}.get_toplevel", return_value=str(tmp_path)),
-            patch("dev10x.domain.plan._get_branch", return_value="b"),
+            patch("dev10x.domain.documents.plan._get_branch", return_value="b"),
         ):
             updated = set_plan_context(args=["work_type=feature", 'tickets=["X"]'])
 
@@ -50,7 +50,7 @@ class TestPlanSummary:
     def test_returns_dict_when_plan_exists(self, tmp_path: Path) -> None:
         with (
             patch(f"{SERVICE}.get_toplevel", return_value=str(tmp_path)),
-            patch("dev10x.domain.plan._get_branch", return_value="b"),
+            patch("dev10x.domain.documents.plan._get_branch", return_value="b"),
         ):
             set_plan_context(args=["work_type=feature"])
             result = plan_summary()
@@ -71,7 +71,7 @@ class TestArchivePlan:
     def test_archives_existing_plan(self, tmp_path: Path) -> None:
         with (
             patch(f"{SERVICE}.get_toplevel", return_value=str(tmp_path)),
-            patch("dev10x.domain.plan._get_branch", return_value="feature/x"),
+            patch("dev10x.domain.documents.plan._get_branch", return_value="feature/x"),
         ):
             set_plan_context(args=["work_type=feature"])
             result = archive_plan()

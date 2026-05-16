@@ -8,11 +8,11 @@ from typing import Any
 import msgpack
 import yaml
 
-from dev10x.domain.config_document import Config
 from dev10x.domain.config_loader import ConfigLoader
+from dev10x.domain.documents.config_document import Config
 from dev10x.domain.file_locks import atomic_write_bytes
 from dev10x.domain.friction_level import FrictionLevel
-from dev10x.domain.validation_rule import Compensation, Rule
+from dev10x.domain.rules.validation_rule import Compensation, Rule
 
 DEFAULT_TTL_SECONDS = 1800
 

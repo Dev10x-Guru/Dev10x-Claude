@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from dev10x.domain.session_state import PlanContext, PlanSummary, SessionState
+from dev10x.domain.documents.session_state import PlanContext, PlanSummary, SessionState
 
 
 class TestSessionStateFormatForDisplay:

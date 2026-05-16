@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from dev10x.domain.result import ErrorResult, SuccessResult
-from dev10x.domain.sql import is_read_only_sql
+from dev10x.domain.common.result import ErrorResult, SuccessResult
+from dev10x.domain.rules.sql import is_read_only_sql
 
 
 class TestIsReadOnlySql:
