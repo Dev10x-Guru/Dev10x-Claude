@@ -79,9 +79,46 @@ Agent(subagent_type="general-purpose",
     - [What goes wrong if NOT chosen]
 
     ## Acknowledged Weaknesses
-    - [Honest downsides]""",
+    - [Honest downsides]
+
+    Report your final status as the LAST line of your output,
+    with exactly one of these prefixes:
+
+    - DONE                           — advocacy complete
+    - DONE_WITH_CONCERNS: <text>     — complete but flagged
+                                       (weak evidence, conflicting
+                                       ADRs, scope creep)
+    - NEEDS_CONTEXT: <what>          — missing input (ADR refs,
+                                       file paths, constraint set)
+    - BLOCKED: <reason>              — permission wall, missing
+                                       tool, unrecoverable error
+
+    Do not write anything after the status line.""",
     run_in_background=true)
 ```
+
+**Parse the trailing status line** per
+`references/orchestration/subagent-status-protocol.md` (GH-69):
+
+- `DONE` / `DONE_WITH_CONCERNS:` → include the advocacy in the
+  Phase 2 synthesis input; surface concerns to the user as part
+  of "Unverified claims flagged" in Phase 3
+- `NEEDS_CONTEXT: <what>` → re-dispatch the affected advocate
+  once with the requested context inlined (do not stall the
+  other advocates)
+- `BLOCKED: <reason>` → drop that advocate, run its advocacy
+  inline from the main session, and surface the reason in the
+  final ADR draft so reviewers know one option received
+  reduced rigor
+
+**Inline-context preference (GH-69):** When the controller has
+already read the relevant source files (e.g., during topic
+scoping), inline them under `<file path="...">...</file>`
+blocks instead of asking each advocate to Read them dynamically.
+Advocates running at Design tier may still Read additional
+files when their advocacy requires it, but the controller-
+provided baseline avoids N advocates duplicating the same
+Reads (and the same permission prompts).
 
 ### Phase 2: Synthesize
 

@@ -51,6 +51,30 @@ Files matching: `skills/**` (same trigger as `reviewer-skill.md`)
     numbered TaskCreate lists and dependency annotations, verify each
     phase's documented inputs match its dependency list. Skip for
     script-based skills or skills without dependency annotations.
+22. **Subagent status protocol presence (GH-69)** — when a skill section
+    documents an `Agent(...)` dispatch prompt (Phase 2 Gather, Wave 2
+    audit, architect dispatch, fanout sub-agent, etc.), verify the
+    prompt body includes the four-status template from
+    `references/orchestration/subagent-status-protocol.md` (`DONE`,
+    `DONE_WITH_CONCERNS:`, `NEEDS_CONTEXT:`, `BLOCKED:`). Flag missing
+    status-protocol instructions as WARNING — controllers cannot
+    branch deterministically without it and fall back to heuristic
+    parsing of free-form prose.
+    **False-positive prevention**: Do NOT flag dispatch examples in
+    "Anti-pattern" subsections or in pure background-monitor
+    dispatches whose result is a side effect (push notification)
+    rather than a status the controller parses.
+23. **Inline-context vs read-on-demand (GH-69)** — when an `Agent(...)`
+    dispatch is in the Gather, Replicate, or Analyze tier per
+    `.claude/rules/model-selection.md`, prefer the inline-context
+    pattern: the controller pre-reads files and pastes them into the
+    prompt under `<file path="...">...</file>` blocks. Flag prompts
+    that instruct the subagent to Read files dynamically when the
+    file set is known upfront — this is the source of permission-
+    stall failures (mode `dontAsk` does not propagate into the
+    subagent).
+    **False-positive prevention**: Do NOT flag Investigate/Explore
+    tier dispatches where the file set is genuinely unknown.
 
 ## Output Format
 

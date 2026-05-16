@@ -439,16 +439,38 @@ that Phases 2, 3, and 5 need.
 they run concurrently. Include the full text of each phase's
 instructions from the Phase Reference section in each prompt.
 
-1. `Agent(subagent_type="general-purpose", model="sonnet", description="Phase 2: Skill coverage", prompt="You are running Phase 2 (Skill Coverage Analysis). Return your complete findings as your response. Also attempt to write them to <PHASE2_OUTPUT> — if the write fails, the main agent will capture your findings from the returned result. Phase 1 action inventory: <PHASE1_OUTPUT>. Skills directory: <SKILLS_DIR>. Read the Phase 1 output, then [include full Phase 2: Skill Coverage Analysis instructions from the Phase Reference section].")`
+**Status protocol (GH-69):** Every Wave 2 prompt MUST append the
+four-line status template from
+`references/orchestration/subagent-status-protocol.md`. Each
+subagent ends its output with one of:
 
-2. `Agent(subagent_type="general-purpose", model="sonnet", description="Phase 3: Compliance check", prompt="You are running Phase 3 (Compliance Check). Return your complete findings as your response. Also attempt to write them to <PHASE3_OUTPUT> — if the write fails, the main agent will capture your findings from the returned result. Phase 1 action inventory: <PHASE1_OUTPUT>. Session transcript: <TRANSCRIPT_PATH>. Skills directory: <SKILLS_DIR>. Session friction context: friction_level=<FRICTION_LEVEL>, active_modes=<ACTIVE_MODES>. When evaluating compliance, treat documented auto-select gates (e.g., `work-on` Phase 3 plan-approval at adaptive — GH-808) as COMPLIANT when the agent auto-selected the recommended option, NOT as SKIPPED_STEP. Read the Phase 1 output, then [include full Phase 3: Compliance Check instructions from the Phase Reference section].")`
+- `DONE` — phase findings complete
+- `DONE_WITH_CONCERNS: <text>` — findings complete but flagged
+  (e.g., transcript truncated, ambiguous compliance call)
+- `NEEDS_CONTEXT: <what>` — missing input the controller can
+  provide (Phase 1 output empty, friction context not set)
+- `BLOCKED: <reason>` — permission wall, missing tool, or
+  unrecoverable error (controller falls back to main-session
+  execution of the phase)
 
-3. `Agent(subagent_type="general-purpose", model="sonnet", description="Phase 5: Lessons learned", prompt="You are running Phase 5 (Lessons Learned Extraction). Return your complete findings as your response. Also attempt to write them to <PHASE5_OUTPUT> — if the write fails, the main agent will capture your findings from the returned result. Phase 1 action inventory: <PHASE1_OUTPUT>. Session transcript: <TRANSCRIPT_PATH>. Memory directory: <MEMORY_DIR>. Read the Phase 1 output, then [include full Phase 5: Lessons Learned Extraction instructions from the Phase Reference section].")`
+The main agent parses the trailing line of each Agent result
+and branches per the protocol before writing the phase output
+file.
+
+1. `Agent(subagent_type="general-purpose", model="sonnet", description="Phase 2: Skill coverage", prompt="You are running Phase 2 (Skill Coverage Analysis). Return your complete findings as your response. Also attempt to write them to <PHASE2_OUTPUT> — if the write fails, the main agent will capture your findings from the returned result. Phase 1 action inventory: <PHASE1_OUTPUT>. Skills directory: <SKILLS_DIR>. Read the Phase 1 output, then [include full Phase 2: Skill Coverage Analysis instructions from the Phase Reference section]. Report your final status as the LAST line of your output, with exactly one of these prefixes: DONE / DONE_WITH_CONCERNS: <text> / NEEDS_CONTEXT: <what> / BLOCKED: <reason>. Do not write anything after the status line.")`
+
+2. `Agent(subagent_type="general-purpose", model="sonnet", description="Phase 3: Compliance check", prompt="You are running Phase 3 (Compliance Check). Return your complete findings as your response. Also attempt to write them to <PHASE3_OUTPUT> — if the write fails, the main agent will capture your findings from the returned result. Phase 1 action inventory: <PHASE1_OUTPUT>. Session transcript: <TRANSCRIPT_PATH>. Skills directory: <SKILLS_DIR>. Session friction context: friction_level=<FRICTION_LEVEL>, active_modes=<ACTIVE_MODES>. When evaluating compliance, treat documented auto-select gates (e.g., `work-on` Phase 3 plan-approval at adaptive — GH-808) as COMPLIANT when the agent auto-selected the recommended option, NOT as SKIPPED_STEP. Read the Phase 1 output, then [include full Phase 3: Compliance Check instructions from the Phase Reference section]. Report your final status as the LAST line of your output, with exactly one of these prefixes: DONE / DONE_WITH_CONCERNS: <text> / NEEDS_CONTEXT: <what> / BLOCKED: <reason>. Do not write anything after the status line.")`
+
+3. `Agent(subagent_type="general-purpose", model="sonnet", description="Phase 5: Lessons learned", prompt="You are running Phase 5 (Lessons Learned Extraction). Return your complete findings as your response. Also attempt to write them to <PHASE5_OUTPUT> — if the write fails, the main agent will capture your findings from the returned result. Phase 1 action inventory: <PHASE1_OUTPUT>. Session transcript: <TRANSCRIPT_PATH>. Memory directory: <MEMORY_DIR>. Read the Phase 1 output, then [include full Phase 5: Lessons Learned Extraction instructions from the Phase Reference section]. Report your final status as the LAST line of your output, with exactly one of these prefixes: DONE / DONE_WITH_CONCERNS: <text> / NEEDS_CONTEXT: <what> / BLOCKED: <reason>. Do not write anything after the status line.")`
 
 Wait for all three subagents to complete. Mark tasks 6, 7, 8
-as `completed` as each returns. If any output file was not written
-by the subagent, use the returned result to write it from the
-main agent.
+as `completed` as each returns AND its status line is `DONE` or
+`DONE_WITH_CONCERNS:`. For `NEEDS_CONTEXT:`, re-dispatch once
+with the requested context inlined. For `BLOCKED:`, fall back
+to running the phase's instructions in the main session and
+surface the reason to the user. If any output file was not
+written by the subagent, use the returned result (minus the
+status line) to write it from the main agent.
 
 ### Step 8: Collect and synthesize
 

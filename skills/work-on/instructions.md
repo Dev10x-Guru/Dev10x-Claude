@@ -312,9 +312,45 @@ Agent(subagent_type=source_agent_type,  # see table above
     - Status (open/closed/merged)
     - Key details (2-3 sentences)
     - Cross-references found (URLs, ticket IDs)
-    Do NOT return full body text — summarize.""",
+    Do NOT return full body text — summarize.
+
+    Report your final status as the LAST line of your output,
+    with exactly one of these prefixes:
+
+    - DONE                           — fetch complete
+    - DONE_WITH_CONCERNS: <text>     — fetched but flagged (e.g.,
+                                       ticket closed, conflicting info)
+    - NEEDS_CONTEXT: <what>          — missing identifier, ambiguous
+                                       slug, etc.
+    - BLOCKED: <reason>              — permission wall, MCP unavailable,
+                                       auth error
+
+    Do not write anything after the status line.""",
     run_in_background=true)
 ```
+
+**Parse the trailing status line** per
+`references/orchestration/subagent-status-protocol.md` (GH-69):
+
+- `DONE` → mark the source's subtask `completed`, fold the summary
+  into the Context Summary
+- `DONE_WITH_CONCERNS: <text>` → mark `completed`, queue the
+  concern for the batched decision presentation in Phase 3
+- `NEEDS_CONTEXT: <what>` → re-dispatch once with the requested
+  context inlined (e.g., a corrected ticket ID)
+- `BLOCKED: <reason>` → run the fetch in the main session as a
+  fallback (`gh issue view`, Linear MCP, etc.) and surface the
+  reason to the user; do not silently drop the source
+
+**Inline-context defaults (GH-69):** When the controller already
+holds file content the subagent needs (e.g., a local PR diff, a
+ticket body fetched earlier in this session), prefer inlining
+it under `<file path="...">...</file>` blocks rather than
+instructing the subagent to Read it. Subagents do not inherit
+the controller's `mode: "dontAsk"` permission, so dynamic Reads
+stall on permission prompts that the user cannot answer.
+Inline-context is the default for Gather, Replicate, and
+Analyze tier dispatches (see `.claude/rules/model-selection.md`).
 
 **Web URLs** (documentation, reference pages) should be fetched
 in the main session via `WebFetch`, not dispatched to subagents.
