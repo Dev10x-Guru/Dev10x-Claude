@@ -166,27 +166,37 @@ When a synthesis phase reads output from earlier phases, verify the dependency
 list includes all upstream phase tasks. Example: If synthesis reads `<PHASE1_OUTPUT>`,
 task 4 (Phase 1) must be in the synthesis task's `blockedBy` list.
 
-## Permission-Aware Parallel Dispatch
+## Agent Isolation Matrix (GH-36)
 
-When executing parallel work streams, classify each task **before dispatch**
-to avoid Write/Edit tool failures in background agents:
+Native `Agent` isolation (`isolation: "worktree"`) and full
+`Tools: *` access for `general-purpose` subagents superseded
+the prior Permission-Aware Parallel Dispatch model. Background
+agents now have Skill, Write, Edit, Bash, and MCP tools, and a
+per-agent temp worktree with automatic cleanup.
 
-| Task type | Write/Edit needed? | Dispatch method |
-|-----------|-------------------|-----------------|
-| Issue implementation | Yes | Main session via `Skill()` |
-| PR with code fixes | Yes | Main session via `Skill()` |
-| Conflict resolution | Yes | Main session via `Skill()` |
-| PR ready-to-merge | No | Background `Agent()` OK |
-| CI monitoring | No | Background `Agent()` OK |
-| Investigation/analysis | No | Background `Agent()` OK |
+| Task type | Dispatch | Why |
+|-----------|----------|-----|
+| Issue implementation, PR fixes, rebase, conflict resolution | `Agent(subagent_type="general-purpose", isolation="worktree", run_in_background=true, model="sonnet", mode="acceptEdits")` | Has Skill + Write + Edit; worktree isolates file changes; auto-cleanup if no changes |
+| PR ready-to-merge (CI green, no comments) | `Agent(subagent_type="general-purpose", run_in_background=true, model="haiku")` | Read-only orchestration; no isolation needed |
+| CI monitoring, status polling | `Agent(subagent_type="general-purpose", run_in_background=true, model="haiku")` | Read-only; cheaper without isolation |
+| Investigation, research | `Agent(subagent_type="Explore"` or specialized agent`)` | Specialized agents with the right tool surface |
 
-**Decision rule**: If a task MAY create or edit files, it MUST run in the main
-session via `Skill()`. Background agents are only safe for read-only operations
-due to `bypassPermissions` non-propagation.
+**Decision rule**: Default to `isolation="worktree"` for any
+write-touching work item. Drop isolation only when the work
+is provably read-only (monitoring, fetching, reviewing).
 
-**Example**: A `fanout` skill routes a PR with unaddressed review comments
-to `Skill()` for inline fixes, but routes a CI-green PR with no comments to
-background `Agent()` for merge monitoring.
+**Decision rule (legacy)**: The historic "write-requiring
+tasks must run in the main session" constraint no longer
+applies for the dispatch surface this rule targets. When
+references to the old "Permission-Aware Dispatch table" appear
+in skill docs, treat them as superseded by the Agent Isolation
+Matrix above.
+
+**Example**: `Dev10x:fanout` dispatches each non-conflicting
+work item as a worktree-isolated `Agent` whose prompt invokes
+`Skill(Dev10x:work-on)`, running the full lifecycle inside the
+isolated worktree. Conflict-chain successors wait for upstream
+items to merge, then dispatch in the next wave.
 
 See `.claude/rules/essentials.md` "Permission & Tool Availability Limits"
 for the complete constraint specification.
