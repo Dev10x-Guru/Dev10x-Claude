@@ -1293,6 +1293,23 @@ issue's ticket ID in the message. The shipping pipeline
 runs once — the PR references all bundled issues via
 multiple `Fixes:` lines.
 
+**Commit step positioning (GH-164):** The shipping-pipeline
+`Commit outstanding changes` step (4.7 in the solo-maintainer
+fragment) runs ONCE at the end of all bundle sub-tasks — for
+any residual changes from review/simplify, not as the
+per-issue commit driver. The per-issue commits happen
+*inside* the "Implement changes" epic (step 2c above), not in
+the shipping pipeline. Audit GH-164 caught an agent that
+treated the shipping-pipeline commit step as a sibling of
+the implementation sub-tasks and committed after the very
+first sub-task — prematurely, before later bundle members
+were implemented.
+
+Rule: in bundle mode, every per-issue commit is a child of
+"Implement changes". The shipping-pipeline `Commit outstanding
+changes` step must be positioned strictly AFTER all
+implementation children complete.
+
 **Strategy selection:** When the user explicitly requests
 bundling (e.g., "one PR", "atomic commits", "bundle these"),
 use Strategy B. When the user provides multiple independent
