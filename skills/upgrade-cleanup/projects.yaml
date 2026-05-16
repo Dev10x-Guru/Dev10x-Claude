@@ -217,6 +217,15 @@ base_permissions:
   - "Bash(gh repo clone:*)"
   - "Bash(gh repo set-default:*)"
 
+  # --- Read-only discovery in plugin cache (GH-122) ---
+  # `Bash(find:*)` does not reliably match `find <path> ... | head`
+  # due to how the engine tokenizes prefixes with pipelines. Scope
+  # the rule to the plugin cache so common skills (work-on,
+  # skill-audit, skill-create) can scan without a prompt. Two forms
+  # — some sessions normalize `~`, others use the literal `/home/<user>`.
+  - "Bash(find ~/.claude/plugins/cache/Dev10x-Guru/Dev10x:*)"
+  - "Bash(find /home/*/.claude/plugins/cache/Dev10x-Guru/Dev10x:*)"
+
   # --- Common git operations ---
   - "Bash(git log:*)"
   - "Bash(git add:*)"
