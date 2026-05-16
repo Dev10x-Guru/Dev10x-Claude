@@ -16,6 +16,10 @@ invocation-name: Dev10x:skill-reinforcement
 allowed-tools:
   - AskUserQuestion
   - Read(~/.claude/SKILLS.md)
+  - Read(~/.claude/settings.json)
+  - Read(~/.claude/settings.local.json)
+  - Read(.claude/settings.json)
+  - Read(.claude/settings.local.json)
   - Read(${CLAUDE_PLUGIN_ROOT}/skills/skill-reinforcement/references/*)
   - Read(${CLAUDE_PLUGIN_ROOT}/src/dev10x/validators/command-skill-map.yaml)
 ---
@@ -93,6 +97,51 @@ If no direct mapping exists, read `~/.claude/SKILLS.md` and scan
 skill descriptions from the system-reminder context to find the
 best match based on the command's purpose.
 
+### Step 3b: Permission friction audit
+
+Most rejections happen not because the command is wrong but
+because the agent packed too much into a single Bash call and
+the resulting prefix does not match any pre-approved allow-rule.
+Before producing the final reinforcement, audit settings for a
+simpler, pre-approved alternative.
+
+**Sources** (read each; tolerate missing files):
+- `.claude/settings.local.json` — project-local overrides
+- `.claude/settings.json` — project shared
+- `~/.claude/settings.json` — user global
+- `~/.claude/settings.local.json` — user local
+
+Parse `permissions.allow` from each. Allow-rule shapes to handle:
+- `Bash(<exact>)` — exact command match
+- `Bash(<prefix>:*)` — prefix match
+- `Read(<glob>)`, `Edit(<glob>)`, etc. — non-Bash tools
+
+**Audit procedure:**
+1. Extract the leading executable + first 1–2 args from the
+   offending command (the "effective prefix" used by Claude
+   Code's matcher).
+2. Compare against each allow-rule prefix. Note any rule that
+   would match a simpler form of the same intent:
+   - Command had `&&`, `;`, or subshell chaining → propose the
+     unchained first command; if it matches an allow-rule,
+     that's the pre-approved alternative
+   - Command had an env-var prefix (`FOO=bar git ...`) → strip
+     the prefix and recheck
+   - Command used `cd <path> && <cmd>` → drop the `cd`
+     (CWD is already correct) and recheck
+3. If a close allow-rule exists, surface it as a **pre-approved
+   alternative** — instruct the agent to invoke the simpler
+   form (one command per Bash call, no chaining).
+4. If no allow-rule covers any simplified variant, propose a
+   **safe, targeted addition** to `.claude/settings.local.json`.
+   Prefer narrow prefixes (`Bash(git fetch:*)`) over broad ones
+   (`Bash(git:*)`). Never propose `Bash(*)` or rules that span
+   destructive verbs.
+
+The audit output feeds Step 4 — surface findings even when a
+skill match was also found, since switching to the simpler
+pre-approved form is often what the supervisor actually wanted.
+
 ### Step 4: Output reinforcement message
 
 Output a firm, concise reinforcement message with these sections:
@@ -107,7 +156,14 @@ Output a firm, concise reinforcement message with these sections:
    `mcp__plugin_Dev10x_cli__mktmp(namespace='git',
    prefix='commit-msg', ext='.txt')` — not
    `mcp__plugin_Dev10x_cli__mktmp git commit-msg .txt`."
-5. **Related skills:** — from the map entry (if available)
+5. **Pre-approved alternatives:** — from Step 3b audit. If a
+   simpler form of the command matches an existing allow-rule,
+   show that form and the rule that covers it. If no rule
+   matches, show the proposed targeted allow-rule snippet and
+   the settings file it should land in. Omit this section when
+   the audit found no friction (the command was already simple
+   and pre-approved, or no Bash command was involved).
+6. **Related skills:** — from the map entry (if available)
 
 If multiple skills could apply, list all of them ranked by
 relevance.
@@ -128,6 +184,14 @@ End with a brief reminder:
 > Always check if a skill or MCP tool exists before reaching for
 > CLI commands. Skills provide consistent behavior, proper tool
 > declarations, and avoid permission friction.
+>
+> Prefer pre-approved commands. Keep each Bash call to one simple
+> command — no `&&`/`;` chaining, no env-var prefixes, no leading
+> subshells. Packing multiple steps into one call shifts the
+> effective prefix and breaks allow-rule matching, which is the
+> main reason supervisors see avoidable permission prompts. When
+> no pre-approved form fits, propose a narrow targeted allow-rule
+> rather than crafting a more elaborate command.
 
 ### Step 6: Offer follow-up action (REQUIRED when command was rejected)
 
@@ -160,61 +224,11 @@ rejected workflow.
 
 ## Examples
 
-### Example 1: kubectl usage
+See [`references/examples.md`](references/examples.md) for four
+walkthroughs:
 
-**User:** `/Dev10x:skill-reinforcement`
-(after agent ran `kubectl get pods -n staging`)
-
-**Output:**
-```
-## Skill Reinforcement
-
-**Command detected:** `kubectl get pods -n staging`
-**Use instead:** `/Dev10x:k8s` — Kubernetes operations via
-aws-vault authenticated kubectl
-
-**Why:** Direct kubectl calls bypass aws-vault authentication
-and may fail or use wrong credentials.
-
-**How to invoke:**
-Skill("Dev10x:k8s")
-```
-
-### Example 2: direct git push
-
-**User:** `/Dev10x:skill-reinforcement`
-(after agent ran `git push origin feature-branch`)
-
-**Output:**
-```
-## Skill Reinforcement
-
-**Command detected:** `git push origin feature-branch`
-**Use instead:** `/Dev10x:git` — Safe git push with
-protected branch checks
-
-**Why:** Direct git push bypasses force-push protection
-on develop/main branches.
-
-**How to invoke:**
-Skill("Dev10x:git")
-```
-
-### Example 3: no match found
-
-**User:** `/Dev10x:skill-reinforcement`
-(after agent ran `curl https://api.example.com/health`)
-
-**Output:**
-```
-## Skill Reinforcement
-
-**Command detected:** `curl https://api.example.com/health`
-**No direct skill match found.**
-
-Available skills that might help:
-- `/Dev10x:k8s` — if checking service health in k8s
-- `/Dev10x:investigate` — if investigating a bug report
-
-Check ~/.claude/SKILLS.md for the full list of available skills.
-```
+1. **kubectl usage** — direct CLI match (`Dev10x:k8s`)
+2. **direct git push** — bypassed safety skill (`Dev10x:git`)
+3. **friction from chaining** — Step 3b audit surfaces a
+   pre-approved alternative
+4. **no match found** — fallback to SKILLS.md scan
