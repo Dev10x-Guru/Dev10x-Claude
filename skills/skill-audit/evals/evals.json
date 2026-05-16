@@ -25,6 +25,11 @@
       "id": "early-insight-gate",
       "name": "Early-Insight Gate",
       "description": "Phase 0 detects narrow, transcript-evident questions, presents inline findings, and routes via AskUserQuestion with three options (select & file, step back, discard) without dispatching wave subagents"
+    },
+    {
+      "id": "cycle-audit-task",
+      "name": "Cycle-Audit Task Append (GH-148)",
+      "description": "Step 0a always appends a single 'Audit cycle: diagnose, fix, note in memory, file upstream' task at the end of the current task list before Phase 0 fires, regardless of downstream path. Empty-list edge case: task is created and immediately marked in_progress."
     }
   ],
   "evals": [
@@ -205,6 +210,73 @@
           "check": "tool_called",
           "tool": "TaskCreate",
           "signal": "All 10 setup/wave/synthesis tasks are created"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "cycle-audit-task-appended-empty-list",
+      "prompt": "/Dev10x:skill-audit",
+      "description": "Tests that Step 0a (GH-148) creates a single cycle-audit task at the very start of the invocation, before Phase 0 fires. With an empty task list, the task is marked in_progress immediately and the audit proceeds.",
+      "setup": {
+        "task_list_state": "empty",
+        "invocation": "/Dev10x:skill-audit"
+      },
+      "dimensions": ["cycle-audit-task"],
+      "assertions": [
+        {
+          "id": "cycle_task_created_first",
+          "text": "TaskCreate for the cycle-audit task fires before any Phase 0 / Step 0 task or Agent dispatch",
+          "check": "tool_called_before",
+          "tool": "TaskCreate",
+          "args_contain": "Audit cycle",
+          "before_tool": "AskUserQuestion",
+          "signal": "Cycle-audit task is the first TaskCreate of the invocation"
+        },
+        {
+          "id": "cycle_task_subject_text",
+          "text": "Cycle-audit task subject names the four-stage frame",
+          "check": "output_contains",
+          "signals": [
+            "Audit cycle",
+            "diagnose",
+            "memory",
+            "upstream"
+          ]
+        },
+        {
+          "id": "cycle_task_in_progress_on_empty_list",
+          "text": "When prior task list was empty, the cycle-audit task is set to in_progress before Phase 0 fires",
+          "check": "behavioral",
+          "assertion": "task_in_progress_on_empty_list",
+          "signal": "TaskUpdate with status=in_progress fires on the cycle-audit task immediately after creation"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "cycle-audit-task-appended-non-empty-list",
+      "prompt": "/Dev10x:skill-audit",
+      "description": "Tests that Step 0a (GH-148) appends the cycle-audit task at the end of an existing task list without disrupting prior tasks or wiring any dependencies on them.",
+      "setup": {
+        "task_list_state": "non-empty (prior unrelated tasks present)",
+        "invocation": "/Dev10x:skill-audit"
+      },
+      "dimensions": ["cycle-audit-task"],
+      "assertions": [
+        {
+          "id": "cycle_task_appended_no_dependencies",
+          "text": "Cycle-audit task is created without addBlocks or addBlockedBy wiring to prior tasks",
+          "check": "behavioral",
+          "assertion": "no_dependency_wiring_to_existing_tasks",
+          "signal": "TaskCreate for the cycle-audit task has no blocks/blockedBy targeting existing task IDs"
+        },
+        {
+          "id": "prior_tasks_unchanged",
+          "text": "Prior tasks in the list are not modified, deleted, or reordered",
+          "check": "behavioral",
+          "assertion": "existing_tasks_preserved",
+          "signal": "TaskUpdate is not called on any pre-existing task during Step 0a"
         }
       ]
     }
