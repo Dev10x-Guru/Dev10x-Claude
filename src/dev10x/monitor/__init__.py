@@ -6,8 +6,10 @@ check CI status without Bash allow-rule friction.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
+from dev10x.domain.result import Result, err, ok
 from dev10x.subprocess_utils import async_run, get_plugin_root
 
 
@@ -20,7 +22,7 @@ async def ci_check_status(
     poll_interval: int = 30,
     initial_wait: int = 60,
     max_polls: int = 60,
-) -> dict[str, Any]:
+) -> Result[dict[str, Any]]:
     script = get_plugin_root() / "skills/gh-pr-monitor/scripts/ci-check-status.py"
     args: list[str] = [
         str(script),
@@ -40,11 +42,9 @@ async def ci_check_status(
     result = await async_run(args=args, timeout=timeout)
 
     if result.returncode != 0:
-        return {"error": result.stderr.strip()}
-
-    import json
+        return err(result.stderr.strip())
 
     try:
-        return json.loads(result.stdout)
+        return ok(json.loads(result.stdout))
     except json.JSONDecodeError:
-        return {"error": f"Invalid JSON output: {result.stdout[:200]}"}
+        return err(f"Invalid JSON output: {result.stdout[:200]}")

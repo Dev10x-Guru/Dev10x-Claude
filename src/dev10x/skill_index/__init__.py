@@ -8,13 +8,14 @@ from __future__ import annotations
 
 from typing import Any
 
+from dev10x.domain.result import Result, err, ok
 from dev10x.subprocess_utils import async_run_script
 
 
 async def generate_all(
     *,
     force: bool = False,
-) -> dict[str, Any]:
+) -> Result[dict[str, Any]]:
     args: list[str] = []
     if force:
         args.append("--force")
@@ -25,6 +26,6 @@ async def generate_all(
     )
 
     if result.returncode != 0:
-        return {"error": result.stderr.strip()}
+        return err(result.stderr.strip())
 
-    return {"success": True, "output": result.stdout.strip()}
+    return ok({"success": True, "output": result.stdout.strip()})

@@ -726,13 +726,15 @@ async def mktmp(
     """
     from dev10x import utilities as util
 
-    return await util.mktmp(
-        namespace=namespace,
-        prefix=prefix,
-        ext=ext,
-        directory=directory,
-        create=create,
-    )
+    return (
+        await util.mktmp(
+            namespace=namespace,
+            prefix=prefix,
+            ext=ext,
+            directory=directory,
+            create=create,
+        )
+    ).to_dict()
 
 
 # ── Plan/Task tools ────────────────────────────────────────────
@@ -757,7 +759,7 @@ async def plan_sync_set_context(
     from dev10x.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
-        return await plan_tools.set_context(args=args)
+        return (await plan_tools.set_context(args=args)).to_dict()
 
 
 @server.tool()
@@ -776,7 +778,7 @@ async def plan_sync_json_summary(cwd: str | None = None) -> dict:
     from dev10x.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
-        return await plan_tools.json_summary()
+        return (await plan_tools.json_summary()).to_dict()
 
 
 @server.tool()
@@ -793,7 +795,7 @@ async def plan_sync_archive(cwd: str | None = None) -> dict:
     from dev10x.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
-        return await plan_tools.archive()
+        return (await plan_tools.archive()).to_dict()
 
 
 # ── GitHub review tools ────────────────────────────────────────
@@ -912,15 +914,17 @@ async def ci_check_status(
     from dev10x.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
-        return await mon.ci_check_status(
-            pr_number=pr_number,
-            repo=repo,
-            required_only=required_only,
-            wait=wait,
-            poll_interval=poll_interval,
-            initial_wait=initial_wait,
-            max_polls=max_polls,
-        )
+        return (
+            await mon.ci_check_status(
+                pr_number=pr_number,
+                repo=repo,
+                required_only=required_only,
+                wait=wait,
+                poll_interval=poll_interval,
+                initial_wait=initial_wait,
+                max_polls=max_polls,
+            )
+        ).to_dict()
 
 
 # ── Permission maintenance tools ───────────────────────────────
@@ -954,16 +958,18 @@ async def update_paths(
     """
     from dev10x import permission as perm
 
-    return await perm.update_paths(
-        version=version,
-        dry_run=dry_run,
-        ensure_base=ensure_base,
-        generalize=generalize,
-        ensure_scripts=ensure_scripts,
-        ensure_reads=ensure_reads,
-        init=init,
-        quiet=quiet,
-    )
+    return (
+        await perm.update_paths(
+            version=version,
+            dry_run=dry_run,
+            ensure_base=ensure_base,
+            generalize=generalize,
+            ensure_scripts=ensure_scripts,
+            ensure_reads=ensure_reads,
+            init=init,
+            quiet=quiet,
+        )
+    ).to_dict()
 
 
 # ── Release tools ──────────────────────────────────────────────
@@ -989,12 +995,14 @@ async def collect_prs(
     """
     from dev10x import release as rel
 
-    return await rel.collect_prs(
-        repo_path=repo_path,
-        from_tag=from_tag,
-        to_tag=to_tag,
-        ticket_pattern=ticket_pattern,
-    )
+    return (
+        await rel.collect_prs(
+            repo_path=repo_path,
+            from_tag=from_tag,
+            to_tag=to_tag,
+            ticket_pattern=ticket_pattern,
+        )
+    ).to_dict()
 
 
 # ── Skill index tools ─────────────────────────────────────────
@@ -1014,7 +1022,7 @@ async def generate_skill_index(
     """
     from dev10x import skill_index as idx
 
-    return await idx.generate_all(force=force)
+    return (await idx.generate_all(force=force)).to_dict()
 
 
 # ── Skill audit tools ─────────────────────────────────────────
@@ -1036,10 +1044,12 @@ async def audit_extract_session(
     """
     from dev10x import audit
 
-    return await audit.extract_session(
-        jsonl_path=jsonl_path,
-        output_path=output_path,
-    )
+    return (
+        await audit.extract_session(
+            jsonl_path=jsonl_path,
+            output_path=output_path,
+        )
+    ).to_dict()
 
 
 @server.tool()
@@ -1058,10 +1068,12 @@ async def audit_analyze_actions(
     """
     from dev10x import audit
 
-    return await audit.analyze_actions(
-        transcript_path=transcript_path,
-        output_path=output_path,
-    )
+    return (
+        await audit.analyze_actions(
+            transcript_path=transcript_path,
+            output_path=output_path,
+        )
+    ).to_dict()
 
 
 @server.tool()
@@ -1082,11 +1094,13 @@ async def audit_analyze_permissions(
     """
     from dev10x import audit
 
-    return await audit.analyze_permissions(
-        transcript_path=transcript_path,
-        settings_path=settings_path,
-        output_path=output_path,
-    )
+    return (
+        await audit.analyze_permissions(
+            transcript_path=transcript_path,
+            settings_path=settings_path,
+            output_path=output_path,
+        )
+    ).to_dict()
 
 
 @server.tool()
@@ -1102,7 +1116,7 @@ async def audit_hook_log_path() -> dict:
     """
     from dev10x import audit
 
-    return await audit.hook_log_path()
+    return (await audit.hook_log_path()).to_dict()
 
 
 @server.tool()
@@ -1125,12 +1139,14 @@ async def audit_hook_recent(
     """
     from dev10x import audit
 
-    return await audit.hook_recent(
-        limit=limit,
-        hook_name=hook_name,
-        span_id=span_id,
-        log_path=log_path,
-    )
+    return (
+        await audit.hook_recent(
+            limit=limit,
+            hook_name=hook_name,
+            span_id=span_id,
+            log_path=log_path,
+        )
+    ).to_dict()
 
 
 def main() -> None:

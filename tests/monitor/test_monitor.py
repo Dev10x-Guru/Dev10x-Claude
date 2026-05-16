@@ -5,6 +5,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from dev10x.domain.result import ErrorResult, SuccessResult
+
 monitor_mod = pytest.importorskip("dev10x.monitor", reason="dev10x not installed")
 
 
@@ -22,8 +24,9 @@ class TestCiCheckStatus:
             stderr="",
         )
         result = await monitor_mod.ci_check_status(pr_number=42, repo="owner/repo")
-        assert result["verdict"] == "green"
-        assert result["total"] == 3
+        assert isinstance(result, SuccessResult)
+        assert result.value["verdict"] == "green"
+        assert result.value["total"] == 3
 
     @pytest.mark.asyncio
     @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
@@ -38,7 +41,9 @@ class TestCiCheckStatus:
             stderr="Script error",
         )
         result = await monitor_mod.ci_check_status(pr_number=42, repo="owner/repo")
-        assert "error" in result
+        assert isinstance(result, ErrorResult)
+        assert result.error == "Script error"
+        assert result.to_dict() == {"error": "Script error"}
 
     @pytest.mark.asyncio
     @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
@@ -53,7 +58,8 @@ class TestCiCheckStatus:
             stderr="",
         )
         result = await monitor_mod.ci_check_status(pr_number=42, repo="owner/repo")
-        assert "error" in result
+        assert isinstance(result, ErrorResult)
+        assert "Invalid JSON output" in result.error
 
     @pytest.mark.asyncio
     @patch("dev10x.monitor.async_run", new_callable=AsyncMock)

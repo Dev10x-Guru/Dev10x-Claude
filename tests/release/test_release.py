@@ -5,6 +5,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from dev10x.domain.result import ErrorResult, SuccessResult
+
 rel_mod = pytest.importorskip("dev10x.release", reason="dev10x not installed")
 
 
@@ -22,7 +24,8 @@ class TestCollectPrs:
             stderr="",
         )
         result = await rel_mod.collect_prs(repo_path="/tmp/repo")
-        assert result["success"] is True
+        assert isinstance(result, SuccessResult)
+        assert result.value["success"] is True
 
     @pytest.mark.asyncio
     @patch("dev10x.release.async_run", new_callable=AsyncMock)
@@ -37,7 +40,9 @@ class TestCollectPrs:
             stderr="Not a git repo",
         )
         result = await rel_mod.collect_prs(repo_path="/tmp/repo")
-        assert "error" in result
+        assert isinstance(result, ErrorResult)
+        assert result.error == "Not a git repo"
+        assert result.to_dict() == {"error": "Not a git repo"}
 
     @pytest.mark.asyncio
     @patch("dev10x.release.async_run", new_callable=AsyncMock)

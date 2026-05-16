@@ -992,7 +992,7 @@ class TestPlanSyncSetContext:
         self,
         mock_fn: AsyncMock,
     ) -> None:
-        mock_fn.return_value = {"success": True, "updated_keys": ["x"]}
+        mock_fn.return_value = ok({"success": True, "updated_keys": ["x"]})
 
         result = await cli_server.plan_sync_set_context(args=["x=1"])
 
@@ -1007,7 +1007,7 @@ class TestPlanSyncJsonSummary:
         self,
         mock_fn: AsyncMock,
     ) -> None:
-        mock_fn.return_value = {"tasks": []}
+        mock_fn.return_value = ok({"tasks": []})
 
         result = await cli_server.plan_sync_json_summary()
 
@@ -1021,7 +1021,7 @@ class TestPlanSyncArchive:
         self,
         mock_fn: AsyncMock,
     ) -> None:
-        mock_fn.return_value = {"success": True, "archive_name": "plan-2026-01-01.md"}
+        mock_fn.return_value = ok({"success": True, "archive_name": "plan-2026-01-01.md"})
 
         result = await cli_server.plan_sync_archive()
 
@@ -1035,7 +1035,7 @@ class TestGenerateSkillIndex:
         self,
         mock_fn: AsyncMock,
     ) -> None:
-        mock_fn.return_value = {"success": True, "output": "done"}
+        mock_fn.return_value = ok({"success": True, "output": "done"})
 
         result = await cli_server.generate_skill_index()
 
@@ -1048,7 +1048,7 @@ class TestGenerateSkillIndex:
         self,
         mock_fn: AsyncMock,
     ) -> None:
-        mock_fn.return_value = {"success": True}
+        mock_fn.return_value = ok({"success": True})
 
         await cli_server.generate_skill_index(force=True)
 
@@ -1062,7 +1062,7 @@ class TestAuditExtractSession:
         self,
         mock_fn: AsyncMock,
     ) -> None:
-        mock_fn.return_value = {"success": True, "output": "extracted"}
+        mock_fn.return_value = ok({"success": True, "output": "extracted"})
 
         result = await cli_server.audit_extract_session(jsonl_path="/tmp/x.jsonl")
 
@@ -1076,7 +1076,7 @@ class TestAuditAnalyzeActions:
         self,
         mock_fn: AsyncMock,
     ) -> None:
-        mock_fn.return_value = {"success": True}
+        mock_fn.return_value = ok({"success": True})
 
         result = await cli_server.audit_analyze_actions(transcript_path="/tmp/x.md")
 
@@ -1090,7 +1090,7 @@ class TestAuditAnalyzePermissions:
         self,
         mock_fn: AsyncMock,
     ) -> None:
-        mock_fn.return_value = {"success": True}
+        mock_fn.return_value = ok({"success": True})
 
         result = await cli_server.audit_analyze_permissions(transcript_path="/tmp/x.md")
 
@@ -1104,14 +1104,16 @@ class TestAuditHookLogPath:
         self,
         mock_fn: AsyncMock,
     ) -> None:
-        mock_fn.return_value = {
-            "audit_dir": "/tmp/Dev10x/hook-audit",
-            "today_log": "/tmp/Dev10x/hook-audit/2026-01-01.jsonl",
-            "today_log_exists": False,
-            "audit_dir_exists": True,
-            "available_logs": [],
-            "audit_disabled": False,
-        }
+        mock_fn.return_value = ok(
+            {
+                "audit_dir": "/tmp/Dev10x/hook-audit",
+                "today_log": "/tmp/Dev10x/hook-audit/2026-01-01.jsonl",
+                "today_log_exists": False,
+                "audit_dir_exists": True,
+                "available_logs": [],
+                "audit_disabled": False,
+            }
+        )
 
         result = await cli_server.audit_hook_log_path()
 
@@ -1125,12 +1127,14 @@ class TestAuditHookRecent:
         self,
         mock_fn: AsyncMock,
     ) -> None:
-        mock_fn.return_value = {
-            "log_path": "/tmp/x.jsonl",
-            "exists": True,
-            "count": 0,
-            "records": [],
-        }
+        mock_fn.return_value = ok(
+            {
+                "log_path": "/tmp/x.jsonl",
+                "exists": True,
+                "count": 0,
+                "records": [],
+            }
+        )
 
         result = await cli_server.audit_hook_recent(limit=10)
 

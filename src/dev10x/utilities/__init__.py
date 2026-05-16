@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from dev10x.domain.result import Result, err, ok
 from dev10x.subprocess_utils import async_run_script
 
 
@@ -19,7 +20,7 @@ async def mktmp(
     ext: str = "",
     directory: bool = False,
     create: bool = False,
-) -> dict[str, Any]:
+) -> Result[dict[str, Any]]:
     """Generate a unique temp path under /tmp/Dev10x/<namespace>/.
 
     By default returns a path without creating the file so callers
@@ -39,6 +40,6 @@ async def mktmp(
     result = await async_run_script("bin/mktmp.sh", *mk_args)
 
     if result.returncode != 0:
-        return {"error": result.stderr.strip()}
+        return err(result.stderr.strip())
 
-    return {"path": result.stdout.strip()}
+    return ok({"path": result.stdout.strip()})

@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 audit_mod = pytest.importorskip("dev10x.audit", reason="dev10x not installed")
+from dev10x.domain.result import ErrorResult, SuccessResult  # noqa: E402
 
 
 class TestExtractSession:
@@ -22,7 +23,8 @@ class TestExtractSession:
             stderr="",
         )
         result = await audit_mod.extract_session(jsonl_path="/tmp/session.jsonl")
-        assert result["success"] is True
+        assert isinstance(result, SuccessResult)
+        assert result.value["success"] is True
 
     @pytest.mark.asyncio
     @patch("dev10x.audit.async_run_script", new_callable=AsyncMock)
@@ -37,7 +39,9 @@ class TestExtractSession:
             stderr="File not found",
         )
         result = await audit_mod.extract_session(jsonl_path="/tmp/missing.jsonl")
-        assert "error" in result
+        assert isinstance(result, ErrorResult)
+        assert result.error == "File not found"
+        assert result.to_dict() == {"error": "File not found"}
 
     @pytest.mark.asyncio
     @patch("dev10x.audit.async_run_script", new_callable=AsyncMock)
@@ -73,7 +77,8 @@ class TestAnalyzeActions:
             stderr="",
         )
         result = await audit_mod.analyze_actions(transcript_path="/tmp/transcript.md")
-        assert result["success"] is True
+        assert isinstance(result, SuccessResult)
+        assert result.value["success"] is True
 
     @pytest.mark.asyncio
     @patch("dev10x.audit.async_run_script", new_callable=AsyncMock)
@@ -88,7 +93,8 @@ class TestAnalyzeActions:
             stderr="Parse error",
         )
         result = await audit_mod.analyze_actions(transcript_path="/tmp/transcript.md")
-        assert "error" in result
+        assert isinstance(result, ErrorResult)
+        assert result.error == "Parse error"
 
 
 class TestAnalyzePermissions:
@@ -99,8 +105,8 @@ class TestAnalyzePermissions:
         result = await audit_mod.analyze_permissions(
             transcript_path=str(tmp_path / "missing.md"),
         )
-        assert "error" in result
-        assert "not found" in result["error"]
+        assert isinstance(result, ErrorResult)
+        assert "not found" in result.error
 
     @pytest.mark.asyncio
     async def test_empty_transcript_produces_report(self, tmp_path) -> None:
@@ -114,8 +120,9 @@ class TestAnalyzePermissions:
             settings_path=str(settings),
         )
 
-        assert result["success"] is True
-        assert "Permission Friction Analysis" in result["output"]
+        assert isinstance(result, SuccessResult)
+        assert result.value["success"] is True
+        assert "Permission Friction Analysis" in result.value["output"]
 
     @pytest.mark.asyncio
     async def test_writes_to_output_path(self, tmp_path) -> None:
@@ -131,7 +138,8 @@ class TestAnalyzePermissions:
             output_path=str(output),
         )
 
-        assert result["success"] is True
+        assert isinstance(result, SuccessResult)
+        assert result.value["success"] is True
         assert output.exists()
         assert "Permission Friction Analysis" in output.read_text()
 
@@ -148,8 +156,8 @@ class TestAnalyzePermissions:
                 transcript_path=str(transcript),
             )
 
-        assert "error" in result
-        assert "boom" in result["error"]
+        assert isinstance(result, ErrorResult)
+        assert "boom" in result.error
 
 
 class TestHookLogPath:
@@ -158,17 +166,19 @@ class TestHookLogPath:
         monkeypatch.delenv("DEV10X_HOOK_AUDIT_DIR", raising=False)
         monkeypatch.delenv("DEV10X_HOOK_AUDIT", raising=False)
         result = await audit_mod.hook_log_path()
-        assert result["audit_dir"] == "/tmp/Dev10x/hook-audit"
-        assert result["audit_disabled"] is False
+        assert isinstance(result, SuccessResult)
+        assert result.value["audit_dir"] == "/tmp/Dev10x/hook-audit"
+        assert result.value["audit_disabled"] is False
 
     @pytest.mark.asyncio
     async def test_honors_env_override(self, tmp_path, monkeypatch) -> None:
         monkeypatch.setenv("DEV10X_HOOK_AUDIT_DIR", str(tmp_path))
         result = await audit_mod.hook_log_path()
-        assert result["audit_dir"] == str(tmp_path)
-        assert result["audit_dir_exists"] is True
-        assert result["today_log_exists"] is False
-        assert result["available_logs"] == []
+        assert isinstance(result, SuccessResult)
+        assert result.value["audit_dir"] == str(tmp_path)
+        assert result.value["audit_dir_exists"] is True
+        assert result.value["today_log_exists"] is False
+        assert result.value["available_logs"] == []
 
     @pytest.mark.asyncio
     async def test_lists_available_logs(self, tmp_path, monkeypatch) -> None:
@@ -177,7 +187,8 @@ class TestHookLogPath:
         (tmp_path / "hooks-2026-04-29.jsonl").write_text("{}\n")
         (tmp_path / "unrelated.txt").write_text("x")
         result = await audit_mod.hook_log_path()
-        assert result["available_logs"] == [
+        assert isinstance(result, SuccessResult)
+        assert result.value["available_logs"] == [
             "hooks-2026-04-28.jsonl",
             "hooks-2026-04-29.jsonl",
         ]
@@ -187,7 +198,8 @@ class TestHookLogPath:
         monkeypatch.setenv("DEV10X_HOOK_AUDIT_DIR", str(tmp_path))
         monkeypatch.setenv("DEV10X_HOOK_AUDIT", "0")
         result = await audit_mod.hook_log_path()
-        assert result["audit_disabled"] is True
+        assert isinstance(result, SuccessResult)
+        assert result.value["audit_disabled"] is True
 
 
 class TestHookRecent:
@@ -195,9 +207,11 @@ class TestHookRecent:
     async def test_missing_log_returns_error(self, tmp_path) -> None:
         target = tmp_path / "hooks-2099-01-01.jsonl"
         result = await audit_mod.hook_recent(log_path=str(target))
-        assert result["exists"] is False
-        assert result["records"] == []
-        assert "error" in result
+        assert isinstance(result, ErrorResult)
+        envelope = result.to_dict()
+        assert envelope["exists"] is False
+        assert envelope["records"] == []
+        assert "audit log not found" in envelope["error"]
 
     @pytest.mark.asyncio
     async def test_reads_records_with_limit(self, tmp_path) -> None:
@@ -210,8 +224,9 @@ class TestHookRecent:
             '{"hook": "c", "span_id": "s3"}\n'
         )
         result = await audit_mod.hook_recent(log_path=str(log), limit=2)
-        assert result["count"] == 2
-        assert [r["hook"] for r in result["records"]] == ["b", "c"]
+        assert isinstance(result, SuccessResult)
+        assert result.value["count"] == 2
+        assert [r["hook"] for r in result.value["records"]] == ["b", "c"]
 
     @pytest.mark.asyncio
     async def test_filters_by_hook_name(self, tmp_path) -> None:
@@ -225,27 +240,30 @@ class TestHookRecent:
             log_path=str(log),
             hook_name="session-start",
         )
-        assert result["count"] == 2
-        assert all(r["hook"] == "session-start" for r in result["records"])
+        assert isinstance(result, SuccessResult)
+        assert result.value["count"] == 2
+        assert all(r["hook"] == "session-start" for r in result.value["records"])
 
     @pytest.mark.asyncio
     async def test_filters_by_span_id(self, tmp_path) -> None:
         log = tmp_path / "log.jsonl"
         log.write_text('{"hook": "a", "span_id": "abc"}\n{"hook": "b", "span_id": "xyz"}\n')
         result = await audit_mod.hook_recent(log_path=str(log), span_id="xyz")
-        assert result["count"] == 1
-        assert result["records"][0]["span_id"] == "xyz"
+        assert isinstance(result, SuccessResult)
+        assert result.value["count"] == 1
+        assert result.value["records"][0]["span_id"] == "xyz"
 
     @pytest.mark.asyncio
     async def test_zero_limit_returns_all(self, tmp_path) -> None:
         log = tmp_path / "log.jsonl"
         log.write_text('{"hook": "a"}\n{"hook": "b"}\n{"hook": "c"}\n')
         result = await audit_mod.hook_recent(log_path=str(log), limit=0)
-        assert result["count"] == 3
+        assert isinstance(result, SuccessResult)
+        assert result.value["count"] == 3
 
     @pytest.mark.asyncio
     async def test_default_path_uses_today(self, tmp_path, monkeypatch) -> None:
         monkeypatch.setenv("DEV10X_HOOK_AUDIT_DIR", str(tmp_path))
         result = await audit_mod.hook_recent()
-        assert result["exists"] is False
-        assert "hooks-" in result["log_path"]
+        assert isinstance(result, ErrorResult)
+        assert "hooks-" in result.to_dict()["log_path"]
