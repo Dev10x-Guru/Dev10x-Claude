@@ -2,5 +2,5 @@
     "hook_validate_bash": {"median_ms": 39.0},
     "hook_session_tmpdir": {"median_ms": 37.0},
     "hook_skill_metrics": {"median_ms": 35.0},
-    "mcp_server_import": {"median_ms": 13.0}
+    "mcp_server_import": {"median_ms": 300.0}
 }
