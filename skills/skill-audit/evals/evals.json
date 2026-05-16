@@ -20,6 +20,11 @@
       "id": "findings-output",
       "name": "Findings Output",
       "description": "Produces structured skill findings report with counts and recommendations"
+    },
+    {
+      "id": "early-insight-gate",
+      "name": "Early-Insight Gate",
+      "description": "Phase 0 detects narrow, transcript-evident questions, presents inline findings, and routes via AskUserQuestion with three options (select & file, step back, discard) without dispatching wave subagents"
     }
   ],
   "evals": [
@@ -102,6 +107,104 @@
           "check": "tool_not_called",
           "tool": "AskUserQuestion",
           "signal": "AskUserQuestion is not called; audit proceeds directly"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "early-insight-gate-fires",
+      "prompt": "/Dev10x:skill-audit why did you merge with unhandled review https://github.com/Dev10x-Guru/Dev10x-Claude/pull/111",
+      "description": "Tests that Phase 0 fires when the user asks a narrow, transcript-evident question. The gate must present findings inline, call AskUserQuestion with three options, and on 'Select & file now' route to Dev10x:audit-report without dispatching wave subagents.",
+      "setup": {
+        "explicit_path": "not provided",
+        "narrow_question": "why did you merge with unhandled review <PR-URL>",
+        "evidence_in_context": true,
+        "invocation": "/Dev10x:skill-audit why did you merge with unhandled review https://github.com/Dev10x-Guru/Dev10x-Claude/pull/111"
+      },
+      "dimensions": ["early-insight-gate"],
+      "assertions": [
+        {
+          "id": "phase0_gate_uses_tool",
+          "text": "Phase 0 early-insight gate calls AskUserQuestion (not plain text)",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion is called after inline findings are presented"
+        },
+        {
+          "id": "phase0_option_count",
+          "text": "Gate presents exactly 3 options",
+          "check": "option_count",
+          "count": 3,
+          "signal": "Three options: Select & file now / Step back / Discard"
+        },
+        {
+          "id": "phase0_option_labels",
+          "text": "Options match the documented labels",
+          "check": "output_contains",
+          "signals": [
+            "Select & file now",
+            "Step back and run full audit",
+            "Discard"
+          ]
+        },
+        {
+          "id": "phase0_inline_findings",
+          "text": "Findings are presented inline before the gate fires",
+          "check": "output_contains",
+          "signals": ["violation", "root cause", "lesson"]
+        },
+        {
+          "id": "phase0_no_wave_dispatch_on_select",
+          "text": "When 'Select & file now' is chosen, no wave subagent is dispatched before Phase 7",
+          "check": "tool_not_called_before",
+          "tool": "Agent",
+          "before_tool": "Skill",
+          "before_args_contain": "Dev10x:audit-report",
+          "signal": "Phase 7 reporting fires without prior Wave 1/Wave 2 Agent() calls"
+        },
+        {
+          "id": "phase0_routes_to_audit_report",
+          "text": "Select & file now delegates to Dev10x:audit-report",
+          "check": "tool_called",
+          "tool": "Skill",
+          "args_contain": "Dev10x:audit-report",
+          "signal": "Phase 7 sub-step D invokes Dev10x:audit-report with the inline findings"
+        },
+        {
+          "id": "phase0_multiselect_false",
+          "text": "Gate is single-select",
+          "check": "behavioral",
+          "assertion": "single_option_selection",
+          "signal": "User can select only one disposition option"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "early-insight-gate-skipped-when-broad",
+      "prompt": "/Dev10x:skill-audit",
+      "description": "Tests that Phase 0 is skipped (falls through to Step 0) when no narrow question is provided. Default full-wave behavior must remain unchanged.",
+      "setup": {
+        "explicit_path": "not provided",
+        "narrow_question": "none",
+        "evidence_in_context": false,
+        "invocation": "/Dev10x:skill-audit"
+      },
+      "dimensions": ["early-insight-gate", "audit-execution"],
+      "assertions": [
+        {
+          "id": "phase0_skipped_on_broad",
+          "text": "When no narrow question is provided, Phase 0 does not fire the early-insight AskUserQuestion gate",
+          "check": "behavioral",
+          "assertion": "fall_through_to_step_0",
+          "signal": "Standard task list is created and wave subagents run"
+        },
+        {
+          "id": "step0_tasks_created",
+          "text": "Standard Step 0 task list is created",
+          "check": "tool_called",
+          "tool": "TaskCreate",
+          "signal": "All 10 setup/wave/synthesis tasks are created"
         }
       ]
     }
