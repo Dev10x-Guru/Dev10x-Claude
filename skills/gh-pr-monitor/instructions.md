@@ -135,6 +135,29 @@ two specs (`haiku-ci-poll`, `haiku-thread-scan`).
 The supervisor walks Phases 0 → 4, interpreting each micro-agent's
 returned JSON between dispatches.
 
+**Surface launch parameters (GH-127 #6).** Before each
+`Agent(...)` dispatch, print a one-line startup banner so the
+supervisor can confirm the run-time parameters were honored:
+
+```
+[gh-pr-monitor] dispatch=haiku-ci-poll model=haiku max_turns=50 background=true pr=#{N}
+```
+
+**Exit-reason taxonomy (GH-127 #6).** Each micro-agent's final
+JSON line is the canonical exit reason. The supervisor MUST
+classify the result before deciding next action:
+
+| `verdict` | Meaning | Supervisor action |
+|---|---|---|
+| `green` / `failing` / `conflicting` | Completed normally | Branch on verdict (Phase 2+) |
+| `timeout` | Hit `max_turns` budget without resolution | Re-dispatch with the same prompt (CI just slow) |
+| missing JSON line | Permission denied or hard crash | Inspect transcript; do NOT silently re-dispatch — surface the failure to the user |
+| explicit `"error": …` | The agent reported an error and exited | Propagate the error message to the user |
+
+The "permission denied vs budget exhausted" distinction matters
+for re-dispatch decisions: budget exhaustion is safe to retry,
+permission denial is not.
+
 ### Micro-Agents (GH-68)
 
 Two narrow haiku sub-agents replace the prior monolithic background

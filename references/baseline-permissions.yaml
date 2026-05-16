@@ -10,9 +10,14 @@
 #     — those rot on every plugin upgrade. The `~/.claude/plugins/cache/**/`
 #     form is also acceptable; the doctor canonicalizes pinned paths to
 #     that form.
-#   - Trailing wildcard form: prefer `Bash(cmd *)` (space). The `Bash(cmd:*)`
-#     form is equivalent per Claude Code docs but the UI writes the space
-#     form on "always allow", so we standardize on it.
+#   - Trailing wildcard form: prefer `Bash(cmd:*)` (colon). GH-127 audit
+#     showed the colon form is the only one that reliably matches
+#     general invocations like `rg -n PATTERN path/`. The space form
+#     (`Bash(cmd *)`) is retained for tools where it has historically
+#     been written by the UI on "always allow", but new rules should
+#     use the colon form. Keep both when the historical space form is
+#     already widespread in user settings (rewriting risks breaking
+#     existing matches).
 #   - Built-in read-only commands (`ls`, `cat`, `head`, `tail`, `grep`,
 #     `find`, `wc`, `diff`, `stat`, `du`, `cd`) are NOT listed — they
 #     never prompt for the command itself. Path access still gated by
@@ -166,6 +171,11 @@ groups:
       - Write(/tmp/claude/git/**)
       - Read(/tmp/Dev10x/**)
       - Write(/tmp/Dev10x/**)
+      # GH-127 #4: skills load their own instructions.md and references
+      # from the marketplace cache; without this, every fresh skill
+      # invocation triggers a Read prompt.
+      - "Read(~/.claude/plugins/marketplaces/Dev10x-Guru/**)"
+      - "Read(~/.claude/plugins/cache/Dev10x-Guru/**)"
       - "Bash(${CLAUDE_PLUGIN_ROOT}/bin/**)"
       - "Bash(${CLAUDE_PLUGIN_ROOT}/hooks/scripts/**)"
       - "Bash(${CLAUDE_PLUGIN_ROOT}/skills/**)"
@@ -182,8 +192,11 @@ groups:
     rules:
       - Bash(jq:*)
       - Bash(yq:*)
-      - Bash(rg *)
+      # GH-127: colon-form matches `rg <pattern> <path>` invocations;
+      # space-form (`Bash(rg *)`) does not match the common case.
+      - Bash(rg:*)
       - Bash(rg --files *)
+      - Bash(sed:*)
       - Bash(sed *)
       - Bash(awk *)
       - Bash(awk:*)

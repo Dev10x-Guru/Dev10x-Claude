@@ -307,13 +307,26 @@ completely different project's session (GH-805).
 **Skip this gate when the user provided an explicit JSONL path.**
 An explicit path means the user deliberately chose the session.
 
-**When the path was auto-resolved** (no arg, or arg is a
-directory), extract the session ID from the filename (the UUID
-portion before `.jsonl`) and the file's modification time, then
-confirm with the user before proceeding.
+**Skip this gate when the invocation turn contains a clear
+adaptive-friction affirmative (GH-127 #7).** When `friction_level
+== adaptive` AND the same user message that invoked the skill
+contains an unambiguous affirmative like `go`, `proceed`, `yes`,
+`run it`, `audit it`, treat that as the confirmation and skip
+the `AskUserQuestion`. The user has already chosen — re-asking
+adds friction without information value. Affirmatives must be
+in the **same turn** as the invocation (not from prior
+conversation) and unambiguous (mere "ok" or "k" does not
+qualify).
 
-**REQUIRED: Call `AskUserQuestion`** (ALWAYS_ASK — fires at all
-friction levels, do NOT use plain text).
+**When the path was auto-resolved** (no arg, or arg is a
+directory) AND no adaptive affirmative is present, extract the
+session ID from the filename (the UUID portion before `.jsonl`)
+and the file's modification time, then confirm with the user
+before proceeding.
+
+**REQUIRED: Call `AskUserQuestion`** (ALWAYS_ASK — fires at
+strict/guided friction levels, and at adaptive when no
+affirmative is present; do NOT use plain text).
 
 Display the resolved path, session ID, and mtime in the question
 so the user can verify it's the correct session:
