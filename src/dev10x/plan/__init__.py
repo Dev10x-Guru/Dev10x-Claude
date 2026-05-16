@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from dev10x.domain.result import Result, err, ok
 from dev10x.plan.service import (
     PlanServiceError,
     archive_plan,
@@ -17,26 +18,26 @@ from dev10x.plan.service import (
 )
 
 
-async def set_context(*, args: list[str]) -> dict[str, Any]:
+async def set_context(*, args: list[str]) -> Result[dict[str, Any]]:
     try:
         updated = set_plan_context(args=args)
     except PlanServiceError as exc:
-        return {"error": str(exc)}
-    return {"success": True, "updated_keys": updated}
+        return err(str(exc))
+    return ok({"success": True, "updated_keys": updated})
 
 
-async def json_summary() -> dict[str, Any]:
+async def json_summary() -> Result[dict[str, Any]]:
     try:
-        return plan_summary()
+        return ok(plan_summary())
     except PlanServiceError as exc:
-        return {"error": str(exc)}
+        return err(str(exc))
 
 
-async def archive() -> dict[str, Any]:
+async def archive() -> Result[dict[str, Any]]:
     try:
         result = archive_plan()
     except PlanServiceError as exc:
-        return {"error": str(exc)}
+        return err(str(exc))
     if not result["archived"]:
-        return {"success": True, "message": "No plan file to archive"}
-    return {"success": True, "archive_name": result["archive_name"]}
+        return ok({"success": True, "message": "No plan file to archive"})
+    return ok({"success": True, "archive_name": result["archive_name"]})

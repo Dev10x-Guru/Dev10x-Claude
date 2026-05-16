@@ -5,6 +5,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from dev10x.domain.result import ErrorResult, SuccessResult
+
 idx_mod = pytest.importorskip("dev10x.skill_index", reason="dev10x not installed")
 
 
@@ -22,7 +24,8 @@ class TestGenerateAll:
             stderr="",
         )
         result = await idx_mod.generate_all()
-        assert result["success"] is True
+        assert isinstance(result, SuccessResult)
+        assert result.value["success"] is True
 
     @pytest.mark.asyncio
     @patch("dev10x.skill_index.async_run_script", new_callable=AsyncMock)
@@ -37,7 +40,9 @@ class TestGenerateAll:
             stderr="Script failed",
         )
         result = await idx_mod.generate_all()
-        assert "error" in result
+        assert isinstance(result, ErrorResult)
+        assert result.error == "Script failed"
+        assert result.to_dict() == {"error": "Script failed"}
 
     @pytest.mark.asyncio
     @patch("dev10x.skill_index.async_run_script", new_callable=AsyncMock)

@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 plan_mod = pytest.importorskip("dev10x.plan", reason="dev10x not installed")
+from dev10x.domain.result import ErrorResult, SuccessResult  # noqa: E402
 
 SERVICE = "dev10x.plan.service"
 
@@ -18,7 +19,9 @@ class TestSetContext:
         mock_toplevel: MagicMock,
     ) -> None:
         result = await plan_mod.set_context(args=["key=value"])
-        assert result == {"error": "Not in a git repository"}
+        assert isinstance(result, ErrorResult)
+        assert result.error == "Not in a git repository"
+        assert result.to_dict() == {"error": "Not in a git repository"}
 
     @pytest.mark.asyncio
     @patch(f"{SERVICE}.get_toplevel", return_value="/tmp/repo")
@@ -33,7 +36,7 @@ class TestSetContext:
         mock_plan = MagicMock()
         mock_plan_cls.load.return_value = mock_plan
         result = await plan_mod.set_context(args=["no-equals-sign"])
-        assert "error" in result
+        assert isinstance(result, ErrorResult)
 
     @pytest.mark.asyncio
     @patch(f"{SERVICE}.get_toplevel", return_value="/tmp/repo")
@@ -49,8 +52,9 @@ class TestSetContext:
         mock_plan.context_keys.return_value = ["key"]
         mock_plan_cls.load.return_value = mock_plan
         result = await plan_mod.set_context(args=["key=value"])
-        assert result["success"] is True
-        assert "key" in result["updated_keys"]
+        assert isinstance(result, SuccessResult)
+        assert result.value["success"] is True
+        assert "key" in result.value["updated_keys"]
 
 
 class TestJsonSummary:
@@ -61,7 +65,8 @@ class TestJsonSummary:
         mock_toplevel: MagicMock,
     ) -> None:
         result = await plan_mod.json_summary()
-        assert result == {"error": "Not in a git repository"}
+        assert isinstance(result, ErrorResult)
+        assert result.error == "Not in a git repository"
 
     @pytest.mark.asyncio
     @patch(f"{SERVICE}.get_toplevel", return_value="/tmp/repo")
@@ -77,7 +82,8 @@ class TestJsonSummary:
         mock_plan.is_new = True
         mock_plan_cls.load.return_value = mock_plan
         result = await plan_mod.json_summary()
-        assert result == {}
+        assert isinstance(result, SuccessResult)
+        assert result.value == {}
 
     @pytest.mark.asyncio
     @patch(f"{SERVICE}.get_toplevel", return_value="/tmp/repo")
@@ -94,7 +100,8 @@ class TestJsonSummary:
         mock_plan._to_dict.return_value = {"metadata": {"branch": "feature"}}
         mock_plan_cls.load.return_value = mock_plan
         result = await plan_mod.json_summary()
-        assert result == {"metadata": {"branch": "feature"}}
+        assert isinstance(result, SuccessResult)
+        assert result.value == {"metadata": {"branch": "feature"}}
 
 
 class TestArchive:
@@ -105,7 +112,8 @@ class TestArchive:
         mock_toplevel: MagicMock,
     ) -> None:
         result = await plan_mod.archive()
-        assert result == {"error": "Not in a git repository"}
+        assert isinstance(result, ErrorResult)
+        assert result.error == "Not in a git repository"
 
     @pytest.mark.asyncio
     @patch(f"{SERVICE}.get_toplevel", return_value="/tmp/repo")
@@ -118,5 +126,6 @@ class TestArchive:
     ) -> None:
         mock_plan_path.return_value = tmp_path / "nonexistent.yaml"
         result = await plan_mod.archive()
-        assert result["success"] is True
-        assert "No plan file" in result["message"]
+        assert isinstance(result, SuccessResult)
+        assert result.value["success"] is True
+        assert "No plan file" in result.value["message"]

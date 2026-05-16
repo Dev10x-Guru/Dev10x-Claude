@@ -5,6 +5,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from dev10x.domain.result import ErrorResult, SuccessResult, ok
+
 perm_mod = pytest.importorskip("dev10x.permission", reason="dev10x not installed")
 
 MOD_PATH = "dev10x.skills.permission.update_paths"
@@ -24,8 +26,9 @@ class TestUpdatePathsScriptRoute:
             stderr="",
         )
         result = await perm_mod.update_paths()
-        assert result["success"] is True
-        assert "Updated 3 files" in result["output"]
+        assert isinstance(result, SuccessResult)
+        assert result.value["success"] is True
+        assert "Updated 3 files" in result.value["output"]
 
     @pytest.mark.asyncio
     @patch("dev10x.permission.async_run", new_callable=AsyncMock)
@@ -40,7 +43,8 @@ class TestUpdatePathsScriptRoute:
             stderr="Config not found",
         )
         result = await perm_mod.update_paths()
-        assert "error" in result
+        assert isinstance(result, ErrorResult)
+        assert result.error == "Config not found"
 
     @pytest.mark.asyncio
     @patch("dev10x.permission.async_run", new_callable=AsyncMock)
@@ -75,9 +79,10 @@ class TestUpdatePathsSubCommandRoute:
         self,
         mock_sub: AsyncMock,
     ) -> None:
-        mock_sub.return_value = {"success": True, "output": "Added 2 permissions"}
+        mock_sub.return_value = ok({"success": True, "output": "Added 2 permissions"})
         result = await perm_mod.update_paths(ensure_base=True, dry_run=True)
-        assert result["success"] is True
+        assert isinstance(result, SuccessResult)
+        assert result.value["success"] is True
         mock_sub.assert_called_once_with(
             ensure_base=True,
             generalize=False,
@@ -94,9 +99,10 @@ class TestUpdatePathsSubCommandRoute:
         self,
         mock_sub: AsyncMock,
     ) -> None:
-        mock_sub.return_value = {"success": True, "output": "Generalized 5 permissions"}
+        mock_sub.return_value = ok({"success": True, "output": "Generalized 5 permissions"})
         result = await perm_mod.update_paths(generalize=True)
-        assert result["success"] is True
+        assert isinstance(result, SuccessResult)
+        assert result.value["success"] is True
         mock_sub.assert_called_once_with(
             ensure_base=False,
             generalize=True,
@@ -113,9 +119,10 @@ class TestUpdatePathsSubCommandRoute:
         self,
         mock_sub: AsyncMock,
     ) -> None:
-        mock_sub.return_value = {"success": True, "output": "Added 3 script rules"}
+        mock_sub.return_value = ok({"success": True, "output": "Added 3 script rules"})
         result = await perm_mod.update_paths(ensure_scripts=True)
-        assert result["success"] is True
+        assert isinstance(result, SuccessResult)
+        assert result.value["success"] is True
         mock_sub.assert_called_once_with(
             ensure_base=False,
             generalize=False,
@@ -132,9 +139,10 @@ class TestUpdatePathsSubCommandRoute:
         self,
         mock_sub: AsyncMock,
     ) -> None:
-        mock_sub.return_value = {"success": True, "output": "Added 12 Read rules"}
+        mock_sub.return_value = ok({"success": True, "output": "Added 12 Read rules"})
         result = await perm_mod.update_paths(ensure_reads=True)
-        assert result["success"] is True
+        assert isinstance(result, SuccessResult)
+        assert result.value["success"] is True
         mock_sub.assert_called_once_with(
             ensure_base=False,
             generalize=False,
@@ -153,7 +161,7 @@ class TestUpdatePathsSubCommandRoute:
         mock_sub: AsyncMock,
         mock_run: AsyncMock,
     ) -> None:
-        mock_sub.return_value = {"success": True, "output": "OK"}
+        mock_sub.return_value = ok({"success": True, "output": "OK"})
         await perm_mod.update_paths(ensure_base=True, generalize=True)
         mock_run.assert_not_called()
 
@@ -185,7 +193,8 @@ class TestRunSubCommand:
         mock_mod: dict,
     ) -> None:
         result = perm_mod._run_sub_command(ensure_base=True, dry_run=True)
-        assert result["success"] is True
+        assert isinstance(result, SuccessResult)
+        assert result.value["success"] is True
         mock_ensure.assert_called_once()
 
     @patch(
@@ -198,7 +207,8 @@ class TestRunSubCommand:
         mock_mod: dict,
     ) -> None:
         result = perm_mod._run_sub_command(generalize=True)
-        assert result["success"] is True
+        assert isinstance(result, SuccessResult)
+        assert result.value["success"] is True
         mock_gen.assert_called_once()
 
     @patch(
@@ -211,7 +221,8 @@ class TestRunSubCommand:
         mock_mod: dict,
     ) -> None:
         result = perm_mod._run_sub_command(ensure_scripts=True)
-        assert result["success"] is True
+        assert isinstance(result, SuccessResult)
+        assert result.value["success"] is True
         mock_scripts.assert_called_once()
 
     @patch(
@@ -224,7 +235,8 @@ class TestRunSubCommand:
         mock_mod: dict,
     ) -> None:
         result = perm_mod._run_sub_command(ensure_reads=True)
-        assert result["success"] is True
+        assert isinstance(result, SuccessResult)
+        assert result.value["success"] is True
         mock_reads.assert_called_once()
 
     @patch(
@@ -241,8 +253,8 @@ class TestRunSubCommand:
         mock_mod: dict,
     ) -> None:
         result = perm_mod._run_sub_command(ensure_base=True)
-        assert "error" in result
-        assert result["error"] == "boom"
+        assert isinstance(result, ErrorResult)
+        assert result.error == "boom"
 
     @patch(
         f"{MOD_PATH}.generalize",
@@ -259,7 +271,7 @@ class TestRunSubCommand:
         mock_mod: dict,
     ) -> None:
         result = perm_mod._run_sub_command(ensure_base=True, generalize=True)
-        assert "error" in result
+        assert isinstance(result, ErrorResult)
         mock_gen.assert_not_called()
 
     def test_does_not_capture_stdout(
@@ -278,9 +290,9 @@ class TestRunSubCommand:
         ):
             result = perm_mod._run_sub_command(ensure_base=True)
 
-        assert result["success"] is True
-        assert "Added 2 base permissions" in result["output"]
-        # Helper did not print to real stdout — capsys captures nothing.
+        assert isinstance(result, SuccessResult)
+        assert result.value["success"] is True
+        assert "Added 2 base permissions" in result.value["output"]
         captured = capsys.readouterr()
         assert captured.out == ""
         assert captured.err == ""
@@ -301,9 +313,9 @@ class TestRunSubCommand:
         ):
             result = perm_mod._run_sub_command(ensure_scripts=True)
 
-        assert "error" in result
-        assert "No versions found" in result["error"]
-        assert result["errors"] == ["ERROR: No versions found in /fake/cache"]
+        assert isinstance(result, ErrorResult)
+        assert "No versions found" in result.error
+        assert result.details["errors"] == ["ERROR: No versions found in /fake/cache"]
         captured = capsys.readouterr()
         assert captured.out == ""
         assert captured.err == ""
@@ -318,4 +330,5 @@ class TestRunSubCommand:
             load_cfg.return_value = {"roots": []}
             find_sf.return_value = []
             result = perm_mod._run_sub_command(ensure_base=True)
-            assert result["error"] == "No settings files found."
+            assert isinstance(result, ErrorResult)
+            assert result.error == "No settings files found."

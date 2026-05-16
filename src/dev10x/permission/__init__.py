@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+from dev10x.domain.result import Result, err, ok
 from dev10x.subprocess_utils import async_run, get_plugin_root
 
 
@@ -26,7 +27,7 @@ def _run_sub_command(
     ensure_reads: bool = False,
     dry_run: bool = False,
     quiet: bool = False,
-) -> dict[str, Any]:
+) -> Result[dict[str, Any]]:
     from dev10x.skills.permission import update_paths as mod
 
     config_path = mod.find_config()
@@ -36,7 +37,7 @@ def _run_sub_command(
         include_user=config.get("include_user_settings", True),
     )
     if not settings_files:
-        return {"error": "No settings files found."}
+        return err("No settings files found.")
 
     combined_messages: list[str] = []
     combined_errors: list[str] = []
@@ -104,19 +105,19 @@ def _run_sub_command(
             return _format_failure(combined_messages, combined_errors, exit_code)
 
     output = "\n".join(combined_messages).strip()
-    return {"success": True, "output": output, "messages": combined_messages}
+    return ok({"success": True, "output": output, "messages": combined_messages})
 
 
 def _format_failure(
     messages: list[str],
     errors: list[str],
     exit_code: int,
-) -> dict[str, Any]:
+) -> Result[dict[str, Any]]:
     error_text = "\n".join(errors).strip()
     if not error_text:
         body = "\n".join(messages).strip()
         error_text = body or f"Sub-command failed with exit code {exit_code}"
-    return {"error": error_text, "messages": messages, "errors": errors}
+    return err(error_text, messages=messages, errors=errors)
 
 
 async def update_paths(
@@ -130,7 +131,7 @@ async def update_paths(
     ensure_reads: bool = False,
     init: bool = False,
     quiet: bool = False,
-) -> dict[str, Any]:
+) -> Result[dict[str, Any]]:
     if ensure_base or generalize or ensure_scripts or ensure_workspace or ensure_reads:
         return await asyncio.to_thread(
             _run_sub_command,
@@ -158,6 +159,6 @@ async def update_paths(
     result = await async_run(args=args, timeout=60)
 
     if result.returncode != 0:
-        return {"error": result.stderr.strip()}
+        return err(result.stderr.strip())
 
-    return {"success": True, "output": result.stdout.strip()}
+    return ok({"success": True, "output": result.stdout.strip()})
