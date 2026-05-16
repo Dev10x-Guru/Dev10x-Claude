@@ -51,6 +51,28 @@ CD_NOOP_RE = re.compile(r'^cd\s+("(?:[^"]+)"|\'(?:[^\']+)\'|\S+)\s*&&\s*(.*)')
 CD_REVPARSE_RE = re.compile(r'^cd\s+"?\$\(git\s+rev-parse\s+--show-toplevel\)"?\s*&&\s*(.*)')
 CD_GIT_CHAIN_RE = re.compile(r'^cd\s+("(?:[^"]+)"|\'(?:[^\']+)\'|\S+)\s*&&\s*git\b\s*(.*)')
 
+# GH-119: redirect followed by positional args swallows the post-redirect
+# tokens in Claude Code's command-shape classifier, breaking allow-rule
+# matching. Match commands shaped like `<cmd> ... 2>/dev/null -name X`
+# where the redirect appears before any trailing positional/option arg.
+REDIRECT_THEN_POSITIONAL_RE = re.compile(
+    r"^(?P<cmd>find|grep|ls|rg)\s+"
+    r"(?P<before>[^|;]*?)"
+    r"(?P<redirect>\d?>(?:&\d|/\S+))\s+"
+    r"(?P<after>-\S+|[^|&;<>]\S*)"
+)
+
+# GH-119: ';' chains match the whole command string against allow rules
+# rather than individual clauses. Detect non-trivial chains (two
+# read-only commands) so the agent splits them into separate tool calls.
+# Excludes `; ` inside quoted strings via a lookbehind heuristic — the
+# initial filter is by token shape on the chain head/tail.
+SEMICOLON_CHAIN_RE = re.compile(
+    r"^\s*(?P<head>(?:find|grep|ls|rg|cat|head|tail|wc)\b[^;]*?)"
+    r"\s*;\s*"
+    r"(?P<tail>(?:find|grep|ls|rg|cat|head|tail|wc)\b.*)$"
+)
+
 CD_REVPARSE_MSG = (
     '\u26a0\ufe0f  `cd "$(git rev-parse --show-toplevel)"` is unnecessary.\n\n'
     "Git commands already operate from the repo root regardless of CWD.\n"
@@ -120,6 +142,25 @@ ENV_PREFIX_MSG = (
     "  \u2022 For rebase --continue, no env prefix is needed:\n"
     "      git rebase --continue\n\n"
     "If aliases are missing, run: /Dev10x:git-alias-setup"
+)
+
+REDIRECT_THEN_POSITIONAL_MSG = (
+    "⚠️  Redirect before positional args blocked — permission friction risk.\n\n"
+    "`{cmd} ... {redirect} {after}` swallows post-redirect tokens in\n"
+    "Claude Code's command-shape classifier. The allow rule for `{cmd}`\n"
+    "never gets a chance to fire because the classifier bails out\n"
+    "with 'Redirect has multiple targets'.\n\n"
+    "Move the redirect to the end of the command:\n"
+    "    {cmd} {before} {after} {redirect}\n"
+)
+
+SEMICOLON_CHAIN_MSG = (
+    "⚠️  `;` chain blocked — permission friction risk.\n\n"
+    "Claude Code matches the whole command string against allow rules,\n"
+    "not individual clauses. So `Bash({head_cmd}:*)` does NOT cover\n"
+    "`{head_cmd} ... ; {tail_cmd} ...` even when both halves are\n"
+    "individually allowed.\n\n"
+    "Split into separate Bash tool calls instead.\n"
 )
 
 MERGE_BASE_MSG = (
@@ -206,6 +247,9 @@ class PrefixFrictionValidator(ValidatorBase):
             or "merge-base" in cmd
             or "git -C" in cmd
             or "rev-parse --show-toplevel" in cmd
+            # GH-119: shapes that bypass allow-rule prefix matching
+            or ";" in cmd
+            or re.search(r"\d?>(?:&\d|/\S+)", cmd) is not None
         )
 
     def validate(self, inp: HookInput) -> HookResult | None:
@@ -230,6 +274,14 @@ class PrefixFrictionValidator(ValidatorBase):
             return result
 
         result = self._check_cd_git_chain(command=inp.command)
+        if result:
+            return result
+
+        result = self._check_redirect_then_positional(command=inp.command)
+        if result:
+            return result
+
+        result = self._check_semicolon_chain(command=inp.command)
         if result:
             return result
 
@@ -320,6 +372,36 @@ class PrefixFrictionValidator(ValidatorBase):
         args = match.group(2).strip()
         return HookResult(
             message=CD_GIT_CHAIN_MSG.format(path=path, args=args),
+        )
+
+    def _check_redirect_then_positional(self, *, command: str) -> HookResult | None:
+        match = REDIRECT_THEN_POSITIONAL_RE.match(command)
+        if not match:
+            return None
+        cmd = match.group("cmd")
+        before = match.group("before").strip()
+        redirect = match.group("redirect")
+        after = match.group("after")
+        return HookResult(
+            message=REDIRECT_THEN_POSITIONAL_MSG.format(
+                cmd=cmd,
+                before=before,
+                redirect=redirect,
+                after=after,
+            )
+        )
+
+    def _check_semicolon_chain(self, *, command: str) -> HookResult | None:
+        match = SEMICOLON_CHAIN_RE.match(command)
+        if not match:
+            return None
+        head_cmd = match.group("head").strip().split()[0]
+        tail_cmd = match.group("tail").strip().split()[0]
+        return HookResult(
+            message=SEMICOLON_CHAIN_MSG.format(
+                head_cmd=head_cmd,
+                tail_cmd=tail_cmd,
+            )
         )
 
     def _check_and_chaining(self, *, command: str) -> HookResult | None:

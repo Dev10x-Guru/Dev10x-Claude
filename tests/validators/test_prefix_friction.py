@@ -283,3 +283,85 @@ class TestAndChaining:
         inp = _make_input(command="mkdir -p /tmp/foo && ls /tmp/foo")
         result = validator.validate(inp=inp)
         assert result is None
+
+
+class TestRedirectThenPositional:
+    """GH-119: redirect followed by positional args bypasses prefix matching."""
+
+    @pytest.fixture()
+    def validator(self) -> PrefixFrictionValidator:
+        return PrefixFrictionValidator()
+
+    def test_blocks_find_with_redirect_before_name(
+        self,
+        validator: PrefixFrictionValidator,
+    ) -> None:
+        inp = _make_input(
+            command='find /home/user/notes 2>/dev/null -name "*.md"',
+        )
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "Redirect" in result.message
+        assert "Move the redirect to the end" in result.message
+
+    def test_blocks_find_with_stderr_to_stdout_before_args(
+        self,
+        validator: PrefixFrictionValidator,
+    ) -> None:
+        inp = _make_input(command="find /opt/data 2>&1 -type f")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "Redirect" in result.message
+
+    def test_allows_redirect_at_end(
+        self,
+        validator: PrefixFrictionValidator,
+    ) -> None:
+        inp = _make_input(command='find /home/user -name "*.md" 2>/dev/null')
+        result = validator.validate(inp=inp)
+        assert result is None
+
+    def test_allows_find_with_pipe_only(
+        self,
+        validator: PrefixFrictionValidator,
+    ) -> None:
+        inp = _make_input(command="find /opt/data -type f | head -10")
+        result = validator.validate(inp=inp)
+        assert result is None
+
+
+class TestSemicolonChain:
+    """GH-119: `;` chains break whole-command allow-rule matching."""
+
+    @pytest.fixture()
+    def validator(self) -> PrefixFrictionValidator:
+        return PrefixFrictionValidator()
+
+    def test_blocks_two_find_commands_chained(
+        self,
+        validator: PrefixFrictionValidator,
+    ) -> None:
+        inp = _make_input(
+            command="find /a -name x; find /b -name y",
+        )
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "; ` chain" in result.message or ";" in result.message
+        assert "separate Bash tool calls" in result.message
+
+    def test_blocks_grep_then_find(
+        self,
+        validator: PrefixFrictionValidator,
+    ) -> None:
+        inp = _make_input(command="grep foo /tmp/a.log; find /var/log -name 'b.log'")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "separate Bash tool calls" in result.message
+
+    def test_allows_single_command_with_trailing_args(
+        self,
+        validator: PrefixFrictionValidator,
+    ) -> None:
+        inp = _make_input(command="find /home -name '*.py' -type f")
+        result = validator.validate(inp=inp)
+        assert result is None
