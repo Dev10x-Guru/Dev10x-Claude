@@ -487,6 +487,25 @@ a playbook file. Call `Read` on the playbook path and verify
 you received YAML content with a `defaults:` key containing
 play definitions. If you cannot confirm this, STOP.
 
+**Resolution probing — DO NOT use `ls` or `cat` (GH-165):**
+
+```bash
+# ❌ FORBIDDEN — chained probes shift the allow-rule prefix
+ls /work/.../playbooks 2>/dev/null; ls ~/.claude/memory/...
+cat ~/.claude/memory/Dev10x/playbooks/work-on.yaml
+
+# ✅ REQUIRED — use Read with absolute paths, one call per tier
+Read(file_path="/abs/path/.claude/Dev10x/playbooks/work-on.yaml")
+Read(file_path="/home/<user>/.claude/memory/Dev10x/playbooks/work-on.yaml")
+Read(file_path="${CLAUDE_PLUGIN_ROOT}/skills/playbook/references/playbook.yaml")
+```
+
+The `ls; ls` pattern triggers `PREFIX_POISONED_CHAIN` friction
+and the bare `cat` triggers `MISSING_RULE` friction (audit
+GH-165). The `Read` tool returns the file content or a clear
+"File does not exist" error, which is the only signal the
+resolution algorithm needs.
+
 **Loading the play:**
 1. Determine the `work_type` from gathered context (see table below)
 2. Resolve the playbook using the 3-tier resolution order above:
