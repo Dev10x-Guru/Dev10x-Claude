@@ -83,6 +83,18 @@ class ToolCall:
     command: str
     file_path: str = ""
 
+    def is_bash(self) -> bool:
+        return self.tool == "Bash"
+
+    def signature(self) -> str:
+        if self.is_bash():
+            return f"Bash({self.command})"
+        if self.tool in ("Write", "Read", "Edit") and self.file_path:
+            return f"{self.tool}({self.file_path})"
+        if self.tool.startswith("mcp__"):
+            return self.tool
+        return f"{self.tool}()"
+
 
 @dataclass
 class AllowRule:
@@ -100,6 +112,27 @@ class Finding:
     command_display: str
     classification: str
     fix: str
+
+    def base_classification(self) -> str:
+        """Return the classification name without any ``(Nx)`` suffix."""
+        return self.classification.split("(")[0].strip()
+
+    def is_missing_rule(self) -> bool:
+        return self.classification == "MISSING_RULE"
+
+    def is_actionable(self) -> bool:
+        """Findings worth surfacing in the proposed-rules section."""
+        return "MISSING_RULE" in self.classification or "NUISANCE" in self.classification
+
+    def mark_nuisance(self, *, count: int) -> None:
+        self.classification = f"NUISANCE_PATTERN ({count}x)"
+
+    def first_command_word(self) -> str:
+        return self.command_display.split()[0] if self.command_display else ""
+
+    def nuisance_key(self) -> str:
+        first = self.first_command_word()
+        return f"{self.tool}:{first}" if first else self.tool
 
 
 @dataclass
@@ -401,14 +434,13 @@ def analyze_permissions(
 def count_nuisance_patterns(findings: list[Finding]) -> list[Finding]:
     pattern_counts: dict[str, list[Finding]] = {}
     for f in findings:
-        if f.classification == "MISSING_RULE":
-            key = f.tool + ":" + f.command_display.split()[0] if f.command_display else f.tool
-            pattern_counts.setdefault(key, []).append(f)
+        if f.is_missing_rule():
+            pattern_counts.setdefault(f.nuisance_key(), []).append(f)
 
-    for key, group in pattern_counts.items():
+    for group in pattern_counts.values():
         if len(group) >= 3:
             for f in group:
-                f.classification = f"NUISANCE_PATTERN ({len(group)}x)"
+                f.mark_nuisance(count=len(group))
 
     return findings
 
@@ -509,7 +541,7 @@ def propose_allow_rules(findings: list[Finding]) -> list[str]:
     proposals: list[str] = []
 
     for f in findings:
-        if "MISSING_RULE" in f.classification or "NUISANCE" in f.classification:
+        if f.is_actionable():
             if "Add:" in f.fix:
                 rule = f.fix.split("Add: ", 1)[1]
                 if rule not in seen:
@@ -567,7 +599,7 @@ def write_output(
 
     summary: dict[str, int] = {}
     for f in findings:
-        base = f.classification.split("(")[0].strip()
+        base = f.base_classification()
         summary[base] = summary.get(base, 0) + 1
     out.write("## Summary\n\n")
     out.write(f"**Total unmatched calls:** {len(findings)}\n")
