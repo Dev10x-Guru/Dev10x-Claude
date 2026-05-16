@@ -41,3 +41,28 @@ handling, team notification, verification — lives in
 When this skill is invoked, Read `instructions.md` now and
 follow it end-to-end. `TaskCreate` and `AskUserQuestion` calls
 documented there are REQUIRED.
+
+## Mandatory Invocation After PR Creation (GH-162)
+
+Audit GH-162 caught a session where work-on task 4.9
+"Monitor CI → delegate to `Dev10x:gh-pr-monitor`" was in the
+plan but never executed; the session ended immediately after
+a single inline `gh pr view` status check (turn 279) and CI
+completion was never confirmed.
+
+**Hard rule:** After `Dev10x:gh-pr-create` succeeds, the very
+next action MUST be `Skill(Dev10x:gh-pr-monitor)` — no
+exceptions. Orchestrators that mark the monitor task
+`completed` without invoking the skill (e.g., via a one-off
+`gh pr view` or inline polling) commit a compliance
+violation. The skill's background-dispatch model is the
+contract; substituting inline polling skips the fixup,
+notification, and verification side effects.
+
+**Solo-maintainer active mode behavior (clarified for GH-152):**
+When `active_modes` contains `solo-maintainer`, the Phase 3
+team notification step is silently skipped — there is no
+Slack channel and no reviewer assignment. The skill still
+runs Phases 1–2 (CI monitoring + fixup handling) and Phase 4
+(verification). The notification gate AskUserQuestion is
+not fired in solo-maintainer mode.
