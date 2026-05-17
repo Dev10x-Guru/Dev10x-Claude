@@ -543,6 +543,28 @@ async def pr_comment_reply(
     return _parse_gh_api_result(result)
 
 
+async def pr_issue_comment(
+    *,
+    pr_number: int,
+    body: str,
+    repo: str | None = None,
+) -> Result[dict[str, Any]]:
+    repo_result = await _resolve_repo(repo)
+    if isinstance(repo_result, ErrorResult):
+        return repo_result
+    resolved_repo = repo_result.value
+
+    result = await _gh_api(
+        f"repos/{resolved_repo}/issues/{pr_number}/comments",
+        method="POST",
+        fields={"body": body},
+        repo=str(resolved_repo),
+        as_bot=True,
+    )
+
+    return _parse_gh_api_result(result)
+
+
 async def request_review(
     *,
     pr_number: int,

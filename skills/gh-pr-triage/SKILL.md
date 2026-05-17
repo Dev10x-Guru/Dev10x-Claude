@@ -13,6 +13,7 @@ invocation-name: Dev10x:gh-pr-triage
 allowed-tools:
   - mcp__plugin_Dev10x_cli__pr_comment_reply
   - mcp__plugin_Dev10x_cli__pr_comments
+  - mcp__plugin_Dev10x_cli__pr_issue_comment
   - Bash(gh api:*)
 ---
 
@@ -278,6 +279,25 @@ gh api \
   repos/{owner}/{repo}/pulls/{pr_number}/comments/{comment_id}/replies \
   -f body="{reply_text}"
 ```
+
+**Top-level / body finding replies:** If the triaged comment is a
+top-level PR comment (URL contains `#issuecomment-`, posted via
+`gh pr comment`) or a review-body finding without a thread, the
+review-thread reply mechanism above returns 404. Use the
+issue-level MCP tool instead:
+
+```
+mcp__plugin_Dev10x_cli__pr_issue_comment(
+    pr_number=<int>,
+    body="<reply_text>",
+    repo="<owner>/<repo>",
+)
+```
+
+This wraps `POST /repos/{owner}/{repo}/issues/{pr_number}/comments`
+and is the same channel `claude[bot]` uses to post top-level
+findings — replies posted through it appear inline with the
+original finding in the PR conversation.
 
 **Thread resolution:** Do NOT resolve threads. Return the verdict to the
 caller (`Dev10x:gh-pr-respond` or the user). Resolution only happens when the user
