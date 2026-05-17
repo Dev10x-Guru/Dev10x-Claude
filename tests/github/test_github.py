@@ -689,6 +689,53 @@ class TestPrCommentReply:
         assert mock_api.call_count == 0
 
 
+class TestPrIssueComment:
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api", new_callable=AsyncMock)
+    async def test_posts_top_level_comment(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(
+            stdout=json.dumps({"id": 4468, "body": "bundle reply"}),
+        )
+
+        result = await gh.pr_issue_comment(
+            pr_number=203,
+            body="bundle reply",
+        )
+
+        assert isinstance(result, SuccessResult)
+        endpoint = mock_api.call_args.args[0]
+        assert endpoint == "repos/owner/repo/issues/203/comments"
+        call_kwargs = mock_api.call_args.kwargs
+        assert call_kwargs["method"] == "POST"
+        assert call_kwargs["fields"] == {"body": "bundle reply"}
+        assert "in_reply_to" not in call_kwargs["fields"]
+        assert call_kwargs["as_bot"] is True
+        assert call_kwargs["repo"] == "owner/repo"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api", new_callable=AsyncMock)
+    async def test_returns_error_on_api_failure(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(
+            returncode=1,
+            stderr="Not Found",
+        )
+
+        result = await gh.pr_issue_comment(
+            pr_number=203,
+            body="body",
+        )
+
+        assert isinstance(result, ErrorResult)
+
+
 class TestPrCommentsActionReply:
     @pytest.mark.asyncio
     @patch("dev10x.github._gh_api", new_callable=AsyncMock)

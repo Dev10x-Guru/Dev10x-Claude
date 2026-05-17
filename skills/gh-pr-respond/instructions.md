@@ -541,7 +541,22 @@ resolved while the body contains unaddressed items.
    above, then continue to Step 2 (triage)
 
 **Replying to body findings:** Since body findings have no inline
-comment thread, replies are posted as top-level PR comments via:
+comment thread, replies are posted as top-level PR comments. Use
+the MCP tool (no permission friction, structured response):
+
+```
+mcp__plugin_Dev10x_cli__pr_issue_comment(
+    pr_number={pr_number},
+    body="Re: {finding_summary}\n\n{reply}",
+    repo="{owner}/{repo}",
+)
+```
+
+This also covers replies to top-level bot comments (e.g., `claude[bot]`
+findings posted via `gh pr comment`) that surface through
+`check_top_level_comments` but have no review thread.
+
+**Fallback** (only when the MCP server is unavailable):
 ```bash
 gh api --method POST \
   repos/{owner}/{repo}/issues/{pr_number}/comments \

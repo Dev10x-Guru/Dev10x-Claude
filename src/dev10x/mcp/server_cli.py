@@ -220,6 +220,44 @@ async def pr_comment_reply(
 
 
 @server.tool()
+async def pr_issue_comment(
+    pr_number: int,
+    body: str,
+    repo: str | None = None,
+    cwd: str | None = None,
+) -> dict:
+    """Post a top-level issue-level comment on a PR.
+
+    Wraps `gh api --method POST /repos/{owner}/{repo}/issues/{pr_number}/comments
+    -f body=...`. Use this for replying to top-level bot findings posted via
+    `gh pr comment` (claude[bot], hygiene-review) that surface through
+    `check_top_level_comments` but have no review thread.
+
+    For inline review-thread replies, use `pr_comment_reply` instead.
+
+    Args:
+        pr_number: PR number (treated as the parent issue for comment routing)
+        body: Comment body (supports markdown)
+        repo: Repository (owner/repo). If omitted, uses current repo
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with comment details (id, body, created_at) or error.
+    """
+    from dev10x import github as gh
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return (
+            await gh.pr_issue_comment(
+                pr_number=pr_number,
+                body=body,
+                repo=repo,
+            )
+        ).to_dict()
+
+
+@server.tool()
 async def minimize_comments(
     node_ids: list[str],
     classifier: str = "OUTDATED",
