@@ -1,11 +1,12 @@
-# Skill-reinforcement examples
+# Dev10x:diag-friction examples
 
-Walk-throughs for the four canonical scenarios. SKILL.md links
-here to keep the orchestration body under the size budget.
+Walk-throughs for canonical scenarios (formerly the
+`skill-reinforcement` examples). SKILL.md links here to keep the
+orchestration body under the size budget.
 
 ## Example 1: kubectl usage
 
-**User:** `/Dev10x:skill-reinforcement`
+**User:** `/Dev10x:diag-friction`
 (after agent ran `kubectl get pods -n staging`)
 
 **Output:**
@@ -25,7 +26,7 @@ Skill("Dev10x:k8s")
 
 ## Example 2: direct git push
 
-**User:** `/Dev10x:skill-reinforcement`
+**User:** `/Dev10x:diag-friction`
 (after agent ran `git push origin feature-branch`)
 
 **Output:**
@@ -45,7 +46,7 @@ Skill("Dev10x:git")
 
 ## Example 3: friction from chaining (pre-approved alternative)
 
-**User:** `/Dev10x:skill-reinforcement`
+**User:** `/Dev10x:diag-friction`
 (after agent ran `git fetch origin && git checkout develop`,
 which was rejected because `Bash(git fetch origin && git ...)`
 does not match any allow-rule, while `Bash(git fetch:*)` and
@@ -72,7 +73,7 @@ chained form is not.
 
 ## Example 4: no match found
 
-**User:** `/Dev10x:skill-reinforcement`
+**User:** `/Dev10x:diag-friction`
 (after agent ran `curl https://api.example.com/health`)
 
 **Output:**
@@ -87,4 +88,39 @@ Available skills that might help:
 - `/Dev10x:investigate` — if investigating a bug report
 
 Check ~/.claude/SKILLS.md for the full list of available skills.
+```
+
+## Example 5: structural friction → file upstream
+
+**User:** `/Dev10x:diag-friction`
+(after agent ran a perfectly reasonable `gh api graphql -f
+query='...'` call that the hook blocked with "use the MCP tool
+instead" — but no MCP tool exists for the specific GraphQL
+query the agent needed)
+
+**Output:**
+```
+## Friction Diagnosis
+
+**Command detected:** `gh api graphql -f query=...`
+**No skill match.** No MCP wrapper exists for this GraphQL query.
+
+**Pre-approved alternatives:** None that fit. The only allow-rule
+that would cover this is `Bash(gh api:*)`, which is too broad
+(spans destructive verbs like delete and DELETE-method POSTs).
+
+**Upstream issue:**
+This is structural friction — the command-skill-map blocks
+`gh api` globally, but the legitimate GraphQL read use case
+has no MCP path. Suggested fix: add an MCP tool that wraps the
+specific GraphQL query the workflow needs, or relax the hook
+for `gh api graphql` (read-only by definition).
+
+Approve to file the upstream issue:
+
+    gh issue create \
+      --repo Dev10x-Guru/Dev10x-Claude \
+      --title "🪝 Permission friction: gh api graphql blocked with no MCP path" \
+      --label "permission-friction" \
+      --body "Repro: gh api graphql -f query=... | Hook blocks with..."
 ```

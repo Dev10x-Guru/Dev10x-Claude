@@ -163,9 +163,10 @@ _DETECTION_EXEMPT_PATHS: tuple[str, ...] = (
     "src/dev10x/validators/",
     "src/dev10x/skills/audit/",
     "skills/skill-audit/",
-    # The skill-reinforcement skill exists to redirect agents away
-    # from raw CLI commands; naming those commands is its job.
-    "skills/skill-reinforcement/",
+    # The diag-friction skill (formerly skill-reinforcement) exists
+    # to redirect agents away from raw CLI commands; naming those
+    # commands is its job.
+    "skills/diag-friction/",
 )
 
 _INLINE_ALLOW_RE = re.compile(

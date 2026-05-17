@@ -4,10 +4,11 @@
 # Used by:
 #   - skill_redirect.py (Bash PreToolUse hook)
 #   - validate-edit-write.py (Edit|Write PreToolUse hook)
-#   - Dev10x:skill-reinforcement (skill — advisory only)
+#   - Dev10x:diag-friction (skill — advisory only;
+#     formerly Dev10x:skill-reinforcement)
 #
 # Per-project override: place a custom version at:
-#   ~/.claude/memory/Dev10x/skill-reinforcement.yaml
+#   ~/.claude/memory/Dev10x/diag-friction.yaml
 # The hook merges override rules (user entries take precedence).
 #
 # Schema:

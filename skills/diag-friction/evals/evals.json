@@ -1,10 +1,11 @@
 {
-  "description": "Evaluation criteria for Dev10x:skill-reinforcement skill",
+  "skill_name": "Dev10x:diag-friction",
+  "description": "Evaluation criteria for Dev10x:diag-friction skill (formerly Dev10x:skill-reinforcement)",
   "evals": [
     {
       "name": "direct-match-kubectl",
       "description": "Agent used kubectl, skill identifies k8s match",
-      "setup": "Agent ran 'kubectl get pods -n staging', user invoked /Dev10x:skill-reinforcement",
+      "setup": "Agent ran 'kubectl get pods -n staging', user invoked /Dev10x:diag-friction",
       "checks": [
         {
           "type": "behavioral",
@@ -26,7 +27,7 @@
     {
       "name": "no-match-fallback",
       "description": "Agent used a command with no direct skill mapping",
-      "setup": "Agent ran 'curl https://api.example.com/health', user invoked /Dev10x:skill-reinforcement",
+      "setup": "Agent ran 'curl https://api.example.com/health', user invoked /Dev10x:diag-friction",
       "checks": [
         {
           "type": "behavioral",
@@ -43,7 +44,7 @@
     {
       "name": "user-provides-command-arg",
       "description": "User passes command as argument to the skill",
-      "setup": "User invoked '/Dev10x:skill-reinforcement git push'",
+      "setup": "User invoked '/Dev10x:diag-friction git push'",
       "checks": [
         {
           "type": "behavioral",
@@ -60,7 +61,7 @@
     {
       "name": "follow-up-gate-after-rejection",
       "description": "After a rejected command, skill offers follow-up via AskUserQuestion (not plain text)",
-      "setup": "Agent ran 'Monitor' for CI polling, user rejected it and invoked /Dev10x:skill-reinforcement",
+      "setup": "Agent ran 'Monitor' for CI polling, user rejected it and invoked /Dev10x:diag-friction",
       "checks": [
         {
           "type": "tool_called",
@@ -127,7 +128,7 @@
     {
       "name": "no-follow-up-when-informational",
       "description": "When invoked informationally (not after a rejection), no follow-up gate is fired",
-      "setup": "User invoked '/Dev10x:skill-reinforcement kubectl' to learn the recommended skill, no prior rejection",
+      "setup": "User invoked '/Dev10x:diag-friction kubectl' to learn the recommended skill, no prior rejection",
       "checks": [
         {
           "type": "behavioral",
@@ -140,7 +141,7 @@
   "trigger_evals": {
     "should_trigger": [
       "User says 'use the skills' after rejecting a bash command",
-      "User invokes /Dev10x:skill-reinforcement explicitly",
+      "User invokes /Dev10x:diag-friction explicitly",
       "User rejects a kubectl command and wants skill guidance",
       "User says 'there's a skill for that'"
     ],

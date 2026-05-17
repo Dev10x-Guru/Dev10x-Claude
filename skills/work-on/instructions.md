@@ -330,7 +330,7 @@ Agent(subagent_type=Explore, description="Fetch GH-N", ...)
 ```
 This pattern caused a regression where the agent had to be
 interrupted by the user and redirected via
-`/Dev10x:skill-reinforcement` mid-Phase 2. Source fetch agents
+`/Dev10x:diag-friction` mid-Phase 2. Source fetch agents
 need Bash + MCP — Explore is only for read-only filesystem search.
 
 ```
