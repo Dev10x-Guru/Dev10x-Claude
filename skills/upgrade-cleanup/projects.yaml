@@ -291,3 +291,75 @@ base_permissions:
 
   # --- Dev10x skills ---
   - "Skill(Dev10x:*)"
+
+  # --- Linear MCP tools (GH-204) ---
+  # Linear is the primary issue tracker for many Dev10x users.
+  # Group A: read-only operations — always safe.
+  # Group B: write operations — frequently used by Dev10x skills
+  # (ticket-create, ticket-scope, ticket-jtbd, investigate, qa-scope).
+  # Group C delete tools are listed under `base_denies:` below.
+  # Both server name variants are covered:
+  #   - `mcp__claude_ai_Linear__*` (claude.ai-hosted Linear connector)
+  #   - `mcp__linear-server__*`    (self-installed linear-server MCP)
+
+  # Group A — read-only (claude.ai-hosted variant)
+  - "mcp__claude_ai_Linear__get_issue"
+  - "mcp__claude_ai_Linear__get_project"
+  - "mcp__claude_ai_Linear__get_initiative"
+  - "mcp__claude_ai_Linear__get_team"
+  - "mcp__claude_ai_Linear__get_user"
+  - "mcp__claude_ai_Linear__get_milestone"
+  - "mcp__claude_ai_Linear__get_document"
+  - "mcp__claude_ai_Linear__get_issue_status"
+  - "mcp__claude_ai_Linear__get_status_updates"
+  - "mcp__claude_ai_Linear__get_attachment"
+  - "mcp__claude_ai_Linear__list_issues"
+  - "mcp__claude_ai_Linear__list_projects"
+  - "mcp__claude_ai_Linear__list_initiatives"
+  - "mcp__claude_ai_Linear__list_milestones"
+  - "mcp__claude_ai_Linear__list_teams"
+  - "mcp__claude_ai_Linear__list_users"
+  - "mcp__claude_ai_Linear__list_cycles"
+  - "mcp__claude_ai_Linear__list_comments"
+  - "mcp__claude_ai_Linear__list_issue_labels"
+  - "mcp__claude_ai_Linear__list_issue_statuses"
+  - "mcp__claude_ai_Linear__list_project_labels"
+  - "mcp__claude_ai_Linear__list_documents"
+  - "mcp__claude_ai_Linear__list_customers"
+  - "mcp__claude_ai_Linear__search_documentation"
+  - "mcp__claude_ai_Linear__extract_images"
+  - "mcp__claude_ai_Linear__get_diff"
+  - "mcp__claude_ai_Linear__get_diff_threads"
+  - "mcp__claude_ai_Linear__list_diffs"
+
+  # Group A — read-only (linear-server variant)
+  - "mcp__linear-server__get_issue"
+  - "mcp__linear-server__get_project"
+  - "mcp__linear-server__list_issues"
+  - "mcp__linear-server__list_projects"
+  - "mcp__linear-server__list_comments"
+
+  # Group B — write (claude.ai-hosted variant)
+  - "mcp__claude_ai_Linear__save_comment"
+  - "mcp__claude_ai_Linear__save_issue"
+  - "mcp__claude_ai_Linear__save_project"
+  - "mcp__claude_ai_Linear__save_milestone"
+  - "mcp__claude_ai_Linear__save_status_update"
+  - "mcp__claude_ai_Linear__save_initiative"
+  - "mcp__claude_ai_Linear__save_document"
+
+  # Group B — write (linear-server variant)
+  - "mcp__linear-server__save_issue"
+  - "mcp__linear-server__save_project"
+
+# --- Base deny rules (GH-204) ---
+# Destructive operations that must NEVER be auto-approved, even when
+# a project broadens its `permissions.allow` via wildcards. The
+# Linear `delete_*` tools have shown up in 14× projects under blanket
+# `mcp__claude_ai_Linear__*` allow rules — these belong in deny.
+base_denies:
+  - "mcp__claude_ai_Linear__delete_customer"
+  - "mcp__claude_ai_Linear__delete_customer_need"
+  - "mcp__claude_ai_Linear__delete_comment"
+  - "mcp__claude_ai_Linear__delete_attachment"
+  - "mcp__claude_ai_Linear__delete_status_update"
