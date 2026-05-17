@@ -28,7 +28,9 @@ PLUGIN_CONFIG = (
     Path(__file__).resolve().parents[4] / "skills" / "upgrade-cleanup" / "projects.yaml"
 )
 PLUGIN_NAMES = r"(?:Dev10x|dev10x-claude)"
-VERSION_PATTERN = re.compile(rf"(plugins/cache/)([^/]+)(/{PLUGIN_NAMES}/)(\d+\.\d+\.\d+)")
+VERSION_PATTERN = re.compile(
+    rf"(plugins/cache/)([^/]+)(/{PLUGIN_NAMES}/)(\d+\.\d+\.\d+)"
+)
 
 
 def extract_cache_publisher(plugin_cache: str) -> str | None:
@@ -220,10 +222,56 @@ def ensure_base_permissions(
             live_data["permissions"]["allow"].extend(expanded_tools)
             live_data["permissions"]["allow"].extend(missing)
 
-    messages = [f"  - {wc}  (non-functional MCP wildcard removed)" for wc in stale_wildcards]
-    messages.extend(f"  + {tool}  (expanded from MCP wildcard)" for tool in expanded_tools)
+    messages = [
+        f"  - {wc}  (non-functional MCP wildcard removed)" for wc in stale_wildcards
+    ]
+    messages.extend(
+        f"  + {tool}  (expanded from MCP wildcard)" for tool in expanded_tools
+    )
     messages.extend(f"  + {p}" for p in missing)
     return len(missing) + len(stale_wildcards) + len(expanded_tools), messages
+
+
+def ensure_base_denies(
+    path: Path,
+    base_denies: list[str],
+    *,
+    dry_run: bool = False,
+) -> tuple[int, list[str]]:
+    """Add missing base deny rules to a settings file's `permissions.deny` list.
+
+    Denies are stricter than allows — they must be enforced per project even
+    when a global setting allows the same operation. The presence of a deny
+    rule in global settings does NOT excuse adding it to project settings,
+    so this helper skips the global-rules filter that `ensure_base_permissions`
+    uses for allows.
+    """
+    content = path.read_text()
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError as e:
+        return 0, [f"  SKIP (invalid JSON): {e}"]
+
+    deny_list: list[str] = data.get("permissions", {}).get("deny", [])
+    existing = set(deny_list)
+    missing = [d for d in base_denies if d not in existing]
+    if not missing:
+        return 0, []
+
+    if not dry_run:
+        from dev10x.skills.permission.backup import create_backup
+        from dev10x.skills.permission.file_lock import locked_json_update
+
+        create_backup(path)
+        with locked_json_update(path=path) as live_data:
+            if "permissions" not in live_data:
+                live_data["permissions"] = {}
+            if "deny" not in live_data["permissions"]:
+                live_data["permissions"]["deny"] = []
+            live_data["permissions"]["deny"].extend(missing)
+
+    messages = [f"  + {d}  (deny)" for d in missing]
+    return len(missing), messages
 
 
 def _expand_stale_wildcards(
@@ -692,10 +740,14 @@ def ensure_workspace(
             files_changed += 1
 
     if total_added == 0:
-        messages.append("All settings files already register the workspace directories.")
+        messages.append(
+            "All settings files already register the workspace directories."
+        )
     else:
         verb = "Would add" if dry_run else "Added"
-        messages.append(f"{verb} {total_added} workspace entries across {files_changed} files.")
+        messages.append(
+            f"{verb} {total_added} workspace entries across {files_changed} files."
+        )
 
     return _result(
         exit_code=0,
@@ -718,8 +770,9 @@ def ensure_base(
     errors: list[str] = []
 
     base_permissions = config.get("base_permissions", [])
-    if not base_permissions:
-        messages.append("No base_permissions defined in config.")
+    base_denies = config.get("base_denies", [])
+    if not base_permissions and not base_denies:
+        messages.append("No base_permissions or base_denies defined in config.")
         return _result(exit_code=0, messages=messages, errors=errors)
 
     global_rules, stale_wildcards = _load_global_allow_rules()
@@ -750,7 +803,7 @@ def ensure_base(
     mcp_catalog = discover_mcp_tools()
 
     total_added = 0
-    files_changed = 0
+    changed_files: set[Path] = set()
 
     for path in sorted(settings_files):
         count, file_messages = ensure_base_permissions(
@@ -764,13 +817,33 @@ def ensure_base(
                 messages.append(f"\n{path}")
                 messages.extend(file_messages)
             total_added += count
-            files_changed += 1
+            changed_files.add(path)
+
+    if base_denies:
+        if not quiet:
+            messages.append(f"\nBase denies: {len(base_denies)} rules")
+        for path in sorted(settings_files):
+            count, file_messages = ensure_base_denies(
+                path,
+                base_denies,
+                dry_run=dry_run,
+            )
+            if count > 0:
+                if not quiet:
+                    messages.append(f"\n{path}")
+                    messages.extend(file_messages)
+                total_added += count
+                changed_files.add(path)
+
+    files_changed = len(changed_files)
 
     if total_added == 0:
         messages.append("All files already have base permissions.")
     else:
         verb = "Would add" if dry_run else "Added"
-        messages.append(f"{verb} {total_added} permissions across {files_changed} files.")
+        messages.append(
+            f"{verb} {total_added} permissions across {files_changed} files."
+        )
 
     return _result(
         exit_code=0,
@@ -810,7 +883,9 @@ def generalize(
         messages.append("No session-specific permissions found.")
     else:
         verb = "Would generalize" if dry_run else "Generalized"
-        messages.append(f"{verb} {total_generalized} permissions in {files_changed} files.")
+        messages.append(
+            f"{verb} {total_generalized} permissions in {files_changed} files."
+        )
 
     return _result(
         exit_code=0,
@@ -882,7 +957,9 @@ def ensure_scripts(
         messages.append("All settings files have complete script coverage.")
     else:
         verb = "Would add" if dry_run else "Added"
-        messages.append(f"{verb} {total_added} script rules across {files_changed} files.")
+        messages.append(
+            f"{verb} {total_added} script rules across {files_changed} files."
+        )
 
     return _result(
         exit_code=0,
@@ -952,7 +1029,9 @@ def ensure_reads(
         messages.append("All settings files have complete Read coverage.")
     else:
         verb = "Would add" if dry_run else "Added"
-        messages.append(f"{verb} {total_added} Read rules across {files_changed} files.")
+        messages.append(
+            f"{verb} {total_added} Read rules across {files_changed} files."
+        )
 
     return _result(
         exit_code=0,
@@ -980,12 +1059,16 @@ def _detect_plugin_cache() -> str:
                 candidates.append(plugin_dir)
                 break
     if len(candidates) == 1:
-        return f"~/.claude/plugins/cache/{candidates[0].parent.name}/{candidates[0].name}"
+        return (
+            f"~/.claude/plugins/cache/{candidates[0].parent.name}/{candidates[0].name}"
+        )
     if len(candidates) > 1:
         names = ", ".join(f"{c.parent.name}/{c.name}" for c in candidates)
         print(f"Multiple plugin cache entries found: {names}")
         print(f"Using first match: {candidates[0].parent.name}/{candidates[0].name}")
-        return f"~/.claude/plugins/cache/{candidates[0].parent.name}/{candidates[0].name}"
+        return (
+            f"~/.claude/plugins/cache/{candidates[0].parent.name}/{candidates[0].name}"
+        )
     return "~/.claude/plugins/cache/Dev10x-Guru/Dev10x"
 
 

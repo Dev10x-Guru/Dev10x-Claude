@@ -192,7 +192,9 @@ class TestEnsureBaseExpandsStaleWildcards:
         settings_file: Path,
         fake_catalog: dict,
     ) -> None:
-        settings_file.write_text(json.dumps({"permissions": {"allow": ["mcp__plugin_Dev10x_*"]}}))
+        settings_file.write_text(
+            json.dumps({"permissions": {"allow": ["mcp__plugin_Dev10x_*"]}})
+        )
 
         count, messages = update_paths.ensure_base_permissions(
             settings_file,
@@ -263,7 +265,9 @@ class TestEnsureBaseExpandsStaleWildcards:
         settings_file: Path,
         fake_catalog: dict,
     ) -> None:
-        settings_file.write_text(json.dumps({"permissions": {"allow": ["mcp__plugin_Dev10x_*"]}}))
+        settings_file.write_text(
+            json.dumps({"permissions": {"allow": ["mcp__plugin_Dev10x_*"]}})
+        )
 
         count, _ = update_paths.ensure_base_permissions(
             settings_file,
@@ -367,7 +371,9 @@ class TestEnsureBasePermissions:
         assert len(messages) == 3
         assert empty_settings.read_text() == original
 
-    def test_creates_permissions_key_if_absent(self, no_permissions_settings: Path) -> None:
+    def test_creates_permissions_key_if_absent(
+        self, no_permissions_settings: Path
+    ) -> None:
         count, _ = update_paths.ensure_base_permissions(
             no_permissions_settings,
             self.BASE_PERMISSIONS,
@@ -417,3 +423,124 @@ class TestEnsureBasePermissions:
         data = json.loads(settings_file.read_text())
         assert data["permissions"]["deny"] == ["something"]
         assert data["hooks"] == {"PreToolUse": []}
+
+
+class TestEnsureBaseDenies:
+    """Tests for ensure_base_denies (GH-204)."""
+
+    BASE_DENIES = [
+        "mcp__claude_ai_Linear__delete_customer",
+        "mcp__claude_ai_Linear__delete_comment",
+    ]
+
+    @pytest.fixture()
+    def settings_file(self, tmp_path: Path) -> Path:
+        path = tmp_path / "settings.local.json"
+        path.write_text(json.dumps({"permissions": {"allow": [], "deny": []}}))
+        return path
+
+    def test_adds_missing_denies(self, settings_file: Path) -> None:
+        count, messages = update_paths.ensure_base_denies(
+            settings_file,
+            self.BASE_DENIES,
+        )
+
+        assert count == 2
+        assert all("(deny)" in m for m in messages)
+        data = json.loads(settings_file.read_text())
+        assert set(data["permissions"]["deny"]) == set(self.BASE_DENIES)
+
+    def test_skips_already_present(self, settings_file: Path) -> None:
+        settings_file.write_text(
+            json.dumps(
+                {
+                    "permissions": {
+                        "allow": [],
+                        "deny": ["mcp__claude_ai_Linear__delete_customer"],
+                    }
+                }
+            )
+        )
+
+        count, _ = update_paths.ensure_base_denies(
+            settings_file,
+            self.BASE_DENIES,
+        )
+
+        assert count == 1
+        data = json.loads(settings_file.read_text())
+        deny = data["permissions"]["deny"]
+        assert deny.count("mcp__claude_ai_Linear__delete_customer") == 1
+        assert "mcp__claude_ai_Linear__delete_comment" in deny
+
+    def test_creates_deny_key_if_absent(self, tmp_path: Path) -> None:
+        path = tmp_path / "settings.local.json"
+        path.write_text(json.dumps({"permissions": {"allow": []}}))
+
+        count, _ = update_paths.ensure_base_denies(path, self.BASE_DENIES)
+
+        assert count == 2
+        data = json.loads(path.read_text())
+        assert set(data["permissions"]["deny"]) == set(self.BASE_DENIES)
+
+    def test_creates_permissions_key_if_absent(self, tmp_path: Path) -> None:
+        path = tmp_path / "settings.local.json"
+        path.write_text(json.dumps({}))
+
+        count, _ = update_paths.ensure_base_denies(path, self.BASE_DENIES)
+
+        assert count == 2
+        data = json.loads(path.read_text())
+        assert set(data["permissions"]["deny"]) == set(self.BASE_DENIES)
+
+    def test_dry_run_does_not_write(self, settings_file: Path) -> None:
+        update_paths.ensure_base_denies(
+            settings_file,
+            self.BASE_DENIES,
+            dry_run=True,
+        )
+
+        data = json.loads(settings_file.read_text())
+        assert data["permissions"]["deny"] == []
+
+    def test_skips_invalid_json(self, settings_file: Path) -> None:
+        settings_file.write_text("{invalid json}")
+
+        count, messages = update_paths.ensure_base_denies(
+            settings_file,
+            self.BASE_DENIES,
+        )
+
+        assert count == 0
+        assert any("SKIP" in m for m in messages)
+
+    def test_ensure_base_applies_both_allows_and_denies(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The ensure_base wrapper reads both base_permissions and base_denies
+        from the config and applies them in one pass."""
+        monkeypatch.setattr(
+            "dev10x.skills.permission.update_paths.Path.home",
+            lambda: tmp_path / "home",
+        )
+        (tmp_path / "home" / ".claude").mkdir(parents=True)
+
+        settings = tmp_path / "settings.local.json"
+        settings.write_text(json.dumps({"permissions": {"allow": [], "deny": []}}))
+
+        result = update_paths.ensure_base(
+            config={
+                "base_permissions": ["mcp__claude_ai_Linear__get_issue"],
+                "base_denies": ["mcp__claude_ai_Linear__delete_customer"],
+            },
+            settings_files=[settings],
+            dry_run=False,
+        )
+
+        assert result["total_added"] == 2
+        assert result["files_changed"] == 1
+        data = json.loads(settings.read_text())
+        assert "mcp__claude_ai_Linear__get_issue" in data["permissions"]["allow"]
+        assert "mcp__claude_ai_Linear__delete_customer" in data["permissions"]["deny"]
