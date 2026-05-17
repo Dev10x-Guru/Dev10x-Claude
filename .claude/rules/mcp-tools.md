@@ -185,3 +185,19 @@ MCP tool names belong only in:
 - `allowed-tools:` declarations in SKILL.md front matter
 - Claude tool-call invocations (the agent calls the tool directly)
 - Documentation describing which tools a skill uses
+
+## Official GitHub MCP Server
+
+We do **not** use [`github/github-mcp-server`](https://github.com/github/github-mcp-server).
+The internal `Dev10x:cli` server is the sole GitHub surface — its
+composite tools are shaped to Dev10x workflows rather than mirroring
+the REST/GraphQL primitives.
+
+When a new GitHub capability is needed (Actions, code scanning,
+notifications, etc.), add a Dev10x-shaped composite tool to this
+server rather than pulling in the official one. The official server's
+source is a useful reference for endpoints and GraphQL queries; it
+is not a runtime dependency.
+
+Full rationale, overlap map, and implementation plan:
+[`docs/adr/0006-keep-internal-github-mcp-over-official-server.md`](../../docs/adr/0006-keep-internal-github-mcp-over-official-server.md).
