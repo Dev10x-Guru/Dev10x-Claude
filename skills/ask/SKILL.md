@@ -215,8 +215,9 @@ options:
 This skill can be referenced by other skills as a
 reinforcement mechanism:
 
-- **`Dev10x:skill-reinforcement`** — handles CLI-to-skill
-  redirects; `Dev10x:ask` handles plain-text-to-widget redirects
+- **`Dev10x:diag-friction`** — handles CLI-to-skill
+  redirects and permission-friction diagnosis; `Dev10x:ask`
+  handles plain-text-to-widget redirects
 - **`Dev10x:work-on`** — can invoke `Dev10x:ask reinforce` if
   an agent within the work-on pipeline uses plain text for a
   decision point

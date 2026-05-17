@@ -10,8 +10,9 @@ Supports three friction levels:
   adaptive — allow + warning in additionalContext (future)
 
 The YAML is the single source of truth shared with
-Dev10x:skill-reinforcement. User overrides:
-  ~/.claude/memory/Dev10x/skill-reinforcement.yaml
+Dev10x:diag-friction (formerly Dev10x:skill-reinforcement). User
+overrides:
+  ~/.claude/memory/Dev10x/diag-friction.yaml
 """
 
 from __future__ import annotations

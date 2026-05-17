@@ -1,18 +1,26 @@
 ---
-name: Dev10x:skill-reinforcement
+name: Dev10x:diag-friction
 description: >
-  Remind the agent about available skills when it uses CLI commands
-  that should be handled by skills or MCP tools instead. Reads
-  conversation context to identify the offending command, matches
-  it against a command-to-skill map, and outputs a firm reinforcement
-  message pointing to the correct skill.
+  Diagnose permission friction. Guide the agent toward pre-approved
+  commands, simplify complex command chains, and (when no safe local
+  rule fits) file an upstream issue to improve the permission
+  friction hooks. Replaces the former Dev10x:skill-reinforcement
+  skill — reinforcement of skill usage is still part of the job,
+  but the broader goal is reducing the friction supervisors see.
+  Reads conversation context to identify the offending command,
+  matches it against a command-to-skill map, audits local + global
+  settings for simpler pre-approved forms, and outputs a firm
+  reinforcement message pointing to the correct skill or pre-approved
+  command.
   TRIGGER when: user sees agent using CLI instead of a skill, user
-  rejects a command that should have been a skill, or user says
-  "use the skills".
+  rejects a command that should have been a skill, supervisor is
+  bothered by repeated permission prompts, or user says "use the
+  skills" / "diag friction" / "skill reinforcement".
   DO NOT TRIGGER when: agent is already using skills correctly,
-  or the CLI command has no skill equivalent.
+  or the CLI command has no skill equivalent and no friction is
+  observed.
 user-invocable: true
-invocation-name: Dev10x:skill-reinforcement
+invocation-name: Dev10x:diag-friction
 allowed-tools:
   - AskUserQuestion
   - Read(~/.claude/SKILLS.md)
@@ -20,14 +28,23 @@ allowed-tools:
   - Read(~/.claude/settings.local.json)
   - Read(.claude/settings.json)
   - Read(.claude/settings.local.json)
-  - Read(${CLAUDE_PLUGIN_ROOT}/skills/skill-reinforcement/references/*)
+  - Read(${CLAUDE_PLUGIN_ROOT}/skills/diag-friction/references/*)
   - Read(${CLAUDE_PLUGIN_ROOT}/src/dev10x/validators/command-skill-map.yaml)
 ---
 
-# Dev10x:skill-reinforcement
+# Dev10x:diag-friction
 
-Quick reinforcement nudge when an agent reaches for CLI commands
-instead of using available skills or MCP tools.
+Diagnose and reduce permission friction. Guides the agent toward
+pre-approved commands, simplifies command chains that defeat
+allow-rule matching, and points to upstream issue filing when the
+friction is structural (the hook itself needs updating).
+
+> Formerly `Dev10x:skill-reinforcement`. The skill-reinforcement
+> behavior (firm nudge toward the right Dev10x skill or MCP tool)
+> is still core to this skill — it is one slice of the broader job
+> of diagnosing why the supervisor saw a permission prompt in the
+> first place. If you're looking for the old `skill-reinforcement`
+> invocation, you're in the right place.
 
 ## When to Use
 
@@ -53,7 +70,7 @@ Scan the recent conversation for the CLI command that triggered
 this invocation. Look for:
 - The most recent `Bash` tool call that was rejected or approved
 - Any command the user flagged as wrong
-- If the user provided arguments (e.g., `/Dev10x:skill-reinforcement kubectl`),
+- If the user provided arguments (e.g., `/Dev10x:diag-friction kubectl`),
   use that as the command identifier
 
 Store the command string for matching.
@@ -68,7 +85,7 @@ documented Step 2 violation.
 
 1. `Read(file_path="${CLAUDE_PLUGIN_ROOT}/src/dev10x/validators/command-skill-map.yaml")`
 
-The YAML in `skills/skill-reinforcement/references/command-skill-map.yaml`
+The YAML in `skills/diag-friction/references/command-skill-map.yaml`
 is a legacy copy — prefer the hook's YAML which is the single
 source of truth.
 
@@ -147,6 +164,56 @@ The audit output feeds Step 4 — surface findings even when a
 skill match was also found, since switching to the simpler
 pre-approved form is often what the supervisor actually wanted.
 
+### Step 3c: Detect structural friction (file upstream)
+
+Sometimes the friction is not the agent's fault — the hook
+itself is too aggressive, the command-skill map is missing an
+entry, or no safe targeted allow-rule would cover the legitimate
+use case. In those cases, point the user at the upstream issue
+tracker so the hooks can be improved for everyone, not patched
+locally over and over.
+
+**Signals that suggest structural friction (file upstream):**
+- The hook's `systemMessage` says "file an issue at
+  https://github.com/Dev10x-Guru/dev10x-claude" or similar
+- Step 2 found NO matching skill AND Step 3 SKILLS.md scan
+  found no clear skill either
+- Step 3b found no simpler pre-approved variant AND the only
+  workable allow-rule would be unsafely broad (e.g.,
+  `Bash(git:*)`, `Bash(curl:*)`)
+- The same command was rejected in this session more than once,
+  suggesting the hook keeps re-blocking a legitimate workflow
+- The supervisor's complaint is "the hook is wrong", not "the
+  command is wrong"
+
+**When at least one signal fires, add an "Upstream issue"
+section to the Step 4 output:**
+
+- Brief problem statement (one sentence — what the agent
+  needed to do, why current rules block it)
+- Suggested resolution (one of: add command-skill-map entry,
+  loosen a specific hook check, ship a new pre-approved
+  template, document a per-project setting)
+- Pre-filled `gh issue create` invocation that the user can
+  approve to file the ticket:
+
+  ```
+  gh issue create \
+    --repo Dev10x-Guru/Dev10x-Claude \
+    --title "<gitmoji> Permission friction: <one-line summary>" \
+    --label "permission-friction" \
+    --body "<problem statement, repro command, suggested fix>"
+  ```
+
+Do NOT auto-file the issue. The user decides whether the
+friction is genuinely structural or a one-off and approves
+the `gh issue create` call manually (or via the existing
+`Dev10x:ticket-create` skill if available).
+
+**Omit this section when:** the friction is clearly local
+(a skill or pre-approved alternative already covers the case).
+Filing an upstream issue for every prompt would be noise.
+
 ### Step 4: Output reinforcement message
 
 Output a firm, concise reinforcement message with these sections:
@@ -168,7 +235,13 @@ Output a firm, concise reinforcement message with these sections:
    the settings file it should land in. Omit this section when
    the audit found no friction (the command was already simple
    and pre-approved, or no Bash command was involved).
-6. **Related skills:** — from the map entry (if available)
+6. **Upstream issue (optional):** — from Step 3c. When the
+   friction looks structural (no skill, no safe local rule, or
+   the hook itself is over-aggressive), include a short problem
+   statement plus a ready-to-run `gh issue create` invocation
+   targeting `Dev10x-Guru/Dev10x-Claude`. The user approves
+   before the issue is filed.
+7. **Related skills:** — from the map entry (if available)
 
 If multiple skills could apply, list all of them ranked by
 relevance.

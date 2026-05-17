@@ -57,9 +57,9 @@ GH_IMPLEMENTERS = frozenset(
     }
 )
 # Skills whose docs intentionally embed raw CLI as the *thing being warned
-# against* — e.g., `skill-reinforcement` quotes the bad command back to the
+# against* — e.g., `diag-friction` quotes the bad command back to the
 # agent so it learns to avoid it.
-META_DOC_SKILLS = frozenset({"skill-reinforcement"})
+META_DOC_SKILLS = frozenset({"diag-friction"})
 PYTEST_IMPLEMENTERS = frozenset({"py-test", "py-test-flaky"})
 
 # Skills exempt from each rule family. Maps rule_id → set of skill dir names.

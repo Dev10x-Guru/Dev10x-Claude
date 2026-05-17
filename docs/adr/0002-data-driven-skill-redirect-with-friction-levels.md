@@ -16,7 +16,7 @@ raw CLI commands to skill wrappers:
    `git rebase -i`, `gh pr checks --watch`) and emits a systemMessage
    pointing to the correct skill.
 
-2. **`Dev10x:skill-reinforcement`** — a manually-invoked skill that reads
+2. **`Dev10x:diag-friction`** — a manually-invoked skill that reads
    `command-skill-map.yaml` (12 command families) and outputs a
    reinforcement message when the user notices the agent used CLI
    instead of a skill.
@@ -51,7 +51,7 @@ into a single data-driven system with three friction levels:
 ### Architecture
 
 The `command-skill-map.yaml` becomes the single source of truth for
-both the PreToolUse hook and the skill-reinforcement skill.
+both the PreToolUse hook and the diag-friction skill.
 
 ```
 command-skill-map.yaml (single source of truth)
@@ -60,7 +60,7 @@ command-skill-map.yaml (single source of truth)
        │   └── reads YAML at import time, caches in module scope
        │       └── enforcement depends on friction_level config
        │
-       └── Dev10x:skill-reinforcement (manual skill)
+       └── Dev10x:diag-friction (manual skill)
            └── reads same YAML for pattern matching + message formatting
 ```
 
@@ -160,7 +160,7 @@ New fields vs current `command-skill-map.yaml`:
 |-----------|----------|---------------|
 | `Validator` protocol | `hooks/scripts/bash_validators/_base.py` | SkillRedirectValidator implements this |
 | `HookInput`, `HookResult` | `hooks/scripts/bash_validators/_types.py` | Standard hook I/O types |
-| `Dev10x:skill-reinforcement` | `skills/skill-reinforcement/` | Reads same YAML for manual reinforcement |
+| `Dev10x:diag-friction` | `skills/diag-friction/` | Reads same YAML for manual reinforcement |
 
 ## Alternatives Considered
 
@@ -268,7 +268,7 @@ Consolidate into YAML with configurable enforcement levels.
 1. Enrich `command-skill-map.yaml` with `hook_block`, `hook_except`,
    `guardrails`, `fallback_instructions` fields for all 12 mappings
 2. Move YAML to `hooks/scripts/bash_validators/command-skill-map.yaml`
-3. Add symlink or path constant for skill-reinforcement to find it
+3. Add symlink or path constant for diag-friction to find it
 
 ### Phase 2: Refactor hook
 
@@ -286,7 +286,7 @@ Consolidate into YAML with configurable enforcement levels.
 
 ### Phase 4: Migration
 
-1. Update `Dev10x:skill-reinforcement` to read from new location
+1. Update `Dev10x:diag-friction` to read from new location
 2. Remove hardcoded patterns from old skill YAML
 3. Update documentation and rules files
 
@@ -296,5 +296,5 @@ Consolidate into YAML with configurable enforcement levels.
 
 - [GH-417](https://github.com/Dev10x-Guru/dev10x-claude/issues/417) — Spike: investigate hooks usage
 - `hooks/scripts/bash_validators/skill_redirect.py` — current hook
-- `skills/skill-reinforcement/references/command-skill-map.yaml` — current YAML map
+- `skills/diag-friction/references/command-skill-map.yaml` — current YAML map
 - [ADR-0001](0001-trust-skill-instructions-for-destructive-git-commands.md) — related decision on hook enforcement scope
