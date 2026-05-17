@@ -3,6 +3,219 @@
 All notable changes to the Dev10x Claude Code Plugin are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.72.0 — Doctor, Fanout Swarm & Permission Hygiene
+
+Released 2026-05-17
+
+### Features
+
+- **Diagnose systemic drift with `Dev10x:doctor`** — new skill
+  surfaces plugin-version mismatches, missing per-project skill
+  pre-approvals, and clusters session paths to propose coherent
+  directory coverage so permission friction is fixed at the root
+  ([GH-87](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/87),
+  [GH-116](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/116),
+  [GH-115](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/115))
+- **Prompt for upgrade-cleanup when plugin version drifts** —
+  SessionStart detects an installed version newer than the
+  recorded baseline and nudges the user toward
+  `Dev10x:upgrade-cleanup`
+  ([GH-109](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/109))
+- **Enable native-Agent fanout swarm dispatch** — `Dev10x:fanout`
+  now dispatches independent work items as parallel sub-agents
+  with a 6-phase execution model, conflict-wave management, and
+  recursive-fanout guard
+  ([GH-36](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/36))
+- **Invert monitor architecture to supervisor + micro-agents** —
+  `gh-pr-monitor` runs a long-lived supervisor that dispatches
+  read-only micro-agents per check, constrained by contract so
+  background monitors cannot mutate the repo
+  ([GH-68](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/68))
+- **Enable solo-maintainer milestone-bundle PR shipping** —
+  `work-on` and `gh-pr-create` understand parent tracker tickets
+  and bundle overlapping sub-tickets into a single PR with a
+  scoped review auto-skip
+  ([GH-185](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/185),
+  [GH-196](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/196),
+  [GH-161](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/161))
+- **Adopt subagent status protocol across orchestration** —
+  orchestrators read explicit `DONE / DONE_WITH_CONCERNS /
+  NEEDS_CONTEXT / BLOCKED` status from dispatched agents
+  ([GH-69](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/69))
+- **Pre-approve Linear MCP tools in plugin baseline** — drops
+  per-session approval prompts for Linear issue, comment, and
+  document operations
+  ([GH-204](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/204))
+- **Enable top-level PR issue-comment replies via MCP** — new
+  `pr_issue_comment` tool replaces raw `gh api POST` fallbacks
+  ([GH-205](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/205))
+- **Enable multi-workspace Slack posting** — Slack skills route
+  per-workspace credentials so multiple orgs can be addressed
+  from one session
+  ([GH-98](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/98))
+- **Enforce push-then-create order in `gh-pr-create`** — branch
+  is pushed before `gh pr create` runs, eliminating empty-PR
+  failures
+  ([GH-159](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/159))
+- **Default `gh-pr-merge` to rebase for curated history** —
+  matches the project's atomic-commit convention
+  ([GH-134](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/134))
+- **Enforce one-fixup-per-comment via mechanical guardrail** —
+  prevents bundled fixup commits that obscure review traceability
+  ([GH-123](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/123))
+- **Detect branch drift before commits land off-target** —
+  pre-commit gate catches mistargeted feature work
+  ([GH-147](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/147))
+- **Enrich audit issues with bundling labels** — skill-audit
+  output groups related findings for batched remediation
+  ([GH-190](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/190))
+- **Enable early-insight short-circuit in `skill-audit`** —
+  surfaces high-confidence findings before all phases complete
+  ([GH-113](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/113))
+- **Enable bundled-fixup replies and post-groom SHA refresh** —
+  PR comment replies follow rebase-rewritten history
+  ([GH-86](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/86))
+- **Compare user playbooks against plugin defaults** — surfaces
+  stale overrides after plugin upgrades
+  ([GH-192](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/192))
+- **Cover monorepo `uv run --project` invocations with one rule**
+  — single allow rule eliminates per-subdir approval prompts
+  ([GH-137](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/137))
+- **Nudge agents away from prefix-bypassing shell shapes** — new
+  hook validator flags `cd && cmd` and env-prefix patterns that
+  defeat allow-rule prefix matching
+  ([GH-119](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/119))
+- **Enable hook-block routing for bare `pytest` invocations** —
+  redirects to the `py-test` skill so coverage gating runs
+  ([GH-155](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/155))
+- **Enable self-healing permission hints** — `skill-reinforcement`
+  proposes the missing allow rule alongside the skill redirect
+  ([GH-178](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/178))
+- **Enforce pre-staging gate in `git-commit` Step 10** — refuses
+  to commit when nothing is staged, avoiding empty commits
+  ([GH-157](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/157))
+- **Enforce Phase 3 plan-approval `AskUserQuestion` always** —
+  `work-on` cannot skip the plan-approval gate
+  ([GH-158](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/158))
+- **Track `skill-audit` invocation as cycle-audit task** —
+  audit runs surface as first-class work items
+  ([GH-148](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/148))
+
+### Refactors
+
+- **Group domain by archetype into 4 sub-packages** — domain
+  layer reorganized along Software Archetypes for clarity
+  ([GH-145](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/145))
+- **Unify MCP boundary error envelope via `Result[T]`** —
+  internal functions return typed `SuccessResult`/`ErrorResult`;
+  MCP handlers unwrap at the boundary
+  ([GH-108](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/108))
+- **Decompose `hooks/session.py` into archetype-aligned modules**
+  ([GH-144](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/144))
+- **Consolidate Plan domain via service layer + `TaskStatus`** —
+  Plan operations route through a service layer with a typed
+  status enum
+  ([GH-81](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/81))
+- **Promote validator registry and capability dispatch** —
+  validators register declaratively
+  ([GH-82](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/82))
+- **Split platform `Registry` and add Tell-Don't-Ask helpers** —
+  permission diagnostics and investigator facades promoted to
+  public surface
+  ([GH-83](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/83))
+- **Type hook phase/outcome via `HookPhase` + `HookOutcome`** —
+  replace `friction_level` strings with `FrictionLevel` enum,
+  `PROFILE_HIERARCHY` tuple with `ProfileTier` enum, and
+  centralize Claude Code filesystem paths via `ClaudeDir`
+  ([GH-80](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/80))
+- **Promote permission helpers to public, drop stdout-capture
+  hack** — permission helpers no longer rely on captured stdout
+  ([GH-92](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/92))
+- **Unify validator error returns with `Result[str]`** — single
+  return shape across all validators
+  ([GH-78](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/78))
+- **Run permission-audit analysis in-process** — eliminates
+  subprocess fan-out for audit phases
+  ([GH-142](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/142))
+- **Consolidate audit log reading into `audit/log_reader`** —
+  one reader serves CLI, MCP, and the audit skill
+  ([GH-143](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/143))
+- **Centralize PR status fetches behind `PRStatusQuery`** —
+  removes scattered `gh pr view` calls
+  ([GH-146](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/146))
+
+### Fixes
+
+- **Authenticate GitHub App via Bearer scheme** — JWT requests
+  now use the correct header
+  ([GH-76](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/76))
+- **Stabilize subprocess error contract for missing scripts** —
+  consistent error shape when scripts are absent
+  ([GH-89](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/89))
+- **Exclude bot approvals from review-state precheck** — bot
+  approvals no longer satisfy human-review gating
+  ([GH-128](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/128))
+- **Stop blocking `mktmp.sh` args as git commit** — hook
+  validator no longer misreads helper invocations
+  ([GH-84](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/84))
+- **Surface git-repo errors from `plan.json_summary`** —
+  callers see the underlying repo error instead of an empty
+  payload
+  ([GH-78](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/78))
+
+### Security
+
+- **Prevent state file corruption under concurrent writers** —
+  state writes use atomic file replacement
+  ([GH-77](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/77))
+- **Enforce cwd binding on MCP handlers via `@requires_cwd`** —
+  handlers cannot operate outside the bound working directory
+  ([GH-78](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/78))
+- **Constrain background monitor agents to read-only by
+  contract** — dispatched monitor sub-agents cannot mutate state
+  ([GH-68](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/68))
+- **Enforce `gh-pr-merge` skill via raw CLI deny** — raw
+  `gh pr merge` is blocked to keep pre-merge gates in play
+  ([GH-112](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/112))
+- **Allow `uv run dev10x` from plugin-maintenance** — scoped
+  allow rule so maintenance can self-invoke
+  ([GH-99](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/99))
+- **Allow read-only `find` over plugin cache** — narrow rule
+  for cache hygiene checks
+  ([GH-122](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/122))
+- **Enable grep across plugin cache + memory without prompts** —
+  removes friction for retrospective queries
+  ([GH-135](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/135))
+
+### Docs
+
+- **Keep internal GitHub MCP over official server** — ADR-0006
+  documents why Dev10x ships composite GitHub tools rather than
+  depending on `github/github-mcp-server`
+- **Lift `Verify AC` invariant to a universal Dev10x rule** —
+  every skill ends with a Verify-AC terminal task
+  ([GH-149](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/149))
+- **Close skill-bypass gaps in `work-on` shipping pipeline** —
+  documents mandatory skill chain through commit and PR
+  ([GH-152](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/152))
+- **Mandate `gh-pr-monitor` invocation after PR creation** —
+  removes the "and then what?" gap
+  ([GH-162](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/162))
+- **Close 7 permission/hook gaps across scaffolding and skills**
+  ([GH-127](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/127))
+- **Plan SPDD REASONS Canvas adoption across scope skills**
+  ([GH-70](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/70))
+- **Document `Result[T]` envelope in `mcp-tools.md`**
+  ([GH-93](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/93))
+
+### Internal
+
+- **Raise test coverage on critical MCP and CLI paths**
+  ([GH-79](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/79))
+- **Rebaseline `mcp_server_import` startup gate** — startup-time
+  budget updated after import refactors
+  ([GH-121](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/121))
+
 ## 0.71.0 — GitHub App Verification & Acknowledgments
 
 Released 2026-05-08
