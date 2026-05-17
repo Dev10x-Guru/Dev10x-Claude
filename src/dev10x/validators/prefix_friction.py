@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, ClassVar
 
 from dev10x.domain import HookInput, HookResult
+from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
 
@@ -29,17 +30,17 @@ SETUP_TOKENS = frozenset(
 )
 
 PATH_PREFIXES = (
-    os.path.expanduser("~/.claude/skills/"),
-    os.path.expanduser("~/.claude/tools/"),
-    os.path.expanduser("~/.claude/hooks/"),
+    f"{ClaudeDir.skills_dir()}/",
+    f"{ClaudeDir.tools_dir()}/",
+    f"{ClaudeDir.hooks_dir()}/",
     "~/.claude/skills/",
     "~/.claude/tools/",
     "~/.claude/hooks/",
 )
 
 SETTINGS_FILES = [
-    os.path.expanduser("~/.claude/settings.local.json"),
-    os.path.expanduser("~/.claude/settings.json"),
+    str(ClaudeDir.settings_local_json()),
+    str(ClaudeDir.settings_json()),
 ]
 
 GIT_C_RE = re.compile(r'\bgit\s+-C\s+("(?:[^"]+)"|\'(?:[^\']+)\'|\S+)')

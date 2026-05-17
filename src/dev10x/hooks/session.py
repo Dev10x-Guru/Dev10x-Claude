@@ -24,14 +24,16 @@ from dev10x.domain.session_document import (
     read_json as _read_json,
 )
 from dev10x.hooks.session_dispatch import (
-    build_guidance_context,
-    build_reload_context,
-    context_compact,
-    session_goodbye,
-    session_guidance,
-    session_migrate_permissions,
-    session_persist,
-    session_reload,
+    build_guidance_context,  # noqa: F401 — re-exported via __all__
+    build_install_check_context,  # noqa: F401 — re-exported via __all__
+    build_reload_context,  # noqa: F401 — re-exported via __all__
+    context_compact,  # noqa: F401 — re-exported via __all__
+    session_goodbye,  # noqa: F401 — re-exported via __all__
+    session_guidance,  # noqa: F401 — re-exported via __all__
+    session_install_check,  # noqa: F401 — re-exported via __all__
+    session_migrate_permissions,  # noqa: F401 — re-exported via __all__
+    session_persist,  # noqa: F401 — re-exported via __all__
+    session_reload,  # noqa: F401 — re-exported via __all__
 )
 from dev10x.hooks.session_place import session_git_aliases, session_tmpdir
 from dev10x.hooks.session_policy import (
@@ -69,11 +71,13 @@ def _format_decision_guidance(*, plan, friction_level):
 
 __all__ = [
     "build_guidance_context",
+    "build_install_check_context",
     "build_reload_context",
     "context_compact",
     "session_git_aliases",
     "session_goodbye",
     "session_guidance",
+    "session_install_check",
     "session_migrate_permissions",
     "session_persist",
     "session_reload",

@@ -18,10 +18,11 @@ Discovery is split from approval:
 
 from __future__ import annotations
 
-import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from dev10x.domain.claude_paths import ClaudeDir
 
 SKILL_NAME_RE = re.compile(
     r"^\s*name:\s*['\"]?(?P<name>[A-Za-z0-9:_\-]+)['\"]?\s*$",
@@ -64,7 +65,7 @@ def enumerate_local_skills(*, skills_root: Path | None = None) -> list[LocalSkil
     namespace prefix split out for grouping. Returns ``[]`` when
     the root does not exist.
     """
-    root = skills_root or Path(os.path.expanduser("~/.claude/skills"))
+    root = skills_root or ClaudeDir.skills_dir()
     if not root.exists():
         return []
 
@@ -91,7 +92,7 @@ def enumerate_projects(*, projects_root: Path | None = None) -> list[Path]:
     Default root is ``~/.claude/projects``. Each immediate child
     directory represents one project.
     """
-    root = projects_root or Path(os.path.expanduser("~/.claude/projects"))
+    root = projects_root or ClaudeDir.projects_dir()
     if not root.exists():
         return []
     return sorted(p for p in root.iterdir() if p.is_dir())

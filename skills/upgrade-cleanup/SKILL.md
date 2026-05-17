@@ -18,6 +18,7 @@ user-invocable: true
 invocation-name: Dev10x:upgrade-cleanup
 allowed-tools:
   - Skill
+  - mcp__plugin_Dev10x_cli__record_upgrade
 ---
 
 # Dev10x:upgrade-cleanup
@@ -54,6 +55,21 @@ steps 1–9 sequentially (update paths → migrate configs →
 ensure base perms → generalize → enumerate MCP → script
 coverage → worktree merge → permission audit → clean project
 files).
+
+After the maintenance pass succeeds, record the plugin version
+so the SessionStart install-check stays silent until the next
+upgrade:
+
+```
+mcp__plugin_Dev10x_cli__record_upgrade()
+```
+
+The MCP tool reads the version from
+`$CLAUDE_PLUGIN_ROOT/.claude-plugin/plugin.json` and writes it
+to `~/.claude/Dev10x/version.yml`. Skip this step if the
+maintenance pass reported failures — leaving `version.yml`
+stale keeps the upgrade prompt visible until the issue is
+resolved.
 
 ## Configuration
 

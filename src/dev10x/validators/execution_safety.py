@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import ClassVar
 
 from dev10x.domain import HookInput, HookResult
+from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
 
@@ -31,9 +32,9 @@ SHELL_WRITE_RE = re.compile(
 ENV_VAR_RE = re.compile(r"^[A-Z_][A-Z0-9_]*=\S*$")
 
 APPROVED_ABS_PREFIXES = (
-    os.path.expanduser("~/.claude/tools/"),
-    os.path.expanduser("~/.claude/skills/"),
-    os.path.expanduser("~/.claude/hooks/"),
+    f"{ClaudeDir.tools_dir()}/",
+    f"{ClaudeDir.skills_dir()}/",
+    f"{ClaudeDir.hooks_dir()}/",
 )
 
 SHELL_WRITE_MSG = (
