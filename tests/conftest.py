@@ -1,5 +1,6 @@
 import pytest
 
+from dev10x.domain.claude_paths import ClaudeDir
 from tests.fakers import (
     BashHookInputFaker,
     CompensationFaker,
@@ -8,6 +9,12 @@ from tests.fakers import (
     HookInputFaker,
     RuleFaker,
 )
+
+
+@pytest.fixture(autouse=True)
+def _reset_claude_dir_cache() -> None:
+    """Clear ClaudeDir's path cache to keep DEV10X_CLAUDE_HOME overrides isolated."""
+    ClaudeDir.reset_cache()
 
 
 @pytest.fixture()

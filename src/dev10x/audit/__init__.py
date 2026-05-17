@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from dev10x.audit.log_reader import iter_records, prune, summarize
+from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.result import Result, err, ok
 from dev10x.subprocess_utils import async_run_script
 
@@ -103,7 +104,7 @@ async def analyze_permissions(
     if not transcript_file.exists():
         return err(f"transcript not found: {transcript_path}")
 
-    settings_file = Path(settings_path or os.path.expanduser("~/.claude/settings.local.json"))
+    settings_file = Path(settings_path) if settings_path else ClaudeDir.settings_local_json()
 
     try:
         report = build_audit_report(

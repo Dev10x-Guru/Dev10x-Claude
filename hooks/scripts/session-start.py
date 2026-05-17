@@ -102,6 +102,10 @@ def main() -> None:
     if guidance:
         context_parts.append(guidance)
 
+    install_check = s.build_install_check_context()
+    if install_check:
+        context_parts.append(install_check)
+
     out = _run_feature(
         name="session-migrate-permissions",
         fn=s.session_migrate_permissions,

@@ -109,6 +109,7 @@ supporting each tool:
 | `mktmp` | `cli` | PR #160 | v0.26.0+ |
 | `audit_hook_log_path` | `cli` | GH-29 | v0.69.0+ |
 | `audit_hook_recent` | `cli` | GH-29 | v0.69.0+ |
+| `record_upgrade` | `cli` | GH-109 | v0.72.0+ |
 | `query` | `db` | PR #126 | v0.25.0+ |
 
 When adding a new tool, update this table and note any dependencies on

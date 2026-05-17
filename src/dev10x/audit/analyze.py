@@ -15,10 +15,10 @@ hop and consume the report as data.
 from __future__ import annotations
 
 import io
-import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.skills.audit.analyze_permissions import (
     Finding,
     HygieneFinding,
@@ -87,8 +87,8 @@ def build_audit_report(
         finding.index = base_count + offset
     findings.extend(extra)
 
-    skills_root = str(skills_dir) if skills_dir else os.path.expanduser("~/.claude/skills")
-    tools_root = str(tools_dir) if tools_dir else os.path.expanduser("~/.claude/tools")
+    skills_root = str(skills_dir) if skills_dir else str(ClaudeDir.skills_dir())
+    tools_root = str(tools_dir) if tools_dir else str(ClaudeDir.tools_dir())
     hygiene = audit_script_hygiene(skills_dir=skills_root, tools_dir=tools_root)
 
     proposals = propose_allow_rules(findings=findings)

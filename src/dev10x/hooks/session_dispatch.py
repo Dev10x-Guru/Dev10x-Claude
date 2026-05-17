@@ -99,6 +99,44 @@ def build_guidance_context() -> str:
     return guidance_file.read_text() if guidance_file.exists() else ""
 
 
+def build_install_check_context() -> str:
+    """Warn the user when the Dev10x install needs bootstrap or upgrade.
+
+    Returns an empty string when the install is current — the orchestrator
+    drops empty segments, so a no-op leaves no trace in additionalContext.
+    """
+    from dev10x.domain.install_version import install_state
+
+    state = install_state()
+    if state.needs_bootstrap:
+        return (
+            "Dev10x config folder is missing at ~/.claude/Dev10x.\n"
+            "Run `/Dev10x:upgrade-cleanup` to bootstrap the userspace install."
+        )
+    if state.needs_upgrade:
+        plugin = state.plugin_version or "unknown"
+        applied = state.applied_version or "never applied"
+        return (
+            f"Dev10x plugin {plugin} is installed but upgrade-cleanup was last "
+            f"run for {applied}.\n"
+            "Run `/Dev10x:upgrade-cleanup` to refresh permissions and "
+            "migrate config files."
+        )
+    return ""
+
+
+def session_install_check() -> None:
+    """Emit install-state guidance as additionalContext (SessionStart hook)."""
+    content = build_install_check_context()
+    if not content:
+        sys.exit(0)
+    escaped = _escape_for_json(s=content)
+    print(
+        '{"hookSpecificOutput":{"hookEventName":"SessionStart",'
+        f'"additionalContext":"{escaped}"}}}}'
+    )
+
+
 def session_guidance() -> None:
     """Output session-guidance.md as additionalContext (SessionStart hook)."""
     content = build_guidance_context()
@@ -181,11 +219,13 @@ def session_goodbye(data: dict | None = None) -> None:
 
 
 __all__ = [
+    "build_install_check_context",
     "build_reload_context",
     "build_guidance_context",
     "session_reload",
     "context_compact",
     "session_guidance",
+    "session_install_check",
     "session_migrate_permissions",
     "session_persist",
     "session_goodbye",

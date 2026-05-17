@@ -791,7 +791,10 @@ def doctor_canonicalize(*, dry_run: bool, quiet: bool) -> None:
 
 @doctor.command(name="cross-contamination")
 @click.option(
-    "--cwd", type=click.Path(exists=True), default=None, help="Project root (default: $PWD)"
+    "--cwd",
+    type=click.Path(exists=True),
+    default=None,
+    help="Project root (default: $PWD)",
 )
 @click.option("--quiet", is_flag=True, help="Suppress per-rule details")
 def doctor_cross_contamination(*, cwd: str | None, quiet: bool) -> None:
@@ -919,3 +922,29 @@ def doctor_enable_group(*, group_name: str, dry_run: bool) -> None:
         total_added += len(added_here)
     verb = "Would add" if dry_run else "Added"
     click.echo(f"\n{verb} {total_added} rules from group {group_name!r}.")
+
+
+@permission.command(name="record-upgrade")
+@click.option(
+    "--version",
+    "explicit_version",
+    default=None,
+    help="Version to record (default: read from plugin.json)",
+)
+def record_upgrade(*, explicit_version: str | None) -> None:
+    """Record the currently-installed plugin version as applied.
+
+    Invoked by Dev10x:upgrade-cleanup after a successful run so the
+    SessionStart install-check stays silent until the next upgrade.
+    """
+    from dev10x.domain.install_version import read_plugin_version, write_applied_version
+
+    version = explicit_version or read_plugin_version()
+    if version is None:
+        click.echo(
+            "ERROR: could not resolve plugin version; pass --version explicitly.",
+            err=True,
+        )
+        sys.exit(1)
+    written = write_applied_version(plugin_version=version)
+    click.echo(f"Recorded plugin version {version} at {written}")

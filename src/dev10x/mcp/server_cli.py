@@ -1229,5 +1229,32 @@ async def audit_hook_recent(
     ).to_dict()
 
 
+@server.tool()
+async def record_upgrade(version: str | None = None) -> dict:
+    """Record the currently-installed plugin version as applied.
+
+    Called by Dev10x:upgrade-cleanup after a successful run so the
+    SessionStart install-check stops emitting upgrade prompts.
+
+    Args:
+        version: Explicit version to record. Defaults to the value
+            from $CLAUDE_PLUGIN_ROOT/.claude-plugin/plugin.json.
+
+    Returns:
+        Dictionary with keys: version (str), path (str). Returns
+        ``{"error": ...}`` when no version can be resolved.
+    """
+    from dev10x.domain.install_version import (
+        read_plugin_version,
+        write_applied_version,
+    )
+
+    resolved = version or read_plugin_version()
+    if resolved is None:
+        return {"error": "Could not resolve plugin version from plugin.json"}
+    path = write_applied_version(plugin_version=resolved)
+    return {"version": resolved, "path": str(path)}
+
+
 def main() -> None:
     server.run()
