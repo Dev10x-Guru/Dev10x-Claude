@@ -165,6 +165,7 @@ higher tiers — `minimal` rules are always active.
 | DX006 | skill-redirect | standard |
 | DX007 | prefix-friction | standard |
 | DX008 | commit-jtbd | strict |
+| DX009 | redundant-fetch | standard (experimental) |
 
 ### Configuration
 
