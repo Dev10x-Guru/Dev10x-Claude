@@ -90,6 +90,33 @@ Look for:
 - Previous comments with context
 - Attachments or links
 
+#### 1.2a Detect Slack Forwards (GH-218)
+
+When a Slack thread URL is part of the input context, after the
+`slack_read_thread` fetch, pass the parent message body and reply
+count to `mcp__plugin_Dev10x_cli__slack_thread_is_forward`. The
+tool returns `is_forward`, `confidence`, `signals`, and any
+extracted `upstream_hints` (external URLs found in the parent).
+
+When `confidence` is `high` or `medium`, the parent message is
+likely a forward / cross-post of an upstream thread that holds the
+real context. Do NOT silently consume it as canonical source.
+
+**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text).
+Options:
+- Provide upstream Slack URL (Recommended) — supervisor pastes
+  the upstream thread URL; restart Phase 1.1 with it
+- Continue with current thread anyway — the thin parent is
+  intentional; proceed to Phase 2 with what we have
+- Abort scope — supervisor needs to gather more context first
+
+When `confidence` is `low`, proceed normally to Phase 2.
+
+The heuristic itself lives in the MCP tool, not in this document
+— sibling skills (`Dev10x:investigate`, `Dev10x:ticket-create`,
+`Dev10x:work-on`) that ingest Slack URLs should call the same
+tool rather than re-implement the logic.
+
 ### Phase 2: Technical Research (Uses base scope skill)
 
 Follow the base `scope` skill for:
