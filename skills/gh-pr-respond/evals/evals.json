@@ -104,6 +104,16 @@
           "text": "Step 1c is skipped if the user chose 'Leave open' in Step 1b",
           "check": "behavioral",
           "signals": ["no AskUserQuestion about Hide when thread left open"]
+        },
+        {
+          "id": "gate6-fires-after-resolution-single",
+          "text": "In single mode, minimize_comments is invoked after a successful resolve_review_thread — Gate 6 never silently skips when the thread was resolved",
+          "check": "tool_called",
+          "signals": [
+            "mcp__plugin_Dev10x_cli__resolve_review_thread",
+            "mcp__plugin_Dev10x_cli__minimize_comments",
+            "AskUserQuestion"
+          ]
         }
       ]
     },
@@ -191,6 +201,25 @@
           "text": "Step 5b is skipped if no threads were resolved in Step 5",
           "check": "behavioral",
           "signals": ["no AskUserQuestion about Hide when no threads resolved"]
+        },
+        {
+          "id": "gate6-fires-after-resolution",
+          "text": "minimize_comments is invoked after a successful resolve_review_thread call — Gate 6 never silently skips when threads were resolved",
+          "check": "tool_called",
+          "signals": [
+            "mcp__plugin_Dev10x_cli__resolve_review_thread",
+            "mcp__plugin_Dev10x_cli__minimize_comments",
+            "AskUserQuestion"
+          ]
+        },
+        {
+          "id": "gate6-fires-at-adaptive-friction",
+          "text": "Gate 6 fires (AskUserQuestion called) even at adaptive friction — adaptive only auto-selects the recommended option, it does not skip the gate",
+          "check": "behavioral",
+          "signals": [
+            "AskUserQuestion called regardless of friction_level=adaptive",
+            "minimize_comments invoked after resolve"
+          ]
         },
         {
           "id": "gate5-post-response-continuation",
