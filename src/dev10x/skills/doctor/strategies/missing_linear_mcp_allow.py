@@ -43,10 +43,7 @@ MISSING_THRESHOLD = 3
 
 
 def _has_linear_usage(rules: list[str]) -> bool:
-    return any(
-        any(rule.startswith(prefix) for prefix in LINEAR_RULE_PREFIXES)
-        for rule in rules
-    )
+    return any(any(rule.startswith(prefix) for prefix in LINEAR_RULE_PREFIXES) for rule in rules)
 
 
 def _missing_baseline(rules: list[str]) -> list[str]:

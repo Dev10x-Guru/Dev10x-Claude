@@ -192,9 +192,7 @@ class TestEnsureBaseExpandsStaleWildcards:
         settings_file: Path,
         fake_catalog: dict,
     ) -> None:
-        settings_file.write_text(
-            json.dumps({"permissions": {"allow": ["mcp__plugin_Dev10x_*"]}})
-        )
+        settings_file.write_text(json.dumps({"permissions": {"allow": ["mcp__plugin_Dev10x_*"]}}))
 
         count, messages = update_paths.ensure_base_permissions(
             settings_file,
@@ -265,9 +263,7 @@ class TestEnsureBaseExpandsStaleWildcards:
         settings_file: Path,
         fake_catalog: dict,
     ) -> None:
-        settings_file.write_text(
-            json.dumps({"permissions": {"allow": ["mcp__plugin_Dev10x_*"]}})
-        )
+        settings_file.write_text(json.dumps({"permissions": {"allow": ["mcp__plugin_Dev10x_*"]}}))
 
         count, _ = update_paths.ensure_base_permissions(
             settings_file,
@@ -371,9 +367,7 @@ class TestEnsureBasePermissions:
         assert len(messages) == 3
         assert empty_settings.read_text() == original
 
-    def test_creates_permissions_key_if_absent(
-        self, no_permissions_settings: Path
-    ) -> None:
+    def test_creates_permissions_key_if_absent(self, no_permissions_settings: Path) -> None:
         count, _ = update_paths.ensure_base_permissions(
             no_permissions_settings,
             self.BASE_PERMISSIONS,

@@ -64,9 +64,7 @@ def settings_without_linear(tmp_path: Path) -> Path:
 
 
 class TestMissingLinearMcpAllowDetect:
-    def test_flags_partial_linear_usage(
-        self, settings_with_partial_linear: Path
-    ) -> None:
+    def test_flags_partial_linear_usage(self, settings_with_partial_linear: Path) -> None:
         context = Context(settings_paths=(settings_with_partial_linear,))
 
         findings = missing_linear_mcp_allow.detect(context)
@@ -81,9 +79,7 @@ class TestMissingLinearMcpAllowDetect:
             >= missing_linear_mcp_allow.MISSING_THRESHOLD - 1
         )
 
-    def test_silent_when_baseline_complete(
-        self, settings_with_full_baseline: Path
-    ) -> None:
+    def test_silent_when_baseline_complete(self, settings_with_full_baseline: Path) -> None:
         context = Context(settings_paths=(settings_with_full_baseline,))
 
         findings = missing_linear_mcp_allow.detect(context)
