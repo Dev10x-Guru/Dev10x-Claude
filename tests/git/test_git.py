@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from dev10x.domain.common.result import ErrorResult, SuccessResult
-from dev10x.git import mass_rewrite, rebase_groom
+from dev10x.git import mass_rewrite, push_safe, rebase_groom
 
 
 def _completed(
@@ -161,3 +161,43 @@ class TestMassRewriteConflictDetection:
 
         assert isinstance(result, SuccessResult)
         assert "Enable feature" in result.value["output"]
+
+
+class TestPushSafeStructuredOutput:
+    @pytest.mark.asyncio
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    async def test_parses_structured_success_payload(
+        self,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        payload = (
+            '{"pushed":true,"ref":"feature","remote":"origin",'
+            '"sha":"abc1234","tracking":"origin/feature","ci_run_url":null}'
+        )
+        mock_run_script.return_value = _completed(stdout=payload)
+
+        result = await push_safe(args=["origin", "feature"])
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["pushed"] is True
+        assert result.value["ref"] == "feature"
+        assert result.value["remote"] == "origin"
+        assert result.value["sha"] == "abc1234"
+        assert result.value["tracking"] == "origin/feature"
+        assert result.value["ci_run_url"] is None
+
+    @pytest.mark.asyncio
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    async def test_returns_error_on_blocked_force_push(
+        self,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        mock_run_script.return_value = _completed(
+            returncode=2,
+            stderr="BLOCKED: --force push to protected branch 'main' is not allowed.",
+        )
+
+        result = await push_safe(args=["origin", "main", "--force"])
+
+        assert isinstance(result, ErrorResult)
+        assert "BLOCKED" in result.error
