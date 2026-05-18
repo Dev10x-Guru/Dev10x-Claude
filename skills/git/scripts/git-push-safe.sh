@@ -44,23 +44,50 @@ for arg in "${PUSH_ARGS[@]}"; do
     fi
 done
 
-if [[ $force -eq 1 ]]; then
-    target_branch=""
-    for arg in "${PUSH_ARGS[@]}"; do
-        if [[ "$arg" != -* ]]; then
+# Resolve the target branch and remote from the parsed PUSH_ARGS.
+# Defaults match `git push` behavior: remote=origin, branch=HEAD.
+target_branch=""
+remote="origin"
+for arg in "${PUSH_ARGS[@]}"; do
+    if [[ "$arg" != -* ]]; then
+        if [[ "$remote" == "origin" && -z "$target_branch" ]]; then
+            # First positional is remote, second is refspec — but a single
+            # positional is the remote when no refspec is given.
+            remote="$arg"
+        else
             target_branch="${arg##*:}"
         fi
-    done
-
-    if [[ -z "$target_branch" ]]; then
-        target_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
     fi
+done
 
-    if is_protected_branch "$target_branch"; then
-        echo "BLOCKED: --force push to protected branch '$target_branch' is not allowed." >&2
-        echo "Use --force-with-lease on a feature branch instead." >&2
-        exit 2
-    fi
+if [[ -z "$target_branch" ]]; then
+    target_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
 fi
 
-exec git push "${PUSH_ARGS[@]}"
+if [[ $force -eq 1 ]] && is_protected_branch "$target_branch"; then
+    # JSON blocked result on stdout (success exit code so callers can parse
+    # the structured payload), plus a human-readable warning on stderr.
+    echo "BLOCKED: --force push to protected branch '$target_branch' is not allowed." >&2
+    echo "Use --force-with-lease on a feature branch instead." >&2
+    printf '{"pushed":false,"ref":"%s","remote":"%s","blocked_reason":"protected_branch_force_push"}\n' \
+        "$target_branch" "$remote"
+    exit 2
+fi
+
+# Run the push; capture stderr so we can re-emit it after the JSON payload.
+push_stderr=$(mktemp)
+trap 'rm -f "$push_stderr"' EXIT
+if ! git push "${PUSH_ARGS[@]}" 2>"$push_stderr"; then
+    rc=$?
+    cat "$push_stderr" >&2
+    printf '{"pushed":false,"ref":"%s","remote":"%s","blocked_reason":"push_failed"}\n' \
+        "$target_branch" "$remote"
+    exit "$rc"
+fi
+cat "$push_stderr" >&2
+
+sha=$(git rev-parse --short HEAD 2>/dev/null || echo "")
+tracking=$(git rev-parse --abbrev-ref --symbolic-full-name "@{u}" 2>/dev/null || echo "")
+
+printf '{"pushed":true,"ref":"%s","remote":"%s","sha":"%s","tracking":"%s","ci_run_url":null}\n' \
+    "$target_branch" "$remote" "$sha" "$tracking"

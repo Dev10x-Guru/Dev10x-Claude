@@ -65,10 +65,12 @@ modules MUST mirror the pattern — return `Result[T]` internally, call
 - `mktmp`: returns `{"path": "/tmp/file"}`
 - Some tools return `{"success": True, "data": result}`
 - Some tools return only tool-specific fields without a `success` flag
-- `push_safe`: returns `{}` on a clean fast-forward push (GH-152) —
-  emptiness is NOT failure; only `{"error": ...}` is failure. Verify
-  the remote with `git ls-remote --heads origin <branch>` if a
-  payload is needed.
+- `push_safe`: returns `{"pushed": true, "ref": "...", "remote":
+  "...", "sha": "...", "tracking": "...", "ci_run_url": null}` on a
+  successful push (GH-188). On a blocked or failed push, `pushed` is
+  `false` and `blocked_reason` names the cause. Only `{"error": ...}`
+  signals an MCP-level failure. Older callers that treat any non-error
+  payload as success continue to work.
 
 Callers must know each tool's specific success response format. Branch
 on the presence of an `"error"` key, never on whether the dict is

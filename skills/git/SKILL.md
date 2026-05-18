@@ -90,8 +90,33 @@ action is `Skill(Dev10x:gh-pr-monitor)` — not "wait and see".**
 A push to a PR branch retriggers CI; failing to monitor it
 turns a deviation into an oversight.
 
-After `push_safe` returns (empty dict `{}` means success — see
-`.claude/rules/mcp-tools.md`):
+### `push_safe` return shape
+
+On success, `push_safe` returns a structured payload:
+
+```json
+{
+  "pushed": true,
+  "ref": "<branch>",
+  "remote": "origin",
+  "sha": "<short-sha>",
+  "tracking": "origin/<branch>",
+  "ci_run_url": null
+}
+```
+
+On a blocked or failed push, `pushed` is `false` and `blocked_reason`
+names the cause (`protected_branch_force_push`, `push_failed`, …).
+A returned `{"error": "..."}` payload signals an MCP-level failure
+distinct from `pushed: false`.
+
+> **Historical note (GH-188):** earlier versions returned `{}` on
+> success and required a separate `git ls-remote` round-trip to
+> confirm the remote accepted the ref. New callers should branch on
+> the `pushed` field; existing callers tolerating `{}` continue to
+> work because the new payload is strictly additive.
+
+After `push_safe` returns:
 
 1. Resolve PR state for the pushed branch via
    `mcp__plugin_Dev10x_cli__pr_detect`.
