@@ -241,6 +241,80 @@ rules:
       The MCP tool provides structured responses and avoids per-call
       Bash permission friction.
 
+  - name: gh-issue-edit
+    matcher: Bash
+    patterns:
+      - gh issue edit
+    except: []
+    hook_block: true
+    compensations:
+      - type: use-tool
+        tool: mcp__plugin_Dev10x_cli__issue_edit
+        guardrails: structured responses, no Bash permission friction
+        description: >
+          If the MCP server is unavailable, use gh issue edit directly
+          with --title, --body-file, --milestone, --add-label.
+    reason: >
+      Direct gh issue edit mutates issue metadata (title, body,
+      milestone, labels) and requires per-call Bash permission. The
+      MCP tool provides structured responses and avoids friction.
+
+  - name: gh-issue-comment
+    matcher: Bash
+    patterns:
+      - gh issue comment
+    except: []
+    hook_block: true
+    compensations:
+      - type: use-tool
+        tool: mcp__plugin_Dev10x_cli__issue_comment
+        guardrails: structured responses, body written to temp file safely
+        description: >
+          If the MCP server is unavailable, use gh issue comment N
+          --body-file <tmp> so quoting/heredocs don't bite.
+    reason: >
+      Direct gh issue comment requires Bash permission per call and
+      forces callers to manage heredoc/quoting. The MCP tool writes
+      the body to a temp file and returns the comment permalink.
+
+  - name: gh-issue-list
+    matcher: Bash
+    patterns:
+      - gh issue list
+    except: []
+    hook_block: false
+    compensations:
+      - type: use-tool
+        tool: mcp__plugin_Dev10x_cli__issue_list
+        guardrails: structured JSON responses, label/milestone/search filtering
+        description: >
+          gh issue list works directly when needed. The MCP tool is
+          preferred because it returns structured JSON without the
+          --json flag boilerplate.
+    reason: >
+      gh issue list is read-only — advisory route to the MCP tool
+      for structured responses and consistency with other list tools.
+
+  - name: gh-milestone-create
+    matcher: Bash
+    patterns:
+      - "gh api .*/milestones --method POST"
+      - "gh api .*/milestones -X POST"
+    except: []
+    hook_block: true
+    compensations:
+      - type: use-tool
+        tool: mcp__plugin_Dev10x_cli__milestone_create
+        guardrails: structured responses, no raw gh api POST in transcripts
+        description: >
+          If the MCP server is unavailable, the raw gh api POST is the
+          documented fallback — but the MCP tool is preferred so the
+          milestone CRUD path stays uniform with milestone_close.
+    reason: >
+      Raw gh api POST against the milestones endpoint bypasses the
+      structural "no MCP path means file a ticket" principle. Use the
+      MCP tool instead.
+
   - name: git-push-safe-script
     matcher: Bash
     patterns:

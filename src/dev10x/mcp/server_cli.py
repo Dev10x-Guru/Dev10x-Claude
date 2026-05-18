@@ -484,6 +484,163 @@ async def update_pr(
 
 
 @server.tool()
+async def issue_edit(
+    number: int,
+    title: str | None = None,
+    body: str | None = None,
+    milestone: str | None = None,
+    labels: list[str] | None = None,
+    repo: str | None = None,
+    cwd: str | None = None,
+) -> dict:
+    """Edit a GitHub issue's title, body, milestone, or labels (GH-220).
+
+    Wraps `gh issue edit`. Accepts partial updates — pass only the
+    fields to change.
+
+    Args:
+        number: Issue number to edit.
+        title: New title (optional).
+        body: New body text (optional).
+        milestone: Milestone title to assign (optional).
+        labels: Replacement label list (optional).
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: number, url
+    """
+    from dev10x import github as gh
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return (
+            await gh.issue_edit(
+                number=number,
+                title=title,
+                body=body,
+                milestone=milestone,
+                labels=labels,
+                repo=repo,
+            )
+        ).to_dict()
+
+
+@server.tool()
+async def issue_comment(
+    number: int,
+    body: str,
+    repo: str | None = None,
+    cwd: str | None = None,
+) -> dict:
+    """Post a Markdown comment on a GitHub issue (GH-220).
+
+    Wraps `gh issue comment N --body-file <tmp>` so callers don't
+    need to manage heredoc/quoting at the Bash boundary.
+
+    Args:
+        number: Issue number to comment on.
+        body: Comment body (Markdown supported).
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with key: url (the comment permalink).
+    """
+    from dev10x import github as gh
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return (
+            await gh.issue_comment(
+                number=number,
+                body=body,
+                repo=repo,
+            )
+        ).to_dict()
+
+
+@server.tool()
+async def issue_list(
+    repo: str | None = None,
+    state: str = "open",
+    milestone: str | None = None,
+    labels: list[str] | None = None,
+    limit: int = 30,
+    search: str | None = None,
+    cwd: str | None = None,
+) -> dict:
+    """List GitHub issues, optionally filtered (GH-220).
+
+    Wraps `gh issue list ... --json
+    number,title,labels,milestone,state,url`.
+
+    Args:
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        state: Filter by state: open (default), closed, all.
+        milestone: Filter by milestone title or number.
+        labels: Filter by labels (matches ALL labels).
+        limit: Max results (default 30).
+        search: Free-text search filter (passed via --search).
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with key: issues (list of issue dicts).
+    """
+    from dev10x import github as gh
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return (
+            await gh.issue_list(
+                repo=repo,
+                state=state,
+                milestone=milestone,
+                labels=labels,
+                limit=limit,
+                search=search,
+            )
+        ).to_dict()
+
+
+@server.tool()
+async def milestone_create(
+    title: str,
+    description: str | None = None,
+    due_on: str | None = None,
+    repo: str | None = None,
+    cwd: str | None = None,
+) -> dict:
+    """Create a GitHub milestone (GH-220).
+
+    Wraps `gh api repos/{r}/milestones --method POST`. Mirrors the
+    shape of the existing milestone_close tool.
+
+    Args:
+        title: Milestone title (required, must be unique within repo).
+        description: Optional milestone description.
+        due_on: Optional ISO-8601 timestamp for the due date.
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: number, title, url.
+    """
+    from dev10x import github as gh
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return (
+            await gh.milestone_create(
+                title=title,
+                description=description,
+                due_on=due_on,
+                repo=repo,
+            )
+        ).to_dict()
+
+
+@server.tool()
 async def milestone_close(
     number: int,
     repo: str | None = None,
