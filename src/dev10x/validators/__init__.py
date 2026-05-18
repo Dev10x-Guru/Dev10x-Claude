@@ -88,6 +88,13 @@ _SPECS: list[ValidatorSpec] = [
         rule_id="DX008",
         profile=ProfileTier.STRICT,
     ),
+    ValidatorSpec(
+        module_path="dev10x.validators.redundant_fetch",
+        class_name="RedundantFetchValidator",
+        rule_id="DX009",
+        profile=ProfileTier.STANDARD,
+        experimental=True,
+    ),
 ]
 
 
