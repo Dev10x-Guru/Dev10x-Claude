@@ -10,36 +10,25 @@ This skill follows `references/task-orchestration.md` patterns.
 **Auto-advance:** Complete each phase, immediately start the next.
 Never pause between phases.
 
-### Step 0a: Append cycle-audit task (MANDATORY, GH-148)
+### Deferral (GH-219)
 
-**Always runs first — before Phase 0 and Step 0.** Invoking
-`Dev10x:skill-audit` is itself a declaration of supervisor intent:
-"something didn't work out in the last couple of cycles, and I
-want to diagnose the problem, find a solution, note it in memory,
-and file an upstream issue."
+To **defer** an audit until later without interrupting current
+work, invoke `Dev10x:skill-audit-queue` instead. That skill
+appends a tracker task at the end of the current task list with
+a TODO to invoke `Dev10x:skill-audit`. When the supervisor
+reaches the queued task, they invoke this skill directly.
 
-Record that intent as a single tracking task at the END of the
-current task list, regardless of which downstream path Phase 0
-selects (early-insight, full wave, or discard):
+Invoking `Dev10x:skill-audit` (this skill) is a declaration that
+the audit should run **now** — proceed directly to Phase 0.
 
-1. Call `TaskList` to see the existing tasks (if any).
-2. `TaskCreate(subject="Audit cycle: diagnose, fix, note in memory, file upstream", description="Supervisor invoked Dev10x:skill-audit. Frame: something didn't work in the last couple of cycles — diagnose the problem, find a solution, persist the lesson to memory, and file an upstream issue when warranted. This task is the supervisor-facing wrapper for the whole skill-audit invocation; Phase 0 / Step 0 add their own sub-tasks.", activeForm="Auditing cycle")`
+### Important Rules
 
-**Edge case — empty task list.** If `TaskList` returned no
-tasks (or only completed ones), the cycle-audit task IS the
-work — immediately mark it `in_progress` and proceed to Phase 0
-without waiting for other tasks.
-
-**Edge case — pre-existing task list.** Append at the end with
-no dependency wiring. The cycle-audit task remains visible as
-the supervisor's frame for the whole invocation; Phase 0 and
-Step 0 below add their own task lists alongside it.
-
-**Completion.** Mark the cycle-audit task `completed` only after
-the chosen path terminates:
-- Phase 0 "Discard" → mark completed immediately (no further work)
-- Phase 0 "Select & file now" → mark completed after Phase 7 finishes
-- Phase 0 "Step back" / fall-through → mark completed after Phase 7 finishes
+**When asked about this skill's behavior, re-Read
+`instructions.md` before answering (GH-219).** Do not rely on
+summarized recall from earlier in the session. Questions about
+phase semantics, deferral, gates, or task-list behavior must be
+answered against the current source — agents that answer from
+prior context routinely contradict the live instructions.
 
 ### Phase 0: Early-Insight Gate
 
