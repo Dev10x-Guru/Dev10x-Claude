@@ -302,7 +302,7 @@ rejected workflow.
 
 ## Examples
 
-See [`references/examples.md`](references/examples.md) for four
+See [`references/examples.md`](references/examples.md) for five
 walkthroughs:
 
 1. **kubectl usage** — direct CLI match (`Dev10x:k8s`)
@@ -310,3 +310,5 @@ walkthroughs:
 3. **friction from chaining** — Step 3b audit surfaces a
    pre-approved alternative
 4. **no match found** — fallback to SKILLS.md scan
+5. **structural friction** — no safe local rule fits, file an
+   upstream issue
