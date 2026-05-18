@@ -28,9 +28,7 @@ PLUGIN_CONFIG = (
     Path(__file__).resolve().parents[4] / "skills" / "upgrade-cleanup" / "projects.yaml"
 )
 PLUGIN_NAMES = r"(?:Dev10x|dev10x-claude)"
-VERSION_PATTERN = re.compile(
-    rf"(plugins/cache/)([^/]+)(/{PLUGIN_NAMES}/)(\d+\.\d+\.\d+)"
-)
+VERSION_PATTERN = re.compile(rf"(plugins/cache/)([^/]+)(/{PLUGIN_NAMES}/)(\d+\.\d+\.\d+)")
 
 
 def extract_cache_publisher(plugin_cache: str) -> str | None:
@@ -222,12 +220,8 @@ def ensure_base_permissions(
             live_data["permissions"]["allow"].extend(expanded_tools)
             live_data["permissions"]["allow"].extend(missing)
 
-    messages = [
-        f"  - {wc}  (non-functional MCP wildcard removed)" for wc in stale_wildcards
-    ]
-    messages.extend(
-        f"  + {tool}  (expanded from MCP wildcard)" for tool in expanded_tools
-    )
+    messages = [f"  - {wc}  (non-functional MCP wildcard removed)" for wc in stale_wildcards]
+    messages.extend(f"  + {tool}  (expanded from MCP wildcard)" for tool in expanded_tools)
     messages.extend(f"  + {p}" for p in missing)
     return len(missing) + len(stale_wildcards) + len(expanded_tools), messages
 
@@ -740,14 +734,10 @@ def ensure_workspace(
             files_changed += 1
 
     if total_added == 0:
-        messages.append(
-            "All settings files already register the workspace directories."
-        )
+        messages.append("All settings files already register the workspace directories.")
     else:
         verb = "Would add" if dry_run else "Added"
-        messages.append(
-            f"{verb} {total_added} workspace entries across {files_changed} files."
-        )
+        messages.append(f"{verb} {total_added} workspace entries across {files_changed} files.")
 
     return _result(
         exit_code=0,
@@ -841,9 +831,7 @@ def ensure_base(
         messages.append("All files already have base permissions.")
     else:
         verb = "Would add" if dry_run else "Added"
-        messages.append(
-            f"{verb} {total_added} permissions across {files_changed} files."
-        )
+        messages.append(f"{verb} {total_added} permissions across {files_changed} files.")
 
     return _result(
         exit_code=0,
@@ -883,9 +871,7 @@ def generalize(
         messages.append("No session-specific permissions found.")
     else:
         verb = "Would generalize" if dry_run else "Generalized"
-        messages.append(
-            f"{verb} {total_generalized} permissions in {files_changed} files."
-        )
+        messages.append(f"{verb} {total_generalized} permissions in {files_changed} files.")
 
     return _result(
         exit_code=0,
@@ -957,9 +943,7 @@ def ensure_scripts(
         messages.append("All settings files have complete script coverage.")
     else:
         verb = "Would add" if dry_run else "Added"
-        messages.append(
-            f"{verb} {total_added} script rules across {files_changed} files."
-        )
+        messages.append(f"{verb} {total_added} script rules across {files_changed} files.")
 
     return _result(
         exit_code=0,
@@ -1029,9 +1013,7 @@ def ensure_reads(
         messages.append("All settings files have complete Read coverage.")
     else:
         verb = "Would add" if dry_run else "Added"
-        messages.append(
-            f"{verb} {total_added} Read rules across {files_changed} files."
-        )
+        messages.append(f"{verb} {total_added} Read rules across {files_changed} files.")
 
     return _result(
         exit_code=0,
@@ -1059,16 +1041,12 @@ def _detect_plugin_cache() -> str:
                 candidates.append(plugin_dir)
                 break
     if len(candidates) == 1:
-        return (
-            f"~/.claude/plugins/cache/{candidates[0].parent.name}/{candidates[0].name}"
-        )
+        return f"~/.claude/plugins/cache/{candidates[0].parent.name}/{candidates[0].name}"
     if len(candidates) > 1:
         names = ", ".join(f"{c.parent.name}/{c.name}" for c in candidates)
         print(f"Multiple plugin cache entries found: {names}")
         print(f"Using first match: {candidates[0].parent.name}/{candidates[0].name}")
-        return (
-            f"~/.claude/plugins/cache/{candidates[0].parent.name}/{candidates[0].name}"
-        )
+        return f"~/.claude/plugins/cache/{candidates[0].parent.name}/{candidates[0].name}"
     return "~/.claude/plugins/cache/Dev10x-Guru/Dev10x"
 
 
