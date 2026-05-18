@@ -111,7 +111,9 @@ def _get_config_and_engine() -> tuple[Config, RuleEngine]:
     return _CONFIG, _ENGINE
 
 
-_QUICK_TOKENS = frozenset(["commit", "create", "push", "rebase", "checks", "issue", "merge"])
+_QUICK_TOKENS = frozenset(
+    ["commit", "create", "push", "rebase", "checks", "issue", "merge", "edit"]
+)
 
 _COMMIT_HEAL_MSG = (
     "\u26d4  `git commit` blocked — wrong temp file path.\n\n"

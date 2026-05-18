@@ -221,6 +221,26 @@ rules:
       every call. The MCP tool provides structured JSON responses
       and avoids permission friction.
 
+  - name: gh-pr-edit
+    matcher: Bash
+    patterns:
+      - gh pr edit
+    except: []
+    hook_block: true
+    compensations:
+      - type: use-tool
+        tool: mcp__plugin_Dev10x_cli__update_pr
+        guardrails: structured responses, no Bash permission friction
+        description: >
+          If the MCP server is unavailable, use gh pr edit directly
+          with the required flags (--title, --body-file, --add-label,
+          --milestone, --base).
+    reason: >
+      Direct gh pr edit mutates PR metadata (title, body, labels,
+      base) and bypasses the gh-pr-create "update mode" guardrails.
+      The MCP tool provides structured responses and avoids per-call
+      Bash permission friction.
+
   - name: git-push-safe-script
     matcher: Bash
     patterns:

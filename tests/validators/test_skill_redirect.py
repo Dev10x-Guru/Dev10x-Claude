@@ -300,6 +300,37 @@ class TestGhIssueCreateRedirect:
         assert validator.should_run(inp=inp) is True
 
 
+class TestGhPrEditRedirect:
+    def test_blocks_gh_pr_edit(self, validator: SkillRedirectValidator) -> None:
+        inp = _make_input(command="gh pr edit 203 --title '♻️ GH-90 Bundle'")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "mcp__plugin_Dev10x_cli__update_pr" in result.message
+
+    def test_blocks_gh_pr_edit_body(self, validator: SkillRedirectValidator) -> None:
+        inp = _make_input(command="gh pr edit 42 --body-file /tmp/body.md")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "mcp__plugin_Dev10x_cli__update_pr" in result.message
+
+    def test_blocks_gh_pr_edit_label(self, validator: SkillRedirectValidator) -> None:
+        inp = _make_input(command="gh pr edit 1 --add-label bug")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "mcp__plugin_Dev10x_cli__update_pr" in result.message
+
+    def test_mcp_message_uses_tool_label(self, validator: SkillRedirectValidator) -> None:
+        inp = _make_input(command="gh pr edit 1 --title hi")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "MCP tool" in result.message
+        assert "Skill(" not in result.message
+
+    def test_should_run_true_for_gh_pr_edit(self, validator: SkillRedirectValidator) -> None:
+        inp = _make_input(command="gh pr edit 1 --title hi")
+        assert validator.should_run(inp=inp) is True
+
+
 class TestMessageContent:
     def test_message_includes_skill_name(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="git push origin main")

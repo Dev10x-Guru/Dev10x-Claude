@@ -187,6 +187,20 @@ MCP tool names belong only in:
 - Claude tool-call invocations (the agent calls the tool directly)
 - Documentation describing which tools a skill uses
 
+### Routed GitHub CLI operations
+
+The skill-redirect hook routes documented `gh` operations to MCP
+wrappers. Use the MCP tool; the raw CLI is a fallback only when
+the MCP server is unavailable.
+
+| Raw CLI | MCP tool |
+|---------|----------|
+| `gh issue view` | `mcp__plugin_Dev10x_cli__issue_get` |
+| `gh issue create` | `mcp__plugin_Dev10x_cli__issue_create` |
+| `gh pr edit` | `mcp__plugin_Dev10x_cli__update_pr` |
+| `gh pr create` | `Dev10x:gh-pr-create` (wraps `create_pr`) |
+| `gh pr merge` | `Dev10x:gh-pr-merge` |
+
 ## Official GitHub MCP Server
 
 We do **not** use [`github/github-mcp-server`](https://github.com/github/github-mcp-server).
