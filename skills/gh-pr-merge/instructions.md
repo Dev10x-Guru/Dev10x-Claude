@@ -348,25 +348,39 @@ If any check fails, show `[ ]` with failure details:
 
 ### Step 5: Merge or refuse
 
-**All checks pass:** Execute merge with configured strategy:
+**All checks pass:** Execute merge via the MCP tool (GH-232):
 
-```bash
-gh pr merge NUMBER --repo OWNER/REPO --STRATEGY --delete-branch
+```
+mcp__plugin_Dev10x_cli__merge_pr(
+    pr_number=NUMBER,
+    strategy="rebase",        # or "squash" / "merge" per config
+    delete_branch=True,       # or False per config
+    repo="OWNER/REPO",        # auto-detected if omitted
+)
 ```
 
-Where `--STRATEGY` is one of `--squash`, `--rebase`, or
-`--merge` based on config.
+The MCP tool wraps `gh pr merge` inside the MCP server's
+subprocess, so the PreToolUse hook that blocks raw `gh pr
+merge` Bash invocations does not apply. This is the only
+authorized way to execute the merge — do NOT fall back to
+`DEV10X_SKIP_CMD_VALIDATION=true gh pr merge ...`, which is
+reserved for transient MCP-unavailability emergencies and
+not for the documented Step 5 flow.
 
-**Worktree safety (GH-773):** Always include `--repo OWNER/REPO`
-in the merge command. Without it, `gh pr merge` tries to check
-out the base branch locally, which fails in worktree setups
-where the base branch is already checked out in another
-worktree (`fatal: 'develop' is already used by worktree`).
-The `--repo` flag bypasses local checkout entirely. Detect
-the repo via `gh repo view --json nameWithOwner -q
-.nameWithOwner`.
+The tool returns `{pr_number, url, strategy, branch_deleted,
+repo}` on success and `{error: "..."}` on failure.
 
-If `delete_branch` is `false`, omit `--delete-branch`.
+**Worktree safety (GH-773):** The tool always passes
+`--repo OWNER/REPO` to `gh pr merge` (auto-detected when
+`repo` is omitted) so it never tries to check out the base
+branch locally — required when the base branch is already
+checked out in another worktree.
+
+**MCP unavailable fallback:** If the MCP server is
+disconnected (`merge_pr` listed as "no longer available" in
+system-reminders), STOP and ask the user to reconnect via
+`/mcp` or restart the session. Raw `gh pr merge` is blocked
+and the SKIP env-var prefix is not the documented contract.
 
 **Any check fails:** Do NOT merge. Report which checks failed
 and what action is needed to resolve each one. Suggest the

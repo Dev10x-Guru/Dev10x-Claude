@@ -747,6 +747,47 @@ class TestUpdatePrMcp:
         assert "error" in result
 
 
+class TestMergePrMcp:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.merge_pr", new_callable=AsyncMock)
+    async def test_delegates_to_github_module(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = ok(
+            {
+                "pr_number": 42,
+                "url": "https://github.com/o/r/pull/42",
+                "strategy": "rebase",
+                "branch_deleted": True,
+                "repo": "o/r",
+            }
+        )
+
+        result = await cli_server.merge_pr(pr_number=42)
+
+        assert result["pr_number"] == 42
+        assert result["strategy"] == "rebase"
+        assert mock_fn.call_args.kwargs == {
+            "pr_number": 42,
+            "strategy": "rebase",
+            "delete_branch": True,
+            "repo": None,
+        }
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.merge_pr", new_callable=AsyncMock)
+    async def test_returns_error_on_failure(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = err("not mergeable")
+
+        result = await cli_server.merge_pr(pr_number=42)
+
+        assert "error" in result
+
+
 class TestGenerateCommitListMcp:
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run_script", new_callable=AsyncMock)

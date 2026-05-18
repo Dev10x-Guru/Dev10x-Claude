@@ -12,11 +12,11 @@ invocation-name: Dev10x:gh-pr-merge
 allowed-tools:
   - AskUserQuestion
   - Bash(gh pr view:*)
-  - Bash(gh pr merge:*)
   - Bash(gh pr checks:*)
   - Bash(gh api graphql:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-merge/scripts/:*)
   - mcp__plugin_Dev10x_cli__check_top_level_comments
+  - mcp__plugin_Dev10x_cli__merge_pr
   - Bash(gh repo view:*)
   - Bash(git status:*)
   - Bash(git log:*)
@@ -51,8 +51,10 @@ GH-152 caught a session where the agent ran
 partially reading this SKILL.md — only the CI check was
 performed inline, every other check was skipped.
 
-The PreToolUse hook for raw `gh pr merge` is tracked
-separately (extends the existing blocks on `git commit`,
-`git push`, and `git checkout -b`). Until the hook lands,
-the contract is enforced by convention: agent self-discipline
-plus orchestrator skill-routing tables.
+The PreToolUse hook blocks raw `gh pr merge` (extends the
+existing blocks on `git commit`, `git push`, and `git
+checkout -b`). The skill executes Step 5 via
+`mcp__plugin_Dev10x_cli__merge_pr` (GH-232) — symmetric to
+`create_pr` / `push_safe` — so the documented flow ships
+through a structured MCP tool instead of relying on the
+`DEV10X_SKIP_CMD_VALIDATION` escape hatch.

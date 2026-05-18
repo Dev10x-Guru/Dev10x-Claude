@@ -1586,6 +1586,85 @@ class TestCreatePr:
         assert "branch not pushed" in result.error
 
 
+class TestMergePr:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_merges_pr_with_defaults(
+        self,
+        mock_run: AsyncMock,
+        mock_resolve_repo,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="merged\n")
+
+        result = await gh.merge_pr(pr_number=42)
+
+        assert isinstance(result, SuccessResult)
+        assert result.value == {
+            "pr_number": 42,
+            "url": "https://github.com/owner/repo/pull/42",
+            "strategy": "rebase",
+            "branch_deleted": True,
+            "repo": "owner/repo",
+        }
+        called_args = mock_run.call_args.kwargs["args"]
+        assert called_args == [
+            "gh",
+            "pr",
+            "merge",
+            "42",
+            "--repo",
+            "owner/repo",
+            "--rebase",
+            "--delete-branch",
+        ]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_squash_strategy_without_delete_branch(
+        self,
+        mock_run: AsyncMock,
+        mock_resolve_repo,
+    ) -> None:
+        mock_run.return_value = _completed()
+
+        result = await gh.merge_pr(
+            pr_number=7,
+            strategy="squash",
+            delete_branch=False,
+        )
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["strategy"] == "squash"
+        assert result.value["branch_deleted"] is False
+        called_args = mock_run.call_args.kwargs["args"]
+        assert "--squash" in called_args
+        assert "--delete-branch" not in called_args
+
+    @pytest.mark.asyncio
+    async def test_rejects_invalid_strategy(self) -> None:
+        result = await gh.merge_pr(pr_number=1, strategy="bogus")
+
+        assert isinstance(result, ErrorResult)
+        assert "Invalid merge strategy" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_returns_error_on_gh_failure(
+        self,
+        mock_run: AsyncMock,
+        mock_resolve_repo,
+    ) -> None:
+        mock_run.return_value = _completed(
+            returncode=1,
+            stderr="Pull request is not mergeable",
+        )
+
+        result = await gh.merge_pr(pr_number=42)
+
+        assert isinstance(result, ErrorResult)
+        assert "not mergeable" in result.error
+
+
 class TestGenerateCommitList:
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run_script", new_callable=AsyncMock)

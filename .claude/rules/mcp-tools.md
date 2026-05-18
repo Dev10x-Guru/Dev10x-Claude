@@ -95,6 +95,7 @@ supporting each tool:
 | `pre_pr_checks` | `cli` | PR #191 | v0.30.0+ |
 | `create_pr` | `cli` | PR #191 | v0.30.0+ |
 | `update_pr` | `cli` | GH-60 | v0.70.0+ |
+| `merge_pr` | `cli` | GH-232 | v0.73.0+ |
 | `milestone_close` | `cli` | GH-187 | v0.71.0+ |
 | `milestone_create` | `cli` | GH-220 | v0.73.0+ |
 | `issue_edit` | `cli` | GH-220 | v0.73.0+ |
@@ -207,7 +208,7 @@ the MCP server is unavailable.
 | `gh api .../milestones POST` | `mcp__plugin_Dev10x_cli__milestone_create` |
 | `gh pr edit` | `mcp__plugin_Dev10x_cli__update_pr` |
 | `gh pr create` | `Dev10x:gh-pr-create` (wraps `create_pr`) |
-| `gh pr merge` | `Dev10x:gh-pr-merge` |
+| `gh pr merge` | `Dev10x:gh-pr-merge` (wraps `merge_pr`) |
 
 ## Official GitHub MCP Server
 
