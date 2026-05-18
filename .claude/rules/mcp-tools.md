@@ -101,6 +101,9 @@ supporting each tool:
 | `issue_comment` | `cli` | GH-220 | v0.73.0+ |
 | `issue_list` | `cli` | GH-220 | v0.73.0+ |
 | `slack_thread_is_forward` | `cli` | GH-218 | v0.73.0+ |
+| `milestones_bulk_create` | `cli` | GH-222 | v0.73.0+ |
+| `issues_bulk_create` | `cli` | GH-222 | v0.73.0+ |
+| `issues_bulk_edit` | `cli` | GH-222 | v0.73.0+ |
 | `generate_commit_list` | `cli` | PR #191 | v0.30.0+ |
 | `post_summary_comment` | `cli` | PR #191 | v0.30.0+ |
 | `pr_notify` | `cli` | PR #191 | v0.30.0+ |

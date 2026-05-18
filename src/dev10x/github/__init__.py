@@ -961,6 +961,143 @@ async def issue_list(
     return ok({"issues": issues})
 
 
+async def milestones_bulk_create(
+    *,
+    milestones: list[dict[str, Any]],
+    repo: str | None = None,
+) -> Result[dict[str, Any]]:
+    """Create multiple GitHub milestones in one call (GH-222).
+
+    Iterates milestone_create per entry; collects per-milestone
+    successes and failures. The call does not short-circuit on
+    individual failures so the caller sees the full batch outcome.
+
+    Args:
+        milestones: List of dicts; each entry accepts ``title`` (required),
+            ``description`` (optional), and ``due_on`` (optional).
+        repo: Repository (owner/repo). Auto-detected if omitted.
+
+    Returns:
+        On success: ``{"created": [{title, number, url}, ...],
+        "failed": [{title, error}, ...]}``. The wrapper never
+        errors as long as at least one entry was attempted; entry-
+        level failures land in ``failed``.
+    """
+    if not milestones:
+        return err("milestones_bulk_create requires at least one milestone")
+
+    created: list[dict[str, Any]] = []
+    failed: list[dict[str, Any]] = []
+    for entry in milestones:
+        title = entry.get("title")
+        if not title:
+            failed.append({"title": entry.get("title"), "error": "missing title"})
+            continue
+        result = await milestone_create(
+            title=title,
+            description=entry.get("description"),
+            due_on=entry.get("due_on"),
+            repo=repo,
+        )
+        if isinstance(result, ErrorResult):
+            failed.append({"title": title, "error": result.error})
+        else:
+            created.append(result.value)
+    return ok({"created": created, "failed": failed})
+
+
+async def issues_bulk_create(
+    *,
+    issues: list[dict[str, Any]],
+    repo: str | None = None,
+) -> Result[dict[str, Any]]:
+    """Create multiple GitHub issues in one call (GH-222).
+
+    Iterates issue_create per entry; collects per-issue successes
+    and failures. Use for batch project scaffolding (e.g.,
+    Dev10x:project-scope creating N tickets).
+
+    Args:
+        issues: List of dicts; each entry accepts ``title`` (required),
+            ``body`` (optional), ``labels`` (optional list of str),
+            ``milestone`` (optional).
+        repo: Repository (owner/repo). Auto-detected if omitted.
+
+    Returns:
+        ``{"created": [{number, url, title}, ...],
+        "failed": [{title, error}, ...]}``.
+    """
+    if not issues:
+        return err("issues_bulk_create requires at least one issue")
+
+    created: list[dict[str, Any]] = []
+    failed: list[dict[str, Any]] = []
+    for entry in issues:
+        title = entry.get("title")
+        if not title:
+            failed.append({"title": entry.get("title"), "error": "missing title"})
+            continue
+        result = await issue_create(
+            title=title,
+            body=entry.get("body"),
+            labels=entry.get("labels"),
+            milestone=entry.get("milestone"),
+            repo=repo,
+        )
+        if isinstance(result, ErrorResult):
+            failed.append({"title": title, "error": result.error})
+        else:
+            payload = dict(result.value)
+            payload.setdefault("title", title)
+            created.append(payload)
+    return ok({"created": created, "failed": failed})
+
+
+async def issues_bulk_edit(
+    *,
+    edits: list[dict[str, Any]],
+    repo: str | None = None,
+) -> Result[dict[str, Any]]:
+    """Edit multiple GitHub issues in one call (GH-222).
+
+    Iterates issue_edit per entry; collects per-issue successes
+    and failures. Use for batch milestone reassignment, label
+    additions, or title/body fixes across many issues.
+
+    Args:
+        edits: List of dicts; each entry requires ``number`` and at
+            least one of ``title``, ``body``, ``milestone``, ``labels``.
+        repo: Repository (owner/repo). Auto-detected if omitted.
+
+    Returns:
+        ``{"edited": [{number, url}, ...],
+        "failed": [{number, error}, ...]}``.
+    """
+    if not edits:
+        return err("issues_bulk_edit requires at least one edit")
+
+    edited: list[dict[str, Any]] = []
+    failed: list[dict[str, Any]] = []
+    for entry in edits:
+        number = entry.get("number")
+        if not isinstance(number, int):
+            failed.append({"number": number, "error": "missing or non-integer number"})
+            continue
+        result = await issue_edit(
+            number=number,
+            title=entry.get("title"),
+            body=entry.get("body"),
+            milestone=entry.get("milestone"),
+            labels=entry.get("labels"),
+            repo=repo,
+        )
+        if isinstance(result, ErrorResult):
+            failed.append({"number": number, "error": result.error})
+        else:
+            edited.append(result.value)
+    return ok({"edited": edited, "failed": failed})
+
+
 async def generate_commit_list(
     *,
     pr_number: int,

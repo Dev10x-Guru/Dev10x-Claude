@@ -21,15 +21,18 @@ allowed-tools:
   - mcp__claude_ai_Linear__list_milestones
   - mcp__claude_ai_Linear__list_issue_statuses
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-context/scripts/:*)
-  - Bash(gh issue create:*)
   - Bash(gh label create:*)
-  - Bash(gh api repos/:*)
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
   - Skill(Dev10x:ticket-create)
-  - Bash(gh issue view:*)
-  - Bash(gh issue edit:*)
-  - Bash(gh api:*)
   - mcp__plugin_Dev10x_cli__detect_tracker
+  - mcp__plugin_Dev10x_cli__milestone_create
+  - mcp__plugin_Dev10x_cli__milestones_bulk_create
+  - mcp__plugin_Dev10x_cli__issue_create
+  - mcp__plugin_Dev10x_cli__issue_edit
+  - mcp__plugin_Dev10x_cli__issue_comment
+  - mcp__plugin_Dev10x_cli__issue_list
+  - mcp__plugin_Dev10x_cli__issues_bulk_create
+  - mcp__plugin_Dev10x_cli__issues_bulk_edit
 ---
 
 # Project Scope - Multi-Ticket Project Creation
@@ -191,10 +194,17 @@ the relevant instructions in the agent's prompt.
 | Operation | Linear | JIRA | GitHub Issues |
 |-----------|--------|------|---------------|
 | Create project | `save_project` (optional) | Epic via `Dev10x:jira` | N/A (use milestones) |
-| Create milestone | `save_milestone` | Sprint/Fix Version via `Dev10x:jira` | `gh api repos/{owner}/{repo}/milestones --method POST` |
+| Create milestone | `save_milestone` | Sprint/Fix Version via `Dev10x:jira` | `mcp__plugin_Dev10x_cli__milestone_create` (single) / `milestones_bulk_create` (batch) |
 | Create label | (via `save_issue`) | (via `Dev10x:jira`) | `gh label create` |
-| Create ticket | `save_issue` + milestone + project | via `Dev10x:jira` | `gh issue create --milestone --label --body-file` |
-| Set blocking | `save_issue` blockedBy/blocks | Link via `Dev10x:jira` | Cross-reference in issue body (no native blocking) |
+| Create ticket | `save_issue` + milestone + project | via `Dev10x:jira` | `mcp__plugin_Dev10x_cli__issue_create` (single) / `issues_bulk_create` (batch) |
+| Edit ticket | `save_issue` (upsert) | via `Dev10x:jira` | `mcp__plugin_Dev10x_cli__issue_edit` / `issues_bulk_edit` (batch) |
+| Set blocking | `save_issue` blockedBy/blocks | Link via `Dev10x:jira` | `mcp__plugin_Dev10x_cli__issue_comment` cross-reference (no native blocking) |
+
+GitHub Issues operations route through MCP wrappers — raw `gh issue
+edit`, `gh issue comment`, `gh api .../milestones POST`, and `gh
+issue create` are blocked by the skill-redirect hook. The MCP path
+avoids per-invocation permission prompts and returns structured
+responses.
 
 ### 3.2 Create/Resolve Parent Ticket
 
@@ -218,61 +228,80 @@ See `Dev10x:linear` § Project Assignment for the full pattern.
 
 ### 3.4 Create Milestones
 
-Create milestones sequentially (tickets reference them by ID).
 Check for existing milestones by name before creating to avoid
-duplicates.
+duplicates — call `mcp__plugin_Dev10x_cli__issue_list` with a
+`milestone:` filter, or query directly via the tracker API.
+
+**GitHub Issues:** Call `mcp__plugin_Dev10x_cli__milestones_bulk_create`
+once with the full list. The wrapper iterates `milestone_create`
+per entry and returns `{created: [...], failed: [...]}`. Failed
+entries do not abort the batch — inspect `failed` for duplicates
+or validation errors and address them before proceeding to 3.5.
+
+For one or two milestones, prefer the single-entry tool
+`mcp__plugin_Dev10x_cli__milestone_create` to keep payloads simple.
 
 ### 3.5 Create Tickets
 
 Create all tickets with milestone and project assignments.
 Use the project UUID resolved in 3.3 — never pass a display name.
-Batch creation is possible since all milestones exist at this point.
 Check for existing tickets by title before creating.
 
 **GitHub Issues batch pattern (10+ issues):**
 
-When creating many issues, use a sidecar metadata pattern to keep
-issue bodies clean and reduce permission friction:
-
-1. Create a temp directory for the batch:
-   ```bash
-   BATCH_DIR=$(/tmp/Dev10x/bin/mktmp.sh -d gh-issues batch)
+1. Write each ticket body to a temp file via the Write tool. Keep
+   the file as **clean Markdown only** — no metadata header. Use
+   `mcp__plugin_Dev10x_cli__mktmp` to allocate the path:
+   `mktmp(namespace="gh-issues", prefix="NNN-slug", ext=".md")`.
+2. Build the `issues` payload as a list of dicts:
+   ```python
+   issues = [
+     {
+       "title": "Ticket title here",
+       "body": Read("<path-from-mktmp>"),  # body content from step 1
+       "milestone": "Milestone Name",
+       "labels": ["enhancement", "area/payments"],
+     },
+     # ... one entry per ticket
+   ]
    ```
-2. For each issue, write two files via the Write tool:
-   - `$BATCH_DIR/NNN-slug.md` — clean body content only
-   - `$BATCH_DIR/NNN-slug.vars` — metadata:
-     ```bash
-     TITLE="Ticket title here"
-     MILESTONE="Milestone Name"
-     LABELS="enhancement,area/payments"
-     ```
-3. Create issues by iterating inline (no temp script):
-   ```bash
-   for vars in $BATCH_DIR/*.vars; do
-     source "$vars"
-     body="${vars%.vars}.md"
-     gh issue create --repo "$REPO" --title "$TITLE" \
-       --body-file "$body" --milestone "$MILESTONE" --label "$LABELS"
-   done
-   ```
+3. Call `mcp__plugin_Dev10x_cli__issues_bulk_create(issues=issues)`
+   in a single tool call. The wrapper returns
+   `{created: [{number, url, title}, ...], failed: [...]}`. The
+   batch does not abort on individual failures — inspect `failed`
+   and retry per-entry as needed.
 
-This pattern was discovered in a session creating 36 issues — a single
-loop approval replaced 36 individual `gh issue create` approvals.
+A single bulk call replaces N per-ticket `gh issue create`
+invocations and removes the per-invocation permission prompts
+that the loop pattern produced.
 
-**Anti-patterns to avoid (permission friction):**
+For one or two tickets, prefer `mcp__plugin_Dev10x_cli__issue_create`
+directly.
 
-- Do NOT use command substitution in `gh` commands:
-  `gh issue edit --body "$(gh issue view ... | sed ...)"` — the `$()` breaks
-  allow-rule prefix matching. Instead, write the body to a temp file first
-  via Write tool, then `gh issue edit --body-file /tmp/file.md`.
-- Do NOT prefix `gh` commands with env var assignments:
-  `REPO="owner/repo" gh issue create ...` — the env prefix shifts the command
-  prefix. Use `--repo owner/repo` inline instead.
+**Batch edits:** When the same field needs to change across many
+tickets (e.g., reassigning milestone after the project has
+re-shaped), build an `edits` list and call
+`mcp__plugin_Dev10x_cli__issues_bulk_edit` once. Each entry
+requires `number` plus at least one of `title`, `body`,
+`milestone`, `labels`.
+
+**If raw `gh` is needed as fallback** (e.g., MCP server
+unavailable): write bodies to temp files via Write tool, then
+`gh issue create --body-file ...`. Watch for these friction
+sources — they exist for raw `gh` only:
+
+- Command substitution: `gh issue edit --body "$(gh issue view ...)"`
+  breaks allow-rule prefix matching. Write to a temp file first.
+- Env-var prefix: `REPO="owner/repo" gh issue create ...` shifts
+  the command prefix. Use `--repo owner/repo` inline.
 
 ### 3.6 Set Blocking Relationships
 
 Set blocking/blocked-by relationships between tickets per the
-approved blocking chain. Execute in parallel since all tickets exist.
+approved blocking chain. On GitHub Issues, blocking is conveyed
+via cross-reference comments — call
+`mcp__plugin_Dev10x_cli__issue_comment(number, body)` per
+relationship. Execute in parallel since all tickets exist.
 
 ### 3.7 Link Tickets to Project
 
