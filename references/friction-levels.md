@@ -234,10 +234,31 @@ Skills adopting friction-level awareness should:
 3. Add tests for adaptive auto-selection logic
 4. Update playbook steps if level-specific behavior differs
 
+## Walk-Away Layer
+
+`Dev10x:afk` adds a `walk_away: true` flag on top of `adaptive`
+that further suppresses `AskUserQuestion` gates which do not
+classify as destructive or blocking. Suppressed doubts are
+logged to a configured `doubt_sink` (PR description by default)
+instead of pausing execution.
+
+Walk-away is **orthogonal to friction level** — it changes
+*which gates fire at all*, not how a fired gate resolves. See
+`references/walk-away.md` for the full contract and
+classification table.
+
+Precedence at a single gate:
+
+1. Destructive or blocking → fire (walk-away does not waive)
+2. Else `walk_away: true` → suppress + log to `doubt_sink`
+3. Else friction_level rules apply (strict/guided/adaptive)
+
 ## References
 
 - ADR-0002: Data-driven skill redirect with friction levels
 - `references/execution-modes.md`: Structural modes (orthogonal)
+- `references/walk-away.md`: Walk-away layer contract
 - `src/dev10x/validators/command-skill-map.yaml`: Config source
 - `src/dev10x/validators/skill_redirect.py`: Hook implementation
 - `skills/verify-acc-dod/SKILL.md`: First skill-level adopter
+- `skills/afk/SKILL.md`: Walk-away mode skill
