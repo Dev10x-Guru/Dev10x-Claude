@@ -112,7 +112,7 @@ def _get_config_and_engine() -> tuple[Config, RuleEngine]:
 
 
 _QUICK_TOKENS = frozenset(
-    ["commit", "create", "push", "rebase", "checks", "issue", "merge", "edit"]
+    ["commit", "create", "push", "rebase", "checks", "issue", "merge", "edit", "api"]
 )
 
 _COMMIT_HEAL_MSG = (

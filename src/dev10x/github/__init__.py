@@ -742,6 +742,225 @@ async def milestone_close(
     return ok({"number": number, "state": "closed", "url": url})
 
 
+async def milestone_create(
+    *,
+    title: str,
+    description: str | None = None,
+    due_on: str | None = None,
+    repo: str | None = None,
+) -> Result[dict[str, Any]]:
+    """Create a GitHub milestone (GH-220).
+
+    Wraps ``gh api repos/{r}/milestones --method POST``.
+
+    Args:
+        title: Milestone title (required, must be unique within repo).
+        description: Optional milestone description.
+        due_on: Optional ISO-8601 timestamp for the due date.
+        repo: Repository (owner/repo). Auto-detected if omitted.
+
+    Returns:
+        On success: ``{"number": int, "title": str, "url": str}``.
+    """
+    repo_result = await _resolve_repo(repo)
+    if isinstance(repo_result, ErrorResult):
+        return err(repo_result.error)
+    repo_ref = repo_result.value
+
+    fields: dict[str, str | int | list[str]] = {"title": title}
+    if description is not None:
+        fields["description"] = description
+    if due_on is not None:
+        fields["due_on"] = due_on
+
+    result = await _gh_api(
+        f"repos/{repo_ref}/milestones",
+        method="POST",
+        fields=fields,
+    )
+    if result.returncode != 0:
+        return err(result.stderr.strip())
+    data = json.loads(result.stdout) if result.stdout.strip() else {}
+    number = int(data.get("number", 0))
+    return ok(
+        {
+            "number": number,
+            "title": data.get("title", title),
+            "url": f"https://github.com/{repo_ref}/milestone/{number}",
+        }
+    )
+
+
+async def issue_edit(
+    *,
+    number: int,
+    title: str | None = None,
+    body: str | None = None,
+    milestone: str | None = None,
+    labels: list[str] | None = None,
+    repo: str | None = None,
+) -> Result[dict[str, Any]]:
+    """Edit a GitHub issue's metadata (GH-220).
+
+    Wraps ``gh issue edit``. Accepts partial updates (any subset of
+    title, body, milestone, labels).
+
+    Args:
+        number: Issue number to edit.
+        title: New title (optional).
+        body: New body text (optional). Written to a temp file to avoid
+            heredoc/quoting issues at the subprocess boundary.
+        milestone: Milestone title to assign (optional). Pass empty
+            string to clear.
+        labels: Replacement label list (optional). Each entry passed
+            via ``--add-label``.
+        repo: Repository (owner/repo). Auto-detected if omitted.
+
+    Returns:
+        On success: ``{"number": int, "url": str}``.
+    """
+    if title is None and body is None and milestone is None and not labels:
+        return err("issue_edit requires at least one of: title, body, milestone, labels")
+
+    args = ["gh", "issue", "edit", str(number)]
+    if title is not None:
+        args.extend(["--title", title])
+    body_path: Path | None = None
+    if body is not None:
+        import tempfile
+
+        fd_path = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False, encoding="utf-8"
+        )
+        fd_path.write(body)
+        fd_path.close()
+        body_path = Path(fd_path.name)
+        args.extend(["--body-file", str(body_path)])
+    if milestone is not None:
+        args.extend(["--milestone", milestone])
+    if labels:
+        for label in labels:
+            args.extend(["--add-label", label])
+    if repo:
+        args.extend(["--repo", repo])
+
+    try:
+        result = await async_run(args=args, timeout=30)
+    finally:
+        if body_path is not None:
+            body_path.unlink(missing_ok=True)
+
+    if result.returncode != 0:
+        return err(result.stderr.strip())
+
+    repo_result = await _resolve_repo(repo)
+    if isinstance(repo_result, ErrorResult):
+        return ok({"number": number, "url": result.stdout.strip()})
+    return ok(
+        {
+            "number": number,
+            "url": f"https://github.com/{repo_result.value}/issues/{number}",
+        }
+    )
+
+
+async def issue_comment(
+    *,
+    number: int,
+    body: str,
+    repo: str | None = None,
+) -> Result[dict[str, Any]]:
+    """Post a comment on a GitHub issue (GH-220).
+
+    Wraps ``gh issue comment N --body-file <tmp>``. Body is written
+    to a temp file to avoid heredoc/quoting issues.
+
+    Args:
+        number: Issue number to comment on.
+        body: Comment body (Markdown supported).
+        repo: Repository (owner/repo). Auto-detected if omitted.
+
+    Returns:
+        On success: ``{"url": str}`` — the comment permalink.
+    """
+    import tempfile
+
+    fd = tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False, encoding="utf-8")
+    fd.write(body)
+    fd.close()
+    body_path = Path(fd.name)
+
+    args = ["gh", "issue", "comment", str(number), "--body-file", str(body_path)]
+    if repo:
+        args.extend(["--repo", repo])
+
+    try:
+        result = await async_run(args=args, timeout=30)
+    finally:
+        body_path.unlink(missing_ok=True)
+
+    if result.returncode != 0:
+        return err(result.stderr.strip())
+
+    return ok({"url": result.stdout.strip()})
+
+
+async def issue_list(
+    *,
+    repo: str | None = None,
+    state: str = "open",
+    milestone: str | None = None,
+    labels: list[str] | None = None,
+    limit: int = 30,
+    search: str | None = None,
+) -> Result[dict[str, Any]]:
+    """List GitHub issues (GH-220).
+
+    Wraps ``gh issue list ... --json
+    number,title,labels,milestone,state,url``.
+
+    Args:
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        state: Filter by state: ``open`` (default), ``closed``, ``all``.
+        milestone: Filter by milestone title or number.
+        labels: Filter by labels (issues matching ALL labels).
+        limit: Max results to return (default 30).
+        search: Free-text search filter passed via ``--search``.
+
+    Returns:
+        ``{"issues": [{number, title, labels, milestone, state, url}, ...]}``.
+    """
+    args = [
+        "gh",
+        "issue",
+        "list",
+        "--state",
+        state,
+        "--limit",
+        str(limit),
+        "--json",
+        "number,title,labels,milestone,state,url",
+    ]
+    if repo:
+        args.extend(["--repo", repo])
+    if milestone:
+        args.extend(["--milestone", milestone])
+    if labels:
+        for label in labels:
+            args.extend(["--label", label])
+    if search:
+        args.extend(["--search", search])
+
+    result = await async_run(args=args, timeout=30)
+    if result.returncode != 0:
+        return err(result.stderr.strip())
+    try:
+        issues = json.loads(result.stdout) if result.stdout.strip() else []
+    except json.JSONDecodeError:
+        return err(f"Invalid JSON output: {result.stdout[:200]}")
+    return ok({"issues": issues})
+
+
 async def generate_commit_list(
     *,
     pr_number: int,

@@ -382,6 +382,52 @@ class TestGhPrEditRedirect:
         assert validator.should_run(inp=inp) is True
 
 
+class TestGhIssueEditRedirect:
+    def test_blocks_gh_issue_edit(self, validator: SkillRedirectValidator) -> None:
+        inp = _make_input(command="gh issue edit 42 --title 'New title'")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "mcp__plugin_Dev10x_cli__issue_edit" in result.message
+
+    def test_blocks_gh_issue_edit_milestone(self, validator: SkillRedirectValidator) -> None:
+        inp = _make_input(command="gh issue edit 1 --milestone 'M2'")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "mcp__plugin_Dev10x_cli__issue_edit" in result.message
+
+    def test_should_run_true_for_gh_issue_edit(self, validator: SkillRedirectValidator) -> None:
+        inp = _make_input(command="gh issue edit 1 --title hi")
+        assert validator.should_run(inp=inp) is True
+
+
+class TestGhIssueCommentRedirect:
+    def test_blocks_gh_issue_comment(self, validator: SkillRedirectValidator) -> None:
+        inp = _make_input(command="gh issue comment 42 --body 'thanks'")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "mcp__plugin_Dev10x_cli__issue_comment" in result.message
+
+    def test_blocks_gh_issue_comment_body_file(self, validator: SkillRedirectValidator) -> None:
+        inp = _make_input(command="gh issue comment 1 --body-file /tmp/c.md")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "mcp__plugin_Dev10x_cli__issue_comment" in result.message
+
+
+class TestGhMilestoneCreateRedirect:
+    def test_blocks_milestone_create_method_post(self, validator: SkillRedirectValidator) -> None:
+        cmd = "gh api repos/Dev10x-Guru/Dev10x-Claude/milestones --method POST -f title=M3"
+        result = validator.validate(inp=_make_input(command=cmd))
+        assert result is not None
+        assert "mcp__plugin_Dev10x_cli__milestone_create" in result.message
+
+    def test_blocks_milestone_create_x_post(self, validator: SkillRedirectValidator) -> None:
+        cmd = "gh api repos/o/r/milestones -X POST -f title=M"
+        result = validator.validate(inp=_make_input(command=cmd))
+        assert result is not None
+        assert "mcp__plugin_Dev10x_cli__milestone_create" in result.message
+
+
 class TestMessageContent:
     def test_message_includes_skill_name(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="git push origin main")
