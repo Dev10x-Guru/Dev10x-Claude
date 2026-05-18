@@ -90,6 +90,9 @@ step description. If you see that marker, you MUST call the
 4. Gate 4 (resolve threads): `AskUserQuestion` — MANDATORY
 5. Gate 5 (shipping pipeline): `AskUserQuestion` — MANDATORY
 6. Gate 6 (hide comments): `AskUserQuestion` — MANDATORY
+   (fires at every friction level, including `adaptive`; adaptive
+   auto-selects "Hide all resolved" but the gate still fires and
+   `minimize_comments` is invoked — GH-208)
 7. VALID comments: `Skill(Dev10x:gh-pr-fixup)` — NEVER inline,
    invoke immediately after triage verdict (no pause, no report)
 8. Triage: `Skill(Dev10x:gh-pr-triage)` — NEVER inline, even
@@ -745,6 +748,15 @@ Hide these comments?
 ```
 
 **REQUIRED: Call `AskUserQuestion`** (do NOT use plain text).
+**Adaptive friction does NOT skip this gate** — at
+`friction_level: adaptive`, the recommended option ("Hide all
+resolved") is auto-selected, but the `AskUserQuestion` call still
+fires and `mcp__plugin_Dev10x_cli__minimize_comments` MUST be
+invoked on the resolved comments. Silently auto-advancing into
+the shipping pipeline without calling `minimize_comments` is the
+GH-208 regression and is caught by the
+`gate6_fires_after_resolution` eval assertion.
+
 Options:
 - **"Hide all resolved" (Recommended)** — Minimize all resolved
   thread root comments with classifier `OUTDATED`
