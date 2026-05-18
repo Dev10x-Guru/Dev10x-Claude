@@ -7,6 +7,46 @@ from typing import Any
 
 _SUBCOMMAND_BOUNDARY = r"(?![-\w])"
 
+_SEARCH_TOOLS = frozenset({"find", "grep", "fgrep", "egrep", "rg", "ag", "ack", "xargs"})
+
+
+def _resolved_executable(command: str) -> str:
+    """Return the resolved executable basename for a shell command.
+
+    Strips shell wrappers (``bash``, ``sh``, ``env VAR=x``) so a search
+    tool invoked via ``bash`` is still recognized. Returns an empty
+    string when the command is malformed.
+    """
+    parts = command.strip().split()
+    idx = 0
+    while idx < len(parts):
+        head = parts[idx]
+        if head in ("bash", "sh"):
+            idx += 1
+            continue
+        if head == "env":
+            idx += 1
+            while idx < len(parts) and "=" in parts[idx]:
+                idx += 1
+            continue
+        return head.split("/")[-1]
+    return ""
+
+
+def _is_search_command(command: str) -> bool:
+    """Return True when the resolved executable is a filesystem search tool.
+
+    Used by :meth:`Rule.matches_command` to suppress false positives where
+    a rule pattern matches a filename appearing as a *search argument*
+    (e.g. ``find -name 'git-push-safe.sh'``) rather than a command being
+    executed (GH-210). Commands containing ``-exec`` or shell pipelines
+    keep their normal evaluation because they can run the searched-for
+    binary.
+    """
+    if "|" in command or "-exec" in command:
+        return False
+    return _resolved_executable(command=command) in _SEARCH_TOOLS
+
 
 def _anchor_subcommand(*, pattern: str) -> str:
     """Anchor a CLI subcommand pattern at the right edge.
@@ -98,6 +138,8 @@ class Rule:
         if not any(p.search(command) for p in self.compiled_patterns):
             return False
         if any(exc in command for exc in self.except_):
+            return False
+        if _is_search_command(command=command):
             return False
         return True
 
