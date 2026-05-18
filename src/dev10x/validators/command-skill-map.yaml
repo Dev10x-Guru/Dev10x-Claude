@@ -102,12 +102,14 @@ rules:
         skill: Dev10x:gh-pr-merge
         guardrails: 8 pre-merge checks (unresolved threads, CI, draft, mergeability, working copy, fixup commits, approval, branch protection)
         fallback: >
-          If Skill(Dev10x:gh-pr-merge) fails, manually verify all 8
-          pre-merge conditions: (1) all review threads resolved, (2)
-          CI green, (3) PR not draft, (4) MERGEABLE state, (5) no
-          uncommitted changes, (6) no unsquashed fixup! commits, (7)
-          approval or solo-maintainer override, (8) protected-branch
-          policy honored.
+          The skill's Step 5 executes the merge via
+          `mcp__plugin_Dev10x_cli__merge_pr` (GH-232) — symmetric
+          to `create_pr` / `push_safe`. Do NOT bypass this with
+          `DEV10X_SKIP_CMD_VALIDATION=true gh pr merge ...`; that
+          flag is reserved for transient MCP-unavailability
+          emergencies, not the documented flow. If the MCP tool is
+          unavailable, stop and ask the user to reconnect via
+          `/mcp` rather than running raw `gh pr merge`.
     reason: >
       Direct gh pr merge bypasses the 8 pre-merge checks the skill
       enforces. Adaptive friction does not waive the skill body —

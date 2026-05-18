@@ -719,6 +719,71 @@ async def update_pr(
     return ok({"pr_number": pr_number, "url": url})
 
 
+async def merge_pr(
+    *,
+    pr_number: int,
+    strategy: str = "rebase",
+    delete_branch: bool = True,
+    repo: str | None = None,
+) -> Result[dict[str, Any]]:
+    """Merge a pull request via ``gh pr merge``.
+
+    Symmetric to ``create_pr`` / ``update_pr`` — wraps the ``gh``
+    CLI so callers reach the same code path through a structured
+    MCP tool instead of a raw Bash command (GH-232). The subprocess
+    is launched from the MCP server, so the PreToolUse hook that
+    blocks raw ``gh pr merge`` Bash invocations does not apply.
+
+    Args:
+        pr_number: PR number to merge.
+        strategy: One of ``rebase``, ``squash``, ``merge``.
+        delete_branch: Pass ``--delete-branch`` when True.
+        repo: Repository (owner/repo). Auto-detected if omitted.
+            Always passed as ``--repo`` to ``gh pr merge`` so the
+            command never tries to check out the base branch
+            locally — required for worktree safety (GH-773).
+
+    Returns:
+        ok({"pr_number", "url", "strategy", "branch_deleted", "repo"})
+        on success, err(...) otherwise.
+    """
+    if strategy not in {"rebase", "squash", "merge"}:
+        return err(f"Invalid merge strategy: {strategy!r}. Use rebase, squash, or merge.")
+
+    repo_result = await _resolve_repo(repo)
+    if isinstance(repo_result, ErrorResult):
+        return err(repo_result.error)
+    repo_ref = repo_result.value
+
+    args = [
+        "gh",
+        "pr",
+        "merge",
+        str(pr_number),
+        "--repo",
+        str(repo_ref),
+        f"--{strategy}",
+    ]
+    if delete_branch:
+        args.append("--delete-branch")
+
+    result = await async_run(args=args, timeout=60)
+
+    if result.returncode != 0:
+        return err(result.stderr.strip() or result.stdout.strip())
+
+    url = f"https://github.com/{repo_ref}/pull/{pr_number}"
+    return ok(
+        {
+            "pr_number": pr_number,
+            "url": url,
+            "strategy": strategy,
+            "branch_deleted": delete_branch,
+            "repo": str(repo_ref),
+        }
+    )
+
+
 async def milestone_close(
     *,
     number: int,

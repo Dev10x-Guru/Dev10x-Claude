@@ -484,6 +484,55 @@ async def update_pr(
 
 
 @server.tool()
+async def merge_pr(
+    pr_number: int,
+    strategy: str = "rebase",
+    delete_branch: bool = True,
+    repo: str | None = None,
+    cwd: str | None = None,
+) -> dict:
+    """Merge a pull request via ``gh pr merge`` (GH-232).
+
+    Symmetric to ``create_pr``/``update_pr``. Provides a structured
+    MCP entry point for the merge so ``Dev10x:gh-pr-merge`` Step 5
+    can ship the merge without hitting the PreToolUse hook that
+    blocks raw ``gh pr merge`` Bash invocations.
+
+    The skill must still run all 8 pre-merge checks before calling
+    this tool — the hook block was the only reason the documented
+    Step 5 was unreachable; the checks themselves remain mandatory.
+
+    Args:
+        pr_number: PR number to merge.
+        strategy: One of ``rebase`` (default), ``squash``, ``merge``.
+            Resolved by the skill from
+            ``~/.claude/memory/Dev10x/settings-pr-merge.yaml``.
+        delete_branch: Pass ``--delete-branch`` to ``gh pr merge``
+            when True (default).
+        repo: Repository (owner/repo). Auto-detected if omitted.
+            Always passed as ``--repo`` to ``gh pr merge`` for
+            worktree safety (GH-773).
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: pr_number (int), url (str),
+        strategy (str), branch_deleted (bool), repo (str).
+    """
+    from dev10x import github as gh
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return (
+            await gh.merge_pr(
+                pr_number=pr_number,
+                strategy=strategy,
+                delete_branch=delete_branch,
+                repo=repo,
+            )
+        ).to_dict()
+
+
+@server.tool()
 async def issue_edit(
     number: int,
     title: str | None = None,
