@@ -690,6 +690,100 @@ async def milestone_create(
 
 
 @server.tool()
+async def milestones_bulk_create(
+    milestones: list[dict],
+    repo: str | None = None,
+    cwd: str | None = None,
+) -> dict:
+    """Create multiple GitHub milestones in one call (GH-222).
+
+    Iterates `milestone_create` per entry and collects per-entry
+    successes and failures.
+
+    Args:
+        milestones: List of dicts; each entry: {title, description?, due_on?}.
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: created (list), failed (list).
+    """
+    from dev10x import github as gh
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return (
+            await gh.milestones_bulk_create(
+                milestones=milestones,
+                repo=repo,
+            )
+        ).to_dict()
+
+
+@server.tool()
+async def issues_bulk_create(
+    issues: list[dict],
+    repo: str | None = None,
+    cwd: str | None = None,
+) -> dict:
+    """Create multiple GitHub issues in one call (GH-222).
+
+    Iterates `issue_create` per entry and collects per-entry
+    successes and failures.
+
+    Args:
+        issues: List of dicts; each entry: {title, body?, labels?, milestone?}.
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: created (list), failed (list).
+    """
+    from dev10x import github as gh
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return (
+            await gh.issues_bulk_create(
+                issues=issues,
+                repo=repo,
+            )
+        ).to_dict()
+
+
+@server.tool()
+async def issues_bulk_edit(
+    edits: list[dict],
+    repo: str | None = None,
+    cwd: str | None = None,
+) -> dict:
+    """Edit multiple GitHub issues in one call (GH-222).
+
+    Iterates `issue_edit` per entry and collects per-entry
+    successes and failures.
+
+    Args:
+        edits: List of dicts; each entry requires `number` and at least
+            one of `title`, `body`, `milestone`, `labels`.
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: edited (list), failed (list).
+    """
+    from dev10x import github as gh
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return (
+            await gh.issues_bulk_edit(
+                edits=edits,
+                repo=repo,
+            )
+        ).to_dict()
+
+
+@server.tool()
 async def slack_thread_is_forward(
     parent_body: str,
     reply_count: int,
