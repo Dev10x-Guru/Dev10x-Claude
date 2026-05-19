@@ -705,28 +705,48 @@ class TestLegitimateSkillCommands:
 
 
 class TestCommandPrefixOverride:
-    """DEV10X_SKIP_CMD_VALIDATION=true prefix bypasses all checks."""
+    """DEV10X_SKIP_CMD_VALIDATION rationale form bypasses, boolean is rejected (GH-226)."""
 
-    def test_prefix_bypasses_should_run(
+    def test_rationale_form_bypasses_should_run(
         self,
         validator: SkillRedirectValidator,
     ) -> None:
-        inp = _make_input(command="DEV10X_SKIP_CMD_VALIDATION=true git push origin main")
+        inp = _make_input(
+            command=(
+                'DEV10X_SKIP_CMD_VALIDATION="inside Dev10x:git-commit skill: '
+                'commit -F path validated by mktmp" git commit -F /tmp/x.txt'
+            )
+        )
         assert validator.should_run(inp=inp) is False
 
-    def test_prefix_case_insensitive(
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "DEV10X_SKIP_CMD_VALIDATION=true git push origin main",
+            "DEV10X_SKIP_CMD_VALIDATION=True git commit -m 'test'",
+            "DEV10X_SKIP_CMD_VALIDATION=1 gh pr create --title test",
+            "DEV10X_SKIP_CMD_VALIDATION=yes gh issue view 42",
+        ],
+    )
+    def test_boolean_form_is_rejected(
+        self,
+        validator: SkillRedirectValidator,
+        command: str,
+    ) -> None:
+        inp = _make_input(command=command)
+        assert validator.should_run(inp=inp) is True
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "Un-rationalized" in result.message
+        assert "rationale string of at least 20 chars" in result.message
+
+    def test_short_rationale_is_rejected(
         self,
         validator: SkillRedirectValidator,
     ) -> None:
-        inp = _make_input(command="DEV10X_SKIP_CMD_VALIDATION=True git commit -m 'test'")
-        assert validator.should_run(inp=inp) is False
-
-    def test_prefix_accepts_1(
-        self,
-        validator: SkillRedirectValidator,
-    ) -> None:
-        inp = _make_input(command="DEV10X_SKIP_CMD_VALIDATION=1 gh pr create --title test")
-        assert validator.should_run(inp=inp) is False
+        """Rationale strings shorter than 20 chars don't qualify as bypass."""
+        inp = _make_input(command='DEV10X_SKIP_CMD_VALIDATION="too short" git push origin main')
+        assert validator.should_run(inp=inp) is True
 
     def test_no_prefix_does_not_bypass(
         self,
@@ -735,14 +755,25 @@ class TestCommandPrefixOverride:
         inp = _make_input(command="git push origin main")
         assert validator.should_run(inp=inp) is True
 
-    def test_override_hint_in_block_message(
+    def test_override_hint_shows_rationale_form(
         self,
         validator: SkillRedirectValidator,
     ) -> None:
         inp = _make_input(command="git push origin main")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "DEV10X_SKIP_CMD_VALIDATION=true" in result.message
+        assert 'DEV10X_SKIP_CMD_VALIDATION="' in result.message
+        assert "rationale" in result.message.lower()
+
+    def test_override_hint_calls_out_boolean_rejection(
+        self,
+        validator: SkillRedirectValidator,
+    ) -> None:
+        inp = _make_input(command="git push origin main")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "boolean form" in result.message.lower()
+        assert "GH-226" in result.message
 
     def test_hint_instructs_prefix_not_env_var(
         self,

@@ -58,7 +58,47 @@ _YAML_PATH = Path(__file__).parent / "command-skill-map.yaml"
 
 SKIP_ENV_VAR = "DEV10X_SKIP_CMD_VALIDATION"
 
-SKIP_PREFIX_RE = re.compile(rf"^{SKIP_ENV_VAR}=(true|1)\s+", re.IGNORECASE)
+# Boolean (un-rationalized) form: =true / =1 / =yes — REJECTED (GH-226).
+# Skill authors must now provide a rationale string instead.
+BOOLEAN_SKIP_RE = re.compile(
+    rf"^{SKIP_ENV_VAR}=(true|1|yes)\s+",
+    re.IGNORECASE,
+)
+
+# Rationale form: a quoted non-empty string of at least 20 chars.
+# This is the only form that legitimately bypasses validation.
+RATIONALE_SKIP_RE = re.compile(
+    rf'^{SKIP_ENV_VAR}="([^"]{{20,}})"\s+',
+)
+
+UNRATIONALIZED_SKIP_MSG = f"""\
+⛔  Un-rationalized {SKIP_ENV_VAR} bypass — rejected.
+
+The boolean form ({SKIP_ENV_VAR}=true / =1 / =yes) is no longer
+accepted. It was being used as a procedural escape hatch instead
+of as a deliberate, skill-authorized exception.
+
+Before reaching for this flag, the agent MUST exhaust the
+alternatives the hook is steering toward:
+
+  1. Invoke the skill named in the block message (the skill exists
+     precisely to enforce the guardrails the raw command bypasses).
+  2. Use the MCP tool wrapper if the block names one — MCP calls
+     avoid the permission friction that drives this flag.
+  3. If a temp-file path or pathspec is the issue, use the mktmp
+     MCP tool / `git add` exclusion pathspec — never silent bypass.
+  4. If the MCP server is unavailable, reconnect via `/mcp` or a
+     session restart — do NOT skip validation as a workaround.
+
+ONLY when the above are genuinely depleted and you are authoring
+or executing inside a skill that legitimately needs the raw
+command, prefix it with a rationale string of at least 20 chars
+explaining why:
+
+  {SKIP_ENV_VAR}="<reason: what skill, what alternative failed>" <command>
+
+The rationale is recorded by the hook so the escape hatch stays
+auditable. Boolean forms are NOT a shortcut for "I already tried"."""
 
 OVERRIDE_HINT = (
     f"\n\n⚠️  Do NOT use {SKIP_ENV_VAR} as a shortcut "
@@ -71,9 +111,11 @@ OVERRIDE_HINT = (
     "because you already prepared inputs, or out of inertia is a "
     "procedural error — the skill exists precisely to enforce the "
     "guardrails you would otherwise skip.\n\n"
-    "ONLY if you are authoring or executing inside such a skill, "
-    "prefix it with:\n"
-    f"  {SKIP_ENV_VAR}=true <command>"
+    "ONLY if you are authoring or executing inside such a skill — "
+    "and you have exhausted skill / MCP-tool / mktmp alternatives — "
+    "prefix it with a rationale string of at least 20 chars:\n"
+    f'  {SKIP_ENV_VAR}="<reason for bypass>" <command>\n\n'
+    f"The boolean form ({SKIP_ENV_VAR}=true) is rejected (GH-226)."
 )
 
 MCP_UNAVAILABLE_HINT = (
@@ -187,12 +229,21 @@ class SkillRedirectValidator(ValidatorBase):
     capabilities: ClassVar[frozenset[str]] = frozenset({"validate", "correct"})
 
     def should_run(self, inp: HookInput) -> bool:
-        if SKIP_PREFIX_RE.match(inp.command):
+        # Rationale form is the only valid bypass — skip the validator
+        # entirely so the wrapped command runs without further checks.
+        if RATIONALE_SKIP_RE.match(inp.command):
             return False
+        # Boolean form must still run so validate() can reject it; the
+        # order matters because a malformed rationale could otherwise
+        # also match the boolean pattern.
+        if BOOLEAN_SKIP_RE.match(inp.command):
+            return True
         cmd_lower = inp.command.lower()
         return any(token in cmd_lower for token in _QUICK_TOKENS)
 
     def validate(self, inp: HookInput) -> HookResult | None:
+        if BOOLEAN_SKIP_RE.match(inp.command):
+            return HookResult(message=UNRATIONALIZED_SKIP_MSG)
         config, engine = _get_config_and_engine()
         rule = engine.evaluate_command(command=inp.command)
         if rule is None:
