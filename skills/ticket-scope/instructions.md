@@ -234,12 +234,78 @@ the diverged structure breaks audits and PR generation.
 - Objective/Problem Statement
 - Technical Approach
 - Architecture (components, dependencies)
+- **Entities** (property + relationship schemas — REASONS)
 - Implementation Steps (with file paths)
 - Code References
 - Dependencies (tickets)
-- Risks and Mitigations
 - Acceptance Criteria
+- **Norms** (project rules — populated by autopopulator, REASONS)
+- **Safeguards** (invariants & validation, distinct from Risks —
+  REASONS)
+- Risks and Mitigations (rollout-only failures)
 - Story Points
+
+**REASONS coverage check:** The seven SPDD REASONS dimensions are
+Requirements, Approach, Structure, Operations, Entities, Norms,
+Safeguards. Map them to template sections:
+
+| REASONS dimension | Template section(s) |
+|-------------------|---------------------|
+| Requirements | Objective / Problem Statement / Acceptance Criteria |
+| Approach | Technical Approach |
+| Structure | Architecture |
+| Operations | Implementation Steps / Rollout |
+| Entities | **Entities** (new) |
+| Norms | **Norms** (new, autopopulator-driven) |
+| Safeguards | **Safeguards** (new) |
+
+If a saved scope is missing any of the three new headings, the
+spec is incomplete — `Dev10x:spec-sync` will flag it as drift.
+
+#### 5.3 Invoke the Norms / Safeguards Autopopulator (GH-170)
+
+Before writing the scope document, render the Norms and
+Safeguards section bodies from `.claude/rules/INDEX.md` and
+inject them inline. **Render at generation time, not at
+scope-save time** — re-render whenever the spec is fed back
+into a generation prompt so stale rule text never lies.
+
+Use the `dev10x.scope` Python API:
+
+```python
+from pathlib import Path
+from dev10x.scope import render_norms, render_safeguards
+
+affected = [
+    "src/payments/square/orders.py",
+    "src/payments/square/tests/test_orders.py",
+]
+
+norms_md = render_norms(
+    affected_files=affected,
+    index_path=Path(".claude/rules/INDEX.md"),
+)
+safeguards_md = render_safeguards(
+    affected_files=affected,
+    index_path=Path(".claude/rules/INDEX.md"),
+    claude_md_path=Path("CLAUDE.md"),
+    settings_paths=[
+        Path(".claude/settings.local.json"),
+        Path(".claude/settings.json"),
+    ],
+)
+```
+
+Inject `norms_md` directly under the `## Norms` heading and
+`safeguards_md` directly under the `## Safeguards` heading,
+replacing the placeholder bullets in the template. Manual
+additions (rules not in INDEX.md) belong **after** the
+auto-populated block, under a `**Manual additions**:` sub-heading
+preserved from the template.
+
+The renderer is idempotent — running it again with the same
+affected files produces byte-identical output, so re-rendering on
+each generation pass is safe.
 
 ### Phase 6: User Review
 

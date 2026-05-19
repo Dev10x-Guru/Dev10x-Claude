@@ -346,6 +346,59 @@ across nested skills, breaking allow-rule matching.
 This prevents wasted turns from file-not-found errors when
 the agent reads files that exist only on the PR branch.
 
+## Preamble: Spec Drift Check (GH-173)
+
+Before responding to review comments, check whether the PR's
+changes have drifted from the canonical spec at
+`docs/specs/<TICKET-ID>.md`. If the ticket has no canonical
+spec, **no-op** — this guard only fires when SPDD-style scoping
+is in use.
+
+```python
+from pathlib import Path
+from dev10x.spec import detect_drift, DriftKind
+
+ticket_id = "<extracted from PR branch>"
+spec_path = Path(f"docs/specs/{ticket_id}.md")
+if spec_path.exists():
+    report = detect_drift(
+        spec_path=spec_path,
+        project_root=Path("."),
+    )
+    if report.has_behavioural:
+        # SURFACE AS BLOCKER — do not auto-fix.
+        ...
+    elif report.has_structural:
+        # SURFACE AS WARNING with Dev10x:spec-sync suggestion.
+        ...
+```
+
+**Behavioural drift is a blocker.** Surface to the user:
+
+> "Spec drift detected: behavioural drift in
+> `docs/specs/<TICKET-ID>.md`. Per the Golden Rule, fix the
+> prompt first. Invoke `Dev10x:spec-update` before responding
+> to review comments — otherwise fixup commits will compound
+> the drift."
+
+Stop the skill. Do not proceed to Mode A or Mode B until the
+user has either resolved the drift or explicitly opted to
+override (rare — used only when the reviewer's comment IS the
+spec update).
+
+**Structural drift is a warning.** Surface to the user, but
+allow the response flow to continue:
+
+> "Spec drift detected: structural drift in
+> `docs/specs/<TICKET-ID>.md`. The Architecture / Implementation
+> Steps sections lag the current code shape. Consider running
+> `Dev10x:spec-sync` after this PR merges."
+
+**No spec means no-op.** If `docs/specs/<TICKET-ID>.md` does
+not exist, skip this preamble silently and continue to Input
+Detection. Projects that haven't adopted SPDD scoping are
+unaffected.
+
 ## Input Detection
 
 Parse the input URL to determine the mode:

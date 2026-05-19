@@ -163,6 +163,26 @@ Example:
 
 ---
 
+## Entities
+
+[Data shapes touched by this fix. For bug fixes, the entities are
+usually the existing types whose contracts were silently violated.
+Listing them helps `Dev10x:spec-sync` detect future drift.]
+
+**Affected entities:**
+
+| Entity | Property used | Bug touched |
+|--------|---------------|-------------|
+| `Customer` | `tax_exemption: TaxExemption` | Read path missing |
+| `WorkOrder` | tax calc honors `tax_exemption` | Correct already |
+| `SquareOrder` | tax lines | Was ignoring exemption |
+
+Bug fixes rarely introduce new entities. When they do (e.g., a
+new typed exception), list them here so the spec covers the new
+surface.
+
+---
+
 ## Rollout
 
 **Testing:**
@@ -187,6 +207,47 @@ Example:
 - Simple code revert if issues
 - No data to rollback
 - Low risk change
+
+---
+
+## Norms
+
+[Project rules and conventions this fix MUST follow. Populated by
+the Norms / Safeguards autopopulator (`Dev10x:ticket-scope`
+Phase 5).]
+
+**Auto-populated rules**:
+- [Placeholder — renderer walks `.claude/rules/INDEX.md` matching
+  affected files (e.g., `src/payments/square/**`)]
+
+**Manual additions**:
+- [e.g., "Square integration tests must use the recorded-cassette
+  fixture, not live API calls"]
+
+---
+
+## Safeguards
+
+[Invariants that must hold AFTER this fix ships. Distinct from the
+`## Rollout` section, which describes monitoring during deploy.
+Safeguards describe the **post-fix invariant** that the regression
+test pins down.]
+
+**Invariants:**
+- `SquareOrder.tax_total == WorkOrder.tax_total` for every order,
+  regardless of customer tax-exemption status
+- `OrderConverter._get_taxes()` reads `tax_exemption` from its
+  caller, never from a stale cache or globals
+
+**Validation rules:**
+- `TaxExemption` enum is exhaustive — `_get_taxes()` raises on
+  unknown variants instead of silently returning all taxes
+- Tax-exempt customer paths are covered by parametrized tests over
+  all three `TaxExemption` values
+
+**Authorization safeguards:**
+- Only the `WorkOrderRepository.tax_exemption()` path may set the
+  exemption on a Square order — no callers may pass it directly
 
 ---
 

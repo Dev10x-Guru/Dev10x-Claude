@@ -1,0 +1,92 @@
+{
+  "skill_name": "Dev10x:spec-update",
+  "eval_dimensions": [
+    {
+      "name": "spec-first-enforcement",
+      "description": "Skill blocks code edits when no spec update has happened"
+    },
+    {
+      "name": "classification-gate",
+      "description": "Step 2 uses AskUserQuestion (not plain text) to classify the change"
+    },
+    {
+      "name": "missing-spec-handling",
+      "description": "Skill stops gracefully when docs/specs/<TICKET-ID>.md is absent"
+    },
+    {
+      "name": "regeneration-handoff",
+      "description": "After spec is updated, skill delegates to Dev10x:work-on for code regeneration"
+    },
+    {
+      "name": "drift-verification",
+      "description": "Skill runs Dev10x:spec-sync --check-only at the end to confirm code matches spec"
+    }
+  ],
+  "evals": [
+    {
+      "scenario": "behaviour change with existing spec",
+      "input": {
+        "ticket_id": "GH-171",
+        "change_description": "Discount codes must support per-customer usage limits, not just global limits"
+      },
+      "expected": {
+        "spec_file_modified": true,
+        "ask_user_question_calls": 1,
+        "work_on_invoked": true,
+        "spec_sync_check_run": true
+      },
+      "assertions": [
+        {
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "assertion": "classification-gate"
+        },
+        {
+          "check": "file_modified",
+          "path_pattern": "docs/specs/*.md",
+          "assertion": "spec-first-enforcement"
+        },
+        {
+          "check": "skill_invoked",
+          "name": "Dev10x:work-on",
+          "assertion": "regeneration-handoff"
+        }
+      ]
+    },
+    {
+      "scenario": "refactor classification routes to spec-sync",
+      "input": {
+        "ticket_id": "GH-171",
+        "change_description": "Rename DiscountService to PromotionService — no behavior changes"
+      },
+      "expected": {
+        "spec_file_modified": false,
+        "spec_sync_invoked": true
+      },
+      "assertions": [
+        {
+          "check": "skill_invoked",
+          "name": "Dev10x:spec-sync"
+        }
+      ]
+    },
+    {
+      "scenario": "spec missing aborts cleanly",
+      "input": {
+        "ticket_id": "GH-999",
+        "change_description": "anything"
+      },
+      "expected": {
+        "spec_file_modified": false,
+        "work_on_invoked": false,
+        "exit_message_contains": "ticket-scope"
+      },
+      "assertions": [
+        {
+          "check": "no_destructive_action",
+          "assertion": "missing-spec-handling"
+        }
+      ]
+    }
+  ]
+}

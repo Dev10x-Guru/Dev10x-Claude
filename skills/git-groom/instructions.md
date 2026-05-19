@@ -112,7 +112,75 @@ agent-initiated grooming is blocked.
    Exit non-zero. Do NOT continue to Phase 1.
 
 4. If zero unresolved threads OR `invoker` indicates supervisor
-   session, proceed to Phase 1 normally.
+   session, proceed to Phase 0b normally.
+
+### Phase 0b Precondition: Pre-merge Spec Drift Check (GH-173)
+
+Before squashing or rewriting commit history, verify the
+canonical spec at `docs/specs/<TICKET-ID>.md` still matches the
+code on the branch. Grooming locks in whatever shape the branch
+has — if behavioural drift exists, the merge would land code
+that contradicts the spec, and every future agent generating
+from that spec would silently regenerate the wrong behaviour.
+
+**No-op rule.** If `docs/specs/<TICKET-ID>.md` does not exist,
+skip this phase silently. Projects that haven't adopted SPDD
+scoping continue as before.
+
+**Check:**
+
+```python
+from pathlib import Path
+from dev10x.spec import detect_drift
+
+ticket_id = "<extracted from branch>"
+spec_path = Path(f"docs/specs/{ticket_id}.md")
+if spec_path.exists():
+    report = detect_drift(
+        spec_path=spec_path,
+        project_root=Path("."),
+    )
+    if report.has_behavioural:
+        # FAIL-CLOSE — refuse to groom.
+        ...
+```
+
+**Fail-close on behavioural drift.** Print the same `BLOCKED:`
+contract used in Phase 0:
+
+```
+BLOCKED: groom-refused-spec-drift behavioural
+
+git-groom refused: spec drift detected at
+docs/specs/{TICKET-ID}.md. Behavioural drift means the code
+no longer matches the spec's Requirements / Acceptance Criteria
+/ Safeguards sections. Squashing pre-merge would lock the
+contradiction into history.
+
+Run `Dev10x:spec-update` to fix the spec first (Golden Rule:
+fix the prompt, then regenerate), then re-invoke git-groom.
+
+To override (rare — only when the spec is intentionally being
+retired with this merge), pass `--skip-spec-check` explicitly.
+```
+
+Exit non-zero. Do NOT continue to Phase 1.
+
+**Warn on structural drift.** Allow the groom to continue, but
+surface a warning that `Dev10x:spec-sync` should run before the
+next session:
+
+```
+WARNING: structural spec drift detected at
+docs/specs/{TICKET-ID}.md. The Architecture / Implementation
+Steps sections describe a different code shape. Consider running
+`Dev10x:spec-sync` after this merge so the next agent generating
+from this spec gets the right file layout.
+```
+
+This precondition uses the shared `dev10x.spec.drift_detector`
+module so `gh-pr-respond` and `git-groom` agree byte-for-byte
+on what counts as drift.
 
 ### Phase 1: Analyze Current State
 

@@ -54,6 +54,28 @@ Example:
 - New column: `quotes_workorder.discount_code_id` (FK)
 - Migration: Auto-generated + custom for indexes
 
+### Entities
+
+[Data shapes introduced or modified by this change. Use this section to
+make property schemas and relationships explicit — the Architecture
+section names *which* components are affected; Entities names *what*
+data they carry.]
+
+**New entities:**
+
+| Entity | Properties | Relationships |
+|--------|-----------|---------------|
+| `DiscountCode` | `id`, `code` (unique), `amount`, `expiry`, `usage_limit`, `created_at` | M:N with `Quote` via `quotes_discountcode_usages` |
+
+**Modified entities:**
+
+| Entity | Changes |
+|--------|---------|
+| `WorkOrder` | Adds nullable `discount_code_id` FK to `DiscountCode` |
+
+Note any uniqueness constraints, indexes, ordering, or cardinality
+requirements that downstream code must preserve.
+
 ### Implementation Steps
 
 1. **Create DiscountCode Model**
@@ -130,6 +152,48 @@ Example:
 - [ ] Used codes are tracked (can't reuse single-use codes)
 - [ ] Admin can list and view active discount codes
 - [ ] Tests cover all edge cases (expired, invalid, usage limit)
+
+### Norms
+
+[Project rules and conventions this change MUST follow. The Norms /
+Safeguards autopopulator (`Dev10x:ticket-scope` Phase 5) renders the
+matched rules from `.claude/rules/INDEX.md` inline at scope-render
+time. Do NOT hand-copy rules here — list manual additions only.]
+
+**Auto-populated rules** (rendered at scope-generation time):
+- [Placeholder — `Dev10x:ticket-scope` Phase 5 renderer fills this
+  by walking `.claude/rules/INDEX.md` and path-matching against the
+  files in Architecture / Implementation Steps.]
+
+**Manual additions** (project conventions discovered during scoping
+that aren't in INDEX.md yet):
+- [e.g., "Discount-code copy must round-trip through i18n catalogue —
+  no hard-coded English strings"]
+
+Norms answer: *what must this code do to fit existing patterns?*
+
+### Safeguards
+
+[Invariants and validation rules that must hold AFTER this change
+ships. Distinct from `### Risks & Mitigation` below, which lists
+what could go wrong **during rollout**. Safeguards describe what
+must always be true **post-change**.]
+
+**Invariants:**
+- A `WorkOrder` can have at most one active `DiscountCode` applied
+- `DiscountCode.usage_count` must never exceed `usage_limit`
+- A discount cannot reduce the `WorkOrder` total below zero
+
+**Validation rules:**
+- `DiscountCode.code` matches `^[A-Z0-9-]{4,32}$`
+- `expiry` must be in the future when the code is created
+- `amount` must be positive
+
+**Authorization safeguards:**
+- Only `store_admin` role can create or deactivate discount codes
+- Customers cannot view raw `usage_count` of any code
+
+Safeguards answer: *what must always be true after this change?*
 
 ### Risks & Mitigation
 

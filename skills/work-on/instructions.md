@@ -175,6 +175,57 @@ to bundling. Phase 3 resolves the actual strategy (separate PRs vs
 single bundled PR with batches) using the Same-Milestone Heuristic
 and, if needed, the explicit strategy gate.
 
+### Structured-Spec Suitability Gate (GH-174)
+
+After classification, decide whether the ticket is a good fit for
+the SPDD-style `structured-spec` play. Run this gate per ticket
+source (not per session) — a session bundling several tickets may
+route some through `structured-spec` and others through `feature`.
+
+**Poor fit (skip the gate, fall back to default play):**
+
+- Single-file tweaks, config-only changes, dependency bumps
+- Exploratory spikes or research tickets
+- One-off scripts that won't be reused
+- Doc-only changes
+- Bug fixes whose root cause is named in the ticket body
+
+**Good fit (offer `structured-spec` at Phase 3):**
+
+- New features touching ≥ 3 modules
+- API additions (REST, GraphQL, gRPC)
+- Cross-layer changes (model + service + serializer + API)
+- Tickets that already have `docs/specs/<TICKET-ID>.md` —
+  treat this as a strong signal SPDD is in use for this project
+
+**Detection heuristics (apply in order):**
+
+1. If `docs/specs/<TICKET-ID>.md` exists for any source ticket,
+   set `structured_spec_candidate = true`.
+2. Else, count `## Files Changed` (or `Implementation Steps`)
+   entries in the ticket body. If ≥ 3 distinct top-level paths
+   are listed across files in different bounded contexts (e.g.,
+   `src/payments/` AND `src/quotes/` AND `src/api/`), set
+   `structured_spec_candidate = true`.
+3. Else, `structured_spec_candidate = false` — proceed to the
+   default play.
+
+**Phase 3 gate behaviour:**
+
+- When `structured_spec_candidate = true`, **REQUIRED: Call
+  `AskUserQuestion`** in Phase 3 with options:
+  - **Use structured-spec play (Recommended)** — full SPDD pipeline
+    with scope-with-reasons → spec-update gate → implement →
+    spec-sync gate before merge.
+  - **Use the default play** — feature / bugfix / etc.
+- At `friction_level: adaptive`, auto-select the **Recommended**
+  option and skip the prompt.
+- When the candidate flag is false, the gate does not fire — the
+  default play applies silently.
+
+Store the decision in the Phase 1 output as `play_override`. Phase
+3 uses it to resolve which play to instantiate.
+
 ### Ambiguous Input Fallback (GH-886)
 
 When ALL inputs classify as `note` (no URLs, ticket IDs, or PR
@@ -792,6 +843,45 @@ in `TaskList`).
 4.3  [detailed] Document findings and next steps
 4.4  [detailed] Decide: create ticket, fix now, or done
 ```
+
+**Structured-spec (SPDD pipeline, GH-174):**
+
+Selected when the Phase 1 suitability gate (see § Structured-Spec
+Suitability Gate) marks the ticket as good-fit. Routes through
+`Dev10x:ticket-scope` (with REASONS autopopulator),
+`Dev10x:spec-update` / `Dev10x:spec-sync` gates, and the regular
+shipping pipeline tail.
+
+```
+4.1  [detailed] Set up workspace                 → Dev10x:ticket-branch
+4.2  [detailed] Scope ticket with REASONS        → Dev10x:ticket-scope
+4.3  [detailed] Record ADR (if architectural)    → Dev10x:adr
+4.4  [detailed] Spec-update gate (Golden Rule)   → Dev10x:spec-update
+4.5  [epic]     Implement changes
+4.6  [detailed] Verify — API tests               → test
+4.7  [detailed] Verify — unit tests              → test
+4.8  [detailed] Spec-sync gate before merge      → Dev10x:spec-sync
+4.9  [detailed] Code review                      → Dev10x:review
+4.10 [detailed] Commit outstanding changes       → Dev10x:git-commit
+4.11 [detailed] Create draft PR                  → Dev10x:gh-pr-create
+4.12 [detailed] Monitor CI                       → Dev10x:gh-pr-monitor
+4.13 [epic]     Apply fixups                     → Dev10x:gh-pr-respond
+4.14 [detailed] Groom commit history             → Dev10x:git-groom
+4.15 [detailed] Update PR description            → Dev10x:gh-pr-create
+4.16 [detailed] Request review                   → Dev10x:gh-pr-request-review
+4.17 [detailed] Verify acceptance criteria
+```
+
+The structured-spec play differs from `feature` in two ways:
+
+1. **Scope step uses REASONS sections** — `Dev10x:ticket-scope`
+   renders Entities / Norms / Safeguards via the autopopulator
+   (GH-170) so the saved spec at `docs/specs/<TICKET-ID>.md` is
+   the single source of truth.
+2. **Two drift-detection gates bracket Implement** — the
+   spec-update gate (4.4) catches behaviour changes mid-flight;
+   the spec-sync gate (4.8) catches structural drift before
+   merge. Both use `dev10x.spec.drift_detector` so they agree.
 
 ### Supervisor Approval Gate
 

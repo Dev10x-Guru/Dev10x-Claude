@@ -46,6 +46,25 @@ Example:
 
 ---
 
+## Entities
+
+[Data shapes introduced or modified by this change. For pure
+refactors, the entities are usually class hierarchies / interfaces,
+not database tables. List them anyway — downstream tooling
+(`Dev10x:spec-sync`) uses this section to detect structural drift.]
+
+**New / changed types:**
+
+| Type | Properties / Methods | Relationships |
+|------|---------------------|---------------|
+| `BaseRepository[T]` | `get`, `list`, `create`, `update`, `delete` (generic) | Parent of `PaymentRepository`, `TransactionRepository` |
+| `PaymentRepository` | Custom: `get_by_order_no` | Now extends `BaseRepository[PaymentDto]` |
+
+For refactors with no entity changes, write `No new entities; type
+parameter `T` of `BaseRepository` is the only new generic.`
+
+---
+
 ## Implementation Steps
 
 1. **Update BaseRepository with Generic CRUD**
@@ -164,6 +183,47 @@ Example:
 - [ ] Test coverage maintained at 100%
 - [ ] DI container registration works
 - [ ] Code review approved
+
+---
+
+## Norms
+
+[Project rules and conventions this change MUST follow. Populated
+by the Norms / Safeguards autopopulator from `.claude/rules/INDEX.md`
+at scope-render time. Do NOT hand-copy rules here — list manual
+additions only.]
+
+**Auto-populated rules** (filled by `Dev10x:ticket-scope` Phase 5):
+- [Placeholder — renderer walks `.claude/rules/INDEX.md` and
+  path-matches against affected files]
+
+**Manual additions**:
+- [e.g., "Generic type parameters must be `Protocol`s, not raw
+  `TypeVar`s, to satisfy mypy strict mode in this codebase"]
+
+---
+
+## Safeguards
+
+[Invariants and validation rules that must hold AFTER this change
+ships. Distinct from `## Technical Risks` (rollout failures) —
+Safeguards describe what must always be true **post-change**.]
+
+**Invariants:**
+- All `BaseRepository` subclasses preserve their pre-existing
+  public method signatures
+- DI container resolves `BaseRepository[T]` for every concrete
+  subclass registered before the refactor
+
+**Validation rules:**
+- Generic type parameter `T` must be a `pydantic.dataclass` (not
+  an arbitrary class) — enforced at registration time
+- `BaseRepository.get(id)` raises `EntityNotFound` (typed
+  exception) on miss, never returns `None`
+
+**Authorization safeguards:**
+- Refactor preserves existing repository-level permission checks
+  (no method becomes implicitly more permissive)
 
 ---
 

@@ -573,6 +573,84 @@ defaults:
           plan. If more investigation is needed, suggest
           creating a follow-up ticket.
 
+  structured-spec:
+    prompt: >
+      Use when a ticket is a good fit for SPDD-style scoping —
+      multi-component design, cross-layer changes, or API
+      additions. The Phase 1 suitability gate routes good-fit
+      tickets here; poor-fit tickets (single-file tweaks,
+      config-only changes, exploratory spikes) fall back to
+      the `feature` play. See `references/skill-pipelines.md`
+      "Structured Spec Pipeline" for the rationale.
+
+      The pipeline materializes ADR 0005's six-step SPDD loop
+      on top of existing skills:
+      scope-with-reasons → adr (if architectural) →
+      spec-update gate → implement → py-test (API) →
+      py-test (unit) → spec-sync gate before merge.
+    steps:
+      - subject: Set up workspace
+        type: detailed
+        prompt: >
+          Create a feature branch from develop. Skip if a matching
+          branch already exists.
+        skills: [Dev10x:ticket-branch]
+      - subject: Scope ticket with REASONS sections
+        type: detailed
+        prompt: >
+          Invoke Dev10x:ticket-scope. The skill renders Entities,
+          Norms, and Safeguards sections inline using the
+          autopopulator (`dev10x.scope.render_norms` /
+          `render_safeguards`). The saved spec at
+          docs/specs/<TICKET-ID>.md becomes the source of truth
+          for the rest of the pipeline.
+        skills: [Dev10x:ticket-scope]
+      - subject: Record ADR (if architectural decision involved)
+        type: detailed
+        prompt: >
+          When the spec introduces or changes an architectural
+          boundary, an ADR is required. Skip otherwise.
+        skills: [Dev10x:adr]
+        condition: if-architectural
+      - subject: Spec-update gate (Golden Rule)
+        type: detailed
+        prompt: >
+          Before implementing, check whether requirements shifted
+          since the spec was saved. If yes, run Dev10x:spec-update
+          (spec-first edit) and re-enter this step. If no, proceed
+          to Implement.
+        skills: [Dev10x:spec-update]
+        condition: if-requirements-shifted
+      - subject: Implement changes
+        type: epic
+        prompt: >
+          Generate code from the spec. The spec — not a custom
+          plan — IS the prompt. Each Implementation Step in the
+          spec becomes a concrete edit.
+      - subject: Verify — API tests
+        type: detailed
+        prompt: >
+          Run integration / API tests covering the spec's
+          Acceptance Criteria. Failures indicate the spec is
+          either wrong or under-implemented; do not silently
+          weaken assertions.
+        skills: [test]
+      - subject: Verify — unit tests
+        type: detailed
+        prompt: >
+          Run unit tests covering Implementation Steps. Aim for
+          100% coverage of new code, per project convention.
+        skills: [test]
+      - subject: Spec-sync gate before merge
+        type: detailed
+        prompt: >
+          Run Dev10x:spec-sync in check-only mode. Behavioural
+          drift blocks the pipeline (route back to spec-update).
+          Structural drift triggers a regenerate-and-commit pass
+          so the spec matches the final code shape.
+        skills: [Dev10x:spec-sync]
+      - fragment: shipping-pipeline
+
 # User overrides — added when user customizes a plan.
 # persist: true = reuse across sessions; false = one-time.
 # Example:
