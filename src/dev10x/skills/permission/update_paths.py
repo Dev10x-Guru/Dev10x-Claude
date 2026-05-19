@@ -5,9 +5,10 @@ Modes:
   - ensure-base: Add missing base permissions from projects.yaml
   - generalize: Replace session-specific args with wildcard patterns
 
-Config lookup order:
-  1. ~/.claude/memory/Dev10x/projects.yaml (persistent user config)
-  2. ~/.claude/skills/Dev10x:upgrade-cleanup/projects.yaml (userspace)
+Config lookup order (post-GH-215):
+  1. ~/.config/Dev10x/projects.yaml (XDG; legacy ~/.claude/memory/Dev10x/)
+  2. ~/.config/Dev10x/upgrade-cleanup-projects.yaml (XDG; legacy
+     ~/.claude/skills/Dev10x:upgrade-cleanup/projects.yaml)
   3. ${CLAUDE_PLUGIN_ROOT}/skills/upgrade-cleanup/projects.yaml (plugin default)
 
 CLI entry point: ``dev10x permission update-paths`` (and siblings).
@@ -21,9 +22,10 @@ from pathlib import Path
 import yaml
 
 from dev10x.domain.claude_paths import ClaudeDir
+from dev10x.domain.dev10x_paths import Dev10xConfigDir
 
-MEMORY_CONFIG = ClaudeDir.memory_projects_yaml()
-USERSPACE_CONFIG = ClaudeDir.upgrade_cleanup_projects_yaml()
+MEMORY_CONFIG = Dev10xConfigDir.projects_yaml()
+USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
 PLUGIN_CONFIG = (
     Path(__file__).resolve().parents[4] / "skills" / "upgrade-cleanup" / "projects.yaml"
 )

@@ -18,9 +18,9 @@ from pathlib import Path
 
 import yaml
 
-from dev10x.domain.claude_paths import ClaudeDir
+from dev10x.domain.dev10x_paths import Dev10xConfigDir
 
-USERSPACE_CONFIG = ClaudeDir.upgrade_cleanup_projects_yaml()
+USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
 PLUGIN_CONFIG = (
     Path(__file__).resolve().parents[4] / "skills" / "upgrade-cleanup" / "projects.yaml"
 )

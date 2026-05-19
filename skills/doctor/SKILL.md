@@ -27,6 +27,8 @@ allowed-tools:
   - TaskUpdate
   - mcp__plugin_Dev10x_cli__audit_hook_recent
   - mcp__plugin_Dev10x_cli__issue_create
+  - Bash(dev10x config doctor:*)
+  - Bash(dev10x config migrate:*)
 ---
 
 # Dev10x:doctor — Intent Drift Diagnostic (GH-87)
@@ -58,6 +60,20 @@ diagnoses, then delegates concrete edits.
 1. `TaskCreate(subject="Phase 1: Load enabled strategies", activeForm="Loading strategies")`
 2. `TaskCreate(subject="Phase 2: Detect drift per strategy", activeForm="Detecting drift")`
 3. `TaskCreate(subject="Phase 3: Present findings and remediations", activeForm="Presenting findings")`
+
+## Step 0 — Check Dev10x config location (GH-215)
+
+Before strategy detection, run `dev10x config doctor` to report
+any legacy Dev10x config files still living under `~/.claude/`.
+If files are found, offer to run `dev10x config migrate` (or
+delegate to `Dev10x:upgrade-cleanup` which migrates as Step 1).
+
+```
+Bash("dev10x config doctor")
+```
+
+Treat any "Found N legacy ..." output as a finding to surface
+in Phase 3, alongside the strategy detections.
 4. `TaskCreate(subject="Phase 4: Apply approved fixes", activeForm="Applying fixes")`
 
 Set sequential dependencies. Mark each completed when done.

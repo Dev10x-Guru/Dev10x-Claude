@@ -17,10 +17,10 @@ from pathlib import Path
 import click
 
 from dev10x.commands import github_app_api as api
-from dev10x.domain.claude_paths import ClaudeDir
+from dev10x.domain.dev10x_paths import Dev10xConfigDir
 
-CONFIG_DIR = ClaudeDir.github_bot_dir()
-CONFIG_PATH = ClaudeDir.github_app_yaml()
+CONFIG_DIR = Dev10xConfigDir.github_bot_dir()
+CONFIG_PATH = Dev10xConfigDir.github_app_yaml()
 KEY_PATH = CONFIG_DIR / "dev10x-bot.pem"
 
 PERSONAL_NEW_APP_URL = "https://github.com/settings/apps/new"

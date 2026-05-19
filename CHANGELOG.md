@@ -3,6 +3,19 @@
 All notable changes to the Dev10x Claude Code Plugin are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Features
+
+- **Move Dev10x userspace config out of `~/.claude/`** — config now
+  lives under the OS-standard XDG path (`~/.config/Dev10x/` on
+  Linux/macOS, `%APPDATA%/Dev10x/` on Windows; override via
+  `DEV10X_CONFIG_HOME`). Legacy files at `~/.claude/memory/Dev10x/`
+  and `~/.claude/Dev10x/` are migrated lazily on first read and
+  explicitly by `dev10x config migrate` (wired into both
+  `Dev10x:upgrade-cleanup` Step 1 and `Dev10x:doctor` Step 0)
+  ([GH-215](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/215))
+
 ## 0.72.0 — Doctor, Fanout Swarm & Permission Hygiene
 
 Released 2026-05-17

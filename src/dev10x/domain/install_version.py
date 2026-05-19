@@ -23,7 +23,7 @@ from pathlib import Path
 
 import yaml
 
-from dev10x.domain.claude_paths import ClaudeDir
+from dev10x.domain.dev10x_paths import Dev10xConfigDir
 
 
 def read_plugin_version(*, plugin_root: Path | None = None) -> str | None:
@@ -52,7 +52,7 @@ def read_applied_version(*, version_yaml: Path | None = None) -> str | None:
     Returns ``None`` when ``~/.claude/Dev10x/version.yml`` is absent or
     does not contain a ``plugin_version`` string.
     """
-    path = version_yaml or ClaudeDir.dev10x_version_yaml()
+    path = version_yaml or Dev10xConfigDir.version_yaml()
     if not path.is_file():
         return None
     try:
@@ -75,7 +75,7 @@ def write_applied_version(
 
     Creates parent directories as needed. Returns the path written.
     """
-    path = version_yaml or ClaudeDir.dev10x_version_yaml()
+    path = version_yaml or Dev10xConfigDir.version_yaml()
     path.parent.mkdir(parents=True, exist_ok=True)
     timestamp = (now or datetime.now(UTC)).isoformat()
     payload = {"plugin_version": plugin_version, "upgraded_at": timestamp}
@@ -89,7 +89,7 @@ def install_state() -> InstallState:
     Combines the running plugin version, the applied version on disk,
     and whether the userspace config directory exists at all.
     """
-    config_present = ClaudeDir.dev10x_config_dir().is_dir()
+    config_present = Dev10xConfigDir.home().is_dir()
     plugin_version = read_plugin_version()
     applied_version = read_applied_version() if config_present else None
     return InstallState(
