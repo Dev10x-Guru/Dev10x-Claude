@@ -304,6 +304,26 @@ tool uses** so they run concurrently and share the
 parent's prompt-cache prefix. Wait for completion
 notifications before dispatching the next wave; do NOT poll.
 
+**Sibling pub/sub bus (GH-133).** Before dispatching a wave,
+create the per-wave JSONL bus that lets children coordinate
+file ownership without serialising through the orchestrator:
+
+```
+mcp__plugin_Dev10x_cli__mktmp(
+    namespace="fanout",
+    prefix=f"{wave_id}/bus",
+    ext=".jsonl",
+)
+```
+
+Inline the returned `path` into every child's prompt as
+`bus_path`. The orchestrator is a passive consumer — it reads
+the bus once on wave drain to harvest `bailout` and
+`conflict_signal` events for re-dispatch decisions, but never
+publishes. Full event schema, decision-gate rules
+(wait vs bail), and producer/consumer contracts live in
+[`references/orchestration/fanout-bus.md`](../../references/orchestration/fanout-bus.md).
+
 **Per-item agent prompt template:**
 
 ```
@@ -315,6 +335,8 @@ Swarm context:
 - your_item_id: <item_id>
 - conflict_group: <group_id>
 - shared_files_with_siblings: [<paths>]  # should be empty within a wave
+- bus_path: /tmp/Dev10x/fanout/<wave_id>/bus.jsonl
+- lock_wait_timeout: 30s
 
 Bootstrap (REQUIRED first, before Skill invocation):
 1. Write .claude/Dev10x/session.yaml inside your isolated
@@ -327,12 +349,31 @@ Bootstrap (REQUIRED first, before Skill invocation):
 Task:
 Invoke Skill(Dev10x:work-on) with this input: <issue or PR URL>
 
+Sibling coordination (REQUIRED when shared_files_with_siblings
+is non-empty OR mid-work drift is detected):
+- Append events to bus_path. One JSON object per line.
+- Before writing a path that overlaps with a sibling, append
+  a file_lock_request event and wait up to lock_wait_timeout
+  for a matching file_lock_grant from the implicated sibling.
+- On detected drift, append a conflict_signal event then
+  apply the decision gate:
+    - Wait: severity=soft AND sibling reachable AND timeout
+      not yet exceeded → poll bus.jsonl for a file_lock_grant
+      or the sibling's bailout.
+    - Bail: severity=hard, sibling unreachable, or wait
+      timed out → append a bailout event and return
+      "BLOCKED: file-scope drift on <path>".
+- Never busy-loop. Never delete or rewrite bus.jsonl.
+- Full schema and field definitions:
+  references/orchestration/fanout-bus.md
+
 Etiquette (REQUIRED):
 - You are running concurrently with siblings. Do NOT call
   Skill(Dev10x:fanout) recursively.
 - If you discover a file conflict with a sibling mid-work,
-  pause, report via your result message, and do not push.
-  The orchestrator will resolve.
+  use the bus to coordinate (above). If the bus does not
+  resolve the conflict, pause, report via your result
+  message, and do not push. The orchestrator will resolve.
 - Do not force-push and do not touch main/develop directly.
 - Your worktree is ephemeral; assume it is destroyed if you
   make no changes.
@@ -340,7 +381,8 @@ Etiquette (REQUIRED):
 Return on completion:
 - PR URL (or "no PR produced — <reason>")
 - Cost (total_cost_usd if known)
-- Any sibling-coordination signals raised
+- Any sibling-coordination signals raised (reference bus
+  event types: file_lock_request, conflict_signal, bailout)
 - One of: DONE | DONE_WITH_CONCERNS: <text> |
   NEEDS_CONTEXT: <what> | BLOCKED: <reason>
 ```
@@ -538,7 +580,17 @@ Phase 4's job is therefore **collection**, not orchestration:
 3. For `BLOCKED` results, queue an `AskUserQuestion` so the
    orchestrator can decide between retry, fallback to
    serial, or skip.
-4. After a full wave drains, before dispatching the next
+4. **Harvest the sibling pub/sub bus (GH-133).** Once per
+   wave drain, read `/tmp/Dev10x/fanout/<wave_id>/bus.jsonl`
+   (using `Read`; the file is JSONL with one event per line).
+   Collect every `bailout` and `conflict_signal` event.
+   `bailout` events with `recoverable: true` mark their item
+   for re-dispatch in a follow-up wave; `recoverable: false`
+   bailouts escalate via `AskUserQuestion` alongside any
+   `BLOCKED:` agent results. Treat the bus as authoritative
+   for sibling-to-sibling drift — it captures conflicts the
+   agent result message may have omitted.
+5. After a full wave drains, before dispatching the next
    wave: rebase downstream conflict-chain successors onto
    the latest develop via `Skill(Dev10x:git-groom)`.
 
