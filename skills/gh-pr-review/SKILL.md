@@ -102,73 +102,16 @@ lines (20000)` for very large PRs. When this happens:
 
 ### Step 2b: Phase 0 — Spec Compliance Gate (GH-69)
 
-Before reading per-file context or drafting inline comments,
-dispatch the `spec-reviewer` agent to confirm the PR diff matches
-the linked ticket's acceptance criteria and the PR's Job Story.
-Domain-level review (architecture, style, suggestions) is wasted
-effort when scope is wrong or AC are unmet — surfacing that
-early lets the reviewer post a single short-circuit comment
-instead of a multi-page review against the wrong target.
+Dispatch the `spec-reviewer` agent to confirm the PR diff matches
+the linked ticket's AC and the PR's Job Story before drafting
+inline comments. Domain-level review is wasted effort when scope
+is wrong.
 
-**Skip Phase 0 when:**
-- The PR has no linked ticket AND no Job Story
-- The diff is purely additive infra (a new agent spec, a new
-  reference doc) where scope is self-evident from the file path
-
-**Pre-read inputs (controller side):** The diff and PR body are
-already loaded in Step 2. Fetch the linked ticket body via the
-appropriate tracker MCP (parse `Fixes: GH-N` / `TEAM-N` /
-`JIRA-N` from the PR body or branch name) and inline it. Do
-NOT instruct the agent to fetch the ticket itself — that
-triggers permission prompts inside the subagent.
-
-**Dispatch:**
-
-```
-Agent(
-    subagent_type="spec-reviewer",
-    description=f"Spec compliance check for PR #{N}",
-    prompt="""Verify the following PR diff matches the linked
-    ticket's acceptance criteria and Job Story.
-
-    <ticket>
-    {inlined ticket body + AC, or "NO_LINKED_TICKET" if none}
-    </ticket>
-
-    <pr_body>
-    {inlined PR body — Job Story is the first paragraph}
-    </pr_body>
-
-    <diff>
-    {inlined output of `gh pr diff N`}
-    </diff>
-
-    Follow the checklist in your spec. Return one paragraph per
-    finding (AC ref / file:line / verdict).
-
-    Report your final status as the LAST line of your output,
-    with exactly one of these prefixes:
-
-    - DONE                       — PASS
-    - DONE_WITH_CONCERNS: <text> — PARTIAL (proceed but flag)
-    - NEEDS_CONTEXT: <what>      — re-dispatch needed
-    - BLOCKED: <verdict>: <reason> — FAIL_SCOPE / FAIL_MISSING /
-                                     FAIL_OVER
-
-    Do not write anything after the status line.""")
-```
-
-**Parse the trailing status line** and branch:
-
-- `DONE` → continue to Step 3 (read changed files)
-- `DONE_WITH_CONCERNS: <text>` → continue; record the concern as
-  a top-of-summary note in the eventual review body
-- `NEEDS_CONTEXT: <what>` → re-dispatch with the requested
-  additional inline context once
-- `BLOCKED: <verdict>: <reason>` → skip Steps 3–6, post a
-  concise review whose body cites the verdict and asks the
-  author to address the spec gap before quality review. Still
-  hide obsolete summaries (Step 7) and post via Step 8.
+See [`references/spec-gate.md`](references/spec-gate.md) for
+skip conditions, the controller-side pre-read pattern, the
+agent dispatch prompt, and how to branch on the trailing
+status line (DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT /
+BLOCKED).
 
 ### Step 3: Read Changed Files
 
@@ -204,29 +147,13 @@ DTOs):
 
 ### Step 4b: Architecture Evaluation (GH-916)
 
-**Independent of prior review comments.** Do NOT anchor on
-whether surface bugs from previous cycles were fixed — evaluate
-the PR's structural compliance from scratch.
+**Independent of prior review comments.** Evaluate the PR's
+structural compliance from scratch — do NOT anchor on whether
+surface bugs from previous cycles were fixed.
 
-Load project architecture rules:
-- `CLAUDE.md` — coding style, patterns, SRP
-- Project-specific `code-implementation.md` (if exists)
-- `review-checks-common.md` § Architecture Checklist
-
-Check each new or substantially modified file for:
-
-| Signal | Violation | Severity |
-|--------|-----------|----------|
-| New endpoint/view with >50 lines | Missing service layer extraction | WARNING |
-| View calling repository directly | Missing Service layer (View→Service→Repository) | WARNING |
-| Inline dict with 4+ keys passed across boundaries | Missing DTO | INFO |
-| Manual `request.data["field"]` parsing | Missing serializer/DTO validation | WARNING |
-| Function/method >50 lines | SRP violation — extract | WARNING |
-
-**Anti-pattern (anchoring bias):** When previous review comments
-exist, the skill tends to check only whether those bugs were fixed
-and declare the PR "solid". This step forces an independent
-structural evaluation regardless of prior feedback.
+See [`references/architecture-checklist.md`](references/architecture-checklist.md)
+for the rules to load, the per-file signal/violation/severity
+table, and the anchoring-bias anti-pattern.
 
 ### Step 5: Apply Review Guidelines
 
@@ -265,153 +192,31 @@ Compose:
 
 ### Step 7: Hide Obsolete Review Summaries
 
-**Skip Step 7 entirely on closed/merged PRs (GH-181 F7).** The
-`minimizeComment` mutation only meaningfully affects the
-reviewer's pane on open PRs; on merged PRs nobody reads it and
-the call is a no-op. Closed/merged PR → jump straight to Step 8.
+**Skip on closed/merged PRs (GH-181 F7) — jump straight to
+Step 8.** On open PRs, minimize previous Claude review summaries
+that are fully resolved.
 
-Before posting the new review on an **open** PR, minimize previous
-Claude review summaries that are fully resolved (per
-`review-guidelines.md` step 6):
-
-1. Query review threads via GraphQL — check `isResolved` and group
-   by `pullRequestReview.databaseId`
-2. For each previous Claude review with a non-empty body:
-   - ALL threads resolved → minimize with `OUTDATED` classifier
-   - ANY thread unresolved → leave visible
-   - No inline threads (summary-only) → minimize
-3. Use `gh api graphql` with `minimizeComment` mutation:
-   ```graphql
-   mutation { minimizeComment(input: {
-     subjectId: "<review_node_id>", classifier: OUTDATED
-   }) { minimizedComment { isMinimized } } }
-   ```
-
-Skip this step on the first review (no previous summaries exist).
+See [`references/hide-obsolete.md`](references/hide-obsolete.md)
+for the open-vs-merged skip rule, the GraphQL thread query
+pattern, the resolved/unresolved/summary-only classification
+matrix, and the `minimizeComment` mutation.
 
 ### Step 8: Post Review to GitHub
 
-**Transport selection (GH-181 F3, F8).** Pick the transport based
-on the PR state and diff size detected in Step 2:
+**Transport selection (GH-181 F3, F8).** Two transports exist:
 
-| Condition | Transport |
-|---|---|
-| PR is OPEN AND diff fits in `gh pr diff` (≤ ~5,000 LOC, no 406) | A. `gh api .../pulls/{N}/reviews` with inline comments |
-| PR is MERGED / CLOSED, OR `oversize_diff=true`, OR inline anchors infeasible | B. Bot top-level comment via `~/.claude/tools/gh-bot-comment.py` |
+- **A.** `gh api .../pulls/{N}/reviews` with inline comments —
+  for OPEN PRs where the diff fits (≤ ~5,000 LOC, no 406).
+- **B.** Bot top-level comment via `~/.claude/tools/gh-bot-comment.py`
+  — for MERGED / CLOSED PRs, oversize diffs, or when inline
+  anchors are infeasible.
 
-#### A. Standard review payload (open PR, normal diff)
-
-Use the Write tool to create the review JSON, then post via `gh api --input`:
-
-1. **MUST** create the unique temp path via the MCP tool — the shell
-   `mktmp.sh` is a fallback for when the MCP server is unavailable.
-   Reaching for the shell first is the regression GH-181 F8 closes:
-
-   ```
-   mcp__plugin_Dev10x_cli__mktmp(namespace="git", prefix="pr-review", ext=".json")
-   ```
-
-   Shell fallback (only when MCP unavailable):
-   `/tmp/Dev10x/bin/mktmp.sh git pr-review .json`
-
-2. Write the review payload to the returned path:
-```json
-{
-  "event": "COMMENT",
-  "commit_id": "{HEAD_SHA}",
-  "body": "## Review Summary\n\n...",
-  "comments": [
-    {
-      "path": "src/file.py",
-      "line": 42,
-      "body": "Issue description\n\n```suggestion\nfix\n```"
-    }
-  ]
-}
-```
-
-3. Post the review:
-```bash
-gh api repos/{owner}/{repo}/pulls/{N}/reviews \
-  --method POST --input <unique-path>
-```
-
-> **Do not use `cat <<'JSON' | gh api --input -`** — the heredoc is
-> blocked by `validate-bash-security.py`. Always Write to a file first.
-
-**Rules**:
-- Always use `"event": "COMMENT"` — never REQUEST_CHANGES or APPROVE
-- Include `commit_id` from the PR's latest commit
-- Inline comments must reference lines that exist in the PR diff
-
-#### B. Bot top-level comment (merged PR / oversize diff)
-
-**Prerequisites.** Transport B requires two user-provided
-resources outside this plugin:
-
-- `~/.claude/tools/gh-bot-comment.py` — user-installed script
-  that posts comments under a GitHub App identity. Not bundled
-  with Dev10x. Users wire it up alongside their own GitHub App
-  credentials.
-- `~/.claude/Dev10x/github-bot/github-app.yaml` — App identity
-  config (App ID, private-key path, installation ID). Users
-  create this file when setting up the bot. Step 1 below checks
-  `enabled: true` before selecting Transport B.
-
-If either is missing, Transport B falls back to Transport A even
-for merged or oversize PRs. The fallback posts under the user's
-own GitHub identity rather than the App's — document the chosen
-identity in the eventual review summary.
-
-The `pulls/{N}/reviews` endpoint requires every entry in
-`comments[]` to anchor on a line that exists in the diff. On
-merged PRs the diff is finalized and inline anchors still work,
-but the bot-identity transport is preferred because it preserves
-review attribution after merge. For oversize diffs, inline
-anchors are unavailable (no diff fetched). In both cases,
-restructure the review into a single top-level issue comment
-posted as the GitHub App.
-
-1. **Detect bot config:** `Read(file_path="~/.claude/Dev10x/github-bot/github-app.yaml")`.
-   If `enabled: true`, proceed; otherwise fall back to transport A
-   (best-effort with whatever inline anchors are available).
-
-2. **Restructure the payload:** convert each `comments[]` entry
-   into a quoted `file:line` block inside the body:
-
-   ```markdown
-   ## Review Summary
-
-   <summary text>
-
-   ### Findings
-
-   **`src/file.py:42`** — Issue description
-
-   ```suggestion
-   fix
-   ```
-
-   **`src/other.py:101`** — …
-   ```
-
-3. **Create the body file** via the MCP tool (MUST, not shell):
-   ```
-   mcp__plugin_Dev10x_cli__mktmp(namespace="git", prefix="pr-review-body", ext=".md")
-   ```
-   Write the restructured body to the returned path.
-
-4. **Post via the bot tool:**
-   ```bash
-   ~/.claude/tools/gh-bot-comment.py OWNER/REPO PR_NUMBER <body-path>
-   ```
-
-   This posts a top-level issue comment using the GitHub App
-   identity configured in `github-app.yaml`. The bot transport
-   does NOT support inline review threads — every finding must
-   be in the body with explicit `path:line` references.
-
-5. Report the resulting comment URL to the user in Step 9.
+See [`references/transport-selection.md`](references/transport-selection.md)
+for the full selection matrix, Transport A payload schema + post
+recipe (MCP-first mktmp, no heredocs), Transport B prerequisites
+(bot config detection, GitHub App identity), and the
+body-rewriting recipe that converts inline comments into a
+single top-level findings block.
 
 ### Step 9: Report to User
 

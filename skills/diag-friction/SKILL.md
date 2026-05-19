@@ -121,130 +121,39 @@ best match based on the command's purpose.
 
 ### Step 3b: Permission friction audit
 
-Most rejections happen not because the command is wrong but
-because the agent packed too much into a single Bash call and
-the resulting prefix does not match any pre-approved allow-rule.
-Before producing the final reinforcement, audit settings for a
-simpler, pre-approved alternative.
+Audit project + user settings for a simpler, pre-approved
+alternative to the offending command. Most rejections happen
+because chaining shifts the effective prefix away from any
+allow-rule.
 
-**Sources** (read each; tolerate missing files):
-- `.claude/settings.local.json` — project-local overrides
-- `.claude/settings.json` — project shared
-- `~/.claude/settings.json` — user global
-- `~/.claude/settings.local.json` — user local
-
-Parse `permissions.allow` from each. Allow-rule shapes to handle:
-- `Bash(<exact>)` — exact command match
-- `Bash(<prefix>:*)` — prefix match
-- `Read(<glob>)`, `Edit(<glob>)`, etc. — non-Bash tools
-
-**Audit procedure:**
-1. Extract the leading executable + first 1–2 args from the
-   offending command (the "effective prefix" used by Claude
-   Code's matcher).
-2. Compare against each allow-rule prefix. Note any rule that
-   would match a simpler form of the same intent:
-   - Command had `&&`, `;`, or subshell chaining → propose the
-     unchained first command; if it matches an allow-rule,
-     that's the pre-approved alternative
-   - Command had an env-var prefix (`FOO=bar git ...`) → strip
-     the prefix and recheck
-   - Command used `cd <path> && <cmd>` → drop the `cd`
-     (CWD is already correct) and recheck
-3. If a close allow-rule exists, surface it as a **pre-approved
-   alternative** — instruct the agent to invoke the simpler
-   form (one command per Bash call, no chaining).
-4. If no allow-rule covers any simplified variant, propose a
-   **safe, targeted addition** to `.claude/settings.local.json`.
-   Prefer narrow prefixes (`Bash(git fetch:*)`) over broad ones
-   (`Bash(git:*)`). Never propose `Bash(*)` or rules that span
-   destructive verbs.
-
+See [`references/audit-procedure.md`](references/audit-procedure.md)
+for sources, allow-rule shapes, and the four-step audit procedure.
 The audit output feeds Step 4 — surface findings even when a
-skill match was also found, since switching to the simpler
-pre-approved form is often what the supervisor actually wanted.
+skill match was also found.
 
 ### Step 3c: Detect structural friction (file upstream)
 
-Sometimes the friction is not the agent's fault — the hook
-itself is too aggressive, the command-skill map is missing an
-entry, or no safe targeted allow-rule would cover the legitimate
-use case. In those cases, point the user at the upstream issue
-tracker so the hooks can be improved for everyone, not patched
-locally over and over.
+When the hook itself is too aggressive, the command-skill map is
+missing an entry, or no safe targeted allow-rule fits, point the
+user at the upstream issue tracker so the hooks can be improved
+for everyone — not patched locally over and over.
 
-**Signals that suggest structural friction (file upstream):**
-- The hook's `systemMessage` says "file an issue at
-  https://github.com/Dev10x-Guru/dev10x-claude" or similar
-- Step 2 found NO matching skill AND Step 3 SKILLS.md scan
-  found no clear skill either
-- Step 3b found no simpler pre-approved variant AND the only
-  workable allow-rule would be unsafely broad (e.g.,
-  `Bash(git:*)`, `Bash(curl:*)`)
-- The same command was rejected in this session more than once,
-  suggesting the hook keeps re-blocking a legitimate workflow
-- The supervisor's complaint is "the hook is wrong", not "the
-  command is wrong"
-
-**When at least one signal fires, add an "Upstream issue"
-section to the Step 4 output:**
-
-- Brief problem statement (one sentence — what the agent
-  needed to do, why current rules block it)
-- Suggested resolution (one of: add command-skill-map entry,
-  loosen a specific hook check, ship a new pre-approved
-  template, document a per-project setting)
-- Pre-filled `gh issue create` invocation that the user can
-  approve to file the ticket:
-
-  ```
-  gh issue create \
-    --repo Dev10x-Guru/Dev10x-Claude \
-    --title "<gitmoji> Permission friction: <one-line summary>" \
-    --label "permission-friction" \
-    --body "<problem statement, repro command, suggested fix>"
-  ```
-
-Do NOT auto-file the issue. The user decides whether the
-friction is genuinely structural or a one-off and approves
-the `gh issue create` call manually (or via the existing
-`Dev10x:ticket-create` skill if available).
-
-**Omit this section when:** the friction is clearly local
-(a skill or pre-approved alternative already covers the case).
-Filing an upstream issue for every prompt would be noise.
+See [`references/upstream-friction.md`](references/upstream-friction.md)
+for the signals that suggest structural friction and the
+"Upstream issue" section template (problem statement, suggested
+resolution, pre-filled `gh issue create` invocation). Do NOT
+auto-file — the user approves first.
 
 ### Step 4: Output reinforcement message
 
-Output a firm, concise reinforcement message with these sections:
+Output a firm, concise reinforcement message with seven sections:
+command detected, use instead, why, how to invoke, pre-approved
+alternatives (from Step 3b), upstream issue (from Step 3c when
+friction is structural), related skills.
 
-1. **Command detected:** — the CLI command that was identified
-2. **Use instead:** — skill invocation name and one-line description
-3. **Why:** — reason from the map entry (if available)
-4. **How to invoke:** — `Skill("<skill-name>")` call syntax.
-   For MCP tools, add: "Call this as an MCP tool call, NOT as a
-   Bash command. MCP tool names are tool interface identifiers,
-   never shell executables. Example:
-   `mcp__plugin_Dev10x_cli__mktmp(namespace='git',
-   prefix='commit-msg', ext='.txt')` — not
-   `mcp__plugin_Dev10x_cli__mktmp git commit-msg .txt`."
-5. **Pre-approved alternatives:** — from Step 3b audit. If a
-   simpler form of the command matches an existing allow-rule,
-   show that form and the rule that covers it. If no rule
-   matches, show the proposed targeted allow-rule snippet and
-   the settings file it should land in. Omit this section when
-   the audit found no friction (the command was already simple
-   and pre-approved, or no Bash command was involved).
-6. **Upstream issue (optional):** — from Step 3c. When the
-   friction looks structural (no skill, no safe local rule, or
-   the hook itself is over-aggressive), include a short problem
-   statement plus a ready-to-run `gh issue create` invocation
-   targeting `Dev10x-Guru/Dev10x-Claude`. The user approves
-   before the issue is filed.
-7. **Related skills:** — from the map entry (if available)
-
-If multiple skills could apply, list all of them ranked by
-relevance.
+See [`references/audit-output.md`](references/audit-output.md)
+for the per-section schema, MCP invocation example, and ranking
+rules when multiple skills apply.
 
 ### Step 4b: Respect user rejection
 
