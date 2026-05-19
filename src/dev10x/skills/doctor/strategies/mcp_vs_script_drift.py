@@ -6,7 +6,7 @@ same capability. The intent is to surface — not silently fix —
 the channels through which obsolete script names leak back into
 the agent's context.
 
-See ``skills/doctor/references/mcp-vs-script-drift.md`` for the
+See ``skills/plugin-doctor/references/mcp-vs-script-drift.md`` for the
 full equivalence table and detection heuristics.
 """
 

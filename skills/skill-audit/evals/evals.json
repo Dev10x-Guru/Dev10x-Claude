@@ -114,7 +114,7 @@
       "id": 3,
       "name": "early-insight-gate-fires",
       "prompt": "/Dev10x:skill-audit why did you merge with unhandled review https://github.com/Dev10x-Guru/Dev10x-Claude/pull/111",
-      "description": "Tests that Phase 0 fires when the user asks a narrow, transcript-evident question. The gate must present findings inline, call AskUserQuestion with three options, and on 'Select & file now' route to Dev10x:audit-report without dispatching wave subagents.",
+      "description": "Tests that Phase 0 fires when the user asks a narrow, transcript-evident question. The gate must present findings inline, call AskUserQuestion with three options, and on 'Select & file now' route to Dev10x:audit-file without dispatching wave subagents.",
       "setup": {
         "explicit_path": "not provided",
         "narrow_question": "why did you merge with unhandled review <PR-URL>",
@@ -159,16 +159,16 @@
           "check": "tool_not_called_before",
           "tool": "Agent",
           "before_tool": "Skill",
-          "before_args_contain": "Dev10x:audit-report",
+          "before_args_contain": "Dev10x:audit-file",
           "signal": "Phase 7 reporting fires without prior Wave 1/Wave 2 Agent() calls"
         },
         {
           "id": "phase0_routes_to_audit_report",
-          "text": "Select & file now delegates to Dev10x:audit-report",
+          "text": "Select & file now delegates to Dev10x:audit-file",
           "check": "tool_called",
           "tool": "Skill",
-          "args_contain": "Dev10x:audit-report",
-          "signal": "Phase 7 sub-step D invokes Dev10x:audit-report with the inline findings"
+          "args_contain": "Dev10x:audit-file",
+          "signal": "Phase 7 sub-step D invokes Dev10x:audit-file with the inline findings"
         },
         {
           "id": "phase0_multiselect_false",

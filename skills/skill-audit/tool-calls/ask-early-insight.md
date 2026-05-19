@@ -13,7 +13,7 @@ AskUserQuestion(questions=[{
     options: [
         {label: "Select & file now (Recommended for clear findings)",
          description: "Skip to Phase 7 and delegate to "
-                      "Dev10x:audit-report with the pre-formed "
+                      "Dev10x:audit-file with the pre-formed "
                       "findings — no wave subagents dispatched"},
         {label: "Step back and run full audit",
          description: "Proceed to Step 0 and run the standard "
@@ -32,7 +32,7 @@ AskUserQuestion(questions=[{
 |-------------|-------------|
 | Select & file now | Create minimal task list (early-insight + select-and-file), skip Steps 0–8 and Phases 1–6, jump directly to Phase 7 with the inline findings as the scrubbed findings file |
 | Step back and run full audit | Fall through to Step 0 (Initialize task tracking) and continue the standard wave orchestration |
-| Discard | Exit the skill; do not create wave tasks, do not delegate to `Dev10x:audit-report` |
+| Discard | Exit the skill; do not create wave tasks, do not delegate to `Dev10x:audit-file` |
 
 The "Select & file now" branch MUST still pass through the
 existing Phase 7 sub-steps (collect → confirm → scrub →

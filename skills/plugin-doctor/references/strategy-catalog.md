@@ -1,4 +1,4 @@
-# Dev10x:doctor — Strategy Catalog
+# Dev10x:plugin-doctor — Strategy Catalog
 
 The doctor ships with a base catalog of strategies, each owning
 one drift category. Strategies are pluggable: adding a new

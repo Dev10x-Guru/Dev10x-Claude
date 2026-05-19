@@ -63,6 +63,67 @@ Note: official plugins (superpowers, svelte, hookify) omit the
 prefix and rely on auto-construction. Our explicit prefix is a
 deliberate divergence for branding.
 
+## Suffix Encodes Execution Shape (GH-217)
+
+The suffix of a skill name tells the reader *how* the skill
+behaves — deterministic vs heuristic. Pick the suffix from the
+shape of the work, not from "what sounds right".
+
+### `<resource>-<verb>` → mechanical
+
+Deterministic flow, small decision tree, typically single-agent,
+≤ 200 lines of orchestration. Output shape is predictable from
+input shape.
+
+Examples: `git-commit`, `gh-pr-create`, `ticket-create`,
+`context-audit`, `gh-pr-merge`.
+
+### `<resource>-<noun>` → heuristic
+
+Exploratory, multi-phase, judgment-heavy, often dispatches
+subagents, may exceed 200 lines. Output depends on findings
+discovered during execution.
+
+Examples: `permission-investigator`, `memory-maintenance`,
+`plugin-maintenance`.
+
+### When in doubt — decision tree
+
+1. **Can the agent predict the output structure before reading
+   the inputs?** → verb-suffix.
+2. **Does the skill dispatch ≥ 2 subagents or run ≥ 3 phases
+   with branching logic?** → noun-suffix.
+3. **Does the SKILL.md (or `instructions.md`) exceed the
+   200-line budget?** → noun-suffix (or split the skill).
+4. **Otherwise, default to verb-suffix** — bias toward the
+   mechanical shape and only escalate to noun when the work
+   genuinely needs exploration.
+
+### Accepted exceptions
+
+- `*-audit` skills (`context-audit`, `skill-audit`,
+  `project-audit`) keep the verb suffix even when the body is
+  multi-phase. Renaming to `-auditor` would collide with the
+  agent convention (`permission-auditor`, `code-reviewer`).
+- `gh-pr-doctor` uses `-doctor` as the canonical
+  fix-suggesting diagnostic verb.
+
+### Rename map (in progress)
+
+The following skills were re-classified during the GH-217 audit:
+
+| Current path | Renamed to | Reason |
+|--------------|------------|--------|
+| `skills/audit-report/` | `skills/audit-file/` | Files a ticket via fixed gh / Linear path — mechanical |
+| `skills/doctor/` | `skills/plugin-doctor/` | Adds `plugin` resource prefix to match `gh-pr-doctor` |
+| `skills/skill-reinforcement/` | (already renamed to `diag-friction`, see GH-214) | Skill-reinforcement was folded into the broader diag-friction skill ahead of GH-217 |
+
+When applying a rename: `git mv skills/<old>/ skills/<new>/`,
+update `name:` and `invocation-name:` in SKILL.md, grep for
+cross-references across SKILL.md / agent specs / references /
+rules, and keep a deprecated stub at the old path for one
+release cycle.
+
 ## Family Naming
 
 Skills use family prefixes for tab-completion discoverability:

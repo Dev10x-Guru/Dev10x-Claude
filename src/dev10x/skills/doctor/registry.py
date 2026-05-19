@@ -1,4 +1,4 @@
-"""Strategy registry for Dev10x:doctor (GH-87).
+"""Strategy registry for Dev10x:plugin-doctor (GH-87).
 
 The registry knows how to load shipped strategies (plus optional
 user-defined strategies under

@@ -1,5 +1,5 @@
 ---
-name: Dev10x:audit-report
+name: Dev10x:audit-file
 description: >
   File skill-audit findings as a GitHub issue at the Dev10x plugin repo.
   Invoked by skill-audit Phase 7 when the user opts in.
@@ -7,7 +7,7 @@ description: >
   DO NOT TRIGGER when: no audit findings exist, or user wants to review
   findings before filing.
 user-invocable: true
-invocation-name: Dev10x:audit-report
+invocation-name: Dev10x:audit-file
 allowed-tools:
   - AskUserQuestion
   - Read(/tmp/Dev10x/skill-audit/**)
