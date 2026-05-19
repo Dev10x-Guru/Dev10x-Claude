@@ -95,6 +95,12 @@ _SPECS: list[ValidatorSpec] = [
         profile=ProfileTier.STANDARD,
         experimental=True,
     ),
+    ValidatorSpec(
+        module_path="dev10x.validators.bash_aggregation",
+        class_name="BashAggregationValidator",
+        rule_id="DX010",
+        profile=ProfileTier.STANDARD,
+    ),
 ]
 
 
