@@ -907,6 +907,47 @@ plan gate in those cases.
 `AskUserQuestion` — do not write a document, create a plan file,
 or use Claude Code's built-in plan mode.
 
+### Session Mode Summary (GH-189)
+
+**REQUIRED: Display the resolved session mode** immediately
+before any plan-approval gate, including when the gate is
+bypassed under `adaptive+solo-maintainer`. The block makes
+autonomous behavior auditable upfront — without it, supervisors
+cannot tell whether the session will auto-merge or pause for
+confirmation, which is the visibility gap GH-189 closes.
+
+Read `friction_level` and `active_modes` from
+`.claude/Dev10x/session.yaml` and print:
+
+```
+Session mode summary
+  Friction level: <level> (<one-line behavior summary>)
+  Active modes:
+    - <mode-name>
+      • <one-line behavior bullet>
+      • <one-line behavior bullet>
+```
+
+For `friction_level`, use these summaries:
+
+| Level | One-line behavior |
+|-------|-------------------|
+| `strict` | All gates fire, no auto-selection |
+| `guided` | Gates fire with recommendations, user can override |
+| `adaptive` | Auto-select recommended at all gates (AFK) |
+
+For active modes, look up each entry in
+[`references/active-modes.md`](../../references/active-modes.md)
+and inline its documented behavior bullets. Unknown mode names
+emit a single warning bullet ("mode not documented — verify
+with `Dev10x:playbook`") rather than failing.
+
+Print this block once per session, immediately after the
+context summary and before the plan-approval gate. Subsequent
+re-invocations within the same session may omit the block when
+the persisted plan-sync context already shows the modes are
+unchanged.
+
 **REQUIRED: Call `AskUserQuestion`** when the plan was
 agent-generated (do NOT use plain text), EXCEPT when the
 adaptive+solo-maintainer bypass below applies.
@@ -980,6 +1021,36 @@ numbered list enforces execution per
 
 Work through the approved task list. Update task status via
 `TaskUpdate` as work progresses.
+
+### Mid-Execution Interrupt Classification (GH-229)
+
+When a new supervisor message arrives while a Phase 4 task is
+`in_progress`, classify it before deciding whether to pause.
+Under `friction_level: adaptive` the default is to keep working;
+only the signals in the **pause** column below justify stopping.
+
+| Signal type | Classification | Action |
+|-------------|----------------|--------|
+| Explicit stop word ("stop", "pause", "wait", "hold on") | Pause | Stop the in-progress task, mark `pending`, ask what changed |
+| In-flight correction of the current action ("not that file", "wrong approach") | Pause | Stop, address the correction, resume |
+| `Dev10x:session-wrap-up` invocation | Pause | Hand off to wrap-up |
+| `ALWAYS_ASK` gate firing | Pause | Honor the gate per its REQUIRED marker |
+| `<local-command-stdout>` block from a slash command | **Ambient chatter** | Continue — the user ran a side command, not a directive |
+| One-word ack ("ok", "k", "thanks", "👍") | **Ambient chatter** | Continue — acknowledgment, not a stop signal |
+| Conversational check-in ("how's it going?", "still working?") | **Ambient chatter** | Continue; answer briefly in the next status update |
+| New task scoped to the same plan ("also fix X") | Append, don't pause | Add via `TaskCreate` before Verify-AC; continue current task |
+| New ticket URL / Slack thread unrelated to current plan | Queue, don't pause | Append as a TODO; raise after current task completes |
+
+**Anti-pattern (GH-229):** Under `adaptive` friction, the agent
+stopped on an ambient `<local-command-stdout>` block + one-word
+check-in and waited for the supervisor to ask "are you working
+or pausing?". Slash-command stdout is the user's side command
+running; one-word acks are acknowledgment, not stop intent.
+Neither row above maps either signal to "pause".
+
+When in doubt at `adaptive`, default to **continue and post a
+brief status line** rather than pausing. The supervisor can
+explicitly stop you if needed — silence is consent to continue.
 
 ### Progress Compaction
 
