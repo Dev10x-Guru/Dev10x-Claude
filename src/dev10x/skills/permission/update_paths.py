@@ -396,6 +396,35 @@ def scan_top_level_dirs(
     return present
 
 
+def build_marketplaces_read_rules(
+    *,
+    plugin_cache: str,
+    user_home: Path,
+) -> list[str]:
+    """Emit unversioned Read rules pointing at the marketplaces layout.
+
+    The runtime reads plugin skills from
+    ``~/.claude/plugins/marketplaces/<publisher>/skills/...`` (unversioned).
+    Versioned cache paths emitted by :func:`build_read_allow_rules` go
+    stale on every plugin upgrade (GH-254). Emit an unversioned rule
+    covering every skill at once so the Read allow-rule survives plugin
+    version bumps.
+
+    Returns ``~/`` and ``/home/<user>/`` twins covering the whole
+    marketplaces publisher tree.
+    """
+    publisher = extract_cache_publisher(plugin_cache)
+    if not publisher:
+        return []
+
+    home = user_home.expanduser().resolve()
+    rel = f".claude/plugins/marketplaces/{publisher}"
+    return [
+        f"Read(~/{rel}/**)",
+        f"Read({home}/{rel}/**)",
+    ]
+
+
 def build_read_allow_rules(
     *,
     plugin_root: Path,
@@ -975,6 +1004,16 @@ def ensure_reads(
     expected_rules = build_read_allow_rules(
         plugin_root=plugin_root,
         user_home=Path.home(),
+    )
+    # GH-254: emit unversioned marketplaces Read rules alongside the
+    # versioned cache rules. The runtime reads skills from the
+    # marketplaces tree, which is unversioned — pinning to cache
+    # versions guarantees the rule goes stale on every upgrade.
+    expected_rules.extend(
+        build_marketplaces_read_rules(
+            plugin_cache=config["plugin_cache"],
+            user_home=Path.home(),
+        )
     )
     if not expected_rules:
         messages.append(f"No Read rules to emit for {plugin_root}")

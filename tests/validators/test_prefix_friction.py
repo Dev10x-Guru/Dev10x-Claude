@@ -412,3 +412,74 @@ class TestSemicolonChain:
         inp = _make_input(command=command)
         result = validator.validate(inp=inp)
         assert result is None
+
+
+class TestShellLoopWrap:
+    """GH-258: shell loops/xargs/find -exec wrap allowed commands."""
+
+    @pytest.fixture()
+    def validator(self) -> PrefixFrictionValidator:
+        return PrefixFrictionValidator()
+
+    @pytest.mark.parametrize(
+        ("command", "wrapper", "inner"),
+        [
+            (
+                "for n in 169 170 171; do gh api repos/x/y/issues/$n; done",
+                "for",
+                "gh",
+            ),
+            (
+                "while read line; do git log $line; done",
+                "while",
+                "git",
+            ),
+            (
+                "until [ -z $x ]; do kubectl get pods; done",
+                "until",
+                "kubectl",
+            ),
+            (
+                "echo a b c | xargs -I{} gh api {}",
+                "xargs",
+                "gh",
+            ),
+            (
+                r"find . -name '*.py' -exec git log {} \;",
+                "find -exec",
+                "git",
+            ),
+        ],
+    )
+    def test_blocks_shell_loop_wrap(
+        self,
+        validator: PrefixFrictionValidator,
+        command: str,
+        wrapper: str,
+        inner: str,
+    ) -> None:
+        inp = _make_input(command=command)
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert wrapper in result.message
+        assert inner in result.message
+        assert "parallel Bash tool calls" in result.message
+
+    def test_allows_loop_with_unrelated_body(
+        self,
+        validator: PrefixFrictionValidator,
+    ) -> None:
+        # Loop bodies whose inner head is not in the allowed-tokens set
+        # (e.g. plain `echo`) are out of scope — they're rarely the
+        # source of the documented friction.
+        inp = _make_input(command="for n in 1 2 3; do echo $n; done")
+        result = validator.validate(inp=inp)
+        assert result is None
+
+    def test_allows_xargs_with_unrelated_inner(
+        self,
+        validator: PrefixFrictionValidator,
+    ) -> None:
+        inp = _make_input(command="ls | xargs cat")
+        result = validator.validate(inp=inp)
+        assert result is None

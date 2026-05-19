@@ -14,6 +14,7 @@ import pytest
 
 from dev10x.skills.permission.update_paths import (
     READ_TOP_LEVEL_DIRS,
+    build_marketplaces_read_rules,
     build_read_allow_rules,
     ensure_read_rules,
     scan_skill_directories,
@@ -253,3 +254,35 @@ class TestEnsureReadRules:
 
         assert count == 0
         assert messages == []
+
+
+class TestBuildMarketplacesReadRules:
+    """GH-254: emit unversioned marketplaces Read rules."""
+
+    def test_emits_unversioned_twin_rules(self, fake_home: Path) -> None:
+        rules = build_marketplaces_read_rules(
+            plugin_cache="~/.claude/plugins/cache/Dev10x-Guru/Dev10x",
+            user_home=fake_home,
+        )
+
+        assert any("plugins/marketplaces/Dev10x-Guru/**" in r for r in rules)
+        assert any(r.startswith("Read(~/") for r in rules)
+        assert any(r.startswith(f"Read({fake_home}/") for r in rules)
+
+    def test_no_version_segment_in_emitted_rules(self, fake_home: Path) -> None:
+        rules = build_marketplaces_read_rules(
+            plugin_cache="~/.claude/plugins/cache/Dev10x-Guru/Dev10x",
+            user_home=fake_home,
+        )
+
+        for rule in rules:
+            assert "/cache/" not in rule
+            assert "0.72.0" not in rule
+
+    def test_returns_empty_when_publisher_undetectable(self, fake_home: Path) -> None:
+        rules = build_marketplaces_read_rules(
+            plugin_cache="~/some/random/path",
+            user_home=fake_home,
+        )
+
+        assert rules == []

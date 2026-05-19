@@ -22,6 +22,13 @@ include_user_settings: true
 # in every settings file.
 workspace_directories:
   - /tmp/Dev10x
+  # GH-254: skills read playbook overrides, plan-sync state, and
+  # plugin assets from these well-known locations. Without them,
+  # the additionalDirectories gate fires per-Read/Bash even when
+  # the underlying tool is allowed.
+  - ~/.claude/memory
+  - ~/.claude/plugins
+  - ~/.config/Dev10x
 
 # Base permissions that update-paths.py --ensure-base will add to every
 # settings.local.json if missing.  These are stable, version-independent
