@@ -5,6 +5,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.73.0 — XDG Config, MCP Wrapper Coverage & Walk-Away Mode
+
+Released 2026-05-19
+
 ### Features
 
 - **Move Dev10x userspace config out of `~/.claude/`** — config now
@@ -15,6 +19,80 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   explicitly by `dev10x config migrate` (wired into both
   `Dev10x:upgrade-cleanup` Step 1 and `Dev10x:doctor` Step 0)
   ([GH-215](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/215))
+- **Enable spec-as-source-of-truth pipeline (SPDD)** — M1 milestone
+  lands the spec-driven development flow so tickets, code, and
+  acceptance criteria stay aligned from a single source
+- **Close GitHub CLI wrapper gap with 4 new MCP tools** —
+  `milestone_create`, `issue_edit`, `issue_comment`, and
+  `issue_list` replace raw `gh api`/`gh issue` invocations so
+  the routing hook can steer agents away from CLI fallbacks
+  ([GH-220](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/220))
+- **Route `project-scope` through bulk MCP wrappers** — milestone
+  and issue creation use the bulk tools, eliminating per-item
+  approval friction for multi-ticket projects
+  ([GH-222](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/222))
+- **Route `gh pr edit` to the `update_pr` MCP wrapper** — drops
+  another raw-CLI path and keeps PR edits behind the structured
+  wrapper
+  ([GH-209](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/209))
+- **Enable `gh-pr-merge` Step 5 via the `merge_pr` MCP tool** —
+  final merge step runs through the wrapper so guardrails stay
+  consistent end-to-end
+  ([GH-232](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/232))
+- **Enable walk-away mode for unattended sessions** — supervisor
+  can hand off long-running flows so the user does not need to
+  baby-sit each prompt
+  ([GH-231](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/231))
+- **Defer skill-audit invocations via `Dev10x:skill-audit-queue`** —
+  audits run asynchronously instead of blocking the active session
+  ([GH-219](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/219))
+- **Detect Slack-forwarded threads in `ticket-scope` Phase 1.2** —
+  forwarded threads carry their original context so scoping reads
+  the right conversation
+  ([GH-218](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/218))
+- **Enable sibling pub/sub coordination via a JSONL bus** —
+  parallel sub-agents exchange progress and findings on a shared
+  JSONL channel
+  ([GH-133](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/133))
+- **Surface `push_safe` results so callers can confirm pushes** —
+  the wrapper now returns `{pushed, ref, remote, sha, tracking,
+  ci_run_url}` instead of `{}` on success, removing the
+  silent-success ambiguity
+  ([GH-188](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/188))
+- **Surface permission-friction diagnosis as `diag-friction`** —
+  refactored diagnosis is now a first-class command/skill
+  ([GH-214](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/214))
+- **Advise on redundant content fetches in PreToolUse** — agents
+  get steered away from re-reading content the session already
+  loaded
+  ([GH-206](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/206))
+- **Steer agents to serialized commands over shell loops** —
+  guidance hook nudges toward separate tool calls instead of
+  `for`/`while` bash loops that defeat permission matching
+  ([GH-234](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/234))
+- **Audit every validation bypass via a rationale string** — the
+  skip path now requires a justification recorded in the audit
+  log
+  ([GH-226](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/226))
+
+### Fixes
+
+- **Stabilize skill self-checks and permission rules**
+  ([GH-252](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/252))
+- **Stop Gate 6 from silently skipping after resolve** —
+  `gh-pr-respond` now re-validates instead of treating a
+  resolved thread as fully addressed
+  ([GH-208](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/208))
+- **Stop false-positive blocks on `find -name 'git-push-safe.sh'`** —
+  the validator no longer mistakes the literal pattern for a
+  push command
+  ([GH-210](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/210))
+
+### Docs & Internals
+
+- Record 2026-05-18 architecture audit findings under `docs/memos/`
+- Document Example 5 in the diag-friction examples list
+- Restore ruff format on doctor and permission modules
 
 ## 0.72.0 — Doctor, Fanout Swarm & Permission Hygiene
 
