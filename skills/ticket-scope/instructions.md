@@ -361,14 +361,33 @@ hardcode `/tmp/Dev10x/ticket-scope/<TICKET-ID>-scope.md` and do
 NOT shell out to `/tmp/Dev10x/bin/mktmp.sh` — the MCP tool is the
 preferred path (GH-55 F8).
 
-#### 7.2 Update Linear Ticket (Optional)
+#### 7.2 Post Scope Summary to the Ticket (Optional)
 
-If user approves, update ticket with:
-- Story point estimate
-- Comment with architecture summary
-- Links to related resources
+If the user approves, post the architecture/scope summary as a
+comment on the ticket. Pick the transport based on the tracker
+detected in Phase 1:
 
-**IMPORTANT:** Never modify ticket description without explicit user approval.
+| Tracker | Comment transport |
+|---------|-------------------|
+| GitHub issue (plain) | `mcp__plugin_Dev10x_cli__issue_comment(number=N, repo="OWNER/REPO", body="...")` (GH-228 — added in v0.73.0) |
+| GitHub PR | `mcp__plugin_Dev10x_cli__pr_issue_comment(pr_number=N, repo="OWNER/REPO", body="...")` |
+| Linear | `mcp__claude_ai_Linear__save_comment` against the issue ID |
+| JIRA | `Dev10x:jira` skill, comment subcommand |
+
+**Do NOT misuse `pr_issue_comment` for plain GitHub issues** —
+the dedicated `issue_comment` tool exists for that path (GH-228).
+**Do NOT fall back to raw `gh api POST` for comments** — the MCP
+wrapper exists for both PRs and plain issues, so no MCP path is
+not a valid excuse.
+
+Linear ticket updates also include:
+- Story point estimate (via `save_issue`)
+- Links to related resources (in the comment body or via
+  `save_issue` relations)
+
+**IMPORTANT:** Never modify the ticket description without
+explicit user approval. The comment transport above is for
+appending; description edits require a separate gate.
 
 ## Scoping Document Format
 
