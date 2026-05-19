@@ -88,6 +88,24 @@ SEMICOLON_CHAIN_RE = re.compile(
     rf"(?P<tail>{_CHAIN_HEAD_RE}\b.*)$"
 )
 
+# GH-258: shell loops wrap allowed commands and shift the effective
+# command prefix to the loop keyword (`for`, `while`, `until`).
+# `Bash(gh api:*)` does not match `for n in 1 2 3; do gh api ... ; done`
+# because the matcher sees `for` as the leading token. Same regression
+# family as `cd ... &&` chaining (DX007 existing rules) and `for/xargs`
+# wrappers documented in CLAUDE.md and `.claude/rules/hook-patterns.md`.
+# The proposed remedy is the parallel-Bash-tool-call pattern.
+_LOOP_KEYWORDS = ("for", "while", "until")
+SHELL_LOOP_HEAD_RE = re.compile(
+    r"^\s*(?P<keyword>for|while|until)\b[^;]*?;\s*do\b\s*(?P<body>.+?)(?:;\s*done\b.*)?$",
+    re.DOTALL,
+)
+XARGS_WRAP_RE = re.compile(r"\|\s*xargs\b(?P<rest>[^|;]*)")
+FIND_EXEC_WRAP_RE = re.compile(r"\bfind\b[^|;]*?-exec\s+(?P<rest>[^;]+?)(?:\\;|';'|\+)")
+_WRAPPED_INNER_TOKENS = frozenset(
+    {"gh", "git", "kubectl", "docker", "psql", "aws", "uv", "python", "python3"}
+)
+
 CD_REVPARSE_MSG = (
     '\u26a0\ufe0f  `cd "$(git rev-parse --show-toplevel)"` is unnecessary.\n\n'
     "Git commands already operate from the repo root regardless of CWD.\n"
@@ -178,6 +196,19 @@ SEMICOLON_CHAIN_MSG = (
     "Split into separate Bash tool calls instead.\n"
 )
 
+SHELL_LOOP_WRAP_MSG = (
+    "⚠️  Shell {wrapper} wraps an allowed command (`{inner}`) — permission friction risk.\n\n"
+    "Claude Code's allow-rule matcher keys on the leading token of the\n"
+    "command string. For `{wrapper}`, that token is `{wrapper}` — not\n"
+    "`{inner}`. So `Bash({inner}:*)` does NOT cover this call.\n\n"
+    "Use parallel Bash tool calls instead — one per iteration.\n"
+    "Tool calls in a single message run concurrently, which is faster\n"
+    "than a serial shell loop and each iteration matches its own\n"
+    "allow rule cleanly.\n\n"
+    "Example: send N separate Bash calls in one message, each running\n"
+    "`{inner} ...` with the iteration value substituted in.\n"
+)
+
 MERGE_BASE_MSG = (
     "\u26a0\ufe0f  $(git merge-base ...) subshell blocked \u2014 permission friction risk.\n\n"
     "The subshell shifts the effective command prefix, breaking allow-rule\n"
@@ -265,6 +296,10 @@ class PrefixFrictionValidator(ValidatorBase):
             # GH-119: shapes that bypass allow-rule prefix matching
             or ";" in cmd
             or re.search(r"\d?>(?:&\d|/\S+)", cmd) is not None
+            # GH-258: shell loops/xargs/find -exec wrap allowed commands
+            or any(re.search(rf"\b{kw}\b", cmd) for kw in _LOOP_KEYWORDS)
+            or "xargs" in cmd
+            or "-exec" in cmd
         )
 
     def validate(self, inp: HookInput) -> HookResult | None:
@@ -297,6 +332,10 @@ class PrefixFrictionValidator(ValidatorBase):
             return result
 
         result = self._check_semicolon_chain(command=inp.command)
+        if result:
+            return result
+
+        result = self._check_shell_loop_wrap(command=inp.command)
         if result:
             return result
 
@@ -418,6 +457,63 @@ class PrefixFrictionValidator(ValidatorBase):
                 tail_cmd=tail_cmd,
             )
         )
+
+    def _check_shell_loop_wrap(self, *, command: str) -> HookResult | None:
+        loop_match = SHELL_LOOP_HEAD_RE.match(command)
+        if loop_match:
+            inner = self._inner_command_from(body=loop_match.group("body"))
+            if inner:
+                return HookResult(
+                    message=SHELL_LOOP_WRAP_MSG.format(
+                        wrapper=loop_match.group("keyword"),
+                        inner=inner,
+                    ),
+                )
+
+        xargs_match = XARGS_WRAP_RE.search(command)
+        if xargs_match:
+            inner = self._first_non_flag_token(text=xargs_match.group("rest"))
+            if inner in _WRAPPED_INNER_TOKENS:
+                return HookResult(
+                    message=SHELL_LOOP_WRAP_MSG.format(wrapper="xargs", inner=inner),
+                )
+
+        find_match = FIND_EXEC_WRAP_RE.search(command)
+        if find_match:
+            inner = self._first_non_flag_token(text=find_match.group("rest"))
+            if inner in _WRAPPED_INNER_TOKENS:
+                return HookResult(
+                    message=SHELL_LOOP_WRAP_MSG.format(wrapper="find -exec", inner=inner),
+                )
+
+        return None
+
+    def _first_non_flag_token(self, *, text: str) -> str | None:
+        # Skip leading option flags and their values. Recognized
+        # value-taking short flags for `xargs` and `find -exec`.
+        value_flags = {"-I", "-n", "-P", "-J", "-L", "-E", "-d", "-s", "-name"}
+        tokens = text.strip().split()
+        idx = 0
+        while idx < len(tokens):
+            token = tokens[idx]
+            if token in value_flags:
+                idx += 2
+                continue
+            if token.startswith("-"):
+                idx += 1
+                continue
+            return token
+        return None
+
+    def _inner_command_from(self, *, body: str) -> str | None:
+        for clause in re.split(r"\s*(?:;|&&|\|\|)\s*", body):
+            tokens = clause.strip().split()
+            if not tokens:
+                continue
+            head = tokens[0]
+            if head in _WRAPPED_INNER_TOKENS:
+                return head
+        return None
 
     def _check_and_chaining(self, *, command: str) -> HookResult | None:
         if "&&" not in command:

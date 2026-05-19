@@ -908,23 +908,41 @@ plan gate in those cases.
 or use Claude Code's built-in plan mode.
 
 **REQUIRED: Call `AskUserQuestion`** when the plan was
-agent-generated (do NOT use plain text).
+agent-generated (do NOT use plain text), EXCEPT when the
+adaptive+solo-maintainer bypass below applies.
 
-**Adaptive friction behavior (GH-808, refined GH-158):** At
-adaptive level, the `AskUserQuestion` tool call MUST still
-emit so the user retains override capability — do not skip
-the gate. The agent auto-selects "Approve (Recommended)" and
-proceeds to Phase 4 only if the user does not override within
-the harness's interactive window. Skipping the gate as plain
-text (audit GH-158: ~45-minute response delay because the A/B
-choice was presented as prose, not a structured widget) is a
-compliance violation regardless of friction level.
+**Adaptive friction behavior (GH-808, GH-158, refined GH-252):**
 
-Implementation: always call `AskUserQuestion` below; treat
-adaptive as "auto-recommend, but block briefly for override"
-rather than "fire-and-forget approval".
+- At `friction_level: strict` or `friction_level: guided`,
+  the `AskUserQuestion` tool call ALWAYS fires.
+- At `friction_level: adaptive` WITHOUT `solo-maintainer` in
+  `active_modes`, the `AskUserQuestion` tool call MUST still
+  emit so the user retains override capability. The agent
+  auto-selects "Approve (Recommended)" and proceeds to Phase 4
+  only if the user does not override within the harness's
+  interactive window. Skipping the gate as plain text (audit
+  GH-158: ~45-minute response delay because the A/B choice was
+  presented as prose, not a structured widget) is a compliance
+  violation here.
+- At `friction_level: adaptive` AND `solo-maintainer` in
+  `active_modes`, the gate is bypassed entirely (GH-252) —
+  do not call `AskUserQuestion`, do not present the plan as
+  prose for approval. Auto-select "Approve (Recommended)" and
+  proceed directly to Phase 4. The friction profile already
+  resolves to a clear default; re-prompting on every
+  invocation creates the over-prompting regression documented
+  in GH-252 (Phase 3 fired a 4-option prompt on the second
+  invocation of the same session despite unchanged friction
+  context). The supervisor can still interrupt mid-execution
+  via the standard input channel.
 
-**All friction levels:** Call `AskUserQuestion`:
+This bypass applies only to **agent-generated** plans. When
+the user provides a numbered, actionable plan inline (per
+"Implicit approval bypass" below), no gate fires at any
+friction level.
+
+**Friction levels OTHER than `adaptive`+`solo-maintainer`:** Call
+`AskUserQuestion`:
 
 1. `AskUserQuestion(questions=[{question: "How would you like to proceed with the work plan?", header: "Plan", options: [{label: "Approve (Recommended)", description: "Start execution immediately"}, {label: "Edit", description: "Describe what to change (add/remove/reorder steps)"}], multiSelect: false}])`
 

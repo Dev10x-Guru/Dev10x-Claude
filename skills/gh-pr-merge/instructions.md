@@ -73,6 +73,31 @@ ones before proceeding. Do NOT shortcut to `gh pr merge` based on a
 single `gh pr view` JSON read — that is the regression this check
 exists to catch (GH-112).
 
+**Unskippable on every invocation (GH-253):** The `TaskList` call
+above runs ONCE per skill invocation, at Step 1, before any check
+or `gh pr merge` execution. It is not optional and it is not
+satisfied by a prior invocation's call. If you proceed past Step 1
+without calling `TaskList` in this invocation, HALT with the
+message: "gh-pr-merge Step 1 self-check skipped — restart from
+Step 1." Do not jump to Step 5 (`gh pr merge` / `merge_pr`) based
+on the agent's recollection that "the checks just passed" — those
+checks belong to a sibling skill's context, not this one.
+
+**Re-invocation contract:** Every invocation of `Dev10x:gh-pr-merge`
+re-runs the full skill body from Step 1, including all 8 pre-merge
+checks. Check results from a prior `Dev10x:gh-pr-monitor` phase,
+prior `Dev10x:verify-acc-dod` run, or earlier invocation of this
+same skill are NOT reusable. CI state, review comments, draft
+toggles, and force-push state can drift between invocations — the
+8 checks exist precisely to detect that drift.
+
+**"Re-run the skill" expansion:** When the supervisor says
+"execute the whole skill again", "re-run the skill", "run it once
+more", or any equivalent phrasing, treat that as a fresh invocation
+starting from Step 1 of this body — NOT as "resume from the last
+unfinished step" or "skip to the merge command". The full skill
+body, including all 8 checks, runs every time.
+
 Adaptive friction does NOT waive this skill body. The friction level
 only governs `AskUserQuestion` gates marked `(Recommended)`; the 8
 checks below still run. See `references/friction-levels.md` §
