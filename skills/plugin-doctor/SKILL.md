@@ -1,5 +1,5 @@
 ---
-name: Dev10x:doctor
+name: Dev10x:plugin-doctor
 description: >
   Diagnose drift between user intent and observed agent behavior in
   Dev10x sessions. Runs pluggable strategies that each detect one
@@ -15,7 +15,7 @@ description: >
   debugging (use Dev10x:permission-investigator) or the issue is a
   one-off skill bug (file a ticket instead).
 user-invocable: true
-invocation-name: Dev10x:doctor
+invocation-name: Dev10x:plugin-doctor
 allowed-tools:
   - Read
   - Write
@@ -31,7 +31,7 @@ allowed-tools:
   - Bash(dev10x config migrate:*)
 ---
 
-# Dev10x:doctor — Intent Drift Diagnostic (GH-87)
+# Dev10x:plugin-doctor — Intent Drift Diagnostic (GH-87)
 
 Surfaces systemic drift across settings, memories, hook messages,
 and skill docs that no single permission rule can fix. The skill
@@ -49,7 +49,7 @@ change.
 | `Dev10x:plugin-maintenance` | Ensures permissions present | Doesn't diagnose why intent breaks |
 | `Dev10x:memory-maintenance` | Memory consolidation | Doesn't link drift to permission friction |
 
-`Dev10x:doctor` orchestrates these as remediation targets — it
+`Dev10x:plugin-doctor` orchestrates these as remediation targets — it
 diagnoses, then delegates concrete edits.
 
 ## Orchestration

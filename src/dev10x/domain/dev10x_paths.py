@@ -13,7 +13,7 @@ Lazy migration: every accessor checks the legacy ``~/.claude/...``
 location on first call. If the legacy file/dir exists and the new
 path does not, the legacy content is copied across. The legacy
 entry is left in place so a downgrade can still read it; eager
-cleanup invoked from ``Dev10x:upgrade-cleanup`` and ``Dev10x:doctor``
+cleanup invoked from ``Dev10x:upgrade-cleanup`` and ``Dev10x:plugin-doctor``
 removes the legacy entries once parity is confirmed.
 """
 

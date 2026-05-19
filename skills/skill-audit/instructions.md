@@ -93,7 +93,7 @@ upstream.
 |-------------|-------------|
 | Select & file now | Create a minimal task list: `TaskCreate(subject="Phase 0: Early-insight findings", activeForm="Presenting findings")` followed by `TaskCreate(subject="Phase 7: Upstream reporting", activeForm="Reporting upstream")`. Skip Steps 0–8 and Phases 1–6 entirely. Jump directly to Phase 7 (Upstream Reporting) using the inline findings as the scrubbed findings file. Phase 7's sub-steps A–D still run — only the wave-driven analysis is skipped. |
 | Step back and run full audit | Fall through to Step 0. Create the full task list and proceed with the standard Wave 1 + Wave 2 orchestration. |
-| Discard | Exit the skill without creating wave tasks and without invoking `Dev10x:audit-report`. |
+| Discard | Exit the skill without creating wave tasks and without invoking `Dev10x:audit-file`. |
 
 #### Why this matters
 
@@ -158,7 +158,7 @@ Execute these exact `TaskCreate` calls at startup:
 **Synthesis (sequential, main agent):**
 
 9. `TaskCreate(subject="Phase 6: Propose changes", description="Synthesize findings into concrete SKILL.md edits, memory updates, and process improvements", activeForm="Proposing changes")`
-10. `TaskCreate(subject="Phase 7: Upstream reporting", description="File findings as GitHub issues at the Dev10x plugin repo via Dev10x:audit-report", activeForm="Reporting upstream")`
+10. `TaskCreate(subject="Phase 7: Upstream reporting", description="File findings as GitHub issues at the Dev10x plugin repo via Dev10x:audit-file", activeForm="Reporting upstream")`
 
 Set dependencies:
 - Tasks 1→2→3 sequential (setup chain)
@@ -1166,7 +1166,7 @@ If no upstream-relevant findings exist, mark Phase 7 completed.
 **REQUIRED: invoke `AskUserQuestion` tool** (not a plain text
 question) to ask whether to file upstream. Present the count
 of upstream-relevant findings and two options: "File issue
-(Recommended)" to delegate to `Dev10x:audit-report`, or
+(Recommended)" to delegate to `Dev10x:audit-file`, or
 "Skip" to keep findings local only.
 
 If the user selects **Skip**, mark Phase 7 completed and end.
@@ -1176,7 +1176,7 @@ If the user selects **Skip**, mark Phase 7 completed and end.
 **REQUIRED before writing the findings file.** The upstream
 issue is public; the source session is treated as private by
 default. Apply the replacement table, allow-list, and 5-step
-algorithm in `Dev10x:audit-report` →
+algorithm in `Dev10x:audit-file` →
 `references/privacy-scrub.md` to the findings text **before**
 writing it to the temp file.
 
@@ -1188,10 +1188,10 @@ plugin maintainers.
 
 If a finding cannot be reported without a private identifier,
 mark it `[needs-user-decision]` in the findings file and let
-`Dev10x:audit-report` Step 3 raise the `AskUserQuestion` gate.
+`Dev10x:audit-file` Step 3 raise the `AskUserQuestion` gate.
 Do NOT silently include unscrubbed text.
 
-**Sub-step D: Delegate to Dev10x:audit-report**
+**Sub-step D: Delegate to Dev10x:audit-file**
 
 Write the **scrubbed** findings summary to a temp file so the
 delegated skill can read it without needing the full transcript:
@@ -1204,10 +1204,10 @@ Write the scrubbed upstream-relevant findings table and proposed
 fixes to that file, then invoke:
 
 ```
-Skill(skill="Dev10x:audit-report", args="<findings-file-path>")
+Skill(skill="Dev10x:audit-file", args="<findings-file-path>")
 ```
 
-The `Dev10x:audit-report` skill handles version detection,
+The `Dev10x:audit-file` skill handles version detection,
 issue body generation, and `gh issue create`. Mark Phase 7
 completed after delegation returns.
 
@@ -1252,7 +1252,7 @@ completed after delegation returns.
   local skills, memory updates, and permission rule changes are
   local-only and never filed upstream.
 - **Delegation over embedding**: Phase 7 delegates issue filing to
-  `Dev10x:audit-report` rather than implementing it inline. This
+  `Dev10x:audit-file` rather than implementing it inline. This
   keeps skill-audit focused on analysis and lets users who don't
   want upstream reporting skip the skill entirely.
 - **Source session is private by default**: Audit reports MUST NOT
@@ -1263,6 +1263,6 @@ completed after delegation returns.
   the public Dev10x context (skill names, plugin file paths, PR
   numbers) to act on a finding — anything tied to the source
   codebase belongs in the auditor's local notes, not in the
-  filed issue. See `Dev10x:audit-report` Step 3 for the full
+  filed issue. See `Dev10x:audit-file` Step 3 for the full
   scrubbing rules and the `AskUserQuestion` gate that handles
   findings that cannot be scrubbed without losing meaning.

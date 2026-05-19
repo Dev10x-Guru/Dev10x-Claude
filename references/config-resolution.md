@@ -33,7 +33,7 @@ ExampleCorp repos share the same shipping pipeline).
 > `DEV10X_CONFIG_HOME`. Legacy paths under `~/.claude/memory/Dev10x/`
 > and `~/.claude/Dev10x/` are migrated lazily on first read and
 > explicitly by `dev10x config migrate` (wired into
-> `Dev10x:upgrade-cleanup` and `Dev10x:doctor`).
+> `Dev10x:upgrade-cleanup` and `Dev10x:plugin-doctor`).
 
 **Tier 3 — Plugin defaults** (`${CLAUDE_PLUGIN_ROOT}/skills/*/references/`):
 Shipped with the plugin. Used when no user override exists.

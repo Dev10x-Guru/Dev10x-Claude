@@ -1,6 +1,6 @@
 """GH-115: cluster session-accessed paths by common ancestor.
 
-Used by Dev10x:permission-investigator / Dev10x:doctor to detect
+Used by Dev10x:permission-investigator / Dev10x:plugin-doctor to detect
 user-wide directories (notes vaults, scratch dirs) that lack
 both an `additionalDirectories` entry and path-scoped tool
 allow rules. The output is a list of coherent patches — one

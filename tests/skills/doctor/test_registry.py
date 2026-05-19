@@ -1,4 +1,4 @@
-"""Tests for Dev10x:doctor strategy registry (GH-87)."""
+"""Tests for Dev10x:plugin-doctor strategy registry (GH-87)."""
 
 from __future__ import annotations
 
