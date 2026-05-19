@@ -1,0 +1,117 @@
+{
+  "skill_name": "Dev10x:spec-sync",
+  "eval_dimensions": [
+    {
+      "name": "structural-drift-detection",
+      "description": "Skill flags missing file references in Architecture / Implementation Steps"
+    },
+    {
+      "name": "behavioural-bail",
+      "description": "Skill refuses to proceed on behavioural drift and delegates to Dev10x:spec-update"
+    },
+    {
+      "name": "preserve-source-of-truth-sections",
+      "description": "Requirements / Acceptance Criteria / Entities / Norms / Safeguards are never modified during a sync"
+    },
+    {
+      "name": "check-only-mode",
+      "description": "check_only=True returns the report without writing or asking"
+    },
+    {
+      "name": "mixed-drift-gate",
+      "description": "When both kinds exist, AskUserQuestion fires (not plain text)"
+    }
+  ],
+  "evals": [
+    {
+      "scenario": "pure structural drift — refactor only",
+      "input": {
+        "ticket_id": "GH-172",
+        "drift": {
+          "structural": ["src/foo/old_path.py"],
+          "behavioural": []
+        }
+      },
+      "expected": {
+        "spec_updated": true,
+        "spec_update_invoked": false,
+        "untouched_sections": [
+          "Acceptance Criteria",
+          "Entities",
+          "Norms",
+          "Safeguards"
+        ]
+      },
+      "assertions": [
+        {
+          "check": "file_modified",
+          "path_pattern": "docs/specs/*.md",
+          "assertion": "structural-drift-detection"
+        }
+      ]
+    },
+    {
+      "scenario": "behavioural drift only — bail to spec-update",
+      "input": {
+        "ticket_id": "GH-172",
+        "drift": {
+          "structural": [],
+          "behavioural": ["missing acceptance criterion"]
+        }
+      },
+      "expected": {
+        "spec_updated": false,
+        "spec_update_invoked": true
+      },
+      "assertions": [
+        {
+          "check": "skill_invoked",
+          "name": "Dev10x:spec-update",
+          "assertion": "behavioural-bail"
+        }
+      ]
+    },
+    {
+      "scenario": "mixed drift fires gate",
+      "input": {
+        "ticket_id": "GH-172",
+        "drift": {
+          "structural": ["src/a.py"],
+          "behavioural": ["missing safeguard"]
+        }
+      },
+      "expected": {
+        "ask_user_question_calls": 1
+      },
+      "assertions": [
+        {
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "assertion": "mixed-drift-gate"
+        }
+      ]
+    },
+    {
+      "scenario": "check-only mode returns report silently",
+      "input": {
+        "ticket_id": "GH-172",
+        "check_only": true,
+        "drift": {
+          "structural": ["src/a.py"],
+          "behavioural": []
+        }
+      },
+      "expected": {
+        "spec_updated": false,
+        "ask_user_question_calls": 0,
+        "drift_report_returned": true
+      },
+      "assertions": [
+        {
+          "check": "no_destructive_action",
+          "assertion": "check-only-mode"
+        }
+      ]
+    }
+  ]
+}

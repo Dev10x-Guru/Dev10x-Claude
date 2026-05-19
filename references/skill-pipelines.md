@@ -116,6 +116,74 @@ park → discover → resume
 
 ---
 
+### 6. Structured Spec Pipeline (SPDD-style)
+
+For tickets that earn the full
+[Spec-Driven Development](../docs/adr/0005-spdd-pipeline.md)
+loop: scope-with-REASONS, ADR if architectural, spec-first
+edits on behaviour change, refactor-resync of the spec, and
+the regular shipping tail. The `Dev10x:work-on` suitability
+gate (GH-174) routes good-fit tickets here automatically.
+
+```
+scope-with-reasons → adr (if architectural)
+  → spec-update gate → implement
+  → py-test (API) → py-test (unit)
+  → spec-sync gate before merge
+  → ...shipping pipeline...
+```
+
+| Step | Skill | Input | Output |
+|------|-------|-------|--------|
+| Scope with REASONS | [`Dev10x:ticket-scope`](../skills/ticket-scope/SKILL.md) | ticket ID | `docs/specs/<TICKET-ID>.md` with Entities / Norms / Safeguards rendered inline |
+| Record ADR (conditional) | [`Dev10x:adr`](../skills/adr/SKILL.md) | architectural decision | ADR document |
+| Spec-update gate (Golden Rule) | [`Dev10x:spec-update`](../skills/spec-update/SKILL.md) | behaviour change | Updated spec + regenerated code |
+| Implement | (no skill — agent generates from spec) | spec | Code |
+| Run API tests | [`Dev10x:py-test`](../skills/py-test/SKILL.md) | code | Pass / fail |
+| Run unit tests | [`Dev10x:py-test`](../skills/py-test/SKILL.md) | code | Pass / fail |
+| Spec-sync gate before merge | [`Dev10x:spec-sync`](../skills/spec-sync/SKILL.md) | spec + code | Resynced spec OR bail-to-spec-update |
+| Drift check (during review) | [`Dev10x:gh-pr-respond`](../skills/gh-pr-respond/SKILL.md) | PR | Drift report — blocks on behavioural drift |
+| Drift check (pre-merge) | [`Dev10x:git-groom`](../skills/git-groom/SKILL.md) | branch | Fail-close on behavioural drift |
+| Shipping tail | shipping-pipeline fragment | branch | Merged PR |
+
+**Enter at any step.** Each step is invocable on its own:
+
+- **Already scoped, need to update behaviour mid-flight?**
+  Enter at `Dev10x:spec-update`. The skill reads the existing
+  spec, walks you through the behaviour-change edits, then
+  re-invokes `Dev10x:work-on` to regenerate code from the
+  updated spec.
+- **Refactor without behaviour change?** Enter at
+  `Dev10x:spec-sync`. The skill detects structural drift and
+  regenerates only the spec's Architecture / Implementation
+  Steps / Code References sections.
+- **Drift check only (no edits)?** `Dev10x:spec-sync
+  --check-only <ticket-id>` returns the `DriftReport` from the
+  shared `dev10x.spec.drift_detector` module without touching
+  the spec.
+
+**Pipeline guarantees.**
+
+- One canonical drift detector (`dev10x.spec.drift_detector`)
+  is shared between `Dev10x:spec-update`, `Dev10x:spec-sync`,
+  `Dev10x:gh-pr-respond`, and `Dev10x:git-groom` — all four
+  agree byte-for-byte on what counts as drift.
+- Behavioural drift is fail-close at merge time
+  (`Dev10x:git-groom` Phase 0b). Structural drift is a
+  warning, not a blocker.
+- The pipeline is **opt-in per ticket**. Projects without
+  `docs/specs/<TICKET-ID>.md` files continue to use the
+  `feature` / `bugfix` plays unchanged; the drift checks
+  no-op silently when no spec is present.
+
+**Why this pipeline?** Per ADR 0005, the SPDD insight is that
+the spec is the prompt. Code generated from a drifted spec
+silently regresses behaviour the spec no longer describes. The
+pipeline keeps spec and code aligned at every gate so the
+generation-from-spec contract holds across sessions.
+
+---
+
 ## Standalone Invocation
 
 Each skill in a pipeline can be invoked independently. Prerequisites:
