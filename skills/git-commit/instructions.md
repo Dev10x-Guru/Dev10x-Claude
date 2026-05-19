@@ -628,6 +628,46 @@ Create this commit? (y/n/edit)
 - Re-prompt for that section
 - Show new preview
 
+### Step 9.5: Pre-format Python files (GH-224)
+
+When the change set includes `*.py` files, pre-format them
+**before staging** so the project's pre-commit hook has nothing
+to rewrite. Without this step, Black/isort/ruff inside the hook
+reformat staged files, fail the commit, and restore the changes
+unstaged — forcing a re-stage + retry loop that fires once per
+Python-touching commit.
+
+**Detect Python files in the change set:**
+
+```bash
+git diff --name-only -- '*.py'
+git diff --cached --name-only -- '*.py'
+```
+
+Union of the two lists = files that will end up in this commit
+after `git add -A`. If the union is empty, skip this step.
+
+**Choose one formatter path** (in order of preference):
+
+1. **`pre-commit run --files <files>`** — respects whatever the
+   project configures (Black, isort, ruff, mypy, etc.).
+   Available when `.pre-commit-config.yaml` exists at repo root.
+2. **`uv run ruff format <files>`** — when ruff is a dev dep and
+   the project uses ruff format.
+3. **`uv run black <files>` and `uv run isort <files>`** — when
+   Black + isort are the configured formatters.
+
+**Fall-through rule:** Formatter invocation must NOT block the
+commit. If the chosen formatter is missing, errors, or returns
+non-zero, log a one-line note ("pre-format skipped: <reason>")
+and continue to Step 10. The pre-commit hook will still run on
+`git commit`; the worst case is the original loop, which is no
+worse than the pre-GH-224 baseline.
+
+**Unattended mode:** Run the pre-format silently without
+prompting. Errors fall through per the rule above. No
+`AskUserQuestion` — this is a mechanical preparation step.
+
 ### Step 10: Stage Files (if needed)
 
 **Pre-staging gate (GH-157):** If the index already contains
