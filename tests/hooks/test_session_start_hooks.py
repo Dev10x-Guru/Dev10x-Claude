@@ -106,12 +106,15 @@ class TestSessionInstallCheck:
     def test_silent_when_install_current(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR
+        from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
         from dev10x.domain.install_version import write_applied_version
         from dev10x.hooks.session_dispatch import build_install_check_context
 
         monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
-        ClaudeDir.dev10x_config_dir().mkdir(parents=True)
+        monkeypatch.setenv(CONFIG_HOME_ENV_VAR, str(tmp_path / "config_dev10x"))
+        Dev10xConfigDir.reset_cache()
+        Dev10xConfigDir.home().mkdir(parents=True)
         plugin_root = tmp_path / "plugin"
         (plugin_root / ".claude-plugin").mkdir(parents=True)
         (plugin_root / ".claude-plugin" / "plugin.json").write_text(
@@ -126,9 +129,12 @@ class TestSessionInstallCheck:
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR
+        from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
         from dev10x.hooks.session_dispatch import build_install_check_context
 
         monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
+        monkeypatch.setenv(CONFIG_HOME_ENV_VAR, str(tmp_path / "config_dev10x"))
+        Dev10xConfigDir.reset_cache()
         monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
 
         ctx = build_install_check_context()
@@ -138,12 +144,15 @@ class TestSessionInstallCheck:
     def test_guides_upgrade_on_version_mismatch(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR
+        from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
         from dev10x.domain.install_version import write_applied_version
         from dev10x.hooks.session_dispatch import build_install_check_context
 
         monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
-        ClaudeDir.dev10x_config_dir().mkdir(parents=True)
+        monkeypatch.setenv(CONFIG_HOME_ENV_VAR, str(tmp_path / "config_dev10x"))
+        Dev10xConfigDir.reset_cache()
+        Dev10xConfigDir.home().mkdir(parents=True)
         plugin_root = tmp_path / "plugin"
         (plugin_root / ".claude-plugin").mkdir(parents=True)
         (plugin_root / ".claude-plugin" / "plugin.json").write_text(
@@ -161,9 +170,12 @@ class TestSessionInstallCheck:
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
     ) -> None:
         from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR
+        from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
         from dev10x.hooks.session_dispatch import session_install_check
 
         monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
+        monkeypatch.setenv(CONFIG_HOME_ENV_VAR, str(tmp_path / "config_dev10x"))
+        Dev10xConfigDir.reset_cache()
         monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
 
         session_install_check()

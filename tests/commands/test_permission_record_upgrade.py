@@ -10,12 +10,15 @@ import yaml
 from click.testing import CliRunner
 
 from dev10x.commands.permission import record_upgrade
-from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR
+from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
 
 
 @pytest.fixture
 def claude_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
+    monkeypatch.setenv(CONFIG_HOME_ENV_VAR, str(tmp_path / "config_dev10x"))
+    Dev10xConfigDir.reset_cache()
     return tmp_path
 
 
@@ -35,7 +38,7 @@ def test_writes_plugin_version_to_version_yaml(
 
     result = CliRunner().invoke(record_upgrade, [])
     assert result.exit_code == 0
-    payload = yaml.safe_load(ClaudeDir.dev10x_version_yaml().read_text())
+    payload = yaml.safe_load(Dev10xConfigDir.version_yaml().read_text())
     assert payload["plugin_version"] == "0.72.0"
 
 
@@ -48,7 +51,7 @@ def test_explicit_version_overrides_plugin_json(
 
     result = CliRunner().invoke(record_upgrade, ["--version", "9.9.9"])
     assert result.exit_code == 0
-    payload = yaml.safe_load(ClaudeDir.dev10x_version_yaml().read_text())
+    payload = yaml.safe_load(Dev10xConfigDir.version_yaml().read_text())
     assert payload["plugin_version"] == "9.9.9"
 
 

@@ -1,9 +1,11 @@
 """GitHub App authentication for posting agent-generated content.
 
-Loads an opt-in App configuration from
-``~/.claude/Dev10x/github-app.yaml`` and mints short-lived
-installation tokens for the configured repository. The tokens are
-cached per-repo until shortly before their expiry.
+Loads an opt-in App configuration from the Dev10x config directory
+(``~/.config/Dev10x/github-bot/github-app.yaml`` on Linux/macOS,
+``%APPDATA%/Dev10x/github-bot/github-app.yaml`` on Windows, or via
+``DEV10X_CONFIG_HOME`` override) and mints short-lived installation
+tokens for the configured repository. The tokens are cached per-repo
+until shortly before their expiry.
 
 When configuration is absent, malformed, or the token exchange
 fails, ``get_bot_token`` returns ``None`` so callers can fall back
@@ -21,10 +23,10 @@ from pathlib import Path
 
 import yaml
 
-from dev10x.domain.claude_paths import ClaudeDir
+from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.subprocess_utils import async_run
 
-DEFAULT_CONFIG_PATH = ClaudeDir.github_app_yaml()
+DEFAULT_CONFIG_PATH = Dev10xConfigDir.github_app_yaml()
 
 
 @dataclass(frozen=True)

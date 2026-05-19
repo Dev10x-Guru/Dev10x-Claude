@@ -7,7 +7,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR
+from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
 from dev10x.domain.install_version import (
     InstallState,
     install_state,
@@ -20,6 +21,8 @@ from dev10x.domain.install_version import (
 @pytest.fixture
 def claude_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
+    monkeypatch.setenv(CONFIG_HOME_ENV_VAR, str(tmp_path / "config_dev10x"))
+    Dev10xConfigDir.reset_cache()
     return tmp_path
 
 
@@ -62,7 +65,7 @@ def test_read_applied_version_returns_recorded_value(claude_home: Path) -> None:
 
 
 def test_read_applied_version_rejects_non_string(claude_home: Path) -> None:
-    path = ClaudeDir.dev10x_version_yaml()
+    path = Dev10xConfigDir.version_yaml()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump({"plugin_version": 0.72}))
     assert read_applied_version() is None
@@ -89,14 +92,14 @@ def test_install_state_needs_bootstrap_when_config_missing(
 def test_install_state_needs_upgrade_when_version_missing(
     claude_home: Path, plugin_root: Path
 ) -> None:
-    ClaudeDir.dev10x_config_dir().mkdir(parents=True)
+    Dev10xConfigDir.home().mkdir(parents=True)
     state = install_state()
     assert state.needs_bootstrap is False
     assert state.needs_upgrade is True
 
 
 def test_install_state_current_when_versions_match(claude_home: Path, plugin_root: Path) -> None:
-    ClaudeDir.dev10x_config_dir().mkdir(parents=True)
+    Dev10xConfigDir.home().mkdir(parents=True)
     write_applied_version(plugin_version="0.72.0")
     state = install_state()
     assert state.needs_bootstrap is False
@@ -106,7 +109,7 @@ def test_install_state_current_when_versions_match(claude_home: Path, plugin_roo
 def test_install_state_needs_upgrade_when_versions_differ(
     claude_home: Path, plugin_root: Path
 ) -> None:
-    ClaudeDir.dev10x_config_dir().mkdir(parents=True)
+    Dev10xConfigDir.home().mkdir(parents=True)
     write_applied_version(plugin_version="0.71.0")
     state = install_state()
     assert state.needs_upgrade is True

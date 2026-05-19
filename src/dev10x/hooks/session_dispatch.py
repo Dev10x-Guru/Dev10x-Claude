@@ -110,7 +110,7 @@ def build_install_check_context() -> str:
     state = install_state()
     if state.needs_bootstrap:
         return (
-            "Dev10x config folder is missing at ~/.claude/Dev10x.\n"
+            "Dev10x config folder is missing at ~/.config/Dev10x.\n"
             "Run `/Dev10x:upgrade-cleanup` to bootstrap the userspace install."
         )
     if state.needs_upgrade:

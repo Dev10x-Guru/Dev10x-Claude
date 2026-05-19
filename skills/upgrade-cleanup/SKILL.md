@@ -19,6 +19,7 @@ invocation-name: Dev10x:upgrade-cleanup
 allowed-tools:
   - Skill
   - mcp__plugin_Dev10x_cli__record_upgrade
+  - Bash(dev10x config migrate:*)
 ---
 
 # Dev10x:upgrade-cleanup
@@ -44,7 +45,15 @@ without forcing them to remember the underlying skill name.
 
 ## Execution
 
-Delegate to the maintenance skill in `full` mode:
+Step 1 — migrate legacy Dev10x config out of `~/.claude/` to the
+XDG location (`~/.config/Dev10x/` on Linux/macOS, `%APPDATA%/Dev10x/`
+on Windows). Idempotent — skips paths already migrated. See GH-215.
+
+```
+Bash("dev10x config migrate")
+```
+
+Step 2 — delegate to the maintenance skill in `full` mode:
 
 ```
 Skill(skill="Dev10x:plugin-maintenance", args="full")
@@ -66,7 +75,7 @@ mcp__plugin_Dev10x_cli__record_upgrade()
 
 The MCP tool reads the version from
 `$CLAUDE_PLUGIN_ROOT/.claude-plugin/plugin.json` and writes it
-to `~/.claude/Dev10x/version.yml`. Skip this step if the
+to `~/.config/Dev10x/version.yml` (post-GH-215). Skip this step if the
 maintenance pass reported failures — leaving `version.yml`
 stale keeps the upgrade prompt visible until the issue is
 resolved.
@@ -74,6 +83,8 @@ resolved.
 ## Configuration
 
 See `Dev10x:plugin-maintenance` for `projects.yaml` location
-and base-permission semantics. The userspace config path
-(`~/.claude/skills/Dev10x:upgrade-cleanup/projects.yaml`) is
-unchanged for backward compatibility.
+and base-permission semantics. Post-GH-215 the userspace config
+path is `~/.config/Dev10x/upgrade-cleanup-projects.yaml`. Old
+files at `~/.claude/skills/Dev10x:upgrade-cleanup/projects.yaml`
+and `~/.claude/memory/Dev10x/*` are migrated lazily on first
+read and explicitly by `dev10x config migrate`.
