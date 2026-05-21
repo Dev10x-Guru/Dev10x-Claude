@@ -45,6 +45,9 @@ allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/<name>/scripts/:*)
 ```
 
+When a skill delegates to an `instructions.md` file, verify `allowed-tools:` in
+SKILL.md covers ALL external tool calls in both SKILL.md AND instructions.md.
+
 Missing declarations cause per-invocation approval friction — users cannot
 invoke the skill without approving tool access each time. See
 `.claude/rules/mcp-tools.md` for MCP vs. direct script trade-offs.
