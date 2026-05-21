@@ -60,6 +60,30 @@ async def pr_detect(arg: str, cwd: str | None = None) -> dict:
 
 
 @server.tool()
+async def pr_get(number: int, repo: str | None = None, cwd: str | None = None) -> dict:
+    """Get GitHub PR details (GH-267).
+
+    Symmetric to ``issue_get`` — closes the ``gh pr view`` permission-
+    friction gap.
+
+    Args:
+        number: PR number.
+        repo: Repository (owner/repo). If omitted, uses current repo.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: number, title, body, state, baseRefName,
+        headRefName, merged, mergedAt, closedAt, labels, milestone,
+        assignees, author, url.
+    """
+    from dev10x import github as gh
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return (await gh.pr_get(number=number, repo=repo)).to_dict()
+
+
+@server.tool()
 async def issue_get(number: int, repo: str | None = None, cwd: str | None = None) -> dict:
     """Get GitHub issue details.
 
@@ -573,6 +597,69 @@ async def issue_edit(
                 repo=repo,
             )
         ).to_dict()
+
+
+@server.tool()
+async def issue_close(
+    number: int,
+    reason: str = "completed",
+    comment: str | None = None,
+    repo: str | None = None,
+    cwd: str | None = None,
+) -> dict:
+    """Close a GitHub issue (GH-268).
+
+    Wraps `gh issue close N --reason <reason>` plus an optional
+    `--comment` body. Closes the `gh issue close` permission-friction
+    gap so skills like work-on can finalise epic closure.
+
+    Args:
+        number: Issue number to close.
+        reason: "completed" (default) or "not_planned".
+        comment: Optional final closing comment (Markdown supported).
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: number, state ("closed"), url.
+    """
+    from dev10x import github as gh
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return (
+            await gh.issue_close(
+                number=number,
+                reason=reason,
+                comment=comment,
+                repo=repo,
+            )
+        ).to_dict()
+
+
+@server.tool()
+async def issue_reopen(
+    number: int,
+    repo: str | None = None,
+    cwd: str | None = None,
+) -> dict:
+    """Reopen a closed GitHub issue (GH-268).
+
+    Wraps `gh issue reopen N`. Symmetric to `issue_close`.
+
+    Args:
+        number: Issue number to reopen.
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: number, state ("open"), url.
+    """
+    from dev10x import github as gh
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return (await gh.issue_reopen(number=number, repo=repo)).to_dict()
 
 
 @server.tool()

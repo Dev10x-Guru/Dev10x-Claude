@@ -1706,3 +1706,159 @@ class TestGenerateCommitList:
 
         assert isinstance(result, ErrorResult)
         assert "no commits" in result.error
+
+
+class TestPrGet:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_parses_pr_json(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(
+            stdout=json.dumps(
+                {
+                    "number": 42,
+                    "title": "Fix things",
+                    "state": "OPEN",
+                    "merged": False,
+                    "url": "https://github.com/owner/repo/pull/42",
+                }
+            )
+        )
+
+        result = await gh.pr_get(number=42, repo="owner/repo")
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["number"] == 42
+        assert result.value["state"] == "OPEN"
+        called_args = mock_run.call_args.args
+        assert "skills/gh-context/scripts/gh-pr-get.sh" in called_args[0]
+        assert "42" in called_args
+        assert "owner/repo" in called_args
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_returns_error_on_script_failure(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(returncode=1, stderr="not found")
+
+        result = await gh.pr_get(number=999)
+
+        assert isinstance(result, ErrorResult)
+        assert "not found" in result.error
+
+
+class TestIssueClose:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_closes_with_default_reason(
+        self,
+        mock_run: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="")
+
+        result = await gh.issue_close(number=42, repo="owner/repo")
+
+        assert isinstance(result, SuccessResult)
+        assert result.value == {
+            "number": 42,
+            "state": "closed",
+            "url": "https://github.com/owner/repo/issues/42",
+        }
+        called_args = mock_run.call_args.kwargs["args"]
+        assert called_args[:6] == [
+            "gh",
+            "issue",
+            "close",
+            "42",
+            "--reason",
+            "completed",
+        ]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_accepts_not_planned_reason(
+        self,
+        mock_run: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="")
+
+        result = await gh.issue_close(number=1, reason="not_planned", repo="owner/repo")
+
+        assert isinstance(result, SuccessResult)
+        called_args = mock_run.call_args.kwargs["args"]
+        assert "not_planned" in called_args
+
+    @pytest.mark.asyncio
+    async def test_rejects_invalid_reason(self) -> None:
+        result = await gh.issue_close(number=1, reason="abandoned")
+
+        assert isinstance(result, ErrorResult)
+        assert "completed" in result.error and "not_planned" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_passes_comment_when_provided(
+        self,
+        mock_run: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="")
+
+        result = await gh.issue_close(
+            number=7,
+            comment="Done — see PR #99",
+            repo="owner/repo",
+        )
+
+        assert isinstance(result, SuccessResult)
+        called_args = mock_run.call_args.kwargs["args"]
+        assert "--comment" in called_args
+        assert "Done — see PR #99" in called_args
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_returns_error_on_failure(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(returncode=1, stderr="not found")
+
+        result = await gh.issue_close(number=999)
+
+        assert isinstance(result, ErrorResult)
+        assert "not found" in result.error
+
+
+class TestIssueReopen:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_reopens_issue(
+        self,
+        mock_run: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="")
+
+        result = await gh.issue_reopen(number=42, repo="owner/repo")
+
+        assert isinstance(result, SuccessResult)
+        assert result.value == {
+            "number": 42,
+            "state": "open",
+            "url": "https://github.com/owner/repo/issues/42",
+        }
+        called_args = mock_run.call_args.kwargs["args"]
+        assert called_args[:4] == ["gh", "issue", "reopen", "42"]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_returns_error_on_failure(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(returncode=1, stderr="not found")
+
+        result = await gh.issue_reopen(number=999)
+
+        assert isinstance(result, ErrorResult)
+        assert "not found" in result.error
