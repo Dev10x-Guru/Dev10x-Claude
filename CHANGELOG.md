@@ -5,6 +5,55 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.74.0 — MCP Routing Coverage & Session Mode Awareness
+
+Released 2026-05-21
+
+### Features
+
+- **Route pytest through the `run_tests` MCP wrapper** — `Dev10x:py-test`
+  now drives test execution through the MCP tool so coverage gates,
+  output capture, and skill enforcement stay consistent across
+  invocations
+  ([GH-238](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/238))
+- **Route `gh pr view` and issue state changes through MCP wrappers** —
+  `pr_get`, `issue_close`, and `issue_reopen` replace raw `gh` calls,
+  closing the last common CLI fallbacks the routing hook saw in the
+  wild
+  ([GH-267](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/267))
+- **Route `ticket-scope` comments through the `issue_comment` MCP tool**
+  — scoping comments land via the structured wrapper instead of `gh
+  issue comment`
+  ([GH-228](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/228))
+- **Surface session mode and classify interrupts** — sessions now
+  expose their active mode (attended, walk-away, etc.) and classify
+  interrupts so skills can adapt their gating behavior
+  ([GH-189](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/189),
+  [GH-229](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/229))
+- **Pre-format Python files before staging in `git-commit`** —
+  ruff/black run automatically on staged Python changes so commits
+  never carry unformatted code
+  ([GH-224](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/224))
+
+### Fixes
+
+- **Restore `Dev10x:py-test` after a hook hard-block regression** —
+  the validation hook no longer hard-blocks the documented `uv run
+  pytest` invocation that `Dev10x:py-test` retries
+  ([GH-274](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/274))
+
+### Refactors
+
+- **Codify skill-name suffix convention and apply the rename map** —
+  skill directory and invocation names now follow a consistent suffix
+  convention; the rename map keeps backward references working
+  ([GH-217](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/217))
+- **Trim `diag-friction` and `gh-pr-review` SKILL.md bodies** — both
+  skill bodies were extracted to references so per-invocation token
+  cost drops without losing detail
+  ([GH-197](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/197),
+  [GH-199](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/199))
+
 ## 0.73.0 — XDG Config, MCP Wrapper Coverage & Walk-Away Mode
 
 Released 2026-05-19
