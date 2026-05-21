@@ -87,6 +87,7 @@ Always apply `references/review-checks-common.md`.
 | `model-tiers.md` | Model assignments, tier framework, per-project overrides | `model-selection.md` rule, playbook system | Referenced, not auto-loaded |
 | `skill-pipelines.md` | Skill composition pipelines, standalone invocation | `Dev10x:work-on` skill, pipeline documentation | Referenced, not auto-loaded |
 | `config-resolution.md` | 3-tier config paths, project mapping format | All playbook/settings skills | Referenced, not auto-loaded |
+| `testing-patterns.md` | Pytest fixture composition, async handlers, parametrized tests | Code reviews, test authoring | Referenced, not auto-loaded |
 | `pr-backlog-deferral.md` | Deferring non-blocking review findings to a backlog | `Dev10x:gh-pr-review` skill, code review CI | Referenced, not auto-loaded |
 
 ## Agent Specs (`.claude/agents/`)
