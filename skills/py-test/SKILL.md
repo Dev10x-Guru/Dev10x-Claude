@@ -11,6 +11,7 @@ description: >
 user-invocable: true
 invocation-name: Dev10x:py-test
 allowed-tools:
+  - mcp__plugin_Dev10x_cli__run_tests
   - Bash(pytest:*)
   - Bash(uv:*)
 ---
@@ -34,12 +35,30 @@ failures.
 
 ### Step 1: Run Tests
 
+**Preferred — MCP tool** (works in every session, including
+worktrees where `pytest` is not on PATH and the Bash hook blocks
+every direct invocation form, GH-238):
+
+```
+mcp__plugin_Dev10x_cli__run_tests()
+```
+
+Pass extra pytest args via the `args` parameter, e.g.
+`args=["src/dev10x/runner/"]` or `args=["-k", "name"]`. The tool
+returns a structured payload: `returncode`, `summary`, `passed`,
+`failed`, `skipped`, `coverage_percent`, `failed_tests`,
+`missing_coverage`, `stdout`, `stderr`. The subprocess is
+launched from the MCP server so the PreToolUse hook does not
+apply.
+
+**Fallback — Bash** (only when the MCP server is unavailable):
+
 ```bash
 pytest --cov --cov-report=term-missing
 ```
 
-**Worktree sessions:** When the session CWD is inside a worktree
-(`.git` is a file, not a directory), prefix with `uv run`:
+Inside a worktree (`.git` is a file, not a directory), prefix
+with `uv run`:
 
 ```bash
 uv run pytest --cov --cov-report=term-missing

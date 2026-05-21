@@ -1683,5 +1683,44 @@ async def record_upgrade(version: str | None = None) -> dict:
     return {"version": resolved, "path": str(path)}
 
 
+@server.tool()
+async def run_tests(
+    args: list[str] | None = None,
+    coverage: bool = True,
+    timeout: int = 600,
+    cwd: str | None = None,
+) -> dict:
+    """Run pytest with coverage via ``uv run`` (GH-238).
+
+    Symmetric to ``merge_pr``/``create_pr``/``push_safe``: the
+    subprocess is launched from the MCP server so the PreToolUse
+    hook that blocks raw ``pytest`` / ``uv run pytest`` Bash
+    invocations does not apply. This makes the documented test
+    gate reachable from worktree sessions where ``pytest`` is not
+    on PATH and every direct invocation form is hook-blocked.
+
+    Args:
+        args: Extra pytest arguments appended after coverage flags.
+            Example: ``["src/dev10x/runner/"]`` or ``["-k", "name"]``.
+        coverage: When True (default), add
+            ``--cov --cov-report=term-missing``.
+        timeout: Subprocess timeout in seconds (default 600).
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: returncode (int), summary (str),
+        passed (int), failed (int), skipped (int), errors (int),
+        coverage_percent (int | None), failed_tests (list[dict]),
+        missing_coverage (list[dict]), stdout (str), stderr (str).
+        A non-zero ``returncode`` is *not* an MCP-level error —
+        callers read ``returncode`` and ``failed_tests`` to decide.
+    """
+    from dev10x import runner
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return (await runner.run_tests(args=args, coverage=coverage, timeout=timeout)).to_dict()
+
+
 def main() -> None:
     server.run()
