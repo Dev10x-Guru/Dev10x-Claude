@@ -34,3 +34,23 @@ If startup exceeds 200ms, profile with:
 uv run python -X importtime -c "from dev10x.cli import cli" \
   2>&1 | sort -t: -k2 -n | tail -20
 ```
+
+## Validator Lazy Import Behavior (GH-82)
+
+The ValidatorRegistry defers importing validator modules until
+`registry.active()` is called, avoiding the import cost of all
+validators on every hook invocation.
+
+**Trade-off**: Metadata assertion errors (rule_id drift, profile
+mismatch) surface at hook-run time (when validators are instantiated),
+not at startup.
+
+**Monitor**: If hook latency increases during PreToolUse or PermissionDenied
+invocations, profile with `HOOK_DEBUG=1 dev10x validate-bash echo hi` and
+compare against prior measurements. Lazy imports reduce amortized cost per
+hook invocation; eager loading of all validator modules would regress
+initialization time across all PreToolUse events.
+
+**If regression**: Evaluate eager-loading validator metadata only (specs
+loaded at startup for assertion checks, module imports deferred until
+`ValidatorChain.run()`).
