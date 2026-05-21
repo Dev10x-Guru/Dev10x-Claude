@@ -101,6 +101,7 @@ supporting each tool:
 | `create_pr` | `cli` | PR #191 | v0.30.0+ |
 | `update_pr` | `cli` | GH-60 | v0.70.0+ |
 | `merge_pr` | `cli` | GH-232 | v0.73.0+ |
+| `run_tests` | `cli` | GH-238 | v0.74.0+ |
 | `milestone_close` | `cli` | GH-187 | v0.71.0+ |
 | `milestone_create` | `cli` | GH-220 | v0.73.0+ |
 | `issue_edit` | `cli` | GH-220 | v0.73.0+ |
