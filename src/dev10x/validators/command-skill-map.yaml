@@ -186,6 +186,62 @@ rules:
       Direct gh pr checks --watch exits on first result; the skill
       loops, fixes CI failures, addresses comments, and requests review.
 
+  - name: gh-pr-view
+    matcher: Bash
+    patterns:
+      - gh pr view
+    except: []
+    hook_block: true
+    compensations:
+      - type: use-tool
+        tool: mcp__plugin_Dev10x_cli__pr_get
+        guardrails: structured responses, no Bash permission friction
+        description: >
+          If the MCP server is unavailable, use gh pr view directly
+          and parse the JSON output manually with --json flag.
+    reason: >
+      Direct gh pr view requires Bash permission approval on every
+      call. The MCP tool provides structured JSON (number, title,
+      body, state, baseRefName, headRefName, merged, mergedAt,
+      closedAt, labels, milestone, assignees, author, url) and
+      avoids permission friction.
+
+  - name: gh-issue-close
+    matcher: Bash
+    patterns:
+      - gh issue close
+    except: []
+    hook_block: true
+    compensations:
+      - type: use-tool
+        tool: mcp__plugin_Dev10x_cli__issue_close
+        guardrails: structured responses, no Bash permission friction
+        description: >
+          If the MCP server is unavailable, use gh issue close N
+          --reason <completed|not_planned> directly.
+    reason: >
+      Direct gh issue close changes issue state and requires per-call
+      Bash permission. The MCP tool accepts reason and optional
+      closing comment and avoids friction.
+
+  - name: gh-issue-reopen
+    matcher: Bash
+    patterns:
+      - gh issue reopen
+    except: []
+    hook_block: true
+    compensations:
+      - type: use-tool
+        tool: mcp__plugin_Dev10x_cli__issue_reopen
+        guardrails: structured responses, no Bash permission friction
+        description: >
+          If the MCP server is unavailable, use gh issue reopen N
+          directly.
+    reason: >
+      Direct gh issue reopen changes issue state and requires per-call
+      Bash permission. The MCP tool returns structured responses and
+      avoids friction.
+
   - name: gh-issue-view
     matcher: Bash
     patterns:

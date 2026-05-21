@@ -88,6 +88,9 @@ supporting each tool:
 | `issue_get` | `cli` | PR #126 | v0.25.0+ |
 | `issue_comments` | `cli` | PR #126 | v0.25.0+ |
 | `issue_create` | `cli` | PR #552 | v0.44.0+ |
+| `issue_close` | `cli` | GH-268 | v0.74.0+ |
+| `issue_reopen` | `cli` | GH-268 | v0.74.0+ |
+| `pr_get` | `cli` | GH-267 | v0.74.0+ |
 | `pr_comments` | `cli` | PR #126 | v0.25.0+ |
 | `pr_comment_reply` | `cli` | PR #399 | v0.37.0+ |
 | `pr_issue_comment` | `cli` | GH-205 | v0.72.0+ |
@@ -209,8 +212,11 @@ the MCP server is unavailable.
 | `gh issue view` | `mcp__plugin_Dev10x_cli__issue_get` |
 | `gh issue create` | `mcp__plugin_Dev10x_cli__issue_create` |
 | `gh issue edit` | `mcp__plugin_Dev10x_cli__issue_edit` |
+| `gh issue close` | `mcp__plugin_Dev10x_cli__issue_close` |
+| `gh issue reopen` | `mcp__plugin_Dev10x_cli__issue_reopen` |
 | `gh issue comment` | `mcp__plugin_Dev10x_cli__issue_comment` |
 | `gh issue list` | `mcp__plugin_Dev10x_cli__issue_list` (advisory) |
+| `gh pr view` | `mcp__plugin_Dev10x_cli__pr_get` |
 | `gh api .../milestones POST` | `mcp__plugin_Dev10x_cli__milestone_create` |
 | `gh pr edit` | `mcp__plugin_Dev10x_cli__update_pr` |
 | `gh pr create` | `Dev10x:gh-pr-create` (wraps `create_pr`) |

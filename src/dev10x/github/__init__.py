@@ -122,6 +122,31 @@ async def pr_detect(*, arg: str) -> Result[dict[str, Any]]:
     return ok(parse_key_value_output(result.stdout))
 
 
+async def pr_get(
+    *,
+    number: int,
+    repo: str | None = None,
+) -> Result[dict[str, Any]]:
+    """Get GitHub PR details as a structured payload (GH-267).
+
+    Wraps ``gh pr view --json …`` so agents have a routed alternative
+    to the hook-blocked ``gh pr view`` invocation.
+    """
+    args = [str(number)]
+    if repo:
+        args.append(repo)
+    result = await async_run_script(
+        "skills/gh-context/scripts/gh-pr-get.sh",
+        *args,
+    )
+    if result.returncode != 0:
+        return err(result.stderr.strip())
+    try:
+        return ok(json.loads(result.stdout))
+    except json.JSONDecodeError:
+        return ok(parse_key_value_output(result.stdout))
+
+
 async def issue_get(
     *,
     number: int,
@@ -924,6 +949,87 @@ async def issue_edit(
     return ok(
         {
             "number": number,
+            "url": f"https://github.com/{repo_result.value}/issues/{number}",
+        }
+    )
+
+
+async def issue_close(
+    *,
+    number: int,
+    reason: str = "completed",
+    comment: str | None = None,
+    repo: str | None = None,
+) -> Result[dict[str, Any]]:
+    """Close a GitHub issue (GH-268).
+
+    Wraps ``gh issue close N --reason <reason> [--comment <body>]``.
+
+    Args:
+        number: Issue number to close.
+        reason: ``"completed"`` (default) or ``"not_planned"``.
+        comment: Optional final closing comment (Markdown supported).
+        repo: Repository (owner/repo). Auto-detected if omitted.
+
+    Returns:
+        On success: ``{"number": int, "state": "closed", "url": str}``.
+    """
+    if reason not in ("completed", "not_planned"):
+        return err(f"reason must be 'completed' or 'not_planned', got: {reason}")
+
+    args = ["gh", "issue", "close", str(number), "--reason", reason]
+    if repo:
+        args.extend(["--repo", repo])
+    if comment is not None:
+        args.extend(["--comment", comment])
+
+    result = await async_run(args=args, timeout=30)
+    if result.returncode != 0:
+        return err(result.stderr.strip())
+
+    repo_result = await _resolve_repo(repo)
+    if isinstance(repo_result, ErrorResult):
+        return ok({"number": number, "state": "closed", "url": result.stdout.strip()})
+    return ok(
+        {
+            "number": number,
+            "state": "closed",
+            "url": f"https://github.com/{repo_result.value}/issues/{number}",
+        }
+    )
+
+
+async def issue_reopen(
+    *,
+    number: int,
+    repo: str | None = None,
+) -> Result[dict[str, Any]]:
+    """Reopen a closed GitHub issue (GH-268).
+
+    Wraps ``gh issue reopen N``.
+
+    Args:
+        number: Issue number to reopen.
+        repo: Repository (owner/repo). Auto-detected if omitted.
+
+    Returns:
+        On success: ``{"number": int, "state": "open", "url": str}``.
+    """
+    args = ["gh", "issue", "reopen", str(number)]
+    if repo:
+        args.extend(["--repo", repo])
+
+    result = await async_run(args=args, timeout=30)
+    if result.returncode != 0:
+        return err(result.stderr.strip())
+
+    repo_result = await _resolve_repo(repo)
+    if isinstance(repo_result, ErrorResult):
+        return ok({"number": number, "state": "open", "url": result.stdout.strip()})
+    return ok(
+        {
+            "number": number,
+            "state": "open",
             "url": f"https://github.com/{repo_result.value}/issues/{number}",
         }
     )
