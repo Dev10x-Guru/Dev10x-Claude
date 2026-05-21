@@ -177,6 +177,11 @@ Detailed context for reviewers without bloating the Slack preview.
 
 For commit format and branch naming, see `git-commits.md`.
 
+### Backlog Items and Deferred Findings
+
+For deferring non-blocking review findings, see
+[`pr-backlog-deferral.md`](pr-backlog-deferral.md).
+
 ## Consolidation PRs
 
 When a PR consolidates multiple directories, features, or components, the JTBD
