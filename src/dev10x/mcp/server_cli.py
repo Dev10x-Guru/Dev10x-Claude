@@ -697,6 +697,73 @@ async def issue_comment(
 
 
 @server.tool()
+async def issue_comment_edit(
+    comment_id: int,
+    body: str,
+    repo: str | None = None,
+    cwd: str | None = None,
+) -> dict:
+    """Edit an existing GitHub issue or PR comment body (GH-283).
+
+    Symmetric to `issue_comment` (POST) but uses PATCH against
+    `/repos/{owner}/{repo}/issues/comments/{id}`. Works on issue
+    comments and PR issue-level comments.
+
+    Args:
+        comment_id: Numeric ID of the comment to edit (from
+            /comments/<id> URL fragment).
+        body: New body text (full replacement; not a delta).
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: id, body, html_url.
+    """
+    from dev10x import github as gh
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return (
+            await gh.issue_comment_edit(
+                comment_id=comment_id,
+                body=body,
+                repo=repo,
+            )
+        ).to_dict()
+
+
+@server.tool()
+async def issue_comment_delete(
+    comment_id: int,
+    repo: str | None = None,
+    cwd: str | None = None,
+) -> dict:
+    """Delete a GitHub issue or PR comment (GH-283).
+
+    Uses DELETE against `/repos/{owner}/{repo}/issues/comments/{id}`.
+    Works on issue comments and PR issue-level comments.
+
+    Args:
+        comment_id: Numeric ID of the comment to delete.
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: deleted (bool), comment_id (int).
+    """
+    from dev10x import github as gh
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return (
+            await gh.issue_comment_delete(
+                comment_id=comment_id,
+                repo=repo,
+            )
+        ).to_dict()
+
+
+@server.tool()
 async def issue_list(
     repo: str | None = None,
     state: str = "open",
