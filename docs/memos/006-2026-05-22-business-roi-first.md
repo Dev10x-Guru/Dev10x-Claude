@@ -194,6 +194,20 @@ in §5 is finite and versioned.
 If the work does not appear in it, the default rule applies — no
 override, no appeal to precedent.
 
+**Doctrine at a glance:**
+
+```mermaid
+flowchart TD
+  A[Author drafts<br/>PR title / Job Story / commit] --> B{Does it name<br/>a ROI bucket<br/>+ actor outside<br/>engineering?}
+  B -->|Yes| Z[Ship — default rule satisfied]
+  B -->|No| C{Does the work match<br/>a canonical platform<br/>overhead bucket §5?}
+  C -->|No| D[Default rule applies —<br/>apply the 5 lenses §3<br/>to find the outcome,<br/>or do not ship alone]
+  C -->|Yes| E{Can author recite<br/>the bucket's one-line<br/>rationale?}
+  E -->|Yes| F[Ship — recite rationale<br/>in PR body; no Job Story required]
+  E -->|No| G[Recitation failed —<br/>study §5 or escalate<br/>to add new bucket via ADR]
+  G -.->|loops back| C
+```
+
 ## §3 — The Five Lenses (toolkit)
 
 The doctrine does not prescribe a single algorithm;
@@ -704,6 +718,18 @@ retired or automated away.
 | Compliance audit-log evidence collection | External auditors require periodic evidence packs (SOC2, ISO 27001, GDPR Art 30 ROPA) that demand a recurring effort cycle; collecting on-demand is more costly than scheduling. | Per audit cycle |
 | License / certificate renewals | Software licences and TLS certificates have hard expiry dates that, if missed, cause customer-facing outages; renewal is risk-avoided cost. | Per expiry calendar |
 
+**Canonical-bucket invocation at a glance:**
+
+```mermaid
+flowchart TD
+  A[Author about to invoke<br/>'platform overhead' exception] --> B{Does the work match<br/>an existing canonical<br/>entry by EXACT NAME?}
+  B -->|No| C[Two options only:<br/>1. Find the downstream outcome<br/>under default rule §2<br/>2. Propose new canonical entry<br/>via team ADR + cessation criteria]
+  B -->|Yes| D{Can author recite<br/>the bucket's canonical<br/>rationale from memory<br/>or §5 paste?}
+  D -->|No| E[Recitation failed —<br/>study the canonical entry first.<br/>Parroting without understanding<br/>IS the bureaucracy-creep failure mode<br/>this mechanism exists to prevent.]
+  D -->|Yes| F[Exception satisfied —<br/>recite rationale in PR body;<br/>no Job Story required.<br/>The absence of a story signals<br/>'this work keeps the platform sound'.]
+  E -.->|study, then retry| D
+```
+
 ---
 
 **Borderline cases and entries that do not qualify alone.**
@@ -778,6 +804,18 @@ for two quarters and some accounts have stalled at procurement because of it.
 **Naïve draft.**
 ```
 Add ACH to PaymentMethod enum
+```
+
+**Trace-up at a glance:**
+
+```
+✨ ACH enum addition (FEAT-401)                    ← the diff
+  └─ Cashier selects 'ACH' at point of sale
+       └─ Merchant reconciliation stops grouping as 'Other'
+            └─ Accounting team closes month-end without manual fixes
+                 └─ Enterprise procurement reviewers see complete story
+                      └─ Enterprise sales pipeline unblocks
+                         (multi-year contracts = high LTV cohort)
 ```
 
 **Lens application:**
@@ -873,6 +911,18 @@ the fix is a single `prefetch_related` call.
 **Naïve draft.**
 ```
 Fix N+1 query in PayrollCalculator
+```
+
+**Trace-up at a glance:**
+
+```
+🐛 N+1 query fix in PayrollCalculator (BUG-500)    ← the diff
+  └─ Calculation completes within timeout window
+       └─ Month-end payroll batch closes on schedule
+            └─ Employees paid by scheduled pay date
+                 └─ Finance team not paged at 2 a.m.
+                      └─ Labour-law liability avoided
+                         + finance trust in platform restored
 ```
 
 **Lens application:**
@@ -976,6 +1026,18 @@ This naïve draft is the GH-276 headline anti-pattern verbatim:
 the actor is the developer, the benefit is an implementation convenience,
 and the business chain is severed at the first link.
 
+**Trace-up at a glance:**
+
+```
+📦 ULID library dependency bump (CFG-823)          ← the diff
+  └─ Enables client-side ID generation
+       └─ Enables atomic-document save mutation
+            └─ Makes configurator UI usable for end customers
+                 └─ End customers self-serve template config
+                      └─ Vendor saves support hours
+                         + customers ship config same-day
+```
+
 **Lens application:**
 
 - **Trace-upward**: A ULID dep bump enables client-side ID generation,
@@ -1061,6 +1123,18 @@ the very anti-pattern this memo is designed to replace.
 The actor is the developer, the benefit is avoided rework,
 and the business chain is again severed at the implementation layer.
 
+**Trace-up at a glance:**
+
+```
+♻️ Extract notification dispatch to shared outbox (FEAT-230)   ← the diff
+  └─ SMS channel becomes pluggable (next PR)
+       └─ Billing admins reach customers on monitored channel
+            └─ Customers settle invoices faster
+                 └─ Days-sales-outstanding shrinks
+                      └─ Vendor cashflow + operating leverage improve
+                         (less collections labour, fewer late fees)
+```
+
 **Lens application:**
 
 - **Trace-upward**: The refactor produces a shared outbox, which makes the
@@ -1136,6 +1210,21 @@ The ticket exists solely to close the rotation window before the quarter ends.
 Rotate payment-processor OAuth token
 ```
 
+**Trace-up at a glance (DEAD-END is the diagnostic signal):**
+
+```
+🔒 Rotate payment-processor OAuth token (OPS-RT-Q3)   ← the diff
+  └─ New credential in vault + rolling restart
+       └─ ▲ Trace-upward DEAD-ENDS here ▲
+          (no human beneficiary; no user-visible change)
+          ↓
+          Diagnostic signal: consult canonical bucket list §5
+          ↓
+          Match: 'Security cert / secret rotation' bucket
+          ↓
+          Recite rationale in PR body — no Job Story required
+```
+
 **Lens application:**
 
 - **Trace-upward**: Rotation → vault entry changes → rolling restart of the payments service → no customer-visible effect.
@@ -1190,6 +1279,18 @@ Three EU enterprise procurement reviews have been stalled on this exact gap.
 
 ```
 Update audit log retention to 13 months
+```
+
+**Trace-up at a glance:**
+
+```
+🔒 Extend audit_log retention 30 → 395 days (COMP-415)   ← the diff
+  └─ GDPR Art 30 ROPA compliance gap closes
+       └─ EU enterprise customers' compliance officers
+            see retention satisfies regulatory minimum
+            └─ Customer procurement teams approve our platform
+                 └─ Three EU enterprise deals unblock
+                    (Revenue captured + Risk avoided, both honest)
 ```
 
 **Lens application:**
@@ -1248,6 +1349,19 @@ Ticket OPS-200.
 
 ```
 Add deploy state widget to oncall dashboard
+```
+
+**Trace-up at a glance:**
+
+```
+✨ Deploy-state widget on on-call dashboard (OPS-200)   ← the diff
+  └─ On-call engineer (legitimate actor — they ARE the user)
+     sees deploy state at a glance during incidents
+       └─ Investigation time per incident drops
+            └─ Mean Time To Restore (MTTR) shortens
+                 └─ Customer-facing service downtime contracts
+                      └─ SLA penalties avoided +
+                         customer trust preserved under incidents
 ```
 
 **Lens application:**
@@ -1332,6 +1446,20 @@ Ticket INFRA-89.
 
 ```
 Parallelize CI test suites
+```
+
+**Trace-up at a glance:**
+
+```
+⚡ Parallelize CI test suites (INFRA-89)             ← the diff
+  └─ Developer (legitimate actor — they ARE the user)
+     receives CI feedback in <5 min instead of 12 min
+       └─ Engineering team throughput rises ~15%
+            └─ Feature delivery rate accelerates
+                 └─ Customer requests answered in days, not weeks
+                      └─ Competitive response time improves
+                         (DORA lead-time → org performance,
+                         Forsgren et al. 2018)
 ```
 
 **Lens application:**
@@ -1699,6 +1827,24 @@ returning signal to the team that commissioned them.
 > The skills are the enforcement.
 > The annual audit is the renewal.
 > None of these is sufficient alone."*
+
+**The system at a glance:**
+
+```mermaid
+flowchart LR
+  subgraph Doctrine["Doctrine (this memo)"]
+    M["§2 default rule<br/>§3 five lenses<br/>§5 canonical buckets<br/>§7 anti-patterns"]
+  end
+  subgraph Enforcement["Enforcement (skills)"]
+    S["jtbd · git-commit<br/>gh-pr-create · ticket-scope<br/>release-notes · project-audit"]
+  end
+  subgraph Renewal["Renewal (audits, §8)"]
+    A["quarterly artifact audit<br/>annual bucket audit<br/>per-release overhead audit<br/>stakeholder excitement check"]
+  end
+  M -->|cited as doctrine root by| S
+  S -->|produces artifacts<br/>that feed| A
+  A -->|surfaces drift,<br/>retires stale buckets,<br/>proposes lens revisions| M
+```
 
 ---
 
