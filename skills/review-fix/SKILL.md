@@ -45,7 +45,8 @@ This skill follows `references/task-orchestration.md` patterns
 (Tier: Standard).
 
 **Auto-advance:** Complete each finding and immediately start the
-next. Never pause between findings.
+next — no checkpoints under adaptive friction. Never pause
+between findings.
 
 **REQUIRED: Create tasks before ANY work.** Execute at startup:
 

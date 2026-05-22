@@ -433,13 +433,24 @@ Remote branch deleted: yes/no
 
 ## Auto-Advance Behavior
 
-This skill is designed to auto-advance in shipping pipelines.
-After a successful merge, the calling skill should proceed
-immediately to the next step (typically acceptance criteria
-verification). No confirmation gate after merge.
+This skill is designed to auto-advance in shipping pipelines —
+**no checkpoints under adaptive friction**. After a successful
+merge, the calling skill proceeds immediately to the next step
+(typically acceptance criteria verification). There is NO
+confirmation gate after merge: a trailing "PR merged — ready to
+verify acceptance?" is a checkpoint and is forbidden under
+adaptive friction. The merge is a step in the no-checkpoints
+shipping sequence, not a natural stopping point.
 
 If merge fails (e.g., branch protection rules), report the
-error and let the calling skill decide how to proceed.
+error and let the calling skill decide how to proceed. A
+genuine merge failure is a hard blocker, not a checkpoint —
+treat it accordingly.
+
+The ALWAYS_ASK "merge anyway" override (Check 2 failure path)
+is the only documented in-skill pause, and only fires when the
+auto-fix loop is exhausted. See `references/friction-levels.md`
+§ "No checkpoints" rule for the canonical definition.
 
 ## Important Notes
 

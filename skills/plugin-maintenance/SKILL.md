@@ -59,7 +59,7 @@ Read the args string passed to the skill:
 ## Orchestration
 
 This skill follows `references/task-orchestration.md` patterns.
-**Auto-advance:** complete each step, immediately start the next.
+**Auto-advance:** complete each step, immediately start the next — no checkpoints under adaptive friction.
 Run dry-run before applying — no pause between steps.
 
 **REQUIRED: Create tasks before ANY work.** The task list depends

@@ -26,7 +26,8 @@ dependency or conflict is detected.
 This skill follows `references/task-orchestration.md` patterns.
 
 **Auto-advance:** Complete each item, immediately start the
-next. Never pause between items to ask "should I continue?"
+next — no checkpoints under adaptive friction. Never pause
+between items to ask "should I continue?"
 
 **REQUIRED: Create tasks before ANY work.** Execute
 `TaskCreate` calls at startup — one per phase:
@@ -614,6 +615,21 @@ status `in_progress`. If any exist (e.g., Phase 4 monitor agents
 still running), do NOT proceed — wait for all agents to complete.
 The completion gate must not fire while monitors are still
 tracking CI or merges.
+
+**This wait is NOT a checkpoint.** Under adaptive friction, "no
+checkpoints" means no implicit pauses for the user to acknowledge
+progress between steps. It does not mean "skip waiting for
+genuine async work to finish". Background agents finishing CI
+monitoring and merge confirmation are hard dependencies of the
+Phase 5 verification gate, not optional acknowledgements. The
+distinction:
+
+- Checkpoint (forbidden): "Phase 4 dispatched — ready to verify?"
+- Dependency wait (required): `TaskList` polling until all
+  in-progress agents return their results
+
+See `references/friction-levels.md` § "No checkpoints" rule for
+the full taxonomy.
 
 **Enforcement loop:**
 1. Call `TaskList`

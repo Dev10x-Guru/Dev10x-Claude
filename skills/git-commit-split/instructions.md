@@ -8,7 +8,7 @@ Split monolithic git commits into atomic, cohesive commits that follow Clean Arc
 
 This skill follows `references/task-orchestration.md` patterns.
 
-**Auto-advance:** Complete each phase, immediately start the next.
+**Auto-advance:** Complete each phase, immediately start the next — no checkpoints under adaptive friction.
 Never pause between phases to ask "should I continue?".
 
 **REQUIRED: Create tasks before ANY work.** Execute these

@@ -3,11 +3,14 @@
 This rule applies to ALL skills, regardless of tier. It is the
 single most important orchestration pattern.
 
-**Always auto-advance.** Complete a step or task, immediately
-start the next. Never pause to ask "should I continue?", "ready
-for the next step?", or wait for the user to say "go" / "next" /
-"continue". The invocation of the skill is the authorization to
-proceed through all its steps.
+**Always auto-advance — no checkpoints under adaptive friction.**
+Complete a step or task, immediately start the next. Never pause
+to ask "should I continue?", "ready for the next step?", or wait
+for the user to say "go" / "next" / "continue". The invocation of
+the skill is the authorization to proceed through all its steps.
+See `references/friction-levels.md` § "No checkpoints" rule for
+the canonical definition of what counts as a checkpoint vs. a
+legitimate gate or dependency wait.
 
 ```
 TaskUpdate(taskId=current, status="completed")

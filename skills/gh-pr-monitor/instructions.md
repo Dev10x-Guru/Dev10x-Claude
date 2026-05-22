@@ -19,7 +19,7 @@ on its own to revert reviewer-directed code.
 
 This skill follows `references/task-orchestration.md` patterns.
 
-**Auto-advance:** Complete each phase, immediately start the next.
+**Auto-advance:** Complete each phase, immediately start the next — no checkpoints under adaptive friction.
 Never pause to ask "should I continue?" between phases.
 
 **REQUIRED: Create tasks at session start.** The supervisor

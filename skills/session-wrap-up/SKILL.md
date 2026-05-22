@@ -53,7 +53,7 @@ each one to the right discovery context.
 
 This skill follows `references/task-orchestration.md` patterns.
 
-**Auto-advance:** Complete each step, immediately start the next.
+**Auto-advance:** Complete each step, immediately start the next — no checkpoints under adaptive friction.
 Never pause to ask "should I continue?" between steps.
 
 **REQUIRED: Create tasks before ANY work.** Execute these

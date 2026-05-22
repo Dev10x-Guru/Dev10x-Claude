@@ -114,8 +114,9 @@ For **every cell** in the matrix, run this loop:
 
 4. Move to the next cell.
 
-**Auto-advance:** Do not pause between cells. The matrix is
-complete when every cell has a recorded outcome.
+**Auto-advance:** Do not pause between cells — no checkpoints
+under adaptive friction. The matrix is complete when every cell
+has a recorded outcome.
 
 ## Phase 3: Aggregate
 

@@ -39,7 +39,7 @@ Storming, Software Archetypes, and architecture stress testing.
 
 This skill follows `references/task-orchestration.md` patterns.
 
-**Auto-advance:** Complete each step, immediately start the next.
+**Auto-advance:** Complete each step, immediately start the next — no checkpoints under adaptive friction.
 Only pause when batching questions per the process rules.
 
 **REQUIRED: Create tasks before ANY work.** After determining

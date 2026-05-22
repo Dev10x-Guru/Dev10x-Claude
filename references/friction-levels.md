@@ -109,6 +109,49 @@ friction levels, including adaptive).
 
 Gates without `ALWAYS_ASK` auto-resolve at adaptive level.
 
+### "No checkpoints" rule
+
+Adaptive friction means **no checkpoints** between steps. A
+checkpoint is any pause where the agent waits for an implicit
+"ok, continue" from the user. Under adaptive friction, the
+approved plan is the authorization to proceed through every
+remaining step until the plan completion gate.
+
+**What counts as a checkpoint (forbidden under adaptive):**
+
+- Trailing "Ready to proceed?" / "Should I continue?" prompts
+- Summarising progress and stopping when the next step is
+  unambiguous
+- Pausing after a commit, push, or skill completion to await
+  acknowledgement
+- Inserting an `AskUserQuestion` gate that is not marked
+  `ALWAYS_ASK` and is not in the documented gate list for the
+  current skill
+
+**What is NOT a checkpoint (allowed at every friction level):**
+
+- `ALWAYS_ASK` gates — destructive operations, true ambiguity,
+  irreversible state changes
+- Batched A/B decisions per the queue pattern in
+  `references/task-orchestration.md` (collect, advance, ask
+  once when ALL tasks are blocked)
+- Hard blockers — unrecoverable CI, missing credentials, merge
+  conflicts requiring human judgment
+- The single Plan Completion Gate at end of plan
+- Documented gates in a skill's instructions that fire at every
+  friction level (e.g., merge-anyway overrides in
+  `Dev10x:gh-pr-merge`)
+
+**Detection signal:** If you are about to output "Ready to
+proceed to the next step?" or "Continue with the shipping
+pipeline?" under `friction_level: adaptive`, STOP. That is a
+checkpoint. Skip the question and execute the next step.
+
+**Cross-cutting reinforcement:** Every skill's `**Auto-advance:**`
+line ends with "— no checkpoints under adaptive friction." so
+the rule travels with the orchestration contract regardless of
+which skill is in flight.
+
 ## Acceptance Criteria (verify-acc-dod)
 
 | Level | Automated checks | Manual checks | Decision gate |
