@@ -1,0 +1,111 @@
+# Structured-alternatives knowledge base for Dev10x:diag-friction (GH-282).
+#
+# When a blocked command runs inline code (python -c, sh -c, node -e,
+# perl -e, ruby -e, bash -c), diag-friction matches the embedded code
+# body against detection_keywords below to recommend the canonical
+# structured tool instead of "extract to ~/.claude/tools/".
+#
+# First hit wins. Fall back to extract-to-tools only when no keyword
+# matches.
+
+alternatives:
+  - use_case: "JSON parsing or filtering"
+    detection_keywords:
+      - "json.loads"
+      - "json.dumps"
+      - "JSON.parse"
+      - "JSON.stringify"
+      - "import json"
+      - "require('json')"
+    tool: "jq"
+    example: "jq '<filter>' file.json"
+
+  - use_case: "JSON validation (parse-only, no output)"
+    detection_keywords:
+      - "json.tool"
+      - "validate json"
+    tool: "jq empty"
+    example: "jq empty file.json  # exits non-zero on parse error"
+
+  - use_case: "YAML parsing or filtering"
+    detection_keywords:
+      - "yaml.safe_load"
+      - "yaml.load"
+      - "import yaml"
+      - "require('js-yaml')"
+    tool: "yq"
+    example: "yq '<filter>' file.yml"
+
+  - use_case: "YAML validation"
+    detection_keywords:
+      - "yamllint"
+      - "validate yaml"
+    tool: "yamllint"
+    example: "yamllint file.yml"
+
+  - use_case: "GitHub Actions workflow validation"
+    detection_keywords:
+      - ".github/workflows/"
+      - "workflow_run"
+      - "actionlint"
+    tool: "actionlint"
+    example: "actionlint .github/workflows/"
+
+  - use_case: "TOML parsing or filtering"
+    detection_keywords:
+      - "import toml"
+      - "tomllib"
+      - "import tomllib"
+    tool: "tomlq"
+    example: "tomlq '<filter>' file.toml"
+
+  - use_case: "HTML scraping or selection"
+    detection_keywords:
+      - "BeautifulSoup"
+      - "lxml"
+      - "html.parser"
+    tool: "pup"
+    example: "pup '<selector>' < file.html"
+
+  - use_case: "XML parsing or filtering"
+    detection_keywords:
+      - "xml.etree"
+      - "lxml.etree"
+      - "xmlstarlet"
+    tool: "xq"
+    example: "xq '<filter>' file.xml"
+
+  - use_case: "HTTP requests"
+    detection_keywords:
+      - "requests.get"
+      - "requests.post"
+      - "urllib"
+      - "fetch("
+      - "http.client"
+    tool: "curl"
+    example: "curl -fsSL <url>"
+
+  - use_case: "Multi-step logic (fallback)"
+    # Empty keywords list means this entry matches only when no other
+    # use_case above matched. diag-friction recommends extracting to a
+    # standalone script.
+    detection_keywords: []
+    tool: "~/.claude/tools/<name>.py"
+    example: |
+      Extract to ~/.claude/tools/<name>.py with PEP 723 inline metadata:
+        #!/usr/bin/env -S uv run --script
+        # /// script
+        # dependencies = [...]
+        # ///
+
+# Detection prefixes — diag-friction enters structured-alternatives
+# matching when the blocked command begins with any of these.
+inline_code_prefixes:
+  - "python -c"
+  - "python3 -c"
+  - "sh -c"
+  - "bash -c"
+  - "perl -e"
+  - "ruby -e"
+  - "node -e"
+  - "deno eval"

@@ -131,6 +131,34 @@ for sources, allow-rule shapes, and the four-step audit procedure.
 The audit output feeds Step 4 — surface findings even when a
 skill match was also found.
 
+### Step 3c-pre: Inline-code structured-alternatives (GH-282)
+
+When the offending command starts with an inline-code prefix
+(`python -c`, `python3 -c`, `sh -c`, `bash -c`, `perl -e`,
+`ruby -e`, `node -e`, `deno eval`), the right recommendation is
+almost never "extract to `~/.claude/tools/`" — it's the canonical
+structured tool that already exists for the use case (jq, yq,
+yamllint, actionlint, curl, etc.).
+
+**Procedure:**
+
+1. `Read(file_path="${CLAUDE_PLUGIN_ROOT}/skills/diag-friction/references/structured-alternatives.yaml")`
+2. Check the offending command against `inline_code_prefixes`. If
+   no prefix matches, skip this step and proceed to Step 3c.
+3. Extract the inline code body (text between the quotes after the
+   `-c` / `-e` flag).
+4. Match the body against each entry's `detection_keywords`
+   (substring match; first hit wins).
+5. Surface the matched `tool` and `example` as the **primary**
+   recommendation in the "Use instead" section of Step 4.
+6. Fall back to the "Multi-step logic (fallback)" entry only when
+   no keyword matches across all other entries.
+
+Example match for `python -c "import yaml; yaml.safe_load(...)"`:
+the `yaml.safe_load` keyword hits the YAML-parsing entry, so the
+reinforcement names `yq` as the canonical alternative — not a
+tools-directory extraction.
+
 ### Step 3c: Detect structural friction (file upstream)
 
 When the hook itself is too aggressive, the command-skill map is
