@@ -1133,7 +1133,7 @@ The ticket exists solely to close the rotation window before the quarter ends.
 **Naïve draft.**
 
 ```
-Rotate Square OAuth token
+Rotate payment-processor OAuth token
 ```
 
 **Lens application:**
@@ -1165,11 +1165,11 @@ The canonical recitation replaces the Job Story as the required rationale.
 
 **Final drafts:**
 
-- **PR title**: `🔒 OPS-RT-Q3 Rotate Square OAuth token (scheduled credential rotation, Q3 cycle)`
+- **PR title**: `🔒 OPS-RT-Q3 Rotate payment-processor OAuth token (Q3 cycle)`
 - **Job Story**: **Intentionally NONE — this is canonical platform overhead per §5.
   PR body recites the bucket:** *"Rotated per the Security cert / secret rotation canonical bucket.
   Quarterly cycle ensures undetected token compromise cannot persist beyond 90 days, maintaining PCI DSS Req 8 and SOC 2 CC6.1 compliance."*
-- **Commit**: `🔒 OPS-RT-Q3 Rotate Square OAuth token (Q3 scheduled cycle)`
+- **Commit**: `🔒 OPS-RT-Q3 Rotate payment-processor OAuth token (Q3 cycle)`
 
 **Why this wins.**
 The canonical-bucket mechanism is the doctrine's safety valve.
