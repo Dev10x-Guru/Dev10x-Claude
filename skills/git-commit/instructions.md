@@ -140,10 +140,10 @@ because a second scope appeared, the correct response is to:
    original scope.
 2. Re-invoke `Skill(Dev10x:git-commit)` for the new scope.
 
-**Do NOT use `DEV10X_SKIP_CMD_VALIDATION=true` as a workaround.**
-That flag is reserved for skill-internal exceptions, not caller
-escape hatches. See `references/commit-examples.md` for atomic
-commit guidance.
+**Do NOT reach for env-level hook bypasses as a workaround.** Hook
+overrides live in the hook layer, not at the skill caller — see
+`.claude/rules/hook-patterns.md`. See
+`references/commit-examples.md` for atomic commit guidance.
 
 ## Prerequisites Check
 

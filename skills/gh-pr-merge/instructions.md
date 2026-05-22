@@ -387,10 +387,11 @@ mcp__plugin_Dev10x_cli__merge_pr(
 The MCP tool wraps `gh pr merge` inside the MCP server's
 subprocess, so the PreToolUse hook that blocks raw `gh pr
 merge` Bash invocations does not apply. This is the only
-authorized way to execute the merge — do NOT fall back to
-`DEV10X_SKIP_CMD_VALIDATION=true gh pr merge ...`, which is
-reserved for transient MCP-unavailability emergencies and
-not for the documented Step 5 flow.
+authorized way to execute the merge — do NOT fall back to a
+raw `gh pr merge` invocation or any caller-level env-bypass.
+Hook overrides for transient MCP unavailability live in the
+hook layer (see `.claude/rules/hook-patterns.md`), not at the
+skill caller.
 
 The tool returns `{pr_number, url, strategy, branch_deleted,
 repo}` on success and `{error: "..."}` on failure.
