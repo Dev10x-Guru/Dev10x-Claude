@@ -106,6 +106,8 @@ supporting each tool:
 | `milestone_create` | `cli` | GH-220 | v0.73.0+ |
 | `issue_edit` | `cli` | GH-220 | v0.73.0+ |
 | `issue_comment` | `cli` | GH-220 | v0.73.0+ |
+| `issue_comment_edit` | `cli` | GH-283 | v0.75.0+ |
+| `issue_comment_delete` | `cli` | GH-283 | v0.75.0+ |
 | `issue_list` | `cli` | GH-220 | v0.73.0+ |
 | `slack_thread_is_forward` | `cli` | GH-218 | v0.73.0+ |
 | `milestones_bulk_create` | `cli` | GH-222 | v0.73.0+ |

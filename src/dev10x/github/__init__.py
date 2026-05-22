@@ -1081,6 +1081,109 @@ async def issue_comment(
     return ok({"url": result.stdout.strip()})
 
 
+async def issue_comment_edit(
+    *,
+    comment_id: int,
+    body: str,
+    repo: str | None = None,
+) -> Result[dict[str, Any]]:
+    """Edit an existing GitHub issue or PR comment body (GH-283).
+
+    Symmetric to ``issue_comment`` (POST) but uses PATCH against
+    ``/repos/{owner}/{repo}/issues/comments/{id}``. Works on issue
+    comments *and* PR issue-level comments (same endpoint).
+
+    Body is written to a temp file to avoid heredoc/quoting issues at
+    the gh CLI boundary, matching the ``issue_comment`` pattern.
+
+    Args:
+        comment_id: Numeric ID of the comment to edit (from the
+            ``/comments/<id>`` URL fragment).
+        body: New body text (full replacement, not a delta).
+        repo: Repository (owner/repo). Auto-detected if omitted.
+
+    Returns:
+        On success: ``{"id": int, "body": str, "html_url": str}``.
+    """
+    import tempfile
+
+    repo_result = await _resolve_repo(repo)
+    if isinstance(repo_result, ErrorResult):
+        return repo_result
+    canonical_repo = str(repo_result.value)
+
+    fd = tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False, encoding="utf-8")
+    fd.write(body)
+    fd.close()
+    body_path = Path(fd.name)
+
+    endpoint = f"/repos/{canonical_repo}/issues/comments/{comment_id}"
+    args = [
+        "gh",
+        "api",
+        "-X",
+        "PATCH",
+        "-F",
+        f"body=@{body_path}",
+        endpoint,
+    ]
+
+    try:
+        result = await async_run(args=args, timeout=30)
+    finally:
+        body_path.unlink(missing_ok=True)
+
+    if result.returncode != 0:
+        return err(result.stderr.strip())
+
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return err(f"Invalid JSON from GitHub API: {result.stdout[:200]}")
+
+    return ok(
+        {
+            "id": payload.get("id", comment_id),
+            "body": payload.get("body", ""),
+            "html_url": payload.get("html_url", ""),
+        }
+    )
+
+
+async def issue_comment_delete(
+    *,
+    comment_id: int,
+    repo: str | None = None,
+) -> Result[dict[str, Any]]:
+    """Delete a GitHub issue or PR comment (GH-283).
+
+    Uses DELETE against ``/repos/{owner}/{repo}/issues/comments/{id}``.
+    Works on issue comments *and* PR issue-level comments.
+
+    Args:
+        comment_id: Numeric ID of the comment to delete.
+        repo: Repository (owner/repo). Auto-detected if omitted.
+
+    Returns:
+        On success: ``{"deleted": True, "comment_id": int}``.
+    """
+    repo_result = await _resolve_repo(repo)
+    if isinstance(repo_result, ErrorResult):
+        return repo_result
+    canonical_repo = str(repo_result.value)
+
+    endpoint = f"/repos/{canonical_repo}/issues/comments/{comment_id}"
+    result = await async_run(
+        args=["gh", "api", "-X", "DELETE", endpoint],
+        timeout=30,
+    )
+
+    if result.returncode != 0:
+        return err(result.stderr.strip())
+
+    return ok({"deleted": True, "comment_id": comment_id})
+
+
 async def issue_list(
     *,
     repo: str | None = None,

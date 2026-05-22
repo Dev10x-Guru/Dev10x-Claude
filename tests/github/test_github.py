@@ -1155,6 +1155,140 @@ class TestIssueComment:
         assert isinstance(result, ErrorResult)
 
 
+class TestIssueCommentEdit:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_edits_comment(
+        self,
+        mock_run: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(
+            stdout=json.dumps(
+                {
+                    "id": 99,
+                    "body": "updated body",
+                    "html_url": "https://github.com/owner/repo/issues/1#issuecomment-99",
+                }
+            )
+        )
+
+        result = await gh.issue_comment_edit(
+            comment_id=99,
+            body="updated body",
+            repo="owner/repo",
+        )
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["id"] == 99
+        assert result.value["body"] == "updated body"
+        assert result.value["html_url"].endswith("issuecomment-99")
+        args_called = mock_run.call_args.kwargs["args"]
+        assert args_called[:5] == ["gh", "api", "-X", "PATCH", "-F"]
+        assert args_called[-1] == "/repos/owner/repo/issues/comments/99"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_returns_error_when_repo_missing(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        with patch.object(
+            gh,
+            "_resolve_repo",
+            new_callable=AsyncMock,
+            return_value=ErrorResult(error="no repo"),
+        ):
+            result = await gh.issue_comment_edit(comment_id=99, body="x")
+
+        assert isinstance(result, ErrorResult)
+        assert "no repo" in result.error
+        mock_run.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_returns_error_on_api_failure(
+        self,
+        mock_run: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(returncode=1, stderr="404 Not Found")
+
+        result = await gh.issue_comment_edit(comment_id=99, body="x", repo="owner/repo")
+
+        assert isinstance(result, ErrorResult)
+        assert "Not Found" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_returns_error_on_invalid_json(
+        self,
+        mock_run: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="not json")
+
+        result = await gh.issue_comment_edit(comment_id=99, body="x", repo="owner/repo")
+
+        assert isinstance(result, ErrorResult)
+        assert "Invalid JSON" in result.error
+
+
+class TestIssueCommentDelete:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_deletes_comment(
+        self,
+        mock_run: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="")
+
+        result = await gh.issue_comment_delete(comment_id=99, repo="owner/repo")
+
+        assert isinstance(result, SuccessResult)
+        assert result.value == {"deleted": True, "comment_id": 99}
+        args_called = mock_run.call_args.kwargs["args"]
+        assert args_called == [
+            "gh",
+            "api",
+            "-X",
+            "DELETE",
+            "/repos/owner/repo/issues/comments/99",
+        ]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_returns_error_when_repo_missing(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        with patch.object(
+            gh,
+            "_resolve_repo",
+            new_callable=AsyncMock,
+            return_value=ErrorResult(error="no repo"),
+        ):
+            result = await gh.issue_comment_delete(comment_id=99)
+
+        assert isinstance(result, ErrorResult)
+        mock_run.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_returns_error_on_api_failure(
+        self,
+        mock_run: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(returncode=1, stderr="403 Forbidden")
+
+        result = await gh.issue_comment_delete(comment_id=99, repo="owner/repo")
+
+        assert isinstance(result, ErrorResult)
+        assert "Forbidden" in result.error
+
+
 class TestIssueList:
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run", new_callable=AsyncMock)
