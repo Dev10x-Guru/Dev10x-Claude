@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from dev10x.domain.common.branch_name import BranchName
 from dev10x.domain.common.result import Result, err, ok
 from dev10x.subprocess_utils import async_run_script, parse_key_value_output
 
@@ -68,6 +69,14 @@ async def create_worktree(
     base: str | None = None,
     path: str | None = None,
 ) -> Result[dict[str, Any]]:
+    branch_ref = BranchName.try_parse(branch)
+    if branch_ref is None:
+        return err(f"Invalid branch name: {branch!r}")
+    if branch_ref.is_protected:
+        return err(
+            f"Refusing to create worktree on protected branch {branch!r}. "
+            "Use a feature branch (username/TICKET-ID/[worktree/]slug)."
+        )
     wt_args = [branch]
 
     if base is not None:

@@ -18,6 +18,7 @@ from pathlib import Path
 
 import yaml
 
+from dev10x.domain.common.ticket_id import TICKET_ID_PATTERN
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 
 USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
@@ -33,7 +34,7 @@ NOISE_PATTERNS = [
     re.compile(r"Bash\(else "),
     re.compile(r"Bash\(fi\b"),
     re.compile(r"GROOM_SEQ_FILE="),
-    re.compile(r'"[A-Z]+-\d+"'),
+    re.compile(rf'"{TICKET_ID_PATTERN}"'),
     re.compile(r"detect-tracker\.sh\s+\S"),
     re.compile(r"gh-issue-get\.sh\s+\d"),
     re.compile(r"gh-pr-detect\.sh\s+\d"),

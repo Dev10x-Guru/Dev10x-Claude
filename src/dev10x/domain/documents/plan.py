@@ -2,7 +2,8 @@
 
 Replaces the raw dict[str, Any] threading in task_plan_sync.py
 with a cohesive domain object that owns its own persistence and
-mutation logic.
+mutation logic. Tasks are typed `Task` value objects (GH-241
+finding B1/B10) — load/save round-trip preserves all fields.
 """
 
 from __future__ import annotations
@@ -13,11 +14,12 @@ import re
 import tempfile
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+from dev10x.domain.documents.task import Task, TaskStatus
 
 
 def _now_iso() -> str:
@@ -50,13 +52,6 @@ def get_toplevel() -> str | None:
 def get_plan_path(*, toplevel: str) -> Path:
     """Resolve the canonical plan file path within a git toplevel."""
     return Path(toplevel) / ".claude" / "session" / "plan.yaml"
-
-
-class TaskStatus(StrEnum):
-    PENDING = "pending"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-    DELETED = "deleted"
 
 
 @dataclass(frozen=True)
@@ -107,7 +102,19 @@ TASK_TRANSITIONS: dict[TaskStatus, TaskTransition] = {
 @dataclass
 class Plan:
     metadata: dict[str, Any] = field(default_factory=dict)
-    tasks: list[dict[str, Any]] = field(default_factory=list)
+    tasks: list[Task] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        # Accept raw dicts at construction so tests and legacy callers
+        # that pass `tasks=[{"id": ...}]` keep working — normalize to
+        # `Task` instances eagerly.
+        normalized: list[Task] = []
+        for item in self.tasks:
+            if isinstance(item, Task):
+                normalized.append(item)
+            elif isinstance(item, dict):
+                normalized.append(Task.from_dict(item))
+        self.tasks = normalized
 
     @classmethod
     def load(cls, *, path: Path) -> Plan:
@@ -119,9 +126,11 @@ class Plan:
                 data = {}
         else:
             data = {}
+        raw_tasks = data.get("tasks", []) or []
+        tasks = [Task.from_dict(t) for t in raw_tasks if isinstance(t, dict)]
         return cls(
             metadata=data.get("plan", {}),
-            tasks=data.get("tasks", []),
+            tasks=tasks,
         )
 
     def save(self, *, path: Path) -> None:
@@ -154,7 +163,7 @@ class Plan:
         if self.metadata:
             result["plan"] = self.metadata
         if self.tasks:
-            result["tasks"] = self.tasks
+            result["tasks"] = [t.to_dict() for t in self.tasks]
         return result
 
     def archive(self, *, path: Path) -> None:
@@ -182,6 +191,12 @@ class Plan:
             return []
         return list(context.keys())
 
+    def _find_index(self, *, task_id: str) -> int | None:
+        for idx, task in enumerate(self.tasks):
+            if task.id == task_id:
+                return idx
+        return None
+
     def handle_task_create(
         self,
         *,
@@ -192,24 +207,20 @@ class Plan:
         if not task_id:
             return False
 
-        task_entry: dict[str, Any] = {
-            "id": task_id,
-            "subject": tool_input.get("subject", ""),
-            "status": TaskStatus.PENDING.value,
-            "created_at": _now_iso(),
-        }
-        description = tool_input.get("description")
-        if description:
-            task_entry["description"] = description
-        metadata = tool_input.get("metadata")
-        if metadata:
-            task_entry["metadata"] = metadata
+        if any(t.id == task_id for t in self.tasks):
+            return False
 
-        existing_ids = {t.get("id") for t in self.tasks}
-        if task_id not in existing_ids:
-            self.tasks.append(task_entry)
-            return True
-        return False
+        metadata_raw = tool_input.get("metadata") or {}
+        task = Task(
+            id=task_id,
+            subject=tool_input.get("subject", ""),
+            status=TaskStatus.PENDING,
+            created_at=_now_iso(),
+            description=tool_input.get("description", "") or "",
+            metadata=dict(metadata_raw) if isinstance(metadata_raw, dict) else {},
+        )
+        self.tasks.append(task)
+        return True
 
     def handle_task_update(self, *, tool_input: dict[str, Any]) -> None:
         task_id = tool_input.get("taskId")
@@ -219,43 +230,35 @@ class Plan:
         raw_status = tool_input.get("status")
         target_status = _coerce_status(raw_status)
         if target_status is TaskStatus.DELETED:
-            self.tasks = [t for t in self.tasks if t.get("id") != task_id]
+            self.tasks = [t for t in self.tasks if t.id != task_id]
             return
 
-        for task in self.tasks:
-            if task.get("id") != task_id:
-                continue
-            if target_status is not None and not _is_valid_transition(
-                current=_coerce_status(task.get("status")),
-                target=target_status,
-            ):
+        idx = self._find_index(task_id=task_id)
+        if idx is None:
+            return
+
+        task = self.tasks[idx]
+        if target_status is not None:
+            if not _is_valid_transition(current=task.status, target=target_status):
                 # Reject invalid transitions silently; the hook must keep
                 # processing other updates rather than crashing on a stale
                 # status flip caused by clock skew or replay.
-                break
-            if target_status is not None:
-                task["status"] = target_status.value
-                transition = TASK_TRANSITIONS[target_status]
-                if transition.timestamp_field is not None:
-                    task[transition.timestamp_field] = _now_iso()
-            if "subject" in tool_input:
-                task["subject"] = tool_input["subject"]
-            if "description" in tool_input:
-                task["description"] = tool_input["description"]
-            if "metadata" in tool_input:
-                existing_meta = task.get("metadata", {})
-                for k, v in tool_input["metadata"].items():
-                    if v is None:
-                        existing_meta.pop(k, None)
-                    else:
-                        existing_meta[k] = v
-                if existing_meta:
-                    task["metadata"] = existing_meta
-            break
+                return
+            task = task.with_status(status=target_status, timestamp=_now_iso())
+
+        if "subject" in tool_input:
+            task = task.with_subject(subject=tool_input["subject"])
+        if "description" in tool_input:
+            task = task.with_description(description=tool_input["description"])
+        if "metadata" in tool_input:
+            updates = tool_input["metadata"]
+            if isinstance(updates, dict):
+                task = task.with_metadata_merged(updates=updates)
+
+        self.tasks[idx] = task
 
     def check_all_completed(self) -> None:
-        all_statuses = [t.get("status") for t in self.tasks]
-        if all_statuses and all(s == TaskStatus.COMPLETED.value for s in all_statuses):
+        if self.tasks and all(t.status is TaskStatus.COMPLETED for t in self.tasks):
             self.metadata["status"] = TaskStatus.COMPLETED.value
             self.metadata["completed_at"] = _now_iso()
 

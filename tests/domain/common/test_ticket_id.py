@@ -1,0 +1,69 @@
+from __future__ import annotations
+
+import pytest
+
+from dev10x.domain.common.ticket_id import TICKET_ID_PATTERN, TicketId
+
+
+class TestParse:
+    @pytest.mark.parametrize(
+        "raw,project,number",
+        [
+            ("GH-15", "GH", 15),
+            ("PAY-133", "PAY", 133),
+            ("TEAM-1", "TEAM", 1),
+        ],
+    )
+    def test_parses_canonical_form(self, raw: str, project: str, number: int) -> None:
+        ticket = TicketId.parse(raw)
+
+        assert ticket.project == project
+        assert ticket.number == number
+        assert str(ticket) == raw
+
+    @pytest.mark.parametrize(
+        "raw",
+        ["", "gh-15", "GH15", "GH-", "-15", "GH-12X", "GH-12-extra"],
+    )
+    def test_rejects_invalid_forms(self, raw: str) -> None:
+        with pytest.raises(ValueError):
+            TicketId.parse(raw)
+
+    def test_rejects_non_string(self) -> None:
+        with pytest.raises(ValueError):
+            TicketId.parse(None)  # type: ignore[arg-type]
+
+
+class TestTryParse:
+    def test_returns_ticket_on_success(self) -> None:
+        ticket = TicketId.try_parse("GH-1")
+
+        assert ticket is not None
+        assert ticket.number == 1
+
+    def test_returns_none_on_failure(self) -> None:
+        assert TicketId.try_parse("invalid") is None
+
+
+class TestFindFirst:
+    def test_finds_embedded_ticket(self) -> None:
+        ticket = TicketId.find_first("Fixes GH-42 today")
+
+        assert ticket == TicketId(project="GH", number=42)
+
+    def test_returns_none_when_absent(self) -> None:
+        assert TicketId.find_first("no ticket here") is None
+
+
+class TestFindAll:
+    def test_returns_all_tickets(self) -> None:
+        tickets = TicketId.find_all("GH-1 and TEAM-2 and PAY-3")
+
+        assert [str(t) for t in tickets] == ["GH-1", "TEAM-2", "PAY-3"]
+
+    def test_returns_empty_list_when_none(self) -> None:
+        assert TicketId.find_all("nothing") == []
+
+
+def test_pattern_exposed_as_string() -> None:
+    assert TICKET_ID_PATTERN == r"[A-Z]+-\d+"

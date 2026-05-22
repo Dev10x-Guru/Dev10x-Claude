@@ -18,3 +18,10 @@ class RepositoryRef:
             msg = f"Invalid repository reference: {value!r}. Expected 'owner/name' format."
             raise ValueError(msg)
         return cls(owner=parts[0], name=parts[1])
+
+    @classmethod
+    def try_parse(cls, value: str) -> RepositoryRef | None:
+        try:
+            return cls.parse(value)
+        except (TypeError, ValueError):
+            return None

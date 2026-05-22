@@ -9,13 +9,13 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from dev10x.domain.claude_paths import ClaudeDir
+from dev10x.domain.common.skill_name import SkillName
 from dev10x.domain.git_context import GitContext
 
 _git = GitContext()
@@ -40,7 +40,10 @@ def skill_tmpdir(data: dict | None = None) -> None:
     if not skill_name:
         return
 
-    safe_name = re.sub(r"[^a-zA-Z0-9._-]", "", skill_name.replace(":", "-"))
+    parsed = SkillName.try_parse(skill_name)
+    if parsed is None:
+        return
+    safe_name = parsed.safe_path_name
     if safe_name:
         Path(f"/tmp/Dev10x/{safe_name}").mkdir(parents=True, exist_ok=True)
 

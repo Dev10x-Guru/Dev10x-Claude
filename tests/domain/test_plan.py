@@ -14,6 +14,7 @@ from dev10x.domain.documents.plan import (
     _set_nested,
     get_plan_path,
 )
+from dev10x.domain.documents.task import Task
 
 
 class TestExtractTaskId:
@@ -69,6 +70,8 @@ class TestPlanLoad:
 
         assert plan.metadata["status"] == "in_progress"
         assert len(plan.tasks) == 1
+        assert plan.tasks[0].id == "1"
+        assert plan.tasks[0].status is TaskStatus.PENDING
 
     def test_returns_empty_for_missing_file(self, tmp_path: Path) -> None:
         plan = Plan.load(path=tmp_path / "nonexistent.yaml")
@@ -91,7 +94,7 @@ class TestPlanSave:
         path = tmp_path / "session" / "plan.yaml"
         plan = Plan(
             metadata={"status": "in_progress"},
-            tasks=[{"id": "1", "subject": "Test", "status": "pending"}],
+            tasks=[Task(id="1", subject="Test", status=TaskStatus.PENDING)],
         )
 
         plan.save(path=path)
@@ -99,6 +102,21 @@ class TestPlanSave:
 
         assert loaded.metadata["status"] == "in_progress"
         assert len(loaded.tasks) == 1
+        assert loaded.tasks[0].subject == "Test"
+
+    def test_round_trips_dict_tasks(self, tmp_path: Path) -> None:
+        # Legacy callers may still construct Plan with raw dict tasks —
+        # post_init normalizes them to Task instances.
+        path = tmp_path / "session" / "plan.yaml"
+        plan = Plan(
+            metadata={"status": "in_progress"},
+            tasks=[{"id": "1", "subject": "Test", "status": "pending"}],
+        )
+
+        plan.save(path=path)
+        loaded = Plan.load(path=path)
+
+        assert loaded.tasks[0].id == "1"
 
     def test_creates_parent_directories(self, tmp_path: Path) -> None:
         path = tmp_path / "deep" / "nested" / "plan.yaml"
@@ -129,8 +147,9 @@ class TestPlanHandleTaskCreate:
 
         assert result is True
         assert len(plan.tasks) == 1
-        assert plan.tasks[0]["id"] == "1"
-        assert plan.tasks[0]["subject"] == "Do thing"
+        assert plan.tasks[0].id == "1"
+        assert plan.tasks[0].subject == "Do thing"
+        assert plan.tasks[0].description == "Details"
 
     def test_returns_false_for_unparseable_result(self, plan: Plan) -> None:
         result = plan.handle_task_create(
@@ -142,7 +161,7 @@ class TestPlanHandleTaskCreate:
         assert len(plan.tasks) == 0
 
     def test_skips_duplicate_ids(self, plan: Plan) -> None:
-        plan.tasks = [{"id": "1", "subject": "Existing", "status": "pending"}]
+        plan.tasks = [Task(id="1", subject="Existing", status=TaskStatus.PENDING)]
 
         result = plan.handle_task_create(
             tool_input={"subject": "Duplicate"},
@@ -158,7 +177,7 @@ class TestPlanHandleTaskCreate:
             tool_result="Task #5 created successfully",
         )
 
-        assert plan.tasks[0]["metadata"] == {"type": "epic"}
+        assert plan.tasks[0].metadata == {"type": "epic"}
 
 
 class TestPlanHandleTaskUpdate:
@@ -167,47 +186,49 @@ class TestPlanHandleTaskUpdate:
         return Plan(
             metadata={"status": "in_progress"},
             tasks=[
-                {"id": "1", "subject": "First", "status": "pending"},
-                {"id": "2", "subject": "Second", "status": "pending"},
+                Task(id="1", subject="First", status=TaskStatus.PENDING),
+                Task(id="2", subject="Second", status=TaskStatus.PENDING),
             ],
         )
 
     def test_updates_status(self, plan: Plan) -> None:
         plan.handle_task_update(tool_input={"taskId": "1", "status": "in_progress"})
 
-        assert plan.tasks[0]["status"] == "in_progress"
-        assert "started_at" in plan.tasks[0]
+        assert plan.tasks[0].status is TaskStatus.IN_PROGRESS
+        assert plan.tasks[0].started_at != ""
 
     def test_marks_completed_with_timestamp(self, plan: Plan) -> None:
         plan.handle_task_update(tool_input={"taskId": "1", "status": "completed"})
 
-        assert plan.tasks[0]["status"] == "completed"
-        assert "completed_at" in plan.tasks[0]
+        assert plan.tasks[0].status is TaskStatus.COMPLETED
+        assert plan.tasks[0].completed_at != ""
 
     def test_deletes_task(self, plan: Plan) -> None:
         plan.handle_task_update(tool_input={"taskId": "1", "status": "deleted"})
 
         assert len(plan.tasks) == 1
-        assert plan.tasks[0]["id"] == "2"
+        assert plan.tasks[0].id == "2"
 
     def test_updates_subject(self, plan: Plan) -> None:
         plan.handle_task_update(tool_input={"taskId": "1", "subject": "Updated"})
 
-        assert plan.tasks[0]["subject"] == "Updated"
+        assert plan.tasks[0].subject == "Updated"
 
     def test_merges_metadata(self, plan: Plan) -> None:
-        plan.tasks[0]["metadata"] = {"type": "epic"}
+        plan.tasks[0] = plan.tasks[0].with_metadata_merged(updates={"type": "epic"})
 
         plan.handle_task_update(tool_input={"taskId": "1", "metadata": {"skills": ["test"]}})
 
-        assert plan.tasks[0]["metadata"] == {"type": "epic", "skills": ["test"]}
+        assert plan.tasks[0].metadata == {"type": "epic", "skills": ["test"]}
 
     def test_removes_metadata_key_with_none(self, plan: Plan) -> None:
-        plan.tasks[0]["metadata"] = {"type": "epic", "old": "value"}
+        plan.tasks[0] = plan.tasks[0].with_metadata_merged(
+            updates={"type": "epic", "old": "value"}
+        )
 
         plan.handle_task_update(tool_input={"taskId": "1", "metadata": {"old": None}})
 
-        assert plan.tasks[0]["metadata"] == {"type": "epic"}
+        assert plan.tasks[0].metadata == {"type": "epic"}
 
     def test_ignores_missing_task_id(self, plan: Plan) -> None:
         plan.handle_task_update(tool_input={})
@@ -220,8 +241,8 @@ class TestPlanCheckAllCompleted:
         plan = Plan(
             metadata={"status": "in_progress"},
             tasks=[
-                {"id": "1", "status": "completed"},
-                {"id": "2", "status": "completed"},
+                Task(id="1", status=TaskStatus.COMPLETED),
+                Task(id="2", status=TaskStatus.COMPLETED),
             ],
         )
 
@@ -234,8 +255,8 @@ class TestPlanCheckAllCompleted:
         plan = Plan(
             metadata={"status": "in_progress"},
             tasks=[
-                {"id": "1", "status": "completed"},
-                {"id": "2", "status": "pending"},
+                Task(id="1", status=TaskStatus.COMPLETED),
+                Task(id="2", status=TaskStatus.PENDING),
             ],
         )
 
@@ -337,23 +358,23 @@ class TestTaskTransitions:
     def test_completed_to_in_progress_rejected(self) -> None:
         plan = Plan(
             metadata={"status": "in_progress"},
-            tasks=[{"id": "1", "status": "completed", "completed_at": "old"}],
+            tasks=[Task(id="1", status=TaskStatus.COMPLETED, completed_at="old")],
         )
 
         plan.handle_task_update(tool_input={"taskId": "1", "status": "in_progress"})
 
-        assert plan.tasks[0]["status"] == "completed"
-        assert "started_at" not in plan.tasks[0]
+        assert plan.tasks[0].status is TaskStatus.COMPLETED
+        assert plan.tasks[0].started_at == ""
 
     def test_unknown_status_silently_skipped(self) -> None:
         plan = Plan(
             metadata={"status": "in_progress"},
-            tasks=[{"id": "1", "status": "pending"}],
+            tasks=[Task(id="1", status=TaskStatus.PENDING)],
         )
 
         plan.handle_task_update(tool_input={"taskId": "1", "status": "bogus"})
 
-        assert plan.tasks[0]["status"] == "pending"
+        assert plan.tasks[0].status is TaskStatus.PENDING
 
 
 class TestGetPlanPath:
