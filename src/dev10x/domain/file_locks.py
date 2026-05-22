@@ -28,7 +28,10 @@ Sidecar naming convention:
   it now would orphan on-disk sidecars across the upgrade boundary.
 
 The two functions must not be used against the same target path
-because their sidecars resolve to different files.
+because their sidecars resolve to different files. New code MUST use
+``file_lock`` (append-``.lock`` convention); ``locked_json_update``
+is frozen for its existing :mod:`dev10x.skills.permission` call sites.
+See ADR-0011 for the rationale.
 """
 
 from __future__ import annotations

@@ -83,3 +83,36 @@ class TestArchivePlan:
         assert (archive_dir / result["archive_name"]).exists()
         # Active plan is moved away
         assert not (tmp_path / ".claude" / "session" / "plan.yaml").exists()
+
+
+class TestSetPlanContextHoldsLock:
+    """E3: set_plan_context must serialize load→mutate→save via file_lock."""
+
+    def test_holds_file_lock_around_cycle(self, tmp_path: Path) -> None:
+        from unittest.mock import MagicMock
+
+        with (
+            patch(f"{SERVICE}.get_toplevel", return_value=str(tmp_path)),
+            patch("dev10x.domain.documents.plan._get_branch", return_value="b"),
+            patch(f"{SERVICE}.file_lock") as mock_lock,
+        ):
+            mock_lock.return_value = MagicMock(__enter__=MagicMock(), __exit__=MagicMock())
+            set_plan_context(args=["work_type=feature"])
+
+        mock_lock.assert_called_once()
+        plan_path = tmp_path / ".claude" / "session" / "plan.yaml"
+        assert mock_lock.call_args.args[0] == plan_path
+
+
+class TestArchivePlanHoldsLock:
+    def test_holds_file_lock_around_cycle(self, tmp_path: Path) -> None:
+        from unittest.mock import MagicMock
+
+        with (
+            patch(f"{SERVICE}.get_toplevel", return_value=str(tmp_path)),
+            patch(f"{SERVICE}.file_lock") as mock_lock,
+        ):
+            mock_lock.return_value = MagicMock(__enter__=MagicMock(), __exit__=MagicMock())
+            archive_plan()
+
+        mock_lock.assert_called_once()

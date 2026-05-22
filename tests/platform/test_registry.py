@@ -56,6 +56,26 @@ class TestRegistryAdd:
         assert cfg.name == "windsurf"
         assert "windsurf" in str(cfg.config_dir)
 
+    def test_add_holds_file_lock(self, registry: Registry) -> None:
+        """A12: Registry.add serializes load→mutate→save via file_lock."""
+        from unittest.mock import MagicMock, patch
+
+        with patch("dev10x.platform.registry.file_lock") as mock_lock:
+            mock_lock.return_value = MagicMock(__enter__=MagicMock(), __exit__=MagicMock())
+            registry.add(name="windsurf")
+
+        mock_lock.assert_called_once_with(registry.path)
+
+    def test_remove_holds_file_lock(self, registry: Registry) -> None:
+        from unittest.mock import MagicMock, patch
+
+        registry.add(name="windsurf")
+        with patch("dev10x.platform.registry.file_lock") as mock_lock:
+            mock_lock.return_value = MagicMock(__enter__=MagicMock(), __exit__=MagicMock())
+            registry.remove("windsurf")
+
+        mock_lock.assert_called_once_with(registry.path)
+
     def test_rejects_unknown_platform(self, registry: Registry) -> None:
         with pytest.raises(ValueError, match="Unknown platform"):
             registry.add(name="not-a-real-platform")

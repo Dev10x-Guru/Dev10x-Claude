@@ -46,7 +46,10 @@ def _import_session_modules() -> tuple:
 def _run_feature(*, name: str, fn, audit_hook) -> str:
     """Run one feature function, capturing stdout. Returns captured text.
 
-    Failures are logged to stderr but do not propagate.
+    Failures are logged to stderr but do not propagate. Partial stdout
+    captured before an exception is discarded — appending a truncated
+    JSON envelope to ``context_parts`` would corrupt the merged
+    ``hookSpecificOutput`` payload sent back to Claude Code.
     """
     buf = io.StringIO()
     wrapped = audit_hook(name=name, event="SessionStart")(fn)
@@ -54,9 +57,10 @@ def _run_feature(*, name: str, fn, audit_hook) -> str:
         with contextlib.redirect_stdout(buf):
             wrapped()
     except SystemExit:
-        pass
+        return buf.getvalue()
     except Exception:
         traceback.print_exc(file=sys.stderr)
+        return ""
     return buf.getvalue()
 
 

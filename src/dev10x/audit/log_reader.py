@@ -64,14 +64,26 @@ def current_span_id() -> str:
 
 
 def append_record(*, record: dict[str, Any], base_dir: Path | None = None) -> None:
-    """Append a JSONL record. Failures never propagate to the caller."""
+    """Append a JSONL record. Failures never propagate to the caller.
+
+    Uses ``os.open(O_APPEND|O_WRONLY|O_CREAT)`` + a single ``os.write``
+    so concurrent hook processes do not interleave partial JSON lines.
+    POSIX guarantees that a single ``write()`` call to an ``O_APPEND``
+    fd is atomic up to ``PIPE_BUF`` bytes; audit records are well
+    under that limit (typically < 512 bytes). ``TextIOWrapper.write``
+    can split a single record into multiple syscalls under the hood,
+    losing the append-atomicity guarantee.
+    """
     try:
         log_dir = base_dir or audit_dir()
         log_dir.mkdir(parents=True, exist_ok=True)
         path = log_path(base_dir=log_dir)
-        line = json.dumps(record, separators=(",", ":"), sort_keys=True) + "\n"
-        with path.open("a") as f:
-            f.write(line)
+        line = (json.dumps(record, separators=(",", ":"), sort_keys=True) + "\n").encode("utf-8")
+        fd = os.open(str(path), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+        try:
+            os.write(fd, line)
+        finally:
+            os.close(fd)
     except OSError:
         pass
 
