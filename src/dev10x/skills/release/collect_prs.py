@@ -32,6 +32,8 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from dev10x.domain.common.ticket_id import TICKET_ID_PATTERN
+
 GITMOJI_CATEGORIES: dict[str, str] = {
     "✨": "feature",
     "🐛": "bugfix",
@@ -59,7 +61,8 @@ JTBD_PATTERN: re.Pattern[str] = re.compile(
     re.DOTALL,
 )
 
-DEFAULT_TICKET_PATTERN = r"[A-Z]+-\d+"
+
+DEFAULT_TICKET_PATTERN = TICKET_ID_PATTERN
 
 
 @dataclass

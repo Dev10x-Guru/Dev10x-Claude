@@ -18,6 +18,7 @@ from typing import ClassVar
 
 from dev10x.domain import HookInput, HookResult
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.domain.common.ticket_id import TICKET_ID_PATTERN
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
 
@@ -87,8 +88,9 @@ BLOCK_MSG = (
     "Update the commit message in the temp file and retry."
 )
 
+
 GIT_COMMIT_RE = re.compile(r"\bgit\s+commit\b")
-TICKET_RE = re.compile(r"^[A-Z]+-\d+\s+")
+TICKET_RE = re.compile(rf"^{TICKET_ID_PATTERN}\s+")
 
 BYPASS_GITMOJI: frozenset[str] = frozenset({"🔖", "📝", "🔀"})
 

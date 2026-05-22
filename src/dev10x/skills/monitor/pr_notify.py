@@ -37,6 +37,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from dev10x.domain.common.repository_ref import RepositoryRef
+
 
 def gh_json(args: list[str]) -> Any:
     result = subprocess.run(
@@ -95,6 +97,9 @@ def split_title_jtbd(pr_title: str) -> tuple[str, str | None]:
 
 
 def _repo_name(repo: str) -> str:
+    ref = RepositoryRef.try_parse(repo)
+    if ref is not None:
+        return ref.name
     return repo.split("/")[-1]
 
 
@@ -484,6 +489,10 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+    try:
+        args.repo = str(RepositoryRef.parse(args.repo))
+    except ValueError as exc:
+        parser.error(str(exc))
     commands = {
         "prepare": cmd_prepare,
         "send": cmd_send,

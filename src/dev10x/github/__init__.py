@@ -66,14 +66,19 @@ async def _gh_api(
 
 
 async def _bot_env(*, repo: str) -> dict[str, str] | None:
-    token = await get_bot_token(repo=repo)
+    try:
+        ref = RepositoryRef.parse(repo)
+    except ValueError:
+        return None
+    canonical_repo = str(ref)
+    token = await get_bot_token(repo=canonical_repo)
     if token is None:
         if AppConfig.load() is not None:
             logger.warning(
                 "GitHub App auth configured but bot token exchange failed for %s — "
                 "falling back to engineer credentials. Verify the App is installed "
                 "on the repo and the private key matches the app_id.",
-                repo,
+                canonical_repo,
             )
         return None
     return {**os.environ, "GH_TOKEN": token, "GITHUB_TOKEN": token}

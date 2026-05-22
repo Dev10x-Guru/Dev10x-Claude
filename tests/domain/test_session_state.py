@@ -170,7 +170,7 @@ class TestPlanSummaryPendingTasks:
             ],
         )
 
-        ids = [t["id"] for t in summary.pending_tasks]
+        ids = [t.id for t in summary.pending_tasks]
 
         assert ids == ["1", "2"]
 
@@ -198,7 +198,7 @@ class TestPlanSummaryPendingDecisions:
         result = summary.pending_decisions
 
         assert len(result) == 1
-        assert result[0]["id"] == "1"
+        assert result[0].id == "1"
 
     def test_excludes_completed_tasks(self) -> None:
         summary = PlanSummary(

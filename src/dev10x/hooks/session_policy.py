@@ -121,9 +121,7 @@ class DecisionGuidanceRule:
         summary = PlanSummary.from_dict(data=self.plan)
         decisions = summary.pending_decisions
         if not decisions:
-            has_remaining = any(
-                t.get("status") not in ("completed", "deleted") for t in summary.tasks
-            )
+            has_remaining = bool(summary.pending_tasks)
             if has_remaining:
                 return "Session resumed with tasks remaining. Auto-advance through the task list."
             return ""

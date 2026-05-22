@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from dev10x.domain.claude_paths import ClaudeDir
+from dev10x.domain.common.skill_name import SkillName
 
 SKILL_NAME_RE = re.compile(
     r"^\s*name:\s*['\"]?(?P<name>[A-Za-z0-9:_\-]+)['\"]?\s*$",
@@ -40,7 +41,8 @@ class LocalSkill:
 
     @property
     def short_name(self) -> str:
-        return self.name.split(":", 1)[-1]
+        parsed = SkillName.try_parse(self.name)
+        return parsed.short_name if parsed else self.name
 
 
 @dataclass
@@ -79,7 +81,8 @@ def enumerate_local_skills(*, skills_root: Path | None = None) -> list[LocalSkil
         if not match:
             continue
         name = match.group("name")
-        namespace = name.split(":", 1)[0] if ":" in name else None
+        parsed = SkillName.try_parse(name)
+        namespace = parsed.namespace if parsed else None
         skills.append(
             LocalSkill(name=name, directory=skill_md.parent, namespace=namespace),
         )

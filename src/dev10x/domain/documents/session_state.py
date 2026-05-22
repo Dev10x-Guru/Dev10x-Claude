@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
+from dev10x.domain.documents.task import Task, TaskStatus
+
 
 @dataclass(frozen=True)
 class SessionState:
@@ -86,34 +88,47 @@ class PlanSummary:
     branch: str = "unknown"
     last_synced: str = "unknown"
     context: PlanContext = field(default_factory=PlanContext)
-    tasks: list[dict[str, Any]] = field(default_factory=list)
+    tasks: list[Task] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        # Tolerate raw-dict task inputs from legacy callers and tests
+        # that construct PlanSummary directly. Frozen dataclass requires
+        # `object.__setattr__` to mutate the field.
+        normalized: list[Task] = []
+        for item in self.tasks:
+            if isinstance(item, Task):
+                normalized.append(item)
+            elif isinstance(item, dict):
+                normalized.append(Task.from_dict(item))
+        object.__setattr__(self, "tasks", normalized)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> PlanSummary:
         plan_meta = data.get("plan", {})
+        raw_tasks = data.get("tasks", []) or []
+        tasks = [Task.from_dict(t) for t in raw_tasks if isinstance(t, dict)]
         return cls(
             status=plan_meta.get("status", "unknown"),
             branch=plan_meta.get("branch", "unknown"),
             last_synced=plan_meta.get("last_synced", "unknown"),
             context=PlanContext.from_dict(data=plan_meta.get("context", {})),
-            tasks=data.get("tasks", []),
+            tasks=tasks,
         )
 
     @property
-    def pending_tasks(self) -> list[dict[str, Any]]:
-        return [t for t in self.tasks if t.get("status") not in ("completed", "deleted")]
+    def pending_tasks(self) -> list[Task]:
+        return [
+            t for t in self.tasks if t.status not in (TaskStatus.COMPLETED, TaskStatus.DELETED)
+        ]
 
     @property
-    def pending_decisions(self) -> list[dict[str, Any]]:
-        return [t for t in self.pending_tasks if t.get("metadata", {}).get("decision_needed")]
+    def pending_decisions(self) -> list[Task]:
+        return [t for t in self.pending_tasks if t.metadata.get("decision_needed")]
 
     def format_for_display(self) -> str:
-        completed = sum(1 for t in self.tasks if t.get("status") == "completed")
+        completed = sum(1 for t in self.tasks if t.status is TaskStatus.COMPLETED)
         total = len(self.tasks)
-        pending = [
-            f"  - [{t.get('status')}] #{t.get('id')} {t.get('subject')}"
-            for t in self.pending_tasks
-        ]
+        pending = [f"  - [{t.status.value}] #{t.id} {t.subject}" for t in self.pending_tasks]
 
         lines = [f"Persisted plan detected ({completed}/{total} tasks completed):"]
         lines.append(f"- Plan branch: {self.branch}")
@@ -143,14 +158,13 @@ class PlanSummary:
     @staticmethod
     def _format_pending_decisions(
         *,
-        decisions: list[dict[str, Any]],
+        decisions: list[Task],
     ) -> list[str]:
         lines: list[str] = []
         for t in decisions:
-            meta = t.get("metadata", {})
-            desc = meta.get("decision_needed", "")
-            options = meta.get("options", [])
-            line = f"  - #{t.get('id')} {t.get('subject')}: {desc}"
+            desc = t.metadata.get("decision_needed", "")
+            options = t.metadata.get("options", [])
+            line = f"  - #{t.id} {t.subject}: {desc}"
             if options:
                 line += f" (options: {', '.join(str(o) for o in options)})"
             lines.append(line)
@@ -159,8 +173,8 @@ class PlanSummary:
     def format_for_compaction(self) -> str:
         task_lines = []
         for t in self.tasks:
-            line = f"- [{t.get('status')}] #{t.get('id')} {t.get('subject')}"
-            meta = t.get("metadata", {})
+            line = f"- [{t.status.value}] #{t.id} {t.subject}"
+            meta = t.metadata
             if meta.get("type"):
                 line += f" ({meta['type']})"
             if meta.get("skills"):

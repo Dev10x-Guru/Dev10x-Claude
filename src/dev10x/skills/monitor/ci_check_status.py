@@ -51,6 +51,8 @@ import subprocess
 import sys
 import time
 
+from dev10x.domain.common.repository_ref import RepositoryRef
+
 
 def fetch_mergeable(
     *,
@@ -233,10 +235,15 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    try:
+        repo = str(RepositoryRef.parse(args.repo))
+    except ValueError as exc:
+        parser.error(str(exc))
+
     if args.wait:
         result = poll_until_terminal(
             pr_number=args.pr,
-            repo=args.repo,
+            repo=repo,
             required_only=args.required_only,
             poll_interval=args.poll_interval,
             initial_wait=args.initial_wait,
@@ -245,12 +252,12 @@ def main() -> None:
     else:
         checks = fetch_checks(
             pr_number=args.pr,
-            repo=args.repo,
+            repo=repo,
             required_only=args.required_only,
         )
         mergeable = fetch_mergeable(
             pr_number=args.pr,
-            repo=args.repo,
+            repo=repo,
         )
         result = compute_verdict(checks=checks, mergeable=mergeable)
 
