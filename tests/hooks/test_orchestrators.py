@@ -69,3 +69,79 @@ class TestOrchestratorConsolidation:
         # Feed malformed data that one feature might choke on
         result = _run(SESSION_START, {"session_id": ""})
         assert result.returncode == 0
+
+
+class TestRunFeatureBufferDiscard:
+    """E9: _run_feature must discard partial stdout when a feature raises.
+
+    Appending half-written JSON to context_parts would corrupt the
+    SessionStart envelope.
+    """
+
+    def _import_session_start(self):
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("_session_start_under_test", SESSION_START)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def test_returns_empty_on_exception(self) -> None:
+        module = self._import_session_start()
+
+        def fake_audit_hook(*, name: str, event: str = ""):
+            def decorator(fn):
+                return fn
+
+            return decorator
+
+        def feature_that_prints_then_raises() -> None:
+            print("PARTIAL_JSON_PAYLOAD")
+            raise RuntimeError("boom")
+
+        result = module._run_feature(
+            name="test",
+            fn=feature_that_prints_then_raises,
+            audit_hook=fake_audit_hook,
+        )
+        assert result == ""
+
+    def test_keeps_output_on_systemexit(self) -> None:
+        module = self._import_session_start()
+
+        def fake_audit_hook(*, name: str, event: str = ""):
+            def decorator(fn):
+                return fn
+
+            return decorator
+
+        def feature_that_exits() -> None:
+            print("CLEAN_OUTPUT")
+            raise SystemExit(0)
+
+        result = module._run_feature(
+            name="test",
+            fn=feature_that_exits,
+            audit_hook=fake_audit_hook,
+        )
+        assert "CLEAN_OUTPUT" in result
+
+    def test_returns_clean_output_on_success(self) -> None:
+        module = self._import_session_start()
+
+        def fake_audit_hook(*, name: str, event: str = ""):
+            def decorator(fn):
+                return fn
+
+            return decorator
+
+        def feature_clean() -> None:
+            print("HELLO")
+
+        result = module._run_feature(
+            name="test",
+            fn=feature_clean,
+            audit_hook=fake_audit_hook,
+        )
+        assert "HELLO" in result

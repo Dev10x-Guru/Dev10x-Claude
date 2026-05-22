@@ -165,6 +165,27 @@ class TestAppendRecord:
         finally:
             ro_dir.chmod(0o755)  # Restore for cleanup
 
+    def test_uses_posix_o_append(self, tmp_path) -> None:
+        """E1: append_record uses os.open(O_APPEND) for POSIX append atomicity."""
+        from unittest.mock import patch
+
+        with patch("dev10x.audit.log_reader.os.open", wraps=os.open) as mock_open:
+            append_record(record={"hook": "x"}, base_dir=tmp_path)
+
+        assert mock_open.called
+        flags = mock_open.call_args.args[1]
+        assert flags & os.O_APPEND
+        assert flags & os.O_WRONLY
+        assert flags & os.O_CREAT
+
+    def test_two_appends_do_not_corrupt_under_simulated_race(self, tmp_path) -> None:
+        """Both records survive even when both writers contend."""
+        append_record(record={"id": 1, "hook": "a"}, base_dir=tmp_path)
+        append_record(record={"id": 2, "hook": "b"}, base_dir=tmp_path)
+        log = tmp_path / f"hooks-{datetime.now(UTC).strftime('%Y-%m-%d')}.jsonl"
+        lines = [json.loads(line) for line in log.read_text().strip().split("\n")]
+        assert {rec["id"] for rec in lines} == {1, 2}
+
 
 class TestClassifyOutcome:
     def test_ok_outcome(self) -> None:

@@ -8,7 +8,7 @@ from pathlib import Path
 import yaml
 
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.file_locks import atomic_write_text
+from dev10x.domain.file_locks import atomic_write_text, file_lock  # noqa: F401
 
 REGISTRY_FILE = Dev10xConfigDir.platforms_yaml()
 
@@ -167,17 +167,19 @@ class Registry:
                 playbook_override=playbook_override,
             )
 
-        registered = self.load()
-        registered[name] = base
-        self.save(registered)
+        with file_lock(self.path):
+            registered = self.load()
+            registered[name] = base
+            self.save(registered)
         return base
 
     def remove(self, name: str) -> bool:
-        registered = self.load()
-        if name not in registered:
-            return False
-        del registered[name]
-        self.save(registered)
+        with file_lock(self.path):
+            registered = self.load()
+            if name not in registered:
+                return False
+            del registered[name]
+            self.save(registered)
         return True
 
     def list(self) -> list[PlatformConfig]:

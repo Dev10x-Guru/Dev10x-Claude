@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from dev10x.domain.claude_paths import ClaudeDir
+from dev10x.domain.file_locks import atomic_write_text  # noqa: F401
 
 
 def state_path_for_toplevel(*, toplevel: str) -> Path:
@@ -54,18 +55,30 @@ def claim_state_file(*, path: Path) -> dict[str, Any]:
 
 
 def write_state(*, path: Path, state: dict[str, Any]) -> None:
-    """Write session state JSON to disk, ensuring the parent dir is 0700."""
+    """Atomically write session state JSON, ensuring the parent dir is 0700.
+
+    Uses ``atomic_write_text`` so a concurrent ``SessionStart`` reader can
+    never observe a half-written state file: the new contents become
+    visible only via the final ``os.rename`` in ``atomic_write_text``,
+    matching ``claim_state_file`` on the read side.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     path.parent.chmod(0o700)
-    path.write_text(json.dumps(state, indent=2))
+    atomic_write_text(path, json.dumps(state, indent=2))
 
 
 def read_plan_summary(*, toplevel: str) -> dict[str, Any]:
-    """Read the persisted plan via the task_plan_sync helpers."""
-    from dev10x.hooks.task_plan_sync import get_plan_path, read_plan
+    """Read the persisted plan as a dict via the Plan domain object.
+
+    Direct domain → domain access; the previous lazy import into
+    ``dev10x.hooks.task_plan_sync`` inverted the dependency direction
+    (domain should never reach into hooks). Hooks compose this query
+    via the CLI adapter, not the other way around.
+    """
+    from dev10x.domain.documents.plan import Plan, get_plan_path
 
     plan_path = get_plan_path(toplevel=toplevel)
-    return read_plan(plan_path=plan_path)
+    return Plan.load(path=plan_path)._to_dict()
 
 
 __all__ = [
