@@ -52,6 +52,54 @@ instead, it is used as a base by other skills:
 - **release-notes skill** — generates missing stories in unattended mode
 - **commit skill** — derives outcome-focused titles from the "so X can" clause
 
+## Guiding Principle: Business ROI First
+
+Every Job Story must answer **"where does the money come from, or
+where does the money go?"** before "what does the code do?".
+Engineering value — cleaner APIs, sortable identifiers, fewer
+round-trips, less duplication — is never the lead. It is at best
+the *mechanism* that delivers a business outcome.
+
+If a draft cannot point at one of these ROI buckets, the story is
+still a description of the diff, not a Job Story:
+
+- **Revenue captured** — sales the business could not make before
+- **Cost saved** — fewer support hours, lower infra spend, less rework
+- **Retention / churn** — keeps customers from leaving the platform
+- **Time-to-value** — customer reaches their first valuable use faster
+- **Risk avoided** — compliance, security, data loss, payment failures
+
+Engineering value is always secondary. A refactor or dependency
+bump that ships no business outcome should be either (a) the
+*first step* in a sequence that does — and named after that
+downstream outcome — or (b) not done at all.
+
+### Trace upward for plumbing PRs
+
+Dependency bumps, refactors, and infrastructure changes feel
+"actor-less" — there is no user clicking a button. The fix is
+**not** to invent "the developer wants to…" as the actor. The fix
+is to **trace upward** to the user-facing feature the plumbing
+unblocks and frame the story from *that* feature's beneficiary.
+
+Generic worked trace (a library bump that enables client-assigned
+record ids in a self-service configurator):
+
+```
+ULID library dependency bump          ← the diff
+  └─ enables client-assigned record ids
+       └─ collapses N row-level CRUD mutations into one atomic save
+            └─ makes the self-service configurator UI usable
+                 └─ end customers manage their own settings
+                      └─ vendor saves support hours + customers
+                        ship configuration changes same-day
+```
+
+The actor is the **end customer**; the beneficiary is the
+**vendor** (support cost saved) and the **end customer** (revenue
+/ time saved from same-day configuration). The library is the
+mechanism, never the actor.
+
 ## Interface Contract
 
 ```
@@ -79,10 +127,12 @@ Collect information from available sources in parallel. Skip sources
 the caller already provided via the `context` parameter.
 
 **A. PR details (if `pr_number` provided):**
-```bash
-gh pr view {PR_NUMBER} --json title,body,headRefName
-gh pr diff {PR_NUMBER}
-```
+- Call `mcp__plugin_Dev10x_cli__pr_get(number=PR_NUMBER)` for the
+  PR title, body, head branch, and metadata
+- Call `mcp__plugin_Dev10x_cli__pr_detect(arg=str(PR_NUMBER))` if
+  the PR number was supplied without repo context
+- Fetch the diff via `Skill(Dev10x:gh-context)` (or the project's
+  PR-diff helper) — raw `gh pr diff` is hook-blocked in skill docs
 
 **B. Issue ticket (if `ticket_id` provided):**
 Use the available issue tracker tool (Linear MCP, JIRA REST API, etc.)
@@ -144,23 +194,26 @@ From the gathered context, extract:
 
 The actor in "wants to" varies depending on the type of change:
 
-| PR Type | Actor | Example |
-|---------|-------|---------|
+| PR Type | Actor | Notes |
+|---------|-------|-------|
 | User-facing feature | End user role: merchant, customer, admin | "the cashier wants to select 'ACH' as the payment method..." |
-| Refactoring / preparatory | Developer implementing the next step | "the developer wants to reuse the notification infrastructure..." |
-| Bug fix | Role experiencing the bug | "the payroll manager wants the calculation to complete reliably..." |
-| Internal tooling | Ops/engineering team member | "the ops team wants to see revenue broken down by channel..." |
-| Infrastructure | Developer deploying or maintaining | "the developer wants to cancel stale workflow runs..." |
+| Refactoring / preparatory | Downstream feature's actor | Trace upward to the user-facing feature this unblocks — never name the developer as actor |
+| Bug fix | Role whose business activity is broken | Not "developer fixing the bug" — name the role whose work failed |
+| Internal tooling | Ops/engineering team member | Reserve for changes that ship *operator* value (dashboards, alerting, runbooks) |
+| Infrastructure | Downstream feature's actor (or ops team for true ops tooling) | If the change ships no operator value, trace upward to the user-facing feature it unblocks |
 
 **Actor ≠ Beneficiary:** When the person taking the action differs from the
 person who gains the benefit, name both explicitly:
 > "the billing admin wants to send the customer an SMS with the payment link,
 > so the customer can pay immediately from their phone"
 
-**Anti-pattern for refactoring PRs:** Do not use the end user as
-actor for purely internal refactoring. The end user does not care how
-the code is organized. The developer who needs to build on the
-refactored code is the correct actor.
+**Anti-pattern for plumbing PRs:** Do not name "the developer" as
+actor for refactoring, dependency bumps, or infrastructure
+changes. These PRs are not actor-less — they have a real actor
+one or two levels up the dependency chain. Trace upward (see
+*Trace upward for plumbing PRs* above) and frame the story from
+the user-facing feature's actor and beneficiary, even when the
+feature ships in a later PR.
 
 **Bug fix stories**: Focus on the specific broken entity (e.g., "stale
 background job"), not the monitoring symptom that surfaced it (e.g.,
@@ -184,6 +237,7 @@ value.
 | Over-specific role when a generic term works | "merchants" when the check protects all users equally | Use "user experience" — don't narrow without reason |
 | Implementation detail as benefit | "avoid misrouted traffic during restarts" | State the real outcome: "prevent broken releases from degrading UX" |
 | `I want to` when the actor is ambiguous | "I" doesn't identify the stakeholder | Prefer a named role ("the merchant", "the DevOps team"); `I want to` is fine as a fallback when the actor is clear from context |
+| "the developer wants to…" for refactoring / infra / dep bumps | Substitutes the engineer for the real beneficiary; the developer's convenience is not a business outcome | Trace upward to the user-facing feature this plumbing unblocks; use that feature's actor and beneficiary |
 
 **The "why spend money" test:** Read the draft aloud. If a non-technical
 stakeholder would respond "so what?" or "why do I care?", the story
@@ -281,81 +335,8 @@ Delegates to the ticket write layer when a PR is missing its Job Story.
 
 ## Examples
 
-### Example 1: Feature with parent ticket context
-
-**Domain:** E-commerce SaaS
-
-**Context found:**
-- FEAT-401 (sub-task): "Add ACH to PaymentMethod enum"
-- FEAT-398 (parent): "Support ACH bank transfer payments"
-- User quote in parent: "@sarah said: enterprise clients all pay via ACH,
-  they keep asking for it"
-
-**Output:**
-> **When** a merchant processes an ACH bank transfer for an order, **the
-> cashier wants to** select "ACH" as the payment method, **so the merchant
-> can** accurately reconcile bank transfer transactions instead of grouping
-> them under "Other".
-
-### Example 2: Feature with different actor and beneficiary
-
-**Domain:** SaaS billing
-
-**Context found:**
-- BILL-230: "Send invoice link via SMS after invoice is created"
-- The billing admin initiates the invoice; the customer receives and pays
-
-**Output:**
-> **When** a merchant sends an invoice for a completed order, **the billing
-> admin wants to** send the customer an SMS with the payment link, **so the
-> customer can** pay immediately from their phone without needing email
-> access.
-
-Note: Actor (billing admin) and beneficiary (customer) are explicitly named
-because they differ — this immediately communicates who does what and who
-gains.
-
-### Example 3: Bug fix
-
-**Domain:** HR / Payroll SaaS
-
-**Context found:**
-- BUG-500: "Payroll calculation times out during month-end run"
-- Parent: "Payroll failures at month-end closing"
-
-**Output:**
-> **When** running payroll during month-end closing, **the payroll manager
-> wants** the calculation to complete reliably, **so the finance team can**
-> avoid missed pay dates and manual correction workflows.
-
-### Example 4: Internal tooling
-
-**Domain:** Analytics / Operations
-
-**Context found:**
-- OPS-300: "Add revenue breakdown by channel to admin dashboard"
-- No parent ticket
-
-**Output:**
-> **When** preparing the quarterly business review, **the operations team
-> wants to** see revenue broken down by acquisition channel and region,
-> **so they can** identify underperforming channels and adjust budget
-> allocation without exporting to spreadsheets.
-
-### Example 5: Refactoring / preparatory work
-
-**Domain:** SaaS notifications
-
-**Context found:**
-- FEAT-230 (sub-task): "Move notification dispatch to shared infrastructure"
-- PR diff: extracts email sender into a generic outbox, promotes to a
-  standalone module
-
-**Output:**
-> **When** implementing SMS billing notifications, **the developer wants
-> to** reuse the existing notification infrastructure for new delivery
-> channels, **so they can** add SMS without rebuilding retry and scheduling
-> logic from scratch.
-
-Note: The developer is the actor because this PR is preparatory
-refactoring — the end user is not affected until the SMS feature ships.
+See [`references/examples.md`](references/examples.md) for worked
+walkthroughs covering: feature with parent ticket context (Ex 1),
+feature with different actor and beneficiary (Ex 2), bug fix
+(Ex 3), internal tooling (Ex 4), refactor with trace-upward (Ex 5),
+and a pure dependency-bump PR with trace-upward (Ex 6).
