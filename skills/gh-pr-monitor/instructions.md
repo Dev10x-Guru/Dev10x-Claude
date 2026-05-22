@@ -97,7 +97,7 @@ with the PR argument (URL, bare number, or empty). Parse
 **MCP server unavailable.** If the tool is listed as "no longer
 available" in system-reminders, STOP and ask the user to reconnect
 via `/mcp` or a session restart. Do NOT fall back to the wrapper
-script or use `DEV10X_SKIP_CMD_VALIDATION` — see
+script or env-level bypasses — see
 `references/mcp-unavailable-escape-hatch.md`.
 
 **Fallback (script):** Only when the MCP server is healthy but the

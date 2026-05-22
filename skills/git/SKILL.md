@@ -66,10 +66,10 @@ this is the solo-maintainer escape valve.
 
 **Solo-maintainer rule of thumb:** when a hook denial says
 `Skill: Dev10x:git`, the fix is almost always to re-invoke
-`push_safe` with the right `protected_branches` list — not to
-set `DEV10X_SKIP_CMD_VALIDATION=true`. The skip-flag is reserved
-for skill-internal exceptions; bypassing it from outside the
-skill defeats the safety contract.
+`push_safe` with the right `protected_branches` list. Reach for
+the skill's documented escape paths — not env-level bypasses —
+when the wrapper itself blocks: hook overrides live in the hook
+layer (see `.claude/rules/hook-patterns.md`), not at the caller.
 
 If the call still blocks after adjusting `protected_branches`,
 read the returned `blocked_reason` field — it names the exact
@@ -80,8 +80,9 @@ you can adjust the call rather than escalating.
 is listed as "no longer available" in system-reminders, STOP and
 ask the user to reconnect via `/mcp` or a session restart. Do NOT
 fall back to the wrapper script (blocked by
-`validate-bash-command.py`) or use `DEV10X_SKIP_CMD_VALIDATION` —
-see `references/mcp-unavailable-escape-hatch.md`.
+`validate-bash-command.py`) or env-level bypasses — see
+`references/mcp-unavailable-escape-hatch.md` for the documented
+recovery path.
 
 ### Post-push CI monitoring (GH-117 #2)
 

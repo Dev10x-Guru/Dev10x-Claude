@@ -56,5 +56,4 @@ existing blocks on `git commit`, `git push`, and `git
 checkout -b`). The skill executes Step 5 via
 `mcp__plugin_Dev10x_cli__merge_pr` (GH-232) — symmetric to
 `create_pr` / `push_safe` — so the documented flow ships
-through a structured MCP tool instead of relying on the
-`DEV10X_SKIP_CMD_VALIDATION` escape hatch.
+through a structured MCP tool, not a caller-level bypass.
