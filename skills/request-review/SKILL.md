@@ -28,7 +28,7 @@ This skill follows `references/task-orchestration.md` patterns.
 
 Mark completed when done: `TaskUpdate(taskId, status="completed")`
 
-**Auto-advance:** Complete each step, immediately start the next.
+**Auto-advance:** Complete each step, immediately start the next — no checkpoints under adaptive friction.
 
 ## Flow
 

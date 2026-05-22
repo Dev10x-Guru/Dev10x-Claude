@@ -89,7 +89,7 @@ Dimensions are orthogonal quality axes (not sequential steps). Examples:
 - `classify` — input type identification (URL, ID, free text)
 - `gather` — parallel subagent context gathering
 - `plan` — task list generation with mandatory elements
-- `execute` — auto-advance + batched decisions
+- `execute` — auto-advance + batched decisions (no checkpoints under adaptive friction)
 - `task-structure` — 4 phase-level tasks + dependencies
 - `workspace` — early workspace decision (main repo vs. worktree)
 

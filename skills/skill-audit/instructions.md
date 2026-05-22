@@ -7,7 +7,7 @@ user corrections, and process improvements worth persisting into skill definitio
 
 This skill follows `references/task-orchestration.md` patterns.
 
-**Auto-advance:** Complete each phase, immediately start the next.
+**Auto-advance:** Complete each phase, immediately start the next — no checkpoints under adaptive friction.
 Never pause between phases.
 
 ### Deferral (GH-219)

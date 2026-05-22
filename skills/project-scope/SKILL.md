@@ -58,7 +58,7 @@ description and produces a complete project structure in the tracker.
 This skill follows `references/task-orchestration.md` patterns
 (Tier: Standard).
 
-**Auto-advance:** Complete each phase and immediately start the next.
+**Auto-advance:** Complete each phase and immediately start the next — no checkpoints under adaptive friction.
 Never pause between phases to ask "should I continue?".
 
 **REQUIRED: Create tasks before ANY work.** Execute these

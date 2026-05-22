@@ -1280,7 +1280,9 @@ See `references/task-orchestration.md` for the full pattern.
 **Complete a task → immediately start the next.** Do not pause
 between tasks to ask "should I continue?" or wait for the user
 to say "go" / "next" / "continue". The approved plan is the
-authorization to proceed.
+authorization to proceed — **no checkpoints under adaptive
+friction**. See `references/friction-levels.md` § "No checkpoints"
+rule for the canonical definition of what counts as a checkpoint.
 
 **Auto-advance on commits:** After creating a commit, immediately
 proceed to the next task. Never pause to show the commit or ask
@@ -1311,13 +1313,20 @@ GH-477 showed the monitor was not invoked for 12+ hours after
 PR creation, requiring 9 user prompts. The monitor is part of
 the shipping pipeline, not an optional convenience.
 
-**Shipping pipeline is atomic:** Once the main implementation
-and verification are done, the remaining shipping steps (code
-review → commit → PR → CI → groom → update → ready → merge)
-form an atomic sequence. Auto-advance through ALL of them
-without pausing for user input. Do NOT stop after posting
-review replies, after creating the PR, or after grooming —
-continue until the plan completion gate or a genuine blocker.
+**Shipping pipeline is atomic — no-checkpoints sequence:** Once
+the main implementation and verification are done, the remaining
+shipping steps (code review → commit → PR → CI → groom → update
+→ ready → merge) form an atomic, no-checkpoints sequence. Auto-
+advance through ALL of them without pausing for user input. Under
+`friction_level: adaptive` this sequence runs end-to-end with
+zero interruptions other than `ALWAYS_ASK` gates. Do NOT stop
+after posting review replies, after creating the PR, after CI
+goes green, or after grooming — continue until the plan
+completion gate or a genuine blocker (unrecoverable CI,
+unresolved human review thread, merge conflict needing judgment).
+A trailing "Ready to proceed to the next step?" between any of
+these shipping steps is a checkpoint and is forbidden under
+adaptive friction.
 
 **Batched Decision Queue:** When a task hits a genuine A/B
 decision, do NOT interrupt the user immediately. Instead:
@@ -1407,15 +1416,19 @@ delegation ensures consistent behavior, proper tool declarations,
 and reusable orchestration. Bypassing delegation by inlining the
 skill's logic breaks these guarantees.
 
-**Unattended mode compliance:** Auto-advance pressure in
-unattended mode makes it tempting to perform operations directly
-(e.g., `git checkout -b` instead of `Dev10x:ticket-branch`,
-inline review instead of `Dev10x:review`). This is still a
-violation — unattended mode changes the *pace*, not the *rules*.
-If you catch yourself about to skip a `Skill()` call, stop and
-invoke the skill. Refer to the **Skill Routing Enforcement**
-table above — it lists every action that MUST use a skill
-wrapper regardless of execution mode.
+**Unattended mode compliance — no checkpoints, but no shortcuts
+either:** Auto-advance pressure in unattended mode makes it
+tempting to perform operations directly (e.g., `git checkout -b`
+instead of `Dev10x:ticket-branch`, inline review instead of
+`Dev10x:review`). This is still a violation — "no checkpoints
+under adaptive friction" eliminates implicit pauses between steps;
+it does NOT license raw-CLI substitutions for skill wrappers.
+Unattended mode changes the *pace*, not the *rules*. If you catch
+yourself about to skip a `Skill()` call, stop and invoke the
+skill. Refer to the **Skill Routing Enforcement** table above —
+it lists every action that MUST use a skill wrapper regardless of
+execution mode. The two rules compose: auto-advance between steps,
+but always through the correct skill.
 
 **Mandatory delegation flag:** When a playbook step has
 `skills:` entries, delegation is mandatory — not advisory.

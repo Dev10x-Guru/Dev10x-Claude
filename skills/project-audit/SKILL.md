@@ -53,7 +53,7 @@ prioritized improvement backlog with milestones and blocking chains.
 
 This skill follows `references/task-orchestration.md` patterns.
 
-**Auto-advance:** Complete each phase, immediately start the next.
+**Auto-advance:** Complete each phase, immediately start the next — no checkpoints under adaptive friction.
 Only pause at the Phase 2 selection gate and Phase 4 synthesis
 review.
 

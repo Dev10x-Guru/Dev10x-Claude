@@ -21,7 +21,7 @@ This skill follows `references/task-orchestration.md` patterns
 (Tier: Standard). It extends the base `scope` skill's orchestration
 with Linear-specific tasks.
 
-**Auto-advance:** Complete each phase and immediately start the next.
+**Auto-advance:** Complete each phase and immediately start the next — no checkpoints under adaptive friction.
 Never pause between phases to ask "should I continue?".
 
 **REQUIRED: Create tasks before ANY work.** Execute these

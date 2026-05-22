@@ -489,6 +489,12 @@
           "signals": ["auto-advance", "no pause"]
         },
         {
+          "id": "no-checkpoints-under-adaptive",
+          "text": "Under friction_level: adaptive, runs the shipping pipeline as a no-checkpoints sequence — no trailing 'Ready to proceed?' between commit, PR, CI, groom, update, ready, merge",
+          "check": "behavioral",
+          "signals": ["no checkpoints", "adaptive friction", "shipping pipeline atomic"]
+        },
+        {
           "id": "acceptance-verified-last",
           "text": "Acceptance criteria verification is the final action in the execution",
           "check": "behavioral",

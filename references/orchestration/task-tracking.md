@@ -56,6 +56,10 @@ blocks read as examples; numbered lists read as instructions.
 
 Tiers guide HOW MUCH orchestration a skill adds, not WHETHER
 it participates. All tiers use TaskCreate + auto-advance.
+Under `friction_level: adaptive`, auto-advance carries the
+"no checkpoints" contract from `references/friction-levels.md`
+across every tier — implicit "ready to proceed?" pauses are
+forbidden in Full, Standard, and Minimal alike.
 
 | Tier | When | Additional patterns | Example skills |
 |------|------|---------------------|----------------|
