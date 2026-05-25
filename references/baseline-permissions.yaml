@@ -181,6 +181,39 @@ groups:
       - "Bash(${CLAUDE_PLUGIN_ROOT}/skills/**)"
       - "Bash(${CLAUDE_PLUGIN_ROOT}/lib/**)"
 
+  dev10x-cli:
+    tier: 1
+    description: >
+      Per-subcommand allow-rules for the version-stable `uvx dev10x`
+      CLI (GH-269). Enumerated explicitly — never `Bash(uvx dev10x:*)`
+      — so users can audit exactly which dev10x subcommands the
+      plugin is authorized to invoke. Replaces per-script
+      `Bash(${CLAUDE_PLUGIN_ROOT}/skills/upgrade-cleanup/scripts/*.py:*)`
+      rules, which rot on every plugin upgrade because the cache
+      path encodes the version. The `permission update-paths`
+      rewriter collapses legacy per-script rules to the matching
+      `uvx dev10x permission <subcommand>:*` form during upgrade.
+    rules:
+      - Bash(uvx dev10x permission clean:*)
+      - Bash(uvx dev10x permission doctor:*)
+      - Bash(uvx dev10x permission ensure-base:*)
+      - Bash(uvx dev10x permission ensure-reads:*)
+      - Bash(uvx dev10x permission ensure-scripts:*)
+      - Bash(uvx dev10x permission ensure-workspace:*)
+      - Bash(uvx dev10x permission enumerate-mcp:*)
+      - Bash(uvx dev10x permission generalize:*)
+      - Bash(uvx dev10x permission init:*)
+      - Bash(uvx dev10x permission investigate:*)
+      - Bash(uvx dev10x permission merge-worktree:*)
+      - Bash(uvx dev10x permission record-upgrade:*)
+      - Bash(uvx dev10x permission update-paths:*)
+      - Bash(uvx dev10x playbook diff:*)
+      - Bash(uvx dev10x skill count-instructions:*)
+      - Bash(uvx dev10x config:*)
+      - Bash(uvx dev10x platform:*)
+      - Bash(uvx dev10x init:*)
+      - Bash(uvx dev10x github-app:*)
+
   # ─── TIER 2 ─────────────────────────────────────────────────────────
 
   shell-helpers:

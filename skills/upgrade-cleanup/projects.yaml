@@ -111,10 +111,34 @@ base_permissions:
   - "Bash(~/.claude/plugins/cache/**/skills/skill-index/scripts/generate-skills-menu.sh:*)"
   - "Bash(~/.claude/plugins/cache/**/skills/slack-review-request/scripts/slack-review-request.py:*)"
   - "Bash(~/.claude/plugins/cache/**/skills/ticket-create/scripts/create-github-issue.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/upgrade-cleanup/scripts/clean-project-files.py:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/upgrade-cleanup/scripts/enumerate-mcp.py:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/upgrade-cleanup/scripts/merge-worktree-permissions.py:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/upgrade-cleanup/scripts/update-paths.py:*)"
+  # GH-269: upgrade-cleanup/scripts/*.py shims were retired in favour
+  # of the version-stable `uvx dev10x permission …` CLI. The
+  # replacement allow-rules live below under "Dev10x CLI". The
+  # `permission update-paths` rewriter migrates any legacy
+  # per-script rules in user settings to the new CLI form.
+
+  # --- Dev10x CLI (GH-269) ---
+  # Per-subcommand rules — never `Bash(uvx dev10x:*)` — so users can
+  # audit exactly which CLI surfaces the plugin is authorized to use.
+  - "Bash(uvx dev10x permission clean:*)"
+  - "Bash(uvx dev10x permission doctor:*)"
+  - "Bash(uvx dev10x permission ensure-base:*)"
+  - "Bash(uvx dev10x permission ensure-reads:*)"
+  - "Bash(uvx dev10x permission ensure-scripts:*)"
+  - "Bash(uvx dev10x permission ensure-workspace:*)"
+  - "Bash(uvx dev10x permission enumerate-mcp:*)"
+  - "Bash(uvx dev10x permission generalize:*)"
+  - "Bash(uvx dev10x permission init:*)"
+  - "Bash(uvx dev10x permission investigate:*)"
+  - "Bash(uvx dev10x permission merge-worktree:*)"
+  - "Bash(uvx dev10x permission record-upgrade:*)"
+  - "Bash(uvx dev10x permission update-paths:*)"
+  - "Bash(uvx dev10x playbook diff:*)"
+  - "Bash(uvx dev10x skill count-instructions:*)"
+  - "Bash(uvx dev10x config:*)"
+  - "Bash(uvx dev10x platform:*)"
+  - "Bash(uvx dev10x init:*)"
+  - "Bash(uvx dev10x github-app:*)"
 
   # --- Dev10x config file access (GH-878, GH-135) ---
   # Skills read/write playbook overrides, session config, slack config,

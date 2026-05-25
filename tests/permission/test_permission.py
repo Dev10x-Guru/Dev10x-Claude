@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import subprocess
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -12,64 +12,75 @@ perm_mod = pytest.importorskip("dev10x.permission", reason="dev10x not installed
 MOD_PATH = "dev10x.skills.permission.update_paths"
 
 
-class TestUpdatePathsScriptRoute:
+class TestUpdatePathsInProcessRoute:
+    """GH-269: the version-bump branch runs in-process.
+
+    The retired ``skills/upgrade-cleanup/scripts/update-paths.py`` shim
+    no longer exists, so there is no subprocess to mock. The tests below
+    patch the underlying ``update_paths`` module functions instead.
+    """
+
+    @staticmethod
+    def _stub_config():
+        return {
+            "roots": ["/fake"],
+            "include_user_settings": True,
+            "plugin_cache": "/fake/cache",
+        }
+
     @pytest.mark.asyncio
-    @patch("dev10x.permission.async_run", new_callable=AsyncMock)
-    async def test_returns_output_on_success(
-        self,
-        mock_run: AsyncMock,
-    ) -> None:
-        mock_run.return_value = subprocess.CompletedProcess(
-            args=[],
-            returncode=0,
-            stdout="Updated 3 files",
-            stderr="",
-        )
-        result = await perm_mod.update_paths()
+    async def test_returns_success_with_change_summary(self) -> None:
+        with (
+            patch(f"{MOD_PATH}.find_config", return_value=Path("/fake/config.yaml")),
+            patch(f"{MOD_PATH}.load_config", return_value=self._stub_config()),
+            patch(f"{MOD_PATH}.find_settings_files", return_value=[Path("/fake/settings.json")]),
+            patch(f"{MOD_PATH}.detect_latest_version", return_value="1.0.0"),
+            patch(f"{MOD_PATH}.extract_cache_publisher", return_value="Dev10x-Guru"),
+            patch(f"{MOD_PATH}.update_file", return_value=(3, ["  0.9 -> 1.0.0 (3)"])),
+        ):
+            result = await perm_mod.update_paths()
+
         assert isinstance(result, SuccessResult)
         assert result.value["success"] is True
-        assert "Updated 3 files" in result.value["output"]
+        assert result.value["total_changes"] == 3
+        assert result.value["files_changed"] == 1
+        assert "Updated 3 paths in 1 files" in result.value["output"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.permission.async_run", new_callable=AsyncMock)
-    async def test_returns_error_on_failure(
-        self,
-        mock_run: AsyncMock,
-    ) -> None:
-        mock_run.return_value = subprocess.CompletedProcess(
-            args=[],
-            returncode=1,
-            stdout="",
-            stderr="Config not found",
-        )
-        result = await perm_mod.update_paths()
+    async def test_returns_error_when_cache_is_empty(self) -> None:
+        with (
+            patch(f"{MOD_PATH}.find_config", return_value=Path("/fake/config.yaml")),
+            patch(f"{MOD_PATH}.load_config", return_value=self._stub_config()),
+            patch(f"{MOD_PATH}.find_settings_files", return_value=[Path("/fake/settings.json")]),
+            patch(f"{MOD_PATH}.detect_latest_version", return_value=None),
+        ):
+            result = await perm_mod.update_paths()
+
         assert isinstance(result, ErrorResult)
-        assert result.error == "Config not found"
+        assert "No versions found" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.permission.async_run", new_callable=AsyncMock)
-    async def test_passes_script_flags(
-        self,
-        mock_run: AsyncMock,
-    ) -> None:
-        mock_run.return_value = subprocess.CompletedProcess(
-            args=[],
-            returncode=0,
-            stdout="OK",
-            stderr="",
-        )
-        await perm_mod.update_paths(
-            version="1.0.0",
-            dry_run=True,
-            init=True,
-            quiet=True,
-        )
-        args_list = mock_run.call_args.kwargs["args"]
-        assert "--version" in args_list
-        assert "1.0.0" in args_list
-        assert "--dry-run" in args_list
-        assert "--init" in args_list
-        assert "--quiet" in args_list
+    async def test_dry_run_passes_through_to_update_file(self) -> None:
+        with (
+            patch(f"{MOD_PATH}.find_config", return_value=Path("/fake/config.yaml")),
+            patch(f"{MOD_PATH}.load_config", return_value=self._stub_config()),
+            patch(f"{MOD_PATH}.find_settings_files", return_value=[Path("/fake/settings.json")]),
+            patch(f"{MOD_PATH}.detect_latest_version", return_value="1.0.0"),
+            patch(f"{MOD_PATH}.extract_cache_publisher", return_value=None),
+            patch(f"{MOD_PATH}.update_file", return_value=(2, [])) as mock_update,
+        ):
+            result = await perm_mod.update_paths(dry_run=True, version="1.0.0")
+
+        assert isinstance(result, SuccessResult)
+        assert "Would update" in result.value["output"]
+        assert mock_update.call_args.kwargs["dry_run"] is True
+
+    @pytest.mark.asyncio
+    async def test_init_is_rejected_with_pointer_to_cli(self) -> None:
+        result = await perm_mod.update_paths(init=True)
+
+        assert isinstance(result, ErrorResult)
+        assert "uvx dev10x permission update-paths --init" in result.error
 
 
 class TestUpdatePathsSubCommandRoute:
@@ -154,16 +165,19 @@ class TestUpdatePathsSubCommandRoute:
         )
 
     @pytest.mark.asyncio
-    @patch("dev10x.permission.async_run", new_callable=AsyncMock)
+    @patch("dev10x.permission._run_update_paths")
     @patch("dev10x.permission._run_sub_command")
-    async def test_sub_command_flags_do_not_reach_script(
+    async def test_sub_command_flags_skip_version_bump(
         self,
         mock_sub: AsyncMock,
-        mock_run: AsyncMock,
+        mock_run_update: AsyncMock,
     ) -> None:
+        """Sub-command flags (ensure_base, generalize, …) must NOT also
+        trigger the in-process version-bump path."""
+
         mock_sub.return_value = ok({"success": True, "output": "OK"})
         await perm_mod.update_paths(ensure_base=True, generalize=True)
-        mock_run.assert_not_called()
+        mock_run_update.assert_not_called()
 
 
 class TestRunSubCommand:

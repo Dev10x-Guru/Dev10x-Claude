@@ -17,6 +17,7 @@ __pycache__/
 
 # Claude Code local settings
 .claude/settings.local.json
+.claude/settings.local.lock
 .claude/worktrees/
 .claude/session/
 .claude/Dev10x/
