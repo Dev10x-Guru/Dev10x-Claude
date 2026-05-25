@@ -549,6 +549,99 @@ def ensure_script_rules(
     return len(missing_rules), messages
 
 
+# GH-269: Legacy `${CLAUDE_PLUGIN_ROOT}/skills/upgrade-cleanup/scripts/`
+# allow-rules rot on every plugin upgrade because the cache path
+# encodes the version. The four scripts were retired in favour of
+# the version-stable `uvx dev10x permission <subcommand>` CLI.
+# `permission update-paths` migrates any surviving legacy rules to
+# the matching CLI form so the user's settings stop drifting.
+_LEGACY_UPGRADE_CLEANUP_SCRIPTS: dict[str, str] = {
+    "update-paths.py": "uvx dev10x permission update-paths",
+    "merge-worktree-permissions.py": "uvx dev10x permission merge-worktree",
+    "clean-project-files.py": "uvx dev10x permission clean",
+    "enumerate-mcp.py": "uvx dev10x permission enumerate-mcp",
+}
+
+_LEGACY_UPGRADE_CLEANUP_RULE_PATTERN = re.compile(
+    r"^Bash\("
+    r"(?:[^)]*?/)?skills/upgrade-cleanup/scripts/"
+    r"(?P<script>[A-Za-z0-9_.-]+\.py)"
+    r"(?::\*|\s+[^)]*)?"
+    r"\)$"
+)
+
+
+def collapse_legacy_upgrade_cleanup_rule(entry: str) -> str | None:
+    """Collapse a legacy upgrade-cleanup cache-path rule to the uvx form.
+
+    Returns the replacement rule when ``entry`` matches one of the four
+    retired shim scripts (GH-269). Returns ``None`` for unrelated rules.
+
+    The match is intentionally tolerant of every cache-path shape that
+    has appeared in user settings: ``${CLAUDE_PLUGIN_ROOT}/...``,
+    ``~/.claude/plugins/cache/<pub>/<plugin>/<ver>/...``, and the
+    fully-expanded ``/home/<user>/.claude/plugins/cache/.../`` form.
+    """
+
+    match = _LEGACY_UPGRADE_CLEANUP_RULE_PATTERN.match(entry)
+    if not match:
+        return None
+    script = match.group("script")
+    target_cmd = _LEGACY_UPGRADE_CLEANUP_SCRIPTS.get(script)
+    if target_cmd is None:
+        return None
+    return f"Bash({target_cmd}:*)"
+
+
+def collapse_legacy_upgrade_cleanup_rules(
+    path: Path,
+    *,
+    dry_run: bool = False,
+) -> tuple[int, list[str]]:
+    """Rewrite legacy upgrade-cleanup script rules in a settings file."""
+
+    try:
+        content = path.read_text()
+        data = json.loads(content)
+    except (OSError, json.JSONDecodeError) as exc:
+        return 0, [f"  SKIP (unreadable JSON): {exc}"]
+
+    allow_list: list[str] = data.get("permissions", {}).get("allow", [])
+    if not allow_list:
+        return 0, []
+
+    seen: set[str] = set()
+    new_allow: list[str] = []
+    replacements: list[tuple[str, str]] = []
+    for entry in allow_list:
+        collapsed = collapse_legacy_upgrade_cleanup_rule(entry)
+        if collapsed is None:
+            if entry not in seen:
+                new_allow.append(entry)
+                seen.add(entry)
+            continue
+        replacements.append((entry, collapsed))
+        if collapsed not in seen:
+            new_allow.append(collapsed)
+            seen.add(collapsed)
+
+    if not replacements:
+        return 0, []
+
+    if not dry_run:
+        from dev10x.skills.permission.backup import create_backup
+        from dev10x.skills.permission.file_lock import locked_json_update
+
+        create_backup(path)
+        with locked_json_update(path=path) as live_data:
+            if "permissions" not in live_data:
+                live_data["permissions"] = {}
+            live_data["permissions"]["allow"] = new_allow
+
+    messages = [f"  {old} → {new}" for old, new in replacements]
+    return len(replacements), messages
+
+
 GENERALIZE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"(detect-tracker\.sh)\s+[^)]+"), r"\1:*"),
     (re.compile(r"(gh-issue-get\.sh)\s+[^)]+"), r"\1:*"),

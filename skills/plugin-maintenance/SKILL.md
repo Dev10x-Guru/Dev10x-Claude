@@ -16,8 +16,25 @@ description: >
 user-invocable: true
 invocation-name: Dev10x:plugin-maintenance
 allowed-tools:
-  - Bash(${CLAUDE_PLUGIN_ROOT}/skills/upgrade-cleanup/scripts/:*)
-  - Bash(uv run dev10x:*)
+  # GH-269: Plugin maintenance now runs through the version-stable
+  # `uvx dev10x` CLI. Each subcommand is enumerated explicitly (no
+  # `Bash(uvx dev10x:*)` wildcard) for user trust and transparency —
+  # the maintainer can audit exactly which subcommands this skill is
+  # authorized to invoke.
+  - Bash(uvx dev10x permission update-paths:*)
+  - Bash(uvx dev10x permission merge-worktree:*)
+  - Bash(uvx dev10x permission clean:*)
+  - Bash(uvx dev10x permission enumerate-mcp:*)
+  - Bash(uvx dev10x permission ensure-base:*)
+  - Bash(uvx dev10x permission ensure-reads:*)
+  - Bash(uvx dev10x permission ensure-scripts:*)
+  - Bash(uvx dev10x permission ensure-workspace:*)
+  - Bash(uvx dev10x permission generalize:*)
+  - Bash(uvx dev10x permission doctor:*)
+  - Bash(uvx dev10x permission init:*)
+  - Bash(uvx dev10x permission investigate:*)
+  - Bash(uvx dev10x permission record-upgrade:*)
+  - Bash(uvx dev10x playbook diff:*)
   - mcp__plugin_Dev10x_cli__update_paths
   - Agent(Dev10x:permission-auditor)
   - AskUserQuestion
@@ -94,12 +111,33 @@ starting and `completed` when done. Steps that produce no
 changes (dry-run shows no diff) should still be marked
 `completed` with a note in the description.
 
+## Preflight: ensure `uv` (and `uvx`) is installed (GH-269)
+
+Every command in this skill runs through `uvx dev10x …`, the
+version-stable CLI shipped with the plugin. If `uv` is missing,
+none of the maintenance commands can run. Before any step:
+
+```bash
+command -v uvx
+```
+
+If the command prints nothing (exit status non-zero), STOP and
+direct the user to install `uv` first:
+
+> `uv` (which provides `uvx`) is not installed. Run the
+> `Dev10x:onboarding` skill — it installs `uv` via the official
+> Astral installer and verifies the plugin can drive its CLI.
+> Direct install instructions: <https://docs.astral.sh/uv/getting-started/installation/>
+
+Delegate via `Skill(Dev10x:onboarding)` and re-run this skill once
+`uv` is on PATH.
+
 ## First-Time Setup
 
 Initialize userspace config with your project roots:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/skills/upgrade-cleanup/scripts/update-paths.py --init
+uvx dev10x permission update-paths --init
 ```
 
 Then edit `~/.claude/skills/Dev10x:upgrade-cleanup/projects.yaml`
@@ -117,22 +155,23 @@ In `bootstrap` mode, run only the steps marked **[bootstrap]**.
 Bump versioned plugin paths in every settings file to the current
 plugin version.
 
-1. Dry run:
+1. Dry run (REQUIRED — always show the user the planned changes
+   before applying):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/skills/upgrade-cleanup/scripts/update-paths.py --dry-run
+uvx dev10x permission update-paths --dry-run
 ```
 
 For large updates prefer `--summary`:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/skills/upgrade-cleanup/scripts/update-paths.py --dry-run --summary
+uvx dev10x permission update-paths --dry-run --summary
 ```
 
-2. Apply:
+2. Apply (only after the dry-run output is shared with the user):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/skills/upgrade-cleanup/scripts/update-paths.py
+uvx dev10x permission update-paths
 ```
 
 ### 2. Migrate config files **[bootstrap]**
@@ -238,16 +277,16 @@ enumerated tool list.
 > wildcards in step 3 (since v0.66.0), this step is usually a
 > no-op. Run it to catch wildcards introduced by external edits.
 
-1. Dry run:
+1. Dry run (REQUIRED — show the user before applying):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/skills/upgrade-cleanup/scripts/enumerate-mcp.py --dry-run
+uvx dev10x permission enumerate-mcp --dry-run
 ```
 
 2. Apply:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/skills/upgrade-cleanup/scripts/enumerate-mcp.py
+uvx dev10x permission enumerate-mcp
 ```
 
 ### 7. Ensure script coverage **[bootstrap]**
@@ -311,16 +350,16 @@ Worktrees accumulate allow rules during sessions that the main
 project never sees. This script collects stable permissions from
 all worktrees and merges them back.
 
-1. Dry run:
+1. Dry run (REQUIRED — show the user before applying):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/skills/upgrade-cleanup/scripts/merge-worktree-permissions.py --dry-run
+uvx dev10x permission merge-worktree --dry-run
 ```
 
 2. Apply:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/skills/upgrade-cleanup/scripts/merge-worktree-permissions.py
+uvx dev10x permission merge-worktree
 ```
 
 Session-specific noise is filtered out automatically; only
@@ -358,22 +397,22 @@ Strip redundant rules from project `settings.local.json` files
 that are now covered by global `~/.claude/settings.json`. Also
 flags rules containing leaked secrets.
 
-1. Dry run:
+1. Dry run (REQUIRED — show the user before applying):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/skills/upgrade-cleanup/scripts/clean-project-files.py --dry-run
+uvx dev10x permission clean --dry-run
 ```
 
 For large cleanups prefer `--summary`:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/skills/upgrade-cleanup/scripts/clean-project-files.py --dry-run --summary
+uvx dev10x permission clean --dry-run --summary
 ```
 
 2. Apply:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/skills/upgrade-cleanup/scripts/clean-project-files.py
+uvx dev10x permission clean
 ```
 
 **What gets cleaned:**
@@ -409,29 +448,29 @@ of friction not covered by the other steps:
 1. Canonicalize pinned paths (idempotent, safe to re-run):
 
 ```bash
-uv run dev10x permission doctor canonicalize --dry-run
-uv run dev10x permission doctor canonicalize
+uvx dev10x permission doctor canonicalize --dry-run
+uvx dev10x permission doctor canonicalize
 ```
 
 2. Apply catalog deprecations:
 
 ```bash
-uv run dev10x permission doctor apply-deprecations --dry-run
-uv run dev10x permission doctor apply-deprecations
+uvx dev10x permission doctor apply-deprecations --dry-run
+uvx dev10x permission doctor apply-deprecations
 ```
 
 3. Scan for cross-contamination (no auto-fix — surfaces findings only):
 
 ```bash
-uv run dev10x permission doctor cross-contamination
+uvx dev10x permission doctor cross-contamination
 ```
 
 4. Enable an opt-in Tier 3 group when needed (e.g., `kubernetes-readonly`,
    `network-diagnostics`, `obsidian-cli`):
 
 ```bash
-uv run dev10x permission doctor enable-group kubernetes-readonly --dry-run
-uv run dev10x permission doctor enable-group kubernetes-readonly
+uvx dev10x permission doctor enable-group kubernetes-readonly --dry-run
+uvx dev10x permission doctor enable-group kubernetes-readonly
 ```
 
 ### 13. Diff user playbooks against plugin defaults *(full only)* (GH-192)
@@ -442,7 +481,7 @@ new versions ship new steps, fragments, or field changes. This step
 surfaces those upstream changes without overwriting user customizations.
 
 ```bash
-uv run dev10x playbook diff
+uvx dev10x playbook diff
 ```
 
 The report distinguishes:
@@ -465,7 +504,7 @@ To pull in upstream changes interactively, run:
 To target one skill (skip the rest):
 
 ```bash
-uv run dev10x playbook diff --skill work-on
+uvx dev10x playbook diff --skill work-on
 ```
 
 ## Configuration

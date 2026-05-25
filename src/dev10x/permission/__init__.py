@@ -15,7 +15,6 @@ import asyncio
 from typing import Any
 
 from dev10x.domain.common.result import Result, err, ok
-from dev10x.subprocess_utils import async_run, get_plugin_root
 
 
 def _run_sub_command(
@@ -144,21 +143,89 @@ async def update_paths(
             quiet=quiet,
         )
 
-    script = get_plugin_root() / "skills/upgrade-cleanup/scripts/update-paths.py"
-    args: list[str] = [str(script)]
+    # GH-269: previously shelled out to
+    # ${CLAUDE_PLUGIN_ROOT}/skills/upgrade-cleanup/scripts/update-paths.py.
+    # That shim is retired — the version-bump path now runs in-process
+    # against the same module the CLI uses.
+    return await asyncio.to_thread(
+        _run_update_paths,
+        version=version,
+        dry_run=dry_run,
+        init=init,
+        quiet=quiet,
+    )
 
-    if version:
-        args.extend(["--version", version])
-    if dry_run:
-        args.append("--dry-run")
+
+def _run_update_paths(
+    *,
+    version: str | None,
+    dry_run: bool,
+    init: bool,
+    quiet: bool,
+) -> Result[dict[str, Any]]:
+    from pathlib import Path
+
+    from dev10x.skills.permission import update_paths as mod
+
     if init:
-        args.append("--init")
-    if quiet:
-        args.append("--quiet")
+        return err(
+            "init is not supported via MCP; run `uvx dev10x permission update-paths --init`."
+        )
 
-    result = await async_run(args=args, timeout=60)
+    config_path = mod.find_config()
+    config = mod.load_config(config_path)
 
-    if result.returncode != 0:
-        return err(result.stderr.strip())
+    settings_files = mod.find_settings_files(
+        roots=config.get("roots", []),
+        include_user=config.get("include_user_settings", True),
+    )
+    if not settings_files:
+        return err("No settings files found.")
 
-    return ok({"success": True, "output": result.stdout.strip()})
+    cache_dir = Path(config["plugin_cache"]).expanduser()
+    target = version or mod.detect_latest_version(cache_dir)
+    if not target:
+        return err(f"No versions found in {cache_dir}")
+
+    publisher = mod.extract_cache_publisher(config["plugin_cache"])
+
+    messages: list[str] = []
+    if not quiet:
+        messages.append(f"Config: {config_path}")
+        messages.append(f"Target version: {target}")
+        if publisher:
+            messages.append(f"Target publisher: {publisher}")
+        if dry_run:
+            messages.append("(dry run — no files will be modified)")
+
+    total_changes = 0
+    files_changed = 0
+    for path in sorted(settings_files):
+        count, file_messages = mod.update_file(
+            path,
+            target,
+            target_publisher=publisher,
+            dry_run=dry_run,
+        )
+        if count > 0:
+            if not quiet:
+                messages.append(f"\n{path}")
+                messages.extend(file_messages)
+            total_changes += count
+            files_changed += 1
+
+    if total_changes == 0:
+        messages.append("All files already up to date.")
+    else:
+        verb = "Would update" if dry_run else "Updated"
+        messages.append(f"{verb} {total_changes} paths in {files_changed} files.")
+
+    return ok(
+        {
+            "success": True,
+            "output": "\n".join(messages).strip(),
+            "messages": messages,
+            "total_changes": total_changes,
+            "files_changed": files_changed,
+        }
+    )

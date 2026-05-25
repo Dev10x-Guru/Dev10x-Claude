@@ -79,6 +79,8 @@ def update_paths(
 
     total_changes = 0
     files_changed = 0
+    total_collapsed = 0
+    files_collapsed = 0
 
     for path in sorted(settings_files):
         count, messages = mod.update_file(
@@ -97,11 +99,36 @@ def update_paths(
             total_changes += count
             files_changed += 1
 
-    if total_changes == 0:
+        # GH-269: collapse retired upgrade-cleanup script rules to the
+        # uvx CLI form. Runs on every update-paths invocation so user
+        # settings stop drifting with each plugin upgrade.
+        collapsed_count, collapsed_messages = mod.collapse_legacy_upgrade_cleanup_rules(
+            path,
+            dry_run=dry_run,
+        )
+        if collapsed_count > 0:
+            if summary:
+                click.echo(f"{path}: collapsed {collapsed_count} legacy script rule(s)")
+            elif not quiet:
+                if count == 0:
+                    click.echo(f"\n{path}")
+                for msg in collapsed_messages:
+                    click.echo(msg)
+            total_collapsed += collapsed_count
+            files_collapsed += 1
+
+    if total_changes == 0 and total_collapsed == 0:
         click.echo("All files already up to date.")
     else:
         verb = "Would update" if dry_run else "Updated"
-        click.echo(f"{verb} {total_changes} paths in {files_changed} files.")
+        if total_changes:
+            click.echo(f"{verb} {total_changes} paths in {files_changed} files.")
+        if total_collapsed:
+            verb_c = "Would collapse" if dry_run else "Collapsed"
+            click.echo(
+                f"{verb_c} {total_collapsed} legacy script rule(s) "
+                f"in {files_collapsed} files (GH-269)."
+            )
 
 
 @permission.command(name="ensure-base")
