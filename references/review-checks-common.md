@@ -148,6 +148,23 @@ test-only PRs.
 prior review comments. Previous surface-bug fixes do not validate
 structural compliance.
 
+## Cross-Consumer Behavioural Reuse (GH-290)
+
+When a PR reuses an existing data relation (DB row, FK, OneToOne)
+for a new purpose, a sibling repository may already treat row
+presence as an implicit feature flag — populating the relation
+silently activates an unrelated feature. The check fires only
+when the diff dereferences a relation the PR did NOT introduce
+(no sibling `migrations/*.py` in the same PR), then greps
+project-configured sibling repos for boolean/length gating on
+the relation. Severity ladders from INFO (test fixture) →
+WARNING (component visibility) → CRITICAL (route/menu guard).
+
+See [`review-checks/cross-consumer-reuse.md`](review-checks/cross-consumer-reuse.md)
+for trigger details, sibling-repo config schema
+(`.claude/Dev10x/sibling-repos.yaml`), grep patterns, severity
+matrix, reporting format, and silent-skip degradation rules.
+
 ## Parameter Change Analysis
 
 When parameters are added/removed/made optional:
