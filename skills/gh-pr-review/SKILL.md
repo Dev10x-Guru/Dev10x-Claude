@@ -155,6 +155,24 @@ See [`references/architecture-checklist.md`](references/architecture-checklist.m
 for the rules to load, the per-file signal/violation/severity
 table, and the anchoring-bias anti-pattern.
 
+### Step 4c: Cross-Consumer Behavioural-Reuse Check (GH-290)
+
+Catches PRs that reuse an existing data structure when a sibling
+repository (typically a frontend) gates feature visibility on
+row presence.
+
+**Trigger** — fire ONLY when the diff dereferences an existing
+relation (model `related_name` / FK / OneToOne) with no sibling
+`migrations/*.py` diff in the same PR. Skip otherwise; innocuous
+resolver additions should not trigger cross-repo grep on every
+review.
+
+**How to run** — see
+`references/review-checks/cross-consumer-reuse.md` for the
+sibling-repo config schema (`.claude/Dev10x/sibling-repos.yaml`),
+grep patterns (`!!<relation>`, `<relation>.length > 0`, etc.),
+severity matrix, and silent-skip degradation rule.
+
 ### Step 5: Apply Review Guidelines
 
 **REQUIRED — Read the reference files (GH-181 F1).** Skipping
