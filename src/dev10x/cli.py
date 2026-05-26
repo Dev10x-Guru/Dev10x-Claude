@@ -50,7 +50,18 @@ class LazyGroup(click.Group):
         "validate": "dev10x.commands.validate.validate",
         "skill": "dev10x.commands.skill.skill",
     },
+    invoke_without_command=True,
 )
 @click.version_option(package_name="Dev10x")
-def cli() -> None:
-    pass
+@click.pass_context
+def cli(ctx: click.Context) -> None:
+    """Print the resolved Dev10x config root when no subcommand is given.
+
+    This makes `$(uvx dev10x)/somefile.yaml` work as a portable
+    reference to the user-global config directory from shell
+    scripts and docs. Equivalent to `dev10x config root`.
+    """
+    if ctx.invoked_subcommand is None:
+        from dev10x.domain.dev10x_paths import Dev10xConfigDir
+
+        click.echo(Dev10xConfigDir.home())
