@@ -7,7 +7,7 @@ repos can share the same strategy.
 ## Config File Location
 
 ```
-~/.claude/memory/Dev10x/gitmoji.yaml
+~/.config/Dev10x/gitmoji.yaml
 ```
 
 Global file — not per-project. Strategies are defined once and
@@ -106,7 +106,7 @@ is checked against the output of `git remote get-url origin`.
 
 ## Resolution Order
 
-1. Read `~/.claude/memory/Dev10x/gitmoji.yaml`
+1. Read `~/.config/Dev10x/gitmoji.yaml`
 2. Get current repo's origin URL via `git remote get-url origin`
 3. Walk `projects` list — first `match` that fits selects the
    strategy

@@ -133,5 +133,17 @@ class ClaudeDir:
     def slack_review_config_yaml(cls) -> Path:
         return cls._resolve("memory", "slack-config-code-review-requests.yaml")
 
+    @classmethod
+    def gitmoji_yaml(cls) -> Path:
+        return cls._resolve("memory", "Dev10x", "gitmoji.yaml")
+
+    @classmethod
+    def github_reviewers_config_yaml(cls) -> Path:
+        return cls._resolve("memory", "Dev10x", "github-reviewers-config.yaml")
+
+    @classmethod
+    def settings_pr_merge_yaml(cls) -> Path:
+        return cls._resolve("memory", "Dev10x", "settings-pr-merge.yaml")
+
 
 __all__ = ["ClaudeDir", "CLAUDE_HOME_ENV_VAR"]

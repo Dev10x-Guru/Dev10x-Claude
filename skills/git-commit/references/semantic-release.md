@@ -8,7 +8,7 @@ gitmoji-based release rules.
 ## When This Applies
 
 This step runs when no manual strategy matched the project
-in `~/.claude/memory/Dev10x/gitmoji.yaml`. It checks for a
+in `~/.config/Dev10x/gitmoji.yaml`. It checks for a
 semantic-release config in the project root before falling
 back to the plugin defaults.
 

@@ -42,6 +42,9 @@ def isolated_dirs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> tuple[Path
         ("github_bot_dir", "github-bot"),
         ("github_app_yaml", "github-bot/github-app.yaml"),
         ("playbooks_dir", "playbooks"),
+        ("gitmoji_yaml", "gitmoji.yaml"),
+        ("github_reviewers_config_yaml", "github-reviewers-config.yaml"),
+        ("settings_pr_merge_yaml", "settings-pr-merge.yaml"),
     ],
 )
 def test_accessors_resolve_under_override(
@@ -162,6 +165,52 @@ def test_stale_legacy_paths_reports_only_existing(
     stale = stale_legacy_paths()
     assert legacy_version in stale
     assert ClaudeDir.platforms_yaml() not in stale
+
+
+@pytest.mark.parametrize(
+    "legacy_accessor,current_accessor,filename",
+    [
+        ("gitmoji_yaml", "gitmoji_yaml", "gitmoji.yaml"),
+        (
+            "github_reviewers_config_yaml",
+            "github_reviewers_config_yaml",
+            "github-reviewers-config.yaml",
+        ),
+        (
+            "settings_pr_merge_yaml",
+            "settings_pr_merge_yaml",
+            "settings-pr-merge.yaml",
+        ),
+    ],
+)
+def test_memory_dev10x_files_migrate_to_xdg_config(
+    isolated_dirs: tuple[Path, Path],
+    legacy_accessor: str,
+    current_accessor: str,
+    filename: str,
+) -> None:
+    legacy = getattr(ClaudeDir, legacy_accessor)()
+    legacy.parent.mkdir(parents=True, exist_ok=True)
+    legacy.write_text(f"payload: {filename}")
+    current = getattr(Dev10xConfigDir, current_accessor)()
+    assert current.read_text() == f"payload: {filename}"
+
+
+def test_migrate_all_includes_memory_dev10x_files(
+    isolated_dirs: tuple[Path, Path],
+) -> None:
+    for accessor in (
+        "gitmoji_yaml",
+        "github_reviewers_config_yaml",
+        "settings_pr_merge_yaml",
+    ):
+        legacy = getattr(ClaudeDir, accessor)()
+        legacy.parent.mkdir(parents=True, exist_ok=True)
+        legacy.write_text("payload")
+    migrated_names = {p.name for p in migrate_all()}
+    assert "gitmoji.yaml" in migrated_names
+    assert "github-reviewers-config.yaml" in migrated_names
+    assert "settings-pr-merge.yaml" in migrated_names
 
 
 def test_migrate_all_is_idempotent(isolated_dirs: tuple[Path, Path]) -> None:

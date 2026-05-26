@@ -1,7 +1,7 @@
 # Default gitmoji-to-type mapping for Dev10x:git-commit.
 #
 # This file ships with the plugin and is used when no project
-# override exists in ~/.claude/memory/Dev10x/gitmoji.yaml.
+# override exists in ~/.config/Dev10x/gitmoji.yaml.
 #
 # Users can override this by creating a strategy in the global
 # config file. See project-override.md for the full schema.
