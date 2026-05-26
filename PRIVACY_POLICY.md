@@ -66,6 +66,7 @@ with credentials you supply:
 | Slack (MCP) | Your Slack app token | Channel reads and messages you post |
 | Sentry (MCP) | Your Sentry auth | Issue details you fetch |
 | AWS Secrets Manager (`aws-vault`) | Your AWS profile | Secret lookups you approve |
+| Kubernetes API (`aws-vault` kubectl wrapper) | Your AWS profile via `aws-vault exec` | Read-only `kubectl` commands you submit (get, describe, logs, top, events, etc.); cluster context and namespace resolved from your local `service-registry.yaml` |
 | Postgres (databases via `Dev10x:db-psql`) | Connection strings from `databases.yaml` (env or keyring) | Read-only SQL queries you submit; results returned locally |
 | Anthropic API (Claude review CI) | Repository `ANTHROPIC_API_KEY` secret | PR diffs, commit metadata, and review comments processed by GitHub-hosted Claude actions |
 | PyPI (release CI only) | Trusted-publisher OIDC | Plugin distribution artifacts |

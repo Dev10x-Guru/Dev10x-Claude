@@ -1,0 +1,44 @@
+# AWS Vault Service Registry — example
+#
+# Copy this file to ~/.config/Dev10x/aws-vault/service-registry.yaml
+# and edit it to match your environments, IAM profiles, and clusters.
+#
+#   mkdir -p ~/.config/Dev10x/aws-vault
+#   cp service-registry.example.yaml \
+#      ~/.config/Dev10x/aws-vault/service-registry.yaml
+#
+# Maps abstract environment + service names to concrete AWS / k8s
+# artifacts. Skills (Dev10x:aws-vault and any caller that needs
+# credentials) read this file to resolve names.
+#
+# Maintain this file when environments or services change.
+
+environments:
+  staging:
+    # aws-vault profile name (must match ~/.aws/config)
+    aws_vault_profile: "my-org-staging"
+    # Map service-key → AWS Secrets Manager secret ID
+    secrets:
+      api: "eks/staging/api"
+      worker: "eks/staging/worker"
+    k8s:
+      # Full cluster ARN or short context name from ~/.kube/config
+      context: "arn:aws:eks:us-east-1:000000000000:cluster/staging"
+      namespace: "default"
+
+  production:
+    aws_vault_profile: "my-org-production"
+    secrets:
+      api: "eks/production/api"
+      worker: "eks/production/worker"
+    k8s:
+      context: "arn:aws:eks:us-east-1:000000000000:cluster/production"
+      namespace: "default"
+
+# Common key names inside the secret JSON blob.
+# Informational — used by callers that need a canonical reference for
+# which key inside the secret holds which value.
+secret_keys:
+  database_url: "DATABASE_URL"
+  redis_url: "REDIS_URL"
+  # api_key: "API_KEY"
