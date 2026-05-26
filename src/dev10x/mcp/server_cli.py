@@ -530,7 +530,9 @@ async def merge_pr(
         pr_number: PR number to merge.
         strategy: One of ``rebase`` (default), ``squash``, ``merge``.
             Resolved by the skill from
-            ``~/.config/Dev10x/settings-pr-merge.yaml``.
+            ``<Dev10x config>/settings-pr-merge.yaml`` — see
+            ``references/config-resolution.md`` for the per-platform
+            resolution table.
         delete_branch: Pass ``--delete-branch`` to ``gh pr merge``
             when True (default).
         repo: Repository (owner/repo). Auto-detected if omitted.

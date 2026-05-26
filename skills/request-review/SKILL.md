@@ -95,7 +95,7 @@ Delegate to the GitHub reviewer assignment skill:
 Skill("Dev10x:gh-pr-request-review", args="--pr {PR_NUMBER} --repo {REPO}")
 ```
 
-This skill reads `~/.config/Dev10x/github-reviewers-config.yaml`,
+This skill reads `<Dev10x config>/github-reviewers-config.yaml`,
 resolves reviewers, and assigns them via GitHub API. It may skip
 if the project is configured with `skip: true`.
 

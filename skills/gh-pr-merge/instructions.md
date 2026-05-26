@@ -24,7 +24,7 @@ The merge strategy is resolved using the config resolution order
 (see `references/config-resolution.md`):
 
 1. **Global with repo matching** — read
-   `~/.config/Dev10x/settings-pr-merge.yaml`, match current
+   `<Dev10x config>/settings-pr-merge.yaml`, match current
    repo against `projects[].match` globs
 2. **Default** — `rebase`
 
@@ -37,7 +37,7 @@ the curated commits as-is.
 
 **Migration note for existing users:** If a project previously relied
 on the implicit `squash` default, set `strategy: squash` explicitly
-in `~/.config/Dev10x/settings-pr-merge.yaml` for that repo's
+in `<Dev10x config>/settings-pr-merge.yaml` for that repo's
 `projects[].match` entry. No behavior change for projects that
 already declared `strategy:` explicitly.
 
@@ -45,7 +45,7 @@ already declared `strategy:` explicitly.
 
 **Global format** (preferred — one file for all repos):
 ```yaml
-# ~/.config/Dev10x/settings-pr-merge.yaml
+# <Dev10x config>/settings-pr-merge.yaml
 projects:
   - match: "Dev10x-Guru/*"
     strategy: rebase
