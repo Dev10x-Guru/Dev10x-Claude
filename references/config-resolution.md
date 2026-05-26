@@ -21,6 +21,19 @@ When examples in this doc or SKILL.md files write
 `~/.config/Dev10x/...`, that is the Linux/macOS form — substitute
 the platform-appropriate root from the table above.
 
+**From the shell**, the resolved root is available as the
+bare-invocation output of the `dev10x` CLI:
+
+```bash
+$(uvx dev10x)/gitmoji.yaml
+# → /home/<user>/.config/Dev10x/gitmoji.yaml on Linux
+# → /Users/<user>/.config/Dev10x/gitmoji.yaml on macOS
+# → C:\Users\<user>\AppData\Roaming\Dev10x\gitmoji.yaml on Windows
+```
+
+`dev10x config root` is the explicit equivalent — both print
+the same path. Use whichever reads better in your script.
+
 ## Three-Tier Resolution
 
 All Dev10x configuration files follow a consistent resolution order

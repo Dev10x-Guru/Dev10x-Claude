@@ -34,6 +34,49 @@ class TestCli:
 
         assert result.exit_code != 0
 
+    def test_bare_invocation_prints_config_root(
+        self,
+        runner: CliRunner,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: object,
+    ) -> None:
+        from dev10x.domain.dev10x_paths import (
+            CONFIG_HOME_ENV_VAR,
+            Dev10xConfigDir,
+        )
+
+        monkeypatch.setenv(CONFIG_HOME_ENV_VAR, str(tmp_path))
+        Dev10xConfigDir.reset_cache()
+        try:
+            result = runner.invoke(cli, [])
+        finally:
+            Dev10xConfigDir.reset_cache()
+
+        assert result.exit_code == 0
+        assert result.output.strip() == str(tmp_path)
+
+    def test_bare_invocation_does_not_print_when_subcommand_runs(
+        self,
+        runner: CliRunner,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: object,
+    ) -> None:
+        from dev10x.domain.dev10x_paths import (
+            CONFIG_HOME_ENV_VAR,
+            Dev10xConfigDir,
+        )
+
+        monkeypatch.setenv(CONFIG_HOME_ENV_VAR, str(tmp_path))
+        Dev10xConfigDir.reset_cache()
+        try:
+            result = runner.invoke(cli, ["--help"])
+        finally:
+            Dev10xConfigDir.reset_cache()
+
+        assert result.exit_code == 0
+        # Help output, not the config path
+        assert str(tmp_path) not in result.output
+
 
 class TestLazyGroup:
     def test_list_commands_includes_lazy(self) -> None:
