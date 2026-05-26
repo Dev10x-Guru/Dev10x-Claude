@@ -364,7 +364,7 @@ Job Story was already sourced from the Linear ticket earlier in this session
 **Project override check:** Before presenting the type menu,
 check for a strategy override:
 
-1. Read `~/.claude/memory/Dev10x/gitmoji.yaml`
+1. Read `~/.config/Dev10x/gitmoji.yaml`
 2. Get repo origin: `git remote get-url origin`
 3. Walk the `projects` list — first `match` glob that fits
    the origin URL selects the named `strategy`
@@ -1021,7 +1021,7 @@ Default gitmoji-to-type mapping shipped with the plugin.
 ### references/project-override.md
 
 Project-level gitmoji strategy overrides — schema, resolution
-order, and examples for `~/.claude/memory/Dev10x/gitmoji.yaml`.
+order, and examples for `~/.config/Dev10x/gitmoji.yaml`.
 
 ### references/semantic-release.md
 

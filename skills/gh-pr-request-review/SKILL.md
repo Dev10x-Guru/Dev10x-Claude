@@ -38,7 +38,7 @@ Auto-resolves reviewers from per-project config when available.
 The skill resolves reviewers in this order:
 
 1. **Explicit argument** — if the user passes reviewer names, use those
-2. **Config file** — read `~/.claude/memory/Dev10x/github-reviewers-config.yaml`
+2. **Config file** — read `~/.config/Dev10x/github-reviewers-config.yaml`
    and look up the current repo's project entry
 3. **Ask the user** — if no config entry exists and `default_action: ask`
 
@@ -49,7 +49,7 @@ for the current repo, the skill falls back to `default_action`
 behavior (ask or skip).
 
 ```yaml
-# ~/.claude/memory/Dev10x/github-reviewers-config.yaml
+# ~/.config/Dev10x/github-reviewers-config.yaml
 default_action: ask  # "skip" or "ask" for unconfigured projects
 
 projects:
@@ -137,7 +137,7 @@ NOT notify the requested reviewers — the request is lost.
    (or call `mcp__plugin_Dev10x_cli__pr_detect` and use its
    returned `repo` field — last path segment is the repo name)
 2. Read and parse the config file using `yq`:
-   `yq '.projects["REPO_NAME"]' ~/.claude/memory/Dev10x/github-reviewers-config.yaml`
+   `yq '.projects["REPO_NAME"]' ~/.config/Dev10x/github-reviewers-config.yaml`
 3. Look up the repo name in `projects`:
    - **Found with `skip: true`** → print "Skipping review request
      for {repo}" and stop

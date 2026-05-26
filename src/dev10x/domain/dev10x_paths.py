@@ -146,6 +146,24 @@ class Dev10xConfigDir:
     def playbooks_dir(cls) -> Path:
         return _with_lazy_migration(cls._resolve("playbooks"), _legacy_playbooks_dir)
 
+    @classmethod
+    def gitmoji_yaml(cls) -> Path:
+        return _with_lazy_migration(cls._resolve("gitmoji.yaml"), _legacy_gitmoji_yaml)
+
+    @classmethod
+    def github_reviewers_config_yaml(cls) -> Path:
+        return _with_lazy_migration(
+            cls._resolve("github-reviewers-config.yaml"),
+            _legacy_github_reviewers_config_yaml,
+        )
+
+    @classmethod
+    def settings_pr_merge_yaml(cls) -> Path:
+        return _with_lazy_migration(
+            cls._resolve("settings-pr-merge.yaml"),
+            _legacy_settings_pr_merge_yaml,
+        )
+
 
 def _with_lazy_migration(current: Path, legacy_provider: Callable[[], Path]) -> Path:
     migrate_path(legacy=legacy_provider(), current=current)
@@ -162,6 +180,9 @@ _legacy_slack_review_config_yaml = ClaudeDir.slack_review_config_yaml
 _legacy_upgrade_cleanup_projects_yaml = ClaudeDir.upgrade_cleanup_projects_yaml
 _legacy_github_bot_dir = ClaudeDir.github_bot_dir
 _legacy_github_app_yaml = ClaudeDir.github_app_yaml
+_legacy_gitmoji_yaml = ClaudeDir.gitmoji_yaml
+_legacy_github_reviewers_config_yaml = ClaudeDir.github_reviewers_config_yaml
+_legacy_settings_pr_merge_yaml = ClaudeDir.settings_pr_merge_yaml
 
 
 def _legacy_playbooks_dir() -> Path:
@@ -189,6 +210,15 @@ def _migration_pairs() -> list[tuple[Path, Path]]:
             Dev10xConfigDir._resolve("github-bot", "github-app.yaml"),
         ),
         (_legacy_playbooks_dir(), Dev10xConfigDir._resolve("playbooks")),
+        (_legacy_gitmoji_yaml(), Dev10xConfigDir._resolve("gitmoji.yaml")),
+        (
+            _legacy_github_reviewers_config_yaml(),
+            Dev10xConfigDir._resolve("github-reviewers-config.yaml"),
+        ),
+        (
+            _legacy_settings_pr_merge_yaml(),
+            Dev10xConfigDir._resolve("settings-pr-merge.yaml"),
+        ),
     ]
 
 
