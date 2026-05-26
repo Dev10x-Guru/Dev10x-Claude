@@ -438,7 +438,7 @@ of friction not covered by the other steps:
   `Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/...)` so they
   survive `claude plugin update`.
 - **Catalog deprecations** — entries from
-  `references/baseline-permissions.yaml` with
+  `src/dev10x/skills/permission/baseline-permissions.yaml` with
   `action: canonicalize` are rewritten; `action: remove` entries
   (e.g., legacy `/tmp/claude/bin/mktmp.sh:*`) are dropped.
 - **Cross-contamination** — rules whose absolute paths point outside

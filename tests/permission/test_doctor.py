@@ -172,6 +172,14 @@ class TestCrossContamination:
 
 
 class TestCatalogAndDeprecations:
+    def test_catalog_path_is_package_data(self) -> None:
+        # GH-264: catalog YAML must ship inside the wheel — co-located
+        # with doctor.py — so `uv tool install Dev10x` users can run
+        # `permission doctor apply-deprecations` without FileNotFoundError.
+        module_dir = Path(doctor.__file__).resolve().parent
+        assert doctor.CATALOG_PATH == module_dir / "baseline-permissions.yaml"
+        assert doctor.CATALOG_PATH.is_file()
+
     def test_load_catalog_finds_yaml(self) -> None:
         catalog = doctor.load_catalog()
         assert catalog.version >= 1
