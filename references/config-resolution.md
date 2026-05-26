@@ -3,6 +3,24 @@
 Central reference for Dev10x configuration file paths, resolution
 order, and project mapping format.
 
+## Where the Dev10x config root lives
+
+Throughout this doc and Dev10x skills, `<Dev10x config>` is the
+canonical placeholder for the user-global config root. It resolves
+per platform (and overrides):
+
+| Resolution order | Path | When |
+|---|---|---|
+| 1 (override) | `$DEV10X_CONFIG_HOME` | Set explicitly (tests, CI, custom layouts) |
+| 2 (override) | `$XDG_CONFIG_HOME/Dev10x` | `XDG_CONFIG_HOME` is set |
+| 3 (Windows) | `%APPDATA%/Dev10x` | e.g. `C:\Users\<name>\AppData\Roaming\Dev10x` |
+| 4 (default) | `~/.config/Dev10x` | Linux, macOS, BSDs |
+
+Source of truth: `src/dev10x/domain/dev10x_paths.py` (`_platform_default_root`).
+When examples in this doc or SKILL.md files write
+`~/.config/Dev10x/...`, that is the Linux/macOS form — substitute
+the platform-appropriate root from the table above.
+
 ## Three-Tier Resolution
 
 All Dev10x configuration files follow a consistent resolution order
