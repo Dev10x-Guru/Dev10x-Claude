@@ -14,8 +14,9 @@ Three concerns this module addresses:
    inside the worktree would work.
 
 3. **Catalog application** — load the baseline-permissions catalog
-   (``references/baseline-permissions.yaml``) and apply deprecation
-   actions (canonicalize / remove) plus invariant checks.
+   (``baseline-permissions.yaml``, shipped alongside this module as
+   package data) and apply deprecation actions (canonicalize / remove)
+   plus invariant checks.
 
 CLI entry points live under ``dev10x permission doctor``.
 """
@@ -39,7 +40,7 @@ PINNED_VERSION_RE = re.compile(
     rf"(?P<version>\d+\.\d+\.\d+)/"
 )
 
-CATALOG_PATH = Path(__file__).resolve().parents[4] / "references" / "baseline-permissions.yaml"
+CATALOG_PATH = Path(__file__).resolve().parent / "baseline-permissions.yaml"
 
 
 def canonicalize_rule(rule: str) -> str | None:
