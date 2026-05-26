@@ -167,6 +167,7 @@ higher tiers — `minimal` rules are always active.
 | DX008 | commit-jtbd | strict |
 | DX009 | redundant-fetch | standard (experimental) |
 | DX010 | bash-aggregation | standard |
+| DX011 | pipeline-allow | standard |
 
 ### Configuration
 

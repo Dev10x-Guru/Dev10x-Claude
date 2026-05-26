@@ -71,6 +71,12 @@ _SPECS: list[ValidatorSpec] = [
         profile=ProfileTier.MINIMAL,
     ),
     ValidatorSpec(
+        module_path="dev10x.validators.pipeline_allow",
+        class_name="PipelineAllowValidator",
+        rule_id="DX011",
+        profile=ProfileTier.STANDARD,
+    ),
+    ValidatorSpec(
         module_path="dev10x.validators.skill_redirect",
         class_name="SkillRedirectValidator",
         rule_id="DX006",
