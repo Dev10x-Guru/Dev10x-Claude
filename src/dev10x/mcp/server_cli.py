@@ -282,6 +282,45 @@ async def pr_issue_comment(
 
 
 @server.tool()
+async def pr_review_comment_edit(
+    comment_id: int,
+    body: str,
+    repo: str | None = None,
+    cwd: str | None = None,
+) -> dict:
+    """Edit a PR inline review-thread comment body (GH-304).
+
+    Uses PATCH against `/repos/{owner}/{repo}/pulls/comments/{id}`.
+    Distinct from `issue_comment_edit` which targets the
+    `/issues/comments/` endpoint (top-level issue + PR comments).
+    Use this when editing inline review-thread comments — the ones
+    tied to a file path + line number on a PR review (e.g., bot
+    findings from claude-review, hygiene-review).
+
+    Args:
+        comment_id: Numeric ID of the review-thread comment to edit
+            (from the /comments/<id> URL fragment).
+        body: New body text (full replacement, not a delta).
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: id, body, html_url.
+    """
+    from dev10x import github as gh
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return (
+            await gh.pr_comment_edit(
+                comment_id=comment_id,
+                body=body,
+                repo=repo,
+            )
+        ).to_dict()
+
+
+@server.tool()
 async def minimize_comments(
     node_ids: list[str],
     classifier: str = "OUTDATED",
