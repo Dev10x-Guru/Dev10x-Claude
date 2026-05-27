@@ -92,7 +92,9 @@ def main() -> None:
     # Features that produce additionalContext (order matters for readability).
     context_parts: list[str] = []
 
-    out = _run_feature(name="session-git-aliases", fn=s.session_git_aliases, audit_hook=audit_hook)
+    out = _run_feature(
+        name="session-git-aliases", fn=s.session_git_aliases, audit_hook=audit_hook
+    )
     if out.strip():
         context_parts.append(out.strip())
 
@@ -105,6 +107,10 @@ def main() -> None:
     guidance = s.build_guidance_context()
     if guidance:
         context_parts.append(guidance)
+
+    reassurance = s.build_autonomy_reassurance_context()
+    if reassurance:
+        context_parts.append(reassurance)
 
     install_check = s.build_install_check_context()
     if install_check:
