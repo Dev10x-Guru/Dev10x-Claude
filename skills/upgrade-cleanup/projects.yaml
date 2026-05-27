@@ -293,6 +293,32 @@ base_permissions:
   # already covered above; this rule covers the yq invocation.
   - "Bash(yq:*)"
 
+  # --- Structured-data + safe-lookup tools (GH-308) ---
+  # Read-only data-format tools and binary-existence lookups.
+  # `Dev10x:diag-friction` steers agents toward these as structured
+  # alternatives to `python -c` / `sh -c` — their inclusion here makes
+  # the recommendation actionable (invoking jq/yamllint/etc. never
+  # prompts). `yq` already covered above under "YAML config parsing".
+  #
+  # Caveat: bare `command`/`which`/`type` can execute arbitrary binaries
+  # (`command <bin> <args>`); only the lookup-flag forms are listed.
+  # Do NOT generalize to `Bash(command:*)`.
+  - "Bash(jq:*)"
+  - "Bash(yamllint:*)"
+  - "Bash(actionlint:*)"
+  - "Bash(tomlq:*)"
+  - "Bash(xq:*)"
+  - "Bash(pup:*)"
+  - "Bash(bash -n:*)"
+  - "Bash(shellcheck:*)"
+  - "Bash(shfmt:*)"
+  - "Bash(zsh -n:*)"
+  - "Bash(command -v:*)"
+  - "Bash(command -V:*)"
+  - "Bash(which:*)"
+  - "Bash(type:*)"
+  - "Bash(hash:*)"
+
   # --- SSH probes (GH-20) ---
   # Push/PR setup paths verify GitHub SSH access.
   - "Bash(ssh -T git@github.com)"
