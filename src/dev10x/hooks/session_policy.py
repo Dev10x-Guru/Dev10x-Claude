@@ -165,9 +165,7 @@ class DecisionGuidanceRule:
 
     def apply(self) -> str:
         if not isinstance(self.friction_level, FrictionLevel):
-            raise UnknownFrictionLevelError(
-                f"Unknown friction level: {self.friction_level!r}"
-            )
+            raise UnknownFrictionLevelError(f"Unknown friction level: {self.friction_level!r}")
 
         summary = PlanSummary.from_dict(data=self.plan)
         decisions = summary.pending_decisions
@@ -189,9 +187,7 @@ class DecisionGuidanceRule:
                 "Re-ask each pending decision using AskUserQuestion — "
                 "invoke Dev10x:ask before advancing."
             )
-        raise UnknownFrictionLevelError(
-            f"Unhandled friction level: {self.friction_level!r}"
-        )
+        raise UnknownFrictionLevelError(f"Unhandled friction level: {self.friction_level!r}")
 
 
 @dataclass(frozen=True)
@@ -240,9 +236,7 @@ class MigratePluginPermissionsRule:
                         raw = permissions.get(key, [])
                         if not raw:
                             continue
-                        new_rules, count = _migrate_rules(
-                            rules=raw, replacements=replacements
-                        )
+                        new_rules, count = _migrate_rules(rules=raw, replacements=replacements)
                         new_rules = _deduplicate_rules(rules=new_rules)
                         total_migrated += count
                         if count:
@@ -250,9 +244,7 @@ class MigratePluginPermissionsRule:
                             changed = True
                     if not changed:
                         continue
-                    atomic_write_text(
-                        settings_file, json.dumps(settings, indent=2) + "\n"
-                    )
+                    atomic_write_text(settings_file, json.dumps(settings, indent=2) + "\n")
                 files_changed.append(settings_file.name)
             except (json.JSONDecodeError, OSError):
                 continue

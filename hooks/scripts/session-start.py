@@ -92,9 +92,7 @@ def main() -> None:
     # Features that produce additionalContext (order matters for readability).
     context_parts: list[str] = []
 
-    out = _run_feature(
-        name="session-git-aliases", fn=s.session_git_aliases, audit_hook=audit_hook
-    )
+    out = _run_feature(name="session-git-aliases", fn=s.session_git_aliases, audit_hook=audit_hook)
     if out.strip():
         context_parts.append(out.strip())
 

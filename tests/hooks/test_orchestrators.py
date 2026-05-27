@@ -150,8 +150,7 @@ class TestAutonomyReassurance:
         )
         monkeypatch.setattr(session_dispatch, "_get_toplevel", lambda: str(toplevel))
         assert (
-            "Supervisor monitors context"
-            in session_dispatch.build_autonomy_reassurance_context()
+            "Supervisor monitors context" in session_dispatch.build_autonomy_reassurance_context()
         )
 
     def test_facade_reexports_dispatch(self) -> None:
@@ -170,9 +169,7 @@ class TestRunFeatureBufferDiscard:
     def _import_session_start(self):
         import importlib.util
 
-        spec = importlib.util.spec_from_file_location(
-            "_session_start_under_test", SESSION_START
-        )
+        spec = importlib.util.spec_from_file_location("_session_start_under_test", SESSION_START)
         assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
