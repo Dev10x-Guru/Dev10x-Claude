@@ -71,6 +71,95 @@ class TestOrchestratorConsolidation:
         assert result.returncode == 0
 
 
+class TestAutonomyReassurance:
+    """GH-261: SessionStart MOTD injects a reassurance block when the
+    supervisor opted into adaptive + solo-maintainer autonomy.
+
+    The block fires ONLY when both conditions hold — any other profile
+    must leave session output unchanged so attended/team sessions are
+    not nudged toward auto-advance behavior.
+    """
+
+    def _write_session_yaml(self, *, tmp_path: Path, content: str) -> Path:
+        toplevel = tmp_path / "repo"
+        (toplevel / ".claude" / "Dev10x").mkdir(parents=True)
+        (toplevel / ".claude" / "Dev10x" / "session.yaml").write_text(content)
+        return toplevel
+
+    def test_fires_on_adaptive_solo_maintainer(self, tmp_path: Path) -> None:
+        from dev10x.hooks.session_policy import BuildAutonomyReassuranceRule
+
+        toplevel = self._write_session_yaml(
+            tmp_path=tmp_path,
+            content="friction_level: adaptive\nactive_modes: [solo-maintainer]\n",
+        )
+        result = BuildAutonomyReassuranceRule(toplevel=str(toplevel)).apply()
+        assert "Supervisor monitors context" in result
+        assert "trust the plan" in result
+
+    def test_silent_when_friction_guided(self, tmp_path: Path) -> None:
+        from dev10x.hooks.session_policy import BuildAutonomyReassuranceRule
+
+        toplevel = self._write_session_yaml(
+            tmp_path=tmp_path,
+            content="friction_level: guided\nactive_modes: [solo-maintainer]\n",
+        )
+        assert BuildAutonomyReassuranceRule(toplevel=str(toplevel)).apply() == ""
+
+    def test_silent_when_solo_maintainer_missing(self, tmp_path: Path) -> None:
+        from dev10x.hooks.session_policy import BuildAutonomyReassuranceRule
+
+        toplevel = self._write_session_yaml(
+            tmp_path=tmp_path,
+            content="friction_level: adaptive\nactive_modes: []\n",
+        )
+        assert BuildAutonomyReassuranceRule(toplevel=str(toplevel)).apply() == ""
+
+    def test_silent_when_session_yaml_missing(self, tmp_path: Path) -> None:
+        from dev10x.hooks.session_policy import BuildAutonomyReassuranceRule
+
+        toplevel = tmp_path / "repo"
+        toplevel.mkdir()
+        assert BuildAutonomyReassuranceRule(toplevel=str(toplevel)).apply() == ""
+
+    def test_silent_when_session_yaml_malformed(self, tmp_path: Path) -> None:
+        from dev10x.hooks.session_policy import BuildAutonomyReassuranceRule
+
+        toplevel = self._write_session_yaml(
+            tmp_path=tmp_path,
+            content="friction_level: adaptive\nactive_modes: [solo-maintainer\n",
+        )
+        assert BuildAutonomyReassuranceRule(toplevel=str(toplevel)).apply() == ""
+
+    def test_dispatch_returns_empty_without_toplevel(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from dev10x.hooks import session_dispatch
+
+        monkeypatch.setattr(session_dispatch, "_get_toplevel", lambda: None)
+        assert session_dispatch.build_autonomy_reassurance_context() == ""
+
+    def test_dispatch_resolves_through_rule_with_toplevel(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from dev10x.hooks import session_dispatch
+
+        toplevel = self._write_session_yaml(
+            tmp_path=tmp_path,
+            content="friction_level: adaptive\nactive_modes: [solo-maintainer]\n",
+        )
+        monkeypatch.setattr(session_dispatch, "_get_toplevel", lambda: str(toplevel))
+        assert (
+            "Supervisor monitors context"
+            in session_dispatch.build_autonomy_reassurance_context()
+        )
+
+    def test_facade_reexports_dispatch(self) -> None:
+        from dev10x.hooks import session
+
+        assert hasattr(session, "build_autonomy_reassurance_context")
+
+
 class TestRunFeatureBufferDiscard:
     """E9: _run_feature must discard partial stdout when a feature raises.
 
@@ -81,7 +170,9 @@ class TestRunFeatureBufferDiscard:
     def _import_session_start(self):
         import importlib.util
 
-        spec = importlib.util.spec_from_file_location("_session_start_under_test", SESSION_START)
+        spec = importlib.util.spec_from_file_location(
+            "_session_start_under_test", SESSION_START
+        )
         assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)

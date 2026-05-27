@@ -99,6 +99,20 @@ def build_guidance_context() -> str:
     return guidance_file.read_text() if guidance_file.exists() else ""
 
 
+def build_autonomy_reassurance_context() -> str:
+    """Reassurance block for adaptive + solo-maintainer sessions (GH-261).
+
+    Returns an empty string outside the autonomous-shipping profile; the
+    orchestrator drops empty segments so non-solo sessions see no change.
+    """
+    from dev10x.hooks.session_policy import BuildAutonomyReassuranceRule
+
+    toplevel = _get_toplevel()
+    if not toplevel:
+        return ""
+    return BuildAutonomyReassuranceRule(toplevel=toplevel).apply()
+
+
 def build_install_check_context() -> str:
     """Warn the user when the Dev10x install needs bootstrap or upgrade.
 
@@ -155,7 +169,9 @@ def session_migrate_permissions() -> None:
     Delegates to :class:`MigratePluginPermissionsRule`. Only runs when
     installed via the plugin cache (not ``--plugin-dir``).
     """
-    rule = MigratePluginPermissionsRule(plugin_root=_plugin_root(), home_path=Path.home())
+    rule = MigratePluginPermissionsRule(
+        plugin_root=_plugin_root(), home_path=Path.home()
+    )
     if not rule.applicable():
         sys.exit(0)
     total_migrated, files_changed = rule.apply()
@@ -210,7 +226,9 @@ def session_goodbye(data: dict | None = None) -> None:
     session_id = data.get("session_id") or ""
     url = "https://www.skool.com/Dev10x-1892"
     print()
-    print("Thank you for using Dev10x. Join the community to get the most out of the plugin:")
+    print(
+        "Thank you for using Dev10x. Join the community to get the most out of the plugin:"
+    )
     print(f"\033]8;;{url}\033\\{url}\033]8;;\033\\")
     if session_id:
         print()
@@ -221,6 +239,7 @@ def session_goodbye(data: dict | None = None) -> None:
 __all__ = [
     "build_install_check_context",
     "build_reload_context",
+    "build_autonomy_reassurance_context",
     "build_guidance_context",
     "session_reload",
     "context_compact",
