@@ -125,6 +125,55 @@ Out of scope for this PR. {optional: "Tracked in TICKET-ID" or
 "Good idea for a follow-up."}
 ```
 
+## Pattern: YAGNI / Scope-Drift Code (GH-297)
+
+**Detection:** Comment correctly identifies a bug, gap, or hardening
+need — but the commented code itself is speculative and does not
+serve the PR's stated Job Story. Multiple such comments often cluster
+on a single speculative feature riding on an unrelated PR (refactor,
+bugfix, or unrelated feature).
+
+**Signals:**
+- PR title/JTBD describes outcome A (e.g., "Refactor storage shape"),
+  but the commented code implements outcome B (e.g., a new
+  denormalization feature)
+- Several VALID-looking comments on this PR all target the same
+  feature/module that the JTBD does not mention
+- `git blame` shows the commented lines were added in this PR's diff
+  rather than being pre-existing
+- Reviewer language hints at scope ("why is this here?", "didn't
+  expect this in a refactor", "is this part of the refactor?")
+
+**Investigation:**
+1. Read the PR's Job Story / title outcome (e.g., "Refactor X",
+   "Fix Y") — store as the JTBD anchor
+2. For the commented line, check whether it was added by this PR
+   and whether it implements the JTBD outcome
+3. Scan all PR threads (Pattern: Previously Addressed scan) for
+   other comments on the same speculative code path
+4. If the code is added-by-this-PR AND off-JTBD → **YAGNI**
+5. Record the bundle of related YAGNI comment IDs so the caller
+   can collapse them into one removal commit
+
+**Reply template:**
+```
+Correct catch — {one-sentence acknowledgment of the bug}.
+
+This code is out of scope for the PR's JTBD ({JTBD outcome phrase}).
+The right fix is to remove {feature/module name} from this PR rather
+than harden it. Will bundle with related thread(s) into a single
+removal commit, or defer to a follow-up ticket if the feature is
+desired.
+```
+
+**Anti-pattern to avoid:** Routing the comment as `VALID` and starting
+to harden the out-of-scope code. The audit (GH-297) caught a session
+where four YAGNI-class comments on one speculative feature were each
+hardened individually before the reviewer manually intervened with
+"remove this feature — out of scope." The investigation steps above
+must run *before* the verdict is rendered, not after the fix is
+drafted.
+
 ## Pattern: Intentional Design
 
 **Detection:** Reviewer questions a design choice that was deliberate —

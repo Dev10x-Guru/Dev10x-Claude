@@ -60,7 +60,7 @@ Customize with `/Dev10x:playbook edit gh-pr-respond <play>`.
 
 ## Decision Gates
 
-This skill has 6 **blocking decision gates** where execution
+This skill has 7 **blocking decision gates** where execution
 MUST pause for user input via the `AskUserQuestion` tool.
 
 **Plain text questions are NOT acceptable** — they don't block
@@ -77,6 +77,7 @@ Gates numbered by insertion order; execution order differs by mode.
 | 4 | Mode B, Step 5 | Resolve threads confirmation |
 | 5 | Post-Response Continuation | Groom + push + monitor / Push only / Stop |
 | 6 | Mode B, Step 5b / Mode A, Step 1c | Hide obsolete comments |
+| 7 | Mode A, Step 1d / Mode B, Step 4 (per bundle) | YAGNI routing — remove / defer / keep-and-harden |
 
 Each gate is marked with **REQUIRED: `AskUserQuestion`** in the
 step description. If you see that marker, you MUST call the
@@ -93,6 +94,10 @@ step description. If you see that marker, you MUST call the
    (fires at every friction level, including `adaptive`; adaptive
    auto-selects "Hide all resolved" but the gate still fires and
    `minimize_comments` is invoked — GH-208)
+6a. Gate 7 (YAGNI routing): `AskUserQuestion` — MANDATORY per
+    YAGNI bundle (GH-297). Adaptive auto-selects "Remove
+    out-of-scope code" but the gate still fires so the user sees
+    the bundled comment IDs before the removal commit is created.
 7. VALID comments: `Skill(Dev10x:gh-pr-fixup)` — NEVER inline,
    invoke immediately after triage verdict (no pause, no report)
 8. Triage: `Skill(Dev10x:gh-pr-triage)` — NEVER inline, even
@@ -474,13 +479,27 @@ delegate to triage as normal.
   implement fixes manually or post replies via raw `gh api`.
   The fixup skill handles the entire lifecycle: fix, commit, push,
   and reply.
-- If **not VALID** → `Dev10x:gh-pr-triage` has posted a reply but has NOT resolved the
-  thread. Ask the user whether to resolve it (see Step 1b).
+- If **YAGNI** → triage has posted a reply naming the scope mismatch.
+  Do NOT call `Dev10x:gh-pr-fixup` to harden the code. Surface the
+  scope mismatch to the user (one `AskUserQuestion` gate listing
+  the YAGNI bundle's comment IDs and the proposed removal) and
+  route per their choice: remove the code in a single commit
+  spanning all bundled threads, or defer the speculative feature
+  to a follow-up ticket and close the threads. See § YAGNI
+  routing below for the gate details.
+- If **not VALID** (INVALID / QUESTION / OUT_OF_SCOPE) → triage
+  has posted a reply but has NOT resolved the thread. Ask the
+  user whether to resolve it (see Step 1b).
 
-### Step 1b: Confirm thread resolution (non-VALID only)
+### Step 1b: Confirm thread resolution (INVALID / QUESTION / OUT_OF_SCOPE)
 
-When `Dev10x:gh-pr-triage` returns INVALID, QUESTION, or OUT_OF_SCOPE, present the
-verdict and reason to the user and ask for confirmation before resolving:
+Fires only when `Dev10x:gh-pr-triage` returns INVALID, QUESTION, or
+OUT_OF_SCOPE. VALID is handled by `Dev10x:gh-pr-fixup`; YAGNI is
+handled by Step 1d (which owns its own thread-resolution path
+per user choice).
+
+Present the verdict and reason to the user and ask for confirmation
+before resolving:
 
 ```
 Comment r{comment_id} on {path}:{line}:
@@ -520,6 +539,44 @@ gh api graphql -F query=@/tmp/Dev10x/gh/minimize.graphql \
 ```
 
 See `references/github_api.md` § Hiding (Minimizing) Comments.
+
+### Step 1d: YAGNI routing (YAGNI verdict only)
+
+Fires only when `Dev10x:gh-pr-triage` returns `YAGNI`. Triage has
+already posted a reply naming the scope mismatch; this gate decides
+how to close the bundled threads.
+
+**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text).
+
+Present:
+```
+YAGNI bundle on PR #{pr_number}:
+  JTBD: "{PR JTBD outcome phrase}"
+  Out-of-scope code: {feature/module name}
+  Bundled threads: r{id1}, r{id2}, r{id3} (N comments)
+```
+
+Options:
+- **"Remove out-of-scope code" (Recommended)** — Create one removal
+  commit closing all bundled threads. Delegate to
+  `Skill(Dev10x:gh-pr-fixup)` with the bundled comment IDs and an
+  instruction to revert/remove the speculative feature rather than
+  harden it. Reply on each thread with the removal-commit reference
+  using the bundled-reply template.
+- **"Defer to follow-up ticket"** — Leave the code in place, create
+  a tracking ticket via `Dev10x:ticket-create` capturing the
+  speculative feature + the listed concerns, and reply on each
+  thread linking the ticket. No fixup commit is created.
+- **"Keep and harden each thread"** — Override the YAGNI verdict.
+  Treat each comment as `VALID` and delegate to
+  `Dev10x:gh-pr-fixup` per comment. Use only when the user
+  intentionally wants the speculative feature shipped in this PR.
+
+**Bundling guarantee:** When "Remove out-of-scope code" is selected,
+all bundled comment IDs from the YAGNI verdict MUST be passed to
+`Dev10x:gh-pr-fixup` in a single call with `bundled: true` metadata
+(see § Bundled Fixup Mode). Splitting a YAGNI bundle into separate
+removal commits defeats the audit signal that motivated the verdict.
 
 ### Step 2: Check for remaining comments
 
@@ -660,16 +717,47 @@ Present the full plan to the user as a table:
 
 ```
 Found {N} unaddressed comments on PR #{pr_number}:
+  JTBD: "{PR JTBD outcome phrase}"
 
-| # | Author | File:Line | Summary | Verdict | Proposed Response |
-|---|--------|-----------|---------|---------|-------------------|
-| 1 | mike   | sender.py:19 | Use SubFactory | VALID | Change LazyFunction → SubFactory |
-| 2 | mike   | fakers.py:21 | Randomize values | VALID | Use Faker() for all fields |
-| 3 | claude[bot] | dto.py:5 | TYPE_CHECKING | INVALID | 38+ files use this pattern |
-| 4 | claude[bot] | tasks.py:12 | Missing type ann | INVALID | mypy infers from assignment |
+| # | Author | File:Line | Summary | Verdict | Priority | Proposed Response |
+|---|--------|-----------|---------|---------|----------|-------------------|
+| 1 | mike   | sender.py:19 | Use SubFactory | VALID | now | Change LazyFunction → SubFactory |
+| 2 | mike   | fakers.py:21 | Randomize values | VALID | fast-follow | Tracked as test-quality enhancement |
+| 3 | claude[bot] | dto.py:5 | TYPE_CHECKING | INVALID | n/a | 38+ files use this pattern |
+| 4 | claude[bot] | tasks.py:12 | Missing type ann | INVALID | n/a | mypy infers from assignment |
+| 5 | mike   | feature.py:8  | Denorm drift | YAGNI | n/a | Bundle r{ids} → propose removal |
+
+Bundles:
+- YAGNI bundle "speculative-feature-X" (rows 5,7,8,9) → single
+  removal commit proposed
 
 Approve all, or specify which to modify/skip?
 ```
+
+**Priority column (Finding 2, GH-297).** Every row carries a
+`Priority` value so the batch plan no longer leaves defer-vs-handle
+as a manual reviewer decision per comment.
+
+| Priority | Applies to | Action at Step 4 |
+|----------|-----------|------------------|
+| `now`    | `VALID` comments that block correctness, security, or contract guarantees | Delegate to `Dev10x:gh-pr-fixup` in this batch |
+| `fast-follow` | `VALID` comments that are non-blocking enhancements (test-coverage gaps, type narrowing, dedup, edge-case hardening, doc improvements, nice-to-have refactors) | Acknowledge on the thread, create or append to a fast-follow ticket via `Dev10x:ticket-create`, skip fixup in this batch |
+| `n/a`    | `INVALID`, `QUESTION`, `OUT_OF_SCOPE`, `YAGNI` | Verdict already determines the action; priority does not apply |
+
+**Heuristics for assigning `now` vs `fast-follow`:**
+
+- Default to `now` when the comment names a correctness bug, a
+  regression risk, a security hole, a missing migration safeguard,
+  or a contract violation
+- Default to `fast-follow` when the comment names a test gap, a
+  type narrowing, a dedup, an admin edge case the PR did not
+  introduce, a doc improvement, or a refactor opportunity
+- When ambiguous, choose `now` and let the user downgrade to
+  `fast-follow` during the Step 3 approval gate
+
+The fast-follow rows roll up into a single batched ticket so the
+reviewer does not have to thread each deferral by hand. Present the
+proposed ticket title and body inline with the table for confirmation.
 
 ### Step 3: Get user approval
 
@@ -687,20 +775,43 @@ reviewer").
 
 Mark phase transition: `TaskUpdate(taskId=execute_task, status="in_progress")`
 
-For each approved comment:
+For each approved comment, route by **verdict + priority**:
 
-- **VALID** → **REQUIRED: Call `Skill(Dev10x:gh-pr-fixup)`
-  immediately after verdict** — do NOT report the verdict and
-  wait for user input between comments. The triage-to-fixup
-  transition is atomic: verdict received → `Skill()` invoked,
-  no pause. Never manually implement fixes or post replies via
-  raw commands. The fixup skill handles the entire lifecycle.
+- **VALID + priority=`now`** → **REQUIRED: Call
+  `Skill(Dev10x:gh-pr-fixup)` immediately after verdict** — do
+  NOT report the verdict and wait for user input between
+  comments. The triage-to-fixup transition is atomic: verdict
+  received → `Skill()` invoked, no pause. Never manually
+  implement fixes or post replies via raw commands. The fixup
+  skill handles the entire lifecycle.
 
   **Default cardinality is one fixup commit per comment.** When
   several VALID comments share a coherent fix, see the **Bundled
   Fixup Mode** section above — bundling is opt-in and requires
   every affected reply to use the hyperlinked bundled-reply
   template plus the post-groom SHA refresh sub-phase.
+- **VALID + priority=`fast-follow`** → do NOT call
+  `Dev10x:gh-pr-fixup` in this batch. Collect all fast-follow
+  rows, draft a single follow-up ticket via
+  `Dev10x:ticket-create` (one ticket per PR, listing each
+  fast-follow comment link as an acceptance criterion), then
+  reply on each thread acknowledging the deferral with a link
+  to the new ticket:
+
+  ```markdown
+  Acknowledged — deferring to fast-follow [{ticket-id}]({url}).
+  This PR's JTBD ({JTBD outcome}) ships without this change;
+  the follow-up ticket tracks it.
+  ```
+
+  Do NOT resolve the thread automatically.
+- **YAGNI** → respect the bundle. For each YAGNI bundle named in
+  the batch plan, fire one **Step 1d-style YAGNI routing gate**
+  (see Mode A § Step 1d) covering the whole bundle. The selected
+  option (remove / defer / keep-and-harden) determines whether
+  `Dev10x:gh-pr-fixup` is invoked once with all bundled comment
+  IDs (`bundled: true`), whether a deferral ticket is created, or
+  whether the comments fall back to individual VALID handling.
 - **INVALID / QUESTION / OUT_OF_SCOPE** → post reply using MCP tool:
   ```
   mcp__plugin_Dev10x_cli__pr_comment_reply(
@@ -846,7 +957,9 @@ After all comments are processed, report:
 
 ```
 Batch complete: {N} comments processed
-- {x} VALID (fixup commits created)
+- {x} VALID-now (fixup commits created)
+- {f} VALID-fast-follow (deferred to ticket {ticket-id})
+- {g} YAGNI (bundled into {b} removal commit(s) | deferred to ticket {id})
 - {y} INVALID (replied)
 - {z} QUESTION (answered)
 - {w} OUT_OF_SCOPE (acknowledged)

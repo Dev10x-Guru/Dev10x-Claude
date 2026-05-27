@@ -25,6 +25,7 @@ allowed-tools:
   - Skill(Dev10x:gh-pr-monitor)
   - Skill(Dev10x:git)
   - Skill(Dev10x:gh-pr-merge)
+  - Skill(Dev10x:ticket-create)
 ---
 
 # Respond to PR Review Comments
