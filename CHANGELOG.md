@@ -5,6 +5,130 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.75.0 — Friction Reduction, Typed Boundaries & Business-ROI JTBD
+
+Released 2026-05-27
+
+### Features
+
+- **Anchor JTBD Job Stories in business ROI** — the `Dev10x:jtbd`
+  skill now traces refactor, infrastructure, and dependency-bump
+  work up to the end-customer outcome instead of accepting "the
+  developer wants to" as the actor, so every PR body, ticket scope,
+  and release note inherits business-meaningful framing. A new
+  doctrine memo grounds the rule with worked examples and citations
+  ([GH-276](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/276))
+- **Eliminate per-version permission churn via the `uvx dev10x`
+  CLI** — plugin-maintenance work routes through the version-stable
+  CLI so a single set of allow-rules survives every plugin upgrade,
+  retiring four cache-path shim scripts that went stale on each
+  version bump
+  ([GH-269](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/269))
+- **Allow trimmer pipelines without broadening allow-rules** — the
+  new `PipelineAllowValidator` (DX011) auto-approves `| tail`,
+  `| head`, and `| wc` pipelines when every segment already matches
+  an existing Bash allow-rule, removing a recurring source of one-off
+  approval prompts
+  ([GH-262](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/262))
+- **Edit and delete PR/issue comments via MCP** — `issue_comment_edit`
+  and `issue_comment_delete` wrappers replace raw `gh api PATCH/DELETE`
+  calls, so the "edit a stale bot finding to clear the merge gate"
+  workflow no longer triggers an approval prompt
+  ([GH-283](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/283))
+- **Recommend structured tools in `diag-friction`** — blocked
+  inline-code commands now map to canonical tools (yq, jq, yamllint,
+  actionlint, curl) from a bundled knowledge base instead of always
+  suggesting a `~/.claude/tools/` extraction
+  ([GH-282](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/282))
+- **Land fixups on the commits that own their lines** — `Dev10x:git-fixup`
+  blames each staged hunk against the branch range to target the owning
+  commit, ending the autosquash conflict loops that rerere memoized
+  ([GH-299](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/299))
+- **Enable scope-aware triage and priority-split responses** — a YAGNI
+  verdict in `gh-pr-triage` plus a now/fast-follow priority axis in
+  `gh-pr-respond` let reviewers route out-of-scope findings and defer
+  non-urgent VALIDs without manual steering
+  ([GH-297](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/297))
+- **Prevent silent feature activation via reused relations** — PR
+  review gains a cross-consumer behavioural-reuse check that flags when
+  populating an existing relation could activate a feature gated on row
+  presence in a sibling repo
+  ([GH-290](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/290))
+- **Prevent context-anxiety pauses in adaptive solo sessions** — a
+  SessionStart reassurance block fires under adaptive friction with a
+  solo maintainer so the agent trusts long task lists instead of
+  re-asking settled scope decisions
+  ([GH-261](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/261))
+- **Expose the Dev10x config root via bare CLI invocation and finish
+  the XDG migration** — bare `dev10x` echoes the resolved config root
+  for portable shell idioms, and the last three user configs migrate
+  off `~/.claude/` so fresh projects no longer hit the sensitive-path
+  consent gate
+  ([GH-270](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/270))
+- **Ship AWS Secrets Manager access as a plugin-bundled skill** —
+  `Dev10x:aws-vault` relocates the secrets/kubectl wrappers out of
+  user space with a configurable service registry so the skill is
+  shareable across projects
+
+### Fixes
+
+- **Stabilize the permission doctor on wheel installs** — the baseline
+  permissions catalog now ships inside the package and resolves via a
+  module-relative path, fixing the `FileNotFoundError` crash on
+  PyPI-installed dev10x
+  ([GH-264](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/264))
+
+### Hardening
+
+- **Enforce atomic writes and locks on boundary hot paths** — session
+  state, plan context, the platform registry, and the audit log now use
+  atomic writes and file locks so concurrent worktrees, parallel hooks,
+  and the long-lived MCP server cannot lose state in a race; ADR-0011
+  documents the layered atomicity model
+  ([GH-240](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/240))
+
+### Refactors
+
+- **Enforce typed identifiers across plan and PR surfaces** — five new
+  value objects (Task, TicketId, SkillName, RepositoryRef, BranchName)
+  replace dict-of-Any threading and scattered regex literals, validating
+  inputs once at each boundary
+  ([GH-241](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/241))
+- **Ship flaky-test fixes through the `work-on` pipeline** —
+  `Dev10x:py-test-flaky` is now a thin investigator and ticket scoper
+  that hands delivery to `Dev10x:work-on`, so flaky fixes inherit the
+  same gates, self-review, and PR monitoring as any other ticket
+  ([GH-281](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/281))
+- **Strip forbidden-token priming from skill docs** — skill bodies no
+  longer name `DEV10X_SKIP_CMD_VALIDATION` as a negative example, and a
+  doctor strategy scans for the priming token outside the hook layer
+  ([GH-272](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/272))
+
+### Docs
+
+- **Anchor config paths in cross-platform notation** — skill docs use
+  abstract `<Dev10x config>/<file>` paths backed by a platform
+  resolution table instead of literal `~/.config/Dev10x/` forms that
+  misled Windows users
+  ([GH-270](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/270))
+- **Ensure the no-checkpoints rule travels with auto-advance** — a
+  canonical "no checkpoints" definition plus per-skill reinforcement
+  stops adaptive-friction sessions from inserting "Ready to proceed?"
+  pauses mid-pipeline
+  ([GH-223](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/223))
+- **Route fixup comment fetch through MCP wrappers** — `Dev10x:git-fixup`
+  Step 2 documents `pr_detect` and `pr_comments` instead of the raw `gh`
+  shapes the friction scanner forbids
+  ([GH-299](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/299))
+- **Document review and testing patterns from superseded bot PRs** —
+  add the backlog-deferral format, pytest fixture/async handler
+  patterns, the hook refactor + lazy-import checklist, and the
+  instructions.md allowed-tools scope clarification
+  ([GH-202](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/202),
+  [GH-124](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/124),
+  [GH-130](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/130),
+  [GH-104](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/104))
+
 ## 0.74.0 — MCP Routing Coverage & Session Mode Awareness
 
 Released 2026-05-21
