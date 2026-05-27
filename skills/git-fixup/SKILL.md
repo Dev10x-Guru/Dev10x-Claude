@@ -12,6 +12,7 @@ user-invocable: true
 invocation-name: Dev10x:git-fixup
 allowed-tools:
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
+  - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git-fixup/scripts/:*)
   - Write(/tmp/Dev10x/git/**)
   - Bash(gh repo view:*)
   - Bash(gh api:*)
@@ -123,17 +124,68 @@ Extract from comment:
 - `html_url` - Link to comment thread (for commit body)
 - `body` - The review comment text
 
-### Step 3: Identify Original Commit
+### Step 3: Identify Original Commit (line-owning, not topical)
 
-Find the commit this fixup should target:
+**Resolve the fixup target by blaming the staged hunks** — the target
+is the commit that last touched the lines being changed, not "the
+first commit on the branch". Topical attribution causes cross-commit
+fixups: when autosquash reorders the fixup next to its supposed
+target, a *later* branch commit that owns the touched lines no longer
+applies, producing modify/delete or content conflicts. `git rerere`
+then memoizes the bad resolution and silently re-applies it on the
+next attempt (GH-299).
+
+Run the resolver script:
 
 ```bash
-# Detect base branch dynamically
-BASE_BRANCH=$(git show-ref --verify --quiet refs/heads/develop \
-  && echo develop || echo master)
-ORIGINAL_COMMIT=$(git log ${BASE_BRANCH}..HEAD --reverse --format="%H" | head -1)
-ORIGINAL_MESSAGE=$(git log --format=%s -1 $ORIGINAL_COMMIT)
+${CLAUDE_PLUGIN_ROOT}/skills/git-fixup/scripts/find-fixup-target.py
 ```
+
+It reads `git diff --cached`, blames every hunk's pre-image line
+range against branch commits (`<base>..HEAD`), and prints JSON.
+Branch the SKILL on the `status` field:
+
+| `status` | Meaning | Action |
+|----------|---------|--------|
+| `single` | All staged hunks blame to one branch commit | `ORIGINAL_COMMIT=$target`, `ORIGINAL_MESSAGE=$subject` — proceed to Step 4 |
+| `multi`  | Hunks span ≥ 2 owning branch commits | **Abort with the multi-owner guidance below** — do NOT create a cross-commit fixup |
+| `out_of_branch` | All hunks blame to commits outside `<base>..HEAD` | Fall back to `fallback_target` (first branch commit) — new file or untouched region |
+| `no_staged` | Nothing staged | Surface the "No staged changes" error from § Error Handling |
+| `error` | Resolver failed | Print the `error` field and stop |
+
+**Multi-owner handling** (`status == "multi"`):
+
+Print the owner list returned by the script and stop. Example:
+
+```
+This fix touches lines owned by multiple branch commits — creating
+one fixup against any single target would conflict on autosquash.
+Restage and commit per owning commit:
+
+  abc1234 (♻️ PAY-32 Tighten Square timeout handling)
+    src/payments/service.py:120-128
+    src/payments/service.py:204-210
+
+  def5678 (✅ PAY-32 Add Square timeout regression tests)
+    tests/payments/test_service.py:45-60
+
+Suggested workflow (one fixup per owner):
+
+  git restore --staged .
+  git add -p src/payments/service.py        # stage only abc1234's hunks
+  Skill(Dev10x:git-fixup)
+  git add -p tests/payments/test_service.py # stage only def5678's hunks
+  Skill(Dev10x:git-fixup)
+
+Each fixup may reference the same review comment URL — the
+"one fixup per comment" rule is a traceability floor, not a hard
+cap. Multiple fixups for one comment are correct when the change
+spans owning commits.
+```
+
+The skill MUST NOT silently pick one owner and create the fixup
+anyway — the whole point of this step is to refuse cross-commit
+fixups that autosquash cannot fold cleanly.
 
 ### Step 4: Validate Staged Changes
 

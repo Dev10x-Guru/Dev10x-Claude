@@ -31,7 +31,14 @@ already been validated as needing a code change. It:
 4. Pushes the commit
 5. Replies to the comment with the commit reference
 
-**Critical rule: ONE fixup commit per PR comment.**
+**Critical rule: ONE fixup commit per PR comment — unless the fix
+spans hunks owned by multiple branch commits.** "One fixup per
+comment" is a traceability floor (so reviewers can match comment to
+commit), not a cap on commit count. When `Dev10x:git-fixup` reports
+multi-owner staged changes (status: `multi`), create **one fixup per
+owning commit**, all referencing the same review comment URL.
+Bundling cross-commit hunks into a single fixup creates conflicts on
+autosquash that `git rerere` then silently re-applies — see GH-299.
 
 **Entry point rule:** `Dev10x:gh-pr-respond` is the recommended
 entry point for all PR review comments. It orchestrates triage,
@@ -182,14 +189,30 @@ this comment:
 
 ### Step 5: Create Fixup Commit (delegate to Dev10x:git-fixup)
 
-**IMPORTANT:** Delegate to the `Dev10x:git-fixup` skill.
+**IMPORTANT:** Delegate to the `Dev10x:git-fixup` skill. It resolves
+the fixup target by blaming the staged hunks (GH-299), so each fixup
+lands adjacent to the commit that actually owns the touched lines.
 
 ```bash
 # Stage the changes
 git add {file_path}
 
-# Delegate to Dev10x:git-fixup skill (handles message format)
+# Delegate to Dev10x:git-fixup skill (handles target resolution + message format)
 ```
+
+**When the fix spans multiple owning commits**, `Dev10x:git-fixup`
+returns a `multi` status and refuses to create a cross-commit fixup.
+In that case:
+
+1. Restage hunks per owning commit (`git restore --staged .` then
+   `git add -p` for each owner's files/hunks)
+2. Invoke `Dev10x:git-fixup` once per owning commit
+3. Collect every resulting commit hash; pass all of them to Step 6
+   and reference each in the Step 7 reply (e.g. "Fixed in `abc1234`
+   and `def5678` — payments service + regression tests")
+
+Multiple fixups for one review comment are allowed and correct here —
+they preserve traceability while keeping each fixup foldable.
 
 **Fixup commit format:**
 ```
