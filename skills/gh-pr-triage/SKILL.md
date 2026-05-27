@@ -3,8 +3,9 @@ name: Dev10x:gh-pr-triage
 description: >
   Validate a PR review comment against the codebase. If invalid, reply
   with evidence. Never auto-resolves threads — resolution requires
-  explicit user confirmation. Returns a verdict (VALID, INVALID, QUESTION,
-  OUT_OF_SCOPE) so the caller knows whether a code fix is needed.
+  explicit user confirmation. Returns a verdict (VALID, YAGNI, INVALID,
+  QUESTION, OUT_OF_SCOPE) so the caller knows whether to fix, remove
+  out-of-scope code, reply, or defer.
   TRIGGER when: PR review comment needs validation before implementing fix.
   DO NOT TRIGGER when: comment is clearly valid and needs immediate fix
   (use Dev10x:gh-pr-fixup directly).
@@ -29,10 +30,23 @@ never auto-resolves threads. Returns a verdict to the caller.
 
 | Verdict | Meaning | Action taken |
 |---------|---------|-------------|
-| `VALID` | Comment identifies a real issue needing a fix | None — caller handles |
+| `VALID` | Comment identifies a real issue in code that belongs in this PR | None — caller fixes |
+| `YAGNI` | Real issue, but the commented code is out-of-scope for the PR's JTBD — fix is to remove or defer the code, not harden it | Reply naming the scope mismatch; caller routes to removal |
 | `INVALID` | Comment is factually wrong (code already correct) | Reply with evidence |
 | `QUESTION` | Reviewer asking a question, no code change needed | Reply with answer |
-| `OUT_OF_SCOPE` | Valid concern but beyond this PR's scope | Acknowledge |
+| `OUT_OF_SCOPE` | Valid concern, but the *fix* would expand the PR's scope (code itself is in scope) | Acknowledge, defer concern to follow-up |
+
+**`YAGNI` vs `OUT_OF_SCOPE` — when to use each:**
+
+- `OUT_OF_SCOPE` — The commented code is legitimately part of this PR.
+  The reviewer asks for an enhancement, refactor, or stricter handling
+  that would expand the change beyond its stated JTBD. Defer the concern
+  to a follow-up ticket; the code stays.
+- `YAGNI` — The commented code itself does NOT belong in this PR. The
+  reviewer's bug report is correct, but the right fix is to remove or
+  revert the code rather than harden it. Multiple `YAGNI` verdicts that
+  share one root feature should bundle into a single removal commit
+  (see § Step 4.5).
 
 **Thread resolution policy:** Never auto-resolve threads. Thread
 resolution requires explicit user confirmation. The user supervising
@@ -46,9 +60,9 @@ verify the triage decisions without searching through hidden threads.
 ## NEVER inline triage (GH-463, GH-97)
 
 This is a `Skill()`-only entry point. The verdicts above
-(`VALID`/`INVALID`/`QUESTION`/`OUT_OF_SCOPE`) are this skill's
-output contract — they MUST NOT appear in narrative text as a
-substitute for invoking the skill.
+(`VALID`/`YAGNI`/`INVALID`/`QUESTION`/`OUT_OF_SCOPE`) are this
+skill's output contract — they MUST NOT appear in narrative text
+as a substitute for invoking the skill.
 
 If you find yourself writing:
 
@@ -188,6 +202,52 @@ investigations:
 3. If addressed → INVALID with thread URL reference
 ```
 
+### Step 4.5: JTBD Scope Check (GH-297)
+
+Before rendering a final `VALID` verdict, check whether the commented
+code is in-scope for the PR's stated Job Story. A correct bug report
+against code that doesn't belong in the PR should route to **YAGNI**
+(remove or defer the code), not `VALID` (harden it).
+
+**Trigger this check** only when the investigation in Step 4 concludes
+the comment is factually correct (about to verdict `VALID`). Skip for
+`INVALID`, `QUESTION`, or pre-existing `OUT_OF_SCOPE` paths.
+
+**Procedure:**
+
+1. **Extract the PR's stated JTBD** — read the PR body's Job Story
+   block. If absent, fall back to the PR title's outcome phrase
+   ("Enable …", "Fix …", "Refactor …").
+2. **Locate the commented code's origin in this PR** — was the
+   commented line *added* or *modified* by this PR, or is it
+   pre-existing untouched code? (Check `git blame` against the PR's
+   merge-base or use the comment's `diff_hunk` context.)
+3. **Compare the commented code's purpose against the JTBD:**
+   - Does the commented code implement the JTBD outcome?
+   - Or is it incidental scope-creep (a speculative feature, an
+     opportunistic refactor, a "while I'm here" addition) riding on
+     a PR scoped to something else?
+4. **Cross-thread bundling signal** — scan other PR threads (from
+   Step 2) for comments targeting the same speculative code path.
+   When two or more correct bug reports cluster on one out-of-scope
+   feature, all of them route to **YAGNI** with a shared removal
+   recommendation. Record the bundle in the verdict output so
+   `Dev10x:gh-pr-respond` can collapse them into one removal commit.
+
+**Decision matrix:**
+
+| Code is in-scope for JTBD? | Comment correct? | Verdict |
+|----------------------------|------------------|---------|
+| Yes                        | Yes              | `VALID` |
+| No (speculative / drift)   | Yes              | `YAGNI` |
+| Yes                        | Reviewer asks more | `OUT_OF_SCOPE` (defer concern) |
+
+**When in doubt, default to `VALID`.** YAGNI is the explicit carve-out
+for cases where the scope mismatch is clearly evident from the JTBD
+and the diff context. If the JTBD is vague or the code's relationship
+to it is ambiguous, choose `VALID` and let the author/reviewer decide
+removal vs hardening during fixup.
+
 ### Step 5: Render Verdict
 
 Based on investigation, choose one of:
@@ -201,6 +261,33 @@ delegate to `Dev10x:gh-pr-fixup`.
 ```
 Verdict: VALID
 Reason: {brief explanation of why the comment is correct}
+```
+
+#### YAGNI — Real issue, but code is out-of-scope for the PR's JTBD
+
+Post a brief reply naming the scope mismatch and proposing removal.
+Do **NOT** resolve the thread — the caller (`Dev10x:gh-pr-respond`)
+collapses related YAGNI verdicts into a single removal commit and
+closes the threads together.
+
+**Reply format:**
+
+```markdown
+Correct catch — {one-sentence acknowledgment of the bug}.
+
+This code is out of scope for the PR's JTBD ({JTBD outcome phrase}).
+The right fix is to remove {speculative feature / drifted code} from
+this PR rather than harden it. Will bundle with related thread(s) into
+a single removal commit, or defer to a follow-up ticket if the feature
+is desired.
+```
+
+**Output:**
+```
+Verdict: YAGNI
+Reason: {scope-mismatch explanation, naming the JTBD and the out-of-scope code}
+Bundle: {comma-separated comment IDs of related YAGNI threads, or "single"}
+Action: Replied acknowledging removal route (thread left open for user to resolve)
 ```
 
 #### INVALID — Comment is factually wrong
@@ -316,6 +403,9 @@ Verify the comment ID and repository.
 If investigation is inconclusive:
 - Default to `VALID` (let the fix author decide)
 - Log uncertainty: "Leaning VALID — investigation inconclusive"
+- Never default to `YAGNI` — it requires an explicit JTBD-scope
+  mismatch (Step 4.5). Ambiguous scope means `VALID` and let the
+  author choose removal vs hardening at fixup time.
 
 ### Thread Already Resolved
 If the thread is already resolved, skip it:

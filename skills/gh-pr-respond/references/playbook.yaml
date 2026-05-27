@@ -77,22 +77,34 @@ defaults:
         type: detailed
         prompt: >
           Dispatch parallel triage subagents — up to 4 concurrent.
-          Each returns verdict + draft reply. Present results as
-          a table with author, file:line, summary, verdict, and
-          proposed response.
+          Each returns verdict (VALID | YAGNI | INVALID | QUESTION
+          | OUT_OF_SCOPE) and draft reply. For VALID, also assign a
+          priority (now | fast-follow) per the heuristics in
+          instructions.md § Mode B Step 2. Cluster YAGNI verdicts
+          on the same out-of-scope feature into named bundles.
+          Present results as a table with author, file:line,
+          summary, verdict, priority, and proposed response. List
+          YAGNI bundles below the table.
       - subject: Get user approval
         type: detailed
         prompt: >
           REQUIRED: Call AskUserQuestion (Gate 3). Options:
           "Approve all" / "Review one-by-one" / "Skip".
-          User may provide corrections in free text.
+          User may provide corrections in free text (verdict
+          override, priority flip, YAGNI bundle membership).
       - subject: Execute approved responses
         type: detailed
         prompt: >
-          For VALID comments → delegate to Dev10x:gh-pr-fixup
-          (one fixup commit per comment). For non-VALID comments
-          → post reply via gh api. Do NOT resolve threads yet.
-        skills: [Dev10x:gh-pr-fixup]
+          Route by verdict + priority. VALID+now → delegate to
+          Dev10x:gh-pr-fixup (one fixup commit per comment, or
+          bundled per § Bundled Fixup Mode). VALID+fast-follow →
+          batch into a single follow-up ticket via
+          Dev10x:ticket-create, reply on each thread linking the
+          ticket, skip fixup in this batch. YAGNI bundles → fire
+          Gate 7 (Step 1d-style) per bundle and route per user
+          choice. INVALID/QUESTION/OUT_OF_SCOPE → post reply via
+          MCP tool. Do NOT resolve threads yet.
+        skills: [Dev10x:gh-pr-fixup, Dev10x:ticket-create]
       - subject: Resolve threads
         type: detailed
         prompt: >
