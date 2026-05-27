@@ -1,0 +1,44 @@
+#!/bin/bash
+# Tenant-wrapper template for dev10x:jira scripts.
+#
+# WHY THIS EXISTS
+#   A tenant wrapper skill (e.g. `acme:jira`) must bind a fixed
+#   JIRA_TENANT before delegating to the shared dev10x:jira scripts.
+#   The obvious approach — a command-line env prefix —
+#
+#       JIRA_TENANT=acme ~/.claude/skills/.../jira-get.sh PROJ-1
+#
+#   breaks Claude Code Bash allow-rule matching: the leading
+#   `JIRA_TENANT=acme` shifts the effective command prefix, so no
+#   `Bash(.../scripts/jira-get.sh:*)` allow rule can ever match and
+#   every call hits the permission gate. (Same prefix-shift class as
+#   the "No env-var prefix on git" guideline.)
+#
+#   A wrapper SCRIPT moves the tenant binding inside the command, so
+#   the wrapper's own path is what the allow rule matches. One allow
+#   rule per wrapper — no prefix, no friction.
+#
+# HOW TO USE
+#   1. Copy this file into your tenant skill at:
+#        ~/.claude/skills/<tenant>:jira/scripts/jira-<op>.sh
+#      (one thin wrapper per base op you call: get, search, link,
+#      link-types, update, comment — or a single dispatcher, see below).
+#   2. Set TENANT and BASE_SCRIPTS below.
+#   3. Pre-approve the wrapper path in settings, e.g.
+#        "Bash(~/.claude/skills/<tenant>:jira/scripts/:*)"
+#   4. Call the wrapper directly — never with a JIRA_TENANT= prefix.
+
+set -euo pipefail
+
+# --- Configure these two values for your tenant ---------------------
+TENANT="acme"                                  # -> acme.atlassian.net
+BASE_SCRIPTS="${HOME}/.claude/skills/jira/scripts"  # dev10x:jira scripts dir
+# --------------------------------------------------------------------
+
+# Derive the base op from this wrapper's own filename: a wrapper named
+# `jira-get.sh` execs the base `jira-get.sh`. (Rename the copy to pick
+# the op; no per-op editing needed.)
+OP="$(basename "${BASH_SOURCE[0]}")"
+
+export JIRA_TENANT="${TENANT}"
+exec "${BASE_SCRIPTS}/${OP}" "$@"
