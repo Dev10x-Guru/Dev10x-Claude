@@ -138,3 +138,9 @@ reading every existing skill directory.
 **When** a batch of features is ready, **I want to** publish a semver
 release, **so** users can pin to a stable version and get predictable
 updates.
+
+## See Also
+
+`.claude/rules/essentials.md` § PR Body contains a quick-reference excerpt of
+this guide for the JTBD format used in PR bodies. If you notice the two
+documents diverge, this file is authoritative — update essentials.md to match.
