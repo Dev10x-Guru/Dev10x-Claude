@@ -573,6 +573,45 @@ async def pr_comment_reply(
     return _parse_gh_api_result(result)
 
 
+async def pr_comment_edit(
+    *,
+    comment_id: int,
+    body: str,
+    repo: str | None = None,
+) -> Result[dict[str, Any]]:
+    """Edit a PR inline review-thread comment body (GH-304).
+
+    Uses PATCH against ``/repos/{owner}/{repo}/pulls/comments/{id}``.
+    Distinct from :func:`issue_comment_edit` which targets the
+    ``/issues/comments/`` endpoint (top-level issue + PR comments).
+    Use this for inline review-thread comments (the ones tied to a
+    file path + line number on a PR review).
+
+    Thin public wrapper around :func:`_pr_comment_edit`; promoted to
+    a stable name so the MCP boundary can expose it without leaking
+    the private underscore-prefixed symbol.
+
+    Args:
+        comment_id: Numeric ID of the review-thread comment to edit
+            (from the ``/comments/<id>`` URL fragment).
+        body: New body text (full replacement, not a delta).
+        repo: Repository (owner/repo). Auto-detected if omitted.
+
+    Returns:
+        On success: ``{"id": int, "body": str, "html_url": str}``.
+    """
+    repo_result = await _resolve_repo(repo)
+    if isinstance(repo_result, ErrorResult):
+        return repo_result
+    resolved_repo = repo_result.value
+
+    return await _pr_comment_edit(
+        resolved_repo=str(resolved_repo),
+        comment_id=comment_id,
+        body=body,
+    )
+
+
 async def pr_issue_comment(
     *,
     pr_number: int,

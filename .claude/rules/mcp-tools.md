@@ -93,6 +93,7 @@ supporting each tool:
 | `pr_get` | `cli` | GH-267 | v0.74.0+ |
 | `pr_comments` | `cli` | PR #126 | v0.25.0+ |
 | `pr_comment_reply` | `cli` | PR #399 | v0.37.0+ |
+| `pr_review_comment_edit` | `cli` | GH-304 | v0.76.0+ |
 | `pr_issue_comment` | `cli` | GH-205 | v0.72.0+ |
 | `request_review` | `cli` | PR #126 | v0.25.0+ |
 | `detect_base_branch` | `cli` | PR #191 | v0.30.0+ |
