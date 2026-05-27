@@ -14,8 +14,8 @@ allowed-tools:
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git-fixup/scripts/:*)
   - Write(/tmp/Dev10x/git/**)
-  - Bash(gh repo view:*)
-  - Bash(gh api:*)
+  - mcp__plugin_Dev10x_cli__pr_detect
+  - mcp__plugin_Dev10x_cli__pr_comments
   - mcp__plugin_Dev10x_cli__push_safe
 ---
 
@@ -107,14 +107,13 @@ If the user declines → suggest using `/Dev10x:git-commit` instead.
 
 Skip this step entirely for standalone fixups.
 
-```bash
-# Get repository info
-REPO=$(gh repo view --json nameWithOwner -q '.nameWithOwner')
-OWNER=$(echo $REPO | cut -d'/' -f1)
-REPO_NAME=$(echo $REPO | cut -d'/' -f2)
+```
+# Resolve repo from current CWD
+mcp__plugin_Dev10x_cli__pr_detect(arg="")
+# → returns {"repo": "owner/repo", "pr_number": ..., "branch": ...}
 
-# Fetch the comment
-gh api repos/{owner}/{repo}/pulls/comments/{comment_id}
+# Fetch the comment by ID
+mcp__plugin_Dev10x_cli__pr_comments(action="get", comment_id=<id>)
 ```
 
 Extract from comment:
