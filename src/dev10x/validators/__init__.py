@@ -107,6 +107,12 @@ _SPECS: list[ValidatorSpec] = [
         rule_id="DX010",
         profile=ProfileTier.STANDARD,
     ),
+    ValidatorSpec(
+        module_path="dev10x.validators.safe_expansion",
+        class_name="SafeExpansionValidator",
+        rule_id="DX012",
+        profile=ProfileTier.MINIMAL,
+    ),
 ]
 
 
