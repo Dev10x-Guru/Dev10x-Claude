@@ -2,8 +2,8 @@
 name: Dev10x:park
 description: >
   Smart deferral router — saves tasks for later to the right place
-  (PR, ticket, code, Slack, or project TODO) so they are actually
-  rediscovered instead of being forgotten.
+  (PR, ticket, code, Slack, or session.yaml task index) so they
+  are actually rediscovered instead of being forgotten.
   TRIGGER when: a task should be saved for later instead of done now.
   DO NOT TRIGGER when: task should be done now, or specifically
   deferring to code (use Dev10x:park-todo) or Slack (use
@@ -11,11 +11,17 @@ description: >
 user-invocable: true
 invocation-name: Dev10x:park
 allowed-tools:
-  - Bash(gh pr view:*)
-  - Bash(gh pr list:*)
-  - Bash(gh pr comment:*)
-  - Bash(gh api:*)
+  - Read
+  - Write
+  - Edit
+  - Bash(git branch:*)
+  - Bash(git rev-parse:*)
+  - Bash(git log:*)
   - mcp__plugin_Dev10x_cli__pr_comments
+  - mcp__plugin_Dev10x_cli__pr_detect
+  - mcp__plugin_Dev10x_cli__pr_issue_comment
+  - mcp__plugin_Dev10x_cli__issue_comment_edit
+  - mcp__plugin_Dev10x_cli__mktmp
   - AskUserQuestion
 ---
 
@@ -37,7 +43,14 @@ Mark completed when done: `TaskUpdate(taskId, status="completed")`
 ## Overview
 
 Route a single deferred item to the right discovery context. Can be
-invoked standalone or called by `Dev10x:session-wrap-up` for each open loop.
+invoked standalone or called by `Dev10x:session-wrap-up` for each open
+loop.
+
+Every routed deferral that has a local representation also lands as
+an entry in `.claude/Dev10x/session.yaml` `tasks:` with a `source:`
+field that names the target (GH-85). This guarantees
+`Dev10x:park-discover` can surface the item without scanning every
+write path.
 
 ## Workflow
 
@@ -49,24 +62,29 @@ Accept the item to defer. This is either:
 
 ### 2. Detect context
 
-Run these checks to determine available targets:
+Run these checks to determine available targets. Each is a single
+Bash call — no `;` chaining, no subshells inside command strings.
 
-**Branch + ticket:**
+**Branch:**
 ```bash
 git branch --show-current
 ```
-Extract ticket ID from branch name (pattern: `username/TICKET-ID/[worktree/]desc`).
+
+Extract ticket ID from the branch name (pattern:
+`username/TICKET-ID/[worktree/]desc`).
+
+**Repository toplevel:**
+```bash
+git rev-parse --show-toplevel
+```
 
 **Open PR:**
-```bash
-gh pr list --head "$(git branch --show-current)" --state open \
-  --json number,url --limit 1
+```
+mcp__plugin_Dev10x_cli__pr_detect(arg="")
 ```
 
-**Repository root:**
-```bash
-basename "$(git rev-parse --show-toplevel)"
-```
+The MCP wrapper auto-detects the PR for the current branch. Treat
+an `{"error": ...}` response as "no open PR" rather than a failure.
 
 ### 3. Present targets
 
@@ -74,7 +92,7 @@ Build target list based on detected context. Always available:
 
 | # | Target | When it surfaces |
 |---|--------|-----------------|
-| 1 | `.claude/TODO.md` | Next Claude session in this project |
+| 1 | session.yaml task index | Next `Dev10x:park-discover` run |
 | 2 | Slack DM to self | When clearing Slack messages |
 | 3 | Create issue | When triaging backlog or planning sprint |
 
@@ -98,23 +116,46 @@ For each selected target:
 
 | Target | Action |
 |--------|--------|
-| `.claude/TODO.md` | Invoke `Dev10x:park-todo` (project file mode) |
-| Slack DM | Invoke `Dev10x:park-remind` |
-| Create issue | Ask user which tracker (Linear, GitHub Issues, Jira, etc.) then create the issue with the deferred item as description |
-| Issue tracker comment | Post comment via the appropriate tracker MCP or CLI tool |
-| PR comment | Post as PR comment (simple format) |
-| PR session bookmark | Post as PR comment with rich metadata (see PR Bookmark Format below) |
+| session.yaml task index | Append entry with `source: park` (see § Session.yaml Append) |
+| Slack DM | Invoke `Dev10x:park-remind` (which also appends `source: slack-reminder`) |
+| Create issue | Ask user which tracker (Linear, GitHub Issues, Jira, etc.) then create the issue with the deferred item as description; also append a `source: park` entry pointing at the new issue URL |
+| Issue tracker comment | Post comment via the appropriate tracker MCP or CLI tool; also append a `source: park` entry pointing at the comment URL |
+| PR comment | Post as PR comment (simple format); also append a `source: park` entry with the PR URL |
+| PR session bookmark | Post as PR comment with rich metadata (see PR Bookmark Format below); also append a `source: pr-bookmark` entry with the PR URL + comment ID |
 | Inline TODO/FIXME | Invoke `Dev10x:park-todo` (inline mode) — ask user for file path if not provided |
 | Keep in session | Invoke `Dev10x:session-tasks` to create a TaskCreate entry |
 
-### 5. Confirm
+### 5. Session.yaml Append
 
-Report which targets received the item:
+The schema for a `park`-sourced task entry mirrors the one in
+`Dev10x:park-todo` § Session.yaml Append:
+
+```yaml
+- subject: <one-line description>
+  status: pending
+  source: <park | pr-bookmark>
+  created_at: <YYYY-MM-DD>
+  metadata:
+    branch: <current-branch>
+    pr_url: <url>         # when target is PR comment / bookmark
+    comment_id: <id>      # when target is PR comment / bookmark
+    issue_url: <url>      # when target creates an issue
+```
+
+Read the existing session.yaml, append the entry to the end of
+the `tasks:` list, then write back. Never overwrite
+`friction_level`, `active_modes`, `continuation_prompt`, or
+`insights`.
+
+### 6. Confirm
+
+Report which targets received the item AND confirm the
+session.yaml index entry:
 
 ```
 Deferred "Add order confirmation email":
-  ✓ .claude/TODO.md (project)
-  ✓ Slack DM sent
+  ✓ session.yaml task index (source: park)
+  ✓ Slack DM sent (source: slack-reminder)
 ```
 
 ## Formatting for External Targets
@@ -145,11 +186,8 @@ session left off.
 
 Gather this data before composing:
 
-1. **Session ID** — extract from the current JSONL filename:
-   ```bash
-   basename "$(ls -t ~/.claude/projects/<encoded-cwd>/*.jsonl | head -1)" .jsonl
-   ```
-2. **Review threads** — list root comments and their status:
+1. **Session ID** — extract from the current JSONL filename
+2. **Review threads** — list root comments and their status via:
    ```
    mcp__plugin_Dev10x_cli__pr_comments(action="list", pr_number={number})
    ```
@@ -190,19 +228,23 @@ Compose the comment:
 2. {next step}
 ```
 
-Write the comment to a unique temp file and post via `--body-file`:
-```bash
-/tmp/Dev10x/bin/mktmp.sh git pr-comment .txt
+Compose the comment body in memory (or via the mktmp wrapper if
+the body needs an intermediate file), then post it via the MCP
+wrapper:
+
 ```
-Write content to the returned path using Write tool, then:
-```bash
-gh pr comment {number} --body-file <unique-path>
+mcp__plugin_Dev10x_cli__pr_issue_comment(pr_number=<number>, body=<composed-body>)
 ```
 
-To **update** an existing bookmark comment instead of creating a new one:
-```bash
-gh api repos/{owner}/{repo}/issues/comments/{comment_id} \
-  -X PATCH -F body=@<unique-path>
+The wrapper returns the new comment's `id` and `html_url`. Store
+the `id` in the session.yaml entry's `metadata.comment_id` so the
+bookmark can be edited later without re-detecting the comment.
+
+To **update** an existing bookmark comment instead of creating a
+new one, edit by `comment_id`:
+
+```
+mcp__plugin_Dev10x_cli__issue_comment_edit(comment_id=<id>, body=<new-body>)
 ```
 
 ## Used By
