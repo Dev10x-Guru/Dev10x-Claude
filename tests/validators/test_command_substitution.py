@@ -46,6 +46,10 @@ class TestCommandSubstitutionValidator:
             "cat /tmp/file.txt",
             'echo "$(git rev-parse HEAD)"',
             "basename $(git rev-parse --show-toplevel)",
+            # GH-309: $(cat ...) inside single quotes is literal text, not a
+            # subshell — must not block.
+            "echo 'docs say: use $(cat file) for piping'",
+            "gh api graphql -f query='{ node(id: \"$(cat foo)\") { id } }'",
         ],
     )
     def test_allows_safe_commands(

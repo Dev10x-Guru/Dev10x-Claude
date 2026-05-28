@@ -19,6 +19,7 @@ from typing import ClassVar
 
 from dev10x.domain import HookAllow, HookInput, HookResult
 from dev10x.domain.profile_tier import ProfileTier
+from dev10x.validators._quote_strip import quote_strip
 from dev10x.validators.base import ValidatorBase
 
 SAFE_SUBSHELL_PREFIXES = (
@@ -118,17 +119,18 @@ class SafeSubshellValidator(ValidatorBase):
     profile: ClassVar[ProfileTier] = ProfileTier.MINIMAL
 
     def should_run(self, inp: HookInput) -> bool:
-        return "$(" in inp.command
+        return "$(" in quote_strip(command=inp.command)
 
     def validate(self, inp: HookInput) -> HookAllow | HookResult | None:
-        subshells = _extract_subshells(command=inp.command)
+        stripped = quote_strip(command=inp.command)
+        subshells = _extract_subshells(command=stripped)
         if not subshells:
             return None
 
         if not all(_is_safe_subshell(content=s) for s in subshells):
             return None
 
-        outer = _outer_command_token(command=inp.command)
+        outer = _outer_command_token(command=stripped)
         if outer not in SAFE_OUTER_COMMANDS:
             return None
 

@@ -92,3 +92,10 @@ class TestAutoApproval:
         inp = _make_input(command="git status")
         result = validator.validate(inp=inp)
         assert result is None
+
+    def test_quoted_subshell_literal_is_ignored(self, validator: SafeSubshellValidator) -> None:
+        # GH-309: $(...) inside single quotes is inert literal text. The
+        # validator must not see it as a subshell at all.
+        inp = _make_input(command="echo 'use $(date) for now'")
+        assert validator.should_run(inp=inp) is False
+        assert validator.validate(inp=inp) is None
