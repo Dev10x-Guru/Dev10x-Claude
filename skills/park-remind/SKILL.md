@@ -11,8 +11,14 @@ description: >
 user-invocable: true
 invocation-name: Dev10x:park-remind
 allowed-tools:
+  - Read
+  - Write
+  - Edit
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/slack/slack-notify.py:*)
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
+  - Bash(git branch:*)
+  - Bash(git rev-parse:*)
+  - mcp__plugin_Dev10x_cli__mktmp
   - Write(/tmp/Dev10x/slack/**)
 ---
 
@@ -34,7 +40,10 @@ Mark completed when done: `TaskUpdate(taskId, status="completed")`
 ## Overview
 
 Send a self-DM via Slack with a deferred item, formatted with session
-context so you know where to pick it up.
+context so you know where to pick it up. After the DM is sent, append
+a pointer entry to `.claude/Dev10x/session.yaml` so
+`Dev10x:park-discover` can surface it locally without a Slack search
+(GH-85).
 
 ## Prerequisites
 
@@ -47,13 +56,16 @@ context so you know where to pick it up.
 
 ```bash
 git branch --show-current
-basename "$(git rev-parse --show-toplevel)"
-date +%Y-%m-%d
 ```
 
-Extract from branch name:
+```bash
+git rev-parse --show-toplevel
+```
+
+Each in a single Bash call — no `;` chaining, no subshells.
+Extract from the branch name:
 - Ticket ID (pattern: `username/TICKET-ID/[worktree/]description`)
-- Project name (from repo root basename)
+- Project name (from the toplevel basename)
 
 ### 2. Format message
 
@@ -74,9 +86,10 @@ separate line after the item text.
 For multi-line messages, write the formatted text to a unique temp file
 using the Write tool first, then pass it via command substitution:
 
-```bash
-/tmp/Dev10x/bin/mktmp.sh slack remind-msg .txt
 ```
+mcp__plugin_Dev10x_cli__mktmp(namespace="slack", prefix="remind-msg", ext=".txt")
+```
+
 Write content to the returned path using Write tool, then:
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/skills/slack/slack-notify.py \
@@ -87,9 +100,36 @@ Do NOT use heredoc (`cat <<'EOF'`) to build the message inline —
 the bash security hook blocks it. Always use Write tool → temp file
 → `$(cat ...)` for multi-line content.
 
-### 4. Confirm
+### 4. Append to session.yaml
 
-Report to user: "Sent reminder to your Slack DMs."
+After Slack confirms delivery, append a pointer entry to the
+session.yaml `tasks:` list using the schema documented in
+`Dev10x:park-todo` § Session.yaml Append:
+
+```yaml
+- subject: <item text, single line>
+  status: pending
+  source: slack-reminder
+  created_at: <YYYY-MM-DD>
+  metadata:
+    branch: <current-branch>
+    slack_ts: <timestamp returned by slack-notify>
+    slack_permalink: <permalink returned by slack-notify>
+```
+
+The Slack DM remains the authoritative content; the session.yaml
+entry is the local index that `Dev10x:park-discover` reads
+without a network round-trip.
+
+If session.yaml does not exist, create it with the new entry
+under `tasks:` while preserving any sibling fields. Never
+overwrite `friction_level`, `active_modes`,
+`continuation_prompt`, or `insights`.
+
+### 5. Confirm
+
+Report to user: "Sent reminder to your Slack DMs and indexed in
+session.yaml."
 
 ## Standalone Usage
 

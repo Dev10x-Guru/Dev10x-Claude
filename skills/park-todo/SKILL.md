@@ -1,21 +1,26 @@
 ---
 name: Dev10x:park-todo
 description: >
-  Defer work to code or project-level storage — so items resurface
+  Defer work to code or session-level storage — so items resurface
   when editing nearby code or starting a new session in the same
   project, instead of being forgotten.
-  TRIGGER when: deferring work to code comments, TODO.md, or project
-  memory files.
+  TRIGGER when: deferring work to code comments or the session.yaml
+  task index.
   DO NOT TRIGGER when: deferring to Slack (use Dev10x:park-remind),
   or routing to the best destination automatically (use Dev10x:park).
 user-invocable: true
 invocation-name: Dev10x:park-todo
+allowed-tools:
+  - Read
+  - Edit
+  - Write
+  - Bash(git branch:*)
+  - Bash(git rev-parse:*)
 ---
 
-# Dev10x:park-todo — Persistent Code/Project Deferrals
+# Dev10x:park-todo — Persistent Code/Session Deferrals
 
-**Announce:** "Using Dev10x:park-todo to [add TODO/FIXME to code | update
-project TODO list]."
+**Announce:** "Using Dev10x:park-todo to [add TODO/FIXME to code | append item to session.yaml]."
 
 ## Orchestration
 
@@ -33,12 +38,17 @@ Mark completed when done: `TaskUpdate(taskId, status="completed")`
 Write deferred items to persistent storage where they will be
 rediscovered by humans or Claude in the right context.
 
+The canonical task index is `.claude/Dev10x/session.yaml` (GH-85).
+Every project deferral appends an entry to its `tasks:` list so
+`Dev10x:park-discover` surfaces it on the next session start.
+
 ## Modes
 
 ### 1. Inline Code (TODO / FIXME)
 
 When a specific file and location are relevant, insert a comment
-directly in the code:
+directly in the code AND index it in session.yaml so the
+discovery skill can find it without grepping `src/`.
 
 - `# TODO: message` — actionable, expected soon (this PR, next session)
 - `# FIXME: message` — known issue, no timeline, boy scout rule applies
@@ -47,7 +57,9 @@ directly in the code:
 
 1. Read the target file
 2. Use Edit to insert the comment at the appropriate line
-3. Report what was added and where
+3. Append an index entry to session.yaml (see § Session.yaml Append)
+   with `source: code-todo` and `metadata.location: "<path>:<line>"`
+4. Report what was added and where
 
 **Example:**
 
@@ -56,46 +68,55 @@ directly in the code:
 WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 ```
 
-### 2. Project TODO File
+### 2. Project Task Index (session.yaml)
 
-When no specific file is relevant, append to `.claude/TODO.md` in the
-current repository root.
+When no specific file is relevant, append to the session.yaml
+`tasks:` list with `source: park` so `Dev10x:park-discover`
+finds it.
 
-**Format:**
+This replaces the pre-GH-85 `.claude/TODO.md` file. The TODO
+file is still read by `Dev10x:park-discover` for back-compat,
+but new items are written to session.yaml.
 
-```markdown
-## YYYY-MM-DD — branch: username/TICKET-ID/short-desc
+## Session.yaml Append
 
-- [ ] Item description
-- [ ] Another item with context or link
+Use the Read tool to load the current
+`.claude/Dev10x/session.yaml` (create if missing), then use
+Write or Edit to add the new task entry. The schema for a
+task entry is:
+
+```yaml
+tasks:
+  - subject: <one-line description>
+    status: pending
+    source: <code-todo | park>
+    created_at: <YYYY-MM-DD>
+    metadata:
+      branch: <current-branch>
+      location: <file:line>   # only for source: code-todo
 ```
 
-**How to append:**
+**Append rules:**
 
-1. Read `.claude/TODO.md` if it exists
-2. Check if a section for today's date + current branch already exists
-3. If yes, append the new item to that section
-4. If no, create a new section header and add the item
-5. Write the updated file
+1. Read existing session.yaml. If absent, write a minimal
+   shell preserving any sibling fields the writer should leave
+   alone (`friction_level`, `active_modes`, `continuation_prompt`,
+   `insights`).
+2. Add the new entry to the END of the `tasks:` list — never
+   replace or reorder existing entries.
+3. Preserve YAML key order: top-level keys stay in their
+   existing positions; only the new task is appended.
 
-**If `.claude/TODO.md` does not exist, create it with a header:**
-
-```markdown
-# Project TODO — Deferred Items
-
-Items deferred from Claude sessions. Review at session start.
-
-## YYYY-MM-DD — branch: username/TICKET-ID/short-desc
-
-- [ ] First deferred item
-```
+**Never overwrite** `friction_level`, `active_modes`,
+`continuation_prompt`, or `insights` while appending tasks.
 
 ## Context Gathering
 
 When invoked, auto-detect:
-- Current date: `date +%Y-%m-%d`
-- Current branch: `git branch --show-current`
-- Repository root: `git rev-parse --show-toplevel`
+- Current branch: `git branch --show-current` (single Bash call)
+- Repository root: `git rev-parse --show-toplevel` (single Bash call)
+- Current date: derive from the session — the writer is invoked
+  in-session, so the date is "today" without a `date` shell-out
 
 ## Review Mode Redirect
 
@@ -106,5 +127,7 @@ deferrals; `Dev10x:park-discover` is for *reading them back*.
 
 ## Used By
 
-- `Dev10x:park` — when user picks "project TODO" or "inline code"
-- `Dev10x:session-wrap-up` — Phase 1 scans `.claude/TODO.md` for existing items
+- `Dev10x:park` — when user picks "project task index" or "inline code"
+- `Dev10x:session-wrap-up` — Phase 1 reads session.yaml `tasks:`
+  for existing items (and the legacy `.claude/TODO.md` for
+  back-compat)

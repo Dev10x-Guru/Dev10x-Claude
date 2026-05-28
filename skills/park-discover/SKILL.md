@@ -10,9 +10,12 @@ description: >
 user-invocable: true
 invocation-name: Dev10x:park-discover
 allowed-tools:
-  - Bash(gh pr view:*)
-  - Bash(gh pr list:*)
-  - Bash(jq:*)
+  - Read
+  - Grep
+  - Bash(git branch:*)
+  - Bash(git log:*)
+  - mcp__plugin_Dev10x_cli__pr_detect
+  - mcp__plugin_Dev10x_cli__pr_comments
   - mcp__claude_ai_Slack__slack_search_public_and_private
 ---
 
@@ -42,136 +45,216 @@ Invoke this skill when the user asks about existing deferred items:
 Do NOT use for writing new deferrals — use `Dev10x:park-todo` or
 `Dev10x:park` instead.
 
+## Substrate
+
+The canonical store for deferred work is
+`.claude/Dev10x/session.yaml` (GH-85). Every writer in the
+park/session family appends a structured entry into its
+`tasks:` list with a `source:` field that names the writer:
+
+| `source:` value     | Written by                          |
+|---------------------|-------------------------------------|
+| `manual`            | `Dev10x:park` (target: TODO)        |
+| `code-todo`         | `Dev10x:park-todo` (inline mode)    |
+| `slack-reminder`    | `Dev10x:park-remind`                |
+| `pr-bookmark`       | `Dev10x:park` (target: PR bookmark) |
+| `session-wrap-up`   | `Dev10x:session-wrap-up` Phase 3b   |
+
+External sources (Slack DMs, PR comments) remain as the
+authoritative content; session.yaml carries a pointer
+(`metadata.slack_ts`, `metadata.pr_url`) so the discovery
+report can link out.
+
 ## Workflow
 
-### 1. Detect context
+### 1. Read session.yaml (primary source)
+
+Read `.claude/Dev10x/session.yaml` directly with the Read
+tool. If the file does not exist, note "No session.yaml — no
+local deferrals indexed" and skip to the external-sources
+step.
+
+```
+Read(file_path="<repo-root>/.claude/Dev10x/session.yaml")
+```
+
+Parse the YAML and extract three sections:
+
+- `continuation_prompt:` — a paragraph carrying diagnosed
+  context from the prior session. Surface this **verbatim** in
+  the report; do not summarize.
+- `tasks:` — a list of structured entries. Each entry has
+  `subject`, `status`, and (when present) `metadata` and
+  `source`. Group by `source:` for the report.
+- `insights:` — a list of lessons / decisions the prior
+  session carried forward. Surface each item verbatim.
+
+### 2. Read legacy `.claude/TODO.md` (back-compat)
+
+For repos that still carry items in the pre-GH-85 TODO file:
+
+```
+Read(file_path="<repo-root>/.claude/TODO.md")
+```
+
+If the file does not exist, note "No legacy TODO file" and
+move on. Extract pending items (`- [ ]` lines) and present
+them under a separate **Legacy TODO file** heading so the user
+can migrate them into session.yaml.
+
+### 3. Scan code TODOs / FIXMEs (Grep tool)
+
+```
+Grep(pattern="TODO|FIXME", path="src", output_mode="content", -n=true)
+```
+
+Distinguish in-flight items added in the current branch from
+long-standing tech debt by checking the branch's commits:
 
 ```bash
-date +%Y-%m-%d
-git branch --show-current
-basename "$(git rev-parse --show-toplevel)"
+git log --oneline origin/develop..HEAD
 ```
 
-Determine the lookback date: default is yesterday. If the user
-specifies a date or range, use that instead.
+Only flag TODOs introduced on the current branch as actionable;
+the rest are tech-debt notes for `Dev10x:project-audit`.
 
-### 2. Check all deferral sources
+### 4. Open PR bookmark comments
 
-Run all checks in parallel where possible. Report findings grouped
-by source.
-
-#### 2a. Project TODO file
-
-Read `.claude/TODO.md` in the repo root. Extract pending items
-(`- [ ]` lines). If the file doesn't exist, note "No project TODO
-file."
-
-#### 2b. Recent code TODOs
-
-Grep for TODO/FIXME comments in `src/`:
-
-```bash
-grep -rn "TODO\|FIXME" src/ --include="*.py" | head -30
-```
-
-Distinguish long-standing tech debt from recently added items by
-checking `git log` for the lookback period.
-
-#### 2c. Slack DM reminders
-
-Search for bot-sent reminders using MCP Slack tools (read mode):
+Detect the PR for the current branch via the MCP wrapper:
 
 ```
-mcp__claude_ai_Slack__slack_search_public_and_private
-  query: "from:<@U0AD92X4X1S> 🔖 after:LOOKBACK_DATE"
-  include_bots: true
-  sort: timestamp
-  sort_dir: desc
-  limit: 20
+mcp__plugin_Dev10x_cli__pr_detect(arg="")
 ```
 
-The `🔖` emoji is the standard prefix from `Dev10x:park-remind`.
+If a PR is found, fetch its comments via the MCP wrapper:
 
-If no results with `🔖`, broaden to:
 ```
-from:<@U0AD92X4X1S> after:LOOKBACK_DATE defer OR TODO OR reminder
-```
-
-#### 2d. Memory files
-
-Grep the global memory directory for in-progress or deferred items:
-
-```bash
-grep -rn "defer\|TODO\|in-progress\|pick up" \
-  ~/.claude/memory/ \
-  --include="*.md" || true
+mcp__plugin_Dev10x_cli__pr_comments(action="list", pr_number=<number>)
 ```
 
-#### 2e. Git log (recent commits)
+Filter for comments whose body starts with
+`🔖 **Session bookmark**` (the standard marker set by
+`Dev10x:session-wrap-up`). Include the matched comments under
+**PR Session Bookmarks**.
 
-Check for recent commits by the user in the lookback period:
+Skip silently when `pr_detect` returns `{"error": ...}` — that
+means no PR for the current branch, not a failure.
 
-```bash
-git log --all --since="LOOKBACK_DATE" --oneline --author="<username>" \
-  | head -20
+### 5. Slack DM reminders
+
+Search Slack for self-reminders from the park-remind bot. The
+`🔖` emoji is the standard prefix from `Dev10x:park-remind`:
+
+```
+mcp__claude_ai_Slack__slack_search_public_and_private(
+  query="from:<@U0AD92X4X1S> 🔖",
+  include_bots=true,
+  sort="timestamp",
+  sort_dir="desc",
+  limit=20)
 ```
 
-This provides context on what was being worked on.
+If no results, broaden to `from:<@U0AD92X4X1S> defer OR TODO OR
+reminder`. Skip silently when Slack search returns no matches.
 
-#### 2f. PR wrap-up reminders
+### 6. Memory notes (`~/.claude/memory/`)
 
-Check open PRs for automated session bookmark comments posted by
-`Dev10x:session-wrap-up`. These are self-reminders left on PRs during
-previous sessions:
+Search the global memory directory for in-progress items:
 
-```bash
-gh pr list --author="@me" --state open \
-  --json number,title,url --limit 10
+```
+Grep(pattern="defer|TODO|in-progress|pick up",
+     path="/home/<user>/.claude/memory",
+     glob="*.md",
+     output_mode="content", -n=true)
 ```
 
-For each PR, search for reminder comments with the standard prefix:
+These are user-global notes, not project-local — surface them
+in a dedicated section.
 
-```bash
-gh pr view {N} --json comments --jq '.comments[]
-  | select(.body | test("🔖 \\*\\*Session bookmark\\*\\*"))
-  | {body: .body[0:300], createdAt: .createdAt}'
-```
+## Presentation
 
-The `🔖 **Session bookmark**` prefix is the standard marker set by
-`Dev10x:session-wrap-up`. Include matching comments in the findings under
-"### PR Session Bookmarks".
-
-### 3. Present findings
-
-Group results by source in a scannable format:
+Group findings in a scannable format. Always lead with
+`continuation_prompt` verbatim — it is qualitatively richer
+than any single TODO line.
 
 ```markdown
-## Deferred Items — [project name]
+## Deferred Items — <project name>
 
-### .claude/TODO.md
-(items or "No project TODO file")
+### Continuation prompt (session.yaml)
 
-### Slack DM Reminders
-(items or "None found")
+<continuation_prompt verbatim, or "(none)">
 
-### Recent Code TODOs
-(items or "Only long-standing tech debt")
+### Open tasks (session.yaml)
 
-### Memory Notes
-(items or "None")
+#### From session-wrap-up
+- [<status>] <subject> — <metadata summary>
 
-### Recent Activity (context)
-(recent commits or "No commits in lookback period")
+#### From park (manual / PR bookmark)
+- [<status>] <subject> — <metadata summary>
+
+#### From park-todo (code-todo)
+- [<status>] <subject> — `<metadata.location>`
+
+#### From park-remind (slack-reminder)
+- [<status>] <subject> — Slack ts `<metadata.slack_ts>`
+
+### Carried insights (session.yaml)
+
+- <insight 1 verbatim>
+- <insight 2 verbatim>
 
 ### PR Session Bookmarks
-(matching PR comments or "None found")
+
+- PR #<n>: <comment excerpt> (<comment url>)
+
+### Slack reminders
+
+- <message excerpt> (<permalink>)
+
+### Legacy TODO file (`.claude/TODO.md`)
+
+- [ ] <legacy item> (consider migrating to session.yaml via park)
+
+### Recent code TODOs (current branch)
+
+- `<file>:<line>` <comment>
+
+### Memory notes (`~/.claude/memory/`)
+
+- <file>: <excerpt>
 ```
 
-### 4. Offer next steps
+If a section has no matches, render it as `(none)` rather than
+omitting — the absence is itself information.
 
-If deferred items were found, ask:
-- "Want to start working on any of these?"
-- "Want me to check other repos too?" (if multi-repo context)
+## Next steps
+
+After presenting findings, ask whether to resume any item.
+**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text)
+when at least one source returned items.
+
+Options:
+- Resume the continuation prompt (Recommended when present)
+- Pick a specific task to work on
+- Migrate legacy TODO.md items into session.yaml
+- Just informational — close
+
+## Commands and permissions
+
+This skill MUST NOT use any of the following anti-patterns —
+they all trigger permission friction and were the second
+documented friction class in GH-85:
+
+| ❌ Anti-pattern                              | ✅ Use instead                              |
+|---------------------------------------------|---------------------------------------------|
+| `cat .claude/TODO.md`                       | `Read(file_path=...)`                       |
+| `grep -rn 'TODO' src/`                      | `Grep(pattern='TODO', path='src')`          |
+| `date +%Y-%m-%d; git branch ...; basename` | Single Bash call per command                |
+| `$(git rev-parse --show-toplevel)`          | Pass an absolute path to Read directly      |
+| `gh pr view N --json comments --jq ...`     | `mcp__plugin_Dev10x_cli__pr_comments(...)` |
+
+Every Bash invocation in this skill is a single command — no
+`;` chaining, no `&&`, no subshells, no inline scripts.
 
 ## Used By
 

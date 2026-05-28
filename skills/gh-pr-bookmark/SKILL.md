@@ -11,7 +11,7 @@ description: >
 user-invocable: true
 invocation-name: Dev10x:gh-pr-bookmark
 allowed-tools:
-  - Bash(gh:*)
+  - mcp__plugin_Dev10x_cli__pr_detect
   - Skill(Dev10x:park)
 ---
 
@@ -34,16 +34,20 @@ Mark completed when done: `TaskUpdate(taskId, status="completed")`
 
 Thin wrapper around `Dev10x:park` that pre-selects the **PR session
 bookmark** target. Use at end-of-session or when pausing work on a PR.
+`Dev10x:park` posts the comment AND appends a `source: pr-bookmark`
+entry to `.claude/Dev10x/session.yaml` so the bookmark is discoverable
+locally by `Dev10x:park-discover` (GH-85).
 
 ## Workflow
 
 ### 1. Detect PR
 
-```bash
-gh pr list --head "$(git branch --show-current)" --state open --json number,url --limit 1
+```
+mcp__plugin_Dev10x_cli__pr_detect(arg="")
 ```
 
-If no open PR found, tell the user and stop.
+The MCP wrapper resolves the current branch's PR. Treat an
+`{"error": ...}` response as "no open PR" — tell the user and stop.
 
 ### 2. Delegate to Dev10x:park
 
