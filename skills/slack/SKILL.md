@@ -11,6 +11,7 @@ description: >
 user-invocable: true
 invocation-name: Dev10x:slack
 allowed-tools:
+  - Bash(uvx dev10x skill notify slack-send:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/slack/slack-notify.py:*)
 ---
 
@@ -154,10 +155,16 @@ the top-level keys.
 
 ## Usage
 
+**Friction-free CLI:** prefer `uvx dev10x skill notify slack-send`
+for the common send paths. The underlying `slack-notify.py` script
+remains available for advanced flags (file upload, message
+update, reactions, reminder DMs) until they are exposed on the
+CLI surface.
+
 ### Send a message
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/skills/slack/slack-notify.py \
+uvx dev10x skill notify slack-send \
   --channel CHANNEL_ID \
   --message "Your message here"
 ```
@@ -165,7 +172,7 @@ ${CLAUDE_PLUGIN_ROOT}/skills/slack/slack-notify.py \
 ### Reply in a thread
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/skills/slack/slack-notify.py \
+uvx dev10x skill notify slack-send \
   --channel CHANNEL_ID \
   --thread-ts 1770113637.855309 \
   --message "Thread reply"

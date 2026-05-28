@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -9,6 +10,96 @@ import click
 @click.group()
 def skill() -> None:
     """Skill script commands (audit, notify, permission, release-notes)."""
+
+
+@skill.group()
+def notify() -> None:
+    """Post notifications (Slack review requests, generic Slack sends).
+
+    Exposes the slack-review-request prepare/send flow and the generic
+    slack-notify send call as version-stable `dev10x` subcommands so the
+    `Dev10x:slack-review-request` and `Dev10x:slack` skills do not need
+    to embed plugin-cache paths in their documented invocations.
+    """
+
+
+def _plugin_root() -> Path:
+    """Resolve the plugin root containing the skills/ directory.
+
+    `src/dev10x/commands/skill.py` -> parents[3] = plugin root.
+    """
+    return Path(__file__).resolve().parents[3]
+
+
+@notify.command(name="slack-review-prepare")
+@click.option("--pr", type=int, required=True, help="PR number")
+@click.option("--repo", required=True, help="GitHub repo (owner/name)")
+def slack_review_prepare(*, pr: int, repo: str) -> None:
+    """Resolve slack-review-request project config and emit the JSON envelope.
+
+    Wraps `dev10x.skills.notifications.slack_review_request` so callers
+    can invoke `uvx dev10x skill notify slack-review-prepare ...` instead
+    of the version-pinned `skills/slack-review-request/scripts/...`
+    script path. Output is identical to the underlying `prepare` call.
+    """
+    import argparse
+
+    from dev10x.skills.notifications import slack_review_request
+
+    args = argparse.Namespace(pr=pr, repo=repo)
+    slack_review_request.cmd_prepare(args)
+
+
+@notify.command(name="slack-send")
+@click.option("--channel", required=True, help="Slack channel ID (e.g., C042DJ8AJKB)")
+@click.option("--message", default=None, help="Message text (or use --message-file)")
+@click.option(
+    "--message-file",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=None,
+    help="Read message body from this file",
+)
+@click.option("--thread-ts", default=None, help="Reply in this thread")
+@click.option("--workspace", default=None, help="Select non-default Slack workspace")
+def slack_send(
+    *,
+    channel: str,
+    message: str | None,
+    message_file: Path | None,
+    thread_ts: str | None,
+    workspace: str | None,
+) -> None:
+    """Send a Slack message via the plugin's slack-notify.py script.
+
+    Delegates to `skills/slack/slack-notify.py` while exposing a
+    version-stable CLI surface. The underlying script handles token
+    resolution, user-group mention expansion, and bot identity.
+    """
+    if not message and not message_file:
+        raise click.UsageError("Provide --message or --message-file.")
+
+    slack_notify = _plugin_root() / "skills" / "slack" / "slack-notify.py"
+    if not slack_notify.exists():
+        click.echo(f"slack-notify.py not found at {slack_notify}", err=True)
+        sys.exit(1)
+
+    cmd: list[str] = [str(slack_notify), "--channel", channel]
+    if message_file is not None:
+        cmd.extend(["--message-file", str(message_file)])
+    if message is not None:
+        cmd.extend(["--message", message])
+    if thread_ts is not None:
+        cmd.extend(["--thread-ts", thread_ts])
+    if workspace is not None:
+        cmd.extend(["--workspace", workspace])
+
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    if result.stdout:
+        click.echo(result.stdout.rstrip())
+    if result.returncode != 0:
+        if result.stderr:
+            click.echo(result.stderr.rstrip(), err=True)
+        sys.exit(result.returncode)
 
 
 @skill.command(name="count-instructions")

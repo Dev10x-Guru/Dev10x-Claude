@@ -10,7 +10,7 @@ description: >
 user-invocable: true
 invocation-name: Dev10x:slack-review-request
 allowed-tools:
-  - Bash(${CLAUDE_PLUGIN_ROOT}/skills/slack-review-request/scripts/:*)
+  - Bash(uvx dev10x skill notify slack-review-prepare:*)
   - Bash(gh pr view:*)
 ---
 
@@ -105,8 +105,8 @@ and channel lookup in one call. Inlining bypasses these and produces
 malformed mentions.
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/skills/slack-review-request/scripts/slack-review-request.py \
-  prepare --pr {pr_number} --repo {repo}
+uvx dev10x skill notify slack-review-prepare \
+  --pr {pr_number} --repo {repo}
 ```
 
 Output is JSON with keys:
@@ -151,9 +151,11 @@ a temporary file and pass it:
 
 `Skill(skill="Dev10x:slack", args="--channel {channel} --message-file {temp_file}")`
 
-**NEVER call `slack-review-request.py send` directly** — delegate to
-the slack skill to honor global Slack posting rules. The script is
-an internal fallback only.
+**NEVER call `slack-review-request.py send` or `slack-notify.py`
+directly** — delegate to the slack skill (which now invokes
+`uvx dev10x skill notify slack-send`) so global Slack posting
+rules are honored. The version-pinned scripts are an internal
+fallback only.
 
 Report success: channel ID, thread timestamp (if available).
 
