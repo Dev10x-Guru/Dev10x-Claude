@@ -35,7 +35,6 @@ allowed-tools:
   - Bash(uvx dev10x permission investigate:*)
   - Bash(uvx dev10x permission record-upgrade:*)
   - Bash(uvx dev10x playbook diff:*)
-  - mcp__plugin_Dev10x_cli__update_paths
   - Agent(Dev10x:permission-auditor)
   - AskUserQuestion
   - TaskCreate
@@ -206,9 +205,16 @@ or it prompts on every Write/Edit/Read until the user runs
 Directories registered come from `workspace_directories:` in
 `${CLAUDE_PLUGIN_ROOT}/skills/upgrade-cleanup/projects.yaml`.
 
+1. Dry run (REQUIRED — show the user before applying):
+
 ```bash
-mcp__plugin_Dev10x_cli__update_paths(ensure_workspace=true, dry_run=true)
-mcp__plugin_Dev10x_cli__update_paths(ensure_workspace=true)
+uvx dev10x permission ensure-workspace --dry-run
+```
+
+2. Apply:
+
+```bash
+uvx dev10x permission ensure-workspace
 ```
 
 ### 4. Ensure base permissions **[bootstrap]**
@@ -231,14 +237,14 @@ entries.
 
 1. Dry run:
 
-```
-mcp__plugin_Dev10x_cli__update_paths(ensure_base=true, dry_run=true)
+```bash
+uvx dev10x permission ensure-base --dry-run
 ```
 
 2. Apply:
 
-```
-mcp__plugin_Dev10x_cli__update_paths(ensure_base=true)
+```bash
+uvx dev10x permission ensure-base
 ```
 
 ### 5. Generalize session-specific permissions *(full only)*
@@ -249,14 +255,14 @@ wildcard patterns that work across future sessions.
 
 1. Dry run:
 
-```
-mcp__plugin_Dev10x_cli__update_paths(generalize=true, dry_run=true)
+```bash
+uvx dev10x permission generalize --dry-run
 ```
 
 2. Apply:
 
-```
-mcp__plugin_Dev10x_cli__update_paths(generalize=true)
+```bash
+uvx dev10x permission generalize
 ```
 
 **What gets generalized:**
@@ -297,14 +303,14 @@ versions may add scripts that are not yet enumerated.
 
 1. Dry run:
 
-```
-mcp__plugin_Dev10x_cli__update_paths(ensure_scripts=true, dry_run=true)
+```bash
+uvx dev10x permission ensure-scripts --dry-run
 ```
 
 2. Add missing rules:
 
-```
-mcp__plugin_Dev10x_cli__update_paths(ensure_scripts=true)
+```bash
+uvx dev10x permission ensure-scripts
 ```
 
 **What gets scanned:**
@@ -327,14 +333,14 @@ the prompt-displayed path, so each rule ships in two variants —
 
 1. Dry run:
 
-```
-mcp__plugin_Dev10x_cli__update_paths(ensure_reads=true, dry_run=true)
+```bash
+uvx dev10x permission ensure-reads --dry-run
 ```
 
 2. Apply:
 
-```
-mcp__plugin_Dev10x_cli__update_paths(ensure_reads=true)
+```bash
+uvx dev10x permission ensure-reads
 ```
 
 **What gets emitted (per skill, per top-level dir):**
@@ -518,29 +524,22 @@ users do not need to migrate config files.
 
 ## Options
 
-### update_paths MCP tool
+All maintenance commands are subcommands of `uvx dev10x permission …`.
+Run `uvx dev10x permission <subcommand> --help` for the authoritative
+flag list.
 
-| Parameter | Purpose |
-|-----------|---------|
-| `dry_run` | Preview changes without writing |
-| `version` | Target a specific version instead of latest |
-| `init` | Copy plugin default config to userspace for customization |
-| `ensure_base` | Add missing base permissions from projects.yaml |
-| `generalize` | Replace session-specific args with wildcard patterns |
-| `ensure_scripts` | Verify all plugin scripts have allow rules; add missing |
-| `ensure_reads` | Emit per-skill folder Read rules with `~/` + `/home/<user>/` twins |
-
-### update-paths.py CLI
+### Common flags (most subcommands)
 
 | Flag | Purpose |
 |------|---------|
 | `--dry-run` | Preview what would change without writing |
-| `--summary` | One line per changed file |
+| `--summary` | One line per changed file (where supported) |
 | `--quiet` | Suppress per-file details and headers |
-| `--version VER` | Target a specific version |
+
+### `update-paths` extras
+
+| Flag | Purpose |
+|------|---------|
+| `--init` | Copy plugin default config to userspace for customization |
+| `--version VER` | Target a specific version instead of latest |
 | `--restore` | Restore settings from most recent backups |
-
-### merge-worktree-permissions.py / clean-project-files.py
-
-Both accept `--dry-run` (and `--summary` for clean-project-files).
-See the script `--help` output for the full list.
