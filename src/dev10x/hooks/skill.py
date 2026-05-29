@@ -9,20 +9,21 @@ from __future__ import annotations
 
 import hashlib
 import json
-import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from dev10x import subprocess_utils
 from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.skill_name import SkillName
 from dev10x.domain.git_context import GitContext
 
-_git = GitContext()
-
 
 def _get_toplevel() -> str:
-    return _git.toplevel or "unknown"
+    # GH-979 (H11): construct a fresh GitContext per call so each lookup
+    # respects the current effective CWD. A module-level singleton would
+    # cache the first-call directory permanently across MCP invocations.
+    return GitContext().toplevel or "unknown"
 
 
 def _load_stdin() -> dict:
@@ -98,5 +99,5 @@ def ruff_format(data: dict | None = None) -> None:
     if path.suffix != ".py" or not path.is_file():
         sys.exit(0)
 
-    subprocess.run(["ruff", "format", file_path], check=False)
-    subprocess.run(["ruff", "check", "--fix", file_path], check=False)
+    subprocess_utils.run(["ruff", "format", file_path], check=False)
+    subprocess_utils.run(["ruff", "check", "--fix", file_path], check=False)

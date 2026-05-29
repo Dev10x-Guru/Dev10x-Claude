@@ -32,6 +32,8 @@ from pathlib import Path
 
 import yaml
 
+from dev10x import subprocess_utils
+
 PLUGIN_NAMES = r"(?:Dev10x|dev10x-claude)"
 
 PINNED_VERSION_RE = re.compile(
@@ -158,7 +160,7 @@ class WorkspaceContext:
 def detect_workspace(cwd: Path) -> WorkspaceContext:
     """Detect project root and (if worktree) source repo via git."""
     try:
-        toplevel = subprocess.run(
+        toplevel = subprocess_utils.run(
             ["git", "rev-parse", "--show-toplevel"],
             cwd=cwd,
             capture_output=True,
@@ -168,7 +170,7 @@ def detect_workspace(cwd: Path) -> WorkspaceContext:
     except (subprocess.CalledProcessError, FileNotFoundError):
         return WorkspaceContext(project_root=cwd)
     try:
-        common_dir = subprocess.run(
+        common_dir = subprocess_utils.run(
             ["git", "rev-parse", "--git-common-dir"],
             cwd=cwd,
             capture_output=True,

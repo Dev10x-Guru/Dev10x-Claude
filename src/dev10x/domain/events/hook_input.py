@@ -6,6 +6,8 @@ import sys
 from dataclasses import dataclass
 from typing import Any, NoReturn
 
+from dev10x.subprocess_utils import effective_cwd
+
 
 @dataclass(frozen=True)
 class HookInput:
@@ -24,7 +26,7 @@ class HookInput:
             tool_name=data.get("tool_name", ""),
             command=data.get("tool_input", {}).get("command", ""),
             raw=data,
-            cwd=os.getcwd(),
+            cwd=effective_cwd() or os.getcwd(),
         )
 
     @classmethod

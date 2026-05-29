@@ -10,10 +10,10 @@ main > master > trunk). Allows --force to bypass.
 from __future__ import annotations
 
 import re
-import subprocess
 from dataclasses import dataclass
 from typing import ClassVar
 
+from dev10x import subprocess_utils
 from dev10x.domain import HookInput, HookResult
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
@@ -25,7 +25,7 @@ BRANCH_CANDIDATES = ["develop", "development", "main", "master", "trunk"]
 
 def _detect_base_branch() -> str | None:
     for candidate in BRANCH_CANDIDATES:
-        result = subprocess.run(
+        result = subprocess_utils.run(
             ["git", "rev-parse", "--verify", f"origin/{candidate}"],
             capture_output=True,
             text=True,
