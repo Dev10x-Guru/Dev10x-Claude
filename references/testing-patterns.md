@@ -151,3 +151,39 @@ assert "error_context" in str(result.error)
 - Error test missing (success-only coverage)
 - Error message not validated (just checking `"error" in result`)
 - Stderr content lost during error wrapping (context lost)
+
+## Regression Tests for Orchestration Algorithms
+
+When SKILL.md documents a routing algorithm, write a test that replicates it
+and validates all canonical examples.
+
+**Pattern**: Extract examples from SKILL.md, replicate the algorithm in test
+code, parametrize over examples, assert each produces documented behavior.
+
+**Why this works**: Keeps implementation and docs in sync; renames/removals
+surface immediately; reviewers verify completeness against documentation.
+
+**Common gap**: Algorithm documented but no test ensures implementation
+matches. Refactors diverge from docs silently.
+
+## Schema Validation for Data-Driven Configuration
+
+When a feature is driven by YAML/JSON configuration, write parametrized tests
+that verify all entries satisfy the schema.
+
+**Pattern**: Load configuration, extract all entry IDs, parametrize a test
+over them, assert required fields present and values valid.
+
+**Example**:
+```python
+@pytest.mark.parametrize("rule_name", _all_rule_ids())
+def test_rule_has_required_fields(self, rule_name: str) -> None:
+    rule = self.rules[rule_name]
+    assert "name" in rule and "compensations" in rule
+```
+
+**Why this works**: Catches silent schema divergence early; configuration-
+driven systems need completeness checks; new entries get verified in review.
+
+**Common gap**: New entries added without schema validation. Reviewers lack
+guidance to request schema tests for data-driven features.
