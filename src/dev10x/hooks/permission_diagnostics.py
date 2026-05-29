@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any
 
 from dev10x.domain.claude_paths import ClaudeDir
+from dev10x.subprocess_utils import effective_cwd
 
 
 @dataclass(frozen=True)
@@ -199,7 +200,7 @@ def diagnose(raw: dict[str, Any], *, cwd: str = "") -> DiagnosticResult | None:
         return None
 
     if not cwd:
-        cwd = os.getcwd()
+        cwd = effective_cwd() or os.getcwd()
 
     settings_files = _resolve_settings_files(cwd=cwd)
     matches: list[RuleMatch] = []

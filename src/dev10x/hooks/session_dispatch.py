@@ -35,10 +35,10 @@ from dev10x.session.queries import (
     format_reload_context,
 )
 
-_git = GitContext()
-
 
 def _get_toplevel() -> str | None:
+    # GH-979 (H11): fresh GitContext per call — no module-level singleton,
+    # which would pin the first-call CWD across MCP invocations.
     return GitContext().toplevel
 
 

@@ -58,6 +58,13 @@ invoke the skill without approving tool access each time. See
 - **Shell scripts**: shellcheck, `set -e`, POSIX-compatible where possible
 - **Markdown**: one sentence per line, 80-char soft wrap
 
+### CWD Discipline (GH-979)
+
+Route subprocess/CWD access through `subprocess_utils` (`run`,
+`async_run`, `effective_cwd()`) and `GitContext()` — never bare
+`subprocess.run` / `os.getcwd()` / module-scope `GitContext()`. Standalone
+uv-scripts are exempt. Full rules: `.claude/rules/cwd-discipline.md`.
+
 ## Skill Naming Convention
 
 - **Directory name**: plain feature name — `git-worktree/`, `skill-audit/`

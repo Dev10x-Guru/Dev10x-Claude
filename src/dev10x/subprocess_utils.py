@@ -108,6 +108,29 @@ def resolve_script_path(script_path: str) -> Path:
     return get_plugin_root() / script_path
 
 
+def run(
+    args: list[str],
+    *,
+    cwd: str | None = None,
+    **kwargs: Any,
+) -> subprocess.CompletedProcess[str]:
+    """Synchronous subprocess.run that routes `cwd` to the effective CWD.
+
+    The single sync chokepoint for invoking external binaries (git, gh,
+    ruff, ...) from in-process code. When `cwd` is None it falls back to
+    the effective-CWD ContextVar bound by `use_cwd` (GH-979), so calls made
+    inside a long-lived MCP server hit the caller's worktree instead of the
+    server's startup directory. All other `subprocess.run` keyword arguments
+    (`capture_output`, `text`, `check`, `env`, `timeout`, ...) pass through
+    unchanged.
+    """
+    return subprocess.run(
+        args,
+        cwd=cwd if cwd is not None else _effective_cwd.get(),
+        **kwargs,
+    )
+
+
 def run_script(
     script_path: str,
     *args: str,

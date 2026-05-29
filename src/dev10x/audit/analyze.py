@@ -34,6 +34,7 @@ from dev10x.skills.audit.analyze_permissions import (
 from dev10x.skills.audit.analyze_permissions import (
     analyze_permissions as _analyze_permissions,
 )
+from dev10x.subprocess_utils import effective_cwd
 
 
 @dataclass
@@ -77,10 +78,15 @@ def build_audit_report(
     findings = _analyze_permissions(calls=calls, rules=rules)
     findings = count_nuisance_patterns(findings=findings)
 
+    # GH-979 (H6): analyze_permissions is a deps-less standalone uv-script
+    # that cannot import dev10x, so the effective-CWD fallback lands here at
+    # the importing seam. When an MCP caller bound the worktree via use_cwd,
+    # default the project root to it; standalone CLI callers pass None and
+    # detect_known_friction falls back to os.getcwd() as before.
     extra = detect_known_friction(
         calls=calls,
         additional_dirs=additional_dirs,
-        project_root=project_root,
+        project_root=project_root if project_root is not None else effective_cwd(),
     )
     base_count = len(findings)
     for offset, finding in enumerate(extra, start=1):

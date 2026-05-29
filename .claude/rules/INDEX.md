@@ -51,6 +51,7 @@ The code review system uses a **multi-agent architecture**:
 | `.claude/rules/github-workflows.md` | When editing `.github/workflows/**` | GitHub Actions patterns |
 | `.claude/rules/hook-state-schema.md` | When editing `hooks/**` state writers | Hook JSON state documentation |
 | `.claude/rules/hook-patterns.md` | When editing `hooks/**` with dual implementations | Python-shell hook equivalence |
+| `.claude/rules/cwd-discipline.md` | When editing `src/dev10x/**` Python that runs subprocesses or reads CWD | GH-979 effective-CWD routing, no module-scope GitContext |
 | `.claude/rules/performance.md` | Reference: post-dependency change monitoring | CLI startup baseline, profiling instructions |
 | `.claude/rules/skill-body-extraction.md` | When editing `skills/**` | SKILL.md body extraction pattern, token reduction |
 | `.claude/rules/agent-body-extraction.md` | When editing `agents/**` | Agent spec body extraction pattern, token reduction |

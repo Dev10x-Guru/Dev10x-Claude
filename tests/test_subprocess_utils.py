@@ -163,6 +163,66 @@ class TestRunScript:
         assert call_args[1]["check"] is False
 
 
+class TestRun:
+    """GH-979: the sync run() chokepoint defaults cwd to the effective CWD."""
+
+    @patch("dev10x.subprocess_utils.subprocess.run")
+    def test_explicit_cwd_wins(self, mock_run: patch) -> None:
+        from dev10x.subprocess_utils import run
+
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=""
+        )
+        run(["git", "status"], cwd="/explicit")
+
+        assert mock_run.call_args[1]["cwd"] == "/explicit"
+
+    @patch("dev10x.subprocess_utils.subprocess.run")
+    def test_defaults_to_effective_cwd_when_bound(self, mock_run: patch) -> None:
+        from dev10x.subprocess_utils import run, use_cwd
+
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=""
+        )
+        with use_cwd("/bound"):
+            run(["git", "status"])
+
+        assert mock_run.call_args[1]["cwd"] == "/bound"
+
+    @patch("dev10x.subprocess_utils.subprocess.run")
+    def test_cwd_is_none_when_unbound(self, mock_run: patch) -> None:
+        from dev10x.subprocess_utils import run
+
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=""
+        )
+        run(["git", "status"])
+
+        assert mock_run.call_args[1]["cwd"] is None
+
+    @patch("dev10x.subprocess_utils.subprocess.run")
+    def test_passes_through_other_kwargs(self, mock_run: patch) -> None:
+        from dev10x.subprocess_utils import run
+
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=""
+        )
+        run(["ruff", "format", "x.py"], check=False, capture_output=True, text=True)
+
+        kwargs = mock_run.call_args[1]
+        assert kwargs["check"] is False
+        assert kwargs["capture_output"] is True
+        assert kwargs["text"] is True
+
+    def test_runs_real_command(self) -> None:
+        from dev10x.subprocess_utils import run
+
+        result = run(["echo", "hi"], capture_output=True, text=True)
+
+        assert result.returncode == 0
+        assert result.stdout.strip() == "hi"
+
+
 class TestParseKeyValueOutput:
     def test_parses_single_pair(self) -> None:
         result = parse_key_value_output("KEY=value")
