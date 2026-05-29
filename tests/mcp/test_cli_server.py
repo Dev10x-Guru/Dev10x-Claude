@@ -1414,3 +1414,238 @@ class TestCwdParameterActivation:
                 pass
 
         mock_use_cwd.assert_called_once_with(str(tmp_path))
+
+
+# ── GH-247 G1: four untested delegation handlers ─────────────────
+
+
+class TestPrIssueComment:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.pr_issue_comment", new_callable=AsyncMock)
+    async def test_delegates_to_github_module(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = ok({"id": 1, "body": "hello", "created_at": "2026-01-01"})
+
+        result = await cli_server.pr_issue_comment(
+            pr_number=42,
+            body="hello",
+            repo="o/r",
+        )
+
+        assert result == {"id": 1, "body": "hello", "created_at": "2026-01-01"}
+        assert mock_fn.call_args.kwargs == {
+            "pr_number": 42,
+            "body": "hello",
+            "repo": "o/r",
+        }
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.pr_issue_comment", new_callable=AsyncMock)
+    async def test_returns_error_on_failure(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = err("Not Found")
+
+        result = await cli_server.pr_issue_comment(pr_number=99, body="x")
+
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.pr_issue_comment", new_callable=AsyncMock)
+    async def test_forwards_repo_none_when_omitted(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = ok({"id": 2, "body": "y", "created_at": "2026-01-01"})
+
+        await cli_server.pr_issue_comment(pr_number=1, body="y")
+
+        assert mock_fn.call_args.kwargs["repo"] is None
+
+
+class TestMinimizeComments:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.minimize_comments", new_callable=AsyncMock)
+    async def test_delegates_to_github_module(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = ok({"m0": {"isMinimized": True}})
+
+        result = await cli_server.minimize_comments(
+            node_ids=["PRRC_abc"],
+            classifier="RESOLVED",
+            repo="o/r",
+        )
+
+        assert result == {"m0": {"isMinimized": True}}
+        assert mock_fn.call_args.kwargs == {
+            "node_ids": ["PRRC_abc"],
+            "classifier": "RESOLVED",
+            "repo": "o/r",
+        }
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.minimize_comments", new_callable=AsyncMock)
+    async def test_returns_error_on_failure(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = err("GraphQL error")
+
+        result = await cli_server.minimize_comments(node_ids=["PRRC_bad"])
+
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.minimize_comments", new_callable=AsyncMock)
+    async def test_forwards_default_classifier_outdated(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = ok({"m0": {"isMinimized": True}})
+
+        await cli_server.minimize_comments(node_ids=["PRRC_x"])
+
+        assert mock_fn.call_args.kwargs["classifier"] == "OUTDATED"
+
+
+class TestRequestReview:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.request_review", new_callable=AsyncMock)
+    async def test_delegates_to_github_module(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = ok({"requested_reviewers": ["alice"]})
+
+        result = await cli_server.request_review(
+            pr_number=42,
+            reviewers=["alice"],
+            team=False,
+            repo="o/r",
+        )
+
+        assert result == {"requested_reviewers": ["alice"]}
+        assert mock_fn.call_args.kwargs == {
+            "pr_number": 42,
+            "reviewers": ["alice"],
+            "team": False,
+            "repo": "o/r",
+        }
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.request_review", new_callable=AsyncMock)
+    async def test_returns_error_on_failure(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = err("Not Found")
+
+        result = await cli_server.request_review(pr_number=99, reviewers=["x"])
+
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.request_review", new_callable=AsyncMock)
+    async def test_forwards_team_none_when_omitted(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = ok({"requested_reviewers": ["bob"]})
+
+        await cli_server.request_review(pr_number=1, reviewers=["bob"])
+
+        assert mock_fn.call_args.kwargs["team"] is None
+
+
+class TestResolveReviewThread:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.resolve_review_thread", new_callable=AsyncMock)
+    async def test_delegates_to_github_module(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = ok({"t0": {"isResolved": True}})
+
+        result = await cli_server.resolve_review_thread(
+            thread_ids=["PRRT_abc"],
+            comment_ids=None,
+            repo="o/r",
+        )
+
+        assert result == {"t0": {"isResolved": True}}
+        assert mock_fn.call_args.kwargs == {
+            "thread_ids": ["PRRT_abc"],
+            "comment_ids": None,
+            "repo": "o/r",
+        }
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.resolve_review_thread", new_callable=AsyncMock)
+    async def test_returns_error_on_failure(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = err("GraphQL error")
+
+        result = await cli_server.resolve_review_thread(thread_ids=["PRRT_bad"])
+
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.resolve_review_thread", new_callable=AsyncMock)
+    async def test_accepts_comment_ids_instead_of_thread_ids(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = ok({"t0": {"isResolved": True}})
+
+        await cli_server.resolve_review_thread(
+            comment_ids=["PRRC_xyz"],
+            repo="o/r",
+        )
+
+        assert mock_fn.call_args.kwargs["comment_ids"] == ["PRRC_xyz"]
+        assert mock_fn.call_args.kwargs["thread_ids"] is None
+
+
+# ── GH-247 G9: issue_create label forwarding ─────────────────────
+
+
+class TestIssueCreateLabelForwarding:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_forwards_each_label_with_repeated_flag(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(
+            stdout='{"number":1,"title":"t","url":"https://github.com/o/r/issues/1"}',
+        )
+
+        await cli_server.issue_create(title="t", labels=["bug", "urgent"])
+
+        call_args = list(mock_run.call_args[0])
+        label_indices = [i for i, v in enumerate(call_args) if v == "--label"]
+        assert len(label_indices) == 2
+        assert call_args[label_indices[0] + 1] == "bug"
+        assert call_args[label_indices[1] + 1] == "urgent"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_no_label_flag_when_labels_omitted(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(
+            stdout='{"number":2,"title":"t","url":"https://github.com/o/r/issues/2"}',
+        )
+
+        await cli_server.issue_create(title="t")
+
+        call_args = list(mock_run.call_args[0])
+        assert "--label" not in call_args

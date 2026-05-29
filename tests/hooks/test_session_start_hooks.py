@@ -206,6 +206,54 @@ class TestSessionInstallCheck:
         assert exc_info.value.code == 0
         assert capsys.readouterr().out == ""
 
+    def test_guides_upgrade_on_fresh_bootstrap_no_version_recorded(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Config dir present but version.yml absent — needs_upgrade fires with 'never applied'."""
+        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR
+        from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
+        from dev10x.hooks.session_dispatch import build_install_check_context
+
+        monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
+        monkeypatch.setenv(CONFIG_HOME_ENV_VAR, str(tmp_path / "config_dev10x"))
+        Dev10xConfigDir.reset_cache()
+        Dev10xConfigDir.home().mkdir(parents=True)
+
+        plugin_root = tmp_path / "plugin"
+        (plugin_root / ".claude-plugin").mkdir(parents=True)
+        (plugin_root / ".claude-plugin" / "plugin.json").write_text(
+            json.dumps({"version": "0.72.0"})
+        )
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(plugin_root))
+
+        ctx = build_install_check_context()
+
+        assert "0.72.0" in ctx
+        assert "never applied" in ctx
+        assert "/Dev10x:upgrade-cleanup" in ctx
+
+    def test_silent_when_plugin_version_unreadable(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Plugin manifest missing/unreadable — needs_upgrade short-circuits to False."""
+        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR
+        from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
+        from dev10x.domain.install_version import write_applied_version
+        from dev10x.hooks.session_dispatch import build_install_check_context
+
+        monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
+        monkeypatch.setenv(CONFIG_HOME_ENV_VAR, str(tmp_path / "config_dev10x"))
+        Dev10xConfigDir.reset_cache()
+        Dev10xConfigDir.home().mkdir(parents=True)
+        write_applied_version(plugin_version="0.71.0")
+
+        monkeypatch.setattr(
+            "dev10x.domain.install_version.read_plugin_version",
+            lambda **kwargs: None,
+        )
+
+        assert build_install_check_context() == ""
+
 
 class TestSessionGitAliases:
     def test_outputs_alias_status(self, runner: CliRunner) -> None:

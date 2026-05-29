@@ -97,6 +97,39 @@ class TestPRStatusFromNode:
         assert status.merged_at is None
 
 
+class TestParseSingle:
+    def test_returns_status_when_node_present(self) -> None:
+        data = {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "number": 42,
+                        "title": "Fix bug",
+                        "state": "OPEN",
+                        "isDraft": False,
+                        "mergedAt": None,
+                        "headRefName": "feature/x",
+                        "baseRefName": "develop",
+                        "mergeable": "MERGEABLE",
+                        "reviewDecision": None,
+                        "url": "https://github.com/org/repo/pull/42",
+                    }
+                }
+            }
+        }
+        status = PRStatusQuery.parse_single(data=data)
+        assert status is not None
+        assert status.number == 42
+        assert status.title == "Fix bug"
+
+    def test_returns_none_when_pull_request_node_absent(self) -> None:
+        data: dict = {"data": {"repository": {}}}
+        assert PRStatusQuery.parse_single(data=data) is None
+
+    def test_returns_none_when_data_empty(self) -> None:
+        assert PRStatusQuery.parse_single(data={}) is None
+
+
 class TestParseBatch:
     def test_extracts_each_requested_pr(self) -> None:
         data = {
