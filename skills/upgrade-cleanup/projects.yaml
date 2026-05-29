@@ -349,6 +349,116 @@ base_permissions:
   - "Bash(git master-rebase:*)"
   - "Bash(git autosquash-master:*)"
 
+  # --- Safe-by-default command catalog (GH-310) ---
+  # Goal: an unsupervised (adaptive / AFK) session must never stall on a
+  # permission prompt for a command that is safe to run. Every prompt is
+  # BOTH a hard stop for an unattended session AND the trigger for Claude
+  # Code's option-2 "Yes, and don't ask again" footgun, which writes a
+  # dangerous catch-all `Bash(<verb> *)` into the user's allow list.
+  #
+  # Why allow, not deny (GH-310): a `deny: Bash(git *)` does NOT neutralize
+  # the footgun — Claude Code evaluates deny -> ask -> allow and the first
+  # match wins, and `Bash(git *)` matches ALL `git <args>` (the space-star
+  # is a trailing wildcard). So a catch-all deny would also block
+  # `git status`, `git log`, etc. for every user. The only safe defense is
+  # to pre-approve the safe surface proactively, so the prompt never fires
+  # and option-2 never gets the chance.
+  #
+  # Boundary — deliberately NOT listed here (these keep prompting, route to
+  # a skill, or are forbidden by a hook): arbitrary code execution
+  # (`python -c`, `sh -c`, `bash -c`, `eval`, package runners like
+  # `npx <pkg>` / `pnpm dlx <pkg>` / `pipx run <pkg>` / `bunx <pkg>`),
+  # network fetch-and-exec or exfil (`curl <url>`, `wget <url>` beyond
+  # `--version`), destructive filesystem ops, env-prefixed commands
+  # (`env VAR=x cmd` — GH-311), and the bare-verb catch-alls themselves.
+
+  # Read-only filesystem & text inspection — never mutate state
+  - "Bash(ls:*)"
+  - "Bash(cat:*)"
+  - "Bash(head:*)"
+  - "Bash(tail:*)"
+  - "Bash(wc:*)"
+  - "Bash(tree:*)"
+  - "Bash(file:*)"
+  - "Bash(stat:*)"
+  - "Bash(du:*)"
+  - "Bash(df:*)"
+  - "Bash(pwd)"
+  - "Bash(realpath:*)"
+  - "Bash(readlink:*)"
+  - "Bash(basename:*)"
+  - "Bash(dirname:*)"
+  - "Bash(nl:*)"
+  - "Bash(grep:*)"
+  - "Bash(egrep:*)"
+  - "Bash(fgrep:*)"
+  - "Bash(rg:*)"
+  - "Bash(sort:*)"
+  - "Bash(uniq:*)"
+  - "Bash(cut:*)"
+  - "Bash(column:*)"
+  - "Bash(comm:*)"
+  - "Bash(diff:*)"
+  - "Bash(echo:*)"
+  - "Bash(printf:*)"
+  - "Bash(date:*)"
+
+  # Version / help info flags for the option-2 footgun verbs — always safe
+  - "Bash(git --version)"
+  - "Bash(gh --version)"
+  - "Bash(gh --help)"
+  - "Bash(bash --version)"
+  - "Bash(sh --version)"
+  - "Bash(uv --version)"
+  - "Bash(uvx --version)"
+  - "Bash(npx --version)"
+  - "Bash(npm --version)"
+  - "Bash(pnpm --version)"
+  - "Bash(pipx --version)"
+  - "Bash(bun --version)"
+  - "Bash(yarn --version)"
+  - "Bash(node --version)"
+  - "Bash(python --version)"
+  - "Bash(python3 --version)"
+  - "Bash(curl --version)"
+  - "Bash(wget --version)"
+  - "Bash(env --version)"
+  - "Bash(xargs --version)"
+  - "Bash(make --version)"
+
+  # git — read-only inspection (mutating git already covered above and
+  # routed to skills via the SkillRedirectValidator allow rules)
+  - "Bash(git show:*)"
+  - "Bash(git rev-parse:*)"
+  - "Bash(git describe:*)"
+  - "Bash(git ls-files:*)"
+  - "Bash(git ls-tree:*)"
+  - "Bash(git blame:*)"
+  - "Bash(git shortlog:*)"
+  - "Bash(git merge-base:*)"
+  - "Bash(git worktree list:*)"
+  - "Bash(git config --get:*)"
+  - "Bash(git config --list:*)"
+  - "Bash(git tag --list:*)"
+  - "Bash(git reflog:*)"
+  - "Bash(git cat-file:*)"
+  - "Bash(git rev-list:*)"
+  - "Bash(git for-each-ref:*)"
+
+  # gh — read-only inspection (mutating gh already covered above)
+  - "Bash(gh release view:*)"
+  - "Bash(gh release list:*)"
+  - "Bash(gh search:*)"
+  - "Bash(gh label list:*)"
+  - "Bash(gh workflow view:*)"
+  - "Bash(gh workflow list:*)"
+  - "Bash(gh cache list:*)"
+  - "Bash(gh pr status:*)"
+
+  # uv — read-only environment inspection (test/lint/run already covered)
+  - "Bash(uv pip list:*)"
+  - "Bash(uv tree:*)"
+
   # --- Dev10x skills ---
   - "Skill(Dev10x:*)"
 
