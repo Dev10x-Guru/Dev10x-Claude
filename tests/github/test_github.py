@@ -1995,7 +1995,9 @@ class TestPrGet:
         )
         content = script_path.read_text()
         assert "merged," not in content
-        assert ",merged" not in content
+        # ",mergedAt" is valid; assert the standalone ",merged" field is absent
+        assert ",merged," not in content
+        assert ",merged\n" not in content
         # mergedAt is the valid replacement field
         assert "mergedAt" in content
 
