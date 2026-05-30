@@ -11,7 +11,7 @@ description: >
 user-invocable: true
 invocation-name: Dev10x:request-review
 allowed-tools:
-  - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-context/scripts/:*)
+  - mcp__plugin_Dev10x_cli__pr_detect
   - Skill(Dev10x:gh-pr-request-review)
   - Skill(Dev10x:slack-review-request)
   - Bash(gh pr view:*)
@@ -34,13 +34,13 @@ Mark completed when done: `TaskUpdate(taskId, status="completed")`
 
 ### Step 1: Detect PR context
 
-Use the `Dev10x:gh-context` script to detect PR number and repo:
+Use the MCP tool to detect PR number and repo:
 
-```bash
-${CLAUDE_PLUGIN_ROOT}/skills/gh-context/scripts/gh-pr-detect.sh "$ARG"
+```
+mcp__plugin_Dev10x_cli__pr_detect(arg="$ARG")
 ```
 
-Parse `PR_NUMBER`, `REPO`, `PR_URL` from KEY=VALUE stdout.
+Parse `PR_NUMBER`, `REPO`, `PR_URL` from the returned dict.
 Pass `$ARG` as the skill argument (PR URL, bare number, or empty).
 
 If detection fails, report the error and stop.

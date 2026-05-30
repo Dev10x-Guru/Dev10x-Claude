@@ -15,4 +15,4 @@ NUMBER="${1:?Usage: gh-pr-get.sh NUMBER [REPO]}"
 REPO="${2:-$(gh repo view --json nameWithOwner -q '.nameWithOwner')}"
 
 gh pr view "$NUMBER" --repo "$REPO" \
-    --json number,title,body,state,baseRefName,headRefName,merged,mergedAt,closedAt,labels,milestone,assignees,author,url
+    --json number,title,body,state,baseRefName,headRefName,mergedAt,closedAt,labels,milestone,assignees,author,url

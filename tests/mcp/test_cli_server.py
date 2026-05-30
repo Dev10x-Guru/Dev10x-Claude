@@ -955,12 +955,14 @@ class TestPrGet:
         self,
         mock_fn: AsyncMock,
     ) -> None:
+        # ``merged`` was removed from gh-pr-get.sh (GH-329) — derive
+        # merged-ness from state == "MERGED" or mergedAt != null instead.
         mock_fn.return_value = ok(
             {
                 "number": 42,
                 "title": "T",
                 "state": "OPEN",
-                "merged": False,
+                "mergedAt": None,
             }
         )
 
@@ -968,6 +970,7 @@ class TestPrGet:
 
         assert result["number"] == 42
         assert result["state"] == "OPEN"
+        assert "merged" not in result
         assert mock_fn.call_args.kwargs == {"number": 42, "repo": "o/r"}
 
     @pytest.mark.asyncio
