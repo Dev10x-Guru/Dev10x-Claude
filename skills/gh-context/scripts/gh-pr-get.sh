@@ -7,7 +7,8 @@
 # If REPO is omitted, detects from current directory.
 #
 # Output: JSON with number, title, body, state, baseRefName, headRefName,
-# merged, mergedAt, closedAt, labels, milestone, assignees, author, url.
+# mergedAt, closedAt, labels, milestone, assignees, author, url.
+# Note: ``merged`` is not a valid gh pr view field (GH-329); use mergedAt.
 
 set -euo pipefail
 
