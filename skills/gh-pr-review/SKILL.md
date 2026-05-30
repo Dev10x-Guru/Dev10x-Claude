@@ -3,7 +3,8 @@ name: Dev10x:gh-pr-review
 description: >
   Review a GitHub pull request and post findings with inline comments.
   Fetches PR diff, reads changed files, checks for interface impact,
-  applies project review guidelines, and posts a COMMENT review to GitHub.
+  applies project review guidelines, and posts a review to GitHub.
+  Supports Draft (PENDING) and submitted review modes via Step 8a gate.
   TRIGGER when: reviewing an external PR and posting review comments.
   DO NOT TRIGGER when: reviewing own branch changes before PR creation
   (use Dev10x:review), or PR does not exist yet.
@@ -16,6 +17,7 @@ allowed-tools:
   - Write(/tmp/Dev10x/git/**)
   - mcp__plugin_Dev10x_cli__pr_detect
   - mcp__plugin_Dev10x_cli__mktmp
+  - AskUserQuestion
 ---
 
 # GitHub PR Review
@@ -52,14 +54,17 @@ Never pause between steps to ask "should I continue?".
 1. `TaskCreate(subject="Fetch PR diff", activeForm="Fetching PR context")`
 2. `TaskCreate(subject="Run spec compliance gate", activeForm="Checking spec compliance")`
 3. `TaskCreate(subject="Review changes", activeForm="Reviewing changes")`
-4. `TaskCreate(subject="Post findings", activeForm="Posting review")`
+4. `TaskCreate(subject="Choose draft or submit", activeForm="Selecting review mode")`
+5. `TaskCreate(subject="Post findings", activeForm="Posting review")`
 
 Set sequential dependencies: spec gate blocked by fetch, review
-blocked by spec gate, post blocked by review.
+blocked by spec gate, draft gate blocked by review, post blocked
+by draft gate.
 
-No user decision gates — this skill runs fully automated once
-invoked. All review decisions (what to flag, severity) are made by
-applying `review-guidelines.md` and `review-checks-common.md`.
+No user decision gates before Step 8a. All review decisions (what
+to flag, severity) are made by applying `review-guidelines.md` and
+`review-checks-common.md`. The Step 8a gate is the single user
+interaction point.
 
 ## Workflow
 
@@ -236,10 +241,62 @@ recipe (MCP-first mktmp, no heredocs), Transport B prerequisites
 body-rewriting recipe that converts inline comments into a
 single top-level findings block.
 
+**Transport B bypasses Step 8a** — bot comments have no PENDING
+state. Proceed directly to posting and then Step 9.
+
+### Step 8a: Draft vs Submit Gate (GH-319)
+
+**Only for Transport A (open PR, normal diff).** Before writing
+the review JSON and posting, decide the `event` value.
+
+**Intent detection:** Scan the original invocation argument for
+draft-intent phrases:
+- "draft", "hold", "before submitting", "leave as draft",
+  "let me review", "let me submit", "do not submit", "don't submit"
+
+If any phrase matches, default to **Draft (PENDING)**.
+Otherwise default to **Submit as COMMENT**.
+
+Also check: if the current user is the PR author (compare
+`pr_detect` `author` field with `gh api /user` login), bias the
+default toward Draft and surface a note that APPROVE is
+unavailable to PR authors.
+
+**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text).
+
+Options:
+- **Draft (PENDING)** — Post without `event`; only you see it until
+  you finish on GitHub. *[set as default when draft-intent detected]*
+- **Submit as COMMENT** — Post and publish immediately as a
+  comment. *[default otherwise]*
+- **Submit as REQUEST_CHANGES** — Post and publish; blocks merge.
+  Surface a warning before selecting.
+- **Submit as APPROVE** — Post and publish as approval.
+  Disabled when reviewer is the PR author.
+
+**After the gate:**
+- Draft (PENDING): omit `event` from the payload; record
+  `review_state=PENDING` for Step 9.
+- Submit as COMMENT: set `"event": "COMMENT"`; record
+  `review_state=SUBMITTED`.
+- Submit as REQUEST_CHANGES: set `"event": "REQUEST_CHANGES"`;
+  record `review_state=SUBMITTED`.
+- Submit as APPROVE: set `"event": "APPROVE"`; record
+  `review_state=SUBMITTED`.
+
 ### Step 9: Report to User
 
-Confirm what was posted:
-- Link to the review on GitHub
+Branch on `review_state`:
+
+**`PENDING` (draft posted):**
+- "Draft review posted (only you can see it). Open the
+  Files changed tab on the PR and click 'Finish your review'
+  to submit."
+- Include `html_url` from the API response.
+- Count of inline comments queued in the draft.
+
+**`SUBMITTED`:**
+- Link to the review on GitHub (`html_url`)
 - Count of inline comments
 - Brief summary of findings
 

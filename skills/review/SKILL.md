@@ -356,3 +356,13 @@ work-on shipping pipeline
 Complements:
 - `Dev10x:gh-pr-review` — posts findings to GitHub (remote PRs)
 - `Dev10x:gh-pr-respond` — responds to PR review comments
+
+## Design Note: Future `--post-to-pr` Mode (GH-319)
+
+If `Dev10x:review` ever gains a `--post-to-pr` flag that hands off
+findings to a GitHub PR review, that mode MUST default to Draft
+(PENDING) rather than submitting immediately. The self-review
+author is almost always the PR author — who should finalize the
+review as a human action, not have it auto-submitted on their
+behalf. Codify "draft-first" at design time to avoid retro-fitting
+the same gap that GH-319 addressed in `Dev10x:gh-pr-review`.

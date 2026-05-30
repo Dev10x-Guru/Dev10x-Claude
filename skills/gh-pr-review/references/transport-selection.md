@@ -53,12 +53,45 @@ Use the Write tool to create the review JSON, then post via
 > is blocked by `validate-bash-security.py`. Always Write to a
 > file first.
 
+### `event` field and PENDING semantics (GH-319)
+
+The `event` field controls whether the review is submitted
+immediately or left as a draft visible only to you:
+
+| `event` value | Result | Visible to others? |
+|---|---|---|
+| `"COMMENT"` | Submitted immediately as a comment | Yes |
+| `"REQUEST_CHANGES"` | Submitted, blocks merge | Yes |
+| `"APPROVE"` | Submitted, approves the PR | Yes |
+| *(omitted entirely)* | `state: PENDING` — draft only | No (only you) |
+
+**PENDING visibility:** When `event` is omitted, the GitHub API
+returns `state: PENDING` and `submitted_at: null`. Only the
+review author can see the draft until they submit it by visiting
+the PR's "Files changed" tab and clicking "Finish your review",
+or by calling `PUT .../reviews/{review_id}/events` with
+`{"event": "COMMENT"}` (or another event value).
+
+**Why prefer Draft-first for self-review handoff:** When the
+reviewer is also the PR author — or when the invocation
+explicitly says "leave as draft", "hold", "before submitting",
+"do not submit", or "let me review/submit" — the intent is to
+create the review payload on GitHub but let a human finalize it.
+Omitting `event` achieves exactly this.
+
 ### Rules
 
-- Always use `"event": "COMMENT"` — never REQUEST_CHANGES or
-  APPROVE
-- Include `commit_id` from the PR's latest commit
-- Inline comments must reference lines that exist in the PR diff
+- Default `event` is driven by the Step 8a decision gate (see
+  SKILL.md Step 8a); do NOT hard-code `"COMMENT"` without first
+  running the gate.
+- `"APPROVE"` is blocked when the reviewer is the PR author —
+  GitHub returns HTTP 422 for self-approval. Detect via
+  `pr_detect` author field vs current user.
+- `"REQUEST_CHANGES"` blocks merge; confirm explicitly with the
+  user before selecting this event.
+- Include `commit_id` from the PR's latest commit for all
+  submitted events.
+- Inline comments must reference lines that exist in the PR diff.
 
 ## B. Bot top-level comment (merged PR / oversize diff)
 
@@ -89,6 +122,10 @@ review attribution after merge. For oversize diffs, inline
 anchors are unavailable (no diff fetched). In both cases,
 restructure the review into a single top-level issue comment
 posted as the GitHub App.
+
+**Transport B bypasses the Step 8a draft gate** — bot comments
+have no PENDING state. The review is always posted immediately
+under the App identity.
 
 ### Steps
 
