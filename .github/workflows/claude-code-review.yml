@@ -145,13 +145,15 @@ jobs:
             Leave reviews with any unresolved threads visible.
 
             STEP 7 — CONVERT TO DRAFT IF ISSUES FOUND:
-            After completing the review, if you posted ANY inline comments
-            (via create_inline_comment), convert the PR to draft:
+            After completing the review, check the real inline-comment count
+            from the GitHub API — do NOT rely on your own recollection of
+            whether you called create_inline_comment:
+              `gh pr view ${{ github.event.pull_request.number }} --json reviewComments --jq '.reviewComments | length'`
+            If the returned count is greater than 0, convert the PR to draft:
               `gh pr ready --undo ${{ github.event.pull_request.number }}`
             This lets the author fix all issues without triggering re-reviews
             on each fixup push. The author marks "Ready for review" when done.
-            If the review was clean (no inline comments posted), do NOT
-            convert to draft.
+            If the count is 0 (no inline comments), do NOT convert to draft.
 
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           claude_args: '--model haiku --allowed-tools "Read,Grep,Glob,mcp__github_inline_comment__create_inline_comment,mcp__github__get_pull_request_review_comments,Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr review:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr ready:*),Bash(gh api:*)"'
