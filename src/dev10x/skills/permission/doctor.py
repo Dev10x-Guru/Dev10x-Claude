@@ -162,7 +162,7 @@ def detect_workspace(cwd: Path) -> WorkspaceContext:
     try:
         toplevel = subprocess_utils.run(
             ["git", "rev-parse", "--show-toplevel"],
-            cwd=cwd,
+            cwd=str(cwd),
             capture_output=True,
             text=True,
             check=True,
@@ -172,7 +172,7 @@ def detect_workspace(cwd: Path) -> WorkspaceContext:
     try:
         common_dir = subprocess_utils.run(
             ["git", "rev-parse", "--git-common-dir"],
-            cwd=cwd,
+            cwd=str(cwd),
             capture_output=True,
             text=True,
             check=True,
