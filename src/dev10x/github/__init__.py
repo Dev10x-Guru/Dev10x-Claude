@@ -406,6 +406,14 @@ async def _pr_comment_resolve(
     comment_ids: list[str] | None = None,
     **_: Any,
 ) -> Result[dict[str, Any]]:
+    """Resolve one or more PR review threads by comment node ID.
+
+    GitHub's GraphQL API does not expose
+    ``PullRequestReviewComment.pullRequestReviewThread`` (GH-329).
+    Instead we fetch ``databaseId`` and the parent PR's ``reviewThreads``,
+    then match threads whose first comment's ``databaseId`` equals the
+    one returned for the requested node ID.
+    """
     ids_to_resolve: list[str] = []
     if comment_ids:
         ids_to_resolve = comment_ids
@@ -414,10 +422,16 @@ async def _pr_comment_resolve(
     else:
         return err("comment_id or comment_ids required for 'resolve' action")
 
+    # One GraphQL query per comment: fetch databaseId and the PR's reviewThreads
+    # so we can match thread by first-comment databaseId without a separate
+    # PR-number parameter (GH-329).
     node_fragments = " ".join(
         f"n{i}: node(id: {json.dumps(cid)}) "
-        f"{{ ... on PullRequestReviewComment "
-        f"{{ pullRequestReviewThread {{ id }} }} }}"
+        "{ ... on PullRequestReviewComment { "
+        "databaseId "
+        "pullRequest { reviewThreads(first: 100) { nodes { "
+        "id comments(first: 1) { nodes { databaseId } } } } } "
+        "} }"
         for i, cid in enumerate(ids_to_resolve)
     )
     query_result = await _gh_api_raw(
@@ -432,9 +446,23 @@ async def _pr_comment_resolve(
     errors: list[str] = []
     for i, cid in enumerate(ids_to_resolve):
         node = query_data.get("data", {}).get(f"n{i}")
-        thread = node.get("pullRequestReviewThread") if node else None
-        if thread and thread["id"].startswith("PRRT_"):
-            thread_ids.append(thread["id"])
+        if node is None:
+            errors.append(
+                f"Could not find thread for comment {cid}. "
+                "The resolve action requires a GraphQL node_id, not a REST "
+                "integer ID. Use the node_id field from a comment response."
+            )
+            continue
+        comment_db_id = node.get("databaseId")
+        threads = node.get("pullRequest", {}).get("reviewThreads", {}).get("nodes", [])
+        matched_thread_id: str | None = None
+        for thread in threads:
+            first_comments = thread.get("comments", {}).get("nodes", [])
+            if first_comments and first_comments[0].get("databaseId") == comment_db_id:
+                matched_thread_id = thread.get("id")
+                break
+        if matched_thread_id and matched_thread_id.startswith("PRRT_"):
+            thread_ids.append(matched_thread_id)
         else:
             errors.append(
                 f"Could not find thread for comment {cid}. "

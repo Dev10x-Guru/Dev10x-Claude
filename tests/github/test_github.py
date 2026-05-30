@@ -37,10 +37,39 @@ def _completed(
     )
 
 
+def _thread_lookup_response(
+    alias: str,
+    db_id: int,
+    thread_id: str,
+) -> dict:
+    """Build the new-style query response for _pr_comment_resolve (GH-329).
+
+    The query fetches databaseId and reviewThreads on the parent PR,
+    then matches the thread whose first comment has the same databaseId.
+    """
+    return {
+        "data": {
+            alias: {
+                "databaseId": db_id,
+                "pullRequest": {
+                    "reviewThreads": {
+                        "nodes": [
+                            {
+                                "id": thread_id,
+                                "comments": {"nodes": [{"databaseId": db_id}]},
+                            }
+                        ]
+                    }
+                },
+            }
+        }
+    }
+
+
 class TestPrCommentsResolveSingle:
     @pytest.fixture
     def query_response(self) -> str:
-        return json.dumps({"data": {"n0": {"pullRequestReviewThread": {"id": "PRRT_thread123"}}}})
+        return json.dumps(_thread_lookup_response("n0", db_id=111, thread_id="PRRT_thread123"))
 
     @pytest.fixture
     def mutation_response(self) -> str:
@@ -69,6 +98,29 @@ class TestPrCommentsResolveSingle:
 
         assert result.value["data"]["r0"]["thread"]["isResolved"] is True
         assert mock_api.call_count == 2
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_query_uses_database_id_lookup(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+        query_response: str,
+        mutation_response: str,
+    ) -> None:
+        """Query must use databaseId+reviewThreads, not pullRequestReviewThread (GH-329)."""
+        mock_api.side_effect = [
+            _completed(stdout=query_response),
+            _completed(stdout=mutation_response),
+        ]
+
+        await gh.pr_comments(action="resolve", comment_id="PRRC_comment123")
+
+        query_call = mock_api.call_args_list[0]
+        query_str = query_call.kwargs["fields"]["query"]
+        assert "databaseId" in query_str
+        assert "reviewThreads" in query_str
+        assert "pullRequestReviewThread" not in query_str
 
     @pytest.mark.asyncio
     @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
@@ -108,12 +160,27 @@ class TestPrCommentsResolveBatch:
 
     @pytest.fixture
     def batch_query_response(self) -> str:
+        def _node(db_id: int, thread_id: str) -> dict:
+            return {
+                "databaseId": db_id,
+                "pullRequest": {
+                    "reviewThreads": {
+                        "nodes": [
+                            {
+                                "id": thread_id,
+                                "comments": {"nodes": [{"databaseId": db_id}]},
+                            }
+                        ]
+                    }
+                },
+            }
+
         return json.dumps(
             {
                 "data": {
-                    "n0": {"pullRequestReviewThread": {"id": "PRRT_t1"}},
-                    "n1": {"pullRequestReviewThread": {"id": "PRRT_t2"}},
-                    "n2": {"pullRequestReviewThread": {"id": "PRRT_t3"}},
+                    "n0": _node(101, "PRRT_t1"),
+                    "n1": _node(102, "PRRT_t2"),
+                    "n2": _node(103, "PRRT_t3"),
                 }
             }
         )
@@ -188,7 +255,7 @@ class TestPrCommentsResolveBatch:
     ) -> None:
         mock_api.side_effect = [
             _completed(
-                stdout=json.dumps({"data": {"n0": {"pullRequestReviewThread": {"id": "PRRT_t1"}}}})
+                stdout=json.dumps(_thread_lookup_response("n0", db_id=99, thread_id="PRRT_t1"))
             ),
             _completed(
                 stdout=json.dumps(
@@ -250,14 +317,31 @@ class TestPrCommentsResolveErrors:
 
     @pytest.mark.asyncio
     @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
-    async def test_returns_error_when_thread_id_invalid(
+    async def test_returns_error_when_no_matching_thread(
         self,
         mock_api: AsyncMock,
         mock_resolve_repo: AsyncMock,
     ) -> None:
+        # databaseId 42 is returned, but reviewThreads has a different databaseId
         mock_api.return_value = _completed(
             stdout=json.dumps(
-                {"data": {"n0": {"pullRequestReviewThread": {"id": "INVALID_123"}}}}
+                {
+                    "data": {
+                        "n0": {
+                            "databaseId": 42,
+                            "pullRequest": {
+                                "reviewThreads": {
+                                    "nodes": [
+                                        {
+                                            "id": "PRRT_other",
+                                            "comments": {"nodes": [{"databaseId": 999}]},
+                                        }
+                                    ]
+                                }
+                            },
+                        }
+                    }
+                }
             ),
         )
 
@@ -281,7 +365,19 @@ class TestPrCommentsResolveErrors:
                 stdout=json.dumps(
                     {
                         "data": {
-                            "n0": {"pullRequestReviewThread": {"id": "PRRT_good"}},
+                            "n0": {
+                                "databaseId": 55,
+                                "pullRequest": {
+                                    "reviewThreads": {
+                                        "nodes": [
+                                            {
+                                                "id": "PRRT_good",
+                                                "comments": {"nodes": [{"databaseId": 55}]},
+                                            }
+                                        ]
+                                    }
+                                },
+                            },
                             "n1": None,
                         }
                     }
@@ -312,7 +408,7 @@ class TestPrCommentsResolveErrors:
     ) -> None:
         mock_api.side_effect = [
             _completed(
-                stdout=json.dumps({"data": {"n0": {"pullRequestReviewThread": {"id": "PRRT_t1"}}}})
+                stdout=json.dumps(_thread_lookup_response("n0", db_id=77, thread_id="PRRT_t1"))
             ),
             _completed(returncode=1, stderr="Mutation failed"),
         ]
@@ -359,7 +455,7 @@ class TestResolveReviewThreadDirect:
     ) -> None:
         mock_api.side_effect = [
             _completed(
-                stdout=json.dumps({"data": {"n0": {"pullRequestReviewThread": {"id": "PRRT_t1"}}}})
+                stdout=json.dumps(_thread_lookup_response("n0", db_id=88, thread_id="PRRT_t1"))
             ),
             _completed(
                 stdout=json.dumps(
@@ -1865,13 +1961,15 @@ class TestPrGet:
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
     async def test_parses_pr_json(self, mock_run: AsyncMock) -> None:
+        # ``merged`` was removed from gh-pr-get.sh (GH-329).
+        # Derive merged-ness from state == "MERGED" or mergedAt != null.
         mock_run.return_value = _completed(
             stdout=json.dumps(
                 {
                     "number": 42,
                     "title": "Fix things",
                     "state": "OPEN",
-                    "merged": False,
+                    "mergedAt": None,
                     "url": "https://github.com/owner/repo/pull/42",
                 }
             )
@@ -1882,10 +1980,24 @@ class TestPrGet:
         assert isinstance(result, SuccessResult)
         assert result.value["number"] == 42
         assert result.value["state"] == "OPEN"
+        assert "merged" not in result.value
         called_args = mock_run.call_args.args
         assert "skills/gh-context/scripts/gh-pr-get.sh" in called_args[0]
         assert "42" in called_args
         assert "owner/repo" in called_args
+
+    def test_gh_pr_get_script_excludes_merged_field(self) -> None:
+        """gh-pr-get.sh must not request the invalid ``merged`` JSON field (GH-329)."""
+        from pathlib import Path
+
+        script_path = (
+            Path(__file__).parents[2] / "skills" / "gh-context" / "scripts" / "gh-pr-get.sh"
+        )
+        content = script_path.read_text()
+        assert "merged," not in content
+        assert ",merged" not in content
+        # mergedAt is the valid replacement field
+        assert "mergedAt" in content
 
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
