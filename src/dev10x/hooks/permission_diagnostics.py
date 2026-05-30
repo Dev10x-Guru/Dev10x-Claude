@@ -19,14 +19,13 @@ permissions.allow list.
 
 from __future__ import annotations
 
-import fnmatch
-import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from dev10x.domain.claude_paths import ClaudeDir
+from dev10x.domain.common.allow_rule import AllowRule, AllowRuleLoader
 from dev10x.subprocess_utils import effective_cwd
 
 
@@ -109,72 +108,18 @@ def extract_tool_signature(raw: dict[str, Any]) -> str | None:
 
 
 def _load_allow_rules(path: Path) -> list[str] | None:
-    if not path.is_file():
-        return None
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return None
-    permissions = data.get("permissions", {})
-    allow = permissions.get("allow")
-    if allow is None:
-        return None
-    if not isinstance(allow, list):
-        return None
-    return allow
-
-
-class PermissionResolutionPolicy:
-    """Encapsulates how an allow-rule string is matched against a tool signature.
-
-    Lives as a named class so the matching semantics — MCP tools by
-    fnmatch over the whole signature, Bash rules by tool+pattern with
-    ``:*`` prefix expansion — can be unit-tested and extended without
-    touching ``diagnose()``.
-    """
-
-    @staticmethod
-    def matches(*, signature: str, rule: str) -> bool:
-        if signature.startswith("mcp__"):
-            return fnmatch.fnmatch(name=signature, pat=rule)
-
-        paren_idx = rule.find("(")
-        if paren_idx == -1:
-            return fnmatch.fnmatch(name=signature, pat=rule)
-
-        rule_tool = rule[:paren_idx]
-        rule_pattern = rule[paren_idx + 1 :].rstrip(")")
-
-        sig_paren_idx = signature.find("(")
-        if sig_paren_idx == -1:
-            return False
-
-        sig_tool = signature[:sig_paren_idx]
-        sig_value = signature[sig_paren_idx + 1 :].rstrip(")")
-
-        if rule_tool != sig_tool:
-            return False
-
-        if rule_pattern.endswith(":*"):
-            prefix = rule_pattern[:-2]
-            return sig_value == prefix or sig_value.startswith(prefix + " ")
-
-        return fnmatch.fnmatch(name=sig_value, pat=rule_pattern)
-
-    @classmethod
-    def find_matching(cls, *, signature: str, rules: list[str]) -> str | None:
-        for rule in rules:
-            if cls.matches(signature=signature, rule=rule):
-                return rule
-        return None
+    return AllowRuleLoader.load_optional(path=path)
 
 
 def _matches_rule(*, signature: str, rule: str) -> bool:
-    return PermissionResolutionPolicy.matches(signature=signature, rule=rule)
+    return AllowRule.parse(rule).matches(signature)
 
 
 def _find_matching_rule(*, signature: str, rules: list[str]) -> str | None:
-    return PermissionResolutionPolicy.find_matching(signature=signature, rules=rules)
+    for rule in rules:
+        if AllowRule.parse(rule).matches(signature):
+            return rule
+    return None
 
 
 def _resolve_settings_files(*, cwd: str) -> list[SettingsFile]:

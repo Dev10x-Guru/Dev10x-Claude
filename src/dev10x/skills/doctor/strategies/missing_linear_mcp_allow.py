@@ -16,9 +16,9 @@ only incidentally.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
+from dev10x.domain.common.allow_rule import AllowRuleLoader
 from dev10x.skills.doctor.strategy import (
     Context,
     Finding,
@@ -52,12 +52,7 @@ def _missing_baseline(rules: list[str]) -> list[str]:
 
 
 def _read_allow_rules(path: Path) -> list[str]:
-    try:
-        data = json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError):
-        return []
-    perms = data.get("permissions", {})
-    return list(perms.get("allow", []))
+    return AllowRuleLoader.load(path)
 
 
 def detect(context: Context) -> list[Finding]:

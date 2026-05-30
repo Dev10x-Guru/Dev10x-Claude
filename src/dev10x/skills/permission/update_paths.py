@@ -22,6 +22,7 @@ from pathlib import Path
 import yaml
 
 from dev10x.domain.claude_paths import ClaudeDir
+from dev10x.domain.common.allow_rule import AllowRule
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 
 MEMORY_CONFIG = Dev10xConfigDir.projects_yaml()
@@ -343,8 +344,7 @@ def build_script_allow_rules(
     rules: list[str] = []
     for script in scripts:
         relative = script.relative_to(plugin_root)
-        rule = f"Bash({plugin_root}/{relative}:*)"
-        rules.append(rule)
+        rules.append(str(AllowRule.bash(f"{plugin_root}/{relative}:*")))
     return rules
 
 
@@ -422,8 +422,8 @@ def build_marketplaces_read_rules(
     home = user_home.expanduser().resolve()
     rel = f".claude/plugins/marketplaces/{publisher}"
     return [
-        f"Read(~/{rel}/**)",
-        f"Read({home}/{rel}/**)",
+        str(AllowRule.read(f"~/{rel}/**")),
+        str(AllowRule.read(f"{home}/{rel}/**")),
     ]
 
 
@@ -457,8 +457,8 @@ def build_read_allow_rules(
 
     rules: list[str] = []
     for rel in relpaths:
-        rules.append(f"Read(~/{rel}/*)")
-        rules.append(f"Read({home}/{rel}/*)")
+        rules.append(str(AllowRule.read(f"~/{rel}/*")))
+        rules.append(str(AllowRule.read(f"{home}/{rel}/*")))
     return rules
 
 
@@ -590,7 +590,7 @@ def collapse_legacy_upgrade_cleanup_rule(entry: str) -> str | None:
     target_cmd = _LEGACY_UPGRADE_CLEANUP_SCRIPTS.get(script)
     if target_cmd is None:
         return None
-    return f"Bash({target_cmd}:*)"
+    return str(AllowRule.bash(f"{target_cmd}:*"))
 
 
 def collapse_legacy_upgrade_cleanup_rules(
