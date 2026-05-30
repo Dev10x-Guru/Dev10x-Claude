@@ -719,13 +719,13 @@ Present the full plan to the user as a table:
 Found {N} unaddressed comments on PR #{pr_number}:
   JTBD: "{PR JTBD outcome phrase}"
 
-| # | Author | File:Line | Summary | Verdict | Priority | Proposed Response |
-|---|--------|-----------|---------|---------|----------|-------------------|
-| 1 | mike   | sender.py:19 | Use SubFactory | VALID | now | Change LazyFunction → SubFactory |
-| 2 | mike   | fakers.py:21 | Randomize values | VALID | fast-follow | Tracked as test-quality enhancement |
-| 3 | claude[bot] | dto.py:5 | TYPE_CHECKING | INVALID | n/a | 38+ files use this pattern |
-| 4 | claude[bot] | tasks.py:12 | Missing type ann | INVALID | n/a | mypy infers from assignment |
-| 5 | mike   | feature.py:8  | Denorm drift | YAGNI | n/a | Bundle r{ids} → propose removal |
+| # | Author | File:Line | Summary | Verdict | Signal | Priority | Proposed Response |
+|---|--------|-----------|---------|---------|--------|----------|-------------------|
+| 1 | mike   | sender.py:19 | Use SubFactory | VALID | text | now | Change LazyFunction → SubFactory |
+| 2 | mike   | fakers.py:21 | Randomize values | VALID | reaction:👍 | fast-follow | Tracked as test-quality enhancement |
+| 3 | claude[bot] | dto.py:5 | TYPE_CHECKING | INVALID | text | n/a | 38+ files use this pattern |
+| 4 | claude[bot] | tasks.py:12 | Missing type ann | INVALID | reaction:👎 | n/a | Declining — maintainer 👎 (no prose). Confirm? |
+| 5 | mike   | feature.py:8  | Denorm drift | YAGNI | text | n/a | Bundle r{ids} → propose removal |
 
 Bundles:
 - YAGNI bundle "speculative-feature-X" (rows 5,7,8,9) → single
@@ -733,6 +733,25 @@ Bundles:
 
 Approve all, or specify which to modify/skip?
 ```
+
+**Signal column (GH-314).** Every row carries a `Signal` value showing
+whether the triage verdict came from prose in the comment body or from
+an emoji reaction left by the maintainer. Reaction-sourced verdicts are
+auditable before the approval gate — the reviewer can confirm or override
+them with one click.
+
+| Signal | Meaning |
+|--------|---------|
+| `text` | Verdict derived from comment prose (normal path) |
+| `reaction:👍` | Maintainer 👍 (VALID lean, no prose) |
+| `reaction:❤️` | Maintainer ❤️ (VALID lean, no prose) |
+| `reaction:🚀` | Maintainer 🚀 (VALID lean, no prose) |
+| `reaction:👎` | Maintainer 👎 (INVALID/decline lean, no prose) |
+| `reaction:😕` | Maintainer 😕 (INVALID/decline lean, no prose) |
+
+Reaction-sourced rows in the `Proposed Response` column include a
+"Confirm?" suffix so the approver knows the verdict needs validation
+before execution.
 
 **Priority column (Finding 2, GH-297).** Every row carries a
 `Priority` value so the batch plan no longer leaves defer-vs-handle

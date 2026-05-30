@@ -317,6 +317,7 @@ async def _list_unresolved_threads(
         "databaseId body path line "
         "author { login } "
         "pullRequestReview { databaseId } "
+        "reactionGroups { content users { totalCount } } "
         "} } "
         "} } } } }"
     )
@@ -337,14 +338,52 @@ async def _list_unresolved_threads(
             continue
         comments = thread.get("comments", {}).get("nodes", [])
         first = comments[0] if comments else {}
-        unresolved.append(
-            {
-                "thread_id": thread.get("id"),
-                "is_outdated": thread.get("isOutdated"),
-                **first,
-            }
-        )
+        normalized = {
+            "thread_id": thread.get("id"),
+            "is_outdated": thread.get("isOutdated"),
+            **first,
+        }
+        reaction_groups = normalized.pop("reactionGroups", None)
+        if reaction_groups is not None:
+            normalized["reactions"] = _normalize_reaction_groups(reaction_groups)
+        unresolved.append(normalized)
     return ok({"unresolved_threads": unresolved, "count": len(unresolved)})
+
+
+_REACTION_GROUP_CONTENT_TO_KEY: dict[str, str] = {
+    "THUMBS_UP": "+1",
+    "THUMBS_DOWN": "-1",
+    "LAUGH": "laugh",
+    "HOORAY": "hooray",
+    "CONFUSED": "confused",
+    "HEART": "heart",
+    "ROCKET": "rocket",
+    "EYES": "eyes",
+}
+
+
+def _normalize_reaction_groups(reaction_groups: list[dict[str, Any]]) -> dict[str, Any]:
+    """Convert GraphQL reactionGroups to the REST reactions dict shape.
+
+    The REST API returns:
+      {"reactions": {"+1": 2, "-1": 0, "laugh": 0, ..., "total_count": 3}}
+
+    The GraphQL API returns:
+      [{"content": "THUMBS_UP", "users": {"totalCount": 2}}, ...]
+
+    This normalises the GraphQL shape so callers always see the REST shape.
+    """
+    result: dict[str, Any] = {key: 0 for key in _REACTION_GROUP_CONTENT_TO_KEY.values()}
+    total = 0
+    for group in reaction_groups:
+        content = group.get("content", "")
+        count = group.get("users", {}).get("totalCount", 0)
+        key = _REACTION_GROUP_CONTENT_TO_KEY.get(content)
+        if key is not None:
+            result[key] = count
+            total += count
+    result["total_count"] = total
+    return result
 
 
 async def _pr_comment_reply(
