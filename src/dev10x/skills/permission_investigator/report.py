@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from dev10x.domain.common.allow_rule import AllowRule
 from dev10x.skills.permission_investigator.matrix import (
     Matrix,
     MatrixResult,
@@ -153,7 +154,4 @@ def _classify_rule(rule: str) -> tuple[PathPrefix | None, WildcardShape | None]:
 def _extract_path(rule: str) -> str | None:
     if "(" not in rule or not rule.endswith(")"):
         return None
-    inner = rule.split("(", 1)[1][:-1]
-    if ":" in inner:
-        inner = inner.split(":", 1)[0]
-    return inner
+    return AllowRule.parse(rule).inner_path

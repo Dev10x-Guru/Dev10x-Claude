@@ -19,7 +19,6 @@ If settings.json is omitted, uses ~/.claude/settings.local.json.
 If output.md is omitted, writes to stdout.
 """
 
-import fnmatch
 import json
 import os
 import re
@@ -28,6 +27,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TextIO
+
+from dev10x.domain.common.allow_rule import AllowRule, AllowRuleLoader
 
 TURN_RE = re.compile(
     r"^## Turn (\d+) \[([^\]]+)\] (USER|ASSISTANT)",
@@ -42,8 +43,6 @@ TOOL_INPUT_BLOCK_RE = re.compile(
 TOOL_RE = re.compile(r"^\*\*Tool: `([^`]+)`\*\*", re.MULTILINE)
 
 PERMISSION_TOOLS = {"Bash", "Read", "Write", "Edit"}
-
-ALLOW_RULE_RE = re.compile(r"^(\w+)\((.+)\)$")
 
 CHAIN_RE = re.compile(r"&&|;\s")
 SUBSHELL_RE = re.compile(r"\$\(")
@@ -94,13 +93,6 @@ class ToolCall:
         if self.tool.startswith("mcp__"):
             return self.tool
         return f"{self.tool}()"
-
-
-@dataclass
-class AllowRule:
-    tool: str
-    pattern: str
-    raw: str
 
 
 @dataclass
@@ -198,21 +190,11 @@ def parse_tool_calls(text: str) -> list[ToolCall]:
 
 
 def parse_allow_rules(settings_path: str) -> list[AllowRule]:
-    path = Path(settings_path)
-    if not path.exists():
-        return []
-
-    data = json.loads(path.read_text())
-    rules: list[AllowRule] = []
-
-    allow_list = data.get("permissions", {}).get("allow", [])
-    for entry in allow_list:
-        raw = entry if isinstance(entry, str) else str(entry)
-        m = ALLOW_RULE_RE.match(raw)
-        if m:
-            rules.append(AllowRule(tool=m.group(1), pattern=m.group(2), raw=raw))
-
-    return rules
+    return [
+        rule
+        for raw in AllowRuleLoader.load(settings_path)
+        if (rule := AllowRule.try_parse(raw)) and rule.pattern
+    ]
 
 
 def parse_additional_directories(settings_path: str) -> list[str]:
@@ -312,32 +294,10 @@ def detect_known_friction(
 
 
 def matches_allow_rule(tc: ToolCall, rules: list[AllowRule]) -> bool:
-    for rule in rules:
-        if rule.tool != tc.tool:
-            continue
-
-        pattern = rule.pattern
-        if tc.tool == "Bash":
-            if pattern.endswith(":*"):
-                prefix = pattern[:-2]
-                if tc.command.startswith(prefix):
-                    return True
-            elif pattern.endswith("*"):
-                prefix = pattern[:-1]
-                if tc.command.startswith(prefix):
-                    return True
-            elif tc.command == pattern:
-                return True
-        else:
-            target = tc.file_path or tc.command
-            if pattern.endswith("**"):
-                dir_prefix = pattern[:-2]
-                if target.startswith(dir_prefix):
-                    return True
-            elif fnmatch.fnmatch(target, pattern):
-                return True
-
-    return True if not rules else False
+    if not rules:
+        return True
+    signature = tc.signature()
+    return any(rule.matches(signature) for rule in rules)
 
 
 def classify_toxicity(command: str) -> str | None:

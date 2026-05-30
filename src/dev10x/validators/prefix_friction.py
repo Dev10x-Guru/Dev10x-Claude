@@ -11,7 +11,6 @@ allow-rule matching:
 
 from __future__ import annotations
 
-import json
 import os
 import re
 from dataclasses import dataclass, field
@@ -19,6 +18,7 @@ from typing import TYPE_CHECKING, ClassVar
 
 from dev10x.domain import HookInput, HookResult
 from dev10x.domain.claude_paths import ClaudeDir
+from dev10x.domain.common.allow_rule import AllowRule, AllowRuleLoader
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
 
@@ -226,15 +226,12 @@ MERGE_BASE_MSG = (
 def _load_all_allow_patterns() -> list[str]:
     patterns: list[str] = []
     for path in SETTINGS_FILES:
-        try:
-            with open(path) as f:
-                data = json.load(f)
-            for rule in data.get("permissions", {}).get("allow", []):
-                m = re.match(r"^Bash\((.+?)(?::\*)?\)$", rule)
-                if m:
-                    patterns.append(m.group(1))
-        except (FileNotFoundError, json.JSONDecodeError):
-            pass
+        for rule in AllowRuleLoader.rules(path):
+            if rule.tool == "Bash" and rule.pattern:
+                pattern = rule.pattern
+                if pattern.endswith(":*"):
+                    pattern = pattern[:-2]
+                patterns.append(pattern)
     return patterns
 
 
@@ -256,10 +253,8 @@ def _matches_allow_rule(
     segment: str,
     patterns: list[str],
 ) -> str | None:
-    expanded_seg = os.path.expanduser(segment)
     for pattern in patterns:
-        expanded_pat = os.path.expanduser(pattern)
-        if expanded_seg.startswith(expanded_pat) or segment.startswith(pattern):
+        if AllowRule.bash(pattern).covers_path(segment):
             return pattern
     return None
 
