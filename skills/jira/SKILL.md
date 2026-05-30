@@ -10,9 +10,16 @@ allowed-tools:
 
 ## Prerequisites
 
-Set the `JIRA_TENANT` env var to your Atlassian tenant name
-(e.g., `mycompany` for `mycompany.atlassian.net`). All scripts
-require it — there is no default.
+Supply your Atlassian tenant name (e.g., `mycompany` for
+`mycompany.atlassian.net`) one of two ways — there is no default:
+
+- **Per call (recommended):** pass `--tenant <name>` as the first
+  argument, e.g. `jira-get.sh --tenant mycompany PROJ-100`. The flag
+  binds the tenant as a command *argument*, so the
+  `Bash(.../scripts/:*)` allow rule still matches — no env-prefix
+  friction (GH-311).
+- **Session-wide:** set the `JIRA_TENANT` env var (used as the
+  fallback when `--tenant` is absent).
 
 Store credentials in the system keyring:
 ```bash
@@ -50,8 +57,18 @@ prefix, so **no** `Bash(.../scripts/jira-get.sh:*)` allow rule can
 ever match — every call hits the permission gate. This is the same
 prefix-shift class as the global "No env-var prefix on git" rule.
 
-**Instead, ship a wrapper script** that binds the tenant *inside* the
-command, so the wrapper's own path is what the allow rule matches:
+**For one-off or multi-tenant calls, pass `--tenant <name>` as the
+first argument** (see Prerequisites) — the tenant binds as a command
+argument, so the allow rule still matches and no wrapper is needed:
+
+```bash
+# ✅ Flag form — tenant is an argument, allow rule matches (GH-311)
+${CLAUDE_PLUGIN_ROOT}/skills/jira/scripts/jira-get.sh --tenant acme PROJ-1
+```
+
+**To bind a *fixed* tenant across many ops, ship a wrapper script**
+that sets the tenant *inside* the command, so the wrapper's own path
+is what the allow rule matches:
 
 ```bash
 # ✅ Wrapper script — tenant binding inside, one allow rule, no friction
