@@ -35,6 +35,11 @@ allowed-tools:
   - Bash(uvx dev10x permission investigate:*)
   - Bash(uvx dev10x permission record-upgrade:*)
   - Bash(uvx dev10x playbook diff:*)
+  # GH-307: version-check preflight
+  - Bash(claude plugin list:*)
+  - Bash(uv tool list:*)
+  - Read(~/.claude/memory/Dev10x/*)
+  - Write(~/.claude/memory/Dev10x/*)
   - Agent(Dev10x:permission-auditor)
   - AskUserQuestion
   - TaskCreate
@@ -54,8 +59,8 @@ settings and config files in shape."
 
 | Mode | Steps | When to use |
 |------|-------|-------------|
-| `bootstrap` | 2, 3, 5 | First-time setup; eliminate prompts on the demoed skill set without doing a full sweep |
-| `full` (default) | 1–8 | Post-upgrade; suspected permission friction; long-term maintenance |
+| `bootstrap` | version-check, 2, 3, 5 | First-time setup; eliminate prompts on the demoed skill set without doing a full sweep |
+| `full` (default) | version-check, 1–8 | Post-upgrade; suspected permission friction; long-term maintenance |
 
 `bootstrap` is intentionally fast and idempotent: ensure base
 permissions, migrate any leftover legacy config files, and confirm
@@ -83,32 +88,179 @@ on the mode. Execute these `TaskCreate` calls at startup:
 
 **Bootstrap mode:**
 
-1. `TaskCreate(subject="Migrate config files", activeForm="Migrating configs")`
-2. `TaskCreate(subject="Ensure workspace directories", activeForm="Registering workspace dirs")`
-3. `TaskCreate(subject="Ensure base permissions", activeForm="Ensuring base perms")`
-4. `TaskCreate(subject="Ensure script coverage", activeForm="Verifying script rules")`
-5. `TaskCreate(subject="Ensure read coverage", activeForm="Verifying Read rules")`
-
-**Full mode:**
-
-1. `TaskCreate(subject="Update version paths", activeForm="Updating paths")`
+1. `TaskCreate(subject="Check for newer version (plugin + uv tool)", activeForm="Checking versions")`
 2. `TaskCreate(subject="Migrate config files", activeForm="Migrating configs")`
 3. `TaskCreate(subject="Ensure workspace directories", activeForm="Registering workspace dirs")`
 4. `TaskCreate(subject="Ensure base permissions", activeForm="Ensuring base perms")`
-5. `TaskCreate(subject="Generalize session-specific permissions", activeForm="Generalizing perms")`
-6. `TaskCreate(subject="Enumerate MCP tool globs", activeForm="Enumerating MCP globs")`
-7. `TaskCreate(subject="Ensure script coverage", activeForm="Verifying script rules")`
-8. `TaskCreate(subject="Ensure read coverage", activeForm="Verifying Read rules")`
-9. `TaskCreate(subject="Merge worktree permissions", activeForm="Merging worktree perms")`
-10. `TaskCreate(subject="Audit permissions for friction", activeForm="Auditing permissions")`
-11. `TaskCreate(subject="Clean project files", activeForm="Cleaning project files")`
-12. `TaskCreate(subject="Run permission doctor", activeForm="Running doctor sweep")`
-13. `TaskCreate(subject="Diff user playbooks against defaults", activeForm="Diffing playbooks")`
+5. `TaskCreate(subject="Ensure script coverage", activeForm="Verifying script rules")`
+6. `TaskCreate(subject="Ensure read coverage", activeForm="Verifying Read rules")`
+
+**Full mode:**
+
+1. `TaskCreate(subject="Check for newer version (plugin + uv tool)", activeForm="Checking versions")`
+2. `TaskCreate(subject="Update version paths", activeForm="Updating paths")`
+3. `TaskCreate(subject="Migrate config files", activeForm="Migrating configs")`
+4. `TaskCreate(subject="Ensure workspace directories", activeForm="Registering workspace dirs")`
+5. `TaskCreate(subject="Ensure base permissions", activeForm="Ensuring base perms")`
+6. `TaskCreate(subject="Generalize session-specific permissions", activeForm="Generalizing perms")`
+7. `TaskCreate(subject="Enumerate MCP tool globs", activeForm="Enumerating MCP globs")`
+8. `TaskCreate(subject="Ensure script coverage", activeForm="Verifying script rules")`
+9. `TaskCreate(subject="Ensure read coverage", activeForm="Verifying Read rules")`
+10. `TaskCreate(subject="Merge worktree permissions", activeForm="Merging worktree perms")`
+11. `TaskCreate(subject="Audit permissions for friction", activeForm="Auditing permissions")`
+12. `TaskCreate(subject="Clean project files", activeForm="Cleaning project files")`
+13. `TaskCreate(subject="Run permission doctor", activeForm="Running doctor sweep")`
+14. `TaskCreate(subject="Diff user playbooks against defaults", activeForm="Diffing playbooks")`
 
 Set sequential dependencies. Mark each step `in_progress` when
 starting and `completed` when done. Steps that produce no
 changes (dry-run shows no diff) should still be marked
 `completed` with a note in the description.
+
+## Preflight: check for newer version (GH-307)
+
+Before any maintenance work, report installed vs latest for both
+the Claude Code plugin and the `dev10x` uv tool, and offer to
+update when either is behind.
+
+### Step 1: Read the preference file
+
+Try to load the saved update preference from
+`~/.claude/memory/Dev10x/plugin-maintenance-prefs.yaml`:
+
+```yaml
+# example
+update_preference: both   # both | plugin | uv | skip | ask
+```
+
+If the file exists and `update_preference` is set to anything
+other than `ask`, use that value to auto-skip the first
+`AskUserQuestion` gate (still show the version report, just
+apply the saved choice). If the file is absent or
+`update_preference: ask`, present the gate normally.
+
+### Step 2: Read latest advertised version
+
+Read the `version` field from the marketplace manifest:
+
+```
+~/.claude/plugins/marketplaces/<publisher>/<plugin>/.claude-plugin/plugin.json
+```
+
+Locate the manifest by globbing
+`~/.claude/plugins/marketplaces/*/*/.claude-plugin/plugin.json`
+and filtering for the Dev10x plugin (check the `name` field).
+Parse `version` as the "latest advertised" version.
+
+If the manifest is not found, skip the plugin version check and
+note "marketplace manifest not found".
+
+### Step 3: Read installed plugin version
+
+Run:
+
+```bash
+claude plugin list
+```
+
+Parse the output for the Dev10x plugin entry. Extract both the
+installed version **and the install scope** (`local` or `user` —
+the scope is required for the correct `claude plugin update`
+invocation). If the entry is absent, note "plugin not installed".
+
+### Step 4: Read uv tool version
+
+Run:
+
+```bash
+uv tool list
+```
+
+Parse the output for the `dev10x` entry and extract its version.
+If absent, note "uv tool not installed".
+
+### Step 5: Display version report
+
+Always display a concise version report before prompting:
+
+```
+Version check
+  Plugin (marketplace latest): 0.75.0
+  Plugin (installed):          0.74.0  ← behind
+  uv tool dev10x:              0.73.0  ← behind
+```
+
+If both are current, display the table with "✓ up to date" and
+skip to the next maintenance step — no prompt needed.
+
+### Step 6: Prompt to update (when behind)
+
+If either surface is behind, **REQUIRED: Call `AskUserQuestion`**
+(do NOT use plain text). Apply the saved preference from Step 1
+instead of prompting when `update_preference` is set.
+
+```
+AskUserQuestion(questions=[{
+  question: "One or more Dev10x surfaces are behind the latest version.\nHow would you like to proceed?",
+  header: "Version update",
+  options: [
+    {label: "Update both (Recommended)",
+     description: "claude plugin update + uv tool upgrade dev10x"},
+    {label: "Plugin only",
+     description: "claude plugin update <plugin>@<marketplace>"},
+    {label: "uv tool only",
+     description: "uv tool upgrade dev10x"},
+    {label: "Skip",
+     description: "Continue maintenance without updating"}
+  ],
+  multiSelect: false
+}])
+```
+
+**Execute the chosen update(s):**
+
+- **Plugin update:** Run `claude plugin update` using the scope
+  detected in Step 3 (e.g., `claude plugin update Dev10x@Dev10x-Guru`
+  for user-scoped installs, or with `--local` for local-scoped).
+  After a successful plugin update, surface this hint:
+  > **Restart required** — the running Claude session keeps the
+  > cached skill content until restart. Reload Claude Code to load
+  > the new plugin version.
+
+- **uv tool update:** Run `uv tool upgrade dev10x`.
+
+### Step 7: Remember the decision
+
+After the user makes a choice in Step 6, **REQUIRED: Call
+`AskUserQuestion`** (do NOT use plain text):
+
+```
+AskUserQuestion(questions=[{
+  question: "Remember this choice for future maintenance sessions?",
+  header: "Save preference",
+  options: [
+    {label: "Yes, remember for future sessions (Recommended)",
+     description: "Saves preference to ~/.claude/memory/Dev10x/plugin-maintenance-prefs.yaml"},
+    {label: "No, ask me each time",
+     description: "Preference is not saved"}
+  ],
+  multiSelect: false
+}])
+```
+
+If the user chooses to remember: write the chosen preference to
+`~/.claude/memory/Dev10x/plugin-maintenance-prefs.yaml`:
+
+```yaml
+# Written by Dev10x:plugin-maintenance (GH-307)
+# Valid values: both | plugin | uv | skip | ask
+update_preference: <choice>
+```
+
+The `ask` value means "always prompt, never auto-apply" and is
+the effective default when the file is absent.
+
+---
 
 ## Preflight: ensure `uv` (and `uvx`) is installed (GH-269)
 
@@ -146,7 +298,8 @@ on-disk location does not change with the rename.)
 
 ## Workflow
 
-The numbered headings below match the **full** mode task list.
+The numbered headings below (1–13) match the **full** mode task
+list steps 2–14 (after the version-check preflight).
 In `bootstrap` mode, run only the steps marked **[bootstrap]**.
 
 ### 1. Update version paths *(full only)*
