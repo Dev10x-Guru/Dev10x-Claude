@@ -15,6 +15,8 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from dev10x.domain.common.allow_rule import AllowRule
+
 # Project-internal paths skip clustering — they're already covered
 # by the project root and don't need user-wide allow rules.
 PROJECT_ROOT_MARKERS = ("/work/", "/src/", "/.worktrees/")
@@ -116,11 +118,11 @@ def propose_patch(*, cluster: PathCluster) -> CoveragePatch:
         additional_directory=ancestor,
         placement=placement,
         rules=[
-            f"Read({ancestor}/**)",
-            f"Write({ancestor}/**)",
-            f"Edit({ancestor}/**)",
-            f"Bash(find {ancestor}:*)",
-            f"Bash(ls {ancestor}:*)",
-            f"Bash(grep -r {ancestor}:*)",
+            str(AllowRule.read(f"{ancestor}/**")),
+            str(AllowRule.write(f"{ancestor}/**")),
+            str(AllowRule.edit(f"{ancestor}/**")),
+            str(AllowRule.bash(f"find {ancestor}:*")),
+            str(AllowRule.bash(f"ls {ancestor}:*")),
+            str(AllowRule.bash(f"grep -r {ancestor}:*")),
         ],
     )
