@@ -46,6 +46,44 @@ class TestGeneralizePermission:
 
         assert result == "Write(/tmp/Dev10x/git/*)"
 
+    def test_generalizes_quoted_json_blob_arg(self) -> None:
+        """GH-315: single quoted JSON-blob arg must collapse to Bash(<script>:*).
+
+        The argument contains colons (e.g. ``"week":"2026-W21"``).  The old
+        ``[^):]+`` pattern stopped at the first colon, leaving a malformed
+        ``Bash(<script>:*:<rest>)`` rule that Claude Code rejects at load time.
+        """
+        entry = (
+            "Bash(~/.claude/tools/append-weekly-history.py"
+            ' \'{"week":"2026-W21","start":"2026-05-18","reviews":13}\')'
+        )
+
+        result = update_paths.generalize_permission(entry)
+
+        assert result == "Bash(~/.claude/tools/append-weekly-history.py:*)"
+
+    @pytest.mark.parametrize(
+        "entry,expected",
+        [
+            (
+                "Bash(~/.claude/tools/my-script.sh --flag value)",
+                "Bash(~/.claude/tools/my-script.sh:*)",
+            ),
+            (
+                "Bash(~/.claude/tools/my-script.py arg1 arg2)",
+                "Bash(~/.claude/tools/my-script.py:*)",
+            ),
+        ],
+    )
+    def test_generalizes_script_with_args_no_colon(
+        self,
+        entry: str,
+        expected: str,
+    ) -> None:
+        result = update_paths.generalize_permission(entry)
+
+        assert result == expected
+
 
 class TestGeneralizePermissions:
     @pytest.fixture()
