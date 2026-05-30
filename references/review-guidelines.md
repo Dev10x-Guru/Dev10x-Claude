@@ -276,37 +276,5 @@ with real branch-state consequences. Auto-advancing past this gate
 at `adaptive` would push commits the reviewer never explicitly
 authorized. The gate is the guardrail, not friction.
 
-### Criteria for courtesy-fixable
-
-A finding is courtesy-fixable only when ALL hold:
-1. Mechanical — no design judgement; fix is unambiguous
-2. Small and localized — fits in a diff hunk or two
-3. Low risk of author disagreement — pure cleanup or an already-
-   enforced project convention
-4. Not already defended — the author has not pushed back on this
-   pattern in this PR or any prior review cycle
-
-Examples of courtesy-fixable changes:
-- Removing self-evident or redundant inline comments
-- Extracting an explaining variable to reduce nesting
-- Deleting unused imports or dead code
-- Trivial clarity renames mandated by project conventions
-
-Examples that are **NOT** courtesy-fixable:
-- Any change involving architectural trade-offs
-- Changes to public API contracts or data shapes
-- Anything the author defended ("this is intentional")
-- Large or cross-file refactors
-
-### Reply framing
-
-After pushing, reply in the thread:
-
-> Fixed in [`{short_hash}`]({pr_commit_url}) · [permalink]({permalink})
-> — {brief explanation}. Feel free to amend or drop.
-
-The phrase "feel free to amend or drop" is required — the author
-retains final say over every change pushed by a reviewer.
-
-**Do NOT resolve the thread** after pushing. Leave it open for the
-author to close once they have reviewed the fixup commit.
+See [`references/courtesy-fixup-disposition.md`](courtesy-fixup-disposition.md)
+for criteria, examples, reply framing, and the required "feel free to amend or drop" language.
