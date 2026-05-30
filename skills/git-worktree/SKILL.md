@@ -224,6 +224,13 @@ Source: [`templates/post-checkout-python-uv.sh`](./templates/post-checkout-pytho
 Copies `.env`, `development.secrets.env`, `.claude/` (excluding WIP), `.idea/`,
 and runs `uv sync`.
 
+**After creating a Python/uv worktree**, run `Dev10x:ide-normalize` to fix
+stale PyCharm `.idea/` module-name references, disable
+`ADD_CONTENT_ROOTS` / `ADD_SOURCE_ROOTS` flags (which conflict with editable
+installs — see [PEP 660 / PYTHONPATH conflict](../ide-normalize/references/pep660-pythonpath-conflict.md)),
+and detect the PyCharm uv-SDK `FLAVOR_DATA` gap that causes `ModuleNotFoundError`
+on first launch.
+
 ### Template B: Node.js + Husky (write to `.husky/post-checkout`)
 
 Source: [`templates/post-checkout-node-husky.sh`](./templates/post-checkout-node-husky.sh)
@@ -280,3 +287,24 @@ Common failure causes:
 - Husky v4 hooks require `node_modules` (see Step A1b)
 - Yarn Berry needs `--immutable` not `--frozen-lockfile`
 - Hook file not executable (ensure `chmod +x` after writing)
+
+### PyCharm Crashes After Opening a New Worktree
+
+**Symptom**: `uv run /full/path/.venv/bin/python manage.py …` crashes with
+`ModuleNotFoundError: No module named 'collections.abc'`.
+
+**Causes** (may be compounding):
+
+1. **PyCharm uv-SDK FLAVOR_DATA gap** — PyCharm auto-creates an SDK entry
+   with empty `FLAVOR_DATA="{}"`, missing `UV_VENV_PATH` / `UV_TOOL_PATH`.
+   Result: PyCharm constructs the wrong launch command. Fix: run
+   `Dev10x:ide-normalize` (Step 5) or follow the manual recipe in
+   [`../ide-normalize/references/pycharm-uv-sdk-gap.md`](../ide-normalize/references/pycharm-uv-sdk-gap.md).
+
+2. **ADD_CONTENT_ROOTS / ADD_SOURCE_ROOTS injecting PYTHONPATH** — These
+   run-config defaults activate `sitecustomize` bootstrappers (New Relic,
+   DataDog APM, etc.) that crash under uv-managed Python. Fix: run
+   `Dev10x:ide-normalize` (Step 3) to set both flags to `false`.
+   Background: [`../ide-normalize/references/pep660-pythonpath-conflict.md`](../ide-normalize/references/pep660-pythonpath-conflict.md).
+
+**Quick fix**: `Dev10x:ide-normalize` addresses both causes.
