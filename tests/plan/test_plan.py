@@ -32,7 +32,9 @@ class TestSetContext:
         mock_plan_cls: MagicMock,
         mock_plan_path: MagicMock,
         mock_toplevel: MagicMock,
+        tmp_path: Path,
     ) -> None:
+        mock_plan_path.return_value = tmp_path / "plan.yaml"
         mock_plan = MagicMock()
         mock_plan_cls.load.return_value = mock_plan
         result = await plan_mod.set_context(args=["no-equals-sign"])
@@ -47,7 +49,9 @@ class TestSetContext:
         mock_plan_cls: MagicMock,
         mock_plan_path: MagicMock,
         mock_toplevel: MagicMock,
+        tmp_path: Path,
     ) -> None:
+        mock_plan_path.return_value = tmp_path / "plan.yaml"
         mock_plan = MagicMock()
         mock_plan.context_keys.return_value = ["key"]
         mock_plan_cls.load.return_value = mock_plan
