@@ -32,4 +32,6 @@ async def query(
 
 
 def main() -> None:
-    server.run()
+    from dev10x.mcp.transport import select_transport
+
+    server.run(transport=select_transport())

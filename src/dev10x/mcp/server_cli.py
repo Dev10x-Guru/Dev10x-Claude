@@ -42,4 +42,6 @@ from dev10x.mcp.plan_tools import *  # noqa: E402, F401, F403
 
 
 def main() -> None:
-    server.run()
+    from dev10x.mcp.transport import select_transport
+
+    server.run(transport=select_transport())
