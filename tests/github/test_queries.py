@@ -197,7 +197,7 @@ class TestBatchFindPrs:
         async def _fake_gh_api(*args, **kwargs):
             return _Proc()
 
-        with patch("dev10x.github._gh_api", side_effect=_fake_gh_api):
+        with patch("dev10x.github._gh_api_raw", side_effect=_fake_gh_api):
             result = await batch_find_prs(numbers=[1], repo="org/repo")
 
         assert isinstance(result, SuccessResult)
@@ -213,7 +213,7 @@ class TestBatchFindPrs:
         async def _fake_gh_api(*args, **kwargs):
             return _Proc()
 
-        with patch("dev10x.github._gh_api", side_effect=_fake_gh_api):
+        with patch("dev10x.github._gh_api_raw", side_effect=_fake_gh_api):
             result = await batch_find_prs(numbers=[1, 2], repo="org/repo")
 
         assert isinstance(result, ErrorResult)
@@ -229,7 +229,7 @@ class TestBatchFindPrs:
         async def _fake_gh_api(*args, **kwargs):
             return _Proc()
 
-        with patch("dev10x.github._gh_api", side_effect=_fake_gh_api):
+        with patch("dev10x.github._gh_api_raw", side_effect=_fake_gh_api):
             result = await batch_find_prs(numbers=[1], repo="org/repo")
 
         assert isinstance(result, ErrorResult)

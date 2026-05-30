@@ -601,7 +601,7 @@ class TestPrCommentReply:
         mock_api: AsyncMock,
         mock_resolve_repo: AsyncMock,
     ) -> None:
-        mock_api.return_value = _completed(stdout=json.dumps({"id": 999}))
+        mock_api.return_value = ok({"id": 999})
 
         result = await cli_server.pr_comment_reply(
             pr_number=42,
@@ -620,7 +620,7 @@ class TestPrCommentReply:
         mock_api: AsyncMock,
         mock_resolve_repo: AsyncMock,
     ) -> None:
-        mock_api.return_value = _completed(returncode=1, stderr="Not Found")
+        mock_api.return_value = err("Not Found")
 
         result = await cli_server.pr_comment_reply(
             pr_number=42,
@@ -727,7 +727,7 @@ class TestCreatePrMcp:
 
 class TestUpdatePrMcp:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gh_api", new_callable=AsyncMock)
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
     async def test_updates_body(
         self,
         mock_api: AsyncMock,

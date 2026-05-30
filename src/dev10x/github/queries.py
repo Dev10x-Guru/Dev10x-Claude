@@ -162,11 +162,11 @@ async def batch_find_prs(
     if not numbers:
         return ok({})
 
-    from dev10x.github import _gh_api
+    from dev10x.github import _gh_api_raw
 
     repo_ref = RepositoryRef.parse(repo)
     query = PRStatusQuery(repo=repo_ref).for_prs(numbers=numbers)
-    result = await _gh_api("graphql", fields={"query": query})
+    result = await _gh_api_raw("graphql", fields={"query": query})
     if result.returncode != 0:
         return err(result.stderr.strip())
     try:

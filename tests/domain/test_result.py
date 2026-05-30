@@ -1,6 +1,6 @@
 import pytest
 
-from dev10x.domain.common.result import ErrorResult, SuccessResult, err, ok
+from dev10x.domain.common.result import ErrorResult, ResultProtocol, SuccessResult, err, ok
 
 
 class TestOk:
@@ -14,9 +14,17 @@ class TestOk:
     def test_to_dict_with_dict_value(self, result: SuccessResult[dict]) -> None:
         assert result.to_dict() == {"key": "value"}
 
-    def test_to_dict_with_non_dict_value(self) -> None:
-        result = ok("simple")
-        assert result.to_dict() == {"value": "simple"}
+    def test_to_dict_returns_copy(self, result: SuccessResult[dict]) -> None:
+        # ADR-0009: to_dict returns a fresh dict, not the wrapped object.
+        assert result.to_dict() == {"key": "value"}
+        assert result.to_dict() is not result.value
+
+    def test_to_dict_rejects_non_mapping(self) -> None:
+        # ADR-0009: a SuccessResult reaching the MCP boundary must wrap a
+        # Mapping; a non-Mapping value now fails loud rather than silently
+        # producing {"value": ...} via a runtime isinstance branch.
+        with pytest.raises((TypeError, ValueError)):
+            ok("simple").to_dict()
 
     def test_is_success_result(self, result: SuccessResult[dict]) -> None:
         assert isinstance(result, SuccessResult)
@@ -57,3 +65,16 @@ class TestFrozen:
         result = err("fail")
         with pytest.raises(AttributeError):
             result.error = "other"  # type: ignore[misc]
+
+
+class TestResultProtocol:
+    """ADR-0009: the MCP boundary can assert against ResultProtocol."""
+
+    def test_success_satisfies_protocol(self) -> None:
+        assert isinstance(ok({"a": 1}), ResultProtocol)
+
+    def test_error_satisfies_protocol(self) -> None:
+        assert isinstance(err("x"), ResultProtocol)
+
+    def test_object_without_to_dict_does_not_satisfy(self) -> None:
+        assert not isinstance(object(), ResultProtocol)

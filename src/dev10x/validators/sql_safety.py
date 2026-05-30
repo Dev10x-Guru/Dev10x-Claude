@@ -12,7 +12,7 @@ import os
 import re
 import shlex
 from dataclasses import dataclass
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from dev10x.domain import HookInput, HookResult
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
@@ -133,11 +133,11 @@ def _extract_sql_from_command(command: str) -> str | None:
 _SINGLE_QUOTED_RE = re.compile(r"'[^']*'")
 
 
-def _validate_sql(sql: str) -> Result[str]:
+def _validate_sql(sql: str) -> Result[dict[str, Any]]:
     stripped = sql.strip().rstrip(";").strip()
 
     if not stripped:
-        return ok("")
+        return ok({})
 
     without_strings = _SINGLE_QUOTED_RE.sub("", stripped)
     if ";" in without_strings:
@@ -163,7 +163,7 @@ def _validate_sql(sql: str) -> Result[str]:
             f"Blocked SQL:\n{sql}"
         )
 
-    return ok("")
+    return ok({})
 
 
 @dataclass

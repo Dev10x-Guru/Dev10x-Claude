@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from dev10x.domain import HookInput, HookResult
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
@@ -160,12 +160,12 @@ def _strip_prefix(title: str) -> str:
     return desc
 
 
-def _check_jtbd(title: str) -> Result[str]:
+def _check_jtbd(title: str) -> Result[dict[str, Any]]:
     desc = _strip_prefix(title)
     match = VERB_RE.match(desc)
     if match:
         return err(match.group(1))
-    return ok("")
+    return ok({})
 
 
 @dataclass

@@ -20,8 +20,10 @@ import pytest
 from dev10x.subprocess_utils import get_plugin_root
 
 
-def _server_cli_path() -> Path:
-    return get_plugin_root() / "src" / "dev10x" / "mcp" / "server_cli.py"
+def _server_cli_tool_paths() -> list[Path]:
+    """Return all per-domain tool modules for the CLI server (GH-243/A6)."""
+    mcp_dir = get_plugin_root() / "src" / "dev10x" / "mcp"
+    return sorted(mcp_dir.glob("*_tools.py"))
 
 
 def _is_server_tool(decorator: ast.expr) -> bool:
@@ -66,13 +68,14 @@ def _body_uses_use_cwd(node: ast.AsyncFunctionDef) -> bool:
 
 
 def _server_tool_handlers() -> list[ast.AsyncFunctionDef]:
-    tree = ast.parse(_server_cli_path().read_text())
     handlers: list[ast.AsyncFunctionDef] = []
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.AsyncFunctionDef):
-            continue
-        if any(_is_server_tool(dec) for dec in node.decorator_list):
-            handlers.append(node)
+    for path in _server_cli_tool_paths():
+        tree = ast.parse(path.read_text())
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.AsyncFunctionDef):
+                continue
+            if any(_is_server_tool(dec) for dec in node.decorator_list):
+                handlers.append(node)
     return handlers
 
 
