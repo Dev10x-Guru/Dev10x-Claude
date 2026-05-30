@@ -151,8 +151,10 @@ base_permissions:
   - "Read(.claude/Dev10x/**)"
   - "Write(.claude/Dev10x/**)"
   - "Edit(.claude/Dev10x/**)"
-  - "Bash(grep:*~/.claude/memory/Dev10x/**)"
-  - "Bash(grep:*~/.claude/plugins/cache/Dev10x-Guru/**)"
+  # GH-315: the two Bash(grep:*<path>) rules below were removed.
+  # Claude Code rejects :* in a non-trailing position ("The :* pattern
+  # must be at the end"). They were also redundant — Bash(grep:*)
+  # already covers all grep invocations.
 
   # --- Dev10x MCP tools: cli server (GH-878) ---
   - "mcp__plugin_Dev10x_cli__detect_tracker"

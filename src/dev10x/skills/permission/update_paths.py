@@ -12,6 +12,17 @@ Config lookup order (post-GH-215):
   3. ${CLAUDE_PLUGIN_ROOT}/skills/upgrade-cleanup/projects.yaml (plugin default)
 
 CLI entry point: ``dev10x permission update-paths`` (and siblings).
+
+GH-315 Bug C (deferred): ``merge-worktree`` and ``clean`` read
+``~/.config/Dev10x/upgrade-cleanup-projects.yaml`` (USERSPACE_CONFIG),
+while all other subcommands (``update-paths``, ``ensure-base``,
+``generalize``, ``ensure-reads``, ``ensure-scripts``,
+``ensure-workspace``, ``enumerate-mcp``) read
+``~/.config/Dev10x/projects.yaml`` (MEMORY_CONFIG). Both files
+contain a ``roots`` / ``plugin_cache`` section; ``merge-worktree``
+and ``clean`` do not consume ``base_permissions``, so the split is
+currently harmless. Consolidate both commands to read MEMORY_CONFIG
+in a follow-up ticket so the two files do not drift.
 """
 
 import json
@@ -648,7 +659,7 @@ GENERALIZE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"(gh-pr-detect\.sh)\s+[^)]+"), r"\1:*"),
     (re.compile(r"(generate-commit-list\.sh)\s+[^)]+"), r"\1:*"),
     (re.compile(r"(extract-session\.sh)\s+[^)]+"), r"\1:*"),
-    (re.compile(r"(\.(?:sh|py))\s+[^):]+(?::\*)?"), r"\1:*"),
+    (re.compile(r"(\.(?:sh|py))\s+[^)]+"), r"\1:*"),
     (re.compile(r"(/tmp/Dev10x/[^/]+/)[^/)]+\.[A-Za-z0-9]{6,}\.(txt|md|json)"), r"\1*"),
     (re.compile(r"(git reset --hard) origin/\S+"), r"\1"),
     (re.compile(r"(git reset --soft) [A-Fa-f0-9]{6,}"), r"\1"),
