@@ -5,6 +5,8 @@ description: >
   Fetches PR diff, reads changed files, checks for interface impact,
   applies project review guidelines, and posts a review to GitHub.
   Supports Draft (PENDING) and submitted review modes via Step 8a gate.
+  Supports courtesy-fixup disposition: mechanical, unambiguous findings
+  may be pushed as fixup! commits with reviewer consent (Step 5b/6b).
   TRIGGER when: reviewing an external PR and posting review comments.
   DO NOT TRIGGER when: reviewing own branch changes before PR creation
   (use Dev10x:review), or PR does not exist yet.
@@ -54,17 +56,17 @@ Never pause between steps to ask "should I continue?".
 1. `TaskCreate(subject="Fetch PR diff", activeForm="Fetching PR context")`
 2. `TaskCreate(subject="Run spec compliance gate", activeForm="Checking spec compliance")`
 3. `TaskCreate(subject="Review changes", activeForm="Reviewing changes")`
-4. `TaskCreate(subject="Choose draft or submit", activeForm="Selecting review mode")`
-5. `TaskCreate(subject="Post findings", activeForm="Posting review")`
+4. `TaskCreate(subject="Classify and push courtesy fixes", activeForm="Classifying findings")`
+5. `TaskCreate(subject="Choose draft or submit", activeForm="Selecting review mode")`
+6. `TaskCreate(subject="Post findings", activeForm="Posting review")`
 
 Set sequential dependencies: spec gate blocked by fetch, review
-blocked by spec gate, draft gate blocked by review, post blocked
-by draft gate.
+blocked by spec gate, courtesy-fix classification blocked by review,
+draft gate blocked by classification, post blocked by draft gate.
 
-No user decision gates before Step 8a. All review decisions (what
-to flag, severity) are made by applying `review-guidelines.md` and
-`review-checks-common.md`. The Step 8a gate is the single user
-interaction point.
+User interaction points: Step 6b (courtesy-fixup scope gate,
+ALWAYS_ASK — fires at all friction levels) and Step 8a (draft vs
+submit gate). All other review decisions are automated.
 
 ## Workflow
 
@@ -199,6 +201,93 @@ Apply the **False Positive Prevention Gate** (defined in
 3. Quality improvement or just preference?
 
 If the gate fails any criterion, do not file the comment.
+
+### Step 5b: Courtesy-Fixup Classification (GH-323)
+
+After the False Positive Prevention Gate, classify each surviving
+finding as one of two dispositions:
+
+**Courtesy-fixable** — ALL of the following must hold:
+- **Mechanical**: no design judgement required; the fix is
+  unambiguous given existing conventions
+- **Small and localized**: the change fits in a diff hunk or two
+  (rough guide: ≤ 15 lines across ≤ 3 files)
+- **Low risk of author disagreement**: purely cleanup or a
+  convention the project already enforces. Examples: removing
+  redundant/self-evident comments; extracting explaining variables
+  to reduce excessive nesting; removing dead code or unused
+  imports; trivial clarity renames already mandated by conventions
+- **Not already pushed back on**: the author has not defended
+  this pattern in a comment on this PR or a prior review cycle
+
+**Leave for author** — everything else: architectural choices,
+behavioral changes, debatable trade-offs, contract-touching edits,
+large or multi-file refactors, or anything the author has already
+defended. This is the current default behavior.
+
+Build two lists:
+- `courtesy_fixes`: findings classified as courtesy-fixable
+- `author_comments`: findings to post as inline comments
+
+### Step 6b: Courtesy-Fixup Scope Gate (GH-323)
+
+**Skip entirely when `courtesy_fixes` is empty** — no gate, no
+action, proceed directly to Step 6.
+
+**REQUIRED: Call `AskUserQuestion`** when `courtesy_fixes` is
+non-empty (ALWAYS_ASK — fires at ALL friction levels including
+`adaptive`). Pushing to another author's branch is outward-facing
+and requires explicit reviewer consent regardless of session mode.
+
+Present the full batch:
+
+```
+AskUserQuestion(questions=[{
+  question: "Found N courtesy-fixable finding(s). Push them as
+    fixup! commits?\n\n<findings_list>",
+  header: "Courtesy fixups",
+  options: [
+    {
+      label: "Push all (Recommended)",
+      description: "Create and push fixup! commits for all listed
+        findings, then reply in each thread linking the commit."
+    },
+    {
+      label: "Pick individually",
+      description: "Decide per-finding (asks N more questions)."
+    },
+    {
+      label: "Skip — leave all for author",
+      description: "Post all as inline comments only (current
+        behavior)."
+    }
+  ],
+  multiSelect: false
+}])
+```
+
+The `<findings_list>` placeholder is a numbered markdown list:
+`N. \`file.py:LINE\` — one-sentence description of the fix`.
+
+**Per-finding mode** ("Pick individually"): for each finding in
+`courtesy_fixes`, call `AskUserQuestion` with options "Push fixup"
+and "Leave as comment". Move un-approved findings into
+`author_comments`.
+
+**After the gate:**
+
+For each approved courtesy fix, invoke `Dev10x:gh-pr-fixup` to
+implement the change, create the `fixup!` commit, push, and reply
+in the thread. The reply MUST be framed as a courtesy — include
+the phrase "feel free to amend or drop" so the author retains
+final say.
+
+**Do NOT auto-resolve the review thread** after pushing. Leave it
+open for the author to review and close.
+
+Move courtesy-fixed findings OUT of `author_comments` — do not
+post them as inline comments too (that would duplicate the
+feedback).
 
 ### Step 6: Draft Review
 
