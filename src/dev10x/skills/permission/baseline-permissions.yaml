@@ -367,6 +367,27 @@ groups:
 
   # ─── TIER 3 ─────────────────────────────────────────────────────────
 
+  sudo-apt:
+    tier: 3
+    description: >
+      Escape valve (GH-326) for users who routinely run package management
+      under sudo. NOT shipped by default — `sudo` is denied for any shape in
+      the privilege-escalation tier (see base_denies in projects.yaml).
+      Enabling this group is a two-step operation, because deny-first
+      precedence means these narrow allows alone cannot override the blanket
+      `Bash(sudo:*)` deny: the permission doctor must first narrow that deny
+      (drop `Bash(sudo:*)` / `Bash(sudo *)`, keep the destructive shapes such
+      as `Bash(sudo -n *)` and `Bash(sudo rm:*)`), then seed these rules.
+      Scope stays limited to apt/apt-get package management — never a blanket
+      sudo allow.
+    rules:
+      - Bash(sudo apt update:*)
+      - Bash(sudo apt-get update:*)
+      - Bash(sudo apt install:*)
+      - Bash(sudo apt-get install:*)
+      - Bash(sudo apt upgrade:*)
+      - Bash(sudo apt-get upgrade:*)
+
   media-and-format:
     tier: 3
     description: Image/video/PDF tooling. Opt-in for content/design workflows.
