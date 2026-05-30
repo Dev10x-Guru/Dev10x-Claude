@@ -22,11 +22,18 @@ from pathlib import Path
 # `mcp__plugin_Dev10x_cli_*`, `mcp__<family>__*`, etc.
 MCP_WILDCARD_RE = re.compile(r"^mcp__[A-Za-z0-9_]+\*$")
 
-# MCP server registration file convention — one per registered server.
-# Each file holds @server.tool() registrations we want to enumerate.
-_SERVER_FILES = {
-    "Dev10x_cli": "src/dev10x/mcp/server_cli.py",
-    "Dev10x_db": "src/dev10x/mcp/server_db.py",
+# MCP server registration file convention.
+# For the cli server, all handlers live in per-domain modules (GH-243/A6).
+# Each entry maps a plugin server key to one or more relative file paths.
+_SERVER_FILES: dict[str, list[str]] = {
+    "Dev10x_cli": [
+        "src/dev10x/mcp/github_tools.py",
+        "src/dev10x/mcp/git_tools.py",
+        "src/dev10x/mcp/plan_tools.py",
+        "src/dev10x/mcp/audit_tools.py",
+        "src/dev10x/mcp/misc_tools.py",
+    ],
+    "Dev10x_db": ["src/dev10x/mcp/server_db.py"],
 }
 
 
@@ -85,8 +92,10 @@ def discover_mcp_tools(*, root: Path | None = None) -> dict[str, list[str]]:
     """
     root = root or plugin_root()
     catalog: dict[str, list[str]] = {}
-    for server, rel_path in _SERVER_FILES.items():
-        names = _parse_tool_names(root / rel_path)
+    for server, rel_paths in _SERVER_FILES.items():
+        names: list[str] = []
+        for rel_path in rel_paths:
+            names.extend(_parse_tool_names(root / rel_path))
         if not names:
             continue
         server_key = server.split("_", 1)[1] if "_" in server else server

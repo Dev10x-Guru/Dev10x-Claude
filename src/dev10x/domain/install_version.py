@@ -20,9 +20,11 @@ import json
 import os
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import yaml
 
+from dev10x.domain.common.result import Result, err, ok
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 
 
@@ -81,6 +83,21 @@ def write_applied_version(
     payload = {"plugin_version": plugin_version, "upgraded_at": timestamp}
     path.write_text(yaml.safe_dump(payload, sort_keys=True))
     return path
+
+
+def record_upgrade(*, version: str | None = None) -> Result[dict[str, Any]]:
+    """Record the currently-installed plugin version as applied.
+
+    Resolves ``version`` (or the manifest version when omitted) and
+    writes it to ``~/.claude/Dev10x/version.yml`` so the SessionStart
+    install-check stops emitting upgrade prompts. Returns an error
+    Result when no version can be resolved (ADR-0009).
+    """
+    resolved = version or read_plugin_version()
+    if resolved is None:
+        return err("Could not resolve plugin version from plugin.json")
+    path = write_applied_version(plugin_version=resolved)
+    return ok({"version": resolved, "path": str(path)})
 
 
 def install_state() -> InstallState:
@@ -153,5 +170,6 @@ __all__ = [
     "install_state",
     "read_applied_version",
     "read_plugin_version",
+    "record_upgrade",
     "write_applied_version",
 ]

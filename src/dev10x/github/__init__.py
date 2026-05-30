@@ -36,7 +36,7 @@ async def _detect_repo() -> str | None:
     return None
 
 
-async def _gh_api(
+async def _gh_api_raw(
     endpoint: str,
     *,
     method: str = "GET",
@@ -63,6 +63,36 @@ async def _gh_api(
 
     env = await _bot_env(repo=repo) if as_bot and repo else None
     return await async_run(args=args, timeout=30, env=env)
+
+
+async def _gh_api(
+    endpoint: str,
+    *,
+    method: str = "GET",
+    fields: dict[str, str | int | list[str]] | None = None,
+    jq: str | None = None,
+    repo: str | None = None,
+    as_bot: bool = False,
+) -> Result[dict[str, Any]]:
+    """Call ``gh api`` and enforce the Result[dict] contract centrally.
+
+    Wraps :func:`_gh_api_raw` through :func:`_parse_gh_api_result` so
+    JSON parsing and error handling live in one place rather than
+    being repeated at every call site (ADR-0009, finding I8). Callers
+    that need the raw ``CompletedProcess`` — custom GraphQL error
+    handling or ``--jq`` scalar extraction — call :func:`_gh_api_raw`
+    directly.
+    """
+    return _parse_gh_api_result(
+        await _gh_api_raw(
+            endpoint,
+            method=method,
+            fields=fields,
+            jq=jq,
+            repo=repo,
+            as_bot=as_bot,
+        )
+    )
 
 
 async def _bot_env(*, repo: str) -> dict[str, str] | None:
@@ -231,7 +261,7 @@ async def _pr_comment_get(
     if comment_id is None:
         return err("comment_id required for 'get' action")
     result = await _gh_api(f"repos/{resolved_repo}/pulls/comments/{comment_id}")
-    return _parse_gh_api_result(result)
+    return result
 
 
 async def _pr_comment_list(
@@ -252,13 +282,18 @@ async def _pr_comment_list(
     result = await _gh_api(
         f"repos/{resolved_repo}/pulls/{pr_number}/comments?per_page=100",
     )
-    parsed = _parse_gh_api_result(result)
-    if isinstance(parsed, ErrorResult) or review_id is None:
-        return parsed
-    if isinstance(parsed.value, list):
-        filtered = [c for c in parsed.value if c.get("pull_request_review_id") == review_id]
-        return ok(filtered)
-    return parsed
+    if isinstance(result, ErrorResult):
+        return result
+    comments = result.value
+    if review_id is not None and isinstance(comments, list):
+        comments = [c for c in comments if c.get("pull_request_review_id") == review_id]
+    # The comments REST endpoint returns a JSON array; wrap it so the
+    # SuccessResult value satisfies the Mapping contract (ADR-0009)
+    # while preserving the legacy {"value": [...]} wire shape. The
+    # raw_output dict fallback passes through unchanged.
+    if isinstance(comments, list):
+        return ok({"value": comments})
+    return ok(comments)
 
 
 async def _list_unresolved_threads(
@@ -285,7 +320,7 @@ async def _list_unresolved_threads(
         "} } "
         "} } } } }"
     )
-    result = await _gh_api("graphql", fields={"query": query})
+    result = await _gh_api_raw("graphql", fields={"query": query})
     if result.returncode != 0:
         return err(result.stderr.strip())
     data = json.loads(result.stdout)
@@ -336,7 +371,7 @@ async def _pr_comment_reply(
         repo=str(resolved_repo),
         as_bot=True,
     )
-    return _parse_gh_api_result(result)
+    return result
 
 
 async def _pr_comment_edit(
@@ -361,7 +396,7 @@ async def _pr_comment_edit(
         repo=str(resolved_repo),
         as_bot=True,
     )
-    return _parse_gh_api_result(result)
+    return result
 
 
 async def _pr_comment_resolve(
@@ -385,7 +420,7 @@ async def _pr_comment_resolve(
         f"{{ pullRequestReviewThread {{ id }} }} }}"
         for i, cid in enumerate(ids_to_resolve)
     )
-    query_result = await _gh_api(
+    query_result = await _gh_api_raw(
         "graphql",
         fields={"query": f"{{ {node_fragments} }}"},
     )
@@ -415,7 +450,7 @@ async def _pr_comment_resolve(
         f"{{ thread {{ id isResolved }} }}"
         for i, tid in enumerate(thread_ids)
     )
-    result = await _gh_api(
+    result = await _gh_api_raw(
         "graphql",
         fields={"query": f"mutation {{ {resolve_fragments} }}"},
     )
@@ -464,7 +499,7 @@ async def minimize_comments(
         f"{{ minimizedComment {{ isMinimized minimizedReason }} }}"
         for i, nid in enumerate(node_ids)
     )
-    result = await _gh_api(
+    result = await _gh_api_raw(
         "graphql",
         fields={"query": f"mutation {{ {fragments} }}"},
     )
@@ -491,7 +526,7 @@ async def resolve_review_thread(
             f"{{ thread {{ id isResolved }} }}"
             for i, tid in enumerate(thread_ids)
         )
-        result = await _gh_api(
+        result = await _gh_api_raw(
             "graphql",
             fields={"query": f"mutation {{ {resolve_fragments} }}"},
         )
@@ -570,7 +605,7 @@ async def pr_comment_reply(
         as_bot=True,
     )
 
-    return _parse_gh_api_result(result)
+    return result
 
 
 async def pr_comment_edit(
@@ -631,7 +666,7 @@ async def pr_issue_comment(
         as_bot=True,
     )
 
-    return _parse_gh_api_result(result)
+    return result
 
 
 async def request_review(
@@ -658,7 +693,7 @@ async def request_review(
         fields=fields,
     )
 
-    return _parse_gh_api_result(result)
+    return result
 
 
 async def detect_base_branch(
@@ -775,7 +810,7 @@ async def update_pr(
     if base_branch is not None:
         fields["base"] = base_branch
 
-    result = await _gh_api(
+    result = await _gh_api_raw(
         f"repos/{repo_ref}/pulls/{pr_number}",
         method="PATCH",
         fields=fields,
@@ -863,7 +898,7 @@ async def milestone_close(
         return err(repo_result.error)
     repo_ref = repo_result.value
 
-    result = await _gh_api(
+    result = await _gh_api_raw(
         f"repos/{repo_ref}/milestones/{number}",
         method="PATCH",
         fields={"state": "closed"},
@@ -907,7 +942,7 @@ async def milestone_create(
     if due_on is not None:
         fields["due_on"] = due_on
 
-    result = await _gh_api(
+    result = await _gh_api_raw(
         f"repos/{repo_ref}/milestones",
         method="POST",
         fields=fields,

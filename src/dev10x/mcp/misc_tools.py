@@ -1,0 +1,202 @@
+"""Miscellaneous MCP tool registrations (split from server_cli.py, GH-243/A6)."""
+
+from __future__ import annotations
+
+from dev10x.mcp._app import server
+
+
+@server.tool()
+async def mktmp(
+    namespace: str,
+    prefix: str,
+    ext: str = "",
+    directory: bool = False,
+    create: bool = False,
+) -> dict:
+    """Generate a unique temp path under /tmp/Dev10x/<namespace>/.
+
+    Files: returns a path WITHOUT creating the file by default so
+    callers using the Write tool don't trigger its overwrite gate
+    (GH-39). Pass create=True for legacy pre-created behavior.
+    Directories: always created (the directory is the resource).
+
+    Args:
+        namespace: Subdirectory under /tmp/Dev10x/ (e.g., "git", "skill-audit")
+        prefix: Filename prefix (e.g., "commit-msg", "pr-review")
+        ext: File extension including dot (e.g., ".txt", ".json"). Ignored for directories.
+        directory: If True, create a directory instead of a file.
+        create: If True (and directory=False), pre-create an empty file.
+            Default False — Write callers should write fresh.
+
+    Returns:
+        Dictionary with key: path (str) — the temp file/directory path
+    """
+    from dev10x import utilities as util
+
+    return (
+        await util.mktmp(
+            namespace=namespace,
+            prefix=prefix,
+            ext=ext,
+            directory=directory,
+            create=create,
+        )
+    ).to_dict()
+
+
+@server.tool()
+async def slack_thread_is_forward(
+    parent_body: str,
+    reply_count: int,
+) -> dict:
+    """Detect whether a Slack thread is likely a forward / cross-post (GH-218).
+
+    Pure heuristic over an already-fetched thread payload. The caller
+    fetches the thread via `mcp__claude_ai_Slack__slack_read_thread`
+    and passes the parent message body + reply count here.
+
+    Signals:
+    - short_body: parent body word count below threshold (~30 words)
+    - zero_replies: thread has no replies
+    - external_link OR forwarding_language: parent references an
+      external URL or uses forwarding phrasing (fwd, FYI, sharing, ...)
+
+    Confidence:
+    - high: all 3 signals present
+    - medium: exactly 2 signals present
+    - low: 0 or 1 signals present
+
+    Args:
+        parent_body: The parent message text from the Slack thread.
+        reply_count: Number of replies on the thread.
+
+    Returns:
+        Dictionary with keys: is_forward (bool), confidence (str),
+        signals (list[str]), upstream_hints (list[str]).
+    """
+    from dev10x.github import slack as slack_helper
+
+    return (
+        await slack_helper.slack_thread_is_forward(
+            parent_body=parent_body,
+            reply_count=reply_count,
+        )
+    ).to_dict()
+
+
+@server.tool()
+async def update_paths(
+    version: str | None = None,
+    dry_run: bool = False,
+    ensure_base: bool = False,
+    generalize: bool = False,
+    ensure_scripts: bool = False,
+    ensure_reads: bool = False,
+    init: bool = False,
+    quiet: bool = False,
+) -> dict:
+    """Maintain Dev10x plugin permission settings across projects.
+
+    Args:
+        version: Target version to update to (auto-detects if omitted)
+        dry_run: Preview changes without modifying files
+        ensure_base: Add missing base permissions from projects.yaml
+        generalize: Replace session-specific args with wildcards
+        ensure_scripts: Verify all plugin scripts have allow rules
+        ensure_reads: Emit per-skill Read rules with ~/ + /home/<user>/ twins
+        init: Create userspace config from plugin default
+        quiet: Suppress per-file details
+
+    Returns:
+        Dictionary with keys: success (bool), output (str)
+    """
+    from dev10x import permission as perm
+
+    return (
+        await perm.update_paths(
+            version=version,
+            dry_run=dry_run,
+            ensure_base=ensure_base,
+            generalize=generalize,
+            ensure_scripts=ensure_scripts,
+            ensure_reads=ensure_reads,
+            init=init,
+            quiet=quiet,
+        )
+    ).to_dict()
+
+
+@server.tool()
+async def generate_skill_index(
+    force: bool = False,
+) -> dict:
+    """Generate SKILLS.md and .skills-menu.txt files.
+
+    Args:
+        force: Regenerate even when cache is fresh
+
+    Returns:
+        Dictionary with keys: success (bool), output (str)
+    """
+    from dev10x import skill_index as idx
+
+    return (await idx.generate_all(force=force)).to_dict()
+
+
+@server.tool()
+async def record_upgrade(version: str | None = None) -> dict:
+    """Record the currently-installed plugin version as applied.
+
+    Called by Dev10x:upgrade-cleanup after a successful run so the
+    SessionStart install-check stops emitting upgrade prompts.
+
+    Args:
+        version: Explicit version to record. Defaults to the value
+            from $CLAUDE_PLUGIN_ROOT/.claude-plugin/plugin.json.
+
+    Returns:
+        Dictionary with keys: version (str), path (str). Returns
+        ``{"error": ...}`` when no version can be resolved.
+    """
+    from dev10x.domain.install_version import record_upgrade as _record_upgrade
+
+    return _record_upgrade(version=version).to_dict()
+
+
+@server.tool()
+async def run_tests(
+    args: list[str] | None = None,
+    coverage: bool = True,
+    timeout: int = 600,
+    cwd: str | None = None,
+) -> dict:
+    """Run pytest with coverage via ``uv run`` (GH-238).
+
+    Symmetric to ``merge_pr``/``create_pr``/``push_safe``: the
+    subprocess is launched from the MCP server so the PreToolUse
+    hook that blocks raw ``pytest`` / ``uv run pytest`` Bash
+    invocations does not apply. This makes the documented test
+    gate reachable from worktree sessions where ``pytest`` is not
+    on PATH and every direct invocation form is hook-blocked.
+
+    Args:
+        args: Extra pytest arguments appended after coverage flags.
+            Example: ``["src/dev10x/runner/"]`` or ``["-k", "name"]``.
+        coverage: When True (default), add
+            ``--cov --cov-report=term-missing``.
+        timeout: Subprocess timeout in seconds (default 600).
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: returncode (int), summary (str),
+        passed (int), failed (int), skipped (int), errors (int),
+        coverage_percent (int | None), failed_tests (list[dict]),
+        missing_coverage (list[dict]), stdout (str), stderr (str).
+        A non-zero ``returncode`` is *not* an MCP-level error —
+        callers read ``returncode`` and ``failed_tests`` to decide.
+    """
+    from dev10x import runner
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return (await runner.run_tests(args=args, coverage=coverage, timeout=timeout)).to_dict()

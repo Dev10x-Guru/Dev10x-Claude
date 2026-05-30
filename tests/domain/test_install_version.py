@@ -8,12 +8,14 @@ import pytest
 import yaml
 
 from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR
+from dev10x.domain.common.result import ErrorResult, SuccessResult
 from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
 from dev10x.domain.install_version import (
     InstallState,
     install_state,
     read_applied_version,
     read_plugin_version,
+    record_upgrade,
     write_applied_version,
 )
 
@@ -127,3 +129,32 @@ def test_install_state_silent_when_plugin_version_unknown(
         applied_version="0.71.0",
     )
     assert state.needs_upgrade is False
+
+
+def test_record_upgrade_writes_resolved_version(claude_home: Path, plugin_root: Path) -> None:
+    result = record_upgrade()
+    assert isinstance(result, SuccessResult)
+    assert result.value["version"] == "0.72.0"
+    assert result.value["path"].endswith("version.yml")
+    assert read_applied_version() == "0.72.0"
+
+
+def test_record_upgrade_explicit_version_overrides_manifest(
+    claude_home: Path, plugin_root: Path
+) -> None:
+    result = record_upgrade(version="9.9.9")
+    assert isinstance(result, SuccessResult)
+    assert result.value["version"] == "9.9.9"
+    assert read_applied_version() == "9.9.9"
+
+
+def test_record_upgrade_errors_when_unresolvable(
+    claude_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+    import dev10x.domain.install_version as iv_mod
+
+    monkeypatch.setattr(iv_mod, "_default_plugin_root", lambda: None)
+    result = record_upgrade()
+    assert isinstance(result, ErrorResult)
+    assert "could not resolve" in result.error.lower()

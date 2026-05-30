@@ -15,20 +15,27 @@ class TestDiscoverMcpTools:
 
     @pytest.fixture
     def fake_root(self, tmp_path: Path) -> Path:
+        # After GH-243/A6 the cli server handlers live in per-domain
+        # *_tools.py modules; server_cli.py is now a thin composer.
         src = tmp_path / "src" / "dev10x" / "mcp"
         src.mkdir(parents=True)
-        (src / "server_cli.py").write_text(
-            "from mcp.server.fastmcp import FastMCP\n"
-            "server = FastMCP(name='x')\n"
+        (src / "github_tools.py").write_text(
+            "from dev10x.mcp._app import server\n"
             "\n"
             "@server.tool()\n"
             "async def alpha() -> dict: pass\n"
             "\n"
-            "@server.tool()\n"
-            "async def beta() -> dict: pass\n"
-            "\n"
             "def _private(): pass\n"
         )
+        (src / "git_tools.py").write_text(
+            "from dev10x.mcp._app import server\n"
+            "\n"
+            "@server.tool()\n"
+            "async def beta() -> dict: pass\n"
+        )
+        (src / "plan_tools.py").write_text("# empty\n")
+        (src / "audit_tools.py").write_text("# empty\n")
+        (src / "misc_tools.py").write_text("# empty\n")
         (src / "server_db.py").write_text(
             "from mcp.server.fastmcp import FastMCP\n"
             "server = FastMCP(name='y')\n"
