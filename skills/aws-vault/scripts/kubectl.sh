@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: kubectl.sh <env> <kubectl-verb> [args...]
+# Usage: kubectl.sh [--registry PATH] <env> <kubectl-verb> [args...]
 #
 # Strictly READ-ONLY wrapper for kubectl operations via aws-vault.
 # Claude MUST use this script instead of calling kubectl directly.
@@ -50,6 +50,13 @@ DENIED_FLAG_PREFIXES=(
     --kubeconfig
     --insecure-skip-tls-verify
 )
+
+# Optional leading `--registry <path>` flag (GH-311) — avoids the env-prefix
+# invocation friction. Falls back to the DEV10X_AWS_VAULT_REGISTRY env var.
+if [[ "${1:-}" == "--registry" ]]; then
+    DEV10X_AWS_VAULT_REGISTRY="${2:?--registry requires a path}"
+    shift 2
+fi
 
 REGISTRY="${DEV10X_AWS_VAULT_REGISTRY:-$HOME/.config/Dev10x/aws-vault/service-registry.yaml}"
 

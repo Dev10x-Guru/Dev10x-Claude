@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: secrets.sh <env> <service|secret-id> [--key KEY_NAME]
+# Usage: secrets.sh [--registry PATH] <env> <service|secret-id> [--key KEY_NAME]
 #
 # Approved wrapper for AWS Secrets Manager access via aws-vault.
 # Claude MUST use this script instead of calling aws secretsmanager directly.
@@ -14,6 +14,13 @@
 # (copy the plugin's references/service-registry.example.yaml to seed it)
 
 set -euo pipefail
+
+# Optional leading `--registry <path>` flag (GH-311) — avoids the env-prefix
+# invocation friction. Falls back to the DEV10X_AWS_VAULT_REGISTRY env var.
+if [[ "${1:-}" == "--registry" ]]; then
+    DEV10X_AWS_VAULT_REGISTRY="${2:?--registry requires a path}"
+    shift 2
+fi
 
 REGISTRY="${DEV10X_AWS_VAULT_REGISTRY:-$HOME/.config/Dev10x/aws-vault/service-registry.yaml}"
 

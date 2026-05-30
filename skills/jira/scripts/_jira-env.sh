@@ -2,10 +2,18 @@
 # Shared JIRA environment for all jira-*.sh scripts.
 # Sources credentials from system keyring and builds base URL.
 #
-# Required: JIRA_TENANT env var (e.g., "mycompany" for mycompany.atlassian.net)
+# Tenant resolution (GH-311): prefer a leading `--tenant <name>` flag so
+# the tenant binds as a command argument that the allow-rule prefix still
+# matches. Falls back to the JIRA_TENANT env var when the flag is absent.
+# Sourced with no args, so `$1`/`shift` operate on the caller's positional
+# parameters — every jira-*.sh script gains the flag without changes.
+if [ "${1:-}" = "--tenant" ]; then
+  JIRA_TENANT="${2:?--tenant requires a tenant name}"
+  shift 2
+fi
 
 if [ -z "${JIRA_TENANT:-}" ]; then
-  echo "Error: JIRA_TENANT env var is required (e.g., 'mycompany' for mycompany.atlassian.net)" >&2
+  echo "Error: pass --tenant <name> or set JIRA_TENANT (e.g., 'mycompany' for mycompany.atlassian.net)" >&2
   exit 1
 fi
 
