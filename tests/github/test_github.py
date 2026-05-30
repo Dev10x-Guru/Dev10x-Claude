@@ -2129,3 +2129,204 @@ class TestIssueReopen:
 
         assert isinstance(result, ErrorResult)
         assert "not found" in result.error
+
+
+class TestNormalizeReactionGroups:
+    def test_thumbs_up_only(self) -> None:
+        groups = [
+            {"content": "THUMBS_UP", "users": {"totalCount": 3}},
+            {"content": "THUMBS_DOWN", "users": {"totalCount": 0}},
+        ]
+        result = gh._normalize_reaction_groups(groups)
+        assert result["+1"] == 3
+        assert result["-1"] == 0
+        assert result["total_count"] == 3
+
+    def test_thumbs_down_only(self) -> None:
+        groups = [
+            {"content": "THUMBS_UP", "users": {"totalCount": 0}},
+            {"content": "THUMBS_DOWN", "users": {"totalCount": 1}},
+        ]
+        result = gh._normalize_reaction_groups(groups)
+        assert result["+1"] == 0
+        assert result["-1"] == 1
+        assert result["total_count"] == 1
+
+    def test_multiple_reactions(self) -> None:
+        groups = [
+            {"content": "THUMBS_UP", "users": {"totalCount": 2}},
+            {"content": "HEART", "users": {"totalCount": 1}},
+            {"content": "ROCKET", "users": {"totalCount": 0}},
+            {"content": "CONFUSED", "users": {"totalCount": 1}},
+        ]
+        result = gh._normalize_reaction_groups(groups)
+        assert result["+1"] == 2
+        assert result["heart"] == 1
+        assert result["rocket"] == 0
+        assert result["confused"] == 1
+        assert result["total_count"] == 4
+
+    def test_empty_groups(self) -> None:
+        result = gh._normalize_reaction_groups([])
+        assert result["total_count"] == 0
+        assert result["+1"] == 0
+        assert result["-1"] == 0
+
+    def test_all_reaction_keys_present(self) -> None:
+        result = gh._normalize_reaction_groups([])
+        expected_keys = {
+            "+1",
+            "-1",
+            "laugh",
+            "hooray",
+            "confused",
+            "heart",
+            "rocket",
+            "eyes",
+            "total_count",
+        }
+        assert set(result.keys()) == expected_keys
+
+    def test_unknown_content_ignored(self) -> None:
+        groups = [{"content": "UNKNOWN_EMOJI", "users": {"totalCount": 5}}]
+        result = gh._normalize_reaction_groups(groups)
+        assert result["total_count"] == 0
+
+
+class TestUnresolvedThreadsIncludesReactions:
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_reactions_normalized_from_reaction_groups(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(
+            stdout=json.dumps(
+                {
+                    "data": {
+                        "repository": {
+                            "pullRequest": {
+                                "reviewThreads": {
+                                    "nodes": [
+                                        {
+                                            "id": "PRRT_1",
+                                            "isResolved": False,
+                                            "isOutdated": False,
+                                            "comments": {
+                                                "nodes": [
+                                                    {
+                                                        "databaseId": 11,
+                                                        "body": "",
+                                                        "path": "a.py",
+                                                        "line": 1,
+                                                        "author": {"login": "alice"},
+                                                        "pullRequestReview": {"databaseId": 100},
+                                                        "reactionGroups": [
+                                                            {
+                                                                "content": "THUMBS_UP",
+                                                                "users": {"totalCount": 2},
+                                                            },
+                                                            {
+                                                                "content": "THUMBS_DOWN",
+                                                                "users": {"totalCount": 0},
+                                                            },
+                                                        ],
+                                                    }
+                                                ]
+                                            },
+                                        },
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            ),
+        )
+
+        result = await gh.pr_comments(
+            action="list",
+            pr_number=42,
+            unresolved_only=True,
+        )
+
+        assert isinstance(result, SuccessResult)
+        thread = result.value["unresolved_threads"][0]
+        assert "reactions" in thread
+        assert thread["reactions"]["+1"] == 2
+        assert thread["reactions"]["-1"] == 0
+        assert thread["reactions"]["total_count"] == 2
+        assert "reactionGroups" not in thread
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_no_reaction_groups_leaves_reactions_absent(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(
+            stdout=json.dumps(
+                {
+                    "data": {
+                        "repository": {
+                            "pullRequest": {
+                                "reviewThreads": {
+                                    "nodes": [
+                                        {
+                                            "id": "PRRT_1",
+                                            "isResolved": False,
+                                            "isOutdated": False,
+                                            "comments": {
+                                                "nodes": [
+                                                    {
+                                                        "databaseId": 11,
+                                                        "body": "comment",
+                                                        "path": "a.py",
+                                                        "line": 1,
+                                                        "author": {"login": "alice"},
+                                                        "pullRequestReview": {"databaseId": 100},
+                                                    }
+                                                ]
+                                            },
+                                        },
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            ),
+        )
+
+        result = await gh.pr_comments(
+            action="list",
+            pr_number=42,
+            unresolved_only=True,
+        )
+
+        assert isinstance(result, SuccessResult)
+        thread = result.value["unresolved_threads"][0]
+        assert "reactionGroups" not in thread
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_graphql_query_includes_reaction_groups(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(
+            stdout=json.dumps(
+                {"data": {"repository": {"pullRequest": {"reviewThreads": {"nodes": []}}}}}
+            ),
+        )
+
+        await gh.pr_comments(action="list", pr_number=42, unresolved_only=True)
+
+        called_fields = mock_api.call_args.kwargs.get("fields") or mock_api.call_args[1].get(
+            "fields", {}
+        )
+        query = called_fields.get("query", "")
+        assert "reactionGroups" in query

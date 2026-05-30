@@ -133,6 +133,31 @@ Extract:
 - `html_url` — Direct link
 - `user.login` — Who left the comment
 - `in_reply_to_id` — Parent comment (null for root comments)
+- `reactions` — Emoji reaction counts (`+1`, `-1`, `laugh`, `hooray`,
+  `confused`, `heart`, `rocket`, `eyes`, `total_count`)
+
+**Reaction signal:** When `reactions.total_count > 0`, record which
+reactions the PR author (or other reviewers) left and apply a lean:
+
+| Reactions present | Lean | Meaning |
+|-------------------|------|---------|
+| `+1` and/or `heart` and/or `rocket` | VALID lean | Maintainer approves the suggestion |
+| `-1` and/or `confused` | INVALID/decline lean | Maintainer rejects the suggestion |
+| `eyes` only | No lean | Maintainer is watching, no stance yet |
+| Mixed (`+1` + `-1`) | No lean | Conflicting signals, fall through |
+| None (`total_count == 0`) | No lean | No reaction signal |
+
+The lean is **advisory** — it overrides investigation only when **no
+directing prose exists** in the comment body (body is empty or contains
+only a code suggestion block with no explanatory text). When prose is
+present, treat the lean as corroborating evidence but always investigate.
+
+When applying a reaction lean, surface an inferred rationale for
+confirmation, e.g.:
+- VALID lean: "Applying — maintainer 👍 this suggestion (no prose verdict)"
+- INVALID lean: "Declining — maintainer 👎 this suggestion. Inferred
+  rationale: inconsistent with sibling pattern / out of scope.
+  Confirm or override?"
 
 ### Step 2: Fetch All PR Threads
 
@@ -149,7 +174,21 @@ Look for:
 
 ### Step 3: Classify the Comment
 
-Determine what type of comment this is:
+**Reaction lean check:** Before classifying by prose, check whether
+a reaction lean was recorded in Step 1 and whether the comment body
+lacks directing prose (empty body or pure code-suggestion block with
+no explanatory text). If both conditions hold, short-circuit:
+
+- VALID lean → proceed directly to Step 5 (VALID verdict) with
+  `reaction_signal: true`. Surface the inferred rationale for
+  confirmation: "Applying — maintainer 👍 this suggestion".
+- INVALID/decline lean → proceed directly to Step 5 (INVALID
+  verdict) with `reaction_signal: true`. Surface the inferred
+  rationale: "Declining — maintainer 👎 this suggestion. Inferred
+  rationale: [best-match reason from diff_hunk context]. Confirm
+  or override?"
+
+If prose is present (or no reaction lean), classify normally:
 
 | Type | Signals |
 |------|---------|
@@ -261,6 +300,7 @@ delegate to `Dev10x:gh-pr-fixup`.
 ```
 Verdict: VALID
 Reason: {brief explanation of why the comment is correct}
+Signal: text | reaction:👍 | reaction:❤️ | reaction:🚀
 ```
 
 #### YAGNI — Real issue, but code is out-of-scope for the PR's JTBD
@@ -306,6 +346,7 @@ Post an evidence-based reply. Do **NOT** resolve the thread.
 Verdict: INVALID
 Reason: {brief explanation}
 Action: Replied with evidence (thread left open for user to resolve)
+Signal: text | reaction:👎 | reaction:😕
 ```
 
 #### QUESTION — No code change needed
