@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+import yaml
 
 from dev10x.skills.permission import update_paths
 from dev10x.skills.permission.update_paths import (
@@ -538,3 +539,52 @@ class TestEnsureBaseDenies:
         data = json.loads(settings.read_text())
         assert "mcp__claude_ai_Linear__get_issue" in data["permissions"]["allow"]
         assert "mcp__claude_ai_Linear__delete_customer" in data["permissions"]["deny"]
+
+
+class TestPrivilegeEscalationDenies:
+    """GH-326: sudo/doas/pkexec ship as plugin-default deny rules."""
+
+    PRIVILEGE_ESCALATION_DENIES = [
+        "Bash(sudo:*)",
+        "Bash(sudo *)",
+        "Bash(sudo -n *)",
+        "Bash(sudo -i *)",
+        "Bash(sudoedit:*)",
+        "Bash(doas:*)",
+        "Bash(doas *)",
+        "Bash(pkexec:*)",
+        "Bash(pkexec *)",
+    ]
+
+    @pytest.fixture()
+    def shipped_base_denies(self) -> list[str]:
+        projects_yaml = (
+            Path(__file__).resolve().parents[3] / "skills" / "upgrade-cleanup" / "projects.yaml"
+        )
+        config = yaml.safe_load(projects_yaml.read_text())
+        return config.get("base_denies", [])
+
+    @pytest.mark.parametrize("rule", PRIVILEGE_ESCALATION_DENIES)
+    def test_catalog_ships_privilege_escalation_deny(
+        self,
+        rule: str,
+        shipped_base_denies: list[str],
+    ) -> None:
+        assert rule in shipped_base_denies
+
+    def test_evidence_212_sudo_rm_is_blocked(
+        self,
+        tmp_path: Path,
+        shipped_base_denies: list[str],
+    ) -> None:
+        """GH-271 evidence #212: `sudo -n rm -rf <workspace>` must render a
+        deny that blocks it. The non-interactive shape is the dangerous one
+        because it silently bypasses the password prompt."""
+        settings = tmp_path / "settings.local.json"
+        settings.write_text(json.dumps({"permissions": {"allow": [], "deny": []}}))
+
+        update_paths.ensure_base_denies(settings, shipped_base_denies)
+
+        deny = json.loads(settings.read_text())["permissions"]["deny"]
+        assert "Bash(sudo -n *)" in deny
+        assert "Bash(sudo:*)" in deny

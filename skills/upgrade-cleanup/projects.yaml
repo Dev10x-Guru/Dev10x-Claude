@@ -533,3 +533,33 @@ base_denies:
   - "mcp__claude_ai_Linear__delete_comment"
   - "mcp__claude_ai_Linear__delete_attachment"
   - "mcp__claude_ai_Linear__delete_status_update"
+
+  # --- Privilege-escalation tier (GH-326) ---
+  # `sudo` and friends are denied for ANY shape, not just the option-2
+  # catch-all. Unlike the GH-310 `<verb> *` footguns (which merely widen a
+  # verb's argument surface), privilege escalation INVERTS the privilege
+  # model: the wrapped command runs as root, bypassing every user-level
+  # permission rule and hook. A single successful `sudo` allow therefore
+  # defeats every other deny in this catalog (rm guards, write gates, the
+  # Linear deletes above). That makes this tier categorically above
+  # `destructive` — it invalidates all other tiers.
+  #
+  # Trigger: GH-271 evidence #212 — the agent attempted
+  # `sudo -n rm -rf /work/bl/.worktrees/bl-zebra-4` (privilege escalation +
+  # non-interactive + recursive destructive removal on a workspace).
+  #
+  # Per deny-overrides, these stay in force even if a user accidentally
+  # allow-lists `sudo` somewhere. Users who genuinely want routine package
+  # management opt into the narrow `sudo-apt` group (see
+  # baseline-permissions.yaml) — which requires the doctor to scope this
+  # deny down, since deny-first precedence means a blanket allow cannot
+  # override a blanket deny.
+  - "Bash(sudo:*)"      # any sudo invocation
+  - "Bash(sudo *)"      # catch-all shape (option-2 footgun)
+  - "Bash(sudo -n *)"   # non-interactive — silently bypasses the password prompt
+  - "Bash(sudo -i *)"   # interactive root login shell
+  - "Bash(sudoedit:*)"
+  - "Bash(doas:*)"      # OpenBSD/Alpine equivalent
+  - "Bash(doas *)"
+  - "Bash(pkexec:*)"    # polkit-based privilege escalation
+  - "Bash(pkexec *)"
