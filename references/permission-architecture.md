@@ -149,8 +149,44 @@ Scope rules for the catalog:
   by design. The catalog is a curated allowlist, not a blanket
   WebFetch permit.
 
+## Permission Group Tier Assignment
+
+Each group in `baseline-permissions.yaml` is assigned a tier that determines
+whether it ships as a plugin default or requires user opt-in.
+
+| Tier | Scope | Shipped By | Examples |
+|------|-------|-----------|----------|
+| 1 | Universal dev tools | Plugin (always) | git, gh, uv, ls, cat, grep |
+| 2 | Routine doc/ref fetches, plugin infrastructure | Plugin (always) | webfetch-public-docs, dev10x-cli, mktmp |
+| 3 | Project-specific or cost-bearing | User projects (projects.yaml) | railway-cli, obsidian-cli |
+
+**Tier 1 criteria**: Commands present in every development workflow, safe to
+auto-approve unconditionally. Examples: `git show`, `gh issue view`,
+`uv pip list`.
+
+**Tier 2 criteria**: Routine commands that would prompt every session without
+pre-approval, stalling unattended runs. Primary drivers: GH-271 evidence
+(6+ doc domains in one session, multiple plugin scripts). Not universal across
+all projects, but frequent enough that pre-approval prevents friction. Scoped
+conservatively to read-only surfaces (doc hosts, not API endpoints).
+
+**Tier 3 criteria**: Project-specific tooling, cost-bearing (CI triggers),
+or infrastructure tied to specific deployments. Examples: Railway deployment
+CLI (org-specific), Obsidian vault CLI (project-specific). Opt-in via user
+config in `projects.yaml` § `base_permissions` for projects that need them.
+
+### Review Checklist for New Groups
+
+When evaluating a new permission group:
+
+- **Tier 1**: Only add if the command is present in 90%+ of projects
+- **Tier 2**: Justify via GH-271 friction evidence — how often would this
+  stall? Include evidence from issue/PR discussion (e.g., "6+ doc domains hit")
+- **Tier 3**: Document why the group is project-specific; confirm no universal use
+
 ## References
 
 - [ADR-0003](../docs/adr/0003-allow-rules-as-hook-enablers.md) — decision record
 - `hooks/scripts/bash_validators/skill_redirect.py` — the hook implementation
 - `agents/permission-auditor.md` — audit agent with `HOOK_ENABLED` classification
+- `references/permission-safe-flags.md` — flag-overrides pattern for safe flags
