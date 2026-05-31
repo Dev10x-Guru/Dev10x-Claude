@@ -55,11 +55,6 @@ GITMOJI_CATEGORIES: dict[str, str] = {
 
 SKIP_CATEGORIES: set[str] = {"version_bump"}
 MAINTENANCE_CATEGORIES: set[str] = {"test", "docs", "config", "cleanup", "experimental"}
-JTBD_PATTERN: re.Pattern[str] = re.compile(
-    r"\*\*When\*\*\s+(.+?)\s*,\s*\*\*(?:I want to|they want to)\*\*\s+(.+?)\s*,"
-    r"\s*\*\*so (?:I can|they can|I don't)\*\*\s+(.+?)(?:\.|$)",
-    re.DOTALL,
-)
 
 
 DEFAULT_TICKET_PATTERN = TICKET_ID_PATTERN
@@ -225,17 +220,6 @@ def find_prs_for_ticket(
         return []
 
 
-def extract_jtbd(body: str) -> str | None:
-    match = JTBD_PATTERN.search(body)
-    if match:
-        full = body[match.start() : match.end()]
-        full = full.replace("\n", " ").strip()
-        if not full.endswith("."):
-            full += "."
-        return full
-    return None
-
-
 def classify_group(commits: list[Commit]) -> str:
     categories = {c.category for c in commits}
     if "feature" in categories or "hotfix" in categories:
@@ -337,7 +321,7 @@ def main() -> None:
                         existing.category = "feature"
                     continue
 
-                jtbd = extract_jtbd(body=pr_data.get("body", ""))
+                jtbd = extract_jtbd_structured(body=pr_data.get("body", ""))
                 pr_category = classify_group(commits=group_commits)
                 pr_info = PRInfo(
                     number=pr_num,
