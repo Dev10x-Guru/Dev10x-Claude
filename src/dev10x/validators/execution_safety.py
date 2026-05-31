@@ -5,8 +5,9 @@ block-python3-inline.py.
 
 Blocks:
   1. Shell-based file writes (cat >, echo >, printf >)
-  2. python3 -c inline code
-  3. python3 with untrusted absolute paths
+  2. In-place file editors (sed -i, perl -i, gawk -i inplace, dd of=)
+  3. python3 -c inline code
+  4. python3 with untrusted absolute paths
 """
 
 from __future__ import annotations
@@ -31,6 +32,9 @@ SHELL_WRITE_RE = re.compile(
 
 ENV_VAR_RE = re.compile(r"^[A-Z_][A-Z0-9_]*=\S*$")
 
+# Matches dd of= writes to real files; excludes /dev/null, /dev/stdout, /dev/stderr
+_DD_OF_RE = re.compile(r"\bof=(?!/dev/(null|stdout|stderr)\b)\S")
+
 APPROVED_ABS_PREFIXES = (
     f"{ClaudeDir.tools_dir()}/",
     f"{ClaudeDir.skills_dir()}/",
@@ -42,6 +46,13 @@ SHELL_WRITE_MSG = (
     "For multi-line commit messages: create a unique file with"
     " /tmp/Dev10x/bin/mktmp.sh git commit-msg .txt,"
     " Write content to the returned path, then git commit -F <path>"
+)
+
+INPLACE_EDIT_MSG = (
+    "Use the Write/Edit tool instead of in-place stream editors"
+    " (sed -i, perl -i, gawk -i inplace, dd of=).\n"
+    "Read-only forms are fine: sed -n, sed/awk writing to stdout,"
+    " perl -ne/-pe without -i."
 )
 
 PYTHON3_INLINE_MSG = """\
@@ -83,6 +94,45 @@ def _is_approved_path(path: str) -> bool:
     return any(expanded.startswith(p) or path.startswith(p) for p in APPROVED_ABS_PREFIXES)
 
 
+def _has_inplace_flag(*, argv: list[str], cmd: str) -> bool:
+    """Return True if the argument list indicates an in-place edit operation.
+
+    Handles:
+    - sed: any short-flag cluster that contains 'i' (e.g. -i, -ni, -in, -in.bak)
+    - perl: any short-flag cluster that contains 'i' (e.g. -i, -pi, -pi.bak)
+    - gawk/awk: '-i' followed by 'inplace' as a separate token
+    - dd: delegated to caller via _DD_OF_RE
+    """
+    if cmd in ("sed", "perl"):
+        for arg in argv:
+            # Only inspect short-flag clusters (start with '-' but not '--')
+            if arg.startswith("-") and not arg.startswith("--"):
+                # Strip the leading '-' and any optional suffix after the flags
+                # e.g. '-i.bak' \u2192 flag letters = 'i', suffix = '.bak'
+                # e.g. '-ni' \u2192 flag letters = 'ni'
+                flag_body = arg[1:]
+                # Collect contiguous alpha chars as the flag cluster
+                flag_letters = ""
+                for ch in flag_body:
+                    if ch.isalpha():
+                        flag_letters += ch
+                    else:
+                        break
+                if "i" in flag_letters:
+                    return True
+        return False
+
+    if cmd in ("gawk", "awk"):
+        # gawk -i inplace: '-i' must be immediately followed by 'inplace'
+        for idx, arg in enumerate(argv):
+            if arg in ("-i", "--include") and idx + 1 < len(argv):
+                if argv[idx + 1] == "inplace":
+                    return True
+        return False
+
+    return False
+
+
 @dataclass
 class ExecutionSafetyValidator(ValidatorBase):
     name: ClassVar[str] = "execution-safety"
@@ -93,7 +143,13 @@ class ExecutionSafetyValidator(ValidatorBase):
         return True
 
     def validate(self, inp: HookInput) -> HookResult | None:
+        # Check shell writes first; if flagged, report immediately.
         result = self._check_shell_writes(command=inp.command)
+        if result:
+            return result
+        # Check in-place editors before python3 so mis-keyed sed/perl is caught
+        # early, consistent with first-block-wins ordering.
+        result = self._check_inplace_edit(command=inp.command)
         if result:
             return result
         return self._check_python3_inline(command=inp.command)
@@ -101,6 +157,41 @@ class ExecutionSafetyValidator(ValidatorBase):
     def _check_shell_writes(self, *, command: str) -> HookResult | None:
         if SHELL_WRITE_RE.search(command):
             return HookResult(message=SHELL_WRITE_MSG)
+        return None
+
+    def _check_inplace_edit(self, *, command: str) -> HookResult | None:
+        """Detect in-place file editors and steer to Write/Edit tool.
+
+        Scans each pipeline segment so `cat x | sed -i ...` is caught.
+        Returns a HookResult on the first flagged segment, None otherwise.
+        """
+        _INPLACE_CMDS = frozenset({"sed", "perl", "gawk", "awk", "dd"})
+
+        for segment in command.split("|"):
+            segment = segment.strip()
+            try:
+                parts = shlex.split(segment)
+            except ValueError:
+                return None
+
+            parts = _strip_env_prefix(parts)
+            if not parts:
+                continue
+
+            cmd = parts[0]
+            if cmd not in _INPLACE_CMDS:
+                continue
+
+            argv = parts[1:]
+
+            if cmd == "dd":
+                if _DD_OF_RE.search(segment):
+                    return HookResult(message=INPLACE_EDIT_MSG)
+                continue
+
+            if _has_inplace_flag(argv=argv, cmd=cmd):
+                return HookResult(message=INPLACE_EDIT_MSG)
+
         return None
 
     def _check_python3_inline(self, *, command: str) -> HookResult | None:
