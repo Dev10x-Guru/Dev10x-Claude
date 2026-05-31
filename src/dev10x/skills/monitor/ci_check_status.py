@@ -97,10 +97,7 @@ def fetch_checks(
         cmd.append("--required")
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        print(
-            json.dumps({"error": f"gh pr checks failed: {result.stderr.strip()}"}),
-            file=sys.stderr,
-        )
+        print(json.dumps({"error": f"gh pr checks failed: {result.stderr.strip()}"}))
         sys.exit(1)
     return json.loads(result.stdout)
 
