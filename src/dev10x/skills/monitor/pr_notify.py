@@ -38,6 +38,7 @@ from pathlib import Path
 from typing import Any
 
 from dev10x.domain.common.repository_ref import RepositoryRef
+from dev10x.skills.common.jtbd import extract_jtbd, md_to_slack_bold
 
 
 def gh_json(args: list[str]) -> Any:
@@ -70,23 +71,6 @@ def count_open_threads(pr_number: int, repo: str) -> int:
         ]
     )
     return int(count)
-
-
-def extract_jtbd(body: str) -> str | None:
-    lines = body.splitlines()
-    for i, line in enumerate(lines):
-        if line.strip().startswith("**When**"):
-            jtbd_lines = [line.strip()]
-            for next_line in lines[i + 1 :]:
-                if not next_line.strip() or next_line.startswith("#"):
-                    break
-                jtbd_lines.append(next_line.strip())
-            return " ".join(jtbd_lines)
-    return None
-
-
-def md_to_slack_bold(text: str) -> str:
-    return re.sub(r"\*\*(.+?)\*\*", r"*\1*", text)
 
 
 def split_title_jtbd(pr_title: str) -> tuple[str, str | None]:

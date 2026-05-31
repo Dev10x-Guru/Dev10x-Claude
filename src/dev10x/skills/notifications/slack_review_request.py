@@ -19,11 +19,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+
+from dev10x.skills.common.jtbd import extract_jtbd, md_to_slack_bold
 
 CONFIG_PATH = Path.home() / ".claude" / "memory" / "slack-config-code-review-requests.yaml"
 SLACK_CONFIG_PATH = Path.home() / ".claude" / "memory" / "slack-config.yaml"
@@ -77,10 +78,6 @@ def resolve_mention(
     return mention
 
 
-def md_to_slack_bold(text: str) -> str:
-    return re.sub(r"\*\*(.+?)\*\*", r"*\1*", text)
-
-
 def _repo_name(repo: str) -> str:
     return repo.split("/")[-1]
 
@@ -100,18 +97,6 @@ def format_review_message(
     if jtbd:
         lines.append(f"> {md_to_slack_bold(jtbd)}")
     return "\n".join(lines)
-
-
-def extract_jtbd(body: str) -> str | None:
-    for i, line in enumerate(body.splitlines()):
-        if line.strip().startswith("**When**"):
-            jtbd_lines = [line.strip()]
-            for next_line in body.splitlines()[i + 1 :]:
-                if not next_line.strip() or next_line.startswith("#"):
-                    break
-                jtbd_lines.append(next_line.strip())
-            return " ".join(jtbd_lines)
-    return None
 
 
 def gh_json(args: list[str]) -> Any:
