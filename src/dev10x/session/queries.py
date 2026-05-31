@@ -22,6 +22,7 @@ from dev10x.domain.session_document import (
     read_plan_summary,
     state_path_for_toplevel,
 )
+from dev10x.domain.session_rules import DecisionGuidanceRule, ReadFrictionLevelRule
 
 
 def _run_git_safe(git: GitContext, *args: str) -> str:
@@ -50,8 +51,6 @@ class SessionContextQuery:
     @classmethod
     def gather_reload(cls, *, toplevel: str) -> SessionContextQuery:
         """Gather context for SessionStart reload — consumes state file once."""
-        from dev10x.hooks.session_policy import ReadFrictionLevelRule
-
         state = claim_state_file(path=state_path_for_toplevel(toplevel=toplevel))
         plan_path = plan_path_for_toplevel(toplevel=toplevel)
         plan_exists = plan_path.exists()
@@ -69,8 +68,6 @@ class SessionContextQuery:
     @classmethod
     def gather_compaction(cls, *, toplevel: str) -> SessionContextQuery:
         """Gather context for PreCompact — reads git state, plan, friction."""
-        from dev10x.hooks.session_policy import ReadFrictionLevelRule
-
         git = GitContext(cwd=toplevel)
         branch = git.branch
 
@@ -111,7 +108,6 @@ def _format_files(*, files: list[str]) -> str:
 def format_reload_context(*, ctx: SessionContextQuery) -> str:
     """Render a SessionContextQuery as the SessionStart additionalContext."""
     from dev10x.domain.documents.session_state import PlanSummary, SessionState
-    from dev10x.hooks.session_policy import DecisionGuidanceRule
 
     if not ctx.state and not ctx.plan_exists:
         return ""
@@ -136,7 +132,6 @@ def format_reload_context(*, ctx: SessionContextQuery) -> str:
 def format_compaction_summary(*, ctx: SessionContextQuery, plugin_root: Path) -> str:
     """Render a SessionContextQuery as the PreCompact systemMessage body."""
     from dev10x.domain.documents.session_state import PlanSummary
-    from dev10x.hooks.session_policy import DecisionGuidanceRule
 
     essentials_file = plugin_root / ".claude" / "rules" / "essentials.md"
     essentials = essentials_file.read_text() if essentials_file.exists() else ""
