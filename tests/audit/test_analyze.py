@@ -65,7 +65,7 @@ class TestBuildAuditReport:
 
 class TestAuditReportRender:
     def test_render_markdown_includes_findings_table(self, tmp_path) -> None:
-        from dev10x.skills.audit.analyze_permissions import Finding
+        from dev10x.audit.permissions_model import Finding
 
         report = analyze.AuditReport(
             findings=[

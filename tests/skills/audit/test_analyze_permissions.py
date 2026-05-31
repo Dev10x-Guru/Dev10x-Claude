@@ -1,155 +1,80 @@
-"""Tests for the extended detect_known_friction (GH-46)."""
+"""Tests for the skills CLI adapter (GH-244, I1 / ADR-0008).
+
+The analysis logic moved to ``dev10x.audit.permissions_model``; this
+module is now a thin adapter that re-exports those names and provides
+the ``main`` entry point used by the skill-audit Bash pipeline. These
+tests cover the adapter: that it re-exports the model symbols and that
+``main`` drives the pipeline to a file or to stdout.
+"""
 
 import json
+import sys
 from pathlib import Path
 
-from dev10x.skills.audit.analyze_permissions import (
-    ToolCall,
-    detect_known_friction,
-    parse_additional_directories,
-)
+import pytest
+
+from dev10x.skills.audit import analyze_permissions as adapter
+
+TRANSCRIPT = "## Turn 1 [12:00:00] ASSISTANT\n\n**Tool: `Bash`**\n```\ncommand=ls -la\n```\n"
 
 
-class TestParseAdditionalDirectories:
-    def test_returns_empty_when_file_missing(self, tmp_path: Path) -> None:
-        result = parse_additional_directories(str(tmp_path / "missing.json"))
-        assert result == []
+def test_reexports_logic_from_permissions_model() -> None:
+    from dev10x.audit import permissions_model
 
-    def test_returns_empty_when_invalid_json(self, tmp_path: Path) -> None:
-        path = tmp_path / "broken.json"
-        path.write_text("{not valid")
-        assert parse_additional_directories(str(path)) == []
-
-    def test_returns_empty_when_section_absent(self, tmp_path: Path) -> None:
-        path = tmp_path / "settings.json"
-        path.write_text(json.dumps({"permissions": {"allow": []}}))
-        assert parse_additional_directories(str(path)) == []
-
-    def test_returns_configured_dirs(self, tmp_path: Path) -> None:
-        path = tmp_path / "settings.json"
-        path.write_text(
-            json.dumps({"permissions": {"additionalDirectories": ["/tmp/Dev10x", "/tmp/other"]}})
-        )
-        assert parse_additional_directories(str(path)) == ["/tmp/Dev10x", "/tmp/other"]
+    assert adapter.analyze_permissions is permissions_model.analyze_permissions
+    assert adapter.Finding is permissions_model.Finding
+    assert adapter.write_output is permissions_model.write_output
+    assert "main" in adapter.__all__
 
 
-class TestDetectKnownFriction:
-    def _call(
-        self,
-        *,
-        tool: str,
-        command: str = "",
-        file_path: str = "",
-        turn: int = 1,
-    ) -> ToolCall:
-        return ToolCall(
-            turn=turn,
-            time="00:00:00",
-            tool=tool,
-            command=command or file_path,
-            file_path=file_path,
-        )
+def test_main_no_args_exits(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sys, "argv", ["analyze-permissions.py"])
+    with pytest.raises(SystemExit):
+        adapter.main()
 
-    def test_flags_write_overwrite_on_mktmp_path(self) -> None:
-        calls = [
-            self._call(
-                tool="Write",
-                file_path="/tmp/Dev10x/git/commit-msg.AbCdEf123456.txt",
-            )
-        ]
-        findings = detect_known_friction(
-            calls=calls,
-            additional_dirs=["/tmp/Dev10x"],
-        )
-        kinds = [f.classification for f in findings]
-        assert "WRITE_OVERWRITE_GATE" in kinds
 
-    def test_does_not_flag_write_to_normal_path(self, tmp_path: Path) -> None:
-        calls = [self._call(tool="Write", file_path=str(tmp_path / "regular.txt"))]
-        findings = detect_known_friction(
-            calls=calls,
-            additional_dirs=[],
-            project_root=str(tmp_path),
-        )
-        kinds = [f.classification for f in findings]
-        assert "WRITE_OVERWRITE_GATE" not in kinds
+def test_main_writes_report_to_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    transcript = tmp_path / "transcript.md"
+    # `gh pr edit` is flagged as EXIT_CODE_FALSE_POSITIVE by
+    # detect_known_friction, so main() exercises the extra-finding
+    # renumber loop in addition to the base analysis.
+    transcript.write_text(
+        TRANSCRIPT
+        + "## Turn 2 [12:01:00] ASSISTANT\n\n"
+        + "**Tool: `Bash`**\n```\ncommand=gh pr edit 5 --title x\n```\n"
+    )
+    settings = tmp_path / "settings.json"
+    settings.write_text(json.dumps({"permissions": {"allow": ["Bash(ls:*)"]}}))
+    output = tmp_path / "report.md"
 
-    def test_flags_workspace_gate_for_unregistered_path(self) -> None:
-        calls = [self._call(tool="Edit", file_path="/var/foreign/path.txt")]
-        findings = detect_known_friction(
-            calls=calls,
-            additional_dirs=["/tmp/Dev10x"],
-            project_root="/work/example",
-        )
-        kinds = [f.classification for f in findings]
-        assert "WORKSPACE_GATE" in kinds
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["analyze-permissions.py", str(transcript), str(settings), str(output)],
+    )
+    adapter.main()
 
-    def test_skips_workspace_gate_when_dir_registered(self) -> None:
-        calls = [self._call(tool="Read", file_path="/tmp/Dev10x/git/foo.txt")]
-        findings = detect_known_friction(
-            calls=calls,
-            additional_dirs=["/tmp/Dev10x"],
-            project_root="/work/example",
-        )
-        # The mktmp pattern doesn't match a plain non-suffixed path,
-        # and /tmp/Dev10x is registered so workspace gate also skipped.
-        assert findings == []
+    assert output.exists()
+    assert "# Phase 4: Permission Friction Analysis" in output.read_text()
 
-    def test_skips_workspace_gate_for_project_paths(self, tmp_path: Path) -> None:
-        path = tmp_path / "subdir" / "file.py"
-        calls = [self._call(tool="Read", file_path=str(path))]
-        findings = detect_known_friction(
-            calls=calls,
-            additional_dirs=[],
-            project_root=str(tmp_path),
-        )
-        assert findings == []
 
-    def test_flags_gh_pr_edit_as_exit_code_false_positive(self) -> None:
-        calls = [
-            self._call(
-                tool="Bash",
-                command="gh pr edit 37 --body-file /tmp/body.txt",
-            )
-        ]
-        findings = detect_known_friction(
-            calls=calls,
-            additional_dirs=[],
-        )
-        kinds = [f.classification for f in findings]
-        assert "EXIT_CODE_FALSE_POSITIVE" in kinds
+def test_main_writes_to_stdout_with_default_settings(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    transcript = tmp_path / "transcript.md"
+    transcript.write_text(TRANSCRIPT)
 
-    def test_does_not_flag_other_gh_pr_subcommands(self) -> None:
-        calls = [
-            self._call(tool="Bash", command="gh pr view 37"),
-            self._call(tool="Bash", command="gh pr list"),
-        ]
-        findings = detect_known_friction(
-            calls=calls,
-            additional_dirs=[],
-        )
-        assert [f.classification for f in findings] == []
+    # No settings/output args — settings defaults to ~/.claude/settings.local.json
+    # (absent under the tmp HOME) and the report goes to stdout.
+    monkeypatch.setattr(sys, "argv", ["analyze-permissions.py", str(transcript)])
+    adapter.main()
 
-    def test_combines_multiple_signals_in_one_run(self) -> None:
-        calls = [
-            self._call(
-                tool="Write",
-                file_path="/tmp/Dev10x/git/msg.AbCdEf123456.txt",
-            ),
-            self._call(
-                tool="Bash",
-                command="gh pr edit 37 --body-file /tmp/body.txt",
-            ),
-            self._call(tool="Edit", file_path="/etc/strange.conf"),
-        ]
-        findings = detect_known_friction(
-            calls=calls,
-            additional_dirs=[],
-            project_root="/work/example",
-        )
-        kinds = sorted({f.classification for f in findings})
-        assert kinds == [
-            "EXIT_CODE_FALSE_POSITIVE",
-            "WORKSPACE_GATE",
-            "WRITE_OVERWRITE_GATE",
-        ]
+    captured = capsys.readouterr()
+    assert "# Phase 4: Permission Friction Analysis" in captured.out
