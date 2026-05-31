@@ -5,6 +5,212 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.76.0 — Friction-Free CLI, Typed MCP Boundaries & Smarter PR Review
+
+Released 2026-05-31
+
+### Features
+
+- **Pre-approve the safe inspection surface so unattended runs stop
+  stalling** — narrow allow-rules for read-only tools, `--version`
+  flags, and read-only git/gh/uv subcommands let adaptive and AFK
+  sessions run without tripping the permission gate or the "don't ask
+  again" catch-all footgun
+  ([GH-310](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/310))
+- **Run structured-data tools without a prompt** — 15 read-only
+  processors and validators (`jq`, `yamllint`, `actionlint`, `shellcheck`,
+  binary-existence lookups, and more) join the base permission catalog,
+  so the canonical structural alternatives `Dev10x:diag-friction` steers
+  toward no longer prompt themselves
+  ([GH-308](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/308))
+- **Pre-approve docs, extracted probes, Railway, and safe git flags** —
+  four permission-catalog follow-ups land together: ~30 canonical HTTPS
+  doc domains for WebFetch, execution of extracted `/tmp/Dev10x` and
+  `~/.claude/tools` probes, a Railway read-only tier-3 group, and a
+  `flag_overrides` schema that ships `git clean -n`, `git branch -d`,
+  and `git reset --dry-run`
+  ([GH-369](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/369),
+  [GH-370](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/370),
+  [GH-372](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/372),
+  [GH-373](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/373))
+- **Stop quoted shell metacharacters from triggering false blocks** — a
+  quote-aware tokenizer strips single-quoted spans, ANSI-C strings, and
+  escaped pairs before threat detection, and the new `DX012`
+  safe-expansion validator approves commands whose metacharacters resolve
+  to known-safe env vars, so `gh api graphql -f query='{...}'` and
+  `echo "$CLAUDE_PLUGIN_ROOT"` pass cleanly
+  ([GH-309](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/309))
+- **Block MCP tool names pasted as shell commands** — the new `DX013`
+  validator hard-blocks a command whose first token matches
+  `mcp__<server>__<tool>` and steers back to the tool-call protocol,
+  closing a recurring failure mode that memory and docs alone could not
+  prevent
+  ([GH-375](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/375))
+- **Steer in-place stream editors to the Write/Edit tool** — flag-aware
+  detection routes `sed -i`, `perl -i`, `gawk -i inplace`, and
+  `dd of=<file>` to the editing tools while leaving read-only `sed -n`
+  and `awk` forms untouched
+  ([GH-374](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/374))
+- **Request JIRA and Slack reviews without env-prefix friction** — the
+  `dev10x:jira` base skill becomes the plugin-bundled `Dev10x:jira` with
+  a documented tenant-wrapper pattern, and `Dev10x:slack-review-request`
+  gains a real `dev10x skill notify` CLI surface, so neither tenant
+  wrappers nor Slack steps fall back to version-pinned script paths
+  ([GH-233](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/233),
+  [GH-313](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/313))
+- **Edit PR inline review-thread comments via MCP** — the new
+  `pr_review_comment_edit` wrapper covers the `pulls/comments` endpoint
+  that `issue_comment_edit` could not reach, so clearing a stale bot
+  finding to unblock the merge gate no longer needs raw `gh api PATCH`
+  ([GH-304](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/304))
+- **Push small fixes directly during PR review** — `Dev10x:gh-pr-review`
+  adds a courtesy-fixup path that classifies mechanical findings
+  (unused imports, trivial renames, dead code) and offers a batch scope
+  gate before pushing, ending the comment-then-author round-trip
+  ([GH-323](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/323))
+- **Leave a PR review as a GitHub draft** — a draft-vs-submit gate in
+  `Dev10x:gh-pr-review` lets reviewers finalize on the Files-changed tab
+  before the review becomes visible, with intent-detection defaults and
+  author-aware biasing
+  ([GH-319](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/319))
+- **Use comment reactions as a triage signal** — `Dev10x:gh-pr-triage`
+  reads a comment's reactions as a verdict lean when no directing prose
+  exists, and `Dev10x:gh-pr-respond` surfaces a `Signal` column so
+  reaction-only verdicts stay auditable before the batch approval gate
+  ([GH-314](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/314))
+- **Catch a stale CLI before running maintenance** — `Dev10x:plugin-maintenance`
+  now reads the marketplace manifest and installed versions in a
+  preflight step, prompts to update when either surface is behind, and
+  can persist the choice so future sessions skip the prompt
+  ([GH-307](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/307))
+- **Surface parked work from the canonical session store** —
+  `Dev10x:park-discover` now reads `session.yaml` as its primary
+  substrate, every park writer indexes into that store, and its
+  documented commands route through Read/Grep/MCP wrappers instead of
+  friction-triggering `cat`/`grep -rn`/subshell forms
+  ([GH-85](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/85))
+- **Run the MCP servers over HTTP without code changes** — a
+  `DEV10X_MCP_TRANSPORT` env var selects the transport, making the
+  daemon/HTTP path opt-in while STDIO stays the default
+  ([GH-335](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/335))
+- **Normalize PyCharm/uv worktrees after checkout** — the new
+  `Dev10x:ide-normalize` skill fixes `.idea/` module names, disables the
+  `ADD_CONTENT_ROOTS` setting that breaks editable installs, backfills the
+  Django settings module, and patches the uv-SDK FLAVOR_DATA gap that
+  crashed PyCharm on fresh worktrees
+  ([GH-320](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/320))
+
+### Hardening
+
+- **Block privilege-escalation commands by default** — `sudo`, `doas`,
+  `pkexec`, and `sudoedit` deny rules ship in the base catalog for any
+  command shape, with a narrow `sudo-apt` opt-in group for routine
+  package management, closing the root-level bypass an agent reached for
+  in the wild
+  ([GH-326](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/326))
+
+### Fixes
+
+- **Restore the `pr_get` and `resolve_review_thread` MCP tools** — both
+  wrappers failed and forced raw `gh` fallbacks; `pr_get` no longer
+  requests the invalid `merged` field (deriving merged-ness from state),
+  `resolve_review_thread` queries the correct `reviewThreads` shape, and
+  `request-review` routes detection through the stable `pr_detect` wrapper
+  ([GH-329](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/329))
+- **Convert a PR review to draft only when inline comments exist** — the
+  CI review step queries the real `reviewComments` count instead of
+  trusting the model's recollection, ending spurious draft conversions
+  that blocked merge with zero findings
+  ([GH-333](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/333))
+- **Stop the permission generalizer from emitting invalid rules** — two
+  classes of bug produced mid-string `:*` forms that Claude Code rejects
+  after running maintenance on 0.75.0; the generalizer pattern and two
+  redundant `grep` rules are fixed, with a regression test for the
+  quoted-JSON-blob arg case
+  ([GH-315](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/315))
+- **Unblock the pre-PR gate on every branch** — the doctor passes
+  `str(cwd)` to `subprocess_utils.run`, resolving a mypy type mismatch
+  that the GH-245 cwd-discipline merge introduced on develop
+  ([GH-245](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/245))
+
+### Refactors
+
+- **Enforce a uniform `Result[T]` contract at the MCP boundary** — the
+  polymorphic `to_dict` branch is dropped, `record_upgrade` and `_gh_api`
+  return `Result[dict]`, and the 1834-line `server_cli.py` splits into
+  github/git/plan/audit/misc tool modules; ADR-0009 records the decision
+  ([GH-243](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/243))
+- **Seal context boundaries with domain protocols** — Milestone 5 of the
+  architecture audit adds ADR-0007/0008, moves session policy rules and
+  the audit writer behind protocols, extracts `SettingsDocument` for
+  settings I/O, and re-homes the audit-skills permission analysis so the
+  context boundary points the right way
+  ([GH-244](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/244))
+- **Make subprocess calls honor the caller's worktree** — a sync
+  `subprocess_utils.run` chokepoint defaults `cwd` to the bound effective
+  CWD, direct `subprocess.run`/`os.getcwd()`/module-scope `GitContext()`
+  usages are routed through it, and a lint test forbids regressions
+  ([GH-245](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/245))
+- **Resolve contradictory allow-rule diagnostics** — a single canonical
+  `AllowRule` value object with space-boundary-aware matching replaces
+  four drifted matchers and several duplicated settings loaders, so a
+  rule can no longer be reported matched by one diagnostic and unmatched
+  by another
+  ([GH-242](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/242))
+- **Extract skill logic into importable, unit-tested modules** — the
+  release classifier, JTBD extraction, Slack formatting, permission
+  config loading, skill-index builder, and subagent-status/batch-detection
+  protocols move into `dev10x.skills.*` modules with full coverage, the
+  dead PR-status batch query API is retired, and the audit-skills boundary
+  is sealed
+  ([GH-246](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/246),
+  [GH-248](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/248),
+  [GH-244](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/244))
+- **Replace dispatch chains with declarative patterns** — Milestone 10
+  of the architecture audit applies map-based dispatch and the
+  template-method pattern across hooks, validators, and the task state
+  machine, retiring if/elif chains and per-call should_run/validate
+  sequencing (11 of 36 findings; the rest deferred)
+  ([GH-249](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/249))
+- **Drop env-prefix friction from plugin-maintenance, JIRA, and
+  aws-vault** — maintenance steps route uniformly through
+  `uvx dev10x permission`, and the JIRA and aws-vault scripts accept a
+  leading `--tenant`/`--registry` flag so callers never need the
+  allow-rule-defeating `VAR=value script.sh` prefix
+  ([GH-306](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/306),
+  [GH-311](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/311))
+
+### Tests
+
+- **Cover the recently shipped MCP and CLI shipping paths** — handler
+  tests land for PR/issue comment, review-request, and thread-resolution
+  tools, plus playbook CLI and config-schema validation, closing the M8
+  audit's zero-coverage gaps
+  ([GH-247](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/247))
+- **Stop plan_sync tests from polluting the repo root** — the two
+  offending tests return a real `tmp_path`, and a session-scoped autouse
+  guard removes and fails on stray `<MagicMock …>` files
+  ([GH-332](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/332))
+
+### Docs
+
+- **Ratify the importable-module policy and script-vs-domain rules** —
+  ADR-0010 records that skill logic lives in importable modules with
+  thin uv-script shims, a new boundaries rule sets the print-vs-logging
+  and `sys.exit`-vs-`Result` conventions, and `ci_check_status` emits its
+  error JSON on stdout so stdout-parsing consumers never see empty output
+  ([GH-246](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/246))
+- **Record the `dev10x` CLI invocation benchmark and decision** —
+  ADR-0012 captures the startup comparison of `dev10x`, `uvx dev10x`, and
+  the in-process call, leading with `dev10x …` as the preferred form and
+  keeping `uvx dev10x …` as the zero-install fallback
+- **Document validator, permission, and orchestration test patterns** —
+  new reference docs capture safe-flag overrides, multi-flag validator
+  detection, validator test structure, permission tier-assignment logic,
+  and regression/schema testing for orchestration paths, distilled from
+  lessons-learned analysis
+  ([GH-271](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/271))
+
 ## 0.75.0 — Friction Reduction, Typed Boundaries & Business-ROI JTBD
 
 Released 2026-05-27
