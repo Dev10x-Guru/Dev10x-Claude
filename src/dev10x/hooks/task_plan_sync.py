@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -28,7 +29,7 @@ from dev10x.plan.service import (
 
 def read_plan(*, plan_path: Path) -> dict[str, Any]:
     """Load plan YAML into a dict. Consumed by `dev10x.hooks.session`."""
-    return Plan.load(path=plan_path)._to_dict()
+    return Plan.load(path=plan_path).to_dict()
 
 
 def cmd_set_context(*, args: list[str]) -> None:
@@ -66,6 +67,21 @@ def cmd_json_summary() -> None:
     json.dump(summary, sys.stdout, indent=2)
 
 
+def _apply_task_create(*, plan: Plan, tool_input: dict[str, Any], tool_result: Any) -> bool:
+    return plan.handle_task_create(tool_input=tool_input, tool_result=tool_result)
+
+
+def _apply_task_update(*, plan: Plan, tool_input: dict[str, Any], tool_result: Any) -> bool:
+    plan.handle_task_update(tool_input=tool_input)
+    return True
+
+
+TOOL_HANDLERS: dict[str, Callable[..., bool]] = {
+    "TaskCreate": _apply_task_create,
+    "TaskUpdate": _apply_task_update,
+}
+
+
 def cmd_hook() -> None:
     payload_str = sys.stdin.read()
     if not payload_str.strip():
@@ -81,7 +97,9 @@ def cmd_hook() -> None:
     if isinstance(tool_result, dict):
         tool_result = tool_result.get("content", str(tool_result))
 
-    tool_name = payload.get("tool_name", "")
+    handler = TOOL_HANDLERS.get(payload.get("tool_name", ""))
+    if handler is None:
+        sys.exit(0)
 
     toplevel = get_toplevel()
     if not toplevel:
@@ -96,17 +114,7 @@ def cmd_hook() -> None:
         is_new_plan = plan.is_new
         plan.ensure_metadata()
 
-        changed = False
-        if tool_name == "TaskCreate":
-            changed = plan.handle_task_create(
-                tool_input=tool_input,
-                tool_result=tool_result,
-            )
-        elif tool_name == "TaskUpdate":
-            plan.handle_task_update(tool_input=tool_input)
-            changed = True
-        else:
-            sys.exit(0)
+        changed = handler(plan=plan, tool_input=tool_input, tool_result=tool_result)
 
         if is_new_plan and not changed:
             sys.exit(0)

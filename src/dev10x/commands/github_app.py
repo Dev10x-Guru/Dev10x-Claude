@@ -81,7 +81,44 @@ installation, the App can't post anywhere.
 """
 
 
-def _prompt_install_target() -> dict[str, str]:
+@dataclass(frozen=True)
+class InstallTarget:
+    """Where the GitHub App is registered: personal, org-owned, or manual."""
+
+    kind: str
+    org: str | None = None
+
+    @property
+    def registration_url(self) -> str:
+        if self.kind == "org":
+            return f"https://github.com/organizations/{self.org}/settings/apps/new"
+        if self.kind == "manual":
+            return "(open the GitHub App settings page yourself)"
+        return PERSONAL_NEW_APP_URL
+
+    @property
+    def install_scope_hint(self) -> str:
+        if self.kind == "org":
+            return (
+                "Where can this GitHub App be installed?\n"
+                "  Scope is implicit — the App is owned by the org and can only\n"
+                "  be installed on it. Leave the default selection."
+            )
+        if self.kind == "manual":
+            return (
+                "Where can this GitHub App be installed?\n"
+                '  Personal multi-target → "Any account".\n'
+                "  Org-owned → leave the default."
+            )
+        return (
+            "Where can this GitHub App be installed?\n"
+            '  Pick "Any account" — lets you install the App on personal\n'
+            '  repos AND any orgs you belong to. The default "Only on this\n'
+            '  account" blocks org installs.'
+        )
+
+
+def _prompt_install_target() -> InstallTarget:
     """Return the install-target choice: personal, org-owned, or manual."""
     click.echo("Step 1: Where will the App be registered?")
     click.echo("─────────────────────────────────────────")
@@ -93,45 +130,16 @@ def _prompt_install_target() -> dict[str, str]:
     while True:
         choice = click.prompt("Choose [1/2/3]", type=str, default="1").strip()
         if choice == "1":
-            return {"kind": "personal"}
+            return InstallTarget(kind="personal")
         if choice == "2":
             org = click.prompt("Org login (e.g. tiretutorinc)", type=str).strip()
             if not org:
                 click.echo("  Org login is required for an org-owned App.")
                 continue
-            return {"kind": "org", "org": org}
+            return InstallTarget(kind="org", org=org)
         if choice == "3":
-            return {"kind": "manual"}
+            return InstallTarget(kind="manual")
         click.echo("  Pick 1, 2, or 3.")
-
-
-def _registration_url(target: dict[str, str]) -> str:
-    if target["kind"] == "org":
-        return f"https://github.com/organizations/{target['org']}/settings/apps/new"
-    if target["kind"] == "manual":
-        return "(open the GitHub App settings page yourself)"
-    return PERSONAL_NEW_APP_URL
-
-
-def _install_scope_hint(target: dict[str, str]) -> str:
-    if target["kind"] == "personal":
-        return (
-            "Where can this GitHub App be installed?\n"
-            '  Pick "Any account" — lets you install the App on personal\n'
-            '  repos AND any orgs you belong to. The default "Only on this\n'
-            '  account" blocks org installs.'
-        )
-    if target["kind"] == "org":
-        return (
-            "Where can this GitHub App be installed?\n"
-            "  Scope is implicit — the App is owned by the org and can only\n"
-            "  be installed on it. Leave the default selection."
-        )
-    return (
-        "Where can this GitHub App be installed?\n"
-        '  Personal multi-target → "Any account".\n'
-        "  Org-owned → leave the default."
-    )
 
 
 def _prompt_app_id() -> str:
@@ -411,8 +419,8 @@ def setup(*, force: bool, paste: bool) -> None:
     click.echo("")
     click.echo(
         CREATE_APP_INSTRUCTIONS.format(
-            url=_registration_url(target),
-            install_scope_hint=_install_scope_hint(target),
+            url=target.registration_url,
+            install_scope_hint=target.install_scope_hint,
         )
     )
     click.pause(info="Press any key when the App is created and the .pem is downloaded… ")

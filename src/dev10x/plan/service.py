@@ -51,7 +51,7 @@ def plan_summary() -> dict[str, Any]:
     plan = Plan.load(path=plan_path)
     if plan.is_new:
         return {}
-    return plan._to_dict()
+    return plan.to_dict()
 
 
 def archive_plan() -> dict[str, Any]:

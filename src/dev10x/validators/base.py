@@ -41,6 +41,10 @@ class Validator(Protocol):
         """Return HookResult to block, HookAllow to auto-approve, None for no opinion."""
         ...
 
+    def run(self, inp: HookInput) -> HookResult | HookAllow | None:
+        """Template: ``should_run`` gate followed by ``validate``."""
+        ...
+
 
 @runtime_checkable
 class Corrector(Protocol):
@@ -71,3 +75,21 @@ class ValidatorBase:
     profile: ClassVar[ProfileTier] = ProfileTier.STANDARD
     experimental: ClassVar[bool] = False
     capabilities: ClassVar[frozenset[str]] = frozenset({"validate"})
+
+    def should_run(self, inp: HookInput) -> bool:
+        """Fast skip predicate — overridden by concrete validators."""
+        raise NotImplementedError  # pragma: no cover
+
+    def validate(self, inp: HookInput) -> HookResult | HookAllow | None:
+        """Block/allow/abstain decision — overridden by concrete validators."""
+        raise NotImplementedError  # pragma: no cover
+
+    def run(self, inp: HookInput) -> HookResult | HookAllow | None:
+        """Template method: skip when ``should_run`` is False, else ``validate``.
+
+        Consolidates the ``should_run`` → ``validate`` sequencing that the
+        dispatcher previously open-coded per call site.
+        """
+        if not self.should_run(inp=inp):
+            return None
+        return self.validate(inp=inp)

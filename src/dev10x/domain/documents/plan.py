@@ -58,6 +58,7 @@ def get_plan_path(*, toplevel: str) -> Path:
 class TaskTransition:
     timestamp_field: str | None
     allowed_from: frozenset[TaskStatus | None]
+    removes: bool = False
 
 
 # Declarative transition table. `allowed_from` lists the prior statuses
@@ -95,6 +96,7 @@ TASK_TRANSITIONS: dict[TaskStatus, TaskTransition] = {
                 TaskStatus.DELETED,
             }
         ),
+        removes=True,
     ),
 }
 
@@ -135,7 +137,7 @@ class Plan:
 
     def save(self, *, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        plan_data = self._to_dict()
+        plan_data = self.to_dict()
         fd, tmp_path = tempfile.mkstemp(
             dir=str(path.parent),
             prefix=".plan-",
@@ -158,7 +160,7 @@ class Plan:
                 pass
             raise
 
-    def _to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {}
         if self.metadata:
             result["plan"] = self.metadata
@@ -229,9 +231,6 @@ class Plan:
 
         raw_status = tool_input.get("status")
         target_status = _coerce_status(raw_status)
-        if target_status is TaskStatus.DELETED:
-            self.tasks = [t for t in self.tasks if t.id != task_id]
-            return
 
         idx = self._find_index(task_id=task_id)
         if idx is None:
@@ -243,6 +242,11 @@ class Plan:
                 # Reject invalid transitions silently; the hook must keep
                 # processing other updates rather than crashing on a stale
                 # status flip caused by clock skew or replay.
+                return
+            # DELETED is declared with `removes=True` in TASK_TRANSITIONS —
+            # the operation drops the task entry instead of restamping it.
+            if TASK_TRANSITIONS[target_status].removes:
+                del self.tasks[idx]
                 return
             task = task.with_status(status=target_status, timestamp=_now_iso())
 

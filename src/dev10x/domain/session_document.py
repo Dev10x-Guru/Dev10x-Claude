@@ -78,7 +78,7 @@ def read_plan_summary(*, toplevel: str) -> dict[str, Any]:
     from dev10x.domain.documents.plan import Plan, get_plan_path
 
     plan_path = get_plan_path(toplevel=toplevel)
-    return Plan.load(path=plan_path)._to_dict()
+    return Plan.load(path=plan_path).to_dict()
 
 
 __all__ = [

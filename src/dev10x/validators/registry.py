@@ -201,9 +201,7 @@ class ValidatorChain:
         results: list[HookResult | HookAllow] = []
         for validator in self.registry.active():
             try:
-                if not validator.should_run(inp=inp):
-                    continue
-                result = validator.validate(inp=inp)
+                result = validator.run(inp=inp)
             except Exception:
                 _log_validator_error(validator=validator, method="validate")
                 continue

@@ -101,7 +101,7 @@ class TestJsonSummary:
     ) -> None:
         mock_plan = MagicMock()
         mock_plan.is_new = False
-        mock_plan._to_dict.return_value = {"metadata": {"branch": "feature"}}
+        mock_plan.to_dict.return_value = {"metadata": {"branch": "feature"}}
         mock_plan_cls.load.return_value = mock_plan
         result = await plan_mod.json_summary()
         assert isinstance(result, SuccessResult)

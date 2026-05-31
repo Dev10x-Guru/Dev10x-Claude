@@ -20,6 +20,8 @@ import io
 import json
 import sys
 import traceback
+from collections.abc import Callable
+from typing import Any, NamedTuple
 
 
 def _load_stdin() -> dict:
@@ -85,46 +87,80 @@ def _extract_additional_context(*, output: str) -> str:
     return ctx or stripped
 
 
+class SessionFeature(NamedTuple):
+    """One SessionStart feature and how to obtain its context string.
+
+    A ``NamedTuple`` (not a dataclass) so this standalone uv-script stays
+    importable under ``importlib.exec_module`` with a synthetic module
+    name — ``@dataclass`` + ``from __future__ import annotations`` does a
+    ``sys.modules`` lookup that fails outside a registered module.
+
+    ``mode`` selects the calling convention:
+      - ``"capture"`` — wrap with ``audit_hook`` and capture stdout
+        (legacy print-based features). ``pass_data`` forwards stdin.
+      - ``"build"``  — call directly and use the returned string.
+    ``emits_context`` is False for side-effect-only features (tmpdir).
+    """
+
+    name: str
+    fn: Callable[..., Any]
+    mode: str
+    pass_data: bool = False
+    emits_context: bool = True
+
+
+def _run_session_feature(*, feature: SessionFeature, data: dict, audit_hook) -> str:
+    """Run one feature, returning the context string to append (or "")."""
+    if feature.mode == "build":
+        try:
+            return feature.fn() or ""
+        except Exception:
+            traceback.print_exc(file=sys.stderr)
+            return ""
+
+    fn = (lambda: feature.fn(data=data)) if feature.pass_data else feature.fn
+    out = _run_feature(name=feature.name, fn=fn, audit_hook=audit_hook)
+    return out.strip() if feature.emits_context else ""
+
+
 def main() -> None:
     data = _load_stdin()
     s, audit_hook = _import_session_modules()
 
-    # Features that produce additionalContext (order matters for readability).
+    # Order matters for readability of the merged additionalContext.
+    features = [
+        SessionFeature(name="session-git-aliases", fn=s.session_git_aliases, mode="capture"),
+        SessionFeature(
+            name="session-tmpdir",
+            fn=s.session_tmpdir,
+            mode="capture",
+            pass_data=True,
+            emits_context=False,
+        ),
+        SessionFeature(name="session-guidance", fn=s.build_guidance_context, mode="build"),
+        SessionFeature(
+            name="session-autonomy",
+            fn=s.build_autonomy_reassurance_context,
+            mode="build",
+        ),
+        SessionFeature(
+            name="session-install-check",
+            fn=s.build_install_check_context,
+            mode="build",
+        ),
+        SessionFeature(
+            name="session-migrate-permissions",
+            fn=s.session_migrate_permissions,
+            mode="capture",
+        ),
+        SessionFeature(name="session-reload", fn=s.build_reload_context, mode="build"),
+    ]
+
     context_parts: list[str] = []
-
-    out = _run_feature(name="session-git-aliases", fn=s.session_git_aliases, audit_hook=audit_hook)
-    if out.strip():
-        context_parts.append(out.strip())
-
-    _run_feature(
-        name="session-tmpdir",
-        fn=lambda: s.session_tmpdir(data=data),
-        audit_hook=audit_hook,
-    )
-
-    guidance = s.build_guidance_context()
-    if guidance:
-        context_parts.append(guidance)
-
-    reassurance = s.build_autonomy_reassurance_context()
-    if reassurance:
-        context_parts.append(reassurance)
-
-    install_check = s.build_install_check_context()
-    if install_check:
-        context_parts.append(install_check)
-
-    out = _run_feature(
-        name="session-migrate-permissions",
-        fn=s.session_migrate_permissions,
-        audit_hook=audit_hook,
-    )
-    if out.strip():
-        context_parts.append(out.strip())
-
-    reload_ctx = s.build_reload_context()
-    if reload_ctx:
-        context_parts.append(reload_ctx)
+    for feature in features:
+        ctx = _run_session_feature(feature=feature, data=data, audit_hook=audit_hook)
+        if ctx:
+            context_parts.append(ctx)
 
     if not context_parts:
         return
