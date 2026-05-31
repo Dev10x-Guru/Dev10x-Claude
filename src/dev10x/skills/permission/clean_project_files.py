@@ -16,14 +16,12 @@ CLI entry point: ``dev10x permission clean``.
 
 import json
 import re
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import yaml
-
 from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.skills.permission.config import parse_config, resolve_config
 
 USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
 PLUGIN_CONFIG = (
@@ -132,20 +130,14 @@ class RemovalResult:
 
 
 def find_config() -> Path:
-    if USERSPACE_CONFIG.is_file():
-        return USERSPACE_CONFIG
-    if PLUGIN_CONFIG.is_file():
-        return PLUGIN_CONFIG
-    print(
-        f"ERROR: No config found. Create {USERSPACE_CONFIG}\nor ensure {PLUGIN_CONFIG} exists.",
-        file=sys.stderr,
+    return resolve_config(
+        candidates=[USERSPACE_CONFIG, PLUGIN_CONFIG],
+        create_path=USERSPACE_CONFIG,
     )
-    sys.exit(1)
 
 
 def load_config(config_path: Path) -> dict:
-    with open(config_path) as f:
-        return yaml.safe_load(f)
+    return parse_config(config_path)
 
 
 def load_global_settings(path: Path) -> dict:

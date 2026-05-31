@@ -13,13 +13,11 @@ CLI entry point: ``dev10x permission merge-worktree``.
 
 import json
 import re
-import sys
 from pathlib import Path
-
-import yaml
 
 from dev10x.domain.common.ticket_id import TICKET_ID_PATTERN
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.skills.permission.config import parse_config, resolve_config
 
 USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
 PLUGIN_CONFIG = (
@@ -74,17 +72,11 @@ def generalize_permission(entry: str) -> str:
 
 
 def find_config() -> Path:
-    if USERSPACE_CONFIG.is_file():
-        return USERSPACE_CONFIG
-    if PLUGIN_CONFIG.is_file():
-        return PLUGIN_CONFIG
-    print("ERROR: No config found.", file=sys.stderr)
-    sys.exit(1)
+    return resolve_config(candidates=[USERSPACE_CONFIG, PLUGIN_CONFIG])
 
 
 def load_config(config_path: Path) -> dict:
-    with open(config_path) as f:
-        return yaml.safe_load(f)
+    return parse_config(config_path)
 
 
 def is_noise(entry: str) -> bool:

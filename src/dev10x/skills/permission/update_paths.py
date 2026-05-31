@@ -27,14 +27,12 @@ in a follow-up ticket so the two files do not drift.
 
 import json
 import re
-import sys
 from pathlib import Path
-
-import yaml
 
 from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.allow_rule import AllowRule
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.skills.permission.config import parse_config, resolve_config
 
 MEMORY_CONFIG = Dev10xConfigDir.projects_yaml()
 USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
@@ -56,22 +54,14 @@ def extract_cache_publisher(plugin_cache: str) -> str | None:
 
 
 def find_config() -> Path:
-    if MEMORY_CONFIG.is_file():
-        return MEMORY_CONFIG
-    if USERSPACE_CONFIG.is_file():
-        return USERSPACE_CONFIG
-    if PLUGIN_CONFIG.is_file():
-        return PLUGIN_CONFIG
-    print(
-        f"ERROR: No config found. Create {MEMORY_CONFIG}\nor ensure {PLUGIN_CONFIG} exists.",
-        file=sys.stderr,
+    return resolve_config(
+        candidates=[MEMORY_CONFIG, USERSPACE_CONFIG, PLUGIN_CONFIG],
+        create_path=MEMORY_CONFIG,
     )
-    sys.exit(1)
 
 
 def load_config(config_path: Path) -> dict:
-    with open(config_path) as f:
-        return yaml.safe_load(f)
+    return parse_config(config_path)
 
 
 def detect_latest_version(cache_dir: Path) -> str | None:
