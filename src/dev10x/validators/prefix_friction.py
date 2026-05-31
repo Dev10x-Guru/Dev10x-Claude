@@ -279,6 +279,23 @@ class PrefixFrictionValidator(ValidatorBase):
     capabilities: ClassVar[frozenset[str]] = frozenset({"validate", "correct"})
     _allow_patterns: list[str] | None = field(default=None, repr=False)
 
+    # Ordered chain of prefix checks (PrefixCheck = method taking
+    # ``*, inp: HookInput`` and returning the first matching ``HookResult``).
+    # ``validate`` walks this list in order; the last entry is the
+    # fall-through ``&&``-chaining check.
+    _CHECKS: ClassVar[tuple[str, ...]] = (
+        "_check_cd_revparse_chain",
+        "_check_git_c_noop",
+        "_check_env_prefix_git",
+        "_check_merge_base",
+        "_check_cd_noop_chain",
+        "_check_cd_git_chain",
+        "_check_redirect_then_positional",
+        "_check_semicolon_chain",
+        "_check_shell_loop_wrap",
+        "_check_and_chaining",
+    )
+
     def should_run(self, inp: HookInput) -> bool:
         cmd = inp.command
         return (
@@ -297,50 +314,14 @@ class PrefixFrictionValidator(ValidatorBase):
         )
 
     def validate(self, inp: HookInput) -> HookResult | None:
-        result = self._check_cd_revparse_chain(command=inp.command)
-        if result:
-            return result
+        for check_name in self._CHECKS:
+            result: HookResult | None = getattr(self, check_name)(inp=inp)
+            if result is not None:
+                return result
+        return None
 
-        result = self._check_git_c_noop(command=inp.command, cwd=inp.cwd)
-        if result:
-            return result
-
-        result = self._check_env_prefix_git(command=inp.command)
-        if result:
-            return result
-
-        result = self._check_merge_base(command=inp.command)
-        if result:
-            return result
-
-        result = self._check_cd_noop_chain(command=inp.command, cwd=inp.cwd)
-        if result:
-            return result
-
-        result = self._check_cd_git_chain(command=inp.command)
-        if result:
-            return result
-
-        result = self._check_redirect_then_positional(command=inp.command)
-        if result:
-            return result
-
-        result = self._check_semicolon_chain(command=inp.command)
-        if result:
-            return result
-
-        result = self._check_shell_loop_wrap(command=inp.command)
-        if result:
-            return result
-
-        return self._check_and_chaining(command=inp.command)
-
-    def _check_cd_revparse_chain(
-        self,
-        *,
-        command: str,
-    ) -> HookResult | None:
-        match = CD_REVPARSE_RE.match(command)
+    def _check_cd_revparse_chain(self, *, inp: HookInput) -> HookResult | None:
+        match = CD_REVPARSE_RE.match(inp.command)
         if not match:
             return None
         bare = match.group(1).strip()
@@ -348,72 +329,62 @@ class PrefixFrictionValidator(ValidatorBase):
             message=CD_REVPARSE_MSG.format(bare_command=bare),
         )
 
-    def _check_git_c_noop(
-        self,
-        *,
-        command: str,
-        cwd: str,
-    ) -> HookResult | None:
-        if not cwd:
+    def _check_git_c_noop(self, *, inp: HookInput) -> HookResult | None:
+        if not inp.cwd:
             return None
-        match = GIT_C_RE.search(command)
+        match = GIT_C_RE.search(inp.command)
         if not match:
             return None
         target = os.path.normpath(os.path.expanduser(match.group(1).strip("\"'")))
-        normalized_cwd = os.path.normpath(cwd)
+        normalized_cwd = os.path.normpath(inp.cwd)
         if target != normalized_cwd:
             return None
-        bare = GIT_C_RE.sub("git", command, count=1).strip()
+        bare = GIT_C_RE.sub("git", inp.command, count=1).strip()
         return HookResult(
             message=GIT_C_NOOP_MSG.format(
                 path=match.group(1),
-                cwd=cwd,
+                cwd=inp.cwd,
                 bare_command=bare,
             ),
         )
 
-    def _check_cd_noop_chain(
-        self,
-        *,
-        command: str,
-        cwd: str,
-    ) -> HookResult | None:
-        if not cwd:
+    def _check_cd_noop_chain(self, *, inp: HookInput) -> HookResult | None:
+        if not inp.cwd:
             return None
-        match = CD_NOOP_RE.match(command)
+        match = CD_NOOP_RE.match(inp.command)
         if not match:
             return None
         target = os.path.normpath(os.path.expanduser(match.group(1).strip("\"'")))
-        normalized_cwd = os.path.normpath(cwd)
+        normalized_cwd = os.path.normpath(inp.cwd)
         if target != normalized_cwd:
             return None
         bare = match.group(2).strip()
         return HookResult(
             message=CD_NOOP_MSG.format(
                 path=match.group(1),
-                cwd=cwd,
+                cwd=inp.cwd,
                 bare_command=bare,
             ),
         )
 
-    def _check_env_prefix_git(self, *, command: str) -> HookResult | None:
-        if ENV_PREFIX_GIT_RE.match(command):
-            bare = _extract_bare_command(command=command)
+    def _check_env_prefix_git(self, *, inp: HookInput) -> HookResult | None:
+        if ENV_PREFIX_GIT_RE.match(inp.command):
+            bare = _extract_bare_command(command=inp.command)
             return HookResult(message=ENV_PREFIX_MSG.format(bare_command=bare))
         return None
 
-    def _check_merge_base(self, *, command: str) -> HookResult | None:
-        merge_match = MERGE_BASE_RE.search(command)
+    def _check_merge_base(self, *, inp: HookInput) -> HookResult | None:
+        merge_match = MERGE_BASE_RE.search(inp.command)
         if not merge_match:
             return None
         branch = merge_match.group(1)
-        sub_match = GIT_SUBCOMMAND_RE.search(command)
+        sub_match = GIT_SUBCOMMAND_RE.search(inp.command)
         subcommand = sub_match.group(1) if sub_match else None
         alias = _suggest_alias(branch=branch, subcommand=subcommand)
         return HookResult(message=MERGE_BASE_MSG.format(alias=alias))
 
-    def _check_cd_git_chain(self, *, command: str) -> HookResult | None:
-        match = CD_GIT_CHAIN_RE.match(command)
+    def _check_cd_git_chain(self, *, inp: HookInput) -> HookResult | None:
+        match = CD_GIT_CHAIN_RE.match(inp.command)
         if not match:
             return None
         path = match.group(1)
@@ -422,8 +393,8 @@ class PrefixFrictionValidator(ValidatorBase):
             message=CD_GIT_CHAIN_MSG.format(path=path, args=args),
         )
 
-    def _check_redirect_then_positional(self, *, command: str) -> HookResult | None:
-        match = REDIRECT_THEN_POSITIONAL_RE.match(command)
+    def _check_redirect_then_positional(self, *, inp: HookInput) -> HookResult | None:
+        match = REDIRECT_THEN_POSITIONAL_RE.match(inp.command)
         if not match:
             return None
         cmd = match.group("cmd")
@@ -439,8 +410,8 @@ class PrefixFrictionValidator(ValidatorBase):
             )
         )
 
-    def _check_semicolon_chain(self, *, command: str) -> HookResult | None:
-        match = SEMICOLON_CHAIN_RE.match(command)
+    def _check_semicolon_chain(self, *, inp: HookInput) -> HookResult | None:
+        match = SEMICOLON_CHAIN_RE.match(inp.command)
         if not match:
             return None
         head_cmd = match.group("head").strip().split()[0]
@@ -452,7 +423,8 @@ class PrefixFrictionValidator(ValidatorBase):
             )
         )
 
-    def _check_shell_loop_wrap(self, *, command: str) -> HookResult | None:
+    def _check_shell_loop_wrap(self, *, inp: HookInput) -> HookResult | None:
+        command = inp.command
         loop_match = SHELL_LOOP_HEAD_RE.match(command)
         if loop_match:
             inner = self._inner_command_from(body=loop_match.group("body"))
@@ -509,7 +481,8 @@ class PrefixFrictionValidator(ValidatorBase):
                 return head
         return None
 
-    def _check_and_chaining(self, *, command: str) -> HookResult | None:
+    def _check_and_chaining(self, *, inp: HookInput) -> HookResult | None:
+        command = inp.command
         if "&&" not in command:
             return None
 

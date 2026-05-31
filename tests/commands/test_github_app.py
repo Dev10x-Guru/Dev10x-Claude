@@ -233,31 +233,31 @@ class TestPromptInstallTarget:
         runner = CliRunner()
         with runner.isolation(input="1\n"):
             target = gha._prompt_install_target()
-        assert target == {"kind": "personal"}
+        assert target == gha.InstallTarget(kind="personal")
 
     def test_org_choice(self) -> None:
         runner = CliRunner()
         with runner.isolation(input="2\nDev10x-Guru\n"):
             target = gha._prompt_install_target()
-        assert target == {"kind": "org", "org": "Dev10x-Guru"}
+        assert target == gha.InstallTarget(kind="org", org="Dev10x-Guru")
 
     def test_manual_choice(self) -> None:
         runner = CliRunner()
         with runner.isolation(input="3\n"):
             target = gha._prompt_install_target()
-        assert target == {"kind": "manual"}
+        assert target == gha.InstallTarget(kind="manual")
 
     def test_retries_on_invalid_choice(self) -> None:
         runner = CliRunner()
         with runner.isolation(input="9\n1\n"):
             target = gha._prompt_install_target()
-        assert target == {"kind": "personal"}
+        assert target == gha.InstallTarget(kind="personal")
 
     def test_retries_on_empty_org(self) -> None:
         runner = CliRunner()
         with runner.isolation(input="2\n\nDev10x-Guru\n"):
             target = gha._prompt_install_target()
-        assert target == {"kind": "org", "org": "Dev10x-Guru"}
+        assert target == gha.InstallTarget(kind="org", org="Dev10x-Guru")
 
 
 class TestPromptPrivateKeyPath:
@@ -328,28 +328,28 @@ class TestVerifySetupApiErrors:
 
 class TestRegistrationUrl:
     def test_personal(self) -> None:
-        assert gha._registration_url({"kind": "personal"}) == gha.PERSONAL_NEW_APP_URL
+        assert gha.InstallTarget(kind="personal").registration_url == gha.PERSONAL_NEW_APP_URL
 
     def test_org(self) -> None:
-        url = gha._registration_url({"kind": "org", "org": "tiretutorinc"})
+        url = gha.InstallTarget(kind="org", org="tiretutorinc").registration_url
         assert url == "https://github.com/organizations/tiretutorinc/settings/apps/new"
 
     def test_manual_returns_placeholder(self) -> None:
-        url = gha._registration_url({"kind": "manual"})
+        url = gha.InstallTarget(kind="manual").registration_url
         assert "yourself" in url
 
 
 class TestInstallScopeHint:
     def test_personal_steers_to_any_account(self) -> None:
-        hint = gha._install_scope_hint({"kind": "personal"})
+        hint = gha.InstallTarget(kind="personal").install_scope_hint
         assert '"Any account"' in hint
 
     def test_org_explains_implicit_scope(self) -> None:
-        hint = gha._install_scope_hint({"kind": "org", "org": "x"})
+        hint = gha.InstallTarget(kind="org", org="x").install_scope_hint
         assert "owned by the org" in hint
 
     def test_manual_covers_both(self) -> None:
-        hint = gha._install_scope_hint({"kind": "manual"})
+        hint = gha.InstallTarget(kind="manual").install_scope_hint
         assert "Any account" in hint
 
 

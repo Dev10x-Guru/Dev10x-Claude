@@ -16,6 +16,49 @@ from dev10x.domain.common.result import Result, err, ok
 from dev10x.subprocess_utils import async_run_script, parse_key_value_output
 
 
+def _ok_json_or_kv(stdout: str) -> Result[dict[str, Any]]:
+    """Parse script stdout as JSON, falling back to KEY=VALUE lines."""
+    try:
+        return ok(json.loads(stdout))
+    except json.JSONDecodeError:
+        return ok(parse_key_value_output(stdout))
+
+
+def _conflict_error(stdout: str, *, extra: dict[str, Any] | None = None) -> Result[dict[str, Any]]:
+    """Build the shared rebase-conflict error payload from script stdout."""
+    parsed = parse_key_value_output(stdout)
+    fields: dict[str, Any] = {
+        "conflict": True,
+        "conflicted_files": [f for f in parsed.get("conflicted_files", "").split(",") if f],
+        "rebase_head": parsed.get("rebase_head", "unknown"),
+        "hint": parsed.get("hint", ""),
+    }
+    if extra:
+        fields.update(extra)
+    return err("Rebase conflict detected", **fields)
+
+
+async def _run_git_script(
+    script: str,
+    *args: str,
+    conflict_aware: bool = False,
+) -> Result[dict[str, Any]]:
+    """Run a git skill script and shape its result.
+
+    Centralizes the repeated returncode-check → JSON-or-KEY=VALUE success
+    parsing. When ``conflict_aware`` is set, a non-zero exit carrying a
+    ``CONFLICT_DETECTED`` marker yields the shared conflict error payload.
+    """
+    result = await async_run_script(script, *args)
+
+    if result.returncode != 0:
+        if conflict_aware and "CONFLICT_DETECTED" in result.stdout:
+            return _conflict_error(result.stdout.strip())
+        return err(result.stderr.strip())
+
+    return _ok_json_or_kv(result.stdout)
+
+
 async def push_safe(
     *,
     args: list[str],
@@ -26,41 +69,16 @@ async def push_safe(
         for pb in protected_branches:
             cmd_args.extend(["--protected", pb])
 
-    result = await async_run_script("skills/git/scripts/git-push-safe.sh", *cmd_args)
-
-    if result.returncode != 0:
-        return err(result.stderr.strip())
-
-    try:
-        return ok(json.loads(result.stdout))
-    except json.JSONDecodeError:
-        return ok(parse_key_value_output(result.stdout))
+    return await _run_git_script("skills/git/scripts/git-push-safe.sh", *cmd_args)
 
 
 async def rebase_groom(*, seq_path: str, base_ref: str) -> Result[dict[str, Any]]:
-    result = await async_run_script(
+    return await _run_git_script(
         "skills/git/scripts/git-rebase-groom.sh",
         seq_path,
         base_ref,
+        conflict_aware=True,
     )
-
-    if result.returncode != 0:
-        stdout = result.stdout.strip()
-        if "CONFLICT_DETECTED" in stdout:
-            parsed = parse_key_value_output(stdout)
-            return err(
-                "Rebase conflict detected",
-                conflict=True,
-                conflicted_files=[f for f in parsed.get("conflicted_files", "").split(",") if f],
-                rebase_head=parsed.get("rebase_head", "unknown"),
-                hint=parsed.get("hint", ""),
-            )
-        return err(result.stderr.strip())
-
-    try:
-        return ok(json.loads(result.stdout))
-    except json.JSONDecodeError:
-        return ok(parse_key_value_output(result.stdout))
 
 
 async def create_worktree(
@@ -84,18 +102,10 @@ async def create_worktree(
     if path is not None:
         wt_args.extend(["--path", path])
 
-    result = await async_run_script(
+    return await _run_git_script(
         "skills/git-worktree/scripts/create-worktree.sh",
         *wt_args,
     )
-
-    if result.returncode != 0:
-        return err(result.stderr.strip())
-
-    try:
-        return ok(json.loads(result.stdout))
-    except json.JSONDecodeError:
-        return ok(parse_key_value_output(result.stdout))
 
 
 async def mass_rewrite(*, config_path: str) -> Result[dict[str, Any]]:
@@ -107,15 +117,7 @@ async def mass_rewrite(*, config_path: str) -> Result[dict[str, Any]]:
     if result.returncode != 0:
         stdout = result.stdout.strip()
         if "CONFLICT_DETECTED" in stdout:
-            parsed = parse_key_value_output(stdout)
-            return err(
-                "Rebase conflict detected",
-                conflict=True,
-                conflicted_files=[f for f in parsed.get("conflicted_files", "").split(",") if f],
-                rebase_head=parsed.get("rebase_head", "unknown"),
-                hint=parsed.get("hint", ""),
-                output=stdout,
-            )
+            return _conflict_error(stdout, extra={"output": stdout})
         return err(result.stderr.strip(), output=stdout)
 
     return ok({"success": True, "output": result.stdout.strip()})

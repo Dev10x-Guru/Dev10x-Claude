@@ -153,32 +153,39 @@ def parse_turns(text: str) -> list[Turn]:
     return turns
 
 
+ACTION_TYPE_BY_TOOL: dict[str, str] = {
+    "Skill": "Skill",
+    "Agent": "Agent",
+    "TaskCreate": "Task",
+    "TaskUpdate": "Task",
+    "TaskList": "Task",
+    "TaskGet": "Task",
+    "AskUserQuestion": "Decision",
+    "Write": "CodeChange",
+    "Edit": "CodeChange",
+    "Read": "Read",
+    "Glob": "Search",
+    "Grep": "Search",
+    "WebFetch": "Web",
+    "WebSearch": "Web",
+}
+
+
+def _classify_bash(input_summary: str) -> str:
+    combined = f"Bash {input_summary}".lower()
+    for action_type, keywords in ACTION_KEYWORDS.items():
+        for kw in keywords:
+            if kw.lower() in combined:
+                return action_type
+    return "Other"
+
+
 def classify_action(tool_name: str, input_summary: str) -> str:
-    if tool_name == "Skill":
-        return "Skill"
-    if tool_name == "Agent":
-        return "Agent"
-    if tool_name in ("TaskCreate", "TaskUpdate", "TaskList", "TaskGet"):
-        return "Task"
-    if tool_name == "AskUserQuestion":
-        return "Decision"
-    if tool_name in ("Write", "Edit"):
-        return "CodeChange"
-    if tool_name == "Read":
-        return "Read"
-    if tool_name in ("Glob", "Grep"):
-        return "Search"
-    if tool_name in ("WebFetch", "WebSearch"):
-        return "Web"
-
-    combined = f"{tool_name} {input_summary}".lower()
-
+    mapped = ACTION_TYPE_BY_TOOL.get(tool_name)
+    if mapped is not None:
+        return mapped
     if tool_name == "Bash":
-        for action_type, keywords in ACTION_KEYWORDS.items():
-            for kw in keywords:
-                if kw.lower() in combined:
-                    return action_type
-
+        return _classify_bash(input_summary=input_summary)
     return "Other"
 
 

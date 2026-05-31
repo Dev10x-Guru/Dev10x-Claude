@@ -316,3 +316,25 @@ class TestValidatorChain:
         registry._instances = [_Raiser()]  # type: ignore[attr-defined]
         chain = ValidatorChain(registry=registry)
         assert chain.correct(inp=stub_input) is None
+
+
+class TestValidatorBaseTemplate:
+    def test_run_validates_when_should_run_true(self, stub_input: HookInput) -> None:
+        result = _StubValidator().run(inp=stub_input)
+        assert isinstance(result, HookResult)
+        assert result.message == "stub-blocked"
+
+    def test_run_skips_when_should_run_false(self, stub_input: HookInput) -> None:
+        @dataclass
+        class _Skipper(ValidatorBase):
+            name: ClassVar[str] = "skipper"
+            rule_id: ClassVar[str] = "DX902"
+            profile: ClassVar[ProfileTier] = ProfileTier.MINIMAL
+
+            def should_run(self, inp: HookInput) -> bool:
+                return False
+
+            def validate(self, inp: HookInput) -> HookResult | None:
+                raise AssertionError("validate must not run when should_run is False")
+
+        assert _Skipper().run(inp=stub_input) is None
