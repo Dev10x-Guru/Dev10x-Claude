@@ -42,6 +42,19 @@ base_permissions:
   # --- Plugin infrastructure (GH-274, GH-101, GH-426) ---
   - "Bash(/tmp/Dev10x/bin/mktmp.sh:*)"
 
+  # --- Arbitrary-code escape destinations (GH-370) ---
+  # GH-308 steers agents to extract inline probes into /tmp/Dev10x/*.py
+  # or ~/.claude/tools/*.py. Write is already permitted; without these,
+  # executing the extracted script prompts again (GH-271 #192, #215).
+  - "Bash(/tmp/Dev10x/*.py:*)"
+  - "Bash(/tmp/Dev10x/**/*.py:*)"
+  - "Bash(/tmp/Dev10x/*.sh:*)"
+  - "Bash(/tmp/Dev10x/**/*.sh:*)"
+  - "Bash(~/.claude/tools/*:*)"
+  - "Bash(~/.claude/tools/*.py:*)"
+  - "Bash(~/.claude/tools/*.sh:*)"
+  - "Bash(/home/*/.claude/tools/*:*)"
+
   # --- Plugin scripts: bin/ ---
   - "Bash(~/.claude/plugins/cache/**/bin/release.sh:*)"
   - "Bash(~/.claude/plugins/cache/**/bin/require-tool.sh:*)"
@@ -460,6 +473,46 @@ base_permissions:
   # uv — read-only environment inspection (test/lint/run already covered)
   - "Bash(uv pip list:*)"
   - "Bash(uv tree:*)"
+
+  # --- Canonical documentation domains (GH-369) ---
+  # WebFetch is its own permission entity class. Routine doc lookups
+  # prompt per-domain on first access; GH-271 evidence showed 6+ doc
+  # domains hit in a single session. Pre-approving the canonical set
+  # keeps unattended sessions moving. HTTPS doc hosts only, one FQDN
+  # per rule (no wildcard subdomains — keeps the surface auditable).
+  # Mirrors the `webfetch-public-docs` tier-2 group in
+  # baseline-permissions.yaml.
+  - "WebFetch(domain:docs.python.org)"
+  - "WebFetch(domain:peps.python.org)"
+  - "WebFetch(domain:packaging.python.org)"
+  - "WebFetch(domain:docs.pytest.org)"
+  - "WebFetch(domain:docs.astral.sh)"
+  - "WebFetch(domain:black.readthedocs.io)"
+  - "WebFetch(domain:docs.pydantic.dev)"
+  - "WebFetch(domain:pip.pypa.io)"
+  - "WebFetch(domain:docs.djangoproject.com)"
+  - "WebFetch(domain:fastapi.tiangolo.com)"
+  - "WebFetch(domain:flask.palletsprojects.com)"
+  - "WebFetch(domain:docs.celeryq.dev)"
+  - "WebFetch(domain:docs.gunicorn.org)"
+  - "WebFetch(domain:gunicorn.org)"
+  - "WebFetch(domain:developer.mozilla.org)"
+  - "WebFetch(domain:svelte.dev)"
+  - "WebFetch(domain:kit.svelte.dev)"
+  - "WebFetch(domain:react.dev)"
+  - "WebFetch(domain:nodejs.org)"
+  - "WebFetch(domain:docs.npmjs.com)"
+  - "WebFetch(domain:docs.docker.com)"
+  - "WebFetch(domain:kubernetes.io)"
+  - "WebFetch(domain:docs.aws.amazon.com)"
+  - "WebFetch(domain:health.aws.amazon.com)"
+  - "WebFetch(domain:cloud.google.com)"
+  - "WebFetch(domain:www.postgresql.org)"
+  - "WebFetch(domain:redis.io)"
+  - "WebFetch(domain:docs.github.com)"
+  - "WebFetch(domain:docs.gitlab.com)"
+  - "WebFetch(domain:docs.sentry.io)"
+  - "WebFetch(domain:resend.com)"
 
   # --- Dev10x skills ---
   - "Skill(Dev10x:*)"

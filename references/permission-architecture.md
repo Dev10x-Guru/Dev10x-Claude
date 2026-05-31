@@ -125,6 +125,30 @@ The upstream UI defect that generates the catch-all is tracked
 separately (GH-312); this allowlist is the defense-in-depth that
 keeps unattended sessions moving without it.
 
+### WebFetch documentation domains (GH-369)
+
+`WebFetch` is its own permission entity class, distinct from `Bash`.
+A rule has the shape `WebFetch(domain:<host>)` and matches a single
+fully-qualified host over HTTPS. Routine documentation lookups (read
+the Django docs, check a Pydantic page, open an MDN article) prompt
+per-domain on first access — GH-271 evidence recorded 6+ distinct doc
+domains in one session, each a fresh stall for an unattended run.
+
+The `webfetch-public-docs` group (tier 2) pre-approves a curated set
+of ~30 canonical documentation hosts so these fetches never prompt.
+Scope rules for the catalog:
+
+- **HTTPS documentation hosts only** — reference content, not API
+  endpoints. A docs host serves read-only pages; pre-approving it
+  cannot fetch-and-exec or exfiltrate.
+- **One FQDN per rule** — `WebFetch(domain:docs.python.org)`, not a
+  wildcard `*.python.org`. Explicit hosts keep the approved surface
+  auditable and prevent a broad subdomain from silently covering an
+  API or upload endpoint.
+- **Not for arbitrary URLs** — fetching a non-doc host still prompts,
+  by design. The catalog is a curated allowlist, not a blanket
+  WebFetch permit.
+
 ## References
 
 - [ADR-0003](../docs/adr/0003-allow-rules-as-hook-enablers.md) — decision record

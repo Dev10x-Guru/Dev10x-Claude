@@ -213,6 +213,118 @@ class TestCatalogAndDeprecations:
         assert outcomes[0].action == "remove"
 
 
+class TestExpandFlagOverrides:
+    @pytest.mark.parametrize(
+        "flag_overrides, expected",
+        [
+            ({}, []),
+            (
+                {"git clean": ["-n", "--dry-run"]},
+                ["Bash(git clean -n:*)", "Bash(git clean --dry-run:*)"],
+            ),
+            (
+                {"git branch": ["-d"], "git reset": ["--dry-run"]},
+                ["Bash(git branch -d:*)", "Bash(git reset --dry-run:*)"],
+            ),
+            (
+                {"git clean": ["-n", "-n", "--dry-run"]},
+                ["Bash(git clean -n:*)", "Bash(git clean --dry-run:*)"],
+            ),
+        ],
+    )
+    def test_expansion(
+        self,
+        flag_overrides: dict[str, list[str]],
+        expected: list[str],
+    ) -> None:
+        assert doctor.expand_flag_overrides(flag_overrides) == expected
+
+    def test_deterministic_ordering_follows_mapping_then_list(self) -> None:
+        flag_overrides = {
+            "git clean": ["-n", "--dry-run"],
+            "git branch": ["-d", "--delete"],
+        }
+        assert doctor.expand_flag_overrides(flag_overrides) == [
+            "Bash(git clean -n:*)",
+            "Bash(git clean --dry-run:*)",
+            "Bash(git branch -d:*)",
+            "Bash(git branch --delete:*)",
+        ]
+
+
+class TestGroupRulesWithFlagOverrides:
+    def test_group_rules_includes_explicit_then_expanded(self) -> None:
+        catalog = doctor.Catalog(
+            version=1,
+            last_audited="",
+            groups={
+                "mixed": {
+                    "tier": 2,
+                    "rules": ["Bash(git status:*)"],
+                    "flag_overrides": {"git clean": ["-n"]},
+                }
+            },
+            deprecations=[],
+            invariants=[],
+        )
+        assert catalog.group_rules("mixed") == [
+            "Bash(git status:*)",
+            "Bash(git clean -n:*)",
+        ]
+
+    def test_group_rules_dedupes_explicit_and_expanded(self) -> None:
+        catalog = doctor.Catalog(
+            version=1,
+            last_audited="",
+            groups={
+                "dup": {
+                    "tier": 2,
+                    "rules": ["Bash(git clean -n:*)"],
+                    "flag_overrides": {"git clean": ["-n"]},
+                }
+            },
+            deprecations=[],
+            invariants=[],
+        )
+        assert catalog.group_rules("dup") == ["Bash(git clean -n:*)"]
+
+    def test_group_without_flag_overrides_unchanged(self) -> None:
+        catalog = doctor.Catalog(
+            version=1,
+            last_audited="",
+            groups={"plain": {"tier": 1, "rules": ["Bash(git status:*)"]}},
+            deprecations=[],
+            invariants=[],
+        )
+        assert catalog.group_rules("plain") == ["Bash(git status:*)"]
+
+    def test_tier_rules_includes_expanded_overrides(self) -> None:
+        catalog = doctor.Catalog(
+            version=1,
+            last_audited="",
+            groups={
+                "plain": {"tier": 1, "rules": ["Bash(git status:*)"]},
+                "flagged": {
+                    "tier": 2,
+                    "flag_overrides": {"git branch": ["-d"]},
+                },
+            },
+            deprecations=[],
+            invariants=[],
+        )
+        tier12 = catalog.tier_rules(tiers=[1, 2])
+        assert "Bash(git status:*)" in tier12
+        assert "Bash(git branch -d:*)" in tier12
+
+
+class TestRealCatalogFlagOverrides:
+    def test_expanded_safe_flags_present_in_tier12(self) -> None:
+        catalog = doctor.load_catalog()
+        tier12 = catalog.tier_rules(tiers=[1, 2])
+        assert "Bash(git clean -n:*)" in tier12
+        assert "Bash(git branch -d:*)" in tier12
+
+
 class TestAdditionalDirectoriesDiagnosis:
     def test_returns_diagnostic_for_out_of_scope_path(self, tmp_path: Path) -> None:
         in_scope = tmp_path / "in-scope"
