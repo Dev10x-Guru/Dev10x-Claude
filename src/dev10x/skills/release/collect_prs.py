@@ -33,29 +33,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from dev10x.domain.common.ticket_id import TICKET_ID_PATTERN
-
-GITMOJI_CATEGORIES: dict[str, str] = {
-    "✨": "feature",
-    "🐛": "bugfix",
-    "♻️": "refactor",
-    "🚚": "refactor",
-    "✅": "test",
-    "📝": "docs",
-    "🔧": "config",
-    "🩹": "fix",
-    "🔥": "cleanup",
-    "⚡": "perf",
-    "🔒": "security",
-    "💄": "ui",
-    "🔖": "version_bump",
-    "⚗️": "experimental",
-    "🧪": "test",
-    "🚑": "hotfix",
-}
-
-SKIP_CATEGORIES: set[str] = {"version_bump"}
-MAINTENANCE_CATEGORIES: set[str] = {"test", "docs", "config", "cleanup", "experimental"}
-
+from dev10x.skills.common.jtbd import extract_jtbd_structured
+from dev10x.skills.release.classifier import (
+    SKIP_CATEGORIES,
+    classify_group,
+    classify_subject,
+)
 
 DEFAULT_TICKET_PATTERN = TICKET_ID_PATTERN
 
@@ -139,13 +122,7 @@ def get_commits_in_range(
             continue
         sha, subject = line.split("|||", maxsplit=1)
 
-        gitmoji = ""
-        category = "unknown"
-        for emoji, cat in GITMOJI_CATEGORIES.items():
-            if emoji in subject:
-                gitmoji = emoji
-                category = cat
-                break
+        gitmoji, category = classify_subject(subject=subject)
 
         ticket_match = ticket_regex.search(subject)
         ticket_id = ticket_match.group(0) if ticket_match else None
@@ -220,19 +197,6 @@ def find_prs_for_ticket(
         return []
 
 
-def classify_group(commits: list[Commit]) -> str:
-    categories = {c.category for c in commits}
-    if "feature" in categories or "hotfix" in categories:
-        return "feature"
-    if "bugfix" in categories:
-        return "bugfix"
-    if "refactor" in categories:
-        return "refactor"
-    if categories <= MAINTENANCE_CATEGORIES:
-        return "maintenance"
-    return "feature"
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Collect PRs and JTBDs for a release range",
@@ -302,7 +266,7 @@ def main() -> None:
     no_pr_found: list[tuple[str, list[Commit]]] = []
 
     for ticket_id, group_commits in ticket_groups.items():
-        group_category = classify_group(commits=group_commits)
+        group_category = classify_group(categories={c.category for c in group_commits})
 
         pr_list = find_prs_for_ticket(
             ticket_id=ticket_id,
@@ -322,7 +286,7 @@ def main() -> None:
                     continue
 
                 jtbd = extract_jtbd_structured(body=pr_data.get("body", ""))
-                pr_category = classify_group(commits=group_commits)
+                pr_category = classify_group(categories={c.category for c in group_commits})
                 pr_info = PRInfo(
                     number=pr_num,
                     title=pr_data["title"],
