@@ -284,6 +284,42 @@ def _is_within(child: Path, parent: Path) -> bool:
     return True
 
 
+def expand_flag_overrides(flag_overrides: dict[str, list[str]]) -> list[str]:
+    """Expand a ``flag_overrides`` mapping into ``Bash(<cmd> <flag>:*)`` rules.
+
+    For each base command ``B`` and safe flag ``F``, emit ``Bash(B F:*)``.
+    Order is deterministic: mapping order, then flag-list order. Duplicate
+    rules collapse while preserving first-seen order (GH-372).
+    """
+    rules: list[str] = []
+    seen: set[str] = set()
+    for command, flags in flag_overrides.items():
+        for flag in flags:
+            rule = f"Bash({command} {flag}:*)"
+            if rule in seen:
+                continue
+            seen.add(rule)
+            rules.append(rule)
+    return rules
+
+
+def _effective_group_rules(group: dict) -> list[str]:
+    """Explicit ``rules`` first, then expanded ``flag_overrides``, de-duped."""
+    output: list[str] = []
+    seen: set[str] = set()
+    for rule in group.get("rules", []):
+        if rule in seen:
+            continue
+        seen.add(rule)
+        output.append(rule)
+    for rule in expand_flag_overrides(group.get("flag_overrides", {})):
+        if rule in seen:
+            continue
+        seen.add(rule)
+        output.append(rule)
+    return output
+
+
 @dataclass
 class Catalog:
     version: int
@@ -297,11 +333,11 @@ class Catalog:
         rules: list[str] = []
         for group in self.groups.values():
             if group.get("tier") in tier_set:
-                rules.extend(group.get("rules", []))
+                rules.extend(_effective_group_rules(group))
         return rules
 
     def group_rules(self, name: str) -> list[str]:
-        return list(self.groups.get(name, {}).get("rules", []))
+        return _effective_group_rules(self.groups.get(name, {}))
 
 
 def load_catalog(path: Path = CATALOG_PATH) -> Catalog:

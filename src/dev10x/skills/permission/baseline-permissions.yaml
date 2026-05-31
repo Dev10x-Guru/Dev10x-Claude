@@ -112,6 +112,25 @@ groups:
       - Bash(git trunk-rebase:*)
       - Bash(git autosquash-trunk:*)
 
+  git-safe-flags:
+    tier: 2
+    description: >
+      Flag-stratified safe forms of verbs whose bare form is gated.
+      Each entry expands to Bash(<cmd> <flag>:*) allow rules (GH-372).
+    # NOTE: `find`'s "safe unless -delete/-exec" case is OUT OF SCOPE for
+    # flag_overrides — it INVERTS this additive model (denying a dangerous
+    # flag, not allowing a safe one). A companion deny-flag mechanism for
+    # `find -delete` is deferred (GH-372). Do NOT add deny-flags here.
+    flag_overrides:
+      "git clean":
+        - "-n"
+        - "--dry-run"
+      "git branch":
+        - "-d"
+        - "--delete"
+      "git reset":
+        - "--dry-run"
+
   github-cli:
     tier: 1
     description: >
@@ -157,6 +176,10 @@ groups:
       - Bash(gh run watch:*)
       - Bash(gh run download:*)
       - Bash(gh run rerun:*)
+      # gh workflow (GH-373): read-only forms pre-approved. The
+      # cost-bearing forms `gh workflow run|enable|disable` are
+      # deliberately omitted so they keep prompting (ask-tier) —
+      # they trigger CI spend or flip workflow state.
       - Bash(gh workflow list:*)
       - Bash(gh workflow view:*)
 
@@ -180,6 +203,21 @@ groups:
       - "Bash(${CLAUDE_PLUGIN_ROOT}/hooks/scripts/**)"
       - "Bash(${CLAUDE_PLUGIN_ROOT}/skills/**)"
       - "Bash(${CLAUDE_PLUGIN_ROOT}/lib/**)"
+      # GH-370: documented arbitrary-code escape destinations. When an
+      # agent follows GH-308 steering and extracts an inline probe into
+      # /tmp/Dev10x/<id>.py or ~/.claude/tools/<name>.py, the Write
+      # permission already exists — but executing the result prompts
+      # again. Same trust model as ${CLAUDE_PLUGIN_ROOT}/skills above.
+      - "Bash(/tmp/Dev10x/*.py:*)"
+      - "Bash(/tmp/Dev10x/**/*.py:*)"
+      - "Bash(/tmp/Dev10x/*.sh:*)"
+      - "Bash(/tmp/Dev10x/**/*.sh:*)"
+      - "Bash(~/.claude/tools/*:*)"
+      - "Bash(~/.claude/tools/*.py:*)"
+      - "Bash(~/.claude/tools/*.sh:*)"
+      # Twin absolute-path form — some sessions normalize ~, others use
+      # the literal /home/<user> (GH-271 evidence #192, #215).
+      - "Bash(/home/*/.claude/tools/*:*)"
 
   dev10x-cli:
     tier: 1
@@ -478,14 +516,83 @@ groups:
       - Bash(gitlint:*)
       - Bash(bump-my-version:*)
 
-  webfetch-public-docs:
+  railway-cli:
     tier: 3
-    description: Public documentation domains used by tooling skills.
+    description: >
+      Railway.app deployment CLI (GH-373, evidence GH-271 #225–#234).
+      Opt-in (tier 3) — Railway is project-specific, not universal.
+      Stratified like `gh run`: read-only inspection is pre-approved;
+      cost-bearing deploys (`up`, `deploy`, `redeploy`, `run`) are
+      deliberately ABSENT so they keep prompting. Following the GH-310
+      doctrine, there is intentionally NO blanket `Bash(railway *)` deny:
+      deny-first precedence means a catch-all deny would also block the
+      safe read surface below (the same reason GH-310 forbids
+      `Bash(git *)` denies). The safe-known `railway run` read forms
+      (printenv/env/cat) are pre-approved as explicit exceptions.
     rules:
-      - WebFetch(domain:docs.docker.com)
+      - Bash(railway --version)
+      - Bash(railway --help)
+      - Bash(railway status:*)
+      - Bash(railway whoami:*)
+      - Bash(railway projects:*)
+      - Bash(railway services:*)
+      - Bash(railway logs:*)
+      - Bash(railway variables:*)
+      - Bash(railway link:*)
+      - Bash(railway unlink:*)
+      - Bash(railway run printenv:*)
+      - Bash(railway run env:*)
+      - Bash(railway run cat:*)
+
+  webfetch-public-docs:
+    tier: 2
+    description: >
+      Canonical public documentation domains (GH-369). Promoted to tier 2
+      so it ships as a plugin default — routine doc lookups on these hosts
+      must never stall an unattended session on a WebFetch prompt. GH-271
+      evidence showed 6+ distinct doc domains hit in a single session, each
+      one a fresh prompt. Scope: HTTPS documentation hosts only, read-only
+      content fetches — no API endpoints, no fetch-and-exec. Each entry is a
+      single FQDN (`WebFetch(domain:<host>)`); wildcard subdomains are
+      deliberately avoided so the approved surface stays auditable.
+    rules:
+      # Python ecosystem
+      - WebFetch(domain:docs.python.org)
+      - WebFetch(domain:peps.python.org)
+      - WebFetch(domain:packaging.python.org)
+      - WebFetch(domain:docs.pytest.org)
+      - WebFetch(domain:docs.astral.sh)
+      - WebFetch(domain:black.readthedocs.io)
+      - WebFetch(domain:docs.pydantic.dev)
+      - WebFetch(domain:pip.pypa.io)
+      # Django / web frameworks
+      - WebFetch(domain:docs.djangoproject.com)
+      - WebFetch(domain:fastapi.tiangolo.com)
+      - WebFetch(domain:flask.palletsprojects.com)
+      - WebFetch(domain:docs.celeryq.dev)
       - WebFetch(domain:docs.gunicorn.org)
       - WebFetch(domain:gunicorn.org)
+      # Frontend
+      - WebFetch(domain:developer.mozilla.org)
+      - WebFetch(domain:svelte.dev)
+      - WebFetch(domain:kit.svelte.dev)
+      - WebFetch(domain:react.dev)
+      - WebFetch(domain:nodejs.org)
+      - WebFetch(domain:docs.npmjs.com)
+      # Infrastructure & cloud
+      - WebFetch(domain:docs.docker.com)
+      - WebFetch(domain:kubernetes.io)
+      - WebFetch(domain:docs.aws.amazon.com)
       - WebFetch(domain:health.aws.amazon.com)
+      - WebFetch(domain:cloud.google.com)
+      # Datastores
+      - WebFetch(domain:www.postgresql.org)
+      - WebFetch(domain:redis.io)
+      # Dev platforms & tooling services
+      - WebFetch(domain:docs.github.com)
+      - WebFetch(domain:docs.gitlab.com)
+      - WebFetch(domain:docs.sentry.io)
+      - WebFetch(domain:resend.com)
 
   obsidian-cli:
     tier: 3
