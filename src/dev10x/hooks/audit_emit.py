@@ -1,10 +1,14 @@
 """Hook audit emitters (write side) — decorator + wrap-record helpers.
 
-Companion to `dev10x.audit.log_reader`. This module owns the
-`@audit_hook` decorator wrapped around hook bodies and the
-wrap-phase record helpers called by `hooks/scripts/audit-wrap`.
-All writes flow through `log_reader.append_record` so the reader
-remains the single source of truth for log layout.
+This module owns the `@audit_hook` decorator wrapped around hook bodies
+and the wrap-phase record helpers called by `hooks/scripts/audit-wrap`.
+
+Per ADR-0008 (audit memo I6) it depends on the domain-owned
+`AuditWriter` Protocol rather than importing `dev10x.audit.log_reader`
+internals directly; the concrete `LogReaderAuditWriter` is resolved
+through the single `_get_writer()` seam, so all writes still flow
+through `log_reader.append_record` (the reader remains the single
+source of truth for log layout).
 """
 
 from __future__ import annotations
@@ -16,16 +20,30 @@ from datetime import UTC, datetime
 from functools import wraps
 from typing import Any, TypeVar
 
-from dev10x.audit.log_reader import (
-    append_record,
-    audit_enabled,
-    classify_outcome,
-    current_span_id,
-    new_span_id,
-)
+from dev10x.domain.audit_writer import AuditWriter
 from dev10x.domain.hook_telemetry import HookPhase
 
 F = TypeVar("F", bound=Callable[..., Any])
+
+_writer: AuditWriter | None = None
+
+
+def _get_writer() -> AuditWriter:
+    """Resolve the audit writer — the single seam touching the ``audit``
+    adapter (audit memo I6). Swap via :func:`set_audit_writer` in tests."""
+    global _writer
+    if _writer is None:
+        from dev10x.audit.log_reader import LogReaderAuditWriter
+
+        _writer = LogReaderAuditWriter()
+    return _writer
+
+
+def set_audit_writer(writer: AuditWriter | None) -> None:
+    """Inject an alternative ``AuditWriter`` (tests / alternative backends).
+    Pass ``None`` to reset to the default log-backed writer."""
+    global _writer
+    _writer = writer
 
 
 def audit_hook(name: str, *, event: str = "") -> Callable[[F], F]:
@@ -43,10 +61,11 @@ def audit_hook(name: str, *, event: str = "") -> Callable[[F], F]:
     def decorator(func: F) -> F:
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            if not audit_enabled():
+            writer = _get_writer()
+            if not writer.audit_enabled():
                 return func(*args, **kwargs)
 
-            span_id = current_span_id()
+            span_id = writer.current_span_id()
             session_id = ""
             start = time.perf_counter()
             exit_code = 0
@@ -78,11 +97,11 @@ def audit_hook(name: str, *, event: str = "") -> Callable[[F], F]:
                     "span_id": span_id,
                     "session_id": session_id,
                     "body_ms": body_ms,
-                    "outcome": classify_outcome(exit_code=exit_code),
+                    "outcome": writer.classify_outcome(exit_code=exit_code),
                 }
                 if error is not None and not isinstance(error, SystemExit):
                     record["error_type"] = type(error).__name__
-                append_record(record=record)
+                writer.append_record(record=record)
 
         return wrapper  # type: ignore[return-value]
 
@@ -101,7 +120,8 @@ def write_wrap_record(
     via `dev10x hook audit wrap-record` — or directly by Python tooling
     for testing.
     """
-    if not audit_enabled():
+    writer = _get_writer()
+    if not writer.audit_enabled():
         return
     record = {
         "phase": HookPhase.WRAP,
@@ -111,16 +131,16 @@ def write_wrap_record(
         "span_id": span_id,
         "total_ms": total_ms,
         "exit_code": exit_code,
-        "outcome": classify_outcome(exit_code=exit_code),
+        "outcome": writer.classify_outcome(exit_code=exit_code),
     }
-    append_record(record=record)
+    writer.append_record(record=record)
 
 
 def new_wrap_context() -> tuple[str, float]:
     """Called by the wrapper (via CLI shim) to mint a span id and
     record the start time. Returns (span_id, start_perf_counter).
     """
-    return new_span_id(), time.perf_counter()
+    return _get_writer().new_span_id(), time.perf_counter()
 
 
 def finish_wrap_context(

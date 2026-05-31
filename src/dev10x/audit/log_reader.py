@@ -201,6 +201,32 @@ def summarize(*, records: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return hook_stats
 
 
+class LogReaderAuditWriter:
+    """Concrete ``AuditWriter`` backed by this module's JSONL log surface.
+
+    The audit memo I6 inversion (``hooks → audit``) is sealed by having
+    ``hooks.audit_emit`` depend on ``domain.audit_writer.AuditWriter`` and
+    receive this concrete adapter through one injection seam. Methods
+    delegate to the module-level functions so the on-disk behaviour is
+    unchanged.
+    """
+
+    def audit_enabled(self) -> bool:
+        return audit_enabled()
+
+    def append_record(self, *, record: dict[str, Any]) -> None:
+        append_record(record=record)
+
+    def new_span_id(self) -> str:
+        return new_span_id()
+
+    def current_span_id(self) -> str:
+        return current_span_id()
+
+    def classify_outcome(self, *, exit_code: int) -> HookOutcome:
+        return classify_outcome(exit_code=exit_code)
+
+
 def prune(*, retain_days: int | None = None, base_dir: Path | None = None) -> int:
     """Remove log files older than retain_days. Returns count deleted."""
     days = retain_days
