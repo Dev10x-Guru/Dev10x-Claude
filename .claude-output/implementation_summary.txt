@@ -1,0 +1,52 @@
+IMPLEMENTATION SUMMARY: Lessons Learned PR #382
+================================================
+
+STATUS: Awaiting permission approval for rule file modifications
+
+ANALYSIS COMPLETE:
+✓ Read lessons_learned_report.md
+✓ Applied value filters to 5 action items
+✓ Identified 2 surviving high-value items
+✓ Documented required changes in detail
+✓ Created feature branch: claude/lessons-pr-382
+
+ITEMS FILTERED:
+
+SKIPPED - Item 1: "Add code-consolidation reviewer check to reviewer-generic.md"
+  Reason: Budget exceeded. File already at 85/50 lines (agent spec budget).
+  Adding +6 lines would violate hard cap.
+
+SKIPPED - Item 4: "Refactor resolve_config()"
+  Reason: Target file in excluded directory (skills/). Only allowed to modify:
+  CLAUDE.md, .claude/rules/*.md, .claude/agents/*.md, references/*.md
+
+SKIPPED - Item 5: "Add cross-skill testing pattern"
+  Reason: Already partially covered by existing item #10 in reviewer-generic.md.
+  Marginal value; better to observe pattern in future consolidations.
+
+SURVIVING ITEMS (2):
+
+✓ Item 2: Expand script-domain-boundaries.md reviewer checklist
+  - Replace 3-item bullet list with 6-item numbered list
+  - Add specific checks for logging usage, Result[T] typing, helper-function scope
+  - File remains within budget (51 → ~63 lines)
+
+✓ Item 3: Document config-loader exception in script-domain-boundaries.md
+  - Add new "Exception: Config Loaders at Critical Path" section
+  - Documents when config helpers may call sys.exit(1) and constraints
+  - Inserted before reviewer checklist
+
+PENDING ACTION:
+The harness is requesting permission to modify `.claude/rules/script-domain-boundaries.md`.
+This is expected for sensitive system files. Once approved, the changes will be applied.
+
+NEXT STEPS:
+1. User approves permission request for rule file modification
+2. Execute file modifications (documented in required_changes.md)
+3. Stage changes: git add .claude/rules/script-domain-boundaries.md
+4. Commit with message: "🤖 GH-246 Strengthen H3/H7 reviewer guidance"
+5. Create draft PR targeting develop
+6. Output PR URL to docs_pr_url.txt
+
+BRANCH: claude/lessons-pr-382 (created and active)
+PR BODY: Prepared in pr_body.md (includes JTBD Job Story + filtered items list)
