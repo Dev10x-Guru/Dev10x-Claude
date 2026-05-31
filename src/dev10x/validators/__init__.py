@@ -89,6 +89,12 @@ _SPECS: list[ValidatorSpec] = [
         profile=ProfileTier.STANDARD,
     ),
     ValidatorSpec(
+        module_path="dev10x.validators.mcp_prefix",
+        class_name="McpPrefixValidator",
+        rule_id="DX013",
+        profile=ProfileTier.STANDARD,
+    ),
+    ValidatorSpec(
         module_path="dev10x.validators.commit_jtbd",
         class_name="CommitJtbdValidator",
         rule_id="DX008",
