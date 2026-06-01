@@ -50,7 +50,7 @@ behavior (ask or skip).
 
 ```yaml
 # <Dev10x config>/github-reviewers-config.yaml
-default_action: ask  # "skip" or "ask" for unconfigured projects
+default_action: ask  # "skip", "ask", or "standby" for unconfigured projects
 
 projects:
   app-pos:
@@ -58,14 +58,19 @@ projects:
       - example-org/backend-devs
   Dev10x-ai:
     skip: true
+  my-solo-repo:
+    standby: true  # defer review to supervisor self-review
 ```
 
 - Keys are GitHub repo short names (last segment of `owner/repo`)
 - `reviewers` list uses GitHub format: `org/team-slug` for teams,
   `username` for individual users
-- `skip: true` suppresses the review request for that project
+- `skip: true` suppresses the review request for that project permanently
+- `standby: true` defers the review request for one-time deferral
+  (supervisor self-reviews first); records `review-deferred` in
+  `active_modes` so `verify-acc-dod` skips the "Review requested" check
 - `default_action: ask` prompts the user for unconfigured projects;
-  `skip` silently skips them
+  `skip` silently skips them; `standby` defers without prompting
 
 ### Pre-flight: Approval State Check (GH-993, GH-128)
 
@@ -141,13 +146,45 @@ NOT notify the requested reviewers — the request is lost.
 3. Look up the repo name in `projects`:
    - **Found with `skip: true`** → print "Skipping review request
      for {repo}" and stop
+   - **Found with `standby: true`** → defer (see Stand-by / Defer
+     path below): record `review-deferred` in `active_modes` and stop
    - **Found with `reviewers` list** → use those reviewers
    - **Not found, `default_action: ask`** → **REQUIRED: Call
      `AskUserQuestion`** to ask the user who to request review
-     from (do NOT use plain text)
+     from (do NOT use plain text). Gate options (presented as
+     structured buttons):
+     - **Reviewer names / teams** — one option per known collaborator
+       (populate from `gh api repos/{repo}/collaborators` if desired)
+     - **Stand by — defer (I'll self-review first)** — triggers the
+       Stand-by / Defer path (see below); recommended when supervisor
+       wants to eyeball the PR before pinging a teammate
+     - **Skip — no review needed** — suppresses this request only;
+       does not modify config
+     - **Other** — free-text fallback for one-off team slugs
+   - **Not found, `default_action: standby`** → defer without
+     prompting (see Stand-by / Defer path below)
    - **Not found, `default_action: skip`** → print "No reviewers
      configured for {repo}, skipping" and stop
 4. Call the `request_review` MCP tool with the resolved reviewers
+
+### Stand-by / Defer path (GH-396)
+
+When the supervisor wants to self-review before pinging a teammate,
+the deferral path:
+
+1. Print `"Review deferred for {repo} — self-review before requesting
+   teammate review."`
+2. Record `review-deferred` in `active_modes` by appending it to
+   `.claude/Dev10x/session.yaml`:
+   - Read the file, append `review-deferred` to the `active_modes`
+     list if not already present, write back via the Write tool
+3. Do NOT mark the PR as draft; leave it ready
+4. Return cleanly so the calling orchestrator's completion gate does
+   not treat the missing review request as a failure
+
+`verify-acc-dod` will skip the "Review requested" / "Re-review
+requested" check when `review-deferred` appears in `active_modes`
+(the check's `modes.review-deferred.skip: true` clause handles this).
 
 ## Usage
 
