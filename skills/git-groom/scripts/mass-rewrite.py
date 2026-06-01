@@ -66,7 +66,7 @@ def validate_shas(config_shas: set[str], current_shas: set[str]) -> None:
     stale = config_shas - current_shas
     if not stale:
         return
-    print("ERROR: These SHAs from config don\'t exist in current branch:", file=sys.stderr)
+    print("ERROR: These SHAs from config don't exist in current branch:", file=sys.stderr)
     for sha in sorted(stale):
         print(f"  {sha}", file=sys.stderr)
     print("\nRe-check SHAs with: git log --oneline develop..HEAD", file=sys.stderr)
@@ -81,7 +81,12 @@ def write_message_files(commits_config: dict, msgs_dir: Path) -> None:
 
 
 def write_seq_editor(commits_config: dict, msgs_dir: Path, seq_editor: Path) -> None:
-    """Generate a GIT_SEQUENCE_EDITOR script that injects exec lines."""
+    """Generate a GIT_SEQUENCE_EDITOR script that injects exec lines.
+
+    Commits with renames get a single chained exec (mv + amend) to avoid
+    leaving staged changes between exec steps, which halts the rebase.
+    All other config commits get a simple amend exec.
+    """
     rename_commits = {
         sha: spec
         for sha, spec in commits_config.items()
@@ -93,7 +98,7 @@ def write_seq_editor(commits_config: dict, msgs_dir: Path, seq_editor: Path) -> 
         "TMPFILE=$(mktemp)",
         "while IFS= read -r line; do",
         '    if [[ "$line" =~ ^[[:space:]]*# ]] || [[ -z "$line" ]]; then',
-        "        printf '%s\\n' \"$line\" >> \"$TMPFILE\"; continue",
+        '        printf \'%s\\n\' "$line" >> "$TMPFILE"; continue',
         "    fi",
         "    SHA=$(echo \"$line\" | awk '{print $2}')",
         '    SHORT="${SHA:0:7}"',
@@ -111,14 +116,14 @@ def write_seq_editor(commits_config: dict, msgs_dir: Path, seq_editor: Path) -> 
             lines.append(f'    {kw} [[ "$SHORT" == "{sha}" ]]; then')
             lines.append(
                 f"        printf 'exec {mv_chain}"
-                f" && git commit --amend -F %s\\n' \"$MSGFILE\" >> \"$TMPFILE\""
+                f' && git commit --amend -F %s\\n\' "$MSGFILE" >> "$TMPFILE"'
             )
         lines.append('    elif [[ -f "$MSGFILE" ]]; then')
     else:
         lines.append('    if [[ -f "$MSGFILE" ]]; then')
 
     lines += [
-        "        printf 'exec git commit --amend -F %s\\n' \"$MSGFILE\" >> \"$TMPFILE\"",
+        '        printf \'exec git commit --amend -F %s\\n\' "$MSGFILE" >> "$TMPFILE"',
         "    fi",
         'done < "$1"',
         'mv "$TMPFILE" "$1"',
@@ -161,12 +166,13 @@ def run_rebase(base_sha: str, seq_editor: Path) -> None:
             sys.exit(1)
         print("Rebase failed.", file=sys.stderr)
         print("  Abort:   git rebase --abort", file=sys.stderr)
-        print("  Recover: git reflog  to  git reset --hard HEAD@{n}", file=sys.stderr)
+        print("  Recover: git reflog  →  git reset --hard HEAD@{n}", file=sys.stderr)
         sys.exit(result.returncode)
 
 
 def create_workdir() -> Path:
     DEFAULT_TMPDIR.mkdir(parents=True, exist_ok=True)
+
     return Path(tempfile.mkdtemp(prefix="groom.", dir=DEFAULT_TMPDIR))
 
 
@@ -194,22 +200,22 @@ def main() -> None:
 
     print(f"\nCurrent branch ({len(current_commits)} commits):")
     for sha, subject in current_commits:
-        marker = "E" if sha in commits_config else " "
+        marker = "✎" if sha in commits_config else " "
         print(f"  {marker} {sha} {subject}")
 
     validate_shas(set(commits_config.keys()), current_shas)
 
-    print(f"\nWriting message files -> {msgs_dir}")
+    print(f"\nWriting message files → {msgs_dir}")
     write_message_files(commits_config=commits_config, msgs_dir=msgs_dir)
 
-    print(f"Writing sequence editor -> {seq_editor}")
+    print(f"Writing sequence editor → {seq_editor}")
     write_seq_editor(
         commits_config=commits_config,
         msgs_dir=msgs_dir,
         seq_editor=seq_editor,
     )
 
-    print("Running rebase...")
+    print("Running rebase…")
     run_rebase(base_sha=base_sha, seq_editor=seq_editor)
 
     print("\nDone. New log:")
