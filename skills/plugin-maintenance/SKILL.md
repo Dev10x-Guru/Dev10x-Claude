@@ -38,8 +38,8 @@ allowed-tools:
   # GH-307: version-check preflight
   - Bash(claude plugin list:*)
   - Bash(uv tool list:*)
-  - Read(~/.claude/memory/Dev10x/*)
-  - Write(~/.claude/memory/Dev10x/*)
+  - Read(~/.config/Dev10x/*)
+  - Write(~/.config/Dev10x/*)
   - Agent(Dev10x:permission-auditor)
   - AskUserQuestion
   - TaskCreate
@@ -126,7 +126,7 @@ update when either is behind.
 ### Step 1: Read the preference file
 
 Try to load the saved update preference from
-`~/.claude/memory/Dev10x/plugin-maintenance-prefs.yaml`:
+`~/.config/Dev10x/plugin-maintenance-prefs.yaml`:
 
 ```yaml
 # example
@@ -240,7 +240,7 @@ AskUserQuestion(questions=[{
   header: "Save preference",
   options: [
     {label: "Yes, remember for future sessions (Recommended)",
-     description: "Saves preference to ~/.claude/memory/Dev10x/plugin-maintenance-prefs.yaml"},
+     description: "Saves preference to ~/.config/Dev10x/plugin-maintenance-prefs.yaml"},
     {label: "No, ask me each time",
      description: "Preference is not saved"}
   ],
@@ -249,7 +249,7 @@ AskUserQuestion(questions=[{
 ```
 
 If the user chooses to remember: write the chosen preference to
-`~/.claude/memory/Dev10x/plugin-maintenance-prefs.yaml`:
+`~/.config/Dev10x/plugin-maintenance-prefs.yaml`:
 
 ```yaml
 # Written by Dev10x:plugin-maintenance (GH-307)

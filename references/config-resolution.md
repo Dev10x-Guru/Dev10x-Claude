@@ -207,6 +207,17 @@ projects:
 |------|------|
 | 2 | `~/.config/Dev10x/slack-config-code-review-requests.yaml` |
 
+### Plugin Maintenance Preferences
+
+| Tier | Path |
+|------|------|
+| 2 | `~/.config/Dev10x/plugin-maintenance-prefs.yaml` |
+
+Valid values for `update_preference`: `both | plugin | uv | skip | ask`.
+When absent or set to `ask`, `Dev10x:plugin-maintenance` prompts on
+every run. Legacy path `~/.claude/memory/Dev10x/plugin-maintenance-prefs.yaml`
+is migrated lazily on first read.
+
 ### Database Connections
 
 | Tier | Path |
@@ -233,3 +244,4 @@ projects:
 | `Dev10x:slack-review-request` | slack-config | 2 |
 | `Dev10x:request-review` | reviewers, slack-config | 2 |
 | `Dev10x:fanout` | session | 1 |
+| `Dev10x:plugin-maintenance` | preferences | 2 |

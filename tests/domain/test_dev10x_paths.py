@@ -45,6 +45,7 @@ def isolated_dirs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> tuple[Path
         ("gitmoji_yaml", "gitmoji.yaml"),
         ("github_reviewers_config_yaml", "github-reviewers-config.yaml"),
         ("settings_pr_merge_yaml", "settings-pr-merge.yaml"),
+        ("plugin_maintenance_prefs_yaml", "plugin-maintenance-prefs.yaml"),
     ],
 )
 def test_accessors_resolve_under_override(
@@ -211,6 +212,19 @@ def test_migrate_all_includes_memory_dev10x_files(
     assert "gitmoji.yaml" in migrated_names
     assert "github-reviewers-config.yaml" in migrated_names
     assert "settings-pr-merge.yaml" in migrated_names
+
+
+def test_plugin_maintenance_prefs_migrates_from_memory_dev10x(
+    isolated_dirs: tuple[Path, Path],
+) -> None:
+    legacy_root, new_root = isolated_dirs
+    legacy = legacy_root / "memory" / "Dev10x" / "plugin-maintenance-prefs.yaml"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text("update_preference: skip\n")
+    current = Dev10xConfigDir.plugin_maintenance_prefs_yaml()
+    assert current == new_root / "plugin-maintenance-prefs.yaml"
+    assert current.read_text() == "update_preference: skip\n"
+    assert legacy.exists(), "legacy file must remain for downgrade safety"
 
 
 def test_migrate_all_is_idempotent(isolated_dirs: tuple[Path, Path]) -> None:
