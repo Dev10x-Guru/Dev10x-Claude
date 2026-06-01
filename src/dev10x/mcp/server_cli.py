@@ -24,10 +24,13 @@ from __future__ import annotations
 # When `cwd` is None, behavior is unchanged from pre-GH-979 (subprocess
 # inherits the MCP server's startup CWD).
 # Importing the tool modules triggers @server.tool() registration.
+# Importing knowledge_resources triggers @server.resource() registration
+# (GH-339).
 from dev10x.mcp import (  # noqa: E402, F401
     audit_tools,
     git_tools,
     github_tools,
+    knowledge_resources,
     misc_tools,
     plan_tools,
 )
