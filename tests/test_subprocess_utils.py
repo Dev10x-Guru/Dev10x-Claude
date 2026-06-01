@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 from unittest.mock import patch
@@ -597,3 +598,89 @@ class TestAsyncRunWithDeletedCwd:
 
         assert result.returncode == 0
         assert result.stdout.strip() == "hi"
+
+
+class TestRecoverProcessCwd:
+    """GH-418: MCP server must recover when its OS-level process CWD is deleted."""
+
+    def test_no_op_when_process_cwd_is_valid(self) -> None:
+        from dev10x.subprocess_utils import _recover_process_cwd
+
+        before = os.getcwd()
+        _recover_process_cwd()
+        after = os.getcwd()
+
+        assert after == before
+
+    def test_chdir_to_plugin_root_when_process_cwd_deleted(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from dev10x.subprocess_utils import _recover_process_cwd, get_plugin_root
+
+        deleted = tmp_path / "deleted_cwd"
+        deleted.mkdir()
+        monkeypatch.chdir(deleted)
+        deleted.rmdir()
+
+        _recover_process_cwd()
+
+        recovered = Path(os.getcwd()).resolve()
+        assert recovered == get_plugin_root().resolve()
+
+    def test_safe_effective_cwd_recovers_deleted_process_cwd(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from dev10x.subprocess_utils import get_plugin_root, safe_effective_cwd
+
+        deleted = tmp_path / "deleted_cwd"
+        deleted.mkdir()
+        monkeypatch.chdir(deleted)
+        deleted.rmdir()
+
+        result = safe_effective_cwd()
+
+        assert result is None
+        assert Path(os.getcwd()).resolve() == get_plugin_root().resolve()
+
+    def test_safe_effective_cwd_with_deleted_bound_and_deleted_process_cwd(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from dev10x.subprocess_utils import get_plugin_root, safe_effective_cwd, use_cwd
+
+        deleted_bound = tmp_path / "deleted_bound"
+        deleted_bound.mkdir()
+        deleted_process = tmp_path / "deleted_process"
+        deleted_process.mkdir()
+        monkeypatch.chdir(deleted_process)
+        deleted_bound.rmdir()
+        deleted_process.rmdir()
+
+        with use_cwd(str(deleted_bound)):
+            result = safe_effective_cwd()
+
+        assert result is None
+        assert Path(os.getcwd()).resolve() == get_plugin_root().resolve()
+
+    @pytest.mark.asyncio
+    async def test_async_run_succeeds_after_process_cwd_deleted(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from dev10x.subprocess_utils import async_run
+
+        deleted = tmp_path / "deleted_cwd"
+        deleted.mkdir()
+        monkeypatch.chdir(deleted)
+        deleted.rmdir()
+
+        result = await async_run(args=["echo", "recovered"])
+
+        assert result.returncode == 0
+        assert result.stdout.strip() == "recovered"

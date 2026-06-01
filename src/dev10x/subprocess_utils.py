@@ -6,12 +6,15 @@ import asyncio
 import contextlib
 import functools
 import json
+import logging
 import os
 import subprocess
 from collections.abc import Awaitable, Callable
 from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
+
+log = logging.getLogger(__name__)
 
 # GH-979: long-lived MCP server processes inherit the CWD they were
 # spawned in. When Claude Code's EnterWorktree switches the session
@@ -45,6 +48,38 @@ def effective_cwd() -> str | None:
     return _effective_cwd.get()
 
 
+def _recover_process_cwd() -> None:
+    """Recover from a deleted OS-level process CWD (GH-418 Finding 1).
+
+    Long-lived MCP server processes may have been spawned in a directory
+    that was later deleted (e.g. a worktree removed after a branch merge).
+    When ``os.getcwd()`` raises ``FileNotFoundError``, every subsequent
+    subprocess call that omits an explicit ``cwd=`` will also fail with
+    ENOENT — even operations that write to ``/tmp`` and never touch the
+    repo directory.
+
+    This function detects the deleted-CWD condition and recovers by
+    calling ``os.chdir()`` to the plugin root, which is always valid
+    (it is the directory containing the currently-executing module).
+    Changing the process CWD is a global side effect, but it is
+    justified here: a process with a deleted CWD is inoperable and
+    the plugin root is the natural safe fallback for a server that
+    started from there.
+
+    Called automatically by ``safe_effective_cwd()`` when the process
+    CWD is detected to be deleted.
+    """
+    try:
+        os.getcwd()
+    except (FileNotFoundError, OSError):
+        fallback = get_plugin_root()
+        log.warning(
+            "GH-418: MCP server process CWD was deleted; recovering by os.chdir(%s)",
+            fallback,
+        )
+        os.chdir(fallback)
+
+
 def safe_effective_cwd() -> str | None:
     """Return the bound effective CWD only when that directory still exists.
 
@@ -57,15 +92,23 @@ def safe_effective_cwd() -> str | None:
     directory (e.g. ``mktmp`` writes to ``/tmp``).
 
     This function validates the bound path before returning it. When the
-    bound dir is gone it returns ``None`` so callers inherit the process CWD
-    (set by the MCP server launcher to a still-valid path, typically the
-    plugin root or the main repo checkout).
+    bound dir is gone it returns ``None`` so callers inherit the process CWD.
+
+    GH-418 (Finding 1): when the process CWD itself is deleted, returning
+    ``None`` is not sufficient — callers that inherit the process CWD will
+    still fail with ENOENT. This function detects that case and calls
+    ``_recover_process_cwd()`` so the inherited CWD is a valid directory.
     """
     bound = _effective_cwd.get()
     if bound is None:
+        # No bound worktree; callers will inherit the process CWD.
+        # Recover if that CWD was deleted (GH-418 Finding 1).
+        _recover_process_cwd()
         return None
     if Path(bound).is_dir():
         return bound
+    # Bound dir is deleted; fall back to process CWD, recovering it first.
+    _recover_process_cwd()
     return None
 
 
