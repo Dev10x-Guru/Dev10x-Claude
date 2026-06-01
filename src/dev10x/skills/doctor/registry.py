@@ -17,6 +17,7 @@ DEFAULT_STRATEGY_MODULES: tuple[str, ...] = (
     "dev10x.skills.doctor.strategies.mcp_vs_script_drift",
     "dev10x.skills.doctor.strategies.missing_linear_mcp_allow",
     "dev10x.skills.doctor.strategies.forbidden_token_priming",
+    "dev10x.skills.doctor.strategies.mcp_horizontal_duplicates",
 )
 
 

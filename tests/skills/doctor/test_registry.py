@@ -18,6 +18,12 @@ class TestLoadStrategies:
         ids = [s.id for s in strategies]
         assert "mcp-vs-script-drift" in ids
 
+    def test_default_set_includes_mcp_horizontal_duplicates(self) -> None:
+        strategies = registry.load_strategies()
+
+        ids = [s.id for s in strategies]
+        assert "mcp-horizontal-duplicates" in ids
+
     def test_returns_strategy_instances(self) -> None:
         strategies = registry.load_strategies()
 
