@@ -119,6 +119,12 @@ _SPECS: list[ValidatorSpec] = [
         rule_id="DX012",
         profile=ProfileTier.MINIMAL,
     ),
+    ValidatorSpec(
+        module_path="dev10x.validators.sensitivity_target",
+        class_name="SensitivityTargetValidator",
+        rule_id="DX014",
+        profile=ProfileTier.STANDARD,
+    ),
 ]
 
 
