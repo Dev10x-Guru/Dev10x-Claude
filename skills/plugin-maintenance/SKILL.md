@@ -31,6 +31,7 @@ allowed-tools:
   - Bash(uvx dev10x permission ensure-workspace:*)
   - Bash(uvx dev10x permission generalize:*)
   - Bash(uvx dev10x permission doctor:*)
+  - Bash(uvx dev10x permission doctor anchor-worktree-roots:*)
   - Bash(uvx dev10x permission init:*)
   - Bash(uvx dev10x permission investigate:*)
   - Bash(uvx dev10x permission record-upgrade:*)
@@ -624,7 +625,16 @@ uvx dev10x permission doctor apply-deprecations
 uvx dev10x permission doctor cross-contamination
 ```
 
-4. Enable an opt-in Tier 3 group when needed (e.g., `kubernetes-readonly`,
+4. Anchor `.worktrees` parent roots (GH-376) — ensures project-level
+   `.worktrees` parents are registered in `additionalDirectories` and
+   flags bare-relative skill-script allow rules:
+
+```bash
+uvx dev10x permission doctor anchor-worktree-roots --dry-run
+uvx dev10x permission doctor anchor-worktree-roots
+```
+
+5. Enable an opt-in Tier 3 group when needed (e.g., `kubernetes-readonly`,
    `network-diagnostics`, `obsidian-cli`):
 
 ```bash

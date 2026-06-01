@@ -974,6 +974,87 @@ def doctor_enable_group(*, group_name: str, dry_run: bool) -> None:
     click.echo(f"\n{verb} {total_added} rules from group {group_name!r}.")
 
 
+@doctor.command(name="anchor-worktree-roots")
+@click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
+@click.option("--quiet", is_flag=True, help="Suppress per-file details")
+def doctor_anchor_worktree_roots(*, dry_run: bool, quiet: bool) -> None:
+    """Anchor .worktrees parents in additionalDirectories and flag relative skill-script rules.
+
+    Worktrees accumulate per-leaf ``additionalDirectories`` entries instead of
+    anchoring the project-level ``.worktrees`` parent. This command:
+
+    \b
+    1. Discovers every ``<project>/.worktrees`` parent beneath configured roots.
+    2. Ensures each parent is present in ``additionalDirectories`` across all
+       settings files — anchoring at the parent covers all sibling and future
+       worktrees without re-prompting per leaf (GH-376).
+    3. Flags bare-relative ``.claude/skills/.../scripts/`` allow rules that
+       silently target different skill dirs per worktree CWD.
+    """
+    from dev10x.skills.permission import doctor as mod
+    from dev10x.skills.permission import update_paths as paths_mod
+
+    config_path = paths_mod.find_config()
+    config = paths_mod.load_config(config_path)
+    roots = config.get("roots", [])
+    if not roots:
+        click.echo("No roots configured. Run `dev10x permission init` first.")
+        return
+
+    settings_files = paths_mod.find_settings_files(
+        roots=roots,
+        include_user=config.get("include_user_settings", True),
+    )
+    if not settings_files:
+        click.echo("No settings files found.")
+        return
+
+    if dry_run and not quiet:
+        click.echo("(dry run — no files will be modified)\n")
+
+    worktrees_parents = mod.discover_worktrees_parents(roots)
+    if not quiet:
+        if worktrees_parents:
+            click.echo(f"Discovered {len(worktrees_parents)} .worktrees parent(s):")
+            for parent in worktrees_parents:
+                click.echo(f"  {parent}")
+        else:
+            click.echo("No .worktrees parents found beneath configured roots.")
+
+    anchor_result = mod.anchor_worktree_roots(
+        settings_files,
+        roots=roots,
+        dry_run=dry_run,
+    )
+
+    workspace_count = anchor_result.workspace_anchored
+    skill_script_count = sum(1 for f in anchor_result.findings if f.scope == "skill-script")
+
+    for finding in anchor_result.findings:
+        if finding.scope == "workspace" and not quiet:
+            click.echo(f"\n{finding.settings_path}")
+            click.echo(f"  {finding.suggestion}")
+        elif finding.scope == "skill-script":
+            click.echo(f"\n{finding.settings_path}")
+            click.echo(f"  ! RELATIVE_SKILL_SCRIPT: {finding.rule}")
+            if not quiet:
+                click.echo(f"    {finding.suggestion}")
+
+    if workspace_count == 0 and skill_script_count == 0:
+        click.echo("\nAll settings files already have worktrees parents anchored.")
+    else:
+        if workspace_count > 0:
+            verb = "Would anchor" if dry_run else "Anchored"
+            click.echo(
+                f"\n{verb} {workspace_count} worktrees parent path(s) in additionalDirectories."
+            )
+        if skill_script_count > 0:
+            click.echo(
+                f"\nFound {skill_script_count} relative skill-script rule(s) "
+                f"— rewrite to absolute plugin-cache paths or Skill() invocations."
+            )
+
+
 @permission.command(name="record-upgrade")
 @click.option(
     "--version",
