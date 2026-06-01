@@ -139,6 +139,44 @@ def build_install_check_context() -> str:
     return ""
 
 
+def build_hook_version_drift_context() -> str:
+    """Warn when the running-hook version lags the latest installed version.
+
+    Claude Code loads hooks once at session start from ``$CLAUDE_PLUGIN_ROOT``.
+    An on-disk ``claude plugin update`` installs a newer version but does NOT
+    swap the running hooks — the session continues executing the pre-upgrade
+    hooks until it restarts. This means shipped friction fixes, new validators,
+    and catalog improvements are dormant in long-running sessions.
+
+    This check is **distinct** from :func:`build_install_check_context`, which
+    compares the installed version against the last-applied upgrade-cleanup
+    version. That check detects settings staleness; this one detects
+    running-hook staleness — they can diverge when settings were refreshed
+    but the session was not restarted.
+
+    Returns an empty string when no drift is detected or when either version
+    cannot be determined (``--plugin-dir`` dev installs, new users, etc.).
+    """
+    from dev10x.domain.install_version import (
+        read_latest_installed_version,
+        read_running_hook_version,
+    )
+
+    running = read_running_hook_version()
+    if running is None:
+        return ""
+    latest = read_latest_installed_version()
+    if latest is None:
+        return ""
+    if running == latest:
+        return ""
+    return (
+        f"Dev10x hooks running v{running} but v{latest} is installed on disk.\n"
+        "Restart this session (or run `/Dev10x:upgrade-cleanup`) to activate "
+        "shipped friction fixes, validators, and catalog improvements."
+    )
+
+
 def session_install_check() -> None:
     """Emit install-state guidance as additionalContext (SessionStart hook)."""
     content = build_install_check_context()
@@ -233,6 +271,7 @@ def session_goodbye(data: dict | None = None) -> None:
 
 
 __all__ = [
+    "build_hook_version_drift_context",
     "build_install_check_context",
     "build_reload_context",
     "build_autonomy_reassurance_context",

@@ -211,6 +211,48 @@ not always inherited. Practical consequences:
 reason to remove a project rule. Run `dev10x permission investigate`
 or check `permission-auditor` findings instead.
 
+## Hook Load-Once Semantics (GH-407)
+
+Claude Code loads hooks **once at session start** from
+``$CLAUDE_PLUGIN_ROOT``. An on-disk ``claude plugin update``
+installs a newer version into the cache but does **not** hot-swap
+the running hooks — the session continues executing the pre-upgrade
+hooks until it is restarted.
+
+Practical implications:
+
+- A shipped bug-fix in a validator (e.g., DX012 `safe-expansion`
+  for single-quoted brace expressions) is dormant in sessions that
+  predated the upgrade. The fix tests green in CI but still produces
+  friction in those live sessions.
+- The stale hooks can inflate friction evidence: a false-positive that
+  a newer validator suppresses still fires in old sessions, making it
+  look like an unfixed regression.
+- The **settings-staleness** check (`build_install_check_context`) and
+  the **running-hook** check (`build_hook_version_drift_context`) are
+  distinct. Settings can be refreshed by upgrade-cleanup without
+  restarting the session; the running hooks remain stale until restart.
+
+The **hook version drift detector** (SessionStart feature
+`session-hook-version-drift`) addresses this:
+
+1. Reads the running version from ``$CLAUDE_PLUGIN_ROOT/plugin.json``
+   (set by Claude Code at session start).
+2. Scans ``~/.claude/plugins/cache/<publisher>/<slug>/`` for the
+   highest-installed version.
+3. On mismatch, emits:
+   *"Dev10x hooks running v0.72.0 but v0.76.0 is installed on disk.
+   Restart this session (or run `/Dev10x:upgrade-cleanup`) to activate
+   shipped friction fixes, validators, and catalog improvements."*
+4. Returns an empty string when running == latest or when either
+   version is unresolvable (``--plugin-dir`` dev installs bypass the
+   cache, so no drift signal is raised).
+
+**Regression note:** when a "shipped fix still fails" report arrives,
+check hook-version drift *before* assuming a logic regression. Confirm
+the session was started after the fix was installed by comparing the
+running-hook version against the fix's release tag.
+
 ## References
 
 - [ADR-0003](../docs/adr/0003-allow-rules-as-hook-enablers.md) — decision record

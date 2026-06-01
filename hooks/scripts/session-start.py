@@ -149,6 +149,11 @@ def main() -> None:
             mode="build",
         ),
         SessionFeature(
+            name="session-hook-version-drift",
+            fn=s.build_hook_version_drift_context,
+            mode="build",
+        ),
+        SessionFeature(
             name="session-migrate-permissions",
             fn=s.session_migrate_permissions,
             mode="capture",
