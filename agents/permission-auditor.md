@@ -73,6 +73,27 @@ HOOK_BLOCKED_RETRY), the rule-based pattern catalog
 the Known-Safe Patterns skip list (`git reset`, `git -C`, etc.)
 that must NOT be flagged.
 
+### Phase 4b: MCP Horizontal-Duplicate Detection (GH-371)
+
+After classifying allow rules, check whether the same logical capability
+is provided by multiple MCP server installations under different prefixes.
+The three source types are:
+
+- `mcp__claude_ai_<Service>__*`      — claude.ai-hosted
+- `mcp__<service>__*`                — user-installed via `claude mcp add`
+- `mcp__plugin_<plugin>_<srv>__*`    — plugin-distributed
+
+Run the `mcp-horizontal-duplicates` doctor strategy (registered in
+`src/dev10x/skills/doctor/registry.py`). For each finding:
+
+1. Report the capability name and how many servers expose it
+2. List each (prefix, example tool) pair
+3. Note that catalog rules targeting one prefix do NOT cover the others
+4. Surface consolidation as an option — do NOT force it
+
+Severity: **LOW** (informational). The duplication may be intentional
+(e.g., keeping a backup server). Surface it for user awareness only.
+
 ### Phase 5: Deny Rule Gap Analysis
 
 Check for missing protection on known destructive operations.
