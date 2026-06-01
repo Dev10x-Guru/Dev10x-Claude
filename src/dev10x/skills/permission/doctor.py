@@ -419,6 +419,143 @@ def apply_deprecations(
     return output, outcomes
 
 
+@dataclass
+class WorktreeAnchorFinding:
+    worktrees_parent: Path
+    settings_path: Path
+    scope: str  # "workspace" | "skill-script"
+    rule: str | None = None  # for skill-script findings
+    suggestion: str = ""
+
+
+@dataclass
+class WorktreeAnchorResult:
+    workspace_anchored: int = 0  # total additionalDirectories entries added
+    findings: list[WorktreeAnchorFinding] = field(default_factory=list)
+
+    @property
+    def total_changes(self) -> int:
+        return self.workspace_anchored
+
+
+_RELATIVE_SKILL_SCRIPT_RE = re.compile(r"Bash\(\.claude/skills/(?P<tail>[^:)]+)")
+
+
+def discover_worktrees_parents(roots: Iterable[str]) -> list[Path]:
+    """Return unique `.worktrees` parent paths found beneath each root.
+
+    A `.worktrees` parent is a project directory that contains a
+    `.worktrees/` subdirectory. Anchoring the parent covers all
+    sibling and future worktrees without re-prompting per leaf.
+    """
+    parents: list[Path] = []
+    seen: set[Path] = set()
+    for root in roots:
+        root_path = Path(root).expanduser()
+        if not root_path.is_dir():
+            continue
+        # Depth-1 scan: check immediate children and root itself
+        candidates = [root_path] + list(root_path.iterdir())
+        for candidate in candidates:
+            if not candidate.is_dir():
+                continue
+            wt_dir = candidate / ".worktrees"
+            if wt_dir.is_dir():
+                resolved = candidate.resolve()
+                if resolved not in seen:
+                    seen.add(resolved)
+                    parents.append(candidate)
+    return parents
+
+
+def anchor_worktree_roots(
+    settings_files: Iterable[Path],
+    *,
+    roots: Iterable[str],
+    dry_run: bool = False,
+) -> WorktreeAnchorResult:
+    """Anchor `.worktrees` parent roots across workspace and skill-script scopes.
+
+    For each settings file:
+
+    1. **Workspace scope** — ensure every discovered `<project>/.worktrees`
+       parent is present in ``permissions.additionalDirectories``. Anchoring
+       the parent covers all sibling and future worktrees without re-prompting
+       per leaf (GH-376).
+
+    2. **Skill-script scope** — detect bare-relative allow rules of the form
+       ``Bash(.claude/skills/<name>/scripts/<name>.py:*)`` and flag them for
+       rewriting to the absolute, CWD-independent plugin-cache path (or
+       ``Skill(<name>)`` invocation). Relative rules silently point at
+       different skill dirs per worktree and must be absolute to be stable.
+
+    Returns a :class:`WorktreeAnchorResult` summarising changes made (or that
+    would be made on ``dry_run=True``).
+    """
+    from dev10x.skills.permission.update_paths import ensure_workspace_directories
+
+    worktrees_parents = discover_worktrees_parents(roots)
+    parent_strs = [str(p) for p in worktrees_parents]
+
+    result = WorktreeAnchorResult()
+
+    for settings_path in settings_files:
+        if not settings_path.exists():
+            continue
+
+        # 1. Workspace anchoring
+        if parent_strs:
+            count, _ = ensure_workspace_directories(
+                settings_path,
+                parent_strs,
+                dry_run=dry_run,
+            )
+            if count > 0:
+                result.workspace_anchored += count
+                result.findings.append(
+                    WorktreeAnchorFinding(
+                        worktrees_parent=worktrees_parents[0]
+                        if worktrees_parents
+                        else settings_path.parent,
+                        settings_path=settings_path,
+                        scope="workspace",
+                        suggestion=(
+                            f"Anchored {count} worktrees parent(s) in "
+                            f"additionalDirectories: {settings_path}"
+                        ),
+                    )
+                )
+
+        # 2. Skill-script rule detection
+        try:
+            import json as _json
+
+            data = _json.loads(settings_path.read_text())
+        except (OSError, ValueError):
+            continue
+        allow_rules: list[str] = data.get("permissions", {}).get("allow", [])
+        for rule in allow_rules:
+            if not isinstance(rule, str):
+                continue
+            if _RELATIVE_SKILL_SCRIPT_RE.search(rule):
+                suggestion = (
+                    "Rewrite to absolute plugin-cache path or replace "
+                    "with Skill() invocation. Relative paths resolve against "
+                    "CWD and silently target different skill dirs per worktree."
+                )
+                result.findings.append(
+                    WorktreeAnchorFinding(
+                        worktrees_parent=settings_path.parent,
+                        settings_path=settings_path,
+                        scope="skill-script",
+                        rule=rule,
+                        suggestion=suggestion,
+                    )
+                )
+
+    return result
+
+
 def diagnose_additional_directories(
     rule: str,
     *,

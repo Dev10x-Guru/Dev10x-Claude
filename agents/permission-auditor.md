@@ -94,6 +94,22 @@ Run the `mcp-horizontal-duplicates` doctor strategy (registered in
 Severity: **LOW** (informational). The duplication may be intentional
 (e.g., keeping a backup server). Surface it for user awareness only.
 
+### Phase 4c: Worktree-Root Anchoring Audit (GH-376)
+
+Check whether `.worktrees` parent directories are properly anchored across
+all CWD-keyed permission scopes. Three failure modes apply: workspace
+`additionalDirectories` anchoring at the leaf instead of the parent
+(MISSING_WORKTREES_PARENT / WORKTREE_LEAF_ANCHORING), bare-relative
+skill-script allow rules that silently target the wrong directory per
+worktree (RELATIVE_SKILL_SCRIPT), and the per-leaf skill-consent scope
+gap (upstream CC defect, GH-312 — informational only, not rule-fixable).
+
+Automated fix: `uvx dev10x permission doctor anchor-worktree-roots`.
+
+See [`references/agents/permission-auditor/worktree-anchoring.md`](../references/agents/permission-auditor/worktree-anchoring.md)
+for the full failure-mode descriptions, detection steps, and severity
+table.
+
 ### Phase 5: Deny Rule Gap Analysis
 
 Check for missing protection on known destructive operations.

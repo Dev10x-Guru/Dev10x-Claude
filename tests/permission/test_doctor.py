@@ -352,3 +352,136 @@ class TestAdditionalDirectoriesDiagnosis:
             additional_directories=[str(in_scope)],
         )
         assert msg is None
+
+
+class TestDiscoverWorktreesParents:
+    def test_finds_project_with_worktrees_dir(self, tmp_path: Path) -> None:
+        project = tmp_path / "my-project"
+        (project / ".worktrees").mkdir(parents=True)
+        parents = doctor.discover_worktrees_parents([str(tmp_path)])
+        assert project in parents
+
+    def test_skips_projects_without_worktrees(self, tmp_path: Path) -> None:
+        no_wt = tmp_path / "no-worktrees"
+        no_wt.mkdir()
+        parents = doctor.discover_worktrees_parents([str(tmp_path)])
+        assert no_wt not in parents
+
+    def test_deduplicates_same_parent(self, tmp_path: Path) -> None:
+        project = tmp_path / "proj"
+        (project / ".worktrees").mkdir(parents=True)
+        # Pass root twice — should deduplicate
+        parents = doctor.discover_worktrees_parents([str(tmp_path), str(tmp_path)])
+        assert parents.count(project) == 1
+
+    def test_returns_empty_for_nonexistent_root(self, tmp_path: Path) -> None:
+        parents = doctor.discover_worktrees_parents([str(tmp_path / "does-not-exist")])
+        assert parents == []
+
+    def test_root_itself_is_checked(self, tmp_path: Path) -> None:
+        # If the root itself has a .worktrees dir, it is returned
+        (tmp_path / ".worktrees").mkdir()
+        parents = doctor.discover_worktrees_parents([str(tmp_path)])
+        assert tmp_path in parents
+
+
+class TestAnchorWorktreeRoots:
+    def _make_settings(self, path: Path, allow: list[str] | None = None) -> Path:
+        settings = path / ".claude" / "settings.local.json"
+        settings.parent.mkdir(parents=True, exist_ok=True)
+        settings.write_text(
+            __import__("json").dumps(
+                {"permissions": {"allow": allow or [], "additionalDirectories": []}}
+            )
+        )
+        return settings
+
+    def test_anchors_parent_in_additional_directories(self, tmp_path: Path) -> None:
+        project = tmp_path / "proj"
+        (project / ".worktrees").mkdir(parents=True)
+        settings = self._make_settings(tmp_path)
+
+        result = doctor.anchor_worktree_roots(
+            [settings],
+            roots=[str(tmp_path)],
+            dry_run=False,
+        )
+
+        import json
+
+        data = json.loads(settings.read_text())
+        assert str(project) in data["permissions"]["additionalDirectories"]
+        assert result.total_changes > 0
+
+    def test_dry_run_does_not_write(self, tmp_path: Path) -> None:
+        project = tmp_path / "proj"
+        (project / ".worktrees").mkdir(parents=True)
+        settings = self._make_settings(tmp_path)
+        original = settings.read_text()
+
+        result = doctor.anchor_worktree_roots(
+            [settings],
+            roots=[str(tmp_path)],
+            dry_run=True,
+        )
+
+        assert settings.read_text() == original
+        # dry_run still reports findings
+        assert len(result.findings) > 0
+
+    def test_no_changes_when_parent_already_registered(self, tmp_path: Path) -> None:
+        project = tmp_path / "proj"
+        (project / ".worktrees").mkdir(parents=True)
+        settings = project / ".claude" / "settings.local.json"
+        settings.parent.mkdir(parents=True, exist_ok=True)
+        import json
+
+        settings.write_text(
+            json.dumps(
+                {
+                    "permissions": {
+                        "allow": [],
+                        "additionalDirectories": [str(project)],
+                    }
+                }
+            )
+        )
+
+        result = doctor.anchor_worktree_roots(
+            [settings],
+            roots=[str(tmp_path)],
+            dry_run=False,
+        )
+        assert result.total_changes == 0
+
+    def test_flags_relative_skill_script_rule(self, tmp_path: Path) -> None:
+        settings = self._make_settings(
+            tmp_path,
+            allow=["Bash(.claude/skills/git-commit/scripts/git-commit.py:*)"],
+        )
+
+        result = doctor.anchor_worktree_roots(
+            [settings],
+            roots=[str(tmp_path)],
+            dry_run=False,
+        )
+
+        skill_script_findings = [f for f in result.findings if f.scope == "skill-script"]
+        assert len(skill_script_findings) == 1
+        assert skill_script_findings[0].rule is not None
+        assert ".claude/skills/" in skill_script_findings[0].rule
+
+    def test_stable_absolute_rule_not_flagged(self, tmp_path: Path) -> None:
+        settings = self._make_settings(
+            tmp_path,
+            allow=["Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/git-commit.py:*)"],
+        )
+
+        result = doctor.anchor_worktree_roots(
+            [settings],
+            roots=[str(tmp_path)],
+            dry_run=False,
+        )
+
+        skill_script_findings = [f for f in result.findings if f.scope == "skill-script"]
+        assert len(skill_script_findings) == 0
