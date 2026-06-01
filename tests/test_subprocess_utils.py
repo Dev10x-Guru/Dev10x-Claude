@@ -178,16 +178,18 @@ class TestRun:
         assert mock_run.call_args[1]["cwd"] == "/explicit"
 
     @patch("dev10x.subprocess_utils.subprocess.run")
-    def test_defaults_to_effective_cwd_when_bound(self, mock_run: patch) -> None:
+    def test_defaults_to_effective_cwd_when_bound(self, mock_run: patch, tmp_path: Path) -> None:
         from dev10x.subprocess_utils import run, use_cwd
 
         mock_run.return_value = subprocess.CompletedProcess(
             args=[], returncode=0, stdout="", stderr=""
         )
-        with use_cwd("/bound"):
+        # GH-410: safe_effective_cwd() validates the directory exists before
+        # passing it to subprocess. Use a real tmp_path so the check passes.
+        with use_cwd(str(tmp_path)):
             run(["git", "status"])
 
-        assert mock_run.call_args[1]["cwd"] == "/bound"
+        assert mock_run.call_args[1]["cwd"] == str(tmp_path)
 
     @patch("dev10x.subprocess_utils.subprocess.run")
     def test_cwd_is_none_when_unbound(self, mock_run: patch) -> None:
@@ -506,3 +508,92 @@ class TestGitContextHonorsCwd:
         with use_cwd(str(b)):
             ctx = GitContext()
             assert Path(ctx.toplevel).resolve() == b.resolve()
+
+
+class TestSafeEffectiveCwd:
+    """GH-410: safe_effective_cwd() must not return a deleted directory."""
+
+    def test_returns_none_when_unbound(self) -> None:
+        from dev10x.subprocess_utils import safe_effective_cwd
+
+        assert safe_effective_cwd() is None
+
+    def test_returns_bound_dir_when_it_exists(self, tmp_path: Path) -> None:
+        from dev10x.subprocess_utils import safe_effective_cwd, use_cwd
+
+        with use_cwd(str(tmp_path)):
+            result = safe_effective_cwd()
+
+        assert result == str(tmp_path)
+
+    def test_returns_none_when_bound_dir_is_deleted(self, tmp_path: Path) -> None:
+        from dev10x.subprocess_utils import safe_effective_cwd, use_cwd
+
+        deleted = tmp_path / "gone"
+        deleted.mkdir()
+        deleted.rmdir()
+
+        with use_cwd(str(deleted)):
+            result = safe_effective_cwd()
+
+        assert result is None
+
+    def test_returns_none_when_bound_is_a_file_not_dir(self, tmp_path: Path) -> None:
+        from dev10x.subprocess_utils import safe_effective_cwd, use_cwd
+
+        a_file = tmp_path / "file.txt"
+        a_file.write_text("x")
+
+        with use_cwd(str(a_file)):
+            result = safe_effective_cwd()
+
+        assert result is None
+
+
+class TestResolveScriptPathWithDeletedCwd:
+    """GH-410: resolve_script_path must survive a deleted bound worktree."""
+
+    def test_falls_back_to_plugin_root_when_bound_dir_deleted(self, tmp_path: Path) -> None:
+        from dev10x.subprocess_utils import use_cwd
+
+        deleted = tmp_path / "gone"
+        deleted.mkdir()
+        deleted.rmdir()
+
+        with use_cwd(str(deleted)):
+            resolved = resolve_script_path("bin/mktmp.sh")
+
+        assert resolved == get_plugin_root() / "bin/mktmp.sh"
+
+
+class TestAsyncRunWithDeletedCwd:
+    """GH-410: async_run must not ENOENT when bound worktree was deleted."""
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_process_cwd_when_bound_dir_deleted(self, tmp_path: Path) -> None:
+        from dev10x.subprocess_utils import async_run, use_cwd
+
+        deleted = tmp_path / "gone"
+        deleted.mkdir()
+        deleted.rmdir()
+
+        with use_cwd(str(deleted)):
+            # echo should succeed: async_run falls back to None (process CWD)
+            result = await async_run(args=["echo", "ok"])
+
+        assert result.returncode == 0
+        assert result.stdout.strip() == "ok"
+
+    @pytest.mark.asyncio
+    async def test_run_with_deleted_bound_cwd_succeeds(self, tmp_path: Path) -> None:
+        from dev10x.subprocess_utils import run, use_cwd
+
+        deleted = tmp_path / "gone"
+        deleted.mkdir()
+        deleted.rmdir()
+
+        with use_cwd(str(deleted)):
+            result = run(["echo", "hi"], capture_output=True, text=True)
+
+        assert result.returncode == 0
+        assert result.stdout.strip() == "hi"

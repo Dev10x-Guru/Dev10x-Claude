@@ -12,6 +12,7 @@ async def mktmp(
     ext: str = "",
     directory: bool = False,
     create: bool = False,
+    cwd: str | None = None,
 ) -> dict:
     """Generate a unique temp path under /tmp/Dev10x/<namespace>/.
 
@@ -27,21 +28,28 @@ async def mktmp(
         directory: If True, create a directory instead of a file.
         create: If True (and directory=False), pre-create an empty file.
             Default False — Write callers should write fresh.
+        cwd: Effective working directory (GH-410). The script writes to /tmp
+            so the CWD does not affect the output path, but pinning a valid
+            directory prevents ENOENT when the previously-bound worktree was
+            deleted. When omitted, safe_effective_cwd() provides the fallback.
 
     Returns:
         Dictionary with key: path (str) — the temp file/directory path
     """
     from dev10x import utilities as util
+    from dev10x.subprocess_utils import use_cwd
 
-    return (
-        await util.mktmp(
-            namespace=namespace,
-            prefix=prefix,
-            ext=ext,
-            directory=directory,
-            create=create,
-        )
-    ).to_dict()
+    with use_cwd(cwd):
+        return (
+            await util.mktmp(
+                namespace=namespace,
+                prefix=prefix,
+                ext=ext,
+                directory=directory,
+                create=create,
+                cwd=cwd,
+            )
+        ).to_dict()
 
 
 @server.tool()

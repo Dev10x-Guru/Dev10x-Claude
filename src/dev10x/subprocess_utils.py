@@ -45,6 +45,30 @@ def effective_cwd() -> str | None:
     return _effective_cwd.get()
 
 
+def safe_effective_cwd() -> str | None:
+    """Return the bound effective CWD only when that directory still exists.
+
+    GH-410: long-lived MCP server processes bind a worktree path via
+    ``use_cwd``. After the worktree is removed (branch-delete on merge or
+    manual cleanup), the bound path no longer exists. Passing a deleted path
+    as ``cwd=`` to ``subprocess.run`` or ``asyncio.create_subprocess_exec``
+    raises ``[Errno 2] No such file or directory`` (ENOENT), hard-failing
+    every MCP call even when the operation itself does not need a real repo
+    directory (e.g. ``mktmp`` writes to ``/tmp``).
+
+    This function validates the bound path before returning it. When the
+    bound dir is gone it returns ``None`` so callers inherit the process CWD
+    (set by the MCP server launcher to a still-valid path, typically the
+    plugin root or the main repo checkout).
+    """
+    bound = _effective_cwd.get()
+    if bound is None:
+        return None
+    if Path(bound).is_dir():
+        return bound
+    return None
+
+
 def requires_cwd[R](
     func: Callable[..., Awaitable[R]],
 ) -> Callable[..., Awaitable[R]]:
@@ -96,9 +120,22 @@ def resolve_script_path(script_path: str) -> Path:
     lets plugin developers exercise their unsaved/uncached edits via
     MCP tools (GH-42). Otherwise fall back to the cached install
     discovered via `get_plugin_root()`.
+
+    GH-410: uses ``safe_effective_cwd()`` so a deleted bound worktree
+    path does not raise ENOENT during path resolution. Falls back to the
+    plugin root's CWD when the bound directory is gone.
     """
-    bound = _effective_cwd.get()
-    cwd = Path(bound).resolve() if bound else Path.cwd().resolve()
+    bound = safe_effective_cwd()
+    if bound:
+        cwd = Path(bound).resolve()
+    else:
+        try:
+            cwd = Path.cwd().resolve()
+        except FileNotFoundError:
+            # Process CWD was also deleted (rare but possible in tests or after
+            # aggressive worktree cleanup). Fall back to the plugin root which is
+            # always a valid path.
+            return get_plugin_root() / script_path
     for candidate in (cwd, *cwd.parents):
         if _matches_plugin_root(candidate):
             local_script = candidate / script_path
@@ -123,10 +160,14 @@ def run(
     server's startup directory. All other `subprocess.run` keyword arguments
     (`capture_output`, `text`, `check`, `env`, `timeout`, ...) pass through
     unchanged.
+
+    GH-410: uses ``safe_effective_cwd()`` so a deleted bound directory does
+    not raise ENOENT; falls back to the process CWD (None) when the bound
+    dir is gone.
     """
     return subprocess.run(
         args,
-        cwd=cwd if cwd is not None else _effective_cwd.get(),
+        cwd=cwd if cwd is not None else safe_effective_cwd(),
         **kwargs,
     )
 
@@ -160,7 +201,7 @@ def run_script(
         capture_output=True,
         text=True,
         env=env,
-        cwd=cwd if cwd is not None else _effective_cwd.get(),
+        cwd=cwd if cwd is not None else safe_effective_cwd(),
         check=False,
     )
 
@@ -172,12 +213,15 @@ async def async_run(
     timeout: float = 30,
     cwd: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    """GH-410: uses ``safe_effective_cwd()`` so a deleted bound worktree path
+    does not cause ENOENT when launching subprocesses.
+    """
     proc = await asyncio.create_subprocess_exec(
         *args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         env=env,
-        cwd=cwd if cwd is not None else _effective_cwd.get(),
+        cwd=cwd if cwd is not None else safe_effective_cwd(),
     )
     try:
         stdout_bytes, stderr_bytes = await asyncio.wait_for(

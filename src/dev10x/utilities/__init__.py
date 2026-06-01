@@ -20,6 +20,7 @@ async def mktmp(
     ext: str = "",
     directory: bool = False,
     create: bool = False,
+    cwd: str | None = None,
 ) -> Result[dict[str, Any]]:
     """Generate a unique temp path under /tmp/Dev10x/<namespace>/.
 
@@ -27,6 +28,18 @@ async def mktmp(
     using the Write tool don't trigger its overwrite gate (GH-39).
     Pass create=True to pre-create an empty file (legacy behavior).
     Directories are always created (directory=True).
+
+    Args:
+        namespace: Subdirectory under /tmp/Dev10x/ (e.g. "git", "skill-audit")
+        prefix: Filename prefix (e.g. "commit-msg", "pr-review")
+        ext: File extension including dot (e.g. ".txt", ".json"). Ignored for directories.
+        directory: If True, create a directory instead of a file.
+        create: If True (and directory=False), pre-create an empty file.
+        cwd: Effective working directory for the subprocess (GH-410). The
+            mktmp.sh script writes to /tmp so the CWD does not affect the
+            output path, but passing a valid directory avoids the ENOENT
+            that occurs when the previously-bound worktree was deleted.
+            When omitted, ``safe_effective_cwd()`` provides the fallback.
     """
     mk_args: list[str] = []
     if directory:
@@ -37,7 +50,7 @@ async def mktmp(
     if ext and not directory:
         mk_args.append(ext)
 
-    result = await async_run_script("bin/mktmp.sh", *mk_args)
+    result = await async_run_script("bin/mktmp.sh", *mk_args, cwd=cwd)
 
     if result.returncode != 0:
         return err(result.stderr.strip())
