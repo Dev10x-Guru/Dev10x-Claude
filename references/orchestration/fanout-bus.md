@@ -48,15 +48,28 @@ dispatching any Agent calls in that wave:
     bus.jsonl       — append-only event stream
 ```
 
-Creation goes through `mcp__plugin_Dev10x_cli__mktmp`:
+Creation goes through `mcp__plugin_Dev10x_cli__mktmp` in two
+steps (GH-385 F3). A single `mktmp` call with a slash in the
+prefix fails when the parent directory does not yet exist:
 
 ```
-mcp__plugin_Dev10x_cli__mktmp(
+# Step 1 — create the wave directory (always created)
+wave_dir = mcp__plugin_Dev10x_cli__mktmp(
     namespace="fanout",
-    prefix=f"<wave_id>/bus",
-    ext=".jsonl"
+    prefix="<wave_id>",
+    directory=True,
 )
+# wave_dir["path"] → /tmp/Dev10x/fanout/<wave_id>.XXXX/
+
+# Step 2 — create the bus file inside the wave directory
+Write(file_path=wave_dir["path"] + "/bus.jsonl", content="")
+bus_path = wave_dir["path"] + "/bus.jsonl"
 ```
+
+Children that receive `bus_path` MUST NOT assume it needs
+creating — it already exists. Children that encounter a write
+error on `bus_path` MUST log it in their result but MUST NOT
+abort: bus coordination is best-effort.
 
 The returned `path` is inlined into every sibling's swarm
 context prompt as `bus_path`. The wave_id is the same UUID the

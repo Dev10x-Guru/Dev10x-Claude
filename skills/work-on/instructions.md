@@ -1208,6 +1208,44 @@ verification).
 The orchestrator MUST NOT mark the shipping phase complete
 until `Skill(Dev10x:gh-pr-monitor)` has run end-to-end.
 
+### Swarm-Child Auto-Advance (GH-368 F2, GH-385 F1)
+
+**Hard rule:** When `.claude/Dev10x/session.yaml` has
+`active_modes` containing `swarm-child`, work-on MUST
+auto-advance past `Skill(Dev10x:ticket-branch)` without a
+continuation prompt. The branch is not a milestone — it is
+setup infrastructure. After the branch is created, immediately
+proceed to the next Phase 4 step (design or implement).
+
+**Root cause of the stall:** Without this rule, work-on shows
+the "branch created" output and waits for the user to say
+"continue". In a swarm context, there is no user — the agent
+waits indefinitely and terminates when the turn budget
+expires, leaving only a branch and no PR.
+
+**Required behavior in swarm-child mode:**
+1. `Skill(Dev10x:ticket-branch)` creates the branch.
+2. Without any pause, continue to the implementation steps.
+3. Run through the full shipping pipeline (commit → push →
+   PR → monitor → merge).
+4. Only AFTER the PR is merged, emit the terminal status line.
+
+**Terminal status line guarantee (GH-368 F2, GH-385 F1):**
+Even if the turn ends before the PR is merged (context limit,
+permission wall, or any interruption), the FINAL line of the
+agent's output MUST be one of:
+- `DONE` — PR merged, CI green, no open comments
+- `DONE_WITH_CONCERNS: <text>` — merged but flagged
+- `NEEDS_CONTEXT: <what>` — interrupted before merge (include
+  the PR URL if it exists so the orchestrator can resume)
+- `BLOCKED: <reason>` — cannot proceed
+
+Never end with free-form prose as the last line. The fanout
+orchestrator parses the trailing line deterministically and
+treats a missing or non-terminal line as `NEEDS_CONTEXT`
+(re-dispatch). Swarm agents MUST NOT rely on this fallback —
+the status line is their own responsibility.
+
 ### Apply Fixups Completion Guard (GH-851 F2)
 
 **Hard rule:** The "Apply fixups" task (4.10) CANNOT be marked

@@ -69,9 +69,25 @@ elif status_line.startswith("NEEDS_CONTEXT:"):
 elif status_line.startswith("BLOCKED:"):
     fallback_to_main_session(reason=status_line)
 else:
-    # Treat as BLOCKED — protocol violation
-    fallback_to_main_session(reason="missing status line")
+    # Missing or non-terminal trailing line (GH-368 F2, GH-385 F1)
+    # Treat as NEEDS_CONTEXT — agent was interrupted before completion.
+    # Do NOT treat as DONE — the task state is unknown.
+    redispatch_with_more_context(
+        "NEEDS_CONTEXT: agent terminated without a status line — "
+        "re-dispatch to complete remaining lifecycle"
+    )
 ```
+
+**Missing status line handling (GH-368 F2, GH-385 F1):** When
+a swarm agent hits a context limit, permission wall, or turn
+budget before finishing the PR lifecycle, it may terminate
+with free-form prose as its last line. This is NOT `DONE`.
+Orchestrators MUST treat it as `NEEDS_CONTEXT` and re-dispatch.
+The re-dispatch prompt should include:
+- The last known PR URL (if visible in the result)
+- The last known branch name
+- A directive to continue from the current PR state rather
+  than restarting from scratch
 
 ## When to use which status
 
@@ -89,10 +105,20 @@ the controller can provide." Examples:
 - File mentioned in prompt does not exist — needs a corrected path
 - Prompt referenced a ticket but the ticket body was not included
 - Required environment variable not declared
+- Turn ended before the PR was merged (branch or PR exists but
+  is still open) — include the PR URL so the orchestrator can
+  re-dispatch to the monitor → merge lifecycle
 
 The controller should re-dispatch with the requested context.
 Avoid using NEEDS_CONTEXT when the right answer is to ask the
 user — use BLOCKED with a clear reason instead.
+
+**NEEDS_CONTEXT for interrupted merge lifecycle (GH-368, GH-385):**
+When a swarm agent has created a PR but cannot finish the
+monitor → merge lifecycle (context limit, turn budget, or
+interruption), it MUST use `NEEDS_CONTEXT: PR open at <url>,
+merge not complete` rather than `DONE`. The `DONE` status
+requires the PR to be MERGED — an open PR is not done.
 
 **BLOCKED** is for permission walls and unrecoverable errors.
 This is the signal that triggers the GH-901 main-session
