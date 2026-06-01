@@ -273,7 +273,6 @@ class TestSessionHookVersionDrift:
         monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
         ClaudeDir.reset_cache()
 
-        cache_dir = tmp_path / "plugins" / "cache" / "Dev10x-Guru" / "dev10x-claude"
         assert build_hook_version_drift_context() == ""
 
     def test_warns_when_newer_version_installed(
