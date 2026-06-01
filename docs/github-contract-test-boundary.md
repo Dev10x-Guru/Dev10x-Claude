@@ -52,19 +52,23 @@ They validate:
 
 Primary file: `tests/github/test_graphql_static.py`
 
-### `contract` (future — gated on `GITHUB_TOKEN`)
+### `contract` (gated on `GITHUB_TOKEN`)
 
-A future tier that calls the real GitHub API for key read tools against
-a known fixture PR/issue and asserts the returned shape. Tracked as
-part of GH-386. Would run:
+Tests in this class call the real GitHub API against a known fixture PR
+and assert the returned shape (GH-398). They run:
 
-- In CI on a schedule (nightly / weekly) with a repository secret
+- In CI on a weekly schedule (Monday 06:00 UTC) via
+  `.github/workflows/github-contract-tests.yml`
 - Locally when `GITHUB_TOKEN` is set (skipped otherwise)
-- Never on every push/PR (too slow, requires token)
+- Never on every push/PR — too slow, requires a token
 
-The static-lint tier closes the GH-329 GraphQL class without any live
-call. The contract tier would additionally catch REST response-shape
-drift (e.g., a field being removed from the GitHub API response).
+**Fixture:** PR #394 in `Dev10x-Guru/Dev10x-Claude` — a merged PR
+(GH-386 Parts 2 & 3) that is stable, public, and has review comments.
+
+**What they catch that static-lint cannot:** REST response-shape drift
+(a field removed from or renamed in the real GitHub API response).
+
+Primary file: `tests/github/test_github_contract.py`
 
 ## How to classify a new test
 
@@ -83,7 +87,7 @@ When adding a new test for a GitHub MCP tool:
 3. **If you call the real GitHub API**
    → `contract-class: contract`. Skip with
    `pytest.mark.skipif(not os.getenv("GITHUB_TOKEN"), ...)`.
-   This tier is not yet implemented.
+   Add to `tests/github/test_github_contract.py`.
 
 ## Extending the static-lint tier
 

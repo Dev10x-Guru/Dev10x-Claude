@@ -1,0 +1,50 @@
+name: GitHub API Contract Tests
+
+# Live contract tests for the GitHub MCP tools (GH-398).
+# Calls the real GitHub API against fixture PR #394; gated on GITHUB_TOKEN.
+#
+# Runs:
+#   - On a weekly schedule (Monday 06:00 UTC) to catch API drift
+#   - Manually via workflow_dispatch for on-demand verification
+#   - NEVER on every push/PR — too slow, requires token
+#
+# See docs/github-contract-test-boundary.md for the tier architecture.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"  # Weekly on Monday at 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Fixture PR number to test against (default: 394)"
+        required: false
+        default: "394"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Run live GitHub API contract tests
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          uv run --extra dev pytest \
+            tests/github/test_github_contract.py \
+            -v --tb=short \
+            -o 'addopts=' \
+            --no-cov
