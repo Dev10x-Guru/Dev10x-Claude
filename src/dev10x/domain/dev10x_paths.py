@@ -164,6 +164,13 @@ class Dev10xConfigDir:
             _legacy_settings_pr_merge_yaml,
         )
 
+    @classmethod
+    def plugin_maintenance_prefs_yaml(cls) -> Path:
+        return _with_lazy_migration(
+            cls._resolve("plugin-maintenance-prefs.yaml"),
+            _legacy_plugin_maintenance_prefs_yaml,
+        )
+
 
 def _with_lazy_migration(current: Path, legacy_provider: Callable[[], Path]) -> Path:
     migrate_path(legacy=legacy_provider(), current=current)
@@ -183,6 +190,10 @@ _legacy_github_app_yaml = ClaudeDir.github_app_yaml
 _legacy_gitmoji_yaml = ClaudeDir.gitmoji_yaml
 _legacy_github_reviewers_config_yaml = ClaudeDir.github_reviewers_config_yaml
 _legacy_settings_pr_merge_yaml = ClaudeDir.settings_pr_merge_yaml
+
+
+def _legacy_plugin_maintenance_prefs_yaml() -> Path:
+    return ClaudeDir.memory_dev10x_dir() / "plugin-maintenance-prefs.yaml"
 
 
 def _legacy_playbooks_dir() -> Path:
@@ -218,6 +229,10 @@ def _migration_pairs() -> list[tuple[Path, Path]]:
         (
             _legacy_settings_pr_merge_yaml(),
             Dev10xConfigDir._resolve("settings-pr-merge.yaml"),
+        ),
+        (
+            _legacy_plugin_maintenance_prefs_yaml(),
+            Dev10xConfigDir._resolve("plugin-maintenance-prefs.yaml"),
         ),
     ]
 
