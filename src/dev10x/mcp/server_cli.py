@@ -42,6 +42,6 @@ from dev10x.mcp.plan_tools import *  # noqa: E402, F401, F403
 
 
 def main() -> None:
-    from dev10x.mcp.transport import select_transport
+    from dev10x.mcp.wiring import select_transport_with_daemon_fallback
 
-    server.run(transport=select_transport())
+    server.run(transport=select_transport_with_daemon_fallback())
