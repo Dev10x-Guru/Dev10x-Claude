@@ -88,10 +88,46 @@ parsing patterns.
 ## Release process
 
 ```bash
-bin/release.sh patch    # bump version, tag, push
-bin/release.sh minor
+bin/release.sh features   # strip .dev0, tag, release, bump to next minor .dev0
+bin/release.sh fixes      # bump patch, strip .dev0, tag, release
+bin/release.sh major      # bump major, strip .dev0, tag, release
 ```
 
 Releases merge `develop` → `main` and create a GitHub release.
+
+### Dogfood smoke gate (Phase 2b)
+
+The release script requires a manual smoke confirmation before tagging.
+After preparing the version (Phase 2), the script pauses and prints:
+
+```
+claude --plugin-dir /path/to/Dev10x-Claude
+```
+
+You must run a real `--plugin-dir` session with the release candidate and
+verify:
+
+- Plugin loads without errors
+- One Dev10x skill that exercises recent MCP-server changes runs cleanly
+  (e.g. `Dev10x:gh-pr-review` or `Dev10x:gh-pr-respond`)
+- One `Dev10x:git-commit` to exercise the bash tokenizer and
+  privilege-escalation denies
+- No unexpected permission prompts or tool errors
+
+The script also surfaces a version-skew warning when the installed
+marketplace plugin lags the develop checkout, so you know which MCP server
+is active.
+
+Type `ship <version>` at the prompt to confirm and proceed to tagging.
+
+**Why**: CI runs under mocks. The only true runtime validation of
+MCP-server and permission-hook changes requires a live session with the
+develop checkout loaded via `--plugin-dir`.
+
+To skip in CI (automated pipelines only):
+
+```bash
+SKIP_DOGFOOD=1 bin/release.sh features
+```
 
 [Back to README](../README.md)
