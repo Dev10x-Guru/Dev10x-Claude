@@ -58,6 +58,8 @@ defaults:
         modes:
           solo-maintainer:
             skip: true
+          review-deferred:
+            skip: true
 
   bugfix:
     checks:
@@ -96,6 +98,8 @@ defaults:
         modes:
           solo-maintainer:
             skip: true
+          review-deferred:
+            skip: true
 
   pr-continuation:
     checks:
@@ -129,6 +133,8 @@ defaults:
         expect_gt: 0
         modes:
           solo-maintainer:
+            skip: true
+          review-deferred:
             skip: true
 
   local-only:
