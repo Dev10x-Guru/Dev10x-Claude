@@ -324,6 +324,27 @@ class TestMktmp:
 
         assert "error" in result
 
+    @pytest.mark.asyncio
+    @patch("dev10x.utilities.async_run_script", new_callable=AsyncMock)
+    async def test_passes_cwd_to_underlying_script(
+        self,
+        mock_run: AsyncMock,
+        tmp_path,
+    ) -> None:
+        """GH-410: mktmp must accept cwd to survive a deleted bound worktree."""
+        mock_run.return_value = _completed(stdout="/tmp/Dev10x/git/msg.abc.txt")
+
+        result = await cli_server.mktmp(
+            namespace="git",
+            prefix="msg",
+            ext=".txt",
+            cwd=str(tmp_path),
+        )
+
+        assert result["path"] == "/tmp/Dev10x/git/msg.abc.txt"
+        # cwd forwarded to the underlying async_run_script call
+        assert mock_run.call_args.kwargs.get("cwd") == str(tmp_path)
+
 
 class TestIssueCreate:
     @pytest.mark.asyncio
@@ -1387,6 +1408,10 @@ CWD_HANDLERS: list[tuple[str, dict]] = [
     (
         "issue_reopen",
         {"number": 1},
+    ),
+    (
+        "mktmp",
+        {"namespace": "git", "prefix": "msg"},
     ),
 ]
 
