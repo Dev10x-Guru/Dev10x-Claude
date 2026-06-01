@@ -8,6 +8,7 @@ from dev10x.domain.git_context import GitContext
 from dev10x.domain.rules.rule_engine import RuleEngine, RuleMatch
 from dev10x.domain.rules.sql import SqlStatement, is_read_only_sql
 from dev10x.domain.rules.validation_rule import Compensation, Rule
+from dev10x.domain.sensitivity import SensitivityClassifier, SensitivityLabel, SensitivityMatch
 
 __all__ = [
     "Compensation",
@@ -28,6 +29,9 @@ __all__ = [
     "Rule",
     "RuleEngine",
     "RuleMatch",
+    "SensitivityClassifier",
+    "SensitivityLabel",
+    "SensitivityMatch",
     "SqlStatement",
     "is_read_only_sql",
 ]
