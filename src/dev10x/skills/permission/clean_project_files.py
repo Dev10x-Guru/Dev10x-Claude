@@ -2,14 +2,24 @@
 
 Compares project-level allow rules against global ~/.claude/settings.json
 and strips rules that are:
-  - Exact duplicates of global rules
-  - Covered by global wildcard patterns (MCP families, plugin path wildcards)
+  - Exact string duplicates of global rules (see WARNING below)
   - Old plugin version paths (any version older than current)
   - Env-prefixed session noise (GIT_SEQUENCE_EDITOR=*, DATABASE_URL=*, etc.)
   - Shell control flow fragments (do, done, fi, for, while, etc.)
   - Double-slash path typos (Read(//...), Write(//...))
 
 Also flags rules containing leaked secrets (env vars with plaintext values).
+
+WARNING — global-dedup assumption (#47):
+  The exact-duplicate removal assumes global ~/.claude/settings.json rules
+  are reliably inherited into every project that has its own
+  settings.local.json.  Empirical evidence (#47, closed by #50) shows this
+  is NOT always true: when a project has its own settings.local.json, the
+  local file appears to win and global rules are not always inherited.
+  Removing a project rule solely because it duplicates a global rule can
+  therefore reintroduce per-invocation permission prompts for that project.
+  Use ``--skip-global-dedup`` (or ``skip_global_dedup=True`` in code) to
+  preserve project-local copies of global rules when you need certainty.
 
 CLI entry point: ``dev10x permission clean``.
 """
@@ -253,6 +263,7 @@ def classify_rules(
     cache_root: Path | None = None,
     deny_rules: list[str] | None = None,
     ask_rules: list[str] | None = None,
+    skip_global_dedup: bool = False,
 ) -> RemovalResult:
     result = RemovalResult()
     _base = base_permissions or set()
@@ -285,7 +296,7 @@ def classify_rules(
             result.kept.append(rule)
             continue
 
-        if rule in global_rules:
+        if not skip_global_dedup and rule in global_rules:
             result.exact_duplicates.append(rule)
             continue
 
@@ -327,6 +338,7 @@ def clean_file(
     cache_root: Path | None = None,
     dry_run: bool = False,
     verbose: bool = False,
+    skip_global_dedup: bool = False,
 ) -> tuple[RemovalResult | None, list[str]]:
     content = path.read_text()
     try:
@@ -350,6 +362,7 @@ def clean_file(
         cache_root=cache_root,
         deny_rules=deny_list if deny_list else None,
         ask_rules=ask_list if ask_list else None,
+        skip_global_dedup=skip_global_dedup,
     )
 
     has_findings = (
