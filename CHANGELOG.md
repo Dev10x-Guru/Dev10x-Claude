@@ -5,6 +5,90 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.77.0 — Persistent MCP Daemon, Sensitivity-Axis Gating & Live GitHub Contract Tests
+
+Released 2026-06-01
+
+### Features
+
+- **Run the MCP servers as a persistent daemon over HTTP** — a managed
+  background daemon adds health checks, graceful shutdown, and
+  restart-safe lock handling, per-client session state is maintained
+  across StreamableHTTP requests, and a new session-aware client wires
+  Claude Code to the running daemon when it is healthy while falling
+  back to a fresh per-session STDIO server when it is not, so sessions
+  pay lower startup overhead with no manual configuration
+  ([GH-336](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/336),
+  [GH-337](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/337),
+  [GH-338](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/338))
+- **Keep MCP tools working after a bound worktree is deleted** — cli
+  tool calls now fall back gracefully instead of failing with ENOENT
+  when a worktree is removed after a branch merge, so `mktmp` and the
+  other MCP tools keep working in post-merge sessions instead of
+  hitting "Current directory does not exist"
+  ([GH-410](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/410))
+- **Gate commands that touch sensitive targets** — a new orthogonal
+  sensitivity axis classifies actions against secrets, credentials,
+  PII, and production infrastructure, and the `DX014` validator blocks
+  and asks for review before executing even trivially-reversible reads
+  that the tier and reversibility axes alone would let through
+  ([GH-406](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/406),
+  [GH-395](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/395))
+- **Catch GitHub GraphQL/REST field drift before it reaches sessions** —
+  a live contract-test tier exercises the GitHub-backed MCP read tools
+  (`pr_get`, `pr_comments`) against the real REST/GraphQL surface and a
+  known fixture PR, and queries are validated against the published
+  GraphQL schema, so invalid fields and response-shape drift are caught
+  in CI instead of forcing a downstream session to fall back to raw `gh`
+  ([GH-398](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/398),
+  [GH-386](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/386))
+- **Smoke-test a release candidate before tagging** — the release flow
+  now builds and installs the wheel locally, prints the real remote
+  side effects before the irreversible tag, and requires a live
+  `--plugin-dir` run for changes that touch the MCP server or
+  permission hooks, so a broken server/hook surface can no longer reach
+  PyPI or move the marketplace ref by accident
+  ([GH-387](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/387))
+- **Sharpen the permission doctor across worktrees** — the doctor now
+  surfaces horizontal duplicates when multiple MCP servers expose the
+  same capability under different prefixes, and anchors each project's
+  `.worktrees` parent across every CWD-keyed permission scope, so
+  cross-worktree work no longer drifts out of coverage
+  ([GH-371](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/371),
+  [GH-376](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/376))
+- **Self-review a green PR before pinging a teammate** —
+  `Dev10x:gh-pr-request-review` lets a supervisor eyeball the PR
+  themselves and defer the review request cleanly, with the DoD runner
+  picking up the gh-pr checks and a standby Write permission so the
+  flow runs without friction
+  ([GH-396](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/396))
+- **Run fanout swarms straight through to merged PRs** — each
+  `Dev10x:work-on` child in a worktree-isolated swarm no longer stalls
+  after branch or PR creation, so the orchestrator carries every item
+  to completion without manual nudging
+  ([GH-368](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/368))
+- **Read plugin-maintenance preferences from the XDG config path** —
+  `Dev10x:plugin-maintenance` now reads and writes
+  `plugin-maintenance-prefs.yaml` under `~/.config/Dev10x/`, completing
+  the XDG config-layout migration
+  ([GH-390](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/390))
+- **Name milestones without collisions across initiatives** —
+  milestone naming gains initiative-prefixed conventions so parallel
+  initiatives can create milestones without clashing
+  ([GH-388](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/388))
+
+### Fixes
+
+- **Stop `permission clean` from silently removing covered rules** —
+  cleanup no longer drops project-local rules that may not be covered
+  by global rules, ending phantom permission prompts after a clean
+  ([GH-391](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/391))
+- **Restore `mass-rewrite.py` to its un-mangled form** — a bulk-rewrite
+  workaround had corrupted the file's glyphs, docstring, and print
+  strings; it is restored to its last-good commit so git-groom
+  mass-rewrite works correctly
+  ([GH-415](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/415))
+
 ## 0.76.0 — Friction-Free CLI, Typed MCP Boundaries & Smarter PR Review
 
 Released 2026-05-31
