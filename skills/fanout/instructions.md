@@ -288,6 +288,42 @@ skill targets.
 write-touching work item. Drop isolation only when the work
 is provably read-only (monitoring, fetching, reviewing).
 
+**Worktree Write-deny on path-scoped rule targets (GH-376,
+GH-399 F1):** Write allow-rules are keyed on the canonical
+worktree path (e.g. `/work/dx/.worktrees/<name>`). An agent
+running in an ephemeral worktree (`.claude/worktrees/agent-<id>/`)
+will be denied writes to path-scoped targets like
+`.claude/rules/**` because the allow-rule path prefix does not
+match the agent's ephemeral path. This is GH-376 in action —
+currently framed as interactive-session friction, but it also
+silently degrades swarm output (agents return
+`DONE_WITH_CONCERNS` for issues they cannot actually fix).
+Two valid responses:
+1. If the work item requires editing `.claude/rules/**` or
+   other path-scoped targets, dispatch WITHOUT isolation so
+   the agent runs in the canonical worktree where rules apply.
+2. If isolation is still desired, document the known limit in
+   the agent prompt so the agent reports `DONE_WITH_CONCERNS`
+   with the specific file path that was blocked, rather than
+   silently skipping the change.
+
+**DONE_WITH_CONCERNS recovery (GH-399 F2):** When a
+`isolation="worktree"` agent returns `DONE_WITH_CONCERNS`
+because it could not apply a required change (Write-deny or
+similar), the orchestrator CANNOT use `EnterWorktree` to
+reach the agent's ephemeral worktree from a sibling top-level
+worktree — `EnterWorktree` requires the target to share the
+same repository root. Instead, use this recovery sequence:
+1. Read the agent result for the PR branch name and the
+   specific file(s) that were blocked.
+2. Run `git worktree remove <agent-worktree-path>` to free
+   the branch from the agent's ephemeral worktree.
+3. In the main session, `git checkout <pr-branch>` and apply
+   the missing change, then push and continue the merge
+   lifecycle.
+If `git worktree remove` fails (uncommitted changes), pass
+`--force` — the agent's ephemeral worktree is disposable.
+
 ### Swarm Dispatch (REQUIRED, GH-36)
 
 **Every work item MUST be delegated to a worktree-isolated
@@ -305,24 +341,45 @@ tool uses** so they run concurrently and share the
 parent's prompt-cache prefix. Wait for completion
 notifications before dispatching the next wave; do NOT poll.
 
-**Sibling pub/sub bus (GH-133).** Before dispatching a wave,
-create the per-wave JSONL bus that lets children coordinate
-file ownership without serialising through the orchestrator:
+**Sibling pub/sub bus (GH-133, GH-385 F3).** Before
+dispatching a wave, create the per-wave JSONL bus that lets
+children coordinate file ownership without serialising through
+the orchestrator.
+
+**Bus creation is the orchestrator's responsibility** — the
+file and its parent directory MUST exist before any child is
+dispatched. Children MUST NOT rely on creating the bus
+themselves (the `mktmp` default returns a path without
+creating the file, and nested-prefix creation fails when the
+parent directory does not exist). Create the bus in two steps:
 
 ```
-mcp__plugin_Dev10x_cli__mktmp(
+# Step 1: Create the wave directory
+wave_dir = mcp__plugin_Dev10x_cli__mktmp(
     namespace="fanout",
-    prefix=f"{wave_id}/bus",
-    ext=".jsonl",
+    prefix=wave_id,
+    directory=True,  # always created
 )
+# wave_dir["path"] → /tmp/Dev10x/fanout/<wave_id>.XXXX/
+
+# Step 2: Create the bus file inside that directory
+# Use Write tool to create an empty JSONL file:
+Write(file_path=wave_dir["path"] + "/bus.jsonl", content="")
+bus_path = wave_dir["path"] + "/bus.jsonl"
 ```
 
-Inline the returned `path` into every child's prompt as
-`bus_path`. The orchestrator is a passive consumer — it reads
-the bus once on wave drain to harvest `bailout` and
-`conflict_signal` events for re-dispatch decisions, but never
-publishes. Full event schema, decision-gate rules
-(wait vs bail), and producer/consumer contracts live in
+Children that cannot write to `bus_path` (permission deny or
+file not found) MUST log the failure in their result message
+but MUST NOT abort — sibling coordination via the bus is
+best-effort. The orchestrator reads the bus on wave drain; a
+missing or empty bus is treated as "no events".
+
+Inline `bus_path` into every child's prompt. The orchestrator
+is a passive consumer — it reads the bus once on wave drain to
+harvest `bailout` and `conflict_signal` events for re-dispatch
+decisions, but never publishes. Full event schema,
+decision-gate rules (wait vs bail), and producer/consumer
+contracts live in
 [`references/orchestration/fanout-bus.md`](../../references/orchestration/fanout-bus.md).
 
 **Per-item agent prompt template:**
@@ -349,6 +406,19 @@ Bootstrap (REQUIRED first, before Skill invocation):
 
 Task:
 Invoke Skill(Dev10x:work-on) with this input: <issue or PR URL>
+
+ANTI-STALL CONTRACT (highest priority — read before invoking work-on):
+- "Branch created" = 0% done. "PR created" = 0% done.
+  Only "PR MERGED" counts as task complete.
+- Do NOT stop after branch creation or after PR creation.
+  Run straight through: branch → implement → commit → push →
+  PR → CI monitor → merge. Every step is mandatory.
+- After work-on returns, if the PR is open but not merged,
+  that is NOT done. Invoke Skill(Dev10x:gh-pr-monitor) and
+  then Skill(Dev10x:gh-pr-merge) to complete.
+- If your turn ends before the PR is merged, your final line
+  MUST be NEEDS_CONTEXT (not DONE). The orchestrator will
+  re-dispatch to finish.
 
 Sibling coordination (REQUIRED when shared_files_with_siblings
 is non-empty OR mid-work drift is detected):
@@ -381,11 +451,23 @@ Etiquette (REQUIRED):
 
 Return on completion:
 - PR URL (or "no PR produced — <reason>")
+- Merge state: MERGED | OPEN | DRAFT (if open, explain why)
 - Cost (total_cost_usd if known)
 - Any sibling-coordination signals raised (reference bus
   event types: file_lock_request, conflict_signal, bailout)
 - One of: DONE | DONE_WITH_CONCERNS: <text> |
   NEEDS_CONTEXT: <what> | BLOCKED: <reason>
+
+Status line rules (GH-368, GH-385):
+- DONE requires: PR merged, no open comments, CI green.
+- DONE_WITH_CONCERNS: PR merged but flagged issues remain.
+- NEEDS_CONTEXT: interrupted before merge (branch or PR open
+  but not merged) — the orchestrator will re-dispatch.
+- BLOCKED: permission wall, MCP unavailable, or merge blocked
+  by branch protection requiring human action.
+- A missing or non-terminal trailing line is treated by the
+  orchestrator as NEEDS_CONTEXT → re-dispatch.
+- NEVER end with a plain text summary and no status token.
 ```
 
 **Subtask tracking.** Before dispatching the wave, create one
@@ -518,6 +600,30 @@ Controls whether PRs are merged autonomously after CI passes.
 The `ALWAYS_ASK` marker on Phase 5's verification gate still
 fires to confirm final session state.
 
+**Cascade/AFK and review thread auto-resolution (GH-399 F3):**
+Under `merge_mode: cascade` (or `friction_level: adaptive`
+defaulting to cascade), the orchestrator MAY auto-resolve a
+review thread when ALL of the following hold:
+- The user explicitly approved cascade or AFK mode at Phase 0
+  (the `AskUserQuestion` gate at session start counts as
+  explicit approval).
+- The thread's concern has been addressed in a pushed commit
+  (the fix is live on the PR branch, not just described).
+- The thread was opened by an automated bot (e.g.
+  `claude-review`, `hygiene-review`, `openai-review`) — not
+  by a human reviewer.
+
+If a human reviewer opened the thread, auto-resolution is
+NEVER authorized regardless of merge mode. Escalate via
+`AskUserQuestion` and wait for an explicit "resolve it" answer.
+
+This policy only applies when the orchestrator is doing the
+resolving (e.g., landing a fixup commit itself). When
+re-dispatching a fresh agent to land the fix, the agent MUST
+NOT auto-resolve threads — it should return
+`DONE_WITH_CONCERNS: addressed thread, pending resolution`
+and let the orchestrator decide based on the policy above.
+
 ### Merge Strategy
 
 The merge command uses a configurable strategy flag. Resolution
@@ -576,8 +682,21 @@ Phase 4's job is therefore **collection**, not orchestration:
    arrives, parse its result for: PR URL, status (DONE /
    DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED), cost, and
    any sibling-coordination signals.
-2. Mark the matching Phase 3 subtask `completed` (or
-   `pending` again if the agent reported `NEEDS_CONTEXT`).
+   **Missing status line (GH-368 F2, GH-385 F1):** If the
+   agent's trailing line does not match any of the four
+   status tokens, treat it as `NEEDS_CONTEXT: agent
+   terminated without a status line`. Re-dispatch the item
+   with the last known PR URL inlined so the new agent can
+   resume from the PR rather than restarting from scratch.
+   **"PR created but not merged" (GH-368 F1):** If the
+   agent result contains a PR URL and the trailing line is
+   `DONE` but the PR state (via `mcp__plugin_Dev10x_cli__pr_get`)
+   shows the PR is still OPEN, downgrade the status to
+   `NEEDS_CONTEXT: PR open, merge incomplete` and re-dispatch
+   to finish the monitor → merge lifecycle.
+2. Mark the matching Phase 3 subtask `completed` only when
+   the PR is confirmed MERGED. Mark `pending` again if the
+   agent reported `NEEDS_CONTEXT` or if the PR is open.
 3. For `BLOCKED` results, queue an `AskUserQuestion` so the
    orchestrator can decide between retry, fallback to
    serial, or skip.
@@ -705,17 +824,34 @@ At any pause signal, invoke `Dev10x:session-wrap-up`.
 Active worktrees and in-progress PRs are bookmarked
 automatically.
 
-## Subagent Status Protocol (GH-69)
+## Subagent Status Protocol (GH-69, GH-368, GH-385)
 
 When fanout dispatches `Agent()` for either swarm work (per
 the Agent Isolation Matrix) or read-only monitoring fallback,
-every prompt
-MUST instruct the agent to end its output with one of:
+every prompt MUST instruct the agent to end its output with
+one of:
 
-- `DONE` — task complete
-- `DONE_WITH_CONCERNS: <text>` — complete but flagged
-- `NEEDS_CONTEXT: <what>` — re-dispatch needed
+- `DONE` — task complete (PR MERGED, CI green, no comments)
+- `DONE_WITH_CONCERNS: <text>` — PR merged but flagged issues
+- `NEEDS_CONTEXT: <what>` — re-dispatch needed; includes the
+  case where the agent was interrupted before merge (branch or
+  PR exists but is still open)
 - `BLOCKED: <reason>` — permission wall or unrecoverable error
+
+**Success bar (GH-368 F1):** `DONE` requires a MERGED PR,
+not just a created or open one. A swarm agent that opens a PR
+and stops must return `NEEDS_CONTEXT`, not `DONE`.
+
+**Interruption guarantee (GH-368 F2, GH-385 F1):** Every
+agent prompt MUST include the instruction:
+> "Even if your turn ends before the PR is merged (context
+> limit, permission wall, or any other interruption), your
+> FINAL line MUST still be one of the four status tokens.
+> Never end with free-form prose as your last line."
+
+The orchestrator treats a missing or non-terminal trailing line
+as `NEEDS_CONTEXT` and re-dispatches. Agents MUST NOT rely on
+this fallback — the status line is their responsibility.
 
 The main-session controller parses the trailing line and
 branches deterministically: continue, queue concern, re-dispatch
