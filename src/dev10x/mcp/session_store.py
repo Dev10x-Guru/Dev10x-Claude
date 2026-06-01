@@ -411,11 +411,11 @@ def bind_to_lifecycle(
             server.run(transport="streamable-http")
         # store.clear() was called automatically by lifecycle.stop()
     """
-    original_stop = lifecycle.stop  # type: ignore[union-attr]
+    original_stop = lifecycle.stop  # type: ignore[attr-defined]
 
     def _stop_with_clear(*args: object, **kwargs: object) -> None:
         store.clear()
         original_stop(*args, **kwargs)
 
-    lifecycle.stop = _stop_with_clear  # type: ignore[union-attr]
+    lifecycle.stop = _stop_with_clear  # type: ignore[attr-defined]
     log.debug("SessionStore bound to lifecycle %r", lifecycle)
