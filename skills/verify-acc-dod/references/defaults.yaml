@@ -27,10 +27,10 @@ defaults:
         check: git status --porcelain
         expect: ""
       - name: CI passing
-        check: gh pr checks {pr_number} --repo {repo}
+        check: gh pr checks {pr_number} --repo {repo}  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect_contains: "All checks were successful"
       - name: PR not draft
-        check: gh pr view {pr_number} --repo {repo} --json isDraft -q .isDraft
+        check: gh pr view {pr_number} --repo {repo} --json isDraft -q .isDraft  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect: "false"
       - name: No fixup commits
         check: git log --oneline origin/develop..HEAD
@@ -67,10 +67,10 @@ defaults:
         check: git status --porcelain
         expect: ""
       - name: CI passing
-        check: gh pr checks {pr_number} --repo {repo}
+        check: gh pr checks {pr_number} --repo {repo}  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect_contains: "All checks were successful"
       - name: PR not draft
-        check: gh pr view {pr_number} --repo {repo} --json isDraft -q .isDraft
+        check: gh pr view {pr_number} --repo {repo} --json isDraft -q .isDraft  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect: "false"
       - name: Regression test present
         check: git diff origin/develop..HEAD --stat
@@ -107,10 +107,10 @@ defaults:
         check: git status --porcelain
         expect: ""
       - name: CI passing
-        check: gh pr checks {pr_number} --repo {repo}
+        check: gh pr checks {pr_number} --repo {repo}  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect_contains: "All checks were successful"
       - name: PR not draft
-        check: gh pr view {pr_number} --repo {repo} --json isDraft -q .isDraft
+        check: gh pr view {pr_number} --repo {repo} --json isDraft -q .isDraft  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect: "false"
       - name: No fixup commits
         check: git log --oneline origin/develop..HEAD
