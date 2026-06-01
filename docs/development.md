@@ -95,39 +95,46 @@ bin/release.sh major      # bump major, strip .dev0, tag, release
 
 Releases merge `develop` → `main` and create a GitHub release.
 
-### Dogfood smoke gate (Phase 2b)
+### A release is not a local action
 
-The release script requires a manual smoke confirmation before tagging.
-After preparing the version (Phase 2), the script pauses and prints:
+Tagging has remote, effectively irreversible side effects:
 
-```
-claude --plugin-dir /path/to/Dev10x-Claude
-```
+- The `v*` tag push triggers `.github/workflows/pypi-publish.yml`, which
+  builds the wheel and **publishes it to PyPI** — a version cannot be
+  reused or unpublished.
+- `main` is reset to develop HEAD and force-pushed. Because
+  `marketplace.json` serves the plugin from `"source": "./"`, `main` is
+  the marketplace's served ref — every `claude plugin update` jumps to
+  the new version.
+- A GitHub release is created.
 
-You must run a real `--plugin-dir` session with the release candidate and
-verify:
-
-- Plugin loads without errors
-- One Dev10x skill that exercises recent MCP-server changes runs cleanly
-  (e.g. `Dev10x:gh-pr-review` or `Dev10x:gh-pr-respond`)
-- One `Dev10x:git-commit` to exercise the bash tokenizer and
-  privilege-escalation denies
-- No unexpected permission prompts or tool errors
-
-The script also surfaces a version-skew warning when the installed
-marketplace plugin lags the develop checkout, so you know which MCP server
-is active.
-
-Type `ship <version>` at the prompt to confirm and proceed to tagging.
-
-**Why**: CI runs under mocks. The only true runtime validation of
-MCP-server and permission-hook changes requires a live session with the
-develop checkout loaded via `--plugin-dir`.
-
-To skip in CI (automated pipelines only):
+Before tagging (Phase 2b), the script prints these effects. A human at a
+TTY proceeds automatically; a non-interactive run (agent or CI) must set
+`CONFIRM_RELEASE=1` so an agent cannot trigger a publish by accident:
 
 ```bash
-SKIP_DOGFOOD=1 bin/release.sh features
+CONFIRM_RELEASE=1 bin/release.sh features
+```
+
+### Smoke-testing a dev release locally
+
+`bin/test-local.sh` validates the surfaces that neither CI (runs under
+mocks) nor `claude --plugin-dir` (runs source, not the package) exercise:
+
+```bash
+bin/test-local.sh            # build wheel, install into a throwaway venv,
+                             # smoke the dev10x CLI + MCP server imports,
+                             # run the plugin structure check
+bin/test-local.sh --keep     # keep the temp build dir + venv for inspection
+```
+
+It builds and installs into a temporary directory and **never** writes to
+`~/.claude`, tags, or pushes — safe to run unattended. To then exercise the
+live plugin runtime (MCP servers from `src/` + hooks), launch a session
+with the checkout loaded directly:
+
+```bash
+claude --plugin-dir /path/to/Dev10x-Claude
 ```
 
 [Back to README](../README.md)

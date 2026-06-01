@@ -7,9 +7,10 @@
 #
 # Usage: ./bin/release.sh {features|fixes|major}
 #
-# A dogfood smoke gate (Phase 2b) blocks tagging until you confirm
-# that you have run a real --plugin-dir session with the release candidate.
-# Skip with SKIP_DOGFOOD=1 (CI-only escape hatch — never for human releases).
+# Phase 2b prints the remote side effects of a release (PyPI wheel publish,
+# marketplace ref move) before the irreversible tag. A human at a TTY
+# proceeds automatically; a non-interactive/agent run must set
+# CONFIRM_RELEASE=1 to opt in.
 set -euo pipefail
 
 CYAN='\033[0;36m'
@@ -84,94 +85,52 @@ function bump_version {
     git commit -m "🔖 Bump version: ${before} → ${after}"
 }
 
-# Detect the installed marketplace plugin version, if any.
-# Prints the version string or "unknown" if not detectable.
-function installed_plugin_version {
-    local plugin_json=""
-    # Try ~/.claude/plugins/Dev10x-Claude/plugin.json (marketplace install path)
-    if [[ -f "${HOME}/.claude/plugins/Dev10x-Claude/plugin.json" ]]; then
-        plugin_json="${HOME}/.claude/plugins/Dev10x-Claude/plugin.json"
-    elif [[ -f "${HOME}/.config/claude/plugins/Dev10x-Claude/plugin.json" ]]; then
-        plugin_json="${HOME}/.config/claude/plugins/Dev10x-Claude/plugin.json"
-    fi
-    if [[ -n "$plugin_json" ]]; then
-        # Extract version field with jq if available, otherwise grep
-        if command -v jq >/dev/null 2>&1; then
-            jq -r '.version // "unknown"' "$plugin_json" 2>/dev/null || echo "unknown"
-        else
-            grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "$plugin_json" \
-                | grep -o '"[^"]*"$' | tr -d '"' 2>/dev/null || echo "unknown"
-        fi
-    else
-        echo "unknown"
-    fi
-}
-
-# Phase 2b: Dogfood smoke gate.
-# Require the releaser to confirm a real --plugin-dir session before tagging.
-# This gate exists because CI only runs under mocks; the only true runtime
-# validation of MCP-server and permission-hook changes requires a live session
-# with the develop checkout loaded via --plugin-dir.
-function dogfood_gate {
+# Phase 2b: Release notice + agent guard.
+# A release is NOT a local action. Pushing the tag triggers a PyPI wheel
+# publish (.github/workflows/pypi-publish.yml on v* tags) and the main reset
+# moves the marketplace's served ref — both effectively irreversible. This
+# notice states those effects plainly. A human at a TTY proceeds; a
+# non-interactive/agent run must set CONFIRM_RELEASE=1 so an agent cannot
+# trigger a publish by accident.
+function release_notice {
     local rc_version="$1"
+    local tag="$2"
     local repo_root
     repo_root="$(git rev-parse --show-toplevel)"
 
-    if [[ "${SKIP_DOGFOOD:-}" == "1" ]]; then
-        echo -e "  ${YELLOW}⚠  SKIP_DOGFOOD=1 — skipping dogfood gate (CI mode)${RESET}"
+    header "Phase 2b · Release effects (read before tagging)"
+    echo ""
+    echo -e "  Releasing ${BOLD}${tag}${RESET} is not a local action. Tagging will:"
+    echo ""
+    echo -e "    ${BOLD}•${RESET} push tag ${tag} → CI publishes the wheel to PyPI"
+    echo -e "      (https://pypi.org/project/Dev10x/ — a version cannot be reused)"
+    echo -e "    ${BOLD}•${RESET} reset main to develop HEAD → the marketplace served ref"
+    echo -e "      advances; every 'claude plugin update' jumps to ${rc_version}"
+    echo -e "    ${BOLD}•${RESET} create a GitHub release for ${tag}"
+    echo ""
+    echo -e "  ${YELLOW}These effects are remote and effectively irreversible.${RESET}"
+    echo ""
+    echo -e "  To smoke-test this candidate first (separate terminal):"
+    echo -e "    ${CYAN}${repo_root}/bin/test-local.sh${RESET}   # build + install wheel, verify structure"
+    echo -e "    ${CYAN}claude --plugin-dir ${repo_root}${RESET}  # exercise the live plugin runtime"
+    echo ""
+
+    if [[ -t 0 ]]; then
+        step "Interactive session — proceeding to tag."
         return 0
     fi
 
-    header "Phase 2b · Dogfood smoke gate (REQUIRED before tagging)"
-
-    # Surface version-skew information so the releaser knows what they're testing.
-    local installed
-    installed="$(installed_plugin_version)"
-    echo ""
-    echo -e "  ${BOLD}Release candidate:${RESET} ${rc_version}"
-    if [[ "$installed" == "unknown" ]]; then
-        echo -e "  ${BOLD}Installed plugin:${RESET}  not detected (marketplace checkout absent)"
-    elif [[ "$installed" == "$rc_version" ]]; then
-        echo -e "  ${BOLD}Installed plugin:${RESET}  ${installed} ${GREEN}(matches RC — no skew)${RESET}"
-    else
-        echo -e "  ${BOLD}Installed plugin:${RESET}  ${installed} ${YELLOW}⚠ version skew — installed lags RC${RESET}"
-        echo -e "  ${YELLOW}  The in-session MCP server will be the OLD plugin until you restart${RESET}"
-        echo -e "  ${YELLOW}  claude with --plugin-dir pointing to this checkout.${RESET}"
+    if [[ "${CONFIRM_RELEASE:-}" == "1" ]]; then
+        step "CONFIRM_RELEASE=1 — proceeding to tag (non-interactive)."
+        return 0
     fi
 
-    echo ""
-    echo -e "  ${BOLD}Before confirming, you must run a real --plugin-dir session:${RESET}"
-    echo ""
-    echo -e "    ${CYAN}claude --plugin-dir ${repo_root}${RESET}"
-    echo ""
-    echo -e "  ${BOLD}Minimum smoke checklist:${RESET}"
-    echo "    □  Start a session and verify the plugin loads without errors"
-    echo "    □  Run one Dev10x skill that exercises recent MCP-server changes"
-    echo "       e.g. Dev10x:gh-pr-review or Dev10x:gh-pr-respond"
-    echo "       (hits resolve_review_thread + pr_get — both new in this cycle)"
-    echo "    □  Run one git commit via Dev10x:git-commit"
-    echo "       (exercises bash tokenizer + privilege-escalation denies)"
-    echo "    □  Confirm no unexpected permission prompts or tool errors"
-    echo ""
-    echo -e "  ${BOLD}Optionally document the smoke run in docs/smoke-runs/:${RESET}"
-    echo "    echo \"\$(date -u +%Y-%m-%dT%H:%M:%SZ)  ${rc_version}  OK\" >> docs/smoke-runs/log.txt"
-    echo ""
-    echo -e "  ${RED}${BOLD}This gate blocks an irreversible tag. CI alone is not enough.${RESET}"
-    echo ""
-    echo -e "  Type ${BOLD}ship ${rc_version}${RESET} to confirm you have completed the smoke run:"
-    read -r confirmation
-
-    local expected="ship ${rc_version}"
-    if [[ "$confirmation" != "$expected" ]]; then
-        echo ""
-        echo -e "  ${RED}✗ Confirmation mismatch. Expected: '${expected}'${RESET}"
-        echo -e "  ${RED}  Tagging aborted. Complete the smoke run and re-run release.sh.${RESET}"
-        echo ""
-        exit 1
-    fi
-
-    echo ""
-    echo -e "  ${GREEN}✓ Dogfood smoke confirmed. Proceeding to tag.${RESET}"
+    echo -e "  ${RED}${BOLD}Non-interactive release blocked.${RESET}" >&2
+    echo -e "  ${RED}This run has no TTY (agent or CI). Set CONFIRM_RELEASE=1 to" >&2
+    echo -e "  confirm you intend to publish to PyPI and move the marketplace" >&2
+    echo -e "  ref, then re-run:${RESET}" >&2
+    echo -e "    ${CYAN}CONFIRM_RELEASE=1 $0 {features|fixes|major}${RESET}" >&2
+    exit 1
 }
 
 function release {
@@ -187,8 +146,9 @@ function release {
     local rc_version
     rc_version="$(current_version)"
 
-    # Dogfood gate: must pass before the tag is created.
-    dogfood_gate "$rc_version"
+    # State the remote side effects before the irreversible tag; block
+    # accidental non-interactive releases unless CONFIRM_RELEASE=1.
+    release_notice "$rc_version" "$tag"
 
     header "Phase 3 · Tag and push"
     step "Creating tag: $tag"
@@ -242,7 +202,7 @@ case "${1:-}" in
         echo "  major     Bump major, strip .dev0, tag, release, bump to next minor .dev0"
         echo ""
         echo "Environment:"
-        echo "  SKIP_DOGFOOD=1  Skip the dogfood smoke gate (CI only)"
+        echo "  CONFIRM_RELEASE=1  Confirm a non-interactive (agent/CI) release"
         exit 1
         ;;
 esac
