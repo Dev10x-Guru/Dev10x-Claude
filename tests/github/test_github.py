@@ -1,3 +1,19 @@
+"""Unit tests for dev10x.github (GH-386).
+
+Contract class: mock
+  All tests in this module patch the API boundary (``_gh_api_raw``,
+  ``async_run``, ``async_run_script``) and supply canned payloads.
+  They verify business logic, argument construction, and return-value
+  shapes — but cannot detect invalid GraphQL field selections or
+  invalid ``gh pr view --json`` fields because the mock accepts any
+  shape the test author provides.
+
+For static validation of GraphQL queries and ``gh pr view`` field lists,
+see ``tests/github/test_graphql_static.py`` (contract-class: static-lint).
+
+See ``docs/github-contract-test-boundary.md`` for the full boundary doc.
+"""
+
 from __future__ import annotations
 
 import json
