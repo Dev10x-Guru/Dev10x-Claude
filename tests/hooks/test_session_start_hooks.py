@@ -255,6 +255,104 @@ class TestSessionInstallCheck:
         assert build_install_check_context() == ""
 
 
+class TestSessionHookVersionDrift:
+    """GH-407: Running-hook version drift detector."""
+
+    def test_silent_when_versions_match(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+        from dev10x.hooks.session_dispatch import build_hook_version_drift_context
+
+        plugin_root = tmp_path / "plugins" / "cache" / "Dev10x-Guru" / "dev10x-claude" / "0.76.0"
+        (plugin_root / ".claude-plugin").mkdir(parents=True)
+        (plugin_root / ".claude-plugin" / "plugin.json").write_text(
+            json.dumps({"version": "0.76.0"})
+        )
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(plugin_root))
+        monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
+        ClaudeDir.reset_cache()
+
+        cache_dir = tmp_path / "plugins" / "cache" / "Dev10x-Guru" / "dev10x-claude"
+        assert build_hook_version_drift_context() == ""
+
+    def test_warns_when_newer_version_installed(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+        from dev10x.hooks.session_dispatch import build_hook_version_drift_context
+
+        cache_base = tmp_path / "plugins" / "cache" / "Dev10x-Guru" / "dev10x-claude"
+        old_root = cache_base / "0.72.0"
+        new_root = cache_base / "0.76.0"
+        for root in (old_root, new_root):
+            (root / ".claude-plugin").mkdir(parents=True)
+            ver = root.name
+            (root / ".claude-plugin" / "plugin.json").write_text(json.dumps({"version": ver}))
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(old_root))
+        monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
+        ClaudeDir.reset_cache()
+
+        ctx = build_hook_version_drift_context()
+        assert "0.72.0" in ctx
+        assert "0.76.0" in ctx
+        assert "restart" in ctx.lower()
+        assert "/Dev10x:upgrade-cleanup" in ctx
+
+    def test_silent_when_running_version_unknown(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+        from dev10x.hooks.session_dispatch import build_hook_version_drift_context
+
+        monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+        monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
+        ClaudeDir.reset_cache()
+
+        assert build_hook_version_drift_context() == ""
+
+    def test_silent_when_cache_absent(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+        from dev10x.hooks.session_dispatch import build_hook_version_drift_context
+
+        plugin_root = tmp_path / "plugin"
+        (plugin_root / ".claude-plugin").mkdir(parents=True)
+        (plugin_root / ".claude-plugin" / "plugin.json").write_text(
+            json.dumps({"version": "0.72.0"})
+        )
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(plugin_root))
+        monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
+        ClaudeDir.reset_cache()
+
+        assert build_hook_version_drift_context() == ""
+
+    def test_message_distinct_from_settings_staleness(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Drift message must not reference settings/upgrade state — only
+        running-hook vs installed-version mismatch."""
+        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+        from dev10x.hooks.session_dispatch import build_hook_version_drift_context
+
+        cache_base = tmp_path / "plugins" / "cache" / "Dev10x-Guru" / "dev10x-claude"
+        old_root = cache_base / "0.72.0"
+        new_root = cache_base / "0.76.0"
+        for root in (old_root, new_root):
+            (root / ".claude-plugin").mkdir(parents=True)
+            ver = root.name
+            (root / ".claude-plugin" / "plugin.json").write_text(json.dumps({"version": ver}))
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(old_root))
+        monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
+        ClaudeDir.reset_cache()
+
+        ctx = build_hook_version_drift_context()
+        assert "hooks running" in ctx
+        assert "installed on disk" in ctx
+        assert "upgrade-cleanup was last run" not in ctx
+
+
 class TestSessionGitAliases:
     def test_outputs_alias_status(self, runner: CliRunner) -> None:
         result = runner.invoke(

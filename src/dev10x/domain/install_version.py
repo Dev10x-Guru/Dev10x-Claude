@@ -85,6 +85,55 @@ def write_applied_version(
     return path
 
 
+def read_running_hook_version(*, plugin_root: Path | None = None) -> str | None:
+    """Return the version that is *currently executing* inside this session.
+
+    ``$CLAUDE_PLUGIN_ROOT`` is set by Claude Code to the plugin directory
+    that was resolved when the session started. Hooks loaded from that
+    directory run for the entire session lifetime — an on-disk upgrade
+    does not swap them out. Reading the version from this directory gives
+    us the *running* version, which may lag behind the latest installed
+    version when the user ran ``claude plugin update`` mid-session.
+
+    Returns ``None`` when the running root is unknown (e.g., local
+    ``--plugin-dir`` dev runs that do not carry a versioned cache path).
+    """
+    root = plugin_root or _default_plugin_root()
+    return read_plugin_version(plugin_root=root)
+
+
+def read_latest_installed_version(
+    *,
+    cache_dir: Path | None = None,
+    publisher: str = "Dev10x-Guru",
+    plugin_slug: str = "dev10x-claude",
+) -> str | None:
+    """Return the highest-version directory under the plugin cache.
+
+    Scans ``~/.claude/plugins/cache/<publisher>/<plugin_slug>/`` for
+    semver-named subdirectories and returns the latest. Returns ``None``
+    when the directory is absent or empty (e.g., ``--plugin-dir`` installs
+    that bypass the cache).
+    """
+    from dev10x.domain.claude_paths import ClaudeDir
+
+    root = cache_dir or (ClaudeDir.plugins_cache_dir() / publisher / plugin_slug)
+    if not root.is_dir():
+        return None
+    versions = sorted(
+        (d for d in root.iterdir() if d.is_dir()),
+        key=lambda p: _version_tuple(p.name),
+    )
+    return versions[-1].name if versions else None
+
+
+def _version_tuple(version: str) -> tuple[int, ...]:
+    try:
+        return tuple(int(x) for x in version.split("."))
+    except ValueError:
+        return (0,)
+
+
 def record_upgrade(*, version: str | None = None) -> Result[dict[str, Any]]:
     """Record the currently-installed plugin version as applied.
 
@@ -169,7 +218,9 @@ __all__ = [
     "InstallState",
     "install_state",
     "read_applied_version",
+    "read_latest_installed_version",
     "read_plugin_version",
+    "read_running_hook_version",
     "record_upgrade",
     "write_applied_version",
 ]

@@ -14,7 +14,9 @@ from dev10x.domain.install_version import (
     InstallState,
     install_state,
     read_applied_version,
+    read_latest_installed_version,
     read_plugin_version,
+    read_running_hook_version,
     record_upgrade,
     write_applied_version,
 )
@@ -158,3 +160,65 @@ def test_record_upgrade_errors_when_unresolvable(
     result = record_upgrade()
     assert isinstance(result, ErrorResult)
     assert "could not resolve" in result.error.lower()
+
+
+class TestReadRunningHookVersion:
+    """GH-407: read_running_hook_version() reads from $CLAUDE_PLUGIN_ROOT."""
+
+    def test_returns_version_from_plugin_root(self, plugin_root: Path) -> None:
+        assert read_running_hook_version() == "0.72.0"
+
+    def test_returns_none_when_no_env_and_no_manifest(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+        assert read_running_hook_version(plugin_root=tmp_path) is None
+
+    def test_accepts_explicit_plugin_root(self, plugin_root: Path) -> None:
+        assert read_running_hook_version(plugin_root=plugin_root) == "0.72.0"
+
+
+class TestReadLatestInstalledVersion:
+    """GH-407: read_latest_installed_version() scans the plugin cache."""
+
+    def test_returns_highest_semver_directory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+
+        cache_base = tmp_path / "plugins" / "cache" / "Dev10x-Guru" / "dev10x-claude"
+        for ver in ("0.72.0", "0.76.0", "0.73.0"):
+            (cache_base / ver).mkdir(parents=True)
+        monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
+        ClaudeDir.reset_cache()
+
+        assert read_latest_installed_version() == "0.76.0"
+
+    def test_returns_none_when_cache_absent(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+
+        monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
+        ClaudeDir.reset_cache()
+
+        assert read_latest_installed_version() is None
+
+    def test_returns_none_when_cache_empty(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+
+        cache_base = tmp_path / "plugins" / "cache" / "Dev10x-Guru" / "dev10x-claude"
+        cache_base.mkdir(parents=True)
+        monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
+        ClaudeDir.reset_cache()
+
+        assert read_latest_installed_version() is None
+
+    def test_accepts_explicit_cache_dir(self, tmp_path: Path) -> None:
+        cache_dir = tmp_path / "custom-cache"
+        for ver in ("0.10.0", "0.9.0"):
+            (cache_dir / ver).mkdir(parents=True)
+
+        assert read_latest_installed_version(cache_dir=cache_dir) == "0.10.0"
