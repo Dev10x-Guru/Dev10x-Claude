@@ -708,3 +708,156 @@ class TestVerboseFormatting:
         output = "\n".join(messages)
         assert "1 exact duplicates" in output
         assert "Bash(git log:*)" not in output
+
+
+class TestExactMatchNoSubsumptionContract:
+    """Regression tests pinning the exact-match / no-subsumption contract.
+
+    Finding #47 + GH-391: clean removes a project rule only when the rule
+    string is an EXACT match of a global rule string.  No wildcard-expansion
+    or subsumption logic is applied — a global ``**`` does NOT subsume a
+    pinned project rule.
+    """
+
+    PINNED_RULE = (
+        "Bash(/home/user/.claude/plugins/cache/Dev10x-Guru/"
+        "Dev10x/0.76.0/skills/git-commit/scripts/commit.sh:*)"
+    )
+
+    def test_global_wildcard_does_not_subsume_pinned_project_rule(self) -> None:
+        """A global ``**`` wildcard must NOT cause the pinned project rule to
+        be classified as an exact duplicate and removed."""
+        global_rules = {"Bash(/home/user/.claude/plugins/cache/Dev10x-Guru/Dev10x/**)"}
+        rules = [self.PINNED_RULE]
+
+        result = clean_mod.classify_rules(
+            rules,
+            global_rules=global_rules,
+            current_version="0.76.0",
+        )
+
+        assert self.PINNED_RULE in result.kept
+        assert result.exact_duplicates == []
+        assert result.total_removed == 0
+
+    def test_exact_string_match_is_removed(self) -> None:
+        """A project rule that is an exact copy of a global rule is classified
+        as ``exact_duplicate`` and removed by default."""
+        rule = "Bash(git status:*)"
+        global_rules = {rule}
+
+        result = clean_mod.classify_rules(
+            [rule],
+            global_rules=global_rules,
+            current_version="0.76.0",
+        )
+
+        assert result.exact_duplicates == [rule]
+        assert result.kept == []
+        assert result.total_removed == 1
+
+    def test_near_match_is_not_removed(self) -> None:
+        """A rule that differs even in prefix style (tilde vs absolute path)
+        is NOT treated as a duplicate — only identical strings qualify."""
+        global_rule = "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.76.0/foo.sh:*)"
+        project_rule = "Bash(/home/user/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.76.0/foo.sh:*)"
+        global_rules = {global_rule}
+
+        result = clean_mod.classify_rules(
+            [project_rule],
+            global_rules=global_rules,
+            current_version="0.76.0",
+        )
+
+        assert result.exact_duplicates == []
+        assert project_rule in result.kept or project_rule in result.old_versions
+
+
+class TestSkipGlobalDedup:
+    """Tests for the ``skip_global_dedup`` opt-in flag (GH-391, finding #47).
+
+    When ``skip_global_dedup=True``, rules that are exact string duplicates
+    of global rules are kept instead of being classified for removal.
+    All other removal categories (old versions, env noise, etc.) are
+    unaffected.
+    """
+
+    GLOBAL_RULES = {
+        "Bash(git log:*)",
+        "Bash(gh pr view:*)",
+    }
+
+    def test_skip_global_dedup_preserves_exact_duplicates(self) -> None:
+        rules = ["Bash(git log:*)", "Bash(docker compose up)"]
+
+        result = clean_mod.classify_rules(
+            rules,
+            global_rules=self.GLOBAL_RULES,
+            current_version="0.76.0",
+            skip_global_dedup=True,
+        )
+
+        assert result.exact_duplicates == []
+        assert "Bash(git log:*)" in result.kept
+        assert "Bash(docker compose up)" in result.kept
+        assert result.total_removed == 0
+
+    def test_skip_global_dedup_default_is_false(self) -> None:
+        """Without skip_global_dedup, exact duplicates are still removed."""
+        rules = ["Bash(git log:*)"]
+
+        result = clean_mod.classify_rules(
+            rules,
+            global_rules=self.GLOBAL_RULES,
+            current_version="0.76.0",
+        )
+
+        assert result.exact_duplicates == ["Bash(git log:*)"]
+        assert result.kept == []
+
+    def test_skip_global_dedup_does_not_suppress_other_removals(self) -> None:
+        """skip_global_dedup only exempts the global-exact-match check;
+        old-version, env-noise, and shell-fragment removal are unaffected."""
+        old_version_rule = (
+            "Bash(/home/u/.claude/plugins/cache/Dev10x-Guru/dev10x-claude/0.4.0/scripts/foo.sh:*)"
+        )
+        env_noise_rule = "Bash(GIT_SEQUENCE_EDITOR=: git rebase)"
+        global_dup_rule = "Bash(git log:*)"
+        rules = [old_version_rule, env_noise_rule, global_dup_rule]
+
+        result = clean_mod.classify_rules(
+            rules,
+            global_rules=self.GLOBAL_RULES,
+            current_version="0.76.0",
+            skip_global_dedup=True,
+        )
+
+        assert result.exact_duplicates == []
+        assert global_dup_rule in result.kept
+        assert len(result.old_versions) == 1
+        assert len(result.env_noise) == 1
+        assert result.total_removed == 2
+
+    def test_skip_global_dedup_in_clean_file(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """clean_file passes skip_global_dedup through to classify_rules."""
+        settings_file = tmp_path / "settings.local.json"
+        settings_file.write_text(
+            json.dumps({"permissions": {"allow": ["Bash(git log:*)", "Bash(docker up)"]}}) + "\n"
+        )
+        global_rules = {"Bash(git log:*)"}
+
+        result, _messages = clean_mod.clean_file(
+            settings_file,
+            global_rules=global_rules,
+            current_version="0.76.0",
+            skip_global_dedup=True,
+        )
+
+        assert result is not None
+        assert result.exact_duplicates == []
+        assert result.total_removed == 0
+        data = json.loads(settings_file.read_text())
+        assert "Bash(git log:*)" in data["permissions"]["allow"]

@@ -304,7 +304,19 @@ def init() -> None:
     help="Print one line per changed file (count) instead of full per-file details",
 )
 @click.option("--restore", is_flag=True, help="Restore settings from most recent backups")
-def clean(*, dry_run: bool, verbose: bool, summary: bool, restore: bool) -> None:
+@click.option(
+    "--skip-global-dedup",
+    is_flag=True,
+    default=False,
+    help=(
+        "Do not remove project rules that are exact duplicates of global rules. "
+        "Use this when global→project rule inheritance cannot be verified "
+        "(finding #47: local settings.local.json may not inherit global rules)."
+    ),
+)
+def clean(
+    *, dry_run: bool, verbose: bool, summary: bool, restore: bool, skip_global_dedup: bool
+) -> None:
     """Clean redundant permissions from project settings files."""
     from dev10x.skills.permission import clean_project_files as mod
 
@@ -342,6 +354,7 @@ def clean(*, dry_run: bool, verbose: bool, summary: bool, restore: bool) -> None
     total_kept = 0
     files_changed = 0
     total_secrets = 0
+    total_global_dedup = 0
 
     for path in sorted(settings_files):
         result, messages = mod.clean_file(
@@ -352,6 +365,7 @@ def clean(*, dry_run: bool, verbose: bool, summary: bool, restore: bool) -> None
             cache_root=cache_root,
             dry_run=dry_run,
             verbose=verbose,
+            skip_global_dedup=skip_global_dedup,
         )
         if result is None:
             click.echo(f"\n{path}")
@@ -376,6 +390,7 @@ def clean(*, dry_run: bool, verbose: bool, summary: bool, restore: bool) -> None
             total_removed += result.total_removed
             total_kept += len(result.kept)
             total_secrets += len(result.leaked_secrets)
+            total_global_dedup += len(result.exact_duplicates)
             if result.total_removed > 0:
                 files_changed += 1
         else:
@@ -388,6 +403,14 @@ def clean(*, dry_run: bool, verbose: bool, summary: bool, restore: bool) -> None
         verb = "Would remove" if dry_run else "Removed"
         click.echo(f"{verb} {total_removed} rules across {files_changed} files.")
         click.echo(f"Kept {total_kept} rules total.")
+
+    if total_global_dedup > 0 and not skip_global_dedup:
+        click.echo(
+            f"\n⚠  WARNING: {total_global_dedup} rules removed as exact duplicates of global"
+            " rules. Global→project rule inheritance is NOT guaranteed when a project has its"
+            " own settings.local.json (finding #47). Re-run with --skip-global-dedup to"
+            " preserve project-local copies if you see new permission prompts."
+        )
 
     if total_secrets > 0:
         click.echo(

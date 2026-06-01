@@ -184,6 +184,33 @@ When evaluating a new permission group:
   stall? Include evidence from issue/PR discussion (e.g., "6+ doc domains hit")
 - **Tier 3**: Document why the group is project-specific; confirm no universal use
 
+## Docs-vs-Evidence Caveat (finding #47)
+
+Official Claude Code docs state that permission rules merge across
+scopes rather than override ("rules from global settings are inherited
+into project settings"). **Treat this as intended, not actual
+behavior.**
+
+Empirical evidence from [#47](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/47)
+(closed by [#50](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/50))
+establishes the opposite: when a project has its own
+`settings.local.json`, the **local file wins** and global rules are
+not always inherited. Practical consequences:
+
+- A project-level rule that is an exact duplicate of a global rule is
+  NOT necessarily redundant — the project copy may be the only active
+  copy for that project's sessions.
+- `dev10x permission clean` removes exact duplicates of global rules
+  by default (historical behavior). Use `--skip-global-dedup` to
+  suppress this when inheritance cannot be verified.
+- The `permission-investigator` skill and `permission-auditor` agent
+  are the authoritative sources for per-project rule coverage; trust
+  their output over the upstream documentation.
+
+**Rule of thumb:** do not cite the "permissions merge" docs as a
+reason to remove a project rule. Run `dev10x permission investigate`
+or check `permission-auditor` findings instead.
+
 ## References
 
 - [ADR-0003](../docs/adr/0003-allow-rules-as-hook-enablers.md) — decision record
