@@ -1,6 +1,6 @@
 [project]
 name = "Dev10x"
-version = "0.77.0"
+version = "0.78.0.dev0"
 description = "Claude Code plugin providing reusable skills, hooks, and commands"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -63,7 +63,7 @@ addopts = "--cov=src/dev10x --cov-report=term-missing"
 source = ["src/dev10x"]
 
 [tool.coverage.report]
-fail_under = 38
+fail_under = 75
 show_missing = true
 exclude_lines = ["if __name__", "pragma: no cover"]
 

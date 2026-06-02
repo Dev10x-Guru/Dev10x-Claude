@@ -34,5 +34,11 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
 
-      - name: Run hook tests
-        run: uv run --extra dev pytest tests/hooks/ -v --tb=short -o 'addopts='
+      - name: Run hook tests with coverage
+        run: |
+          uv run --extra dev pytest tests/hooks/ \
+            -v --tb=short \
+            -o 'addopts=' \
+            --cov=src/dev10x/hooks \
+            --cov-config=.coveragerc-hooks \
+            --cov-report=term-missing --cov-fail-under=70
