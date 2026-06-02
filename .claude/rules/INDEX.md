@@ -92,6 +92,7 @@ Always apply `references/review-checks-common.md`.
 | `testing-patterns.md` | Pytest fixture composition, async handlers, parametrized tests | Code reviews, test authoring | Referenced, not auto-loaded |
 | `pr-backlog-deferral.md` | Deferring non-blocking review findings to a backlog | `Dev10x:gh-pr-review` skill, code review CI | Referenced, not auto-loaded |
 | `milestone-naming.md` | Milestone naming convention, initiative prefixes (AUD-Mn vs MCP-Mn) | `Dev10x:project-scope`, `Dev10x:work-on` milestone steps | Referenced, not auto-loaded |
+| `backpressure.md` | Two-direction backpressure architecture (action gating + friction tuning + output gates) | Review & architecture docs, code review CI | Referenced, not auto-loaded |
 
 ## Agent Specs (`.claude/agents/`)
 

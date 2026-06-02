@@ -26,6 +26,20 @@ These are click framework and Python stdlib — not optimizable
 without replacing the framework. Current lazy loading covers
 all dev10x subcommands.
 
+## CI Gate (GH-432)
+
+The benchmark suite is wired into CI as a backpressure gate.
+`.github/workflows/pytest-bench.yml` runs `tests/benchmarks/` with
+`pytest-benchmark` on every PR, comparing each run against a cached
+baseline. The job **fails on a mean regression greater than 20%**
+via `--benchmark-compare-fail=mean:20%`, so a perf regression in
+hook latency or CLI startup blocks merge rather than shipping
+undetected.
+
+Per-run artefacts under `.benchmarks/` are git-ignored. To inspect
+a regression locally, run the benchmark tests and compare against
+the stored baseline before pushing.
+
 ## Monitoring
 
 Run `time uv run dev10x --help` after dependency changes.
