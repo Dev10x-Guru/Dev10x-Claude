@@ -19,7 +19,7 @@ a TODO to invoke `Dev10x:skill-audit`. When the supervisor
 reaches the queued task, they invoke this skill directly.
 
 Invoking `Dev10x:skill-audit` (this skill) is a declaration that
-the audit should run **now** — proceed directly to Phase 0.
+the audit should run **now** — proceed directly to Strategy Selection.
 
 ### Important Rules
 
@@ -30,103 +30,136 @@ phase semantics, deferral, gates, or task-list behavior must be
 answered against the current source — agents that answer from
 prior context routinely contradict the live instructions.
 
-### Phase 0: Early-Insight Gate
+---
 
-**Runs before Step 0.** Lets the skill short-circuit the wave
-subagents when the user's question is already answered by the
-visible transcript, while preserving the structured
-select-and-file step that Phase 7 owns.
+## Strategy Selection (GH-436)
 
-**The early-insight branch is an optimization, not the new
-default.** When in doubt, fall through to the full wave.
+The audit runs in one of two strategies. **Lightweight is the
+default.** The forensic strategy is reserved for explicit opt-in
+or auto-escalation.
 
-#### Detection heuristic
+| Strategy | When | What runs |
+|----------|------|-----------|
+| **Lightweight** (default) | No `--full` flag; supervisor knows the incident | Inline analysis of visible context; structured disposition gate; Phase 7 when upstream-relevant |
+| **Forensic** | `--full` flag passed, OR early-insight escalation | Full transcript extraction + Wave 1/2 subagents + all phases |
 
-Pick the early-insight branch ONLY when ALL of the following
-hold:
+**Auto-escalation to forensic:** If lightweight analysis cannot
+answer the question (no specific incident visible in context,
+or the supervisor requests transcript-level evidence), escalate
+to forensic. Present a one-line explanation and proceed to
+Step 0 (initialize forensic task tracking).
 
-1. The user's argument names a **specific incident** — a PR
-   URL, a session event, a single observed behavior — and not
-   a generic "audit this session".
-2. The relevant evidence is already in the **current
-   conversation context**. No need to re-extract a transcript
-   from a JSONL file or grep external logs.
-3. The agent can state the violation, root cause, and
-   persistable lesson **without re-reading skill bodies or
-   files**.
+**Never default to forensic.** The Wave 1/2 subagent fan-out is
+expensive. Use it only when the lightweight path genuinely cannot
+answer.
 
-If any of the three conditions fails, fall through to Step 0
-and run the standard waves.
+---
 
-#### Branch flow
+## Lightweight Strategy (default)
 
-1. **Read the argument.** If the argument is empty, a directory,
-   or a JSONL path with no accompanying narrow question, the
-   heuristic fails — fall through to Step 0.
-2. **Evaluate the heuristic.** If all three conditions hold,
-   continue; otherwise fall through to Step 0.
-3. **Present early-insight findings inline.** Write 1–3 bullets
-   covering: the violation observed, the root cause, and the
-   persistable lesson. Cite turn numbers or quoted evidence
-   when available. Do NOT modify any files at this point.
-4. **REQUIRED: Call `AskUserQuestion`** (do NOT use plain text,
-   call spec: [`tool-calls/ask-early-insight.md`](tool-calls/ask-early-insight.md)).
-   Options:
-   - **Select & file now (Recommended for clear findings)** —
-     skip to Phase 7 with the inline findings as the
-     pre-formed findings file.
-   - **Step back and run full audit** — fall through to
-     Step 0 and dispatch the standard wave subagents.
-   - **Discard — no action needed** — exit without filing.
+### Phase 0: Inline Analysis and Disposition
+
+**This is the default entry point for all audits.**
+
+The supervisor invokes the skill with a description of what they
+observed (or no argument for a generic session review). The agent
+works from the **current conversation context** — no transcript
+extraction, no subagent dispatch.
+
+#### Step 0a: Determine scope
+
+From the invocation argument and recent conversation context:
+
+1. **Specific incident**: Argument names a PR URL, a session
+   event, or a single observed behavior.
+2. **Generic session review**: Argument is empty, a directory, or
+   a JSONL path with no narrow question.
+3. **`--full` flag**: Explicit forensic request → skip lightweight,
+   go to Step 0 (forensic).
+
+For cases 1 and 2, continue in lightweight mode.
+
+#### Step 0b: Inline findings
+
+Present 1–5 bullets covering:
+
+- The incident or pattern observed
+- The root cause (skill gap, missed invocation, compliance
+  deviation, or correct behavior)
+- The persistable lesson — what should change in a skill,
+  memory file, or upstream issue
+
+Cite turn numbers or quoted evidence when available.
+Do NOT modify any files at this point.
+
+**Small friction/skill notes:** If a small permission-friction
+note or skill-improvement observation surfaces during the
+inline analysis, include it as a bullet with classification
+`friction-note` or `skill-note`. These do not trigger a full
+Phase 4 analysis. Queue them in the disposition below instead
+of expanding to a full forensic wave.
+
+#### Step 0c: Disposition gate
+
+**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text,
+call spec: [`tool-calls/ask-early-insight.md`](tool-calls/ask-early-insight.md)).
+Options:
+
+- **Select & file now (Recommended)** — present a structured
+  selection step, then delegate to Phase 7 with inline findings.
+- **Run forensic audit** — escalate to full transcript
+  extraction and Wave 1/2 analysis (fall through to Step 0).
+- **Discard — no action needed** — exit without filing.
 
 **Adaptive friction behavior:** This gate is **ALWAYS_ASK** —
 fires at every friction level, including `adaptive`. The
-choice between filing, stepping back, and discarding is a
-disposition decision that must be explicit. Auto-selecting
-the recommended option would defeat the gate's purpose of
-forcing the supervisor to confirm what gets persisted
-upstream.
+disposition decision (file, escalate, discard) must be explicit.
 
-#### Disposition handling
+#### Step 0d: Disposition handling
 
 | User choice | Next action |
 |-------------|-------------|
-| Select & file now | Create a minimal task list: `TaskCreate(subject="Phase 0: Early-insight findings", activeForm="Presenting findings")` followed by `TaskCreate(subject="Phase 7: Upstream reporting", activeForm="Reporting upstream")`. Skip Steps 0–8 and Phases 1–6 entirely. Jump directly to Phase 7 (Upstream Reporting) using the inline findings as the scrubbed findings file. Phase 7's sub-steps A–D still run — only the wave-driven analysis is skipped. |
-| Step back and run full audit | Fall through to Step 0. Create the full task list and proceed with the standard Wave 1 + Wave 2 orchestration. |
-| Discard | Exit the skill without creating wave tasks and without invoking `Dev10x:audit-file`. |
+| Select & file now | Create minimal task list: `TaskCreate(subject="Phase 0: Inline findings", activeForm="Presenting findings")` followed by `TaskCreate(subject="Phase 7: Upstream reporting", activeForm="Reporting upstream")`. Jump directly to Phase 7 using the inline findings. Phase 7 sub-steps A–D still run. |
+| Run forensic audit | Fall through to Step 0 (forensic). Create the full task list and proceed with Wave 1 + Wave 2 orchestration. |
+| Discard | Exit without creating wave tasks and without invoking `Dev10x:audit-file`. |
 
-#### Why this matters
+#### Why lightweight is the default (GH-436)
 
-- **Avoids wasted subagent dispatches** when the question is
-  already answered by the visible transcript. The full audit
-  waves are expensive (multiple haiku/sonnet calls); spending
-  them on a question the supervisor already framed precisely
-  is overkill.
+- **Avoids expensive subagent fan-out** when the question is
+  already answered by the visible transcript. Wave 1/2 are
+  multiple haiku/sonnet calls; they add cost with no benefit
+  when the supervisor already knows the incident.
+- **Inline analysis enables the audit to run in the current
+  session** — no separate terminal required. The self-session
+  guard and terminal-redirect block apply only to forensic
+  (which replays the full transcript).
 - **Preserves the supervisor selection gate**, which is the
-  part of the skill that has real procedural value — agents
-  are biased toward "file everything I noticed" or "file
-  nothing"; the structured selection step is what makes
-  upstream issues actually useful.
-- **Closes the audit loop reliably.** Without the gate, an
-  agent that answers a narrow audit question conversationally
-  can easily forget the file-upstream step. The
-  `AskUserQuestion` call forces the disposition decision into
-  the conversation.
+  part of the skill with the most procedural value. The
+  structured disposition step ensures findings get filed
+  upstream rather than answered conversationally and forgotten.
+- **Small friction/skill notes are captured at the right
+  granularity.** A one-bullet friction observation does not
+  warrant a Phase 4a–4g forensic wave. Notes are captured
+  inline and queued to Phase 7 for lightweight filing.
 
-#### Anti-pattern this prevents
+---
 
-Agent invokes `/Dev10x:skill-audit` with a narrow question,
-answers conversationally, offers to "save memory or file
-upstream", then defers to the supervisor for the choice
-without a structured selection step. The supervisor has to
-remember the workflow and prompt for the missing step.
+## Forensic Strategy (`--full` or escalation)
+
+The forensic strategy runs the full transcript extraction and
+Wave 1/2 subagent fan-out. Use it when the lightweight path
+cannot answer, or when the supervisor explicitly requests
+deep analysis.
+
+**Run from a separate terminal** — the transcript replay
+dominates the context window. See the self-session guard below.
 
 ### Step 0: Initialize task tracking (MANDATORY)
 
-**Applies when Phase 0 falls through.** If Phase 0 routed to
-"Select & file now" or "Discard", the minimal task list defined
-in Phase 0 is authoritative — do NOT create the wave task list
-below.
+**Applies when Phase 0 escalated to forensic, or when `--full`
+was passed.** If lightweight ended in "Select & file now" or
+"Discard", the lightweight task list is authoritative — do NOT
+create the forensic task list.
 
 **REQUIRED: Create all tasks before ANY other work.**
 Do NOT skip task creation or improvise an ad-hoc workflow.
@@ -147,25 +180,30 @@ Execute these exact `TaskCreate` calls at startup:
 **Wave 1 — parallel analysis (independent phases):**
 
 4. `TaskCreate(subject="Phase 1: Action inventory [subagent]", description="Dispatch subagent to catalogue all tool calls, skill invocations, and agent dispatches", activeForm="Inventorying actions")`
-5. `TaskCreate(subject="Phase 4: Permission friction [subagent]", description="Dispatch subagent to identify permission prompts, hook blocks, and allow-rule gaps", activeForm="Analyzing permissions")`
 
 **Wave 2 — parallel analysis (depends on Phase 1 output):**
 
-6. `TaskCreate(subject="Phase 2: Skill coverage [subagent]", description="Dispatch subagent to check which skills should have been invoked but were missed", activeForm="Analyzing coverage")`
-7. `TaskCreate(subject="Phase 3: Compliance check [subagent]", description="Dispatch subagent to verify skill execution matched documented orchestration steps", activeForm="Checking compliance")`
-8. `TaskCreate(subject="Phase 5: Lessons learned [subagent]", description="Dispatch subagent to extract corrections, confirmations, and process improvements", activeForm="Extracting lessons")`
+5. `TaskCreate(subject="Phase 2: Skill coverage [subagent]", description="Dispatch subagent to check which skills should have been invoked but were missed", activeForm="Analyzing coverage")`
+6. `TaskCreate(subject="Phase 3: Compliance check [subagent]", description="Dispatch subagent to verify skill execution matched documented orchestration steps", activeForm="Checking compliance")`
+7. `TaskCreate(subject="Phase 5: Lessons learned [subagent]", description="Dispatch subagent to extract corrections, confirmations, and process improvements", activeForm="Extracting lessons")`
 
 **Synthesis (sequential, main agent):**
 
-9. `TaskCreate(subject="Phase 6: Propose changes", description="Synthesize findings into concrete SKILL.md edits, memory updates, and process improvements", activeForm="Proposing changes")`
-10. `TaskCreate(subject="Phase 7: Upstream reporting", description="File findings as GitHub issues at the Dev10x plugin repo via Dev10x:audit-file", activeForm="Reporting upstream")`
+8. `TaskCreate(subject="Phase 6: Propose changes", description="Synthesize findings into concrete SKILL.md edits, memory updates, and process improvements", activeForm="Proposing changes")`
+9. `TaskCreate(subject="Phase 7: Upstream reporting", description="File findings as GitHub issues at the Dev10x plugin repo via Dev10x:audit-file", activeForm="Reporting upstream")`
+
+**Note:** Phase 4 (Permission Friction) is not in the default
+forensic task list. Add it only when the invocation explicitly
+requests friction analysis, OR when the action inventory
+(Phase 1) reveals 5+ permission prompts or structural toxicity
+patterns. See "Permission Friction (Secondary)" below.
 
 Set dependencies:
 - Tasks 1→2→3 sequential (setup chain)
-- Tasks 4 and 5 both blocked by task 3 (Wave 1 — run in parallel)
-- Tasks 6, 7, 8 all blocked by task 4 (Wave 2 — run in parallel after Phase 1)
-- Task 9 blocked by tasks 4, 5, 6, 7, 8 (all analysis complete)
-- Task 10 blocked by task 9
+- Task 4 blocked by task 3 (Wave 1)
+- Tasks 5, 6, 7 all blocked by task 4 (Wave 2 — run in parallel after Phase 1)
+- Task 8 blocked by tasks 4, 5, 6, 7 (all analysis complete)
+- Task 9 blocked by task 8
 
 Update each task to `in_progress` before starting it and
 `completed` when done.
@@ -183,10 +221,15 @@ Phase 6 so the user approves or rejects all changes at once.
 
 The skill accepts one optional argument, resolved in this order:
 
-1. **JSONL path** — if arg ends in `.jsonl`, use it directly
-2. **Worktree path** — if arg is a directory (e.g., `/work/myproject/my-repo`), encode it
-   to a project directory and find the latest JSONL in it
-3. **`latest`** (or no arg) — encode the current working directory, find latest JSONL
+1. **`--full`** — force forensic strategy regardless of context
+2. **JSONL path** — if arg ends in `.jsonl`, use it directly
+   (implies forensic)
+3. **Worktree path** — if arg is a directory, encode it and find
+   the latest JSONL in it (implies forensic)
+4. **Specific incident description** — free text describing what
+   happened; use lightweight strategy
+5. **`latest`** (or no arg) — lightweight strategy using visible
+   context; escalate to forensic only if context is insufficient
 
 **Path encoding**: `/work/myproject/my-repo` → `-work-myproject-my-repo` (replace leading `/` then
 all `/` with `-`).
@@ -196,8 +239,12 @@ all `/` with `-`).
 ## Proactive Triggers
 
 **MUST suggest this skill when ANY trigger below is detected.**
-Do NOT run it inline — suggest a separate terminal invocation.
-A 2nd hook-blocked retry in a session is a mandatory trigger.
+For triggers 1–5 (lightweight-compatible), suggest an inline
+invocation. For triggers 6–8 (require transcript analysis),
+suggest a separate terminal.
+
+A 2nd hook-blocked retry in a session is a mandatory trigger
+(see trigger 7).
 
 1. **Raw scripts instead of tools** — You wrote 3+ raw `gh api`, shell pipelines,
    or other manual commands when a dedicated tool exists. The audit captures which
@@ -212,41 +259,41 @@ A 2nd hook-blocked retry in a session is a mandatory trigger.
 
 4. **Permission friction** — The user had to approve 3+ safe, repetitive commands
    (e.g., `pytest`, `uv run`, `psql ... SELECT`) that should be pre-approved.
-   The audit compares each prompted command against `settings.local.json` allow
-   rules and proposes new patterns to eliminate the friction.
+   Capture as a small friction note via lightweight strategy; escalate to forensic
+   Phase 4 only if 5+ distinct patterns are observed.
 
 5. **Inline shell scripts** — A skill (SKILL.md) contains 3+ Bash lines written
    inline, OR a session used a multi-step shell pipeline/heredoc that would need
-   repeated approval. Inline scripts can't be pre-approved with a single allow
-   rule; extracting them to a `scripts/` file under a skill lets the user grant
-   one `Bash(~/.claude/skills/<skill>/scripts/:*)` rule instead.
+   repeated approval.
 
 6. **Structural command friction** — You used `$()` subshells, `&&` chains,
    `git -C`, env var prefixes, or leading `#` comments that broke allow-rule
-   prefix matching, AND the user had to reject/correct the approach. These
-   are fundamentally unfixable with allow rules — they need skill updates
-   and/or hookify rules to prevent recurrence. The audit's Step 4c detects
-   these patterns and proposes both skill fixes and auto-reject hooks.
+   prefix matching, AND the user had to reject/correct the approach. Suggest
+   forensic (`--full`) for root-cause tracing.
 
-7. **Hook-blocked retries** — A PreToolUse hook rejected a command (e.g.,
-   `cat <<` blocked by `validate-bash-security.py`) but you attempted the
-   same pattern again in the same session. The audit detects these as
-   HOOK_BLOCKED_RETRY and proposes skill updates to use the correct
-   alternative.
+7. **Hook-blocked retries** — A PreToolUse hook rejected a command but you
+   attempted the same pattern again in the same session. Mandatory trigger;
+   suggest `--full`.
 
-8. **Redundant `uv run --script` prefixes** — A skill or shell script
-   invokes a Python script with `uv run --script path/to/script.py` when
-   the script already has `#!/usr/bin/env -S uv run --script` shebang and
-   is executable. The prefix is redundant, breaks allow-rule matching
-   (prefix becomes `uv` instead of the script path), and makes the command
-   harder to pre-approve. The audit's Step 4g detects these and proposes
-   dropping the prefix.
+8. **Redundant `uv run --script` prefixes** — A skill or shell script invokes
+   a Python script with the redundant prefix. Suggest `--full` for a full script
+   audit.
 
-When a trigger is detected, find the current session's JSONL path and suggest:
+When a trigger is detected, find the current session's JSONL path and suggest.
+
+For lightweight-compatible triggers (1–5):
+
+> "I've noticed [trigger description]. You can audit this now:
+> ```
+> /Dev10x:skill-audit <description of what happened>
+> ```
+> or queue it for later with `/Dev10x:skill-audit-queue`."
+
+For forensic triggers (6–8):
 
 > "I've noticed [trigger description]. Open a new terminal and run:
 > ```
-> claude '/Dev10x:skill-audit <jsonl-path>'
+> claude '/Dev10x:skill-audit --full <jsonl-path>'
 > ```
 > to capture these as improvements."
 
@@ -255,7 +302,9 @@ To find the current session's JSONL path, use:
 ls -t ~/.claude/projects/<encoded-cwd>/*.jsonl | head -1
 ```
 
-## Workflow
+---
+
+## Forensic Workflow
 
 ### Step 1: Resolve session file
 
@@ -301,17 +350,14 @@ adaptive-friction affirmative (GH-127 #7).** When `friction_level
 == adaptive` AND the same user message that invoked the skill
 contains an unambiguous affirmative like `go`, `proceed`, `yes`,
 `run it`, `audit it`, treat that as the confirmation and skip
-the `AskUserQuestion`. The user has already chosen — re-asking
-adds friction without information value. Affirmatives must be
-in the **same turn** as the invocation (not from prior
-conversation) and unambiguous (mere "ok" or "k" does not
+the `AskUserQuestion`. Affirmatives must be in the **same turn**
+as the invocation and unambiguous (mere "ok" or "k" does not
 qualify).
 
 **When the path was auto-resolved** (no arg, or arg is a
 directory) AND no adaptive affirmative is present, extract the
-session ID from the filename (the UUID portion before `.jsonl`)
-and the file's modification time, then confirm with the user
-before proceeding.
+session ID from the filename and the file's modification time,
+then confirm with the user before proceeding.
 
 **REQUIRED: Call `AskUserQuestion`** (ALWAYS_ASK — fires at
 strict/guided friction levels, and at adaptive when no
@@ -342,19 +388,22 @@ resolution from Step 1 with the provided path.
 
 ### Step 1.5: Self-session guard
 
+**Forensic-only.** This guard does not apply to lightweight
+audits — lightweight works from the visible conversation context,
+not from a replayed transcript, so "audit dominates transcript"
+is not a concern.
+
 **Skip this guard when the user provided an explicit JSONL path
 as the argument** (i.e., `arg.endswith(".jsonl")` was true in
 Step 1). An explicit path means the user deliberately chose
-which session to audit — the mtime heuristic would false-positive
-on any active session being audited from a separate terminal,
-which is the documented workflow.
+which session to audit.
 
 **Only apply this guard when the path was auto-resolved** via the
 `latest` fallback (no arg, or arg is a directory). In that case,
 the resolved file might be the current session's own JSONL.
 
 When the guard applies, check if the resolved file was modified
-within the last 60 seconds (active sessions write continuously):
+within the last 60 seconds:
 
 ```bash
 find "$SESSION_FILE" -mmin -1 -print
@@ -367,12 +416,11 @@ current session. **STOP** and emit a redirect message:
 > consume the context window before useful analysis begins.
 > Open a **new terminal** and run:
 > ```
-> claude '/Dev10x:skill-audit <session-file-path>'
+> claude '/Dev10x:skill-audit --full <session-file-path>'
 > ```
 
 Do NOT proceed with extraction. Do NOT ask the user if they
-want to continue anyway — self-auditing always produces poor
-results because the audit itself dominates the transcript.
+want to continue anyway.
 
 ### Step 2: Extract transcript
 
@@ -407,10 +455,8 @@ default to `friction_level: guided` and `active_modes: []`.
 Persist both values for downstream use — pass them into the
 Phase 3 (Compliance Check) subagent prompt in Step 7. Without
 this, the Phase 3 subagent cannot tell which gates auto-select
-at the active level (e.g., `work-on` Phase 3 plan-approval
-auto-selects at `adaptive` per GH-808) and will produce false-
-positive `SKIPPED_STEP` regressions for documented auto-advance
-behavior.
+at the active level and will produce false-positive
+`SKIPPED_STEP` regressions for documented auto-advance behavior.
 
 ### Step 5: Create output files
 
@@ -420,14 +466,20 @@ Create a temp file for each analysis phase's output:
 /tmp/Dev10x/bin/mktmp.sh skill-audit phase1-actions .md
 /tmp/Dev10x/bin/mktmp.sh skill-audit phase2-coverage .md
 /tmp/Dev10x/bin/mktmp.sh skill-audit phase3-compliance .md
-/tmp/Dev10x/bin/mktmp.sh skill-audit phase4-permissions .md
 /tmp/Dev10x/bin/mktmp.sh skill-audit phase5-lessons .md
 ```
 
-Store the returned paths. Phase 1 and Phase 4 scripts write
-directly to their output files. Wave 2 subagents (Phases 2, 3, 5)
-return findings as their Agent result string — the main agent
-writes those to the output files.
+Store the returned paths. Phase 1 script writes directly to its
+output file. Wave 2 subagents (Phases 2, 3, 5) return findings
+as their Agent result string — the main agent writes those to
+the output files.
+
+If Phase 4 was requested (see "Permission Friction (Secondary)"
+below), also create:
+
+```bash
+/tmp/Dev10x/bin/mktmp.sh skill-audit phase4-permissions .md
+```
 
 **Subagent output strategy (Wave 2 only):** Subagents dispatched
 via `Agent()` cannot reliably write to output files —
@@ -435,14 +487,14 @@ via `Agent()` cannot reliably write to output files —
 **return its findings as the Agent result string**, then write
 from the main agent.
 
-### Step 6: Wave 1 — Run deterministic scripts (Phase 1 + Phase 4)
+### Step 6: Wave 1 — Run deterministic scripts (Phase 1)
 
-**Phase 1 and Phase 4 use deterministic Python scripts** instead
-of LLM subagents. This prevents rogue subagent actions (GH-565)
-and eliminates permission friction during analysis.
+**Phase 1 uses a deterministic Python script** instead of an LLM
+subagent. This prevents rogue subagent actions (GH-565) and
+eliminates permission friction during analysis.
 
-Run both scripts — they are stdlib-only, require no user approval,
-and produce structured markdown output:
+Run the script — it is stdlib-only, requires no user approval,
+and produces structured markdown output:
 
 1. **Phase 1 (Action Inventory):**
    ```bash
@@ -450,14 +502,16 @@ and produce structured markdown output:
      "<TRANSCRIPT_PATH>" "<PHASE1_OUTPUT>"
    ```
 
+Mark task 4 as `completed` after the script finishes.
+Read the output file to verify it contains valid markdown tables.
+
+**If Phase 4 was requested**, also run:
+
 2. **Phase 4 (Permission Friction):**
    ```bash
    ${CLAUDE_PLUGIN_ROOT}/skills/skill-audit/scripts/analyze-permissions.sh \
      "<TRANSCRIPT_PATH>" ~/.claude/settings.local.json "<PHASE4_OUTPUT>"
    ```
-
-Mark tasks 4 and 5 as `completed` after each script finishes.
-Read the output files to verify they contain valid markdown tables.
 
 **Note:** The Phase Reference sections for Phase 1 and Phase 4
 below remain as documentation of what the scripts produce. They
@@ -479,12 +533,8 @@ subagent ends its output with one of:
 
 - `DONE` — phase findings complete
 - `DONE_WITH_CONCERNS: <text>` — findings complete but flagged
-  (e.g., transcript truncated, ambiguous compliance call)
-- `NEEDS_CONTEXT: <what>` — missing input the controller can
-  provide (Phase 1 output empty, friction context not set)
-- `BLOCKED: <reason>` — permission wall, missing tool, or
-  unrecoverable error (controller falls back to main-session
-  execution of the phase)
+- `NEEDS_CONTEXT: <what>` — missing input the controller can provide
+- `BLOCKED: <reason>` — permission wall, missing tool, or unrecoverable error
 
 The main agent parses the trailing line of each Agent result
 and branches per the protocol before writing the phase output
@@ -496,24 +546,50 @@ file.
 
 3. `Agent(subagent_type="general-purpose", model="sonnet", description="Phase 5: Lessons learned", prompt="You are running Phase 5 (Lessons Learned Extraction). Return your complete findings as your response. Also attempt to write them to <PHASE5_OUTPUT> — if the write fails, the main agent will capture your findings from the returned result. Phase 1 action inventory: <PHASE1_OUTPUT>. Session transcript: <TRANSCRIPT_PATH>. Memory directory: <MEMORY_DIR>. Read the Phase 1 output, then [include full Phase 5: Lessons Learned Extraction instructions from the Phase Reference section]. Report your final status as the LAST line of your output, with exactly one of these prefixes: DONE / DONE_WITH_CONCERNS: <text> / NEEDS_CONTEXT: <what> / BLOCKED: <reason>. Do not write anything after the status line.")`
 
-Wait for all three subagents to complete. Mark tasks 6, 7, 8
+Wait for all three subagents to complete. Mark tasks 5, 6, 7
 as `completed` as each returns AND its status line is `DONE` or
 `DONE_WITH_CONCERNS:`. For `NEEDS_CONTEXT:`, re-dispatch once
 with the requested context inlined. For `BLOCKED:`, fall back
 to running the phase's instructions in the main session and
-surface the reason to the user. If any output file was not
-written by the subagent, use the returned result (minus the
-status line) to write it from the main agent.
+surface the reason to the user.
 
 ### Step 8: Collect and synthesize
 
-Read all five output files. If any file is empty or missing
+Read all phase output files. If any file is empty or missing
 (subagent write failed), the main agent should already have the
 findings from the subagent's returned result — write them now.
 The main agent now has the complete findings from all analysis
 phases and proceeds to Phase 6
 (Propose Changes) and Phase 7 (Upstream Reporting) directly —
 these require user interaction and cannot be delegated.
+
+---
+
+## Permission Friction (Secondary, GH-436)
+
+Permission-friction analysis is a secondary signal, not a main
+phase. It runs only under these conditions:
+
+**Lightweight strategy:** Capture a brief `friction-note` bullet
+inline in Phase 0 Step 0b when you observe small friction. Do
+NOT dispatch a forensic wave for friction alone.
+
+**Forensic strategy:** Add Phase 4 to the task list and run
+`analyze-permissions.sh` when:
+- The invocation explicitly requests friction analysis, OR
+- Phase 1 action inventory reveals 5+ unmatched Bash/Read/Write
+  calls, OR
+- The supervisor adds Phase 4 after reviewing Phase 1 output
+
+When Phase 4 does run (forensic), follow the full Phase 4
+reference (steps 4a–4g) below. Its output is synthesized in
+Phase 6 alongside the other phases.
+
+**Queue time (skill-audit-queue):** Small friction/skill notes
+observed at queue time can be captured as lightweight annotations
+on the queued task. The `Dev10x:skill-audit-queue` skill accepts
+a free-text description — use it to record the specific friction
+pattern so the full audit has prior context.
 
 ---
 
@@ -607,6 +683,11 @@ the root cause. Classify as:
 ---
 
 #### Phase 4: Permission Friction Analysis
+
+**Forensic-only, secondary signal.** Runs when explicitly
+requested or when Phase 1 reveals 5+ unmatched tool calls.
+See "Permission Friction (Secondary)" above for when this phase
+applies.
 
 Identify tool calls that would have required user approval by comparing
 them against the allow rules in `settings.local.json`. The JSONL format
@@ -735,8 +816,7 @@ a new rule). Structural friction needs skill updates and/or hooks.
    original repo. If commands use `cd <worktree>` or `git -C
    <worktree>` after creation, the CWD switch may have failed.
    Classification: `WORKTREE_CWD_NOT_SWITCHED`. Fix: investigate
-   `Dev10x:git-worktree` skill — the EnterWorktree tool should have
-   switched the session directory automatically.
+   `Dev10x:git-worktree` skill.
 
 **Output format:**
 
@@ -782,14 +862,6 @@ When wrapper exists, the primary recommendation is MEMORY_UPDATE
 - The toxic pattern that triggers it
 - The correct invocation using the wrapper
 - Where the wrapper lives (for reference)
-
-Example memory update proposal:
-```
-MEMORY_UPDATE: "Use `git develop-log` instead of
-`git log $(git merge-base develop HEAD)..HEAD` —
-the alias wraps the subshell, keeping the command prefix stable
-for allow-rule matching."
-```
 
 When no wrapper exists, propose creating one AND a memory update
 documenting it. For git aliases, reference `Dev10x:git-alias-setup`
@@ -897,15 +969,6 @@ first, then route based on result:
 2. Propose SKILL_UPDATE replacing the toxic pattern with the wrapper
 3. No new hook or script needed — the wrapper already solves it
 
-```
-Fix type: MEMORY_UPDATE + SKILL_UPDATE
-Wrapper: git develop-log (git alias)
-Skill: Dev10x:some-skill (line 38)
-Before: git log $(git merge-base develop HEAD)..HEAD
-After:  git develop-log
-Memory: "Use `git develop-log` — wraps the subshell"
-```
-
 **2b. No wrapper exists (`CREATE_WRAPPER_ALIAS` / `CREATE_WRAPPER_SCRIPT`):**
 1. Propose creating the wrapper (alias via `Dev10x:git-alias-setup`
    or script in `~/.claude/tools/`)
@@ -914,17 +977,6 @@ Memory: "Use `git develop-log` — wraps the subshell"
 4. If script: propose allow rule for the new path
 5. Propose hookify rule to auto-reject the toxic pattern
 
-```
-Fix type: CREATE_WRAPPER + SKILL_UPDATE + HOOKIFY_RULE
-Proposed: ~/.claude/tools/export-with-env.sh
-Skill: Dev10x:some-skill (line 38)
-Before: ENV=val ~/.claude/skills/foo/scripts/run.sh
-After:  ~/.claude/tools/export-with-env.sh
-Allow:  Bash(~/.claude/tools/export-with-env:*)
-Hook: Reject ENV= prefix before skill scripts
-Memory: "Use export-with-env.sh — sets env internally"
-```
-
 **3. HOOK_BLOCKED → Skill update + memory note**
 
 For each HOOK_BLOCKED finding:
@@ -932,15 +984,6 @@ For each HOOK_BLOCKED finding:
 2. Propose a skill edit using the correct alternative
 3. Propose a memory note so Claude stops attempting the pattern
 4. No new hook needed — the existing hook already blocks it
-
-```
-Fix type: SKILL_UPDATE + MEMORY_NOTE
-Skill: commit (Step 11)
-Blocked by: validate-bash-security.py (cat << pattern)
-Before: git commit -m "$(cat <<'EOF'...)"
-After:  Write to /tmp/msg.txt, then git commit -F /tmp/msg.txt
-Memory: "hookify blocks cat << — use Write + -F for commit messages"
-```
 
 **4. CORRECTLY_PROMPTED → No action**
 
@@ -953,14 +996,6 @@ For each REDUNDANT_UV_PREFIX finding:
 2. Propose removing the `uv run --script` prefix
 3. If the underlying Python script lacks the proper shebang or
    permissions, propose fixing those first
-
-```
-Fix type: SKILL_UPDATE
-Skill: Dev10x:some-skill (line 42)
-Before: uv run --script ~/.claude/tools/some-script.py get ...
-After:  ~/.claude/tools/some-script.py get ...
-Prereq: script has #!/usr/bin/env -S uv run --script + chmod +x
-```
 
 **Step 4g: Script Shebang and Invocation Audit**
 
@@ -978,11 +1013,6 @@ scripts for redundant `uv run --script` prefixes.
 # dependencies = ["requests"]  # or [] for stdlib-only
 # ///
 ```
-
-This makes scripts executable directly (`./script.py`) without
-needing a `uv run --script` prefix. The PEP 723 metadata block
-is required even for stdlib-only scripts (use `dependencies = []`)
-for consistency.
 
 **Detection algorithm:**
 
@@ -1013,49 +1043,16 @@ for consistency.
 | # | Script / Caller | Issue | Classification | Fix |
 |---|---|---|---|---|
 | 1 | `tools/some-script.py` | `#!/usr/bin/env python3` | WRONG_SHEBANG | Change to uv shebang + PEP 723 |
-| 2 | `tools/upload-screenshots.py` | Has deps but python3 shebang | WRONG_SHEBANG | Change shebang (deps already in PEP 723) |
-| 3 | `scripts/fernet-decrypt.py` | mode 644 | NOT_EXECUTABLE | `chmod +x` |
-| 4 | `Dev10x:some-skill/SKILL.md` | `uv run --script ~/.claude/tools/...` | REDUNDANT_UV_PREFIX | Drop prefix |
-| 5 | `Dev10x:some-skill/scripts/notify.sh` | `uv run --script ...slack-notify.py` | REDUNDANT_UV_PREFIX_SHELL | Drop prefix |
+| 2 | `scripts/fernet-decrypt.py` | mode 644 | NOT_EXECUTABLE | `chmod +x` |
+| 3 | `Dev10x:some-skill/SKILL.md` | `uv run --script ~/.claude/tools/...` | REDUNDANT_UV_PREFIX | Drop prefix |
 
 **Recommendations:**
 
-- **WRONG_SHEBANG**: Fix the shebang to
-  `#!/usr/bin/env -S uv run --script` and add PEP 723 block.
-  If the script has external deps, they go in `dependencies = [...]`.
-  If stdlib-only, use `dependencies = []`.
+- **WRONG_SHEBANG**: Fix the shebang to `#!/usr/bin/env -S uv run --script` and add PEP 723 block.
 - **MISSING_PEP723**: Add the `# /// script` block after the shebang.
 - **NOT_EXECUTABLE**: Run `chmod +x <script>`.
-- **REDUNDANT_UV_PREFIX**: Update the SKILL.md or shell script to
-  call the Python script directly without the `uv run --script`
-  prefix. This simplifies allow-rule matching — the command prefix
-  becomes the script path, not `uv`.
+- **REDUNDANT_UV_PREFIX**: Update the SKILL.md or shell script to call the Python script directly.
 - **REDUNDANT_UV_PREFIX_SHELL**: Same as above but in `.sh` files.
-
-**Why direct invocation matters for allow rules:**
-
-```
-# With prefix — allow rule must match "uv run":
-Bash(uv run --script ~/.claude/tools/some-script.py:*)
-
-# Without prefix — allow rule matches the script path directly:
-Bash(~/.claude/tools/some-script.py:*)
-```
-
-The second form is simpler, more specific, and follows the same
-pattern as skill scripts under `Bash(~/.claude/skills/<name>/scripts/:*)`.
-
-**Summary table format:**
-
-| # | Classification | Fix Type | Target | Action |
-|---|---|---|---|---|
-| 1 | PREFIX_POISONED (wrapper exists) | Memory + Skill | `Dev10x:some-skill` | USE_EXISTING_WRAPPER: `git develop-log` |
-| 2 | PREFIX_POISONED (no wrapper) | Wrapper + Skill + Hook | `~/.claude/tools/` | CREATE_WRAPPER_SCRIPT + hookify |
-| 3 | HOOK_BLOCKED | Skill + Memory | `commit` | Replace heredoc with Write + -F |
-| 4 | MISSING_RULE | Allow rule | `settings.local.json` | Add `Bash(pytest:*)` |
-| 5 | CORRECTLY_PROMPTED | None | — | `git push` should require approval |
-| 6 | REDUNDANT_UV_PREFIX | Skill update | `Dev10x:some-skill` | Drop `uv run --script` prefix |
-| 7 | WRONG_SHEBANG | Script fix | `tools/script.py` | Add uv shebang + PEP 723 |
 
 ---
 
@@ -1082,9 +1079,12 @@ Review user corrections and `[CORRECTION]` markers:
 
 #### Phase 6: Report Findings (REQUIRES USER CONFIRMATION)
 
+**Forensic-only.** For lightweight audits, Phase 6 is replaced
+by the inline disposition gate in Phase 0.
+
 **Runs in main agent after Step 8 (collect and synthesize).**
 
-Read all five phase output files to gather the complete findings.
+Read all phase output files to gather the complete findings.
 Merge them into a unified view before presenting the report.
 
 **CRITICAL: Audit reports findings — it does NOT design solutions.**
@@ -1143,14 +1143,16 @@ Instead report: "Skill X invoked `gh pr view` directly 3 times
 
 #### Phase 7: Upstream Reporting (optional delegation)
 
-**Runs in main agent after Phase 6 completes.**
+**Runs in main agent after Phase 6 (forensic) or directly from
+Phase 0 disposition (lightweight "Select & file now").**
 
 Check whether any findings warrant reporting to the Dev10x
 plugin maintainers.
 
 **Sub-step A: Collect upstream-relevant findings**
 
-Scan all findings from Phases 2–6 and select those that relate
+Scan all findings from Phases 2–6 (forensic) or from the inline
+Phase 0 analysis (lightweight) and select those that relate
 to Dev10x plugin skills (under `~/.claude/plugins/`). Include:
 - `SKILL_UPDATE`, `GAP`, `SKIPPED_STEP`
 - `DEVIATED` with assessment `regression`
@@ -1180,9 +1182,7 @@ algorithm in `Dev10x:audit-file` →
 `references/privacy-scrub.md` to the findings text **before**
 writing it to the temp file.
 
-**Local-only sections** (e.g., "Local fixes (not relevant
-upstream)", project-specific memory notes, `settings.local.json`
-allow-rule packs) MUST be omitted from the findings file
+**Local-only sections** MUST be omitted from the findings file
 entirely — they are private context, not signal for the
 plugin maintainers.
 
@@ -1193,8 +1193,7 @@ Do NOT silently include unscrubbed text.
 
 **Sub-step D: Delegate to Dev10x:audit-file**
 
-Write the **scrubbed** findings summary to a temp file so the
-delegated skill can read it without needing the full transcript:
+Write the **scrubbed** findings summary to a temp file:
 
 ```bash
 /tmp/Dev10x/bin/mktmp.sh skill-audit findings .md
@@ -1226,8 +1225,7 @@ completed after delegation returns.
   finding, propose: (1) moving the block to `~/.claude/skills/<skill>/scripts/`,
   (2) updating SKILL.md to call the script, (3) adding a
   `Bash(~/.claude/skills/<skill>/scripts/:*)` allow rule so future runs need zero
-  approval prompts. Reference `Dev10x:some-skill/scripts/triage.py` as the canonical
-  example of a skill that already does this correctly.
+  approval prompts.
 - **Structural before rule-based**: When analyzing permission friction, always
   check Step 4c toxicity first. A PREFIX_POISONED command should never get a
   "widen the allow rule" recommendation — the fix is the skill pattern, not
@@ -1240,9 +1238,7 @@ completed after delegation returns.
 - **Script shebang hygiene**: Phase 4g scans Python scripts for proper
   self-executing setup. All scripts under `~/.claude/skills/` and
   `~/.claude/tools/` must use `#!/usr/bin/env -S uv run --script` shebang
-  + PEP 723 metadata + executable permission. SKILL.md files and shell
-  scripts must NOT prefix these scripts with `uv run --script` — the
-  prefix is redundant and breaks allow-rule prefix matching.
+  + PEP 723 metadata + executable permission.
 - **Prefer jq/yq over Python scripts**: When a hook or skill script
   only does JSON/YAML parsing, prefer `jq` or `yq` over inline
   `python3 -c "import json..."`. Flag Python one-liners that could be
@@ -1259,10 +1255,7 @@ completed after delegation returns.
   disclose information about non-public repositories, projects,
   branches, ticket trackers, file paths, hostnames, or people.
   Scrub all such identifiers in Phase 7 sub-step C before they
-  reach the upstream issue body. The plugin maintainers only need
-  the public Dev10x context (skill names, plugin file paths, PR
-  numbers) to act on a finding — anything tied to the source
-  codebase belongs in the auditor's local notes, not in the
-  filed issue. See `Dev10x:audit-file` Step 3 for the full
-  scrubbing rules and the `AskUserQuestion` gate that handles
-  findings that cannot be scrubbed without losing meaning.
+  reach the upstream issue body.
+- **Friction is secondary**: Do not expand a lightweight friction
+  observation into a full Phase 4 forensic wave. Capture it as a
+  `friction-note` bullet and queue for lightweight filing.
