@@ -324,6 +324,64 @@ same repository root. Instead, use this recovery sequence:
 If `git worktree remove` fails (uncommitted changes), pass
 `--force` — the agent's ephemeral worktree is disposable.
 
+**Cross-repo salvage (GH-427).** When `worktree_orchestrator`
+is true (see Worktree-Orchestrator Precheck), steps 2–3 above do
+NOT work: the agent's worktree lives under a different repo root,
+`git worktree remove` from the orchestrator targets the wrong
+repo, and `git checkout <pr-branch>` cannot reach the branch. The
+object store IS shared, though, so the agent's commit is reachable
+via `git cat-file -e <sha>` from the orchestrator. Salvage by
+cherry-picking it onto a fresh orchestrator-side branch:
+1. Read the agent result for the commit SHA (or branch tip). If
+   the agent stopped before committing, its work lived only as
+   uncommitted files in an unreachable worktree — re-dispatch
+   from scratch instead.
+2. From the orchestrator worktree: create a branch from
+   `origin/<base>` via `Skill(Dev10x:ticket-branch)`, then
+   `git cherry-pick <agent-sha>` (the shared object store makes
+   the SHA reachable even though the branch ref is not).
+3. Resolve any conflicts, then ship the orchestrator-side branch
+   through the normal lifecycle.
+This is why the commit-early contract (ANTI-STALL CONTRACT) is
+mandatory: an uncommitted agent leaves nothing in the object
+store to cherry-pick.
+
+### Worktree-Orchestrator Precheck (GH-427)
+
+**Run this BEFORE the first Swarm Dispatch.** When the
+orchestrator session itself runs from a worktree whose physical
+root is *outside* the main repository tree (e.g. CWD is
+`/work/dx/.worktrees/<name>` while the repo lives at
+`/work/dx/<repo>`), `isolation="worktree"` agents land their
+ephemeral worktrees under `<repo>/.claude/worktrees/agent-<id>/`
+— a path the orchestrator cannot reach. `EnterWorktree(path=…)`
+rejects the switch ("not inside the repository at …") because
+the orchestrator's CWD is outside that repo root, so the GH-399
+F2 recovery sequence is unavailable and a mid-lifecycle agent
+(see ANTI-STALL CONTRACT) cannot be salvaged except by
+cherry-picking from the shared object store.
+
+**Detection (no subshell — two reads):**
+
+```
+git rev-parse --show-toplevel      # orchestrator worktree root
+git rev-parse --git-common-dir     # shared .git → the main repo root
+```
+
+If `--show-toplevel` is NOT a path prefix of the directory that
+holds `--git-common-dir`'s parent repo (i.e. the orchestrator is
+a sibling worktree, not the main checkout), set
+`worktree_orchestrator = true`.
+
+**When `worktree_orchestrator` is true, default to serial mode**
+(invoke `Skill(Dev10x:work-on)` inline, sequentially — see Serial
+fallback below) rather than dispatching a swarm that cannot be
+recovered. Announce the downgrade: "Orchestrator runs from a
+sibling worktree (cross-repo root); using serial mode per
+GH-427." The supervisor may override and force the swarm, but
+only with the cherry-pick salvage path (DONE_WITH_CONCERNS
+recovery, below) understood as the only recovery route.
+
 ### Swarm Dispatch (REQUIRED, GH-36)
 
 **Every work item MUST be delegated to a worktree-isolated
@@ -413,6 +471,13 @@ ANTI-STALL CONTRACT (highest priority — read before invoking work-on):
 - Do NOT stop after branch creation or after PR creation.
   Run straight through: branch → implement → commit → push →
   PR → CI monitor → merge. Every step is mandatory.
+- COMMIT EARLY (GH-427): reach a committed (ideally pushed)
+  state as soon as the change compiles — before deep test
+  polishing or refactoring. The commit is your durable
+  checkpoint: if your turn ends mid-lifecycle, the orchestrator
+  can salvage a committed SHA from the shared object store, but
+  uncommitted files in your ephemeral worktree are lost when the
+  worktree is reclaimed.
 - After work-on returns, if the PR is open but not merged,
   that is NOT done. Invoke Skill(Dev10x:gh-pr-monitor) and
   then Skill(Dev10x:gh-pr-merge) to complete.
