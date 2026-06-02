@@ -1,0 +1,69 @@
+name: Benchmark Gate
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - "hooks/**"
+      - "src/dev10x/**"
+      - "tests/benchmarks/**"
+      - "tests/fixtures/startup_baseline.json"
+      - "pyproject.toml"
+      - ".github/workflows/pytest-bench.yml"
+  pull_request:
+    branches: [develop]
+    paths:
+      - "hooks/**"
+      - "src/dev10x/**"
+      - "tests/benchmarks/**"
+      - "tests/fixtures/startup_baseline.json"
+      - "pyproject.toml"
+      - ".github/workflows/pytest-bench.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install package
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Restore benchmark baseline
+        uses: actions/cache@v4
+        with:
+          path: .benchmarks
+          key: benchmarks-${{ github.base_ref || github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            benchmarks-${{ github.base_ref || github.ref_name }}-
+            benchmarks-develop-
+
+      - name: Run benchmark gate tests
+        run: |
+          uv run --extra dev pytest tests/benchmarks/ \
+            --benchmark-only \
+            --benchmark-autosave \
+            --benchmark-compare \
+            --benchmark-compare-fail=mean:20% \
+            -v --tb=short -o 'addopts='
+        env:
+          BENCHMARK_STORAGE: .benchmarks
+
+      - name: Save benchmark results
+        if: github.ref == 'refs/heads/develop'
+        uses: actions/cache/save@v4
+        with:
+          path: .benchmarks
+          key: benchmarks-develop-${{ github.sha }}
