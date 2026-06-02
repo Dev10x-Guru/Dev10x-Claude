@@ -17,6 +17,9 @@ __pycache__/
 build/
 dist/
 
+# Benchmark run artefacts (CI caches these; local runs produce them)
+.benchmarks/
+
 # Claude Code local settings
 .claude/settings.local.json
 .claude/settings.local.lock

@@ -74,5 +74,15 @@ src = ["src"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
 
+[tool.pytest_benchmark]
+# Store baselines in .benchmarks/ (gitignored per-run, cached by CI)
+storage = "file"
+# Fail on mean regression > 20% vs stored baseline
+compare_fail = ["mean:20%"]
+# Minimum rounds so outliers don't skew results
+min_rounds = 5
+timer = "perf_counter"
+disable_gc = true
+
 [tool.mypy]
 mypy_path = "src"
