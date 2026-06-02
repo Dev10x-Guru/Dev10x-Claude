@@ -63,7 +63,7 @@ addopts = "--cov=src/dev10x --cov-report=term-missing"
 source = ["src/dev10x"]
 
 [tool.coverage.report]
-fail_under = 38
+fail_under = 75
 show_missing = true
 exclude_lines = ["if __name__", "pragma: no cover"]
 
