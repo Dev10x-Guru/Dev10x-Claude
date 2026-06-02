@@ -288,6 +288,22 @@ skill targets.
 write-touching work item. Drop isolation only when the work
 is provably read-only (monitoring, fetching, reviewing).
 
+**Child worktree file-access allowlist (GH-424 F1):** A spawned
+agent's file access is limited to the session's project
+directories plus `/tmp`. A worktree created at a path *outside*
+that allowlist is not readable or writable by the child — it
+returns `BLOCKED` ("could not read/write files at the worktree
+path") or silently falls back to branching in the primary
+checkout (polluting the human's working copy). When a child must
+self-create a worktree, place it under an allowlisted path
+(e.g. `/tmp/<id>-<repo>-wt`), never a shared `.worktrees/` root
+that may sit outside the allowlist. Note that
+`isolation="worktree"` isolates only the orchestrator's own
+repo — for cross-repo (sibling-repo) items it does NOT create a
+worktree in the sibling repo, so those children must self-create
+one in an allowlisted location or they branch in the sibling's
+primary checkout.
+
 **Worktree Write-deny on path-scoped rule targets (GH-376,
 GH-399 F1):** Write allow-rules are keyed on the canonical
 worktree path (e.g. `/work/dx/.worktrees/<name>`). An agent
@@ -511,6 +527,12 @@ Etiquette (REQUIRED):
   resolve the conflict, pause, report via your result
   message, and do not push. The orchestrator will resolve.
 - Do not force-push and do not touch main/develop directly.
+- Branch upstream guard (GH-424 F2): if you self-create a
+  worktree with `git worktree add -b <new> <base>`, the new
+  branch tracks `<base>` — a bare `git push` would then advance
+  the base branch's PR. Immediately run `git branch
+  --unset-upstream`, and always push explicitly with
+  `git push -u origin HEAD` (never a bare `git push`).
 - Your worktree is ephemeral; assume it is destroyed if you
   make no changes.
 
