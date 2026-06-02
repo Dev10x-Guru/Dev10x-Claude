@@ -170,6 +170,8 @@ higher tiers — `minimal` rules are always active.
 | DX011 | pipeline-allow | standard |
 | DX012 | safe-expansion | minimal |
 | DX013 | mcp-prefix | standard |
+| DX014 | sensitivity-target | standard |
+| DX015 | spec-drift | standard (experimental) |
 
 ### Configuration
 
