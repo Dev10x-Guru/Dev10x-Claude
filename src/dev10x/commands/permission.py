@@ -310,18 +310,42 @@ def init() -> None:
     default=False,
     help=(
         "Do not remove project rules that are exact duplicates of global rules. "
-        "Use this when global→project rule inheritance cannot be verified "
-        "(finding #47: local settings.local.json may not inherit global rules)."
+        "Retained for backward compatibility — global-dedup is now OFF by "
+        "default, so this flag is only meaningful alongside --aggressive."
+    ),
+)
+@click.option(
+    "--aggressive",
+    is_flag=True,
+    default=False,
+    help=(
+        "Also remove project rules that are exact duplicates of global rules. "
+        "OFF by default (finding #47): global→project rule inheritance is NOT "
+        "guaranteed when a project has its own settings.local.json, so stripping "
+        "the local copy can reintroduce permission prompts. Only enable after "
+        "`dev10x permission investigate` confirms inheritance holds for this "
+        "environment. Recover a bad run with `dev10x permission clean --restore`."
     ),
 )
 def clean(
-    *, dry_run: bool, verbose: bool, summary: bool, restore: bool, skip_global_dedup: bool
+    *,
+    dry_run: bool,
+    verbose: bool,
+    summary: bool,
+    restore: bool,
+    skip_global_dedup: bool,
+    aggressive: bool,
 ) -> None:
     """Clean redundant permissions from project settings files."""
     from dev10x.skills.permission import clean_project_files as mod
 
     if restore:
         sys.exit(mod._restore(config_path=mod.find_config()))
+
+    # Global-dedup is opt-in (finding #47). It runs only under --aggressive,
+    # and --skip-global-dedup always wins so the safe behavior cannot be
+    # accidentally re-enabled.
+    skip_global_dedup = skip_global_dedup or not aggressive
 
     config_path = mod.find_config()
     click.echo(f"Config: {config_path}")
@@ -407,9 +431,9 @@ def clean(
     if total_global_dedup > 0 and not skip_global_dedup:
         click.echo(
             f"\n⚠  WARNING: {total_global_dedup} rules removed as exact duplicates of global"
-            " rules. Global→project rule inheritance is NOT guaranteed when a project has its"
-            " own settings.local.json (finding #47). Re-run with --skip-global-dedup to"
-            " preserve project-local copies if you see new permission prompts."
+            " rules (--aggressive). Global→project rule inheritance is NOT guaranteed when a"
+            " project has its own settings.local.json (finding #47). If new permission prompts"
+            " appear, recover with `dev10x permission clean --restore`."
         )
 
     if total_secrets > 0:

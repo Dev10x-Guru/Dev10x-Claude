@@ -113,6 +113,13 @@ on the mode. Execute these `TaskCreate` calls at startup:
 13. `TaskCreate(subject="Run permission doctor", activeForm="Running doctor sweep")`
 14. `TaskCreate(subject="Diff user playbooks against defaults", activeForm="Diffing playbooks")`
 
+> ⚠ **#47 default-safety.** Step 12 (Clean) runs the safe default
+> only — it does NOT pass `--aggressive`, so global-duplicate
+> stripping is skipped (global→project merge is not guaranteed).
+> Step 13 (doctor) skips `canonicalize` by default (it emits
+> unreliable `**` wildcards). Both are opt-in; see §11–§12 for the
+> evidence gate and `clean --restore` recovery.
+
 Set sequential dependencies. Mark each step `in_progress` when
 starting and `completed` when done. Steps that produce no
 changes (dry-run shows no diff) should still be marked
@@ -553,9 +560,19 @@ fix proposals. Review and apply selectively.
 
 ### 11. Clean project files *(full only)*
 
-Strip redundant rules from project `settings.local.json` files
-that are now covered by global `~/.claude/settings.json`. Also
-flags rules containing leaked secrets.
+Strip redundant rules from project `settings.local.json` files.
+Also flags rules containing leaked secrets.
+
+> ⚠ **#47 — global→project merge is NOT guaranteed.** Empirical
+> evidence (#47, closed by #50) shows a project with its own
+> `settings.local.json` does **not** reliably inherit global
+> `~/.claude/settings.json` rules — the local file appears to win.
+> Removing a project rule *solely because it duplicates a global
+> rule* can therefore reintroduce per-invocation permission
+> prompts. For this reason **global-dedup is OFF by default**;
+> the default `clean` only removes rules that are safe regardless
+> of merge behavior (old version paths, shell fragments, env
+> noise, double-slash typos).
 
 1. Dry run (REQUIRED — show the user before applying):
 
@@ -569,19 +586,36 @@ For large cleanups prefer `--summary`:
 uvx dev10x permission clean --dry-run --summary
 ```
 
-2. Apply:
+2. Apply the safe default (no global-dedup):
 
 ```bash
 uvx dev10x permission clean
 ```
 
-**What gets cleaned:**
-- Exact duplicates of global rules
-- Rules covered by global wildcard patterns
+**What the default removes:**
 - Old plugin version paths (any version older than current)
 - Env-prefixed session noise (`GIT_SEQUENCE_EDITOR=*`, …)
 - Shell control flow fragments (`do`, `done`, `fi`, …)
 - Double-slash path typos (`Read(//work/...)`)
+
+**Opt-in global-dedup (`--aggressive`):** Removing exact
+duplicates of global rules and rules covered by global wildcards
+requires `--aggressive`, and only after
+`uvx dev10x permission investigate` confirms global→project
+inheritance holds for this environment (#47):
+
+```bash
+uvx dev10x permission clean --aggressive --dry-run
+uvx dev10x permission clean --aggressive
+```
+
+**Recovery (REQUIRED to document):** If an `--aggressive` run
+strips rules that were actually needed and prompts reappear,
+restore the pre-clean backup:
+
+```bash
+uvx dev10x permission clean --restore
+```
 
 **Leaked secret detection:** Rules containing plaintext
 credentials are flagged with warnings so users can rotate them.
@@ -605,7 +639,18 @@ of friction not covered by the other steps:
   the current project, or into the source repo when CWD is a worktree,
   are flagged so the user can remove them.
 
-1. Canonicalize pinned paths (idempotent, safe to re-run):
+1. Canonicalize pinned paths *(opt-in — do NOT run by default)*:
+
+> ⚠ **#47 — `**` wildcards are unreliable.** Canonicalize rewrites
+> a working version-pinned `~/` path into a `**`-wildcard path.
+> #47 found single `*` segments match but `**` and `*/**` were
+> unreliable — so canonicalize trades a path that works today (but
+> rots on upgrade) for one that may silently fail to match. Skip
+> this step in the default full-mode sweep. Only run it when the
+> user explicitly accepts the trade-off, or after
+> `uvx dev10x permission investigate` confirms `**` matches in this
+> environment. Recover with `clean --restore` (the pre-clean backup
+> predates canonicalize, so one restore undoes both).
 
 ```bash
 uvx dev10x permission doctor canonicalize --dry-run
