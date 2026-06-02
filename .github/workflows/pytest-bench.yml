@@ -38,11 +38,9 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
 
-      - name: Install package
-        run: uv pip install --system -e ".[dev]"
-
       - name: Restore benchmark baseline
-        uses: actions/cache@v4
+        id: cache-benchmarks
+        uses: actions/cache/restore@v4
         with:
           path: .benchmarks
           key: benchmarks-${{ github.base_ref || github.ref_name }}-${{ github.sha }}
@@ -50,7 +48,16 @@ jobs:
             benchmarks-${{ github.base_ref || github.ref_name }}-
             benchmarks-develop-
 
-      - name: Run benchmark gate tests
+      - name: Run benchmarks (first run — save baseline)
+        if: steps.cache-benchmarks.outputs.cache-hit != 'true'
+        run: |
+          uv run --extra dev pytest tests/benchmarks/ \
+            --benchmark-only \
+            --benchmark-autosave \
+            -v --tb=short -o 'addopts='
+
+      - name: Run benchmarks (compare against baseline)
+        if: steps.cache-benchmarks.outputs.cache-hit == 'true'
         run: |
           uv run --extra dev pytest tests/benchmarks/ \
             --benchmark-only \
@@ -58,8 +65,6 @@ jobs:
             --benchmark-compare \
             --benchmark-compare-fail=mean:20% \
             -v --tb=short -o 'addopts='
-        env:
-          BENCHMARK_STORAGE: .benchmarks
 
       - name: Save benchmark results
         if: github.ref == 'refs/heads/develop'
