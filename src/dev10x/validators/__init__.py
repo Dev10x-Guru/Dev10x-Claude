@@ -125,6 +125,13 @@ _SPECS: list[ValidatorSpec] = [
         rule_id="DX014",
         profile=ProfileTier.STANDARD,
     ),
+    ValidatorSpec(
+        module_path="dev10x.validators.spec_drift",
+        class_name="SpecDriftValidator",
+        rule_id="DX015",
+        profile=ProfileTier.STANDARD,
+        experimental=True,
+    ),
 ]
 
 

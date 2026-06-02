@@ -1,7 +1,14 @@
-"""Edit/Write tool validator — blocks sensitive file writes.
+"""Edit/Write tool validator — blocks sensitive file writes and spec drift.
 
-Loads rules from command-skill-map.yaml where matcher="Edit|Write",
-delegates evaluation to RuleEngine. First block wins.
+Two validation passes:
+
+1. YAML-rule pass: loads rules from command-skill-map.yaml where
+   matcher="Edit|Write", delegates evaluation to RuleEngine.
+   First block wins.
+
+2. Python-validator pass: runs active Edit|Write validators from the
+   shared ValidatorRegistry (e.g. SpecDriftValidator / DX015).
+   Only validators whose ``should_run()`` returns True participate.
 """
 
 from __future__ import annotations
@@ -10,7 +17,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from dev10x.domain.events.hook_input import HookResult
+from dev10x.domain.events.hook_input import HookInput, HookResult
 
 if TYPE_CHECKING:
     from dev10x.domain.rules.rule_engine import RuleEngine
@@ -24,6 +31,28 @@ def _build_engine(*, yaml_path: Path) -> RuleEngine:
 
     config = load_config(yaml_path=yaml_path)
     return RuleEngine.from_config(config=config)
+
+
+def _run_python_validators(*, data: dict[str, Any], debug: bool = False) -> None:
+    """Run Python validators that handle Edit|Write tool calls.
+
+    Mirrors the dispatch pattern in ``commands/hook.py:_validate_bash_body``
+    but filters to validators whose ``should_run`` returns True for the
+    given Edit|Write input.  YAML-rule blocks have already been handled
+    before this function is called.
+    """
+    from dev10x.validators import get_chain
+
+    inp = HookInput.from_dict(data=data)
+    for result in get_chain().run(inp=inp):
+        if debug:
+            import sys as _sys
+
+            print(
+                f"[DEBUG] Python validator blocked: {result}",
+                file=_sys.stderr,
+            )
+        result.emit()
 
 
 def validate_edit_write(
@@ -54,5 +83,7 @@ def validate_edit_write(
                 file=sys.stderr,
             )
         HookResult(message=match.message).emit()
+
+    _run_python_validators(data=data, debug=debug)
 
     sys.exit(0)
