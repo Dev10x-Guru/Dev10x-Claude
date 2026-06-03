@@ -354,6 +354,33 @@ For each file:
 4. `mv` source to destination
 5. Report what moved
 
+**Playbook overrides (GH-447) — full mode only:**
+
+Migrate global playbook overrides from the old
+`~/.claude/memory/Dev10x/playbooks/` path to the XDG-canonical
+`~/.config/Dev10x/playbooks/` path (established by GH-445).
+
+For each `*.yaml` in `~/.claude/memory/Dev10x/playbooks/`:
+
+| Entry type | Action |
+|------------|--------|
+| Regular file | Move to `~/.config/Dev10x/playbooks/<filename>`, refusing to overwrite an existing destination — surface the conflict instead |
+| Symlink pointing into `~/.config/Dev10x/playbooks/` | Delete (pre-migration artefact — the target already exists at the new location) |
+| Symlink pointing elsewhere | Leave in place and warn — manual inspection required |
+
+After processing all entries:
+- Report each migrated file (source → destination)
+- Report each skipped conflict (both paths exist)
+- If `~/.claude/memory/Dev10x/playbooks/` is now empty, remove it
+
+Playbook migration steps:
+1. Check if `~/.claude/memory/Dev10x/playbooks/` exists (skip entire
+   sub-step if not — users who never had overrides skip cleanly)
+2. Ensure `~/.config/Dev10x/playbooks/` exists (create if missing)
+3. For each entry: apply the action table above
+4. Remove the source directory when empty
+5. Report a summary of what moved, what was skipped, and why
+
 ### 3. Ensure workspace directories **[bootstrap]** (GH-40)
 
 Register paths outside the project root (e.g. `/tmp/Dev10x`) under
