@@ -49,7 +49,7 @@ This skill is driven by playbook configuration. The default playbook
 lives at `${CLAUDE_PLUGIN_ROOT}/skills/release-notes/references/playbook.yaml`.
 Projects can override via the 4-tier resolution in
 `references/config-resolution.md` (global preferred:
-`~/.claude/memory/Dev10x/playbooks/release-notes.yaml`).
+`~/.claude/Dev10x/playbooks/release-notes.yaml`).
 
 ### Plays
 
