@@ -342,11 +342,23 @@ defaults (`strategy: rebase`, `delete_branch: true`,
 
 ### Step 3: Run all 8 validation checks
 
-Run checks in parallel where possible (checks 1-4 use `gh`
-commands, check 5-6 use `git` commands). Collect all results
-before reporting. **Check 1b MUST be run as a separate step
-after Check 1** — it calls `check-top-level-comments.sh` and
-is NOT part of the GraphQL batch (GH-728).
+**Comment-check ordering (GH-462 F3):** Checks 1, 1b, and
+1c fetch comment state that is time-sensitive — automated
+review bots continue posting comments during the CI window,
+so comment state read before CI settles is stale. Run
+Checks 2–7 first (CI, draft, mergeable, working copy,
+fixup, approval). Only after Check 2 confirms CI is green
+(all checks `pass`) re-fetch and run Checks 1, 1b, and 1c
+as a final gate immediately before Step 5 merge. This
+eliminates the race where a bot posts a REQUIRED finding
+after the comment check but before the merge.
+
+Run non-comment checks in parallel where possible (checks 2-7
+use `gh`/`git` commands). **Check 1b MUST be run as a
+separate step after Check 1** — it calls
+`check-top-level-comments.sh` and is NOT part of the
+GraphQL batch (GH-728). Collect all results before
+reporting.
 
 ### Step 4: Report validation results
 
