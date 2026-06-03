@@ -132,6 +132,11 @@ class ClientRootsManager:
         """
         return self._roots
 
+    @property
+    def enabled(self) -> bool:
+        """Return whether roots integration is enabled."""
+        return self._enabled
+
     def is_within_roots(self, cwd: str | Path) -> bool:
         """Return ``True`` when *cwd* is inside at least one declared root.
 
