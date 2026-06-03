@@ -30,7 +30,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import subprocess
 import sys
 from datetime import datetime
@@ -361,35 +360,17 @@ def cmd_send(args: argparse.Namespace) -> None:
         if args.message_file:
             message = Path(args.message_file).read_text()
 
-        # Post via Slack notification script if available, otherwise
-        # print the message for the user to post manually.
-        slack_notify = Path(__file__).parents[4] / "skills" / "slack" / "slack-notify.py"
-        if slack_notify.exists() and args.channel:
-            notify_args = [
-                "run",
-                "--script",
-                str(slack_notify),
-                "--channel",
-                args.channel,
-                "--message",
-                message,
-            ]
-            result = subprocess.run(
-                ["uv", *notify_args],
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            if result.returncode != 0:
-                print(
-                    f"❌ Slack notification failed: {result.stderr.strip()}",
-                    file=sys.stderr,
-                )
+        # Post via importable slack_notify module (GH-442). Works in both
+        # plugin-checkout and uvx-installed contexts.
+        if args.channel:
+            from dev10x.skills.notifications import slack_notify as _slack
+
+            ts = _slack.send_slack_message(channel=args.channel, message=message)
+            if ts is None:
+                print("❌ Slack notification failed", file=sys.stderr)
                 sys.exit(1)
-            print(result.stdout.strip())
-            ts_match = re.search(r"ts=(\S+)", result.stdout)
-            if ts_match:
-                slack_ts = ts_match.group(1)
+            print(f"✅ Slack message sent successfully! ts={ts}")
+            slack_ts = ts
         else:
             print(f"📋 Notification message (post manually):\n{message}")
 

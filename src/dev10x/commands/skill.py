@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import subprocess
 import sys
 from pathlib import Path
 
@@ -21,14 +20,6 @@ def notify() -> None:
     `Dev10x:slack-review-request` and `Dev10x:slack` skills do not need
     to embed plugin-cache paths in their documented invocations.
     """
-
-
-def _plugin_root() -> Path:
-    """Resolve the plugin root containing the skills/ directory.
-
-    `src/dev10x/commands/skill.py` -> parents[3] = plugin root.
-    """
-    return Path(__file__).resolve().parents[3]
 
 
 @notify.command(name="slack-review-prepare")
@@ -69,37 +60,36 @@ def slack_send(
     thread_ts: str | None,
     workspace: str | None,
 ) -> None:
-    """Send a Slack message via the plugin's slack-notify.py script.
+    """Send a Slack message via the importable slack_notify module (GH-442).
 
-    Delegates to `skills/slack/slack-notify.py` while exposing a
-    version-stable CLI surface. The underlying script handles token
-    resolution, user-group mention expansion, and bot identity.
+    Delegates to `dev10x.skills.notifications.slack_notify` so the command
+    works when dev10x is installed via ``uvx`` — where ``skills/`` data files
+    are not shipped as part of the wheel and cannot be reached by filesystem
+    traversal from the installed package location.
     """
     if not message and not message_file:
         raise click.UsageError("Provide --message or --message-file.")
 
-    slack_notify = _plugin_root() / "skills" / "slack" / "slack-notify.py"
-    if not slack_notify.exists():
-        click.echo(f"slack-notify.py not found at {slack_notify}", err=True)
-        sys.exit(1)
+    from dev10x.skills.notifications import slack_notify
 
-    cmd: list[str] = [str(slack_notify), "--channel", channel]
-    if message_file is not None:
-        cmd.extend(["--message-file", str(message_file)])
-    if message is not None:
-        cmd.extend(["--message", message])
-    if thread_ts is not None:
-        cmd.extend(["--thread-ts", thread_ts])
     if workspace is not None:
-        cmd.extend(["--workspace", workspace])
+        slack_notify.set_workspace(workspace)
 
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-    if result.stdout:
-        click.echo(result.stdout.rstrip())
-    if result.returncode != 0:
-        if result.stderr:
-            click.echo(result.stderr.rstrip(), err=True)
-        sys.exit(result.returncode)
+    msg: str
+    if message_file is not None:
+        msg = message_file.read_text()
+    else:
+        msg = message  # type: ignore[assignment]  # validated above
+
+    ts = slack_notify.send_slack_message(
+        channel=channel,
+        message=msg,
+        thread_ts=thread_ts,
+    )
+    if ts:
+        click.echo(f"✅ Slack message sent successfully! ts={ts}")
+    else:
+        sys.exit(1)
 
 
 @skill.command(name="count-instructions")
