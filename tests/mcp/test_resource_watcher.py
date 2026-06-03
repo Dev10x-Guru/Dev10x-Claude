@@ -588,7 +588,7 @@ class TestGetWatcher:
 class TestLifespanIntegration:
     @pytest.mark.asyncio
     async def test_lifespan_starts_and_cancels_watcher_task(self) -> None:
-        from dev10x.mcp._app import _knowledge_watcher_lifespan
+        from dev10x.mcp._app import _server_lifespan
 
         mock_app = MagicMock()
         mock_app._mcp_server.notification_handlers = {}
@@ -607,14 +607,15 @@ class TestLifespanIntegration:
                 mock_watcher_instance.run = _fake_run
                 MockWatcher.return_value = mock_watcher_instance
 
-                async with _knowledge_watcher_lifespan(mock_app):
-                    # Lifespan is active — watcher should be running
-                    pass
+                with patch("dev10x.mcp._app.wire_roots_to_server"):
+                    async with _server_lifespan(mock_app):
+                        # Lifespan is active — watcher should be running
+                        pass
                 # After exit — task should be cancelled (no exception raised)
 
     @pytest.mark.asyncio
     async def test_lifespan_wires_watcher_to_server(self) -> None:
-        from dev10x.mcp._app import _knowledge_watcher_lifespan
+        from dev10x.mcp._app import _server_lifespan
 
         mock_app = MagicMock()
         mock_app._mcp_server.notification_handlers = {}
@@ -631,8 +632,9 @@ class TestLifespanIntegration:
                 MockWatcher.return_value = mock_watcher_instance
 
                 with patch("dev10x.mcp._app.wire_watcher_to_server") as mock_wire:
-                    async with _knowledge_watcher_lifespan(mock_app):
-                        pass
+                    with patch("dev10x.mcp._app.wire_roots_to_server"):
+                        async with _server_lifespan(mock_app):
+                            pass
 
                 mock_wire.assert_called_once_with(
                     server=mock_app._mcp_server,
