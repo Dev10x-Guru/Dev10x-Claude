@@ -59,16 +59,18 @@ Users can override playbooks using the 3-tier resolution order
 | Tier | Path | Scope |
 |------|------|-------|
 | 1 | `.claude/Dev10x/playbooks/<skill-name>.yaml` | Project-local |
-| 2 | `~/.claude/memory/Dev10x/playbooks/<skill-name>.yaml` | Global + repo mapping |
+| 2 | `~/.config/Dev10x/playbooks/<skill-name>.yaml` | Global + repo mapping |
 | 3 | `${CLAUDE_PLUGIN_ROOT}/skills/<name>/references/playbook.yaml` | Plugin defaults |
 
 Tier 2 (global) is preferred — one file serves multiple repos via
 `projects[].match` globs. The skill loads this file at invocation,
 allowing users to customize behavior without editing the plugin.
 
-> **Note (GH-941):** The old `~/.claude/projects/<key>/memory/`
-> path is removed. All tier 2 config lives under
-> `~/.claude/memory/Dev10x/`.
+> **Note (GH-445):** Tier 2 moved to the XDG-canonical
+> `~/.config/Dev10x/playbooks/`. The old
+> `~/.claude/memory/Dev10x/playbooks/` path remains a deprecated
+> read-only fallback, and the GH-941-era
+> `~/.claude/projects/<key>/memory/` path is removed.
 
 ## Reviewer Expectations
 
