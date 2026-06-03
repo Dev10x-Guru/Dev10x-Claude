@@ -230,7 +230,7 @@ the matching pipeline automatically:
 The playbook system (`Dev10x:playbook`) defines each pipeline as a
 play with named steps. User overrides follow the 3-tier resolution
 in `references/config-resolution.md` (global preferred:
-`~/.claude/Dev10x/playbooks/work-on.yaml`).
+`~/.config/Dev10x/playbooks/work-on.yaml`).
 
 See `references/task-orchestration.md` for orchestration patterns
 and `.claude/rules/model-selection.md` for model assignments per step.
