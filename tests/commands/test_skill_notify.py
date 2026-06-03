@@ -1,8 +1,7 @@
-"""Tests for `dev10x skill notify` subcommands (GH-313)."""
+"""Tests for `dev10x skill notify` subcommands (GH-313, GH-442)."""
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -14,16 +13,6 @@ from dev10x.cli import cli
 @pytest.fixture()
 def runner() -> CliRunner:
     return CliRunner()
-
-
-class TestPluginRoot:
-    def test_plugin_root_resolves_to_repo_root(self) -> None:
-        from dev10x.commands.skill import _plugin_root
-
-        root = _plugin_root()
-
-        assert (root / "skills").is_dir(), f"skills/ not under {root}"
-        assert (root / "src" / "dev10x" / "commands" / "skill.py").is_file()
 
 
 class TestNotifyGroupRegistration:
@@ -90,38 +79,29 @@ class TestSlackSend:
         assert result.exit_code != 0
         assert "Provide --message or --message-file" in result.output
 
-    def test_invokes_slack_notify_script(
+    def test_calls_send_slack_message(
         self,
         runner: CliRunner,
         monkeypatch: pytest.MonkeyPatch,
-        tmp_path: Path,
     ) -> None:
-        fake_script = tmp_path / "slack-notify.py"
-        fake_script.write_text("#!/usr/bin/env python\n")
+        """GH-442: slack-send must call send_slack_message, not subprocess the script."""
+        captured: dict[str, object] = {}
 
-        from dev10x.commands import skill as skill_module
+        def fake_send(
+            channel: str,
+            message: str,
+            thread_ts: str | None = None,
+            **kwargs: object,
+        ) -> str:
+            captured["channel"] = channel
+            captured["message"] = message
+            captured["thread_ts"] = thread_ts
+            return "1234567890.123456"
 
-        monkeypatch.setattr(
-            skill_module,
-            "_plugin_root",
-            lambda: tmp_path.parent,
-        )
-        (tmp_path.parent / "skills" / "slack").mkdir(parents=True, exist_ok=True)
-        real_script = tmp_path.parent / "skills" / "slack" / "slack-notify.py"
-        real_script.write_text("#!/usr/bin/env python\n")
+        from dev10x.skills.notifications import slack_notify
 
-        captured_cmd: list[list[str]] = []
-
-        def fake_run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess:
-            captured_cmd.append(cmd)
-            return subprocess.CompletedProcess(
-                args=cmd,
-                returncode=0,
-                stdout="✅ Slack message sent",
-                stderr="",
-            )
-
-        monkeypatch.setattr(subprocess, "run", fake_run)
+        monkeypatch.setattr(slack_notify, "send_slack_message", fake_send)
+        monkeypatch.setattr(slack_notify, "set_workspace", lambda name: None)
 
         result = runner.invoke(
             cli,
@@ -141,38 +121,29 @@ class TestSlackSend:
         )
 
         assert result.exit_code == 0, result.output
+        assert captured["channel"] == "C123"
+        assert captured["message"] == "hello"
+        assert captured["thread_ts"] == "1.2"
         assert "Slack message sent" in result.output
-        assert captured_cmd, "subprocess.run was not invoked"
-        cmd = captured_cmd[0]
-        assert cmd[0] == str(real_script)
-        assert "--channel" in cmd and "C123" in cmd
-        assert "--message" in cmd and "hello" in cmd
-        assert "--thread-ts" in cmd and "1.2" in cmd
-        assert "--workspace" in cmd and "aperture" in cmd
 
-    def test_passes_message_file_through(
+    def test_reads_message_from_file(
         self,
         runner: CliRunner,
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
     ) -> None:
-        from dev10x.commands import skill as skill_module
+        captured: dict[str, object] = {}
 
-        monkeypatch.setattr(skill_module, "_plugin_root", lambda: tmp_path)
-        slack_dir = tmp_path / "skills" / "slack"
-        slack_dir.mkdir(parents=True, exist_ok=True)
-        (slack_dir / "slack-notify.py").write_text("#!/usr/bin/env python\n")
+        def fake_send(channel: str, message: str, **kwargs: object) -> str:
+            captured["message"] = message
+            return "ts"
+
+        from dev10x.skills.notifications import slack_notify
+
+        monkeypatch.setattr(slack_notify, "send_slack_message", fake_send)
 
         msg_file = tmp_path / "msg.txt"
         msg_file.write_text("hello from file")
-
-        captured_cmd: list[list[str]] = []
-
-        def fake_run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess:
-            captured_cmd.append(cmd)
-            return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
-
-        monkeypatch.setattr(subprocess, "run", fake_run)
 
         result = runner.invoke(
             cli,
@@ -188,48 +159,16 @@ class TestSlackSend:
         )
 
         assert result.exit_code == 0, result.output
-        assert "--message-file" in captured_cmd[0]
-        assert str(msg_file) in captured_cmd[0]
+        assert captured["message"] == "hello from file"
 
-    def test_propagates_nonzero_exit_code(
+    def test_exits_nonzero_on_send_failure(
         self,
         runner: CliRunner,
         monkeypatch: pytest.MonkeyPatch,
-        tmp_path: Path,
     ) -> None:
-        from dev10x.commands import skill as skill_module
+        from dev10x.skills.notifications import slack_notify
 
-        monkeypatch.setattr(skill_module, "_plugin_root", lambda: tmp_path.parent)
-        slack_dir = tmp_path.parent / "skills" / "slack"
-        slack_dir.mkdir(parents=True, exist_ok=True)
-        (slack_dir / "slack-notify.py").write_text("#!/usr/bin/env python\n")
-
-        def fake_run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess:
-            return subprocess.CompletedProcess(
-                args=cmd,
-                returncode=2,
-                stdout="",
-                stderr="missing_scope",
-            )
-
-        monkeypatch.setattr(subprocess, "run", fake_run)
-
-        result = runner.invoke(
-            cli,
-            ["skill", "notify", "slack-send", "--channel", "C123", "--message", "x"],
-        )
-
-        assert result.exit_code == 2
-
-    def test_missing_slack_notify_script(
-        self,
-        runner: CliRunner,
-        monkeypatch: pytest.MonkeyPatch,
-        tmp_path: Path,
-    ) -> None:
-        from dev10x.commands import skill as skill_module
-
-        monkeypatch.setattr(skill_module, "_plugin_root", lambda: tmp_path / "missing")
+        monkeypatch.setattr(slack_notify, "send_slack_message", lambda **kw: None)
 
         result = runner.invoke(
             cli,
@@ -237,4 +176,26 @@ class TestSlackSend:
         )
 
         assert result.exit_code == 1
-        assert "slack-notify.py not found" in result.output
+
+    def test_works_without_skills_directory(
+        self,
+        runner: CliRunner,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        """GH-442: command must succeed even when skills/ dir is absent (uvx install)."""
+        from dev10x.skills.notifications import slack_notify
+
+        monkeypatch.setattr(
+            slack_notify,
+            "send_slack_message",
+            lambda **kw: "ts.ok",
+        )
+
+        result = runner.invoke(
+            cli,
+            ["skill", "notify", "slack-send", "--channel", "C999", "--message", "hi"],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "Slack message sent" in result.output
