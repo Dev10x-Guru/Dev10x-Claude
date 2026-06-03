@@ -3,7 +3,9 @@ name: Dev10x:upgrade-cleanup
 description: >
   Post-upgrade cleanup entry point — delegates to
   `Dev10x:plugin-maintenance` in `full` mode. Updates plugin
-  version paths, ensures base permissions, migrates config files,
+  version paths, ensures base permissions, migrates config files
+  (including global playbook overrides from
+  ~/.claude/memory/Dev10x/playbooks/ to ~/.config/Dev10x/playbooks/),
   generalizes session-specific args, enumerates MCP tool globs,
   refreshes script coverage, merges worktree rules, audits for
   friction-causing patterns, and cleans redundant rules from
@@ -60,10 +62,17 @@ Skill(skill="Dev10x:plugin-maintenance", args="full")
 ```
 
 The maintenance skill creates its own task list and runs
-steps 1–9 sequentially (update paths → migrate configs →
-ensure base perms → generalize → enumerate MCP → script
-coverage → worktree merge → permission audit → clean project
-files).
+steps 1–14 sequentially (update paths → migrate configs
+including playbook overrides → ensure base perms → generalize →
+enumerate MCP → script coverage → worktree merge → permission
+audit → clean project files → diff playbooks).
+
+The "Migrate config files" step (step 3) includes migrating global
+playbook overrides from `~/.claude/memory/Dev10x/playbooks/` to
+`~/.config/Dev10x/playbooks/` (GH-447). Regular files are moved;
+symlinks pointing into the new location are deleted; conflicts
+(destination already exists) are surfaced rather than overwritten.
+The old directory is removed once empty.
 
 After the maintenance pass succeeds, record the plugin version
 so the SessionStart install-check stays silent until the next
