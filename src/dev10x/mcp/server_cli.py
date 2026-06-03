@@ -6,6 +6,7 @@ Tool handlers now live in per-domain modules under `src/dev10x/mcp/`:
   - plan_tools.py    — plan-sync handlers
   - audit_tools.py   — session audit and hook-log handlers
   - misc_tools.py    — mktmp, slack, permission, skill-index, upgrade handlers
+  - roots_tools.py   — client-roots awareness (GH-344)
 
 This module imports all of them (triggering @server.tool() registration)
 and re-exports their names for backward-compatible attribute access.
@@ -27,6 +28,7 @@ from __future__ import annotations
 # Importing knowledge_resources triggers @server.resource() registration
 # (GH-339). Importing knowledge_prompts triggers @server.prompt()
 # registration (GH-340).
+# Importing roots_tools registers the list_client_roots tool (GH-344).
 from dev10x.mcp import (  # noqa: E402, F401
     audit_tools,
     git_tools,
@@ -35,6 +37,7 @@ from dev10x.mcp import (  # noqa: E402, F401
     knowledge_resources,
     misc_tools,
     plan_tools,
+    roots_tools,
 )
 from dev10x.mcp._app import (
     server,  # noqa: F401  (re-exported for callers importing server from server_cli)
@@ -44,6 +47,7 @@ from dev10x.mcp.git_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.github_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.misc_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.plan_tools import *  # noqa: E402, F401, F403
+from dev10x.mcp.roots_tools import *  # noqa: E402, F401, F403
 
 
 def main() -> None:
