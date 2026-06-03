@@ -287,6 +287,25 @@ Substitute the placeholders in the call spec:
   ticket ID; fall back to `<user>/<expected-ticket>/...` if no
   reflog entry matches
 
+**Verify expected branch exists before offering the switch option
+(GH-462 F5):** Before constructing the gate options, run:
+
+```bash
+git rev-parse --verify <expected-branch>
+```
+
+- If the command exits **0** (branch exists locally or as a
+  remote ref), include the "Switch back to expected branch"
+  option as documented.
+- If the command exits **non-zero** (branch no longer exists —
+  e.g., deleted after merge), the switch option would fail with
+  `pathspec did not match`. Instead, replace it with:
+  - **Archive stale plan** — call `plan_sync_archive()` to
+    clear the obsolete `in_progress` plan, then continue on
+    the current branch. Present this as the recommended option
+    with description "The expected branch was deleted (likely
+    merged). Archive the stale plan and commit here."
+
 **Handling the user's choice:**
 
 - **Switch back to expected branch** — run `git checkout
@@ -294,6 +313,9 @@ Substitute the placeholders in the call spec:
   user) re-invokes `Dev10x:git-commit` after the checkout. Do
   NOT auto-resume — the working tree state on the expected
   branch may differ and Step 1's status check must re-run.
+- **Archive stale plan** (shown instead of switch when branch
+  is gone) — call `mcp__plugin_Dev10x_cli__plan_sync_archive()`
+  and proceed to Step 2 on the current branch.
 - **Continue on current branch** — proceed to Step 2. The
   ticket ID extracted in Step 2 will reflect the actual branch,
   not the expected one. This is the intentional-switch path.
