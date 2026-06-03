@@ -1,0 +1,126 @@
+{
+  "skill_name": "Dev10x:git-branch-prune",
+  "eval_dimensions": [
+    {
+      "id": "deletion_gate_enforcement",
+      "name": "Deletion Gate Enforcement",
+      "description": "AskUserQuestion is called before any branch is deleted; no auto-deletion"
+    },
+    {
+      "id": "gate_options_correctness",
+      "name": "Gate Options Correctness",
+      "description": "Gate presents all four options: Delete A+B+C, Delete A+B, Delete A, Skip"
+    },
+    {
+      "id": "live_worktree_safety",
+      "name": "Live Worktree Safety",
+      "description": "Branches checked out in live worktrees are never deleted"
+    },
+    {
+      "id": "category_classification",
+      "name": "Branch Category Classification",
+      "description": "Branches are correctly classified into A/B/C/D categories"
+    }
+  ],
+  "evals": [
+    {
+      "id": "mixed-branch-list-happy-path",
+      "name": "Mixed branch list — all categories present",
+      "description": "Repo has branches in all four categories; gate fires once with full categorized list",
+      "input": "/Dev10x:git-branch-prune",
+      "assertions": [
+        {
+          "dimension": "deletion_gate_enforcement",
+          "check": "tool_called",
+          "value": "AskUserQuestion",
+          "signal": "AskUserQuestion is called with categorized branch list before any git branch -D runs"
+        },
+        {
+          "dimension": "deletion_gate_enforcement",
+          "check": "behavioral",
+          "value": "no_auto_deletion",
+          "signal": "No git branch -D or -d command runs before AskUserQuestion is called"
+        },
+        {
+          "dimension": "gate_options_correctness",
+          "check": "tool_parameters",
+          "value": "AskUserQuestion",
+          "signal": "Gate options include 'Delete A + B + C', 'Delete A + B only', 'Delete A only', 'Skip all deletions'"
+        },
+        {
+          "dimension": "category_classification",
+          "check": "behavioral",
+          "value": "gone_branches_in_category_a",
+          "signal": "Branches with ': gone]' in git branch -vv output are placed in Category A"
+        }
+      ]
+    },
+    {
+      "id": "never-pushed-worktree-branches",
+      "name": "Never-pushed worktree branches (no upstream)",
+      "description": "Fanout session left worktree-agent-* branches with no upstream; tip IS ancestor of base → Category B",
+      "input": "/Dev10x:git-branch-prune with worktree-agent-* branches present",
+      "assertions": [
+        {
+          "dimension": "category_classification",
+          "check": "behavioral",
+          "value": "ancestor_branches_in_category_b",
+          "signal": "Branches with no upstream whose tip is ancestor of base are classified Category B"
+        },
+        {
+          "dimension": "deletion_gate_enforcement",
+          "check": "tool_called",
+          "value": "AskUserQuestion",
+          "signal": "AskUserQuestion is called showing Category B branches before deletion"
+        }
+      ]
+    },
+    {
+      "id": "live-worktree-branch-protected",
+      "name": "Branch checked out in live worktree is skipped",
+      "description": "A branch whose tip matches a live worktree HEAD is never classified for deletion",
+      "input": "/Dev10x:git-branch-prune when a branch is checked out in another worktree",
+      "assertions": [
+        {
+          "dimension": "live_worktree_safety",
+          "check": "behavioral",
+          "value": "live_worktree_branch_skipped",
+          "signal": "Branch checked out in live worktree does not appear in any deletion category"
+        },
+        {
+          "dimension": "live_worktree_safety",
+          "check": "behavioral",
+          "value": "no_deletion_of_live_worktree_branch",
+          "signal": "No git branch -D or -d is attempted for the live worktree branch"
+        }
+      ]
+    },
+    {
+      "id": "skip-all-exit-path",
+      "name": "User selects Skip all deletions",
+      "description": "When user picks Skip, no branches are deleted and skill exits cleanly",
+      "input": "/Dev10x:git-branch-prune then user selects Skip",
+      "assertions": [
+        {
+          "dimension": "deletion_gate_enforcement",
+          "check": "behavioral",
+          "value": "skip_option_exits_cleanly",
+          "signal": "No git branch -D or -d runs after user selects Skip; skill reports summary and completes"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "should_trigger": [
+      "Run branch pruning on this repo",
+      "Clean up stale local branches after fanout session",
+      "Delete merged branches",
+      "git-branch-prune"
+    ],
+    "should_not_trigger": [
+      "Groom commit history on current branch (use Dev10x:git-groom)",
+      "Remove a specific worktree (use git worktree remove directly)",
+      "Squash or rebase commits"
+    ]
+  }
+}
