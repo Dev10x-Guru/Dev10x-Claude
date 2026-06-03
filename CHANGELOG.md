@@ -5,6 +5,145 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.78.0 — MCP Client Integration, Swarm Teardown & CI Quality Gates
+
+Released 2026-06-03
+
+### Features
+
+- **Read Dev10x knowledge as addressable MCP resources** — playbooks,
+  rules, references docs, and the skill index are exposed under
+  `dev10x://` URIs, so MCP clients read them directly instead of
+  falling back to Bash tool-calls or filesystem searches
+  ([GH-339](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/339))
+- **Invoke review, commit, and jtbd templates as MCP prompts** — the
+  workflow templates are registered as first-class MCP prompts with
+  argument autocomplete, so clients run Dev10x's conventions without
+  re-deriving them by hand each time
+  ([GH-340](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/340))
+- **Keep client resource caches fresh** — a knowledge-resource watcher
+  polls the files backing the registered MCP resources and emits
+  `list_changed`/`updated` notifications when they change on disk, so
+  connected clients refresh instead of serving stale content
+  ([GH-341](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/341))
+- **See progress on long-running MCP tools** — `run_tests`,
+  `mass_rewrite`, `rebase_groom`, and `create_pr` stream progress and
+  log notifications when the client supplies a progress token, so long
+  operations no longer look like a silent stall
+  ([GH-342](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/342))
+- **Scope MCP operations to client-declared directory roots** — the
+  server fetches and caches the client's `roots/list`, refreshes on
+  `roots/list_changed`, and exposes a `list_client_roots` tool so
+  skills can validate CWD against what the client considers in-scope,
+  with a `DEV10X_ROOTS_ENABLED=0` escape hatch
+  ([GH-344](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/344))
+- **Tear down swarm worktrees after merge** — fanout now runs a
+  teardown decision tree per merged child PR (remove clean worktrees,
+  force-remove stale duplicates of develop HEAD, keep and surface
+  genuinely unique content), prunes leftovers, and delegates abandoned
+  branch cleanup to the new branch-prune skill
+  ([GH-463](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/463))
+- **Prune stale local branches in rebase-merge repos** — the new
+  `Dev10x:git-branch-prune` skill classifies branches into four
+  categories (gone-upstream, merged-ancestor, content-landed-via-
+  rebase, ahead/undecidable) behind a REQUIRED deletion gate, so
+  branch hygiene works in repos where `git branch --merged` misses
+  most merged branches
+  ([GH-464](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/464))
+- **Block performance regressions in CI** — the benchmark suite runs
+  on every PR against a cached per-branch baseline and fails on a mean
+  regression greater than 20%, so hook-latency and startup regressions
+  can no longer ship undetected
+  ([GH-432](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/432))
+- **Enforce hook-test coverage in CI** — the hooks workflow measures
+  coverage against a 70% threshold and the project-wide floor rose
+  from a stale 38% to 75%, so coverage discipline is machine-enforced
+  rather than agent-dependent
+  ([GH-433](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/433))
+- **Warn before editing code whose spec is stale** — the experimental
+  `DX015` spec-drift validator fires on Edit/Write when the branch's
+  ticket maps to an active spec not yet touched in the working set,
+  moving the Golden Rule from "skill-if-invoked" to "hook-always"
+  (opt-in via `DEV10X_HOOK_EXPERIMENTAL=1`)
+  ([GH-434](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/434))
+- **Audit skill usage inline by default** — skill-audit's new
+  lightweight strategy works from visible conversation context with a
+  single disposition gate; the forensic transcript-extraction fan-out
+  moves behind `--full` or auto-escalation, so most sessions capture
+  findings without a separate terminal
+  ([GH-436](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/436))
+- **Harvest merged PRs and review threads for the learning loop** —
+  fail-soft fetchers turn closed PRs and their inline review threads
+  into structured data, feeding downstream clustering and
+  candidate-rule scoring without re-scraping GitHub
+  ([GH-345](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/345))
+- **Find all Dev10x config under XDG paths** — `databases.yaml` is
+  discovered at `~/.config/Dev10x/`
+  ([GH-448](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/448)),
+  global playbook overrides resolve from
+  `~/.config/Dev10x/playbooks/`
+  ([GH-445](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/445)),
+  and upgrade-cleanup migrates both automatically — including configs
+  stranded in hidden backup directories
+  ([GH-446](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/446),
+  [GH-447](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/447))
+- **Detect stale running hooks at SessionStart** — the session
+  compares the running-hook version against the latest installed
+  plugin and nudges for a restart when a mid-session
+  `claude plugin update` left shipped friction fixes dormant
+  ([GH-407](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/407))
+
+### Fixes
+
+- **Resume dead swarm agents instead of re-dispatching** — fanout now
+  prefers SendMessage resume when an agent's turn dies, swarm children
+  verify their worktree before any branch checkout, gh-pr-merge runs
+  comment checks strictly after CI is green (closing the bot-post
+  race), the drift gate no longer offers switching to a deleted
+  branch, and canonical MCP parameter shapes are documented to prevent
+  first-call validation errors
+  ([GH-462](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/462))
+- **Survive hostile worktree topologies in fanout** — child worktrees
+  stay writable and base-safe (branch-upstream guard prevents bare
+  pushes from advancing the base PR), and orchestrators dispatching
+  from a sibling worktree detect the cross-repo-root condition and
+  fall back to serial mode
+  ([GH-424](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/424),
+  [GH-427](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/427))
+- **Stop full-mode cleanup from reintroducing friction** —
+  plugin-maintenance's global-dedup and doctor canonicalize are now
+  opt-in (`--aggressive`), preserving the project-local rules and
+  literal `~/` paths the permission engine actually needs
+  ([GH-420](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/420))
+- **Send Slack notifications from any install context** —
+  `uvx dev10x skill notify slack-send` calls an importable module
+  instead of resolving filesystem paths into `skills/`, so it works
+  when installed as a wheel
+  ([GH-442](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/442))
+- **Recover the MCP server from a deleted process CWD** — when the
+  worktree the server was spawned in is removed after a merge, the
+  server chdirs to the plugin root instead of failing every
+  subsequent subprocess call with ENOENT
+  ([GH-418](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/418))
+
+### Refactors
+
+- **Encode friction-level behaviour on the enum itself** —
+  `pending_decisions_guidance()` and `fallback_guidance()` replace
+  if/elif dispatch chains in the decision-guidance rule and
+  skill-redirect message formatting
+  ([GH-249](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/249))
+
+### Docs
+
+- **Unified backpressure architecture reference** — a single doc maps
+  the two-direction model (action gating + output gates) across every
+  hook, validator, and completion-gate surface
+  ([GH-435](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/435))
+- Rule-index updates for `DX014`/`DX015` and the perf CI gate;
+  corrected the investigate skill's Common Mistakes routing table
+  ([GH-444](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/444))
+
 ## 0.77.0 — Persistent MCP Daemon, Sensitivity-Axis Gating & Live GitHub Contract Tests
 
 Released 2026-06-01
