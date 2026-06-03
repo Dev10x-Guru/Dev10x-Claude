@@ -62,6 +62,10 @@ discover_configs() {
 
   load_config "$SKILL_DIR/databases.yaml"
 
+  # XDG user-level config (preferred global location — GH-448)
+  load_config "${XDG_CONFIG_HOME:-$HOME/.config}/Dev10x/databases.yaml"
+
+  # Deprecated fallback: legacy memory path (kept for backward compat)
   load_config "$HOME/.claude/memory/Dev10x/databases.yaml"
 
   for cfg in "$SKILLS_DIR"/*/databases.yaml; do
@@ -74,13 +78,19 @@ discover_configs() {
     [[ -f "$cfg" ]] || continue
     load_config "$cfg"
   done
+
+  # Marketplace plugins (other installed plugin collections)
+  for cfg in "$HOME/.claude/plugins/marketplaces"/*/skills/*/databases.yaml; do
+    [[ -f "$cfg" ]] || continue
+    load_config "$cfg"
+  done
 }
 
 discover_configs
 
 if [[ ${#DB_BACKEND[@]} -eq 0 ]]; then
   echo "ERROR: No databases configured." >&2
-  echo "Create databases.yaml in ~/.claude/memory/ or a skill directory." >&2
+  echo "Create databases.yaml at ~/.config/Dev10x/databases.yaml or a skill directory." >&2
   echo "See: $SKILL_DIR/databases.yaml.example" >&2
   exit 1
 fi

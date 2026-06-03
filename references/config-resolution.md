@@ -220,9 +220,28 @@ is migrated lazily on first read.
 
 ### Database Connections
 
-| Tier | Path |
-|------|------|
-| 2 | `~/.config/Dev10x/databases.yaml` |
+`databases.yaml` stores named database entries for `Dev10x:db-psql`.
+The script resolves config from multiple locations so project plugins
+(e.g., `tt:db`) are discovered automatically without symlinks.
+
+| Priority | Path | Notes |
+|----------|------|-------|
+| 1 | `$DB_CONFIG` | Explicit override; skips all other locations |
+| 2 | `${CLAUDE_PLUGIN_ROOT}/skills/db-psql/databases.yaml` | Plugin-shipped defaults |
+| 3 | `~/.config/Dev10x/databases.yaml` | **Preferred** user-global location (XDG) |
+| 4 | `~/.claude/memory/Dev10x/databases.yaml` | Deprecated fallback (kept for backward compat) |
+| 5 | `skills/*/databases.yaml` | Sibling skills in the same plugin |
+| 6 | `~/.claude/skills/*/databases.yaml` | User-installed standalone skills |
+| 7 | `~/.claude/plugins/marketplaces/*/skills/*/databases.yaml` | Other marketplace plugins |
+
+**Recommended setup**: place your user-level `databases.yaml` at
+`~/.config/Dev10x/databases.yaml` (priority 3). The legacy
+`~/.claude/memory/Dev10x/databases.yaml` path still works but is
+deprecated; migrate to the XDG location when convenient.
+
+`$DB_CONFIG` env-var override is not recommended in Claude Code
+sessions — prefixing a `DB_CONFIG=...` env var shifts the effective
+command prefix and breaks allow-rule matching (see GH-448).
 
 ## Skills That Reference These Paths
 
