@@ -690,7 +690,7 @@ uvx dev10x permission doctor enable-group kubernetes-readonly
 ### 13. Diff user playbooks against plugin defaults *(full only)* (GH-192)
 
 User playbook overrides under `.claude/Dev10x/playbooks/` and
-`~/.claude/memory/Dev10x/playbooks/` drift from the plugin defaults as
+`~/.claude/Dev10x/playbooks/` drift from the plugin defaults as
 new versions ship new steps, fragments, or field changes. This step
 surfaces those upstream changes without overwriting user customizations.
 

@@ -14,6 +14,7 @@ invocation-name: Dev10x:work-on
 allowed-tools:
   - mcp__plugin_Dev10x_cli__*
   - Read(.claude/Dev10x/playbooks/work-on.yaml)
+  - Read(~/.claude/Dev10x/playbooks/work-on.yaml)
   - Read(~/.claude/memory/Dev10x/playbooks/work-on.yaml)
   - Read(${CLAUDE_PLUGIN_ROOT}/skills/playbook/references/playbook.yaml)
   - Write(.claude/Dev10x/**)
