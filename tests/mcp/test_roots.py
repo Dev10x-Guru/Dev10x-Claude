@@ -116,6 +116,10 @@ class TestClientRootsManager:
         mgr = ClientRootsManager()
         assert mgr.roots is None
 
+    def test_enabled_property_reflects_constructor_flag(self) -> None:
+        assert ClientRootsManager(enabled=True).enabled is True
+        assert ClientRootsManager(enabled=False).enabled is False
+
     def test_is_within_roots_true_when_no_roots(self, tmp_path: Path) -> None:
         mgr = ClientRootsManager()
         assert mgr.is_within_roots(cwd=tmp_path) is True

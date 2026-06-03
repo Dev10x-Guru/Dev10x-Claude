@@ -37,5 +37,5 @@ async def list_client_roots() -> dict:
     roots = manager.roots
     return {
         "roots": [r.to_dict() for r in roots] if roots is not None else None,
-        "enabled": manager._enabled,
+        "enabled": manager.enabled,
     }
