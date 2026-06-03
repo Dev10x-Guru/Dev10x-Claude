@@ -471,7 +471,14 @@ Swarm context:
 - lock_wait_timeout: 30s
 
 Bootstrap (REQUIRED first, before Skill invocation):
-1. Write .claude/Dev10x/session.yaml inside your isolated
+1. Verify `git rev-parse --show-toplevel` equals YOUR
+   ephemeral isolated worktree path before any branch
+   checkout or git mutation. If a git/MCP call ever reports
+   the orchestrator's canonical worktree as its toplevel,
+   pass explicit cwd= pointing at your worktree — never
+   check out branches in the canonical worktree (GH-462 F2,
+   stale-CWD class GH-410).
+2. Write .claude/Dev10x/session.yaml inside your isolated
    worktree with:
        friction_level: adaptive
        active_modes: [solo-maintainer, swarm-child]
@@ -774,15 +781,23 @@ Phase 4's job is therefore **collection**, not orchestration:
    **Missing status line (GH-368 F2, GH-385 F1):** If the
    agent's trailing line does not match any of the four
    status tokens, treat it as `NEEDS_CONTEXT: agent
-   terminated without a status line`. Re-dispatch the item
-   with the last known PR URL inlined so the new agent can
-   resume from the PR rather than restarting from scratch.
+   terminated without a status line`.
+   **Resume strategy (GH-462 F1):** Before re-dispatching a
+   fresh agent, **prefer SendMessage resume** — send a
+   continuation prompt to the SAME agent via SendMessage
+   (e.g., "Please continue from where you left off and
+   finish through to PR merge"). SendMessage preserves the
+   agent's in-context PR state, branch, and CI history,
+   completing the lifecycle at lower cost than a fresh
+   dispatch. Use re-dispatch (new agent with PR URL inlined)
+   only when the agent is no longer resumable (turn expired,
+   session ended, or agent returned BLOCKED).
    **"PR created but not merged" (GH-368 F1):** If the
    agent result contains a PR URL and the trailing line is
    `DONE` but the PR state (via `mcp__plugin_Dev10x_cli__pr_get`)
    shows the PR is still OPEN, downgrade the status to
-   `NEEDS_CONTEXT: PR open, merge incomplete` and re-dispatch
-   to finish the monitor → merge lifecycle.
+   `NEEDS_CONTEXT: PR open, merge incomplete`. Apply the
+   same resume-first strategy before re-dispatching.
 2. Mark the matching Phase 3 subtask `completed` only when
    the PR is confirmed MERGED. Mark `pending` again if the
    agent reported `NEEDS_CONTEXT` or if the PR is open.
@@ -1080,6 +1095,15 @@ with more context, or escalate to the user via
 `AskUserQuestion`. A `BLOCKED:` status replaces today's
 heuristic agent-failure detection — the agent self-reports the
 failure, no guesswork.
+
+**NEEDS_CONTEXT recovery — prefer SendMessage resume (GH-462 F1):**
+When an agent returns `NEEDS_CONTEXT` (or terminates without a
+status token), the orchestrator SHOULD attempt a SendMessage
+resume before re-dispatching a fresh agent. SendMessage preserves
+the agent's full in-context state (PR branch, CI results, diff)
+and typically completes the lifecycle on the first resume.
+Re-dispatch a fresh agent only when the agent is no longer
+resumable (expired turn, session ended, or `BLOCKED`).
 
 See [`references/orchestration/subagent-status-protocol.md`](
 ../../references/orchestration/subagent-status-protocol.md)

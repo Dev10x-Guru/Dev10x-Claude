@@ -82,8 +82,18 @@ else:
 a swarm agent hits a context limit, permission wall, or turn
 budget before finishing the PR lifecycle, it may terminate
 with free-form prose as its last line. This is NOT `DONE`.
-Orchestrators MUST treat it as `NEEDS_CONTEXT` and re-dispatch.
-The re-dispatch prompt should include:
+Orchestrators MUST treat it as `NEEDS_CONTEXT`.
+
+**Resume-first recovery (GH-462 F1):** Before re-dispatching a
+fresh agent, attempt a **SendMessage resume** of the same agent —
+send a short continuation prompt (e.g., "Please continue and
+finish through to PR merge"). This preserves the agent's full
+in-context state (PR branch, CI results, diff history) and
+typically completes the lifecycle at lower cost. Re-dispatch a
+fresh agent only when the agent is no longer resumable (turn
+expired, session ended, or the original agent returned BLOCKED).
+
+When a fresh re-dispatch is needed, the prompt should include:
 - The last known PR URL (if visible in the result)
 - The last known branch name
 - A directive to continue from the current PR state rather
