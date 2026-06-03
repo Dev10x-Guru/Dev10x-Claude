@@ -173,4 +173,4 @@ ${CLAUDE_PLUGIN_ROOT}/skills/investigate/scripts/reply.sh "$channel_id" "$thread
 | Skipping user approval before posting | Message goes out with errors you can't take back |
 | Creating a ticket for a one-liner fix | Ticket noise, distracts the team |
 | Not reading thread replies | Duplicating investigation someone already did |
-| Using this skill for a Sentry URL with a domain-specific error | This skill is for Slack threads. If the Sentry error is about Square Terminal or payments, use `app-debug-payments` or `app-debug-payments` instead — they have pre-built SQL, decision trees, and scripts for those errors |
+| Using this skill for a Sentry URL with a domain-specific error | This skill is for Slack threads. If the Sentry error is about Square Terminal or payments, use `app-debug-terminal` or `app-debug-payments` instead — they have pre-built SQL, decision trees, and scripts for those errors |
