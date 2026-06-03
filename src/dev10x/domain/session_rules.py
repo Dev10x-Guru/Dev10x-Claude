@@ -69,26 +69,12 @@ class DecisionGuidanceRule(PolicyRule[str]):
             raise UnknownFrictionLevelError(f"Unknown friction level: {self.friction_level!r}")
 
         summary = PlanSummary.from_dict(data=self.plan)
-        decisions = summary.pending_decisions
-        if not decisions:
-            has_remaining = bool(summary.pending_tasks)
-            if has_remaining:
+        if not summary.pending_decisions:
+            if summary.pending_tasks:
                 return "Session resumed with tasks remaining. Auto-advance through the task list."
             return ""
 
-        if self.friction_level is FrictionLevel.ADAPTIVE:
-            return (
-                "Session resumed with pending decisions. Friction level is adaptive — "
-                "auto-select recommended options for all queued decisions and continue "
-                "advancing through the task list without calling AskUserQuestion."
-            )
-        if self.friction_level in (FrictionLevel.STRICT, FrictionLevel.GUIDED):
-            return (
-                "Session resumed with pending decisions. "
-                "Re-ask each pending decision using AskUserQuestion — "
-                "invoke Dev10x:ask before advancing."
-            )
-        raise UnknownFrictionLevelError(f"Unhandled friction level: {self.friction_level!r}")
+        return self.friction_level.pending_decisions_guidance()
 
 
 __all__ = [

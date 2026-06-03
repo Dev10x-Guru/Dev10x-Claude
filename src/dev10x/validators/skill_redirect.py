@@ -184,40 +184,39 @@ def _format_skill_msg(
         else ""
     )
     if comp.type == "use-tool":
-        if friction_level is FrictionLevel.GUIDED and comp.description:
-            return (
-                f"\u26d4  `{label}` blocked — use the MCP tool instead.\n\n"
-                f"  Tool: `{comp.tool}`\n\n"
-                f"Why: Raw CLI bypasses structured responses and causes\n"
-                f"permission friction ({comp.guardrails}).\n\n"
-                f"If the MCP server is unavailable, fall back to:\n"
-                f"{comp.description}"
-                f"{MCP_UNAVAILABLE_HINT}"
-                f"{file_issue_hint}{OVERRIDE_HINT}"
+        mcp_fallback = friction_level.fallback_guidance(
+            fallback=(
+                f"If the MCP server is unavailable, fall back to:\n{comp.description}"
+                if comp.description
+                else ""
             )
+        )
+        sep = "\n\n" if mcp_fallback else ""
         return (
             f"\u26d4  `{label}` blocked — use the MCP tool instead.\n\n"
             f"  Tool: `{comp.tool}`\n\n"
             f"Why: Raw CLI bypasses structured responses and causes\n"
             f"permission friction ({comp.guardrails})."
+            f"{sep}{mcp_fallback}"
             f"{MCP_UNAVAILABLE_HINT}"
             f"{file_issue_hint}{OVERRIDE_HINT}"
         )
 
-    if friction_level is FrictionLevel.GUIDED and comp.fallback:
-        return (
-            f"\u26d4  `{label}` blocked — use the skill instead.\n\n"
-            f"  Skill: `Skill({comp.skill})`\n\n"
-            f"Why: Raw CLI bypasses guardrails that the skill enforces\n"
-            f"({comp.guardrails}).\n\n"
-            f"If the skill fails, apply these guardrails manually:\n"
-            f"{comp.fallback}{file_issue_hint}{OVERRIDE_HINT}"
+    skill_fallback = friction_level.fallback_guidance(
+        fallback=(
+            f"If the skill fails, apply these guardrails manually:\n{comp.fallback}"
+            if comp.fallback
+            else ""
         )
+    )
+    sep = "\n\n" if skill_fallback else ""
     return (
         f"\u26d4  `{label}` blocked — use the skill instead.\n\n"
         f"  Skill: `Skill({comp.skill})`\n\n"
         f"Why: Raw CLI bypasses guardrails that the skill enforces\n"
-        f"({comp.guardrails}).{file_issue_hint}{OVERRIDE_HINT}"
+        f"({comp.guardrails})."
+        f"{sep}{skill_fallback}"
+        f"{file_issue_hint}{OVERRIDE_HINT}"
     )
 
 

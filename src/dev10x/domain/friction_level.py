@@ -54,5 +54,48 @@ class FrictionLevel(StrEnum):
                 return member
         return cls.default()
 
+    def pending_decisions_guidance(self) -> str:
+        """Return the session-resume instruction for pending-decision state.
+
+        Called by ``DecisionGuidanceRule`` when the plan has one or more
+        unresolved decision tasks.  Each member encodes its own pacing
+        rule, eliminating the if/elif dispatch from the rule body.
+
+        Returns:
+            A non-empty instruction string for every recognised member.
+        """
+        if self is FrictionLevel.ADAPTIVE:
+            return (
+                "Session resumed with pending decisions. Friction level is adaptive — "
+                "auto-select recommended options for all queued decisions and continue "
+                "advancing through the task list without calling AskUserQuestion."
+            )
+        return (
+            "Session resumed with pending decisions. "
+            "Re-ask each pending decision using AskUserQuestion — "
+            "invoke Dev10x:ask before advancing."
+        )
+
+    def fallback_guidance(self, *, fallback: str) -> str:
+        """Return a friction-level-specific fallback clause for block messages.
+
+        In GUIDED mode the agent is shown a concrete fallback path (skill
+        guardrails to apply manually, or an MCP-unavailability escape).
+        In STRICT and ADAPTIVE modes the block is unadorned — the fallback
+        text is omitted so the message stays concise.
+
+        Args:
+            fallback: The fallback snippet to surface in GUIDED mode.
+                      May be an MCP-server fallback description, a manual-
+                      guardrail list, or any other escape-hatch hint.
+
+        Returns:
+            The fallback clause (including a leading newline) when GUIDED,
+            or an empty string for other levels.
+        """
+        if self is FrictionLevel.GUIDED:
+            return fallback
+        return ""
+
 
 __all__ = ["FrictionLevel"]
