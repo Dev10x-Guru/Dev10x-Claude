@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+# Context is required at runtime: FastMCP evaluates tool annotations with
+# eval_str=True to detect the injected context parameter (GH-342). The
+# noqa keeps ruff from stripping it as a type-only import under
+# `from __future__ import annotations`.
+from mcp.server.fastmcp import Context  # noqa: F401
+
 from dev10x.mcp._app import server
 
 
@@ -177,6 +183,7 @@ async def run_tests(
     coverage: bool = True,
     timeout: int = 600,
     cwd: str | None = None,
+    ctx: Context | None = None,
 ) -> dict:
     """Run pytest with coverage via ``uv run`` (GH-238).
 
@@ -194,6 +201,7 @@ async def run_tests(
             ``--cov --cov-report=term-missing``.
         timeout: Subprocess timeout in seconds (default 600).
         cwd: Effective working directory (GH-979).
+        ctx: FastMCP context injected automatically — do not pass (GH-342).
 
     Returns:
         Dictionary with keys: returncode (int), summary (str),
@@ -206,5 +214,19 @@ async def run_tests(
     from dev10x import runner
     from dev10x.subprocess_utils import use_cwd
 
+    extra_desc = " ".join(args) if args else "full suite"
+    if ctx is not None:
+        await ctx.report_progress(progress=0, total=100, message=f"Starting pytest: {extra_desc}")
+        await ctx.info(f"run_tests: launching pytest ({extra_desc})")
+
     with use_cwd(cwd):
-        return (await runner.run_tests(args=args, coverage=coverage, timeout=timeout)).to_dict()
+        result = (await runner.run_tests(args=args, coverage=coverage, timeout=timeout)).to_dict()
+
+    if ctx is not None:
+        summary = result.get("summary", "")
+        failed = result.get("failed", 0)
+        await ctx.report_progress(progress=100, total=100, message=f"pytest done: {summary}")
+        level = "warning" if failed else "info"
+        await ctx.log(level=level, message=f"run_tests: {summary or 'complete'}")
+
+    return result

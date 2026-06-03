@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+# Context is required at runtime: FastMCP evaluates tool annotations with
+# eval_str=True to detect the injected context parameter (GH-342). The
+# noqa keeps ruff from stripping it as a type-only import under
+# `from __future__ import annotations`.
+from mcp.server.fastmcp import Context  # noqa: F401
+
 from dev10x.mcp._app import server
 
 
@@ -447,6 +453,7 @@ async def create_pr(
     closes: list[int] | None = None,
     draft: bool = True,
     cwd: str | None = None,
+    ctx: Context | None = None,
 ) -> dict:
     """Create a PR with two-pass body generation.
 
@@ -465,6 +472,7 @@ async def create_pr(
         cwd: Effective working directory (GH-979). Pass the worktree
             path after EnterWorktree so the PR is created from the
             worktree's branch, not the main repo's.
+        ctx: FastMCP context injected automatically — do not pass (GH-342).
 
     Returns:
         Dictionary with keys: pr_number (int), url (str)
@@ -472,8 +480,12 @@ async def create_pr(
     from dev10x import github as gh
     from dev10x.subprocess_utils import use_cwd
 
+    if ctx is not None:
+        await ctx.report_progress(progress=0, total=100, message=f"Creating PR: {title}")
+        await ctx.info(f"create_pr: opening PR for {issue_id} (draft={draft})")
+
     with use_cwd(cwd):
-        return (
+        result = (
             await gh.create_pr(
                 title=title,
                 job_story=job_story,
@@ -484,6 +496,19 @@ async def create_pr(
                 draft=draft,
             )
         ).to_dict()
+
+    if ctx is not None:
+        if "error" in result:
+            await ctx.report_progress(
+                progress=100, total=100, message=f"PR creation failed: {result['error']}"
+            )
+            await ctx.log(level="error", message=f"create_pr: {result['error']}")
+        else:
+            url = result.get("url", "")
+            await ctx.report_progress(progress=100, total=100, message=f"PR created: {url}")
+            await ctx.info(f"create_pr: PR #{result.get('pr_number')} ready at {url}")
+
+    return result
 
 
 @server.tool()
