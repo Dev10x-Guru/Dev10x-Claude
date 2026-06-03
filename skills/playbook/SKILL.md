@@ -12,10 +12,10 @@ user-invocable: true
 invocation-name: Dev10x:playbook
 allowed-tools:
   - Read(.claude/Dev10x/playbooks/*.yaml)
-  - Read(~/.claude/Dev10x/playbooks/*.yaml)
+  - Read(~/.config/Dev10x/playbooks/*.yaml)
   - Read(~/.claude/memory/Dev10x/playbooks/*.yaml)
   - Write(.claude/Dev10x/playbooks/*.yaml)
-  - Write(~/.claude/Dev10x/playbooks/*.yaml)
+  - Write(~/.config/Dev10x/playbooks/*.yaml)
   - AskUserQuestion
   - TaskCreate
   - TaskUpdate

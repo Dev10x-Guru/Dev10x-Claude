@@ -4,7 +4,7 @@ version: "0.78.0.dev0"
 # Default location: ${CLAUDE_PLUGIN_ROOT}/skills/playbook/references/playbook.yaml
 # User overrides (resolution order — see references/config-resolution.md):
 #   1. .claude/Dev10x/playbooks/<skill-key>.yaml (project-local)
-#   2. ~/.claude/Dev10x/playbooks/<skill-key>.yaml (global + repo match)
+#   2. ~/.config/Dev10x/playbooks/<skill-key>.yaml (global + repo match)
 #      → fallback: ~/.claude/memory/Dev10x/playbooks/<skill-key>.yaml
 # Managed by Dev10x:playbook skill.
 #

@@ -53,9 +53,9 @@ This skill is playbook-powered. The workflow steps are defined in
 
 **Loading order** (see `references/config-resolution.md`):
 1. `.claude/Dev10x/playbooks/gh-pr-respond.yaml` (project-local)
-2. `~/.claude/Dev10x/playbooks/gh-pr-respond.yaml` (global + repo match);
+2. `~/.config/Dev10x/playbooks/gh-pr-respond.yaml` (global + repo match);
    fall back to `~/.claude/memory/Dev10x/playbooks/gh-pr-respond.yaml`
-   for backwards compatibility when the new path is absent.
+   for backwards compatibility when the XDG path is absent.
 3. `${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-respond/references/playbook.yaml`
 
 Customize with `/Dev10x:playbook edit gh-pr-respond <play>`.

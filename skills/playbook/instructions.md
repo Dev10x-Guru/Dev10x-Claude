@@ -27,7 +27,7 @@ User overrides follow the resolution order in
 | Tier | Path | Scope |
 |------|------|-------|
 | 1 | `.claude/Dev10x/playbooks/<key>.yaml` | Project-local |
-| 2 | `~/.claude/Dev10x/playbooks/<key>.yaml` | Global with repo mapping |
+| 2 | `~/.config/Dev10x/playbooks/<key>.yaml` | Global with repo mapping |
 
 Where `<key>` is the skill directory name (e.g., `work-on`,
 `release-notes`).
@@ -40,9 +40,9 @@ for the YAML format.
 
 When loading a play, resolve in this order:
 1. Project-local (`.claude/Dev10x/playbooks/<key>.yaml`)
-2. Global with repo matching (`~/.claude/Dev10x/playbooks/<key>.yaml`);
+2. Global with repo matching (`~/.config/Dev10x/playbooks/<key>.yaml`);
    fall back to `~/.claude/memory/Dev10x/playbooks/<key>.yaml` for
-   backwards compatibility when the new path is absent.
+   backwards compatibility when the XDG path is absent.
 3. Defaults from the skill's `references/playbook.yaml`
 
 Within the resolved file, apply overrides in this order:
@@ -190,7 +190,7 @@ language rather than editing YAML.
    - Read the user's playbook file for this skill (create if absent)
    - Add/update the override entry for this play
    - Set `persist: true` and `added: <today's date>`
-   - Write to `~/.claude/Dev10x/playbooks/<skill-key>.yaml`
+   - Write to `~/.config/Dev10x/playbooks/<skill-key>.yaml`
      (global — preferred) or `.claude/Dev10x/playbooks/<skill-key>.yaml`
      (project-local). See `references/config-resolution.md`.
 
@@ -292,7 +292,7 @@ and `references/friction-levels.md` for friction behavior.
 
 **Project activation** (global playbook with repo mapping):
 ```yaml
-# ~/.claude/Dev10x/playbooks/work-on.yaml
+# ~/.config/Dev10x/playbooks/work-on.yaml
 projects:
   - match: "example-org/*"
     active_modes: [solo-maintainer]
@@ -347,7 +347,7 @@ with all 5 plays as a reference implementation.
    the 3-tier resolution in `references/config-resolution.md`:
    ```
    1. .claude/Dev10x/playbooks/<key>.yaml (project-local)
-   2. ~/.claude/Dev10x/playbooks/<key>.yaml (global + repo match)
+   2. ~/.config/Dev10x/playbooks/<key>.yaml (global + repo match)
       → fallback: ~/.claude/memory/Dev10x/playbooks/<key>.yaml
    3. ${CLAUDE_PLUGIN_ROOT}/skills/<skill>/references/playbook.yaml
    ```
@@ -356,7 +356,7 @@ with all 5 plays as a reference implementation.
 **Loading pattern for orchestration skills:**
 ```
 Read(.claude/Dev10x/playbooks/<key>.yaml)
-  → if absent, Read(~/.claude/Dev10x/playbooks/<key>.yaml) + repo match
+  → if absent, Read(~/.config/Dev10x/playbooks/<key>.yaml) + repo match
     → if absent (backwards compat), Read(~/.claude/memory/Dev10x/playbooks/<key>.yaml)
   → if absent, Read(${CLAUDE_PLUGIN_ROOT}/skills/<skill>/references/playbook.yaml)
   → resolve: overrides first, then defaults
@@ -417,7 +417,7 @@ and skill delegations in a readable tree format.
 4. Skill creates the step with `skills: [tt:e2e-debug]`
 5. Shows preview with 11 steps
 6. User selects "Save"
-7. Writes override to `~/.claude/Dev10x/playbooks/work-on.yaml`
+7. Writes override to `~/.config/Dev10x/playbooks/work-on.yaml`
 
 ### Example 5: Future — e2e-debug with a playbook
 

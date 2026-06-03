@@ -61,7 +61,7 @@ active_modes: [solo-maintainer]
 ### Project-level (persistent across sessions)
 
 ```yaml
-# ~/.claude/Dev10x/playbooks/work-on.yaml (global, preferred)
+# ~/.config/Dev10x/playbooks/work-on.yaml (global, preferred)
 # or .claude/Dev10x/playbooks/work-on.yaml (project-local)
 active_modes: [solo-maintainer]
 
@@ -76,7 +76,7 @@ mode_extensions:
 ### Resolution order
 
 1. Session override (`.claude/Dev10x/session.yaml`)
-2. Project override (`~/.claude/Dev10x/playbooks/<skill>.yaml`)
+2. Project override (`~/.config/Dev10x/playbooks/<skill>.yaml`)
 3. Default (no modes active)
 
 ## Per-Step Mode Mappings

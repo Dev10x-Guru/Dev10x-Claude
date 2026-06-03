@@ -538,11 +538,11 @@ that can be overridden per project.
 
 **Play source** (resolved in order — see `references/config-resolution.md`):
 1. `.claude/Dev10x/playbooks/work-on.yaml` — project-local override
-2. `~/.claude/Dev10x/playbooks/work-on.yaml` — global with repo
+2. `~/.config/Dev10x/playbooks/work-on.yaml` — global with repo
    matching (get repo via `git remote get-url origin`, walk
    `projects[].match` globs, use first hit's `overrides`/`fragments`);
    fall back to `~/.claude/memory/Dev10x/playbooks/work-on.yaml` for
-   backwards compatibility when the new path is absent.
+   backwards compatibility when the XDG path is absent.
 3. `${CLAUDE_PLUGIN_ROOT}/skills/playbook/references/playbook.yaml`
 
 **Playbook schema:** See the `Dev10x:playbook` skill's
@@ -578,11 +578,11 @@ play definitions. If you cannot confirm this, STOP.
 ```bash
 # ❌ FORBIDDEN — chained probes shift the allow-rule prefix
 ls /work/.../playbooks 2>/dev/null; ls ~/.claude/memory/...
-cat ~/.claude/Dev10x/playbooks/work-on.yaml
+cat ~/.config/Dev10x/playbooks/work-on.yaml
 
 # ✅ REQUIRED — use Read with absolute paths, one call per tier
 Read(file_path="/abs/path/.claude/Dev10x/playbooks/work-on.yaml")
-Read(file_path="/home/<user>/.claude/Dev10x/playbooks/work-on.yaml")
+Read(file_path="/home/<user>/.config/Dev10x/playbooks/work-on.yaml")
 Read(file_path="${CLAUDE_PLUGIN_ROOT}/skills/playbook/references/playbook.yaml")
 ```
 
@@ -596,7 +596,7 @@ resolution algorithm needs.
 1. Determine the `work_type` from gathered context (see table below)
 2. Resolve the playbook using the 3-tier resolution order above:
    a. Try `.claude/Dev10x/playbooks/work-on.yaml` (project-local)
-   b. Try `~/.claude/Dev10x/playbooks/work-on.yaml` (global); if
+   b. Try `~/.config/Dev10x/playbooks/work-on.yaml` (global); if
       absent, fall back to `~/.claude/memory/Dev10x/playbooks/work-on.yaml`
       for backwards compatibility — if found (either path), get repo
       via `git remote get-url origin`, walk `projects[].match` globs;
