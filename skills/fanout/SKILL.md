@@ -25,6 +25,7 @@ allowed-tools:
   - Skill(skill="Dev10x:gh-pr-merge")
   - Skill(skill="Dev10x:session-wrap-up")
   - Skill(skill="Dev10x:skill-audit")
+  - Skill(skill="Dev10x:git-branch-prune")
   - Write(~/.claude/Dev10x/**)
   - mcp__plugin_Dev10x_cli__*
 ---

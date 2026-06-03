@@ -539,6 +539,8 @@ Etiquette (REQUIRED):
 Return on completion:
 - PR URL (or "no PR produced — <reason>")
 - Merge state: MERGED | OPEN | DRAFT (if open, explain why)
+- Worktree path: the absolute path of your ephemeral worktree
+  (run `git rev-parse --show-toplevel` to get it)
 - Cost (total_cost_usd if known)
 - Any sibling-coordination signals raised (reference bus
   event types: file_lock_request, conflict_signal, bailout)
@@ -800,6 +802,10 @@ Phase 4's job is therefore **collection**, not orchestration:
 5. After a full wave drains, before dispatching the next
    wave: rebase downstream conflict-chain successors onto
    the latest develop via `Skill(Dev10x:git-groom)`.
+6. **Teardown the completed agent's worktree (GH-463).**
+   After confirming the PR is MERGED (step 2), run the
+   post-agent teardown sequence for that agent's worktree.
+   See `### Post-Agent Worktree Teardown` below.
 
 **Do NOT poll.** The harness notifies the orchestrator
 session when each background agent finishes (per Agent
@@ -810,6 +816,65 @@ tool semantics). Polling, sleeping in a loop, or running a
 favour of in-session `Skill(Dev10x:work-on)`, this phase
 collapses to "verify each call returned successfully"
 since the lifecycle already ran inline.
+
+### Post-Agent Worktree Teardown (GH-463)
+
+After each background agent completes and its PR is confirmed
+MERGED, clean up the agent's ephemeral worktree. The worktree
+path is embedded in the agent's dispatch context as the
+`isolation="worktree"` working directory — it follows the
+pattern `.claude/worktrees/agent-<id>/`.
+
+**Teardown decision tree (per worktree):**
+
+1. Run `git -C <worktree-path> status --porcelain` to check
+   for uncommitted modifications.
+
+2. **Clean worktree (empty output):** PR is merged and
+   worktree has no uncommitted changes.
+   → `git worktree remove <worktree-path>`
+   → Delete the child branch if it still exists locally:
+     `git branch -d <branch>` (safe delete — already merged)
+   → Proceed.
+
+3. **Dirty worktree (non-empty output):** The worktree has
+   uncommitted modifications. For each modified file:
+   - Compare the working-copy version against the base branch
+     HEAD: `git diff origin/<base> -- <file>` inside the
+     worktree.
+   - **Diff is empty (identical or not present on base):** The
+     file is a stale duplicate — content already on develop or
+     the file was removed upstream. Safe to discard.
+   - **Diff is non-empty:** The file contains content not yet
+     on the base branch. This is genuinely unique work.
+
+4. **All dirty files are stale duplicates:**
+   → `git worktree remove --force <worktree-path>`
+   → Delete the child branch: `git branch -D <branch>`
+   → Add a note to the Phase 4 subtask metadata:
+     `"teardown": "force-removed (stale duplicates only)"`
+   → Proceed.
+
+5. **Any dirty file has unique content:**
+   → Do NOT remove the worktree.
+   → Add a note to the Phase 4 subtask metadata:
+     `"teardown": "kept — unique content in <files>"`
+   → Surface in the Phase 5 summary so the supervisor
+     can decide what to do with the unique content.
+
+**Timing:** Teardown runs AFTER the PR is confirmed MERGED
+and AFTER all child-scoped processes have exited (i.e., after
+the agent's completion notification arrives). Never tear down
+a worktree while the agent is still running.
+
+**Worktree path discovery:** The orchestrator knows the path
+because it dispatched the agent with `isolation="worktree"`.
+If the path is not recorded, use `git worktree list --porcelain`
+and match the branch name to find the worktree path.
+
+**Do not use `EnterWorktree`** for teardown inspection —
+`EnterWorktree` requires the target to share the repository
+root; use `git -C <path>` for status and diff commands instead.
 
 ## Phase 5: Verify
 
@@ -882,6 +947,75 @@ Options:
 - Work complete — done (Recommended)
 - Add more items
 - Revisit an item
+
+## Swarm Teardown (GH-463)
+
+After the Phase 5 gate confirms "Work complete", run a final
+cleanup sweep. This catches any worktrees not removed during
+Phase 4 (e.g., items that ended as NEEDS_CONTEXT → serial
+fallback, or agents that were re-dispatched and left a
+previous ephemeral worktree behind).
+
+### Step 1: Prune stale worktree records
+
+```
+git worktree prune
+```
+
+This removes administrative records for worktrees whose
+directories no longer exist. Run unconditionally — it is safe
+even when there is nothing to prune.
+
+### Step 2: Inspect surviving agent worktrees
+
+List all worktrees: `git worktree list --porcelain`.
+For each worktree whose path matches `.claude/worktrees/agent-*`
+and whose branch is a `worktree-agent-*` branch:
+
+Apply the same decision tree as Phase 4's Post-Agent Worktree
+Teardown:
+- Clean → `git worktree remove`
+- All dirty files are stale duplicates → `git worktree remove --force`
+- Any dirty file has unique content → keep; add to the
+  swarm-end summary for supervisor review
+
+Collect a list of worktrees kept (with reason) for the summary.
+
+### Step 3: Clean abandoned agent branches (GH-463)
+
+After removing worktrees, look for local `worktree-agent-*`
+branches that no longer have a checked-out worktree and were
+never pushed (no remote tracking ref).
+
+**Delegate to `Dev10x:git-branch-prune` if available:**
+When the `Dev10x:git-branch-prune` skill is present, invoke
+`Skill(skill="Dev10x:git-branch-prune")` — it runs the full
+classification + AskUserQuestion gate to confirm deletions.
+
+**Fallback (git-branch-prune not yet available):** For each
+local `worktree-agent-*` branch with no upstream and no open
+PR, and whose tip is an ancestor of `origin/<base>` or whose
+commits landed on the base branch (check via
+`git log origin/<base> --ancestry-path <tip>` or commit-subject
+match), mark it as safe to delete. Collect the list and present
+it to the supervisor via `AskUserQuestion` before deleting.
+
+Do NOT delete branches that are:
+- Currently checked out in any worktree (`git worktree list`)
+- Ahead of the base branch with no matched commits on the base
+- Tracking an upstream that is not `: gone]`
+
+### Step 4: Swarm summary
+
+Include a teardown table in the Phase 5 summary:
+
+```
+| Worktree | Branch | Teardown |
+|----------|--------|----------|
+| agent-abc | worktree-agent-abc | Removed (clean) |
+| agent-def | worktree-agent-def | Force-removed (stale dup) |
+| agent-ghi | worktree-agent-ghi | Kept — unique content in foo.md |
+```
 
 ## Phase 6: Audit
 
