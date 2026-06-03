@@ -76,6 +76,36 @@ Callers must know each tool's specific success response format. Branch
 on the presence of an `"error"` key, never on whether the dict is
 empty.
 
+## Canonical Parameter Shapes
+
+Parameter naming is not uniform across tools, which defeats agent
+first-call inference (GH-462 F4 — 7 first-call validation errors in
+one session). Use these shapes verbatim:
+
+| Tool | Required parameters | Common wrong guess |
+|------|---------------------|--------------------|
+| `issue_get` | `number` | `issue_id` |
+| `pr_get` | `number` | `pr_number` |
+| `pr_comments` | `pr_number`, `action` (no default) | omitting `action` |
+| `unresolved_threads` | `repo` (no CWD default) | omitting `repo` |
+| `check_top_level_comments` | `repo` (no CWD default) | omitting `repo` |
+| `push_safe` | `args` list, e.g. `["-u", "origin", "<branch>"]` | bare call |
+| `resolve_review_thread` | `thread_ids` (list) | singular `thread_id` |
+
+Behavioral caveats:
+
+- `push_safe` failure returns `{"pushed": false, "blocked_reason":
+  "push_failed"}` with no further diagnostic; a successful push may
+  return `{}` — treat any non-`error` payload without
+  `"pushed": false` as success.
+- `unresolved_threads` has timed out where the equivalent raw GraphQL
+  query returned in under 2s; retry once before falling back per
+  skill guidance.
+
+Parameter normalization (accepting aliases, defaulting `repo` from
+CWD, richer `push_safe` diagnostics) is tracked as follow-up work;
+until it lands, the table above is the contract.
+
 ## Tool Availability by Plugin Version
 
 MCP tools are added incrementally. Document the minimum plugin version
