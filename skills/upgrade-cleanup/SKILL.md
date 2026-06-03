@@ -5,7 +5,9 @@ description: >
   `Dev10x:plugin-maintenance` in `full` mode. Updates plugin
   version paths, ensures base permissions, migrates config files
   (including global playbook overrides from
-  ~/.claude/memory/Dev10x/playbooks/ to ~/.config/Dev10x/playbooks/),
+  ~/.claude/memory/Dev10x/playbooks/ to ~/.config/Dev10x/playbooks/,
+  and databases.yaml from legacy/backup skill directories to
+  ~/.config/Dev10x/databases.yaml),
   generalizes session-specific args, enumerates MCP tool globs,
   refreshes script coverage, merges worktree rules, audits for
   friction-causing patterns, and cleans redundant rules from
@@ -67,12 +69,22 @@ including playbook overrides → ensure base perms → generalize →
 enumerate MCP → script coverage → worktree merge → permission
 audit → clean project files → diff playbooks).
 
-The "Migrate config files" step (step 3) includes migrating global
-playbook overrides from `~/.claude/memory/Dev10x/playbooks/` to
-`~/.config/Dev10x/playbooks/` (GH-447). Regular files are moved;
-symlinks pointing into the new location are deleted; conflicts
-(destination already exists) are surfaced rather than overwritten.
-The old directory is removed once empty.
+The "Migrate config files" step (step 3) includes two sub-migrations:
+
+1. **Playbook overrides (GH-447):** global playbook overrides from
+   `~/.claude/memory/Dev10x/playbooks/` to
+   `~/.config/Dev10x/playbooks/`. Regular files are moved; symlinks
+   pointing into the new location are deleted; conflicts (destination
+   already exists) are surfaced rather than overwritten. The old
+   directory is removed once empty.
+
+2. **databases.yaml (GH-446):** stray `databases.yaml` files found in
+   legacy or hidden backup skill directories (e.g.,
+   `~/.claude/skills/.20260601-1100-backup/*/`) are migrated to
+   `~/.config/Dev10x/databases.yaml` — the preferred global location
+   since GH-448. The scan uses `find` (not glob `*`) to reach dotted
+   directories. Conflicts (destination already exists) are surfaced
+   rather than overwritten.
 
 After the maintenance pass succeeds, record the plugin version
 so the SessionStart install-check stays silent until the next

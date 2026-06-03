@@ -381,6 +381,48 @@ Playbook migration steps:
 4. Remove the source directory when empty
 5. Report a summary of what moved, what was skipped, and why
 
+**databases.yaml from legacy/backup skill directories (GH-446) — full mode only:**
+
+Skill consolidation and upgrades may move user-installed skills into
+hidden backup directories (e.g.,
+`~/.claude/skills/.20260601-1100-backup/<skill>/`). The `glob *`
+used by `db.sh`'s discover_configs skips dotted directory names, so
+`databases.yaml` files in those backup dirs are silently not found —
+even though `~/.config/Dev10x/databases.yaml` (priority 3 since
+GH-448) is now the preferred global location.
+
+Scan for stray `databases.yaml` files using `find` (which reaches
+dotted dirs, unlike glob `*`):
+
+```
+find ~/.claude/skills -name databases.yaml
+```
+
+Also check `~/.claude/memory/Dev10x/databases.yaml` explicitly
+(already covered by the table above, but include in this report).
+
+For each located `databases.yaml` whose resolved path differs from
+`~/.config/Dev10x/databases.yaml`:
+
+| Entry type | Action |
+|------------|--------|
+| Regular file, destination absent | Move to `~/.config/Dev10x/databases.yaml`, report migration |
+| Regular file, destination present | Leave in place — surface the conflict (show both paths); do NOT overwrite |
+| Symlink pointing to `~/.config/Dev10x/databases.yaml` | Delete (pre-migration artefact; target is already canonical) |
+| Symlink pointing elsewhere | Leave in place and warn — manual inspection required |
+
+databases.yaml migration steps:
+1. Run `find ~/.claude/skills -name databases.yaml` to locate all
+   candidates (including dotted backup dirs)
+2. Also check `~/.claude/memory/Dev10x/databases.yaml` explicitly
+3. Skip candidates that are already at, or are a symlink to,
+   `~/.config/Dev10x/databases.yaml` — migration not needed
+4. Ensure `~/.config/Dev10x/` exists before any write
+5. For each remaining candidate: apply the action table above
+6. Report a summary: files moved, conflicts surfaced, symlinks
+   cleaned, or "no stray databases.yaml found" when the scan
+   comes up empty
+
 ### 3. Ensure workspace directories **[bootstrap]** (GH-40)
 
 Register paths outside the project root (e.g. `/tmp/Dev10x`) under
