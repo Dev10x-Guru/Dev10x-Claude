@@ -84,9 +84,11 @@ db.sh script searches for config files in this order:
 
 1. `$DB_CONFIG` environment variable (explicit path)
 2. Own skill directory (`skills/db-psql/databases.yaml`)
-3. `~/.claude/memory/Dev10x/databases.yaml` (global, user-level)
-4. Sibling plugin skill directories (`skills/*/databases.yaml`)
-5. User skill directories (`~/.claude/skills/*/databases.yaml`)
+3. `~/.config/Dev10x/databases.yaml` (XDG; preferred global location)
+4. `~/.claude/memory/Dev10x/databases.yaml` (deprecated fallback)
+5. Sibling plugin skill directories (`skills/*/databases.yaml`)
+6. User skill directories (`~/.claude/skills/*/databases.yaml`)
+7. Marketplace plugins (`~/.claude/plugins/marketplaces/*/skills/*/databases.yaml`)
 
 Example YAML with both backends:
 
