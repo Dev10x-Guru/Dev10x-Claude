@@ -349,6 +349,58 @@ def build_script_allow_rules(
     return rules
 
 
+def is_dead_glob_script_rule(entry: str) -> bool:
+    """True for a Bash plugin-cache rule that uses a ``**`` glob (GH-471).
+
+    Claude Code's Bash permission matcher treats ``**`` literally — the
+    literal characters never appear in a real command string — so these
+    rules never match. ``update-paths`` cannot repair them either, since
+    its version regex only rewrites rules containing a literal ``X.Y.Z``.
+    They are dead weight and must be purged in favour of concrete
+    version-pinned rules emitted by :func:`build_script_allow_rules`.
+
+    Scoped to ``Bash(`` cache rules so unversioned ``Read(... /**)``
+    marketplaces rules (which are functional) are never touched.
+    """
+    return entry.startswith("Bash(") and "plugins/cache/" in entry and "**" in entry
+
+
+def purge_dead_glob_script_rules(
+    path: Path,
+    *,
+    dry_run: bool = False,
+) -> tuple[int, list[str]]:
+    """Remove dead ``**`` cache-glob Bash rules from a settings file.
+
+    Returns ``(count_removed, messages)``. Idempotent — a file with no
+    dead globs returns ``(0, [])``.
+    """
+    try:
+        content = path.read_text()
+        data = json.loads(content)
+    except (OSError, json.JSONDecodeError) as exc:
+        return 0, [f"  SKIP (unreadable JSON): {exc}"]
+
+    allow_list: list[str] = data.get("permissions", {}).get("allow", [])
+    dead = [r for r in allow_list if is_dead_glob_script_rule(r)]
+    if not dead:
+        return 0, []
+
+    if not dry_run:
+        from dev10x.skills.permission.backup import create_backup
+        from dev10x.skills.permission.file_lock import locked_json_update
+
+        create_backup(path)
+        with locked_json_update(path=path) as live_data:
+            allow = live_data.get("permissions", {}).get("allow", [])
+            live_data["permissions"]["allow"] = [
+                r for r in allow if not is_dead_glob_script_rule(r)
+            ]
+
+    messages = [f"  - {r}  (dead ** cache glob removed)" for r in dead]
+    return len(dead), messages
+
+
 def verify_script_coverage(
     settings_path: Path,
     expected_rules: list[str],
@@ -370,7 +422,13 @@ def verify_script_coverage(
             continue
         script_name = Path(match.group(1)).name
         pattern = re.compile(rf"Bash\(.*/{re.escape(script_name)}:\*\)")
-        if rule in allow_list or any(pattern.search(entry) for entry in allow_list):
+        # GH-471: a ** cache glob never matches in Claude Code's Bash
+        # matcher and update-paths cannot re-version it (no literal X.Y.Z
+        # segment), so it is NOT real coverage. Skip dead globs here so a
+        # concrete version-pinned rule is emitted instead.
+        if rule in allow_list or any(
+            pattern.search(entry) for entry in allow_list if not is_dead_glob_script_rule(entry)
+        ):
             covered.append(rule)
         else:
             missing.append(rule)
@@ -1042,33 +1100,45 @@ def ensure_scripts(
             messages.append("(dry run — no files will be modified)\n")
 
     total_added = 0
+    total_purged = 0
     files_changed = 0
 
     for path in sorted(settings_files):
+        # GH-471: purge dead ** cache globs first so verify_script_coverage
+        # reports the concrete version-pinned rules as missing and they get
+        # added — replacing the non-functional globs rather than coexisting.
+        purged, purge_messages = purge_dead_glob_script_rules(path, dry_run=dry_run)
+
         _covered, missing = verify_script_coverage(
             settings_path=path,
             expected_rules=expected_rules,
         )
-        if not missing:
-            continue
+        count = 0
+        file_messages: list[str] = []
+        if missing:
+            count, file_messages = ensure_script_rules(
+                settings_path=path,
+                missing_rules=missing,
+                dry_run=dry_run,
+            )
 
-        count, file_messages = ensure_script_rules(
-            settings_path=path,
-            missing_rules=missing,
-            dry_run=dry_run,
-        )
-        if count > 0:
+        if purged > 0 or count > 0:
             if not quiet:
                 messages.append(f"\n{path}")
+                messages.extend(purge_messages)
                 messages.extend(file_messages)
             total_added += count
+            total_purged += purged
             files_changed += 1
 
-    if total_added == 0:
+    if total_added == 0 and total_purged == 0:
         messages.append("All settings files have complete script coverage.")
     else:
-        verb = "Would add" if dry_run else "Added"
-        messages.append(f"{verb} {total_added} script rules across {files_changed} files.")
+        verb = "Would update" if dry_run else "Updated"
+        messages.append(
+            f"{verb} {files_changed} files "
+            f"(+{total_added} concrete rules, -{total_purged} dead ** globs)."
+        )
 
     return _result(
         exit_code=0,
