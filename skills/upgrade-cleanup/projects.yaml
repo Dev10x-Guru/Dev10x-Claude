@@ -55,75 +55,20 @@ base_permissions:
   - "Bash(~/.claude/tools/*.sh:*)"
   - "Bash(/home/*/.claude/tools/*:*)"
 
-  # --- Plugin scripts: bin/ ---
-  - "Bash(~/.claude/plugins/cache/**/bin/release.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/bin/require-tool.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/bin/statusline.sh:*)"
+  # --- Plugin scripts (GH-471) ---
+  # Per-script Bash rules are NO LONGER listed here. They previously used
+  # `cache/**/` globs, which Claude Code's Bash matcher treats literally —
+  # the literal `**` never appears in a real command string, so the rules
+  # never matched and every plugin script prompted. `update-paths` cannot
+  # re-version a `**` rule either (no literal X.Y.Z segment to bump).
+  #
+  # Concrete, version-pinned rules
+  # (`.../<version>/{bin,hooks,skills}/.../foo.{sh,py}:*`) are emitted by
+  # `permission ensure-scripts` (from scan_plugin_scripts) and re-bumped by
+  # `permission update-paths` on every upgrade. ensure-scripts also purges
+  # any surviving dead `**` script rules from user settings, replacing them
+  # with the concrete forms. See update_paths.is_dead_glob_script_rule.
 
-  # --- Plugin scripts: hooks/ ---
-  - "Bash(~/.claude/plugins/cache/**/hooks/scripts/permission-denied.py:*)"
-  - "Bash(~/.claude/plugins/cache/**/hooks/scripts/precompact-context.py:*)"
-  # Manual-invocation hook: dev10x.hooks.session.session_reload can be
-  # called directly to refresh session state without restart. Not
-  # registered in hooks.json because it's on-demand, not automatic.
-  # The audit may flag this as "unused" — keep it; the auditor lacks
-  # context that it serves manual reloads.
-  - "Bash(~/.claude/plugins/cache/**/hooks/scripts/session-start-reload.py:*)"
-  - "Bash(~/.claude/plugins/cache/**/hooks/scripts/task-plan-sync.py:*)"
-  - "Bash(~/.claude/plugins/cache/**/hooks/scripts/validate-bash-command.py:*)"
-  - "Bash(~/.claude/plugins/cache/**/hooks/scripts/validate-edit-write.py:*)"
-
-  # --- Plugin scripts: skills/ ---
-  - "Bash(~/.claude/plugins/cache/**/skills/db-psql/scripts/db.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/db-psql/scripts/dsn-resolve.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/db-psql/scripts/parse-databases.py:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/gh-context/scripts/detect-tracker.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/gh-context/scripts/gh-issue-comments.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/gh-context/scripts/gh-issue-create.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/gh-context/scripts/gh-issue-get.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/gh-context/scripts/gh-pr-detect.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/gh-pr-create/scripts/create-pr.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/gh-pr-create/scripts/detect-base-branch.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/gh-pr-create/scripts/generate-commit-list.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/gh-pr-create/scripts/post-summary-comment.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/gh-pr-create/scripts/pre-pr-checks.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/gh-pr-create/scripts/verify-state.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/gh-pr-doctor/scripts/gh-audit-check.py:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/gh-pr-doctor/scripts/gh-audit-comment.py:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/gh-pr-doctor/scripts/gh-unresolved-threads.py:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/gh-pr-merge/scripts/check-top-level-comments.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/gh-pr-monitor/scripts/ci-check-status.py:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/gh-pr-monitor/scripts/pr-notify.py:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/git-alias-setup/scripts/git-alias-setup.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/git-commit-split/scripts/start-split-rebase.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/git-groom/scripts/mass-rewrite.py:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/git/scripts/git-push-safe.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/git/scripts/git-rebase-groom.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/git/scripts/git-seq-editor.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/git/scripts/protected-branches.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/git-worktree/scripts/create-worktree.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/git-worktree/scripts/next-worktree-name.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/git-worktree/scripts/session-end-cleanup.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/git-worktree/scripts/setup-session-end-hook.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/investigate/scripts/parse-slack-url.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/investigate/scripts/reply.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/playwright/scripts/run-playwright.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/py-uv/scripts/check-uv.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/qa-self/scripts/convert-evidence.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/qa-self/scripts/upload-screenshots.py:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/release-notes/scripts/collect-prs.py:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/skill-audit/scripts/analyze-actions.py:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/skill-audit/scripts/analyze-actions.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/skill-audit/scripts/analyze-permissions.py:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/skill-audit/scripts/analyze-permissions.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/skill-audit/scripts/extract-session.py:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/skill-audit/scripts/extract-session.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/skill-create/scripts/scaffold.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/skill-index/scripts/generate-all.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/skill-index/scripts/generate-motd.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/skill-index/scripts/generate-skills-menu.sh:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/slack-review-request/scripts/slack-review-request.py:*)"
-  - "Bash(~/.claude/plugins/cache/**/skills/ticket-create/scripts/create-github-issue.sh:*)"
   # GH-269: upgrade-cleanup/scripts/*.py shims were retired in favour
   # of the version-stable `uvx dev10x permission …` CLI. The
   # replacement allow-rules live below under "Dev10x CLI". The

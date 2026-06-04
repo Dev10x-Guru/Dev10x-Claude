@@ -107,6 +107,38 @@ class TestVerifyScriptCoverage:
 
         assert len(covered) == 1
 
+    def test_glob_star_entry_is_not_coverage(self, settings_file: Path) -> None:
+        # GH-471: a ** cache glob is non-functional in Claude Code's Bash
+        # matcher and update-paths cannot re-version it (no literal X.Y.Z
+        # segment). It must NOT count as coverage, so ensure-scripts emits
+        # the concrete version-pinned rule instead of silently skipping it.
+        dead_glob = "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/bin/mktmp.sh:*)"
+        settings_file.write_text(json.dumps({"permissions": {"allow": [dead_glob]}}))
+        concrete = "Bash(/home/u/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.78.0/bin/mktmp.sh:*)"
+
+        _covered, missing = update_paths.verify_script_coverage(
+            settings_path=settings_file,
+            expected_rules=[concrete],
+        )
+
+        assert missing == [concrete]
+
+    def test_concrete_versioned_entry_at_other_path_is_coverage(self, settings_file: Path) -> None:
+        # The version-bump case still counts as covered: a concrete path at
+        # an older version is re-versioned by update-paths, so ensure-scripts
+        # must not duplicate it.
+        older = "Bash(/home/u/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.77.0/bin/mktmp.sh:*)"
+        settings_file.write_text(json.dumps({"permissions": {"allow": [older]}}))
+        newer = "Bash(/home/u/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.78.0/bin/mktmp.sh:*)"
+
+        covered, missing = update_paths.verify_script_coverage(
+            settings_path=settings_file,
+            expected_rules=[newer],
+        )
+
+        assert covered == [newer]
+        assert missing == []
+
     def test_no_false_positive_on_substring_match(self, settings_file: Path) -> None:
         settings_file.write_text(
             json.dumps({"permissions": {"allow": ["Bash(/path/test-utils.sh:*)"]}})
@@ -181,3 +213,207 @@ class TestEnsureScriptRules:
 
         assert count == 0
         assert messages == []
+
+
+class TestIsDeadGlobScriptRule:
+    def test_bash_cache_glob_is_dead(self) -> None:
+        rule = "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/bin/mktmp.sh:*)"
+        assert update_paths.is_dead_glob_script_rule(rule) is True
+
+    def test_concrete_versioned_bash_rule_is_not_dead(self) -> None:
+        rule = "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.78.0/bin/mktmp.sh:*)"
+        assert update_paths.is_dead_glob_script_rule(rule) is False
+
+    def test_read_marketplaces_glob_is_not_dead(self) -> None:
+        # Read rules are functional with ** and must never be purged.
+        rule = "Read(~/.claude/plugins/marketplaces/Dev10x-Guru/**)"
+        assert update_paths.is_dead_glob_script_rule(rule) is False
+
+    def test_non_cache_bash_glob_is_not_dead(self) -> None:
+        rule = "Bash(/tmp/Dev10x/**/*.py:*)"
+        assert update_paths.is_dead_glob_script_rule(rule) is False
+
+
+class TestPurgeDeadGlobScriptRules:
+    @pytest.fixture()
+    def settings_file(self, tmp_path: Path) -> Path:
+        return tmp_path / "settings.local.json"
+
+    def test_removes_dead_glob_keeps_others(self, settings_file: Path) -> None:
+        dead = "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/bin/mktmp.sh:*)"
+        keep_read = "Read(~/.claude/plugins/marketplaces/Dev10x-Guru/**)"
+        keep_bash = "Bash(git log:*)"
+        settings_file.write_text(
+            json.dumps({"permissions": {"allow": [dead, keep_read, keep_bash]}})
+        )
+
+        count, messages = update_paths.purge_dead_glob_script_rules(settings_file)
+
+        assert count == 1
+        assert len(messages) == 1
+        allow = json.loads(settings_file.read_text())["permissions"]["allow"]
+        assert dead not in allow
+        assert keep_read in allow
+        assert keep_bash in allow
+
+    def test_returns_zero_when_no_dead_globs(self, settings_file: Path) -> None:
+        settings_file.write_text(json.dumps({"permissions": {"allow": ["Bash(git log:*)"]}}))
+
+        count, messages = update_paths.purge_dead_glob_script_rules(settings_file)
+
+        assert count == 0
+        assert messages == []
+
+    def test_dry_run_does_not_write(self, settings_file: Path) -> None:
+        dead = "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/bin/mktmp.sh:*)"
+        settings_file.write_text(json.dumps({"permissions": {"allow": [dead]}}))
+        original = settings_file.read_text()
+
+        count, _messages = update_paths.purge_dead_glob_script_rules(settings_file, dry_run=True)
+
+        assert count == 1
+        assert settings_file.read_text() == original
+
+    def test_handles_invalid_json(self, settings_file: Path) -> None:
+        settings_file.write_text("{invalid}")
+
+        count, messages = update_paths.purge_dead_glob_script_rules(settings_file)
+
+        assert count == 0
+        assert messages and "SKIP" in messages[0]
+
+
+class TestEnsureScriptsReplacesDeadGlobs:
+    def test_purges_dead_glob_and_adds_concrete(self, tmp_path: Path) -> None:
+        cache_dir = tmp_path / "cache"
+        plugin_root = cache_dir / "0.78.0"
+        (plugin_root / "bin").mkdir(parents=True)
+        (plugin_root / "bin" / "mktmp.sh").touch()
+
+        settings = tmp_path / "settings.local.json"
+        dead = "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/bin/mktmp.sh:*)"
+        settings.write_text(json.dumps({"permissions": {"allow": [dead]}}))
+
+        result = update_paths.ensure_scripts(
+            config={"plugin_cache": str(cache_dir)},
+            settings_files=[settings],
+            dry_run=False,
+            quiet=True,
+        )
+
+        assert result["exit_code"] == 0
+        allow = json.loads(settings.read_text())["permissions"]["allow"]
+        assert dead not in allow
+        assert f"Bash({plugin_root}/bin/mktmp.sh:*)" in allow
+
+
+class TestEnsureScriptsFunction:
+    @pytest.fixture()
+    def cache_dir(self, tmp_path: Path) -> Path:
+        cache = tmp_path / "cache"
+        (cache / "0.78.0" / "bin").mkdir(parents=True)
+        (cache / "0.78.0" / "bin" / "mktmp.sh").touch()
+        return cache
+
+    def _concrete(self, cache_dir: Path) -> str:
+        return f"Bash({cache_dir / '0.78.0'}/bin/mktmp.sh:*)"
+
+    def test_noop_when_already_covered(self, tmp_path: Path, cache_dir: Path) -> None:
+        settings = tmp_path / "settings.local.json"
+        settings.write_text(json.dumps({"permissions": {"allow": [self._concrete(cache_dir)]}}))
+        original = settings.read_text()
+
+        result = update_paths.ensure_scripts(
+            config={"plugin_cache": str(cache_dir)},
+            settings_files=[settings],
+            dry_run=False,
+            quiet=True,
+        )
+
+        assert result["files_changed"] == 0
+        assert settings.read_text() == original
+        assert any("complete script coverage" in m for m in result["messages"])
+
+    def test_quiet_false_reports_messages(self, tmp_path: Path, cache_dir: Path) -> None:
+        settings = tmp_path / "settings.local.json"
+        dead = "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/bin/mktmp.sh:*)"
+        settings.write_text(json.dumps({"permissions": {"allow": [dead]}}))
+
+        result = update_paths.ensure_scripts(
+            config={"plugin_cache": str(cache_dir)},
+            settings_files=[settings],
+            dry_run=False,
+            quiet=False,
+        )
+
+        joined = "\n".join(result["messages"])
+        assert "Plugin root:" in joined
+        assert "dead ** cache glob removed" in joined
+        assert "Updated 1 files" in joined
+
+    def test_dry_run_reports_would_update(self, tmp_path: Path, cache_dir: Path) -> None:
+        settings = tmp_path / "settings.local.json"
+        dead = "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/bin/mktmp.sh:*)"
+        settings.write_text(json.dumps({"permissions": {"allow": [dead]}}))
+        original = settings.read_text()
+
+        result = update_paths.ensure_scripts(
+            config={"plugin_cache": str(cache_dir)},
+            settings_files=[settings],
+            dry_run=True,
+            quiet=False,
+        )
+
+        assert settings.read_text() == original
+        assert any("Would update" in m for m in result["messages"])
+
+    def test_purges_when_concrete_already_present(self, tmp_path: Path, cache_dir: Path) -> None:
+        settings = tmp_path / "settings.local.json"
+        dead = "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/bin/mktmp.sh:*)"
+        settings.write_text(
+            json.dumps({"permissions": {"allow": [dead, self._concrete(cache_dir)]}})
+        )
+
+        result = update_paths.ensure_scripts(
+            config={"plugin_cache": str(cache_dir)},
+            settings_files=[settings],
+            dry_run=False,
+            quiet=True,
+        )
+
+        allow = json.loads(settings.read_text())["permissions"]["allow"]
+        assert dead not in allow
+        assert self._concrete(cache_dir) in allow
+        assert result["files_changed"] == 1
+
+    def test_errors_when_no_versions(self, tmp_path: Path) -> None:
+        empty_cache = tmp_path / "empty-cache"
+        empty_cache.mkdir()
+        settings = tmp_path / "settings.local.json"
+        settings.write_text(json.dumps({"permissions": {"allow": []}}))
+
+        result = update_paths.ensure_scripts(
+            config={"plugin_cache": str(empty_cache)},
+            settings_files=[settings],
+            dry_run=False,
+            quiet=True,
+        )
+
+        assert result["exit_code"] == 1
+        assert any("No versions found" in e for e in result["errors"])
+
+    def test_reports_when_no_scripts(self, tmp_path: Path) -> None:
+        cache = tmp_path / "cache"
+        (cache / "0.78.0").mkdir(parents=True)
+        settings = tmp_path / "settings.local.json"
+        settings.write_text(json.dumps({"permissions": {"allow": []}}))
+
+        result = update_paths.ensure_scripts(
+            config={"plugin_cache": str(cache)},
+            settings_files=[settings],
+            dry_run=False,
+            quiet=True,
+        )
+
+        assert result["exit_code"] == 0
+        assert any("No callable scripts" in m for m in result["messages"])
