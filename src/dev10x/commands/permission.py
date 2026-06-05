@@ -470,6 +470,37 @@ def enumerate_mcp(*, dry_run: bool, quiet: bool) -> None:
     mod.enumerate_settings(settings_files, dry_run=dry_run, quiet=quiet)
 
 
+@permission.command(name="promote-plan")
+@click.option("--quiet", is_flag=True, help="Suppress config line")
+def promote_plan(*, quiet: bool) -> None:
+    """Dry-run plan: read-only MCP tools + research domains to promote (GH-470).
+
+    Increment 1 — reports what WOULD be promoted to global settings; makes
+    NO changes. Read-only tools and project-local research WebFetch domains
+    are classified and deduped against global; writes and sensitivity-flagged
+    reads are excluded from the default promotable set. Actual promotion is
+    deferred to a follow-up (Increment 2).
+    """
+    from dev10x.skills.permission import promote as mod
+    from dev10x.skills.permission import update_paths as paths_mod
+
+    config_path = paths_mod.find_config()
+    if not quiet:
+        click.echo(f"Config: {config_path}")
+    config = paths_mod.load_config(config_path)
+
+    settings_files = paths_mod.find_settings_files(
+        roots=config.get("roots", []),
+        include_user=False,
+    )
+    global_settings = Path.home() / ".claude" / "settings.json"
+    plan = mod.build_promotion_plan(
+        project_settings_paths=settings_files,
+        global_settings_path=global_settings,
+    )
+    click.echo(mod.render_promotion_plan(plan))
+
+
 @permission.command(name="merge-worktree")
 @click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
 @click.option("--restore", is_flag=True, help="Restore settings from most recent backups")
