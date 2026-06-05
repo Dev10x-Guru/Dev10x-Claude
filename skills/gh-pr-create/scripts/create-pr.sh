@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # Create a PR with two-pass body generation.
 # Usage: create-pr.sh <title> <job_story> <issue_id> \
-#            [<fixes_url>] [<base_branch>] [<closes_csv>] [<draft>]
+#            [<fixes_url>] [<base_branch>] [<closes_csv>] [<draft>] [<head_repo>]
 #   closes_csv: comma-separated issue numbers to add as Closes #N lines (GH-186)
 #   draft: "true" (default) or "false" — pass "false" in solo-maintainer mode (GH-184)
+#   head_repo: fork owner for a cross-fork PR (GH-473). When set, the head
+#     branch is pushed to that owner's remote and the PR opens with
+#     --head <head_repo>:<branch> against the upstream base.
 # Outputs the PR number on success.
 set -euo pipefail
 
@@ -14,6 +17,7 @@ FIXES_URL="${4:-}"
 BASE_BRANCH="${5:-}"
 CLOSES_CSV="${6:-}"
 DRAFT="${7:-true}"
+HEAD_REPO="${8:-}"
 
 FIXES_LINE=""
 if [ -n "$FIXES_URL" ]; then
@@ -50,8 +54,19 @@ if [ -f .github/checklist.md ]; then
     CHECKLIST=$(sed "s/ISSUE-NO/$ISSUE/" .github/checklist.md)
 fi
 
-# Push branch
-git push --set-upstream origin "$BRANCH_NAME"
+# Push branch. For a cross-fork PR (GH-473), push the head to the fork
+# owner's remote (matched by URL owner, then a `fork` remote, then origin)
+# rather than to the upstream base remote.
+PUSH_REMOTE=origin
+if [ -n "$HEAD_REPO" ]; then
+    MATCHED_REMOTE=$(git remote -v | awk -v o="$HEAD_REPO/" '$2 ~ o {print $1; exit}')
+    if [ -n "$MATCHED_REMOTE" ]; then
+        PUSH_REMOTE="$MATCHED_REMOTE"
+    elif git remote get-url fork >/dev/null 2>&1; then
+        PUSH_REMOTE=fork
+    fi
+fi
+git push --set-upstream "$PUSH_REMOTE" "$BRANCH_NAME"
 
 # First pass: create PR with plain commit list + checklist
 COMMITS=$(git log "origin/$BASE_BRANCH..HEAD" --reverse --format="- %s")
@@ -59,6 +74,9 @@ BODY=$(printf '%s\n\n---\n\n%s%s%s\n\n---\n\n%s' \
     "$JOB_STORY" "$COMMITS" "$CLOSES_BLOCK" "$FIXES_LINE" "$CHECKLIST")
 
 CREATE_ARGS=(--base "$BASE_BRANCH" --title "$TITLE" --body "$BODY")
+if [ -n "$HEAD_REPO" ]; then
+    CREATE_ARGS+=(--head "$HEAD_REPO:$BRANCH_NAME")
+fi
 if [ "$DRAFT" = "true" ]; then
     CREATE_ARGS=(--draft "${CREATE_ARGS[@]}")
 fi

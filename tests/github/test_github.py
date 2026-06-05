@@ -1802,8 +1802,8 @@ class TestCreatePr:
         )
 
         called_args = mock_run.call_args.args
-        # Trailing args: fixes_url, base_branch, closes_csv, draft
-        assert called_args[-4:] == ("", "", "", "true")
+        # Trailing args: fixes_url, base_branch, closes_csv, draft, head_repo
+        assert called_args[-5:] == ("", "", "", "true", "")
 
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
@@ -1822,7 +1822,27 @@ class TestCreatePr:
         )
 
         called_args = mock_run.call_args.args
-        assert called_args[-2:] == ("184,185,186", "false")
+        # Trailing args: closes_csv, draft, head_repo
+        assert called_args[-3:] == ("184,185,186", "false", "")
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_emits_head_repo_for_cross_fork_pr(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="https://github.com/o/r/pull/7\n7")
+
+        await gh.create_pr(
+            title="t",
+            job_story="js",
+            issue_id="GH-473",
+            head_repo="octocat",
+        )
+
+        called_args = mock_run.call_args.args
+        # head_repo is the final positional arg passed to create-pr.sh
+        assert called_args[-1] == "octocat"
 
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run_script", new_callable=AsyncMock)

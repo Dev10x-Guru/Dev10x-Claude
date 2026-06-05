@@ -832,12 +832,14 @@ async def create_pr(
     base_branch: str | None = None,
     closes: list[int] | None = None,
     draft: bool = True,
+    head_repo: str | None = None,
 ) -> Result[dict[str, Any]]:
     args = [title, job_story, issue_id]
     args.append(fixes_url or "")
     args.append(base_branch or "")
     args.append(",".join(str(n) for n in closes) if closes else "")
     args.append("true" if draft else "false")
+    args.append(head_repo or "")
 
     result = await async_run_script(
         "skills/gh-pr-create/scripts/create-pr.sh",

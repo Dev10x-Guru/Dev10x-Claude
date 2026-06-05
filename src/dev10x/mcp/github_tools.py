@@ -452,6 +452,7 @@ async def create_pr(
     base_branch: str | None = None,
     closes: list[int] | None = None,
     draft: bool = True,
+    head_repo: str | None = None,
     cwd: str | None = None,
     ctx: Context | None = None,
 ) -> dict:
@@ -469,6 +470,10 @@ async def create_pr(
         draft: Create as draft (default True). Pass False in
             solo-maintainer mode so the PR is immediately
             ready-for-review (GH-184).
+        head_repo: Fork owner for a cross-fork PR (GH-473). When set,
+            the head branch is pushed to that owner's remote and the
+            PR opens with `--head <head_repo>:<branch>` against the
+            upstream base. Omit for same-repo PRs.
         cwd: Effective working directory (GH-979). Pass the worktree
             path after EnterWorktree so the PR is created from the
             worktree's branch, not the main repo's.
@@ -494,6 +499,7 @@ async def create_pr(
                 base_branch=base_branch,
                 closes=closes,
                 draft=draft,
+                head_repo=head_repo,
             )
         ).to_dict()
 
