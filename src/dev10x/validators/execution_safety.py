@@ -6,8 +6,14 @@ block-python3-inline.py.
 Blocks:
   1. Shell-based file writes (cat >, echo >, printf >)
   2. In-place file editors (sed -i, perl -i, gawk -i inplace, dd of=)
-  3. python3 -c inline code
-  4. python3 with untrusted absolute paths
+  3. Interpreter inline code (python3 -c, bash/sh/zsh -c)
+  4. Interpreters running untrusted absolute script paths
+     (python3/bash/sh/zsh <untrusted-abs-path>)
+
+The interpreter guard (GH-469) treats bash/sh/zsh as siblings of
+python3: the `bash <verb> *` catch-all is the higher-severity footgun
+(arbitrary shell, total rule bypass), so it must be hook-enforced here
+rather than left to an unreliable permission deny-rule.
 """
 
 from __future__ import annotations
@@ -81,6 +87,30 @@ Benefits:
 
 If the script needs no third-party deps, the # /// block can be omitted."""
 
+SHELL_INTERPRETERS = ("bash", "sh", "zsh")
+
+# Shell interpreters may additionally run scripts staged under the Dev10x
+# temp dir (GH-370 pre-approves /tmp/Dev10x/ execution); python3 keeps the
+# narrower APPROVED_ABS_PREFIXES set.
+SHELL_APPROVED_ABS_PREFIXES = (*APPROVED_ABS_PREFIXES, "/tmp/Dev10x/")
+
+SHELL_INTERP_MSG = """\
+\U0001f6ab  shell inline/untrusted script execution blocked.
+
+`bash`/`sh`/`zsh` running inline code (`-c`) or an untrusted absolute
+script path bypasses every PreToolUse guardrail. Use one of:
+
+  - Inline logic — Write a self-contained uv script to
+    /tmp/Dev10x/<name>.py via the Write tool, then `uv run --script` it
+    (auditable diff, declared deps, no rule bypass).
+  - An existing script — run it directly via its shebang
+    (./script.sh) instead of `bash script.sh`.
+  - A staged script — place it under an approved dir and run it
+    there: ~/.claude/{tools,skills,hooks}/ or /tmp/Dev10x/.
+
+Relative paths (e.g. `bash ./build.sh`) and approved-dir absolute paths
+are allowed; only inline `-c` and untrusted absolute paths are blocked."""
+
 
 def _strip_env_prefix(parts: list[str]) -> list[str]:
     i = 0
@@ -89,9 +119,9 @@ def _strip_env_prefix(parts: list[str]) -> list[str]:
     return parts[i:]
 
 
-def _is_approved_path(path: str) -> bool:
+def _is_approved_path(path: str, prefixes: tuple[str, ...] = APPROVED_ABS_PREFIXES) -> bool:
     expanded = os.path.expanduser(path)
-    return any(expanded.startswith(p) or path.startswith(p) for p in APPROVED_ABS_PREFIXES)
+    return any(expanded.startswith(p) or path.startswith(p) for p in prefixes)
 
 
 def _has_inplace_flag(*, argv: list[str], cmd: str) -> bool:
@@ -152,7 +182,7 @@ class ExecutionSafetyValidator(ValidatorBase):
         result = self._check_inplace_edit(command=inp.command)
         if result:
             return result
-        return self._check_python3_inline(command=inp.command)
+        return self._check_interpreter(command=inp.command)
 
     def _check_shell_writes(self, *, command: str) -> HookResult | None:
         if SHELL_WRITE_RE.search(command):
@@ -194,8 +224,47 @@ class ExecutionSafetyValidator(ValidatorBase):
 
         return None
 
-    def _check_python3_inline(self, *, command: str) -> HookResult | None:
-        if "python3" not in command:
+    def _check_interpreter(self, *, command: str) -> HookResult | None:
+        """Block inline code and untrusted absolute script paths for
+        python3 and the shell interpreters (bash/sh/zsh).
+
+        python3 keeps its `-m` carve-out and the narrow approved-prefix
+        set; the shell interpreters additionally allow /tmp/Dev10x/.
+        First match wins (python3 checked before the shells).
+        """
+        result = self._check_one_interpreter(
+            command=command,
+            interpreter="python3",
+            approved=APPROVED_ABS_PREFIXES,
+            message=PYTHON3_INLINE_MSG,
+            allow_module=True,
+        )
+        if result:
+            return result
+
+        for interpreter in SHELL_INTERPRETERS:
+            result = self._check_one_interpreter(
+                command=command,
+                interpreter=interpreter,
+                approved=SHELL_APPROVED_ABS_PREFIXES,
+                message=SHELL_INTERP_MSG,
+                allow_module=False,
+            )
+            if result:
+                return result
+
+        return None
+
+    def _check_one_interpreter(
+        self,
+        *,
+        command: str,
+        interpreter: str,
+        approved: tuple[str, ...],
+        message: str,
+        allow_module: bool,
+    ) -> HookResult | None:
+        if interpreter not in command:
             return None
 
         first_cmd = command.split("|")[0].strip()
@@ -207,16 +276,16 @@ class ExecutionSafetyValidator(ValidatorBase):
 
         parts = _strip_env_prefix(parts)
 
-        if not parts or parts[0] != "python3":
+        if not parts or parts[0] != interpreter:
             return None
 
         argv = parts[1:]
 
-        if "-m" in argv:
+        if allow_module and "-m" in argv:
             return None
 
         if any(a == "-c" or a.startswith("-c") for a in argv):
-            return HookResult(message=PYTHON3_INLINE_MSG)
+            return HookResult(message=message)
 
         script = next(
             (a for a in argv if not a.startswith("-")),
@@ -226,7 +295,7 @@ class ExecutionSafetyValidator(ValidatorBase):
         if script is None or not os.path.isabs(os.path.expanduser(script)):
             return None
 
-        if _is_approved_path(script):
+        if _is_approved_path(script, approved):
             return None
 
-        return HookResult(message=PYTHON3_INLINE_MSG)
+        return HookResult(message=message)
