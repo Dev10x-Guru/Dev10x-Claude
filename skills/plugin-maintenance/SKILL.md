@@ -25,6 +25,7 @@ allowed-tools:
   - Bash(uvx dev10x permission merge-worktree:*)
   - Bash(uvx dev10x permission clean:*)
   - Bash(uvx dev10x permission enumerate-mcp:*)
+  - Bash(uvx dev10x permission promote-plan:*)
   - Bash(uvx dev10x permission ensure-base:*)
   - Bash(uvx dev10x permission ensure-reads:*)
   - Bash(uvx dev10x permission ensure-scripts:*)
@@ -524,6 +525,31 @@ uvx dev10x permission enumerate-mcp --dry-run
 ```bash
 uvx dev10x permission enumerate-mcp
 ```
+
+### 6b. Promotion plan — read-only MCP tools + research domains *(full only, GH-470)*
+
+MCP approvals are scoped per tool-name × per project-directory, so a
+read-only tool (claude.ai-hosted Slack/Linear/etc.) re-prompts in every
+project. This step reports which read-only MCP tools and project-local
+research `WebFetch(domain:*)` rules **would** be promoted to global
+settings, so they stop re-prompting per project.
+
+**Increment 1 is a DRY RUN — it makes no changes.** Tools are classified
+read-vs-write by a name-token heuristic (write-precedence: any write token
+excludes the tool). Writes are never promoted; sensitivity-flagged reads
+(private/DM/secret access) are reported separately as opt-in. Plugin tools
+are excluded — they go through step 6 (enumerate-mcp) instead. The
+heuristic carries false-positive risk (e.g. a `get_access_to_*` grant
+reads as `read`), so a human reviews the plan before any promotion lands.
+
+```bash
+uvx dev10x permission promote-plan
+```
+
+> **Deferred (Increment 2):** actually writing the approved read-only set
+> + research domains into global `~/.claude/settings.json` is a follow-up
+> once the classifier is validated against real allow-lists. Until then
+> this step is report-only.
 
 ### 7. Ensure script coverage **[bootstrap]**
 
