@@ -348,6 +348,43 @@ This script:
 4. Updates the body with linked commits (using `generate-commit-list.sh`)
 5. Outputs the PR number
 
+### Step 6b: Cross-Fork PRs (GH-473)
+
+When contributing to an external repo from your own fork (the head
+repo differs from the base repo), pass the fork owner via the
+`head_repo` parameter so the wrapper opens the PR with
+`--head <head_repo>:<branch>` — instead of dropping to a raw
+`gh pr create --head` that bypasses the Job Story, commit list,
+summary comment, and notify flow.
+
+```
+mcp__plugin_Dev10x_cli__create_pr(
+    title=..., job_story=..., issue_id=...,
+    head_repo="<fork-owner>",   # e.g. "octocat"
+)
+```
+
+With `head_repo` set, `create-pr.sh` pushes the head branch to the
+fork owner's remote (matched by remote-URL owner, then a `fork`
+remote, then `origin`) and adds `--head <fork-owner>:<branch>` to
+`gh pr create`. All wrapper behavior (JTBD body, linked commit
+list, `Fixes:` line, summary comment) is preserved.
+
+**Detect-fork-remote heuristic.** Before setting `head_repo`,
+confirm the head differs from the base. Inspect the remotes:
+
+```bash
+git remote -v
+```
+
+The base/upstream owner is the owner of `origin`'s URL; the fork
+owner is the owner of whichever remote you push to (often a remote
+literally named `fork`, or one whose URL owner is your GitHub
+login). When the two owners differ, infer `head_repo=<fork-owner>`
+and **confirm the inferred head with the user** before creating the
+PR (same confirm-before-act pattern as base-branch detection). For
+same-repo PRs the owners match — omit `head_repo` entirely.
+
 ### Step 7: Mark N/A Checklist Items in PR Body
 
 Analyze `git diff origin/$BASE_BRANCH..HEAD` to determine which checklist items
