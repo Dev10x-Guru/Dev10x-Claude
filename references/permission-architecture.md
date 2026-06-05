@@ -92,6 +92,25 @@ Source: [Claude Code permissions docs](https://code.claude.com/docs/en/permissio
 — "Rules are evaluated `deny → ask → allow`; the first matching rule
 wins" and "`Bash(git *)` matches `git log --oneline --all`".
 
+### Interpreter footguns are hook-enforced (GH-469)
+
+The most dangerous `Bash(<verb> *)` catch-all is the interpreter one
+(`bash *`, `sh *`, `zsh *`, `python3 *`) — it grants arbitrary code
+execution and a total rule bypass. Protection for these does **not**
+rely on a permission deny-rule (which is unreliable: it does not
+suppress the option-2 UI footgun and does not reliably merge
+global→project). Instead, the `DX003` execution-safety validator
+(`src/dev10x/validators/execution_safety.py`, `MINIMAL` profile) runs
+on **every** Bash call and blocks inline code (`bash -c`, `python3 -c`)
+and untrusted absolute script paths, steering to the Write-tool /
+uv-script pattern or an approved dir (`~/.claude/{tools,skills,hooks}/`,
+`/tmp/Dev10x/`).
+
+**Rule of thumb:** footgun catch-alls are **hook-enforced** (a
+PreToolUse validator that always runs); permission deny-rules are
+**belt-and-suspenders** — a defensive second layer, never the primary
+guard.
+
 ### The fix: pre-approve the safe surface
 
 The only safe defense is to **enumerate the safe commands as `allow`

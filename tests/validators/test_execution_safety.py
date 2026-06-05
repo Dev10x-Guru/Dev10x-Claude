@@ -6,6 +6,7 @@ import pytest
 
 from dev10x.validators.execution_safety import (
     INPLACE_EDIT_MSG,
+    SHELL_INTERP_MSG,
     ExecutionSafetyValidator,
 )
 from tests.fakers import BashHookInputFaker
@@ -222,3 +223,93 @@ class TestPython3InlineEdgeCases:
         inp = _make_input(command="echo python3 rocks")
         result = validator.validate(inp=inp)
         assert result is None
+
+
+class TestShellInterpreter:
+    """GH-469: bash/sh/zsh are siblings of python3 in the interpreter guard."""
+
+    @pytest.fixture()
+    def validator(self) -> ExecutionSafetyValidator:
+        return ExecutionSafetyValidator()
+
+    # --- Positive cases: untrusted/inline shell execution must be blocked ---
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "bash /tmp/x.sh",
+            "sh /tmp/x.sh",
+            "zsh /tmp/x.sh",
+            "bash /tmp/classify_branches.sh",
+        ],
+    )
+    def test_blocks_untrusted_abs_script(
+        self, validator: ExecutionSafetyValidator, command: str
+    ) -> None:
+        inp = _make_input(command=command)
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert result.message == SHELL_INTERP_MSG
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "bash -c 'rm -rf /tmp/x'",
+            "sh -c 'echo hi'",
+            "zsh -c 'print hi'",
+        ],
+    )
+    def test_blocks_inline_c(self, validator: ExecutionSafetyValidator, command: str) -> None:
+        inp = _make_input(command=command)
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert result.message == SHELL_INTERP_MSG
+
+    def test_blocks_env_prefix_stripped_bash(self, validator: ExecutionSafetyValidator) -> None:
+        inp = _make_input(command="FOO=1 bash /tmp/x.sh")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert result.message == SHELL_INTERP_MSG
+
+    # --- Negative cases: approved / relative forms must NOT be flagged ---
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "bash ~/.claude/tools/x.sh",
+            "bash ~/.claude/skills/foo/run.sh",
+            "bash ~/.claude/hooks/h.sh",
+            "bash /tmp/Dev10x/x.sh",
+            "sh /tmp/Dev10x/setup.sh",
+            "zsh /tmp/Dev10x/run.zsh",
+            "bash ./build.sh",
+            "bash build.sh",
+        ],
+    )
+    def test_allows_approved_and_relative(
+        self, validator: ExecutionSafetyValidator, command: str
+    ) -> None:
+        inp = _make_input(command=command)
+        result = validator.validate(inp=inp)
+        assert result is None
+
+    def test_unbalanced_quotes_returns_none(self, validator: ExecutionSafetyValidator) -> None:
+        inp = _make_input(command="bash -c 'echo hi")
+        result = validator.validate(inp=inp)
+        assert result is None
+
+    def test_interpreter_as_argument_returns_none(
+        self, validator: ExecutionSafetyValidator
+    ) -> None:
+        # 'bash' appears only as an argument, not the command
+        inp = _make_input(command="echo bash /tmp/x.sh")
+        result = validator.validate(inp=inp)
+        assert result is None
+
+    def test_dev10x_tmp_not_approved_for_python3(
+        self, validator: ExecutionSafetyValidator
+    ) -> None:
+        # /tmp/Dev10x/ is a shell-only carve-out; python3 keeps the narrow set
+        inp = _make_input(command="python3 /tmp/Dev10x/x.py")
+        result = validator.validate(inp=inp)
+        assert result is not None
