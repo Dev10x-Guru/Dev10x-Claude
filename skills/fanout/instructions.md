@@ -853,29 +853,68 @@ pattern `.claude/worktrees/agent-<id>/`.
    → Proceed.
 
 3. **Dirty worktree (non-empty output):** The worktree has
-   uncommitted modifications. For each modified file:
+   uncommitted modifications. Resolve in two checks — confirm
+   the branch is **merged**, then **classify the dirt**.
+
+   **Merged check (REQUIRED before any force-remove, GH-476):**
+   A dirty worktree may only be force-removed once its branch has
+   landed on base. The branch is merged when either holds:
+   - `git -C <worktree-path> merge-base --is-ancestor HEAD
+     origin/<base>` exits 0 (fast-forward or merge-commit landing),
+     or
+   - the upstream is gone after a rebase-merge — `git -C
+     <worktree-path> status -sb` reports `[gone]` (rebase-merge
+     rewrites commits, so the tip is NOT an ancestor of base; the
+     gone upstream is the merge signal instead).
+
+   If the branch is NOT merged, treat the dirt as unmerged work
+   and skip to step 5 — never force-remove an unmerged branch.
+
+   **Dirt classification (per modified file):**
    - Compare the working-copy version against the base branch
-     HEAD: `git diff origin/<base> -- <file>` inside the
-     worktree.
-   - **Diff is empty (identical or not present on base):** The
+     HEAD: `git -C <worktree-path> diff origin/<base> -- <file>`.
+   - **Diff is empty (identical or not present on base):** the
      file is a stale duplicate — content already on develop or
      the file was removed upstream. Safe to discard.
-   - **Diff is non-empty:** The file contains content not yet
-     on the base branch. This is genuinely unique work.
+   - **Diff is non-empty:** the file carries content not on base.
+     This is genuinely unique work UNLESS it is a **replicated
+     artifact** (next check).
 
-4. **All dirty files are stale duplicates:**
+   **Replicated-artifact check (GH-476):** A repo-wide `.claude/`
+   rule or template rewrite (a lint/template sync) is replicated
+   *identically* into every sibling agent worktree and never
+   committed, so its diff is non-empty against base yet is
+   mechanical noise, not the agent's own work. Hash each agent
+   worktree's full dirty diff once and compare across siblings:
+   `git -C <worktree-path> diff origin/<base> | md5sum`. When the
+   **same hash appears in ≥2 sibling agent worktrees**, that diff
+   is a replicated artifact — its files are discardable, not
+   unique work. A diff whose hash is unique to a single worktree
+   is genuinely unique work. Record the hash in the worktree's
+   Phase 4 subtask metadata so sibling teardowns (and the Swarm
+   Teardown sweep) can match it. When an early-completing agent
+   tears down before ≥2 sibling hashes are known, the match
+   cannot fire yet — keep the worktree (step 5) and let the
+   Swarm Teardown sweep, which sees every surviving sibling's
+   hash, force-remove it once the replicated signature is
+   confirmed.
+
+4. **Branch merged AND every dirty file is discardable** (stale
+   duplicate and/or replicated artifact):
    → `git worktree remove --force <worktree-path>`
    → Delete the child branch: `git branch -D <branch>`
+   → `git worktree prune` (drop the freed administrative record)
    → Add a note to the Phase 4 subtask metadata:
-     `"teardown": "force-removed (stale duplicates only)"`
+     `"teardown": "force-removed (stale/replicated dirt)"`
    → Proceed.
 
-5. **Any dirty file has unique content:**
+5. **Branch unmerged, OR any dirty file is genuinely unique**
+   (non-empty diff whose hash is unique to this worktree):
    → Do NOT remove the worktree.
    → Add a note to the Phase 4 subtask metadata:
-     `"teardown": "kept — unique content in <files>"`
-   → Surface in the Phase 5 summary so the supervisor
-     can decide what to do with the unique content.
+     `"teardown": "kept — <unmerged | unique content in <files>>"`
+   → Surface in the Phase 5 summary so the supervisor can decide
+     what to do (stash, cherry-pick, or discard).
 
 **Timing:** Teardown runs AFTER the PR is confirmed MERGED
 and AFTER all child-scoped processes have exited (i.e., after
@@ -988,11 +1027,23 @@ For each worktree whose path matches `.claude/worktrees/agent-*`
 and whose branch is a `worktree-agent-*` branch:
 
 Apply the same decision tree as Phase 4's Post-Agent Worktree
-Teardown:
+Teardown — including the **merged check** and the
+**replicated-artifact check** (GH-476):
 - Clean → `git worktree remove`
-- All dirty files are stale duplicates → `git worktree remove --force`
-- Any dirty file has unique content → keep; add to the
-  swarm-end summary for supervisor review
+- Branch merged AND all dirty files discardable (stale duplicate
+  and/or replicated artifact whose diff hashes identically across
+  siblings) → `git worktree remove --force`, `git branch -D
+  <branch>`, then `git worktree prune`
+- Branch unmerged, OR any dirty file is genuinely unique (diff
+  hash seen in only this worktree) → keep; add to the swarm-end
+  summary for supervisor review
+
+Hash sibling diffs (`git -C <path> diff origin/<base> | md5sum`)
+before deciding — the replicated `.claude/` rewrite that #476
+documents is non-empty against base but identical across every
+surviving agent worktree, so a per-file "is the diff empty?"
+test alone keeps it forever. The cross-sibling hash match is
+what distinguishes mechanical noise from real work.
 
 Collect a list of worktrees kept (with reason) for the summary.
 
