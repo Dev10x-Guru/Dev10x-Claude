@@ -22,6 +22,7 @@ dependencies = [
     "msgpack>=1.0",
     "pyjwt[crypto]>=2.8",
     "pyyaml>=6.0",
+    "slack-sdk>=3.27",
 ]
 
 [project.urls]
