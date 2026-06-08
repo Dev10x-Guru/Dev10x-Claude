@@ -68,6 +68,42 @@ class TestDirectPsql:
         assert "Direct psql calls" in result.message
 
 
+class TestWrappedPsqlExemption:
+    """psql wrapped by docker exec / op run is exempt (GH-474 #4)."""
+
+    @pytest.fixture()
+    def validator(self) -> SqlSafetyValidator:
+        return SqlSafetyValidator()
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "docker exec dvi-enum-test psql -U postgres -d testdb -c 'SELECT 1'",
+            "op run --env-file=.env -- psql -h localhost -d mydb -c 'SELECT 1'",
+            "/usr/local/bin/op run -- psql -d mydb -c 'SELECT 1'",
+        ],
+    )
+    def test_allows_wrapped_psql(self, validator: SqlSafetyValidator, command: str) -> None:
+        inp = _make_input(command=command)
+        result = validator.validate(inp=inp)
+        assert result is None
+
+    def test_still_blocks_bare_psql_after_exempt_segment(
+        self, validator: SqlSafetyValidator
+    ) -> None:
+        command = "docker exec c psql -c 'SELECT 1' | psql -h prod -d db"
+        inp = _make_input(command=command)
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "Direct psql calls" in result.message
+
+    def test_handles_empty_pipe_segment(self, validator: SqlSafetyValidator) -> None:
+        inp = _make_input(command="| psql -h prod -d db")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "Direct psql calls" in result.message
+
+
 class TestSqlValidation:
     @pytest.fixture()
     def validator(self) -> SqlSafetyValidator:
