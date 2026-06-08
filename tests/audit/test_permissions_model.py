@@ -5,9 +5,17 @@ from pathlib import Path
 
 from dev10x.audit.permissions_model import (
     ToolCall,
+    detect_hook_denials,
     detect_known_friction,
     parse_additional_directories,
 )
+
+
+def _result_block(*, tool_id: str, content: str) -> str:
+    return (
+        f"<details><summary>Tool result ({tool_id}...)</summary>\n\n"
+        f"```\n{content}\n```\n</details>\n\n"
+    )
 
 
 class TestParseAdditionalDirectories:
@@ -153,3 +161,47 @@ class TestDetectKnownFriction:
             "WORKSPACE_GATE",
             "WRITE_OVERWRITE_GATE",
         ]
+
+
+class TestDetectHookDenials:
+    """Phase 4 must surface hook denials hidden in tool-result blocks (GH-474 #8)."""
+
+    def test_flags_blocked_validator_message(self) -> None:
+        transcript = (
+            "## Turn 5 [12:00:00] ASSISTANT\n\n"
+            "**Tool: `Bash`**\n```\ncommand=psql -h localhost\n```\n\n"
+            "## Turn 6 [12:00:01] USER\n\n"
+            + _result_block(
+                tool_id="toolu_abc12",
+                content="BLOCKED: Direct psql calls are not allowed.",
+            )
+        )
+        findings = detect_hook_denials(text=transcript)
+        assert [f.classification for f in findings] == ["HOOK_DENIAL"]
+        assert findings[0].turn == 6
+
+    def test_flags_permission_decision_deny(self) -> None:
+        transcript = "## Turn 2 [09:00:00] USER\n\n" + _result_block(
+            tool_id="toolu_xyz99",
+            content='{"hookSpecificOutput": {"permissionDecision":"deny"}}',
+        )
+        findings = detect_hook_denials(text=transcript)
+        assert [f.classification for f in findings] == ["HOOK_DENIAL"]
+        assert findings[0].turn == 2
+
+    def test_ignores_benign_tool_results(self) -> None:
+        transcript = "## Turn 3 [09:00:00] USER\n\n" + _result_block(
+            tool_id="toolu_ok000", content="SELECT 1\n 1"
+        )
+        assert detect_hook_denials(text=transcript) == []
+
+    def test_finds_multiple_denials(self) -> None:
+        transcript = (
+            "## Turn 1 [09:00:00] USER\n\n"
+            + _result_block(tool_id="toolu_a", content="BLOCKED: nope")
+            + "## Turn 2 [09:00:01] USER\n\n"
+            + _result_block(tool_id="toolu_b", content="hook error: denied")
+        )
+        findings = detect_hook_denials(text=transcript)
+        assert [f.classification for f in findings] == ["HOOK_DENIAL", "HOOK_DENIAL"]
+        assert [f.index for f in findings] == [1, 2]
