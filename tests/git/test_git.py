@@ -249,26 +249,21 @@ class TestResolveGroomBase:
     ) -> None:
         from dev10x.git import _resolve_groom_base
 
-        # show-ref succeeds (remote exists), rev-list reports 3 commits behind.
-        mock_run.side_effect = [
-            _completed(returncode=0),
-            _completed(returncode=0, stdout="3\n"),
-        ]
+        # Single rev-list call reports 3 commits behind (both refs exist).
+        mock_run.return_value = _completed(returncode=0, stdout="3\n")
         effective, notice = await _resolve_groom_base("develop")
 
         assert effective == "origin/develop"
         assert notice is not None
         assert "3 commit(s) behind origin/develop" in notice
+        assert mock_run.await_count == 1
 
     @pytest.mark.asyncio
     @patch("dev10x.git.async_run", new_callable=AsyncMock)
     async def test_local_up_to_date_no_notice(self, mock_run: AsyncMock) -> None:
         from dev10x.git import _resolve_groom_base
 
-        mock_run.side_effect = [
-            _completed(returncode=0),
-            _completed(returncode=0, stdout="0\n"),
-        ]
+        mock_run.return_value = _completed(returncode=0, stdout="0\n")
         effective, notice = await _resolve_groom_base("develop")
 
         assert effective == "origin/develop"
@@ -279,6 +274,7 @@ class TestResolveGroomBase:
     async def test_no_remote_tracking_ref_uses_local(self, mock_run: AsyncMock) -> None:
         from dev10x.git import _resolve_groom_base
 
+        # rev-list exits non-zero when either ref is absent → local base.
         mock_run.return_value = _completed(returncode=1)
         effective, notice = await _resolve_groom_base("develop")
 
@@ -301,10 +297,7 @@ class TestResolveGroomBase:
     async def test_rebase_groom_attaches_base_notice(
         self, mock_run: AsyncMock, mock_script: AsyncMock
     ) -> None:
-        mock_run.side_effect = [
-            _completed(returncode=0),
-            _completed(returncode=0, stdout="2\n"),
-        ]
+        mock_run.return_value = _completed(returncode=0, stdout="2\n")
         mock_script.return_value = _completed(stdout="commits_rewritten=2")
 
         result = await rebase_groom(seq_path="/tmp/seq.txt", base_ref="develop")

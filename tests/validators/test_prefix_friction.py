@@ -503,13 +503,27 @@ class TestUvRunEnvFlagNormalization:
             "uv run --directory apps/api python manage.py makemigrations core",
             "uv run --frozen --directory apps/api pytest",
             "uv run --directory=apps/api pytest tests/",
-            "uv run --with httpx python manage.py shell",
         ],
     )
     def test_should_run_true_for_uv_run_env_flags(
         self, validator: PrefixFrictionValidator, command: str
     ) -> None:
         assert validator.should_run(inp=_make_input(command=command)) is True
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # --with disqualifies (no env-flag normalization), and plain
+            # `uv run <tool>` needs no normalization — neither should_run.
+            "uv run --with httpx python manage.py shell",
+            "uv run pytest tests/",
+            "ls -la",
+        ],
+    )
+    def test_should_run_false_when_no_normalization(
+        self, validator: PrefixFrictionValidator, command: str
+    ) -> None:
+        assert validator.should_run(inp=_make_input(command=command)) is False
 
     @pytest.mark.parametrize(
         "command",
@@ -530,14 +544,19 @@ class TestUvRunEnvFlagNormalization:
         assert isinstance(result, HookAllow)
         assert "DX007" in result.message
 
-    def test_with_pkg_stripped_inner_governs(self, validator: PrefixFrictionValidator) -> None:
-        from dev10x.domain import HookAllow
-
-        # `--with httpx` is stripped; inner `python manage.py shell` governs.
+    def test_with_pkg_disqualifies_auto_approval(self, validator: PrefixFrictionValidator) -> None:
+        # `--with httpx` installs an arbitrary package — never auto-approve;
+        # falls through to the fence-tool ask (no HookAllow).
         result = validator.validate(
             inp=_make_input(command="uv run --with httpx python manage.py shell")
         )
-        assert isinstance(result, HookAllow)
+        assert result is None
+
+    def test_with_eq_form_disqualifies_auto_approval(
+        self, validator: PrefixFrictionValidator
+    ) -> None:
+        result = validator.validate(inp=_make_input(command="uv run --with=httpx pytest tests/"))
+        assert result is None
 
     def test_inner_ask_command_not_approved(self, validator: PrefixFrictionValidator) -> None:
         # `python -c ...` is not in the allow list — inner tier governs, so

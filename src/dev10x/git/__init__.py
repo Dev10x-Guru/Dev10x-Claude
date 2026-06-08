@@ -100,25 +100,26 @@ async def _resolve_groom_base(base_ref: str) -> tuple[str, str | None]:
         return base_ref, None
 
     remote = f"origin/{base_ref}"
-    check = await async_run(
-        args=["git", "show-ref", "--verify", "--quiet", f"refs/remotes/{remote}"],
-        timeout=15,
-    )
-    if check.returncode != 0:
-        return base_ref, None
-
-    notice: str | None = None
+    # One round-trip: `rev-list --count base..origin/base` exits non-zero
+    # when either ref is absent (no remote-tracking ref), and emits the
+    # lag count when both exist — so a single call both detects the
+    # remote and measures staleness.
     behind = await async_run(
         args=["git", "rev-list", "--count", f"{base_ref}..{remote}"],
         timeout=15,
     )
+    if behind.returncode != 0:
+        return base_ref, None
+
+    effective = qualify_base_ref(base_ref, remote_exists=True)
     count = behind.stdout.strip()
-    if behind.returncode == 0 and count.isdigit() and int(count) > 0:
+    notice: str | None = None
+    if count.isdigit() and int(count) > 0:
         notice = (
             f"local {base_ref} is {count} commit(s) behind {remote} — "
-            f"grooming against {remote} (fork-point), not the stale local ref"
+            f"grooming against {effective} (fork-point), not the stale local ref"
         )
-    return remote, notice
+    return effective, notice
 
 
 async def rebase_groom(*, seq_path: str, base_ref: str) -> Result[dict[str, Any]]:

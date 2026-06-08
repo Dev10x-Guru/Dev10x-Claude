@@ -62,23 +62,29 @@ CD_GIT_CHAIN_RE = re.compile(r'^cd\s+("(?:[^"]+)"|\'(?:[^\']+)\'|\S+)\s*&&\s*git
 # auto-approval can never widen what the inner command isn't already
 # allowed to do.
 #
-# `--with <pkg>` installs an arbitrary dependency, but the inner command
-# still governs execution — per GH-485 option (a) we strip it too and
-# rely on the inner tier rather than minting a separate broad-ask.
+# `--with <pkg>` installs an arbitrary dependency into the ephemeral
+# env — a supply-chain surface, unlike the pure-environment flags. It is
+# therefore NOT stripped: its presence DISQUALIFIES the command from
+# auto-approval, so `uv run --with <pkg> <tool>` falls through to the
+# normal `uv run` fence-tool ask rather than being silently approved
+# (GH-485 `--with` caveat; aligns with the fence-tool ask policy).
 _UV_RUN_RE = re.compile(r"^\s*uv\s+run\b(?P<rest>.*)$", re.DOTALL)
-_UV_ENV_VALUE_FLAGS = frozenset({"--directory", "--project", "--python", "--with", "--extra"})
+_UV_ENV_VALUE_FLAGS = frozenset({"--directory", "--project", "--python", "--extra"})
 _UV_ENV_BOOL_FLAGS = frozenset({"--frozen", "--no-project", "--locked", "--no-sync"})
-_UV_RUN_ENV_TRIGGER_RE = re.compile(
-    r"^\s*uv\s+run\s+--(?:directory|project|python|with|extra|frozen|no-project|locked|no-sync)\b"
-)
 
 
 def _strip_uv_run_env_flags(command: str) -> str | None:
     """Return the inner command after stripping ``uv run`` + env-only flags.
 
-    Returns ``None`` when the command is not a ``uv run`` invocation or
-    when no env-only flag was present (the plain ``uv run <tool>`` form
-    already matches its allow rule natively, so there is nothing to fix).
+    Returns ``None`` when the command is not a ``uv run`` invocation, when
+    no env-only flag was present (plain ``uv run <tool>`` already matches
+    its allow rule natively), or when ``--with <pkg>`` is present — an
+    arbitrary-package install must not be auto-approved (see above), so its
+    presence disqualifies the command and leaves the fence-tool ask intact.
+
+    This doubles as the ``should_run`` gate: a non-``None`` return is
+    exactly the set of commands the uv-run normalization check acts on, so
+    the flag list lives here in one place.
     """
     match = _UV_RUN_RE.match(command)
     if not match:
@@ -88,19 +94,17 @@ def _strip_uv_run_env_flags(command: str) -> str | None:
     stripped_any = False
     while idx < len(tokens):
         token = tokens[idx]
+        if token == "--with" or token.startswith("--with="):
+            return None
         if token in _UV_ENV_VALUE_FLAGS:
             idx += 2
-            stripped_any = True
-            continue
-        if any(token.startswith(f"{flag}=") for flag in _UV_ENV_VALUE_FLAGS):
+        elif token in _UV_ENV_BOOL_FLAGS or any(
+            token.startswith(f"{flag}=") for flag in _UV_ENV_VALUE_FLAGS
+        ):
             idx += 1
-            stripped_any = True
-            continue
-        if token in _UV_ENV_BOOL_FLAGS:
-            idx += 1
-            stripped_any = True
-            continue
-        break
+        else:
+            break
+        stripped_any = True
     if not stripped_any:
         return None
     inner = " ".join(tokens[idx:]).strip()
@@ -373,8 +377,9 @@ class PrefixFrictionValidator(ValidatorBase):
             or any(re.search(rf"\b{kw}\b", cmd) for kw in _LOOP_KEYWORDS)
             or "xargs" in cmd
             or "-exec" in cmd
-            # GH-485: `uv run [env-flags] <inner>` prefix normalization
-            or _UV_RUN_ENV_TRIGGER_RE.match(cmd) is not None
+            # GH-485: `uv run [env-flags] <inner>` prefix normalization —
+            # the strip helper is the single source of truth for the flag set.
+            or _strip_uv_run_env_flags(cmd) is not None
         )
 
     def validate(self, inp: HookInput) -> HookResult | HookAllow | None:
