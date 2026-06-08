@@ -26,6 +26,7 @@ allowed-tools:
   - Skill(Dev10x:project-scope)
   - Skill(Dev10x:adr)
   - Skill(Dev10x:ticket-create)
+  - Skill(Dev10x:git-commit)
   - mcp__plugin_Dev10x_cli__detect_tracker
 ---
 
@@ -164,10 +165,18 @@ After all agents return:
    - Coverage gaps (G, H findings)
 5. **Write findings memo** — create `docs/memos/architecture-audit-YYYY-MM-DD.md`
    with full findings, priority matrix, and milestone proposals.
-6. **Draft ADR proposals** — for HIGH-impact findings that represent
+6. **Persist the memo (commit it) — REQUIRED (GH-481).** The memo is
+   the durable artifact of an expensive multi-agent audit. Left as an
+   untracked working-tree file it is the most easily-lost form of work:
+   any `git clean`, worktree reset, or branch switch discards it
+   silently. Immediately commit it via `Skill(Dev10x:git-commit)` so it
+   lands in history regardless of whether Phase 5 runs. Do NOT end the
+   skill (or proceed to the gate) with the memo uncommitted.
+7. **Draft ADR proposals** — for HIGH-impact findings that represent
    architectural decisions, propose ADRs via `Skill(Dev10x:adr)`.
 
-**If `--memo-only`:** Stop here. Present memo and skip Phase 5.
+**If `--memo-only`:** Commit the memo (step 6), then stop here.
+Present the memo and skip Phase 5.
 
 ### Synthesis Review Gate
 

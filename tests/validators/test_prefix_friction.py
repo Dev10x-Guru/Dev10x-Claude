@@ -483,3 +483,121 @@ class TestShellLoopWrap:
         inp = _make_input(command="ls | xargs cat")
         result = validator.validate(inp=inp)
         assert result is None
+
+
+class TestUvRunEnvFlagNormalization:
+    """GH-485: strip `uv run` env-flags and approve when the inner command
+    is independently allowed (inner tier governs)."""
+
+    @pytest.fixture()
+    def validator(self) -> PrefixFrictionValidator:
+        v = PrefixFrictionValidator()
+        v._allow_patterns = ["uv run pytest", "uv run mypy", "python manage.py", "pytest"]
+        return v
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "uv run --directory apps/api pytest tests/",
+            "uv run --extra dev mypy src/",
+            "uv run --directory apps/api python manage.py makemigrations core",
+            "uv run --frozen --directory apps/api pytest",
+            "uv run --directory=apps/api pytest tests/",
+            "uv run --with httpx python manage.py shell",
+        ],
+    )
+    def test_should_run_true_for_uv_run_env_flags(
+        self, validator: PrefixFrictionValidator, command: str
+    ) -> None:
+        assert validator.should_run(inp=_make_input(command=command)) is True
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "uv run --directory apps/api pytest tests/test_foo.py",
+            "uv run --extra dev mypy src/",
+            "uv run --directory apps/api python manage.py makemigrations core",
+            "uv run --frozen --directory apps/api pytest -k smoke",
+            "uv run --directory=apps/api pytest tests/",
+        ],
+    )
+    def test_inner_allowed_commands_auto_approved(
+        self, validator: PrefixFrictionValidator, command: str
+    ) -> None:
+        from dev10x.domain import HookAllow
+
+        result = validator.validate(inp=_make_input(command=command))
+        assert isinstance(result, HookAllow)
+        assert "DX007" in result.message
+
+    def test_with_pkg_stripped_inner_governs(self, validator: PrefixFrictionValidator) -> None:
+        from dev10x.domain import HookAllow
+
+        # `--with httpx` is stripped; inner `python manage.py shell` governs.
+        result = validator.validate(
+            inp=_make_input(command="uv run --with httpx python manage.py shell")
+        )
+        assert isinstance(result, HookAllow)
+
+    def test_inner_ask_command_not_approved(self, validator: PrefixFrictionValidator) -> None:
+        # `python -c ...` is not in the allow list — inner tier governs, so
+        # no auto-approval; the command falls through to ask/deny.
+        result = validator.validate(
+            inp=_make_input(command="uv run --directory apps/api python -c 'import os'")
+        )
+        assert result is None
+
+    def test_inner_denied_command_not_approved(self, validator: PrefixFrictionValidator) -> None:
+        result = validator.validate(
+            inp=_make_input(command="uv run --directory apps/api rm -rf /tmp/x")
+        )
+        assert result is None
+
+    def test_plain_uv_run_without_env_flags_no_opinion(
+        self, validator: PrefixFrictionValidator
+    ) -> None:
+        # No env flag present → nothing to normalize; let native matching
+        # handle the already-covered `uv run pytest` form.
+        assert validator.should_run(inp=_make_input(command="uv run pytest tests/")) is False
+
+    def test_no_allow_patterns_no_opinion(self) -> None:
+        v = PrefixFrictionValidator()
+        v._allow_patterns = []
+        result = v.validate(inp=_make_input(command="uv run --directory apps/api pytest"))
+        assert result is None
+
+    def test_lazy_loads_allow_patterns_when_unset(self) -> None:
+        from unittest.mock import patch
+
+        from dev10x.domain import HookAllow
+
+        v = PrefixFrictionValidator()  # _allow_patterns starts None
+        with patch(
+            "dev10x.validators.prefix_friction._load_all_allow_patterns",
+            return_value=["uv run pytest"],
+        ):
+            result = v.validate(inp=_make_input(command="uv run --directory apps/api pytest"))
+        assert isinstance(result, HookAllow)
+
+    def test_correct_returns_none_for_uv_run_allow(
+        self, validator: PrefixFrictionValidator
+    ) -> None:
+        # A HookAllow from validate() must not be turned into a retry.
+        result = validator.correct(inp=_make_input(command="uv run --directory apps/api pytest"))
+        assert result is None
+
+    def test_correct_returns_retry_for_friction_command(
+        self, validator: PrefixFrictionValidator
+    ) -> None:
+        from dev10x.domain import HookRetry
+
+        result = validator.correct(
+            inp=_make_input(command="mkdir -p /tmp/foo && ~/.claude/tools/x.sh")
+        )
+        assert isinstance(result, HookRetry)
+
+    def test_correct_returns_none_when_no_friction(
+        self, validator: PrefixFrictionValidator
+    ) -> None:
+        result = validator.correct(inp=_make_input(command="uv run --directory apps/api rm -rf x"))
+        assert result is None

@@ -211,10 +211,26 @@ _DEFAULT_PATTERNS: list[SensitivityPattern] = [
         r"\b(?:bastion|jumphost|jump-host|wireguard\d*|cloudflared|tailscale)\b",
         "bastion/VPN host",
     ),
-    # Production marker in hostnames/targets
+    # Production marker in hostnames/targets (GH-482).
+    #
+    # A bare ``prod-`` / ``prod.`` substring over-matches: filenames
+    # (``prod-synthetic.yml``), branch slugs
+    # (``feature/prod-synthetic-cohesion``), and grep literals all carry
+    # the token without touching production infrastructure.  Narrow the
+    # match to a genuine host context:
+    #   • a ``scheme://prod-`` or ``user@prod-`` reference, or
+    #   • a dotted FQDN whose ``prod`` label is followed by a real
+    #     network domain suffix (``.internal``, ``.com``, ``.amazonaws.com``…).
+    # A code/config extension (``.yml``, ``.json``, …) is not a domain
+    # suffix, so file paths and slugs no longer fire.
     _compile(
         SensitivityLabel.INFRA,
-        r"\bprod(?:uction)?[-.]",
+        r"(?:"
+        r"(?:://|@)prod(?:uction)?[-.]"
+        r"|"
+        r"\bprod(?:uction)?[-.][a-z0-9.-]*"
+        r"\.(?:internal|local|amazonaws\.com|com|net|org|io|cloud|aws)\b"
+        r")",
         "production host/resource",
     ),
     # RFC 1918 private IPs frequently used as prod pivot targets (10.x, 172.16-31.x, 192.168.x)

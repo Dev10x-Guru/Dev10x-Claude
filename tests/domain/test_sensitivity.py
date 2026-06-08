@@ -176,6 +176,9 @@ class TestInfraClassification:
             # production hostnames
             "curl https://prod.myapp.example.com/health",
             "ping production.db.internal",
+            # GH-482: real prod host via user@ and dotted FQDN still fire
+            "ssh deploy@prod-web01.example.com",
+            "psql -h prod-db.acme.internal -U app",
             # RFC 1918 private IPs
             "curl http://10.0.1.42/api",
             "ssh 172.16.0.10",
@@ -196,6 +199,13 @@ class TestInfraClassification:
             "ping localhost",
             "curl http://127.0.0.1:8000/health",
             "git push origin develop",
+            # GH-482: `prod-` in filenames, branch slugs, and grep
+            # literals must NOT trip the production-host pattern.
+            "yq '.' .github/workflows/prod-synthetic.yml",
+            "pre-commit run --files .github/workflows/prod-synthetic.yml",
+            "grep -rln 'purge-prod-synthetic' .github/workflows/",
+            "git checkout -b wonka/CANDY-935/prod-synthetic-cohesion origin/develop",
+            "gh workflow run prod-synthetic.yml",
         ],
     )
     def test_safe_network_commands_not_infra(

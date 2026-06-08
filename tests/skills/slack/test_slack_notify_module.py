@@ -176,3 +176,24 @@ class TestResolveMentions:
         mod.set_workspace("aperture")
         assert mod.resolve_mentions("ping @aperture") == "ping <!subteam^S_APE>"
         assert mod.resolve_mentions("ping @default") == "ping @default"
+
+
+class TestUvxEnvImportSmoke:
+    """GH-483: the in-process slack notify path must have slack_sdk available.
+
+    `uvx dev10x skill notify slack-send` imports slack_sdk inside
+    slack_notify.py. slack-sdk is declared as a base dependency so the
+    uvx-distributed env provisions it; this smoke test fails loudly if
+    that dependency is ever dropped from pyproject.
+    """
+
+    def test_slack_sdk_importable(self) -> None:
+        import importlib
+
+        assert importlib.import_module("slack_sdk") is not None
+
+    def test_webclient_importable_for_send_path(self) -> None:
+        # Mirrors the exact import inside slack_notify.send_slack_message.
+        from slack_sdk import WebClient
+
+        assert WebClient is not None

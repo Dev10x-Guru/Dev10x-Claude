@@ -202,6 +202,18 @@ always re-run `git log --oneline <base>..HEAD` to get the current SHAs.
 Any commit (rebase, amend, reset) changes all descendant SHAs. Using
 analysis-time SHAs in execution scripts will silently target wrong commits.
 
+**Stale local base (GH-486):** Resolve the range against
+`origin/<base>` (or the fork-point), not a possibly-stale local
+`<base>`. Local `develop` lags `origin/develop` after rebase-merge,
+long-lived feature work, or worktrees sharing an outdated ref —
+anchoring on it mis-computes the commit range. The `rebase_groom`
+MCP tool now qualifies a bare branch name to its `origin/<base>`
+remote-tracking ref automatically and reports a `base_notice` when
+the local ref lags. When analyzing by hand, prefer
+`git merge-base --fork-point origin/develop HEAD` over
+`git merge-base develop HEAD`, and `git log --oneline origin/develop..HEAD`
+for the range.
+
 ### Phase 2: Choose Strategy
 
 After analysis, queue the strategy decision in task metadata.

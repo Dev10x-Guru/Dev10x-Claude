@@ -22,6 +22,11 @@ dependencies = [
     "msgpack>=1.0",
     "pyjwt[crypto]>=2.8",
     "pyyaml>=6.0",
+    # GH-483: `dev10x skill notify slack-send` imports slack_sdk in-process
+    # (src/dev10x/skills/notifications/slack_notify.py). It must be a base
+    # dependency so the uvx-distributed env can send Slack notifications —
+    # `uvx dev10x` installs base deps only, not optional extras.
+    "slack-sdk>=3.21",
 ]
 
 [project.urls]
