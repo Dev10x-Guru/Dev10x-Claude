@@ -208,10 +208,13 @@ async def pr_comment_reply(
 ) -> dict:
     """Reply to a PR review comment thread.
 
+    `body` is literal text — there is no `@file` / `--body-file`
+    expansion; pass the reply content inline (GH-484).
+
     Args:
         pr_number: PR number
         comment_id: Root comment ID to reply to
-        body: Reply text (supports markdown)
+        body: Reply text (supports markdown). Literal text.
         repo: Repository (owner/repo). If omitted, uses current repo
         cwd: Effective working directory (GH-979).
 
@@ -248,9 +251,12 @@ async def pr_issue_comment(
 
     For inline review-thread replies, use `pr_comment_reply` instead.
 
+    `body` is literal text — there is no `@file` / `--body-file`
+    expansion; pass the comment content inline (GH-484).
+
     Args:
         pr_number: PR number (treated as the parent issue for comment routing)
-        body: Comment body (supports markdown)
+        body: Comment body (supports markdown). Literal text.
         repo: Repository (owner/repo). If omitted, uses current repo
         cwd: Effective working directory (GH-979).
 
@@ -720,20 +726,27 @@ async def issue_reopen(
 @server.tool()
 async def issue_comment(
     number: int,
-    body: str,
+    body: str | None = None,
     repo: str | None = None,
     cwd: str | None = None,
+    body_file: str | None = None,
 ) -> dict:
     """Post a Markdown comment on a GitHub issue (GH-220).
 
     Wraps `gh issue comment N --body-file <tmp>` so callers don't
     need to manage heredoc/quoting at the Bash boundary.
 
+    `body` is literal text — there is no `@file` / `--body-file`
+    expansion (passing `body="@/path.md"` posts the literal path string).
+    To post the contents of a file, pass `body_file` instead (GH-484).
+
     Args:
         number: Issue number to comment on.
-        body: Comment body (Markdown supported).
+        body: Comment body (Markdown supported). Literal text.
         repo: Repository (owner/repo). Auto-detected if omitted.
         cwd: Effective working directory (GH-979).
+        body_file: Path to a file whose contents become the body.
+            Mutually exclusive with `body`.
 
     Returns:
         Dictionary with key: url (the comment permalink).
@@ -747,6 +760,7 @@ async def issue_comment(
                 number=number,
                 body=body,
                 repo=repo,
+                body_file=body_file,
             )
         ).to_dict()
 
@@ -754,9 +768,10 @@ async def issue_comment(
 @server.tool()
 async def issue_comment_edit(
     comment_id: int,
-    body: str,
+    body: str | None = None,
     repo: str | None = None,
     cwd: str | None = None,
+    body_file: str | None = None,
 ) -> dict:
     """Edit an existing GitHub issue or PR comment body (GH-283).
 
@@ -764,12 +779,18 @@ async def issue_comment_edit(
     `/repos/{owner}/{repo}/issues/comments/{id}`. Works on issue
     comments and PR issue-level comments.
 
+    `body` is literal text — there is no `@file` / `--body-file`
+    expansion. To replace with the contents of a file, pass `body_file`
+    instead (GH-484).
+
     Args:
         comment_id: Numeric ID of the comment to edit (from
             /comments/<id> URL fragment).
-        body: New body text (full replacement; not a delta).
+        body: New body text (full replacement; not a delta). Literal text.
         repo: Repository (owner/repo). Auto-detected if omitted.
         cwd: Effective working directory (GH-979).
+        body_file: Path to a file whose contents become the new body.
+            Mutually exclusive with `body`.
 
     Returns:
         Dictionary with keys: id, body, html_url.
@@ -783,6 +804,7 @@ async def issue_comment_edit(
                 comment_id=comment_id,
                 body=body,
                 repo=repo,
+                body_file=body_file,
             )
         ).to_dict()
 

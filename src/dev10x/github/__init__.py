@@ -1183,29 +1183,69 @@ async def issue_reopen(
     )
 
 
+def _resolve_comment_body(*, body: str | None, body_file: str | None) -> Result[str]:
+    """Resolve a comment body from inline text or a file path (GH-484).
+
+    ``body`` is literal text — there is no ``@file`` / ``--body-file``
+    expansion at this boundary, so passing ``body="@/path.md"`` posts the
+    literal path string. To post the *contents* of a file, pass
+    ``body_file`` instead.
+
+    Args:
+        body: Inline literal comment text, or ``None``.
+        body_file: Path to a file whose contents become the body, or
+            ``None``. Mutually exclusive with ``body``.
+
+    Returns:
+        ``ok(text)`` with the resolved body, or ``err(...)`` when both or
+        neither source is supplied, or the file does not exist.
+    """
+    if body_file is not None:
+        if body is not None:
+            return err("Pass either 'body' or 'body_file', not both.")
+        path = Path(body_file).expanduser()
+        if not path.is_file():
+            return err(f"body_file not found: {body_file}")
+        return ok(path.read_text(encoding="utf-8"))
+    if body is None:
+        return err("Provide either 'body' (inline text) or 'body_file' (path).")
+    return ok(body)
+
+
 async def issue_comment(
     *,
     number: int,
-    body: str,
+    body: str | None = None,
     repo: str | None = None,
+    body_file: str | None = None,
 ) -> Result[dict[str, Any]]:
     """Post a comment on a GitHub issue (GH-220).
 
     Wraps ``gh issue comment N --body-file <tmp>``. Body is written
     to a temp file to avoid heredoc/quoting issues.
 
+    ``body`` is literal text — there is no ``@file`` expansion. To post
+    the contents of a file, pass ``body_file`` instead (GH-484).
+
     Args:
         number: Issue number to comment on.
-        body: Comment body (Markdown supported).
+        body: Comment body (Markdown supported). Literal text.
         repo: Repository (owner/repo). Auto-detected if omitted.
+        body_file: Path to a file whose contents become the body.
+            Mutually exclusive with ``body``.
 
     Returns:
         On success: ``{"url": str}`` — the comment permalink.
     """
     import tempfile
 
+    body_result = _resolve_comment_body(body=body, body_file=body_file)
+    if isinstance(body_result, ErrorResult):
+        return body_result
+    resolved_body = body_result.value
+
     fd = tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False, encoding="utf-8")
-    fd.write(body)
+    fd.write(resolved_body)
     fd.close()
     body_path = Path(fd.name)
 
@@ -1227,8 +1267,9 @@ async def issue_comment(
 async def issue_comment_edit(
     *,
     comment_id: int,
-    body: str,
+    body: str | None = None,
     repo: str | None = None,
+    body_file: str | None = None,
 ) -> Result[dict[str, Any]]:
     """Edit an existing GitHub issue or PR comment body (GH-283).
 
@@ -1239,16 +1280,26 @@ async def issue_comment_edit(
     Body is written to a temp file to avoid heredoc/quoting issues at
     the gh CLI boundary, matching the ``issue_comment`` pattern.
 
+    ``body`` is literal text — there is no ``@file`` expansion. To
+    replace with the contents of a file, pass ``body_file`` (GH-484).
+
     Args:
         comment_id: Numeric ID of the comment to edit (from the
             ``/comments/<id>`` URL fragment).
-        body: New body text (full replacement, not a delta).
+        body: New body text (full replacement, not a delta). Literal text.
         repo: Repository (owner/repo). Auto-detected if omitted.
+        body_file: Path to a file whose contents become the new body.
+            Mutually exclusive with ``body``.
 
     Returns:
         On success: ``{"id": int, "body": str, "html_url": str}``.
     """
     import tempfile
+
+    body_result = _resolve_comment_body(body=body, body_file=body_file)
+    if isinstance(body_result, ErrorResult):
+        return body_result
+    resolved_body = body_result.value
 
     repo_result = await _resolve_repo(repo)
     if isinstance(repo_result, ErrorResult):
@@ -1256,7 +1307,7 @@ async def issue_comment_edit(
     canonical_repo = str(repo_result.value)
 
     fd = tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False, encoding="utf-8")
-    fd.write(body)
+    fd.write(resolved_body)
     fd.close()
     body_path = Path(fd.name)
 

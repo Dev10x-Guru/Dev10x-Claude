@@ -2366,3 +2366,91 @@ class TestUnresolvedThreadsIncludesReactions:
         )
         query = called_fields.get("query", "")
         assert "reactionGroups" in query
+
+
+class TestResolveCommentBody:
+    """GH-484: body is literal; body_file reads file contents."""
+
+    def test_inline_body_passthrough(self) -> None:
+        result = gh._resolve_comment_body(body="hello world", body_file=None)
+        assert isinstance(result, SuccessResult)
+        assert result.value == "hello world"
+
+    def test_at_path_is_literal_not_expanded(self) -> None:
+        # The whole point of GH-484: "@/path" is posted verbatim.
+        result = gh._resolve_comment_body(body="@/tmp/plan.md", body_file=None)
+        assert isinstance(result, SuccessResult)
+        assert result.value == "@/tmp/plan.md"
+
+    def test_body_file_reads_contents(self, tmp_path) -> None:
+        path = tmp_path / "comment.md"
+        path.write_text("## From file\nbody text", encoding="utf-8")
+        result = gh._resolve_comment_body(body=None, body_file=str(path))
+        assert isinstance(result, SuccessResult)
+        assert result.value == "## From file\nbody text"
+
+    def test_both_sources_is_error(self, tmp_path) -> None:
+        path = tmp_path / "c.md"
+        path.write_text("x", encoding="utf-8")
+        result = gh._resolve_comment_body(body="inline", body_file=str(path))
+        assert isinstance(result, ErrorResult)
+
+    def test_neither_source_is_error(self) -> None:
+        result = gh._resolve_comment_body(body=None, body_file=None)
+        assert isinstance(result, ErrorResult)
+
+    def test_missing_file_is_error(self) -> None:
+        result = gh._resolve_comment_body(body=None, body_file="/nonexistent/path.md")
+        assert isinstance(result, ErrorResult)
+        assert "not found" in result.error
+
+
+class TestIssueCommentBodyFile:
+    """GH-484: issue_comment / issue_comment_edit honor body_file."""
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_issue_comment_posts_file_contents(self, mock_run: AsyncMock, tmp_path) -> None:
+        path = tmp_path / "body.md"
+        path.write_text("file body", encoding="utf-8")
+        mock_run.return_value = _completed(stdout="https://github.com/o/r/issues/1#c1")
+
+        result = await gh.issue_comment(number=1, body_file=str(path), repo="o/r")
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["url"] == "https://github.com/o/r/issues/1#c1"
+        mock_run.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_issue_comment_both_sources_errors_without_api_call(
+        self, mock_run: AsyncMock
+    ) -> None:
+        result = await gh.issue_comment(number=1, body="x", body_file="/x.md", repo="o/r")
+        assert isinstance(result, ErrorResult)
+        mock_run.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._resolve_repo", new_callable=AsyncMock)
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_issue_comment_edit_uses_file_contents(
+        self, mock_run: AsyncMock, mock_repo: AsyncMock, tmp_path
+    ) -> None:
+        path = tmp_path / "edit.md"
+        path.write_text("edited body", encoding="utf-8")
+        mock_repo.return_value = ok("o/r")
+        mock_run.return_value = _completed(
+            stdout=json.dumps({"id": 9, "body": "edited body", "html_url": "u"})
+        )
+
+        result = await gh.issue_comment_edit(comment_id=9, body_file=str(path), repo="o/r")
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["id"] == 9
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_issue_comment_edit_neither_source_errors(self, mock_run: AsyncMock) -> None:
+        result = await gh.issue_comment_edit(comment_id=9, repo="o/r")
+        assert isinstance(result, ErrorResult)
+        mock_run.assert_not_awaited()

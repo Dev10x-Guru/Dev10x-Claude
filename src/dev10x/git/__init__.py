@@ -12,8 +12,8 @@ import json
 from typing import Any
 
 from dev10x.domain.common.branch_name import BranchName
-from dev10x.domain.common.result import Result, err, ok
-from dev10x.subprocess_utils import async_run_script, parse_key_value_output
+from dev10x.domain.common.result import Result, SuccessResult, err, ok
+from dev10x.subprocess_utils import async_run, async_run_script, parse_key_value_output
 
 
 def _ok_json_or_kv(stdout: str) -> Result[dict[str, Any]]:
@@ -72,13 +72,66 @@ async def push_safe(
     return await _run_git_script("skills/git/scripts/git-push-safe.sh", *cmd_args)
 
 
+def qualify_base_ref(base_ref: str, *, remote_exists: bool) -> str:
+    """Prefer ``origin/<base>`` over a possibly-stale local branch (GH-486).
+
+    A bare local branch name (``develop``) may lag ``origin/develop``
+    after rebase-merge advances the remote, long-lived feature work, or
+    worktrees sharing an outdated local ref. Grooming against the stale
+    local ref mis-computes the commit range. When the remote-tracking
+    ref exists, groom against it instead. Already-qualified refs (those
+    containing ``/``, e.g. ``origin/develop``) and SHAs pass through
+    unchanged.
+    """
+    if "/" in base_ref:
+        return base_ref
+    return f"origin/{base_ref}" if remote_exists else base_ref
+
+
+async def _resolve_groom_base(base_ref: str) -> tuple[str, str | None]:
+    """Resolve the effective groom base ref and a stale-local notice.
+
+    Returns ``(effective_ref, notice)``. ``notice`` is non-None only when
+    the local branch lags its remote-tracking counterpart, so the caller
+    can surface "grooming against origin/<base>" instead of silently
+    using a stale ref (GH-486).
+    """
+    if "/" in base_ref:
+        return base_ref, None
+
+    remote = f"origin/{base_ref}"
+    check = await async_run(
+        args=["git", "show-ref", "--verify", "--quiet", f"refs/remotes/{remote}"],
+        timeout=15,
+    )
+    if check.returncode != 0:
+        return base_ref, None
+
+    notice: str | None = None
+    behind = await async_run(
+        args=["git", "rev-list", "--count", f"{base_ref}..{remote}"],
+        timeout=15,
+    )
+    count = behind.stdout.strip()
+    if behind.returncode == 0 and count.isdigit() and int(count) > 0:
+        notice = (
+            f"local {base_ref} is {count} commit(s) behind {remote} — "
+            f"grooming against {remote} (fork-point), not the stale local ref"
+        )
+    return remote, notice
+
+
 async def rebase_groom(*, seq_path: str, base_ref: str) -> Result[dict[str, Any]]:
-    return await _run_git_script(
+    effective_ref, notice = await _resolve_groom_base(base_ref)
+    result = await _run_git_script(
         "skills/git/scripts/git-rebase-groom.sh",
         seq_path,
-        base_ref,
+        effective_ref,
         conflict_aware=True,
     )
+    if notice is not None and isinstance(result, SuccessResult):
+        result.value["base_notice"] = notice
+    return result
 
 
 async def create_worktree(
