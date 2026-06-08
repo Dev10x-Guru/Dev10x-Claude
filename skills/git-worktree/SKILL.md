@@ -114,6 +114,13 @@ subsequent Bash calls, git commands, and skills operate inside it.
 The session is now in the worktree. Resume the calling skill's next step
 (ticket status, job story, summary). No restart needed.
 
+**CWD & push discipline (GH-474 #6):** Although the session CWD is the
+worktree, prefer **absolute paths** in Bash calls — a `cd X` in one call
+does not persist to the next, so `cd subdir; <relative-path>` patterns
+break when the CWD resets between calls. For pushing, raw `git push` is
+hook-blocked on this worktree; use `Skill(Dev10x:git)` (which wraps
+`push_safe`) instead of `git push` directly.
+
 ---
 
 ## Path B — External + New Session
