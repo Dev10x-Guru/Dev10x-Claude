@@ -20,7 +20,10 @@ Released 2026-06-08
 - **Close six permission-friction and tooling gaps in one bundle** —
   DX014 matches production hosts by context rather than a bare `prod-`
   prefix (GH-482), `uvx`-launched `skill notify slack-send` declares
-  slack-sdk so it actually runs (GH-483), `issue_comment` gains a
+  slack-sdk so it actually runs (GH-483, thanks
+  [@szx19970521](https://github.com/szx19970521) for surfacing it in
+  [#487](https://github.com/Dev10x-Guru/Dev10x-Claude/pull/487)),
+  `issue_comment` gains a
   `body_file` arg (GH-484), DX007 normalizes `uv run` env-flags before
   prefix-matching (GH-485), git-groom resolves its base against
   `origin/<base>` instead of a stale local ref (GH-486), and

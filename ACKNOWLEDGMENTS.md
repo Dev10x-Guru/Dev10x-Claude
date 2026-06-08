@@ -13,6 +13,9 @@ by reporting bugs, sharing feedback, and surfacing edge cases.
 - [@tire-nicholas](https://github.com/tire-nicholas)
 - [@tiretutor-paul](https://github.com/tiretutor-paul)
 - [@kjhyhggffr](https://github.com/kjhyhggffr)
+- [@szx19970521](https://github.com/szx19970521) — PR
+  [#487](https://github.com/Dev10x-Guru/Dev10x-Claude/pull/487):
+  surfaced the missing `slack-sdk` uvx runtime dependency (GH-483)
 
 ## Inspirations
 
