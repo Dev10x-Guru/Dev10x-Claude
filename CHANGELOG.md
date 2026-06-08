@@ -5,6 +5,90 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.79.0 — Permission Friction Reduction, Structured Policy Model & Cross-Fork PRs
+
+Released 2026-06-08
+
+### Features
+
+- **Model permission rules as structured policies** — the flat
+  allow-rule string list becomes typed `Policy` value objects carrying
+  tier, source, and effect, laying the foundation for the deny catalog,
+  user/project source precedence, and worktree forward-sync that the
+  GH-271 friction evidence converged on
+  ([GH-271](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/271))
+- **Close six permission-friction and tooling gaps in one bundle** —
+  DX014 matches production hosts by context rather than a bare `prod-`
+  prefix (GH-482), `uvx`-launched `skill notify slack-send` declares
+  slack-sdk so it actually runs (GH-483), `issue_comment` gains a
+  `body_file` arg (GH-484), DX007 normalizes `uv run` env-flags before
+  prefix-matching (GH-485), git-groom resolves its base against
+  `origin/<base>` instead of a stale local ref (GH-486), and
+  project-audit persists its Phase 4 findings memo (GH-481)
+  ([GH-481](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/481))
+- **See which read-only MCP tools and research domains can go global** —
+  `dev10x permission promote-plan` produces a deduped, read-only dry-run
+  plan of the claude.ai-hosted tools and WebFetch domains that re-prompt
+  per project, so they can move to global settings instead of being
+  re-approved in every repo (write tools and plugin-distributed tools
+  are never promoted)
+  ([GH-470](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/470))
+- **Open cross-fork PRs through `create_pr`** — `create_pr` /
+  `Dev10x:gh-pr-create` accept an optional head repo, push the branch to
+  the fork owner's remote, and emit `--head <owner>:<branch>`, so
+  contributing to an external repo from a fork keeps the wrapper's Job
+  Story, commit list, summary comment, and notify flow
+  ([GH-473](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/473))
+
+### Security
+
+- **Refuse to auto-approve `uv run --with` installs** — `--with <pkg>`
+  now disqualifies `uv run` auto-approval, closing a supply-chain hole
+  where an allowed inner command silently installed an arbitrary package
+  and bypassed the fence-tool ask
+  ([GH-485](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/485))
+
+### Fixes
+
+- **Surface hook denials in skill-audit friction reports** — Phase 4 now
+  scans the tool-result blocks it previously dropped for
+  `permissionDecision: deny` and `BLOCKED:` validator signals, so
+  sessions riddled with hook friction no longer report "0 unmatched
+  calls"
+  ([GH-474](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/474))
+- **Allow containerized and 1Password-wrapped psql through the DB gate**
+  — the DX004 read-only SQL gate exempts `docker exec … psql` (runs in a
+  test container) and `op run -- psql` (the sanctioned secrets wrapper)
+  while still blocking bare host psql
+  ([GH-474](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/474))
+- **Reclaim merged agent worktrees holding replicated dirt** — fanout
+  teardown force-removes merged-but-dirty worktrees when their only
+  changes are stale or a repo-wide `.claude/` rewrite replicated
+  identically across siblings, so leftovers stop piling up
+  ([GH-476](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/476))
+- **Stop bash/sh/zsh exec from bypassing DX003** — the execution-safety
+  guard now covers shell interpreters alongside python3, steering
+  `bash /tmp/x.sh` and `sh -c …` to the Write-tool/uv-script path
+  instead of relying on an unreliable deny-rule
+  ([GH-469](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/469))
+- **Run plugin scripts without re-prompting** — plugin-maintenance emits
+  concrete version-pinned script rules instead of `**` globs that Claude
+  Code's Bash matcher never matches, and purges the dead globs that were
+  masking script coverage
+  ([GH-471](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/471))
+
+### Docs
+
+- **Document worktree CWD and push discipline** — the git-worktree skill
+  now warns that `cd` does not persist between Bash calls and that raw
+  `git push` is hook-blocked, steering callers to absolute paths and
+  `Skill(Dev10x:git)`
+  ([GH-474](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/474))
+- **Document the lessons-learned implementation plan** — capture the
+  GH-460 plan for harvesting merged PRs and review threads into the
+  learning loop
+  ([GH-460](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/460))
+
 ## 0.78.0 — MCP Client Integration, Swarm Teardown & CI Quality Gates
 
 Released 2026-06-03
