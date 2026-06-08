@@ -65,6 +65,24 @@ def _is_psql_binary(token: str) -> bool:
     return token == "psql" or token.endswith("/psql")
 
 
+def _is_exempt_psql_wrapper(parts: list[str]) -> bool:
+    """psql wrapped by ``docker exec`` or ``op run`` is exempt (GH-474 #4).
+
+    ``docker exec <container> psql …`` runs inside a container — the container,
+    not the host hook, is the trust boundary — and ``op run -- psql …`` routes
+    through the sanctioned 1Password secrets wrapper. Neither is a direct host
+    psql call, so the read-only-SQL gate does not apply.
+    """
+    if not parts:
+        return False
+    command = os.path.basename(parts[0])
+    if command == "docker" and "exec" in parts[1:]:
+        return True
+    if command == "op" and "run" in parts[1:]:
+        return True
+    return False
+
+
 def _is_db_sh(token: str) -> bool:
     return token.endswith("db.sh") or token.endswith("/db.sh")
 
@@ -236,6 +254,8 @@ class SqlSafetyValidator(ValidatorBase):
                 seg_parts = shlex.split(seg)
             except ValueError:
                 seg_parts = []
+            if _is_exempt_psql_wrapper(seg_parts):
+                continue
             if any(_is_psql_binary(t) for t in seg_parts):
                 return HookResult(message=DIRECT_PSQL_MSG)
         return None
