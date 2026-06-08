@@ -63,9 +63,20 @@ MKTMP_PATH_RE = re.compile(r"/tmp/Dev10x/[^/]+/[^/]+\.[A-Za-z0-9]{6,}\.\w+$")
 # the operation actually succeeded (GH-41 — Projects classic on `gh pr edit`).
 EXIT_FALSE_POSITIVE_RE = re.compile(r"^gh\s+pr\s+edit\b")
 
-# PreToolUse hook denial signal in tool result text (best-effort —
-# only available when the parser captures result blocks).
+# PreToolUse hook denial signal in tool result text (GH-474 #8). A Dev10x
+# validator blocks with a ``BLOCKED:`` message; a generic hook failure reads
+# ``hook error``.
 HOOK_BLOCK_RE = re.compile(r"^BLOCKED:|hook error", re.MULTILINE)
+
+# Native Claude Code permission denial recorded in a tool result (GH-474 #8).
+PERMISSION_DENY_RE = re.compile(r'permissionDecision"\s*:\s*"deny"')
+
+# Tool-result block as rendered by extract_session.py — the input parser
+# discards these, so denials hidden in results were invisible (GH-474 #8).
+TOOL_RESULT_BLOCK_RE = re.compile(
+    r"<details><summary>Tool result \([^)]*\)</summary>\n\n```\n(.*?)\n```\n</details>",
+    re.DOTALL,
+)
 
 
 @dataclass
@@ -289,6 +300,50 @@ def detect_known_friction(
                     )
                 )
 
+    return findings
+
+
+def _turn_for_offset(turn_matches: list[re.Match[str]], pos: int) -> tuple[int, str]:
+    turn, time = 0, "?"
+    for tm in turn_matches:
+        if tm.start() <= pos:
+            turn, time = int(tm.group(1)), tm.group(2)
+        else:
+            break
+    return turn, time
+
+
+def detect_hook_denials(text: str) -> list[Finding]:
+    """Surface PreToolUse hook denials recorded in tool-result blocks (GH-474 #8).
+
+    ``parse_tool_calls`` only captures tool *input* blocks, so a call the
+    permission layer denied (``permissionDecision: deny``) or a Dev10x
+    validator blocked (``BLOCKED: ...``) never reaches the unmatched-call
+    analysis. Phase 4 then reports "0 unmatched calls" while the session was
+    riddled with hook friction. Scan the result blocks the input parser drops
+    and emit one finding per denial so the report reflects the real friction.
+    """
+    turn_matches = list(TURN_RE.finditer(text))
+    findings: list[Finding] = []
+    idx = 0
+    for m in TOOL_RESULT_BLOCK_RE.finditer(text):
+        content = m.group(1)
+        if not (HOOK_BLOCK_RE.search(content) or PERMISSION_DENY_RE.search(content)):
+            continue
+        turn, time = _turn_for_offset(turn_matches, m.start())
+        first_line = next((ln for ln in content.splitlines() if ln.strip()), content)
+        idx += 1
+        findings.append(
+            Finding(
+                index=idx,
+                turn=turn,
+                time=time,
+                tool="(hook)",
+                command_display=first_line.strip()[:60],
+                classification="HOOK_DENIAL",
+                fix="Route through the documented skill/MCP wrapper; do not retry the raw command",
+            )
+        )
     return findings
 
 

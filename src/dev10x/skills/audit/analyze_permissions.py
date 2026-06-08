@@ -34,10 +34,12 @@ from dev10x.audit.permissions_model import (
     HOOK_BLOCK_RE,
     MKTMP_PATH_RE,
     MULTI_WORD_COMMANDS,
+    PERMISSION_DENY_RE,
     PERMISSION_TOOLS,
     SUBSHELL_RE,
     TOOL_INPUT_BLOCK_RE,
     TOOL_RE,
+    TOOL_RESULT_BLOCK_RE,
     TURN_RE,
     Finding,
     HygieneFinding,
@@ -47,6 +49,7 @@ from dev10x.audit.permissions_model import (
     classify_toxicity,
     classify_unmatched,
     count_nuisance_patterns,
+    detect_hook_denials,
     detect_known_friction,
     matches_allow_rule,
     parse_additional_directories,
@@ -68,10 +71,12 @@ __all__ = [
     "HOOK_BLOCK_RE",
     "MKTMP_PATH_RE",
     "MULTI_WORD_COMMANDS",
+    "PERMISSION_DENY_RE",
     "PERMISSION_TOOLS",
     "SUBSHELL_RE",
     "TOOL_INPUT_BLOCK_RE",
     "TOOL_RE",
+    "TOOL_RESULT_BLOCK_RE",
     "TURN_RE",
     "Finding",
     "HygieneFinding",
@@ -81,6 +86,7 @@ __all__ = [
     "classify_toxicity",
     "classify_unmatched",
     "count_nuisance_patterns",
+    "detect_hook_denials",
     "detect_known_friction",
     "matches_allow_rule",
     "parse_additional_directories",
@@ -119,6 +125,12 @@ def main() -> None:
     for offset, finding in enumerate(extra, start=1):
         finding.index = base_count + offset
     findings.extend(extra)
+
+    denials = detect_hook_denials(text=transcript)
+    base_count = len(findings)
+    for offset, finding in enumerate(denials, start=1):
+        finding.index = base_count + offset
+    findings.extend(denials)
 
     skills_dir = os.path.expanduser("~/.claude/skills")
     tools_dir = os.path.expanduser("~/.claude/tools")
