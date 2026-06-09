@@ -7,11 +7,15 @@ module classifies discovered MCP tools as read-only vs write using a
 name-token heuristic and builds a DRY-RUN plan describing which tools
 and research-fetch domains WOULD be promoted to global settings.
 
-**No writes.** This module never mutates settings — it only reports a
-plan a human reviews. Actual promotion to global settings is deferred to
-a follow-up (Increment 2). The heuristic carries false-positive risk —
-e.g. a grant named ``get_access_to_*`` reads as ``read`` by token — so a
-reviewable dry-run is the safety floor before any auto-write lands.
+**Two-phase by design.** ``build_promotion_plan`` only *reports* a plan a
+human reviews — it never mutates settings. ``apply_promotion_plan``
+(Increment 2, GH-480) writes the approved read-only set + research domains
+into global settings, backup-guarded and idempotent, behind an explicit
+opt-in (the ``--apply`` flag). The heuristic carries false-positive risk —
+e.g. a grant named ``get_access_to_*`` would read as ``read`` by its ``get``
+token, so ``access``/``grant``/``authorize`` are write tokens
+(write-precedence) — and the dry-run plan remains the safety floor a human
+reviews before any auto-write lands.
 
 Classification (write-precedence — safer to under-promote):
 
@@ -101,6 +105,14 @@ WRITE_TOKENS = frozenset(
         "start",
         "push",
         "notify",
+        # Grant/authorization verbs are side-effecting. A ``get_access_to_*``
+        # tool reads as ``read`` by its ``get`` token but actually mints an
+        # access grant — write-precedence keeps it out of the auto-promotable
+        # set (GH-480: classifier corpus false-positive, e.g.
+        # ``get_access_to_vercel_url``).
+        "access",
+        "grant",
+        "authorize",
     }
 )
 # Read tools whose target is private/DM/secret — promotable only on opt-in.
@@ -262,7 +274,120 @@ def render_promotion_plan(plan: PromotionPlan) -> str:
         f"{plan.already_global_domains} domain(s) — skipped (idempotent)."
     )
     lines.append(
-        "Increment 1 is read-only: this plan performs NO writes. "
-        "Review it, then apply via the follow-up promotion step (Increment 2)."
+        "This is the dry-run plan (NO writes). Apply it with "
+        "`dev10x permission promote-plan --apply` (Increment 2, GH-480)."
     )
+    return "\n".join(lines)
+
+
+@dataclass
+class PromotionResult:
+    """Outcome of applying a :class:`PromotionPlan` to global settings.
+
+    ``added_*`` list the rules newly written; ``already_present`` counts
+    plan rules that were already in the global allow list (the idempotent
+    skip path). ``backup_path`` is the timestamped backup created before
+    the write, or ``None`` when nothing was written (dry-run or no-op).
+    """
+
+    added_tools: list[str] = field(default_factory=list)
+    added_sensitive: list[str] = field(default_factory=list)
+    added_domains: list[str] = field(default_factory=list)
+    already_present: int = 0
+    backup_path: Path | None = None
+
+    @property
+    def total_added(self) -> int:
+        return len(self.added_tools) + len(self.added_sensitive) + len(self.added_domains)
+
+
+def apply_promotion_plan(
+    *,
+    plan: PromotionPlan,
+    global_settings_path: Path,
+    include_sensitive: bool = False,
+    dry_run: bool = False,
+) -> PromotionResult:
+    """Write a plan's read-only tools + research domains into global settings.
+
+    Backup-guarded and idempotent: a timestamped backup is created before any
+    write, and rules already present in the live global allow list are counted
+    (``already_present``) rather than re-appended. Writes are never promoted —
+    the plan's ``read_promotable`` already excludes them via write-precedence.
+    Sensitivity-flagged reads (``plan.sensitive_opt_in``) are written ONLY when
+    ``include_sensitive`` is True — an explicit opt-in, never the default.
+
+    The append is re-checked against the *live* allow list under an exclusive
+    lock, so a concurrent writer cannot cause a duplicate rule.
+    """
+    domain_rules = [f"WebFetch(domain:{domain})" for domain in plan.domains_promotable]
+    sensitive_rules = list(plan.sensitive_opt_in) if include_sensitive else []
+    candidates: list[tuple[str, str]] = (
+        [("tool", rule) for rule in plan.read_promotable]
+        + [("sensitive", rule) for rule in sensitive_rules]
+        + [("domain", rule) for rule in domain_rules]
+    )
+
+    existing = set(_read_allow_rules(global_settings_path))
+    result = PromotionResult()
+    pending: list[str] = []
+    for kind, rule in candidates:
+        if rule in existing:
+            result.already_present += 1
+            continue
+        pending.append(rule)
+        if kind == "tool":
+            result.added_tools.append(rule)
+        elif kind == "sensitive":
+            result.added_sensitive.append(rule)
+        else:
+            result.added_domains.append(rule)
+
+    if dry_run or not pending:
+        return result
+
+    from dev10x.skills.permission.backup import create_backup
+    from dev10x.skills.permission.file_lock import locked_json_update
+
+    result.backup_path = create_backup(global_settings_path)
+    with locked_json_update(path=global_settings_path) as live:
+        permissions = live.setdefault("permissions", {})
+        allow = permissions.setdefault("allow", [])
+        live_present = {rule for rule in allow if isinstance(rule, str)}
+        # Re-check every candidate against the LIVE allow list (not the
+        # pre-lock read) so a concurrent writer or a stale plan cannot
+        # introduce a duplicate rule.
+        for _kind, rule in candidates:
+            if rule not in live_present:
+                allow.append(rule)
+                live_present.add(rule)
+        permissions["allow"] = allow
+    return result
+
+
+def render_promotion_result(result: PromotionResult, *, dry_run: bool = False) -> str:
+    """Render a human-readable report of an :func:`apply_promotion_plan` run."""
+    header = "DRY RUN — no files modified" if dry_run else "applied to global settings"
+    verb = "Would promote" if dry_run else "Promoted"
+    lines = [f"MCP / research-domain promotion ({header}):", ""]
+
+    def _section(title: str, items: list[str]) -> None:
+        lines.append(f"{verb} {title} ({len(items)}):")
+        for item in items:
+            lines.append(f"  + {item}")
+        if not items:
+            lines.append("  (none)")
+        lines.append("")
+
+    _section("read-only tools", result.added_tools)
+    _section("research WebFetch domains", result.added_domains)
+    _section("sensitive read tools (opt-in)", result.added_sensitive)
+
+    lines.append(
+        f"Already present in global: {result.already_present} rule(s) — skipped (idempotent)."
+    )
+    if result.backup_path is not None:
+        lines.append(f"Backup: {result.backup_path}")
+    elif not dry_run and result.total_added == 0:
+        lines.append("No changes — global settings already contained every promotable rule.")
     return "\n".join(lines)

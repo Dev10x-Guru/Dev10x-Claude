@@ -472,14 +472,41 @@ def enumerate_mcp(*, dry_run: bool, quiet: bool) -> None:
 
 @permission.command(name="promote-plan")
 @click.option("--quiet", is_flag=True, help="Suppress config line")
-def promote_plan(*, quiet: bool) -> None:
-    """Dry-run plan: read-only MCP tools + research domains to promote (GH-470).
+@click.option(
+    "--apply",
+    "apply_changes",
+    is_flag=True,
+    help="Write the plan into global settings (Increment 2, GH-480). Default is dry-run report.",
+)
+@click.option(
+    "--include-sensitive",
+    is_flag=True,
+    help="With --apply: also promote sensitivity-flagged reads (private/DM/secret). Opt-in.",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="With --apply: show what would be written without modifying files.",
+)
+def promote_plan(
+    *,
+    quiet: bool,
+    apply_changes: bool,
+    include_sensitive: bool,
+    dry_run: bool,
+) -> None:
+    """Promote read-only MCP tools + research domains to global settings (GH-470/GH-480).
 
-    Increment 1 — reports what WOULD be promoted to global settings; makes
-    NO changes. Read-only tools and project-local research WebFetch domains
-    are classified and deduped against global; writes and sensitivity-flagged
-    reads are excluded from the default promotable set. Actual promotion is
-    deferred to a follow-up (Increment 2).
+    Without ``--apply`` this reports a DRY-RUN plan and makes NO changes:
+    read-only tools and project-local research WebFetch domains are classified
+    and deduped against global; writes and sensitivity-flagged reads are
+    excluded from the default promotable set.
+
+    With ``--apply`` (Increment 2, GH-480) the read-only set + research domains
+    are written into global ``~/.claude/settings.json`` — backup-guarded and
+    idempotent. Sensitivity-flagged reads are promoted only with the explicit
+    ``--include-sensitive`` opt-in; writes are never promoted. Combine
+    ``--apply --dry-run`` to preview exactly which rules the write would add.
     """
     from dev10x.skills.permission import promote as mod
     from dev10x.skills.permission import update_paths as paths_mod
@@ -498,7 +525,17 @@ def promote_plan(*, quiet: bool) -> None:
         project_settings_paths=settings_files,
         global_settings_path=global_settings,
     )
-    click.echo(mod.render_promotion_plan(plan))
+    if not apply_changes:
+        click.echo(mod.render_promotion_plan(plan))
+        return
+
+    result = mod.apply_promotion_plan(
+        plan=plan,
+        global_settings_path=global_settings,
+        include_sensitive=include_sensitive,
+        dry_run=dry_run,
+    )
+    click.echo(mod.render_promotion_result(result, dry_run=dry_run))
 
 
 @permission.command(name="merge-worktree")

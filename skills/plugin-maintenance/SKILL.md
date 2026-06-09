@@ -534,22 +534,35 @@ project. This step reports which read-only MCP tools and project-local
 research `WebFetch(domain:*)` rules **would** be promoted to global
 settings, so they stop re-prompting per project.
 
-**Increment 1 is a DRY RUN — it makes no changes.** Tools are classified
-read-vs-write by a name-token heuristic (write-precedence: any write token
-excludes the tool). Writes are never promoted; sensitivity-flagged reads
-(private/DM/secret access) are reported separately as opt-in. Plugin tools
-are excluded — they go through step 6 (enumerate-mcp) instead. The
-heuristic carries false-positive risk (e.g. a `get_access_to_*` grant
-reads as `read`), so a human reviews the plan before any promotion lands.
+Tools are classified read-vs-write by a name-token heuristic
+(write-precedence: any write token excludes the tool). Writes are never
+promoted; sensitivity-flagged reads (private/DM/secret access) are reported
+separately as opt-in. Plugin tools are excluded — they go through step 6
+(enumerate-mcp) instead. Grant verbs (`access`/`grant`/`authorize`) count
+as writes, so a `get_access_to_*` grant is correctly excluded despite its
+`get` prefix (GH-480).
+
+1. Dry run (REQUIRED — review the plan before applying):
 
 ```bash
 uvx dev10x permission promote-plan
 ```
 
-> **Deferred (Increment 2):** actually writing the approved read-only set
-> + research domains into global `~/.claude/settings.json` is a follow-up
-> once the classifier is validated against real allow-lists. Until then
-> this step is report-only.
+2. Apply the plan (Increment 2, GH-480) — writes the read-only set +
+   research domains into global `~/.claude/settings.json`, backup-guarded
+   and idempotent:
+
+```bash
+uvx dev10x permission promote-plan --apply
+```
+
+**Apply is opt-in, not automatic.** Run it only after reviewing the
+dry-run plan above — auto-writing permission grants into *global* settings
+is hard to reverse and the heuristic carries false-positive risk.
+Sensitivity-flagged reads need a second opt-in (`--apply
+--include-sensitive`); writes are never promoted. Preview the exact write
+with `--apply --dry-run`. Recover a bad run from the timestamped backup the
+command prints.
 
 ### 7. Ensure script coverage **[bootstrap]**
 
