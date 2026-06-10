@@ -1,9 +1,12 @@
-"""Tests for ``dev10x.skills.playbook.discovery`` (GH-192)."""
+"""Tests for ``dev10x.skills.playbook.discovery`` (GH-192, GH-546)."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+from dev10x.skills.playbook import discovery
 from dev10x.skills.playbook.discovery import (
     find_user_playbooks,
     plugin_default_path,
@@ -32,6 +35,20 @@ class TestFindUserPlaybooks:
         assert len(found) == 1
         assert found[0].skill_key == "release-notes"
         assert found[0].scope == "global"
+
+    def test_default_root_uses_effective_cwd(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """GH-546: a bound worktree CWD wins over the process CWD."""
+        project_dir = tmp_path / ".claude" / "Dev10x" / "playbooks"
+        project_dir.mkdir(parents=True)
+        (project_dir / "work-on.yaml").write_text("overrides: []")
+        monkeypatch.setattr(discovery, "effective_cwd", lambda: str(tmp_path))
+        found = find_user_playbooks(home=tmp_path / "home")
+        assert [p.skill_key for p in found] == ["work-on"]
+        assert found[0].scope == "project"
 
     def test_returns_both_scopes(self, tmp_path: Path) -> None:
         home = tmp_path / "home"

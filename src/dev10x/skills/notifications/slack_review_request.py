@@ -99,6 +99,10 @@ def format_review_message(
     return "\n".join(lines)
 
 
+class GhCommandError(RuntimeError):
+    """A `gh` invocation failed — raised so entry points own exit codes."""
+
+
 def gh_json(args: list[str]) -> Any:
     result = subprocess.run(
         ["gh", *args],
@@ -107,8 +111,7 @@ def gh_json(args: list[str]) -> Any:
         timeout=30,
     )
     if result.returncode != 0:
-        print(f"[ERROR] gh {' '.join(args)}: {result.stderr.strip()}", file=sys.stderr)
-        sys.exit(1)
+        raise GhCommandError(f"gh {' '.join(args)}: {result.stderr.strip()}")
     return json.loads(result.stdout)
 
 
@@ -240,7 +243,11 @@ def main() -> None:
 
     parsed = parser.parse_args()
     commands = {"prepare": cmd_prepare, "send": cmd_send}
-    commands[parsed.command](parsed)
+    try:
+        commands[parsed.command](parsed)
+    except GhCommandError as ex:
+        print(f"[ERROR] {ex}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

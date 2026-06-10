@@ -6,6 +6,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from dev10x.subprocess_utils import effective_cwd
+
 PROJECT_OVERRIDE_DIR = ".claude/Dev10x/playbooks"
 GLOBAL_OVERRIDE_DIR = "~/.claude/memory/Dev10x/playbooks"
 
@@ -46,7 +48,7 @@ def find_user_playbooks(
     override directory under ``home``. ``project_root`` defaults to the
     current working directory; ``home`` defaults to ``$HOME``.
     """
-    root = project_root or Path.cwd()
+    root = project_root or Path(effective_cwd() or Path.cwd())
     home_dir = home or Path(os.path.expanduser("~"))
     project_dir = root / PROJECT_OVERRIDE_DIR
     global_dir = home_dir / Path(GLOBAL_OVERRIDE_DIR.replace("~/", ""))
