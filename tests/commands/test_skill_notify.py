@@ -8,6 +8,7 @@ import pytest
 from click.testing import CliRunner
 
 from dev10x.cli import cli
+from dev10x.domain.common.result import Result, err, ok
 
 
 @pytest.fixture()
@@ -92,11 +93,11 @@ class TestSlackSend:
             message: str,
             thread_ts: str | None = None,
             **kwargs: object,
-        ) -> str:
+        ) -> Result[str]:
             captured["channel"] = channel
             captured["message"] = message
             captured["thread_ts"] = thread_ts
-            return "1234567890.123456"
+            return ok("1234567890.123456")
 
         from dev10x.skills.notifications import slack_notify
 
@@ -134,9 +135,9 @@ class TestSlackSend:
     ) -> None:
         captured: dict[str, object] = {}
 
-        def fake_send(channel: str, message: str, **kwargs: object) -> str:
+        def fake_send(channel: str, message: str, **kwargs: object) -> Result[str]:
             captured["message"] = message
-            return "ts"
+            return ok("ts")
 
         from dev10x.skills.notifications import slack_notify
 
@@ -168,7 +169,11 @@ class TestSlackSend:
     ) -> None:
         from dev10x.skills.notifications import slack_notify
 
-        monkeypatch.setattr(slack_notify, "send_slack_message", lambda **kw: None)
+        monkeypatch.setattr(
+            slack_notify,
+            "send_slack_message",
+            lambda **kw: err("Failed to send Slack message: boom"),
+        )
 
         result = runner.invoke(
             cli,
@@ -176,6 +181,7 @@ class TestSlackSend:
         )
 
         assert result.exit_code == 1
+        assert "Failed to send Slack message: boom" in result.output
 
     def test_works_without_skills_directory(
         self,
@@ -189,7 +195,7 @@ class TestSlackSend:
         monkeypatch.setattr(
             slack_notify,
             "send_slack_message",
-            lambda **kw: "ts.ok",
+            lambda **kw: ok("ts.ok"),
         )
 
         result = runner.invoke(

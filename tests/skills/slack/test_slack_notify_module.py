@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import pytest
 
+from dev10x.domain.common.result import ErrorResult, ok
 from dev10x.skills.notifications import slack_notify as mod
 
 
@@ -176,6 +177,60 @@ class TestResolveMentions:
         mod.set_workspace("aperture")
         assert mod.resolve_mentions("ping @aperture") == "ping <!subteam^S_APE>"
         assert mod.resolve_mentions("ping @default") == "ping @default"
+
+
+class TestSendSlackMessageResult:
+    """GH-537: send_slack_message returns Result[str] instead of swallowing errors."""
+
+    def test_returns_err_when_token_lookup_fails(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        monkeypatch.setattr(mod, "_keyring_lookup", lambda *, service, key: None)
+        with caplog.at_level("ERROR", logger="dev10x.skills.notifications.slack_notify"):
+            result = mod.send_slack_message(channel="C123", message="hi")
+        assert isinstance(result, ErrorResult)
+        assert "No Slack token found" in result.error
+        assert "Failed to send Slack message" in caplog.text
+
+    def test_returns_ok_with_ts_on_success(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        class FakeClient:
+            def __init__(self, token: str) -> None:
+                self.token = token
+
+            def chat_postMessage(self, **kwargs: object) -> dict:
+                return {"ts": "1234.5678"}
+
+        import slack_sdk
+
+        monkeypatch.setenv("SLACK_TOKEN", "xoxb-test")
+        monkeypatch.setattr(slack_sdk, "WebClient", FakeClient)
+        result = mod.send_slack_message(channel="C123", message="hi")
+        assert result == ok("1234.5678")
+
+    def test_programming_errors_propagate(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """KeyError and friends must NOT be swallowed (GH-537 AC)."""
+
+        class BrokenClient:
+            def __init__(self, token: str) -> None:
+                self.token = token
+
+            def chat_postMessage(self, **kwargs: object) -> dict:
+                return {}  # missing "ts" → KeyError in the happy path
+
+        import slack_sdk
+
+        monkeypatch.setenv("SLACK_TOKEN", "xoxb-test")
+        monkeypatch.setattr(slack_sdk, "WebClient", BrokenClient)
+        with pytest.raises(KeyError):
+            mod.send_slack_message(channel="C123", message="hi")
 
 
 class TestUvxEnvImportSmoke:

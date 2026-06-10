@@ -363,14 +363,15 @@ def cmd_send(args: argparse.Namespace) -> None:
         # Post via importable slack_notify module (GH-442). Works in both
         # plugin-checkout and uvx-installed contexts.
         if args.channel:
+            from dev10x.domain.common.result import ErrorResult
             from dev10x.skills.notifications import slack_notify as _slack
 
-            ts = _slack.send_slack_message(channel=args.channel, message=message)
-            if ts is None:
-                print("❌ Slack notification failed", file=sys.stderr)
+            result = _slack.send_slack_message(channel=args.channel, message=message)
+            if isinstance(result, ErrorResult):
+                print(f"❌ Slack notification failed: {result.error}", file=sys.stderr)
                 sys.exit(1)
-            print(f"✅ Slack message sent successfully! ts={ts}")
-            slack_ts = ts
+            print(f"✅ Slack message sent successfully! ts={result.value}")
+            slack_ts = result.value
         else:
             print(f"📋 Notification message (post manually):\n{message}")
 
