@@ -9,6 +9,7 @@ import pytest
 from click.testing import CliRunner
 
 from dev10x.commands.permission import promote_plan
+from dev10x.domain.common.result import ok
 
 READ_TOOL = "mcp__claude_ai_Slack__slack_read_channel"
 DOMAIN_RULE = "WebFetch(domain:arxiv.org)"
@@ -31,7 +32,7 @@ def env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
 
     from dev10x.skills.permission import update_paths as paths_mod
 
-    monkeypatch.setattr(paths_mod, "find_config", lambda: tmp_path / "config.yaml")
+    monkeypatch.setattr(paths_mod, "find_config", lambda: ok(tmp_path / "config.yaml"))
     monkeypatch.setattr(paths_mod, "load_config", lambda _path: {"roots": []})
     monkeypatch.setattr(paths_mod, "find_settings_files", lambda **_kw: [project])
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))

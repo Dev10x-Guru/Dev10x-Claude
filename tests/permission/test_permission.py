@@ -31,7 +31,7 @@ class TestUpdatePathsInProcessRoute:
     @pytest.mark.asyncio
     async def test_returns_success_with_change_summary(self) -> None:
         with (
-            patch(f"{MOD_PATH}.find_config", return_value=Path("/fake/config.yaml")),
+            patch(f"{MOD_PATH}.find_config", return_value=ok(Path("/fake/config.yaml"))),
             patch(f"{MOD_PATH}.load_config", return_value=self._stub_config()),
             patch(f"{MOD_PATH}.find_settings_files", return_value=[Path("/fake/settings.json")]),
             patch(f"{MOD_PATH}.detect_latest_version", return_value="1.0.0"),
@@ -49,7 +49,7 @@ class TestUpdatePathsInProcessRoute:
     @pytest.mark.asyncio
     async def test_returns_error_when_cache_is_empty(self) -> None:
         with (
-            patch(f"{MOD_PATH}.find_config", return_value=Path("/fake/config.yaml")),
+            patch(f"{MOD_PATH}.find_config", return_value=ok(Path("/fake/config.yaml"))),
             patch(f"{MOD_PATH}.load_config", return_value=self._stub_config()),
             patch(f"{MOD_PATH}.find_settings_files", return_value=[Path("/fake/settings.json")]),
             patch(f"{MOD_PATH}.detect_latest_version", return_value=None),
@@ -62,7 +62,7 @@ class TestUpdatePathsInProcessRoute:
     @pytest.mark.asyncio
     async def test_dry_run_passes_through_to_update_file(self) -> None:
         with (
-            patch(f"{MOD_PATH}.find_config", return_value=Path("/fake/config.yaml")),
+            patch(f"{MOD_PATH}.find_config", return_value=ok(Path("/fake/config.yaml"))),
             patch(f"{MOD_PATH}.load_config", return_value=self._stub_config()),
             patch(f"{MOD_PATH}.find_settings_files", return_value=[Path("/fake/settings.json")]),
             patch(f"{MOD_PATH}.detect_latest_version", return_value="1.0.0"),
@@ -188,7 +188,7 @@ class TestRunSubCommand:
             patch(f"{MOD_PATH}.load_config") as load_cfg,
             patch(f"{MOD_PATH}.find_settings_files") as find_sf,
         ):
-            find_cfg.return_value = "/fake/config.yaml"
+            find_cfg.return_value = ok(Path("/fake/config.yaml"))
             load_cfg.return_value = {"roots": ["/fake"], "include_user_settings": True}
             find_sf.return_value = ["/fake/settings.json"]
             yield {
@@ -340,7 +340,7 @@ class TestRunSubCommand:
             patch(f"{MOD_PATH}.load_config") as load_cfg,
             patch(f"{MOD_PATH}.find_settings_files") as find_sf,
         ):
-            find_cfg.return_value = "/fake/config.yaml"
+            find_cfg.return_value = ok(Path("/fake/config.yaml"))
             load_cfg.return_value = {"roots": []}
             find_sf.return_value = []
             result = perm_mod._run_sub_command(ensure_base=True)

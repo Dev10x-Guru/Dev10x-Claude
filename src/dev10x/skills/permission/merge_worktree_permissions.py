@@ -15,6 +15,7 @@ import json
 import re
 from pathlib import Path
 
+from dev10x.domain.common.result import Result
 from dev10x.domain.common.ticket_id import TICKET_ID_PATTERN
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.skills.permission.config import parse_config, resolve_config
@@ -71,7 +72,7 @@ def generalize_permission(entry: str) -> str:
     return entry
 
 
-def find_config() -> Path:
+def find_config() -> Result[Path]:
     return resolve_config(candidates=[USERSPACE_CONFIG, PLUGIN_CONFIG])
 
 
