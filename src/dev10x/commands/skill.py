@@ -40,7 +40,11 @@ def slack_review_prepare(*, pr: int, repo: str) -> None:
     from dev10x.skills.notifications import slack_review_request
 
     args = argparse.Namespace(pr=pr, repo=repo)
-    slack_review_request.cmd_prepare(args)
+    try:
+        slack_review_request.cmd_prepare(args)
+    except slack_review_request.GhCommandError as ex:
+        click.echo(f"[ERROR] {ex}", err=True)
+        sys.exit(1)
 
 
 @notify.command(name="slack-send")
