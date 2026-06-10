@@ -1,8 +1,7 @@
 """SkillName value object — `<namespace>:<slug>` skill identifier.
 
 Eliminates duplicate parsing scattered across `hooks/skill.py`
-(safe-path naming), `skills/permission/local_skill_approval.py`
-(namespace grouping), and `skills/audit/cli_friction.py`
+(safe-path naming) and `skills/audit/cli_friction.py`
 (directory lookup). Audit finding C4 — 2026-05-18.
 """
 
