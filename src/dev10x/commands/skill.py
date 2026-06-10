@@ -5,6 +5,8 @@ from pathlib import Path
 
 import click
 
+from dev10x.domain.common.result import ErrorResult
+
 
 @click.group()
 def skill() -> None:
@@ -81,15 +83,15 @@ def slack_send(
     else:
         msg = message  # type: ignore[assignment]  # validated above
 
-    ts = slack_notify.send_slack_message(
+    result = slack_notify.send_slack_message(
         channel=channel,
         message=msg,
         thread_ts=thread_ts,
     )
-    if ts:
-        click.echo(f"✅ Slack message sent successfully! ts={ts}")
-    else:
+    if isinstance(result, ErrorResult):
+        click.echo(f"❌ {result.error}", err=True)
         sys.exit(1)
+    click.echo(f"✅ Slack message sent successfully! ts={result.value}")
 
 
 @skill.command(name="count-instructions")

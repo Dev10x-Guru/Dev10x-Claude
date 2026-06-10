@@ -11,14 +11,19 @@ point for direct plugin-checkout invocations; this module powers the
 
 from __future__ import annotations
 
+import logging
 import os
 import pathlib
 import subprocess
 import sys
 from typing import TYPE_CHECKING
 
+from dev10x.domain.common.result import ErrorResult, Result, err, ok
+
 if TYPE_CHECKING:
     from slack_sdk import WebClient
+
+log = logging.getLogger(__name__)
 
 CONFIG_PATH = pathlib.Path.home() / ".claude" / "memory" / "slack-config.yaml"
 
@@ -147,10 +152,14 @@ def send_slack_message(
     broadcast: bool = False,
     reactions: list[str] | None = None,
     unfurl: bool = False,
-) -> str | None:
+) -> Result[str]:
     try:
         from slack_sdk import WebClient
-
+        from slack_sdk.errors import SlackApiError
+    except ImportError as ex:
+        log.error("slack_sdk is not installed", exc_info=ex)
+        return err(f"Failed to send Slack message: {ex}")
+    try:
         resolved_message = resolve_mentions(message)
         token = get_token()
         is_user_token = token.startswith("xoxp-")
@@ -168,10 +177,10 @@ def send_slack_message(
         if reactions:
             for emoji in reactions:
                 client.reactions_add(channel=channel, timestamp=ts, name=emoji)
-        return ts
-    except Exception as ex:
-        print(f"❌ Failed to send Slack message: {ex}", file=sys.stderr)
-        return None
+        return ok(ts)
+    except (SlackApiError, OSError, RuntimeError) as ex:
+        log.error("Failed to send Slack message", exc_info=ex)
+        return err(f"Failed to send Slack message: {ex}")
 
 
 def upload_slack_files(
@@ -266,7 +275,11 @@ def send_reminder(message: str) -> str | None:
         client = WebClient(token=token)
         dm = client.conversations_open(users=self_user_id)
         channel = dm["channel"]["id"]
-        return send_slack_message(channel=channel, message=message)
+        result = send_slack_message(channel=channel, message=message)
+        if isinstance(result, ErrorResult):
+            print(f"❌ Failed to send reminder: {result.error}", file=sys.stderr)
+            return None
+        return result.value
     except Exception as ex:
         print(f"❌ Failed to send reminder: {ex}", file=sys.stderr)
         return None
