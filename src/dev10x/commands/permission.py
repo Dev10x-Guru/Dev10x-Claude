@@ -3,8 +3,11 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from types import ModuleType
 
 import click
+
+from dev10x.domain.common.result import ErrorResult
 
 
 @click.group()
@@ -19,6 +22,15 @@ def _emit_result(result: dict) -> int:
     for err in result.get("errors", []):
         click.echo(err, err=True)
     return int(result.get("exit_code", 0))
+
+
+def _require_config(mod: ModuleType) -> Path:
+    """Unwrap ``mod.find_config()`` or exit — the CLI layer owns exit codes."""
+    resolved = mod.find_config()
+    if isinstance(resolved, ErrorResult):
+        click.echo(f"ERROR: {resolved.error}", err=True)
+        sys.exit(1)
+    return resolved.value
 
 
 @permission.command(name="update-paths")
@@ -48,9 +60,9 @@ def update_paths(
     from dev10x.skills.permission import update_paths as mod
 
     if restore:
-        sys.exit(mod._restore(config_path=mod.find_config()))
+        sys.exit(mod._restore(config_path=_require_config(mod)))
 
-    config_path = mod.find_config()
+    config_path = _require_config(mod)
     if not quiet:
         click.echo(f"Config: {config_path}")
     config = mod.load_config(config_path)
@@ -138,7 +150,7 @@ def ensure_base(*, dry_run: bool, quiet: bool) -> None:
     """Add missing base permissions from projects.yaml."""
     from dev10x.skills.permission import update_paths as mod
 
-    config_path = mod.find_config()
+    config_path = _require_config(mod)
     if not quiet:
         click.echo(f"Config: {config_path}")
     config = mod.load_config(config_path)
@@ -170,7 +182,7 @@ def generalize(*, dry_run: bool, quiet: bool) -> None:
     """Replace session-specific permission args with wildcard patterns."""
     from dev10x.skills.permission import update_paths as mod
 
-    config_path = mod.find_config()
+    config_path = _require_config(mod)
     config = mod.load_config(config_path)
 
     settings_files = mod.find_settings_files(
@@ -204,7 +216,7 @@ def ensure_workspace(*, dry_run: bool, quiet: bool) -> None:
     """
     from dev10x.skills.permission import update_paths as mod
 
-    config_path = mod.find_config()
+    config_path = _require_config(mod)
     config = mod.load_config(config_path)
 
     settings_files = mod.find_settings_files(
@@ -234,7 +246,7 @@ def ensure_scripts(*, dry_run: bool, quiet: bool) -> None:
     """Verify all plugin scripts have allow rules; add missing ones."""
     from dev10x.skills.permission import update_paths as mod
 
-    config_path = mod.find_config()
+    config_path = _require_config(mod)
     config = mod.load_config(config_path)
 
     settings_files = mod.find_settings_files(
@@ -264,7 +276,7 @@ def ensure_reads(*, dry_run: bool, quiet: bool) -> None:
     """Emit per-skill folder Read rules with ~/ + /home/<user>/ twins."""
     from dev10x.skills.permission import update_paths as mod
 
-    config_path = mod.find_config()
+    config_path = _require_config(mod)
     config = mod.load_config(config_path)
 
     settings_files = mod.find_settings_files(
@@ -340,14 +352,14 @@ def clean(
     from dev10x.skills.permission import clean_project_files as mod
 
     if restore:
-        sys.exit(mod._restore(config_path=mod.find_config()))
+        sys.exit(mod._restore(config_path=_require_config(mod)))
 
     # Global-dedup is opt-in (finding #47). It runs only under --aggressive,
     # and --skip-global-dedup always wins so the safe behavior cannot be
     # accidentally re-enabled.
     skip_global_dedup = skip_global_dedup or not aggressive
 
-    config_path = mod.find_config()
+    config_path = _require_config(mod)
     click.echo(f"Config: {config_path}")
     config = mod.load_config(config_path)
 
@@ -451,7 +463,7 @@ def enumerate_mcp(*, dry_run: bool, quiet: bool) -> None:
     from dev10x.skills.permission import enumerate_mcp as mod
     from dev10x.skills.permission import update_paths as paths_mod
 
-    config_path = paths_mod.find_config()
+    config_path = _require_config(paths_mod)
     if not quiet:
         click.echo(f"Config: {config_path}")
     config = paths_mod.load_config(config_path)
@@ -511,7 +523,7 @@ def promote_plan(
     from dev10x.skills.permission import promote as mod
     from dev10x.skills.permission import update_paths as paths_mod
 
-    config_path = paths_mod.find_config()
+    config_path = _require_config(paths_mod)
     if not quiet:
         click.echo(f"Config: {config_path}")
     config = paths_mod.load_config(config_path)
@@ -545,7 +557,7 @@ def merge_worktree(*, dry_run: bool, restore: bool) -> None:
     """Merge worktree permissions back into main project settings."""
     from dev10x.skills.permission import merge_worktree_permissions as mod
 
-    config_path = mod.find_config()
+    config_path = _require_config(mod)
 
     if restore:
         sys.exit(mod._restore(config_path=config_path))
@@ -864,7 +876,7 @@ def investigate_delta() -> None:
     from dev10x.skills.permission import update_paths as paths_mod
     from dev10x.skills.permission_investigator import PermissionDeltaQuery
 
-    config_path = paths_mod.find_config()
+    config_path = _require_config(paths_mod)
     config = paths_mod.load_config(config_path)
     query = PermissionDeltaQuery(
         state_path=_resolve_state_path(),
@@ -902,7 +914,7 @@ def doctor_canonicalize(*, dry_run: bool, quiet: bool) -> None:
     from dev10x.skills.permission import doctor as mod
     from dev10x.skills.permission import update_paths as paths_mod
 
-    config_path = paths_mod.find_config()
+    config_path = _require_config(paths_mod)
     config = paths_mod.load_config(config_path)
     settings_files = paths_mod.find_settings_files(
         roots=config.get("roots", []),
@@ -980,7 +992,7 @@ def doctor_apply_deprecations(*, dry_run: bool) -> None:
     from dev10x.skills.permission import update_paths as paths_mod
 
     catalog = mod.load_catalog()
-    config_path = paths_mod.find_config()
+    config_path = _require_config(paths_mod)
     config = paths_mod.load_config(config_path)
     settings_files = paths_mod.find_settings_files(
         roots=config.get("roots", []),
@@ -1036,7 +1048,7 @@ def doctor_enable_group(*, group_name: str, dry_run: bool) -> None:
     if not rules:
         click.echo(f"ERROR: unknown group {group_name!r}")
         sys.exit(1)
-    config_path = paths_mod.find_config()
+    config_path = _require_config(paths_mod)
     config = paths_mod.load_config(config_path)
     settings_files = paths_mod.find_settings_files(
         roots=config.get("roots", []),
@@ -1086,7 +1098,7 @@ def doctor_anchor_worktree_roots(*, dry_run: bool, quiet: bool) -> None:
     from dev10x.skills.permission import doctor as mod
     from dev10x.skills.permission import update_paths as paths_mod
 
-    config_path = paths_mod.find_config()
+    config_path = _require_config(paths_mod)
     config = paths_mod.load_config(config_path)
     roots = config.get("roots", [])
     if not roots:

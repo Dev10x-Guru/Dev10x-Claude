@@ -20,7 +20,7 @@ from unittest.mock import patch
 import pytest
 
 perm_mod = pytest.importorskip("dev10x.permission", reason="dev10x not installed")
-from dev10x.domain.common.result import ErrorResult, SuccessResult  # noqa: E402
+from dev10x.domain.common.result import ErrorResult, SuccessResult, ok  # noqa: E402
 
 MOD = "dev10x.skills.permission.update_paths"
 
@@ -29,7 +29,7 @@ class TestUpdatePathsInProcess:
     @pytest.mark.asyncio
     async def test_returns_success_when_files_already_up_to_date(self) -> None:
         with (
-            patch(f"{MOD}.find_config", return_value=Path("/fake/config.yaml")),
+            patch(f"{MOD}.find_config", return_value=ok(Path("/fake/config.yaml"))),
             patch(
                 f"{MOD}.load_config",
                 return_value={
@@ -53,7 +53,7 @@ class TestUpdatePathsInProcess:
     @pytest.mark.asyncio
     async def test_returns_structured_error_when_no_versions_detected(self) -> None:
         with (
-            patch(f"{MOD}.find_config", return_value=Path("/fake/config.yaml")),
+            patch(f"{MOD}.find_config", return_value=ok(Path("/fake/config.yaml"))),
             patch(
                 f"{MOD}.load_config",
                 return_value={
@@ -79,6 +79,25 @@ class TestUpdatePathsInProcess:
 
         assert isinstance(result, ErrorResult)
         assert "uvx dev10x permission update-paths --init" in result.error
+
+
+class TestUpdatePathsInProcessMissingConfig:
+    @pytest.mark.asyncio
+    async def test_propagates_error_when_config_missing(self) -> None:
+        """GH-532: a missing config returns ErrorResult instead of sys.exit."""
+        missing = ErrorResult(error="No config found.")
+        with patch(f"{MOD}.find_config", return_value=missing):
+            result = await perm_mod.update_paths()
+
+        assert result is missing
+
+    @pytest.mark.asyncio
+    async def test_sub_command_propagates_error_when_config_missing(self) -> None:
+        missing = ErrorResult(error="No config found.")
+        with patch(f"{MOD}.find_config", return_value=missing):
+            result = await perm_mod.update_paths(ensure_base=True)
+
+        assert result is missing
 
 
 class TestUpdatePathsSubCommand:

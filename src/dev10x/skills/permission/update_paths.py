@@ -31,6 +31,7 @@ from pathlib import Path
 
 from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.allow_rule import AllowRule
+from dev10x.domain.common.result import Result
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.skills.permission.config import parse_config, resolve_config
 
@@ -53,7 +54,7 @@ def extract_cache_publisher(plugin_cache: str) -> str | None:
     return None
 
 
-def find_config() -> Path:
+def find_config() -> Result[Path]:
     return resolve_config(
         candidates=[MEMORY_CONFIG, USERSPACE_CONFIG, PLUGIN_CONFIG],
         create_path=MEMORY_CONFIG,

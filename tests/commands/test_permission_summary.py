@@ -9,6 +9,7 @@ import pytest
 from click.testing import CliRunner
 
 from dev10x.commands.permission import clean, update_paths
+from dev10x.domain.common.result import ok
 
 
 @pytest.fixture
@@ -50,7 +51,7 @@ def project_with_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pa
     )
     monkeypatch.setattr(
         "dev10x.skills.permission.update_paths.find_config",
-        lambda: config_path,
+        lambda: ok(config_path),
     )
     monkeypatch.setattr(
         "dev10x.skills.permission.update_paths.detect_latest_version",
@@ -137,7 +138,7 @@ def project_with_clean_targets(
 
     monkeypatch.setattr(
         "dev10x.skills.permission.clean_project_files.find_config",
-        lambda: config_path,
+        lambda: ok(config_path),
     )
     monkeypatch.setattr(
         "dev10x.skills.permission.clean_project_files.GLOBAL_SETTINGS",
