@@ -40,6 +40,7 @@ import fcntl
 import json
 import os
 import tempfile
+import time
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
@@ -47,19 +48,65 @@ from typing import Any
 
 import yaml
 
+#: Default seconds to wait for an exclusive lock before giving up.
+LOCK_TIMEOUT_SECONDS = 10.0
+
+#: Poll interval while waiting on a contended lock.
+_LOCK_RETRY_INTERVAL = 0.05
+
+
+class LockTimeoutError(OSError):
+    """Raised when an exclusive file lock cannot be acquired in time.
+
+    Subclasses :class:`OSError` so existing ``except OSError`` handlers
+    still catch it, while call sites that want an actionable retry
+    message can match it specifically.
+    """
+
 
 def _lock_path_for(path: Path) -> Path:
     return path.with_suffix(path.suffix + ".lock") if path.suffix else path.with_suffix(".lock")
 
 
+def _acquire_exclusive(lock_fd: int, target: Path, timeout: float) -> None:
+    """Acquire an exclusive ``flock``, raising after ``timeout`` seconds.
+
+    Uses non-blocking ``LOCK_NB`` attempts in a poll loop so a crashed or
+    wedged lock-holder cannot freeze the caller (and, for the MCP daemon,
+    its async event loop) indefinitely. A non-positive ``timeout`` falls
+    back to a single blocking acquire — callers can opt out of the guard
+    when an unbounded wait is genuinely desired.
+    """
+    if timeout <= 0:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        return
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return
+        except BlockingIOError:
+            if time.monotonic() >= deadline:
+                raise LockTimeoutError(
+                    f"{target} is locked by another process — could not acquire "
+                    f"the lock within {timeout:g}s. Please try again."
+                ) from None
+            time.sleep(_LOCK_RETRY_INTERVAL)
+
+
 @contextmanager
-def file_lock(path: Path) -> Generator[None, None, None]:
+def file_lock(path: Path, *, timeout: float = LOCK_TIMEOUT_SECONDS) -> Generator[None, None, None]:
     """Acquire exclusive ``flock`` on ``<path>.lock`` for the duration.
 
     Sidecar naming follows the module convention: ``.lock`` is
     *appended* to the full target name via :func:`_lock_path_for`
     (e.g. ``plan.yaml`` → ``plan.yaml.lock``). See the module docstring
     for the reason this differs from :func:`locked_json_update`.
+
+    Raises :class:`LockTimeoutError` when the lock cannot be acquired
+    within ``timeout`` seconds (default :data:`LOCK_TIMEOUT_SECONDS`),
+    so a crashed or wedged holder cannot block the caller forever. Pass
+    ``timeout=0`` for the legacy unbounded blocking behaviour.
 
     The sidecar lock file is deliberately not unlinked on release.
     Unlinking is unsafe: a third writer arriving between ``unlink`` and
@@ -69,7 +116,7 @@ def file_lock(path: Path) -> Generator[None, None, None]:
     path.parent.mkdir(parents=True, exist_ok=True)
     lock_fd = os.open(str(_lock_path_for(path)), os.O_CREAT | os.O_RDWR)
     try:
-        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        _acquire_exclusive(lock_fd, path, timeout)
         yield
     finally:
         fcntl.flock(lock_fd, fcntl.LOCK_UN)
@@ -103,17 +150,22 @@ def atomic_write_text(path: Path, content: str) -> None:
 
 
 @contextmanager
-def locked_json_update(path: Path) -> Generator[dict[str, Any], None, None]:
+def locked_json_update(
+    path: Path, *, timeout: float = LOCK_TIMEOUT_SECONDS
+) -> Generator[dict[str, Any], None, None]:
     """Lock ``path``, yield its JSON content as a dict, atomically write back.
 
     Uses a ``.lock`` sidecar that replaces the path's suffix (e.g.
     ``settings.local.json`` → ``settings.local.lock``), preserving
     the historical naming used by the permission-skill call sites.
+
+    Raises :class:`LockTimeoutError` when the lock cannot be acquired
+    within ``timeout`` seconds. Pass ``timeout=0`` for unbounded waits.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     lock_fd = os.open(str(path.with_suffix(".lock")), os.O_CREAT | os.O_RDWR)
     try:
-        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        _acquire_exclusive(lock_fd, path, timeout)
         if path.exists():
             data = json.loads(path.read_text())
         else:
@@ -126,7 +178,9 @@ def locked_json_update(path: Path) -> Generator[dict[str, Any], None, None]:
 
 
 @contextmanager
-def locked_yaml_update(path: Path) -> Generator[dict[str, Any], None, None]:
+def locked_yaml_update(
+    path: Path, *, timeout: float = LOCK_TIMEOUT_SECONDS
+) -> Generator[dict[str, Any], None, None]:
     """Lock ``path``, yield its YAML content as a dict, atomically write back.
 
     Sidecar naming follows the module convention: ``.lock`` is
@@ -134,11 +188,14 @@ def locked_yaml_update(path: Path) -> Generator[dict[str, Any], None, None]:
     (e.g. ``plan.yaml`` → ``plan.yaml.lock``). See the module
     docstring for the reason this differs from
     :func:`locked_json_update`.
+
+    Raises :class:`LockTimeoutError` when the lock cannot be acquired
+    within ``timeout`` seconds. Pass ``timeout=0`` for unbounded waits.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     lock_fd = os.open(str(_lock_path_for(path)), os.O_CREAT | os.O_RDWR)
     try:
-        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        _acquire_exclusive(lock_fd, path, timeout)
         if path.exists():
             try:
                 data = yaml.safe_load(path.read_text()) or {}
