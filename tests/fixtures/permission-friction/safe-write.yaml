@@ -62,3 +62,38 @@ rows:
     notes: >
       Headless screenshot writes one file locally. Browser automation is
       broad enough to warrant ask rather than a blanket allow.
+
+  - id: "#70"
+    command: 'mcp__claude_ai_Google_Calendar__create_event(summary, startTime, ...)'
+    tool: mcp__claude_ai_Google_Calendar__create_event
+    friction: permission-prompt
+    effect: ask
+    reversibility: trivial
+    rule: "mcp__claude_ai_Google_Calendar__create_event"
+    notes: >
+      Writes an external calendar event, trivially reversible (delete).
+      External-state write → ask. Re-derived from extractor `destructive`.
+
+  - id: "#178"
+    command: "sed -i 's|<old>|<new>|g' .idea/workspace.xml"
+    tool: Bash
+    friction: permission-prompt
+    effect: ask
+    reversibility: trivial
+    rule: "Bash(sed -i:*)"
+    notes: >
+      `sed -i` edits a local file in place (reversible via git). Prefer
+      the Edit tool; the in-place mutation warrants ask. Re-derived from
+      extractor `destructive`+`allow` (incoherent).
+
+  - id: "#145"
+    command: "mktemp /tmp/gh-issue-body-XXXXXX.md"
+    tool: Bash
+    friction: null
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(mktemp:*)"
+    notes: >
+      Creates a temp file under /tmp — local, trivially reversible. Prefer
+      the Dev10x `mktmp` MCP wrapper (scoped, audited); raw `mktemp` is the
+      friction signal, not a risk.

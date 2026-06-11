@@ -71,8 +71,16 @@ gh api repos/Dev10x-Guru/Dev10x-Claude/issues/271/comments --paginate \
   tests/fixtures/permission-friction
 ```
 
-Current counts: 315 evidence entries → 51 no-command notes, 91 with both
-effect & class (69 "clean" / 22 incoherent per the parser), 173
-unclassified. The classified `<class>.yaml` files are the hand-verified
-subset; `unclassified.yaml` + the remaining candidates await triage (see
-`docs/specs/GH-271-phase0-handoff.md`).
+Current counts: 315 evidence entries → 51 no-command notes, then split
+into **74 hand-verified classified rows** across the five `<class>.yaml`
+files and a **166-row `unclassified.yaml` triage backlog**.
+
+History: PR #613 shipped the initial 39-row seed (Phase 0). The Phase 0.1
+follow-up (#614) promoted 35 more rows — 28 from the parser candidate set
+(correcting the 22 incoherent "suspect" tags and collapsing `<run-id>`/
+path duplicates) and 7 clean shapes pulled out of the backlog. The
+remaining backlog rows are intentionally unpromoted: duplicates of
+shapes already classified, path-form / prefix-shift friction patterns
+(not effect/class cases), or chained/sensitive commands. The backlog is
+a feature, not a gap — a correct ~75-row corpus beats a noisy 315-row
+one. See `docs/specs/GH-271-phase0-handoff.md` for the triage spec.

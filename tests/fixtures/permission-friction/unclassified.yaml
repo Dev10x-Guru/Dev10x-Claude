@@ -11,12 +11,6 @@
 command_class: null
 status: triage-backlog
 rows:
-- id: '#2'
-  command: rg -rn "<pattern>|<pattern2>" /work/<org>
-  tool: Bash
-  notes: Session has `additionalDirectories` registered for each individual sibling
-    repo (`/work/<org>/<repo-a>`, `/work/<org>/<repo-b>`, …) but **not** the shared
-    parent `/work/<org>`.
 - id: '#4'
   command: grep -rln "<pattern>" /work/<org>/ --include="*.yml" --include="*.yaml"
     2>/dev/null | head -20
@@ -194,12 +188,6 @@ rows:
   command: ls -la /home/janusz/.claude/plans/ 2>/dev/null | head -20
   tool: Bash
   notes: ls -la /home/janusz/.claude/plans/ 2>/dev/null | head -20
-- id: '#59'
-  command: python3 -m json.tool skills/work-on/evals/evals.json > /dev/null && echo
-    "JSON OK"
-  tool: Bash
-  notes: python3 -m json.tool skills/work-on/evals/evals.json > /dev/null && echo
-    "JSON OK"
 - id: '#60'
   command: bin/render-worktree-config.sh
   tool: Bash
@@ -321,12 +309,6 @@ rows:
   tool: Bash
   notes: aws-vault exec production -- kubectl --context production -n blue get deploy
     2>&1 | head -40
-- id: '#96'
-  command: 'mcp__claude_ai_Sentry__search_issues(organizationSlug: "...", query: "...",
-    limit: 10)'
-  tool: mcp__claude_ai_Sentry__search_issues
-  notes: 'mcp__claude_ai_Sentry__search_issues(organizationSlug: "...", query: "...",
-    limit: 10)'
 - id: '#97'
   command: aws-vault exec production -- kubectl --context production -n blue get rs
     -l app=<name> 2>&1 | head -20
@@ -529,10 +511,6 @@ rows:
   tool: null
   notes: /home/janusz/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.74.0/skills/slack-review-request/scripts/slack-review-request.py
     prepare --pr <N> --repo <org>/<repo>
-- id: '#145'
-  command: mktemp /tmp/gh-issue-body-XXXXXX.md
-  tool: Bash
-  notes: raw `mktemp` is worse than the Dev10x script
 - id: '#147'
   command: gh api graphql -f query='...reviewThreads(first:100){nodes{isResolved}}...'
     ... -F number=305 --jq '[...]'
@@ -549,11 +527,6 @@ rows:
     → Error: No such option ''--summary''.'
   tool: null
   notes: uvx dev10x permission ensure-base --dry-run --summary
-- id: '#150'
-  command: 'mcp__claude_ai_Linear__get_issue(id: "PAY-252", includeRelations: true)'
-  tool: mcp__claude_ai_Linear__get_issue
-  notes: 'enumerated Linear tools (#148 list_comments, #150 get_issue) prompt while
-    the rule is present.'
 - id: '#151'
   command: grep -rl '"mcp__plugin_Dev10x_*"' /home/janusz/.claude/... /work/<org>
     /work/<org> /work/dx /work/wooyek --include=settings.local.json --include=settings.json
@@ -618,11 +591,6 @@ rows:
   tool: null
   notes: command -v shellcheck >/dev/null && shellcheck bin/release.sh || echo "shellcheck
     not installed - skipping"
-- id: '#169'
-  command: du -sh /work/krysmiau/Challengers-website/docs /work/krysmiau/Challengers-website/LOGO\  /work/krysmiau/Challengers-website/public
-  tool: null
-  notes: du -sh /work/krysmiau/Challengers-website/docs /work/krysmiau/Challengers-website/LOGO\
-    /work/krysmiau/Challengers-website/public
 - id: '#170'
   command: mkdir -p /work/krysmiau/Challengers-website/.claude/Dev10x
   tool: null
@@ -918,10 +886,6 @@ rows:
   command: git -P log --oneline origin/main -15
   tool: Bash
   notes: git -P log --oneline origin/main -15
-- id: '#308'
-  command: grep -rE "(bash|sh|zsh)" src/dev10x/validators/
-  tool: Bash
-  notes: '"should''ve been covered long ago"'
 - id: '#310'
   command: "mcp__claude_ai_Slack__slack_list_channel_members(channel_id=\"<channel-id>\"\
     ,\n  response_format=\"concise\")"
