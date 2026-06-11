@@ -247,6 +247,14 @@ class TestUpdate:
         assert entry is not None
         assert entry.data["a"] == 99
 
+    def test_update_mutates_live_stored_entry(self, store: SessionStore) -> None:
+        # GH-558: get-or-create and the data mutation now run in one
+        # critical section, so update never writes to a detached entry.
+        # The object returned by update must be the same object the
+        # store holds and serves to a subsequent get.
+        returned = store.update("s", a=1)
+        assert store.get("s") is returned
+
 
 # ---------------------------------------------------------------------------
 # SessionStore.remove

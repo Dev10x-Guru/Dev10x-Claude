@@ -200,20 +200,7 @@ class SessionStore:
             The :class:`SessionEntry` for this session ID.
         """
         with self._lock:
-            self._evict_expired_locked()
-            if session_id in self._sessions:
-                entry = self._sessions[session_id]
-                entry.touch()
-                return entry
-
-            # Enforce capacity limit: evict the oldest entry.
-            if len(self._sessions) >= self._max:
-                self._evict_oldest_locked()
-
-            entry = SessionEntry(session_id=session_id)
-            self._sessions[session_id] = entry
-            log.debug("SessionStore: created session %r", session_id)
-            return entry
+            return self._get_or_create_locked(session_id)
 
     def get(self, session_id: str) -> SessionEntry | None:
         """Return the session entry or ``None`` if it does not exist.
@@ -242,11 +229,11 @@ class SessionStore:
         Returns:
             The updated :class:`SessionEntry`.
         """
-        entry = self.get_or_create(session_id)
         with self._lock:
+            entry = self._get_or_create_locked(session_id)
             entry.data.update(kwargs)
             entry.touch()
-        return entry
+            return entry
 
     def remove(self, session_id: str) -> bool:
         """Delete the session, returning True when it existed.
@@ -317,6 +304,30 @@ class SessionStore:
     # ------------------------------------------------------------------
     # Private helpers (caller must hold _lock)
     # ------------------------------------------------------------------
+
+    def _get_or_create_locked(self, session_id: str) -> SessionEntry:
+        """Return or create the entry. Caller MUST hold ``_lock``.
+
+        Extracted so :meth:`update` can run get-or-create and the data
+        mutation inside a single critical section (GH-558). Splitting
+        them across two lock acquisitions left a TOCTOU window where a
+        concurrent ``remove`` or capacity eviction could drop the entry
+        between the read and the write, silently losing the update.
+        """
+        self._evict_expired_locked()
+        if session_id in self._sessions:
+            entry = self._sessions[session_id]
+            entry.touch()
+            return entry
+
+        # Enforce capacity limit: evict the oldest entry.
+        if len(self._sessions) >= self._max:
+            self._evict_oldest_locked()
+
+        entry = SessionEntry(session_id=session_id)
+        self._sessions[session_id] = entry
+        log.debug("SessionStore: created session %r", session_id)
+        return entry
 
     def _evict_expired_locked(self) -> int:
         expired = [sid for sid, e in self._sessions.items() if e.is_expired(self._ttl)]
