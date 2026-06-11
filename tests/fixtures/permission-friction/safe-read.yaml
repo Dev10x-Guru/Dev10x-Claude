@@ -140,3 +140,220 @@ rows:
     notes: >
       Read tool — effect allow. Re-derived from the extractor's `deny`,
       which was wrong for a read.
+
+  - id: "#19"
+    command: "jq -r '<filter>' <file> | sort -t$'\\t' -k2"
+    tool: Bash
+    friction: null
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(jq:*)"
+    notes: >
+      `jq` is the endorsed read-only structured JSON tool; piping to
+      `sort` stays read-only. Re-derived from extractor `arbitrary-code`
+      (wrong — jq is a safe alternative, not arbitrary code).
+
+  - id: "#53"
+    command: "Read(<repo>/.github/workflows/<file>.yml · lines 1-100)"
+    tool: Read
+    friction: option-2-footgun
+    effect: allow
+    reversibility: trivial
+    rule: null
+    notes: >
+      Read tool, range read — never mutates. Re-derived from extractor
+      `destructive`. The friction was the session-only option-2 accept.
+
+  - id: "#75"
+    command: 'mcp__claude_ai_Slack__slack_search_users(query, limit)'
+    tool: mcp__claude_ai_Slack__slack_search_users
+    friction: permission-prompt
+    effect: allow
+    reversibility: trivial
+    rule: "mcp__claude_ai_Slack__slack_search_users"
+    notes: Search/enumeration is read-only.
+
+  - id: "#90"
+    command: 'mcp__claude_ai_Sentry__get_sentry_resource(url)'
+    tool: mcp__claude_ai_Sentry__get_sentry_resource
+    friction: permission-prompt
+    effect: allow
+    reversibility: trivial
+    rule: "mcp__claude_ai_Sentry__get_sentry_resource"
+    notes: >
+      Fetches a Sentry resource by URL — read-only. Re-derived from the
+      extractor's `destructive` (wrong for a getter).
+
+  - id: "#101"
+    command: "bash -n <script> && shellcheck <script>"
+    tool: Bash
+    friction: option-2-footgun
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(bash -n:*)"
+    notes: >
+      `bash -n` is a syntax check — it does NOT execute the script (no
+      `-c`); `shellcheck` is lint-only. Distinct from arbitrary-code
+      `bash <script>` (#72/#307).
+
+  - id: "#142"
+    command: "dev10x --help"
+    tool: Bash
+    friction: null
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(dev10x --help)"
+    notes: Help output — read-only.
+
+  - id: "#165"
+    command: 'WebFetch(url: "http://api.nbp.pl/api/exchangerates/rates/a/usd/<date>/?format=json")'
+    tool: WebFetch
+    friction: null
+    effect: allow
+    reversibility: trivial
+    rule: "WebFetch(domain:api.nbp.pl)"
+    notes: Public exchange-rate API GET — read-only content.
+
+  - id: "#180"
+    command: "<venv>/bin/python --version"
+    tool: Bash
+    friction: null
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(python --version)"
+    notes: >
+      Version probe. Re-derived from extractor `safe-write` — `--version`
+      mutates nothing.
+
+  - id: "#206"
+    command: "git clean -nd"
+    tool: Bash
+    friction: null
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(git clean -n:*)"
+    notes: >
+      `-n` is a DRY RUN — lists what would be removed, deletes nothing.
+      Read-only despite the `git clean` verb. (#252 is the same `-n`
+      dry-run shape with a MagicMock junk-file arg.)
+
+  - id: "#262"
+    command: 'find <root> -type f -name "*.py" -exec grep -l "<pattern>" {} \;'
+    tool: Bash
+    friction: null
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(find:*)"
+    notes: >
+      `find -exec grep -l` is a read-only search. Re-derived from
+      extractor `arbitrary-code`. Distinct from destructive `find -delete`
+      (#66).
+
+  - id: "#271"
+    command: "dig +short <rds-endpoint>"
+    tool: Bash
+    friction: null
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(dig:*)"
+    notes: >
+      DNS resolution only — read-only, no DB connection. Re-derived from
+      extractor `destructive`.
+
+  - id: "#275"
+    command: 'find / -path "<pattern>" 2>/dev/null | head -1'
+    tool: Bash
+    friction: null
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(find:*)"
+    notes: >
+      Read-only path search. Re-derived from extractor `safe-write`.
+      (#285 `find / -iname SKILL.md -path "*deep-research*"` is the same
+      read-only find shape.)
+
+  - id: "#299"
+    command: "ls <dir1> <dir2>"
+    tool: Bash
+    friction: null
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(ls:*)"
+    notes: Directory listing — read-only.
+
+  - id: "#300"
+    command: "aws-vault list"
+    tool: Bash
+    friction: null
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(aws-vault list:*)"
+    notes: >
+      Lists configured profiles/sessions — read-only. Re-derived from
+      extractor `arbitrary-code`.
+
+  - id: "#303"
+    command: "aws-vault exec <profile> -- aws sts get-caller-identity"
+    tool: Bash
+    friction: null
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(aws-vault exec:*)"
+    notes: >
+      The concrete sub-command (`sts get-caller-identity`) is a read-only
+      identity probe. NB: `aws-vault exec <p> -- <anything>` is a broad
+      exec surface; the narrow allow is the read sub-form.
+
+  - id: "#2"
+    command: 'rg -rn "<pattern>" /work/<org>'
+    tool: Bash
+    friction: permission-prompt
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(rg:*)"
+    notes: >
+      `rg` (ripgrep) is the endorsed read-only search tool. Friction was a
+      workspace-boundary gap (parent `/work/<org>` not registered), not the
+      verb — `rg` itself never mutates.
+
+  - id: "#308"
+    command: 'grep -rE "<pattern>" src/<path>/'
+    tool: Bash
+    friction: null
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(grep:*)"
+    notes: Recursive content search — read-only.
+
+  - id: "#169"
+    command: "du -sh <dir1> <dir2> <dir3>"
+    tool: Bash
+    friction: null
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(du:*)"
+    notes: Disk-usage report — read-only.
+
+  - id: "#96"
+    command: 'mcp__claude_ai_Sentry__search_issues(organizationSlug, query, limit)'
+    tool: mcp__claude_ai_Sentry__search_issues
+    friction: null
+    effect: allow
+    reversibility: trivial
+    rule: "mcp__claude_ai_Sentry__search_issues"
+    notes: >
+      Sentry issue search — read-only. (Sibling read tools
+      `find_organizations`/`search_issue_events`/`get_sentry_resource`
+      share this shape; see #90 for the getter.)
+
+  - id: "#150"
+    command: 'mcp__claude_ai_Linear__get_issue(id, includeRelations: true)'
+    tool: mcp__claude_ai_Linear__get_issue
+    friction: permission-prompt
+    effect: allow
+    reversibility: trivial
+    rule: "mcp__claude_ai_Linear__get_issue"
+    notes: >
+      Linear issue read — never mutates. Prompted despite a present rule
+      (enumerated-tool gap). Sibling `list_comments` (#148) is the same
+      read shape.

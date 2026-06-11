@@ -108,3 +108,63 @@ rows:
     notes: >
       Privilege-escalated recursive delete. Privilege-escalation tier is
       denied for any shape; `rm -rf` is irreversible → deny/none.
+
+  - id: "#1"
+    command: "gh run cancel <run-id> --repo <org>/<repo>"
+    tool: Bash
+    friction: null
+    effect: ask
+    reversibility: assisted
+    rule: "Bash(gh run cancel:*)"
+    notes: >
+      Cancels a CI run (re-runnable → assisted). Catalog enumerates
+      `gh run view/list/watch` as allow but NOT `cancel`/`rerun`/`delete`
+      → ask. Re-derived from extractor `destructive`+`allow` (incoherent).
+
+  - id: "#32"
+    command: 'gh pr close <pr> --comment "<rationale>"'
+    tool: Bash
+    friction: null
+    effect: ask
+    reversibility: assisted
+    rule: "Bash(gh pr close:*)"
+    notes: >
+      Closes a PR (shared state), reversible via reopen → assisted.
+      Re-derived from extractor `fence-tool`. (#318 `gh pr close
+      --delete-branch` is the same verb plus a branch delete — still ask.)
+
+  - id: "#43"
+    command: "git rebase --onto origin/develop <upstream> <branch>"
+    tool: Bash
+    friction: permission-prompt
+    effect: ask
+    reversibility: assisted
+    rule: "Bash(git rebase:*)"
+    notes: >
+      Rewrites history; reachable via reflog → assisted. Re-derived from
+      extractor's wrong `Bash(git push --force:*)` rule (this is a rebase,
+      not a force-push).
+
+  - id: "#201"
+    command: "rm -f <worktree>/.coverage <worktree>/.coverage.*"
+    tool: Bash
+    friction: hook-block
+    effect: ask
+    reversibility: trivial
+    rule: "Bash(rm:*)"
+    notes: >
+      Deletes generated coverage artifacts (regenerable by re-running
+      tests → trivial). `rm` is destructive class → never allow → ask.
+      Re-derived from extractor `destructive`+`allow` (incoherent).
+
+  - id: "#261"
+    command: "gh workflow run <workflow>.yml --repo <org>/<repo> --ref <branch>"
+    tool: Bash
+    friction: null
+    effect: ask
+    reversibility: assisted
+    rule: "Bash(gh workflow run:*)"
+    notes: >
+      Triggers CI workflow execution — not read-only; cancellable →
+      assisted. New `gh workflow` subcommand family, not in catalog.
+      (#309 is the identical command — collapsed into this canonical row.)

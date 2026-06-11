@@ -67,3 +67,15 @@ rows:
       is especially dangerous (fetch-and-exec, data exfil) — broad `ask`,
       forbid the catch-all. The catalog allows only `curl -fsSL`/`-s*`
       read forms.
+
+  - id: "#59"
+    command: "python3 -m json.tool <file> > /dev/null"
+    tool: Bash
+    friction: null
+    effect: deny
+    reversibility: none
+    rule: "Bash(python3 -m:*)"
+    notes: >
+      `python3 -m <module>` runs arbitrary Python — same tier as `-c`. For
+      JSON validation the structured alternative is `jq empty <file>`;
+      forbid the inline-module shape.

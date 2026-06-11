@@ -87,3 +87,71 @@ rows:
     reversibility: assisted
     rule: "Bash(uv run *)"
     notes: Same shape as #200 with `--directory`; migration write → ask.
+
+  - id: "#31"
+    command: "npx vercel inspect <deployment-id> --logs"
+    tool: Bash
+    friction: permission-prompt
+    effect: ask
+    reversibility: none
+    rule: "Bash(npx:*)"
+    notes: >
+      `npx` fetches+executes a package — fence-tool broad ask. Read intent
+      (`inspect --logs`) does not launder the npx surface.
+
+  - id: "#146"
+    command: "uvx dev10x permission --help"
+    tool: Bash
+    friction: null
+    effect: ask
+    reversibility: none
+    rule: "Bash(uvx dev10x:*)"
+    notes: >
+      `uvx` is a fence-tool (ephemeral install + run). Option-2 here kept
+      the subcommand `Bash(uvx dev10x *)` rather than stripping to
+      `Bash(uvx *)`; the `dev10x`-scoped form is the narrow ask.
+
+  - id: "#157"
+    command: "uv run --directory apps/api lint-imports"
+    tool: Bash
+    friction: null
+    effect: ask
+    reversibility: none
+    rule: "Bash(uv run *)"
+    notes: "`uv run <tool>` is a fence-tool surface → broad ask."
+
+  - id: "#168"
+    command: "npm install"
+    tool: Bash
+    friction: null
+    effect: ask
+    reversibility: assisted
+    rule: "Bash(npm install:*)"
+    notes: >
+      Installs deps and runs lifecycle scripts (arbitrary downstream) →
+      fence-tool ask. Project policy prefers `pnpm`; lockfile changes are
+      assisted-reversible.
+
+  - id: "#274"
+    command: "DJANGO_SETTINGS_MODULE=<mod> uv run python manage.py check --deploy --fail-level ERROR"
+    tool: Bash
+    friction: hook-block
+    effect: ask
+    reversibility: none
+    rule: "Bash(uv run *)"
+    notes: >
+      `manage.py check` is read-only, but it runs behind the `uv run`
+      fence + an env-var prefix (which itself shifts the allow prefix) →
+      ask. Re-derived from extractor `arbitrary-code`+`allow`.
+
+  - id: "#277"
+    command: "uv add --project apps/e2e <package>"
+    tool: Bash
+    friction: null
+    effect: ask
+    reversibility: assisted
+    rule: "Bash(uv add:*)"
+    notes: >
+      `uv add` resolves+installs a dependency and edits pyproject/lock
+      (assisted-reversible) → fence-tool ask. Re-derived from extractor
+      `arbitrary-code`+`allow`.
