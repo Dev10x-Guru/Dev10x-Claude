@@ -85,6 +85,17 @@ def test_write_applied_version_persists_timestamp(claude_home: Path) -> None:
     }
 
 
+def test_write_applied_version_is_atomic(tmp_path: Path) -> None:
+    # GH-544: routes through atomic_write_text — creates the parent dir
+    # and leaves no stale temp file behind.
+    target = tmp_path / "nested" / "version.yml"
+    written = write_applied_version(plugin_version="0.79.0", version_yaml=target)
+    assert written == target
+    assert yaml.safe_load(target.read_text())["plugin_version"] == "0.79.0"
+    leftovers = [p.name for p in (tmp_path / "nested").iterdir() if p.suffix == ".tmp"]
+    assert leftovers == []
+
+
 def test_install_state_needs_bootstrap_when_config_missing(
     claude_home: Path, plugin_root: Path
 ) -> None:

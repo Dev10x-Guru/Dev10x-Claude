@@ -26,6 +26,7 @@ import yaml
 
 from dev10x.domain.common.result import Result, err, ok
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.domain.file_locks import atomic_write_text
 
 
 def read_plugin_version(*, plugin_root: Path | None = None) -> str | None:
@@ -78,10 +79,9 @@ def write_applied_version(
     Creates parent directories as needed. Returns the path written.
     """
     path = version_yaml or Dev10xConfigDir.version_yaml()
-    path.parent.mkdir(parents=True, exist_ok=True)
     timestamp = (now or datetime.now(UTC)).isoformat()
     payload = {"plugin_version": plugin_version, "upgraded_at": timestamp}
-    path.write_text(yaml.safe_dump(payload, sort_keys=True))
+    atomic_write_text(path, yaml.safe_dump(payload, sort_keys=True))
     return path
 
 
