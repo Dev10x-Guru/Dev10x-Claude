@@ -63,6 +63,19 @@ arriving between `unlink` and the next `open(O_CREAT)` would receive a
 fresh inode and acquire an independent flock, breaking mutual
 exclusion.
 
+**Lock acquisition timeout.** `file_lock`, `locked_json_update`, and
+`locked_yaml_update` acquire the flock via non-blocking `LOCK_NB`
+attempts in a poll loop bounded by a `timeout` parameter (default
+`LOCK_TIMEOUT_SECONDS` = 10 s). On expiry they raise
+`LockTimeoutError` (a subclass of `OSError`) carrying an actionable
+"locked by another process — please try again" message. Without this
+guard, a holder wedged in an uninterruptible D-state on a network
+filesystem, or a `finally` block that raised before `LOCK_UN`, would
+block the caller — and, for the long-lived MCP daemon, its async event
+loop — indefinitely with no diagnostic. Callers that genuinely need an
+unbounded wait pass `timeout=0` to fall back to a single blocking
+`LOCK_EX`.
+
 ### Layer 3 — `locked_json_update` / `locked_yaml_update`
 
 Composite helpers that combine layers 1 and 2 in a single context
@@ -146,7 +159,9 @@ empirically for the known caller paths.
   re-execution on the next hook firing.
 - Lock contention is theoretically possible if a long-running
   operation holds `file_lock` on a hot path. In practice the
-  load → mutate → save cycles are sub-millisecond.
+  load → mutate → save cycles are sub-millisecond, and the
+  acquisition timeout (default 10 s) converts a wedged holder into a
+  surfaced `LockTimeoutError` rather than an indefinite hang.
 
 ### Migration
 
