@@ -214,17 +214,6 @@ rows:
     rule: "WebFetch(domain:api.nbp.pl)"
     notes: Public exchange-rate API GET — read-only content.
 
-  - id: "#180"
-    command: "<venv>/bin/python --version"
-    tool: Bash
-    friction: null
-    effect: allow
-    reversibility: trivial
-    rule: "Bash(python --version)"
-    notes: >
-      Version probe. Re-derived from extractor `safe-write` — `--version`
-      mutates nothing.
-
   - id: "#206"
     command: "git clean -nd"
     tool: Bash
