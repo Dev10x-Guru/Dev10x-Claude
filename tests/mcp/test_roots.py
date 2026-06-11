@@ -164,6 +164,26 @@ class TestClientRootsManager:
         assert mgr.roots[0].uri == f"file://{tmp_path}"
 
     @pytest.mark.asyncio
+    async def test_refresh_discards_roots_when_session_changes_during_await(
+        self, tmp_path: Path
+    ) -> None:
+        # GH-562: a concurrent set_session(None) at the await yield point
+        # must not let the fetched (now-stale) roots overwrite _roots.
+        mgr = ClientRootsManager(enabled=True)
+        session = AsyncMock()
+
+        async def _list_roots() -> Any:
+            mgr.set_session(session=None)  # detach while awaiting
+            return _make_list_roots_result([f"file://{tmp_path}"])
+
+        session.list_roots = _list_roots
+        mgr.set_session(session=session)
+
+        await mgr.refresh()
+
+        assert mgr.roots is None
+
+    @pytest.mark.asyncio
     async def test_refresh_noop_when_disabled(self) -> None:
         mgr = ClientRootsManager(enabled=False)
         session = AsyncMock()

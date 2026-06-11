@@ -183,6 +183,15 @@ class ClientRootsManager:
             return
         try:
             result = await session.list_roots()
+            if self._session is not session:
+                # GH-562: a concurrent set_session() detached or swapped
+                # the session at the await yield point. The roots we just
+                # fetched belong to a session that is no longer active —
+                # discard them rather than overwrite _roots with a ghost set.
+                log.debug(
+                    "ClientRootsManager: session changed during roots/list — discarding result"
+                )
+                return
             self._roots = [
                 ClientRoot(uri=str(r.uri), name=getattr(r, "name", None)) for r in result.roots
             ]

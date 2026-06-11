@@ -18,11 +18,42 @@ Usage:
 If output.md is omitted, writes to stdout.
 """
 
+import io
+import os
 import re
 import sys
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TextIO
+
+
+def _atomic_write_text(output_path: str, content: str) -> None:
+    """Crash-safe write via mkstemp + fsync + os.replace (GH-562).
+
+    This standalone uv-script cannot import
+    ``dev10x.domain.file_locks.atomic_write_text``, so the same
+    temp-then-rename pattern is inlined here.
+    """
+    target = Path(output_path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(target.parent), suffix=".tmp")
+    try:
+        os.write(fd, content.encode("utf-8"))
+        os.fsync(fd)
+        os.close(fd)
+        os.replace(tmp, str(target))
+    except BaseException:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass
+        raise
+
 
 TURN_RE = re.compile(
     r"^## Turn (\d+) \[([^\]]+)\] (USER|ASSISTANT)(.*)",
@@ -326,8 +357,9 @@ def main() -> None:
 
     if len(sys.argv) >= 3:
         output_path = sys.argv[2]
-        with open(output_path, "w") as f:
-            write_output(rows=rows, out=f)
+        buf = io.StringIO()
+        write_output(rows=rows, out=buf)
+        _atomic_write_text(output_path, buf.getvalue())
         print(f"Phase 1 output written to {output_path}", file=sys.stderr)
     else:
         write_output(rows=rows, out=sys.stdout)
