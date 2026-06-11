@@ -103,6 +103,18 @@ Implications:
   (e.g. write all changes to a staging dir, then rename a manifest
   pointer).
 
+**Two-pass narrowing (validate-then-write).**
+`MigratePluginPermissionsRule.apply` runs a dry-run pass first:
+`SettingsDocument.preview_replacements` reads and computes the
+migrated content for every targeted file *without writing*, so a
+parse failure (the common case — a hand-edited corrupt
+`settings.local.json`) is detected before any file is written. Only
+after every file's content is computed does the apply pass call
+`SettingsDocument.write_migrated` per file. This does not provide a
+true cross-file rollback, but it shrinks the inconsistency window to
+genuine write-time I/O errors (disk full, `EACCES`), which are far
+rarer than the parse failures the dry-run pass now catches up front.
+
 We accept this boundary because:
 
 1. The current call sites have natural retry semantics — the next

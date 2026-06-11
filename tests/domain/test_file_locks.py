@@ -131,6 +131,39 @@ class TestLockTimeout:
         assert time.monotonic() - start < 1.0
 
 
+class TestSidecarNamingConvention:
+    """ADR-0011: the two lock helpers must never share a sidecar path.
+
+    `file_lock`/`locked_yaml_update` append `.lock` to the full name
+    (`settings.local.json` → `settings.local.json.lock`), while
+    `locked_json_update` replaces the suffix (`settings.local.json` →
+    `settings.local.lock`). Mixing them on one target would create two
+    independent sidecars and silently break mutual exclusion.
+    """
+
+    def test_append_vs_replace_diverge_for_json_target(self, tmp_path: Path) -> None:
+        target = tmp_path / "settings.local.json"
+        append_sidecar = target.with_suffix(target.suffix + ".lock")
+        replace_sidecar = target.with_suffix(".lock")
+        assert append_sidecar.name == "settings.local.json.lock"
+        assert replace_sidecar.name == "settings.local.lock"
+        assert append_sidecar != replace_sidecar
+
+    def test_file_lock_uses_append_convention(self, tmp_path: Path) -> None:
+        target = tmp_path / "settings.local.json"
+        with file_lock(target):
+            assert (tmp_path / "settings.local.json.lock").exists()
+            assert not (tmp_path / "settings.local.lock").exists()
+
+    def test_locked_json_update_uses_replace_convention(self, tmp_path: Path) -> None:
+        target = tmp_path / "settings.local.json"
+        target.write_text(json.dumps({}))
+        with locked_json_update(target):
+            pass
+        assert (tmp_path / "settings.local.lock").exists()
+        assert not (tmp_path / "settings.local.json.lock").exists()
+
+
 class TestLockedJsonUpdate:
     def test_load_mutate_save_cycle(self, tmp_path: Path) -> None:
         target = tmp_path / "settings.json"

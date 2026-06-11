@@ -9,9 +9,7 @@ finding B1/B10) — load/save round-trip preserves all fields.
 from __future__ import annotations
 
 import json
-import os
 import re
-import tempfile
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -20,6 +18,7 @@ from typing import Any
 import yaml
 
 from dev10x.domain.documents.task import Task, TaskStatus
+from dev10x.domain.file_locks import atomic_write_text
 
 
 def _now_iso() -> str:
@@ -136,29 +135,13 @@ class Plan:
         )
 
     def save(self, *, path: Path) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        plan_data = self.to_dict()
-        fd, tmp_path = tempfile.mkstemp(
-            dir=str(path.parent),
-            prefix=".plan-",
-            suffix=".yaml.tmp",
+        content = yaml.dump(
+            self.to_dict(),
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True,
         )
-        try:
-            with os.fdopen(fd, "w") as f:
-                yaml.dump(
-                    plan_data,
-                    f,
-                    default_flow_style=False,
-                    sort_keys=False,
-                    allow_unicode=True,
-                )
-            os.rename(tmp_path, str(path))
-        except Exception:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
-            raise
+        atomic_write_text(path, content)
 
     def to_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {}

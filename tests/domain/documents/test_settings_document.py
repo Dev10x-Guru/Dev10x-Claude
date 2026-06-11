@@ -82,6 +82,50 @@ def test_invalid_json_raises(settings_path: Path) -> None:
         SettingsDocument(path=settings_path).apply_replacements(replacements=REPLACEMENTS)
 
 
+def test_preview_replacements_does_not_write(settings_path: Path) -> None:
+    original = json.dumps({"permissions": {"allow": ["Bash(/old/v1/x)"]}}, indent=2) + "\n"
+    settings_path.write_text(original)
+
+    new_content, count = SettingsDocument(path=settings_path).preview_replacements(
+        replacements=REPLACEMENTS
+    )
+
+    assert count == 1
+    assert new_content is not None
+    assert "/new/v2/" in new_content
+    # The on-disk file is untouched by the dry-run pass.
+    assert settings_path.read_text() == original
+
+
+def test_preview_replacements_returns_none_when_unchanged(settings_path: Path) -> None:
+    _write(settings_path, {"permissions": {"allow": ["Bash(/other/run.sh)"]}})
+
+    new_content, count = SettingsDocument(path=settings_path).preview_replacements(
+        replacements=REPLACEMENTS
+    )
+
+    assert count == 0
+    assert new_content is None
+
+
+def test_preview_replacements_raises_on_bad_json(settings_path: Path) -> None:
+    settings_path.write_text("{not valid json")
+
+    with pytest.raises(json.JSONDecodeError):
+        SettingsDocument(path=settings_path).preview_replacements(replacements=REPLACEMENTS)
+
+
+def test_write_migrated_persists_precomputed_content(settings_path: Path) -> None:
+    settings_path.write_text(json.dumps({"permissions": {"allow": ["Bash(/old/v1/x)"]}}) + "\n")
+    doc = SettingsDocument(path=settings_path)
+    new_content, _ = doc.preview_replacements(replacements=REPLACEMENTS)
+    assert new_content is not None
+
+    doc.write_migrated(new_content)
+
+    assert json.loads(settings_path.read_text())["permissions"]["allow"] == ["Bash(/new/v2/x)"]
+
+
 def test_migrate_rules_counts_each_rewrite() -> None:
     result, count = _migrate_rules(
         rules=["/old/a", "/old/b", "/keep/c"], replacements=REPLACEMENTS
