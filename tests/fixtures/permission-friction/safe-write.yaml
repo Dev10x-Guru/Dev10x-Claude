@@ -1,0 +1,64 @@
+# GH-271 permission-friction fixtures — command_class: safe-write
+#
+# Writes that are low-risk and trivially/assisted reversible. Local
+# writes default to `allow`; writes to shared/external state default to
+# `ask`. Classifications RE-DERIVED from the command + catalog +
+# reflections (not the heuristic extractor). See README.md.
+
+command_class: safe-write
+rows:
+  - id: "#122"
+    command: 'mkdir -p "<dir>"'
+    tool: Bash
+    friction: option-2-footgun
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(mkdir:*)"
+    notes: >
+      Directory creation — idempotent with `-p`, trivially reversible
+      (rmdir). Re-derived from the extractor's `safe-read` (it is a
+      write). Catalog already lists `Bash(mkdir:*)`.
+
+  - id: "#126"
+    command: 'cp /tmp/<file> "<dest>"'
+    tool: Bash
+    friction: null
+    effect: ask
+    reversibility: trivial
+    rule: "Bash(cp:*)"
+    notes: >
+      Copy into a non-/tmp destination (here a synced KB vault). Catalog
+      allows only `Bash(cp /tmp:*)`; an arbitrary destination is `ask`.
+
+  - id: "#106"
+    command: 'mcp__claude_ai_Sentry__update_issue(status: "resolved")'
+    tool: mcp__claude_ai_Sentry__update_issue
+    friction: permission-prompt
+    effect: ask
+    reversibility: trivial
+    rule: "mcp__claude_ai_Sentry__update_issue"
+    notes: >
+      Mutates external (Sentry) state but trivially reversible (re-open).
+      External-state write → ask, not allow.
+
+  - id: "#223"
+    command: 'mcp__plugin_sentry_sentry__update_issue(...)'
+    tool: mcp__plugin_sentry_sentry__update_issue
+    friction: null
+    effect: ask
+    reversibility: trivial
+    rule: "mcp__plugin_sentry_sentry__update_issue"
+    notes: >
+      Plugin-distributed Sentry MCP write. Same shape as #106 — external
+      state, reversible → ask. (Its sibling `search_events` is safe-read.)
+
+  - id: "#173"
+    command: "google-chrome --headless --screenshot=<path> http://localhost:4321/"
+    tool: Bash
+    friction: option-2-footgun
+    effect: ask
+    reversibility: trivial
+    rule: "Bash(google-chrome --headless:*)"
+    notes: >
+      Headless screenshot writes one file locally. Browser automation is
+      broad enough to warrant ask rather than a blanket allow.

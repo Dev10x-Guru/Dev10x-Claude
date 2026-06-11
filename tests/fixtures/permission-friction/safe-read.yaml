@@ -1,0 +1,142 @@
+# GH-271 permission-friction fixtures — command_class: safe-read
+#
+# Read-only / observe commands. Effect is always `allow` — they never
+# mutate state. Provenance: GH-271 evidence thread. Classifications were
+# RE-DERIVED from the verbatim command + baseline-permissions.yaml + the
+# GH-271 reflections — NOT taken from the heuristic extractor, whose
+# class/effect labels proved unreliable even on "clean" rows. See
+# README.md for the schema and the regeneration path.
+
+command_class: safe-read
+rows:
+  - id: "#61"
+    command: "gh --version"
+    tool: Bash
+    friction: option-2-footgun
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(gh --version)"
+    notes: >
+      Version probe. The friction was the option-2 footgun offering
+      `Bash(gh *)` — the safe rule is the narrow `Bash(gh --version)`,
+      never the catch-all.
+
+  - id: "#131"
+    command: "yamllint <file>"
+    tool: Bash
+    friction: null
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(yamllint:*)"
+    notes: Lint-only; reads YAML and reports. Structured alternative tool.
+
+  - id: "#139"
+    command: "command -v uvx"
+    tool: Bash
+    friction: option-2-footgun
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(command -v:*)"
+    notes: >
+      Binary lookup. Footgun offered `Bash(command *)`; safe rule is
+      `Bash(command -v:*)`.
+
+  - id: "#194"
+    command: "sh -n <script>"
+    tool: Bash
+    friction: null
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(sh -n:*)"
+    notes: >
+      `sh -n` is a syntax check — it does NOT execute the script (no
+      `-c`). Distinct from the arbitrary-code `sh -c` shape.
+
+  - id: "#263"
+    command: "mount"
+    tool: Bash
+    friction: permission-prompt
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(mount:*)"
+    notes: Mount/ownership forensics; read-only.
+
+  - id: "#273"
+    command: "git -P log --oneline -1 <sha>"
+    tool: Bash
+    friction: null
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(git log:*)"
+    notes: "`-P` is a global pager flag; the verb is `log` (read-only)."
+
+  - id: "#282"
+    command: "git -c core.excludesfile=/dev/null status --porcelain .claude/"
+    tool: Bash
+    friction: hook-block
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(git status:*)"
+    notes: >
+      `git -c <k>=<v> status` — read-only verb. The `-c` prefix triggers
+      the hook's prefix-shift block (DX safe-expansion), not a real risk.
+
+  - id: "#312"
+    command: "sed -n '/^  feature:/,/^  [a-z-]*:/p' <file>"
+    tool: Bash
+    friction: null
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(sed:*)"
+    notes: "`sed -n ... p` prints a range; no in-place edit (`-i`)."
+
+  - id: "#317"
+    command: "git show <ref>:<path> | git apply --check --verbose -"
+    tool: Bash
+    friction: null
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(git apply --check:*)"
+    notes: "`git apply --check` is a dry-run; applies nothing."
+
+  - id: "#214"
+    command: 'WebFetch(url: "https://docs.sentry.io/.../user-feedback/")'
+    tool: WebFetch
+    friction: null
+    effect: allow
+    reversibility: trivial
+    rule: "WebFetch(domain:docs.sentry.io)"
+    notes: >
+      Public documentation fetch. Per the catalog webfetch-public-docs
+      group — single-FQDN allow, read-only content.
+
+  - id: "#286"
+    command: "openssl rand -hex 16"
+    tool: Bash
+    friction: null
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(openssl rand:*)"
+    notes: Generates random bytes; no state change.
+
+  - id: "#62"
+    command: 'mcp__claude_ai_Slack__slack_search_public_and_private(query, limit)'
+    tool: mcp__claude_ai_Slack__slack_search_public_and_private
+    friction: option-2-footgun
+    effect: allow
+    reversibility: trivial
+    rule: "mcp__claude_ai_Slack__slack_search_public_and_private"
+    notes: >
+      Search/enumeration is read-only. Re-derived from safe-write — the
+      extractor mis-tagged search as a write.
+
+  - id: "#311"
+    command: 'mcp__claude_ai_Slack__slack_read_file(file_id)'
+    tool: mcp__claude_ai_Slack__slack_read_file
+    friction: null
+    effect: allow
+    reversibility: trivial
+    rule: "mcp__claude_ai_Slack__slack_read_file"
+    notes: >
+      Read tool — effect allow. Re-derived from the extractor's `deny`,
+      which was wrong for a read.

@@ -1,0 +1,89 @@
+# GH-271 permission-friction fixtures — command_class: fence-tool
+#
+# Package-runner / environment-fence tools (npx, uv run, uvx, yarn,
+# pnpm dlx, pipx run, bunx, railway). They execute arbitrary downstream
+# code, so the default effect is `ask` (broad-ask) — NEVER a blanket
+# allow. Specific safe sub-forms (e.g. `uv run pytest`, `<tool> --version`)
+# may be `allow` via narrow rules, and the catch-all `Bash(<tool> *)`
+# shape must be FORBID (the option-2 UI footgun). Classifications
+# RE-DERIVED from the command + catalog + reflections. See README.md.
+
+command_class: fence-tool
+rows:
+  - id: "#42"
+    command: "yarn test:shared <suite>"
+    tool: Bash
+    friction: null
+    effect: ask
+    reversibility: none
+    rule: "Bash(yarn test:*)"
+    notes: >
+      `yarn test` runs project test code (arbitrary downstream). Broad
+      ask; a project may narrow to `Bash(yarn test:*)` as a specific allow.
+
+  - id: "#189"
+    command: "uv sync --dry-run"
+    tool: Bash
+    friction: null
+    effect: ask
+    reversibility: trivial
+    rule: "Bash(uv sync --dry-run:*)"
+    notes: >
+      `--dry-run` is read-only, but `uv sync` is a fence-tool surface;
+      ask keeps the broad shape gated while the dry-run sub-form is safe.
+
+  - id: "#225"
+    command: "railway --version"
+    tool: Bash
+    friction: null
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(railway --version)"
+    notes: >
+      `--version` is a safe sub-form of the railway fence-tool — narrow
+      allow (per catalog railway-cli tier-3). The bare `railway *` shape
+      stays ask/forbid.
+
+  - id: "#74"
+    command: "uv run --project <dir> ruff format <paths>"
+    tool: Bash
+    friction: option-2-footgun
+    effect: ask
+    reversibility: trivial
+    rule: "Bash(uv run *)"
+    notes: >
+      Re-derived from extractor `arbitrary-code/allow`. `uv run` is a
+      fence-tool; the option-2 footgun `Bash(uv run *)` is the most
+      dangerous catch-all (defeats the fence model) — forbid that shape.
+
+  - id: "#200"
+    command: "DJANGO_SETTINGS_MODULE=<mod> uv run python manage.py makemigrations <app>"
+    tool: Bash
+    friction: null
+    effect: ask
+    reversibility: assisted
+    rule: "Bash(uv run *)"
+    notes: >
+      `uv run` fence-tool + env-var prefix (which itself shifts the
+      allow-rule prefix). makemigrations writes a migration file
+      (assisted-reversible) → ask.
+
+  - id: "#233"
+    command: "uv run --with pytest pytest <test>"
+    tool: Bash
+    friction: null
+    effect: ask
+    reversibility: none
+    rule: "Bash(uv run *)"
+    notes: >
+      `--with` pulls an arbitrary dependency then executes — fence-tool
+      ask. (Tests should route through Skill(test), not raw uv run.)
+
+  - id: "#319"
+    command: "uv run --directory apps/api python manage.py makemigrations <app>"
+    tool: Bash
+    friction: null
+    effect: ask
+    reversibility: assisted
+    rule: "Bash(uv run *)"
+    notes: Same shape as #200 with `--directory`; migration write → ask.

@@ -1,0 +1,110 @@
+# GH-271 permission-friction fixtures — command_class: destructive
+#
+# State-mutating commands that can lose work or change shared/prod state.
+# Effect is NEVER `allow`: `ask` when assisted/trivially reversible,
+# `deny` when irreversible (reversibility: none) or privilege-escalating.
+# Classifications RE-DERIVED from the command + catalog + reflections.
+# See README.md.
+
+command_class: destructive
+rows:
+  - id: "#21"
+    command: "git stash drop stash@{0}"
+    tool: Bash
+    friction: permission-prompt
+    effect: ask
+    reversibility: assisted
+    rule: "Bash(git stash drop:*)"
+    notes: >
+      Drops a stash entry. Recoverable only via `git fsck --unreachable`
+      → assisted reversibility → ask (no-save is the safety floor here).
+
+  - id: "#29"
+    command: "git update-ref refs/heads/develop origin/develop"
+    tool: Bash
+    friction: null
+    effect: ask
+    reversibility: none
+    rule: "Bash(git update-ref:*)"
+    notes: >
+      Plumbing command that rewrites a ref pointer directly, bypassing
+      branch-protection logic. Irreversible without the prior SHA → ask.
+
+  - id: "#66"
+    command: 'find . -maxdepth 2 -name "*MagicMock*" -print -delete'
+    tool: Bash
+    friction: permission-prompt
+    effect: ask
+    reversibility: none
+    rule: "Bash(find:*)"
+    notes: >
+      `find -delete` unlinks files irrecoverably. The catalog explicitly
+      keeps `find -delete` OUT of safe defaults (additive flag model
+      inverts) → ask/none.
+
+  - id: "#243"
+    command: "git branch -d <branch>"
+    tool: Bash
+    friction: permission-prompt
+    effect: ask
+    reversibility: assisted
+    rule: "Bash(git branch -d:*)"
+    notes: >
+      `-d` deletes only merged branches; tip recoverable via reflog
+      short-term → assisted → ask. (Re-derived from extractor `deny`.)
+
+  - id: "#81"
+    command: "git branch -D <branch>"
+    tool: Bash
+    friction: permission-prompt
+    effect: ask
+    reversibility: assisted
+    rule: "Bash(git branch -D:*)"
+    notes: >
+      Force-delete (even unmerged); tip still recoverable via reflog for
+      a window → assisted → ask.
+
+  - id: "#198"
+    command: "git checkout -- <path>"
+    tool: Bash
+    friction: hook-block
+    effect: deny
+    reversibility: none
+    rule: "Bash(git checkout --:*)"
+    notes: >
+      Discards uncommitted working-tree changes irrecoverably. Correctly
+      hook-blocked in-session → deny/none.
+
+  - id: "#30"
+    command: "git -c core.editor=true rebase --continue"
+    tool: Bash
+    friction: option-2-footgun
+    effect: ask
+    reversibility: assisted
+    rule: "Bash(git rebase:*)"
+    notes: >
+      Rebase continuation. Reachable via reflog → assisted → ask. The
+      `-c core.editor=true` inline-config + the option-2 `Bash(git *)`
+      footgun are the friction, not the verb itself.
+
+  - id: "#46"
+    command: "git -c sequence.editor=true rebase -i --autosquash <sha>"
+    tool: Bash
+    friction: option-2-footgun
+    effect: ask
+    reversibility: assisted
+    rule: "Bash(git rebase:*)"
+    notes: >
+      Interactive autosquash rebase. The option-2 footgun stripped to
+      `Bash(git *)` — the canonical UI-footgun case. Verb is ask/assisted.
+
+  - id: "#212"
+    command: "sudo -n rm -rf <path>"
+    tool: Bash
+    friction: null
+    effect: deny
+    reversibility: none
+    rule: "Bash(sudo rm:*)"
+    notes: >
+      Privilege-escalated recursive delete. Privilege-escalation tier is
+      denied for any shape; `rm -rf` is irreversible → deny/none.

@@ -1,0 +1,69 @@
+# GH-271 permission-friction fixtures — command_class: arbitrary-code
+#
+# Inline-code interpreters and shell-script executors (python -c, sh -c,
+# bash <script>, perl -e, raw curl-and-pipe). Default effect is `deny` —
+# per the GH-271 reflection, structured alternatives exist for every
+# common case (jq for JSON, yq/yamllint for YAML, actionlint, curl for
+# HTTP, or extract-to-~/.claude/tools/<name>.py). Classifications
+# RE-DERIVED from the command + reflections. See README.md.
+
+command_class: arbitrary-code
+rows:
+  - id: "#98"
+    command: 'python -c "import mcp_server; print(mcp_server.__file__)"'
+    tool: Bash
+    friction: null
+    effect: deny
+    reversibility: none
+    rule: "Bash(python -c:*)"
+    notes: >
+      Inline Python. Structured alternative: extract to
+      ~/.claude/tools/<name>.py with a uv shebang, or use `find`/import
+      via a real module. Forbid the `python -c` shape.
+
+  - id: "#182"
+    command: 'uv run python -c "import django; print(django.__version__)"'
+    tool: Bash
+    friction: null
+    effect: deny
+    reversibility: none
+    rule: "Bash(python -c:*)"
+    notes: >
+      Inline Python behind a `uv run` fence — still arbitrary code →
+      deny. (The fence-tool wrapper does not launder the `-c`.)
+
+  - id: "#72"
+    command: "bash /tmp/daily-yt/copy.sh"
+    tool: Bash
+    friction: option-2-footgun
+    effect: deny
+    reversibility: none
+    rule: "Bash(bash *)"
+    notes: >
+      Executes an arbitrary shell script. The `Bash(bash *)` option-2
+      footgun is worse than `git *`/`gh *` — it allows ALL shell. Forbid.
+      Scripts under /tmp/Dev10x/ have a separate, scoped allow.
+
+  - id: "#307"
+    command: "bash /tmp/classify_branches.sh"
+    tool: Bash
+    friction: null
+    effect: deny
+    reversibility: none
+    rule: "Bash(bash *)"
+    notes: >
+      Same `bash <script>` arbitrary-execution shape as #72. Extract the
+      logic to ~/.claude/tools/ (scoped allow) instead.
+
+  - id: "#135"
+    command: 'curl -s -c /tmp/cookies.txt -A "<ua>" https://<host>/<path> -o /tmp/<file>.html'
+    tool: Bash
+    friction: option-2-footgun
+    effect: ask
+    reversibility: assisted
+    rule: "Bash(curl *)"
+    notes: >
+      Cookie-jar + custom UA fetch to an arbitrary external host. `curl *`
+      is especially dangerous (fetch-and-exec, data exfil) — broad `ask`,
+      forbid the catch-all. The catalog allows only `curl -fsSL`/`-s*`
+      read forms.
