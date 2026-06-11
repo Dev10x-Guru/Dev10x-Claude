@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -74,8 +75,16 @@ def skill_metrics(data: dict | None = None) -> None:
 
     metrics_file = metrics_dir / f"{project_hash}_{date_tag}.jsonl"
     entry = json.dumps({"skill": skill_name, "session": session_id, "timestamp": timestamp})
-    with metrics_file.open("a") as f:
-        f.write(entry + "\n")
+    # GH-548: single os.write to an O_APPEND fd so concurrent hook
+    # processes never interleave partial JSON lines. TextIOWrapper may
+    # split one logical record across multiple syscalls, breaking the
+    # POSIX atomic-append guarantee. Mirrors audit/log_reader.append_record.
+    line = (entry + "\n").encode("utf-8")
+    fd = os.open(str(metrics_file), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+    try:
+        os.write(fd, line)
+    finally:
+        os.close(fd)
 
     cutoff = now - timedelta(days=30)
     for old_file in metrics_dir.glob("*.jsonl"):

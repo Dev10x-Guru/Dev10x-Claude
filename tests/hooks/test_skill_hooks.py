@@ -115,6 +115,30 @@ class TestSkillMetrics:
         assert entry["session"] == "sess-xyz"
         assert "timestamp" in entry
 
+    def test_appends_without_truncating_prior_entries(
+        self,
+        runner: CliRunner,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # GH-548: the O_APPEND write must add to the file, never truncate
+        # a prior concurrent writer's line.
+        import dev10x.hooks.skill as mod
+
+        monkeypatch.setattr(mod, "_get_toplevel", lambda: str(tmp_path))
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+
+        payload = json.dumps(
+            {"tool_input": {"skill": "Dev10x:git-commit"}, "session_id": "sess-1"}
+        )
+        runner.invoke(cli, ["hook", "skill", "metrics"], input=payload)
+        runner.invoke(cli, ["hook", "skill", "metrics"], input=payload)
+
+        metrics_files = list((tmp_path / ".claude" / "projects" / "_metrics").glob("*.jsonl"))
+        lines = metrics_files[0].read_text().splitlines()
+        assert len(lines) == 2
+        assert all(json.loads(line)["skill"] == "Dev10x:git-commit" for line in lines)
+
     def test_exits_silently_without_skill(
         self,
         runner: CliRunner,
