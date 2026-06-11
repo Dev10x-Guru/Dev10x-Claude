@@ -7,7 +7,22 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from dev10x.commands.init import init
+from dev10x.commands.init import _write_if_missing, init
+
+
+class TestWriteIfMissing:
+    """GH-562: O_EXCL atomic claim replaces the check-then-write race."""
+
+    def test_writes_when_absent(self, tmp_path: Path) -> None:
+        target = tmp_path / "nested" / "file.yaml"
+        assert _write_if_missing(target, "hello") is True
+        assert target.read_text() == "hello"
+
+    def test_returns_false_and_preserves_existing(self, tmp_path: Path) -> None:
+        target = tmp_path / "file.yaml"
+        target.write_text("original")
+        assert _write_if_missing(target, "replacement") is False
+        assert target.read_text() == "original"
 
 
 class TestInitNonInteractive:

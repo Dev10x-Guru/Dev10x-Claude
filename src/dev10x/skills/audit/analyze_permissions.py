@@ -18,6 +18,7 @@ If settings.json is omitted, uses ~/.claude/settings.local.json.
 If output.md is omitted, writes to stdout.
 """
 
+import io
 import os
 import sys
 from pathlib import Path
@@ -58,6 +59,7 @@ from dev10x.audit.permissions_model import (
     propose_allow_rules,
     write_output,
 )
+from dev10x.domain.file_locks import atomic_write_text
 
 __all__ = [
     "ALLOW_RULE_RE",
@@ -139,8 +141,9 @@ def main() -> None:
     proposals = propose_allow_rules(findings=findings)
 
     if output_path:
-        with open(output_path, "w") as f:
-            write_output(findings=findings, hygiene=hygiene, proposals=proposals, out=f)
+        buf = io.StringIO()
+        write_output(findings=findings, hygiene=hygiene, proposals=proposals, out=buf)
+        atomic_write_text(Path(output_path), buf.getvalue())
         print(f"Phase 4 output written to {output_path}", file=sys.stderr)
     else:
         write_output(findings=findings, hygiene=hygiene, proposals=proposals, out=sys.stdout)

@@ -21,6 +21,7 @@ from typing import Any
 from dev10x.audit.log_reader import iter_records, prune, summarize
 from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.result import Result, err, ok
+from dev10x.domain.file_locks import atomic_write_text
 from dev10x.subprocess_utils import async_run_script
 
 __all__ = [
@@ -117,7 +118,7 @@ async def analyze_permissions(
     output = report.render_markdown()
 
     if output_path:
-        Path(output_path).write_text(output)
+        atomic_write_text(Path(output_path), output)
         return ok({"success": True, "output": f"Phase 4 output written to {output_path}"})
 
     return ok({"success": True, "output": output.strip()})

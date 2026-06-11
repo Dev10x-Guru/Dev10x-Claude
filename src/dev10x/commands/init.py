@@ -6,6 +6,7 @@ and prints a quick-start card covering the top 5 workflows.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -74,10 +75,19 @@ def _session_yaml_template() -> str:
 
 
 def _write_if_missing(path: Path, content: str) -> bool:
-    if path.exists():
-        return False
+    # GH-562: claim the file atomically with O_EXCL instead of a
+    # check-then-write. Two concurrent `dev10x init` runs (CI matrix)
+    # otherwise both see the file absent and the second clobbers any
+    # interactive customization the first made.
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content)
+    try:
+        fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+    except FileExistsError:
+        return False
+    try:
+        os.write(fd, content.encode("utf-8"))
+    finally:
+        os.close(fd)
     return True
 
 
