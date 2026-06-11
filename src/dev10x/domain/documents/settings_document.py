@@ -60,23 +60,58 @@ class SettingsDocument:
         so the caller can decide whether to skip the file.
         """
         with file_lock(self.path):
-            settings = json.loads(self.path.read_text())
-            permissions = settings.get("permissions", {})
-            migrated = 0
-            changed = False
-            for key in ("allow", "deny"):
-                raw = permissions.get(key, [])
-                if not raw:
-                    continue
-                new_rules, count = _migrate_rules(rules=raw, replacements=replacements)
-                new_rules = _deduplicate_rules(rules=new_rules)
-                migrated += count
-                if count:
-                    permissions[key] = new_rules
-                    changed = True
-            if changed:
-                atomic_write_text(self.path, json.dumps(settings, indent=2) + "\n")
+            new_content, migrated = self.preview_replacements(replacements=replacements)
+            if new_content is not None:
+                atomic_write_text(self.path, new_content)
         return migrated
+
+    def preview_replacements(
+        self, *, replacements: list[tuple[str, str]]
+    ) -> tuple[str | None, int]:
+        """Compute the migrated file content without writing it.
+
+        Returns ``(new_content, count)`` where ``new_content`` is the
+        serialised JSON to write, or ``None`` when nothing changed.
+        Raises ``json.JSONDecodeError`` / ``OSError`` on read/parse
+        failure so a multi-file caller can validate every file *before*
+        writing any of them (the dry-run pass of a two-pass migration,
+        ADR-0011 Layer 4).
+
+        This reads ``self.path`` WITHOUT holding ``file_lock``. The
+        two-pass migration in ``MigratePluginPermissionsRule`` tolerates
+        the read/write gap deliberately (the apply pass re-locks per
+        file). A caller that needs the preview to stay consistent with
+        the subsequent write MUST hold ``file_lock(self.path)`` across
+        both calls itself — ``apply_replacements`` is the locked
+        single-file path for that case.
+        """
+        settings = json.loads(self.path.read_text())
+        permissions = settings.get("permissions", {})
+        migrated = 0
+        changed = False
+        for key in ("allow", "deny"):
+            raw = permissions.get(key, [])
+            if not raw:
+                continue
+            new_rules, count = _migrate_rules(rules=raw, replacements=replacements)
+            new_rules = _deduplicate_rules(rules=new_rules)
+            migrated += count
+            if count:
+                permissions[key] = new_rules
+                changed = True
+        if not changed:
+            return None, migrated
+        return json.dumps(settings, indent=2) + "\n", migrated
+
+    def write_migrated(self, content: str) -> None:
+        """Atomically write precomputed migrated ``content`` under lock.
+
+        The apply pass of a two-pass migration: the content was already
+        computed and validated by :meth:`preview_replacements`, so the
+        only remaining failure mode is a write-time I/O error.
+        """
+        with file_lock(self.path):
+            atomic_write_text(self.path, content)
 
 
 __all__ = ["SettingsDocument", "_migrate_rules", "_deduplicate_rules"]

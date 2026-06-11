@@ -125,6 +125,16 @@ class TestPlanSave:
 
         assert path.exists()
 
+    def test_save_leaves_no_stale_tmp(self, tmp_path: Path) -> None:
+        # GH-571: Plan.save now routes through atomic_write_text
+        # (mkstemp + fsync + rename), so no .tmp sidecar survives.
+        path = tmp_path / "plan.yaml"
+
+        Plan(metadata={"status": "new"}).save(path=path)
+
+        leftovers = [p.name for p in tmp_path.iterdir() if p.suffix == ".tmp"]
+        assert leftovers == []
+
 
 class TestPlanIsNew:
     def test_true_when_no_metadata(self) -> None:

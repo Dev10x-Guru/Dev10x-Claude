@@ -139,19 +139,28 @@ class MigratePluginPermissionsRule(PolicyRule[tuple[int, list[str]]]):
             if f.exists()
         ]
 
-        total_migrated = 0
-        files_changed: list[str] = []
-
+        # Two-pass dry-run-then-apply (ADR-0011 Layer 4): compute and
+        # validate every file's migrated content before writing any of
+        # them. This keeps all parse/transform failures in the read pass
+        # so a corrupt file can no longer leave an already-written sibling
+        # mismatched. The only failure left in the write pass is a true
+        # I/O error, which we surface instead of swallowing.
+        planned: list[tuple[SettingsDocument, str, int]] = []
         for settings_file in settings_files:
+            doc = SettingsDocument(path=settings_file)
             try:
-                count = SettingsDocument(path=settings_file).apply_replacements(
-                    replacements=replacements
-                )
+                new_content, count = doc.preview_replacements(replacements=replacements)
             except (json.JSONDecodeError, OSError):
                 continue
-            if count:
-                total_migrated += count
-                files_changed.append(settings_file.name)
+            if count and new_content is not None:
+                planned.append((doc, new_content, count))
+
+        total_migrated = 0
+        files_changed: list[str] = []
+        for doc, new_content, count in planned:
+            doc.write_migrated(new_content)
+            total_migrated += count
+            files_changed.append(doc.path.name)
 
         return total_migrated, files_changed
 
