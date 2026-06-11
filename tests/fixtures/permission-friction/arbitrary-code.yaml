@@ -79,3 +79,16 @@ rows:
       `python3 -m <module>` runs arbitrary Python — same tier as `-c`. For
       JSON validation the structured alternative is `jq empty <file>`;
       forbid the inline-module shape.
+
+  - id: "#180"
+    command: "<venv>/bin/python --version"
+    tool: Bash
+    friction: null
+    effect: deny
+    reversibility: none
+    rule: "Bash(<venv>/bin/python:*)"
+    notes: >
+      Invoking the venv interpreter directly bypasses the `uv` environment
+      fence (lockfile, resolved env). Use `uv run python` instead. Deny the
+      direct-binary shape even for `--version`. (Maintainer-directed
+      reclassification, GH-616.)

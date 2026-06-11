@@ -133,18 +133,6 @@ rows:
       Re-derived from extractor `fence-tool`. (#318 `gh pr close
       --delete-branch` is the same verb plus a branch delete — still ask.)
 
-  - id: "#43"
-    command: "git rebase --onto origin/develop <upstream> <branch>"
-    tool: Bash
-    friction: permission-prompt
-    effect: ask
-    reversibility: assisted
-    rule: "Bash(git rebase:*)"
-    notes: >
-      Rewrites history; reachable via reflog → assisted. Re-derived from
-      extractor's wrong `Bash(git push --force:*)` rule (this is a rebase,
-      not a force-push).
-
   - id: "#201"
     command: "rm -f <worktree>/.coverage <worktree>/.coverage.*"
     tool: Bash

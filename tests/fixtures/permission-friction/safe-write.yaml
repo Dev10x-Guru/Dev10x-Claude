@@ -92,8 +92,23 @@ rows:
     friction: null
     effect: allow
     reversibility: trivial
-    rule: "Bash(mktemp:*)"
+    rule: "Bash(mktmp:*)"
     notes: >
       Creates a temp file under /tmp — local, trivially reversible. Prefer
-      the Dev10x `mktmp` MCP wrapper (scoped, audited); raw `mktemp` is the
+      the Dev10x `mktmp` MCP wrapper (scoped, audited); raw `mktmp` is the
       friction signal, not a risk.
+
+  - id: "#43"
+    command: "git rebase --onto origin/develop <upstream> <branch>"
+    tool: Bash
+    friction: permission-prompt
+    effect: allow
+    reversibility: assisted
+    rule: "Bash(git rebase --onto origin/develop:*)"
+    notes: >
+      Rebasing a local feature branch onto a known-good remote base only
+      rewrites LOCAL branch history — no shared/remote state, no
+      force-push — and is reflog-recoverable. Routine, expected op → allow.
+      Distinct from the INTERACTIVE forms #30/#46 (`rebase -i` /
+      `--continue`), which keep `destructive`/`ask`. (Maintainer-directed
+      reclassification, GH-616; revises reflection #43.)

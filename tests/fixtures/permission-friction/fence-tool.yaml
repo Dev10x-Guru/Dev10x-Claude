@@ -60,13 +60,14 @@ rows:
     command: "DJANGO_SETTINGS_MODULE=<mod> uv run python manage.py makemigrations <app>"
     tool: Bash
     friction: null
-    effect: ask
+    effect: deny
     reversibility: assisted
-    rule: "Bash(uv run *)"
+    rule: "Bash(DJANGO_SETTINGS_MODULE=:*)"
     notes: >
-      `uv run` fence-tool + env-var prefix (which itself shifts the
-      allow-rule prefix). makemigrations writes a migration file
-      (assisted-reversible) → ask.
+      Manually injecting `DJANGO_SETTINGS_MODULE=` is an anti-pattern: the
+      project should detect its own run mode (its settings/env), not have
+      the agent force the settings module. Deny the env-prefix form to
+      push the correct invocation. (Maintainer-directed, GH-616.)
 
   - id: "#233"
     command: "uv run --with pytest pytest <test>"
@@ -92,24 +93,27 @@ rows:
     command: "npx vercel inspect <deployment-id> --logs"
     tool: Bash
     friction: permission-prompt
-    effect: ask
-    reversibility: none
-    rule: "Bash(npx:*)"
+    effect: allow
+    reversibility: trivial
+    rule: "Bash(npx vercel inspect:*)"
     notes: >
-      `npx` fetches+executes a package — fence-tool broad ask. Read intent
-      (`inspect --logs`) does not launder the npx surface.
+      `npx vercel inspect --logs` is a read-only deployment inspection.
+      Narrow allow on the specific read sub-form (same pattern as
+      `railway --version` #225); bare `npx *` stays ask. (Maintainer-
+      directed reclassification, GH-616.)
 
   - id: "#146"
     command: "uvx dev10x permission --help"
     tool: Bash
     friction: null
-    effect: ask
-    reversibility: none
+    effect: allow
+    reversibility: trivial
     rule: "Bash(uvx dev10x:*)"
     notes: >
-      `uvx` is a fence-tool (ephemeral install + run). Option-2 here kept
-      the subcommand `Bash(uvx dev10x *)` rather than stripping to
-      `Bash(uvx *)`; the `dev10x`-scoped form is the narrow ask.
+      `dev10x` is the project's OWN trusted CLI — `uvx dev10x <anything>`
+      is not arbitrary downstream code, so the whole family is allowed via
+      the narrow `Bash(uvx dev10x:*)` rule. Bare `uvx *` / `npx *` stay
+      ask. (Maintainer-directed reclassification, GH-616.)
 
   - id: "#157"
     command: "uv run --directory apps/api lint-imports"
@@ -136,13 +140,14 @@ rows:
     command: "DJANGO_SETTINGS_MODULE=<mod> uv run python manage.py check --deploy --fail-level ERROR"
     tool: Bash
     friction: hook-block
-    effect: ask
+    effect: deny
     reversibility: none
-    rule: "Bash(uv run *)"
+    rule: "Bash(DJANGO_SETTINGS_MODULE=:*)"
     notes: >
-      `manage.py check` is read-only, but it runs behind the `uv run`
-      fence + an env-var prefix (which itself shifts the allow prefix) →
-      ask. Re-derived from extractor `arbitrary-code`+`allow`.
+      Same anti-pattern as #200: a manual `DJANGO_SETTINGS_MODULE=` prefix
+      forces the run mode the project should detect itself. Deny the
+      env-prefix form even for the read-only `check` verb. (Maintainer-
+      directed, GH-616.)
 
   - id: "#277"
     command: "uv add --project apps/e2e <package>"
