@@ -2,17 +2,41 @@
 
 from __future__ import annotations
 
+import functools
+
 # Context is required at runtime: FastMCP evaluates tool annotations with
 # eval_str=True to detect the injected context parameter (GH-342). The
 # noqa keeps ruff from stripping it as a type-only import under
 # `from __future__ import annotations`.
 from mcp.server.fastmcp import Context  # noqa: F401
 
+from dev10x import github as gh
+from dev10x import subprocess_utils
+from dev10x.domain.common.result import Result
 from dev10x.mcp._app import server
 
 
-@server.tool()
-async def detect_tracker(ticket_id: str, cwd: str | None = None) -> dict:
+def github_tool(fn):
+    """Wrap a GitHub handler with cwd binding + Result→dict unwrapping.
+
+    The inner ``fn`` returns a ``Result``; this decorator enters
+    ``use_cwd(kwargs["cwd"])`` and calls ``.to_dict()`` at the MCP
+    boundary. ``functools.wraps`` preserves the inner signature so
+    FastMCP builds the correct tool schema.
+    """
+
+    @server.tool()
+    @functools.wraps(fn)
+    async def wrapper(*args, **kwargs):
+        with subprocess_utils.use_cwd(kwargs.get("cwd")):
+            result = await fn(*args, **kwargs)
+        return result.to_dict()
+
+    return wrapper
+
+
+@github_tool
+async def detect_tracker(ticket_id: str, cwd: str | None = None) -> Result[dict]:
     """Detect issue tracker type from a ticket ID.
 
     Args:
@@ -23,15 +47,11 @@ async def detect_tracker(ticket_id: str, cwd: str | None = None) -> dict:
     Returns:
         Dictionary with keys: tracker, ticket_id, ticket_number, fixes_url
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (await gh.detect_tracker(ticket_id=ticket_id)).to_dict()
+    return await gh.detect_tracker(ticket_id=ticket_id)
 
 
-@server.tool()
-async def pr_detect(arg: str, cwd: str | None = None) -> dict:
+@github_tool
+async def pr_detect(arg: str, cwd: str | None = None) -> Result[dict]:
     """Detect PR context from a PR number, URL, or branch name.
 
     Args:
@@ -41,15 +61,11 @@ async def pr_detect(arg: str, cwd: str | None = None) -> dict:
     Returns:
         Dictionary with keys: pr_number, repo, branch, state, head_ref
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (await gh.pr_detect(arg=arg)).to_dict()
+    return await gh.pr_detect(arg=arg)
 
 
-@server.tool()
-async def pr_get(number: int, repo: str | None = None, cwd: str | None = None) -> dict:
+@github_tool
+async def pr_get(number: int, repo: str | None = None, cwd: str | None = None) -> Result[dict]:
     """Get GitHub PR details (GH-267).
 
     Symmetric to ``issue_get`` — closes the ``gh pr view`` permission-
@@ -65,15 +81,11 @@ async def pr_get(number: int, repo: str | None = None, cwd: str | None = None) -
         headRefName, merged, mergedAt, closedAt, labels, milestone,
         assignees, author, url.
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (await gh.pr_get(number=number, repo=repo)).to_dict()
+    return await gh.pr_get(number=number, repo=repo)
 
 
-@server.tool()
-async def issue_get(number: int, repo: str | None = None, cwd: str | None = None) -> dict:
+@github_tool
+async def issue_get(number: int, repo: str | None = None, cwd: str | None = None) -> Result[dict]:
     """Get GitHub issue details.
 
     Args:
@@ -84,15 +96,13 @@ async def issue_get(number: int, repo: str | None = None, cwd: str | None = None
     Returns:
         Dictionary with keys: title, state, body, labels, linked_prs
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (await gh.issue_get(number=number, repo=repo)).to_dict()
+    return await gh.issue_get(number=number, repo=repo)
 
 
-@server.tool()
-async def issue_comments(number: int, repo: str | None = None, cwd: str | None = None) -> dict:
+@github_tool
+async def issue_comments(
+    number: int, repo: str | None = None, cwd: str | None = None
+) -> Result[dict]:
     """Get GitHub issue comments.
 
     Args:
@@ -103,14 +113,10 @@ async def issue_comments(number: int, repo: str | None = None, cwd: str | None =
     Returns:
         Dictionary with key: comments (list of comment objects)
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (await gh.issue_comments(number=number, repo=repo)).to_dict()
+    return await gh.issue_comments(number=number, repo=repo)
 
 
-@server.tool()
+@github_tool
 async def issue_create(
     title: str,
     body: str | None = None,
@@ -118,7 +124,7 @@ async def issue_create(
     milestone: str | None = None,
     repo: str | None = None,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Create a GitHub issue.
 
     Args:
@@ -132,22 +138,16 @@ async def issue_create(
     Returns:
         Dictionary with keys: number, title, url
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (
-            await gh.issue_create(
-                title=title,
-                body=body,
-                labels=labels,
-                milestone=milestone,
-                repo=repo,
-            )
-        ).to_dict()
+    return await gh.issue_create(
+        title=title,
+        body=body,
+        labels=labels,
+        milestone=milestone,
+        repo=repo,
+    )
 
 
-@server.tool()
+@github_tool
 async def pr_comments(
     action: str,
     pr_number: int | None = None,
@@ -158,7 +158,7 @@ async def pr_comments(
     unresolved_only: bool = False,
     repo: str | None = None,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Manage GitHub PR review comments and threads.
 
     Args:
@@ -180,32 +180,26 @@ async def pr_comments(
     Returns:
         Dictionary with action results (comments list or operation status)
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (
-            await gh.pr_comments(
-                action=action,
-                pr_number=pr_number,
-                comment_id=comment_id,
-                comment_ids=comment_ids,
-                body=body,
-                review_id=review_id,
-                unresolved_only=unresolved_only,
-                repo=repo,
-            )
-        ).to_dict()
+    return await gh.pr_comments(
+        action=action,
+        pr_number=pr_number,
+        comment_id=comment_id,
+        comment_ids=comment_ids,
+        body=body,
+        review_id=review_id,
+        unresolved_only=unresolved_only,
+        repo=repo,
+    )
 
 
-@server.tool()
+@github_tool
 async def pr_comment_reply(
     pr_number: int,
     comment_id: int,
     body: str,
     repo: str | None = None,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Reply to a PR review comment thread.
 
     `body` is literal text — there is no `@file` / `--body-file`
@@ -221,27 +215,21 @@ async def pr_comment_reply(
     Returns:
         Dictionary with reply details (id, body, created_at)
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (
-            await gh.pr_comment_reply(
-                pr_number=pr_number,
-                comment_id=comment_id,
-                body=body,
-                repo=repo,
-            )
-        ).to_dict()
+    return await gh.pr_comment_reply(
+        pr_number=pr_number,
+        comment_id=comment_id,
+        body=body,
+        repo=repo,
+    )
 
 
-@server.tool()
+@github_tool
 async def pr_issue_comment(
     pr_number: int,
     body: str,
     repo: str | None = None,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Post a top-level issue-level comment on a PR.
 
     Wraps `gh api --method POST /repos/{owner}/{repo}/issues/{pr_number}/comments
@@ -263,26 +251,20 @@ async def pr_issue_comment(
     Returns:
         Dictionary with comment details (id, body, created_at) or error.
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (
-            await gh.pr_issue_comment(
-                pr_number=pr_number,
-                body=body,
-                repo=repo,
-            )
-        ).to_dict()
+    return await gh.pr_issue_comment(
+        pr_number=pr_number,
+        body=body,
+        repo=repo,
+    )
 
 
-@server.tool()
+@github_tool
 async def pr_review_comment_edit(
     comment_id: int,
     body: str,
     repo: str | None = None,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Edit a PR inline review-thread comment body (GH-304).
 
     Uses PATCH against `/repos/{owner}/{repo}/pulls/comments/{id}`.
@@ -302,26 +284,20 @@ async def pr_review_comment_edit(
     Returns:
         Dictionary with keys: id, body, html_url.
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (
-            await gh.pr_comment_edit(
-                comment_id=comment_id,
-                body=body,
-                repo=repo,
-            )
-        ).to_dict()
+    return await gh.pr_comment_edit(
+        comment_id=comment_id,
+        body=body,
+        repo=repo,
+    )
 
 
-@server.tool()
+@github_tool
 async def minimize_comments(
     node_ids: list[str],
     classifier: str = "OUTDATED",
     repo: str | None = None,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Minimize (hide) one or more PR review comments via batched GraphQL.
 
     Replaces a per-comment `gh api graphql -f query=@file` loop with a
@@ -339,27 +315,21 @@ async def minimize_comments(
         Dictionary with batched mutation results keyed as m0, m1, ...
         each containing minimizedComment { isMinimized, minimizedReason }
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (
-            await gh.minimize_comments(
-                node_ids=node_ids,
-                classifier=classifier,
-                repo=repo,
-            )
-        ).to_dict()
+    return await gh.minimize_comments(
+        node_ids=node_ids,
+        classifier=classifier,
+        repo=repo,
+    )
 
 
-@server.tool()
+@github_tool
 async def request_review(
     pr_number: int,
     reviewers: list[str],
     team: bool | None = None,
     repo: str | None = None,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Request review on a GitHub PR from users or teams.
 
     Args:
@@ -372,26 +342,20 @@ async def request_review(
     Returns:
         Dictionary with keys: requested_reviewers or requested_teams
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (
-            await gh.request_review(
-                pr_number=pr_number,
-                reviewers=reviewers,
-                team=team,
-                repo=repo,
-            )
-        ).to_dict()
+    return await gh.request_review(
+        pr_number=pr_number,
+        reviewers=reviewers,
+        team=team,
+        repo=repo,
+    )
 
 
-@server.tool()
+@github_tool
 async def detect_base_branch(
     base: str | None = None,
     force: bool = False,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Detect the correct base branch for PRs in the current repository.
 
     Prefers develop/development, falls back to main/master/trunk.
@@ -404,15 +368,11 @@ async def detect_base_branch(
     Returns:
         Dictionary with keys: base_branch (str), has_develop (bool)
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (await gh.detect_base_branch(base=base, force=force)).to_dict()
+    return await gh.detect_base_branch(base=base, force=force)
 
 
-@server.tool()
-async def verify_pr_state(force: bool = False, cwd: str | None = None) -> dict:
+@github_tool
+async def verify_pr_state(force: bool = False, cwd: str | None = None) -> Result[dict]:
     """Verify branch state before creating a PR.
 
     Args:
@@ -424,15 +384,11 @@ async def verify_pr_state(force: bool = False, cwd: str | None = None) -> dict:
     Returns:
         Dictionary with keys: branch_name, issue, base_branch
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (await gh.verify_pr_state(force=force)).to_dict()
+    return await gh.verify_pr_state(force=force)
 
 
-@server.tool()
-async def pre_pr_checks(base_branch: str | None = None, cwd: str | None = None) -> dict:
+@github_tool
+async def pre_pr_checks(base_branch: str | None = None, cwd: str | None = None) -> Result[dict]:
     """Run pre-PR quality checks (ruff, mypy, pytest).
 
     Args:
@@ -442,11 +398,7 @@ async def pre_pr_checks(base_branch: str | None = None, cwd: str | None = None) 
     Returns:
         Dictionary with keys: success (bool), output (str)
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (await gh.pre_pr_checks(base_branch=base_branch)).to_dict()
+    return await gh.pre_pr_checks(base_branch=base_branch)
 
 
 @server.tool()
@@ -488,7 +440,6 @@ async def create_pr(
     Returns:
         Dictionary with keys: pr_number (int), url (str)
     """
-    from dev10x import github as gh
     from dev10x.subprocess_utils import use_cwd
 
     if ctx is not None:
@@ -523,7 +474,7 @@ async def create_pr(
     return result
 
 
-@server.tool()
+@github_tool
 async def update_pr(
     pr_number: int,
     body: str | None = None,
@@ -531,7 +482,7 @@ async def update_pr(
     base_branch: str | None = None,
     repo: str | None = None,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Update an existing PR's body, title, or base branch.
 
     Mirrors create_pr for in-place updates after force-push or scope
@@ -551,29 +502,23 @@ async def update_pr(
     Returns:
         Dictionary with keys: pr_number (int), url (str)
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (
-            await gh.update_pr(
-                pr_number=pr_number,
-                body=body,
-                title=title,
-                base_branch=base_branch,
-                repo=repo,
-            )
-        ).to_dict()
+    return await gh.update_pr(
+        pr_number=pr_number,
+        body=body,
+        title=title,
+        base_branch=base_branch,
+        repo=repo,
+    )
 
 
-@server.tool()
+@github_tool
 async def merge_pr(
     pr_number: int,
     strategy: str = "rebase",
     delete_branch: bool = True,
     repo: str | None = None,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Merge a pull request via ``gh pr merge`` (GH-232).
 
     Symmetric to ``create_pr``/``update_pr``. Provides a structured
@@ -603,21 +548,15 @@ async def merge_pr(
         Dictionary with keys: pr_number (int), url (str),
         strategy (str), branch_deleted (bool), repo (str).
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (
-            await gh.merge_pr(
-                pr_number=pr_number,
-                strategy=strategy,
-                delete_branch=delete_branch,
-                repo=repo,
-            )
-        ).to_dict()
+    return await gh.merge_pr(
+        pr_number=pr_number,
+        strategy=strategy,
+        delete_branch=delete_branch,
+        repo=repo,
+    )
 
 
-@server.tool()
+@github_tool
 async def issue_edit(
     number: int,
     title: str | None = None,
@@ -626,7 +565,7 @@ async def issue_edit(
     labels: list[str] | None = None,
     repo: str | None = None,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Edit a GitHub issue's title, body, milestone, or labels (GH-220).
 
     Wraps `gh issue edit`. Accepts partial updates — pass only the
@@ -644,30 +583,24 @@ async def issue_edit(
     Returns:
         Dictionary with keys: number, url
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (
-            await gh.issue_edit(
-                number=number,
-                title=title,
-                body=body,
-                milestone=milestone,
-                labels=labels,
-                repo=repo,
-            )
-        ).to_dict()
+    return await gh.issue_edit(
+        number=number,
+        title=title,
+        body=body,
+        milestone=milestone,
+        labels=labels,
+        repo=repo,
+    )
 
 
-@server.tool()
+@github_tool
 async def issue_close(
     number: int,
     reason: str = "completed",
     comment: str | None = None,
     repo: str | None = None,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Close a GitHub issue (GH-268).
 
     Wraps `gh issue close N --reason <reason>` plus an optional
@@ -684,26 +617,20 @@ async def issue_close(
     Returns:
         Dictionary with keys: number, state ("closed"), url.
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (
-            await gh.issue_close(
-                number=number,
-                reason=reason,
-                comment=comment,
-                repo=repo,
-            )
-        ).to_dict()
+    return await gh.issue_close(
+        number=number,
+        reason=reason,
+        comment=comment,
+        repo=repo,
+    )
 
 
-@server.tool()
+@github_tool
 async def issue_reopen(
     number: int,
     repo: str | None = None,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Reopen a closed GitHub issue (GH-268).
 
     Wraps `gh issue reopen N`. Symmetric to `issue_close`.
@@ -716,21 +643,17 @@ async def issue_reopen(
     Returns:
         Dictionary with keys: number, state ("open"), url.
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (await gh.issue_reopen(number=number, repo=repo)).to_dict()
+    return await gh.issue_reopen(number=number, repo=repo)
 
 
-@server.tool()
+@github_tool
 async def issue_comment(
     number: int,
     body: str | None = None,
     repo: str | None = None,
     cwd: str | None = None,
     body_file: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Post a Markdown comment on a GitHub issue (GH-220).
 
     Wraps `gh issue comment N --body-file <tmp>` so callers don't
@@ -751,28 +674,22 @@ async def issue_comment(
     Returns:
         Dictionary with key: url (the comment permalink).
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (
-            await gh.issue_comment(
-                number=number,
-                body=body,
-                repo=repo,
-                body_file=body_file,
-            )
-        ).to_dict()
+    return await gh.issue_comment(
+        number=number,
+        body=body,
+        repo=repo,
+        body_file=body_file,
+    )
 
 
-@server.tool()
+@github_tool
 async def issue_comment_edit(
     comment_id: int,
     body: str | None = None,
     repo: str | None = None,
     cwd: str | None = None,
     body_file: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Edit an existing GitHub issue or PR comment body (GH-283).
 
     Symmetric to `issue_comment` (POST) but uses PATCH against
@@ -795,26 +712,20 @@ async def issue_comment_edit(
     Returns:
         Dictionary with keys: id, body, html_url.
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (
-            await gh.issue_comment_edit(
-                comment_id=comment_id,
-                body=body,
-                repo=repo,
-                body_file=body_file,
-            )
-        ).to_dict()
+    return await gh.issue_comment_edit(
+        comment_id=comment_id,
+        body=body,
+        repo=repo,
+        body_file=body_file,
+    )
 
 
-@server.tool()
+@github_tool
 async def issue_comment_delete(
     comment_id: int,
     repo: str | None = None,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Delete a GitHub issue or PR comment (GH-283).
 
     Uses DELETE against `/repos/{owner}/{repo}/issues/comments/{id}`.
@@ -828,19 +739,13 @@ async def issue_comment_delete(
     Returns:
         Dictionary with keys: deleted (bool), comment_id (int).
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (
-            await gh.issue_comment_delete(
-                comment_id=comment_id,
-                repo=repo,
-            )
-        ).to_dict()
+    return await gh.issue_comment_delete(
+        comment_id=comment_id,
+        repo=repo,
+    )
 
 
-@server.tool()
+@github_tool
 async def issue_list(
     repo: str | None = None,
     state: str = "open",
@@ -849,7 +754,7 @@ async def issue_list(
     limit: int = 30,
     search: str | None = None,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """List GitHub issues, optionally filtered (GH-220).
 
     Wraps `gh issue list ... --json
@@ -867,30 +772,24 @@ async def issue_list(
     Returns:
         Dictionary with key: issues (list of issue dicts).
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (
-            await gh.issue_list(
-                repo=repo,
-                state=state,
-                milestone=milestone,
-                labels=labels,
-                limit=limit,
-                search=search,
-            )
-        ).to_dict()
+    return await gh.issue_list(
+        repo=repo,
+        state=state,
+        milestone=milestone,
+        labels=labels,
+        limit=limit,
+        search=search,
+    )
 
 
-@server.tool()
+@github_tool
 async def milestone_create(
     title: str,
     description: str | None = None,
     due_on: str | None = None,
     repo: str | None = None,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Create a GitHub milestone (GH-220).
 
     Wraps `gh api repos/{r}/milestones --method POST`. Mirrors the
@@ -906,26 +805,20 @@ async def milestone_create(
     Returns:
         Dictionary with keys: number, title, url.
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (
-            await gh.milestone_create(
-                title=title,
-                description=description,
-                due_on=due_on,
-                repo=repo,
-            )
-        ).to_dict()
+    return await gh.milestone_create(
+        title=title,
+        description=description,
+        due_on=due_on,
+        repo=repo,
+    )
 
 
-@server.tool()
+@github_tool
 async def milestones_bulk_create(
     milestones: list[dict],
     repo: str | None = None,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Create multiple GitHub milestones in one call (GH-222).
 
     Iterates `milestone_create` per entry and collects per-entry
@@ -939,24 +832,18 @@ async def milestones_bulk_create(
     Returns:
         Dictionary with keys: created (list), failed (list).
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (
-            await gh.milestones_bulk_create(
-                milestones=milestones,
-                repo=repo,
-            )
-        ).to_dict()
+    return await gh.milestones_bulk_create(
+        milestones=milestones,
+        repo=repo,
+    )
 
 
-@server.tool()
+@github_tool
 async def issues_bulk_create(
     issues: list[dict],
     repo: str | None = None,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Create multiple GitHub issues in one call (GH-222).
 
     Iterates `issue_create` per entry and collects per-entry
@@ -970,24 +857,18 @@ async def issues_bulk_create(
     Returns:
         Dictionary with keys: created (list), failed (list).
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (
-            await gh.issues_bulk_create(
-                issues=issues,
-                repo=repo,
-            )
-        ).to_dict()
+    return await gh.issues_bulk_create(
+        issues=issues,
+        repo=repo,
+    )
 
 
-@server.tool()
+@github_tool
 async def issues_bulk_edit(
     edits: list[dict],
     repo: str | None = None,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Edit multiple GitHub issues in one call (GH-222).
 
     Iterates `issue_edit` per entry and collects per-entry
@@ -1002,24 +883,18 @@ async def issues_bulk_edit(
     Returns:
         Dictionary with keys: edited (list), failed (list).
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (
-            await gh.issues_bulk_edit(
-                edits=edits,
-                repo=repo,
-            )
-        ).to_dict()
+    return await gh.issues_bulk_edit(
+        edits=edits,
+        repo=repo,
+    )
 
 
-@server.tool()
+@github_tool
 async def milestone_close(
     number: int,
     repo: str | None = None,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Close a GitHub milestone via REST API (GH-187).
 
     Use from gh-pr-monitor after all milestone issues are closed.
@@ -1034,24 +909,18 @@ async def milestone_close(
     Returns:
         Dictionary with keys: number (int), state ("closed"), url (str)
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (
-            await gh.milestone_close(
-                number=number,
-                repo=repo,
-            )
-        ).to_dict()
+    return await gh.milestone_close(
+        number=number,
+        repo=repo,
+    )
 
 
-@server.tool()
+@github_tool
 async def generate_commit_list(
     pr_number: int,
     base_branch: str | None = None,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Generate a linked commit list for a PR body.
 
     Args:
@@ -1062,21 +931,15 @@ async def generate_commit_list(
     Returns:
         Dictionary with key: commit_list (str)
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (
-            await gh.generate_commit_list(pr_number=pr_number, base_branch=base_branch)
-        ).to_dict()
+    return await gh.generate_commit_list(pr_number=pr_number, base_branch=base_branch)
 
 
-@server.tool()
+@github_tool
 async def post_summary_comment(
     issue_id: str,
     summary_text: str,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Post summary + checklist as first PR comment.
 
     Args:
@@ -1087,16 +950,10 @@ async def post_summary_comment(
     Returns:
         Dictionary with keys: success (bool), output (str)
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (
-            await gh.post_summary_comment(issue_id=issue_id, summary_text=summary_text)
-        ).to_dict()
+    return await gh.post_summary_comment(issue_id=issue_id, summary_text=summary_text)
 
 
-@server.tool()
+@github_tool
 async def pr_notify(
     pr_number: int,
     repo: str,
@@ -1109,7 +966,7 @@ async def pr_notify(
     skip_reviewers: bool = False,
     skip_checklist: bool = False,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """PR notification helper for review requests.
 
     Args:
@@ -1128,33 +985,27 @@ async def pr_notify(
     Returns:
         Dictionary with PR info (prepare) or operation results (send)
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (
-            await gh.pr_notify(
-                pr_number=pr_number,
-                repo=repo,
-                action=action,
-                channel=channel,
-                message=message,
-                message_file=message_file,
-                reviewer=reviewer,
-                skip_slack=skip_slack,
-                skip_reviewers=skip_reviewers,
-                skip_checklist=skip_checklist,
-            )
-        ).to_dict()
+    return await gh.pr_notify(
+        pr_number=pr_number,
+        repo=repo,
+        action=action,
+        channel=channel,
+        message=message,
+        message_file=message_file,
+        reviewer=reviewer,
+        skip_slack=skip_slack,
+        skip_reviewers=skip_reviewers,
+        skip_checklist=skip_checklist,
+    )
 
 
-@server.tool()
+@github_tool
 async def resolve_review_thread(
     thread_ids: list[str] | None = None,
     comment_ids: list[str] | None = None,
     repo: str | None = None,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Resolve GitHub PR review threads by thread ID or comment node ID.
 
     Accepts either direct thread IDs (PRRT_...) for immediate resolution,
@@ -1169,25 +1020,19 @@ async def resolve_review_thread(
     Returns:
         Dictionary with GraphQL mutation results per resolved thread
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (
-            await gh.resolve_review_thread(
-                thread_ids=thread_ids,
-                comment_ids=comment_ids,
-                repo=repo,
-            )
-        ).to_dict()
+    return await gh.resolve_review_thread(
+        thread_ids=thread_ids,
+        comment_ids=comment_ids,
+        repo=repo,
+    )
 
 
-@server.tool()
+@github_tool
 async def check_top_level_comments(
     pr_number: int,
     repo: str,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Check for unaddressed automated review comments on a PR.
 
     Args:
@@ -1198,19 +1043,15 @@ async def check_top_level_comments(
     Returns:
         Dictionary with keys: findings (list), count (int)
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (await gh.check_top_level_comments(pr_number=pr_number, repo=repo)).to_dict()
+    return await gh.check_top_level_comments(pr_number=pr_number, repo=repo)
 
 
-@server.tool()
+@github_tool
 async def unresolved_threads(
     repo: str,
     limit: int = 200,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Scan merged PRs for unresolved review comment threads.
 
     Args:
@@ -1221,93 +1062,16 @@ async def unresolved_threads(
     Returns:
         Dictionary with keys: prs (list), count (int)
     """
-    from dev10x import github as gh
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (await gh.unresolved_threads(repo=repo, limit=limit)).to_dict()
+    return await gh.unresolved_threads(repo=repo, limit=limit)
 
 
-@server.tool()
-async def ci_check_status(
-    pr_number: int,
-    repo: str,
-    required_only: bool = False,
-    wait: bool = False,
-    poll_interval: int = 30,
-    initial_wait: int = 60,
-    max_polls: int = 60,
-    cwd: str | None = None,
-) -> dict:
-    """Check CI status for a PR and return a structured verdict.
-
-    Args:
-        pr_number: PR number
-        repo: Repository in owner/repo format
-        required_only: Only check required status checks
-        wait: Poll until terminal verdict (green/failing/conflicting)
-        poll_interval: Seconds between polls (default 30)
-        initial_wait: Initial wait before first poll (default 60)
-        max_polls: Maximum number of polls (default 60)
-        cwd: Effective working directory (GH-979).
-
-    Returns:
-        Dictionary with verdict, mergeable status, and check details
-    """
-    from dev10x import monitor as mon
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return (
-            await mon.ci_check_status(
-                pr_number=pr_number,
-                repo=repo,
-                required_only=required_only,
-                wait=wait,
-                poll_interval=poll_interval,
-                initial_wait=initial_wait,
-                max_polls=max_polls,
-            )
-        ).to_dict()
-
-
-@server.tool()
-async def collect_prs(
-    repo_path: str,
-    from_tag: str | None = None,
-    to_tag: str | None = None,
-    ticket_pattern: str | None = None,
-) -> dict:
-    """Collect PRs between git tags for release notes.
-
-    Args:
-        repo_path: Path to the git repository
-        from_tag: Start tag (optional)
-        to_tag: End tag (optional)
-        ticket_pattern: Regex override for ticket pattern
-
-    Returns:
-        Dictionary with keys: success (bool), output (str)
-    """
-    from dev10x import release as rel
-
-    return (
-        await rel.collect_prs(
-            repo_path=repo_path,
-            from_tag=from_tag,
-            to_tag=to_tag,
-            ticket_pattern=ticket_pattern,
-        )
-    ).to_dict()
-
-
-@server.tool()
+@github_tool
 async def cluster_review_comments(
     repos: list[str] | None = None,
     limit: int = 50,
     top_n: int = 20,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Cluster & score PR review-comment patterns (GH-346).
 
     Fetches inline review comments from recent merged PRs, groups them
@@ -1325,13 +1089,9 @@ async def cluster_review_comments(
         Dictionary with keys: patterns (list), summary (dict); or error.
     """
     from dev10x.github import review_patterns
-    from dev10x.subprocess_utils import use_cwd
 
-    with use_cwd(cwd):
-        return (
-            await review_patterns.cluster_review_comments(
-                repos=repos,
-                limit=limit,
-                top_n=top_n,
-            )
-        ).to_dict()
+    return await review_patterns.cluster_review_comments(
+        repos=repos,
+        limit=limit,
+        top_n=top_n,
+    )

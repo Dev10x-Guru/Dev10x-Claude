@@ -214,6 +214,35 @@ class TestSetupPasteFlow:
         assert "BEGIN RSA PRIVATE KEY" in key_path.read_text()
 
 
+class TestAtomicCredentialWrites:
+    """Credential files are written atomically, then locked down to 600."""
+
+    def test_write_key_text_uses_atomic_write(self, fake_home: Path) -> None:
+        gha.CONFIG_DIR.mkdir(parents=True)
+        with (
+            patch.object(gha, "atomic_write_text") as atomic,
+            patch.object(gha.os, "chmod") as chmod,
+        ):
+            gha._write_key_text(private_key="SECRET")
+
+        atomic.assert_called_once_with(gha.KEY_PATH, "SECRET")
+        chmod.assert_called_once_with(gha.KEY_PATH, 0o600)
+
+    def test_write_config_uses_atomic_write(self, fake_home: Path) -> None:
+        gha.CONFIG_DIR.mkdir(parents=True)
+        expected = (
+            f'github_app:\n  app_id: "42"\n  private_key_path: "{gha.KEY_PATH}"\n  enabled: true\n'
+        )
+        with (
+            patch.object(gha, "atomic_write_text") as atomic,
+            patch.object(gha.os, "chmod") as chmod,
+        ):
+            gha._write_config(app_id="42")
+
+        atomic.assert_called_once_with(gha.CONFIG_PATH, expected)
+        chmod.assert_called_once_with(gha.CONFIG_PATH, 0o600)
+
+
 class TestSetupRejectsExistingWithoutForce:
     def test_aborts_when_config_exists_and_no_confirm(
         self,

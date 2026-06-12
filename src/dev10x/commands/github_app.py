@@ -18,6 +18,7 @@ import click
 
 from dev10x.commands import github_app_api as api
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.domain.file_locks import atomic_write_text
 
 CONFIG_DIR = Dev10xConfigDir.github_bot_dir()
 CONFIG_PATH = Dev10xConfigDir.github_app_yaml()
@@ -363,7 +364,7 @@ def _install_key_from_path(*, source: Path) -> str:
 
 def _write_key_text(*, private_key: str) -> None:
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    KEY_PATH.write_text(private_key)
+    atomic_write_text(KEY_PATH, private_key)
     os.chmod(KEY_PATH, 0o600)
 
 
@@ -374,7 +375,7 @@ def _write_config(*, app_id: str) -> None:
         f'  private_key_path: "{KEY_PATH}"',
         "  enabled: true",
     ]
-    CONFIG_PATH.write_text("\n".join(yaml_lines) + "\n")
+    atomic_write_text(CONFIG_PATH, "\n".join(yaml_lines) + "\n")
     os.chmod(CONFIG_PATH, 0o600)
 
 
