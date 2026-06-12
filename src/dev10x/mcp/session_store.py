@@ -50,6 +50,12 @@ DEV10X_MCP_SESSION_MAX
     evicted to make room.  Defaults to 1000.
 """
 
+# FIXME(GH-501): forward-compat scaffolding. SessionStore is defined and
+# unit-tested but not yet owned by a running daemon — Increment 3 (#338
+# Claude Code wiring) is incomplete; only the client-side connect landed
+# in #417. Kept intentionally per the GH-501 keep decision; wire into the
+# daemon run loop or remove this module.
+
 from __future__ import annotations
 
 import logging

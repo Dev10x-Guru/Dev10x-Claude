@@ -1677,3 +1677,98 @@ class TestIssueCreateLabelForwarding:
 
         call_args = list(mock_run.call_args[0])
         assert "--label" not in call_args
+
+
+# ── GH-585: delegation coverage for @github_tool decorated handlers ──
+
+
+DECORATED_DELEGATIONS: list[tuple[str, str, dict]] = [
+    ("pr_review_comment_edit", "pr_comment_edit", {"comment_id": 1, "body": "x"}),
+    ("detect_base_branch", "detect_base_branch", {}),
+    ("issue_edit", "issue_edit", {"number": 1}),
+    ("issue_comment", "issue_comment", {"number": 1, "body": "x"}),
+    ("issue_comment_edit", "issue_comment_edit", {"comment_id": 1, "body": "x"}),
+    ("issue_comment_delete", "issue_comment_delete", {"comment_id": 1}),
+    ("issue_list", "issue_list", {}),
+    ("milestone_create", "milestone_create", {"title": "t"}),
+    ("milestones_bulk_create", "milestones_bulk_create", {"milestones": []}),
+    ("issues_bulk_create", "issues_bulk_create", {"issues": []}),
+    ("issues_bulk_edit", "issues_bulk_edit", {"edits": []}),
+    ("milestone_close", "milestone_close", {"number": 1}),
+]
+
+
+class TestDecoratedHandlerDelegation:
+    """GH-585 — @github_tool handlers delegate to dev10x.github and unwrap."""
+
+    @pytest.mark.parametrize(
+        "handler_name,gh_attr,kwargs",
+        DECORATED_DELEGATIONS,
+        ids=[h for h, _, _ in DECORATED_DELEGATIONS],
+    )
+    @pytest.mark.asyncio
+    async def test_delegates_and_unwraps(
+        self,
+        handler_name: str,
+        gh_attr: str,
+        kwargs: dict,
+    ) -> None:
+        handler = getattr(cli_server, handler_name)
+
+        with patch.object(gh, gh_attr, new_callable=AsyncMock) as mock_fn:
+            mock_fn.return_value = ok({"delegated": handler_name})
+
+            result = await handler(**kwargs)
+
+        assert result == {"delegated": handler_name}
+        mock_fn.assert_awaited_once()
+
+    @pytest.mark.parametrize(
+        "handler_name,gh_attr,kwargs",
+        DECORATED_DELEGATIONS,
+        ids=[h for h, _, _ in DECORATED_DELEGATIONS],
+    )
+    @pytest.mark.asyncio
+    async def test_propagates_error(
+        self,
+        handler_name: str,
+        gh_attr: str,
+        kwargs: dict,
+    ) -> None:
+        handler = getattr(cli_server, handler_name)
+
+        with patch.object(gh, gh_attr, new_callable=AsyncMock) as mock_fn:
+            mock_fn.return_value = err("boom")
+
+            result = await handler(**kwargs)
+
+        assert "error" in result
+
+
+class TestClusterReviewComments:
+    """GH-346 handler delegation, covered under the GH-585 decorator sweep."""
+
+    @pytest.mark.asyncio
+    async def test_delegates_to_review_patterns(self) -> None:
+        with patch(
+            "dev10x.github.review_patterns.cluster_review_comments",
+            new_callable=AsyncMock,
+        ) as mock_fn:
+            mock_fn.return_value = ok({"patterns": [], "summary": {}})
+
+            result = await cli_server.cluster_review_comments(top_n=5)
+
+        assert result == {"patterns": [], "summary": {}}
+        assert mock_fn.call_args.kwargs == {"repos": None, "limit": 50, "top_n": 5}
+
+    @pytest.mark.asyncio
+    async def test_propagates_error(self) -> None:
+        with patch(
+            "dev10x.github.review_patterns.cluster_review_comments",
+            new_callable=AsyncMock,
+        ) as mock_fn:
+            mock_fn.return_value = err("boom")
+
+            result = await cli_server.cluster_review_comments()
+
+        assert "error" in result

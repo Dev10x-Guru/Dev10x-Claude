@@ -28,6 +28,13 @@ DEV10X_MCP_SHUTDOWN_TIMEOUT
     escalating to SIGKILL.  Defaults to 10.
 """
 
+# FIXME(GH-501): forward-compat scaffolding. DaemonLifecycle is defined but
+# not yet instantiated by any server entry point — #417 wired only the
+# client-side daemon-connect / STDIO-fallback (see mcp/wiring.py), not a
+# long-lived daemon run loop that would own this class plus SessionStore.
+# Kept intentionally per the GH-501 keep decision; either fully wire the
+# daemon run loop (#338 Increment 3) or remove this module.
+
 from __future__ import annotations
 
 import logging

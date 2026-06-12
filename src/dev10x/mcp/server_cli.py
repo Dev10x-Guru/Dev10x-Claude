@@ -36,7 +36,9 @@ from dev10x.mcp import (  # noqa: E402, F401
     knowledge_prompts,
     knowledge_resources,
     misc_tools,
+    monitor_tools,
     plan_tools,
+    release_tools,
     roots_tools,
 )
 from dev10x.mcp._app import (
@@ -46,7 +48,9 @@ from dev10x.mcp.audit_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.git_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.github_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.misc_tools import *  # noqa: E402, F401, F403
+from dev10x.mcp.monitor_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.plan_tools import *  # noqa: E402, F401, F403
+from dev10x.mcp.release_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.roots_tools import *  # noqa: E402, F401, F403
 
 
