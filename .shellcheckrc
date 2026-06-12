@@ -1,0 +1,6 @@
+# shellcheck configuration for the Dev10x plugin (GH-619).
+# SC1091 ("Not following: <file> was not specified as input") is noise
+# here: scripts source sibling helpers resolved at runtime (e.g.
+# detect-base-branch.sh, require-tool.sh), which shellcheck cannot follow
+# statically. The sourced files are themselves linted on their own.
+disable=SC1091

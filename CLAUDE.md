@@ -31,7 +31,13 @@ claude --plugin-dir .          # load plugin locally
 claude plugin validate         # validate plugin structure
 dev10x --help                  # CLI entry point
 uv run --extra dev pytest      # run tests with coverage
+uv run --extra dev pre-commit install      # one-time: enable lint-on-commit
+uv run --extra dev pre-commit run --all-files  # run the canonical lint suite
 ```
+
+Linting/formatting (ruff, mypy, shellcheck) runs via `pre-commit`,
+never inline — `.pre-commit-config.yaml` is the single source of truth
+(GH-619). Skills defer to `pre-commit run` (GH-592, GH-596).
 
 MCP migration: shell scripts → MCP tools. See `.claude/rules/mcp-tools.md`.
 

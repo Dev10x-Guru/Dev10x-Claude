@@ -48,6 +48,7 @@ dev = [
     "pytest-cov>=6.0",
     "mcp>=1.0",
     "ruff>=0.9",
+    "mypy>=1.13",
     "pre-commit>=4.0",
 ]
 
