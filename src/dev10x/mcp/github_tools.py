@@ -1299,3 +1299,39 @@ async def collect_prs(
             ticket_pattern=ticket_pattern,
         )
     ).to_dict()
+
+
+@server.tool()
+async def cluster_review_comments(
+    repos: list[str] | None = None,
+    limit: int = 50,
+    top_n: int = 20,
+    cwd: str | None = None,
+) -> dict:
+    """Cluster & score PR review-comment patterns (GH-346).
+
+    Fetches inline review comments from recent merged PRs, groups them
+    into recurring candidate patterns, and ranks each by frequency so
+    the top-N findings can feed a candidate-rules report (GH-347).
+
+    Args:
+        repos: ``owner/name`` repositories to analyze. Defaults to the
+            current repository when omitted.
+        limit: Max merged PRs scanned per repo (default 50).
+        top_n: Number of top patterns to return (default 20).
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: patterns (list), summary (dict); or error.
+    """
+    from dev10x.github import review_patterns
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return (
+            await review_patterns.cluster_review_comments(
+                repos=repos,
+                limit=limit,
+                top_n=top_n,
+            )
+        ).to_dict()
