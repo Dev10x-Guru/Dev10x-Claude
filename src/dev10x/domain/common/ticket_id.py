@@ -14,6 +14,12 @@ from dataclasses import dataclass
 TICKET_ID_PATTERN = r"[A-Z]+-\d+"
 _FULL_RE = re.compile(rf"^{TICKET_ID_PATTERN}$")
 _SEARCH_RE = re.compile(TICKET_ID_PATTERN)
+# A ticket occupying a whole branch-path segment, e.g. ``user/GH-12/slug``.
+# Case-insensitive so lowercase branch names (``gh-12``) still resolve; the
+# ``GH-`` prefix needs no special case — it is already a ``[A-Z]+`` project.
+_BRANCH_RE = re.compile(rf"(?:^|/)({TICKET_ID_PATTERN})(?:/|$)", re.IGNORECASE)
+# A leading ``<ticket-id> `` prefix to strip from a commit description.
+_LEADING_RE = re.compile(rf"^{TICKET_ID_PATTERN}\s+")
 
 
 @dataclass(frozen=True)
@@ -53,3 +59,22 @@ class TicketId:
             for match in _SEARCH_RE.finditer(text)
             if (ticket := cls.try_parse(match.group(0))) is not None
         ]
+
+    @classmethod
+    def find_first_in_branch_name(cls, branch: str) -> TicketId | None:
+        """Return the ticket id occupying a full branch-path segment.
+
+        Matches case-insensitively and only when the id is bounded by
+        path separators or the string ends (``user/GH-12/slug``), so an
+        unrelated number in a slug is not picked up. Lowercase branch
+        names are normalised to the canonical upper-case form.
+        """
+        match = _BRANCH_RE.search(branch)
+        if not match:
+            return None
+        return cls.try_parse(match.group(1).upper())
+
+    @classmethod
+    def strip_leading(cls, text: str) -> str:
+        """Remove a leading ``<ticket-id> `` prefix (id plus whitespace)."""
+        return _LEADING_RE.sub("", text)

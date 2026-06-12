@@ -18,7 +18,7 @@ from typing import Any, ClassVar
 
 from dev10x.domain import HookInput, HookResult
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.domain.common.ticket_id import TICKET_ID_PATTERN
+from dev10x.domain.common.ticket_id import TicketId
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
 
@@ -90,7 +90,6 @@ BLOCK_MSG = (
 
 
 GIT_COMMIT_RE = re.compile(r"\bgit\s+commit\b")
-TICKET_RE = re.compile(rf"^{TICKET_ID_PATTERN}\s+")
 
 BYPASS_GITMOJI: frozenset[str] = frozenset({"🔖", "📝", "🔀"})
 
@@ -156,7 +155,7 @@ def _strip_prefix(title: str) -> str:
     while i < len(title) and not title[i].isascii():
         i += 1
     desc = title[i:].strip()
-    desc = TICKET_RE.sub("", desc).strip()
+    desc = TicketId.strip_leading(desc).strip()
     return desc
 
 
