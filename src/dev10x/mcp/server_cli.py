@@ -18,6 +18,8 @@ Split as part of GH-243/A6.
 
 from __future__ import annotations
 
+from typing import Literal, cast
+
 # GH-979: every CWD-sensitive tool accepts an optional `cwd` argument.
 # Skills must pass the session's effective working directory (e.g. the
 # worktree path after EnterWorktree) so subprocess_utils binds it via
@@ -57,4 +59,10 @@ from dev10x.mcp.roots_tools import *  # noqa: E402, F401, F403
 def main() -> None:
     from dev10x.mcp.wiring import select_transport_with_daemon_fallback
 
-    server.run(transport=select_transport_with_daemon_fallback())
+    # The fallback returns one of FastMCP's documented transports; cast so
+    # the Literal-typed `run(transport=...)` parameter resolves (GH-619).
+    transport = cast(
+        Literal["stdio", "sse", "streamable-http"],
+        select_transport_with_daemon_fallback(),
+    )
+    server.run(transport=transport)
