@@ -22,7 +22,7 @@ import importlib
 import os
 import sys
 import traceback
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
 from dev10x.domain.common.rule_id import RuleId
@@ -97,27 +97,37 @@ class ExperimentalFilter:
         return self.enabled or not spec.experimental
 
 
-@dataclass
 class ValidatorRegistry:
     """Owns validator specs, applies filters, lazy-loads instances.
 
     Construction is cheap: only specs are stored. The first call to
     :meth:`active` imports the surviving modules and instantiates
     validators. Subsequent calls return the cached list.
+
+    The spec list is private (``_specs``): callers seed it through the
+    ``specs=`` constructor argument and mutate it only via
+    :meth:`register`. Read access goes through :meth:`active_specs` /
+    :meth:`find_by_rule_id` — nothing reaches into the backing list.
     """
 
-    specs: list[ValidatorSpec] = field(default_factory=list)
-    filters: list[ValidatorFilter] = field(default_factory=list)
-    _instances: list[Validator] | None = field(default=None, init=False, repr=False)
+    def __init__(
+        self,
+        *,
+        specs: list[ValidatorSpec] | None = None,
+        filters: list[ValidatorFilter] | None = None,
+    ) -> None:
+        self._specs: list[ValidatorSpec] = list(specs) if specs is not None else []
+        self.filters: list[ValidatorFilter] = list(filters) if filters is not None else []
+        self._instances: list[Validator] | None = None
 
     def register(self, spec: ValidatorSpec) -> None:
         """Append a spec; invalidates any cached instances."""
-        self.specs.append(spec)
+        self._specs.append(spec)
         self._instances = None
 
     def active_specs(self) -> list[ValidatorSpec]:
         """Return specs surviving all filters (no validators imported)."""
-        return [spec for spec in self.specs if all(f.keep(spec) for f in self.filters)]
+        return [spec for spec in self._specs if all(f.keep(spec) for f in self.filters)]
 
     def active(self) -> list[Validator]:
         """Return validator instances for all active specs (lazy import)."""
@@ -130,7 +140,7 @@ class ValidatorRegistry:
         target = RuleId.try_parse(rule_id)
         if target is None:
             return None
-        for spec in self.specs:
+        for spec in self._specs:
             if spec.rule_id == str(target):
                 return spec
         return None
@@ -227,8 +237,10 @@ class ValidatorChain:
 
     def correct(self, inp: HookInput) -> HookRetry | None:
         """Invoke ``correct()`` on capable validators; first hit wins."""
+        from dev10x.validators.base import Corrector
+
         for validator in self.registry.active():
-            if "correct" not in getattr(validator, "capabilities", frozenset()):
+            if not isinstance(validator, Corrector):
                 continue
             try:
                 if not validator.should_run(inp=inp):

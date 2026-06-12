@@ -69,7 +69,6 @@ class RedundantFetchValidator(ValidatorBase):
     rule_id: ClassVar[str] = "DX009"
     profile: ClassVar[ProfileTier] = ProfileTier.STANDARD
     experimental: ClassVar[bool] = True
-    capabilities: ClassVar[frozenset[str]] = frozenset({"validate"})
 
     def should_run(self, inp: HookInput) -> bool:
         cmd = inp.command

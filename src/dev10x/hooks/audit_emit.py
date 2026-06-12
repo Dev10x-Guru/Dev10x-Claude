@@ -21,6 +21,7 @@ from functools import wraps
 from typing import Any, TypeVar
 
 from dev10x.domain.audit_writer import AuditWriter
+from dev10x.domain.events.hook_event import HookEventName
 from dev10x.domain.hook_telemetry import HookPhase
 
 F = TypeVar("F", bound=Callable[..., Any])
@@ -46,12 +47,13 @@ def set_audit_writer(writer: AuditWriter | None) -> None:
     _writer = writer
 
 
-def audit_hook(name: str, *, event: str = "") -> Callable[[F], F]:
+def audit_hook(name: str, *, event: HookEventName | str = "") -> Callable[[F], F]:
     """Decorator: record a body-phase audit entry around the hook function.
 
     Args:
         name: stable hook identifier (e.g., "validate-bash", "session-reload")
-        event: Claude Code event name (e.g., "PreToolUse", "SessionStart")
+        event: Claude Code event name — prefer a :class:`HookEventName`
+            member; a bare string is still accepted for back-compat.
 
     The wrapped function may call sys.exit(); the decorator intercepts
     SystemExit so the audit record is written before the process dies.

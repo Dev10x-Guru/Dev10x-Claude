@@ -76,7 +76,6 @@ class PipelineAllowValidator(ValidatorBase):
     name: ClassVar[str] = "pipeline-allow"
     rule_id: ClassVar[str] = "DX011"
     profile: ClassVar[ProfileTier] = ProfileTier.STANDARD
-    capabilities: ClassVar[frozenset[str]] = frozenset({"validate"})
     _allow_patterns: list[str] | None = field(default=None, repr=False)
 
     def should_run(self, inp: HookInput) -> bool:

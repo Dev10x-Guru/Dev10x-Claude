@@ -24,9 +24,10 @@ def validate_bash() -> None:
     Reads JSON from stdin, dispatches to registered validators.
     Exit codes: 0=allow, 2=block.
     """
+    from dev10x.domain.events.hook_event import HookEventName
     from dev10x.hooks.audit_emit import audit_hook
 
-    _run = audit_hook(name="validate-bash", event="PreToolUse")(_validate_bash_body)
+    _run = audit_hook(name="validate-bash", event=HookEventName.PRE_TOOL_USE)(_validate_bash_body)
     _run()
 
 

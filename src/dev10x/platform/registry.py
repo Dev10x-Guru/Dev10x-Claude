@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 
 import yaml
@@ -40,6 +40,37 @@ class PlatformConfig:
             plugins_dir=Path(data["plugins_dir"]).expanduser(),
             settings_file=Path(data["settings_file"]).expanduser(),
             playbook_override=data.get("playbook_override"),
+        )
+
+    def with_overrides(
+        self,
+        *,
+        config_dir: Path | None = None,
+        playbook_override: str | None = None,
+    ) -> PlatformConfig:
+        """Return a copy with the supplied fields overridden.
+
+        When ``config_dir`` is given, ``plugins_dir`` and
+        ``settings_file`` are rebased onto it, preserving their position
+        relative to the original ``config_dir``. Centralises the
+        field-by-field reconstruction the repository previously inlined
+        (audit finding D5).
+        """
+        if config_dir is None and playbook_override is None:
+            return self
+        if config_dir is not None:
+            plugins_dir = config_dir / self.plugins_dir.relative_to(self.config_dir)
+            settings_file = config_dir / self.settings_file.relative_to(self.config_dir)
+        else:
+            config_dir = self.config_dir
+            plugins_dir = self.plugins_dir
+            settings_file = self.settings_file
+        return replace(
+            self,
+            config_dir=config_dir,
+            plugins_dir=plugins_dir,
+            settings_file=settings_file,
+            playbook_override=playbook_override or self.playbook_override,
         )
 
 
@@ -119,8 +150,13 @@ def known_platforms() -> dict[str, PlatformConfig]:
     return PlatformCatalog().as_dict()
 
 
-class Registry:
-    """Persisted list of platforms the current user has registered."""
+class PlatformRepository:
+    """Persisted list of platforms the current user has registered.
+
+    Named ``PlatformRepository`` (not ``Registry``) because it owns
+    mutable, file-backed state — the unqualified ``Registry`` name is
+    reserved for static lookup tables (audit finding A3).
+    """
 
     def __init__(self, *, path: Path | None = None) -> None:
         self.path = path or REGISTRY_FILE
@@ -147,25 +183,9 @@ class Registry:
         catalog = catalog or PlatformCatalog()
         if not catalog.contains(name):
             raise ValueError(f"Unknown platform '{name}'. Known: {', '.join(catalog.names())}")
-        base = catalog.lookup(name)
-        if config_dir:
-            base = PlatformConfig(
-                name=base.name,
-                display_name=base.display_name,
-                config_dir=config_dir,
-                plugins_dir=config_dir / base.plugins_dir.relative_to(base.config_dir),
-                settings_file=config_dir / base.settings_file.relative_to(base.config_dir),
-                playbook_override=playbook_override or base.playbook_override,
-            )
-        elif playbook_override:
-            base = PlatformConfig(
-                name=base.name,
-                display_name=base.display_name,
-                config_dir=base.config_dir,
-                plugins_dir=base.plugins_dir,
-                settings_file=base.settings_file,
-                playbook_override=playbook_override,
-            )
+        base = catalog.lookup(name).with_overrides(
+            config_dir=config_dir, playbook_override=playbook_override
+        )
 
         with file_lock(self.path):
             registered = self.load()
@@ -187,10 +207,10 @@ class Registry:
         return [registered[name] for name in sorted(registered)]
 
 
-def registered_platforms(*, registry: Registry | None = None) -> list[PlatformConfig]:
+def registered_platforms(*, registry: PlatformRepository | None = None) -> list[PlatformConfig]:
     """Service function: combine catalog defaults with user registrations.
 
     Returns the list of platforms the user has actively registered. Use
     :class:`PlatformCatalog` directly for the static built-in list.
     """
-    return (registry or Registry()).list()
+    return (registry or PlatformRepository()).list()
