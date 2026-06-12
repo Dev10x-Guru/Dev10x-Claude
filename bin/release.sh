@@ -20,7 +20,7 @@ RED='\033[0;31m'
 BOLD='\033[1m'
 RESET='\033[0m'
 
-VERSION_FILES=".bumpversion.toml .claude-plugin/plugin.json pyproject.toml uv.lock skills/playbook/references/playbook.yaml"
+VERSION_FILES=(.bumpversion.toml .claude-plugin/plugin.json pyproject.toml uv.lock skills/playbook/references/playbook.yaml)
 
 command -v bump-my-version >/dev/null || {
     echo "bump-my-version not found. Install: pip install bump-my-version" >&2
@@ -69,7 +69,7 @@ function finalize_version {
     fi
     step "Finalizing: ${current} → ${release}"
     bump-my-version bump --new-version "$release" --no-tag --no-commit
-    git add $VERSION_FILES
+    git add "${VERSION_FILES[@]}"
     git commit -m "🔖 Bump version: ${current} → ${release}"
 }
 
@@ -81,7 +81,7 @@ function bump_version {
     local after
     after=$(current_version)
     step "Bumping: ${before} → ${after}"
-    git add $VERSION_FILES
+    git add "${VERSION_FILES[@]}"
     git commit -m "🔖 Bump version: ${before} → ${after}"
 }
 
@@ -142,7 +142,8 @@ function release {
     fi
     finalize_version
 
-    local tag="v$(current_version)"
+    local tag
+    tag="v$(current_version)"
     local rc_version
     rc_version="$(current_version)"
 

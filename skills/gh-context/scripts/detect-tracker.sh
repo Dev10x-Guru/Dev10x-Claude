@@ -51,7 +51,7 @@ if [[ -n "$REPO" ]]; then
 
     if [[ -n "$MATCH" ]]; then
         # Replace <num> placeholder with actual number
-        FIXES_URL=$(echo "$MATCH" | sed "s/<num>/${NUMBER}/")
+        FIXES_URL="${MATCH//<num>/${NUMBER}}"
 
         if echo "$MATCH" | grep -q "linear.app"; then
             printf 'TRACKER=linear\nTICKET_ID=%s\nTICKET_NUMBER=%s\nFIXES_URL=%s\n' \

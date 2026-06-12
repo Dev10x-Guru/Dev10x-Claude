@@ -104,7 +104,7 @@ for key in "${ALL_KEYS[@]}"; do
 done
 
 # ── Load display_map ──────────────────────────────────────────────
-declare -A DISPLAY_TO_KEY KEY_TO_DISPLAY
+declare -A DISPLAY_TO_KEY
 if yq '.display_map' "$FAMILIES_FILE" | grep -q '^[^n]'; then
     while IFS='=' read -r display_name internal_key; do
         display_name="${display_name## }"
@@ -113,7 +113,6 @@ if yq '.display_map' "$FAMILIES_FILE" | grep -q '^[^n]'; then
         internal_key="${internal_key%% }"
         [[ -n "$display_name" && -n "$internal_key" ]] || continue
         DISPLAY_TO_KEY["$display_name"]="$internal_key"
-        KEY_TO_DISPLAY["$internal_key"]="$display_name"
     done < <(yq '.display_map | to_entries | .[] | .key + "=" + .value' "$FAMILIES_FILE")
 fi
 
