@@ -122,16 +122,9 @@ def read_latest_installed_version(
         return None
     versions = sorted(
         (d for d in root.iterdir() if d.is_dir()),
-        key=lambda p: _version_tuple(p.name),
+        key=lambda p: PluginVersion.sort_key(p.name),
     )
     return versions[-1].name if versions else None
-
-
-def _version_tuple(version: str) -> tuple[int, ...]:
-    try:
-        return tuple(int(x) for x in version.split("."))
-    except ValueError:
-        return (0,)
 
 
 def record_upgrade(*, version: str | None = None) -> Result[dict[str, Any]]:
