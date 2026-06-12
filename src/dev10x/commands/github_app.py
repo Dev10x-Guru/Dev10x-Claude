@@ -169,10 +169,11 @@ def _prompt_private_key_path() -> Path:
     if default is not None:
         click.echo(f"  Found: {default}")
     while True:
-        kwargs: dict[str, object] = {"type": str}
-        if default is not None:
-            kwargs["default"] = str(default)
-        raw = click.prompt("Path to .pem file", **kwargs).strip()
+        raw = click.prompt(
+            "Path to .pem file",
+            type=str,
+            default=str(default) if default is not None else None,
+        ).strip()
         if not raw:
             click.echo("  Path is required.")
             continue

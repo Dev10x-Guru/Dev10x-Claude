@@ -22,6 +22,7 @@ from dev10x.domain.common.result import ErrorResult, Result, err, ok
 
 if TYPE_CHECKING:
     from slack_sdk import WebClient
+    from slack_sdk.web import SlackResponse
 
 log = logging.getLogger(__name__)
 
@@ -211,7 +212,7 @@ def upload_slack_files(
             initial_comment=resolved_message,
             thread_ts=thread_ts,
         )
-        files = result.get("files", [])
+        files: list[dict] = result.get("files", [])
         print(f"✅ Uploaded {len(file_uploads)} file(s): {[f.get('id') for f in files]}")
         return files[0].get("id") if files else None
     except SlackApiError as ex:
@@ -232,23 +233,27 @@ def _files_upload_v2(
     channel: str,
     initial_comment: str | None,
     thread_ts: str | None,
-) -> dict:
+) -> SlackResponse:
     from slack_sdk.errors import SlackApiError
 
-    kwargs = dict(
-        file_uploads=file_uploads,
-        channel=channel,
-        initial_comment=initial_comment,
-        thread_ts=thread_ts,
-    )
     try:
-        return client.files_upload_v2(**kwargs)
+        return client.files_upload_v2(
+            file_uploads=file_uploads,
+            channel=channel,
+            initial_comment=initial_comment,
+            thread_ts=thread_ts,
+        )
     except SlackApiError as ex:
         if ex.response.get("error") == "not_in_channel":
             try:
                 print("Bot not in channel, joining…", file=sys.stderr)
                 client.conversations_join(channel=channel)
-                return client.files_upload_v2(**kwargs)
+                return client.files_upload_v2(
+                    file_uploads=file_uploads,
+                    channel=channel,
+                    initial_comment=initial_comment,
+                    thread_ts=thread_ts,
+                )
             except SlackApiError:
                 print(
                     f"❌ Bot is not a member of channel {channel} and cannot auto-join. "

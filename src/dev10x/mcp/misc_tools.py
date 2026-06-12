@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal, cast
+
 # Context is required at runtime: FastMCP evaluates tool annotations with
 # eval_str=True to detect the injected context parameter (GH-342). The
 # noqa keeps ruff from stripping it as a type-only import under
@@ -226,7 +228,10 @@ async def run_tests(
         summary = result.get("summary", "")
         failed = result.get("failed", 0)
         await ctx.report_progress(progress=100, total=100, message=f"pytest done: {summary}")
-        level = "warning" if failed else "info"
+        level = cast(
+            Literal["debug", "info", "warning", "error"],
+            "warning" if failed else "info",
+        )
         await ctx.log(level=level, message=f"run_tests: {summary or 'complete'}")
 
     return result
