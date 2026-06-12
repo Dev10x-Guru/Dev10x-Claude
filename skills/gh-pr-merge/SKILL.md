@@ -13,8 +13,9 @@ allowed-tools:
   - AskUserQuestion
   - Bash(gh pr view:*)
   - Bash(gh pr checks:*)
-  - Bash(gh api graphql:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-merge/scripts/:*)
+  - mcp__plugin_Dev10x_cli__unresolved_threads
+  - mcp__plugin_Dev10x_cli__pr_comments
   - mcp__plugin_Dev10x_cli__check_top_level_comments
   - mcp__plugin_Dev10x_cli__merge_pr
   - Bash(gh repo view:*)

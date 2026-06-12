@@ -17,10 +17,7 @@ allowed-tools:
   - Bash(git status:*)
   - Bash(git develop-log:*)
   - Bash(git develop-diff:*)
-  - Bash(ruff check:*)
-  - Bash(black --check:*)
-  - Bash(mypy:*)
-  - Bash(uv run:*)
+  - Bash(pre-commit run:*)
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
   - Write(/tmp/Dev10x/review/**)
   - AskUserQuestion
@@ -192,14 +189,28 @@ change types (added, modified, deleted, renamed).
 
 ### Step 3: Run Automated Checks
 
-Run in parallel where possible:
+Linting and formatting run through the project's single
+pre-commit source of truth — never as inline `ruff`/`black`/
+`mypy`/`isort` invocations (GH-592, consistent with the
+inline-linter block validator, GH-596):
 
-1. **Lint**: `ruff check` on changed Python files
-2. **Format**: `black --check` on changed Python files
-3. **Types**: `mypy` on changed Python files (if configured)
+```bash
+pre-commit run --files <changed files>
+```
 
-Collect any failures as findings with severity `ERROR` and
-source `automated`.
+- Pass only the changed files (from Step 2) so the run is scoped
+  to the diff. `pre-commit` selects and runs the configured
+  lint/format/type hooks itself.
+- Treat each failing hook as a finding with severity `ERROR` and
+  source `automated`. pre-commit prints the offending file/line
+  and any auto-applied diff — surface that in the finding so the
+  lint/format result stays visible to the reviewer.
+
+**Missing `.pre-commit-config.yaml`:** Do NOT fall back to inline
+linters. Emit a single setup-guidance finding ("No pre-commit
+config — run `pre-commit install` and add a `.pre-commit-config.yaml`
+with the project's ruff/mypy hooks") and skip the automated-check
+stage. Per-file manual review (Step 4) still runs.
 
 ### Step 4: Review Each Changed File
 
