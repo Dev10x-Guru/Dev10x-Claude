@@ -56,7 +56,7 @@ if [ "$1" = "0000000000000000000000000000000000000000" ]; then
         grep "^${src}" "$DIRTY_LIST" | sed "s|^${src}||" > "$dir_excl"
         extra=""
         for pattern in "$@"; do extra="$extra --exclude=$pattern"; done
-        eval rsync -a --exclude-from="$dir_excl" $extra \
+        eval rsync -a --exclude-from="$dir_excl" "$extra" \
             "\"$full/\"" "\"${src}/\"" 2>/dev/null
         rm -f "$dir_excl"
     }
