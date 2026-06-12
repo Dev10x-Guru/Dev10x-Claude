@@ -41,7 +41,9 @@ PLUGIN_CONFIG = (
 GLOBAL_SETTINGS = ClaudeDir.settings_json()
 
 PLUGIN_NAMES = r"(?:Dev10x|dev10x(?:-claude)?)"
-VERSION_PATTERN = re.compile(rf"plugins/cache/[^/]+/{PLUGIN_NAMES}/(\d+\.\d+\.\d+)", re.IGNORECASE)
+VERSION_PATTERN = re.compile(
+    rf"plugins/cache/[^/]+/{PLUGIN_NAMES}/({SEMVER_PATTERN})", re.IGNORECASE
+)
 PUBLISHER_PATTERN = re.compile(rf"plugins/cache/([^/]+)/{PLUGIN_NAMES}/", re.IGNORECASE)
 
 ENV_PREFIX_PATTERN = re.compile(r"^Bash\([A-Z_]+=")
@@ -167,16 +169,9 @@ def detect_current_version(cache_dir: Path) -> str | None:
         return None
     versions = sorted(
         cache_dir.iterdir(),
-        key=lambda p: _version_tuple(p.name),
+        key=lambda p: PluginVersion.sort_key(p.name),
     )
     return versions[-1].name if versions else None
-
-
-def _version_tuple(version: str) -> tuple[int, ...]:
-    try:
-        return tuple(int(x) for x in version.split("."))
-    except ValueError:
-        return (0,)
 
 
 def is_shell_fragment(rule: str) -> bool:
@@ -209,8 +204,11 @@ def is_old_version(
     match = VERSION_PATTERN.search(rule)
     if not match:
         return False
-    rule_version = match.group(1)
-    return _version_tuple(rule_version) < _version_tuple(current_version)
+    rule_version = PluginVersion.try_parse(match.group(1))
+    current = PluginVersion.try_parse(current_version)
+    if rule_version is None or current is None:
+        return False
+    return rule_version < current
 
 
 def is_hook_enabled(rule: str) -> bool:

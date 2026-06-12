@@ -41,7 +41,7 @@ PLUGIN_CONFIG = (
     Path(__file__).resolve().parents[4] / "skills" / "upgrade-cleanup" / "projects.yaml"
 )
 PLUGIN_NAMES = r"(?:Dev10x|dev10x-claude)"
-VERSION_PATTERN = re.compile(rf"(plugins/cache/)([^/]+)(/{PLUGIN_NAMES}/)(\d+\.\d+\.\d+)")
+VERSION_PATTERN = re.compile(rf"(plugins/cache/)([^/]+)(/{PLUGIN_NAMES}/)({SEMVER_PATTERN})")
 
 
 def extract_cache_publisher(plugin_cache: str) -> str | None:
@@ -70,16 +70,9 @@ def detect_latest_version(cache_dir: Path) -> str | None:
         return None
     versions = sorted(
         cache_dir.iterdir(),
-        key=lambda p: _version_tuple(p.name),
+        key=lambda p: PluginVersion.sort_key(p.name),
     )
     return versions[-1].name if versions else None
-
-
-def _version_tuple(version: str) -> tuple[int, ...]:
-    try:
-        return tuple(int(x) for x in version.split("."))
-    except ValueError:
-        return (0,)
 
 
 def find_settings_files(
