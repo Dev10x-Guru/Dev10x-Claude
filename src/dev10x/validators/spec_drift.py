@@ -27,17 +27,16 @@ Design notes
 
 from __future__ import annotations
 
-import re
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar
 
 from dev10x.domain import HookInput, HookResult
+from dev10x.domain.common.ticket_id import TicketId
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
 
-_TICKET_RE = re.compile(r"(?:^|/)([A-Z]+-\d+|GH-\d+)(?:/|$)", re.IGNORECASE)
 _SPECS_SUBDIR = "docs/specs"
 
 _WARN_MSG_TEMPLATE = """\
@@ -71,10 +70,8 @@ def _branch_ticket_id(*, cwd: str) -> str | None:
         ).strip()
     except (subprocess.CalledProcessError, FileNotFoundError, OSError):
         return None
-    match = _TICKET_RE.search(branch)
-    if match:
-        return match.group(1).upper()
-    return None
+    ticket = TicketId.find_first_in_branch_name(branch)
+    return str(ticket) if ticket is not None else None
 
 
 def _repo_toplevel(*, cwd: str) -> str | None:
