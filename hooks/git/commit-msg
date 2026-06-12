@@ -19,8 +19,7 @@ COMMIT_MSG_FILE="$1"
 
 # Run fixup comment link check
 if [ -x "$HOOKS_DIR/check-fixup-comment-link" ]; then
-    "$HOOKS_DIR/check-fixup-comment-link" "$COMMIT_MSG_FILE"
-    if [ $? -ne 0 ]; then
+    if ! "$HOOKS_DIR/check-fixup-comment-link" "$COMMIT_MSG_FILE"; then
         exit 1
     fi
 fi

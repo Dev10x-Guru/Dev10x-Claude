@@ -52,8 +52,6 @@ scan_directory() {
     fi
     while IFS= read -r -d '' pyfile; do
         TOTAL_PY=$((TOTAL_PY + 1))
-        local basename
-        basename="$(basename "$pyfile")"
         local relpath="${pyfile#"$HOME"/.claude/}"
         local shebang
         shebang="$(head -1 "$pyfile" 2>/dev/null || true)"

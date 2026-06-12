@@ -236,7 +236,7 @@ fi
 SUPERPOWERS_SKILLS=()
 SP_DIR=""
 if [[ -d "${OFFICIAL_BASE}/superpowers" ]]; then
-    sp_ver=$(ls "${OFFICIAL_BASE}/superpowers" | sort -V | tail -1)
+    sp_ver=$(find "${OFFICIAL_BASE}/superpowers" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort -V | tail -1)
     SP_DIR="${OFFICIAL_BASE}/superpowers/${sp_ver}/skills"
     if [[ -d "$SP_DIR" ]]; then
         for sf in "$SP_DIR"/*/SKILL.md; do
@@ -272,7 +272,7 @@ if [[ -d "$OFFICIAL_BASE" ]]; then
         done
         [[ $skip -eq 1 ]] && continue
 
-        pver=$(ls "$pdir" | sort -V | tail -1)
+        pver=$(find "$pdir" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort -V | tail -1)
         skills_path="$pdir/$pver/skills"
         [[ -d "$skills_path" ]] || continue
         pcount=$(find "$skills_path" -maxdepth 2 -name 'SKILL.md' | wc -l)
@@ -334,11 +334,11 @@ print_wrapped() {
         for ((i = 0; i < ${#FAMILY_LABELS[@]}; i++)); do
             label="${FAMILY_LABELS[$i]}"
             desc="${FAMILY_DESCS[$i]}"
-            matched="${FAMILY_MATCHED[$label]}"
-            [[ -z "$matched" ]] && continue
+            family_str="${FAMILY_MATCHED[$label]}"
+            [[ -z "$family_str" ]] && continue
 
             printf '\n%s — %s\n' "$label" "$desc"
-            IFS='|' read -ra pairs <<< "$matched"
+            IFS='|' read -ra pairs <<< "$family_str"
             for pair in "${pairs[@]}"; do
                 [[ -z "$pair" ]] && continue
                 key="${pair#*=}"
@@ -366,10 +366,10 @@ print_wrapped() {
 
         for ((i = 0; i < ${#FAMILY_LABELS[@]}; i++)); do
             label="${FAMILY_LABELS[$i]}"
-            matched="${FAMILY_MATCHED[$label]}"
-            [[ -z "$matched" ]] && continue
+            family_str="${FAMILY_MATCHED[$label]}"
+            [[ -z "$family_str" ]] && continue
 
-            IFS='|' read -ra pairs <<< "$matched"
+            IFS='|' read -ra pairs <<< "$family_str"
             tokens=()
             for pair in "${pairs[@]}"; do
                 [[ -z "$pair" ]] && continue
@@ -421,10 +421,10 @@ print_wrapped() {
 
         for ((i = 0; i < ${#FAMILY_LABELS[@]}; i++)); do
             label="${FAMILY_LABELS[$i]}"
-            matched="${FAMILY_MATCHED[$label]}"
-            [[ -z "$matched" ]] && continue
+            family_str="${FAMILY_MATCHED[$label]}"
+            [[ -z "$family_str" ]] && continue
 
-            IFS='|' read -ra pairs <<< "$matched"
+            IFS='|' read -ra pairs <<< "$family_str"
             tokens=()
             for pair in "${pairs[@]}"; do
                 [[ -z "$pair" ]] && continue

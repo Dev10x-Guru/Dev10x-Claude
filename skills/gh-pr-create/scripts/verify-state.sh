@@ -31,7 +31,7 @@ if is_protected_branch "$BRANCH_NAME"; then
 fi
 
 # Check for uncommitted changes (ignore untracked files — they don't affect the PR)
-if [ -n "$(git status --porcelain | grep -v '^??')" ]; then
+if git status --porcelain | grep -qv '^??'; then
     echo "⚠️  You have uncommitted changes. Commit them first before creating a PR." >&2
     exit 1
 fi

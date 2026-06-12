@@ -140,7 +140,7 @@ echo "  Invocation: $INVOCATION_NAME"
 echo ""
 echo "Files created:"
 find "$SKILL_DIR" -type f | sort | while IFS= read -r f; do
-    echo "  ${f#$SKILL_DIR/}"
+    echo "  ${f#"$SKILL_DIR"/}"
 done
 echo ""
 echo "Next steps:"

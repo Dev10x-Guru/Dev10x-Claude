@@ -10,8 +10,9 @@ set -euo pipefail
 
 url="${1:?Usage: parse-slack-url.sh <slack-url>}"
 
-channel_id=$(echo "$url" | sed 's|.*/archives/\([^/]*\)/.*|\1|')
-raw_ts=$(echo "$url" | sed 's|.*p\([0-9]*\)$|\1|')
+channel_id="${url#*/archives/}"
+channel_id="${channel_id%%/*}"
+raw_ts="${url##*p}"
 thread_ts="${raw_ts:0:-6}.${raw_ts: -6}"
 
 echo "$channel_id $thread_ts"
