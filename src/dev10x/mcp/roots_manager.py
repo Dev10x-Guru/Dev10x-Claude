@@ -34,6 +34,7 @@ DEV10X_ROOTS_ENABLED
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from pathlib import Path
@@ -211,6 +212,13 @@ class ClientRootsManager:
 
 _manager: ClientRootsManager | None = None
 
+# GH-498: the event loop holds only weak references to bare
+# ``create_task`` results, so a fire-and-forget refresh can be garbage
+# collected mid-flight and silently leave the roots cache stale. Retain
+# a strong reference until the task finishes (mirrors the lifespan-local
+# retention in ``_app.py``).
+_background_tasks: set[asyncio.Task[None]] = set()
+
 
 def get_manager() -> ClientRootsManager | None:
     """Return the currently registered :class:`ClientRootsManager`, or ``None``."""
@@ -237,7 +245,6 @@ def wire_roots_to_server(
             (e.g. ``fastmcp_instance._mcp_server``).
         manager: The roots manager to attach.
     """
-    import asyncio
 
     import mcp.types as mcp_types
 
@@ -259,7 +266,9 @@ def wire_roots_to_server(
         notification: mcp_types.RootsListChangedNotification,
     ) -> None:
         log.debug("ClientRootsManager: roots/list_changed received — refreshing")
-        asyncio.create_task(manager.refresh(), name="dev10x-roots-refresh")
+        task = asyncio.create_task(manager.refresh(), name="dev10x-roots-refresh")
+        _background_tasks.add(task)
+        task.add_done_callback(_background_tasks.discard)
 
     # Chain with the existing InitializedNotification handler (GH-341 resource
     # watcher registers one first).
