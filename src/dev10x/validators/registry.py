@@ -25,6 +25,7 @@ import traceback
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Protocol
 
+from dev10x.domain.common.rule_id import RuleId
 from dev10x.domain.profile_tier import ProfileTier
 
 if TYPE_CHECKING:
@@ -49,6 +50,11 @@ class ValidatorSpec:
     rule_id: str
     profile: ProfileTier
     experimental: bool = False
+
+    def __post_init__(self) -> None:
+        # Validate format and normalise case once, at registry-build time,
+        # so a malformed rule_id fails fast instead of silently mismatching.
+        object.__setattr__(self, "rule_id", str(RuleId.parse(self.rule_id)))
 
 
 class ValidatorFilter(Protocol):
@@ -76,7 +82,9 @@ class DisableListFilter:
     disabled: frozenset[str]
 
     def keep(self, spec: ValidatorSpec) -> bool:
-        return spec.rule_id.upper() not in self.disabled
+        # spec.rule_id is already canonical (uppercased in __post_init__);
+        # the disabled set is uppercased by the caller.
+        return spec.rule_id not in self.disabled
 
 
 @dataclass(frozen=True)
@@ -119,24 +127,31 @@ class ValidatorRegistry:
 
     def find_by_rule_id(self, rule_id: str) -> ValidatorSpec | None:
         """Return the spec for ``rule_id`` (regardless of filter state)."""
-        rule_id_upper = rule_id.upper()
+        target = RuleId.try_parse(rule_id)
+        if target is None:
+            return None
         for spec in self.specs:
-            if spec.rule_id.upper() == rule_id_upper:
+            if spec.rule_id == str(target):
                 return spec
         return None
 
     def lookup(self, rule_id: str) -> Validator | None:
         """Return the active validator instance for ``rule_id`` or None."""
-        rule_id_upper = rule_id.upper()
+        target = RuleId.try_parse(rule_id)
+        if target is None:
+            return None
         for validator in self.active():
-            if getattr(validator, "rule_id", "").upper() == rule_id_upper:
+            declared = RuleId.try_parse(getattr(validator, "rule_id", ""))
+            if declared == target:
                 return validator
         return None
 
     def is_active(self, rule_id: str) -> bool:
         """Return True if a validator with ``rule_id`` would run now."""
-        rule_id_upper = rule_id.upper()
-        return any(spec.rule_id.upper() == rule_id_upper for spec in self.active_specs())
+        target = RuleId.try_parse(rule_id)
+        if target is None:
+            return False
+        return any(spec.rule_id == str(target) for spec in self.active_specs())
 
     def reset(self) -> None:
         """Drop cached instances; next :meth:`active` re-imports."""
@@ -156,10 +171,11 @@ class ValidatorRegistry:
 
 def _assert_metadata_matches(*, instance: Validator, spec: ValidatorSpec) -> None:
     """Verify class-declared metadata matches the spec — fail fast on drift."""
-    declared_rule_id = getattr(instance, "rule_id", None)
+    declared_rule_id = getattr(instance, "rule_id", "")
     declared_profile = getattr(instance, "profile", None)
     declared_experimental = getattr(instance, "experimental", None)
-    assert declared_rule_id == spec.rule_id, (
+    declared_parsed = RuleId.try_parse(declared_rule_id)
+    assert declared_parsed is not None and str(declared_parsed) == spec.rule_id, (
         f"{spec.class_name}.rule_id={declared_rule_id!r} disagrees with "
         f"spec rule_id={spec.rule_id!r}"
     )
