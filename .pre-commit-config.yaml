@@ -1,0 +1,59 @@
+# Pre-commit linting for the Dev10x plugin (GH-619).
+#
+# Setup:
+#   pre-commit install                              # install the git hook
+#   pre-commit run --all-files                      # lint the whole tree
+#   pre-commit run --hook-stage manual mypy         # run mypy (see below)
+#
+# ruff and mypy settings live in pyproject.toml and mypy.ini — these hooks
+# defer to that config rather than duplicating it.
+
+default_language_version:
+  python: python3.12
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-json
+      - id: check-toml
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Pinned to the ruff version in the `dev` extra to avoid format drift.
+    rev: v0.15.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    # shellcheck-py installs the shellcheck binary via pip — no Docker
+    # dependency, unlike koalaman/shellcheck-precommit.
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        # Error-severity floor for the initial setup; tightening to
+        # `warning` across the 60 shell scripts is GH-619 follow-up.
+        args: [--severity=error]
+
+  # mypy runs at the `manual` stage only: the tree carries 20 pre-existing
+  # type errors (click + slack-sdk typing) that are out of scope for this
+  # setup PR. Making `src/` type-clean and promoting mypy to the default
+  # stage is tracked as GH-619 follow-up.
+  #   pre-commit run --hook-stage manual mypy --all-files
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.14.1
+    hooks:
+      - id: mypy
+        stages: [manual]
+        files: ^src/
+        args: [--config-file=mypy.ini]
+        additional_dependencies: [types-PyYAML]

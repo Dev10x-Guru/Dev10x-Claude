@@ -47,7 +47,7 @@ In your reference file header, add comments identifying:
 - Example:
   ```markdown
   # Reference File Example
-  
+
   **Loaded by**: `reviewer-skill-behavior.md`, `work-on` skill
   **When**: Reviewing skills with playbooks; during playbook execution
   ```

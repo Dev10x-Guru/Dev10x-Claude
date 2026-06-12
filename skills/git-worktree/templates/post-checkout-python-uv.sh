@@ -21,7 +21,7 @@
 if [ "$1" = "0000000000000000000000000000000000000000" ]; then
     echo "New worktree detected. Running setup..."
     pwd
-    ORIGINAL_REPO=/work/<org>/<project-name>
+    ORIGINAL_REPO="/work/<org>/<project-name>"
 
     # ── Dirty-file exclusion ────────────────────────────────────────
     # Build the full list of dirty files once for the entire repo.

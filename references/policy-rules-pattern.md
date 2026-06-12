@@ -16,11 +16,11 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class MyPolicyRule:
     """Encapsulates a named session decision.
-    
+
     Fires when: <conditions>
     Returns: <type and example value>
     """
-    
+
     def apply(self) -> str:
         # Examine context, return value or empty string
         return "..."
@@ -56,7 +56,7 @@ The rule is a frozen dataclass to:
 class ReadFrictionLevelRule:
     """Reads friction_level from session.yaml."""
     project_root: Path
-    
+
     def apply(self) -> str:
         ...
 ```
@@ -137,7 +137,7 @@ def apply(self) -> str:
         config = yaml.safe_load(open(self.config_path))
     except FileNotFoundError:
         return ""  # Silent — this rule doesn't apply
-    
+
     if config.get("friction_level") == "adaptive":
         return "Reassurance text"
     return ""
