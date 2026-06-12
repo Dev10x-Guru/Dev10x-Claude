@@ -172,6 +172,26 @@ for the signals that suggest structural friction and the
 resolution, pre-filled `gh issue create` invocation). Do NOT
 auto-file — the user approves first.
 
+### Step 3d: Generalize the suggested rule shape (GH-597)
+
+When the audit (Step 3b) or upstream path (Step 3c) lands on
+proposing a **targeted allow-rule**, do not echo the harness's
+suggested shape — it is wrong in one of three directions. Surface
+the generalized shape produced by
+`dev10x.skills.permission.generalize.generalize_rule_shape`:
+
+| Failure mode | Harness suggests | Generalized shape |
+|--------------|------------------|-------------------|
+| over-broad (verb-blind) | `Bash(ip route *)` | `Bash(ip route get:*)` |
+| over-narrow (session arg) | `Bash(persist.sh <id> *)` | `Bash(persist.sh:*)` |
+| too-literal (no wildcard) | `Bash(yarn build:x)` | `Bash(yarn build:*)` |
+
+Apply the generalized rule in the "Pre-approved alternatives" /
+"Upstream issue" sections so the rule the user accepts is reusable
+and safe — never the dead-on-arrival or over-granting default.
+Only Bash command rules are generalized; `mcp__*`, `WebFetch(...)`,
+and `Read(...)` rules pass through unchanged.
+
 ### Step 4: Output reinforcement message
 
 Output a firm, concise reinforcement message with seven sections:

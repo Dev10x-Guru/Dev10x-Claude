@@ -110,29 +110,17 @@ If ANY check fails, refuse to merge and report which failed.
 
 ### Check 1: No unresolved review threads
 
-Query GitHub GraphQL for unresolved review threads:
+Query unresolved review threads via the MCP wrapper — never raw
+`gh api graphql` (GH-598). The wrapper runs the `reviewThreads`
+GraphQL query and returns only the unresolved threads:
 
-```bash
-gh api graphql -f query='
-  query($owner: String!, $repo: String!, $number: Int!) {
-    repository(owner: $owner, name: $repo) {
-      pullRequest(number: $number) {
-        reviewThreads(first: 100) {
-          nodes {
-            isResolved
-            comments(first: 1) {
-              nodes { body author { login } }
-            }
-          }
-        }
-      }
-    }
-  }
-' -f owner=OWNER -f repo=REPO -F number=NUMBER
+```
+mcp__plugin_Dev10x_cli__unresolved_threads(repo="OWNER/REPO", pr_number=NUMBER)
 ```
 
-Count threads where `isResolved` is `false`. If any exist,
-report the count and first comment of each unresolved thread.
+`unresolved_threads` requires an explicit `repo` (no CWD default).
+If it times out, retry once before falling back. Each returned
+thread is unresolved; report the count and first comment of each.
 
 ### Check 1b: No unaddressed top-level PR comments (GH-698)
 
@@ -169,12 +157,11 @@ unaddressed.
 
 Inline review comments posted via `pulls/{n}/comments` are
 invisible to both Check 1 (GraphQL `reviewThreads`) and
-Check 1b (`issueComments`). Query them directly:
+Check 1b (`issueComments`). Query them via the MCP wrapper —
+never raw `gh api .../pulls/.../comments` (GH-598):
 
-```bash
-gh api repos/{owner}/{repo}/pulls/{number}/comments \
-  --jq '[.[] | select(.in_reply_to_id == null)
-  | {id, user: .user.login, body: .body[:100], path}]'
+```
+mcp__plugin_Dev10x_cli__pr_comments(pr_number=NUMBER, action="list", unresolved_only=true)
 ```
 
 Filter for bot users with unaddressed severity markers

@@ -132,6 +132,12 @@ _SPECS: list[ValidatorSpec] = [
         profile=ProfileTier.STANDARD,
         experimental=True,
     ),
+    ValidatorSpec(
+        module_path="dev10x.validators.inline_linter",
+        class_name="InlineLinterValidator",
+        rule_id="DX016",
+        profile=ProfileTier.STANDARD,
+    ),
 ]
 
 

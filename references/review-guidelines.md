@@ -55,8 +55,10 @@ The guard applies to:
    - Changed but issue remains → reply with update
 5. Use inline comment tools ONLY for NEW issues
 6. Hide obsolete review summaries before posting the new one:
-   a. Query `reviewThreads` via `gh api graphql` — for each thread,
-      check `isResolved` and group by `pullRequestReview.databaseId`
+   a. Query review threads via the `pr_comments` /
+      `unresolved_threads` MCP wrappers (never raw `gh api graphql`,
+      GH-598) — for each thread, check `isResolved` and group by
+      `pullRequestReview.databaseId`
    b. For each previous Claude review with a non-empty body:
       - ALL threads `isResolved: true` → minimize as OUTDATED
       - ANY thread unresolved → leave visible

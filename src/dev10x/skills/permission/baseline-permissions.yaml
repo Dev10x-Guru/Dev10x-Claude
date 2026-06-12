@@ -247,6 +247,7 @@ groups:
       - Bash(uvx dev10x permission update-paths:*)
       - Bash(uvx dev10x playbook diff:*)
       - Bash(uvx dev10x skill count-instructions:*)
+      - Bash(uvx dev10x skill notify:*)
       - Bash(uvx dev10x config:*)
       - Bash(uvx dev10x platform:*)
       - Bash(uvx dev10x init:*)
@@ -316,6 +317,10 @@ groups:
       - Bash(python:*)
       - Bash(python3:*)
       - Bash(ipython:*)
+      # ruff/black/isort/mypy: the DX016 validator blocks inline linters
+      # (GH-596) when active, but these allow-rules are kept as a fallback
+      # so linting still works without prompts when DX016 is disabled
+      # (minimal profile or DEV10X_HOOK_DISABLE=DX016).
       - Bash(ruff check:*)
       - Bash(ruff format:*)
       - Bash(black:*)

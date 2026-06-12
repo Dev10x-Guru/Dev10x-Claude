@@ -49,8 +49,6 @@ NOISE_PATTERNS = [
     re.compile(r"Bash\(find "),
     # Source-line references (e.g. features/foo.feature:60, bar.py:42)
     re.compile(r"\.(?:feature|py|js|ts|tsx|sh|md):\d+"),
-    # Worktree-absolute paths — go stale when worktree is pruned
-    re.compile(r"/\.worktrees/"),
 ]
 
 GENERALIZE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
@@ -63,6 +61,13 @@ GENERALIZE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"(\.[A-Za-z0-9]{8,})\.(txt|md|json)"), r"**"),
     (re.compile(r"(git reset --hard) origin/\S+"), r"\1"),
     (re.compile(r"(git reset --soft) [A-Fa-f0-9]{6,}"), r"\1"),
+    # Re-anchor worktree-absolute project paths to the project root so a
+    # script approved inside a worktree (e.g. ``/work/dx/.worktrees/wt/bin/
+    # release.sh``) syncs to the main project (``/work/dx/bin/release.sh``)
+    # instead of being dropped as stale. Default anchor is project-root
+    # absolute (GH-594, D12). Residual noise (temp hashes, source-line refs)
+    # is still caught by NOISE_PATTERNS after re-anchoring.
+    (re.compile(r"/\.worktrees/[^/]+/"), "/"),
 ]
 
 

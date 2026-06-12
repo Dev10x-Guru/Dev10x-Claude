@@ -122,14 +122,36 @@ SENSITIVE_TOKENS = frozenset(
 
 _WEBFETCH_RE = re.compile(r"^WebFetch\(domain:(?P<domain>.+)\)$")
 
+# Token boundaries: an acronym run before a CamelWord (``HTTPSConnection`` →
+# ``HTTPS`` + ``Connection``), a Capitalized-or-lowercase word, a bare acronym,
+# or a digit run. Splitting on this AND ``_`` lets camelCase MCP tools
+# (``getJiraIssue``, ``createJiraIssue``) tokenize by verb instead of
+# collapsing into one unsplittable ``unknown`` token (GH-593).
+_TOKEN_RE = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|[0-9]+")
+
 
 def _short_name(full_tool_name: str) -> str:
-    """Return the tool name after the final ``__`` separator, lowercased."""
-    return full_tool_name.rsplit("__", 1)[-1].lower()
+    """Return the tool name after the final ``__`` separator (original case).
+
+    Case is preserved so :func:`_tokens` can detect camelCase boundaries;
+    callers that need a verb set get lowercased tokens from ``_tokens``.
+    """
+    return full_tool_name.rsplit("__", 1)[-1]
 
 
 def _tokens(full_tool_name: str) -> set[str]:
-    return set(_short_name(full_tool_name).split("_"))
+    """Split a tool's short name into lowercase verb tokens.
+
+    Splits on both ``_`` and camelCase boundaries (GH-593) so a camelCase
+    server such as ``getJiraIssue`` yields ``{get, jira, issue}`` — and its
+    ``get``/``create`` verb drives classification — rather than collapsing
+    to a single ``unknown`` token.
+    """
+    return {
+        match.group(0).lower()
+        for chunk in _short_name(full_tool_name).split("_")
+        for match in _TOKEN_RE.finditer(chunk)
+    }
 
 
 def classify_mcp_tool(full_tool_name: str) -> str:

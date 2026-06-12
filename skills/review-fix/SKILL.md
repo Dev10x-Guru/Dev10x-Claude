@@ -13,9 +13,7 @@ allowed-tools:
   - Bash(git log:*)
   - Bash(git add:*)
   - Bash(git develop-log:*)
-  - Bash(ruff check:*)
-  - Bash(black --check:*)
-  - Bash(uv run:*)
+  - Bash(pre-commit run:*)
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
   - Read(/tmp/Dev10x/review/**)
   - Write(/tmp/Dev10x/review/**)
@@ -73,9 +71,13 @@ For each finding:
 2. **Implement the fix** — apply the suggested fix or implement
    a better solution based on the description
 3. **Validate the fix**:
-   - Run `ruff check` on the changed file
-   - Run `black --check` on the changed file
-   - If the fix introduces new lint/format errors, fix those too
+   - Run `pre-commit run --files <changed file>` — never inline
+     `ruff`/`black`/`mypy`/`isort` (GH-592, consistent with the
+     inline-linter block validator, GH-596)
+   - If a hook reports or auto-applies a lint/format change,
+     fold it into the same fixup
+   - If no `.pre-commit-config.yaml` exists, skip this validation
+     (no inline fallback) and note it in the finding's result
 4. **Stage the changes**: `git add <file>`
 5. **Create fixup commit** — find the original commit that
    introduced the finding's file and line using

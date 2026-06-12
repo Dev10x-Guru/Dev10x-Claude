@@ -519,6 +519,33 @@ rules:
       - Dev10x:gh-pr-respond
       - Dev10x:gh-pr-triage
 
+  - name: gh-review-threads-graphql
+    matcher: Bash
+    patterns:
+      # Raw reviewThreads GraphQL across its heredoc / brace / cmd-subst
+      # variants, plus the inline pulls/comments REST shape (GH-598).
+      - "gh api graphql.*reviewThreads"
+      - "reviewThreads\\(first"
+      - "gh api repos/.*/pulls/.*/comments"
+    hook_block: false
+    compensations:
+      - type: use-tool
+        tool: mcp__plugin_Dev10x_cli__unresolved_threads
+        guardrails: structured unresolved-thread results, no raw graphql
+      - type: use-tool
+        tool: mcp__plugin_Dev10x_cli__pr_comments
+        guardrails: structured comment list, no raw pulls/comments REST
+    reason: >
+      Raw `gh api graphql` for review threads recurs across heredoc,
+      brace, and command-substitution variants — each trips a different
+      non-allow-listable core-harness check (brace/heredoc/cmd-subst).
+      Use the `unresolved_threads` / `pr_comments` wrappers instead;
+      they run the reviewThreads query and return structured results
+      without the friction (GH-598).
+    related:
+      - Dev10x:gh-pr-merge
+      - Dev10x:gh-pr-review
+
   - name: sentry-api
     matcher: Bash
     patterns:

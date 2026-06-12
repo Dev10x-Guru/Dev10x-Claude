@@ -231,6 +231,59 @@ class TestClassifierCorpus:
         assert is_sensitivity_flagged(tool)
 
 
+class TestCamelCaseTokenizer:
+    """camelCase MCP tools must classify by verb, not collapse to unknown (GH-593)."""
+
+    @pytest.mark.parametrize(
+        "tool",
+        [
+            "mcp__claude_ai_Atlassian__getJiraIssue",
+            "mcp__claude_ai_Atlassian__getVisibleJiraProjects",
+            "mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql",
+            "mcp__claude_ai_Atlassian__lookupJiraAccountId",
+            "mcp__claude_ai_Atlassian__getTransitionsForJiraIssue",
+        ],
+    )
+    def test_atlassian_read_tools(self, tool: str):
+        assert classify_mcp_tool(tool) == "read"
+
+    @pytest.mark.parametrize(
+        "tool",
+        [
+            "mcp__claude_ai_Atlassian__createJiraIssue",
+            "mcp__claude_ai_Atlassian__editJiraIssue",
+            "mcp__claude_ai_Atlassian__addCommentToJiraIssue",
+            "mcp__claude_ai_Atlassian__transitionJiraIssue",
+            "mcp__claude_ai_Atlassian__createIssueLink",
+        ],
+    )
+    def test_atlassian_write_tools(self, tool: str):
+        assert classify_mcp_tool(tool) == "write"
+
+    def test_camelcase_write_precedence(self):
+        # `getReportAndUpdateStatus` mixes a read verb (get) and write (update);
+        # camelCase splitting must surface `update` so write-precedence holds.
+        assert classify_mcp_tool("mcp__svc__getReportAndUpdateStatus") == "write"
+
+    def test_camelcase_acronym_run(self):
+        # Acronym-prefixed CamelCase (`getHTTPSConfig`) tokenizes cleanly and
+        # still classifies by its leading read verb.
+        assert classify_mcp_tool("mcp__svc__getHTTPSConfig") == "read"
+
+    def test_camelcase_no_verb_is_unknown(self):
+        assert classify_mcp_tool("mcp__svc__atlassianUserInfo") == "unknown"
+
+    def test_snake_case_not_regressed(self):
+        # The added camelCase split must not change snake_case behaviour.
+        assert classify_mcp_tool("mcp__claude_ai_Linear__get_issue") == "read"
+        assert classify_mcp_tool("mcp__claude_ai_Linear__create_issue") == "write"
+
+    def test_camelcase_sensitivity_flag(self):
+        # camelCase tokens feed the sensitivity check too (GH-593).
+        assert is_sensitivity_flagged("mcp__svc__getPrivateThread")
+        assert not is_sensitivity_flagged("mcp__svc__getJiraIssue")
+
+
 class TestApplyPromotionPlan:
     READ_TOOL = "mcp__claude_ai_Slack__slack_read_channel"
     SENSITIVE = "mcp__claude_ai_Slack__slack_search_public_and_private"

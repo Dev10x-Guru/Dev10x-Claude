@@ -172,6 +172,7 @@ higher tiers — `minimal` rules are always active.
 | DX013 | mcp-prefix | standard |
 | DX014 | sensitivity-target | standard |
 | DX015 | spec-drift | standard (experimental) |
+| DX016 | inline-linter | standard |
 
 ### Configuration
 
