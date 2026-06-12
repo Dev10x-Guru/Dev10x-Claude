@@ -1,10 +1,10 @@
 # Lessons Learned Analysis: PR #382
 ## GH-246 Centralize skill helpers behind importable modules
 
-**Analysis Date:** 2026-05-31  
-**PR:** [#382](https://github.com/Dev10x-Guru/Dev10x-Claude/pull/382)  
-**Status:** Merged ✓  
-**Files Changed:** 22 | **Additions:** 634 | **Deletions:** 550  
+**Analysis Date:** 2026-05-31
+**PR:** [#382](https://github.com/Dev10x-Guru/Dev10x-Claude/pull/382)
+**Status:** Merged ✓
+**Files Changed:** 22 | **Additions:** 634 | **Deletions:** 550
 
 ---
 
@@ -50,8 +50,8 @@ PR #382 successfully consolidated duplicated skill helpers into importable modul
 ### Single Review Comment
 The sole Claude bot review comment requested a fixup commit squash:
 
-**Comment:** `57c78b0` should be squashed into `7115737` before merge.  
-**Acceptance:** Merged as-is (fixup was likely resolved in final commit).  
+**Comment:** `57c78b0` should be squashed into `7115737` before merge.
+**Acceptance:** Merged as-is (fixup was likely resolved in final commit).
 **Assessment:** Minor housekeeping; does not indicate review gaps.
 
 ### Review Coverage
@@ -63,13 +63,13 @@ The sole Claude bot review comment requested a fixup commit squash:
 
 ## Identified Improvements
 
-### 1. **Validate Newly Consolidated Code Against New Rules** 
-**Target:** `.claude/agents/reviewer-generic.md`  
-**Current line count:** 85 lines  
-**Concept exists:** No (partially related to #10, but not explicit for consolidations)  
+### 1. **Validate Newly Consolidated Code Against New Rules**
+**Target:** `.claude/agents/reviewer-generic.md`
+**Current line count:** 85 lines
+**Concept exists:** No (partially related to #10, but not explicit for consolidations)
 **Recurrence evidence:** This is the first major consolidation under the new script-domain-boundaries rule; pattern applicable to future refactors.
 
-**Finding:**  
+**Finding:**
 The PR introduced `.claude/rules/script-domain-boundaries.md` which documents two conventions:
 - **H3 (Output):** In-process domain functions use `logging`, never `print()`.
 - **H7 (Error):** In-process domain functions return `Result[T]`, never call `sys.exit()`.
@@ -81,23 +81,23 @@ def resolve_config(candidates: list[Path], create_path: Path | None = None) -> P
     for candidate in candidates:
         if candidate.is_file():
             return candidate
-    # ... 
+    # ...
     print(message, file=sys.stderr)
     sys.exit(1)  # ❌ Violates H7: should return Result[T]
 ```
 
 The function is called from other domain modules (`update_paths.py`, `clean_project_files.py`, `merge_worktree_permissions.py`), which have no way to handle the error gracefully—they simply exit. Tests explicitly verify this behavior via `pytest.raises(SystemExit)`.
 
-**Recommendation:**  
+**Recommendation:**
 When a PR consolidates duplicated code under newly documented rules, the reviewer should verify that the consolidated module follows those rules. Add a checklist item to reviewer-generic.md:
 
 ```
-10b. **Code consolidation under new rules** — When a PR adds new rule 
-     documentation (e.g., `.claude/rules/*.md`) AND consolidates code 
-     under those rules, verify the consolidated code follows the new 
-     conventions. Check for violations like: domain functions calling 
-     `sys.exit`, using `print()`, or returning void instead of 
-     `Result[T]`. Flag as WARNING if any consolidation violates the 
+10b. **Code consolidation under new rules** — When a PR adds new rule
+     documentation (e.g., `.claude/rules/*.md`) AND consolidates code
+     under those rules, verify the consolidated code follows the new
+     conventions. Check for violations like: domain functions calling
+     `sys.exit`, using `print()`, or returning void instead of
+     `Result[T]`. Flag as WARNING if any consolidation violates the
      rule it was consolidated under.
 ```
 
@@ -106,21 +106,21 @@ When a PR consolidates duplicated code under newly documented rules, the reviewe
 ---
 
 ### 2. **Enhanced Script-Domain-Boundaries Reviewer Checklist**
-**Target:** `.claude/rules/script-domain-boundaries.md`  
-**Current line count:** 51 lines  
-**Concept exists:** Yes (reviewed checklist at lines 45-51)  
+**Target:** `.claude/rules/script-domain-boundaries.md`
+**Current line count:** 51 lines
+**Concept exists:** Yes (reviewed checklist at lines 45-51)
 **Recurrence evidence:** This is the first rule-file for H3/H7 conventions; checker patterns will appear in future skills and CLI commands.
 
-**Finding:**  
+**Finding:**
 The reviewer checklist in script-domain-boundaries.md is terse (3 items) and doesn't explicitly cover edge cases or cross-caller scenarios:
 
 ```markdown
 ## Reviewer checklist
 
-- Domain function uses `logging`, returns `Result[T]`, no `sys.exit`, 
+- Domain function uses `logging`, returns `Result[T]`, no `sys.exit`,
   no `print()`.
 - Script `main()` owns exit codes and printed output.
-- A stdout-parsed script emits errors as JSON on stdout, exits 
+- A stdout-parsed script emits errors as JSON on stdout, exits
   non-zero.
 ```
 
@@ -129,22 +129,22 @@ Missing checks:
 2. **Logging module usage** — verify `import logging` and use of `logging.error()` / `logging.warning()`, not bare `stderr.write()` or `print(..., file=sys.stderr)`.
 3. **Result[T] typing** — verify return type annotations explicitly include `Result[T]` (e.g., `-> Result[dict[str, Any]]`), not bare `-> dict | None`.
 
-**Recommendation:**  
+**Recommendation:**
 Expand the reviewer checklist to 5-6 items:
 
 ```markdown
 ## Reviewer checklist
 
-1. Domain function uses structured `logging` module, not `print()` 
+1. Domain function uses structured `logging` module, not `print()`
    or `stderr.write()`.
 2. Domain function return type is explicitly `Result[T]` (not `dict | None`).
 3. Domain function does not call `sys.exit()`.
-4. Helper functions used across ≥2 callers: verify no `sys.exit()` 
-   calls; if one caller needs to exit, the exit should be in the 
+4. Helper functions used across ≥2 callers: verify no `sys.exit()`
+   calls; if one caller needs to exit, the exit should be in the
    caller, not the helper.
-5. Script entry point's `main()` owns process exit: maps domain 
+5. Script entry point's `main()` owns process exit: maps domain
    results to `sys.exit(N)` with stderr messages.
-6. Stdout-parsed script emits errors as JSON on stdout (not stderr), 
+6. Stdout-parsed script emits errors as JSON on stdout (not stderr),
    exits non-zero.
 ```
 
@@ -153,18 +153,18 @@ Expand the reviewer checklist to 5-6 items:
 ---
 
 ### 3. **Documentation Pointer in script-domain-boundaries.md for Config Loader Exception**
-**Target:** `.claude/rules/script-domain-boundaries.md`  
-**Current line count:** 51 lines  
-**Concept exists:** Partial (single-channel rule section addresses JSON stdout; doesn't address helper-function exception)  
+**Target:** `.claude/rules/script-domain-boundaries.md`
+**Current line count:** 51 lines
+**Concept exists:** Partial (single-channel rule section addresses JSON stdout; doesn't address helper-function exception)
 **Recurrence evidence:** Config helpers (`resolve_config`, permission setup) are a common pattern; exception applies to this one instance but may generalize.
 
-**Finding:**  
+**Finding:**
 The PR consolidated config loading into `config.py::resolve_config()`, which calls `sys.exit(1)` on error. This is an exception to H7 (domain functions should not exit) that was not documented. Future reviewers will not know whether this is:
 - An acceptable exception for critical-path config validation, or
 - A temporary workaround pending refactor to `Result[T]`, or
 - A violation that slipped through review.
 
-**Recommendation:**  
+**Recommendation:**
 Add an "Exceptions" section to the rule or document in the source code:
 
 ```markdown
@@ -172,13 +172,13 @@ Add an "Exceptions" section to the rule or document in the source code:
 
 Some config loaders (e.g., `dev10x.skills.permission.config::resolve_config`)
 call `sys.exit(1)` on missing configuration. This is acceptable when:
-1. The function has exactly one call chain: CLI command → domain module 
+1. The function has exactly one call chain: CLI command → domain module
    → config loader.
 2. Missing config is unrecoverable (user must create the file).
 3. The call is documented in the module docstring.
 
-Document any config-loader exceptions in the module docstring and 
-reference this rule. Do NOT use exit-calling helpers for general 
+Document any config-loader exceptions in the module docstring and
+reference this rule. Do NOT use exit-calling helpers for general
 utility functions shared across multiple call chains.
 ```
 
@@ -191,12 +191,12 @@ Alternatively, refactor `resolve_config()` to return `Result[Path]` and have cal
 ## Cross-File Consistency Checks
 
 ### INDEX.md Table Entry
-✓ **Added correctly:** `.claude/rules/script-domain-boundaries.md` listed in the PATH rules table with scope annotation.  
+✓ **Added correctly:** `.claude/rules/script-domain-boundaries.md` listed in the PATH rules table with scope annotation.
 ✓ **No orphan rules:** All new rule file references have valid `.md` files.
 
 ### ADR-0010 vs. Implementation Alignment
-✓ **ADR documents the decision:** Three alternative approaches evaluated; ADR-0010 ratifies the thin-shim pattern.  
-✓ **Implementation follows ADR:** `jtbd.py`, `classifier.py`, `config.py` are all importable domain modules.  
+✓ **ADR documents the decision:** Three alternative approaches evaluated; ADR-0010 ratifies the thin-shim pattern.
+✓ **Implementation follows ADR:** `jtbd.py`, `classifier.py`, `config.py` are all importable domain modules.
 ⚠️ **One exception undocumented:** `config.py::resolve_config()` violates ADR-0010 Decision item 5 (H7 convention) without explicit exception note.
 
 ### Rule File Sizing
@@ -255,10 +255,10 @@ Alternatively, refactor `resolve_config()` to return `Result[Path]` and have cal
 
 ## Positive Observations
 
-✓ **Atomic commits per finding:** Each consolidation (F5, G2, H12) was its own commit, making review granular.  
-✓ **Comprehensive documentation:** ADR-0010 explains context, alternatives, and rationale—not just the decision.  
-✓ **Test coverage:** New modules include unit tests (test_jtbd.py, test_classifier.py, test_config.py).  
-✓ **Backward compatibility:** Existing call sites updated to use new consolidated modules; no dangling imports.  
+✓ **Atomic commits per finding:** Each consolidation (F5, G2, H12) was its own commit, making review granular.
+✓ **Comprehensive documentation:** ADR-0010 explains context, alternatives, and rationale—not just the decision.
+✓ **Test coverage:** New modules include unit tests (test_jtbd.py, test_classifier.py, test_config.py).
+✓ **Backward compatibility:** Existing call sites updated to use new consolidated modules; no dangling imports.
 ✓ **Documentation consistency:** PR body clearly maps findings (F5, G2, H12, I4) to commits and ticket numbers.
 
 ---

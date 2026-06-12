@@ -28,6 +28,25 @@ uv run ruff format --check .        # format check
 uv run ruff format .                # auto-format
 ```
 
+## Pre-commit hooks
+
+`.pre-commit-config.yaml` is the canonical lint entry point: ruff
+(lint + format), shellcheck, and baseline file hygiene run on every
+commit, deferring to the ruff and mypy config in `pyproject.toml` and
+`mypy.ini`.
+
+```bash
+uv run --extra dev pre-commit install   # one-time: install the git hook
+pre-commit run --all-files              # lint the whole tree
+```
+
+mypy runs at the `manual` stage only — `src/` still carries pre-existing
+type errors, so it is wired in but not enforced by default:
+
+```bash
+pre-commit run --hook-stage manual mypy --all-files
+```
+
 ## Project structure
 
 | Directory | Purpose |

@@ -4,7 +4,7 @@
 
 ### Change 1: Add Exception Section (BEFORE Reviewer Checklist)
 
-**Location:** Insert after line 43 (after "A genuinely-unknown state..." paragraph)  
+**Location:** Insert after line 43 (after "A genuinely-unknown state..." paragraph)
 **Content to add:**
 
 ```markdown

@@ -34,12 +34,12 @@ patterns:
 def test_no_bash_4_features(self) -> None:
     """Prevent macOS bash 3.2 incompatibilities."""
     content = Path("bin/script.sh").read_text()
-    
+
     forbidden_patterns = [
         ("declare -A", "Associative arrays; use case statement or function"),
         ("[[ $var =~ ", "Regex operator; use grep or sed"),
     ]
-    
+
     for pattern, reason in forbidden_patterns:
         assert pattern not in content, (
             f"Pattern '{pattern}' requires bash 4.0+: {reason}"

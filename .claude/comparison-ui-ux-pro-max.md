@@ -291,7 +291,7 @@ nuitka --onefile src/dev10x/cli.py --output-dir=dist
    # dev10x/cli.py
    import sys
    import importlib.util
-   
+
    # Pre-load hot modules on first run
    @cache
    def _load_command_module(cmd_name):

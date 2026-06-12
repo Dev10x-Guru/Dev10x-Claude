@@ -28,7 +28,7 @@ def test_function_behavior(self) -> None:
     assert "expected output" in result.stdout
 ```
 
-**Why**: 
+**Why**:
 - Validates runtime behavior, not just syntax
 - Isolated subprocess prevents state leakage between tests
 - Timeout prevents infinite loops from infinite recursion or bad logic
@@ -101,7 +101,7 @@ src/
   dev10x/
   bin/
     require-tool.sh
-    
+
 tests/
   dev10x/
   bin/

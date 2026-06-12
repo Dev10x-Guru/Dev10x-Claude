@@ -10,7 +10,7 @@
 if [ "$1" = "0000000000000000000000000000000000000000" ]; then
     echo "New worktree detected. Running setup..."
     pwd
-    ORIGINAL_REPO=/work/<org>/<project-name>
+    ORIGINAL_REPO="/work/<org>/<project-name>"
 
     # ── Dirty-file exclusion ────────────────────────────────────────
     DIRTY_LIST=$(mktemp)
