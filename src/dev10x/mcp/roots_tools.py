@@ -28,14 +28,6 @@ async def list_client_roots() -> dict:
           yet (e.g. the tool is called before the MCP handshake).
         * ``enabled`` — ``bool``, False when ``DEV10X_ROOTS_ENABLED=0``.
     """
-    from dev10x.mcp.roots_manager import get_manager
+    from dev10x.mcp.roots_manager import list_roots
 
-    manager = get_manager()
-    if manager is None:
-        return {"roots": None, "enabled": False}
-
-    roots = manager.roots
-    return {
-        "roots": [r.to_dict() for r in roots] if roots is not None else None,
-        "enabled": manager.enabled,
-    }
+    return list_roots().to_dict()
