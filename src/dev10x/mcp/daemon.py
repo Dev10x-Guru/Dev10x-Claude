@@ -37,6 +37,8 @@ import socket
 import time
 from pathlib import Path
 
+from dev10x.domain.file_locks import atomic_write_text
+
 log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -95,17 +97,48 @@ def socket_file_path(pid_dir: Path | None = None) -> Path:
     return (pid_dir or _pid_dir()) / _SOCKET_NAME
 
 
-def write_pid_file(pid: int | None = None, pid_dir: Path | None = None) -> Path:
+def write_pid_file(
+    pid: int | None = None,
+    pid_dir: Path | None = None,
+    *,
+    exclusive: bool = False,
+) -> Path:
     """Write *pid* (default: ``os.getpid()``) to the PID file.
 
     Creates the directory if it does not exist.  Returns the path written.
 
+    The write is always atomic — full content is committed before the
+    file becomes visible — so a crash mid-write can never leave the
+    zero-byte PID file that :func:`read_pid_file` would have to discard.
+
+    Args:
+        pid: PID to record.  Defaults to ``os.getpid()``.
+        pid_dir: Override the PID-file directory.
+        exclusive: When True, fail if the PID file already exists
+            (``O_CREAT | O_EXCL``).  This is the restart-safety primitive
+            two daemons racing to start rely on: the loser of the race
+            gets :class:`FileExistsError` and must abort instead of
+            silently overwriting the winner's PID.
+
     Raises:
+        FileExistsError: When *exclusive* is True and the PID file
+            already exists.
         OSError: If the file cannot be written.
     """
     target = pid_file_path(pid_dir)
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(str(pid if pid is not None else os.getpid()))
+    content = str(pid if pid is not None else os.getpid())
+    if exclusive:
+        # O_EXCL makes the create-or-fail decision atomic at the kernel
+        # level, closing the stale-check → write race in
+        # DaemonLifecycle.start.
+        fd = os.open(str(target), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+        try:
+            os.write(fd, content.encode("utf-8"))
+        finally:
+            os.close(fd)
+    else:
+        atomic_write_text(target, content)
     log.debug("Wrote PID file: %s", target)
     return target
 
@@ -486,7 +519,18 @@ class DaemonLifecycle:
         import threading
 
         clear_stale_lock_files(self._pid_dir)
-        write_pid_file(pid_dir=self._pid_dir)
+        try:
+            write_pid_file(pid_dir=self._pid_dir, exclusive=True)
+        except FileExistsError as exc:
+            # A live daemon already owns the PID file (stale files were
+            # just cleared, so this one is alive), or a second start lost
+            # the O_EXCL race. Either way, refuse to start a second
+            # instance rather than overwriting the running daemon's PID.
+            raise RuntimeError(
+                "Daemon already running or lost the startup race — refusing "
+                "to start a second instance. Stop the existing daemon "
+                "(shutdown_daemon) or clear stale lock files and retry."
+            ) from exc
 
         server = HealthServer(self._pid_dir)
         server.start()
