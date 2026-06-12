@@ -17,8 +17,8 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 from dev10x.domain import HookInput, HookResult
+from dev10x.domain.common.commit_subject import CommitSubject
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.domain.common.ticket_id import TicketId
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
 
@@ -143,24 +143,7 @@ def _extract_title(command: str) -> str | None:
     return None
 
 
-def _extract_gitmoji(title: str) -> str:
-    i = 0
-    while i < len(title) and not title[i].isascii():
-        i += 1
-    return title[:i].strip()
-
-
-def _strip_prefix(title: str) -> str:
-    i = 0
-    while i < len(title) and not title[i].isascii():
-        i += 1
-    desc = title[i:].strip()
-    desc = TicketId.strip_leading(desc).strip()
-    return desc
-
-
-def _check_jtbd(title: str) -> Result[dict[str, Any]]:
-    desc = _strip_prefix(title)
+def _check_jtbd(desc: str) -> Result[dict[str, Any]]:
     match = VERB_RE.match(desc)
     if match:
         return err(match.group(1))
@@ -190,11 +173,11 @@ class CommitJtbdValidator(ValidatorBase):
         if title.startswith(("fixup!", "squash!", "Merge ")):
             return None
 
-        gitmoji = _extract_gitmoji(title)
-        if gitmoji in self.bypass_gitmoji:
+        subject = CommitSubject.parse(title)
+        if subject.gitmoji in self.bypass_gitmoji:
             return None
 
-        result = _check_jtbd(title)
+        result = _check_jtbd(subject.description)
         if isinstance(result, ErrorResult):
             return HookResult(
                 message=BLOCK_MSG.format(

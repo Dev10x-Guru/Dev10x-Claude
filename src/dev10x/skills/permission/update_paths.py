@@ -31,6 +31,8 @@ from pathlib import Path
 
 from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.allow_rule import AllowRule
+from dev10x.domain.common.mktmp_path import MKTMP_GENERALIZE_PATTERN
+from dev10x.domain.common.plugin_version import SEMVER_PATTERN, PluginVersion
 from dev10x.domain.common.result import Result
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.skills.permission.config import parse_config, resolve_config
@@ -702,7 +704,7 @@ GENERALIZE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"(generate-commit-list\.sh)\s+[^)]+"), r"\1:*"),
     (re.compile(r"(extract-session\.sh)\s+[^)]+"), r"\1:*"),
     (re.compile(r"(\.(?:sh|py))\s+[^)]+"), r"\1:*"),
-    (re.compile(r"(/tmp/Dev10x/[^/]+/)[^/)]+\.[A-Za-z0-9]{6,}\.(txt|md|json)"), r"\1*"),
+    (re.compile(MKTMP_GENERALIZE_PATTERN), r"\1*"),
     (re.compile(r"(git reset --hard) origin/\S+"), r"\1"),
     (re.compile(r"(git reset --soft) [A-Fa-f0-9]{6,}"), r"\1"),
 ]

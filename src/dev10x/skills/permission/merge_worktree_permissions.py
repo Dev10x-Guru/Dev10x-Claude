@@ -15,6 +15,7 @@ import json
 import re
 from pathlib import Path
 
+from dev10x.domain.common.mktmp_path import MKTMP_GENERALIZE_PATTERN, MKTMP_PATH_PATTERN
 from dev10x.domain.common.result import Result
 from dev10x.domain.common.ticket_id import TICKET_ID_PATTERN
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
@@ -27,7 +28,7 @@ PLUGIN_CONFIG = (
 
 NOISE_PATTERNS = [
     re.compile(r"\.[A-Za-z0-9]{8,}\.(txt|md|json)"),
-    re.compile(r"/tmp/Dev10x/[^/]+/[^/]+\.[A-Za-z0-9]{6,}"),
+    re.compile(MKTMP_PATH_PATTERN),
     re.compile(r"Bash\(if \["),
     re.compile(r"Bash\(then "),
     re.compile(r"Bash\(else "),
@@ -57,7 +58,7 @@ GENERALIZE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"(gh-pr-detect\.sh)\s+[^:)]+"), r"\1"),
     (re.compile(r"(generate-commit-list\.sh)\s+[^:)]+"), r"\1"),
     (re.compile(r"(extract-session\.sh)\s+[^:)]+"), r"\1"),
-    (re.compile(r"(/tmp/Dev10x/[^/]+/)[^/]+\.[A-Za-z0-9]{6,}\.(txt|md|json)"), r"\1**"),
+    (re.compile(MKTMP_GENERALIZE_PATTERN), r"\1**"),
     (re.compile(r"(\.[A-Za-z0-9]{8,})\.(txt|md|json)"), r"**"),
     (re.compile(r"(git reset --hard) origin/\S+"), r"\1"),
     (re.compile(r"(git reset --soft) [A-Fa-f0-9]{6,}"), r"\1"),

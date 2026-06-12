@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from dev10x.domain.claude_paths import ClaudeDir
+from dev10x.domain.common.plugin_version import SEMVER_PATTERN, PluginVersion
 from dev10x.domain.common.result import Result
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.skills.permission.config import parse_config, resolve_config
