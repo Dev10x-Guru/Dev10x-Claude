@@ -415,6 +415,17 @@ class TestDaemonLifecycle:
         finally:
             lifecycle.stop()
 
+    def test_start_refuses_when_live_daemon_owns_pid(self, tmp_pid_dir: Path) -> None:
+        # A live PID survives clear_stale_lock_files, so the exclusive
+        # write hits FileExistsError and start must refuse rather than
+        # overwrite the running daemon's PID (GH-573 race guard).
+        write_pid_file(pid=os.getpid(), pid_dir=tmp_pid_dir)
+        lifecycle = DaemonLifecycle(tmp_pid_dir)
+        with pytest.raises(RuntimeError, match="already running or lost the startup race"):
+            lifecycle.start()
+        # The incumbent PID is untouched.
+        assert read_pid_file(tmp_pid_dir) == os.getpid()
+
     def test_stop_is_idempotent(self, tmp_pid_dir: Path) -> None:
         lifecycle = DaemonLifecycle(tmp_pid_dir)
         lifecycle.start()
