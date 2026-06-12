@@ -1,9 +1,16 @@
 """Plan transaction layer.
 
-Single canonical implementation of the operations that mutate or
-read a project's plan file. Both the CLI hook
-(`dev10x.hooks.task_plan_sync`) and the MCP wrapper
-(`dev10x.plan`) delegate here, eliminating the previously
+The IO/transaction boundary for a project's plan file. This layer
+owns the concerns the `Plan` aggregate must not — git-toplevel
+resolution, file locking, and removing the live plan file — and
+delegates all name derivation, stamping, and persistence to `Plan`
+(`Plan.archive_to`, `Plan.save`, `Plan.set_context`). It stays
+separate from the aggregate deliberately (audit D8): folding this
+IO into domain methods would couple the aggregate to the filesystem
+layout and the lock primitive.
+
+Both the CLI hook (`dev10x.hooks.task_plan_sync`) and the MCP
+wrapper (`dev10x.plan`) delegate here, eliminating the previously
 duplicated `archive()` block and inline imports.
 """
 
@@ -72,15 +79,10 @@ def archive_plan() -> dict[str, Any]:
             return {"archived": False}
 
         plan = Plan.load(path=plan_path)
-        archive_dir = plan_path.parent / "archive"
-        archive_dir.mkdir(parents=True, exist_ok=True)
-
         timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
-        branch_slug = plan.metadata.get("branch", "unknown")
-        branch_slug = branch_slug.replace("/", "-")[:50]
-        archive_name = f"plan-{timestamp}-{branch_slug}.yaml"
-        archive_path = archive_dir / archive_name
-
-        plan.archive(path=archive_path)
+        archive_path = plan.archive_to(
+            archive_dir=plan_path.parent / "archive",
+            timestamp=timestamp,
+        )
         plan_path.unlink()
-        return {"archived": True, "archive_name": archive_name}
+        return {"archived": True, "archive_name": archive_path.name}
