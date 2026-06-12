@@ -21,6 +21,7 @@ from typing import TextIO
 
 from dev10x.domain.common.allow_rule import AllowRule, AllowRuleLoader
 from dev10x.domain.common.mcp_tool_name import McpToolName
+from dev10x.domain.common.mktmp_path import MktmpPath
 from dev10x.subprocess_utils import effective_cwd
 
 TURN_RE = re.compile(
@@ -55,10 +56,6 @@ DANGEROUS_COMMANDS = re.compile(
     r"--no-verify|"
     r"--force"
 )
-
-# Paths matching mktmp's high-entropy suffix — Write to these triggers
-# the Write tool's overwrite gate even with explicit allow-rules (GH-39).
-MKTMP_PATH_RE = re.compile(r"/tmp/Dev10x/[^/]+/[^/]+\.[A-Za-z0-9]{6,}\.\w+$")
 
 # Known commands that exit non-zero on benign deprecation warnings while
 # the operation actually succeeded (GH-41 — Projects classic on `gh pr edit`).
@@ -268,7 +265,7 @@ def detect_known_friction(
         if not target:
             continue
 
-        if tc.tool == "Write" and MKTMP_PATH_RE.search(target):
+        if tc.tool == "Write" and MktmpPath.is_mktmp_path(target, require_extension=True):
             idx += 1
             findings.append(
                 Finding(

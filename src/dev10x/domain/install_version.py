@@ -24,6 +24,7 @@ from typing import Any
 
 import yaml
 
+from dev10x.domain.common.plugin_version import PluginVersion
 from dev10x.domain.common.result import Result, err, ok
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.file_locks import atomic_write_text
