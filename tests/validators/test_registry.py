@@ -38,7 +38,6 @@ class _StubCorrector(ValidatorBase):
     name: ClassVar[str] = "stub-correct"
     rule_id: ClassVar[str] = "DX002"
     profile: ClassVar[ProfileTier] = ProfileTier.STANDARD
-    capabilities: ClassVar[frozenset[str]] = frozenset({"validate", "correct"})
 
     def should_run(self, inp: HookInput) -> bool:
         return True
@@ -301,7 +300,6 @@ class TestValidatorChain:
             name: ClassVar[str] = "raiser"
             rule_id: ClassVar[str] = "DX901"
             profile: ClassVar[ProfileTier] = ProfileTier.STANDARD
-            capabilities: ClassVar[frozenset[str]] = frozenset({"validate", "correct"})
 
             def should_run(self, inp: HookInput) -> bool:
                 return True

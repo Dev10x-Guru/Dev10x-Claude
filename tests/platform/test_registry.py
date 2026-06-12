@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from dev10x.platform import PlatformConfig, Registry, known_platforms
+from dev10x.platform import PlatformConfig, PlatformRepository, known_platforms
 
 
 class TestKnownPlatforms:
@@ -44,20 +44,20 @@ class TestKnownPlatforms:
         assert catalog["claude-code"].display_name == "Claude Code"
 
 
-class TestRegistryAdd:
-    """`Registry.add` persists an entry and returns the resolved config."""
+class TestPlatformRepositoryAdd:
+    """`PlatformRepository.add` persists an entry and returns the resolved config."""
 
     @pytest.fixture
-    def registry(self, tmp_path: Path) -> Registry:
-        return Registry(path=tmp_path / "platforms.yaml")
+    def registry(self, tmp_path: Path) -> PlatformRepository:
+        return PlatformRepository(path=tmp_path / "platforms.yaml")
 
-    def test_adds_from_catalog(self, registry: Registry) -> None:
+    def test_adds_from_catalog(self, registry: PlatformRepository) -> None:
         cfg = registry.add(name="windsurf")
         assert cfg.name == "windsurf"
         assert "windsurf" in str(cfg.config_dir)
 
-    def test_add_holds_file_lock(self, registry: Registry) -> None:
-        """A12: Registry.add serializes load→mutate→save via file_lock."""
+    def test_add_holds_file_lock(self, registry: PlatformRepository) -> None:
+        """A12: PlatformRepository.add serializes load→mutate→save via file_lock."""
         from unittest.mock import MagicMock, patch
 
         with patch("dev10x.platform.registry.file_lock") as mock_lock:
@@ -66,7 +66,7 @@ class TestRegistryAdd:
 
         mock_lock.assert_called_once_with(registry.path)
 
-    def test_remove_holds_file_lock(self, registry: Registry) -> None:
+    def test_remove_holds_file_lock(self, registry: PlatformRepository) -> None:
         from unittest.mock import MagicMock, patch
 
         registry.add(name="windsurf")
@@ -76,13 +76,13 @@ class TestRegistryAdd:
 
         mock_lock.assert_called_once_with(registry.path)
 
-    def test_rejects_unknown_platform(self, registry: Registry) -> None:
+    def test_rejects_unknown_platform(self, registry: PlatformRepository) -> None:
         with pytest.raises(ValueError, match="Unknown platform"):
             registry.add(name="not-a-real-platform")
 
     def test_respects_config_dir_override(
         self,
-        registry: Registry,
+        registry: PlatformRepository,
         tmp_path: Path,
     ) -> None:
         override = tmp_path / "custom"
@@ -92,7 +92,7 @@ class TestRegistryAdd:
         # plugins_dir should preserve the structural relationship
         assert cfg.plugins_dir.is_relative_to(override)
 
-    def test_persists_playbook_override(self, registry: Registry) -> None:
+    def test_persists_playbook_override(self, registry: PlatformRepository) -> None:
         cfg = registry.add(
             name="continue",
             playbook_override="playbooks/continue.yaml",
@@ -100,17 +100,17 @@ class TestRegistryAdd:
         assert cfg.playbook_override == "playbooks/continue.yaml"
 
 
-class TestRegistryLoadList:
-    """`Registry.list` returns persisted entries across sessions."""
+class TestPlatformRepositoryLoadList:
+    """`PlatformRepository.list` returns persisted entries across sessions."""
 
     @pytest.fixture
-    def registry(self, tmp_path: Path) -> Registry:
-        return Registry(path=tmp_path / "platforms.yaml")
+    def registry(self, tmp_path: Path) -> PlatformRepository:
+        return PlatformRepository(path=tmp_path / "platforms.yaml")
 
-    def test_list_empty_by_default(self, registry: Registry) -> None:
+    def test_list_empty_by_default(self, registry: PlatformRepository) -> None:
         assert registry.list() == []
 
-    def test_list_returns_registered_entries(self, registry: Registry) -> None:
+    def test_list_returns_registered_entries(self, registry: PlatformRepository) -> None:
         registry.add(name="claude-code")
         registry.add(name="copilot-cli")
 
@@ -118,7 +118,7 @@ class TestRegistryLoadList:
         names = {e.name for e in entries}
         assert names == {"claude-code", "copilot-cli"}
 
-    def test_list_sorted_alphabetically(self, registry: Registry) -> None:
+    def test_list_sorted_alphabetically(self, registry: PlatformRepository) -> None:
         registry.add(name="windsurf")
         registry.add(name="claude-code")
         registry.add(name="cursor")
@@ -127,32 +127,32 @@ class TestRegistryLoadList:
         assert [e.name for e in entries] == ["claude-code", "cursor", "windsurf"]
 
 
-class TestRegistryRemove:
-    """`Registry.remove` deletes a persisted entry."""
+class TestPlatformRepositoryRemove:
+    """`PlatformRepository.remove` deletes a persisted entry."""
 
     @pytest.fixture
-    def registry(self, tmp_path: Path) -> Registry:
-        return Registry(path=tmp_path / "platforms.yaml")
+    def registry(self, tmp_path: Path) -> PlatformRepository:
+        return PlatformRepository(path=tmp_path / "platforms.yaml")
 
-    def test_removes_existing_entry(self, registry: Registry) -> None:
+    def test_removes_existing_entry(self, registry: PlatformRepository) -> None:
         registry.add(name="cursor")
         assert registry.remove("cursor") is True
         assert registry.list() == []
 
-    def test_returns_false_for_unknown_entry(self, registry: Registry) -> None:
+    def test_returns_false_for_unknown_entry(self, registry: PlatformRepository) -> None:
         assert registry.remove("cursor") is False
 
 
-class TestRegistryRoundTrip:
-    """Saved entries survive a fresh Registry instance (file-backed)."""
+class TestPlatformRepositoryRoundTrip:
+    """Saved entries survive a fresh PlatformRepository instance (file-backed)."""
 
     def test_round_trip_preserves_config(self, tmp_path: Path) -> None:
         path = tmp_path / "platforms.yaml"
 
-        first = Registry(path=path)
+        first = PlatformRepository(path=path)
         first.add(name="continue", playbook_override="custom.yaml")
 
-        second = Registry(path=path)
+        second = PlatformRepository(path=path)
         entries = second.list()
         assert len(entries) == 1
         assert entries[0].name == "continue"
@@ -161,7 +161,7 @@ class TestRegistryRoundTrip:
     def test_windows_safe_no_symlinks_stored(self, tmp_path: Path) -> None:
         # The registry must not write symlinks — only a YAML file.
         path = tmp_path / "platforms.yaml"
-        registry = Registry(path=path)
+        registry = PlatformRepository(path=path)
         registry.add(name="claude-code")
 
         assert path.is_file()

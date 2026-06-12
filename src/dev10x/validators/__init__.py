@@ -2,8 +2,9 @@
 
 Single-dispatcher architecture: one Python process validates all Bash
 commands by iterating a :class:`ValidatorRegistry`. Each validator
-declares its profile tier, rule_id, and capabilities as class
-attributes (see :mod:`dev10x.validators.base`).
+declares its profile tier and rule_id as class attributes (see
+:mod:`dev10x.validators.base`); correction support is detected
+structurally via the :class:`Corrector` protocol.
 
 Ordering matters: allow-validators run before deny-validators so safe
 patterns get auto-approved before a deny-validator would block them.
@@ -23,6 +24,7 @@ filters built from environment variables:
 
 from __future__ import annotations
 
+import functools
 import os
 from typing import TYPE_CHECKING
 
@@ -141,26 +143,47 @@ _SPECS: list[ValidatorSpec] = [
 ]
 
 
+def _parse_profile_config(
+    *, profile_raw: str | None, disable_raw: str, experimental_raw: str
+) -> tuple[ProfileTier, set[str], bool]:
+    """Parse raw env-var strings into a profile configuration tuple."""
+    active = ProfileTier.from_raw(profile_raw)
+    disabled = {rid.strip().upper() for rid in disable_raw.split(",") if rid.strip()}
+    experimental = experimental_raw.strip().lower() in ("1", "true", "yes", "on")
+    return active, disabled, experimental
+
+
 def _load_profile_config() -> tuple[ProfileTier, set[str], bool]:
     """Read profile configuration from environment variables.
 
     Returns:
         (active_profile, disabled_rule_ids, experimental_enabled)
     """
-    active = ProfileTier.from_raw(os.environ.get("DEV10X_HOOK_PROFILE"))
-
-    disabled_raw = os.environ.get("DEV10X_HOOK_DISABLE", "")
-    disabled = {rid.strip().upper() for rid in disabled_raw.split(",") if rid.strip()}
-
-    experimental_raw = os.environ.get("DEV10X_HOOK_EXPERIMENTAL", "").strip().lower()
-    experimental_enabled = experimental_raw in ("1", "true", "yes", "on")
-
-    return active, disabled, experimental_enabled
+    return _parse_profile_config(
+        profile_raw=os.environ.get("DEV10X_HOOK_PROFILE"),
+        disable_raw=os.environ.get("DEV10X_HOOK_DISABLE", ""),
+        experimental_raw=os.environ.get("DEV10X_HOOK_EXPERIMENTAL", ""),
+    )
 
 
-def _build_registry() -> ValidatorRegistry:
-    """Construct a registry seeded with module specs and env-driven filters."""
-    active, disabled, experimental = _load_profile_config()
+@functools.cache
+def _cached_registry(
+    profile_raw: str | None, disable_raw: str, experimental_raw: str
+) -> ValidatorRegistry:
+    """Build the registry for one exact environment configuration (A10).
+
+    Keyed on the raw env-var strings rather than stored in a
+    process-wide ``_registry`` global, so changing the profile,
+    disable-list, or experimental flag yields a distinct registry
+    instead of silently reusing a stale singleton. Repeated calls with
+    the same configuration return the same instance, preserving the
+    lazy ``_instances`` caching inside :class:`ValidatorRegistry`.
+    """
+    active, disabled, experimental = _parse_profile_config(
+        profile_raw=profile_raw,
+        disable_raw=disable_raw,
+        experimental_raw=experimental_raw,
+    )
     return ValidatorRegistry(
         specs=list(_SPECS),
         filters=[
@@ -171,15 +194,13 @@ def _build_registry() -> ValidatorRegistry:
     )
 
 
-_registry: ValidatorRegistry | None = None
-
-
 def get_registry() -> ValidatorRegistry:
-    """Return the process-wide registry, building it on first access."""
-    global _registry
-    if _registry is None:
-        _registry = _build_registry()
-    return _registry
+    """Return the registry for the current environment (cached per config)."""
+    return _cached_registry(
+        os.environ.get("DEV10X_HOOK_PROFILE"),
+        os.environ.get("DEV10X_HOOK_DISABLE", ""),
+        os.environ.get("DEV10X_HOOK_EXPERIMENTAL", ""),
+    )
 
 
 def get_validators() -> list[Validator]:
@@ -188,9 +209,8 @@ def get_validators() -> list[Validator]:
 
 
 def reset_registry() -> None:
-    """Clear the cached validator registry — used by tests."""
-    global _registry
-    _registry = None
+    """Clear the cached validator registries — used by tests."""
+    _cached_registry.cache_clear()
 
 
 def get_chain() -> ValidatorChain:

@@ -225,7 +225,6 @@ class SkillRedirectValidator(ValidatorBase):
     name: ClassVar[str] = "skill-redirect"
     rule_id: ClassVar[str] = "DX006"
     profile: ClassVar[ProfileTier] = ProfileTier.STANDARD
-    capabilities: ClassVar[frozenset[str]] = frozenset({"validate", "correct"})
 
     def should_run(self, inp: HookInput) -> bool:
         # Rationale form is the only valid bypass — skip the validator

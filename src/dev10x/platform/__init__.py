@@ -12,7 +12,7 @@ from __future__ import annotations
 from dev10x.platform.registry import (
     PlatformCatalog,
     PlatformConfig,
-    Registry,
+    PlatformRepository,
     known_platforms,
     registered_platforms,
 )
@@ -20,7 +20,7 @@ from dev10x.platform.registry import (
 __all__ = [
     "PlatformCatalog",
     "PlatformConfig",
-    "Registry",
+    "PlatformRepository",
     "known_platforms",
     "registered_platforms",
 ]

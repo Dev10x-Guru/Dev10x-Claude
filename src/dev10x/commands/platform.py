@@ -35,7 +35,7 @@ def add(
     playbook_override: str | None,
 ) -> None:
     """Register a platform so skills can target it without path editing."""
-    from dev10x.platform import Registry, known_platforms
+    from dev10x.platform import PlatformRepository, known_platforms
 
     catalog = known_platforms()
     if name not in catalog:
@@ -45,7 +45,7 @@ def add(
         )
         sys.exit(1)
 
-    registry = Registry()
+    registry = PlatformRepository()
     cfg = registry.add(
         name=name,
         config_dir=config_dir.expanduser().resolve() if config_dir else None,
@@ -63,9 +63,9 @@ def add(
 @platform.command(name="list")
 def list_platforms() -> None:
     """Show every registered platform with its configured paths."""
-    from dev10x.platform import Registry
+    from dev10x.platform import PlatformRepository
 
-    registry = Registry()
+    registry = PlatformRepository()
     entries = registry.list()
 
     if not entries:
@@ -85,9 +85,9 @@ def list_platforms() -> None:
 @click.argument("name")
 def remove(*, name: str) -> None:
     """Unregister a platform from the local registry."""
-    from dev10x.platform import Registry
+    from dev10x.platform import PlatformRepository
 
-    registry = Registry()
+    registry = PlatformRepository()
     if registry.remove(name):
         click.echo(f"✓ Removed {name}")
     else:

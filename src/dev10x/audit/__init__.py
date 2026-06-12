@@ -18,7 +18,8 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from dev10x.audit.log_reader import iter_records, prune, summarize
+from dev10x.audit.log_reader import iter_records, prune
+from dev10x.audit.summarizer import summarize
 from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.result import Result, err, ok
 from dev10x.domain.file_locks import atomic_write_text

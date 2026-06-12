@@ -341,7 +341,6 @@ class PrefixFrictionValidator(ValidatorBase):
     name: ClassVar[str] = "prefix-friction"
     rule_id: ClassVar[str] = "DX007"
     profile: ClassVar[ProfileTier] = ProfileTier.STANDARD
-    capabilities: ClassVar[frozenset[str]] = frozenset({"validate", "correct"})
     _allow_patterns: list[str] | None = field(default=None, repr=False)
 
     # Ordered chain of prefix checks (PrefixCheck = method taking

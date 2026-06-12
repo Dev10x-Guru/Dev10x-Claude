@@ -6,6 +6,7 @@ import sys
 from dataclasses import dataclass
 from typing import Any, NoReturn
 
+from dev10x.domain.events.hook_event import HookEventName
 from dev10x.subprocess_utils import effective_cwd
 
 
@@ -86,7 +87,7 @@ class HookRetry:
     def emit(self) -> NoReturn:
         result: dict[str, Any] = {
             "hookSpecificOutput": {
-                "hookEventName": "PermissionDenied",
+                "hookEventName": HookEventName.PERMISSION_DENIED,
                 "retry": True,
             },
         }

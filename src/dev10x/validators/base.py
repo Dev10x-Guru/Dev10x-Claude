@@ -5,10 +5,11 @@ Two hook integration points:
   PreToolUse        → should_run() + validate()  — block before execution
   PermissionDenied  → should_run() + correct()   — guide after auto-mode denial
 
-Validators declare their capabilities via :attr:`ValidatorBase.capabilities`
-(``"validate"`` always, ``"correct"`` for retry-with-guidance support).
-The dispatcher consults this set instead of runtime ``isinstance`` checks,
-so adding new capabilities (e.g., ``"explain"``) is a one-line change.
+Correction support is structural, not declared: a validator opts into
+the PermissionDenied path simply by implementing :meth:`Corrector.correct`.
+The dispatcher discovers this via ``isinstance(validator, Corrector)``
+against the ``@runtime_checkable`` :class:`Corrector` protocol — no
+separate capability set to keep in sync with the actual methods.
 
 Validators also declare profile-tier metadata as class attributes:
 
@@ -64,7 +65,10 @@ class ValidatorBase:
             name = "foo"
             rule_id = "DX042"
             profile = ProfileTier.STANDARD
-            capabilities = frozenset({"validate", "correct"})
+
+    A validator that also implements :meth:`Corrector.correct` is
+    automatically eligible for the PermissionDenied path — no capability
+    flag to declare.
 
     Removing the previous ``hasattr`` guarded monkey-patching in
     :func:`get_validators` — the metadata now lives on the class itself.
@@ -74,7 +78,6 @@ class ValidatorBase:
     rule_id: ClassVar[str] = ""
     profile: ClassVar[ProfileTier] = ProfileTier.STANDARD
     experimental: ClassVar[bool] = False
-    capabilities: ClassVar[frozenset[str]] = frozenset({"validate"})
 
     def should_run(self, inp: HookInput) -> bool:
         """Fast skip predicate — overridden by concrete validators."""
