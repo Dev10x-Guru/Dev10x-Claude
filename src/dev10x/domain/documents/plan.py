@@ -102,6 +102,16 @@ TASK_TRANSITIONS: dict[TaskStatus, TaskTransition] = {
 
 @dataclass
 class Plan:
+    """The mutable plan aggregate.
+
+    Owns its own persistence (`load`/`save`), task state machine
+    (`handle_task_*`, `TASK_TRANSITIONS`), and archive lifecycle
+    (`stamp_archived`, `archive_filename`, `archive_to`). The
+    `plan.service` layer wraps this aggregate with the IO/transaction
+    concerns it must NOT own — git-toplevel resolution, file locking,
+    and removing the live plan file.
+    """
+
     metadata: dict[str, Any] = field(default_factory=dict)
     tasks: list[Task] = field(default_factory=list)
 
@@ -151,10 +161,43 @@ class Plan:
             result["tasks"] = [t.to_dict() for t in self.tasks]
         return result
 
+    def stamp_archived(self) -> None:
+        """Record the `archived_at` timestamp on plan metadata.
+
+        Mutation only — does not persist. Callers pair this with
+        `save()` (see `archive`/`archive_to`).
+        """
+        self.metadata["archived_at"] = _now_iso()
+
+    def archive_filename(self, *, timestamp: str) -> str:
+        """Derive the archive filename for this plan at `timestamp`.
+
+        The branch slug is sanitised (slashes → hyphens, capped at 50
+        chars) so the name is filesystem-safe regardless of branch
+        naming convention.
+        """
+        branch_slug = self.metadata.get("branch", "unknown")
+        branch_slug = branch_slug.replace("/", "-")[:50]
+        return f"plan-{timestamp}-{branch_slug}.yaml"
+
     def archive(self, *, path: Path) -> None:
         """Stamp `archived_at` on plan metadata and persist to `path`."""
-        self.metadata["archived_at"] = _now_iso()
+        self.stamp_archived()
         self.save(path=path)
+
+    def archive_to(self, *, archive_dir: Path, timestamp: str) -> Path:
+        """Stamp, persist under `archive_dir`, and return the archive path.
+
+        Encapsulates name derivation and the `archived_at` stamp so the
+        service layer only owns IO orchestration (toplevel resolution,
+        file locking, removing the live plan file). `archive_dir` is
+        created if absent.
+        """
+        archive_dir.mkdir(parents=True, exist_ok=True)
+        archive_path = archive_dir / self.archive_filename(timestamp=timestamp)
+        self.stamp_archived()
+        self.save(path=archive_path)
+        return archive_path
 
     def ensure_metadata(self) -> None:
         if not self.metadata:

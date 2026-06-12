@@ -122,6 +122,10 @@ class PlanSummary:
         ]
 
     @property
+    def has_remaining_tasks(self) -> bool:
+        return bool(self.pending_tasks)
+
+    @property
     def pending_decisions(self) -> list[Task]:
         return [t for t in self.pending_tasks if t.metadata.get("decision_needed")]
 

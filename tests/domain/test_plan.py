@@ -340,6 +340,51 @@ class TestPlanArchive:
         assert "archived_at" in loaded.metadata
 
 
+class TestPlanStampArchived:
+    def test_sets_timestamp_without_persisting(self, tmp_path: Path) -> None:
+        plan = Plan(metadata={"status": "completed"})
+
+        plan.stamp_archived()
+
+        assert "archived_at" in plan.metadata
+        assert not (tmp_path / "plan.yaml").exists()
+
+
+class TestPlanArchiveFilename:
+    def test_sanitises_branch_slug(self) -> None:
+        plan = Plan(metadata={"branch": "janusz/GH-628/slug"})
+
+        name = plan.archive_filename(timestamp="20260101T000000")
+
+        assert name == "plan-20260101T000000-janusz-GH-628-slug.yaml"
+
+    def test_defaults_to_unknown_when_no_branch(self) -> None:
+        plan = Plan(metadata={"status": "completed"})
+
+        assert plan.archive_filename(timestamp="T") == "plan-T-unknown.yaml"
+
+    def test_caps_branch_slug_at_fifty_chars(self) -> None:
+        plan = Plan(metadata={"branch": "x" * 80})
+
+        name = plan.archive_filename(timestamp="T")
+
+        assert name == f"plan-T-{'x' * 50}.yaml"
+
+
+class TestPlanArchiveTo:
+    def test_creates_dir_stamps_and_returns_path(self, tmp_path: Path) -> None:
+        plan = Plan(metadata={"status": "completed", "branch": "feature/x"})
+        archive_dir = tmp_path / "archive"
+
+        archive_path = plan.archive_to(archive_dir=archive_dir, timestamp="20260101T000000")
+
+        assert archive_path == archive_dir / "plan-20260101T000000-feature-x.yaml"
+        assert archive_path.exists()
+        assert "archived_at" in plan.metadata
+        loaded = Plan.load(path=archive_path)
+        assert "archived_at" in loaded.metadata
+
+
 class TestPlanContextKeys:
     def test_returns_empty_when_no_context(self) -> None:
         assert Plan(metadata={"status": "x"}).context_keys() == []

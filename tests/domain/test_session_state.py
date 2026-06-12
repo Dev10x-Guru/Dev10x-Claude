@@ -178,6 +178,31 @@ class TestPlanSummaryPendingTasks:
         assert PlanSummary().pending_tasks == []
 
 
+class TestPlanSummaryHasRemainingTasks:
+    def test_true_when_pending_present(self) -> None:
+        summary = PlanSummary(
+            tasks=[
+                {"id": "1", "subject": "A", "status": "pending"},
+                {"id": "2", "subject": "B", "status": "completed"},
+            ],
+        )
+
+        assert summary.has_remaining_tasks is True
+
+    def test_false_when_all_completed_or_deleted(self) -> None:
+        summary = PlanSummary(
+            tasks=[
+                {"id": "1", "subject": "A", "status": "completed"},
+                {"id": "2", "subject": "B", "status": "deleted"},
+            ],
+        )
+
+        assert summary.has_remaining_tasks is False
+
+    def test_false_when_no_tasks(self) -> None:
+        assert PlanSummary().has_remaining_tasks is False
+
+
 class TestPlanSummaryPendingDecisions:
     def test_returns_tasks_with_decision_needed(self) -> None:
         summary = PlanSummary(

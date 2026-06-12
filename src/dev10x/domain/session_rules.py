@@ -70,7 +70,7 @@ class DecisionGuidanceRule(PolicyRule[str]):
 
         summary = PlanSummary.from_dict(data=self.plan)
         if not summary.pending_decisions:
-            if summary.pending_tasks:
+            if summary.has_remaining_tasks:
                 return "Session resumed with tasks remaining. Auto-advance through the task list."
             return ""
 
