@@ -38,7 +38,9 @@ import asyncio
 import logging
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
+from dev10x.domain.common.result import Result, ok
 
 if TYPE_CHECKING:  # pragma: no cover
     from mcp.server.session import ServerSession
@@ -223,6 +225,33 @@ _background_tasks: set[asyncio.Task[None]] = set()
 def get_manager() -> ClientRootsManager | None:
     """Return the currently registered :class:`ClientRootsManager`, or ``None``."""
     return _manager
+
+
+def list_roots() -> Result[dict[str, Any]]:
+    """Return the client-declared roots payload (GH-344, GH-502).
+
+    Backing domain function for the ``list_client_roots`` MCP tool. Returns
+    a :class:`~dev10x.domain.common.result.Result` so the handler can unwrap
+    it via ``.to_dict()`` like every other tool at the MCP boundary
+    (ADR-0009). There is no error path today — the payload is always a
+    success — but the two-layer shape keeps the tool consistent and leaves
+    room for a future failure mode without changing the wire contract.
+
+    The ``roots`` value is ``None`` when no session has been established
+    yet, an empty list when the client declares no roots, and a list of
+    ``{"uri", "name"}`` dicts otherwise. ``enabled`` reflects
+    ``DEV10X_ROOTS_ENABLED``.
+    """
+    manager = get_manager()
+    if manager is None:
+        return ok({"roots": None, "enabled": False})
+    roots = manager.roots
+    return ok(
+        {
+            "roots": [r.to_dict() for r in roots] if roots is not None else None,
+            "enabled": manager.enabled,
+        }
+    )
 
 
 def wire_roots_to_server(
