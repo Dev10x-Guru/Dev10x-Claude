@@ -3,7 +3,6 @@
 # Setup:
 #   pre-commit install                              # install the git hook
 #   pre-commit run --all-files                      # lint the whole tree
-#   pre-commit run --hook-stage manual mypy         # run mypy (see below)
 #
 # ruff and mypy settings live in pyproject.toml and mypy.ini — these hooks
 # defer to that config rather than duplicating it.
@@ -40,20 +39,17 @@ repos:
     rev: v0.10.0.1
     hooks:
       - id: shellcheck
-        # Error-severity floor for the initial setup; tightening to
-        # `warning` across the 60 shell scripts is GH-619 follow-up.
-        args: [--severity=error]
+        # Warning severity: the tree's shellcheck warnings/errors were
+        # fixed in source (GH-619), so the suite is now warning-clean.
+        args: [--severity=warning]
 
-  # mypy runs at the `manual` stage only: the tree carries 20 pre-existing
-  # type errors (click + slack-sdk typing) that are out of scope for this
-  # setup PR. Making `src/` type-clean and promoting mypy to the default
-  # stage is tracked as GH-619 follow-up.
-  #   pre-commit run --hook-stage manual mypy --all-files
+  # mypy runs at the default stage: the previously-latent type errors
+  # (click + slack-sdk typing) were fixed in source (GH-619), so `src/`
+  # is type-clean.
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.14.1
     hooks:
       - id: mypy
-        stages: [manual]
         files: ^src/
         args: [--config-file=mypy.ini]
         additional_dependencies: [types-PyYAML]
