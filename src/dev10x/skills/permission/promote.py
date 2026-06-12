@@ -37,6 +37,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from dev10x.domain.common.mcp_tool_name import McpToolName
 from dev10x.skills.permission.enumerate_mcp import (
     _server_prefix_from_tool,
     _source_type_from_prefix,
@@ -234,7 +235,7 @@ def build_promotion_plan(
 
     for path in project_settings_paths:
         for rule in _read_allow_rules(path):
-            if not rule.startswith("mcp__") or rule.endswith("*"):
+            if not McpToolName.is_mcp(rule) or rule.endswith("*"):
                 continue
             if rule in seen:
                 continue
