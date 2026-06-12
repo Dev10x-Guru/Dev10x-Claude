@@ -26,6 +26,7 @@ from typing import Any
 
 from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.allow_rule import AllowRule, AllowRuleLoader
+from dev10x.domain.common.mcp_tool_name import McpToolName
 from dev10x.subprocess_utils import effective_cwd
 
 
@@ -101,7 +102,7 @@ def extract_tool_signature(raw: dict[str, Any]) -> str | None:
             return None
         return f"{tool_name}({file_path})"
 
-    if tool_name.startswith("mcp__"):
+    if McpToolName.is_mcp(tool_name):
         return tool_name
 
     return f"{tool_name}()"
@@ -260,7 +261,7 @@ def _build_fix_suggestion(
 
 
 def _suggest_rule(*, signature: str) -> str:
-    if signature.startswith("mcp__"):
+    if McpToolName.is_mcp(signature):
         last_sep = signature.rfind("__")
         if last_sep > 0:
             prefix = signature[:last_sep]

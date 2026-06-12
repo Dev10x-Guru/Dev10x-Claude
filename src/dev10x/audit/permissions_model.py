@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import TextIO
 
 from dev10x.domain.common.allow_rule import AllowRule, AllowRuleLoader
+from dev10x.domain.common.mcp_tool_name import McpToolName
 from dev10x.subprocess_utils import effective_cwd
 
 TURN_RE = re.compile(
@@ -95,7 +96,7 @@ class ToolCall:
             return f"Bash({self.command})"
         if self.tool in ("Write", "Read", "Edit") and self.file_path:
             return f"{self.tool}({self.file_path})"
-        if self.tool.startswith("mcp__"):
+        if McpToolName.is_mcp(self.tool):
             return self.tool
         return f"{self.tool}()"
 

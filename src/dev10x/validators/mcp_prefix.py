@@ -23,12 +23,11 @@ from dataclasses import dataclass
 from typing import ClassVar
 
 from dev10x.domain import HookInput, HookResult
+from dev10x.domain.common.mcp_tool_name import McpToolName
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
 
 ENV_VAR_RE = re.compile(r"^[A-Z_][A-Z0-9_]*=\S*$")
-
-MCP_TOOL_RE = re.compile(r"^mcp__[a-zA-Z0-9_]+__[a-zA-Z0-9_]+")
 
 MCP_PREFIX_MSG = """\
 ⛔  MCP tool name used as a shell command — blocked.
@@ -72,7 +71,7 @@ class McpPrefixValidator(ValidatorBase):
         if not parts:
             return None
 
-        if not MCP_TOOL_RE.match(parts[0]):
+        if not McpToolName.is_command_token(parts[0]):
             return None
 
         return HookResult(message=MCP_PREFIX_MSG.format(tool=parts[0]))

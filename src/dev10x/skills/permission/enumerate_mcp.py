@@ -27,14 +27,11 @@ from __future__ import annotations
 
 import ast
 import json
-import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Wildcard shapes that silently fail: `mcp__plugin_Dev10x_*`,
-# `mcp__plugin_Dev10x_cli_*`, `mcp__<family>__*`, etc.
-MCP_WILDCARD_RE = re.compile(r"^mcp__[A-Za-z0-9_]+\*$")
+from dev10x.domain.common.mcp_tool_name import McpToolName
 
 # MCP server registration file convention.
 # For the cli server, all handlers live in per-domain modules (GH-243/A6).
@@ -174,13 +171,7 @@ def _server_prefix_from_tool(tool_name: str) -> str | None:
     ``mcp__sentry__search_issues``
       → ``mcp__sentry__``
     """
-    # Split on __ (double underscore); the prefix ends before the final segment
-    parts = tool_name.split("__")
-    # Valid names: mcp  <server>  <func_name>
-    if len(parts) < 3:
-        return None
-    # Re-join the middle segment(s) with __ and append the trailing __
-    return "__".join(parts[:-1]) + "__"
+    return McpToolName.prefix_of(tool_name)
 
 
 def _source_type_from_prefix(prefix: str) -> tuple[str, str]:
@@ -250,7 +241,7 @@ def discover_all_mcp_servers(
                 all_rules.extend(r for r in bucket_rules if isinstance(r, str))
 
         for rule in all_rules:
-            if not rule.startswith("mcp__"):
+            if not McpToolName.is_mcp(rule):
                 continue
             prefix = _server_prefix_from_tool(rule)
             if prefix is None:
@@ -328,7 +319,7 @@ def _matches_wildcard(rule: str, catalog: dict[str, list[str]]) -> list[str] | N
     - `mcp__plugin_Dev10x_*` matches every server in the catalog
     - `mcp__plugin_Dev10x_cli_*` matches only the cli server
     """
-    if not MCP_WILDCARD_RE.match(rule):
+    if not McpToolName.is_wildcard(rule):
         return None
 
     matched: list[str] = []
