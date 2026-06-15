@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from dev10x.domain.documents.task import Task, TaskStatus
@@ -28,6 +30,45 @@ class SessionState:
             staged_files=data.get("staged_files", []),
             recent_commits=data.get("recent_commits", []),
         )
+
+    @classmethod
+    def capture(
+        cls,
+        *,
+        session_id: str,
+        toplevel: str,
+        run_git: Callable[..., str],
+        timestamp: str,
+    ) -> SessionState:
+        """Build a `SessionState` from the live working tree.
+
+        `run_git` is injected (e.g. the SessionStop hook's `_run_git`)
+        so this domain object stays free of subprocess access — the
+        adapter owns the git invocation, the aggregate owns the field
+        shape. File lists are capped at 20 entries to bound the
+        persisted payload.
+        """
+        worktree = Path(toplevel).name if (Path(toplevel) / ".git").is_file() else ""
+        return cls(
+            timestamp=timestamp,
+            branch=run_git("rev-parse", "--abbrev-ref", "HEAD") or "unknown",
+            worktree=worktree,
+            session_id=session_id,
+            modified_files=run_git("diff", "--name-only").splitlines()[:20],
+            staged_files=run_git("diff", "--cached", "--name-only").splitlines()[:20],
+            recent_commits=run_git("log", "--oneline", "-5").splitlines(),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "timestamp": self.timestamp,
+            "branch": self.branch,
+            "worktree": self.worktree,
+            "session_id": self.session_id,
+            "modified_files": self.modified_files,
+            "staged_files": self.staged_files,
+            "recent_commits": self.recent_commits,
+        }
 
     def _age_hours(self) -> int:
         if not self.timestamp:

@@ -94,6 +94,114 @@ class TestSessionStateFromDict:
         assert state.modified_files == []
 
 
+class TestSessionStateToDict:
+    def test_round_trips_through_from_dict(self) -> None:
+        state = SessionState(
+            timestamp="2026-01-01T00:00:00Z",
+            branch="main",
+            worktree="wt",
+            session_id="sid",
+            modified_files=["a.py"],
+            staged_files=["b.py"],
+            recent_commits=["abc Fix"],
+        )
+
+        assert SessionState.from_dict(data=state.to_dict()) == state
+
+    def test_exposes_all_seven_fields(self) -> None:
+        keys = set(SessionState().to_dict())
+
+        assert keys == {
+            "timestamp",
+            "branch",
+            "worktree",
+            "session_id",
+            "modified_files",
+            "staged_files",
+            "recent_commits",
+        }
+
+
+class TestSessionStateCapture:
+    @staticmethod
+    def _fake_git(responses: dict[tuple[str, ...], str]):
+        def run(*args: str) -> str:
+            return responses.get(args, "")
+
+        return run
+
+    def test_populates_fields_from_injected_runner(self, tmp_path) -> None:
+        (tmp_path / ".git").mkdir()  # main repo: .git is a directory
+        run = self._fake_git(
+            {
+                ("rev-parse", "--abbrev-ref", "HEAD"): "feature/x",
+                ("diff", "--name-only"): "a.py\nb.py",
+                ("diff", "--cached", "--name-only"): "c.py",
+                ("log", "--oneline", "-5"): "abc Fix\ndef Add",
+            }
+        )
+
+        state = SessionState.capture(
+            session_id="sid",
+            toplevel=str(tmp_path),
+            run_git=run,
+            timestamp="2026-01-01T00:00:00Z",
+        )
+
+        assert state.session_id == "sid"
+        assert state.timestamp == "2026-01-01T00:00:00Z"
+        assert state.branch == "feature/x"
+        assert state.modified_files == ["a.py", "b.py"]
+        assert state.staged_files == ["c.py"]
+        assert state.recent_commits == ["abc Fix", "def Add"]
+        assert state.worktree == ""
+
+    def test_detects_worktree_when_git_is_a_file(self, tmp_path) -> None:
+        (tmp_path / ".git").write_text("gitdir: /elsewhere\n")  # worktree marker
+
+        state = SessionState.capture(
+            session_id="s",
+            toplevel=str(tmp_path),
+            run_git=lambda *a: "",
+            timestamp="t",
+        )
+
+        assert state.worktree == tmp_path.name
+
+    def test_branch_falls_back_to_unknown_on_empty_output(self, tmp_path) -> None:
+        (tmp_path / ".git").mkdir()
+
+        state = SessionState.capture(
+            session_id="s",
+            toplevel=str(tmp_path),
+            run_git=lambda *a: "",
+            timestamp="t",
+        )
+
+        assert state.branch == "unknown"
+        assert state.modified_files == []
+
+    def test_caps_file_lists_at_twenty(self, tmp_path) -> None:
+        (tmp_path / ".git").mkdir()
+        many = "\n".join(f"f{i}.py" for i in range(30))
+        run = self._fake_git(
+            {
+                ("diff", "--name-only"): many,
+                ("diff", "--cached", "--name-only"): many,
+            }
+        )
+
+        state = SessionState.capture(
+            session_id="s",
+            toplevel=str(tmp_path),
+            run_git=run,
+            timestamp="t",
+        )
+
+        assert len(state.modified_files) == 20
+        assert len(state.staged_files) == 20
+
+
 class TestPlanContextFromDict:
     def test_parses_all_fields(self) -> None:
         ctx = PlanContext.from_dict(
