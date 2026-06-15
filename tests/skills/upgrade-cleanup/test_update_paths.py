@@ -190,8 +190,8 @@ class TestUpdateFilePublisher:
 
         assert count == 2
         data = json.loads(settings_file.read_text())
-        for rule in data["permissions"]["allow"]:
-            assert "WooYek" not in rule
+        offenders = [rule for rule in data["permissions"]["allow"] if "WooYek" in rule]
+        assert not offenders, f"WooYek not stripped from: {offenders}"
 
     def test_dry_run_does_not_write(self, settings_file: Path) -> None:
         content = json.dumps(

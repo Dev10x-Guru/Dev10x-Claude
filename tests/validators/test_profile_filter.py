@@ -133,15 +133,17 @@ class TestGetValidatorsDisableFiltering:
 class TestRuleIdAssignment:
     def test_every_validator_has_rule_id(self) -> None:
         validators = get_validators()
-        for v in validators:
-            assert hasattr(v, "rule_id")
-            assert v.rule_id.startswith("DX")
+        missing = [type(v).__name__ for v in validators if not hasattr(v, "rule_id")]
+        assert not missing, f"Validators missing rule_id: {missing}"
+        non_dx = [v.rule_id for v in validators if not v.rule_id.startswith("DX")]
+        assert not non_dx, f"rule_ids not starting with DX: {non_dx}"
 
     def test_every_validator_has_profile(self) -> None:
         validators = get_validators()
-        for v in validators:
-            assert hasattr(v, "profile")
-            assert isinstance(v.profile, ProfileTier)
+        missing = [type(v).__name__ for v in validators if not hasattr(v, "profile")]
+        assert not missing, f"Validators missing profile: {missing}"
+        non_tier = [type(v).__name__ for v in validators if not isinstance(v.profile, ProfileTier)]
+        assert not non_tier, f"Validators with non-ProfileTier profile: {non_tier}"
 
     def test_rule_ids_are_unique(self) -> None:
         # Use strict profile to get all validators

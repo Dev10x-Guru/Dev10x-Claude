@@ -27,9 +27,9 @@ class TestSensitivityLabel:
         labels = {label.value for label in SensitivityLabel}
         assert labels == {"secret", "credential", "pii", "infra"}
 
-    def test_values_are_lowercase_strings(self) -> None:
-        for label in SensitivityLabel:
-            assert label.value == label.value.lower()
+    @pytest.mark.parametrize("label", list(SensitivityLabel), ids=lambda lbl: lbl.name)
+    def test_value_is_lowercase_string(self, label: SensitivityLabel) -> None:
+        assert label.value == label.value.lower()
 
     def test_repr_includes_name(self) -> None:
         assert "SECRET" in repr(SensitivityLabel.SECRET)
