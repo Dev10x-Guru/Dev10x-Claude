@@ -19,7 +19,6 @@ If output.md is omitted, writes to stdout.
 """
 
 import io
-import os
 import sys
 from pathlib import Path
 
@@ -58,6 +57,7 @@ from dev10x.audit.permissions_model import (
     propose_allow_rules,
     write_output,
 )
+from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.file_locks import atomic_write_text
 
 __all__ = [
@@ -107,7 +107,7 @@ def main() -> None:
     settings_path = (
         sys.argv[2]
         if len(sys.argv) >= 3 and sys.argv[2].endswith(".json")
-        else os.path.expanduser("~/.claude/settings.local.json")
+        else str(ClaudeDir.settings_local_json())
     )
     output_path = None
     if len(sys.argv) >= 3 and sys.argv[-1].endswith(".md"):
@@ -132,8 +132,8 @@ def main() -> None:
         finding.index = base_count + offset
     findings.extend(denials)
 
-    skills_dir = os.path.expanduser("~/.claude/skills")
-    tools_dir = os.path.expanduser("~/.claude/tools")
+    skills_dir = str(ClaudeDir.skills_dir())
+    tools_dir = str(ClaudeDir.tools_dir())
     hygiene = audit_script_hygiene(skills_dir=skills_dir, tools_dir=tools_dir)
 
     proposals = propose_allow_rules(findings=findings)

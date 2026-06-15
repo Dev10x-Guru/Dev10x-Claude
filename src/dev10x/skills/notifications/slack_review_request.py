@@ -11,8 +11,8 @@ Subcommands:
     prepare  — Resolve project config, format message, output JSON.
     send     — Post message via slack-notify.py.
 
-Config: ~/.claude/memory/Dev10x/slack-config-code-review-requests.yaml
-Slack config: ~/.claude/memory/Dev10x/slack-config.yaml
+Config: Dev10xConfigDir.slack_review_config_yaml()
+Slack config: Dev10xConfigDir.slack_config_yaml()
 """
 
 from __future__ import annotations
@@ -24,10 +24,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.skills.common.jtbd import extract_jtbd, md_to_slack_bold
-
-CONFIG_PATH = Path.home() / ".claude" / "memory" / "slack-config-code-review-requests.yaml"
-SLACK_CONFIG_PATH = Path.home() / ".claude" / "memory" / "slack-config.yaml"
 
 
 def load_yaml(path: Path) -> dict:
@@ -116,8 +114,8 @@ def gh_json(args: list[str]) -> Any:
 
 
 def cmd_prepare(args: argparse.Namespace) -> None:
-    config = load_yaml(path=CONFIG_PATH)
-    slack_config = load_yaml(path=SLACK_CONFIG_PATH)
+    config = load_yaml(path=Dev10xConfigDir.slack_review_config_yaml())
+    slack_config = load_yaml(path=Dev10xConfigDir.slack_config_yaml())
     repo_name = _repo_name(args.repo)
 
     project = resolve_project_config(config=config, repo_name=repo_name)
