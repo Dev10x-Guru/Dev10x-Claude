@@ -7,6 +7,7 @@ GH-493 and will be completed incrementally.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import subprocess
 from unittest.mock import AsyncMock, patch
@@ -1320,6 +1321,12 @@ class TestAuditHookRecent:
 # ── #G1b: cwd activation per CWD-sensitive handler ──────────────
 
 
+@contextlib.contextmanager
+def _noop_cwd_stub(path: str):
+    """Noop use_cwd stub: records the call without binding the CWD ContextVar."""
+    yield
+
+
 CWD_HANDLERS: list[tuple[str, dict]] = [
     (
         "detect_tracker",
@@ -1433,15 +1440,12 @@ class TestCwdParameterActivation:
     ) -> None:
         handler = getattr(cli_server, handler_name)
 
-        with patch("dev10x.subprocess_utils.use_cwd") as mock_use_cwd:
-            try:
+        with patch("dev10x.subprocess_utils.use_cwd", side_effect=_noop_cwd_stub) as mock_use_cwd:
+            with contextlib.suppress(Exception):
+                # Domain calls may fail without real subprocess/network;
+                # we only verify use_cwd is invoked with the right path.
                 await handler(**kwargs, cwd=str(tmp_path))
-            except Exception:
-                # The handler's underlying call may fail (no real
-                # subprocess); we only care that use_cwd was entered.
-                pass
-
-        mock_use_cwd.assert_called_once_with(str(tmp_path))
+            mock_use_cwd.assert_called_once_with(str(tmp_path))
 
 
 # ── GH-247 G1: four untested delegation handlers ─────────────────
