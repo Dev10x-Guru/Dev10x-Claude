@@ -611,6 +611,19 @@ class TestFrictionLevels:
         assert "Skill(" not in result.message
 
 
+_RULES: list[dict] = yaml.safe_load(_YAML_PATH.read_text())["rules"]
+_HOOK_BLOCK_RULES: list[dict] = [entry for entry in _RULES if entry.get("hook_block")]
+_COMPENSATION_PAIRS: list[tuple[str, str]] = [
+    (entry.get("name", "<unnamed>"), comp["type"])
+    for entry in _RULES
+    for comp in entry.get("compensations", [])
+]
+
+
+def _rule_ids(rules: list[dict]) -> list[str]:
+    return [entry.get("name", f"rule-{i}") for i, entry in enumerate(rules)]
+
+
 class TestYamlSchema:
     def test_yaml_file_is_valid(self) -> None:
         data = yaml.safe_load(_YAML_PATH.read_text())
@@ -618,29 +631,30 @@ class TestYamlSchema:
         assert "rules" in data
         assert data["config"]["friction_level"] in {"strict", "guided", "adaptive"}
 
-    def test_all_hook_block_entries_have_compensations(self) -> None:
-        data = yaml.safe_load(_YAML_PATH.read_text())
-        for entry in data["rules"]:
-            if entry.get("hook_block"):
-                assert "compensations" in entry, f"{entry['name']} missing compensations"
-                assert entry["compensations"], f"{entry['name']} has empty compensations"
+    @pytest.mark.parametrize("entry", _HOOK_BLOCK_RULES, ids=_rule_ids(_HOOK_BLOCK_RULES))
+    def test_hook_block_entry_has_compensations(self, entry: dict) -> None:
+        assert "compensations" in entry, f"{entry['name']} missing compensations"
+        assert entry["compensations"], f"{entry['name']} has empty compensations"
 
-    def test_all_rules_have_name(self) -> None:
-        data = yaml.safe_load(_YAML_PATH.read_text())
-        for entry in data["rules"]:
-            assert "name" in entry, f"Rule missing name: {entry}"
-            assert entry["name"], f"Rule has empty name: {entry}"
+    @pytest.mark.parametrize("entry", _RULES, ids=_rule_ids(_RULES))
+    def test_rule_has_name(self, entry: dict) -> None:
+        assert "name" in entry, f"Rule missing name: {entry}"
+        assert entry["name"], f"Rule has empty name: {entry}"
 
-    def test_all_rules_have_matcher(self) -> None:
-        data = yaml.safe_load(_YAML_PATH.read_text())
-        for entry in data["rules"]:
-            assert "matcher" in entry, f"{entry['name']} missing matcher"
-            assert entry["matcher"] in {
-                "Bash",
-                "Edit|Write",
-            }, f"{entry['name']} has invalid matcher: {entry['matcher']}"
+    @pytest.mark.parametrize("entry", _RULES, ids=_rule_ids(_RULES))
+    def test_rule_has_matcher(self, entry: dict) -> None:
+        assert "matcher" in entry, f"{entry['name']} missing matcher"
+        assert entry["matcher"] in {
+            "Bash",
+            "Edit|Write",
+        }, f"{entry['name']} has invalid matcher: {entry['matcher']}"
 
-    def test_compensation_types_are_valid(self) -> None:
+    @pytest.mark.parametrize(
+        ("rule_name", "comp_type"),
+        _COMPENSATION_PAIRS,
+        ids=[f"{name}:{ctype}" for name, ctype in _COMPENSATION_PAIRS],
+    )
+    def test_compensation_type_is_valid(self, rule_name: str, comp_type: str) -> None:
         valid_types = {
             "use-skill",
             "use-tool",
@@ -651,12 +665,7 @@ class TestYamlSchema:
             "use-file-flag",
             "file-issue",
         }
-        data = yaml.safe_load(_YAML_PATH.read_text())
-        for entry in data["rules"]:
-            for comp in entry.get("compensations", []):
-                assert comp["type"] in valid_types, (
-                    f"{entry['name']} has invalid compensation type: {comp['type']}"
-                )
+        assert comp_type in valid_types, f"{rule_name} has invalid compensation type: {comp_type}"
 
 
 class TestLegitimateSkillCommands:

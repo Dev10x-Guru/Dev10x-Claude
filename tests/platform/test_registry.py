@@ -27,14 +27,19 @@ class TestKnownPlatforms:
     ) -> None:
         assert platform_name in catalog
 
-    def test_each_entry_has_config_paths(
+    @pytest.mark.parametrize(
+        "platform_name",
+        ["claude-code", "copilot-cli", "windsurf", "continue", "cursor"],
+    )
+    def test_entry_has_config_paths(
         self,
         catalog: dict[str, PlatformConfig],
+        platform_name: str,
     ) -> None:
-        for cfg in catalog.values():
-            assert cfg.config_dir is not None
-            assert cfg.plugins_dir is not None
-            assert cfg.settings_file is not None
+        cfg = catalog[platform_name]
+        assert cfg.config_dir is not None
+        assert cfg.plugins_dir is not None
+        assert cfg.settings_file is not None
 
     def test_display_name_set_per_platform(
         self,

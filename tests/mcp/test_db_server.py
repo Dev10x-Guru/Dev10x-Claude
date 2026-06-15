@@ -266,8 +266,11 @@ class TestQueryFunctionSuccess:
         assert isinstance(result, SuccessResult)
         assert "raw_output" in result.value
 
+    @pytest.mark.parametrize("db_alias", ["pp", "ps", "bp", "bs"])
     @patch("dev10x.db.run_script")
-    def test_different_database_aliases(self, mock_run_script: MagicMock) -> None:
+    def test_database_alias_invokes_run_script(
+        self, mock_run_script: MagicMock, db_alias: str
+    ) -> None:
         from dev10x.db import query
 
         mock_result = MagicMock()
@@ -275,10 +278,9 @@ class TestQueryFunctionSuccess:
         mock_result.stdout = json.dumps({"rows": []})
         mock_run_script.return_value = mock_result
 
-        for db_alias in ["pp", "ps", "bp", "bs"]:
-            query(database=db_alias, sql="SELECT 1")
+        query(database=db_alias, sql="SELECT 1")
 
-        assert mock_run_script.call_count == 4
+        assert mock_run_script.call_count == 1
 
 
 class TestServerDbWrapper:
