@@ -25,6 +25,7 @@ def _run(script: Path, payload: dict) -> subprocess.CompletedProcess[str]:
         input=json.dumps(payload),
         capture_output=True,
         text=True,
+        timeout=30,
         cwd=str(SCRIPTS.parent.parent),
         env={
             "DEV10X_HOOK_AUDIT": "0",
