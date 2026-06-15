@@ -55,15 +55,6 @@ STARTER_WORK_ON_PLAYBOOK = """# Starter work-on playbook for this project.
 overrides: []
 """
 
-STARTER_GITMOJI_YAML = """# Gitmoji strategy override for this project.
-#
-# Leave default-strategy empty to use plugin defaults.
-# See skills/git-commit/references/gitmoji-defaults.yaml for the base map.
-
-default-strategy: null
-projects: []
-"""
-
 
 def _session_yaml_template() -> str:
     return (
