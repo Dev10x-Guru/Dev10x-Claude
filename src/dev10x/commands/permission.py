@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -664,97 +663,35 @@ def _resolve_state_path() -> Path:
 )
 def investigate_prepare(*, workdir: str | None) -> None:
     """Materialize fixtures and snapshot the user's settings files."""
-    import json as _json
-    from dataclasses import asdict
-
-    from dev10x.skills.permission_investigator import fixtures
-    from dev10x.skills.permission_investigator.matrix import generate_matrix
+    from dev10x.skills.permission_investigator import runner
 
     work = Path(workdir) if workdir else _investigator_workdir()
-    paths = fixtures.materialize_fixtures(workdir=work, user_home=Path.home())
-
-    snapshot_dir = work / "snapshots"
-    fixtures.snapshot_settings(
-        settings_path=paths.global_settings,
-        snapshot_dir=snapshot_dir,
+    sys.exit(
+        _emit_result(
+            runner.prepare(
+                workdir=work,
+                user_home=Path.home(),
+                default_workdir=_investigator_workdir(),
+            )
+        )
     )
-    fixtures.snapshot_settings(
-        settings_path=paths.project_settings,
-        snapshot_dir=snapshot_dir,
-    )
-
-    matrix = generate_matrix()
-    state = {
-        "fixture": {
-            "fixture_root": str(paths.fixture_root),
-            "fixture_relpath": str(paths.fixture_relpath),
-            "plugin_skill_file": str(paths.plugin_skill_file),
-            "project_settings": str(paths.project_settings),
-            "global_settings": str(paths.global_settings),
-            "workdir": str(paths.workdir),
-            "publisher_root": str(paths.publisher_root),
-        },
-        "cells": [
-            {
-                "cell_id": cell.cell_id,
-                "shape": asdict(cell.shape),
-                "location": cell.location,
-            }
-            for cell in matrix.cells
-        ],
-        "results": {},
-    }
-    real_state_path = _matrix_state_path(workdir=work)
-    real_state_path.parent.mkdir(parents=True, exist_ok=True)
-    real_state_path.write_text(_json.dumps(state, indent=2))
-
-    if work != _investigator_workdir():
-        default_state_path = _matrix_state_path()
-        default_state_path.parent.mkdir(parents=True, exist_ok=True)
-        default_state_path.write_text(_json.dumps({"redirect": str(real_state_path)}, indent=2))
-
-    click.echo(f"Workdir: {work}")
-    click.echo(f"Fixture: {paths.plugin_skill_file}")
-    click.echo(f"Cells: {len(matrix.cells)}")
 
 
 @investigate.command(name="apply")
 @click.argument("cell_id")
 def investigate_apply(*, cell_id: str) -> None:
     """Apply the rule shape for ``cell_id`` to the appropriate target file(s)."""
-    import json as _json
+    from dev10x.skills.permission_investigator import runner
 
-    from dev10x.skills.permission_investigator import fixtures
-    from dev10x.skills.permission_investigator.matrix import RuleShape
-
-    state_path = _resolve_state_path()
-    if not state_path.is_file():
-        click.echo("ERROR: state missing — run `prepare` first.", err=True)
-        sys.exit(1)
-    state = _json.loads(state_path.read_text())
-
-    cell = next((c for c in state["cells"] if c["cell_id"] == cell_id), None)
-    if cell is None:
-        click.echo(f"ERROR: unknown cell_id {cell_id}", err=True)
-        sys.exit(1)
-
-    shape = RuleShape(**cell["shape"])
-    rule = shape.render(
-        fixture_relpath=state["fixture"]["fixture_relpath"],
-        user_home=str(Path.home()),
+    sys.exit(
+        _emit_result(
+            runner.apply_cell(
+                state_path=_resolve_state_path(),
+                cell_id=cell_id,
+                user_home=Path.home(),
+            )
+        )
     )
-
-    targets: list[Path] = []
-    if cell["location"] in ("project", "both"):
-        targets.append(Path(state["fixture"]["project_settings"]))
-    if cell["location"] in ("global", "both"):
-        targets.append(Path(state["fixture"]["global_settings"]))
-
-    for target in targets:
-        fixtures.apply_rule(rule=rule, target=target)
-
-    click.echo(f"Applied rule: {rule}")
-    click.echo(f"Targets: {len(targets)}")
 
 
 @investigate.command(name="record")
@@ -774,54 +711,27 @@ def investigate_record(
     notes: str,
 ) -> None:
     """Record the outcome for one cell into the persisted matrix."""
-    import json as _json
+    from dev10x.skills.permission_investigator import runner
 
-    state_path = _resolve_state_path()
-    if not state_path.is_file():
-        click.echo("ERROR: state missing — run `prepare` first.", err=True)
-        sys.exit(1)
-    state = _json.loads(state_path.read_text())
-
-    state.setdefault("results", {})[cell_id] = {
-        "cell_id": cell_id,
-        "auto_approved": bool(auto_approved),
-        "prompted": not bool(auto_approved),
-        "error": error,
-        "notes": notes,
-    }
-    state_path.write_text(_json.dumps(state, indent=2))
-    click.echo(f"Recorded {cell_id}")
+    sys.exit(
+        _emit_result(
+            runner.record_outcome(
+                state_path=_resolve_state_path(),
+                cell_id=cell_id,
+                auto_approved=auto_approved,
+                error=error,
+                notes=notes,
+            )
+        )
+    )
 
 
 @investigate.command(name="restore")
 def investigate_restore() -> None:
     """Restore settings files from the pre-run snapshots."""
-    import json as _json
+    from dev10x.skills.permission_investigator import runner
 
-    from dev10x.skills.permission_investigator import fixtures
-
-    state_path = _resolve_state_path()
-    if not state_path.is_file():
-        click.echo("Nothing to restore — state missing.")
-        return
-    state = _json.loads(state_path.read_text())
-    snapshot_dir = Path(state["fixture"]["workdir"]) / "snapshots"
-
-    for key in ("global_settings", "project_settings"):
-        target = Path(state["fixture"][key])
-        snap = snapshot_dir / f"{target.name}.snapshot"
-        if snap.is_file():
-            fixtures.restore_settings(snapshot_path=snap, target_path=target)
-            click.echo(f"Restored {target}")
-
-    publisher_root_str = state["fixture"].get("publisher_root")
-    if publisher_root_str:
-        publisher_root = Path(publisher_root_str)
-        if publisher_root.is_dir():
-            import shutil as _shutil
-
-            _shutil.rmtree(publisher_root)
-            click.echo(f"Removed fixture publisher tree {publisher_root}")
+    sys.exit(_emit_result(runner.restore(state_path=_resolve_state_path())))
 
 
 @investigate.command(name="report")
@@ -833,41 +743,9 @@ def investigate_restore() -> None:
 )
 def investigate_report(*, output: str | None) -> None:
     """Render the populated matrix as a markdown report."""
-    import json as _json
+    from dev10x.skills.permission_investigator import runner
 
-    from dev10x.skills.permission_investigator.matrix import (
-        Matrix,
-        MatrixCell,
-        MatrixResult,
-        RuleShape,
-    )
-    from dev10x.skills.permission_investigator.report import render_markdown_report
-
-    state_path = _resolve_state_path()
-    if not state_path.is_file():
-        click.echo("ERROR: state missing — run `prepare` first.", err=True)
-        sys.exit(1)
-    state = _json.loads(state_path.read_text())
-
-    matrix = Matrix()
-    for cell_data in state.get("cells", []):
-        shape = RuleShape(**cell_data["shape"])
-        matrix.cells.append(
-            MatrixCell(
-                shape=shape,
-                location=cell_data["location"],
-                cell_id=cell_data["cell_id"],
-            )
-        )
-    for cell_id, result_data in state.get("results", {}).items():
-        matrix.add_result(MatrixResult(**result_data))
-
-    rendered = render_markdown_report(matrix)
-    if output:
-        Path(output).write_text(rendered)
-        click.echo(f"Wrote report to {output}")
-    else:
-        click.echo(rendered)
+    sys.exit(_emit_result(runner.build_report(state_path=_resolve_state_path(), output=output)))
 
 
 @investigate.command(name="delta")
@@ -962,26 +840,7 @@ def doctor_cross_contamination(*, cwd: str | None, quiet: bool) -> None:
     from dev10x.skills.permission import doctor as mod
 
     root = Path(cwd) if cwd else Path.cwd()
-    workspace = mod.detect_workspace(root)
-    settings_path = workspace.project_root / ".claude" / "settings.local.json"
-    if not settings_path.is_file():
-        click.echo(f"No settings file at {settings_path}")
-        return
-    data = json.loads(settings_path.read_text())
-    rules: list[str] = []
-    perms = data.get("permissions", {})
-    for bucket in ("allow", "deny", "ask"):
-        rules.extend(perms.get(bucket, []) or [])
-    findings = mod.detect_cross_contamination(rules, workspace=workspace)
-    if not findings:
-        click.echo(f"{settings_path} — no cross-contamination findings.")
-        return
-    click.echo(f"\n{settings_path} — {len(findings)} findings")
-    for finding in findings:
-        click.echo(f"  ! {finding.rule}")
-        if not quiet:
-            click.echo(f"      reason: {finding.reason}")
-            click.echo(f"      suggestion: {finding.suggestion}")
+    sys.exit(_emit_result(mod.cross_contamination_for_root(root=root, quiet=quiet)))
 
 
 @doctor.command(name="apply-deprecations")
@@ -1005,34 +864,11 @@ def doctor_apply_deprecations(*, dry_run: bool) -> None:
     if dry_run:
         click.echo("(dry run — no files will be modified)\n")
 
-    total_actions = 0
-    for path in sorted(settings_files):
-        data = json.loads(path.read_text())
-        perms = data.get("permissions", {})
-        changes_in_file = 0
-        for bucket in ("allow", "deny", "ask"):
-            rules = perms.get(bucket)
-            if not isinstance(rules, list):
-                continue
-            new_rules, outcomes = mod.apply_deprecations(rules, catalog=catalog)
-            if outcomes:
-                changes_in_file += len(outcomes)
-                click.echo(f"\n{path} [{bucket}] — {len(outcomes)} actions")
-                for outcome in outcomes:
-                    if outcome.action == "remove":
-                        click.echo(f"  - REMOVE: {outcome.rule}  # {outcome.reason}")
-                    elif outcome.action == "canonicalize":
-                        click.echo(f"  ~ CANON:  {outcome.rule}")
-                        click.echo(f"           → {outcome.replacement}")
-                    else:
-                        click.echo(f"  ? {outcome.action.upper()}: {outcome.rule}")
-            perms[bucket] = new_rules
-        if changes_in_file and not dry_run:
-            data["permissions"] = perms
-            path.write_text(json.dumps(data, indent=2) + "\n")
-        total_actions += changes_in_file
-    verb = "Would apply" if dry_run else "Applied"
-    click.echo(f"\n{verb} {total_actions} deprecation actions.")
+    sys.exit(
+        _emit_result(
+            mod.apply_deprecations_to_files(settings_files, catalog=catalog, dry_run=dry_run)
+        )
+    )
 
 
 @doctor.command(name="enable-group")
@@ -1059,23 +895,17 @@ def doctor_enable_group(*, group_name: str, dry_run: bool) -> None:
         return
     if dry_run:
         click.echo("(dry run — no files will be modified)\n")
-    total_added = 0
-    for path in sorted(settings_files):
-        data = json.loads(path.read_text())
-        perms = data.setdefault("permissions", {})
-        allow = perms.setdefault("allow", [])
-        added_here = [rule for rule in rules if rule not in allow]
-        if not added_here:
-            continue
-        click.echo(f"\n{path} — adding {len(added_here)} rules from {group_name!r}")
-        for rule in added_here:
-            click.echo(f"  + {rule}")
-        if not dry_run:
-            allow.extend(added_here)
-            path.write_text(json.dumps(data, indent=2) + "\n")
-        total_added += len(added_here)
-    verb = "Would add" if dry_run else "Added"
-    click.echo(f"\n{verb} {total_added} rules from group {group_name!r}.")
+
+    sys.exit(
+        _emit_result(
+            mod.enable_group_in_files(
+                settings_files,
+                rules=rules,
+                group_name=group_name,
+                dry_run=dry_run,
+            )
+        )
+    )
 
 
 @doctor.command(name="anchor-worktree-roots")

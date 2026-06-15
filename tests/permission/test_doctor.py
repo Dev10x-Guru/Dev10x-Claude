@@ -485,3 +485,154 @@ class TestAnchorWorktreeRoots:
 
         skill_script_findings = [f for f in result.findings if f.scope == "skill-script"]
         assert len(skill_script_findings) == 0
+
+
+def _write_settings(path: Path, *, allow: list[str]) -> Path:
+    settings = path / ".claude" / "settings.local.json"
+    settings.parent.mkdir(parents=True, exist_ok=True)
+    settings.write_text(json.dumps({"permissions": {"allow": allow}}))
+    return settings
+
+
+class TestCrossContaminationForRoot:
+    def test_reports_missing_settings_file(self, tmp_path: Path) -> None:
+        result = doctor.cross_contamination_for_root(root=tmp_path)
+
+        assert result["exit_code"] == 0
+        assert "No settings file at" in result["messages"][0]
+
+    def test_reports_no_findings(self, tmp_path: Path) -> None:
+        _write_settings(tmp_path, allow=["Bash(git status:*)"])
+
+        result = doctor.cross_contamination_for_root(root=tmp_path)
+
+        assert result["exit_code"] == 0
+        assert "no cross-contamination findings" in result["messages"][0]
+
+    def test_reports_findings_with_detail(self, tmp_path: Path) -> None:
+        _write_settings(tmp_path, allow=["Bash(/work/other-project/script.sh:*)"])
+
+        result = doctor.cross_contamination_for_root(root=tmp_path)
+
+        joined = "\n".join(result["messages"])
+        assert "1 findings" in joined
+        assert "! Bash(/work/other-project/script.sh:*)" in joined
+        assert "reason:" in joined
+
+    def test_quiet_suppresses_detail(self, tmp_path: Path) -> None:
+        _write_settings(tmp_path, allow=["Bash(/work/other-project/script.sh:*)"])
+
+        result = doctor.cross_contamination_for_root(root=tmp_path, quiet=True)
+
+        joined = "\n".join(result["messages"])
+        assert "! Bash(/work/other-project/script.sh:*)" in joined
+        assert "reason:" not in joined
+
+
+class TestApplyDeprecationsToFiles:
+    def _catalog(self, deprecations: list[dict]) -> object:
+        return doctor.Catalog(
+            version=1,
+            last_audited="",
+            groups={},
+            deprecations=deprecations,
+            invariants=[],
+        )
+
+    def test_removes_and_writes(self, tmp_path: Path) -> None:
+        settings = _write_settings(
+            tmp_path,
+            allow=["Bash(/tmp/claude/bin/mktmp.sh:*)", "Bash(git status:*)"],
+        )
+        catalog = self._catalog([{"pattern": "mktmp", "action": "remove", "reason": "retired"}])
+
+        result = doctor.apply_deprecations_to_files([settings], catalog=catalog)
+
+        assert result["exit_code"] == 0
+        joined = "\n".join(result["messages"])
+        assert "REMOVE" in joined
+        assert "Applied 1 deprecation actions." in joined
+        data = json.loads(settings.read_text())
+        assert data["permissions"]["allow"] == ["Bash(git status:*)"]
+
+    def test_canonicalize_action(self, tmp_path: Path) -> None:
+        pinned = "Bash(/home/u/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.71.0/x.sh:*)"
+        settings = _write_settings(tmp_path, allow=[pinned])
+        catalog = self._catalog(
+            [{"pattern": r"cache/.+/\d+\.\d+\.\d+/", "action": "canonicalize", "reason": "pin"}]
+        )
+
+        result = doctor.apply_deprecations_to_files([settings], catalog=catalog)
+
+        joined = "\n".join(result["messages"])
+        assert "CANON" in joined
+        data = json.loads(settings.read_text())
+        assert data["permissions"]["allow"] == [
+            "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/x.sh:*)"
+        ]
+
+    def test_unknown_action_keeps_rule(self, tmp_path: Path) -> None:
+        settings = _write_settings(tmp_path, allow=["Bash(flagged:*)"])
+        catalog = self._catalog([{"pattern": "flagged", "action": "flag", "reason": "review"}])
+
+        result = doctor.apply_deprecations_to_files([settings], catalog=catalog)
+
+        joined = "\n".join(result["messages"])
+        assert "? FLAG:" in joined
+        data = json.loads(settings.read_text())
+        assert data["permissions"]["allow"] == ["Bash(flagged:*)"]
+
+    def test_dry_run_does_not_write(self, tmp_path: Path) -> None:
+        settings = _write_settings(tmp_path, allow=["Bash(/tmp/claude/bin/mktmp.sh:*)"])
+        catalog = self._catalog([{"pattern": "mktmp", "action": "remove", "reason": "retired"}])
+        original = settings.read_text()
+
+        result = doctor.apply_deprecations_to_files([settings], catalog=catalog, dry_run=True)
+
+        assert "Would apply 1 deprecation actions." in "\n".join(result["messages"])
+        assert settings.read_text() == original
+
+
+class TestEnableGroupInFiles:
+    def test_adds_rules_and_writes(self, tmp_path: Path) -> None:
+        settings = _write_settings(tmp_path, allow=[])
+
+        result = doctor.enable_group_in_files(
+            [settings],
+            rules=["Bash(foo:*)"],
+            group_name="g",
+        )
+
+        assert result["exit_code"] == 0
+        joined = "\n".join(result["messages"])
+        assert "adding 1 rules from 'g'" in joined
+        assert "Added 1 rules from group 'g'." in joined
+        data = json.loads(settings.read_text())
+        assert data["permissions"]["allow"] == ["Bash(foo:*)"]
+
+    def test_skips_rules_already_present(self, tmp_path: Path) -> None:
+        settings = _write_settings(tmp_path, allow=["Bash(foo:*)"])
+        original = settings.read_text()
+
+        result = doctor.enable_group_in_files(
+            [settings],
+            rules=["Bash(foo:*)"],
+            group_name="g",
+        )
+
+        assert "Added 0 rules from group 'g'." in "\n".join(result["messages"])
+        assert settings.read_text() == original
+
+    def test_dry_run_does_not_write(self, tmp_path: Path) -> None:
+        settings = _write_settings(tmp_path, allow=[])
+        original = settings.read_text()
+
+        result = doctor.enable_group_in_files(
+            [settings],
+            rules=["Bash(foo:*)"],
+            group_name="g",
+            dry_run=True,
+        )
+
+        assert "Would add 1 rules from group 'g'." in "\n".join(result["messages"])
+        assert settings.read_text() == original

@@ -29,6 +29,7 @@ import subprocess
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -284,6 +285,41 @@ def _is_within(child: Path, parent: Path) -> bool:
     return True
 
 
+def cross_contamination_for_root(*, root: Path, quiet: bool = False) -> dict[str, Any]:
+    """Read a project's settings file and report cross-contamination findings.
+
+    Resolves the workspace for ``root``, reads
+    ``<project>/.claude/settings.local.json``, collects allow/deny/ask
+    rules, and runs :func:`detect_cross_contamination`. Returns a result
+    dict consumable by ``commands.permission._emit_result``.
+    """
+    workspace = detect_workspace(root)
+    settings_path = workspace.project_root / ".claude" / "settings.local.json"
+    if not settings_path.is_file():
+        return {"messages": [f"No settings file at {settings_path}"], "exit_code": 0}
+
+    data = json.loads(settings_path.read_text())
+    rules: list[str] = []
+    perms = data.get("permissions", {})
+    for bucket in ("allow", "deny", "ask"):
+        rules.extend(perms.get(bucket, []) or [])
+
+    findings = detect_cross_contamination(rules, workspace=workspace)
+    if not findings:
+        return {
+            "messages": [f"{settings_path} — no cross-contamination findings."],
+            "exit_code": 0,
+        }
+
+    messages = [f"\n{settings_path} — {len(findings)} findings"]
+    for finding in findings:
+        messages.append(f"  ! {finding.rule}")
+        if not quiet:
+            messages.append(f"      reason: {finding.reason}")
+            messages.append(f"      suggestion: {finding.suggestion}")
+    return {"messages": messages, "exit_code": 0}
+
+
 def expand_flag_overrides(flag_overrides: dict[str, list[str]]) -> list[str]:
     """Expand a ``flag_overrides`` mapping into ``Bash(<cmd> <flag>:*)`` rules.
 
@@ -417,6 +453,86 @@ def apply_deprecations(
             output.append(rule)
             seen.add(rule)
     return output, outcomes
+
+
+def apply_deprecations_to_files(
+    settings_files: Iterable[Path],
+    *,
+    catalog: Catalog,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Apply catalog deprecations across settings files, writing changes.
+
+    Reads each file, applies :func:`apply_deprecations` per
+    allow/deny/ask bucket, and (unless ``dry_run``) writes the result
+    back. Returns a result dict consumable by
+    ``commands.permission._emit_result``.
+    """
+    messages: list[str] = []
+    total_actions = 0
+    for path in sorted(settings_files):
+        data = json.loads(path.read_text())
+        perms = data.get("permissions", {})
+        changes_in_file = 0
+        for bucket in ("allow", "deny", "ask"):
+            rules = perms.get(bucket)
+            if not isinstance(rules, list):
+                continue
+            new_rules, outcomes = apply_deprecations(rules, catalog=catalog)
+            if outcomes:
+                changes_in_file += len(outcomes)
+                messages.append(f"\n{path} [{bucket}] — {len(outcomes)} actions")
+                for outcome in outcomes:
+                    if outcome.action == "remove":
+                        messages.append(f"  - REMOVE: {outcome.rule}  # {outcome.reason}")
+                    elif outcome.action == "canonicalize":
+                        messages.append(f"  ~ CANON:  {outcome.rule}")
+                        messages.append(f"           → {outcome.replacement}")
+                    else:
+                        messages.append(f"  ? {outcome.action.upper()}: {outcome.rule}")
+            perms[bucket] = new_rules
+        if changes_in_file and not dry_run:
+            data["permissions"] = perms
+            path.write_text(json.dumps(data, indent=2) + "\n")
+        total_actions += changes_in_file
+    verb = "Would apply" if dry_run else "Applied"
+    messages.append(f"\n{verb} {total_actions} deprecation actions.")
+    return {"messages": messages, "exit_code": 0}
+
+
+def enable_group_in_files(
+    settings_files: Iterable[Path],
+    *,
+    rules: Iterable[str],
+    group_name: str,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Add a catalog group's ``rules`` to each settings file's allow bucket.
+
+    Rules already present are skipped. Unless ``dry_run``, the updated
+    allow bucket is written back. Returns a result dict consumable by
+    ``commands.permission._emit_result``.
+    """
+    rule_list = list(rules)
+    messages: list[str] = []
+    total_added = 0
+    for path in sorted(settings_files):
+        data = json.loads(path.read_text())
+        perms = data.setdefault("permissions", {})
+        allow = perms.setdefault("allow", [])
+        added_here = [rule for rule in rule_list if rule not in allow]
+        if not added_here:
+            continue
+        messages.append(f"\n{path} — adding {len(added_here)} rules from {group_name!r}")
+        for rule in added_here:
+            messages.append(f"  + {rule}")
+        if not dry_run:
+            allow.extend(added_here)
+            path.write_text(json.dumps(data, indent=2) + "\n")
+        total_added += len(added_here)
+    verb = "Would add" if dry_run else "Added"
+    messages.append(f"\n{verb} {total_added} rules from group {group_name!r}.")
+    return {"messages": messages, "exit_code": 0}
 
 
 @dataclass
