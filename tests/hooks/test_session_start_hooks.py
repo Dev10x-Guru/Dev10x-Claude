@@ -513,6 +513,7 @@ class TestSessionMigratePermissions:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         import dev10x.hooks.session as mod
+        import dev10x.hooks.session_dispatch as dispatch_mod
 
         fake_plugin_root = tmp_path / "plugins" / "cache" / "Dev10x" / "1.0.0"
         fake_old_version = tmp_path / "plugins" / "cache" / "Dev10x" / "0.9.0"
@@ -533,17 +534,10 @@ class TestSessionMigratePermissions:
         )
 
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        monkeypatch.setattr(dispatch_mod, "_plugin_root", lambda: fake_plugin_root)
 
-        captured = io.StringIO()
-        sys.stdout = captured
-        try:
-            with pytest.raises(SystemExit):
-                monkeypatch.setattr(
-                    "dev10x.hooks.session.Path",
-                    lambda *a, **kw: fake_plugin_root if not a else Path(*a, **kw),
-                )
-                mod.session_migrate_permissions()
-        except Exception:
-            pass
-        finally:
-            sys.stdout = sys.__stdout__
+        mod.session_migrate_permissions()
+
+        updated = json.loads(settings_file.read_text())
+        allow_rules = updated["permissions"]["allow"]
+        assert any(str(fake_plugin_root) in r for r in allow_rules)
