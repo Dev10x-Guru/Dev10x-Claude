@@ -21,6 +21,7 @@ from dev10x.domain.common.ticket_id import TICKET_ID_PATTERN
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.skills.permission.config import parse_config, resolve_config
 
+MEMORY_CONFIG = Dev10xConfigDir.projects_yaml()
 USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
 PLUGIN_CONFIG = (
     Path(__file__).resolve().parents[4] / "skills" / "upgrade-cleanup" / "projects.yaml"
@@ -79,7 +80,7 @@ def generalize_permission(entry: str) -> str:
 
 
 def find_config() -> Result[Path]:
-    return resolve_config(candidates=[USERSPACE_CONFIG, PLUGIN_CONFIG])
+    return resolve_config(candidates=[MEMORY_CONFIG, USERSPACE_CONFIG, PLUGIN_CONFIG])
 
 
 def load_config(config_path: Path) -> dict:
