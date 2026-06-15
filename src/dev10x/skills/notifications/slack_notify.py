@@ -13,12 +13,13 @@ from __future__ import annotations
 
 import logging
 import os
-import pathlib
 import subprocess
 import sys
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.domain.dev10x_paths import Dev10xConfigDir
 
 if TYPE_CHECKING:
     from slack_sdk import WebClient
@@ -26,17 +27,20 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-CONFIG_PATH = pathlib.Path.home() / ".claude" / "memory" / "slack-config.yaml"
-
 _active_workspace: str | None = None
 _config: dict | None = None
 
 
+def _config_path() -> Path:
+    return Dev10xConfigDir.slack_config_yaml()
+
+
 def _load_config() -> dict:
-    if CONFIG_PATH.exists():
+    config_path = _config_path()
+    if config_path.exists():
         import yaml
 
-        return yaml.safe_load(CONFIG_PATH.read_text()) or {}
+        return yaml.safe_load(config_path.read_text()) or {}
     return {}
 
 
@@ -269,7 +273,7 @@ def send_reminder(message: str) -> str | None:
     if not self_user_id:
         print(
             "❌ self_user_id not configured. Set it in "
-            f"{CONFIG_PATH} or SLACK_SELF_USER_ID env var.",
+            f"{_config_path()} or SLACK_SELF_USER_ID env var.",
             file=sys.stderr,
         )
         return None
