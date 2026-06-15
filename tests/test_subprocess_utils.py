@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 from pathlib import Path
@@ -12,7 +11,6 @@ import pytest
 
 from dev10x.subprocess_utils import (
     get_plugin_root,
-    parse_json_output,
     parse_key_value_output,
     resolve_script_path,
     run_script,
@@ -268,19 +266,6 @@ class TestParseKeyValueOutput:
         result = parse_key_value_output("")
 
         assert result == {}
-
-
-class TestParseJsonOutput:
-    def test_parses_valid_json(self) -> None:
-        data = {"key": "value", "count": 42}
-
-        result = parse_json_output(json.dumps(data))
-
-        assert result == data
-
-    def test_raises_on_invalid_json(self) -> None:
-        with pytest.raises(json.JSONDecodeError):
-            parse_json_output("not json")
 
 
 class TestAsyncRun:

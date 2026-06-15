@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import functools
-import json
 import logging
 import os
 import subprocess
@@ -325,7 +324,3 @@ def parse_key_value_output(text: str) -> dict[str, str]:
         key, value = line.split("=", 1)
         result[key.strip()] = value.strip()
     return result
-
-
-def parse_json_output(text: str) -> dict[str, Any]:
-    return json.loads(text)
