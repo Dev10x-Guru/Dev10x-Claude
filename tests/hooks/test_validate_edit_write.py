@@ -28,6 +28,7 @@ def _run_hook(
         input=json.dumps(payload),
         capture_output=True,
         text=True,
+        timeout=30,
     )
 
 
@@ -138,6 +139,7 @@ class TestMalformedInput:
             input="",
             capture_output=True,
             text=True,
+            timeout=30,
         )
         assert result.returncode == 0
 
@@ -147,6 +149,7 @@ class TestMalformedInput:
             input="{invalid json}",
             capture_output=True,
             text=True,
+            timeout=30,
         )
         assert result.returncode == 0
 
@@ -157,5 +160,6 @@ class TestMalformedInput:
             input=json.dumps(payload),
             capture_output=True,
             text=True,
+            timeout=30,
         )
         assert result.returncode == 0
