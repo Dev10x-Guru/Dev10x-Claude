@@ -1,0 +1,56 @@
+name: Coverage Floors
+
+# Per-package coverage floors (GH-582). A single global fail_under=75
+# lets a well-tested package mask a near-zero one. These per-package
+# gates lock each package against regression.
+#
+# Floors are ratcheted: set a few points below the current measured
+# coverage so trivial additions do not flake the gate, while a real
+# drop still fails. Raise them as the coverage-debt issues land.
+#
+# Measured on develop (2026-06-15): commands 64%, mcp 99%.
+# The `session` package was folded into `domain/documents`, so it has
+# no standalone floor yet — add one once it is re-extracted.
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - "src/dev10x/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - ".github/workflows/pytest-coverage-floors.yml"
+  pull_request:
+    branches: [develop]
+    paths:
+      - "src/dev10x/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - ".github/workflows/pytest-coverage-floors.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  floors:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Run full suite with coverage
+        run: uv run --extra dev pytest
+
+      - name: Enforce commands floor
+        run: uv run coverage report --include='src/dev10x/commands/*' --fail-under=60
+
+      - name: Enforce mcp floor
+        run: uv run coverage report --include='src/dev10x/mcp/*' --fail-under=95
