@@ -19,9 +19,9 @@ import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 from dev10x.domain.claude_paths import ClaudeDir
+from dev10x.domain.documents.session_state import SessionState
 from dev10x.domain.git_context import GitContext
 from dev10x.domain.session_document import (
     plan_path_for_toplevel,
@@ -237,18 +237,14 @@ def session_persist(data: dict | None = None) -> None:
     state_dir.mkdir(parents=True, exist_ok=True)
     state_dir.chmod(0o700)
 
-    worktree_name = Path(toplevel).name if (Path(toplevel) / ".git").is_file() else ""
-    state: dict[str, Any] = {
-        "session_id": session_id,
-        "branch": _run_git("rev-parse", "--abbrev-ref", "HEAD") or "unknown",
-        "worktree": worktree_name,
-        "working_directory": toplevel,
-        "timestamp": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "modified_files": _run_git("diff", "--name-only").splitlines()[:20],
-        "staged_files": _run_git("diff", "--cached", "--name-only").splitlines()[:20],
-        "recent_commits": _run_git("log", "--oneline", "-5").splitlines(),
-        "has_plan": plan_path_for_toplevel(toplevel=toplevel).exists(),
-    }
+    state = SessionState.capture(
+        session_id=session_id,
+        toplevel=toplevel,
+        run_git=_run_git,
+        timestamp=datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    ).to_dict()
+    state["working_directory"] = toplevel
+    state["has_plan"] = plan_path_for_toplevel(toplevel=toplevel).exists()
     write_state(path=state_path_for_toplevel(toplevel=toplevel), state=state)
 
 
