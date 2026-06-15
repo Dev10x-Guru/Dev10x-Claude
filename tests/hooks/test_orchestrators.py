@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,10 @@ import pytest
 SCRIPTS = Path(__file__).resolve().parents[2] / "hooks" / "scripts"
 SESSION_START = SCRIPTS / "session-start.py"
 SESSION_STOP = SCRIPTS / "session-stop.py"
+
+# Isolated HOME so orchestrator subprocesses read no real ~/.claude state —
+# decouples assertions from the host's home layout (GH-570).
+_ISOLATED_HOME = tempfile.mkdtemp(prefix="dev10x-orchestrator-home-")
 
 
 def _run(script: Path, payload: dict) -> subprocess.CompletedProcess[str]:
@@ -29,7 +34,7 @@ def _run(script: Path, payload: dict) -> subprocess.CompletedProcess[str]:
         env={
             "DEV10X_HOOK_AUDIT": "0",
             "PATH": "/usr/bin:/bin:/usr/local/bin",
-            "HOME": str(Path.home()),
+            "HOME": _ISOLATED_HOME,
         },
     )
 

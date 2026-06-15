@@ -78,10 +78,10 @@ class TestBashMatching:
         assert AllowRule.parse("Bash(ls)").matches("Bash(ls)")
         assert not AllowRule.parse("Bash(ls)").matches("Bash(ls -la)")
 
-    def test_tilde_expands_against_home_command(self) -> None:
-        home = str(Path.home())
+    def test_tilde_expands_against_home_command(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("HOME", "/home/testuser")
         rule = AllowRule.parse("Bash(~/.claude/skills/foo.sh:*)")
-        assert rule.matches(f"Bash({home}/.claude/skills/foo.sh --x)")
+        assert rule.matches("Bash(/home/testuser/.claude/skills/foo.sh --x)")
 
 
 class TestPathMatching:

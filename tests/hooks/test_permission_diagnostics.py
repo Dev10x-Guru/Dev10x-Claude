@@ -478,7 +478,7 @@ class TestFormatDiagnostic:
         )
         user_settings = SettingsFile(
             label="user settings",
-            path=Path.home() / ".claude" / "settings.json",
+            path=Path("/home/testuser/.claude/settings.json"),
             precedence=5,
         )
         return DiagnosticResult(
