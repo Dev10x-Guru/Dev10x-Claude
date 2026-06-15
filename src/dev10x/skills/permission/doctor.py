@@ -34,8 +34,7 @@ from typing import Any
 import yaml
 
 from dev10x import subprocess_utils
-
-PLUGIN_NAMES = r"(?:Dev10x|dev10x-claude)"
+from dev10x.domain.plugin_identity import PLUGIN_NAMES
 
 PINNED_VERSION_RE = re.compile(
     rf"(?P<prefix>/home/[^/]+/|~/)"
