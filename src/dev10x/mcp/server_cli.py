@@ -7,6 +7,7 @@ Tool handlers now live in per-domain modules under `src/dev10x/mcp/`:
   - audit_tools.py   — session audit and hook-log handlers
   - misc_tools.py    — mktmp, slack, permission, skill-index, upgrade handlers
   - roots_tools.py   — client-roots awareness (GH-344)
+  - sampling_tools.py — server-initiated sampling (GH-343)
 
 This module imports all of them (triggering @server.tool() registration)
 and re-exports their names for backward-compatible attribute access.
@@ -31,6 +32,7 @@ from typing import Literal, cast
 # (GH-339). Importing knowledge_prompts triggers @server.prompt()
 # registration (GH-340).
 # Importing roots_tools registers the list_client_roots tool (GH-344).
+# Importing sampling_tools registers the request_sampling tool (GH-343).
 from dev10x.mcp import (  # noqa: E402, F401
     audit_tools,
     git_tools,
@@ -42,6 +44,7 @@ from dev10x.mcp import (  # noqa: E402, F401
     plan_tools,
     release_tools,
     roots_tools,
+    sampling_tools,
 )
 from dev10x.mcp._app import (
     server,  # noqa: F401  (re-exported for callers importing server from server_cli)
@@ -54,6 +57,7 @@ from dev10x.mcp.monitor_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.plan_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.release_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.roots_tools import *  # noqa: E402, F401, F403
+from dev10x.mcp.sampling_tools import *  # noqa: E402, F401, F403
 
 
 def main() -> None:

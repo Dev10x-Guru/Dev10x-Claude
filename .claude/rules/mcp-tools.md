@@ -159,6 +159,7 @@ supporting each tool:
 | `audit_hook_recent` | `cli` | GH-29 | v0.69.0+ |
 | `record_upgrade` | `cli` | GH-109 | v0.72.0+ |
 | `cluster_review_comments` | `cli` | GH-346 | v0.80.0+ |
+| `request_sampling` | `cli` | GH-343 | v0.80.0+ |
 | `query` | `db` | PR #126 | v0.25.0+ |
 
 When adding a new tool, update this table and note any dependencies on

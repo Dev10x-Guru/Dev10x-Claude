@@ -15,6 +15,10 @@ that fetches and caches the client-declared directory roots via
 ``notifications/roots/list_changed``.  The roots are used to scope
 CWD/worktree operations, complementing the GH-979 effective-CWD
 discipline.
+
+GH-343: The lifespan also creates a :class:`SamplingManager` that captures
+the active MCP session so server tools can request LLM completions from the
+client via ``sampling/createMessage`` without a bespoke API client.
 """
 
 from __future__ import annotations
@@ -28,6 +32,7 @@ from mcp.server.fastmcp import FastMCP
 
 from dev10x.mcp.resource_watcher import KnowledgeResourceWatcher, wire_watcher_to_server
 from dev10x.mcp.roots_manager import ClientRootsManager, wire_roots_to_server
+from dev10x.mcp.sampling_manager import SamplingManager, wire_sampling_to_server
 from dev10x.subprocess_utils import get_plugin_root
 
 log = logging.getLogger(__name__)
@@ -35,7 +40,7 @@ log = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def _server_lifespan(app: FastMCP) -> AsyncIterator[None]:
-    """Lifespan that wires the knowledge-resource watcher and roots manager.
+    """Lifespan that wires the resource watcher, roots, and sampling managers.
 
     On server start:
 
@@ -45,7 +50,10 @@ async def _server_lifespan(app: FastMCP) -> AsyncIterator[None]:
     2. Creates a :class:`~dev10x.mcp.roots_manager.ClientRootsManager` and
        registers its ``InitializedNotification`` handler (chained after the
        watcher's) plus a ``RootsListChangedNotification`` handler (GH-344).
-    3. Starts the resource-watcher poll loop as a background asyncio task.
+    3. Creates a :class:`~dev10x.mcp.sampling_manager.SamplingManager` and
+       registers its ``InitializedNotification`` handler (chained after the
+       roots manager's) so tools can request sampling (GH-343).
+    4. Starts the resource-watcher poll loop as a background asyncio task.
 
     On server shutdown (lifespan exit) the background task is cancelled.
     """
@@ -58,6 +66,11 @@ async def _server_lifespan(app: FastMCP) -> AsyncIterator[None]:
     # GH-344: roots manager chains its handler after the watcher's.
     roots_manager = ClientRootsManager()
     wire_roots_to_server(server=app._mcp_server, manager=roots_manager)
+
+    # GH-343: sampling manager chains its handler after the roots manager's
+    # so server tools can request LLM completions from the client.
+    sampling_manager = SamplingManager()
+    wire_sampling_to_server(server=app._mcp_server, manager=sampling_manager)
 
     task = asyncio.create_task(watcher.run(), name="dev10x-resource-watcher")
     log.debug("Resource watcher task started for root: %s", plugin_root)
