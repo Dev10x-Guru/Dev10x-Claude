@@ -2,6 +2,7 @@ from collections.abc import Generator
 from pathlib import Path
 
 import pytest
+from factory.random import reseed_random
 
 from dev10x.domain.claude_paths import ClaudeDir
 
@@ -39,3 +40,10 @@ def _guard_repo_root_magicmock_pollution() -> Generator[None, None, None]:
 def _reset_claude_dir_cache() -> None:
     """Clear ClaudeDir's path cache to keep DEV10X_CLAUDE_HOME overrides isolated."""
     ClaudeDir.reset_cache()
+
+
+@pytest.fixture(autouse=True)
+def _seed_factory_faker() -> None:
+    """Reseed factory_boy's Faker before each test so generated values are
+    deterministic and a value-specific failure is reproducible (GH-570)."""
+    reseed_random("dev10x-tests")

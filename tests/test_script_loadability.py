@@ -94,7 +94,7 @@ class TestScriptLoadability:
         )
         assert result.returncode == 0, f"Syntax error in {script.name}: {result.stderr}"
 
-    def test_script_imports_resolve_from_repo(self, script: Path) -> None:
+    def test_script_imports_resolve_from_repo(self, script: Path, tmp_path: Path) -> None:
         missing = _has_missing_deps(script=script)
         if missing:
             pytest.skip(f"External dependency {missing!r} not installed")
@@ -115,7 +115,7 @@ class TestScriptLoadability:
             capture_output=True,
             text=True,
             timeout=30,
-            env={"PATH": "", "HOME": str(Path.home())},
+            env={"PATH": "", "HOME": str(tmp_path)},
         )
         assert result.returncode == 0, (
             f"Failed to load {script.name} with src/ on path: {result.stderr}"
