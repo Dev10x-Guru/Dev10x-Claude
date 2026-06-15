@@ -33,6 +33,7 @@ from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.plugin_version import SEMVER_PATTERN, PluginVersion
 from dev10x.domain.common.result import Result
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.domain.plugin_identity import PLUGIN_NAMES
 from dev10x.skills.permission.config import parse_config, resolve_config
 
 USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
@@ -41,7 +42,6 @@ PLUGIN_CONFIG = (
 )
 GLOBAL_SETTINGS = ClaudeDir.settings_json()
 
-PLUGIN_NAMES = r"(?:Dev10x|dev10x(?:-claude)?)"
 VERSION_PATTERN = re.compile(
     rf"plugins/cache/[^/]+/{PLUGIN_NAMES}/({SEMVER_PATTERN})", re.IGNORECASE
 )

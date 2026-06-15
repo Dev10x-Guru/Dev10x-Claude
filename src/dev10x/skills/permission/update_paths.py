@@ -35,6 +35,7 @@ from dev10x.domain.common.mktmp_path import MKTMP_GENERALIZE_PATTERN
 from dev10x.domain.common.plugin_version import SEMVER_PATTERN, PluginVersion
 from dev10x.domain.common.result import Result
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.domain.plugin_identity import PLUGIN_NAMES
 from dev10x.skills.permission.config import parse_config, resolve_config
 
 MEMORY_CONFIG = Dev10xConfigDir.projects_yaml()
@@ -42,7 +43,6 @@ USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
 PLUGIN_CONFIG = (
     Path(__file__).resolve().parents[4] / "skills" / "upgrade-cleanup" / "projects.yaml"
 )
-PLUGIN_NAMES = r"(?:Dev10x|dev10x-claude)"
 VERSION_PATTERN = re.compile(rf"(plugins/cache/)([^/]+)(/{PLUGIN_NAMES}/)({SEMVER_PATTERN})")
 
 
