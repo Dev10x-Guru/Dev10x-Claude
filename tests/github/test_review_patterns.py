@@ -207,7 +207,7 @@ class TestFetchReviewComments:
 
         mock_numbers.return_value = ok([1, 2])
         mock_comments.side_effect = [[_comment("a", pr_number=1)], [_comment("b", pr_number=2)]]
-        result = await rp.fetch_review_comments(repo="o/r", limit=50)
+        result = await rp.get_review_comments(repo="o/r", limit=50)
         assert isinstance(result, SuccessResult)
         assert len(result.value) == 2
 
@@ -217,7 +217,7 @@ class TestFetchReviewComments:
         from dev10x.domain.common.result import err
 
         mock_numbers.return_value = err("pr list failed")
-        result = await rp.fetch_review_comments(repo="o/r", limit=50)
+        result = await rp.get_review_comments(repo="o/r", limit=50)
         assert isinstance(result, ErrorResult)
         assert result.error == "pr list failed"
 
@@ -229,7 +229,7 @@ class TestClusterReviewComments:
         assert isinstance(result, ErrorResult)
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.review_patterns.fetch_review_comments", new_callable=AsyncMock)
+    @patch("dev10x.github.review_patterns.get_review_comments", new_callable=AsyncMock)
     async def test_happy_path_returns_patterns_and_summary(self, mock_fetch: AsyncMock) -> None:
         from dev10x.domain.common.result import ok
 
@@ -249,7 +249,7 @@ class TestClusterReviewComments:
 
         mock_detect.return_value = "auto/repo"
         with patch(
-            "dev10x.github.review_patterns.fetch_review_comments",
+            "dev10x.github.review_patterns.get_review_comments",
             new_callable=AsyncMock,
             return_value=ok([]),
         ):
@@ -265,7 +265,7 @@ class TestClusterReviewComments:
         assert isinstance(result, ErrorResult)
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.review_patterns.fetch_review_comments", new_callable=AsyncMock)
+    @patch("dev10x.github.review_patterns.get_review_comments", new_callable=AsyncMock)
     async def test_skips_repo_on_fetch_error(self, mock_fetch: AsyncMock) -> None:
         from dev10x.domain.common.result import err, ok
 

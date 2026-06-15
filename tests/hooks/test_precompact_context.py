@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import io
 import json
 import subprocess
+import sys
 from pathlib import Path
+
+import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 HOOK = _REPO_ROOT / "hooks" / "scripts" / "precompact-context.py"
@@ -61,3 +65,23 @@ class TestPrecompactContext:
         output = json.loads(result.stdout)
         message = output["hookSpecificOutput"]["systemMessage"]
         assert "Post-Compaction Context Recovery" in message
+
+
+class TestDrainStdin:
+    def test_consumes_stdin(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from dev10x.hooks.session_dispatch import drain_stdin
+
+        monkeypatch.setattr(sys, "stdin", io.StringIO("hook payload"))
+        drain_stdin()
+
+        assert sys.stdin.read() == ""
+
+    def test_swallows_read_errors(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from dev10x.hooks.session_dispatch import drain_stdin
+
+        class _Boom:
+            def read(self) -> str:
+                raise ValueError("stdin closed")
+
+        monkeypatch.setattr(sys, "stdin", _Boom())
+        drain_stdin()

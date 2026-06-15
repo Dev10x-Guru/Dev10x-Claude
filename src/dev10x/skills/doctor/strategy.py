@@ -16,7 +16,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Protocol, runtime_checkable
 
 Severity = Literal["critical", "drift", "suggestion"]
 
@@ -59,15 +59,30 @@ class Remediation:
     action: dict = field(default_factory=dict)
 
 
-DetectFn = Callable[[Context], list[Finding]]
-RemediateFn = Callable[[Finding], Remediation]
+@runtime_checkable
+class StrategyProtocol(Protocol):
+    """Structural contract every plugin-doctor strategy satisfies.
+
+    The registry and the doctor orchestration depend on this
+    protocol rather than the concrete :class:`Strategy` carrier, so
+    a strategy may be any object exposing ``id``/``description`` and
+    the ``detect``/``remediate`` operations — a callable-backed
+    dataclass today, a class with methods tomorrow.
+    """
+
+    id: str
+    description: str
+
+    def detect(self, context: Context, /) -> list[Finding]: ...
+
+    def remediate(self, finding: Finding, /) -> Remediation: ...
 
 
 @dataclass
 class Strategy:
-    """A pluggable drift detector + remediator."""
+    """Concrete :class:`StrategyProtocol` carrier built from callables."""
 
     id: str
     description: str
-    detect: DetectFn
-    remediate: RemediateFn
+    detect: Callable[[Context], list[Finding]]
+    remediate: Callable[[Finding], Remediation]

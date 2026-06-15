@@ -9,7 +9,7 @@ data assembly live elsewhere:
   guidance) — :mod:`dev10x.hooks.session_policy`.
 * Place provisioning (``/tmp`` setup, git alias inventory) —
   :mod:`dev10x.hooks.session_place`.
-* Aggregated query + formatters — :mod:`dev10x.session.queries`.
+* Aggregated query + formatters — :mod:`dev10x.domain.documents.session_context`.
 """
 
 from __future__ import annotations
@@ -21,6 +21,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from dev10x.domain.claude_paths import ClaudeDir
+from dev10x.domain.documents.session_context import (
+    SessionContextQuery,
+    format_compaction_summary,
+    format_reload_context,
+)
 from dev10x.domain.documents.session_state import SessionState
 from dev10x.domain.git_context import GitContext
 from dev10x.domain.session_document import (
@@ -29,11 +34,6 @@ from dev10x.domain.session_document import (
     write_state,
 )
 from dev10x.hooks.session_policy import MigratePluginPermissionsRule
-from dev10x.session.queries import (
-    SessionContextQuery,
-    format_compaction_summary,
-    format_reload_context,
-)
 
 
 def _get_toplevel() -> str | None:
@@ -63,6 +63,19 @@ def _plugin_root() -> Path:
     return Path(__file__).parents[3]
 
 
+def drain_stdin() -> None:
+    """Discard the hook payload Claude Code writes to stdin (GH-249 H5).
+
+    Hooks that never read stdin can leave the writer's pipe full; draining
+    it avoids a ``BrokenPipeError`` on the Claude Code side. Best-effort —
+    any read failure (already closed, empty) is swallowed.
+    """
+    try:
+        sys.stdin.read()
+    except Exception:
+        pass
+
+
 def build_reload_context() -> str:
     """Build the session-reload additionalContext string. Empty when no state."""
     toplevel = _get_toplevel()
@@ -84,6 +97,7 @@ def session_reload() -> None:
 
 
 def context_compact() -> None:
+    drain_stdin()
     toplevel = _get_toplevel()
     if not toplevel:
         sys.exit(0)

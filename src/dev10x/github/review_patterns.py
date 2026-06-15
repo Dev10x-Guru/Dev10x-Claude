@@ -246,7 +246,7 @@ async def _pr_review_comments(*, repo: str, pr_number: int) -> list[ReviewCommen
     ]
 
 
-async def fetch_review_comments(*, repo: str, limit: int = 50) -> Result[list[ReviewComment]]:
+async def get_review_comments(*, repo: str, limit: int = 50) -> Result[list[ReviewComment]]:
     """Fetch inline review comments from recent merged PRs of ``repo``.
 
     Reuses the project-audit Phase-1 ``gh pr list --state merged`` pattern
@@ -292,7 +292,7 @@ async def cluster_review_comments(
     all_comments: list[ReviewComment] = []
     scanned: list[str] = []
     for repo in targets:
-        result = await fetch_review_comments(repo=repo, limit=limit)
+        result = await get_review_comments(repo=repo, limit=limit)
         if not isinstance(result, SuccessResult):
             logger.warning("skipping repo", extra={"repo": repo, "error": result.error})
             continue

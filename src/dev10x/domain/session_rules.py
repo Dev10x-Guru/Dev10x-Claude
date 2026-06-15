@@ -1,9 +1,10 @@
 """Session policy rules — pure decisions owned by the domain core.
 
 These were previously defined in ``dev10x.hooks.session_policy``, which
-forced ``session.queries`` to defer its imports into function bodies to
-break the cycle ``hooks.session_dispatch → session.queries →
-hooks.session_policy`` (audit memo Findings I2 + I10). Both rules depend
+forced ``domain.documents.session_context`` to defer its imports into
+function bodies to break the cycle ``hooks.session_dispatch →
+domain.documents.session_context → hooks.session_policy`` (audit memo
+Findings I2 + I10). Both rules depend
 only on ``domain/`` types, so they belong in the core: adapters now
 import them inward instead of reaching up into ``hooks/``.
 
