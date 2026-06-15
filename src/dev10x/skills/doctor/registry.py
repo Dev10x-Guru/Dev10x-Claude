@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from importlib import import_module
 
-from dev10x.skills.doctor.strategy import Strategy
+from dev10x.skills.doctor.strategy import StrategyProtocol
 
 DEFAULT_STRATEGY_MODULES: tuple[str, ...] = (
     "dev10x.skills.doctor.strategies.mcp_vs_script_drift",
@@ -21,7 +21,7 @@ DEFAULT_STRATEGY_MODULES: tuple[str, ...] = (
 )
 
 
-def load_strategies(*, module_paths: tuple[str, ...] | None = None) -> list[Strategy]:
+def load_strategies(*, module_paths: tuple[str, ...] | None = None) -> list[StrategyProtocol]:
     """Import each module path and collect its ``STRATEGY`` constant.
 
     Strategies missing the ``STRATEGY`` attribute are skipped silently;
@@ -29,10 +29,10 @@ def load_strategies(*, module_paths: tuple[str, ...] | None = None) -> list[Stra
     instead of a degraded doctor run.
     """
     paths = module_paths if module_paths is not None else DEFAULT_STRATEGY_MODULES
-    strategies: list[Strategy] = []
+    strategies: list[StrategyProtocol] = []
     for module_path in paths:
         module = import_module(module_path)
         strategy = getattr(module, "STRATEGY", None)
-        if isinstance(strategy, Strategy):
+        if isinstance(strategy, StrategyProtocol):
             strategies.append(strategy)
     return strategies

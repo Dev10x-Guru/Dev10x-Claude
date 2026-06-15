@@ -9,7 +9,7 @@ data assembly live elsewhere:
   guidance) — :mod:`dev10x.hooks.session_policy`.
 * Place provisioning (``/tmp`` setup, git alias inventory) —
   :mod:`dev10x.hooks.session_place`.
-* Aggregated query + formatters — :mod:`dev10x.session.queries`.
+* Aggregated query + formatters — :mod:`dev10x.domain.documents.session_context`.
 """
 
 from __future__ import annotations
@@ -21,6 +21,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from dev10x.domain.claude_paths import ClaudeDir
+from dev10x.domain.documents.session_context import (
+    SessionContextQuery,
+    format_compaction_summary,
+    format_reload_context,
+)
 from dev10x.domain.documents.session_state import SessionState
 from dev10x.domain.git_context import GitContext
 from dev10x.domain.session_document import (
@@ -29,11 +34,6 @@ from dev10x.domain.session_document import (
     write_state,
 )
 from dev10x.hooks.session_policy import MigratePluginPermissionsRule
-from dev10x.session.queries import (
-    SessionContextQuery,
-    format_compaction_summary,
-    format_reload_context,
-)
 
 
 def _get_toplevel() -> str | None:
@@ -63,6 +63,14 @@ def _plugin_root() -> Path:
     return Path(__file__).parents[3]
 
 
+def _drain_stdin() -> None:
+    """Consume stdin so the OS pipe buffer doesn't block the hook caller."""
+    try:
+        sys.stdin.read()
+    except Exception:
+        pass
+
+
 def build_reload_context() -> str:
     """Build the session-reload additionalContext string. Empty when no state."""
     toplevel = _get_toplevel()
@@ -84,6 +92,7 @@ def session_reload() -> None:
 
 
 def context_compact() -> None:
+    _drain_stdin()
     toplevel = _get_toplevel()
     if not toplevel:
         sys.exit(0)
@@ -242,9 +251,9 @@ def session_persist(data: dict | None = None) -> None:
         toplevel=toplevel,
         run_git=_run_git,
         timestamp=datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        working_directory=toplevel,
+        has_plan=plan_path_for_toplevel(toplevel=toplevel).exists(),
     ).to_dict()
-    state["working_directory"] = toplevel
-    state["has_plan"] = plan_path_for_toplevel(toplevel=toplevel).exists()
     write_state(path=state_path_for_toplevel(toplevel=toplevel), state=state)
 
 

@@ -108,7 +108,7 @@ class TestSessionStateToDict:
 
         assert SessionState.from_dict(data=state.to_dict()) == state
 
-    def test_exposes_all_seven_fields(self) -> None:
+    def test_exposes_all_nine_fields(self) -> None:
         keys = set(SessionState().to_dict())
 
         assert keys == {
@@ -119,6 +119,8 @@ class TestSessionStateToDict:
             "modified_files",
             "staged_files",
             "recent_commits",
+            "working_directory",
+            "has_plan",
         }
 
 

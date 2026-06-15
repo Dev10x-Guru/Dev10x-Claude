@@ -8,7 +8,7 @@ registry = pytest.importorskip(
     "dev10x.skills.doctor.registry",
     reason="dev10x not installed",
 )
-from dev10x.skills.doctor.strategy import Strategy  # noqa: E402
+from dev10x.skills.doctor.strategy import StrategyProtocol  # noqa: E402
 
 
 class TestLoadStrategies:
@@ -28,7 +28,7 @@ class TestLoadStrategies:
         strategies = registry.load_strategies()
 
         for strategy in strategies:
-            assert isinstance(strategy, Strategy)
+            assert isinstance(strategy, StrategyProtocol)
             assert callable(strategy.detect)
             assert callable(strategy.remediate)
 

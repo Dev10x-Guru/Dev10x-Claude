@@ -162,7 +162,7 @@ class TestComputeVerdict:
         assert result["verdict"] == "green"
 
 
-class TestFetchChecksError:
+class TestGetChecksError:
     def test_error_json_written_to_stdout_then_exits(self, monkeypatch, capsys):
         class _Failed:
             returncode = 1
@@ -171,7 +171,7 @@ class TestFetchChecksError:
 
         monkeypatch.setattr(_mod.subprocess, "run", lambda *a, **k: _Failed())
         with pytest.raises(SystemExit) as exc:
-            _mod.fetch_checks(pr_number=42, repo="org/repo")
+            _mod.get_checks(pr_number=42, repo="org/repo")
         assert exc.value.code == 1
         captured = capsys.readouterr()
         assert '"error"' in captured.out

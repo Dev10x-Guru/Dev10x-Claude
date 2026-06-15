@@ -159,7 +159,7 @@ def update_pr_checklist(pr_number: int, repo: str, diff: str) -> None:
     print(f"✅ PR #{pr_number} checklist updated.")
 
 
-def fetch_ci_checks(pr_number: int, repo: str) -> list[dict[str, Any]]:
+def get_ci_checks(pr_number: int, repo: str) -> list[dict[str, Any]]:
     return gh_json(
         args=[
             "pr",
@@ -173,7 +173,7 @@ def fetch_ci_checks(pr_number: int, repo: str) -> list[dict[str, Any]]:
     )
 
 
-def fetch_review_comments(pr_number: int, repo: str) -> list[dict[str, Any]]:
+def get_review_comments(pr_number: int, repo: str) -> list[dict[str, Any]]:
     return gh_json(
         args=[
             "api",
@@ -188,7 +188,7 @@ def fetch_review_comments(pr_number: int, repo: str) -> list[dict[str, Any]]:
     )
 
 
-def fetch_reviewers(pr_number: int, repo: str) -> dict[str, Any]:
+def get_reviewers(pr_number: int, repo: str) -> dict[str, Any]:
     return gh_json(
         args=[
             "pr",
@@ -293,9 +293,9 @@ def format_status_report(
 
 
 def cmd_status(args: argparse.Namespace) -> None:
-    checks = fetch_ci_checks(pr_number=args.pr, repo=args.repo)
-    comments = fetch_review_comments(pr_number=args.pr, repo=args.repo)
-    reviewers = fetch_reviewers(pr_number=args.pr, repo=args.repo)
+    checks = get_ci_checks(pr_number=args.pr, repo=args.repo)
+    comments = get_review_comments(pr_number=args.pr, repo=args.repo)
+    reviewers = get_reviewers(pr_number=args.pr, repo=args.repo)
     report = format_status_report(checks=checks, comments=comments, reviewers=reviewers)
     if args.json:
         output = {

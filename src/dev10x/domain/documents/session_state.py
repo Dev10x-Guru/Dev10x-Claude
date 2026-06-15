@@ -18,6 +18,8 @@ class SessionState:
     modified_files: list[str] = field(default_factory=list)
     staged_files: list[str] = field(default_factory=list)
     recent_commits: list[str] = field(default_factory=list)
+    working_directory: str = ""
+    has_plan: bool = False
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> SessionState:
@@ -29,6 +31,8 @@ class SessionState:
             modified_files=data.get("modified_files", []),
             staged_files=data.get("staged_files", []),
             recent_commits=data.get("recent_commits", []),
+            working_directory=data.get("working_directory", ""),
+            has_plan=data.get("has_plan", False),
         )
 
     @classmethod
@@ -39,6 +43,8 @@ class SessionState:
         toplevel: str,
         run_git: Callable[..., str],
         timestamp: str,
+        working_directory: str = "",
+        has_plan: bool = False,
     ) -> SessionState:
         """Build a `SessionState` from the live working tree.
 
@@ -57,6 +63,8 @@ class SessionState:
             modified_files=run_git("diff", "--name-only").splitlines()[:20],
             staged_files=run_git("diff", "--cached", "--name-only").splitlines()[:20],
             recent_commits=run_git("log", "--oneline", "-5").splitlines(),
+            working_directory=working_directory,
+            has_plan=has_plan,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -68,6 +76,8 @@ class SessionState:
             "modified_files": self.modified_files,
             "staged_files": self.staged_files,
             "recent_commits": self.recent_commits,
+            "working_directory": self.working_directory,
+            "has_plan": self.has_plan,
         }
 
     def _age_hours(self) -> int:

@@ -16,7 +16,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Protocol, runtime_checkable
 
 Severity = Literal["critical", "drift", "suggestion"]
 
@@ -61,6 +61,16 @@ class Remediation:
 
 DetectFn = Callable[[Context], list[Finding]]
 RemediateFn = Callable[[Finding], Remediation]
+
+
+@runtime_checkable
+class StrategyProtocol(Protocol):
+    """Structural interface for pluggable drift detectors."""
+
+    id: str
+    description: str
+    detect: DetectFn
+    remediate: RemediateFn
 
 
 @dataclass

@@ -2,7 +2,7 @@
 
 Document archetype: pure I/O over the persisted session state JSON
 and the plan YAML. Callers compose these documents into queries
-(``dev10x.session.queries.SessionContextQuery``) rather than calling
+(``dev10x.domain.documents.session_context.SessionContextQuery``) rather than calling
 ``json.load`` / ``Path.read_text`` directly.
 """
 
