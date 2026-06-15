@@ -36,6 +36,7 @@ from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.plugin_identity import PLUGIN_NAMES
 from dev10x.skills.permission.config import parse_config, resolve_config
 
+MEMORY_CONFIG = Dev10xConfigDir.projects_yaml()
 USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
 PLUGIN_CONFIG = (
     Path(__file__).resolve().parents[4] / "skills" / "upgrade-cleanup" / "projects.yaml"
@@ -145,8 +146,8 @@ class RemovalResult:
 
 def find_config() -> Result[Path]:
     return resolve_config(
-        candidates=[USERSPACE_CONFIG, PLUGIN_CONFIG],
-        create_path=USERSPACE_CONFIG,
+        candidates=[MEMORY_CONFIG, USERSPACE_CONFIG, PLUGIN_CONFIG],
+        create_path=MEMORY_CONFIG,
     )
 
 

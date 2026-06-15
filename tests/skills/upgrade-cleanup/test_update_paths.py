@@ -5,9 +5,11 @@ from pathlib import Path
 
 import pytest
 
+from dev10x.skills.permission import update_paths
 from dev10x.skills.permission.update_paths import (
     extract_cache_publisher,
     find_settings_files,
+    init_userspace_config,
     update_file,
 )
 
@@ -261,3 +263,63 @@ class TestFindSettingsFilesUserGlobal:
         files = find_settings_files(roots=[], include_user=False)
 
         assert files == []
+
+
+class TestInitUserspaceConfig:
+    @pytest.fixture()
+    def config_paths(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> tuple[Path, Path, Path]:
+        memory = tmp_path / "projects.yaml"
+        userspace = tmp_path / "upgrade-cleanup-projects.yaml"
+        plugin = tmp_path / "plugin-projects.yaml"
+        monkeypatch.setattr(update_paths, "MEMORY_CONFIG", memory)
+        monkeypatch.setattr(update_paths, "USERSPACE_CONFIG", userspace)
+        monkeypatch.setattr(update_paths, "PLUGIN_CONFIG", plugin)
+        return memory, userspace, plugin
+
+    def test_noop_when_projects_yaml_exists(self, config_paths: tuple[Path, Path, Path]) -> None:
+        memory, _userspace, _plugin = config_paths
+        memory.write_text("roots: [/work/existing]\n")
+
+        result = init_userspace_config()
+
+        assert result["exit_code"] == 0
+        assert memory.read_text() == "roots: [/work/existing]\n"
+        assert any("already exists" in m for m in result["messages"])
+
+    def test_migrates_legacy_userspace_into_projects_yaml(
+        self, config_paths: tuple[Path, Path, Path]
+    ) -> None:
+        memory, userspace, _plugin = config_paths
+        userspace.write_text("roots: [/work/legacy]\n")
+
+        result = init_userspace_config()
+
+        assert result["exit_code"] == 0
+        assert memory.read_text() == "roots: [/work/legacy]\n"
+        assert userspace.exists()  # left in place for downgrade safety
+        assert any("Migrated" in m for m in result["messages"])
+
+    def test_creates_from_plugin_default_when_none_exist(
+        self,
+        config_paths: tuple[Path, Path, Path],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        memory, _userspace, plugin = config_paths
+        plugin.write_text("plugin_cache: ~/.claude/plugins/cache/Dev10x-Guru/dev10x-claude\n")
+        monkeypatch.setattr(update_paths, "_detect_plugin_cache", lambda: "/detected/cache")
+
+        result = init_userspace_config()
+
+        assert result["exit_code"] == 0
+        assert "plugin_cache: /detected/cache" in memory.read_text()
+        assert any("Created" in m for m in result["messages"])
+
+    def test_errors_when_plugin_default_missing(
+        self, config_paths: tuple[Path, Path, Path]
+    ) -> None:
+        result = init_userspace_config()
+
+        assert result["exit_code"] == 1
+        assert any("Plugin default config not found" in e for e in result["errors"])
