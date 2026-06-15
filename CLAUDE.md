@@ -63,6 +63,10 @@ invoke the skill without approving tool access each time. See
 - **Python scripts**: ruff + black (line-length 99)
 - **Shell scripts**: shellcheck, `set -e`, POSIX-compatible where possible
 - **Markdown**: one sentence per line, 80-char soft wrap
+- **Data-retrieval naming**: prefer `get_*` for functions that fetch and
+  return data. Reserve `fetch_*` for names carrying protocol/domain
+  semantics (`git fetch`, HTTP fetch) or documented exceptions such as
+  `fetch_mergeable`.
 
 ### CWD Discipline (GH-979)
 

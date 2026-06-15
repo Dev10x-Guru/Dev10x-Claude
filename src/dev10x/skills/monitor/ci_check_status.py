@@ -77,7 +77,7 @@ def fetch_mergeable(
     return result.stdout.strip() or "UNKNOWN"
 
 
-def fetch_checks(
+def get_checks(
     *,
     pr_number: int,
     repo: str,
@@ -172,7 +172,7 @@ def poll_until_terminal(
     time.sleep(initial_wait)
 
     for attempt in range(1, max_polls + 1):
-        checks = fetch_checks(
+        checks = get_checks(
             pr_number=pr_number,
             repo=repo,
             required_only=required_only,
@@ -247,7 +247,7 @@ def main() -> None:
             max_polls=args.max_polls,
         )
     else:
-        checks = fetch_checks(
+        checks = get_checks(
             pr_number=args.pr,
             repo=repo,
             required_only=args.required_only,

@@ -8,7 +8,7 @@ into archetype-aligned modules:
 * :mod:`dev10x.domain.session_document` — Document I/O.
 * :mod:`dev10x.hooks.session_policy` — named Rule objects.
 * :mod:`dev10x.hooks.session_place` — Place provisioning.
-* :mod:`dev10x.session.queries` — aggregated SessionContextQuery.
+* :mod:`dev10x.domain.documents.session_context` — aggregated SessionContextQuery.
 
 This module re-exports the public surface that
 ``hooks/scripts/session-*.py``, ``commands/hook.py``, and the test
