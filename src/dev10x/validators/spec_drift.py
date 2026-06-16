@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar
 
+from dev10x import subprocess_utils
 from dev10x.domain import HookInput, HookResult
 from dev10x.domain.common.ticket_id import TicketId
 from dev10x.domain.profile_tier import ProfileTier
@@ -62,14 +63,16 @@ See ``.claude/rules/hook-patterns.md`` — DX015 / spec-drift — for details.
 def _branch_ticket_id(*, cwd: str) -> str | None:
     """Return the first ticket-id found in the current branch name, or None."""
     try:
-        branch = subprocess.check_output(
+        result = subprocess_utils.run(
             ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-            stderr=subprocess.DEVNULL,
-            text=True,
             cwd=cwd or None,
-        ).strip()
+            capture_output=True,
+            text=True,
+            check=True,
+        )
     except (subprocess.CalledProcessError, FileNotFoundError, OSError):
         return None
+    branch = result.stdout.strip()
     ticket = TicketId.find_first_in_branch_name(branch)
     return str(ticket) if ticket is not None else None
 
@@ -77,14 +80,16 @@ def _branch_ticket_id(*, cwd: str) -> str | None:
 def _repo_toplevel(*, cwd: str) -> str | None:
     """Return the git repository toplevel, or None if not a git repo."""
     try:
-        return subprocess.check_output(
+        result = subprocess_utils.run(
             ["git", "rev-parse", "--show-toplevel"],
-            stderr=subprocess.DEVNULL,
-            text=True,
             cwd=cwd or None,
-        ).strip()
+            capture_output=True,
+            text=True,
+            check=True,
+        )
     except (subprocess.CalledProcessError, FileNotFoundError, OSError):
         return None
+    return result.stdout.strip()
 
 
 def _working_set_paths(*, cwd: str) -> set[str]:
@@ -95,14 +100,16 @@ def _working_set_paths(*, cwd: str) -> set[str]:
     Returns an empty set on any git error.
     """
     try:
-        output = subprocess.check_output(
+        result = subprocess_utils.run(
             ["git", "status", "--porcelain"],
-            stderr=subprocess.DEVNULL,
-            text=True,
             cwd=cwd or None,
+            capture_output=True,
+            text=True,
+            check=True,
         )
     except (subprocess.CalledProcessError, FileNotFoundError, OSError):
         return set()
+    output = result.stdout
     paths: set[str] = set()
     for line in output.splitlines():
         # porcelain format: "XY filename" or "XY old -> new" for renames
