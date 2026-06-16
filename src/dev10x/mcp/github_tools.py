@@ -1221,3 +1221,55 @@ async def author_reference_rules(
         min_frequency=min_frequency,
         max_fp_rate=max_fp_rate,
     )
+
+
+@github_tool
+async def rule_confidence_report(
+    store_path: str | None = None,
+    cwd: str | None = None,
+) -> Result[dict]:
+    """Rank review rules by feedback-weighted confidence (GH-350).
+
+    Reads the catch/false-positive feedback store and ranks rules by a
+    95% Wilson-score lower bound on precision, so high-precision rules
+    surface first and noisy ones sink.
+
+    Args:
+        store_path: Feedback JSON store. Defaults to the Dev10x config
+            home when omitted.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: ranked (list), summary (dict).
+    """
+    from dev10x.github import rule_confidence
+
+    return await rule_confidence.rule_confidence_report(store_path=store_path)
+
+
+@github_tool
+async def record_rule_feedback(
+    rule_id: str,
+    outcome: str,
+    store_path: str | None = None,
+    cwd: str | None = None,
+) -> Result[dict]:
+    """Record one catch or false-positive for a review rule (GH-350).
+
+    Args:
+        rule_id: Identifier of the rule that fired.
+        outcome: ``"catch"`` (real issue) or ``"false_positive"``.
+        store_path: Feedback JSON store. Defaults to the Dev10x config
+            home when omitted.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with key: feedback (dict); or error on bad outcome.
+    """
+    from dev10x.github import rule_confidence
+
+    return await rule_confidence.record_rule_feedback(
+        rule_id=rule_id,
+        outcome=outcome,
+        store_path=store_path,
+    )
