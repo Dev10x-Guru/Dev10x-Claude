@@ -365,13 +365,13 @@ class TestValidatorChain:
         assert chain.correct(inp=stub_input) is None
 
 
-class TestValidatorBaseTemplate:
-    def test_run_validates_when_should_run_true(self, stub_input: HookInput) -> None:
-        result = _StubValidator().run(inp=stub_input)
-        assert isinstance(result, HookResult)
-        assert result.message == "stub-blocked"
+class TestValidatorChainGate:
+    """The ``should_run`` gate is enforced by the chain, not a
+    validator-level ``run()`` template (GH-586). Removing ``run()`` from
+    the Protocol means a validator cannot override the gate to bypass it.
+    """
 
-    def test_run_skips_when_should_run_false(self, stub_input: HookInput) -> None:
+    def test_run_skips_validator_when_should_run_false(self, stub_input: HookInput) -> None:
         @dataclass
         class _Skipper(ValidatorBase):
             name: ClassVar[str] = "skipper"
@@ -384,4 +384,16 @@ class TestValidatorBaseTemplate:
             def validate(self, inp: HookInput) -> HookResult | None:
                 raise AssertionError("validate must not run when should_run is False")
 
-        assert _Skipper().run(inp=stub_input) is None
+        registry = ValidatorRegistry()
+        registry._instances = [_Skipper()]  # type: ignore[attr-defined]
+        chain = ValidatorChain(registry=registry)
+        assert chain.run(inp=stub_input) == []
+
+    def test_run_invokes_validate_when_should_run_true(self, stub_input: HookInput) -> None:
+        registry = ValidatorRegistry()
+        registry._instances = [_StubValidator()]  # type: ignore[attr-defined]
+        chain = ValidatorChain(registry=registry)
+        results = chain.run(inp=stub_input)
+        assert len(results) == 1
+        assert isinstance(results[0], HookResult)
+        assert results[0].message == "stub-blocked"

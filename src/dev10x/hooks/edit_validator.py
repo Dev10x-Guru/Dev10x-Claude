@@ -13,6 +13,7 @@ Two validation passes:
 
 from __future__ import annotations
 
+import functools
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -25,12 +26,37 @@ if TYPE_CHECKING:
 _YAML_PATH = Path(__file__).parent.parent / "validators" / "command-skill-map.yaml"
 
 
-def _build_engine(*, yaml_path: Path) -> RuleEngine:
+@functools.cache
+def _cached_engine(yaml_path_str: str, mtime_ns: int) -> RuleEngine:
+    """Build a RuleEngine for one (path, mtime) pair.
+
+    GH-586: ``_build_engine`` previously re-parsed the YAML config on
+    every ``Edit``/``Write`` hook invocation. Keying the cache on the
+    file's mtime parses an unchanged config once per process while an
+    edit to the YAML (new mtime) transparently yields a fresh engine.
+    Mirrors the ``_cached_registry`` pattern in
+    ``dev10x.validators.__init__``.
+    """
     from dev10x.config.loader import load_config
     from dev10x.domain.rules.rule_engine import RuleEngine
 
-    config = load_config(yaml_path=yaml_path)
+    config = load_config(yaml_path=Path(yaml_path_str))
     return RuleEngine.from_config(config=config)
+
+
+def _build_engine(*, yaml_path: Path) -> RuleEngine:
+    try:
+        mtime_ns = yaml_path.stat().st_mtime_ns
+    except OSError:
+        # Missing/unreadable config: bypass the cache with a sentinel
+        # mtime and let load_config surface the error as before.
+        mtime_ns = -1
+    return _cached_engine(str(yaml_path), mtime_ns)
+
+
+def reset_engine_cache() -> None:
+    """Clear cached RuleEngine instances — used by tests."""
+    _cached_engine.cache_clear()
 
 
 def _run_python_validators(*, data: dict[str, Any], debug: bool = False) -> None:

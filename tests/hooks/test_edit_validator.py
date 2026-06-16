@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,7 @@ import yaml
 
 from dev10x.domain.rules.rule_engine import RuleEngine
 from dev10x.domain.rules.validation_rule import Rule
+from dev10x.hooks.edit_validator import _build_engine, reset_engine_cache
 
 
 @pytest.fixture()
@@ -186,3 +188,53 @@ class TestLoadRules:
         engine = RuleEngine.from_yaml(path=yaml_path)
 
         assert len(engine.edit_rules) == 0
+
+
+class TestBuildEngineCache:
+    """GH-586: _build_engine caches by (path, mtime) to avoid re-parsing
+    the YAML config on every Edit/Write hook invocation."""
+
+    @pytest.fixture(autouse=True)
+    def _clear_cache(self):
+        reset_engine_cache()
+        yield
+        reset_engine_cache()
+
+    def _write_yaml(self, path: Path, rule_name: str) -> None:
+        path.write_text(
+            yaml.dump(
+                {
+                    "rules": [
+                        {
+                            "name": rule_name,
+                            "matcher": "Edit|Write",
+                            "hook_block": True,
+                            "file_names": [".env"],
+                        }
+                    ]
+                }
+            )
+        )
+
+    def test_same_file_returns_cached_engine(self, tmp_path: Path) -> None:
+        yaml_path = tmp_path / "rules.yaml"
+        self._write_yaml(yaml_path, "block-env")
+        first = _build_engine(yaml_path=yaml_path)
+        second = _build_engine(yaml_path=yaml_path)
+        assert first is second
+
+    def test_changed_mtime_rebuilds_engine(self, tmp_path: Path) -> None:
+        yaml_path = tmp_path / "rules.yaml"
+        self._write_yaml(yaml_path, "block-env")
+        first = _build_engine(yaml_path=yaml_path)
+        # Simulate an edit by bumping the file's mtime forward.
+        st = yaml_path.stat()
+        os.utime(yaml_path, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
+        second = _build_engine(yaml_path=yaml_path)
+        assert first is not second
+
+    def test_missing_config_bypasses_cache_and_raises(self, tmp_path: Path) -> None:
+        # stat() on a missing file raises OSError → sentinel mtime branch;
+        # load_config then surfaces the error as before (no silent cache).
+        with pytest.raises(Exception):
+            _build_engine(yaml_path=tmp_path / "does-not-exist.yaml")
