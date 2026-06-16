@@ -17,6 +17,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+import yaml
+
 from dev10x.domain.documents.settings_document import (
     SettingsDocument,
     _deduplicate_rules,
@@ -90,11 +92,8 @@ class BuildAutonomyReassuranceRule(PolicyRule[str]):
         if not session_yaml.exists():
             return ""
         try:
-            import yaml
-
-            with open(session_yaml) as f:
-                data = yaml.safe_load(f) or {}
-        except Exception:
+            data = yaml.safe_load(session_yaml.read_text()) or {}
+        except (OSError, yaml.YAMLError):
             return ""
 
         level = FrictionLevel.from_yaml(data.get("friction_level"))
