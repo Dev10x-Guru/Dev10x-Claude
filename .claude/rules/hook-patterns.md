@@ -196,15 +196,27 @@ active-by-default should ship as `experimental=True`. Users opt
 in via `DEV10X_HOOK_EXPERIMENTAL=1`. Once the validator is proven
 stable, flip the flag to `False` and bump the tier appropriately.
 
-Register the tier in `src/dev10x/validators/__init__.py`:
+Register the tier by appending a `ValidatorSpec` to `_SPECS` in
+`src/dev10x/validators/__init__.py` (the typed dataclass replaced the
+old `_VALIDATOR_SPECS` 5-tuple — see
+`dev10x.validators.registry.ValidatorSpec`):
 
 ```python
-_VALIDATOR_SPECS: list[tuple[str, str, str, str, bool]] = [
-    # (module_path, class_name, rule_id, profile, experimental)
+_SPECS: list[ValidatorSpec] = [
     ...
-    ("dev10x.validators.new_rule", "NewRuleValidator", "DX009", "standard", True),
+    ValidatorSpec(
+        module_path="dev10x.validators.new_rule",
+        class_name="NewRuleValidator",
+        rule_id="DX009",
+        profile=ProfileTier.STANDARD,
+        experimental=True,
+    ),
 ]
 ```
+
+Each validator class declares the same `rule_id`/`profile`/
+`experimental` metadata as `ValidatorBase` class attributes; the
+registry asserts the two agree at registration time.
 
 ### Reviewer Expectations
 
