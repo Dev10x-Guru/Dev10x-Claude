@@ -1,6 +1,13 @@
 import pytest
 
-from dev10x.domain.common.result import ErrorResult, ResultProtocol, SuccessResult, err, ok
+from dev10x.domain.common.result import (
+    ErrorResult,
+    ResultProtocol,
+    SuccessResult,
+    err,
+    ok,
+    to_wire,
+)
 
 
 class TestOk:
@@ -78,3 +85,24 @@ class TestResultProtocol:
 
     def test_object_without_to_dict_does_not_satisfy(self) -> None:
         assert not isinstance(object(), ResultProtocol)
+
+
+class TestToWire:
+    """ADR-0009: the @server.tool() boundary routes its Result through to_wire."""
+
+    def test_success_encodes_to_dict(self) -> None:
+        assert to_wire(ok({"a": 1})) == {"a": 1}
+
+    def test_error_encodes_to_dict(self) -> None:
+        assert to_wire(err("boom", code=2)) == {"error": "boom", "code": 2}
+
+    def test_raises_on_raw_dict(self) -> None:
+        # A handler that forgot to return ok()/err() yields a bare dict,
+        # which lacks to_dict() and must fail loud at the boundary rather
+        # than at JSON-encode time.
+        with pytest.raises(TypeError):
+            to_wire({"already": "encoded"})  # type: ignore[arg-type]
+
+    def test_raises_on_object_without_to_dict(self) -> None:
+        with pytest.raises(TypeError):
+            to_wire(object())  # type: ignore[arg-type]

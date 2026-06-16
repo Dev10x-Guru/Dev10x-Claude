@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dev10x.domain.common.result import to_wire
 from dev10x.mcp._app import server
 
 
@@ -24,7 +25,7 @@ async def plan_sync_set_context(
     from dev10x.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
-        return (await plan_tools.set_context(args=args)).to_dict()
+        return to_wire(await plan_tools.set_context(args=args))
 
 
 @server.tool()
@@ -43,7 +44,7 @@ async def plan_sync_json_summary(cwd: str | None = None) -> dict:
     from dev10x.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
-        return (await plan_tools.json_summary()).to_dict()
+        return to_wire(await plan_tools.json_summary())
 
 
 @server.tool()
@@ -60,4 +61,4 @@ async def plan_sync_archive(cwd: str | None = None) -> dict:
     from dev10x.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
-        return (await plan_tools.archive()).to_dict()
+        return to_wire(await plan_tools.archive())

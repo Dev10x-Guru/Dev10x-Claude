@@ -8,6 +8,7 @@ from __future__ import annotations
 # `from __future__ import annotations`.
 from mcp.server.fastmcp import Context  # noqa: F401
 
+from dev10x.domain.common.result import to_wire
 from dev10x.mcp._app import server
 
 
@@ -42,9 +43,7 @@ async def push_safe(
     from dev10x.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
-        return (
-            await git_tools.push_safe(args=args, protected_branches=protected_branches)
-        ).to_dict()
+        return to_wire(await git_tools.push_safe(args=args, protected_branches=protected_branches))
 
 
 @server.tool()
@@ -75,7 +74,7 @@ async def rebase_groom(
         await ctx.info(f"rebase_groom: rebasing onto {base_ref} using {seq_path}")
 
     with use_cwd(cwd):
-        result = (await git_tools.rebase_groom(seq_path=seq_path, base_ref=base_ref)).to_dict()
+        result = to_wire(await git_tools.rebase_groom(seq_path=seq_path, base_ref=base_ref))
 
     if ctx is not None:
         if "error" in result:
@@ -118,7 +117,7 @@ async def create_worktree(
     from dev10x.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
-        return (await git_tools.create_worktree(branch=branch, base=base, path=path)).to_dict()
+        return to_wire(await git_tools.create_worktree(branch=branch, base=base, path=path))
 
 
 @server.tool()
@@ -145,7 +144,7 @@ async def mass_rewrite(
         await ctx.info(f"mass_rewrite: running unattended rebase from {config_path}")
 
     with use_cwd(cwd):
-        result = (await git_tools.mass_rewrite(config_path=config_path)).to_dict()
+        result = to_wire(await git_tools.mass_rewrite(config_path=config_path))
 
     if ctx is not None:
         if "error" in result:
@@ -180,9 +179,9 @@ async def start_split_rebase(
     from dev10x.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
-        return (
+        return to_wire(
             await git_tools.start_split_rebase(commit_hash=commit_hash, base_branch=base_branch)
-        ).to_dict()
+        )
 
 
 @server.tool()
@@ -201,7 +200,7 @@ async def next_worktree_name(base_dir: str | None = None, cwd: str | None = None
     from dev10x.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
-        return (await git_tools.next_worktree_name(base_dir=base_dir)).to_dict()
+        return to_wire(await git_tools.next_worktree_name(base_dir=base_dir))
 
 
 @server.tool()
@@ -213,4 +212,4 @@ async def setup_aliases() -> dict:
     """
     from dev10x import git as git_tools
 
-    return (await git_tools.setup_aliases()).to_dict()
+    return to_wire(await git_tools.setup_aliases())

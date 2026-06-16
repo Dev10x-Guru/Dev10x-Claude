@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dev10x.domain.common.result import to_wire
 from dev10x.mcp._app import server
 
 
@@ -25,11 +26,11 @@ async def collect_prs(
     """
     from dev10x import release as rel
 
-    return (
+    return to_wire(
         await rel.collect_prs(
             repo_path=repo_path,
             from_tag=from_tag,
             to_tag=to_tag,
             ticket_pattern=ticket_pattern,
         )
-    ).to_dict()
+    )

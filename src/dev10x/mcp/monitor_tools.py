@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dev10x.domain.common.result import to_wire
 from dev10x.mcp._app import server
 
 
@@ -35,7 +36,7 @@ async def ci_check_status(
     from dev10x.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
-        return (
+        return to_wire(
             await mon.ci_check_status(
                 pr_number=pr_number,
                 repo=repo,
@@ -45,4 +46,4 @@ async def ci_check_status(
                 initial_wait=initial_wait,
                 max_polls=max_polls,
             )
-        ).to_dict()
+        )
