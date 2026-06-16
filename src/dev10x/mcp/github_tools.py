@@ -1175,3 +1175,49 @@ async def validate_candidate_patterns(
         min_frequency=min_frequency,
         max_fp_rate=max_fp_rate,
     )
+
+
+@github_tool
+async def author_reference_rules(
+    repos: list[str] | None = None,
+    limit: int = 50,
+    top_n: int = 20,
+    diff_limit: int = 20,
+    min_frequency: int = 2,
+    max_fp_rate: float = 0.5,
+    cwd: str | None = None,
+) -> Result[dict]:
+    """Author reference-rule docs from validated review patterns (GH-349).
+
+    Validates candidate patterns (GH-348), then renders one
+    reference-rule Markdown doc per validated pattern plus an INDEX-style
+    routing fragment. Dry run: no files are written and no routing table
+    is edited — the docs and fragment are returned for human review.
+
+    Args:
+        repos: ``owner/name`` repositories to analyze. Defaults to the
+            current repository when omitted.
+        limit: Max merged PRs scanned for review comments (default 50).
+        top_n: Number of top candidate patterns to consider (default 20).
+        diff_limit: Max recent merged PRs sampled for diff matching
+            (default 20).
+        min_frequency: Minimum reviewer frequency for a validated pattern
+            (default 2).
+        max_fp_rate: Maximum estimated false-positive rate for a
+            validated pattern (default 0.5).
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: rules (list), routing_fragment (str),
+        summary (dict); or error.
+    """
+    from dev10x.github import rule_authoring
+
+    return await rule_authoring.author_reference_rules(
+        repos=repos,
+        limit=limit,
+        top_n=top_n,
+        diff_limit=diff_limit,
+        min_frequency=min_frequency,
+        max_fp_rate=max_fp_rate,
+    )

@@ -166,6 +166,7 @@ supporting each tool:
 | `cluster_review_comments` | `cli` | GH-346 | v0.80.0+ |
 | `candidate_rules_report` | `cli` | GH-347 | v0.80.0+ |
 | `validate_candidate_patterns` | `cli` | GH-348 | v0.80.0+ |
+| `author_reference_rules` | `cli` | GH-349 | v0.80.0+ |
 | `request_sampling` | `cli` | GH-343 | v0.80.0+ |
 | `query` | `db` | PR #126 | v0.25.0+ |
 
