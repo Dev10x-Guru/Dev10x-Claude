@@ -47,7 +47,11 @@ jobs:
         run: uv python install 3.12
 
       - name: Run full suite with coverage
-        run: uv run --extra dev pytest
+        # Exclude tests/benchmarks: the startup-time gates there assert
+        # absolute timing thresholds tuned for a pinned baseline and are
+        # flaky on shared CI runners. Benchmark regressions are gated
+        # separately by pytest-bench.yml against a cached baseline.
+        run: uv run --extra dev pytest --ignore=tests/benchmarks
 
       - name: Enforce commands floor
         run: uv run coverage report --include='src/dev10x/commands/*' --fail-under=60
