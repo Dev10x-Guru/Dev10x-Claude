@@ -34,6 +34,15 @@ from dev10x.validators.spec_drift import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+# GH-495: spec_drift now routes git calls through subprocess_utils.run
+# (CWD-discipline). Patch that seam instead of subprocess.check_output.
+_RUN = "dev10x.validators.spec_drift.subprocess_utils.run"
+
+
+def _completed(stdout: str) -> subprocess.CompletedProcess[str]:
+    """Build a successful CompletedProcess mirroring subprocess_utils.run."""
+    return subprocess.CompletedProcess(args=["git"], returncode=0, stdout=stdout, stderr="")
+
 
 def _edit_inp(
     *,
@@ -108,35 +117,35 @@ class TestShouldRun:
 
 class TestBranchTicketId:
     def test_extracts_gh_ticket(self) -> None:
-        with patch("subprocess.check_output", return_value="janusz/GH-434/feature\n"):
+        with patch(_RUN, return_value=_completed("janusz/GH-434/feature\n")):
             result = _branch_ticket_id(cwd="/work/repo")
         assert result == "GH-434"
 
     def test_extracts_feat_ticket(self) -> None:
-        with patch("subprocess.check_output", return_value="user/FEAT-123/something\n"):
+        with patch(_RUN, return_value=_completed("user/FEAT-123/something\n")):
             result = _branch_ticket_id(cwd="/work/repo")
         assert result == "FEAT-123"
 
     def test_returns_none_for_no_ticket(self) -> None:
-        with patch("subprocess.check_output", return_value="main\n"):
+        with patch(_RUN, return_value=_completed("main\n")):
             result = _branch_ticket_id(cwd="/work/repo")
         assert result is None
 
     def test_returns_none_on_git_error(self) -> None:
         with patch(
-            "subprocess.check_output",
+            _RUN,
             side_effect=subprocess.CalledProcessError(128, "git"),
         ):
             result = _branch_ticket_id(cwd="/work/repo")
         assert result is None
 
     def test_returns_none_when_git_missing(self) -> None:
-        with patch("subprocess.check_output", side_effect=FileNotFoundError()):
+        with patch(_RUN, side_effect=FileNotFoundError()):
             result = _branch_ticket_id(cwd="/work/repo")
         assert result is None
 
     def test_uppercases_ticket_id(self) -> None:
-        with patch("subprocess.check_output", return_value="user/gh-434/feature\n"):
+        with patch(_RUN, return_value=_completed("user/gh-434/feature\n")):
             result = _branch_ticket_id(cwd="/work/repo")
         assert result == "GH-434"
 
@@ -148,13 +157,13 @@ class TestBranchTicketId:
 
 class TestRepoToplevel:
     def test_returns_toplevel(self) -> None:
-        with patch("subprocess.check_output", return_value="/work/repo\n"):
+        with patch(_RUN, return_value=_completed("/work/repo\n")):
             result = _repo_toplevel(cwd="/work/repo")
         assert result == "/work/repo"
 
     def test_returns_none_on_error(self) -> None:
         with patch(
-            "subprocess.check_output",
+            _RUN,
             side_effect=subprocess.CalledProcessError(128, "git"),
         ):
             result = _repo_toplevel(cwd="/some/path")
@@ -168,33 +177,33 @@ class TestRepoToplevel:
 
 class TestWorkingSetPaths:
     def test_parses_modified_file(self) -> None:
-        with patch("subprocess.check_output", return_value=" M docs/specs/GH-434.md\n"):
+        with patch(_RUN, return_value=_completed(" M docs/specs/GH-434.md\n")):
             paths = _working_set_paths(cwd="/work/repo")
         assert "docs/specs/GH-434.md" in paths
 
     def test_parses_added_file(self) -> None:
-        with patch("subprocess.check_output", return_value="A  docs/specs/NEW-1.md\n"):
+        with patch(_RUN, return_value=_completed("A  docs/specs/NEW-1.md\n")):
             paths = _working_set_paths(cwd="/work/repo")
         assert "docs/specs/NEW-1.md" in paths
 
     def test_parses_rename(self) -> None:
         with patch(
-            "subprocess.check_output",
-            return_value="R  old/path.md -> new/path.md\n",
+            _RUN,
+            return_value=_completed("R  old/path.md -> new/path.md\n"),
         ):
             paths = _working_set_paths(cwd="/work/repo")
         assert "new/path.md" in paths
 
     def test_returns_empty_on_git_error(self) -> None:
         with patch(
-            "subprocess.check_output",
+            _RUN,
             side_effect=subprocess.CalledProcessError(128, "git"),
         ):
             paths = _working_set_paths(cwd="/work/repo")
         assert paths == set()
 
     def test_returns_empty_when_git_missing(self) -> None:
-        with patch("subprocess.check_output", side_effect=FileNotFoundError()):
+        with patch(_RUN, side_effect=FileNotFoundError()):
             paths = _working_set_paths(cwd="/work/repo")
         assert paths == set()
 
