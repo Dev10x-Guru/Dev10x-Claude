@@ -2454,3 +2454,100 @@ class TestIssueCommentBodyFile:
         result = await gh.issue_comment_edit(comment_id=9, repo="o/r")
         assert isinstance(result, ErrorResult)
         mock_run.assert_not_awaited()
+
+
+class TestMalformedJsonGuards:
+    """GH-496: a zero exit code does not guarantee JSON on stdout.
+
+    Each guarded call site must return ``err(...)`` rather than raising
+    ``json.JSONDecodeError`` across the domain boundary when gh exits 0
+    with a non-JSON body (empty response, HTML error page, partial output).
+    """
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_unresolved_threads_guards_malformed_json(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(stdout="<html>502 Bad Gateway</html>")
+
+        result = await gh.pr_comments(action="list", pr_number=42, unresolved_only=True)
+
+        assert isinstance(result, ErrorResult)
+        assert "Invalid JSON" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_resolve_query_guards_malformed_json(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(stdout="not json")
+
+        result = await gh.pr_comments(action="resolve", comment_id="PRRC_x")
+
+        assert isinstance(result, ErrorResult)
+        assert "Invalid JSON" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_resolve_mutation_guards_malformed_json(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.side_effect = [
+            _completed(
+                stdout=json.dumps(_thread_lookup_response("n0", db_id=5, thread_id="PRRT_t1"))
+            ),
+            _completed(stdout="not json"),
+        ]
+
+        result = await gh.pr_comments(action="resolve", comment_id="PRRC_x")
+
+        assert isinstance(result, ErrorResult)
+        assert "Invalid JSON" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_minimize_comments_guards_malformed_json(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(stdout="not json")
+
+        result = await gh.minimize_comments(node_ids=["PRRC_a"])
+
+        assert isinstance(result, ErrorResult)
+        assert "Invalid JSON" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_resolve_review_thread_guards_malformed_json(
+        self,
+        mock_api: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(stdout="not json")
+
+        result = await gh.resolve_review_thread(thread_ids=["PRRT_t1"])
+
+        assert isinstance(result, ErrorResult)
+        assert "Invalid JSON" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_milestone_create_guards_malformed_json(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(stdout="not json")
+
+        result = await gh.milestone_create(title="M1")
+
+        assert isinstance(result, ErrorResult)
+        assert "Invalid JSON" in result.error
