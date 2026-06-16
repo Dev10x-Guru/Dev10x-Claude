@@ -13,6 +13,7 @@ invocation-name: Dev10x:qa-self
 allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/playwright/scripts/:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/qa-self/scripts/:*)
+  - AskUserQuestion
 ---
 
 # Self-QA — Automated Staging Test Execution

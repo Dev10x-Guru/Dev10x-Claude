@@ -21,6 +21,7 @@ allowed-tools:
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
   - mcp__plugin_Dev10x_cli__mktmp
   - Write(/tmp/Dev10x/git/**)
+  - AskUserQuestion
 ---
 
 # Git Branch History Grooming
