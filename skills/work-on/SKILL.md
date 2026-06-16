@@ -21,6 +21,7 @@ allowed-tools:
   - Skill(skill="Dev10x:verify-acc-dod")
   - mcp__plugin_Dev10x_cli__plan_sync_set_context
   - mcp__plugin_Dev10x_cli__plan_sync_json_summary
+  - AskUserQuestion
 ---
 
 # Dev10x:work-on — Adaptive Work Orchestrator

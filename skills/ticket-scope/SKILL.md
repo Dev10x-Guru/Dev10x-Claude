@@ -24,6 +24,7 @@ allowed-tools:
   - Glob
   - Read
   - Bash(mkdir -p:*)
+  - AskUserQuestion
 ---
 
 # Ticket Scope — Linear Ticket Scoping Skill
