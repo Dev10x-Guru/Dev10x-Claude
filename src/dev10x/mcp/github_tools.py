@@ -1095,3 +1095,37 @@ async def cluster_review_comments(
         limit=limit,
         top_n=top_n,
     )
+
+
+@github_tool
+async def candidate_rules_report(
+    repos: list[str] | None = None,
+    limit: int = 50,
+    top_n: int = 20,
+    cwd: str | None = None,
+) -> Result[dict]:
+    """Produce a read-only candidate-rules report (GH-347).
+
+    Mines recurring review-comment patterns via ``cluster_review_comments``
+    (GH-346) and renders them into a human-readable Markdown memo. This is
+    a read-only visibility step — it surfaces candidate patterns for human
+    review and does NOT generate, write, or apply any permission rule.
+
+    Args:
+        repos: ``owner/name`` repositories to analyze. Defaults to the
+            current repository when omitted.
+        limit: Max merged PRs scanned per repo (default 50).
+        top_n: Number of top patterns to include (default 20).
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: report (str), patterns (list), summary
+        (dict); or error.
+    """
+    from dev10x.github import candidate_rules
+
+    return await candidate_rules.candidate_rules_report(
+        repos=repos,
+        limit=limit,
+        top_n=top_n,
+    )

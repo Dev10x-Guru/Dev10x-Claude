@@ -1772,3 +1772,34 @@ class TestClusterReviewComments:
             result = await cli_server.cluster_review_comments()
 
         assert "error" in result
+
+
+class TestCandidateRulesReport:
+    """GH-347 handler delegation to the candidate-rules report builder."""
+
+    @pytest.mark.asyncio
+    async def test_delegates_to_candidate_rules(self) -> None:
+        with patch(
+            "dev10x.github.candidate_rules.candidate_rules_report",
+            new_callable=AsyncMock,
+        ) as mock_fn:
+            mock_fn.return_value = ok(
+                {"report": "# Candidate Rules Report", "patterns": [], "summary": {}}
+            )
+
+            result = await cli_server.candidate_rules_report(top_n=5)
+
+        assert result["report"] == "# Candidate Rules Report"
+        assert mock_fn.call_args.kwargs == {"repos": None, "limit": 50, "top_n": 5}
+
+    @pytest.mark.asyncio
+    async def test_propagates_error(self) -> None:
+        with patch(
+            "dev10x.github.candidate_rules.candidate_rules_report",
+            new_callable=AsyncMock,
+        ) as mock_fn:
+            mock_fn.return_value = err("no repository specified")
+
+            result = await cli_server.candidate_rules_report()
+
+        assert "error" in result
