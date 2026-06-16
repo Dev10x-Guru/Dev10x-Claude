@@ -155,18 +155,30 @@ def _tokens(full_tool_name: str) -> set[str]:
     }
 
 
+def classify_tokens(name: str) -> str:
+    """Classify any verb-bearing name (CLI command, skill, tool) as read/write/unknown.
+
+    Splits *name* into tokens (camelCase + snake_case + digits, GH-593) and
+    applies write-precedence: any write token wins, so a write is never
+    misclassified as promotable. Used by both :func:`classify_mcp_tool` and the
+    source-derived manifest generators (GH-600), so every surface — MCP, CLI,
+    skill — shares one classifier.
+    """
+    tokens = _tokens(name)
+    if tokens & WRITE_TOKENS:
+        return "write"
+    if tokens & READ_TOKENS:
+        return "read"
+    return "unknown"
+
+
 def classify_mcp_tool(full_tool_name: str) -> str:
     """Classify a fully-qualified MCP tool name as read/write/unknown.
 
     Write-precedence: any write token wins, so a write is never
     misclassified as promotable.
     """
-    tokens = _tokens(full_tool_name)
-    if tokens & WRITE_TOKENS:
-        return "write"
-    if tokens & READ_TOKENS:
-        return "read"
-    return "unknown"
+    return classify_tokens(full_tool_name)
 
 
 def is_sensitivity_flagged(full_tool_name: str) -> bool:
