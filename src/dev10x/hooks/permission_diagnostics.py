@@ -60,9 +60,6 @@ class DiagnosticResult:
     def matched(self) -> list[RuleMatch]:
         return [m for m in self.matches if m.is_matched()]
 
-    def has_any_match(self) -> bool:
-        return any(m.is_matched() for m in self.matches)
-
 
 SETTINGS_PRECEDENCE: list[SettingsFile] = [
     SettingsFile(
