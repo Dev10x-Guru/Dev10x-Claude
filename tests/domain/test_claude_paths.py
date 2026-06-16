@@ -30,7 +30,6 @@ def no_override(monkeypatch: pytest.MonkeyPatch) -> None:
         ("projects_dir", "projects"),
         ("session_state_dir", "projects/_session_state"),
         ("metrics_dir", "projects/_metrics"),
-        ("memory_dir", "memory"),
         ("memory_dev10x_dir", "memory/Dev10x"),
         ("memory_projects_yaml", "memory/Dev10x/projects.yaml"),
         ("dev10x_config_dir", "Dev10x"),

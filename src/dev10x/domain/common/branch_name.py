@@ -84,10 +84,3 @@ class BranchName:
             return cls.parse(value)
         except (TypeError, ValueError):
             return None
-
-    def validate_convention(self) -> None:
-        if not self.follows_convention:
-            raise ValueError(
-                f"Branch {self.raw!r} does not follow the "
-                f"'username/TICKET-ID/[worktree/]slug' convention."
-            )

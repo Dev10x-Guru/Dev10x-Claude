@@ -291,20 +291,6 @@ class SensitivityClassifier:
                 )
         return results
 
-    def is_sensitive(self, *, command: str) -> bool:
-        """Return True if *command* triggers any sensitivity rule."""
-        return bool(self.classify(command=command))
-
-    def highest_label(self, *, command: str) -> SensitivityLabel | None:
-        """Return the first matched label, or None if no match.
-
-        When multiple labels match, returns the first match in wordlist
-        order (which preserves the declaration order of
-        ``_DEFAULT_PATTERNS``).
-        """
-        matches = self.classify(command=command)
-        return matches[0].label if matches else None
-
 
 __all__ = [
     "SensitivityClassifier",

@@ -19,30 +19,30 @@ from dev10x.subprocess_utils import use_cwd
 
 
 class TestHookInputCwd:
-    """domain/events/hook_input.py:27 — H6."""
+    """hooks/hook_transport.py:read_hook_input — H6 (moved from domain in GH-511)."""
 
-    def test_from_stdin_honors_bound_cwd(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from dev10x.domain.events.hook_input import HookInput
+    def test_read_hook_input_honors_bound_cwd(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from dev10x.hooks.hook_transport import read_hook_input
 
         payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "ls"}})
         monkeypatch.setattr(sys, "stdin", io.StringIO(payload))
 
         with use_cwd("/bound/worktree"):
-            inp = HookInput.from_stdin()
+            inp = read_hook_input()
 
         assert inp.cwd == "/bound/worktree"
 
-    def test_from_stdin_falls_back_to_process_cwd(
+    def test_read_hook_input_falls_back_to_process_cwd(
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        from dev10x.domain.events.hook_input import HookInput
+        from dev10x.hooks.hook_transport import read_hook_input
 
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({})))
 
-        inp = HookInput.from_stdin()
+        inp = read_hook_input()
 
         assert inp.cwd == os.getcwd()
 

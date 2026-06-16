@@ -13,7 +13,6 @@ from dataclasses import dataclass
 
 TICKET_ID_PATTERN = r"[A-Z]+-\d+"
 _FULL_RE = re.compile(rf"^{TICKET_ID_PATTERN}$")
-_SEARCH_RE = re.compile(TICKET_ID_PATTERN)
 # A ticket occupying a whole branch-path segment, e.g. ``user/GH-12/slug``.
 # Case-insensitive so lowercase branch names (``gh-12``) still resolve; the
 # ``GH-`` prefix needs no special case — it is already a ``[A-Z]+`` project.
@@ -44,21 +43,6 @@ class TicketId:
             return cls.parse(value)
         except (TypeError, ValueError):
             return None
-
-    @classmethod
-    def find_first(cls, text: str) -> TicketId | None:
-        match = _SEARCH_RE.search(text)
-        if not match:
-            return None
-        return cls.try_parse(match.group(0))
-
-    @classmethod
-    def find_all(cls, text: str) -> list[TicketId]:
-        return [
-            ticket
-            for match in _SEARCH_RE.finditer(text)
-            if (ticket := cls.try_parse(match.group(0))) is not None
-        ]
 
     @classmethod
     def find_first_in_branch_name(cls, branch: str) -> TicketId | None:

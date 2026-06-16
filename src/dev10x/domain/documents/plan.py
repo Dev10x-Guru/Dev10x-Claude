@@ -55,7 +55,6 @@ def get_plan_path(*, toplevel: str) -> Path:
 
 @dataclass(frozen=True)
 class TaskTransition:
-    timestamp_field: str | None
     allowed_from: frozenset[TaskStatus | None]
     removes: bool = False
 
@@ -66,15 +65,12 @@ class TaskTransition:
 # from any state because the operation removes the task entirely.
 TASK_TRANSITIONS: dict[TaskStatus, TaskTransition] = {
     TaskStatus.PENDING: TaskTransition(
-        timestamp_field=None,
         allowed_from=frozenset({None, TaskStatus.PENDING, TaskStatus.IN_PROGRESS}),
     ),
     TaskStatus.IN_PROGRESS: TaskTransition(
-        timestamp_field="started_at",
         allowed_from=frozenset({None, TaskStatus.PENDING, TaskStatus.IN_PROGRESS}),
     ),
     TaskStatus.COMPLETED: TaskTransition(
-        timestamp_field="completed_at",
         allowed_from=frozenset(
             {
                 None,
@@ -85,7 +81,6 @@ TASK_TRANSITIONS: dict[TaskStatus, TaskTransition] = {
         ),
     ),
     TaskStatus.DELETED: TaskTransition(
-        timestamp_field=None,
         allowed_from=frozenset(
             {
                 None,
