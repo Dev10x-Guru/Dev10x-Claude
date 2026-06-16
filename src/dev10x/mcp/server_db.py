@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
 
+from dev10x.domain.common.result import to_wire
+
 server = FastMCP(name="Dev10x-db")
 
 
@@ -28,7 +30,7 @@ async def query(
     """
     from dev10x import db as db_tools
 
-    return db_tools.query(database=database, sql=sql).to_dict()
+    return to_wire(db_tools.query(database=database, sql=sql))
 
 
 def main() -> None:

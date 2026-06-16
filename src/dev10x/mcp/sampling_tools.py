@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dev10x.domain.common.result import to_wire
 from dev10x.mcp._app import server
 
 
@@ -42,10 +43,11 @@ async def request_sampling(
     """
     from dev10x.mcp.sampling_manager import request_sampling as _request_sampling
 
-    result = await _request_sampling(
-        prompt=prompt,
-        system_prompt=system_prompt,
-        max_tokens=max_tokens,
-        temperature=temperature,
+    return to_wire(
+        await _request_sampling(
+            prompt=prompt,
+            system_prompt=system_prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
     )
-    return result.to_dict()

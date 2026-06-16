@@ -12,7 +12,7 @@ from mcp.server.fastmcp import Context  # noqa: F401
 
 from dev10x import github as gh
 from dev10x import subprocess_utils
-from dev10x.domain.common.result import Result
+from dev10x.domain.common.result import Result, to_wire
 from dev10x.mcp._app import server
 
 
@@ -20,7 +20,7 @@ def github_tool(fn):
     """Wrap a GitHub handler with cwd binding + Result→dict unwrapping.
 
     The inner ``fn`` returns a ``Result``; this decorator enters
-    ``use_cwd(kwargs["cwd"])`` and calls ``.to_dict()`` at the MCP
+    ``use_cwd(kwargs["cwd"])`` and calls ``to_wire()`` at the MCP
     boundary. ``functools.wraps`` preserves the inner signature so
     FastMCP builds the correct tool schema.
     """
@@ -30,7 +30,7 @@ def github_tool(fn):
     async def wrapper(*args, **kwargs):
         with subprocess_utils.use_cwd(kwargs.get("cwd")):
             result = await fn(*args, **kwargs)
-        return result.to_dict()
+        return to_wire(result)
 
     return wrapper
 
@@ -447,7 +447,7 @@ async def create_pr(
         await ctx.info(f"create_pr: opening PR for {issue_id} (draft={draft})")
 
     with use_cwd(cwd):
-        result = (
+        result = to_wire(
             await gh.create_pr(
                 title=title,
                 job_story=job_story,
@@ -458,7 +458,7 @@ async def create_pr(
                 draft=draft,
                 head_repo=head_repo,
             )
-        ).to_dict()
+        )
 
     if ctx is not None:
         if "error" in result:

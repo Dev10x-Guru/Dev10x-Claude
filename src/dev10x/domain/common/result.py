@@ -10,9 +10,10 @@ class ResultProtocol(Protocol):
     """Contract every value crossing the MCP boundary must satisfy.
 
     Both ``SuccessResult`` and ``ErrorResult`` implement ``to_dict``.
-    The ``@server.tool()`` boundary asserts ``isinstance(x,
-    ResultProtocol)`` to catch a handler that forgot ``.to_dict()``
-    before the wire-encode step (ADR-0009).
+    The ``@server.tool()`` boundary routes its result through
+    :func:`to_wire`, which asserts ``isinstance(x, ResultProtocol)``
+    to catch a handler that forgot to return a ``Result`` before the
+    wire-encode step (ADR-0009).
     """
 
     def to_dict(self) -> dict[str, Any]: ...
@@ -52,3 +53,21 @@ def err(
     **details: Any,
 ) -> ErrorResult:
     return ErrorResult(error=error, details=details)
+
+
+def to_wire(result: ResultProtocol) -> dict[str, Any]:
+    """Assert the ADR-0009 boundary contract, then wire-encode.
+
+    Every ``@server.tool()`` handler routes its ``Result`` through
+    here so a handler that forgot to build a ``Result`` (returning a
+    bare value, a ``CompletedProcess``, a raw ``dict``, etc.) fails at
+    the boundary with a clear ``TypeError`` instead of at JSON-encode
+    time, far from the cause. ``@runtime_checkable`` only verifies the
+    ``to_dict`` method is present — the documented scope of the guard.
+    """
+    if not isinstance(result, ResultProtocol):
+        raise TypeError(
+            f"MCP boundary expected a Result (got {type(result).__name__}); "
+            "a @server.tool() handler likely forgot to return ok()/err()."
+        )
+    return result.to_dict()

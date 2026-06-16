@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dev10x.domain.common.result import to_wire
 from dev10x.mcp._app import server
 
 
@@ -30,4 +31,4 @@ async def list_client_roots() -> dict:
     """
     from dev10x.mcp.roots_manager import list_roots
 
-    return list_roots().to_dict()
+    return to_wire(list_roots())

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dev10x.domain.common.result import to_wire
 from dev10x.mcp._app import server
 
 
@@ -21,12 +22,12 @@ async def audit_extract_session(
     """
     from dev10x import audit
 
-    return (
+    return to_wire(
         await audit.extract_session(
             jsonl_path=jsonl_path,
             output_path=output_path,
         )
-    ).to_dict()
+    )
 
 
 @server.tool()
@@ -45,12 +46,12 @@ async def audit_analyze_actions(
     """
     from dev10x import audit
 
-    return (
+    return to_wire(
         await audit.analyze_actions(
             transcript_path=transcript_path,
             output_path=output_path,
         )
-    ).to_dict()
+    )
 
 
 @server.tool()
@@ -71,13 +72,13 @@ async def audit_analyze_permissions(
     """
     from dev10x import audit
 
-    return (
+    return to_wire(
         await audit.analyze_permissions(
             transcript_path=transcript_path,
             settings_path=settings_path,
             output_path=output_path,
         )
-    ).to_dict()
+    )
 
 
 @server.tool()
@@ -93,7 +94,7 @@ async def audit_hook_log_path() -> dict:
     """
     from dev10x import audit
 
-    return (await audit.hook_log_path()).to_dict()
+    return to_wire(await audit.hook_log_path())
 
 
 @server.tool()
@@ -116,11 +117,11 @@ async def audit_hook_recent(
     """
     from dev10x import audit
 
-    return (
+    return to_wire(
         await audit.hook_recent(
             limit=limit,
             hook_name=hook_name,
             span_id=span_id,
             log_path=log_path,
         )
-    ).to_dict()
+    )

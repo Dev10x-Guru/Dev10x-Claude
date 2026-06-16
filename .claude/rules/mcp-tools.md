@@ -29,7 +29,9 @@ registration:
 All MCP tools follow a two-layer pattern: internal functions return a
 typed `Result[T]` (`SuccessResult` or `ErrorResult` from
 `dev10x.domain.common.result`), and the `@server.tool()` handler at the
-MCP boundary calls `.to_dict()` to produce the wire-format dict.
+MCP boundary routes the result through `to_wire()` — which asserts
+`isinstance(result, ResultProtocol)` then calls `.to_dict()` — to
+produce the wire-format dict (ADR-0009).
 
 ```python
 # Internal module (audit/release/monitor/permission/plan/skill_index/
@@ -41,12 +43,15 @@ async def collect_prs(...) -> Result[dict[str, Any]]:
         return err("descriptive message")
     return ok({tool-specific fields})
 
-# MCP server boundary (src/dev10x/mcp/server_cli.py): unwrap via
-# .to_dict() so external consumers see the uniform wire format.
+# MCP server boundary (src/dev10x/mcp/server_cli.py): route through
+# to_wire() so external consumers see the uniform wire format and a
+# handler that forgot to return a Result fails loud at the boundary.
+from dev10x.domain.common.result import to_wire
+
 @server.tool()
 async def collect_prs(...) -> dict:
     """Brief description of what the tool does."""
-    return (await rel.collect_prs(...)).to_dict()
+    return to_wire(await rel.collect_prs(...))
 ```
 
 **Wire format** (what callers see):
@@ -58,8 +63,8 @@ async def collect_prs(...) -> dict:
 **Why two layers**: internal callers branch on `isinstance(result,
 SuccessResult)` for type-safe error handling; the MCP boundary keeps
 the legacy dict shape so existing tool consumers don't break. New
-modules MUST mirror the pattern — return `Result[T]` internally, call
-`.to_dict()` at the `@server.tool()` boundary.
+modules MUST mirror the pattern — return `Result[T]` internally, route
+through `to_wire()` at the `@server.tool()` boundary.
 
 **Tool-specific success payloads**:
 - `mktmp`: returns `{"path": "/tmp/file"}`

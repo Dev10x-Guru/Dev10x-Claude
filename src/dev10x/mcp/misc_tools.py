@@ -10,6 +10,7 @@ from typing import Literal, cast
 # `from __future__ import annotations`.
 from mcp.server.fastmcp import Context  # noqa: F401
 
+from dev10x.domain.common.result import to_wire
 from dev10x.mcp._app import server
 
 
@@ -48,7 +49,7 @@ async def mktmp(
     from dev10x.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
-        return (
+        return to_wire(
             await util.mktmp(
                 namespace=namespace,
                 prefix=prefix,
@@ -57,7 +58,7 @@ async def mktmp(
                 create=create,
                 cwd=cwd,
             )
-        ).to_dict()
+        )
 
 
 @server.tool()
@@ -92,12 +93,12 @@ async def slack_thread_is_forward(
     """
     from dev10x.utilities import slack as slack_helper
 
-    return (
+    return to_wire(
         await slack_helper.slack_thread_is_forward(
             parent_body=parent_body,
             reply_count=reply_count,
         )
-    ).to_dict()
+    )
 
 
 @server.tool()
@@ -128,7 +129,7 @@ async def update_paths(
     """
     from dev10x import permission as perm
 
-    return (
+    return to_wire(
         await perm.update_paths(
             version=version,
             dry_run=dry_run,
@@ -139,7 +140,7 @@ async def update_paths(
             init=init,
             quiet=quiet,
         )
-    ).to_dict()
+    )
 
 
 @server.tool()
@@ -156,7 +157,7 @@ async def generate_skill_index(
     """
     from dev10x import skill_index as idx
 
-    return (await idx.generate_all(force=force)).to_dict()
+    return to_wire(await idx.generate_all(force=force))
 
 
 @server.tool()
@@ -176,7 +177,7 @@ async def record_upgrade(version: str | None = None) -> dict:
     """
     from dev10x.domain.install_version import record_upgrade as _record_upgrade
 
-    return _record_upgrade(version=version).to_dict()
+    return to_wire(_record_upgrade(version=version))
 
 
 @server.tool()
@@ -222,7 +223,7 @@ async def run_tests(
         await ctx.info(f"run_tests: launching pytest ({extra_desc})")
 
     with use_cwd(cwd):
-        result = (await runner.run_tests(args=args, coverage=coverage, timeout=timeout)).to_dict()
+        result = to_wire(await runner.run_tests(args=args, coverage=coverage, timeout=timeout))
 
     if ctx is not None:
         summary = result.get("summary", "")

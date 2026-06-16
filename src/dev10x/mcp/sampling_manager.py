@@ -18,7 +18,7 @@ session so a later tool call can issue a ``sampling/createMessage`` request.
 ``request_sampling`` is the backing domain function for the
 ``request_sampling`` MCP tool.  It returns a
 :class:`~dev10x.domain.common.result.Result` so the handler unwraps it via
-``.to_dict()`` at the MCP boundary like every other tool (ADR-0009).
+``to_wire()`` at the MCP boundary like every other tool (ADR-0009).
 
 Environment variables
 ---------------------
