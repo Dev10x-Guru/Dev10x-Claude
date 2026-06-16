@@ -14,7 +14,6 @@ from __future__ import annotations
 import json
 import sys
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
 from dev10x.domain.documents.plan import Plan, get_plan_path, get_toplevel
@@ -25,11 +24,6 @@ from dev10x.plan.service import (
     plan_summary,
     set_plan_context,
 )
-
-
-def read_plan(*, plan_path: Path) -> dict[str, Any]:
-    """Load plan YAML into a dict. Consumed by `dev10x.hooks.session`."""
-    return Plan.load(path=plan_path).to_dict()
 
 
 def cmd_set_context(*, args: list[str]) -> None:
