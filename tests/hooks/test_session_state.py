@@ -1,83 +1,67 @@
-"""Tests for session-start-reload.py hook."""
+"""Tests for the SessionStart reload context builder (GH-545).
+
+Repointed from the removed ``session-start-reload.py`` shim to the live
+in-process path: ``dev10x.hooks.session.build_reload_context``. The
+``session-start.py`` orchestrator invokes this directly as the
+``session-reload`` feature (GH-959), so it is the function that actually
+runs at SessionStart — the standalone shim was unwired dead code.
+"""
 
 from __future__ import annotations
 
-import hashlib
-import json
-import subprocess
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-START_HOOK = _REPO_ROOT / "hooks" / "scripts" / "session-start-reload.py"
+import pytest
+
+from dev10x.domain.session_document import state_path_for_toplevel, write_state
+from dev10x.hooks import session, session_dispatch
 
 
-def _git_toplevel() -> str:
-    result = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
-        capture_output=True,
-        text=True,
+def _write_state(*, toplevel: str, session_id: str) -> Path:
+    path = state_path_for_toplevel(toplevel=toplevel)
+    write_state(
+        path=path,
+        state={
+            "session_id": session_id,
+            "branch": "develop",
+            "worktree": "",
+            "working_directory": toplevel,
+            "timestamp": "2026-01-01T00:00:00Z",
+            "modified_files": [],
+            "staged_files": [],
+            "recent_commits": ["abc1234 Test commit"],
+            "has_plan": False,
+        },
     )
-    return result.stdout.strip()
+    return path
 
 
-def _run_reload(
-    *,
-    env: dict[str, str] | None = None,
-) -> subprocess.CompletedProcess[str]:
-    import os
-
-    run_env = {**os.environ, **(env or {})}
-    return subprocess.run(
-        [str(START_HOOK)],
-        input="{}",
-        capture_output=True,
-        text=True,
-        timeout=10,
-        env=run_env,
-    )
+@pytest.fixture
+def toplevel(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
+    """Isolate state + plan resolution under a temp claude-home and repo root."""
+    monkeypatch.setenv("DEV10X_CLAUDE_HOME", str(tmp_path / "claude-home"))
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    monkeypatch.setattr(session_dispatch, "_get_toplevel", lambda: str(repo))
+    return str(repo)
 
 
-def _create_state_file(*, home: Path, session_id: str) -> None:
-    toplevel = _git_toplevel()
-    project_hash = hashlib.md5(toplevel.encode()).hexdigest()
-    state_dir = home / ".claude" / "projects" / "_session_state"
-    state_dir.mkdir(parents=True, exist_ok=True)
-    state = {
-        "session_id": session_id,
-        "branch": "develop",
-        "worktree": "",
-        "working_directory": toplevel,
-        "timestamp": "2026-01-01T00:00:00Z",
-        "modified_files": [],
-        "staged_files": [],
-        "recent_commits": ["abc1234 Test commit"],
-        "has_plan": False,
-    }
-    (state_dir / f"{project_hash}.json").write_text(json.dumps(state))
+class TestBuildReloadContext:
+    def test_empty_without_state_or_plan(self, toplevel: str) -> None:
+        assert session.build_reload_context() == ""
 
+    def test_includes_state_when_present(self, toplevel: str) -> None:
+        _write_state(toplevel=toplevel, session_id="reload-test-session")
 
-class TestSessionStartReload:
-    def test_exits_successfully_without_state(self) -> None:
-        result = _run_reload()
-        assert result.returncode == 0
+        context = session.build_reload_context()
 
-    def test_outputs_nothing_without_state(self, tmp_path: Path) -> None:
-        result = _run_reload(env={"HOME": str(tmp_path)})
-        assert result.stdout == ""
-
-    def test_outputs_context_with_state(self, tmp_path: Path) -> None:
-        _create_state_file(home=tmp_path, session_id="reload-test-session")
-        result = _run_reload(env={"HOME": str(tmp_path)})
-        assert result.returncode == 0
-        output = json.loads(result.stdout)
-        assert "hookSpecificOutput" in output
-        context = output["hookSpecificOutput"]["additionalContext"]
         assert "Prior session state detected" in context
         assert "reload-test-session" in context
 
-    def test_cleans_up_state_after_reload(self, tmp_path: Path) -> None:
-        _create_state_file(home=tmp_path, session_id="cleanup-test")
-        state_dir = tmp_path / ".claude" / "projects" / "_session_state"
-        assert len(list(state_dir.glob("*.json"))) == 1
-        _run_reload(env={"HOME": str(tmp_path)})
-        assert len(list(state_dir.glob("*.json"))) == 0
+    def test_consumes_state_file_once(self, toplevel: str) -> None:
+        path = _write_state(toplevel=toplevel, session_id="cleanup-test")
+        assert path.exists()
+
+        session.build_reload_context()
+
+        assert not path.exists()
