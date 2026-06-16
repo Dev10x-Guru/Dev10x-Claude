@@ -13,9 +13,9 @@ from dev10x.github import app_auth as auth
 
 @pytest.fixture(autouse=True)
 def clear_token_cache():
-    auth._clear_cache()
+    auth._TOKEN_CACHE.clear()
     yield
-    auth._clear_cache()
+    auth._TOKEN_CACHE.clear()
 
 
 def _completed(
