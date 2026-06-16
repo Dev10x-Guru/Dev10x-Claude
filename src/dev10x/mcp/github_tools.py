@@ -1129,3 +1129,49 @@ async def candidate_rules_report(
         limit=limit,
         top_n=top_n,
     )
+
+
+@github_tool
+async def validate_candidate_patterns(
+    repos: list[str] | None = None,
+    limit: int = 50,
+    top_n: int = 20,
+    diff_limit: int = 20,
+    min_frequency: int = 2,
+    max_fp_rate: float = 0.5,
+    cwd: str | None = None,
+) -> Result[dict]:
+    """Validate candidate review-comment patterns against recent diffs (GH-348).
+
+    Mines recurring review-comment patterns via ``cluster_review_comments``
+    (GH-346), fetches recent merged-PR diffs, and estimates a heuristic
+    false-positive rate for each pattern so the validated subset can feed
+    reference-rule authoring (GH-349). The false-positive rate is a
+    heuristic estimate, not a measured ground truth.
+
+    Args:
+        repos: ``owner/name`` repositories to analyze. Defaults to the
+            current repository when omitted.
+        limit: Max merged PRs scanned for review comments (default 50).
+        top_n: Number of top candidate patterns to validate (default 20).
+        diff_limit: Max recent merged PRs sampled for diff matching
+            (default 20).
+        min_frequency: Minimum reviewer frequency for a validated pattern
+            (default 2).
+        max_fp_rate: Maximum estimated false-positive rate for a
+            validated pattern (default 0.5).
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: validated (list), summary (dict); or error.
+    """
+    from dev10x.github import pattern_validation
+
+    return await pattern_validation.validate_candidate_patterns(
+        repos=repos,
+        limit=limit,
+        top_n=top_n,
+        diff_limit=diff_limit,
+        min_frequency=min_frequency,
+        max_fp_rate=max_fp_rate,
+    )
