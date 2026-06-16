@@ -23,6 +23,7 @@ from dev10x.audit.log_reader import (
     prune,
     summarize,
 )
+from dev10x.audit.summarizer import HookStatsQuery
 from dev10x.domain.hook_telemetry import HookOutcome, HookPhase
 
 
@@ -432,6 +433,40 @@ class TestSummarize:
         ]
         result = summarize(records=records)
         assert result == {}
+
+
+class TestHookStatsQuery:
+    def test_by_hook_matches_summarize_wrapper(self) -> None:
+        records = [
+            {
+                "phase": HookPhase.WRAP,
+                "span_id": "s1",
+                "hook": "session-start",
+                "total_ms": 120,
+                "outcome": HookOutcome.OK,
+            },
+            {
+                "phase": HookPhase.BODY,
+                "span_id": "s1",
+                "hook": "session-start",
+                "body_ms": 40,
+                "outcome": HookOutcome.OK,
+            },
+        ]
+        assert HookStatsQuery(records=records).by_hook() == summarize(records=records)
+
+    def test_query_object_aggregates_paired_span(self) -> None:
+        records = [
+            {"phase": HookPhase.WRAP, "span_id": "s1", "hook": "h", "total_ms": 100},
+            {"phase": HookPhase.BODY, "span_id": "s1", "hook": "h", "body_ms": 60},
+        ]
+        stats = HookStatsQuery(records=records).by_hook()["h"]
+        assert stats["paired_count"] == 1
+        assert stats["startup_ms_avg"] == 40.0
+
+    def test_span_with_only_unknown_phase_is_skipped(self) -> None:
+        records = [{"phase": "warmup", "span_id": "s1", "hook": "h"}]
+        assert HookStatsQuery(records=records).by_hook() == {}
 
 
 class TestPrune:
