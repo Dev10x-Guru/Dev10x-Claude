@@ -599,6 +599,88 @@ groups:
       - WebFetch(domain:docs.sentry.io)
       - WebFetch(domain:resend.com)
 
+  # ─── Curated read-only third-party surfaces (GH-601, S1) ────────────
+  # Default-safe reads across MCP + CLI + skills. Split from the opt-in
+  # sensitive groups in tier 3 by the manifest's sensitivity axis (GH-600,
+  # S3): only `sensitivity: benign` reads are seeded by default. Write
+  # tools are deliberately absent (write-precedence) so they keep prompting.
+
+  mcp-sentry-readonly:
+    tier: 2
+    sensitivity: benign
+    description: >
+      Sentry read-only MCP tools (evidence #1). Issue/event/resource
+      reads and tool discovery — default-safe. Write tools
+      (``update_issue``, ``execute_sentry_tool``) are absent so they keep
+      prompting; ``analyze_issue_with_seer`` is also excluded because it
+      triggers a cost-bearing Seer analysis (same doctrine as
+      ``gh workflow run``).
+    rules:
+      - mcp__claude_ai_Sentry__find_organizations
+      - mcp__claude_ai_Sentry__find_projects
+      - mcp__claude_ai_Sentry__get_sentry_resource
+      - mcp__claude_ai_Sentry__search_events
+      - mcp__claude_ai_Sentry__search_issues
+      - mcp__claude_ai_Sentry__search_sentry_tools
+
+  mcp-atlassian-readonly:
+    tier: 2
+    sensitivity: benign
+    description: >
+      Atlassian / JIRA read-only MCP tools (evidence #6). Issue and
+      project reads plus JQL search — default-safe. Write tools
+      (``createJiraIssue``, ``editJiraIssue``, ``addCommentToJiraIssue``,
+      ``transitionJiraIssue``, ``createIssueLink``, ``addWorklogToJiraIssue``)
+      are absent (write-precedence catches the camelCase verbs via GH-593).
+    rules:
+      - mcp__claude_ai_Atlassian__atlassianUserInfo
+      - mcp__claude_ai_Atlassian__getAccessibleAtlassianResources
+      - mcp__claude_ai_Atlassian__getIssueLinkTypes
+      - mcp__claude_ai_Atlassian__getJiraIssue
+      - mcp__claude_ai_Atlassian__getJiraIssueRemoteIssueLinks
+      - mcp__claude_ai_Atlassian__getJiraIssueTypeMetaWithFields
+      - mcp__claude_ai_Atlassian__getJiraProjectIssueTypesMetadata
+      - mcp__claude_ai_Atlassian__getTransitionsForJiraIssue
+      - mcp__claude_ai_Atlassian__getVisibleJiraProjects
+      - mcp__claude_ai_Atlassian__lookupJiraAccountId
+      - mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql
+      - mcp__claude_ai_Atlassian__fetch
+      - mcp__claude_ai_Atlassian__search
+
+  vercel-cli-readonly:
+    tier: 2
+    sensitivity: benign
+    description: >
+      Vercel CLI read-only subcommands (evidence #24). Enumerated
+      per-subcommand — never ``Bash(vercel:*)`` — because the vercel verb
+      surface mixes reads with deploys / promotes / removes. Inspect, list,
+      and logs only. ``vercel env`` listings expose secret NAMES and live
+      in the opt-in ``secrets-listing-readonly`` group, not here.
+    rules:
+      - Bash(vercel ls:*)
+      - Bash(vercel list:*)
+      - Bash(vercel inspect:*)
+      - Bash(vercel logs:*)
+      - Bash(vercel whoami:*)
+      - Bash(vercel teams ls:*)
+      - Bash(vercel projects ls:*)
+      - Bash(vercel domains ls:*)
+      - Bash(vercel certs ls:*)
+      - Bash(vercel dns ls:*)
+      - Bash(vercel git ls:*)
+
+  readonly-skills:
+    tier: 2
+    sensitivity: benign
+    description: >
+      Read-only analysis skills that inspect and report without mutating
+      the workspace (evidence #20). Mutating skills are intentionally
+      absent — they ship through their own delegation paths.
+    rules:
+      - Skill(code-review)
+      - Skill(security-review)
+      - Skill(review)
+
   obsidian-cli:
     tier: 3
     description: >
@@ -672,6 +754,49 @@ groups:
       - Bash(obsidian wordcount:*)
       - Bash(obsidian recents:*)
       - Skill(obsidian-cli:*)
+
+  # ─── Opt-in sensitive read surfaces (GH-601, S1; D7) ────────────────
+  # These reads use benign verbs (read/get/list/search) but touch
+  # sensitive TARGETS, so the manifest's sensitivity axis (GH-600) flags
+  # them non-default-safe. They are tier 3 / opt-in — enable per project
+  # with `dev10x permission doctor --enable-group=<name>`. The proactive
+  # seed (GH-603) never auto-promotes a non-benign group.
+
+  mcp-google-workspace-readonly:
+    tier: 3
+    sensitivity: pii
+    description: >
+      Google Drive / Gmail / Calendar read-only MCP tools (evidence #5).
+      The verbs are benign but the data is personal (PII), so this group
+      is OPT-IN — never seeded by default. Write tools (create/update/
+      delete/label/send) are absent regardless.
+    rules:
+      - mcp__claude_ai_Google_Drive__search_files
+      - mcp__claude_ai_Google_Drive__read_file_content
+      - mcp__claude_ai_Google_Drive__get_file_metadata
+      - mcp__claude_ai_Google_Drive__get_file_permissions
+      - mcp__claude_ai_Google_Drive__list_recent_files
+      - mcp__claude_ai_Google_Drive__download_file_content
+      - mcp__claude_ai_Gmail__search_threads
+      - mcp__claude_ai_Gmail__get_thread
+      - mcp__claude_ai_Gmail__list_labels
+      - mcp__claude_ai_Gmail__list_drafts
+      - mcp__claude_ai_Google_Calendar__list_calendars
+      - mcp__claude_ai_Google_Calendar__list_events
+      - mcp__claude_ai_Google_Calendar__get_event
+      - mcp__claude_ai_Google_Calendar__suggest_time
+
+  secrets-listing-readonly:
+    tier: 3
+    sensitivity: secret
+    description: >
+      Secret / env-var NAME listings (D7). Enumerating which secrets exist
+      is a reconnaissance step (see domain/sensitivity.py SECRET), so these
+      reads are OPT-IN even though a bare list never prints values.
+    rules:
+      - Bash(vercel env ls:*)
+      - Bash(gh secret list:*)
+      - Bash(gh variable list:*)
 
 # ─── DEPRECATIONS ─────────────────────────────────────────────────────
 # Rules the doctor should rewrite or remove on sweep.
