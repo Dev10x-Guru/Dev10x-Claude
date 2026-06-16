@@ -100,6 +100,42 @@ class Matrix:
         return f"{seen}/{total}"
 
 
+@dataclass(frozen=True)
+class MatrixQuery:
+    """Query object over a populated :class:`Matrix` (audit finding A7).
+
+    Groups the read-only queries that report rendering and delta
+    computation run against a matrix's recorded results, so they live
+    with the matrix definition instead of as free functions in the
+    report module.
+    """
+
+    matrix: Matrix
+
+    def aggregate(self) -> dict[str, list[MatrixResult]]:
+        """Group recorded results by status (works / prompts / error / unknown)."""
+        grouped: dict[str, list[MatrixResult]] = {
+            "works": [],
+            "prompts": [],
+            "error": [],
+            "unknown": [],
+        }
+        known = {cell.cell_id for cell in self.matrix.cells}
+        for cell_id, result in self.matrix.results.items():
+            if cell_id not in known:
+                continue
+            grouped.setdefault(result.status, []).append(result)
+        return grouped
+
+    def shapes_for_status(self, *, status: str) -> set[tuple[PathPrefix, WildcardShape]]:
+        """Return the (prefix, wildcard) shapes whose cells recorded ``status``."""
+        return {
+            (cell.shape.prefix, cell.shape.wildcard)
+            for cell in self.matrix.cells
+            if (result := self.matrix.results.get(cell.cell_id)) and result.status == status
+        }
+
+
 def _tilde_prefix(*, user_home: str) -> str:
     del user_home
     return "~"

@@ -9,7 +9,11 @@ from __future__ import annotations
 from typing import Any
 
 from dev10x.domain.common.result import Result, err, ok
+from dev10x.skill_index.builder import SkillEntry, scan_skill_dirs
+from dev10x.skill_index.catalog import SkillCatalog
 from dev10x.subprocess_utils import async_run_script
+
+__all__ = ["SkillCatalog", "SkillEntry", "generate_all", "scan_skill_dirs"]
 
 
 async def generate_all(

@@ -10,6 +10,8 @@ from dev10x.skills.permission_investigator.matrix import (
     DEFAULT_TOOLS,
     DEFAULT_WILDCARDS,
     Matrix,
+    MatrixCell,
+    MatrixQuery,
     MatrixResult,
     RuleShape,
     generate_matrix,
@@ -168,6 +170,57 @@ class TestMatrixResultStatus:
         )
 
         assert result.status == "error"
+
+
+class TestMatrixQuery:
+    def _matrix_with(self, *, status_by_shape: dict[tuple[str, str], str]) -> Matrix:
+        matrix = Matrix()
+        for index, ((prefix, wildcard), status) in enumerate(status_by_shape.items()):
+            shape = RuleShape(tool="Read", prefix=prefix, wildcard=wildcard)
+            cell = MatrixCell(shape=shape, location="project", cell_id=f"c{index}")
+            matrix.cells.append(cell)
+            matrix.add_result(
+                MatrixResult(
+                    cell_id=cell.cell_id,
+                    auto_approved=status == "works",
+                    prompted=status == "prompts",
+                )
+            )
+        return matrix
+
+    def test_aggregate_groups_results_by_status(self) -> None:
+        matrix = self._matrix_with(
+            status_by_shape={
+                ("tilde", "literal"): "works",
+                ("home_user", "single_star"): "prompts",
+            }
+        )
+
+        grouped = MatrixQuery(matrix=matrix).aggregate()
+
+        assert len(grouped["works"]) == 1
+        assert len(grouped["prompts"]) == 1
+        assert grouped["error"] == []
+
+    def test_aggregate_ignores_results_without_a_cell(self) -> None:
+        matrix = Matrix()
+        matrix.add_result(MatrixResult(cell_id="ghost", auto_approved=True, prompted=False))
+
+        grouped = MatrixQuery(matrix=matrix).aggregate()
+
+        assert all(results == [] for results in grouped.values())
+
+    def test_shapes_for_status_returns_matching_shapes(self) -> None:
+        matrix = self._matrix_with(
+            status_by_shape={
+                ("tilde", "literal"): "works",
+                ("home_user", "single_star"): "prompts",
+            }
+        )
+
+        shapes = MatrixQuery(matrix=matrix).shapes_for_status(status="works")
+
+        assert shapes == {("tilde", "literal")}
 
 
 class TestMatrixCoverage:

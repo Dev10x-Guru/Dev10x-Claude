@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from dev10x.domain.common.allow_rule import AllowRule
 from dev10x.skills.permission_investigator.matrix import (
     Matrix,
+    MatrixQuery,
     MatrixResult,
     PathPrefix,
     WildcardShape,
@@ -31,18 +32,7 @@ class Delta:
 
 def aggregate_results(matrix: Matrix) -> dict[str, list[MatrixResult]]:
     """Group results by status (works / prompts / error / unknown)."""
-    grouped: dict[str, list[MatrixResult]] = {
-        "works": [],
-        "prompts": [],
-        "error": [],
-        "unknown": [],
-    }
-    cell_index = {cell.cell_id: cell for cell in matrix.cells}
-    for cell_id, result in matrix.results.items():
-        if cell_id not in cell_index:
-            continue
-        grouped.setdefault(result.status, []).append(result)
-    return grouped
+    return MatrixQuery(matrix=matrix).aggregate()
 
 
 def render_markdown_report(matrix: Matrix) -> str:
@@ -111,11 +101,7 @@ def _shapes_for_status(
     matrix: Matrix,
     status: str,
 ) -> set[tuple[PathPrefix, WildcardShape]]:
-    return {
-        (cell.shape.prefix, cell.shape.wildcard)
-        for cell in matrix.cells
-        if (result := matrix.results.get(cell.cell_id)) and result.status == status
-    }
+    return MatrixQuery(matrix=matrix).shapes_for_status(status=status)
 
 
 def _classify_rule(rule: str) -> tuple[PathPrefix | None, WildcardShape | None]:
