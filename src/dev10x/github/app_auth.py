@@ -106,6 +106,11 @@ async def _resolve_installation_id(
     repo: str,
     app_jwt: str,
 ) -> str | None:
+    # NOTE (GH-499): the App JWT is passed via `-H` in argv, which is
+    # world-visible through `ps` / `/proc/<pid>/cmdline` for the gh child's
+    # lifetime. gh offers no argv-free path for a Bearer header (it has no
+    # `-H @file`, and GH_TOKEN forces the `token` scheme the App endpoints
+    # reject), so this exposure is accepted pending a dedicated fix.
     result = await async_run(
         args=[
             "gh",
@@ -131,6 +136,7 @@ async def _exchange_for_installation_token(
     installation_id: str,
     app_jwt: str,
 ) -> tuple[str, float] | None:
+    # NOTE (GH-499): App JWT passed via argv — see _resolve_installation_id.
     result = await async_run(
         args=[
             "gh",
