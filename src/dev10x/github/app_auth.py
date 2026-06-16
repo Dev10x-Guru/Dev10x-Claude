@@ -68,10 +68,6 @@ class _CachedToken:
 _TOKEN_CACHE: dict[str, _CachedToken] = {}
 
 
-def _clear_cache() -> None:
-    _TOKEN_CACHE.clear()
-
-
 def _create_app_jwt(*, app_id: str, private_key: str) -> str:
     import jwt
 
