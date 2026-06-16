@@ -68,7 +68,6 @@ def audit_hook(name: str, *, event: HookEventName | str = "") -> Callable[[F], F
                 return func(*args, **kwargs)
 
             span_id = writer.current_span_id()
-            session_id = ""
             start = time.perf_counter()
             exit_code = 0
             error: BaseException | None = None
@@ -97,7 +96,6 @@ def audit_hook(name: str, *, event: HookEventName | str = "") -> Callable[[F], F
                     "hook": name,
                     "event": event,
                     "span_id": span_id,
-                    "session_id": session_id,
                     "body_ms": body_ms,
                     "outcome": writer.classify_outcome(exit_code=exit_code),
                 }
