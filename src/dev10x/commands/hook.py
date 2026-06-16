@@ -32,17 +32,17 @@ def validate_bash() -> None:
 
 
 def _validate_bash_body() -> None:
-    from dev10x.domain import HookInput
+    from dev10x.hooks.hook_transport import emit, read_hook_input
     from dev10x.validators import get_chain
 
-    inp = HookInput.from_stdin()
+    inp = read_hook_input()
     if inp.tool_name != "Bash":
         sys.exit(0)
     if not inp.command:
         sys.exit(0)
 
     for result in get_chain().run(inp=inp):
-        result.emit()
+        emit(result)
 
     sys.exit(0)
 
@@ -97,15 +97,15 @@ def permission_denied() -> None:
     tool was prompted (settings override semantics, missing rules).
     Exit codes: 0 always (retry decision is in JSON output).
     """
-    from dev10x.domain import HookInput
+    from dev10x.hooks.hook_transport import emit, read_hook_input
     from dev10x.validators import get_chain
 
-    inp = HookInput.from_stdin()
+    inp = read_hook_input()
 
     if inp.command:
         result = get_chain().correct(inp=inp)
         if result is not None:
-            result.emit()
+            emit(result)
 
     _run_permission_diagnostics(raw=inp.raw, cwd=inp.cwd)
     sys.exit(0)

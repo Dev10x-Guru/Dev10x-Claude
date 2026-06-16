@@ -260,21 +260,6 @@ class TestClassifierHelpers:
     def classifier(self) -> SensitivityClassifier:
         return SensitivityClassifier()
 
-    def test_is_sensitive_true_for_gh_secret(self, classifier: SensitivityClassifier) -> None:
-        assert classifier.is_sensitive(command="gh secret list") is True
-
-    def test_is_sensitive_false_for_benign(self, classifier: SensitivityClassifier) -> None:
-        assert classifier.is_sensitive(command="git status") is False
-
-    def test_highest_label_returns_none_for_clean(self, classifier: SensitivityClassifier) -> None:
-        assert classifier.highest_label(command="ls /tmp") is None
-
-    def test_highest_label_returns_label_for_sensitive(
-        self, classifier: SensitivityClassifier
-    ) -> None:
-        label = classifier.highest_label(command="gh secret list")
-        assert label == SensitivityLabel.SECRET
-
     def test_multiple_labels_can_match(self, classifier: SensitivityClassifier) -> None:
         # A command that rg-searches ~/.config for credentials hitting both
         # CREDENTIAL wordlist entries

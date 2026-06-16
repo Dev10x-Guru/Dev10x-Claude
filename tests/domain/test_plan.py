@@ -7,7 +7,6 @@ import pytest
 import yaml
 
 from dev10x.domain.documents.plan import (
-    TASK_TRANSITIONS,
     Plan,
     TaskStatus,
     _extract_task_id,
@@ -401,15 +400,6 @@ class TestPlanContextKeys:
 
 
 class TestTaskTransitions:
-    def test_pending_has_no_timestamp(self) -> None:
-        assert TASK_TRANSITIONS[TaskStatus.PENDING].timestamp_field is None
-
-    def test_in_progress_writes_started_at(self) -> None:
-        assert TASK_TRANSITIONS[TaskStatus.IN_PROGRESS].timestamp_field == "started_at"
-
-    def test_completed_writes_completed_at(self) -> None:
-        assert TASK_TRANSITIONS[TaskStatus.COMPLETED].timestamp_field == "completed_at"
-
     def test_completed_to_in_progress_rejected(self) -> None:
         plan = Plan(
             metadata={"status": "in_progress"},

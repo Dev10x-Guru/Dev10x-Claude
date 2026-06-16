@@ -90,7 +90,3 @@ class Task:
             else:
                 merged[k] = v
         return replace(self, metadata=merged)
-
-    @property
-    def is_active(self) -> bool:
-        return self.status in (TaskStatus.PENDING, TaskStatus.IN_PROGRESS)

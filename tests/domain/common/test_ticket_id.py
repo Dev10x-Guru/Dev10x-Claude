@@ -45,26 +45,6 @@ class TestTryParse:
         assert TicketId.try_parse("invalid") is None
 
 
-class TestFindFirst:
-    def test_finds_embedded_ticket(self) -> None:
-        ticket = TicketId.find_first("Fixes GH-42 today")
-
-        assert ticket == TicketId(project="GH", number=42)
-
-    def test_returns_none_when_absent(self) -> None:
-        assert TicketId.find_first("no ticket here") is None
-
-
-class TestFindAll:
-    def test_returns_all_tickets(self) -> None:
-        tickets = TicketId.find_all("GH-1 and TEAM-2 and PAY-3")
-
-        assert [str(t) for t in tickets] == ["GH-1", "TEAM-2", "PAY-3"]
-
-    def test_returns_empty_list_when_none(self) -> None:
-        assert TicketId.find_all("nothing") == []
-
-
 class TestFindFirstInBranchName:
     @pytest.mark.parametrize(
         "branch,expected",

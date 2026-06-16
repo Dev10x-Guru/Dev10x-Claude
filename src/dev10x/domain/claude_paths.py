@@ -85,10 +85,6 @@ class ClaudeDir:
         return cls._resolve("projects", "_metrics")
 
     @classmethod
-    def memory_dir(cls) -> Path:
-        return cls._resolve("memory")
-
-    @classmethod
     def memory_dev10x_dir(cls) -> Path:
         return cls._resolve("memory", "Dev10x")
 

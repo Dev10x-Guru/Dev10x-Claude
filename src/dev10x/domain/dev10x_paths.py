@@ -143,10 +143,6 @@ class Dev10xConfigDir:
         )
 
     @classmethod
-    def playbooks_dir(cls) -> Path:
-        return _with_lazy_migration(cls._resolve("playbooks"), _legacy_playbooks_dir)
-
-    @classmethod
     def gitmoji_yaml(cls) -> Path:
         return _with_lazy_migration(cls._resolve("gitmoji.yaml"), _legacy_gitmoji_yaml)
 
@@ -162,13 +158,6 @@ class Dev10xConfigDir:
         return _with_lazy_migration(
             cls._resolve("settings-pr-merge.yaml"),
             _legacy_settings_pr_merge_yaml,
-        )
-
-    @classmethod
-    def plugin_maintenance_prefs_yaml(cls) -> Path:
-        return _with_lazy_migration(
-            cls._resolve("plugin-maintenance-prefs.yaml"),
-            _legacy_plugin_maintenance_prefs_yaml,
         )
 
 

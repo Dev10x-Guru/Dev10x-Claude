@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import pytest
-
 from dev10x.domain.documents.task import Task, TaskStatus
 
 
@@ -117,17 +115,3 @@ class TestTaskMerge:
         merged = task.with_metadata_merged(updates={"old": None})
 
         assert merged.metadata == {"type": "epic"}
-
-
-class TestTaskIsActive:
-    @pytest.mark.parametrize(
-        "status,expected",
-        [
-            (TaskStatus.PENDING, True),
-            (TaskStatus.IN_PROGRESS, True),
-            (TaskStatus.COMPLETED, False),
-            (TaskStatus.DELETED, False),
-        ],
-    )
-    def test_is_active(self, status: TaskStatus, expected: bool) -> None:
-        assert Task(id="1", status=status).is_active is expected

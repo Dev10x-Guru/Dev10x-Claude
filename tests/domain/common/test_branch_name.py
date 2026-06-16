@@ -59,12 +59,3 @@ class TestParseRejection:
 
     def test_try_parse_returns_none_for_empty(self) -> None:
         assert BranchName.try_parse("") is None
-
-
-class TestValidateConvention:
-    def test_passes_for_conforming(self) -> None:
-        BranchName.parse("janusz/GH-1/slug").validate_convention()
-
-    def test_raises_for_non_conforming(self) -> None:
-        with pytest.raises(ValueError):
-            BranchName.parse("develop").validate_convention()

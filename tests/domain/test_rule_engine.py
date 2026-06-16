@@ -173,41 +173,6 @@ class TestRuleEngineEvaluate:
         assert result.rule_name == "block-env"
 
 
-class TestRuleEngineEvaluateFile:
-    def test_matches_by_file_only(self) -> None:
-        engine = RuleEngine(
-            edit_rules=[
-                Rule(
-                    name="block-env",
-                    matcher="Edit|Write",
-                    file_names=[".env"],
-                    message="BLOCKED",
-                ),
-            ],
-        )
-
-        result = engine.evaluate_file(file_path="/app/.env")
-
-        assert result is not None
-        assert result.rule_name == "block-env"
-
-    def test_returns_none_for_unmatched(self) -> None:
-        engine = RuleEngine(
-            edit_rules=[
-                Rule(
-                    name="block-env",
-                    matcher="Edit|Write",
-                    file_names=[".env"],
-                    message="BLOCKED",
-                ),
-            ],
-        )
-
-        result = engine.evaluate_file(file_path="/app/main.py")
-
-        assert result is None
-
-
 class TestRuleEngineEvaluateCommand:
     @pytest.fixture()
     def engine(self) -> RuleEngine:

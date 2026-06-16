@@ -66,16 +66,6 @@ class RuleEngine:
             )
         return None
 
-    def evaluate_file(self, *, file_path: str) -> RuleMatch | None:
-        for rule in self.edit_rules:
-            if not rule.matches_file(file_path=file_path):
-                continue
-            return RuleMatch(
-                rule_name=rule.name,
-                message=rule.format_message(file_path=file_path),
-            )
-        return None
-
     def evaluate_command(self, *, command: str) -> Rule | None:
         for rule in self.command_rules:
             if rule.matches_command(command=command):

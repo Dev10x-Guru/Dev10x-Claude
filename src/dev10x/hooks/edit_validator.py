@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from dev10x.domain.events.hook_input import HookInput, HookResult
+from dev10x.hooks.hook_transport import emit
 
 if TYPE_CHECKING:
     from dev10x.domain.rules.rule_engine import RuleEngine
@@ -78,7 +79,7 @@ def _run_python_validators(*, data: dict[str, Any], debug: bool = False) -> None
                 f"[DEBUG] Python validator blocked: {result}",
                 file=_sys.stderr,
             )
-        result.emit()
+        emit(result)
 
 
 def validate_edit_write(
@@ -108,7 +109,7 @@ def validate_edit_write(
                 f"[DEBUG] Rule '{match.rule_name}' matched: {file_path}",
                 file=sys.stderr,
             )
-        HookResult(message=match.message).emit()
+        emit(HookResult(message=match.message))
 
     _run_python_validators(data=data, debug=debug)
 
