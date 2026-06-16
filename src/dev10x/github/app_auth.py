@@ -15,6 +15,7 @@ to the engineer's ``gh auth`` token without raising.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 from dataclasses import dataclass
@@ -25,6 +26,13 @@ import yaml
 
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.subprocess_utils import async_run
+
+try:  # PyJWT is an optional dependency; its absence surfaces as ImportError
+    from jwt.exceptions import PyJWTError as _PyJWTError
+except ImportError:  # pragma: no cover - exercised only without PyJWT installed
+    _PyJWTError = ()  # type: ignore[assignment, misc]
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG_PATH = Dev10xConfigDir.github_app_yaml()
 
@@ -171,12 +179,22 @@ async def get_bot_token(
 
     try:
         private_key = cfg.private_key_path.read_text()
-    except OSError:
+    except OSError as exc:
+        logger.warning(
+            "GitHub App private key unreadable at %s: %s",
+            cfg.private_key_path,
+            exc,
+        )
         return None
 
     try:
         app_jwt = _create_app_jwt(app_id=cfg.app_id, private_key=private_key)
-    except Exception:
+    except (_PyJWTError, ImportError, ValueError, TypeError) as exc:
+        logger.warning(
+            "GitHub App JWT creation failed for app_id=%s: %s",
+            cfg.app_id,
+            exc,
+        )
         return None
 
     installation_id = cfg.installation_id or await _resolve_installation_id(
@@ -184,6 +202,11 @@ async def get_bot_token(
         app_jwt=app_jwt,
     )
     if installation_id is None:
+        logger.warning(
+            "GitHub App installation-id resolution failed for repo=%s app_id=%s",
+            repo,
+            cfg.app_id,
+        )
         return None
 
     exchanged = await _exchange_for_installation_token(
@@ -191,6 +214,11 @@ async def get_bot_token(
         app_jwt=app_jwt,
     )
     if exchanged is None:
+        logger.warning(
+            "GitHub App token exchange failed for repo=%s installation_id=%s",
+            repo,
+            installation_id,
+        )
         return None
 
     token, expires_at = exchanged

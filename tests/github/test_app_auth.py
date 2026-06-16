@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import subprocess
 import time
 from pathlib import Path
@@ -257,3 +258,39 @@ class TestGetBotToken:
         ):
             result = await auth.get_bot_token(repo="owner/repo", config=app_config)
         assert result is None
+
+    @pytest.mark.asyncio
+    async def test_logs_warning_when_jwt_creation_fails(
+        self,
+        app_config: auth.AppConfig,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        with (
+            patch.object(auth, "_create_app_jwt", side_effect=ValueError("bad key")),
+            caplog.at_level(logging.WARNING),
+        ):
+            result = await auth.get_bot_token(repo="owner/repo", config=app_config)
+        assert result is None
+        assert "JWT creation failed" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_logs_warning_when_installation_id_unresolvable(
+        self,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        key_path = tmp_path / "bot.pem"
+        key_path.write_text("KEY")
+        config = auth.AppConfig(app_id="1", private_key_path=key_path)
+        with (
+            patch.object(auth, "_create_app_jwt", return_value="jwt"),
+            patch(
+                "dev10x.github.app_auth.async_run",
+                new_callable=AsyncMock,
+                return_value=_completed(returncode=1, stderr="nope"),
+            ),
+            caplog.at_level(logging.WARNING),
+        ):
+            result = await auth.get_bot_token(repo="owner/repo", config=config)
+        assert result is None
+        assert "installation-id resolution failed" in caplog.text
