@@ -324,7 +324,10 @@ async def _list_unresolved_threads(
     result = await _gh_api_raw("graphql", fields={"query": query})
     if result.returncode != 0:
         return err(result.stderr.strip())
-    data = json.loads(result.stdout)
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return err(f"Invalid JSON from GitHub API: {result.stdout[:200]}")
     threads = (
         data.get("data", {})
         .get("repository", {})
@@ -480,7 +483,10 @@ async def _pr_comment_resolve(
     if query_result.returncode != 0:
         return err(query_result.stderr.strip())
 
-    query_data = json.loads(query_result.stdout)
+    try:
+        query_data = json.loads(query_result.stdout)
+    except json.JSONDecodeError:
+        return err(f"Invalid JSON from GitHub API: {query_result.stdout[:200]}")
     thread_ids: list[str] = []
     errors: list[str] = []
     for i, cid in enumerate(ids_to_resolve):
@@ -525,7 +531,10 @@ async def _pr_comment_resolve(
     if result.returncode != 0:
         return err(result.stderr.strip())
 
-    response: dict[str, Any] = json.loads(result.stdout)
+    try:
+        response: dict[str, Any] = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return err(f"Invalid JSON from GitHub API: {result.stdout[:200]}")
     if errors:
         response["warnings"] = errors
     return ok(response)
@@ -572,7 +581,10 @@ async def minimize_comments(
     )
     if result.returncode != 0:
         return err(result.stderr.strip())
-    return ok(json.loads(result.stdout))
+    try:
+        return ok(json.loads(result.stdout))
+    except json.JSONDecodeError:
+        return err(f"Invalid JSON from GitHub API: {result.stdout[:200]}")
 
 
 async def resolve_review_thread(
@@ -599,7 +611,10 @@ async def resolve_review_thread(
         )
         if result.returncode != 0:
             return err(result.stderr.strip())
-        return ok(json.loads(result.stdout))
+        try:
+            return ok(json.loads(result.stdout))
+        except json.JSONDecodeError:
+            return err(f"Invalid JSON from GitHub API: {result.stdout[:200]}")
 
     if comment_ids:
         repo_result = await _resolve_repo(repo)
@@ -1018,7 +1033,10 @@ async def milestone_create(
     )
     if result.returncode != 0:
         return err(result.stderr.strip())
-    data = json.loads(result.stdout) if result.stdout.strip() else {}
+    try:
+        data = json.loads(result.stdout) if result.stdout.strip() else {}
+    except json.JSONDecodeError:
+        return err(f"Invalid JSON from GitHub API: {result.stdout[:200]}")
     number = int(data.get("number", 0))
     return ok(
         {
