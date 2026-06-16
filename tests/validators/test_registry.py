@@ -240,12 +240,12 @@ class TestValidatorChain:
         assert isinstance(results[0], HookResult)
         assert results[0].message == "stub-blocked"
 
-    def test_run_swallows_validator_exceptions(self, stub_input: HookInput) -> None:
+    def test_run_swallows_non_safety_validator_exceptions(self, stub_input: HookInput) -> None:
         @dataclass
         class _Raiser(ValidatorBase):
             name: ClassVar[str] = "raiser"
             rule_id: ClassVar[str] = "DX900"
-            profile: ClassVar[ProfileTier] = ProfileTier.MINIMAL
+            profile: ClassVar[ProfileTier] = ProfileTier.STANDARD
 
             def should_run(self, inp: HookInput) -> bool:
                 return True
@@ -256,7 +256,56 @@ class TestValidatorChain:
         registry = ValidatorRegistry()
         registry._instances = [_Raiser()]  # type: ignore[attr-defined]
         chain = ValidatorChain(registry=registry)
+        # Non-safety tiers remain fail-open: one buggy validator must not
+        # block every command.
         assert chain.run(inp=stub_input) == []
+
+    def test_run_fails_closed_on_safety_validator_exception(self, stub_input: HookInput) -> None:
+        @dataclass
+        class _SafetyRaiser(ValidatorBase):
+            name: ClassVar[str] = "safety-raiser"
+            rule_id: ClassVar[str] = "DX903"
+            profile: ClassVar[ProfileTier] = ProfileTier.MINIMAL
+
+            def should_run(self, inp: HookInput) -> bool:
+                return True
+
+            def validate(self, inp: HookInput) -> HookResult | None:
+                raise RuntimeError("boom")
+
+        registry = ValidatorRegistry()
+        registry._instances = [_SafetyRaiser()]  # type: ignore[attr-defined]
+        chain = ValidatorChain(registry=registry)
+        # Safety-critical (MINIMAL) validators fail CLOSED: a blocking
+        # result is emitted in place of the swallowed exception (GH-494).
+        results = chain.run(inp=stub_input)
+        assert len(results) == 1
+        assert isinstance(results[0], HookResult)
+        assert "fail-closed" in results[0].message
+        assert "DX903" in results[0].message
+
+    def test_run_logs_validator_exception(
+        self, stub_input: HookInput, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        @dataclass
+        class _Raiser(ValidatorBase):
+            name: ClassVar[str] = "noisy-raiser"
+            rule_id: ClassVar[str] = "DX904"
+            profile: ClassVar[ProfileTier] = ProfileTier.STANDARD
+
+            def should_run(self, inp: HookInput) -> bool:
+                return True
+
+            def validate(self, inp: HookInput) -> HookResult | None:
+                raise RuntimeError("boom")
+
+        registry = ValidatorRegistry()
+        registry._instances = [_Raiser()]  # type: ignore[attr-defined]
+        chain = ValidatorChain(registry=registry)
+        with caplog.at_level("ERROR"):
+            chain.run(inp=stub_input)
+        # GH-494: failures are always logged, not only under HOOK_DEBUG.
+        assert any("noisy-raiser" in rec.message for rec in caplog.records)
 
     def test_correct_dispatches_only_to_capable(self, stub_input: HookInput) -> None:
         registry = ValidatorRegistry(

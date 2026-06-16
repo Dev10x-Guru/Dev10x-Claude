@@ -19,9 +19,7 @@ the registry verifies the two agree at registration time.
 from __future__ import annotations
 
 import importlib
-import os
-import sys
-import traceback
+import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
@@ -32,7 +30,7 @@ if TYPE_CHECKING:
     from dev10x.domain import HookAllow, HookInput, HookResult, HookRetry
     from dev10x.validators.base import Validator
 
-_DEBUG = os.environ.get("HOOK_DEBUG", "") != ""
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -211,9 +209,13 @@ class ValidatorChain:
       :meth:`correct` — for PermissionDenied: short-circuits at the
         first validator returning a :class:`HookRetry`.
 
-    Validators raising during ``should_run``/``validate``/``correct``
-    are swallowed (logged when ``HOOK_DEBUG`` is set) so a single
-    misbehaving validator cannot block the hook.
+    A validator raising during ``should_run``/``validate``/``correct``
+    is always logged (GH-494 — previously silent unless ``HOOK_DEBUG``).
+    For non-safety tiers the exception is then swallowed so one
+    misbehaving validator cannot block the hook. A **safety-critical**
+    (``ProfileTier.MINIMAL``) validator instead fails CLOSED: ``run``
+    emits a blocking :class:`HookResult` rather than letting the command
+    through unchecked.
     """
 
     registry: ValidatorRegistry
@@ -222,7 +224,8 @@ class ValidatorChain:
         """Invoke ``validate()`` on every applicable validator.
 
         Returns the list of non-None results in registration order;
-        callers emit each in turn.
+        callers emit each in turn. When a safety-critical validator
+        raises, a fail-closed block is appended in its place (GH-494).
         """
         results: list[HookResult | HookAllow] = []
         for validator in self.registry.active():
@@ -230,6 +233,9 @@ class ValidatorChain:
                 result = validator.run(inp=inp)
             except Exception:
                 _log_validator_error(validator=validator, method="validate")
+                blocked = _safety_fail_closed(validator=validator)
+                if blocked is not None:
+                    results.append(blocked)
                 continue
             if result is not None:
                 results.append(result)
@@ -255,13 +261,44 @@ class ValidatorChain:
 
 
 def _log_validator_error(*, validator: Validator, method: str) -> None:
-    if not _DEBUG:
-        return
-    print(
-        f"[HOOK_DEBUG] {validator.name} {method}() raised:",
-        file=sys.stderr,
+    """Always surface a validator failure (GH-494).
+
+    Previously gated on ``HOOK_DEBUG``, which silenced exceptions in
+    production and let the chain fail open with no diagnostic. Emitting
+    at ERROR keeps the traceback visible on stderr even when no logging
+    handler is configured (the stdlib last-resort handler covers it).
+    """
+    log.error(
+        "validator %s %s() raised",
+        getattr(validator, "name", "?"),
+        method,
+        exc_info=True,
     )
-    traceback.print_exc(file=sys.stderr)
+
+
+def _safety_fail_closed(*, validator: Validator) -> HookResult | None:
+    """Return a blocking result when a safety-critical validator raised.
+
+    Safety-critical validators (``ProfileTier.MINIMAL`` — DX001–DX005,
+    DX012) guard against destructive or unsafe commands. If one raises
+    we cannot know whether the command is safe, so we fail CLOSED and
+    block rather than letting it through (GH-494). Non-safety tiers
+    return None here and remain fail-open.
+    """
+    if getattr(validator, "profile", None) is not ProfileTier.MINIMAL:
+        return None
+    from dev10x.domain import HookResult
+
+    rule_id = getattr(validator, "rule_id", "?")
+    name = getattr(validator, "name", "?")
+    return HookResult(
+        message=(
+            f"🛡️ Safety validator {name} ({rule_id}) raised an exception and "
+            "could not evaluate this command. Blocking as a precaution "
+            "(fail-closed). Re-run with HOOK_DEBUG=1 for the traceback, or set "
+            f"DEV10X_HOOK_DISABLE={rule_id} if this validator is misbehaving."
+        )
+    )
 
 
 __all__ = [
