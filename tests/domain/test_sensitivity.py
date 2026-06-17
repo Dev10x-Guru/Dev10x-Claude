@@ -11,10 +11,13 @@ from __future__ import annotations
 import pytest
 
 from dev10x.domain.sensitivity import (
+    SENSITIVE_NAME_TOKENS,
     SensitivityClassifier,
     SensitivityLabel,
     SensitivityMatch,
     SensitivityPattern,
+    name_is_sensitive,
+    tokenize_identifier,
 )
 
 # ---------------------------------------------------------------------------
@@ -82,6 +85,42 @@ class TestSecretClassification:
         matches = classifier.classify(command=command)
         labels = {m.label for m in matches}
         assert SensitivityLabel.SECRET in labels, f"Expected SECRET for: {command!r}"
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # GH-605: credentialed-CLI secret-exfil reads
+            "aws-vault exec prod -- aws secretsmanager get-secret-value --secret-id db",
+            "aws-vault exec prod -- aws ssm get-parameter --name /db/pw --with-decryption",
+            "aws ssm get-parameters --names /db/pw --with-decryption",
+            "vercel env pull .env.local",
+            "vercel pull",
+        ],
+    )
+    def test_credentialed_cli_exfil_classified_as_secret(
+        self, classifier: SensitivityClassifier, command: str
+    ) -> None:
+        matches = classifier.classify(command=command)
+        labels = {m.label for m in matches}
+        assert SensitivityLabel.SECRET in labels, f"Expected SECRET for: {command!r}"
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # GH-605: benign credentialed-CLI reads must NOT be flagged secret
+            "aws-vault exec prod -- aws ecr describe-images --repository-name app",
+            "aws-vault exec prod -- aws s3 ls",
+            "aws ssm get-parameter --name /db/host",  # no --with-decryption
+            "vercel ls",
+        ],
+    )
+    def test_benign_credentialed_reads_not_secret(
+        self, classifier: SensitivityClassifier, command: str
+    ) -> None:
+        matches = classifier.classify(command=command)
+        assert not any(m.label == SensitivityLabel.SECRET for m in matches), (
+            f"Benign read wrongly flagged SECRET: {command!r}"
+        )
 
     def test_benign_gh_pr_not_secret(self, classifier: SensitivityClassifier) -> None:
         matches = classifier.classify(command="gh pr list")
@@ -381,3 +420,78 @@ class TestGH271EvidenceSequence:
         assert expected_label in labels, (
             f"GH-271 evidence {evidence_id}: expected {expected_label} in {labels}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Identifier NAME axis — tokenize_identifier (GH-607)
+# ---------------------------------------------------------------------------
+
+
+class TestTokenizeIdentifier:
+    """The shared identifier tokenizer unified into the domain layer (GH-607)."""
+
+    @pytest.mark.parametrize(
+        ("name", "expected"),
+        [
+            # snake_case short name
+            ("search_public_and_private", {"search", "public", "and", "private"}),
+            # MCP fully-qualified name → only the final segment tokenizes
+            ("mcp__claude_ai_Slack__search_channels", {"search", "channels"}),
+            # camelCase (GH-593)
+            ("getJiraIssue", {"get", "jira", "issue"}),
+            # acronym run before a CamelWord
+            ("getHTTPSConfig", {"get", "https", "config"}),
+            # digit run
+            ("list_s3_buckets", {"list", "s", "buckets", "3"}),
+        ],
+    )
+    def test_tokenizes_to_lowercase_words(self, name: str, expected: set[str]) -> None:
+        assert tokenize_identifier(name) == expected
+
+
+# ---------------------------------------------------------------------------
+# Identifier NAME axis — name_is_sensitive (GH-607)
+# ---------------------------------------------------------------------------
+
+
+class TestNameIsSensitive:
+    """Name-token sensitivity check shared across all four PAP surfaces."""
+
+    def test_token_set_covers_private_dm_secret_credential(self) -> None:
+        assert SENSITIVE_NAME_TOKENS == {
+            "private",
+            "secret",
+            "secrets",
+            "credential",
+            "credentials",
+            "password",
+            "dm",
+        }
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "mcp__claude_ai_Slack__search_public_and_private",
+            "mcp__svc__getPrivateThread",
+            "mcp__store__get_secret",
+            "list_credentials",
+            "read_db_password",
+        ],
+    )
+    def test_sensitive_names_flagged(self, name: str) -> None:
+        assert name_is_sensitive(name)
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "mcp__claude_ai_Slack__search_channels",
+            "mcp__svc__getJiraIssue",
+            "list_buckets",
+        ],
+    )
+    def test_benign_names_not_flagged(self, name: str) -> None:
+        assert not name_is_sensitive(name)
+
+    def test_custom_token_set_overrides_default(self) -> None:
+        assert name_is_sensitive("get_token", tokens=frozenset({"token"}))
+        assert not name_is_sensitive("get_token")

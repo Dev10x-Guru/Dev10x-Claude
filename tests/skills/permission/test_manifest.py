@@ -16,6 +16,7 @@ from dev10x.skills.permission.manifest import (
     Sensitivity,
     Surface,
     build_manifest,
+    classify_skill_access,
     discovered_surface_keys,
     find_manifest_drift,
     manifest_from_cli,
@@ -185,6 +186,50 @@ class TestManifestFromSkills:
         )
         (entry,) = manifest_from_skills(tmp_path)
         assert entry.access is Access.READ
+
+
+class TestClassifySkillAccess:
+    """S15 skill access classifier reusing the unified vocabulary (GH-608)."""
+
+    def test_read_when_all_signals_read(self) -> None:
+        assert (
+            classify_skill_access(
+                name="code-review",
+                description="Review the diff and report findings.",
+                allowed_tools=["Read", "Bash(git diff:*)"],
+            )
+            is Access.READ
+        )
+
+    def test_write_via_allowed_tools(self) -> None:
+        assert (
+            classify_skill_access(name="polish", description="Tidy up.", allowed_tools=["Edit"])
+            is Access.WRITE
+        )
+
+    def test_write_via_name_verb(self) -> None:
+        # Write verb in the NAME catches a mutating skill with a sparse
+        # frontmatter (no Edit/Write declared, benign description).
+        assert (
+            classify_skill_access(
+                name="ticket-create", description="Helper.", allowed_tools=["Read"]
+            )
+            is Access.WRITE
+        )
+
+    def test_write_via_description_verb(self) -> None:
+        assert (
+            classify_skill_access(
+                name="scaffold",
+                description="Create a new module from a template.",
+                allowed_tools=[],
+            )
+            is Access.WRITE
+        )
+
+    def test_read_with_defaults(self) -> None:
+        # Bare read-only name, no description, no tools → default-safe.
+        assert classify_skill_access(name="review") is Access.READ
 
 
 class TestBuildManifest:

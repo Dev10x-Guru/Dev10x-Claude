@@ -40,6 +40,7 @@ from pathlib import Path
 import yaml
 
 from dev10x.domain.common.mcp_tool_name import McpToolName
+from dev10x.domain.sensitivity import name_is_sensitive, tokenize_identifier
 from dev10x.skills.permission.enumerate_mcp import (
     _server_prefix_from_tool,
     _source_type_from_prefix,
@@ -118,55 +119,20 @@ WRITE_TOKENS = frozenset(
         "authorize",
     }
 )
-# Read tools whose target is private/DM/secret — promotable only on opt-in.
-SENSITIVE_TOKENS = frozenset(
-    {"private", "secret", "secrets", "credential", "credentials", "password", "dm"}
-)
-
 _WEBFETCH_RE = re.compile(r"^WebFetch\(domain:(?P<domain>.+)\)$")
-
-# Token boundaries: an acronym run before a CamelWord (``HTTPSConnection`` →
-# ``HTTPS`` + ``Connection``), a Capitalized-or-lowercase word, a bare acronym,
-# or a digit run. Splitting on this AND ``_`` lets camelCase MCP tools
-# (``getJiraIssue``, ``createJiraIssue``) tokenize by verb instead of
-# collapsing into one unsplittable ``unknown`` token (GH-593).
-_TOKEN_RE = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|[0-9]+")
-
-
-def _short_name(full_tool_name: str) -> str:
-    """Return the tool name after the final ``__`` separator (original case).
-
-    Case is preserved so :func:`_tokens` can detect camelCase boundaries;
-    callers that need a verb set get lowercased tokens from ``_tokens``.
-    """
-    return full_tool_name.rsplit("__", 1)[-1]
-
-
-def _tokens(full_tool_name: str) -> set[str]:
-    """Split a tool's short name into lowercase verb tokens.
-
-    Splits on both ``_`` and camelCase boundaries (GH-593) so a camelCase
-    server such as ``getJiraIssue`` yields ``{get, jira, issue}`` — and its
-    ``get``/``create`` verb drives classification — rather than collapsing
-    to a single ``unknown`` token.
-    """
-    return {
-        match.group(0).lower()
-        for chunk in _short_name(full_tool_name).split("_")
-        for match in _TOKEN_RE.finditer(chunk)
-    }
 
 
 def classify_tokens(name: str) -> str:
     """Classify any verb-bearing name (CLI command, skill, tool) as read/write/unknown.
 
-    Splits *name* into tokens (camelCase + snake_case + digits, GH-593) and
-    applies write-precedence: any write token wins, so a write is never
-    misclassified as promotable. Used by both :func:`classify_mcp_tool` and the
-    source-derived manifest generators (GH-600), so every surface — MCP, CLI,
-    skill — shares one classifier.
+    Tokenizes *name* via the shared
+    :func:`dev10x.domain.sensitivity.tokenize_identifier` (camelCase +
+    snake_case + digits, GH-593) and applies write-precedence: any write token
+    wins, so a write is never misclassified as promotable. Used by both
+    :func:`classify_mcp_tool` and the source-derived manifest generators
+    (GH-600), so every surface — MCP, CLI, skill — shares one classifier.
     """
-    tokens = _tokens(name)
+    tokens = tokenize_identifier(name)
     if tokens & WRITE_TOKENS:
         return "write"
     if tokens & READ_TOKENS:
@@ -184,8 +150,14 @@ def classify_mcp_tool(full_tool_name: str) -> str:
 
 
 def is_sensitivity_flagged(full_tool_name: str) -> bool:
-    """Return True when the tool reads private/DM/secret data (opt-in only)."""
-    return bool(_tokens(full_tool_name) & SENSITIVE_TOKENS)
+    """Return True when the tool reads private/DM/secret data (opt-in only).
+
+    Delegates to the shared name-axis classifier in
+    :mod:`dev10x.domain.sensitivity` so the sensitivity wordlist has a single
+    source across DX014, MCP promotion, the credentialed-CLI allowlist, and
+    skill curation (GH-607).
+    """
+    return name_is_sensitive(full_tool_name)
 
 
 def _read_allow_rules(path: Path) -> list[str]:
