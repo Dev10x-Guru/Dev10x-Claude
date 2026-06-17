@@ -128,6 +128,28 @@ _DEFAULT_PATTERNS: list[SensitivityPattern] = [
         r"(?:^|\s)\.env\b",
         ".env file reference",
     ),
+    # Credentialed-CLI secret-exfil reads (GH-605). These verbs READ but
+    # the value they return is a live secret — a broad "allow read
+    # subcommands" grant on a credentialed wrapper must never cover them,
+    # so DX014's sensitivity axis elevates them to ask even when the
+    # surrounding wrapper (aws-vault exec, vercel) is otherwise pre-approved.
+    _compile(
+        SensitivityLabel.SECRET,
+        r"\bsecretsmanager\s+get-secret-value\b",
+        "aws secretsmanager get-secret-value",
+    ),
+    _compile(
+        SensitivityLabel.SECRET,
+        r"\bssm\s+get-parameters?\b.*--with-decryption\b",
+        "aws ssm get-parameter --with-decryption",
+    ),
+    # `vercel env pull` / `vercel pull` write decrypted secrets to disk
+    # (GH-605 evidence #24).
+    _compile(
+        SensitivityLabel.SECRET,
+        r"\bvercel\s+(?:env\s+)?pull\b",
+        "vercel env pull (decrypted secrets to disk)",
+    ),
     # ── CREDENTIAL ──────────────────────────────────────────────────────────
     # GH-271 #269: rg for *_PRODUCTION_RW
     _compile(
@@ -292,9 +314,69 @@ class SensitivityClassifier:
         return results
 
 
+# ---------------------------------------------------------------------------
+# Identifier sensitivity — the NAME axis (GH-607)
+#
+# This module is the single source of the sensitivity vocabulary for every
+# PAP surface. ``SensitivityClassifier`` above matches *command strings*
+# (shell-shaped regexes, used by DX014); the helpers below match *identifier
+# names* — MCP tool, CLI command, and skill names — by word token.
+#
+# Both wordlists live here so the four surfaces — DX014, MCP promotion
+# (``promote.py``), the credentialed-CLI allowlist (GH-605), and skill
+# curation (GH-608) — share one source and cannot drift apart. Previously
+# the name-token set and its tokenizer lived in
+# ``skills/permission/promote.py``, duplicating the sensitivity notion the
+# regex wordlist already encodes (GH-607). The skills layer now imports
+# these from the domain layer rather than re-declaring them.
+# ---------------------------------------------------------------------------
+
+# Splits an identifier into word tokens: an acronym run before a CamelWord
+# (``HTTPSConnection`` → ``HTTPS`` + ``Connection``), a Capitalized or
+# lowercase word, a bare acronym, or a digit run. Combined with splitting on
+# ``_`` this tokenizes camelCase MCP tools (``getJiraIssue`` →
+# ``{get, jira, issue}``) instead of collapsing them into one token (GH-593).
+_IDENTIFIER_TOKEN_RE = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|[0-9]+")
+
+# Read identifiers whose target is private/DM/secret/credential data — a read
+# verb against one of these is promotable only on an explicit opt-in.
+SENSITIVE_NAME_TOKENS: frozenset[str] = frozenset(
+    {"private", "secret", "secrets", "credential", "credentials", "password", "dm"}
+)
+
+
+def tokenize_identifier(name: str) -> set[str]:
+    """Split a surface identifier into lowercase word tokens.
+
+    Strips any ``server__tool`` MCP prefix (keeps the final segment), then
+    splits on ``_`` and camelCase boundaries (GH-593). Shared by the
+    read/write classifier (``promote.classify_tokens``) and the name-based
+    sensitivity check so every surface tokenizes identically (GH-607).
+    """
+    short = name.rsplit("__", 1)[-1]
+    return {
+        match.group(0).lower()
+        for chunk in short.split("_")
+        for match in _IDENTIFIER_TOKEN_RE.finditer(chunk)
+    }
+
+
+def name_is_sensitive(name: str, *, tokens: frozenset[str] = SENSITIVE_NAME_TOKENS) -> bool:
+    """Return True when an identifier names a private/DM/secret/credential read.
+
+    Distinct from :class:`SensitivityClassifier`, which matches shell-command
+    *shapes*: this matches identifier *tokens* (tool / skill / command names).
+    Both share this module as their single source (GH-607).
+    """
+    return bool(tokenize_identifier(name) & tokens)
+
+
 __all__ = [
+    "SENSITIVE_NAME_TOKENS",
     "SensitivityClassifier",
     "SensitivityLabel",
     "SensitivityMatch",
     "SensitivityPattern",
+    "name_is_sensitive",
+    "tokenize_identifier",
 ]

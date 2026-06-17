@@ -177,6 +177,38 @@ def _skill_access(allowed_tools: Iterable[str]) -> Access:
     return Access.READ
 
 
+def classify_skill_access(
+    *,
+    name: str,
+    description: str = "",
+    allowed_tools: Iterable[str] = (),
+) -> Access:
+    """Classify a skill read-only vs mutating for the S15 curation surface (GH-608).
+
+    Composes three signals under write-precedence — a skill is ``WRITE`` if
+    ANY signal says write, ``READ`` only when none does:
+
+    1. ``allowed-tools`` declares Edit/Write or a write-verb ``Bash`` rule
+       (the strongest signal; shared with :func:`_skill_access`).
+    2. the skill NAME's verb (``git-commit`` → write) via the unified
+       :func:`classify_tokens`.
+    3. the frontmatter DESCRIPTION's leading verb (``Create…``/``Apply…``)
+       via the same unified read/write vocabulary (GH-607).
+
+    Read-only skills are default-safe to seed; mutating skills are opt-in.
+    This reuses the single GH-607 classifier so the skill surface cannot
+    drift from the MCP/CLI surfaces. *Which* non-Dev10x families to
+    pre-approve at all is a separate policy decision (D13).
+    """
+    if _skill_access(allowed_tools) is Access.WRITE:
+        return Access.WRITE
+    if classify_tokens(name) == "write":
+        return Access.WRITE
+    if description and classify_tokens(description) == "write":
+        return Access.WRITE
+    return Access.READ
+
+
 def manifest_from_skills(skills_dir: Path) -> list[ManifestEntry]:
     """Classify every skill under *skills_dir* from its SKILL.md frontmatter.
 
