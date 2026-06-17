@@ -55,6 +55,10 @@ def _atomic_write_text(output_path: str, content: str) -> None:
         raise
 
 
+# Transcript grammar (GH-588). The single source of truth lives in
+# dev10x.audit.transcript_grammar. This PEP 723 standalone uv-script cannot
+# import dev10x at module scope, so it mirrors the patterns inline;
+# tests/audit/test_transcript_grammar.py asserts the mirror stays identical.
 TURN_RE = re.compile(
     r"^## Turn (\d+) \[([^\]]+)\] (USER|ASSISTANT)(.*)",
     re.MULTILINE,

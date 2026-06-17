@@ -19,22 +19,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TextIO
 
+from dev10x.audit.transcript_grammar import TOOL_INPUT_BLOCK_RE, TOOL_RE, TURN_RE
 from dev10x.domain.common.allow_rule import AllowRule, AllowRuleLoader
 from dev10x.domain.common.mcp_tool_name import McpToolName
 from dev10x.domain.common.mktmp_path import MktmpPath
 from dev10x.subprocess_utils import effective_cwd
-
-TURN_RE = re.compile(
-    r"^## Turn (\d+) \[([^\]]+)\] (USER|ASSISTANT)",
-    re.MULTILINE,
-)
-
-TOOL_INPUT_BLOCK_RE = re.compile(
-    r"^\*\*Tool: `([^`]+)`\*\*\n```\n(.*?)```",
-    re.MULTILINE | re.DOTALL,
-)
-
-TOOL_RE = re.compile(r"^\*\*Tool: `([^`]+)`\*\*", re.MULTILINE)
 
 PERMISSION_TOOLS = {"Bash", "Read", "Write", "Edit"}
 
