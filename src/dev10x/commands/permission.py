@@ -499,14 +499,20 @@ def enumerate_mcp(*, dry_run: bool, quiet: bool) -> None:
     is_flag=True,
     help="With --apply: show what would be written without modifying files.",
 )
+@click.option(
+    "--proactive",
+    is_flag=True,
+    help="Seed the curated default-safe surface (GH-601) without a prior approval (GH-603).",
+)
 def promote_plan(
     *,
     quiet: bool,
     apply_changes: bool,
     include_sensitive: bool,
     dry_run: bool,
+    proactive: bool,
 ) -> None:
-    """Promote read-only MCP tools + research domains to global settings (GH-470/GH-480).
+    """Promote read-only MCP tools + research domains to global settings (GH-470/GH-480/GH-603).
 
     Without ``--apply`` this reports a DRY-RUN plan and makes NO changes:
     read-only tools and project-local research WebFetch domains are classified
@@ -518,24 +524,35 @@ def promote_plan(
     idempotent. Sensitivity-flagged reads are promoted only with the explicit
     ``--include-sensitive`` opt-in; writes are never promoted. Combine
     ``--apply --dry-run`` to preview exactly which rules the write would add.
+
+    ``--proactive`` (GH-603) ignores project-local approvals and instead seeds
+    the curated default-safe catalog surface (tier-2 ``benign`` groups, GH-601)
+    directly — so a fresh project never pays the first-prompt toll. PII/secret
+    groups (tier 3) are never proactively seeded.
     """
     from dev10x.skills.permission import promote as mod
     from dev10x.skills.permission import update_paths as paths_mod
 
-    config_path = _require_config(paths_mod)
-    if not quiet:
-        click.echo(f"Config: {config_path}")
-    config = paths_mod.load_config(config_path)
-
-    settings_files = paths_mod.find_settings_files(
-        roots=config.get("roots", []),
-        include_user=False,
-    )
     global_settings = Path.home() / ".claude" / "settings.json"
-    plan = mod.build_promotion_plan(
-        project_settings_paths=settings_files,
-        global_settings_path=global_settings,
-    )
+    if proactive:
+        catalog = Path(mod.__file__).parent / "baseline-permissions.yaml"
+        plan = mod.build_proactive_seed_plan(
+            catalog_path=catalog,
+            global_settings_path=global_settings,
+        )
+    else:
+        config_path = _require_config(paths_mod)
+        if not quiet:
+            click.echo(f"Config: {config_path}")
+        config = paths_mod.load_config(config_path)
+        settings_files = paths_mod.find_settings_files(
+            roots=config.get("roots", []),
+            include_user=False,
+        )
+        plan = mod.build_promotion_plan(
+            project_settings_paths=settings_files,
+            global_settings_path=global_settings,
+        )
     if not apply_changes:
         click.echo(mod.render_promotion_plan(plan))
         return

@@ -37,6 +37,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import yaml
+
 from dev10x.domain.common.mcp_tool_name import McpToolName
 from dev10x.skills.permission.enumerate_mcp import (
     _server_prefix_from_tool,
@@ -426,3 +428,92 @@ def render_promotion_result(result: PromotionResult, *, dry_run: bool = False) -
     elif not dry_run and result.total_added == 0:
         lines.append("No changes — global settings already contained every promotable rule.")
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Proactive seed (GH-603, Increment 2)
+#
+# The reactive plan above acts only on tools a project already approved. The
+# proactive seed emits the curated default-safe surface (GH-601) directly,
+# without waiting for a first approval, so a fresh project never pays the
+# first-prompt toll. It reads ONLY tier-2 / ``sensitivity: benign`` catalog
+# groups — opt-in PII/secret groups (tier 3) are never proactively seeded —
+# and re-applies write-precedence + sensitivity flagging as a second gate
+# (the GH-600 manifest classifier) so a mis-tagged group cannot leak a write
+# or a sensitive read into the auto-seeded set.
+# ---------------------------------------------------------------------------
+
+
+def catalog_default_safe_surface(catalog_path: Path) -> tuple[list[str], list[str]]:
+    """Return ``(mcp_tools, webfetch_domains)`` from default-safe catalog groups.
+
+    A group qualifies when it is ``tier: 2`` AND ``sensitivity: benign`` — the
+    proactive surface. Opt-in groups (tier 3, ``pii``/``secret``) and untagged
+    groups are skipped. Only MCP-tool and ``WebFetch(domain:…)`` rules are
+    returned; ``Bash``/``Skill`` rules are seeded into project settings by
+    ``ensure_base``, not promoted to global here.
+    """
+    try:
+        data = yaml.safe_load(Path(catalog_path).read_text())
+    except (OSError, yaml.YAMLError):
+        return [], []
+    tools: list[str] = []
+    domains: list[str] = []
+    for group in (data or {}).get("groups", {}).values():
+        if group.get("tier") != 2 or group.get("sensitivity") != "benign":
+            continue
+        for rule in group.get("rules", []):
+            if not isinstance(rule, str):
+                continue
+            if McpToolName.is_mcp(rule) and not rule.endswith("*"):
+                tools.append(rule)
+            else:
+                match = _WEBFETCH_RE.match(rule)
+                if match:
+                    domains.append(match.group("domain"))
+    return tools, domains
+
+
+def build_proactive_seed_plan(
+    *,
+    catalog_path: Path,
+    global_settings_path: Path,
+) -> PromotionPlan:
+    """Build a promotion plan from the curated default-safe surface (GH-603).
+
+    Unlike :func:`build_promotion_plan`, this needs no project-local approval:
+    the candidate set is the catalog's tier-2 benign groups (GH-601). Each
+    candidate is re-classified through the manifest's write-precedence +
+    sensitivity gate, so a write or sensitive read that slipped into a benign
+    group is excluded rather than seeded. Candidates already in the global
+    allow list are counted, not re-added (idempotent).
+    """
+    tools, domains = catalog_default_safe_surface(catalog_path)
+    global_allow = set(_read_allow_rules(global_settings_path))
+    global_domains = collect_webfetch_domains(global_settings_path)
+
+    plan = PromotionPlan()
+    seen: set[str] = set()
+    for rule in tools:
+        if rule in seen:
+            continue
+        seen.add(rule)
+        if rule in global_allow:
+            plan.already_global_tools += 1
+            continue
+        kind = classify_mcp_tool(rule)
+        if kind == "write":
+            plan.writes_excluded.append(rule)
+        elif is_sensitivity_flagged(rule):
+            plan.sensitive_opt_in.append(rule)
+        else:
+            plan.read_promotable.append(rule)
+
+    domain_set = set(domains)
+    plan.already_global_domains = len(domain_set & global_domains)
+    plan.domains_promotable = sorted(domain_set - global_domains)
+
+    plan.read_promotable.sort()
+    plan.sensitive_opt_in.sort()
+    plan.writes_excluded.sort()
+    return plan
