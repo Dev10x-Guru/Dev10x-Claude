@@ -5,17 +5,36 @@ Dev10x GitHub Action. This is independent of the Claude Code plugin
 install ([installation.md](installation.md)) — you do not need the
 plugin to use the Action.
 
-> **Scaffold status (M6).** This is the foundational install flow
-> (GH-351). The review currently runs a self-contained generic prompt.
-> Review-from-learned-rules (GH-352) and the continuous learning loop
-> (GH-353) extend this scaffold and are tracked separately.
+> **Status (M6).** The install flow (GH-351) and the learned-rules
+> review path (GH-352) are live. The continuous learning loop (GH-353,
+> the `learn` mode) extends this and is tracked separately.
 
 ## What it does
 
 | PR event | Mode | Behavior |
 |----------|------|----------|
-| `opened`, `synchronize`, `ready_for_review` | `review` | Reviews the diff and posts inline + summary comments |
+| `opened`, `synchronize`, `ready_for_review` | `review` | Reviews the diff with the packaged reviewer checklist + learned rules, posts inline + summary comments |
 | `closed` | `learn` | Harvests review patterns (scaffolded — no-op until GH-353) |
+
+### How the review works (GH-352)
+
+On the `review` path the Action assembles two inputs into the consumer
+workspace under `.dev10x-review/` before invoking the model:
+
+- **`checklist.md`** — a bundled, repo-agnostic reviewer checklist that
+  ships inside the Action. It distills the internal multi-agent review
+  pipeline (scope rules, false-positive gate, severity levels, per-domain
+  and cross-cutting checks) so an external repo gets comparable review
+  quality without any Dev10x internal files checked out.
+- **`learned-rules.md`** — review rules mined from **your own**
+  repository's merged-PR review history via
+  `dev10x github review-rules`. These are heuristic signals weighted
+  during review, not hard rules. Mining degrades gracefully: if it is
+  unavailable, the review proceeds on the bundled checklist alone.
+
+When the review finds issues it converts the PR to draft so you can
+batch fixes without re-triggering a review on each push; mark it
+*Ready for review* when done.
 
 ## Prerequisites
 
