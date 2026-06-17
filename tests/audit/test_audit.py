@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 audit_mod = pytest.importorskip("dev10x.audit", reason="dev10x not installed")
+from dev10x.audit.log_reader import audit_dir as writer_audit_dir  # noqa: E402
 from dev10x.domain.common.result import ErrorResult, SuccessResult  # noqa: E402
 
 
@@ -167,8 +168,22 @@ class TestHookLogPath:
         monkeypatch.delenv("DEV10X_HOOK_AUDIT", raising=False)
         result = await audit_mod.hook_log_path()
         assert isinstance(result, SuccessResult)
-        assert result.value["audit_dir"] == "/tmp/Dev10x/hook-audit"
+        # GH-574: the reader default must match the writer's default. The
+        # reader previously defaulted to /tmp/Dev10x/hook-audit while the
+        # writer (log_reader.audit_dir) used /tmp/Dev10x/logs, so a default
+        # install wrote records the reader never found.
+        assert result.value["audit_dir"] == "/tmp/Dev10x/logs"
+        assert result.value["audit_dir"] == str(writer_audit_dir())
         assert result.value["audit_disabled"] is False
+
+    @pytest.mark.asyncio
+    async def test_reader_matches_writer_when_env_set(self, tmp_path, monkeypatch) -> None:
+        # GH-574: both reader and writer resolve through the same accessor,
+        # so an explicit override lands on a single shared directory.
+        monkeypatch.setenv("DEV10X_HOOK_AUDIT_DIR", str(tmp_path))
+        result = await audit_mod.hook_log_path()
+        assert isinstance(result, SuccessResult)
+        assert result.value["audit_dir"] == str(writer_audit_dir())
 
     @pytest.mark.asyncio
     async def test_honors_env_override(self, tmp_path, monkeypatch) -> None:
