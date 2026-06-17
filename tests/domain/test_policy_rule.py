@@ -9,19 +9,18 @@ import pytest
 
 from dev10x.domain.friction_level import FrictionLevel
 from dev10x.domain.rules.policy_rule import PolicyRule
-from dev10x.domain.session_rules import DecisionGuidanceRule, ReadFrictionLevelRule
-from dev10x.hooks.session_policy import (
+from dev10x.domain.session_rules import (
     BuildAutonomyReassuranceRule,
-    MigratePluginPermissionsRule,
+    DecisionGuidanceRule,
 )
+from dev10x.hooks.session_policy import MigratePluginPermissionsRule
 
 
 @pytest.mark.parametrize(
     "rule",
     [
-        ReadFrictionLevelRule(toplevel="/tmp"),
         DecisionGuidanceRule(plan={}, friction_level=FrictionLevel.default()),
-        BuildAutonomyReassuranceRule(toplevel="/tmp"),
+        BuildAutonomyReassuranceRule(friction_level=FrictionLevel.default(), active_modes=[]),
         MigratePluginPermissionsRule(plugin_root=Path("/p"), home_path=Path("/h")),
     ],
 )

@@ -119,12 +119,16 @@ def build_autonomy_reassurance_context() -> str:
     Returns an empty string outside the autonomous-shipping profile; the
     orchestrator drops empty segments so non-solo sessions see no change.
     """
-    from dev10x.hooks.session_policy import BuildAutonomyReassuranceRule
+    from dev10x.domain.documents.session_yaml import SessionYamlDocument
+    from dev10x.domain.session_rules import BuildAutonomyReassuranceRule
 
     toplevel = _get_toplevel()
     if not toplevel:
         return ""
-    return BuildAutonomyReassuranceRule(toplevel=toplevel).apply()
+    friction_level, active_modes = SessionYamlDocument(toplevel=toplevel).read_friction_and_modes()
+    return BuildAutonomyReassuranceRule(
+        friction_level=friction_level, active_modes=active_modes
+    ).apply()
 
 
 def build_install_check_context() -> str:

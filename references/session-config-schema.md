@@ -44,21 +44,24 @@ Empty list is valid (no modes active).
 
 ## Readers (Consumers)
 
-All readers are located in `src/dev10x/hooks/session_policy.py`:
+The file read is owned by `SessionYamlDocument`
+(`src/dev10x/domain/documents/session_yaml.py`); it returns the parsed
+`friction_level` and `active_modes` with soft fallbacks. Policy Rules in
+`src/dev10x/domain/session_rules.py` consume those values and perform no
+I/O (ADR-0007 D3):
 
-1. **`ReadFrictionLevelRule`** (lines 80–101)
-   - Reads `friction_level` field
-   - Fallback: `"strict"` if missing or malformed
-   - Sets context for `BuildAutonomyReassuranceRule` and `DecisionGuidanceRule`
+1. **`SessionYamlDocument`** — owns the `session.yaml` read.
+   `read_friction_level()`, `read_active_modes()`, and
+   `read_friction_and_modes()` apply the fallbacks below.
 
-2. **`BuildAutonomyReassuranceRule`** (lines 104–149)
-   - Reads `friction_level` and `active_modes`
+2. **`BuildAutonomyReassuranceRule`**
+   - Receives `friction_level` and `active_modes` as fields
    - Fires only when: `friction_level == "adaptive"` AND `"solo-maintainer"` in `active_modes`
    - Fallback: Silent (returns empty string) if conditions not met
    - Output: Reassurance text displayed at SessionStart
 
-3. **`DecisionGuidanceRule`** (lines 151+)
-   - Reads `friction_level`
+3. **`DecisionGuidanceRule`**
+   - Receives `friction_level`
    - Provides guidance text tailored to the selected level
 
 ## Fallback Behavior
@@ -94,12 +97,13 @@ active_modes:
 
 ## Testing
 
-Verify session.yaml parsing in `tests/hooks/test_orchestrators.py`:
+Verify session.yaml parsing in
+`tests/domain/documents/test_session_yaml.py` (file reads + fallbacks)
+and rule behaviour in `tests/hooks/test_orchestrators.py` (value-based):
 
-- Test case: `test_autonomy_reassurance_fires_when_adaptive_and_solo`
-- Test case: `test_autonomy_reassurance_silent_when_not_adaptive`
-- Test case: `test_autonomy_reassurance_silent_when_session_yaml_missing`
-- Test case: `test_autonomy_reassurance_silent_when_session_yaml_malformed`
+- `TestReadFrictionLevel` — declared / missing / malformed / unknown
+- `TestReadActiveModes` — declared / unset / non-list / missing file
+- `TestAutonomyReassurance` — fires on adaptive+solo; silent otherwise
 
 ## Related Files
 

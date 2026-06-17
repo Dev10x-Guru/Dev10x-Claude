@@ -15,6 +15,8 @@ from pathlib import Path
 
 import pytest
 
+from dev10x.domain.friction_level import FrictionLevel
+
 SCRIPTS = Path(__file__).resolve().parents[2] / "hooks" / "scripts"
 SESSION_START = SCRIPTS / "session-start.py"
 SESSION_STOP = SCRIPTS / "session-stop.py"
@@ -92,50 +94,28 @@ class TestAutonomyReassurance:
         (toplevel / ".claude" / "Dev10x" / "session.yaml").write_text(content)
         return toplevel
 
-    def test_fires_on_adaptive_solo_maintainer(self, tmp_path: Path) -> None:
-        from dev10x.hooks.session_policy import BuildAutonomyReassuranceRule
+    def test_fires_on_adaptive_solo_maintainer(self) -> None:
+        from dev10x.domain.session_rules import BuildAutonomyReassuranceRule
 
-        toplevel = self._write_session_yaml(
-            tmp_path=tmp_path,
-            content="friction_level: adaptive\nactive_modes: [solo-maintainer]\n",
-        )
-        result = BuildAutonomyReassuranceRule(toplevel=str(toplevel)).apply()
+        result = BuildAutonomyReassuranceRule(
+            friction_level=FrictionLevel.ADAPTIVE, active_modes=["solo-maintainer"]
+        ).apply()
         assert "Supervisor monitors context" in result
         assert "trust the plan" in result
 
-    def test_silent_when_friction_guided(self, tmp_path: Path) -> None:
-        from dev10x.hooks.session_policy import BuildAutonomyReassuranceRule
+    def test_silent_when_friction_guided(self) -> None:
+        from dev10x.domain.session_rules import BuildAutonomyReassuranceRule
 
-        toplevel = self._write_session_yaml(
-            tmp_path=tmp_path,
-            content="friction_level: guided\nactive_modes: [solo-maintainer]\n",
+        rule = BuildAutonomyReassuranceRule(
+            friction_level=FrictionLevel.GUIDED, active_modes=["solo-maintainer"]
         )
-        assert BuildAutonomyReassuranceRule(toplevel=str(toplevel)).apply() == ""
+        assert rule.apply() == ""
 
-    def test_silent_when_solo_maintainer_missing(self, tmp_path: Path) -> None:
-        from dev10x.hooks.session_policy import BuildAutonomyReassuranceRule
+    def test_silent_when_solo_maintainer_missing(self) -> None:
+        from dev10x.domain.session_rules import BuildAutonomyReassuranceRule
 
-        toplevel = self._write_session_yaml(
-            tmp_path=tmp_path,
-            content="friction_level: adaptive\nactive_modes: []\n",
-        )
-        assert BuildAutonomyReassuranceRule(toplevel=str(toplevel)).apply() == ""
-
-    def test_silent_when_session_yaml_missing(self, tmp_path: Path) -> None:
-        from dev10x.hooks.session_policy import BuildAutonomyReassuranceRule
-
-        toplevel = tmp_path / "repo"
-        toplevel.mkdir()
-        assert BuildAutonomyReassuranceRule(toplevel=str(toplevel)).apply() == ""
-
-    def test_silent_when_session_yaml_malformed(self, tmp_path: Path) -> None:
-        from dev10x.hooks.session_policy import BuildAutonomyReassuranceRule
-
-        toplevel = self._write_session_yaml(
-            tmp_path=tmp_path,
-            content="friction_level: adaptive\nactive_modes: [solo-maintainer\n",
-        )
-        assert BuildAutonomyReassuranceRule(toplevel=str(toplevel)).apply() == ""
+        rule = BuildAutonomyReassuranceRule(friction_level=FrictionLevel.ADAPTIVE, active_modes=[])
+        assert rule.apply() == ""
 
     def test_dispatch_returns_empty_without_toplevel(
         self, monkeypatch: pytest.MonkeyPatch

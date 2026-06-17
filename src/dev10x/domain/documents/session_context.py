@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from dev10x.domain.documents.session_yaml import SessionYamlDocument
 from dev10x.domain.friction_level import FrictionLevel
 from dev10x.domain.git_context import GitContext
 from dev10x.domain.session_document import (
@@ -22,7 +23,7 @@ from dev10x.domain.session_document import (
     read_plan_summary,
     state_path_for_toplevel,
 )
-from dev10x.domain.session_rules import DecisionGuidanceRule, ReadFrictionLevelRule
+from dev10x.domain.session_rules import DecisionGuidanceRule
 
 
 def _run_git_safe(git: GitContext, *args: str) -> str:
@@ -55,7 +56,7 @@ class SessionContextQuery:
         plan_path = plan_path_for_toplevel(toplevel=toplevel)
         plan_exists = plan_path.exists()
         plan_data = read_plan_summary(toplevel=toplevel) if plan_exists else {}
-        friction_level = ReadFrictionLevelRule(toplevel=toplevel).apply()
+        friction_level = SessionYamlDocument(toplevel=toplevel).read_friction_level()
 
         return cls(
             toplevel=toplevel,
@@ -85,7 +86,7 @@ class SessionContextQuery:
         plan_path = plan_path_for_toplevel(toplevel=toplevel)
         plan_exists = plan_path.exists()
         plan_data = read_plan_summary(toplevel=toplevel) if plan_exists else {}
-        friction_level = ReadFrictionLevelRule(toplevel=toplevel).apply()
+        friction_level = SessionYamlDocument(toplevel=toplevel).read_friction_level()
 
         return cls(
             toplevel=toplevel,
