@@ -18,7 +18,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from dev10x.audit.log_reader import iter_records, prune
+from dev10x.audit.log_reader import audit_dir, iter_records, prune
 from dev10x.audit.summarizer import summarize
 from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.result import Result, err, ok
@@ -36,15 +36,9 @@ __all__ = [
     "hook_recent",
 ]
 
-_DEFAULT_HOOK_AUDIT_DIR = "/tmp/Dev10x/hook-audit"
 
-
-def _resolve_audit_dir() -> Path:
-    return Path(os.environ.get("DEV10X_HOOK_AUDIT_DIR", _DEFAULT_HOOK_AUDIT_DIR))
-
-
-def _today_log_path(audit_dir: Path) -> Path:
-    return audit_dir / f"hooks-{date.today().isoformat()}.jsonl"
+def _today_log_path(log_dir: Path) -> Path:
+    return log_dir / f"hooks-{date.today().isoformat()}.jsonl"
 
 
 async def extract_session(
@@ -126,19 +120,19 @@ async def analyze_permissions(
 
 
 async def hook_log_path() -> Result[dict[str, Any]]:
-    audit_dir = _resolve_audit_dir()
-    today_log = _today_log_path(audit_dir)
+    log_dir = audit_dir()
+    today_log = _today_log_path(log_dir)
 
     available = []
-    if audit_dir.exists():
-        available = sorted(p.name for p in audit_dir.glob("hooks-*.jsonl"))
+    if log_dir.exists():
+        available = sorted(p.name for p in log_dir.glob("hooks-*.jsonl"))
 
     return ok(
         {
-            "audit_dir": str(audit_dir),
+            "audit_dir": str(log_dir),
             "today_log": str(today_log),
             "today_log_exists": today_log.exists(),
-            "audit_dir_exists": audit_dir.exists(),
+            "audit_dir_exists": log_dir.exists(),
             "available_logs": available,
             "audit_disabled": os.environ.get("DEV10X_HOOK_AUDIT", "1").lower()
             in {"0", "false", "no", "off"},
@@ -153,8 +147,8 @@ async def hook_recent(
     span_id: str | None = None,
     log_path: str | None = None,
 ) -> Result[dict[str, Any]]:
-    audit_dir = _resolve_audit_dir()
-    target = Path(log_path) if log_path else _today_log_path(audit_dir)
+    log_dir = audit_dir()
+    target = Path(log_path) if log_path else _today_log_path(log_dir)
 
     if not target.exists():
         return err(
@@ -167,7 +161,7 @@ async def hook_recent(
     if log_path:
         records = iter_records(paths=[target])
     else:
-        records = iter_records(base_dir=audit_dir)
+        records = iter_records(base_dir=log_dir)
 
     if hook_name:
         records = [rec for rec in records if rec.get("hook") == hook_name]
