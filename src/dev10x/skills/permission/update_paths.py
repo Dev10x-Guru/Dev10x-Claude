@@ -30,7 +30,7 @@ from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.allow_rule import AllowRule
 from dev10x.domain.common.mktmp_path import MKTMP_GENERALIZE_PATTERN
 from dev10x.domain.common.plugin_version import SEMVER_PATTERN, PluginVersion
-from dev10x.domain.common.result import Result
+from dev10x.domain.common.result import Result, err, ok
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.plugin_identity import PLUGIN_NAMES
 from dev10x.skills.permission.config import parse_config, resolve_config
@@ -1015,6 +1015,60 @@ def ensure_base(
         errors=errors,
         total_added=total_added,
         files_changed=files_changed,
+    )
+
+
+def seed_worktree(
+    *,
+    worktree_root: Path,
+    config: dict,
+    dry_run: bool = False,
+) -> Result[dict[str, object]]:
+    """Pre-seed a single worktree's settings.local.json with base defaults (GH-602).
+
+    A read-only surface curated once should be honored in a freshly created
+    worktree without a first prompt. This seeds the worktree's
+    ``.claude/settings.local.json`` (creating it when absent) with the base
+    catalog, deduped against the user-global allow list. Returns the count
+    added so the worktree-creation caller can report it.
+    """
+    base_permissions = config.get("base_permissions", [])
+    base_denies = config.get("base_denies", [])
+    settings = Path(worktree_root) / ".claude" / "settings.local.json"
+
+    created_fresh = not settings.exists()
+    if dry_run:
+        return ok(
+            {
+                "path": str(settings),
+                "added": 0,
+                "would_create": created_fresh,
+                "dry_run": True,
+            }
+        )
+
+    if created_fresh:
+        try:
+            settings.parent.mkdir(parents=True, exist_ok=True)
+            settings.write_text("{}\n")
+        except OSError as error:
+            return err(f"cannot create worktree settings: {error}", path=str(settings))
+
+    global_rules, _ = _load_global_allow_rules()
+    filtered = [rule for rule in base_permissions if rule not in global_rules]
+
+    from dev10x.skills.permission.enumerate_mcp import discover_mcp_tools
+
+    mcp_catalog = discover_mcp_tools()
+    added_allow, _ = ensure_base_permissions(settings, filtered, mcp_catalog=mcp_catalog)
+    added_deny, _ = ensure_base_denies(settings, base_denies)
+
+    return ok(
+        {
+            "path": str(settings),
+            "added": added_allow + added_deny,
+            "created_fresh": created_fresh,
+        }
     )
 
 
