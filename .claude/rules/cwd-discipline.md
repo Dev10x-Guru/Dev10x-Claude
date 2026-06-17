@@ -18,6 +18,15 @@ after `EnterWorktree`.
   first-call toplevel permanently. Construct a fresh `GitContext()` per
   call (or `lambda: GitContext().toplevel`). Enforced by
   `tests/test_no_module_scope_gitcontext.py`.
+- **Domain code resolves CWD via the domain seam, not `subprocess_utils`**
+  (GH-584, audit N21): `domain/` modules (e.g. `domain/git_context.py`)
+  call `dev10x.domain.cwd_resolver.resolve_cwd()` instead of importing
+  `subprocess_utils.effective_cwd` — ADR-0008 Rule #1 keeps `domain/`
+  free of outward dependencies. The infra layer (`subprocess_utils`)
+  wires the concrete `effective_cwd` resolver into that seam at import
+  time (infra → domain is the allowed inward direction). The
+  `subprocess_utils.effective_cwd() or os.getcwd()` guidance above still
+  applies to **adapter/infra** code; only domain modules use the seam.
 
 ## Standalone uv-script exception
 

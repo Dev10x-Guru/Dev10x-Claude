@@ -62,5 +62,27 @@ class SessionYamlDocument:
         modes = data.get("active_modes")
         return level, (modes if isinstance(modes, list) else [])
 
+    @staticmethod
+    def render(*, friction_level: str = "guided", active_modes: list[str] | None = None) -> str:
+        """Render the canonical ``session.yaml`` body.
+
+        The single source of truth for the file's shape — ``dev10x init``
+        (interactive and ``--non-interactive``) routes its writes here
+        instead of duplicating the template inline (audit N19).
+        """
+        return (
+            "# Dev10x session config — consumed by work-on, verify-acc-dod, and\n"
+            "# the PreCompact recovery hook.\n"
+            f"friction_level: {friction_level}  # strict | guided | adaptive\n"
+            f"active_modes: {active_modes or []!r}\n"
+        )
+
+    def write(
+        self, *, friction_level: str = "guided", active_modes: list[str] | None = None
+    ) -> None:
+        """Write ``session.yaml`` for this toplevel, creating parents as needed."""
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.write_text(self.render(friction_level=friction_level, active_modes=active_modes))
+
 
 __all__ = ["SessionYamlDocument"]

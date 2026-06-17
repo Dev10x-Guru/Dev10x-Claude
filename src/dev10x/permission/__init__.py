@@ -15,6 +15,7 @@ import asyncio
 from typing import Any
 
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.permission.service import load_permission_context
 
 
 def _run_sub_command(
@@ -29,14 +30,11 @@ def _run_sub_command(
 ) -> Result[dict[str, Any]]:
     from dev10x.skills.permission import update_paths as mod
 
-    resolved = mod.find_config()
-    if isinstance(resolved, ErrorResult):
-        return resolved
-    config = mod.load_config(resolved.value)
-    settings_files = mod.find_settings_files(
-        roots=config.get("roots", []),
-        include_user=config.get("include_user_settings", True),
-    )
+    ctx = load_permission_context()
+    if isinstance(ctx, ErrorResult):
+        return ctx
+    config = ctx.value.config
+    settings_files = ctx.value.settings_files
     if not settings_files:
         return err("No settings files found.")
 
@@ -174,16 +172,12 @@ def _run_update_paths(
             "init is not supported via MCP; run `uvx dev10x permission update-paths --init`."
         )
 
-    resolved = mod.find_config()
-    if isinstance(resolved, ErrorResult):
-        return resolved
-    config_path = resolved.value
-    config = mod.load_config(config_path)
-
-    settings_files = mod.find_settings_files(
-        roots=config.get("roots", []),
-        include_user=config.get("include_user_settings", True),
-    )
+    ctx = load_permission_context()
+    if isinstance(ctx, ErrorResult):
+        return ctx
+    config_path = ctx.value.config_path
+    config = ctx.value.config
+    settings_files = ctx.value.settings_files
     if not settings_files:
         return err("No settings files found.")
 
