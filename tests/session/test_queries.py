@@ -8,12 +8,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from dev10x.domain.friction_level import FrictionLevel
-from dev10x.session.queries import (
+from dev10x.domain.documents.session_context import (
     SessionContextQuery,
     format_compaction_summary,
     format_reload_context,
 )
+from dev10x.domain.friction_level import FrictionLevel
 
 
 def _ctx(**kwargs: Any) -> SessionContextQuery:
@@ -120,16 +120,16 @@ class TestFormatCompactionSummary:
 class TestGatherReload:
     def test_returns_query_with_correct_toplevel(self, tmp_path: Path) -> None:
         with (
-            patch("dev10x.session.queries.claim_state_file", return_value={}),
+            patch("dev10x.domain.documents.session_context.claim_state_file", return_value={}),
             patch(
-                "dev10x.session.queries.state_path_for_toplevel",
+                "dev10x.domain.documents.session_context.state_path_for_toplevel",
                 return_value=tmp_path / "state.json",
             ),
             patch(
-                "dev10x.session.queries.plan_path_for_toplevel",
+                "dev10x.domain.documents.session_context.plan_path_for_toplevel",
                 return_value=tmp_path / "plan.json",
             ),
-            patch("dev10x.session.queries.ReadFrictionLevelRule") as mock_rule,
+            patch("dev10x.domain.documents.session_context.ReadFrictionLevelRule") as mock_rule,
         ):
             mock_rule.return_value.apply.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_reload(toplevel=str(tmp_path))
@@ -137,16 +137,16 @@ class TestGatherReload:
 
     def test_plan_exists_false_when_no_plan_file(self, tmp_path: Path) -> None:
         with (
-            patch("dev10x.session.queries.claim_state_file", return_value={}),
+            patch("dev10x.domain.documents.session_context.claim_state_file", return_value={}),
             patch(
-                "dev10x.session.queries.state_path_for_toplevel",
+                "dev10x.domain.documents.session_context.state_path_for_toplevel",
                 return_value=tmp_path / "state.json",
             ),
             patch(
-                "dev10x.session.queries.plan_path_for_toplevel",
+                "dev10x.domain.documents.session_context.plan_path_for_toplevel",
                 return_value=tmp_path / "plan.json",
             ),
-            patch("dev10x.session.queries.ReadFrictionLevelRule") as mock_rule,
+            patch("dev10x.domain.documents.session_context.ReadFrictionLevelRule") as mock_rule,
         ):
             mock_rule.return_value.apply.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_reload(toplevel=str(tmp_path))
@@ -156,17 +156,20 @@ class TestGatherReload:
         plan_file = tmp_path / "plan.json"
         plan_file.write_text("{}")
         with (
-            patch("dev10x.session.queries.claim_state_file", return_value={}),
+            patch("dev10x.domain.documents.session_context.claim_state_file", return_value={}),
             patch(
-                "dev10x.session.queries.state_path_for_toplevel",
+                "dev10x.domain.documents.session_context.state_path_for_toplevel",
                 return_value=tmp_path / "state.json",
             ),
             patch(
-                "dev10x.session.queries.plan_path_for_toplevel",
+                "dev10x.domain.documents.session_context.plan_path_for_toplevel",
                 return_value=plan_file,
             ),
-            patch("dev10x.session.queries.read_plan_summary", return_value={"tasks": []}),
-            patch("dev10x.session.queries.ReadFrictionLevelRule") as mock_rule,
+            patch(
+                "dev10x.domain.documents.session_context.read_plan_summary",
+                return_value={"tasks": []},
+            ),
+            patch("dev10x.domain.documents.session_context.ReadFrictionLevelRule") as mock_rule,
         ):
             mock_rule.return_value.apply.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_reload(toplevel=str(tmp_path))
@@ -175,16 +178,18 @@ class TestGatherReload:
     def test_state_comes_from_claim_state_file(self, tmp_path: Path) -> None:
         fake_state = {"session_id": "test-123", "branch": "main"}
         with (
-            patch("dev10x.session.queries.claim_state_file", return_value=fake_state),
             patch(
-                "dev10x.session.queries.state_path_for_toplevel",
+                "dev10x.domain.documents.session_context.claim_state_file", return_value=fake_state
+            ),
+            patch(
+                "dev10x.domain.documents.session_context.state_path_for_toplevel",
                 return_value=tmp_path / "state.json",
             ),
             patch(
-                "dev10x.session.queries.plan_path_for_toplevel",
+                "dev10x.domain.documents.session_context.plan_path_for_toplevel",
                 return_value=tmp_path / "plan.json",
             ),
-            patch("dev10x.session.queries.ReadFrictionLevelRule") as mock_rule,
+            patch("dev10x.domain.documents.session_context.ReadFrictionLevelRule") as mock_rule,
         ):
             mock_rule.return_value.apply.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_reload(toplevel=str(tmp_path))
@@ -200,12 +205,14 @@ class TestGatherCompaction:
 
     def test_returns_query_with_correct_toplevel(self, tmp_path: Path) -> None:
         with (
-            patch("dev10x.session.queries.GitContext", return_value=self._mock_git()),
             patch(
-                "dev10x.session.queries.plan_path_for_toplevel",
+                "dev10x.domain.documents.session_context.GitContext", return_value=self._mock_git()
+            ),
+            patch(
+                "dev10x.domain.documents.session_context.plan_path_for_toplevel",
                 return_value=tmp_path / "plan.json",
             ),
-            patch("dev10x.session.queries.ReadFrictionLevelRule") as mock_rule,
+            patch("dev10x.domain.documents.session_context.ReadFrictionLevelRule") as mock_rule,
         ):
             mock_rule.return_value.apply.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_compaction(toplevel=str(tmp_path))
@@ -214,14 +221,14 @@ class TestGatherCompaction:
     def test_branch_comes_from_git_context(self, tmp_path: Path) -> None:
         with (
             patch(
-                "dev10x.session.queries.GitContext",
+                "dev10x.domain.documents.session_context.GitContext",
                 return_value=self._mock_git(branch="feature/test"),
             ),
             patch(
-                "dev10x.session.queries.plan_path_for_toplevel",
+                "dev10x.domain.documents.session_context.plan_path_for_toplevel",
                 return_value=tmp_path / "plan.json",
             ),
-            patch("dev10x.session.queries.ReadFrictionLevelRule") as mock_rule,
+            patch("dev10x.domain.documents.session_context.ReadFrictionLevelRule") as mock_rule,
         ):
             mock_rule.return_value.apply.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_compaction(toplevel=str(tmp_path))
@@ -231,12 +238,14 @@ class TestGatherCompaction:
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
         with (
-            patch("dev10x.session.queries.GitContext", return_value=self._mock_git()),
             patch(
-                "dev10x.session.queries.plan_path_for_toplevel",
+                "dev10x.domain.documents.session_context.GitContext", return_value=self._mock_git()
+            ),
+            patch(
+                "dev10x.domain.documents.session_context.plan_path_for_toplevel",
                 return_value=tmp_path / "plan.json",
             ),
-            patch("dev10x.session.queries.ReadFrictionLevelRule") as mock_rule,
+            patch("dev10x.domain.documents.session_context.ReadFrictionLevelRule") as mock_rule,
         ):
             mock_rule.return_value.apply.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_compaction(toplevel=str(tmp_path))
@@ -246,12 +255,14 @@ class TestGatherCompaction:
         git_file = tmp_path / ".git"
         git_file.write_text("gitdir: ../../.git/worktrees/foo")
         with (
-            patch("dev10x.session.queries.GitContext", return_value=self._mock_git()),
             patch(
-                "dev10x.session.queries.plan_path_for_toplevel",
+                "dev10x.domain.documents.session_context.GitContext", return_value=self._mock_git()
+            ),
+            patch(
+                "dev10x.domain.documents.session_context.plan_path_for_toplevel",
                 return_value=tmp_path / "plan.json",
             ),
-            patch("dev10x.session.queries.ReadFrictionLevelRule") as mock_rule,
+            patch("dev10x.domain.documents.session_context.ReadFrictionLevelRule") as mock_rule,
         ):
             mock_rule.return_value.apply.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_compaction(toplevel=str(tmp_path))
@@ -264,12 +275,12 @@ class TestGatherCompaction:
         mock_git.branch = "main"
         mock_git.run.side_effect = subprocess.CalledProcessError(1, "git")
         with (
-            patch("dev10x.session.queries.GitContext", return_value=mock_git),
+            patch("dev10x.domain.documents.session_context.GitContext", return_value=mock_git),
             patch(
-                "dev10x.session.queries.plan_path_for_toplevel",
+                "dev10x.domain.documents.session_context.plan_path_for_toplevel",
                 return_value=tmp_path / "plan.json",
             ),
-            patch("dev10x.session.queries.ReadFrictionLevelRule") as mock_rule,
+            patch("dev10x.domain.documents.session_context.ReadFrictionLevelRule") as mock_rule,
         ):
             mock_rule.return_value.apply.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_compaction(toplevel=str(tmp_path))
