@@ -109,6 +109,14 @@ mechanism for crossing it.
 re-exports the two moved rules so existing callers keep working
 during transition.
 
+> **Follow-up (GH-515 / GH-513 / GH-524):** `ReadFrictionLevelRule` was
+> later removed entirely — its read moved to `SessionYamlDocument`
+> (`domain/documents/session_yaml.py`) and callers invoke
+> `read_friction_level()` directly. `BuildAutonomyReassuranceRule`, once
+> made I/O-free (GH-513), was relocated from `hooks/` to
+> `domain/session_rules.py` and is re-exported from
+> `hooks/session_policy.py` during transition (GH-524).
+
 ### Code Examples
 
 ```python

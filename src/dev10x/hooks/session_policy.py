@@ -1,14 +1,15 @@
-"""Session policy — named Rule objects for permission migration and
-autonomy-reassurance synthesis.
+"""Session policy — named Rule objects for permission migration.
 
 Rule archetype (see ADR-0007): each class encapsulates one named
 decision the session hooks make. Pulling these out of
 ``hooks/session.py`` keeps the dispatcher thin and makes the policies
 testable in isolation.
 
-The friction-parsing and decision-guidance rules moved to
-``dev10x.domain.session_rules`` (ADR-0008) because they are pure
-domain policies; they are re-exported here for backward compatibility.
+The friction-parsing, decision-guidance, and autonomy-reassurance rules
+moved to ``dev10x.domain.session_rules`` (ADR-0008) because they are
+pure domain policies; they are re-exported here for backward
+compatibility. The session.yaml read those rules used to perform is now
+owned by ``dev10x.domain.documents.session_yaml.SessionYamlDocument``.
 """
 
 from __future__ import annotations
@@ -17,18 +18,15 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-import yaml
-
 from dev10x.domain.documents.settings_document import (
     SettingsDocument,
     _deduplicate_rules,
     _migrate_rules,
 )
-from dev10x.domain.friction_level import FrictionLevel
 from dev10x.domain.rules.policy_rule import PolicyRule
 from dev10x.domain.session_rules import (
+    BuildAutonomyReassuranceRule,
     DecisionGuidanceRule,
-    ReadFrictionLevelRule,
     UnknownFrictionLevelError,
 )
 
@@ -57,52 +55,6 @@ def _build_migration_replacements(
         replacements.append((old_tilde, current_tilde))
 
     return replacements
-
-
-@dataclass(frozen=True)
-class BuildAutonomyReassuranceRule(PolicyRule[str]):
-    """Build a reassurance block for autonomous sessions (GH-261).
-
-    Fires only when ``friction_level: adaptive`` AND ``solo-maintainer`` is in
-    ``active_modes``. Reassures the agent that long task lists are by design
-    and that re-asking settled scope decisions is the drift mode the
-    supervisor explicitly opted out of.
-
-    Returns an empty string outside the autonomous-shipping profile so the
-    SessionStart orchestrator can drop the segment silently.
-    """
-
-    toplevel: str
-
-    REASSURANCE_TEXT = (
-        "**Supervisor monitors context.** Long task lists are by design — "
-        "the work-on skill creates one task per play step so the supervisor "
-        'sees scope upfront. Do NOT pause to ask "should I proceed?" when:\n'
-        "\n"
-        "- The user already answered a scope AskUserQuestion\n"
-        "- friction_level: adaptive is set (auto-advance is the contract)\n"
-        "- The skill instructions explicitly cover the next step\n"
-        "\n"
-        "If context truly becomes a problem, the supervisor will interrupt. "
-        "Context anxiety is the agent's drift mode — trust the plan."
-    )
-
-    def apply(self) -> str:
-        session_yaml = Path(self.toplevel) / ".claude" / "Dev10x" / "session.yaml"
-        if not session_yaml.exists():
-            return ""
-        try:
-            data = yaml.safe_load(session_yaml.read_text()) or {}
-        except (OSError, yaml.YAMLError):
-            return ""
-
-        level = FrictionLevel.from_yaml(data.get("friction_level"))
-        modes = data.get("active_modes") or []
-        if level is not FrictionLevel.ADAPTIVE:
-            return ""
-        if "solo-maintainer" not in modes:
-            return ""
-        return self.REASSURANCE_TEXT
 
 
 @dataclass(frozen=True)
@@ -166,7 +118,6 @@ class MigratePluginPermissionsRule(PolicyRule[tuple[int, list[str]]]):
 
 __all__ = [
     "UnknownFrictionLevelError",
-    "ReadFrictionLevelRule",
     "BuildAutonomyReassuranceRule",
     "DecisionGuidanceRule",
     "MigratePluginPermissionsRule",

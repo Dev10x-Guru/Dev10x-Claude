@@ -28,6 +28,15 @@ The Policy Rule tier (`ReadFrictionLevelRule`,
 `BuildAutonomyReassuranceRule`) all expose `apply()`, but nothing
 declares that as a contract — it is "true by reading the source".
 
+> **Follow-up (GH-515 / GH-513 / GH-524):** The D3 fix below later
+> extended to the session rules. `ReadFrictionLevelRule` was dissolved
+> into `SessionYamlDocument` (`domain/documents/session_yaml.py`),
+> which now owns the `session.yaml` read; `BuildAutonomyReassuranceRule`
+> became a pure value-consumer (`friction_level` + `active_modes`
+> fields) and was relocated to `domain/session_rules.py`. The live
+> Policy Rule tier is now `DecisionGuidanceRule`,
+> `BuildAutonomyReassuranceRule`, and `MigratePluginPermissionsRule`.
+
 ### Problems
 
 1. **No named hierarchy (A9).** Three mechanisms, all called "rule"

@@ -40,7 +40,6 @@ from dev10x.hooks.session_dispatch import (
 from dev10x.hooks.session_place import session_git_aliases, session_tmpdir
 from dev10x.hooks.session_policy import (
     DecisionGuidanceRule,
-    ReadFrictionLevelRule,
     _build_migration_replacements,
     _deduplicate_rules,
     _migrate_rules,
@@ -62,8 +61,10 @@ def _format_plan_summary(*, plan):
 
 
 def _read_friction_level(*, toplevel: str):
-    """Compatibility shim — prefer ``ReadFrictionLevelRule(toplevel=...).apply()``."""
-    return ReadFrictionLevelRule(toplevel=toplevel).apply()
+    """Compatibility shim — prefer ``SessionYamlDocument(toplevel=...).read_friction_level()``."""
+    from dev10x.domain.documents.session_yaml import SessionYamlDocument
+
+    return SessionYamlDocument(toplevel=toplevel).read_friction_level()
 
 
 def _format_decision_guidance(*, plan, friction_level):

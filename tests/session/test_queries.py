@@ -129,9 +129,9 @@ class TestGatherReload:
                 "dev10x.domain.documents.session_context.plan_path_for_toplevel",
                 return_value=tmp_path / "plan.json",
             ),
-            patch("dev10x.domain.documents.session_context.ReadFrictionLevelRule") as mock_rule,
+            patch("dev10x.domain.documents.session_context.SessionYamlDocument") as mock_doc,
         ):
-            mock_rule.return_value.apply.return_value = FrictionLevel.default()
+            mock_doc.return_value.read_friction_level.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_reload(toplevel=str(tmp_path))
         assert ctx.toplevel == str(tmp_path)
 
@@ -146,9 +146,9 @@ class TestGatherReload:
                 "dev10x.domain.documents.session_context.plan_path_for_toplevel",
                 return_value=tmp_path / "plan.json",
             ),
-            patch("dev10x.domain.documents.session_context.ReadFrictionLevelRule") as mock_rule,
+            patch("dev10x.domain.documents.session_context.SessionYamlDocument") as mock_doc,
         ):
-            mock_rule.return_value.apply.return_value = FrictionLevel.default()
+            mock_doc.return_value.read_friction_level.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_reload(toplevel=str(tmp_path))
         assert not ctx.plan_exists
 
@@ -169,9 +169,9 @@ class TestGatherReload:
                 "dev10x.domain.documents.session_context.read_plan_summary",
                 return_value={"tasks": []},
             ),
-            patch("dev10x.domain.documents.session_context.ReadFrictionLevelRule") as mock_rule,
+            patch("dev10x.domain.documents.session_context.SessionYamlDocument") as mock_doc,
         ):
-            mock_rule.return_value.apply.return_value = FrictionLevel.default()
+            mock_doc.return_value.read_friction_level.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_reload(toplevel=str(tmp_path))
         assert ctx.plan_exists
 
@@ -189,9 +189,9 @@ class TestGatherReload:
                 "dev10x.domain.documents.session_context.plan_path_for_toplevel",
                 return_value=tmp_path / "plan.json",
             ),
-            patch("dev10x.domain.documents.session_context.ReadFrictionLevelRule") as mock_rule,
+            patch("dev10x.domain.documents.session_context.SessionYamlDocument") as mock_doc,
         ):
-            mock_rule.return_value.apply.return_value = FrictionLevel.default()
+            mock_doc.return_value.read_friction_level.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_reload(toplevel=str(tmp_path))
         assert ctx.state == fake_state
 
@@ -212,9 +212,9 @@ class TestGatherCompaction:
                 "dev10x.domain.documents.session_context.plan_path_for_toplevel",
                 return_value=tmp_path / "plan.json",
             ),
-            patch("dev10x.domain.documents.session_context.ReadFrictionLevelRule") as mock_rule,
+            patch("dev10x.domain.documents.session_context.SessionYamlDocument") as mock_doc,
         ):
-            mock_rule.return_value.apply.return_value = FrictionLevel.default()
+            mock_doc.return_value.read_friction_level.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_compaction(toplevel=str(tmp_path))
         assert ctx.toplevel == str(tmp_path)
 
@@ -228,9 +228,9 @@ class TestGatherCompaction:
                 "dev10x.domain.documents.session_context.plan_path_for_toplevel",
                 return_value=tmp_path / "plan.json",
             ),
-            patch("dev10x.domain.documents.session_context.ReadFrictionLevelRule") as mock_rule,
+            patch("dev10x.domain.documents.session_context.SessionYamlDocument") as mock_doc,
         ):
-            mock_rule.return_value.apply.return_value = FrictionLevel.default()
+            mock_doc.return_value.read_friction_level.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_compaction(toplevel=str(tmp_path))
         assert ctx.branch == "feature/test"
 
@@ -245,9 +245,9 @@ class TestGatherCompaction:
                 "dev10x.domain.documents.session_context.plan_path_for_toplevel",
                 return_value=tmp_path / "plan.json",
             ),
-            patch("dev10x.domain.documents.session_context.ReadFrictionLevelRule") as mock_rule,
+            patch("dev10x.domain.documents.session_context.SessionYamlDocument") as mock_doc,
         ):
-            mock_rule.return_value.apply.return_value = FrictionLevel.default()
+            mock_doc.return_value.read_friction_level.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_compaction(toplevel=str(tmp_path))
         assert ctx.worktree_name == ""
 
@@ -262,9 +262,9 @@ class TestGatherCompaction:
                 "dev10x.domain.documents.session_context.plan_path_for_toplevel",
                 return_value=tmp_path / "plan.json",
             ),
-            patch("dev10x.domain.documents.session_context.ReadFrictionLevelRule") as mock_rule,
+            patch("dev10x.domain.documents.session_context.SessionYamlDocument") as mock_doc,
         ):
-            mock_rule.return_value.apply.return_value = FrictionLevel.default()
+            mock_doc.return_value.read_friction_level.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_compaction(toplevel=str(tmp_path))
         assert ctx.worktree_name == tmp_path.name
 
@@ -280,9 +280,9 @@ class TestGatherCompaction:
                 "dev10x.domain.documents.session_context.plan_path_for_toplevel",
                 return_value=tmp_path / "plan.json",
             ),
-            patch("dev10x.domain.documents.session_context.ReadFrictionLevelRule") as mock_rule,
+            patch("dev10x.domain.documents.session_context.SessionYamlDocument") as mock_doc,
         ):
-            mock_rule.return_value.apply.return_value = FrictionLevel.default()
+            mock_doc.return_value.read_friction_level.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_compaction(toplevel=str(tmp_path))
         assert ctx.modified_files == []
         assert ctx.staged_files == []

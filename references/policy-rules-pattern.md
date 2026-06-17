@@ -53,13 +53,19 @@ The rule is a frozen dataclass to:
 
 ```python
 @dataclass(frozen=True)
-class ReadFrictionLevelRule:
-    """Reads friction_level from session.yaml."""
-    project_root: Path
+class BuildAutonomyReassuranceRule:
+    """Reassures the agent in adaptive + solo-maintainer sessions."""
+
+    friction_level: FrictionLevel
+    active_modes: list[str]
 
     def apply(self) -> str:
         ...
 ```
+
+The rule receives already-loaded values as fields — the file read is
+owned by `SessionYamlDocument` (see § Fallback Consistency), keeping the
+rule free of I/O (ADR-0007 D3).
 
 ### apply() Method
 
@@ -75,34 +81,44 @@ The `apply()` method is the rule's only public interface:
 Each rule is tested in isolation:
 
 ```python
-def test_reads_friction_level_when_present():
-    rule = ReadFrictionLevelRule(project_root=Path("/tmp"))
-    result = rule.apply()
-    assert result in ("strict", "guided", "adaptive")
+def test_fires_when_adaptive_and_solo():
+    rule = BuildAutonomyReassuranceRule(
+        friction_level=FrictionLevel.ADAPTIVE, active_modes=["solo-maintainer"]
+    )
+    assert rule.apply() != ""
 
-def test_silent_when_file_missing():
-    rule = ReadFrictionLevelRule(project_root=Path("/nonexistent"))
-    result = rule.apply()
-    assert result == ""
+def test_silent_when_not_adaptive():
+    rule = BuildAutonomyReassuranceRule(
+        friction_level=FrictionLevel.GUIDED, active_modes=["solo-maintainer"]
+    )
+    assert rule.apply() == ""
 ```
+
+Because the rule holds plain values rather than a path, it is tested
+fully in-memory — no temp files. The file-read fallbacks (missing /
+malformed YAML) are tested on `SessionYamlDocument` instead.
 
 ## Re-Export Pattern
 
-Rules are defined in `src/dev10x/hooks/session_policy.py` and
-re-exported via `__all__` in `src/dev10x/hooks/session.py`:
+Pure session rules live in `src/dev10x/domain/session_rules.py`
+(ADR-0008: they depend only on `domain/` types). Adapter-layer modules
+re-export them for backward compatibility:
 
-**session_policy.py:**
+**domain/session_rules.py:**
 ```python
-__all__ = ["ReadFrictionLevelRule", "BuildAutonomyReassuranceRule", ...]
+__all__ = ["DecisionGuidanceRule", "BuildAutonomyReassuranceRule", ...]
 ```
 
-**session.py:**
+**hooks/session_policy.py** (compatibility re-export):
 ```python
-from .session_policy import *  # Imports from __all__
+from dev10x.domain.session_rules import (
+    BuildAutonomyReassuranceRule,
+    DecisionGuidanceRule,
+)
 ```
 
-This makes rules discoverable to orchestrators without tying the
-policy module's internal organization to external imports.
+This keeps the rules discoverable from their historical import path
+without tying the domain module's organization to adapter imports.
 
 ## Composition in Orchestrators
 
@@ -123,38 +139,44 @@ final output.
 
 **All policy rules must handle missing/malformed input gracefully:**
 
+- File reads are owned by a Document (e.g. `SessionYamlDocument`),
+  which returns soft fallbacks (`FrictionLevel.default()`, empty
+  modes) on a missing or malformed file — the rule performs no I/O
+  (ADR-0007 D3)
 - If a rule depends on optional config, return `""` (silent) when
-  config is missing
-- If a rule depends on optional session state, return `""` when
-  state file is missing or malformed
+  the resolved value does not meet its firing conditions
 - **Never raise exceptions** — exceptions break the orchestrator
 
 Example:
 
 ```python
-def apply(self) -> str:
-    try:
-        config = yaml.safe_load(open(self.config_path))
-    except FileNotFoundError:
-        return ""  # Silent — this rule doesn't apply
+# The file read + fallback live in the Document (ADR-0007 D3):
+def read_friction_level(self) -> FrictionLevel:
+    return FrictionLevel.from_yaml(self._load().get("friction_level"))
 
-    if config.get("friction_level") == "adaptive":
+# The rule receives the resolved value and decides — no I/O:
+def apply(self) -> str:
+    if self.friction_level is FrictionLevel.ADAPTIVE:
         return "Reassurance text"
     return ""
 ```
 
 ## Examples
 
-See `src/dev10x/hooks/session_policy.py` for current implementations:
+See `src/dev10x/domain/session_rules.py` for current Policy Rule
+implementations (re-exported from `hooks/session_policy.py`):
 
-1. **`ReadFrictionLevelRule`** — Reads and returns `friction_level`
-   from `session.yaml`
-2. **`BuildAutonomyReassuranceRule`** — Returns reassurance text
-   when adaptive + solo-maintainer is active
-3. **`DecisionGuidanceRule`** — Returns guidance text tailored to
-   the friction level
-4. **`MigratePluginPermissionsRule`** — Guidance for permission
-   migrations (one-time messages)
+1. **`BuildAutonomyReassuranceRule`** — Returns reassurance text
+   when adaptive + solo-maintainer is active. Receives
+   `friction_level` + `active_modes` as fields (no I/O).
+2. **`DecisionGuidanceRule`** — Returns guidance text tailored to
+   the friction level.
+3. **`MigratePluginPermissionsRule`** — Guidance for permission
+   migrations (`hooks/session_policy.py`; delegates file writes to
+   `SettingsDocument`).
+
+The `session.yaml` read those rules used to perform is owned by
+`SessionYamlDocument` (`src/dev10x/domain/documents/session_yaml.py`).
 
 ## Related Patterns
 
