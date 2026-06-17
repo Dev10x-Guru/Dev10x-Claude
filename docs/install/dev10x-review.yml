@@ -1,0 +1,38 @@
+# Dev10x PR Review — consumer workflow template (GH-351).
+#
+# Copy this file into your repository at .github/workflows/dev10x-review.yml
+# and add an ANTHROPIC_API_KEY repository secret. See
+# docs/github-action-install.md for the full install + permissions flow.
+#
+# This template is stored under docs/install/ on purpose: GitHub only runs
+# workflows located in .github/workflows/, so it will not execute from here.
+name: Dev10x PR Review
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, closed]
+
+jobs:
+  dev10x-review:
+    # Skip drafts on the review path; closed events still run for the
+    # (scaffolded) learning loop.
+    if: >-
+      github.event.action == 'closed' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+    steps:
+      - name: Dev10x PR Review
+        uses: Dev10x-Guru/dev10x-claude@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Optional overrides:
+          # model: haiku
+          # mode: auto

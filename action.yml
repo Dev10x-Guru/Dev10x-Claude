@@ -1,0 +1,115 @@
+# Dev10x PR Review — installable GitHub Action (GH-351).
+#
+# Scaffold for the "Installable GitHub bot/Action" milestone (M6). This
+# composite action lets ANY repository adopt Dev10x automated PR review by
+# referencing it from a workflow:
+#
+#     uses: Dev10x-Guru/dev10x-claude@v1
+#
+# The install + permissions flow is documented in
+# docs/github-action-install.md; a copy-paste consumer workflow lives at
+# docs/install/dev10x-review.yml.
+#
+# Scope note: this ticket (GH-351) ships the runnable skeleton and the
+# install/permissions contract only. The two extension points are tracked
+# separately and marked inline below:
+#   - GH-352: review from learned rules (replaces the generic review prompt)
+#   - GH-353: continuous learning loop (fills in the `learn` mode stub)
+name: "Dev10x PR Review"
+description: >-
+  Automated, supervisor-style PR review powered by Claude Code. Reviews
+  pull requests on open and harvests review patterns on close.
+author: "Dev10x"
+
+branding:
+  icon: "check-circle"
+  color: "blue"
+
+inputs:
+  anthropic_api_key:
+    description: "Anthropic API key. Store as a repository secret and pass via secrets.ANTHROPIC_API_KEY."
+    required: true
+  github_token:
+    description: "Token used to read the PR and post review comments. Defaults to the job token."
+    required: false
+    default: ${{ github.token }}
+  model:
+    description: "Claude model id for the review (e.g. haiku, sonnet, opus)."
+    required: false
+    default: "haiku"
+  mode:
+    description: >-
+      review | learn | auto. `auto` reviews on opened/synchronize/ready_for_review
+      and harvests learnings on closed.
+    required: false
+    default: "auto"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Resolve run mode
+      id: resolve
+      shell: bash
+      env:
+        REQUESTED_MODE: ${{ inputs.mode }}
+        EVENT_ACTION: ${{ github.event.action }}
+      run: |
+        mode="$REQUESTED_MODE"
+        if [ "$mode" = "auto" ]; then
+          if [ "$EVENT_ACTION" = "closed" ]; then
+            mode="learn"
+          else
+            mode="review"
+          fi
+        fi
+        echo "mode=$mode" >> "$GITHUB_OUTPUT"
+        echo "::notice::Dev10x PR Review resolved mode=$mode (event=${EVENT_ACTION:-none})"
+
+    - name: Checkout repository
+      if: steps.resolve.outputs.mode == 'review'
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+
+    - name: Run Dev10x review
+      if: steps.resolve.outputs.mode == 'review'
+      uses: anthropics/claude-code-action@v1
+      env:
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+      with:
+        anthropic_api_key: ${{ inputs.anthropic_api_key }}
+        github_token: ${{ inputs.github_token }}
+        # GH-352: replace this self-contained prompt with the packaged
+        # reviewer agents + learned rules so review quality matches the
+        # internal multi-agent pipeline (see .github/workflows/claude-code-review.yml).
+        prompt: |
+          REPO: ${{ github.repository }}
+          PR NUMBER: ${{ github.event.pull_request.number }}
+
+          You are performing an automated code review. Be brief but thorough.
+
+          1. Run `gh pr diff ${{ github.event.pull_request.number }} --stat`
+             then `gh pr diff ${{ github.event.pull_request.number }}` to read
+             the changes. Review ONLY the changed lines — pre-existing issues
+             are out of scope.
+          2. Look for correctness bugs, security issues (injected secrets,
+             unsafe input handling), missing error handling, and obvious
+             maintainability problems.
+          3. Before claiming an error, read the surrounding file to confirm it
+             is real. Avoid false positives.
+          4. Post specific findings as inline review comments and ONE summary
+             comment. If the PR is clean, say so plainly.
+
+          Be constructive and helpful.
+        claude_args: >-
+          --model ${{ inputs.model }}
+          --allowed-tools "Read,Grep,Glob,mcp__github_inline_comment__create_inline_comment,mcp__github__get_pull_request_review_comments,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr review:*),Bash(gh api:*)"
+
+    - name: Harvest review learnings (scaffold)
+      if: steps.resolve.outputs.mode == 'learn'
+      shell: bash
+      run: |
+        # GH-353: harvest new patterns from this closed PR's review threads
+        # and open a rules-update PR for human approval. Stubbed until the
+        # continuous-learning loop lands.
+        echo "::notice::Dev10x learning loop is not enabled yet (tracked in GH-353). No action taken on closed PR."

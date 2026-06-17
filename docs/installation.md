@@ -91,6 +91,15 @@ cd ~/.claude/plugins/Dev10x && git pull
 claude plugin marketplace update Dev10x-Guru
 ```
 
+## Option C: GitHub Action (automated PR review)
+
+To run Dev10x automated PR review on a repository — independent of the
+Claude Code plugin — install the **Dev10x PR Review** GitHub Action.
+Add an `ANTHROPIC_API_KEY` secret and a workflow that references
+`Dev10x-Guru/dev10x-claude@v1`. See
+[GitHub Action install](github-action-install.md) for the full install
+and permissions flow.
+
 ## Verify the installation
 
 Start a new Claude Code session and check that skills are loaded:
