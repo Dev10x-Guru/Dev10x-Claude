@@ -13,7 +13,7 @@ import pytest
 import yaml
 
 import dev10x.skills.permission as permission_pkg
-from dev10x.skills.permission.manifest import Access, Sensitivity
+from dev10x.skills.permission.manifest import Access, Sensitivity, classify_skill_access
 from dev10x.skills.permission.promote import classify_mcp_tool
 
 CATALOG = Path(permission_pkg.__file__).parent / "baseline-permissions.yaml"
@@ -132,3 +132,32 @@ class TestManifestAlignment:
         ]
         assert reads
         assert all(Access(classify_mcp_tool(r)) is Access.READ for r in reads)
+
+
+class TestReadonlySkillsCuration:
+    """GH-608 D13: conservative skill-invocation surface."""
+
+    def _skill_rules(self, groups: dict) -> list[str]:
+        return [r for r in groups["readonly-skills"]["rules"] if r.startswith("Skill(")]
+
+    def test_curated_first_party_set(self, groups: dict) -> None:
+        rules = set(self._skill_rules(groups))
+        assert rules == {
+            "Skill(code-review)",
+            "Skill(security-review)",
+            "Skill(review)",
+            "Skill(simplify)",
+        }
+
+    def test_no_wildcard_family_preapproved(self, groups: dict) -> None:
+        # Conservative D13: no `impeccable:*` / `superpowers:*` / `my:*`
+        # / third-party family is pre-approved by default.
+        for rule in self._skill_rules(groups):
+            inner = rule[len("Skill(") : rule.rfind(")")]
+            assert "*" not in inner, f"wildcard family pre-approved: {rule}"
+
+    def test_simplify_not_classified_write(self, groups: dict) -> None:
+        # The grant pre-approves invocation; the name heuristic must not
+        # mark simplify as a write surface (its edits are gated by
+        # Write/Edit rules, not this Skill() grant).
+        assert classify_skill_access(name="simplify") is not Access.WRITE

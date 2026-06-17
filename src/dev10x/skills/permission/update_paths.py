@@ -342,6 +342,94 @@ def build_script_allow_rules(
     return rules
 
 
+# GH-606 AC2: user-skill scripts under ~/.claude/skills/<dir>/scripts/.
+# Personal skills keep the colon in the directory name (``my:daily-yt``);
+# plugin-installed skills strip it (``daily-yt``). The glob matches both
+# because the colon is a literal path character.
+USER_SKILL_SCRIPT_GLOBS: list[str] = [
+    "*/scripts/*.sh",
+    "*/scripts/*.py",
+]
+
+# A credentialed pass-through wrapper execs a privileged CLI with the
+# caller's argv. With a ``:*`` allow rule that grants *every* verb —
+# including ``delete``/``apply`` (GH-606 evidence #4). A wrapper that
+# declares a verb allowlist (kubectl.sh, aws.sh) is verb-aware and safe.
+_CREDENTIALED_EXEC_RE = re.compile(
+    r"\b(?:aws-vault\s+exec|vault\s+(?:login|read)|gcloud\s+auth)\b"
+)
+_PASSTHROUGH_ARGV_RE = re.compile(r'"\$@"')
+_VERB_ALLOWLIST_RE = re.compile(r"ALLOWED_VERBS|ALLOWED_PREFIXES|ALLOWED_OPERATIONS")
+
+
+def scan_user_skill_scripts(skills_root: Path) -> list[Path]:
+    """Return executable scripts under ``skills_root/<dir>/scripts/`` (GH-606).
+
+    ``skills_root`` is ``~/.claude/skills`` in production. Returns a sorted,
+    de-duplicated list. Handles colon-kept personal-skill directories
+    (``my:daily-yt``) and prefix-stripped plugin-skill directories alike.
+    """
+    if not skills_root.is_dir():
+        return []
+    scripts: list[Path] = []
+    for glob_pattern in USER_SKILL_SCRIPT_GLOBS:
+        scripts.extend(skills_root.glob(glob_pattern))
+    return sorted(set(scripts))
+
+
+def is_verb_blind_credentialed_wrapper(script: Path) -> bool:
+    """True when *script* pipes ``"$@"`` to a credentialed CLI with no verb gate.
+
+    Such a wrapper must NOT receive a ``:*`` allow rule (GH-606 AC2): the
+    rule would authorize every verb the privileged CLI exposes. A wrapper
+    that declares an ``ALLOWED_VERBS`` / ``ALLOWED_PREFIXES`` /
+    ``ALLOWED_OPERATIONS`` allowlist is verb-aware (kubectl.sh, aws.sh) and
+    is therefore safe at ``:*``. Unreadable scripts default to *not*
+    verb-blind so a transient read error never silently widens nor narrows
+    coverage on its own — the caller still gates on the allowlist marker.
+    """
+    try:
+        text = script.read_text()
+    except OSError:
+        return False
+    if not _CREDENTIALED_EXEC_RE.search(text):
+        return False
+    if _VERB_ALLOWLIST_RE.search(text):
+        return False
+    return bool(_PASSTHROUGH_ARGV_RE.search(text))
+
+
+def build_user_skill_script_rules(
+    scripts: list[Path],
+    *,
+    skills_root: Path,
+    user_home: Path,
+) -> tuple[list[str], list[Path]]:
+    """Build canonical ``~/`` + ``/home/<user>/`` Bash rules for user scripts.
+
+    Returns ``(rules, skipped)`` where *skipped* lists verb-blind
+    credentialed pass-through wrappers that were intentionally NOT granted
+    a ``:*`` rule (GH-606 AC2) — surfaced so the caller can log the gap
+    rather than silently dropping them. Each emitted script gets a ``~/``
+    rule and its resolved ``/home/<user>/`` twin (GH-271 #192/#215).
+    """
+    home = user_home.expanduser().resolve()
+    try:
+        rel_root = skills_root.relative_to(home)
+    except ValueError:
+        return [], []
+    rules: list[str] = []
+    skipped: list[Path] = []
+    for script in scripts:
+        if is_verb_blind_credentialed_wrapper(script):
+            skipped.append(script)
+            continue
+        rel = script.relative_to(skills_root)
+        rules.append(str(AllowRule.bash(f"~/{rel_root}/{rel}:*")))
+        rules.append(str(AllowRule.bash(f"{home}/{rel_root}/{rel}:*")))
+    return rules, skipped
+
+
 def is_dead_glob_script_rule(entry: str) -> bool:
     """True for a Bash plugin-cache rule that uses a ``**`` glob (GH-471).
 
@@ -1185,6 +1273,86 @@ def ensure_scripts(
         messages.append(
             f"{verb} {files_changed} files "
             f"(+{total_added} concrete rules, -{total_purged} dead ** globs)."
+        )
+
+    return _result(
+        exit_code=0,
+        messages=messages,
+        errors=errors,
+        total_added=total_added,
+        files_changed=files_changed,
+    )
+
+
+def ensure_user_skill_scripts(
+    *,
+    settings_files: list[Path],
+    skills_root: Path | None = None,
+    user_home: Path | None = None,
+    dry_run: bool,
+    quiet: bool = False,
+) -> dict[str, object]:
+    """Seed canonical allow rules for user-skill scripts (GH-606 AC2).
+
+    Enumerates ``~/.claude/skills/<dir>/scripts/*.{sh,py}`` (colon-kept and
+    prefix-stripped dirs alike), emits ``~/`` + ``/home/<user>/`` twin
+    ``Bash(...:*)`` rules, and SKIPS verb-blind credentialed pass-through
+    wrappers so they keep prompting. Matching is exact (like
+    :func:`ensure_reads`), so re-runs are idempotent.
+    """
+    messages: list[str] = []
+    errors: list[str] = []
+
+    root = skills_root or (ClaudeDir.home() / "skills")
+    home = user_home or Path.home()
+    scripts = scan_user_skill_scripts(root)
+    if not scripts:
+        if not quiet:
+            messages.append(f"No user-skill scripts found in {root}")
+        return _result(exit_code=0, messages=messages, errors=errors)
+
+    expected_rules, skipped = build_user_skill_script_rules(
+        scripts, skills_root=root, user_home=home
+    )
+
+    if not quiet:
+        messages.append(f"User-skill scripts root: {root}")
+        messages.append(
+            f"Scripts found: {len(scripts)} ({len(expected_rules)} rules, twins included)"
+        )
+        for wrapper in skipped:
+            messages.append(f"  SKIP (verb-blind credentialed wrapper, no :* rule): {wrapper}")
+        if dry_run:
+            messages.append("(dry run — no files will be modified)\n")
+
+    total_added = 0
+    files_changed = 0
+
+    for path in sorted(settings_files):
+        _covered, missing = verify_read_coverage(
+            settings_path=path,
+            expected_rules=expected_rules,
+        )
+        if not missing:
+            continue
+        count, file_messages = ensure_read_rules(
+            settings_path=path,
+            missing_rules=missing,
+            dry_run=dry_run,
+        )
+        if count > 0:
+            if not quiet:
+                messages.append(f"\n{path}")
+                messages.extend(file_messages)
+            total_added += count
+            files_changed += 1
+
+    if total_added == 0:
+        messages.append("All settings files already cover the user-skill scripts.")
+    else:
+        verb = "Would add" if dry_run else "Added"
+        messages.append(
+            f"{verb} {total_added} user-skill script rules across {files_changed} files."
         )
 
     return _result(

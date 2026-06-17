@@ -443,9 +443,19 @@ groups:
   aws-readonly:
     tier: 3
     description: >
-      AWS CLI read-only ops via aws-vault. Writes blocked at the skill
-      level.
+      AWS CLI read-only ops via aws-vault. The credentialed `aws-vault
+      exec` surface is verb-blind, so the read allowlist is enforced by
+      the `aws.sh` wrapper (GH-606 D6): it passes only describe-/list-/
+      get-/lookup-/… operations and denies secret-exfil reads
+      (`secretsmanager get-secret-value`, `ssm get-parameter
+      --with-decryption`, `kms decrypt`, …) that DX014 also screens
+      (GH-605). The wrapper rule below is verb-safe at `:*` because the
+      script self-filters; a bare `Bash(aws-vault exec:*)` is
+      deliberately ABSENT (it would grant every mutating verb — the
+      GH-606 evidence #4 footgun). The two `aws ecr describe-*` forms are
+      retained for the non-credentialed read path.
     rules:
+      - Bash(${CLAUDE_PLUGIN_ROOT}/skills/aws-vault/scripts/aws.sh:*)
       - Bash(aws ecr describe-images:*)
       - Bash(aws ecr describe-repositories:*)
 
@@ -673,13 +683,23 @@ groups:
     tier: 2
     sensitivity: benign
     description: >
-      Read-only analysis skills that inspect and report without mutating
-      the workspace (evidence #20). Mutating skills are intentionally
+      Analysis-first skills safe to INVOKE without a prompt (evidence
+      #20). The grant pre-approves invocation only; any edits a skill
+      proposes (review fixups, `simplify` clarity passes) still flow
+      through the Write/Edit permission rules, so no write access is
+      granted here. Heavily-mutating skills (commit, PR, merge) are
       absent — they ship through their own delegation paths.
+      D13 (GH-608) resolved CONSERVATIVE: seed only first-party review
+      skills plus `simplify`. Wildcard non-Dev10x families
+      (`impeccable:*`, `superpowers:*`, personal `my:*`, third-party)
+      are deliberately NOT pre-approved — `classify_skill_access`
+      (skills/permission/manifest.py) grades read vs mutating, but
+      *which families to trust* stays a per-user opt-in, not a default.
     rules:
       - Skill(code-review)
       - Skill(security-review)
       - Skill(review)
+      - Skill(simplify)
 
   obsidian-cli:
     tier: 3
