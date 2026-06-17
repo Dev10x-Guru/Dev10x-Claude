@@ -417,3 +417,222 @@ class TestEnsureScriptsFunction:
 
         assert result["exit_code"] == 0
         assert any("No callable scripts" in m for m in result["messages"])
+
+
+# ── GH-606 AC2: user-skill script enumeration ───────────────────────────
+
+_VERB_AWARE_WRAPPER = (
+    "#!/usr/bin/env bash\n"
+    "ALLOWED_VERBS=(get describe)\n"
+    'aws-vault exec "$PROFILE" -- kubectl "$VERB" "$@"\n'
+)
+_VERB_BLIND_WRAPPER = '#!/usr/bin/env bash\naws-vault exec "$PROFILE" -- kubectl "$@"\n'
+_PLAIN_SCRIPT = "#!/usr/bin/env bash\necho hello\n"
+
+
+class TestScanUserSkillScripts:
+    @pytest.fixture()
+    def skills_root(self, tmp_path: Path) -> Path:
+        root = tmp_path / ".claude" / "skills"
+        (root / "my:daily-yt" / "scripts").mkdir(parents=True)
+        (root / "my:daily-yt" / "scripts" / "run.sh").write_text(_PLAIN_SCRIPT)
+        (root / "kb-checkin" / "scripts").mkdir(parents=True)
+        (root / "kb-checkin" / "scripts" / "checkin.py").write_text("print(1)\n")
+        return root
+
+    def test_finds_sh_and_py(self, skills_root: Path) -> None:
+        result = update_paths.scan_user_skill_scripts(skills_root)
+
+        names = [s.name for s in result]
+        assert "run.sh" in names
+        assert "checkin.py" in names
+
+    def test_handles_colon_kept_personal_dir(self, skills_root: Path) -> None:
+        result = update_paths.scan_user_skill_scripts(skills_root)
+
+        assert any("my:daily-yt" in str(s) for s in result)
+
+    def test_returns_sorted_unique(self, skills_root: Path) -> None:
+        result = update_paths.scan_user_skill_scripts(skills_root)
+
+        assert result == sorted(set(result))
+
+    def test_returns_empty_when_root_absent(self, tmp_path: Path) -> None:
+        assert update_paths.scan_user_skill_scripts(tmp_path / "nope") == []
+
+
+class TestIsVerbBlindCredentialedWrapper:
+    def test_verb_blind_passthrough_is_flagged(self, tmp_path: Path) -> None:
+        script = tmp_path / "wrap.sh"
+        script.write_text(_VERB_BLIND_WRAPPER)
+        assert update_paths.is_verb_blind_credentialed_wrapper(script) is True
+
+    def test_verb_aware_wrapper_is_not_flagged(self, tmp_path: Path) -> None:
+        script = tmp_path / "wrap.sh"
+        script.write_text(_VERB_AWARE_WRAPPER)
+        assert update_paths.is_verb_blind_credentialed_wrapper(script) is False
+
+    def test_non_credentialed_script_is_not_flagged(self, tmp_path: Path) -> None:
+        script = tmp_path / "plain.sh"
+        script.write_text(_PLAIN_SCRIPT)
+        assert update_paths.is_verb_blind_credentialed_wrapper(script) is False
+
+    def test_missing_file_is_not_flagged(self, tmp_path: Path) -> None:
+        assert update_paths.is_verb_blind_credentialed_wrapper(tmp_path / "gone.sh") is False
+
+
+class TestBuildUserSkillScriptRules:
+    def test_emits_home_twins(self, tmp_path: Path) -> None:
+        skills_root = tmp_path / ".claude" / "skills"
+        (skills_root / "kb-checkin" / "scripts").mkdir(parents=True)
+        script = skills_root / "kb-checkin" / "scripts" / "checkin.py"
+        script.write_text("print(1)\n")
+
+        rules, skipped = update_paths.build_user_skill_script_rules(
+            [script], skills_root=skills_root, user_home=tmp_path
+        )
+
+        home = tmp_path.resolve()
+        assert rules == [
+            "Bash(~/.claude/skills/kb-checkin/scripts/checkin.py:*)",
+            f"Bash({home}/.claude/skills/kb-checkin/scripts/checkin.py:*)",
+        ]
+        assert skipped == []
+
+    def test_skips_verb_blind_wrapper(self, tmp_path: Path) -> None:
+        skills_root = tmp_path / ".claude" / "skills"
+        (skills_root / "aws-vault" / "scripts").mkdir(parents=True)
+        blind = skills_root / "aws-vault" / "scripts" / "wrap.sh"
+        blind.write_text(_VERB_BLIND_WRAPPER)
+
+        rules, skipped = update_paths.build_user_skill_script_rules(
+            [blind], skills_root=skills_root, user_home=tmp_path
+        )
+
+        assert rules == []
+        assert skipped == [blind]
+
+    def test_colon_kept_dir_in_rule(self, tmp_path: Path) -> None:
+        skills_root = tmp_path / ".claude" / "skills"
+        (skills_root / "my:daily-yt" / "scripts").mkdir(parents=True)
+        script = skills_root / "my:daily-yt" / "scripts" / "run.sh"
+        script.write_text(_PLAIN_SCRIPT)
+
+        rules, _skipped = update_paths.build_user_skill_script_rules(
+            [script], skills_root=skills_root, user_home=tmp_path
+        )
+
+        assert "Bash(~/.claude/skills/my:daily-yt/scripts/run.sh:*)" in rules
+
+    def test_returns_empty_when_root_outside_home(self, tmp_path: Path) -> None:
+        outside = tmp_path / "elsewhere" / "skills"
+        outside.mkdir(parents=True)
+        rules, skipped = update_paths.build_user_skill_script_rules(
+            [outside / "x.sh"], skills_root=outside, user_home=tmp_path / "home"
+        )
+
+        assert rules == []
+        assert skipped == []
+
+
+class TestEnsureUserSkillScripts:
+    @pytest.fixture()
+    def skills_root(self, tmp_path: Path) -> Path:
+        root = tmp_path / ".claude" / "skills"
+        (root / "kb-checkin" / "scripts").mkdir(parents=True)
+        (root / "kb-checkin" / "scripts" / "checkin.py").write_text("print(1)\n")
+        (root / "aws-vault" / "scripts").mkdir(parents=True)
+        (root / "aws-vault" / "scripts" / "wrap.sh").write_text(_VERB_BLIND_WRAPPER)
+        return root
+
+    def test_adds_rules_and_skips_verb_blind(self, tmp_path: Path, skills_root: Path) -> None:
+        settings = tmp_path / "settings.local.json"
+        settings.write_text(json.dumps({"permissions": {"allow": []}}))
+
+        result = update_paths.ensure_user_skill_scripts(
+            settings_files=[settings],
+            skills_root=skills_root,
+            user_home=tmp_path,
+            dry_run=False,
+            quiet=True,
+        )
+
+        allow = json.loads(settings.read_text())["permissions"]["allow"]
+        assert "Bash(~/.claude/skills/kb-checkin/scripts/checkin.py:*)" in allow
+        assert not any("wrap.sh" in r for r in allow)
+        assert result["files_changed"] == 1
+
+    def test_idempotent_second_run(self, tmp_path: Path, skills_root: Path) -> None:
+        settings = tmp_path / "settings.local.json"
+        settings.write_text(json.dumps({"permissions": {"allow": []}}))
+        update_paths.ensure_user_skill_scripts(
+            settings_files=[settings],
+            skills_root=skills_root,
+            user_home=tmp_path,
+            dry_run=False,
+            quiet=True,
+        )
+        snapshot = settings.read_text()
+
+        result = update_paths.ensure_user_skill_scripts(
+            settings_files=[settings],
+            skills_root=skills_root,
+            user_home=tmp_path,
+            dry_run=False,
+            quiet=True,
+        )
+
+        assert result["files_changed"] == 0
+        assert settings.read_text() == snapshot
+
+    def test_dry_run_does_not_write(self, tmp_path: Path, skills_root: Path) -> None:
+        settings = tmp_path / "settings.local.json"
+        settings.write_text(json.dumps({"permissions": {"allow": []}}))
+        original = settings.read_text()
+
+        update_paths.ensure_user_skill_scripts(
+            settings_files=[settings],
+            skills_root=skills_root,
+            user_home=tmp_path,
+            dry_run=True,
+            quiet=True,
+        )
+
+        assert settings.read_text() == original
+
+    def test_reports_when_no_scripts(self, tmp_path: Path) -> None:
+        settings = tmp_path / "settings.local.json"
+        settings.write_text(json.dumps({"permissions": {"allow": []}}))
+
+        result = update_paths.ensure_user_skill_scripts(
+            settings_files=[settings],
+            skills_root=tmp_path / "empty",
+            user_home=tmp_path,
+            dry_run=False,
+            quiet=False,
+        )
+
+        assert result["exit_code"] == 0
+        assert any("No user-skill scripts" in m for m in result["messages"])
+
+    def test_verbose_dry_run_reports_skips_and_would_add(
+        self, tmp_path: Path, skills_root: Path
+    ) -> None:
+        settings = tmp_path / "settings.local.json"
+        settings.write_text(json.dumps({"permissions": {"allow": []}}))
+        original = settings.read_text()
+
+        result = update_paths.ensure_user_skill_scripts(
+            settings_files=[settings],
+            skills_root=skills_root,
+            user_home=tmp_path,
+            dry_run=True,
+            quiet=False,
+        )
+
+        joined = "\n".join(result["messages"])
+        assert "User-skill scripts root:" in joined
+        assert "SKIP (verb-blind credentialed wrapper" in joined
+        assert "dry run — no files will be modified" in joined
+        assert "Would add" in joined
+        assert settings.read_text() == original

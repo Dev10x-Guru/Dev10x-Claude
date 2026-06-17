@@ -237,7 +237,7 @@ def ensure_workspace(*, dry_run: bool, quiet: bool) -> None:
 @click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
 @click.option("--quiet", is_flag=True, help="Suppress per-file details")
 def ensure_scripts(*, dry_run: bool, quiet: bool) -> None:
-    """Verify all plugin scripts have allow rules; add missing ones."""
+    """Verify plugin and user-skill scripts have allow rules; add missing ones."""
     from dev10x.skills.permission import update_paths as mod
 
     ctx = _require_context()
@@ -245,16 +245,24 @@ def ensure_scripts(*, dry_run: bool, quiet: bool) -> None:
         click.echo("No settings files found.")
         return
 
-    sys.exit(
-        _emit_result(
-            mod.ensure_scripts(
-                config=ctx.config,
-                settings_files=ctx.settings_files,
-                dry_run=dry_run,
-                quiet=quiet,
-            )
+    plugin_exit = _emit_result(
+        mod.ensure_scripts(
+            config=ctx.config,
+            settings_files=ctx.settings_files,
+            dry_run=dry_run,
+            quiet=quiet,
         )
     )
+    # GH-606 AC2: also enumerate ~/.claude/skills/<dir>/scripts/ so personal
+    # and plugin-installed user skills get canonical allow rules.
+    user_exit = _emit_result(
+        mod.ensure_user_skill_scripts(
+            settings_files=ctx.settings_files,
+            dry_run=dry_run,
+            quiet=quiet,
+        )
+    )
+    sys.exit(max(plugin_exit, user_exit))
 
 
 @permission.command(name="ensure-reads")

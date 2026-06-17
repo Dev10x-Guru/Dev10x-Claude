@@ -19,6 +19,7 @@ invocation-name: Dev10x:aws-vault
 allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/aws-vault/scripts/secrets.sh:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/aws-vault/scripts/kubectl.sh:*)
+  - Bash(${CLAUDE_PLUGIN_ROOT}/skills/aws-vault/scripts/aws.sh:*)
   - AskUserQuestion
 ---
 
@@ -52,6 +53,17 @@ approves. This applies even to read-only discovery lookups.
 **Never call `kubectl` or `aws-vault exec ... kubectl` directly.**
 Use `${CLAUDE_PLUGIN_ROOT}/skills/aws-vault/scripts/kubectl.sh`
 instead.
+
+**Never call `aws` or `aws-vault exec ... aws` directly.** Use
+`${CLAUDE_PLUGIN_ROOT}/skills/aws-vault/scripts/aws.sh` instead. It
+is strictly read-only: only `describe-*`, `list-*`, `get-*`,
+`lookup-*`, `search-*`, `head-*`, `batch-get-*`, `view-*`, and
+`estimate-*` operations pass through. Secret-exfil reads
+(`secretsmanager get-secret-value`, `ssm get-parameter
+--with-decryption`, `kms decrypt`, `sts get-session-token`,
+`ec2 get-password-data`, `ecr get-login-password`, …) are denied
+even though their verb is "get" — fetch secrets through
+`secrets.sh` under the `AskUserQuestion` gate instead.
 
 **The kubectl wrapper is strictly read-only.** Only the verbs
 listed under "When to Use" pass through; mutating verbs
@@ -202,6 +214,30 @@ read-only from the API's perspective but reveal base64-encoded
 secret values. Treat them as you would a `secrets.sh` call:
 the same `AskUserQuestion` confirmation gate applies before
 invocation.
+
+## Workflow: AWS CLI Operations (read-only)
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/skills/aws-vault/scripts/aws.sh <env> <service> <operation> [args...]
+```
+
+The wrapper resolves the `aws_vault_profile` from the registry per
+environment, enforces a read-operation allowlist + secret-exfil
+denylist, then invokes `aws-vault exec ... -- aws ...`.
+
+Examples (all read-only):
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/skills/aws-vault/scripts/aws.sh staging ec2 describe-instances
+${CLAUDE_PLUGIN_ROOT}/skills/aws-vault/scripts/aws.sh production s3api list-buckets
+${CLAUDE_PLUGIN_ROOT}/skills/aws-vault/scripts/aws.sh staging logs describe-log-groups
+${CLAUDE_PLUGIN_ROOT}/skills/aws-vault/scripts/aws.sh production sts get-caller-identity
+```
+
+Denied (exit non-zero with a copy-pasteable snippet): any mutating
+operation (`create-*`, `delete-*`, `put-*`, `run-*`, `terminate-*`,
+…) and the secret-exfil reads listed under Critical Rules. Run those
+in a separate terminal under your own supervision.
 
 ## Key Lessons
 
