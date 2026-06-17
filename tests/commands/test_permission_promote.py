@@ -66,3 +66,22 @@ def test_config_line_printed_without_quiet(env: Path) -> None:
     result = CliRunner().invoke(promote_plan, [])
     assert result.exit_code == 0
     assert "Config:" in result.output
+
+
+def test_proactive_dry_run_lists_curated_surface(env: Path) -> None:
+    # --proactive ignores project settings and reads the shipped catalog.
+    result = CliRunner().invoke(promote_plan, ["--proactive", "--quiet"])
+    assert result.exit_code == 0
+    assert "DRY RUN — no files modified" in result.output
+    assert "mcp__claude_ai_Sentry__search_issues" in result.output
+    assert json.loads(env.read_text())["permissions"]["allow"] == []
+
+
+def test_proactive_apply_seeds_default_safe_not_pii(env: Path) -> None:
+    result = CliRunner().invoke(promote_plan, ["--proactive", "--apply", "--quiet"])
+    assert result.exit_code == 0
+    allow = json.loads(env.read_text())["permissions"]["allow"]
+    assert "mcp__claude_ai_Sentry__search_issues" in allow
+    assert "mcp__claude_ai_Atlassian__getJiraIssue" in allow
+    # PII/secret opt-in groups are never proactively seeded.
+    assert "mcp__claude_ai_Google_Drive__read_file_content" not in allow
