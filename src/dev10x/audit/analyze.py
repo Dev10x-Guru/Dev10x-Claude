@@ -24,6 +24,7 @@ from dev10x.audit.permissions_model import (
     HygieneFinding,
     audit_script_hygiene,
     count_nuisance_patterns,
+    detect_hook_denials,
     detect_known_friction,
     parse_additional_directories,
     parse_allow_rules,
@@ -92,6 +93,15 @@ def build_audit_report(
     for offset, finding in enumerate(extra, start=1):
         finding.index = base_count + offset
     findings.extend(extra)
+
+    # GH-507: surface PreToolUse hook denials hidden in tool-result blocks
+    # so MCP callers see HOOK_DENIAL findings, matching the standalone CLI
+    # path in dev10x.skills.audit.analyze_permissions.main.
+    denials = detect_hook_denials(text=transcript)
+    base_count = len(findings)
+    for offset, finding in enumerate(denials, start=1):
+        finding.index = base_count + offset
+    findings.extend(denials)
 
     skills_root = str(skills_dir) if skills_dir else str(ClaudeDir.skills_dir())
     tools_root = str(tools_dir) if tools_dir else str(ClaudeDir.tools_dir())
