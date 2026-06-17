@@ -98,3 +98,41 @@ class TestReadFrictionAndModes:
         level, modes = SessionYamlDocument(toplevel=toplevel).read_friction_and_modes()
         assert level is FrictionLevel.GUIDED
         assert modes == []
+
+
+class TestRender:
+    """GH-584 N19: the Document owns the session.yaml template (write side)."""
+
+    def test_defaults_to_guided_empty_modes(self) -> None:
+        body = SessionYamlDocument.render()
+        assert "friction_level: guided  # strict | guided | adaptive" in body
+        assert "active_modes: []" in body
+
+    def test_renders_chosen_level_and_modes(self) -> None:
+        body = SessionYamlDocument.render(
+            friction_level="adaptive", active_modes=["solo-maintainer"]
+        )
+        assert "friction_level: adaptive" in body
+        assert "active_modes: ['solo-maintainer']" in body
+
+    def test_round_trips_through_reader(self, tmp_path: Path) -> None:
+        doc = SessionYamlDocument(toplevel=str(tmp_path))
+        (tmp_path / ".claude" / "Dev10x").mkdir(parents=True)
+        doc.path.write_text(SessionYamlDocument.render(friction_level="strict"))
+        assert doc.read_friction_level() is FrictionLevel.STRICT
+
+
+class TestWrite:
+    def test_creates_parents_and_writes(self, tmp_path: Path) -> None:
+        doc = SessionYamlDocument(toplevel=str(tmp_path))
+        doc.write(friction_level="adaptive", active_modes=["solo-maintainer"])
+        level, modes = doc.read_friction_and_modes()
+        assert level is FrictionLevel.ADAPTIVE
+        assert modes == ["solo-maintainer"]
+
+    def test_write_defaults(self, tmp_path: Path) -> None:
+        doc = SessionYamlDocument(toplevel=str(tmp_path))
+        doc.write()
+        level, modes = doc.read_friction_and_modes()
+        assert level is FrictionLevel.GUIDED
+        assert modes == []

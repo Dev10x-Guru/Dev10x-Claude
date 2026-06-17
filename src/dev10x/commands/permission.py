@@ -7,6 +7,7 @@ from types import ModuleType
 import click
 
 from dev10x.domain.common.result import ErrorResult
+from dev10x.permission.service import PermissionContext, load_permission_context
 
 
 @click.group()
@@ -30,6 +31,21 @@ def _require_config(mod: ModuleType) -> Path:
         click.echo(f"ERROR: {resolved.error}", err=True)
         sys.exit(1)
     return resolved.value
+
+
+def _require_context(*, include_user: bool | None = None) -> PermissionContext:
+    """Resolve the permission context via the service or exit (audit N18).
+
+    The CLI counterpart to the MCP adapter's ``load_permission_context``
+    call: both reach the same service instead of inlining the
+    ``find_config`` → ``load_config`` → ``find_settings_files`` triple.
+    The CLI layer owns exit codes, so a config-resolution failure exits 1.
+    """
+    result = load_permission_context(include_user=include_user)
+    if isinstance(result, ErrorResult):
+        click.echo(f"ERROR: {result.error}", err=True)
+        sys.exit(1)
+    return result.value
 
 
 @permission.command(name="update-paths")
@@ -61,15 +77,12 @@ def update_paths(
     if restore:
         sys.exit(mod._restore(config_path=_require_config(mod)))
 
-    config_path = _require_config(mod)
+    ctx = _require_context()
     if not quiet:
-        click.echo(f"Config: {config_path}")
-    config = mod.load_config(config_path)
+        click.echo(f"Config: {ctx.config_path}")
+    config = ctx.config
 
-    settings_files = mod.find_settings_files(
-        roots=config.get("roots", []),
-        include_user=config.get("include_user_settings", True),
-    )
+    settings_files = ctx.settings_files
     if not settings_files:
         click.echo("No settings files found.")
         return
@@ -149,24 +162,18 @@ def ensure_base(*, dry_run: bool, quiet: bool) -> None:
     """Add missing base permissions from projects.yaml."""
     from dev10x.skills.permission import update_paths as mod
 
-    config_path = _require_config(mod)
+    ctx = _require_context()
     if not quiet:
-        click.echo(f"Config: {config_path}")
-    config = mod.load_config(config_path)
-
-    settings_files = mod.find_settings_files(
-        roots=config.get("roots", []),
-        include_user=config.get("include_user_settings", True),
-    )
-    if not settings_files:
+        click.echo(f"Config: {ctx.config_path}")
+    if not ctx.settings_files:
         click.echo("No settings files found.")
         return
 
     sys.exit(
         _emit_result(
             mod.ensure_base(
-                config=config,
-                settings_files=settings_files,
+                config=ctx.config,
+                settings_files=ctx.settings_files,
                 dry_run=dry_run,
                 quiet=quiet,
             )
@@ -181,21 +188,15 @@ def generalize(*, dry_run: bool, quiet: bool) -> None:
     """Replace session-specific permission args with wildcard patterns."""
     from dev10x.skills.permission import update_paths as mod
 
-    config_path = _require_config(mod)
-    config = mod.load_config(config_path)
-
-    settings_files = mod.find_settings_files(
-        roots=config.get("roots", []),
-        include_user=config.get("include_user_settings", True),
-    )
-    if not settings_files:
+    ctx = _require_context()
+    if not ctx.settings_files:
         click.echo("No settings files found.")
         return
 
     sys.exit(
         _emit_result(
             mod.generalize(
-                settings_files=settings_files,
+                settings_files=ctx.settings_files,
                 dry_run=dry_run,
                 quiet=quiet,
             )
@@ -215,22 +216,16 @@ def ensure_workspace(*, dry_run: bool, quiet: bool) -> None:
     """
     from dev10x.skills.permission import update_paths as mod
 
-    config_path = _require_config(mod)
-    config = mod.load_config(config_path)
-
-    settings_files = mod.find_settings_files(
-        roots=config.get("roots", []),
-        include_user=config.get("include_user_settings", True),
-    )
-    if not settings_files:
+    ctx = _require_context()
+    if not ctx.settings_files:
         click.echo("No settings files found.")
         return
 
     sys.exit(
         _emit_result(
             mod.ensure_workspace(
-                config=config,
-                settings_files=settings_files,
+                config=ctx.config,
+                settings_files=ctx.settings_files,
                 dry_run=dry_run,
                 quiet=quiet,
             )
@@ -245,22 +240,16 @@ def ensure_scripts(*, dry_run: bool, quiet: bool) -> None:
     """Verify all plugin scripts have allow rules; add missing ones."""
     from dev10x.skills.permission import update_paths as mod
 
-    config_path = _require_config(mod)
-    config = mod.load_config(config_path)
-
-    settings_files = mod.find_settings_files(
-        roots=config.get("roots", []),
-        include_user=config.get("include_user_settings", True),
-    )
-    if not settings_files:
+    ctx = _require_context()
+    if not ctx.settings_files:
         click.echo("No settings files found.")
         return
 
     sys.exit(
         _emit_result(
             mod.ensure_scripts(
-                config=config,
-                settings_files=settings_files,
+                config=ctx.config,
+                settings_files=ctx.settings_files,
                 dry_run=dry_run,
                 quiet=quiet,
             )
@@ -275,22 +264,16 @@ def ensure_reads(*, dry_run: bool, quiet: bool) -> None:
     """Emit per-skill folder Read rules with ~/ + /home/<user>/ twins."""
     from dev10x.skills.permission import update_paths as mod
 
-    config_path = _require_config(mod)
-    config = mod.load_config(config_path)
-
-    settings_files = mod.find_settings_files(
-        roots=config.get("roots", []),
-        include_user=config.get("include_user_settings", True),
-    )
-    if not settings_files:
+    ctx = _require_context()
+    if not ctx.settings_files:
         click.echo("No settings files found.")
         return
 
     sys.exit(
         _emit_result(
             mod.ensure_reads(
-                config=config,
-                settings_files=settings_files,
+                config=ctx.config,
+                settings_files=ctx.settings_files,
                 dry_run=dry_run,
                 quiet=quiet,
             )
@@ -460,25 +443,18 @@ def clean(
 def enumerate_mcp(*, dry_run: bool, quiet: bool) -> None:
     """Expand `mcp__plugin_Dev10x_*` wildcards into enumerated tool names."""
     from dev10x.skills.permission import enumerate_mcp as mod
-    from dev10x.skills.permission import update_paths as paths_mod
 
-    config_path = _require_config(paths_mod)
+    ctx = _require_context()
     if not quiet:
-        click.echo(f"Config: {config_path}")
-    config = paths_mod.load_config(config_path)
-
-    settings_files = paths_mod.find_settings_files(
-        roots=config.get("roots", []),
-        include_user=config.get("include_user_settings", True),
-    )
-    if not settings_files:
+        click.echo(f"Config: {ctx.config_path}")
+    if not ctx.settings_files:
         click.echo("No settings files found.")
         return
 
     if dry_run and not quiet:
         click.echo("(dry run — no files will be modified)\n")
 
-    mod.enumerate_settings(settings_files, dry_run=dry_run, quiet=quiet)
+    mod.enumerate_settings(ctx.settings_files, dry_run=dry_run, quiet=quiet)
 
 
 @permission.command(name="promote-plan")
@@ -531,7 +507,6 @@ def promote_plan(
     groups (tier 3) are never proactively seeded.
     """
     from dev10x.skills.permission import promote as mod
-    from dev10x.skills.permission import update_paths as paths_mod
 
     global_settings = Path.home() / ".claude" / "settings.json"
     if proactive:
@@ -541,16 +516,11 @@ def promote_plan(
             global_settings_path=global_settings,
         )
     else:
-        config_path = _require_config(paths_mod)
+        ctx = _require_context(include_user=False)
         if not quiet:
-            click.echo(f"Config: {config_path}")
-        config = paths_mod.load_config(config_path)
-        settings_files = paths_mod.find_settings_files(
-            roots=config.get("roots", []),
-            include_user=False,
-        )
+            click.echo(f"Config: {ctx.config_path}")
         plan = mod.build_promotion_plan(
-            project_settings_paths=settings_files,
+            project_settings_paths=ctx.settings_files,
             global_settings_path=global_settings,
         )
     if not apply_changes:
@@ -862,15 +832,9 @@ def doctor_canonicalize(*, dry_run: bool, quiet: bool) -> None:
     them to the version-wildcard form so they survive future updates.
     """
     from dev10x.skills.permission import doctor as mod
-    from dev10x.skills.permission import update_paths as paths_mod
 
-    config_path = _require_config(paths_mod)
-    config = paths_mod.load_config(config_path)
-    settings_files = paths_mod.find_settings_files(
-        roots=config.get("roots", []),
-        include_user=config.get("include_user_settings", True),
-    )
-    if not settings_files:
+    ctx = _require_context()
+    if not ctx.settings_files:
         click.echo("No settings files found.")
         return
 
@@ -879,7 +843,7 @@ def doctor_canonicalize(*, dry_run: bool, quiet: bool) -> None:
 
     total_rewrites = 0
     files_changed = 0
-    for path in sorted(settings_files):
+    for path in sorted(ctx.settings_files):
         result = mod.canonicalize_settings_file(path, dry_run=dry_run)
         if result.changed:
             files_changed += 1
@@ -920,16 +884,10 @@ def doctor_cross_contamination(*, cwd: str | None, quiet: bool) -> None:
 def doctor_apply_deprecations(*, dry_run: bool) -> None:
     """Apply catalog deprecations (canonicalize / remove) to settings files."""
     from dev10x.skills.permission import doctor as mod
-    from dev10x.skills.permission import update_paths as paths_mod
 
     catalog = mod.load_catalog()
-    config_path = _require_config(paths_mod)
-    config = paths_mod.load_config(config_path)
-    settings_files = paths_mod.find_settings_files(
-        roots=config.get("roots", []),
-        include_user=config.get("include_user_settings", True),
-    )
-    if not settings_files:
+    ctx = _require_context()
+    if not ctx.settings_files:
         click.echo("No settings files found.")
         return
 
@@ -938,7 +896,7 @@ def doctor_apply_deprecations(*, dry_run: bool) -> None:
 
     sys.exit(
         _emit_result(
-            mod.apply_deprecations_to_files(settings_files, catalog=catalog, dry_run=dry_run)
+            mod.apply_deprecations_to_files(ctx.settings_files, catalog=catalog, dry_run=dry_run)
         )
     )
 
@@ -949,20 +907,14 @@ def doctor_apply_deprecations(*, dry_run: bool) -> None:
 def doctor_enable_group(*, group_name: str, dry_run: bool) -> None:
     """Add a Tier 3 group's rules from the baseline-permissions catalog."""
     from dev10x.skills.permission import doctor as mod
-    from dev10x.skills.permission import update_paths as paths_mod
 
     catalog = mod.load_catalog()
     rules = catalog.group_rules(group_name)
     if not rules:
         click.echo(f"ERROR: unknown group {group_name!r}")
         sys.exit(1)
-    config_path = _require_config(paths_mod)
-    config = paths_mod.load_config(config_path)
-    settings_files = paths_mod.find_settings_files(
-        roots=config.get("roots", []),
-        include_user=config.get("include_user_settings", True),
-    )
-    if not settings_files:
+    ctx = _require_context()
+    if not ctx.settings_files:
         click.echo("No settings files found.")
         return
     if dry_run:
@@ -971,7 +923,7 @@ def doctor_enable_group(*, group_name: str, dry_run: bool) -> None:
     sys.exit(
         _emit_result(
             mod.enable_group_in_files(
-                settings_files,
+                ctx.settings_files,
                 rules=rules,
                 group_name=group_name,
                 dry_run=dry_run,
@@ -998,20 +950,14 @@ def doctor_anchor_worktree_roots(*, dry_run: bool, quiet: bool) -> None:
        silently target different skill dirs per worktree CWD.
     """
     from dev10x.skills.permission import doctor as mod
-    from dev10x.skills.permission import update_paths as paths_mod
 
-    config_path = _require_config(paths_mod)
-    config = paths_mod.load_config(config_path)
-    roots = config.get("roots", [])
+    ctx = _require_context()
+    roots = ctx.config.get("roots", [])
     if not roots:
         click.echo("No roots configured. Run `dev10x permission init` first.")
         return
 
-    settings_files = paths_mod.find_settings_files(
-        roots=roots,
-        include_user=config.get("include_user_settings", True),
-    )
-    if not settings_files:
+    if not ctx.settings_files:
         click.echo("No settings files found.")
         return
 
@@ -1028,7 +974,7 @@ def doctor_anchor_worktree_roots(*, dry_run: bool, quiet: bool) -> None:
             click.echo("No .worktrees parents found beneath configured roots.")
 
     anchor_result = mod.anchor_worktree_roots(
-        settings_files,
+        ctx.settings_files,
         roots=roots,
         dry_run=dry_run,
     )

@@ -13,6 +13,8 @@ from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
 
+from dev10x.domain.cwd_resolver import set_cwd_resolver
+
 log = logging.getLogger(__name__)
 
 # GH-979: long-lived MCP server processes inherit the CWD they were
@@ -324,3 +326,13 @@ def parse_key_value_output(text: str) -> dict[str, str]:
         key, value = line.split("=", 1)
         result[key.strip()] = value.strip()
     return result
+
+
+# GH-584 (audit N21): wire the concrete effective-CWD resolver into the
+# domain seam so `dev10x.domain.git_context` resolves the bound worktree
+# without importing this infra module (ADR-0008 Rule #1). Infra → domain
+# is the allowed inward direction. `use_cwd` lives here too, so any code
+# that can bind a CWD has already imported this module and triggered the
+# wiring; processes that never import it keep the unbound (process-CWD)
+# default.
+set_cwd_resolver(effective_cwd)

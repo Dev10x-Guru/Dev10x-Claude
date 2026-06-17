@@ -12,6 +12,8 @@ from pathlib import Path
 
 import click
 
+from dev10x.domain.documents.session_yaml import SessionYamlDocument
+
 QUICK_START_WORKFLOWS = [
     (
         "git-commit",
@@ -56,15 +58,6 @@ overrides: []
 """
 
 
-def _session_yaml_template() -> str:
-    return (
-        "# Dev10x session config — consumed by work-on, verify-acc-dod, and\n"
-        "# the PreCompact recovery hook.\n"
-        "friction_level: guided  # strict | guided | adaptive\n"
-        "active_modes: []\n"
-    )
-
-
 def _write_if_missing(path: Path, content: str) -> bool:
     # GH-562: claim the file atomically with O_EXCL instead of a
     # check-then-write. Two concurrent `dev10x init` runs (CI matrix)
@@ -86,8 +79,9 @@ def _seed_project(project_root: Path) -> list[Path]:
     """Create starter config files. Returns list of paths written."""
     written: list[Path] = []
 
+    session_doc = SessionYamlDocument(toplevel=str(project_root))
     targets = [
-        (project_root / ".claude" / "Dev10x" / "session.yaml", _session_yaml_template()),
+        (session_doc.path, SessionYamlDocument.render()),
         (
             project_root / ".claude" / "Dev10x" / "playbooks" / "work-on.yaml",
             STARTER_WORK_ON_PLAYBOOK,
@@ -142,7 +136,8 @@ def init(*, setup: bool, non_interactive: bool, project_path: Path | None) -> No
         click.echo(f"Project path does not exist: {project_root}", err=True)
         sys.exit(1)
 
-    existing = (project_root / ".claude" / "Dev10x" / "session.yaml").exists()
+    session_doc = SessionYamlDocument(toplevel=str(project_root))
+    existing = session_doc.path.exists()
     if existing and not setup:
         click.echo(f"Dev10x config already present at {project_root}/.claude/Dev10x/")
         _print_card(project_root=project_root)
@@ -169,15 +164,9 @@ def init(*, setup: bool, non_interactive: bool, project_path: Path | None) -> No
         default=False,
     )
 
-    session_yaml_path = project_root / ".claude" / "Dev10x" / "session.yaml"
     modes = ["solo-maintainer"] if solo else []
-    session_yaml_path.parent.mkdir(parents=True, exist_ok=True)
-    session_yaml_path.write_text(
-        "# Dev10x session config\n"
-        f"friction_level: {friction_level.lower()}\n"
-        f"active_modes: {modes!r}\n"
-    )
-    click.echo(f"  + {session_yaml_path.relative_to(project_root)}")
+    session_doc.write(friction_level=friction_level.lower(), active_modes=modes)
+    click.echo(f"  + {session_doc.path.relative_to(project_root)}")
 
     playbook_path = project_root / ".claude" / "Dev10x" / "playbooks" / "work-on.yaml"
     if not playbook_path.exists():
