@@ -117,7 +117,40 @@ async def create_worktree(
     from dev10x.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
-        return to_wire(await git_tools.create_worktree(branch=branch, base=base, path=path))
+        result = to_wire(await git_tools.create_worktree(branch=branch, base=base, path=path))
+
+    _seed_worktree_defaults(result)
+    return result
+
+
+def _seed_worktree_defaults(result: dict) -> None:
+    """Pre-seed curated safe defaults into a freshly created worktree (GH-602).
+
+    Best-effort: a seeding failure must never fail worktree creation, but it
+    is recorded under ``seed_error`` (not silently swallowed) so the caller
+    can see why the new worktree did not get its defaults.
+    """
+    from pathlib import Path
+
+    worktree_path = result.get("worktree_path")
+    if "error" in result or not worktree_path:
+        return
+
+    from dev10x.domain.common.result import SuccessResult
+    from dev10x.skills.permission import update_paths as paths_mod
+
+    try:
+        config_path = paths_mod.find_config()
+        if not isinstance(config_path, SuccessResult):
+            return
+        config = paths_mod.load_config(config_path.value)
+        seeded = paths_mod.seed_worktree(worktree_root=Path(worktree_path), config=config)
+        if isinstance(seeded, SuccessResult):
+            result["seeded_permissions"] = seeded.value["added"]
+        else:
+            result["seed_error"] = seeded.error
+    except OSError as error:
+        result["seed_error"] = str(error)
 
 
 @server.tool()

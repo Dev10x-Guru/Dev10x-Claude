@@ -566,6 +566,61 @@ def promote_plan(
     click.echo(mod.render_promotion_result(result, dry_run=dry_run))
 
 
+@permission.command(name="provenance")
+@click.option(
+    "--path",
+    "settings_path",
+    default=None,
+    help="Settings file to inspect (default: ./.claude/settings.local.json).",
+)
+def provenance(*, settings_path: str | None) -> None:
+    """Report where each permission rule came from (GH-602).
+
+    Classifies every allow/deny rule in a settings file as ``default`` (Dev10x
+    base catalog), ``user`` (user-global settings), or ``project`` (local only).
+    """
+    from dev10x.skills.permission import provenance as mod
+    from dev10x.skills.permission import update_paths as paths_mod
+
+    config = paths_mod.load_config(_require_config(paths_mod))
+    target = (
+        Path(settings_path) if settings_path else Path.cwd() / ".claude" / "settings.local.json"
+    )
+    result = mod.build_provenance(settings_path=target, config=config)
+    if isinstance(result, ErrorResult):
+        click.echo(f"ERROR: {result.error}", err=True)
+        sys.exit(1)
+    counts = result.value["counts"]
+    click.echo(f"{result.value['path']}")
+    click.echo(
+        f"  default: {counts['default']}  user: {counts['user']}  project: {counts['project']}"
+    )
+    for entry in result.value["rules"]:
+        click.echo(f"  [{entry['provenance']}] {entry['kind']}: {entry['rule']}")
+
+
+@permission.command(name="seed-worktree")
+@click.argument("worktree_path")
+@click.option("--dry-run", is_flag=True, help="Show what would be seeded without writing.")
+def seed_worktree(*, worktree_path: str, dry_run: bool) -> None:
+    """Pre-seed a worktree's settings with curated safe defaults (GH-602).
+
+    Used at worktree creation so a curated read-only surface is honored in the
+    new worktree without a first prompt.
+    """
+    from dev10x.skills.permission import update_paths as paths_mod
+
+    config = paths_mod.load_config(_require_config(paths_mod))
+    result = paths_mod.seed_worktree(
+        worktree_root=Path(worktree_path), config=config, dry_run=dry_run
+    )
+    if isinstance(result, ErrorResult):
+        click.echo(f"ERROR: {result.error}", err=True)
+        sys.exit(1)
+    verb = "Would seed" if dry_run else "Seeded"
+    click.echo(f"{verb} {result.value['added']} rule(s) → {result.value['path']}")
+
+
 @permission.command(name="merge-worktree")
 @click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
 @click.option("--restore", is_flag=True, help="Restore settings from most recent backups")
