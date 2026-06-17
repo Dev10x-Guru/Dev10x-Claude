@@ -626,6 +626,90 @@ rules:
       - Dev10x:git-commit
       - Dev10x:gh-pr-create
 
+  - name: ci-loop-handrolled
+    matcher: Bash
+    patterns:
+      - "while.*gh pr checks"
+      - "for .*gh pr checks"
+      - "sleep.*gh pr (checks|view)"
+      - "gh pr (checks|view).*sleep"
+    hook_block: false
+    compensations:
+      - type: use-tool
+        tool: mcp__plugin_Dev10x_cli__ci_check_status
+        guardrails: server-side poll with wait=true, structured verdict
+        description: >
+          Call ci_check_status(wait=true) for a single server-side poll
+          that returns a structured pass/fail/unknown verdict — no
+          bespoke loop needed.
+      - type: use-skill
+        skill: Dev10x:gh-pr-monitor
+        guardrails: failure detection, fixup commits, re-monitor after push
+    reason: >
+      A hand-rolled while/sleep loop around `gh pr checks` reinvents
+      ci_check_status(wait=true) and the gh-pr-monitor skill. The loop
+      exits on the first tick, skips bot-review checks, and does no
+      fixup/re-monitor — route to the wrapper/skill instead (GH-488 #22).
+    related:
+      - Dev10x:gh-pr-monitor
+
+  - name: cat-grep-pipeline
+    matcher: Bash
+    patterns:
+      - "cat .*\\|.*grep"
+      - "grep .*\\{[^}]*,[^}]*\\}"
+    hook_block: false
+    compensations:
+      - type: use-tool
+        tool: Grep
+        guardrails: file search without pipe/brace core-harness friction
+        description: >
+          Use the Grep tool to search files. A `cat file | grep x`
+          pipeline and a `grep x file.{a,b}` brace expansion both trip
+          non-allow-listable core-harness checks (pipe, brace) — the
+          Grep tool searches directly without the friction.
+    reason: >
+      `cat | grep` and brace-expansion `grep {a,b}` recur as friction
+      because the pipe and brace shapes are not allow-listable core
+      checks. The Grep tool covers both with no permission prompt
+      (GH-488 #15/#28).
+
+  - name: fish-interactive-abbr
+    matcher: Bash
+    patterns:
+      - "fish -ic"
+      - "fish -i -c"
+    hook_block: false
+    compensations:
+      - type: use-alternative
+        description: >
+          Run the underlying command directly, or invoke the documented
+          Dev10x skill/alias the abbreviation maps to. fish abbreviations
+          only expand in an interactive shell; spawning `fish -ic` to
+          expand one is avoidable friction.
+    reason: >
+      `fish -ic <abbr>` expands a shell abbreviation by launching an
+      interactive subshell — friction with no allow-rule. Run the real
+      command or the documented skill/alias instead (GH-488 #18).
+
+  - name: version-pinned-plugin-script
+    matcher: Bash
+    patterns:
+      - "plugins/cache/.*/[0-9]+\\.[0-9]+\\.[0-9]+/"
+      - "/cache/.*/[0-9]+\\.[0-9]+\\.[0-9]+/.*\\.py"
+    hook_block: false
+    compensations:
+      - type: use-alternative
+        description: >
+          Route UP to the stable surface: invoke the skill via Skill()
+          or call the installed `dev10x` CLI. Never call a script at a
+          version-pinned plugins/cache/<version>/ path — the path rots
+          on the next plugin upgrade.
+    reason: >
+      A version-pinned `…/cache/<version>/…/*.py` script path degrades
+      on every plugin upgrade. Route up to the skill invocation or the
+      stable installed CLI so the call survives version bumps (GH-488 #26).
+
   # ── Edit|Write rules ───────────────────────────────────────
 
   - name: eval-in-skills
