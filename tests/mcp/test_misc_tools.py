@@ -188,9 +188,7 @@ class TestRecordUpgrade:
 
         import asyncio
 
-        result = asyncio.get_event_loop().run_until_complete(
-            cli_server.record_upgrade(version="1.2.3")
-        )
+        result = asyncio.run(cli_server.record_upgrade(version="1.2.3"))
 
         assert result == {"version": "1.2.3", "path": "/home/user/.config/dev10x"}
         assert mock_fn.call_args.kwargs["version"] == "1.2.3"
@@ -201,7 +199,7 @@ class TestRecordUpgrade:
 
         import asyncio
 
-        asyncio.get_event_loop().run_until_complete(cli_server.record_upgrade())
+        asyncio.run(cli_server.record_upgrade())
 
         assert mock_fn.call_args.kwargs["version"] is None
 
@@ -211,7 +209,7 @@ class TestRecordUpgrade:
 
         import asyncio
 
-        result = asyncio.get_event_loop().run_until_complete(cli_server.record_upgrade())
+        result = asyncio.run(cli_server.record_upgrade())
 
         assert "error" in result
 
