@@ -22,6 +22,7 @@ from dev10x.domain.common.policy import (
     Policy,
     PolicyCatalog,
     PolicyEffect,
+    PolicySensitivity,
     PolicySource,
 )
 
@@ -77,6 +78,33 @@ class TestPolicySource:
         assert PolicySource.PLUGIN_DEFAULT.value == "plugin-default"
 
 
+class TestPolicySensitivity:
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            ("benign", PolicySensitivity.BENIGN),
+            ("pii", PolicySensitivity.PII),
+            ("secret", PolicySensitivity.SECRET),
+            ("BENIGN", PolicySensitivity.BENIGN),
+            ("  Secret  ", PolicySensitivity.SECRET),
+        ],
+    )
+    def test_from_yaml_parses_known_values(self, raw: str, expected: PolicySensitivity) -> None:
+        assert PolicySensitivity.from_yaml(raw) == expected
+
+    @pytest.mark.parametrize("raw", ["", "  ", "private", None, 5, ["benign"]])
+    def test_from_yaml_falls_back_to_default(self, raw: object) -> None:
+        assert PolicySensitivity.from_yaml(raw) == PolicySensitivity.default()
+
+    def test_default_is_unspecified(self) -> None:
+        # A missing sensitivity tag must NOT read as benign — untagged groups
+        # are excluded from the proactive-seed surface.
+        assert PolicySensitivity.default() == PolicySensitivity.UNSPECIFIED
+
+    def test_str_value_round_trips(self) -> None:
+        assert PolicySensitivity.PII.value == "pii"
+
+
 class TestPolicy:
     def test_from_rule_str_parses_allow_rule(self) -> None:
         policy = Policy.from_rule_str(
@@ -97,6 +125,19 @@ class TestPolicy:
     def test_group_defaults_to_empty(self) -> None:
         policy = Policy.from_rule_str("Bash(ls:*)", tier=1, source=PolicySource.PLUGIN_DEFAULT)
         assert policy.group == ""
+
+    def test_sensitivity_defaults_to_unspecified(self) -> None:
+        policy = Policy.from_rule_str("Bash(ls:*)", tier=1, source=PolicySource.PLUGIN_DEFAULT)
+        assert policy.sensitivity == PolicySensitivity.UNSPECIFIED
+
+    def test_explicit_sensitivity_is_preserved(self) -> None:
+        policy = Policy.from_rule_str(
+            "mcp__claude_ai_Sentry__search_issues",
+            tier=2,
+            source=PolicySource.PLUGIN_DEFAULT,
+            sensitivity=PolicySensitivity.BENIGN,
+        )
+        assert policy.sensitivity == PolicySensitivity.BENIGN
 
     def test_explicit_effect_is_preserved(self) -> None:
         policy = Policy.from_rule_str(
@@ -172,6 +213,23 @@ class TestPolicyCatalogFromDict:
         policies = PolicyCatalog.from_baseline_dict(_BASELINE)
         danger = next(p for p in policies if p.group == "danger")
         assert danger.effect == PolicyEffect.DENY
+
+    def test_missing_sensitivity_defaults_to_unspecified(self) -> None:
+        policies = PolicyCatalog.from_baseline_dict(_BASELINE)
+        assert all(p.sensitivity == PolicySensitivity.UNSPECIFIED for p in policies)
+
+    def test_group_level_sensitivity_applies_to_all_rules(self) -> None:
+        data = {
+            "groups": {
+                "mcp-readonly": {
+                    "tier": 2,
+                    "sensitivity": "benign",
+                    "rules": ["mcp__claude_ai_Acme__search", "mcp__claude_ai_Acme__get"],
+                },
+            }
+        }
+        policies = PolicyCatalog.from_baseline_dict(data)
+        assert all(p.sensitivity == PolicySensitivity.BENIGN for p in policies)
 
     def test_source_defaults_to_plugin_default(self) -> None:
         policies = PolicyCatalog.from_baseline_dict(_BASELINE)

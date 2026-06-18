@@ -13,6 +13,12 @@ GH-271 evidence converged on:
   The shipped baseline is an allow catalog, but the model carries the
   effect so the deny catalog and ask-tier work can build on it.
 
+A fourth catalog attribute, **sensitivity** (``benign`` / ``pii`` /
+``secret``), rides alongside the converged three: it is the data-class of
+what a rule grants access to, and it gates which groups are safe to seed
+proactively. Untagged groups stay ``unspecified`` and are not assumed
+benign.
+
 A :class:`Policy` wraps an :class:`AllowRule` (the canonical matching
 value object) rather than reimplementing pattern matching. ``PolicyCatalog``
 parses the existing grouped catalog YAML into ``Policy`` objects, mirroring
@@ -73,6 +79,30 @@ class PolicySource(StrEnum):
         return _parse_enum(cls, raw)
 
 
+class PolicySensitivity(StrEnum):
+    """Data-sensitivity class of what a policy grants — gates proactive seeding."""
+
+    BENIGN = "benign"
+    PII = "pii"
+    SECRET = "secret"
+    UNSPECIFIED = "unspecified"
+
+    @classmethod
+    def default(cls) -> PolicySensitivity:
+        """Untagged groups are not assumed benign — they stay UNSPECIFIED."""
+        return cls.UNSPECIFIED
+
+    @classmethod
+    def from_yaml(cls, raw: object) -> PolicySensitivity:
+        """Parse a raw YAML value into a PolicySensitivity.
+
+        Empty/unknown/non-string values fall back to :meth:`default`
+        (``UNSPECIFIED``), so a missing tag never reads as ``BENIGN``.
+        Case-insensitive; trims surrounding whitespace.
+        """
+        return _parse_enum(cls, raw)
+
+
 def _parse_enum[E: StrEnum](enum_cls: type[E], raw: object) -> E:
     if not isinstance(raw, str):
         return enum_cls.default()  # type: ignore[attr-defined]
@@ -91,6 +121,7 @@ class Policy:
     tier: int
     source: PolicySource
     effect: PolicyEffect = PolicyEffect.ALLOW
+    sensitivity: PolicySensitivity = PolicySensitivity.UNSPECIFIED
     group: str = ""
 
     @property
@@ -110,6 +141,7 @@ class Policy:
         tier: int,
         source: PolicySource,
         effect: PolicyEffect = PolicyEffect.ALLOW,
+        sensitivity: PolicySensitivity = PolicySensitivity.UNSPECIFIED,
         group: str = "",
     ) -> Policy:
         return cls(
@@ -117,6 +149,7 @@ class Policy:
             tier=tier,
             source=source,
             effect=effect,
+            sensitivity=sensitivity,
             group=group,
         )
 
@@ -134,7 +167,8 @@ class PolicyCatalog:
 
         Each group contributes its ``rules`` as Policies carrying the
         group's ``tier`` (default ``0``), optional group-level ``effect``
-        (default ``allow``), the group name, and the supplied ``source``.
+        (default ``allow``), optional group-level ``sensitivity`` (default
+        ``unspecified``), the group name, and the supplied ``source``.
         Malformed groups, missing/non-list ``rules``, and non-string rule
         entries are skipped rather than raising.
         """
@@ -150,6 +184,7 @@ class PolicyCatalog:
                 continue
             tier = group.get("tier", 0)
             effect = PolicyEffect.from_yaml(group.get("effect"))
+            sensitivity = PolicySensitivity.from_yaml(group.get("sensitivity"))
             for rule in rules:
                 if not isinstance(rule, str):
                     continue
@@ -159,6 +194,7 @@ class PolicyCatalog:
                         tier=tier,
                         source=source,
                         effect=effect,
+                        sensitivity=sensitivity,
                         group=name,
                     )
                 )
@@ -181,4 +217,10 @@ class PolicyCatalog:
         return PolicyCatalog.from_baseline_dict(data, source=source)
 
 
-__all__ = ["Policy", "PolicyCatalog", "PolicyEffect", "PolicySource"]
+__all__ = [
+    "Policy",
+    "PolicyCatalog",
+    "PolicyEffect",
+    "PolicySensitivity",
+    "PolicySource",
+]
