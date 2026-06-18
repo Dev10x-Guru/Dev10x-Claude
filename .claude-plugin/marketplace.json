@@ -16,7 +16,8 @@
         "git", "commits", "pull-requests", "code-review",
         "workflow", "tasks", "JTBD", "gitmoji", "hooks",
         "worktrees", "ticket-management", "metrics",
-        "session-persistence", "MCP"
+        "session-persistence", "MCP", "github-action",
+        "automated-review", "learned-rules"
       ]
     }
   ]

@@ -5,16 +5,16 @@ Dev10x GitHub Action. This is independent of the Claude Code plugin
 install ([installation.md](installation.md)) — you do not need the
 plugin to use the Action.
 
-> **Status (M6).** The install flow (GH-351) and the learned-rules
-> review path (GH-352) are live. The continuous learning loop (GH-353,
-> the `learn` mode) extends this and is tracked separately.
+> **Status (M6).** The full pipeline is live: the install flow (GH-351),
+> the learned-rules review path (GH-352), and the continuous learning
+> loop (GH-353, the `learn` mode).
 
 ## What it does
 
 | PR event | Mode | Behavior |
 |----------|------|----------|
 | `opened`, `synchronize`, `ready_for_review` | `review` | Reviews the diff with the packaged reviewer checklist + learned rules, posts inline + summary comments |
-| `closed` | `learn` | Harvests review patterns (scaffolded — no-op until GH-353) |
+| `closed` | `learn` | Mines recurring review patterns into validated rules and opens a *rules-update* PR for human approval |
 
 ### How the review works (GH-352)
 
@@ -35,6 +35,25 @@ workspace under `.dev10x-review/` before invoking the model:
 When the review finds issues it converts the PR to draft so you can
 batch fixes without re-triggering a review on each push; mark it
 *Ready for review* when done.
+
+### How the learning loop works (GH-353)
+
+On the `learn` path — triggered when a PR is **closed** — the Action
+mines your repository's merged-PR review history into validated
+reference rules and opens a **rules-update PR** proposing them:
+
+1. Mine recurring reviewer comments and validate each against recent
+   diffs (the same pipeline that feeds `review` mode).
+2. Write one rule doc per validated pattern under
+   `references/review-checks/generated/`.
+3. Force-push them to the `dev10x/learned-rules` branch and open (or
+   refresh) a PR titled *"🤖 Propose N learned review rule(s)"*.
+
+The bot only **proposes** — merging the PR adopts the rules, closing it
+discards them. Nothing is enforced without your approval. When no
+pattern validates, or the proposal is already up to date, the learn run
+is a no-op (it opens no PR). Because the loop pushes a branch and opens
+a PR, the `learn` path needs `contents: write` (see Step 3).
 
 ## Prerequisites
 
@@ -76,19 +95,22 @@ maximum reproducibility.
 ## Step 3 — Permissions
 
 The workflow job must grant these permissions so the Action can read the
-PR and post review feedback:
+PR, post review feedback, and open the learning-loop's rules-update PR:
 
 ```yaml
 permissions:
-  contents: read         # check out the PR head
-  pull-requests: write   # post inline + summary review comments
+  contents: write        # check out the PR head; push the rules branch (learn)
+  pull-requests: write   # post review comments; open the rules-update PR
   issues: write          # post issue-style comments / labels
   id-token: write        # OIDC for the Claude Code action
 ```
 
-These are **job-level** permissions in the consumer workflow — the
-Action does not request additional scopes. No GitHub App installation is
-required for the Action route.
+`contents: write` (rather than `read`) is required only by the `learn`
+path, which pushes the `dev10x/learned-rules` branch. If you run
+**review only** (drop the `closed` event from the trigger), `contents:
+read` is sufficient. These are **job-level** permissions in the consumer
+workflow — the Action does not request additional scopes. No GitHub App
+installation is required for the Action route.
 
 ## Action inputs
 
@@ -113,3 +135,56 @@ check appears in the PR's Checks tab; review comments post on completion.
 If nothing runs, confirm the workflow file path
 (`.github/workflows/dev10x-review.yml`), the `ANTHROPIC_API_KEY` secret,
 and that the PR is not a draft (draft PRs are skipped on the review path).
+
+To confirm the learning loop, **close or merge** a PR that has review
+comments. The `learn` run opens (or refreshes) the
+*"🤖 Propose N learned review rule(s)"* PR; if no pattern yet validates,
+the run logs a no-op notice and opens nothing.
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---------|-------------|-----|
+| No check appears on the PR | Workflow not on the default branch, or wrong path | The workflow must live at `.github/workflows/dev10x-review.yml` on the repo's default branch |
+| Review never runs, only on close | PR is a draft | Draft PRs are skipped on the review path — mark *Ready for review* |
+| `401`/`403` from the model step | Missing or invalid `ANTHROPIC_API_KEY` | Re-add the secret (Settings → Secrets and variables → Actions) |
+| Review posts no comments | Diff is clean, or all findings failed the false-positive gate | Expected — a clean PR gets a single "looks good" summary |
+| Learn run fails pushing the branch | Job lacks `contents: write` | Set `contents: write` (Step 3); review-only repos can keep `read` |
+| No rules-update PR after closing PRs | Not enough recurring review history yet | The loop needs repeated reviewer comments before a pattern validates |
+| Learned rules look wrong | They are heuristic proposals | Close the rules-update PR to discard, or edit it before merging |
+
+## FAQ
+
+**Do I need the Claude Code plugin to use the Action?**
+No. The Action is fully independent — it only needs the workflow file
+and the `ANTHROPIC_API_KEY` secret.
+
+**Will the bot change my code or rules automatically?**
+No. Review mode only comments. Learn mode only *opens a PR* proposing
+new rule docs — you merge or close it. Nothing lands without approval.
+
+**Which model should I use?**
+`haiku` (default) is fast and inexpensive for most reviews. Bump to
+`sonnet` or `opus` via the `model` input for deeper analysis on
+larger or higher-risk diffs.
+
+**Can I run review without the learning loop?**
+Yes. Drop `closed` from the workflow `on.pull_request.types` and set
+`contents: read`. You lose rule proposals but keep review on open PRs.
+
+**Where do learned rules live?**
+Under `references/review-checks/generated/` in your repo, added by the
+rules-update PR. Review mode picks them up on the next run.
+
+## Cost
+
+Each review and each learn run makes Anthropic API calls billed to your
+`ANTHROPIC_API_KEY`. Cost scales with the model and the diff size:
+
+- `haiku` (default) is the cheapest — suitable for routine PR review.
+- `sonnet`/`opus` cost more per run but reason more deeply.
+
+There is no Dev10x-side charge — you pay only Anthropic API usage and
+standard GitHub Actions minutes. See
+[Anthropic pricing](https://www.anthropic.com/pricing) for current
+per-token rates, and cap spend with a budget on your Anthropic console.
