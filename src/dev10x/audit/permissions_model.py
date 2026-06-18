@@ -21,8 +21,8 @@ from typing import TextIO
 
 from dev10x.audit.transcript_grammar import TOOL_INPUT_BLOCK_RE, TOOL_RE, TURN_RE
 from dev10x.domain.common.allow_rule import AllowRule, AllowRuleLoader
-from dev10x.domain.common.mcp_tool_name import McpToolName
 from dev10x.domain.common.mktmp_path import MktmpPath
+from dev10x.domain.common.tool_signature import ToolSignature
 from dev10x.subprocess_utils import effective_cwd
 
 PERMISSION_TOOLS = {"Bash", "Read", "Write", "Edit"}
@@ -78,13 +78,13 @@ class ToolCall:
         return self.tool == "Bash"
 
     def signature(self) -> str:
-        if self.is_bash():
-            return f"Bash({self.command})"
-        if self.tool in ("Write", "Read", "Edit") and self.file_path:
-            return f"{self.tool}({self.file_path})"
-        if McpToolName.is_mcp(self.tool):
-            return self.tool
-        return f"{self.tool}()"
+        return str(
+            ToolSignature.build(
+                tool_name=self.tool,
+                command=self.command,
+                file_path=self.file_path,
+            )
+        )
 
 
 @dataclass

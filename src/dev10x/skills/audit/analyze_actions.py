@@ -216,12 +216,17 @@ def _classify_bash(input_summary: str) -> str:
 
 
 def classify_action(tool_name: str, input_summary: str) -> str:
-    mapped = ACTION_TYPE_BY_TOOL.get(tool_name)
-    if mapped is not None:
-        return mapped
-    if tool_name == "Bash":
-        return _classify_bash(input_summary=input_summary)
-    return "Other"
+    try:
+        from dev10x.domain.common.tool_signature import ToolSignature  # noqa: PLC0415
+
+        return ToolSignature(tool=tool_name, value="").classify_action(input_summary=input_summary)
+    except ImportError:
+        mapped = ACTION_TYPE_BY_TOOL.get(tool_name)
+        if mapped is not None:
+            return mapped
+        if tool_name == "Bash":
+            return _classify_bash(input_summary=input_summary)
+        return "Other"
 
 
 def describe_tool_call(tc: ToolCall) -> str:
