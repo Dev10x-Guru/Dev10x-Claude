@@ -17,6 +17,7 @@ authors.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 from dev10x.skills.doctor.strategy import (
@@ -25,6 +26,25 @@ from dev10x.skills.doctor.strategy import (
     Remediation,
     Strategy,
 )
+
+
+@dataclass(frozen=True)
+class ForbiddenTokenRemediation:
+    """Remediation payload for a forbidden-token-priming finding."""
+
+    token: str
+    suggested_replacement: str
+
+    def to_remediation(self, *, finding: Finding) -> Remediation:
+        return Remediation(
+            kind="file_issue",
+            target=finding.location,
+            action={
+                "token": self.token,
+                "replacement": self.suggested_replacement,
+            },
+        )
+
 
 FORBIDDEN_TOKENS: dict[str, str] = {
     "DEV10X_SKIP_CMD_VALIDATION": (
@@ -77,10 +97,10 @@ def _scan_skill_docs(*, context: Context) -> list[Finding]:
                             f"replace the literal mention with {suggested_replacement}; "
                             "keep the env var's true documentation in the hook layer only"
                         ),
-                        metadata={
-                            "token": token,
-                            "suggested_replacement": suggested_replacement,
-                        },
+                        data=ForbiddenTokenRemediation(
+                            token=token,
+                            suggested_replacement=suggested_replacement,
+                        ),
                     )
                 )
     return findings
@@ -91,14 +111,7 @@ def detect(context: Context) -> list[Finding]:
 
 
 def remediate(finding: Finding) -> Remediation:
-    return Remediation(
-        kind="file_issue",
-        target=finding.location,
-        action={
-            "token": finding.metadata.get("token"),
-            "replacement": finding.metadata.get("suggested_replacement"),
-        },
-    )
+    return finding.to_remediation()
 
 
 STRATEGY = Strategy(

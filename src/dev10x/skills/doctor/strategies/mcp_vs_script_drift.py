@@ -12,12 +12,36 @@ full equivalence table and detection heuristics.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from dev10x.skills.doctor.strategy import (
     Context,
     Finding,
     Remediation,
+    RemediationKind,
     Strategy,
 )
+
+
+@dataclass(frozen=True)
+class ScriptDriftRemediation:
+    """Remediation payload for an mcp-vs-script-drift finding.
+
+    ``kind`` is fixed at detection time (``edit_memory`` for memory
+    files, ``file_issue`` for SKILL.md ordering), so the remediator
+    no longer sniffs the evidence string to decide.
+    """
+
+    mcp_tool: str
+    kind: RemediationKind
+
+    def to_remediation(self, *, finding: Finding) -> Remediation:
+        return Remediation(
+            kind=self.kind,
+            target=finding.location,
+            action={"mcp_tool": self.mcp_tool},
+        )
+
 
 SCRIPT_TO_MCP: dict[str, str] = {
     "/tmp/Dev10x/bin/mktmp.sh": "mcp__plugin_Dev10x_cli__mktmp",
@@ -54,10 +78,10 @@ def _scan_memory(*, context: Context) -> list[Finding]:
                                 f"({mcp_tool}) instead — avoid quoting the obsolete "
                                 f"path even in negative examples"
                             ),
-                            metadata={
-                                "mcp_tool": mcp_tool,
-                                "script_marker": script_token,
-                            },
+                            data=ScriptDriftRemediation(
+                                mcp_tool=mcp_tool,
+                                kind="edit_memory",
+                            ),
                         )
                     )
     return findings
@@ -92,10 +116,10 @@ def _scan_skill_docs(*, context: Context) -> list[Finding]:
                             "first-class option; demote the script form to a "
                             "footnoted fallback"
                         ),
-                        metadata={
-                            "mcp_tool": mcp_tool,
-                            "script_marker": script_token,
-                        },
+                        data=ScriptDriftRemediation(
+                            mcp_tool=mcp_tool,
+                            kind="file_issue",
+                        ),
                     )
                 )
     return findings
@@ -106,17 +130,7 @@ def detect(context: Context) -> list[Finding]:
 
 
 def remediate(finding: Finding) -> Remediation:
-    if "memory" in finding.evidence:
-        return Remediation(
-            kind="edit_memory",
-            target=finding.location,
-            action={"mcp_tool": finding.metadata.get("mcp_tool")},
-        )
-    return Remediation(
-        kind="file_issue",
-        target=finding.location,
-        action={"mcp_tool": finding.metadata.get("mcp_tool")},
-    )
+    return finding.to_remediation()
 
 
 STRATEGY = Strategy(

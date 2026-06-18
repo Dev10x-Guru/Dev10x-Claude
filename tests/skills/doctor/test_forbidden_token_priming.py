@@ -10,6 +10,9 @@ strategy_mod = pytest.importorskip(
     "dev10x.skills.doctor.strategies.forbidden_token_priming",
     reason="dev10x not installed",
 )
+from dev10x.skills.doctor.strategies.forbidden_token_priming import (  # noqa: E402
+    ForbiddenTokenRemediation,
+)
 from dev10x.skills.doctor.strategy import Context, Finding  # noqa: E402
 
 
@@ -32,7 +35,8 @@ class TestDetect:
         finding = findings[0]
         assert finding.strategy_id == "forbidden-token-priming"
         assert finding.severity == "drift"
-        assert finding.metadata["token"] == "DEV10X_SKIP_CMD_VALIDATION"
+        assert finding.data is not None
+        assert finding.data.token == "DEV10X_SKIP_CMD_VALIDATION"
 
     def test_instructions_md_mentioning_forbidden_token_produces_finding(
         self,
@@ -118,10 +122,10 @@ class TestRemediate:
             location="/tmp/plugin/skills/x/SKILL.md",
             evidence="skill doc names forbidden token 'DEV10X_SKIP_CMD_VALIDATION'",
             proposed_fix="replace with structural guidance",
-            metadata={
-                "token": "DEV10X_SKIP_CMD_VALIDATION",
-                "suggested_replacement": "structural guidance",
-            },
+            data=ForbiddenTokenRemediation(
+                token="DEV10X_SKIP_CMD_VALIDATION",
+                suggested_replacement="structural guidance",
+            ),
         )
         remediation = strategy_mod.remediate(finding)
         assert remediation.kind == "file_issue"
