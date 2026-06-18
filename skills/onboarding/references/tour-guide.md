@@ -22,6 +22,7 @@ Check what's already set up (skip configured items in tour):
 | SKILLS.md | `test -f ~/.claude/SKILLS.md` | File exists |
 | Global config | `ls ~/.claude/memory/Dev10x/` | Dir exists |
 | Playbook overrides | `ls .claude/Dev10x/playbooks/*.yaml` | Found |
+| Registered platforms | `uvx dev10x platform list` | Non-empty |
 | Worktree | `test -f .git` | `.git` is file |
 
 ### 1.3 Project Detection
@@ -104,6 +105,47 @@ the heavier post-upgrade steps (path version bumps,
 generalization, full permission audit, project-settings dedup)
 — those remain available via `/Dev10x:upgrade-cleanup` whenever
 the user wants the comprehensive sweep.
+
+### 2.2c Platform Registration
+
+**Skip if:** `uvx dev10x platform list` already reports one or
+more registered platforms.
+
+```
+Dev10x can target more than one AI assistant — Claude Code,
+GitHub Copilot CLI, Windsurf, Continue, and Cursor. Registering
+a platform records where it keeps its config, plugins, and
+settings so skills target the right paths without per-user path
+editing (and without symlinks, so Windows stays safe).
+
+See the built-in catalog:
+  uvx dev10x platform known
+
+Register the one you work in:
+  uvx dev10x platform add claude-code
+
+Pass --playbook <file> to prefer a specific work-on playbook for
+that platform, or --config-dir to override its default location.
+```
+
+Run `uvx dev10x platform known` to show the supported catalog
+before asking.
+
+**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text).
+Options:
+- Register this platform now (Recommended) — runs
+  `uvx dev10x platform add <name>` for the assistant in use
+- Add a different platform — register Copilot CLI, Windsurf,
+  Continue, or Cursor instead
+- Skip — I'll run `uvx dev10x platform add` later
+
+If the user chooses to register, run the matching command, e.g.:
+`uvx dev10x platform add claude-code`
+
+Then confirm with `uvx dev10x platform list` so the new
+registration is visible. This is the operational entry point for
+the multi-platform surface — onboarding is where a user declares
+which assistants Dev10x should target.
 
 ### 2.3 PR Pipeline Demo
 

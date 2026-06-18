@@ -28,6 +28,11 @@
           "check": "tool_called",
           "tool": "AskUserQuestion",
           "assertion": "alias_setup_offered"
+        },
+        {
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "assertion": "platform_registration_offered"
         }
       ]
     },
