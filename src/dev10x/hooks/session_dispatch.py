@@ -52,6 +52,23 @@ def _escape_for_json(*, s: str) -> str:
     )
 
 
+def _emit_context(content: str) -> None:
+    """Emit content as a SessionStart additionalContext JSON envelope.
+
+    Exits silently (sys.exit(0)) when content is empty. This is the
+    single shared emit path for all standalone SessionStart hook
+    sub-commands — previously duplicated across session_reload,
+    session_install_check, and session_guidance.
+    """
+    if not content:
+        sys.exit(0)
+    escaped = _escape_for_json(s=content)
+    print(
+        '{"hookSpecificOutput":{"hookEventName":"SessionStart",'
+        f'"additionalContext":"{escaped}"}}}}'
+    )
+
+
 def _run_git_safe(git: GitContext, *args: str) -> str:
     try:
         return git.run(*args)
@@ -86,14 +103,7 @@ def build_reload_context() -> str:
 
 
 def session_reload() -> None:
-    context = build_reload_context()
-    if not context:
-        sys.exit(0)
-    escaped = _escape_for_json(s=context)
-    print(
-        '{"hookSpecificOutput":{"hookEventName":"SessionStart",'
-        f'"additionalContext":"{escaped}"}}}}'
-    )
+    _emit_context(build_reload_context())
 
 
 def context_compact() -> None:
@@ -197,26 +207,12 @@ def build_hook_version_drift_context() -> str:
 
 def session_install_check() -> None:
     """Emit install-state guidance as additionalContext (SessionStart hook)."""
-    content = build_install_check_context()
-    if not content:
-        sys.exit(0)
-    escaped = _escape_for_json(s=content)
-    print(
-        '{"hookSpecificOutput":{"hookEventName":"SessionStart",'
-        f'"additionalContext":"{escaped}"}}}}'
-    )
+    _emit_context(build_install_check_context())
 
 
 def session_guidance() -> None:
     """Output session-guidance.md as additionalContext (SessionStart hook)."""
-    content = build_guidance_context()
-    if not content:
-        sys.exit(0)
-    escaped = _escape_for_json(s=content)
-    print(
-        '{"hookSpecificOutput":{"hookEventName":"SessionStart",'
-        f'"additionalContext":"{escaped}"}}}}'
-    )
+    _emit_context(build_guidance_context())
 
 
 def session_migrate_permissions() -> None:
