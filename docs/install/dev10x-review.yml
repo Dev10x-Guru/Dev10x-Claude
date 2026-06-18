@@ -1,4 +1,4 @@
-# Dev10x PR Review — consumer workflow template (GH-351).
+# Dev10x PR Review — consumer workflow template (GH-351, GH-353).
 #
 # Copy this file into your repository at .github/workflows/dev10x-review.yml
 # and add an ANTHROPIC_API_KEY repository secret. See
@@ -18,14 +18,16 @@ on:
 
 jobs:
   dev10x-review:
-    # Skip drafts on the review path; closed events still run for the
-    # (scaffolded) learning loop.
+    # Skip drafts on the review path; closed events still run the
+    # learning loop (GH-353), which opens a rules-update PR.
     if: >-
       github.event.action == 'closed' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      pull-requests: write
+      # `write` (not `read`) so the learn mode can push a branch of
+      # proposed rules on PR close. Review mode only reads.
+      contents: write
+      pull-requests: write   # post review comments + open the rules-update PR
       issues: write
       id-token: write
     steps:
