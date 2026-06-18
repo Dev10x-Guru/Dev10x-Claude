@@ -147,7 +147,7 @@ def check_correction(text: str) -> bool:
 
 def format_timestamp(ts: str) -> str:
     try:
-        dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        dt = datetime.fromisoformat(ts)
         return dt.strftime("%H:%M:%S")
     except (ValueError, AttributeError):
         return ts or "?"

@@ -12,6 +12,7 @@ import os
 import re
 import shlex
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, ClassVar
 
 from dev10x.domain import HookInput, HookResult
@@ -39,11 +40,13 @@ SAFE_PREFIXES = re.compile(
     re.IGNORECASE,
 )
 
-_PLUGIN_ROOT = os.environ.get(
-    "CLAUDE_PLUGIN_ROOT",
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
+_PLUGIN_ROOT = Path(
+    os.environ.get(
+        "CLAUDE_PLUGIN_ROOT",
+        str(Path(__file__).resolve().parents[3]),
+    )
 )
-DB_SH_PATH = os.path.join(_PLUGIN_ROOT, "skills", "db-psql", "scripts", "db.sh")
+DB_SH_PATH = _PLUGIN_ROOT / "skills" / "db-psql" / "scripts" / "db.sh"
 
 DIRECT_CONN_MSG = (
     "BLOCKED: Direct database connection via psycopg2 or postgres:// URL "
@@ -75,7 +78,7 @@ def _is_exempt_psql_wrapper(parts: list[str]) -> bool:
     """
     if not parts:
         return False
-    command = os.path.basename(parts[0])
+    command = Path(parts[0]).name
     if command == "docker" and "exec" in parts[1:]:
         return True
     if command == "op" and "run" in parts[1:]:

@@ -66,7 +66,7 @@ class SkillMetricsHook(AbstractHook):
         project_hash = hashlib.md5(toplevel.encode()).hexdigest()
 
         now = datetime.now(UTC)
-        timestamp = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+        timestamp = now.isoformat()
         date_tag = now.strftime("%Y-%m-%d")
 
         metrics_dir = ClaudeDir.metrics_dir()

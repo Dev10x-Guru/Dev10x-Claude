@@ -231,7 +231,7 @@ def detect_known_friction(
     findings: list[Finding] = []
     idx = 0
     project_prefix = (project_root or effective_cwd() or os.getcwd()).rstrip("/") + "/"
-    home_prefix = os.path.expanduser("~/").rstrip("/") + "/"
+    home_prefix = str(Path.home()).rstrip("/") + "/"
 
     for tc in calls:
         if tc.tool == "Bash":
@@ -451,9 +451,9 @@ def audit_script_hygiene(skills_dir: str, tools_dir: str) -> list[HygieneFinding
     idx = 0
     dirs_to_scan = []
 
-    if os.path.isdir(skills_dir):
+    if Path(skills_dir).is_dir():
         dirs_to_scan.append(Path(skills_dir))
-    if os.path.isdir(tools_dir):
+    if Path(tools_dir).is_dir():
         dirs_to_scan.append(Path(tools_dir))
 
     for scan_dir in dirs_to_scan:
@@ -516,10 +516,10 @@ def audit_script_hygiene(skills_dir: str, tools_dir: str) -> list[HygieneFinding
 
             for m in re.finditer(r"uv run --script\s+(\S+\.py)", content):
                 script_path = m.group(1)
-                expanded = os.path.expanduser(script_path)
-                if os.path.isfile(expanded):
+                expanded = Path(script_path).expanduser()
+                if expanded.is_file():
                     try:
-                        script_content = Path(expanded).read_text()
+                        script_content = expanded.read_text()
                         if "uv run" in script_content.split("\n", 1)[0]:
                             idx += 1
                             findings.append(

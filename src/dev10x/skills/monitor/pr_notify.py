@@ -220,8 +220,8 @@ def format_ci_table(checks: list[dict[str, Any]]) -> str:
         started = c.get("startedAt") or ""
         completed = c.get("completedAt") or ""
         if started and completed:
-            t0 = datetime.fromisoformat(started.replace("Z", "+00:00"))
-            t1 = datetime.fromisoformat(completed.replace("Z", "+00:00"))
+            t0 = datetime.fromisoformat(started)
+            t1 = datetime.fromisoformat(completed)
             secs = int((t1 - t0).total_seconds())
             duration = f"{secs // 60}m {secs % 60}s" if secs >= 60 else f"{secs}s"
         elif state == "IN_PROGRESS":

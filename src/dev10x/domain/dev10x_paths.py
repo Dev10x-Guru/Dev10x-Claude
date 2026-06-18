@@ -33,7 +33,7 @@ from dev10x.domain.file_locks import file_lock
 CONFIG_HOME_ENV_VAR = "DEV10X_CONFIG_HOME"
 XDG_CONFIG_HOME_ENV_VAR = "XDG_CONFIG_HOME"
 
-_log = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 def _platform_default_root() -> Path:
@@ -78,7 +78,7 @@ def migrate_path(*, legacy: Path, current: Path) -> bool:
     with file_lock(current):
         if current.exists() or not legacy.exists():
             return False
-        _log.info("Migrating Dev10x config: %s -> %s", legacy, current)
+        log.info("Migrating Dev10x config: %s -> %s", legacy, current)
         _copy(source=legacy, destination=current)
     return True
 

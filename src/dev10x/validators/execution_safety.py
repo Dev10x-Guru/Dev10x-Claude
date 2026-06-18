@@ -22,6 +22,7 @@ import os
 import re
 import shlex
 from dataclasses import dataclass
+from pathlib import Path
 from typing import ClassVar
 
 from dev10x.domain import HookInput, HookResult
@@ -292,7 +293,7 @@ class ExecutionSafetyValidator(ValidatorBase):
             None,
         )
 
-        if script is None or not os.path.isabs(os.path.expanduser(script)):
+        if script is None or not Path(script).expanduser().is_absolute():
             return None
 
         if _is_approved_path(script, approved):
