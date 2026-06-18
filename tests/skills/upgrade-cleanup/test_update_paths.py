@@ -218,6 +218,34 @@ class TestUpdateFilePublisher:
         offenders = [rule for rule in data["permissions"]["allow"] if "WooYek" in rule]
         assert not offenders, f"WooYek not stripped from: {offenders}"
 
+    def test_leaves_already_current_rule_untouched(self, settings_file: Path) -> None:
+        # Mixed file: one stale rule (drives the locked rewrite) plus one
+        # already-current rule (exercises the no-change branch of the
+        # locked re-apply without inflating the change count).
+        settings_file.write_text(
+            json.dumps(
+                {
+                    "permissions": {
+                        "allow": [
+                            "Bash(~/.claude/plugins/cache/WooYek/Dev10x/0.48.0/skills/a.sh:*)",
+                            "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.54.0/skills/b.sh:*)",
+                        ]
+                    }
+                }
+            )
+        )
+
+        count, _ = update_file(
+            settings_file,
+            target_version="0.54.0",
+            target_publisher="Dev10x-Guru",
+        )
+
+        assert count == 1
+        allow = json.loads(settings_file.read_text())["permissions"]["allow"]
+        assert "Dev10x-Guru/Dev10x/0.54.0/skills/a.sh" in allow[0]
+        assert "Dev10x-Guru/Dev10x/0.54.0/skills/b.sh" in allow[1]
+
     def test_dry_run_does_not_write(self, settings_file: Path) -> None:
         content = json.dumps(
             {

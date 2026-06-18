@@ -91,18 +91,7 @@ def canonicalize_rules(rules: Iterable[str]) -> CanonicalizeResult:
     return result
 
 
-def canonicalize_settings_file(
-    settings_path: Path,
-    *,
-    dry_run: bool = False,
-) -> CanonicalizeResult:
-    """Rewrite pinned plugin paths in a settings.json file.
-
-    Operates on ``permissions.allow`` and ``permissions.deny`` lists.
-    Dedupes after rewriting — collisions with already-canonical rules
-    collapse silently.
-    """
-    data = json.loads(settings_path.read_text())
+def _canonicalize_in_place(data: dict[str, Any]) -> CanonicalizeResult:
     perms = data.get("permissions", {})
     result = CanonicalizeResult()
     for bucket in ("allow", "deny", "ask"):
@@ -126,10 +115,33 @@ def canonicalize_settings_file(
             seen.add(final)
             new_rules.append(final)
         perms[bucket] = new_rules
-    if not dry_run and result.changed:
-        data["permissions"] = perms
-        settings_path.write_text(json.dumps(data, indent=2) + "\n")
+    data["permissions"] = perms
     return result
+
+
+def canonicalize_settings_file(
+    settings_path: Path,
+    *,
+    dry_run: bool = False,
+) -> CanonicalizeResult:
+    """Rewrite pinned plugin paths in a settings.json file.
+
+    Operates on ``permissions.allow`` and ``permissions.deny`` lists.
+    Dedupes after rewriting — collisions with already-canonical rules
+    collapse silently. The write goes through ``locked_json_update`` +
+    ``create_backup`` so parallel agents cannot clobber each other's
+    rules (GH-572).
+    """
+    result = _canonicalize_in_place(json.loads(settings_path.read_text()))
+    if dry_run or not result.changed:
+        return result
+
+    from dev10x.skills.permission.backup import create_backup
+    from dev10x.skills.permission.file_lock import locked_json_update
+
+    create_backup(settings_path)
+    with locked_json_update(path=settings_path) as live_data:
+        return _canonicalize_in_place(live_data)
 
 
 @dataclass
@@ -491,8 +503,18 @@ def apply_deprecations_to_files(
                         messages.append(f"  ? {outcome.action.upper()}: {outcome.rule}")
             perms[bucket] = new_rules
         if changes_in_file and not dry_run:
-            data["permissions"] = perms
-            path.write_text(json.dumps(data, indent=2) + "\n")
+            from dev10x.skills.permission.backup import create_backup
+            from dev10x.skills.permission.file_lock import locked_json_update
+
+            create_backup(path)
+            with locked_json_update(path=path) as live_data:
+                live_perms = live_data.get("permissions", {})
+                for bucket in ("allow", "deny", "ask"):
+                    live_rules = live_perms.get(bucket)
+                    if not isinstance(live_rules, list):
+                        continue
+                    live_perms[bucket], _ = apply_deprecations(live_rules, catalog=catalog)
+                live_data["permissions"] = live_perms
         total_actions += changes_in_file
     verb = "Would apply" if dry_run else "Applied"
     messages.append(f"\n{verb} {total_actions} deprecation actions.")
@@ -526,8 +548,14 @@ def enable_group_in_files(
         for rule in added_here:
             messages.append(f"  + {rule}")
         if not dry_run:
-            allow.extend(added_here)
-            path.write_text(json.dumps(data, indent=2) + "\n")
+            from dev10x.skills.permission.backup import create_backup
+            from dev10x.skills.permission.file_lock import locked_json_update
+
+            create_backup(path)
+            with locked_json_update(path=path) as live_data:
+                live_perms = live_data.setdefault("permissions", {})
+                live_allow = live_perms.setdefault("allow", [])
+                live_allow.extend(rule for rule in rule_list if rule not in live_allow)
         total_added += len(added_here)
     verb = "Would add" if dry_run else "Added"
     messages.append(f"\n{verb} {total_added} rules from group {group_name!r}.")
