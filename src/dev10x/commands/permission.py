@@ -48,6 +48,29 @@ def _require_context(*, include_user: bool | None = None) -> PermissionContext:
     return result.value
 
 
+def _require_settings(
+    *,
+    include_user: bool | None = None,
+    show_config: bool = False,
+    quiet: bool = False,
+) -> PermissionContext | None:
+    """Resolve a context that has settings files, or signal an early return.
+
+    Folds the per-command preamble every ``ensure_*`` / ``doctor_*`` handler
+    repeated (audit GH-541 Template Method): resolve the context, optionally
+    echo the config path, and guard on an empty ``settings_files`` set.
+    Returns ``None`` after emitting "No settings files found." so callers
+    early-return with a single ``if ctx is None: return``.
+    """
+    ctx = _require_context(include_user=include_user)
+    if show_config and not quiet:
+        click.echo(f"Config: {ctx.config_path}")
+    if not ctx.settings_files:
+        click.echo("No settings files found.")
+        return None
+    return ctx
+
+
 @permission.command(name="update-paths")
 @click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
 @click.option(
@@ -77,15 +100,11 @@ def update_paths(
     if restore:
         sys.exit(mod._restore(config_path=_require_config(mod)))
 
-    ctx = _require_context()
-    if not quiet:
-        click.echo(f"Config: {ctx.config_path}")
-    config = ctx.config
-
-    settings_files = ctx.settings_files
-    if not settings_files:
-        click.echo("No settings files found.")
+    ctx = _require_settings(show_config=True, quiet=quiet)
+    if ctx is None:
         return
+    config = ctx.config
+    settings_files = ctx.settings_files
 
     cache_dir = Path(config["plugin_cache"]).expanduser()
     target = target_version or mod.detect_latest_version(cache_dir)
@@ -162,11 +181,8 @@ def ensure_base(*, dry_run: bool, quiet: bool) -> None:
     """Add missing base permissions from projects.yaml."""
     from dev10x.skills.permission import update_paths as mod
 
-    ctx = _require_context()
-    if not quiet:
-        click.echo(f"Config: {ctx.config_path}")
-    if not ctx.settings_files:
-        click.echo("No settings files found.")
+    ctx = _require_settings(show_config=True, quiet=quiet)
+    if ctx is None:
         return
 
     sys.exit(
@@ -188,9 +204,8 @@ def generalize(*, dry_run: bool, quiet: bool) -> None:
     """Replace session-specific permission args with wildcard patterns."""
     from dev10x.skills.permission import update_paths as mod
 
-    ctx = _require_context()
-    if not ctx.settings_files:
-        click.echo("No settings files found.")
+    ctx = _require_settings()
+    if ctx is None:
         return
 
     sys.exit(
@@ -216,9 +231,8 @@ def ensure_workspace(*, dry_run: bool, quiet: bool) -> None:
     """
     from dev10x.skills.permission import update_paths as mod
 
-    ctx = _require_context()
-    if not ctx.settings_files:
-        click.echo("No settings files found.")
+    ctx = _require_settings()
+    if ctx is None:
         return
 
     sys.exit(
@@ -240,9 +254,8 @@ def ensure_scripts(*, dry_run: bool, quiet: bool) -> None:
     """Verify plugin and user-skill scripts have allow rules; add missing ones."""
     from dev10x.skills.permission import update_paths as mod
 
-    ctx = _require_context()
-    if not ctx.settings_files:
-        click.echo("No settings files found.")
+    ctx = _require_settings()
+    if ctx is None:
         return
 
     plugin_exit = _emit_result(
@@ -272,9 +285,8 @@ def ensure_reads(*, dry_run: bool, quiet: bool) -> None:
     """Emit per-skill folder Read rules with ~/ + /home/<user>/ twins."""
     from dev10x.skills.permission import update_paths as mod
 
-    ctx = _require_context()
-    if not ctx.settings_files:
-        click.echo("No settings files found.")
+    ctx = _require_settings()
+    if ctx is None:
         return
 
     sys.exit(
@@ -452,11 +464,8 @@ def enumerate_mcp(*, dry_run: bool, quiet: bool) -> None:
     """Expand `mcp__plugin_Dev10x_*` wildcards into enumerated tool names."""
     from dev10x.skills.permission import enumerate_mcp as mod
 
-    ctx = _require_context()
-    if not quiet:
-        click.echo(f"Config: {ctx.config_path}")
-    if not ctx.settings_files:
-        click.echo("No settings files found.")
+    ctx = _require_settings(show_config=True, quiet=quiet)
+    if ctx is None:
         return
 
     if dry_run and not quiet:
@@ -841,9 +850,8 @@ def doctor_canonicalize(*, dry_run: bool, quiet: bool) -> None:
     """
     from dev10x.skills.permission import doctor as mod
 
-    ctx = _require_context()
-    if not ctx.settings_files:
-        click.echo("No settings files found.")
+    ctx = _require_settings()
+    if ctx is None:
         return
 
     if dry_run and not quiet:
@@ -894,9 +902,8 @@ def doctor_apply_deprecations(*, dry_run: bool) -> None:
     from dev10x.skills.permission import doctor as mod
 
     catalog = mod.load_catalog()
-    ctx = _require_context()
-    if not ctx.settings_files:
-        click.echo("No settings files found.")
+    ctx = _require_settings()
+    if ctx is None:
         return
 
     if dry_run:
@@ -921,9 +928,8 @@ def doctor_enable_group(*, group_name: str, dry_run: bool) -> None:
     if not rules:
         click.echo(f"ERROR: unknown group {group_name!r}")
         sys.exit(1)
-    ctx = _require_context()
-    if not ctx.settings_files:
-        click.echo("No settings files found.")
+    ctx = _require_settings()
+    if ctx is None:
         return
     if dry_run:
         click.echo("(dry run — no files will be modified)\n")
