@@ -131,7 +131,7 @@ async def rebase_groom(*, seq_path: str, base_ref: str) -> Result[dict[str, Any]
         conflict_aware=True,
     )
     if notice is not None and isinstance(result, SuccessResult):
-        result.value["base_notice"] = notice
+        return ok({**result.value, "base_notice": notice})
     return result
 
 
