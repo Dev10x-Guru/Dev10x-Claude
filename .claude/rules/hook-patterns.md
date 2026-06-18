@@ -174,6 +174,46 @@ higher tiers — `minimal` rules are always active.
 | DX015 | spec-drift | standard (experimental) |
 | DX016 | inline-linter | standard |
 
+### DX014 Sensitivity Axis: `ask`, Not `deny` (GH-604)
+
+DX014 classifies *what the target is* (SECRET / CREDENTIAL / PII /
+INFRA) — the third PAP axis, orthogonal to tier and reversibility. A
+read-only-but-sensitive probe (`nc -zv` to infra, `gh secret list`,
+`.env` read) is genuinely worth a prompt but must not be hard-blocked:
+a hard `deny` drops the user to a manual `!` shell. DX014 therefore
+emits `HookAsk` (`permissionDecision: "ask"`, exit 0) so the user can
+approve in-session.
+
+Genuine destructive writes are still hard-denied — by the safety-tier
+validators (DX001–DX005/DX012), which run **before** DX014 in the
+chain and short-circuit on a `deny`. DX014 only ever sees commands the
+safety axis already cleared, so its `ask` (and a blessed `allow`, below)
+never overrides a real block.
+
+**Sensitivity-exception catalog (Tier 2, synced).** A user-owned
+`~/.config/Dev10x/sensitivity-exceptions.yaml` downgrades blessed probes
+from `ask` to `allow` (or keeps an explicit `ask`). It lives in the
+user config home, so it syncs across every worktree. Entries use a
+hybrid target+shape model — an entry applies when *every* supplied
+matcher matches:
+
+```yaml
+exceptions:
+  - description: bastion port probe
+    label: infra              # optional: only when every match is this label
+    shape: '\bnc\b.*-[zv]+'   # optional: regex on the command string
+    target: 'bastion\.example\.internal'  # optional: regex on the command
+    effect: allow             # allow (default) | ask
+```
+
+At least one of `label`/`shape`/`target` is required; a matcher-less
+entry is rejected at load. A `label`-scoped entry only applies when
+*all* sensitivity matches share that label, so it cannot silently bless
+a command that also trips a second, un-blessed label. First applicable
+entry wins (catalog order). A missing/malformed catalog fails open to
+the default `ask`. The validator exposes `with_exceptions()` (mirroring
+`with_patterns()`) as the injection seam.
+
 ### Configuration
 
 Set via environment variables in `.claude/settings.json` or shell:

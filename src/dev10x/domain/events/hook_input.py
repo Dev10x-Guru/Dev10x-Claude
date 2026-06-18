@@ -46,6 +46,24 @@ class HookAllow:
 
 
 @dataclass(frozen=True)
+class HookAsk:
+    """Prompt the user to approve/deny the tool call in-session (GH-604).
+
+    The sensitivity axis (DX014) emits this for read-only-but-sensitive
+    commands: a hard ``deny`` (``HookResult``) would drop the user to a
+    manual ``!`` shell, whereas ``ask`` lets them approve the probe in
+    the permission dialog. ``reason`` populates Claude Code's
+    ``permissionDecisionReason``; ``message`` populates ``systemMessage``.
+    """
+
+    message: str = ""
+    reason: str = ""
+
+    def to_dict(self) -> dict[str, str]:
+        return {"message": self.message, "decision": "ask", "reason": self.reason}
+
+
+@dataclass(frozen=True)
 class HookRetry:
     message: str
 
