@@ -28,6 +28,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from dev10x.domain.claude_paths import ClaudeDir
+from dev10x.domain.file_locks import file_lock
 
 CONFIG_HOME_ENV_VAR = "DEV10X_CONFIG_HOME"
 XDG_CONFIG_HOME_ENV_VAR = "XDG_CONFIG_HOME"
@@ -66,11 +67,19 @@ def migrate_path(*, legacy: Path, current: Path) -> bool:
     Returns True when a copy happened. Leaves the legacy path in
     place so a downgrade can still read it; eager cleanup deletes
     the legacy entry once parity is confirmed.
+
+    The check-then-copy runs under an exclusive lock on ``current``
+    with a re-check inside the lock (double-checked locking) so two
+    worktrees/agents racing first-call migration cannot both copy and
+    clobber each other — GH-587.
     """
     if current.exists() or not legacy.exists():
         return False
-    _log.info("Migrating Dev10x config: %s -> %s", legacy, current)
-    _copy(source=legacy, destination=current)
+    with file_lock(current):
+        if current.exists() or not legacy.exists():
+            return False
+        _log.info("Migrating Dev10x config: %s -> %s", legacy, current)
+        _copy(source=legacy, destination=current)
     return True
 
 

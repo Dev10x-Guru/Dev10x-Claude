@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from dev10x import subprocess_utils
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 
@@ -99,7 +100,7 @@ def _keyring_lookup(*, service: str, key: str) -> str | None:
     else:
         cmd = ["secret-tool", "lookup", "service", service, "key", key]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess_utils.run(cmd, capture_output=True, text=True, check=True)
         return result.stdout.strip() or None
     except (subprocess.CalledProcessError, FileNotFoundError):
         return None
@@ -120,12 +121,16 @@ def _keyring_service() -> str:
     return f"slack-{_active_workspace}"
 
 
-def get_token() -> str:
-    """Resolve the Slack bot token.
+def get_token() -> Result[str]:
+    """Resolve the Slack bot token (GH-587).
+
+    Returns a :class:`Result` instead of raising so callers share one
+    Result-based error style rather than mixing ``raise RuntimeError``
+    with ``Result`` returns.
 
     Resolution order:
       1. If --workspace was set: keyring at the workspace's service name.
-         Raise if missing — workspace was explicitly requested.
+         Error if missing — workspace was explicitly requested.
       2. SLACK_TOKEN environment variable.
       3. Default keyring at service=slack.
     """
@@ -133,18 +138,18 @@ def get_token() -> str:
         service = _keyring_service()
         token = _keyring_lookup(service=service, key="bot_token")
         if token:
-            return token
-        raise RuntimeError(
+            return ok(token)
+        return err(
             f"No Slack token found in keyring for workspace "
             f"'{_active_workspace}' (service={service})"
         )
     env_token = os.environ.get("SLACK_TOKEN")
     if env_token:
-        return env_token
+        return ok(env_token)
     token = _keyring_lookup(service="slack", key="bot_token")
     if token:
-        return token
-    raise RuntimeError(
+        return ok(token)
+    return err(
         "No Slack token found. Set SLACK_TOKEN env, configure the default "
         "keyring (service=slack, key=bot_token), or pass --workspace NAME."
     )
@@ -166,7 +171,11 @@ def send_slack_message(
         return err(f"Failed to send Slack message: {ex}")
     try:
         resolved_message = resolve_mentions(message)
-        token = get_token()
+        token_result = get_token()
+        if isinstance(token_result, ErrorResult):
+            log.error("Failed to send Slack message: %s", token_result.error)
+            return token_result
+        token = token_result.value
         is_user_token = token.startswith("xoxp-")
         client = WebClient(token=token)
         result = client.chat_postMessage(
@@ -188,6 +197,36 @@ def send_slack_message(
         return err(f"Failed to send Slack message: {ex}")
 
 
+def notify_slack(
+    *,
+    channel: str,
+    message: str,
+    workspace: str | None = None,
+    thread_ts: str | None = None,
+    broadcast: bool = False,
+    reactions: list[str] | None = None,
+    unfurl: bool = False,
+) -> Result[str]:
+    """Single service entry for sending a Slack message (GH-587).
+
+    Consolidates the previously-scattered ``set_workspace`` +
+    ``send_slack_message`` call sites behind one ``Result``-returning
+    service so every caller shares the same error contract instead of
+    three divergent styles. Returns ``ok(ts)`` or ``err(reason)``;
+    callers own their own user-facing output formatting.
+    """
+    if workspace is not None:
+        set_workspace(workspace)
+    return send_slack_message(
+        channel=channel,
+        message=message,
+        thread_ts=thread_ts,
+        broadcast=broadcast,
+        reactions=reactions,
+        unfurl=unfurl,
+    )
+
+
 def upload_slack_files(
     channel: str,
     file_paths: list[str],
@@ -197,7 +236,11 @@ def upload_slack_files(
     from slack_sdk import WebClient
     from slack_sdk.errors import SlackApiError
 
-    token = get_token()
+    token_result = get_token()
+    if isinstance(token_result, ErrorResult):
+        print(f"❌ {token_result.error}", file=sys.stderr)
+        return None
+    token = token_result.value
     client = WebClient(token=token)
     resolved_message = resolve_mentions(message) if message else None
 
@@ -280,7 +323,11 @@ def send_reminder(message: str) -> str | None:
     try:
         from slack_sdk import WebClient
 
-        token = get_token()
+        token_result = get_token()
+        if isinstance(token_result, ErrorResult):
+            print(f"❌ Failed to send reminder: {token_result.error}", file=sys.stderr)
+            return None
+        token = token_result.value
         client = WebClient(token=token)
         dm = client.conversations_open(users=self_user_id)
         channel = dm["channel"]["id"]
@@ -299,7 +346,11 @@ def update_slack_message(channel: str, ts: str, message: str) -> bool:
         from slack_sdk import WebClient
 
         resolved_message = resolve_mentions(message)
-        token = get_token()
+        token_result = get_token()
+        if isinstance(token_result, ErrorResult):
+            print(f"❌ Failed to update Slack message: {token_result.error}", file=sys.stderr)
+            return False
+        token = token_result.value
         client = WebClient(token=token)
         client.chat_update(channel=channel, ts=ts, text=resolved_message)
         return True
@@ -312,7 +363,11 @@ def delete_slack_message(channel: str, ts: str) -> bool:
     try:
         from slack_sdk import WebClient
 
-        token = get_token()
+        token_result = get_token()
+        if isinstance(token_result, ErrorResult):
+            print(f"❌ Failed to delete Slack message: {token_result.error}", file=sys.stderr)
+            return False
+        token = token_result.value
         client = WebClient(token=token)
         client.chat_delete(channel=channel, ts=ts)
         return True
@@ -325,7 +380,11 @@ def delete_slack_file(file_id: str) -> bool:
     try:
         from slack_sdk import WebClient
 
-        token = get_token()
+        token_result = get_token()
+        if isinstance(token_result, ErrorResult):
+            print(f"❌ Failed to delete Slack file: {token_result.error}", file=sys.stderr)
+            return False
+        token = token_result.value
         client = WebClient(token=token)
         client.files_delete(file=file_id)
         return True

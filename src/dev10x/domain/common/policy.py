@@ -25,9 +25,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
-import yaml
-
 from dev10x.domain.common.allow_rule import AllowRule
+from dev10x.domain.common.baseline_catalog import load_baseline_dict
 
 
 class PolicyEffect(StrEnum):
@@ -175,17 +174,10 @@ class PolicyCatalog:
 
         Returns ``[]`` for a missing file, unparseable YAML, or a
         top-level value that is not a mapping — mirroring
-        :meth:`AllowRuleLoader.load`.
+        :meth:`AllowRuleLoader.load`. Reading and parsing the baseline
+        YAML is delegated to the shared loader (GH-587).
         """
-        p = Path(path)
-        if not p.is_file():
-            return []
-        try:
-            data = yaml.safe_load(p.read_text(encoding="utf-8"))
-        except (yaml.YAMLError, OSError):
-            return []
-        if not isinstance(data, dict):
-            return []
+        data = load_baseline_dict(Path(path), strict=False)
         return PolicyCatalog.from_baseline_dict(data, source=source)
 
 

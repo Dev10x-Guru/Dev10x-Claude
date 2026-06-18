@@ -33,7 +33,7 @@ class TestGetToken:
             return "xoxb-from-default-keyring"
 
         monkeypatch.setattr(mod, "_keyring_lookup", fake_lookup)
-        assert mod.get_token() == "xoxb-from-default-keyring"
+        assert mod.get_token() == ok("xoxb-from-default-keyring")
         assert calls == [{"service": "slack", "key": "bot_token"}]
 
     def test_env_var_wins_over_default_keyring(
@@ -46,7 +46,7 @@ class TestGetToken:
             "_keyring_lookup",
             lambda *, service, key: "xoxb-from-default-keyring",
         )
-        assert mod.get_token() == "xoxb-from-env"
+        assert mod.get_token() == ok("xoxb-from-env")
 
     def test_workspace_uses_namespaced_keyring(
         self,
@@ -60,25 +60,27 @@ class TestGetToken:
 
         monkeypatch.setattr(mod, "_keyring_lookup", fake_lookup)
         mod.set_workspace("aperture")
-        assert mod.get_token() == "xoxb-aperture"
+        assert mod.get_token() == ok("xoxb-aperture")
         assert looked_up == ["slack-aperture"]
 
-    def test_workspace_missing_token_raises(
+    def test_workspace_missing_token_returns_err(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setattr(mod, "_keyring_lookup", lambda *, service, key: None)
         mod.set_workspace("aperture")
-        with pytest.raises(RuntimeError, match="aperture"):
-            mod.get_token()
+        result = mod.get_token()
+        assert isinstance(result, ErrorResult)
+        assert "aperture" in result.error
 
-    def test_no_sources_raises(
+    def test_no_sources_returns_err(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setattr(mod, "_keyring_lookup", lambda *, service, key: None)
-        with pytest.raises(RuntimeError, match="No Slack token found"):
-            mod.get_token()
+        result = mod.get_token()
+        assert isinstance(result, ErrorResult)
+        assert "No Slack token found" in result.error
 
     def test_workspace_keyring_service_override(
         self,
@@ -97,8 +99,35 @@ class TestGetToken:
 
         monkeypatch.setattr(mod, "_keyring_lookup", fake_lookup)
         mod.set_workspace("aperture")
-        assert mod.get_token() == "xoxb-aperture"
+        assert mod.get_token() == ok("xoxb-aperture")
         assert looked_up == ["custom-aperture"]
+
+
+class TestKeyringLookup:
+    """GH-587: _keyring_lookup routes through subprocess_utils.run."""
+
+    def test_returns_stripped_stdout(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        class FakeCompleted:
+            stdout = "  xoxb-secret\n"
+
+        monkeypatch.setattr(mod.subprocess_utils, "run", lambda *a, **k: FakeCompleted())
+        assert mod._keyring_lookup(service="slack", key="bot_token") == "xoxb-secret"
+
+    def test_returns_none_on_empty_stdout(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        class FakeCompleted:
+            stdout = "   \n"
+
+        monkeypatch.setattr(mod.subprocess_utils, "run", lambda *a, **k: FakeCompleted())
+        assert mod._keyring_lookup(service="slack", key="bot_token") is None
+
+    def test_returns_none_on_called_process_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import subprocess
+
+        def boom(*a: object, **k: object):
+            raise subprocess.CalledProcessError(returncode=1, cmd="lookup")
+
+        monkeypatch.setattr(mod.subprocess_utils, "run", boom)
+        assert mod._keyring_lookup(service="slack", key="bot_token") is None
 
 
 class TestWorkspaceConfigResolution:
@@ -231,6 +260,36 @@ class TestSendSlackMessageResult:
         monkeypatch.setattr(slack_sdk, "WebClient", BrokenClient)
         with pytest.raises(KeyError):
             mod.send_slack_message(channel="C123", message="hi")
+
+
+class TestNotifySlack:
+    """GH-587: notify_slack consolidates set_workspace + send behind one Result."""
+
+    def test_selects_workspace_and_passes_through(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        captured: dict = {}
+
+        def fake_send(**kwargs: object):
+            captured.update(kwargs)
+            return ok("9.9")
+
+        monkeypatch.setattr(mod, "send_slack_message", fake_send)
+        result = mod.notify_slack(channel="C1", message="hi", workspace="aperture")
+        assert result == ok("9.9")
+        assert mod._active_workspace == "aperture"
+        assert captured["channel"] == "C1"
+        assert captured["message"] == "hi"
+
+    def test_no_workspace_leaves_active_unchanged(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(mod, "send_slack_message", lambda **_: ok("1.0"))
+        result = mod.notify_slack(channel="C1", message="hi")
+        assert result == ok("1.0")
+        assert mod._active_workspace is None
 
 
 class TestUvxEnvImportSmoke:

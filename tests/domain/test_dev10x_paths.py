@@ -129,6 +129,29 @@ def test_migrate_path_copies_directory(tmp_path: Path) -> None:
     assert (current / "b.yaml").read_text() == "b"
 
 
+def test_migrate_path_rechecks_inside_lock_when_current_appears(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Double-checked locking (GH-587): a writer that wins the race inside
+    the lock must not be clobbered by a second arrival."""
+    from contextlib import contextmanager
+
+    legacy = tmp_path / "old" / "file.yaml"
+    current = tmp_path / "new" / "file.yaml"
+    legacy.parent.mkdir()
+    legacy.write_text("legacy")
+
+    @contextmanager
+    def racing_lock(path: Path, **_: object):
+        current.parent.mkdir(parents=True, exist_ok=True)
+        current.write_text("winner")
+        yield
+
+    monkeypatch.setattr("dev10x.domain.dev10x_paths.file_lock", racing_lock)
+    assert migrate_path(legacy=legacy, current=current) is False
+    assert current.read_text() == "winner"
+
+
 def test_lazy_migration_runs_on_accessor(isolated_dirs: tuple[Path, Path]) -> None:
     legacy_root, new_root = isolated_dirs
     legacy = ClaudeDir.memory_projects_yaml()

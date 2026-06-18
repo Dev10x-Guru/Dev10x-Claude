@@ -1521,6 +1521,8 @@ def init_userspace_config() -> dict[str, object]:
     for downgrade safety; ``upgrade-cleanup``/``plugin-doctor`` remove
     it once parity is confirmed. Returns a result dict.
     """
+    from dev10x.domain.file_locks import atomic_write_text, file_lock
+
     messages: list[str] = []
     errors: list[str] = []
 
@@ -1530,24 +1532,31 @@ def init_userspace_config() -> dict[str, object]:
 
     MEMORY_CONFIG.parent.mkdir(parents=True, exist_ok=True)
 
-    if USERSPACE_CONFIG.is_file():
-        MEMORY_CONFIG.write_text(USERSPACE_CONFIG.read_text())
-        messages.append(f"Migrated {USERSPACE_CONFIG} -> {MEMORY_CONFIG}")
-        messages.append(f"{USERSPACE_CONFIG} is deprecated; edit {MEMORY_CONFIG} from now on.")
+    # Double-checked locking (GH-587): two worktrees/agents racing first-call
+    # init must not both pass the exists-check and clobber each other's write.
+    with file_lock(MEMORY_CONFIG):
+        if MEMORY_CONFIG.is_file():
+            messages.append(f"Config already exists: {MEMORY_CONFIG}")
+            return _result(exit_code=0, messages=messages, errors=errors)
+
+        if USERSPACE_CONFIG.is_file():
+            atomic_write_text(MEMORY_CONFIG, USERSPACE_CONFIG.read_text())
+            messages.append(f"Migrated {USERSPACE_CONFIG} -> {MEMORY_CONFIG}")
+            messages.append(f"{USERSPACE_CONFIG} is deprecated; edit {MEMORY_CONFIG} from now on.")
+            return _result(exit_code=0, messages=messages, errors=errors)
+
+        if not PLUGIN_CONFIG.is_file():
+            errors.append(f"ERROR: Plugin default config not found: {PLUGIN_CONFIG}")
+            return _result(exit_code=1, messages=messages, errors=errors)
+
+        content = PLUGIN_CONFIG.read_text()
+        detected_cache = _detect_plugin_cache()
+        content = content.replace(
+            "~/.claude/plugins/cache/Dev10x-Guru/dev10x-claude",
+            detected_cache,
+        )
+        atomic_write_text(MEMORY_CONFIG, content)
+        messages.append(f"Created: {MEMORY_CONFIG}")
+        messages.append(f"Plugin cache: {detected_cache}")
+        messages.append("Edit this file to add your project roots.")
         return _result(exit_code=0, messages=messages, errors=errors)
-
-    if not PLUGIN_CONFIG.is_file():
-        errors.append(f"ERROR: Plugin default config not found: {PLUGIN_CONFIG}")
-        return _result(exit_code=1, messages=messages, errors=errors)
-
-    content = PLUGIN_CONFIG.read_text()
-    detected_cache = _detect_plugin_cache()
-    content = content.replace(
-        "~/.claude/plugins/cache/Dev10x-Guru/dev10x-claude",
-        detected_cache,
-    )
-    MEMORY_CONFIG.write_text(content)
-    messages.append(f"Created: {MEMORY_CONFIG}")
-    messages.append(f"Plugin cache: {detected_cache}")
-    messages.append("Edit this file to add your project roots.")
-    return _result(exit_code=0, messages=messages, errors=errors)
