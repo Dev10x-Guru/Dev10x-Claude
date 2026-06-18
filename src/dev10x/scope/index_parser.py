@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from fnmatch import fnmatch
 from pathlib import Path
 
 
@@ -36,6 +37,19 @@ class RuleEntry:
     patterns: tuple[str, ...]
     source: str
     description: str
+
+    def matches(self, *, path: str) -> bool:
+        """True when ``path`` matches any of this entry's patterns.
+
+        ``**`` is treated as ``*`` after a one-time substitution, matching
+        the loose convention INDEX.md uses (e.g. ``**/*.py``). Owning the
+        match here keeps the pattern-iteration loop out of callers.
+        """
+        for pattern in self.patterns:
+            normalized = pattern.replace("**/", "*/").replace("**", "*")
+            if fnmatch(path, pattern) or fnmatch(path, normalized):
+                return True
+        return False
 
 
 _TABLE_ROW_RE = re.compile(r"^\|(.+)\|\s*$")

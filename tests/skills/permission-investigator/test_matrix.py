@@ -13,6 +13,7 @@ from dev10x.skills.permission_investigator.matrix import (
     MatrixCell,
     MatrixQuery,
     MatrixResult,
+    MatrixStatus,
     RuleShape,
     generate_matrix,
 )
@@ -150,7 +151,7 @@ class TestMatrixResultStatus:
             prompted=False,
         )
 
-        assert result.status == "works"
+        assert result.status is MatrixStatus.WORKS
 
     def test_prompts_when_prompted_flag_set(self) -> None:
         result = MatrixResult(
@@ -159,7 +160,7 @@ class TestMatrixResultStatus:
             prompted=True,
         )
 
-        assert result.status == "prompts"
+        assert result.status is MatrixStatus.PROMPTS
 
     def test_error_short_circuits_status(self) -> None:
         result = MatrixResult(
@@ -169,7 +170,7 @@ class TestMatrixResultStatus:
             error="boom",
         )
 
-        assert result.status == "error"
+        assert result.status is MatrixStatus.ERROR
 
 
 class TestMatrixQuery:
@@ -198,9 +199,9 @@ class TestMatrixQuery:
 
         grouped = MatrixQuery(matrix=matrix).aggregate()
 
-        assert len(grouped["works"]) == 1
-        assert len(grouped["prompts"]) == 1
-        assert grouped["error"] == []
+        assert len(grouped[MatrixStatus.WORKS]) == 1
+        assert len(grouped[MatrixStatus.PROMPTS]) == 1
+        assert grouped[MatrixStatus.ERROR] == []
 
     def test_aggregate_ignores_results_without_a_cell(self) -> None:
         matrix = Matrix()
@@ -218,7 +219,7 @@ class TestMatrixQuery:
             }
         )
 
-        shapes = MatrixQuery(matrix=matrix).shapes_for_status(status="works")
+        shapes = MatrixQuery(matrix=matrix).shapes_for_status(status=MatrixStatus.WORKS)
 
         assert shapes == {("tilde", "literal")}
 

@@ -19,7 +19,6 @@ rule and ADR-0007 for the Policy Rule archetype these satisfy.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 from dev10x.domain.documents.session_state import PlanSummary
 from dev10x.domain.friction_level import FrictionLevel
@@ -40,16 +39,15 @@ class DecisionGuidanceRule(PolicyRule[str]):
     for adaptive sessions) as a latent bug.
     """
 
-    plan: dict[str, Any]
+    plan: PlanSummary
     friction_level: FrictionLevel
 
     def apply(self) -> str:
         if not isinstance(self.friction_level, FrictionLevel):
             raise UnknownFrictionLevelError(f"Unknown friction level: {self.friction_level!r}")
 
-        summary = PlanSummary.from_dict(data=self.plan)
-        if not summary.pending_decisions:
-            if summary.has_remaining_tasks:
+        if not self.plan.pending_decisions:
+            if self.plan.has_remaining_tasks:
                 return "Session resumed with tasks remaining. Auto-advance through the task list."
             return ""
 

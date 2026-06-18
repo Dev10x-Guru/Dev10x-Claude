@@ -13,7 +13,17 @@ from dev10x.domain.documents.session_context import (
     format_compaction_summary,
     format_reload_context,
 )
+from dev10x.domain.documents.session_state import PlanSummary, SessionState
 from dev10x.domain.friction_level import FrictionLevel
+
+
+def _plan(*, tasks: list[dict] | None = None) -> PlanSummary:
+    return PlanSummary.from_dict(
+        data={
+            "plan": {"branch": "b", "status": "in_progress", "last_synced": "t"},
+            "tasks": tasks if tasks is not None else [{"subject": "X", "status": "pending"}],
+        }
+    )
 
 
 def _ctx(**kwargs: Any) -> SessionContextQuery:
@@ -29,9 +39,13 @@ class TestSessionContextQueryDefaults:
         ctx = _ctx()
         assert ctx.worktree_name == ""
 
-    def test_state_defaults_to_empty_dict(self) -> None:
+    def test_session_state_defaults_to_none(self) -> None:
         ctx = _ctx()
-        assert ctx.state == {}
+        assert ctx.session_state is None
+
+    def test_plan_defaults_to_none(self) -> None:
+        ctx = _ctx()
+        assert ctx.plan is None
 
     def test_plan_exists_defaults_to_false(self) -> None:
         ctx = _ctx()
@@ -55,12 +69,28 @@ class TestSessionContextQueryDefaults:
 
 class TestFormatReloadContext:
     def test_returns_empty_when_no_state_and_no_plan(self) -> None:
-        ctx = _ctx(state={}, plan_exists=False)
+        ctx = _ctx(session_state=None, plan=None)
         assert format_reload_context(ctx=ctx) == ""
 
     def test_returns_empty_with_empty_state(self) -> None:
-        ctx = _ctx(state={}, plan_exists=False)
+        ctx = _ctx(session_state=None, plan=None)
         assert format_reload_context(ctx=ctx) == ""
+
+    def test_renders_state_section_when_present(self) -> None:
+        state = SessionState.from_dict(
+            data={
+                "timestamp": "2026-06-18T10:00:00+00:00",
+                "branch": "feature/x",
+                "session_id": "s",
+            }
+        )
+        ctx = _ctx(session_state=state)
+        assert "feature/x" in format_reload_context(ctx=ctx)
+
+    def test_renders_plan_section_and_guidance_when_present(self) -> None:
+        ctx = _ctx(plan_exists=True, plan=_plan())
+        rendered = format_reload_context(ctx=ctx)
+        assert "Auto-advance" in rendered
 
 
 class TestFormatCompactionSummary:
@@ -115,6 +145,12 @@ class TestFormatCompactionSummary:
     def test_returns_string(self, tmp_path: Path) -> None:
         ctx = _ctx()
         assert isinstance(format_compaction_summary(ctx=ctx, plugin_root=tmp_path), str)
+
+    def test_includes_plan_section_and_resume_guidance(self, tmp_path: Path) -> None:
+        ctx = _ctx(plan_exists=True, plan=_plan())
+        result = format_compaction_summary(ctx=ctx, plugin_root=tmp_path)
+        assert "Resume Guidance" in result
+        assert "Reconstructed from persisted plan file" in result
 
 
 class TestGatherReload:
@@ -193,7 +229,7 @@ class TestGatherReload:
         ):
             mock_doc.return_value.read_friction_level.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_reload(toplevel=str(tmp_path))
-        assert ctx.state == fake_state
+        assert ctx.session_state == SessionState.from_dict(data=fake_state)
 
 
 class TestGatherCompaction:

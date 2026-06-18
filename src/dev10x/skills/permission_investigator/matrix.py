@@ -10,8 +10,19 @@ exercise the corresponding tool call, and records the outcome.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 from itertools import product
 from typing import Literal
+
+
+class MatrixStatus(StrEnum):
+    """Outcome of exercising one matrix cell's rule shape."""
+
+    ERROR = "error"
+    WORKS = "works"
+    PROMPTS = "prompts"
+    UNKNOWN = "unknown"
+
 
 ToolKind = Literal["Read", "Bash", "Edit", "Write", "MCP"]
 RuleLocation = Literal["global", "project", "both", "neither"]
@@ -72,14 +83,14 @@ class MatrixResult:
     notes: str = ""
 
     @property
-    def status(self) -> str:
+    def status(self) -> MatrixStatus:
         if self.error:
-            return "error"
+            return MatrixStatus.ERROR
         if self.auto_approved and not self.prompted:
-            return "works"
+            return MatrixStatus.WORKS
         if self.prompted:
-            return "prompts"
-        return "unknown"
+            return MatrixStatus.PROMPTS
+        return MatrixStatus.UNKNOWN
 
 
 @dataclass
@@ -112,13 +123,13 @@ class MatrixQuery:
 
     matrix: Matrix
 
-    def aggregate(self) -> dict[str, list[MatrixResult]]:
+    def aggregate(self) -> dict[MatrixStatus, list[MatrixResult]]:
         """Group recorded results by status (works / prompts / error / unknown)."""
-        grouped: dict[str, list[MatrixResult]] = {
-            "works": [],
-            "prompts": [],
-            "error": [],
-            "unknown": [],
+        grouped: dict[MatrixStatus, list[MatrixResult]] = {
+            MatrixStatus.WORKS: [],
+            MatrixStatus.PROMPTS: [],
+            MatrixStatus.ERROR: [],
+            MatrixStatus.UNKNOWN: [],
         }
         known = {cell.cell_id for cell in self.matrix.cells}
         for cell_id, result in self.matrix.results.items():
@@ -127,7 +138,7 @@ class MatrixQuery:
             grouped.setdefault(result.status, []).append(result)
         return grouped
 
-    def shapes_for_status(self, *, status: str) -> set[tuple[PathPrefix, WildcardShape]]:
+    def shapes_for_status(self, *, status: MatrixStatus) -> set[tuple[PathPrefix, WildcardShape]]:
         """Return the (prefix, wildcard) shapes whose cells recorded ``status``."""
         return {
             (cell.shape.prefix, cell.shape.wildcard)

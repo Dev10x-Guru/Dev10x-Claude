@@ -12,8 +12,8 @@ from __future__ import annotations
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
+from dev10x.domain.documents.session_state import PlanSummary, SessionState
 from dev10x.domain.documents.session_yaml import SessionYamlDocument
 from dev10x.domain.friction_level import FrictionLevel
 from dev10x.domain.git_context import GitContext
@@ -40,9 +40,9 @@ class SessionContextQuery:
     toplevel: str
     branch: str = "unknown"
     worktree_name: str = ""
-    state: dict[str, Any] = field(default_factory=dict)
+    session_state: SessionState | None = None
     plan_exists: bool = False
-    plan_data: dict[str, Any] = field(default_factory=dict)
+    plan: PlanSummary | None = None
     friction_level: FrictionLevel = field(default_factory=FrictionLevel.default)
     modified_files: list[str] = field(default_factory=list)
     staged_files: list[str] = field(default_factory=list)
@@ -55,14 +55,18 @@ class SessionContextQuery:
         state = claim_state_file(path=state_path_for_toplevel(toplevel=toplevel))
         plan_path = plan_path_for_toplevel(toplevel=toplevel)
         plan_exists = plan_path.exists()
-        plan_data = read_plan_summary(toplevel=toplevel) if plan_exists else {}
+        plan = (
+            PlanSummary.from_dict(data=read_plan_summary(toplevel=toplevel))
+            if plan_exists
+            else None
+        )
         friction_level = SessionYamlDocument(toplevel=toplevel).read_friction_level()
 
         return cls(
             toplevel=toplevel,
-            state=state,
+            session_state=SessionState.from_dict(data=state) if state else None,
             plan_exists=plan_exists,
-            plan_data=plan_data,
+            plan=plan,
             friction_level=friction_level,
         )
 
@@ -85,7 +89,11 @@ class SessionContextQuery:
 
         plan_path = plan_path_for_toplevel(toplevel=toplevel)
         plan_exists = plan_path.exists()
-        plan_data = read_plan_summary(toplevel=toplevel) if plan_exists else {}
+        plan = (
+            PlanSummary.from_dict(data=read_plan_summary(toplevel=toplevel))
+            if plan_exists
+            else None
+        )
         friction_level = SessionYamlDocument(toplevel=toplevel).read_friction_level()
 
         return cls(
@@ -93,7 +101,7 @@ class SessionContextQuery:
             branch=branch,
             worktree_name=worktree_name,
             plan_exists=plan_exists,
-            plan_data=plan_data,
+            plan=plan,
             friction_level=friction_level,
             modified_files=modified,
             staged_files=staged,
@@ -108,23 +116,20 @@ def _format_files(*, files: list[str]) -> str:
 
 def format_reload_context(*, ctx: SessionContextQuery) -> str:
     """Render a SessionContextQuery as the SessionStart additionalContext."""
-    from dev10x.domain.documents.session_state import PlanSummary, SessionState
 
-    if not ctx.state and not ctx.plan_exists:
+    if ctx.session_state is None and ctx.plan is None:
         return ""
 
     parts: list[str] = []
-    if ctx.state:
-        state_text = SessionState.from_dict(data=ctx.state).format_for_display()
+    if ctx.session_state is not None:
+        state_text = ctx.session_state.format_for_display()
         if state_text:
             parts.append(state_text)
-    if ctx.plan_exists:
-        plan_text = PlanSummary.from_dict(data=ctx.plan_data).format_for_display()
+    if ctx.plan is not None:
+        plan_text = ctx.plan.format_for_display()
         if plan_text:
             parts.append(plan_text)
-        guidance = DecisionGuidanceRule(
-            plan=ctx.plan_data, friction_level=ctx.friction_level
-        ).apply()
+        guidance = DecisionGuidanceRule(plan=ctx.plan, friction_level=ctx.friction_level).apply()
         if guidance:
             parts.append(guidance)
     return "\n\n".join(parts)
@@ -132,7 +137,6 @@ def format_reload_context(*, ctx: SessionContextQuery) -> str:
 
 def format_compaction_summary(*, ctx: SessionContextQuery, plugin_root: Path) -> str:
     """Render a SessionContextQuery as the PreCompact systemMessage body."""
-    from dev10x.domain.documents.session_state import PlanSummary
 
     essentials_file = plugin_root / ".claude" / "rules" / "essentials.md"
     essentials = essentials_file.read_text() if essentials_file.exists() else ""
@@ -152,16 +156,13 @@ def format_compaction_summary(*, ctx: SessionContextQuery, plugin_root: Path) ->
     if essentials:
         summary += f"\n\n## Essential Conventions (from essentials.md)\n{essentials}"
 
-    if ctx.plan_exists:
-        plan = PlanSummary.from_dict(data=ctx.plan_data)
-        summary += "\n\n" + plan.format_for_compaction()
-        if not plan.context.routing_table:
+    if ctx.plan is not None:
+        summary += "\n\n" + ctx.plan.format_for_compaction()
+        if not ctx.plan.context.routing_table:
             recovery_file = plugin_root / "references" / "compaction-recovery.md"
             if recovery_file.exists():
                 summary += f"\n\n{recovery_file.read_text()}"
-        guidance = DecisionGuidanceRule(
-            plan=ctx.plan_data, friction_level=ctx.friction_level
-        ).apply()
+        guidance = DecisionGuidanceRule(plan=ctx.plan, friction_level=ctx.friction_level).apply()
         if guidance:
             summary += f"\n\n### Resume Guidance\n{guidance}"
         summary += (
