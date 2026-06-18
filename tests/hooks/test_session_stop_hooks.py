@@ -57,7 +57,7 @@ class TestSessionPersist:
 
         monkeypatch.setattr(mod, "_get_toplevel", lambda: str(project_dir))
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
-        monkeypatch.setattr(mod, "_run_git", lambda *a: "")
+        monkeypatch.setattr(mod, "_run_git_safe", lambda git, *a: "")
 
         result = runner.invoke(
             cli,
@@ -116,7 +116,7 @@ class TestSessionPersist:
 
         monkeypatch.setattr(mod, "_get_toplevel", lambda: str(project_dir))
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
-        monkeypatch.setattr(mod, "_run_git", lambda *a: "")
+        monkeypatch.setattr(mod, "_run_git_safe", lambda git, *a: "")
 
         runner.invoke(
             cli,
@@ -127,6 +127,37 @@ class TestSessionPersist:
         state_dir = tmp_path / ".claude" / "projects" / "_session_state"
         assert state_dir.exists()
         assert state_dir.stat().st_mode & 0o777 == 0o700
+
+
+class TestRunGitSafe:
+    def test_returns_git_output(self) -> None:
+        import dev10x.hooks.session_dispatch as mod
+
+        class FakeGit:
+            def run(self, *args: str) -> str:
+                return "main"
+
+        assert mod._run_git_safe(FakeGit(), "rev-parse", "--abbrev-ref", "HEAD") == "main"
+
+    def test_swallows_called_process_error(self) -> None:
+        import subprocess
+
+        import dev10x.hooks.session_dispatch as mod
+
+        class FailGit:
+            def run(self, *args: str) -> str:
+                raise subprocess.CalledProcessError(1, "git")
+
+        assert mod._run_git_safe(FailGit(), "status") == ""
+
+    def test_swallows_missing_git(self) -> None:
+        import dev10x.hooks.session_dispatch as mod
+
+        class NoGit:
+            def run(self, *args: str) -> str:
+                raise FileNotFoundError()
+
+        assert mod._run_git_safe(NoGit(), "status") == ""
 
 
 class TestSessionGoodbye:

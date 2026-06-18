@@ -52,9 +52,9 @@ def _escape_for_json(*, s: str) -> str:
     )
 
 
-def _run_git(*args: str) -> str:
+def _run_git_safe(git: GitContext, *args: str) -> str:
     try:
-        return GitContext().run(*args)
+        return git.run(*args)
     except (subprocess.CalledProcessError, FileNotFoundError):
         return ""
 
@@ -255,10 +255,11 @@ def session_persist(data: dict | None = None) -> None:
     state_dir.mkdir(parents=True, exist_ok=True)
     state_dir.chmod(0o700)
 
+    git = GitContext(cwd=toplevel)
     state = SessionState.capture(
         session_id=session_id,
         toplevel=toplevel,
-        run_git=_run_git,
+        run_git=lambda *args: _run_git_safe(git, *args),
         timestamp=datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
     ).to_dict()
     state["working_directory"] = toplevel
