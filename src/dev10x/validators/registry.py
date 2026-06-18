@@ -56,7 +56,14 @@ class ValidatorSpec:
 
 
 class ValidatorFilter(Protocol):
-    """Composable predicate applied to specs at registry-build time."""
+    """Composable predicate applied to specs at registry-build time.
+
+    **Pattern: Strategy** (GoF). Each concrete filter (:class:`ProfileFilter`,
+    :class:`DisableListFilter`, :class:`ExperimentalFilter`) is an
+    interchangeable ``keep`` strategy; the registry holds a list of them
+    and applies them in turn, so new filtering policies are added by
+    writing a new strategy rather than editing the registry.
+    """
 
     def keep(self, spec: ValidatorSpec) -> bool:
         """Return True to retain ``spec`` in the active set."""
@@ -201,13 +208,20 @@ def _assert_metadata_matches(*, instance: Validator, spec: ValidatorSpec) -> Non
 class ValidatorChain:
     """Iterates active validators for a single :class:`HookInput`.
 
-    Two entry points:
+    **Pattern: Chain of Responsibility** (GoF), in two variants:
 
-      :meth:`run` — for PreToolUse: emits every non-None ``validate()``
-        result; iteration continues so multiple validators may speak.
+      :meth:`correct` — for PermissionDenied: the canonical CoR —
+        short-circuits at the first validator returning a
+        :class:`HookRetry` (first handler wins).
 
-      :meth:`correct` — for PermissionDenied: short-circuits at the
-        first validator returning a :class:`HookRetry`.
+      :meth:`run` — for PreToolUse: an *accumulating* CoR variant —
+        emits every non-None ``validate()`` result; iteration continues
+        so multiple validators may speak rather than the first winning.
+
+    Choosing the variant is the contributor's decision per new
+    validator: a validator that must pre-empt others belongs on the
+    short-circuit path; one that contributes an independent opinion
+    belongs on the accumulating path.
 
     A validator raising during ``should_run``/``validate``/``correct``
     is always logged (GH-494 — previously silent unless ``HOOK_DEBUG``).
