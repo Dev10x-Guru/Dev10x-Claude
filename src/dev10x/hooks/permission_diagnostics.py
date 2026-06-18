@@ -26,7 +26,7 @@ from typing import Any
 
 from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.allow_rule import AllowRule, AllowRuleLoader
-from dev10x.domain.common.mcp_tool_name import McpToolName
+from dev10x.domain.common.tool_signature import ToolSignature
 from dev10x.subprocess_utils import effective_cwd
 
 
@@ -81,28 +81,10 @@ SETTINGS_PRECEDENCE: list[SettingsFile] = [
 
 
 def extract_tool_signature(raw: dict[str, Any]) -> str | None:
-    tool_name = raw.get("tool_name", "")
-    tool_input = raw.get("tool_input", {})
-
-    if not tool_name:
+    sig = ToolSignature.from_hook_input(raw)
+    if sig is None:
         return None
-
-    if tool_name == "Bash":
-        command = tool_input.get("command", "")
-        if not command:
-            return None
-        return f"Bash({command})"
-
-    if tool_name in ("Write", "Read", "Edit"):
-        file_path = tool_input.get("file_path", "")
-        if not file_path:
-            return None
-        return f"{tool_name}({file_path})"
-
-    if McpToolName.is_mcp(tool_name):
-        return tool_name
-
-    return f"{tool_name}()"
+    return str(sig)
 
 
 def _load_allow_rules(path: Path) -> list[str] | None:
@@ -258,32 +240,22 @@ def _build_fix_suggestion(
 
 
 def _suggest_rule(*, signature: str) -> str:
-    if McpToolName.is_mcp(signature):
-        last_sep = signature.rfind("__")
-        if last_sep > 0:
-            prefix = signature[:last_sep]
-            return f"{prefix}__*"
-        return signature
-
     paren_idx = signature.find("(")
     if paren_idx == -1:
+        # MCP tool names have no parens — delegate via ToolSignature directly.
+        # Non-MCP bare names (no parens) return unchanged (original behaviour).
+        tool = signature
+        value = ""
+    else:
+        tool = signature[:paren_idx]
+        value = signature[paren_idx + 1 :].rstrip(")")
+    sig = ToolSignature(tool=tool, value=value)
+    result = sig.suggest_rule()
+    # For non-MCP bare names the VO returns "Tool()" which differs from the
+    # original "return signature" contract — preserve the original output.
+    if paren_idx == -1 and not sig.tool.startswith("mcp__"):
         return signature
-
-    tool = signature[:paren_idx]
-    value = signature[paren_idx + 1 :].rstrip(")")
-
-    if tool == "Bash":
-        first_space = value.find(" ")
-        if first_space > 0:
-            return f"Bash({value[:first_space]}:*)"
-        return f"Bash({value}:*)"
-
-    if tool in ("Write", "Read", "Edit"):
-        path = Path(value)
-        parent = str(path.parent)
-        return f"{tool}({parent}/**)"
-
-    return signature
+    return result
 
 
 def format_diagnostic(result: DiagnosticResult) -> str:
