@@ -95,32 +95,60 @@ class SessionFeature(NamedTuple):
     name — ``@dataclass`` + ``from __future__ import annotations`` does a
     ``sys.modules`` lookup that fails outside a registered module.
 
-    ``mode`` selects the calling convention:
-      - ``"capture"`` — wrap with ``audit_hook`` and capture stdout
-        (legacy print-based features). ``pass_data`` forwards stdin.
-      - ``"build"``  — call directly and use the returned string.
-    ``emits_context`` is False for side-effect-only features (tmpdir).
+    ``run`` encapsulates the calling convention for this feature — it
+    receives ``(data, audit_hook)`` and returns the context string (or
+    ``""``). Use :func:`capture_feature` or :func:`build_feature` to
+    construct a ``SessionFeature`` with the correct ``run`` callable
+    rather than building it by hand.
     """
 
     name: str
     fn: Callable[..., Any]
-    mode: str
-    pass_data: bool = False
-    emits_context: bool = True
+    run: Callable[..., str]
 
 
-def _run_session_feature(*, feature: SessionFeature, data: dict, audit_hook) -> str:
-    """Run one feature, returning the context string to append (or "")."""
-    if feature.mode == "build":
+def capture_feature(
+    *,
+    name: str,
+    fn: Callable[..., Any],
+    pass_data: bool = False,
+    emits_context: bool = True,
+) -> SessionFeature:
+    """Return a ``SessionFeature`` that wraps ``fn`` with ``audit_hook`` and captures stdout.
+
+    Used for legacy print-based features. When ``pass_data`` is True, the
+    stdin ``data`` dict is forwarded to ``fn``. When ``emits_context`` is
+    False the captured stdout is discarded (side-effect-only features such
+    as tmpdir setup).
+    """
+
+    def _run(data: dict, audit_hook) -> str:
+        inner_fn = (lambda: fn(data=data)) if pass_data else fn
+        out = _run_feature(name=name, fn=inner_fn, audit_hook=audit_hook)
+        return out.strip() if emits_context else ""
+
+    return SessionFeature(name=name, fn=fn, run=_run)
+
+
+def build_feature(*, name: str, fn: Callable[..., Any]) -> SessionFeature:
+    """Return a ``SessionFeature`` that calls ``fn`` directly and uses the returned string.
+
+    Used for features that return their context string rather than printing it.
+    """
+
+    def _run(data: dict, audit_hook) -> str:  # noqa: ARG001
         try:
-            return feature.fn() or ""
+            return fn() or ""
         except Exception:
             traceback.print_exc(file=sys.stderr)
             return ""
 
-    fn = (lambda: feature.fn(data=data)) if feature.pass_data else feature.fn
-    out = _run_feature(name=feature.name, fn=fn, audit_hook=audit_hook)
-    return out.strip() if feature.emits_context else ""
+    return SessionFeature(name=name, fn=fn, run=_run)
+
+
+def _run_session_feature(*, feature: SessionFeature, data: dict, audit_hook) -> str:
+    """Run one feature, returning the context string to append (or "")."""
+    return feature.run(data, audit_hook)
 
 
 def main() -> None:
@@ -129,36 +157,19 @@ def main() -> None:
 
     # Order matters for readability of the merged additionalContext.
     features = [
-        SessionFeature(name="session-git-aliases", fn=s.session_git_aliases, mode="capture"),
-        SessionFeature(
+        capture_feature(name="session-git-aliases", fn=s.session_git_aliases),
+        capture_feature(
             name="session-tmpdir",
             fn=s.session_tmpdir,
-            mode="capture",
             pass_data=True,
             emits_context=False,
         ),
-        SessionFeature(name="session-guidance", fn=s.build_guidance_context, mode="build"),
-        SessionFeature(
-            name="session-autonomy",
-            fn=s.build_autonomy_reassurance_context,
-            mode="build",
-        ),
-        SessionFeature(
-            name="session-install-check",
-            fn=s.build_install_check_context,
-            mode="build",
-        ),
-        SessionFeature(
-            name="session-hook-version-drift",
-            fn=s.build_hook_version_drift_context,
-            mode="build",
-        ),
-        SessionFeature(
-            name="session-migrate-permissions",
-            fn=s.session_migrate_permissions,
-            mode="capture",
-        ),
-        SessionFeature(name="session-reload", fn=s.build_reload_context, mode="build"),
+        build_feature(name="session-guidance", fn=s.build_guidance_context),
+        build_feature(name="session-autonomy", fn=s.build_autonomy_reassurance_context),
+        build_feature(name="session-install-check", fn=s.build_install_check_context),
+        build_feature(name="session-hook-version-drift", fn=s.build_hook_version_drift_context),
+        capture_feature(name="session-migrate-permissions", fn=s.session_migrate_permissions),
+        build_feature(name="session-reload", fn=s.build_reload_context),
     ]
 
     context_parts: list[str] = []
