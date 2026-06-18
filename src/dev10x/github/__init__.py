@@ -3,6 +3,17 @@
 Extracted from cli_server.py — cohesive GitHub API and CLI operations.
 Each function takes explicit parameters and returns Result types.
 All public functions are async to avoid blocking the MCP event loop.
+
+**Pattern: Gateway** (Fowler, *PoEAA*). This module is the Gateway to
+the GitHub external system: every call to the ``gh`` CLI and the GitHub
+REST/GraphQL APIs is funnelled through ``_gh_api_raw`` / ``async_run`` /
+``async_run_script``, giving callers a uniform Python surface and a
+single place to inject auth (``as_bot`` bot-token routing) and the
+effective working directory. Callers never shell out to ``gh`` directly
+— they go through this Gateway, so authentication, repo resolution, and
+error wrapping stay in one layer. ADR-0006 records the decision to keep
+this internal Gateway instead of the official GitHub MCP server;
+ADR-0013 names the pattern across this module and ``subprocess_utils``.
 """
 
 from __future__ import annotations

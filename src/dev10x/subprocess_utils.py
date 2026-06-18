@@ -1,4 +1,14 @@
-"""Shared utilities for calling external scripts via subprocess."""
+"""Shared utilities for calling external scripts via subprocess.
+
+**Pattern: Gateway** (Fowler, *PoEAA*). This module is the Gateway to
+the operating-system subprocess boundary: ``run`` / ``async_run`` /
+``async_run_script`` wrap every external-process invocation behind one
+call surface that transparently routes to the caller's effective
+working directory (see ``_effective_cwd`` / ``use_cwd`` below). Callers
+never reach for ``subprocess.run`` directly — going through this Gateway
+keeps CWD routing, timeout handling, and output parsing in a single
+layer. ADR-0013 names the pattern here and on ``dev10x.github``.
+"""
 
 from __future__ import annotations
 
