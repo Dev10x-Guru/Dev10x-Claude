@@ -93,9 +93,13 @@ class TestSessionGuidance:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         import dev10x.hooks.session_dispatch as mod
+        from dev10x.session.service import SessionService
 
         fake_root = Path("/tmp/nonexistent-plugin-root-xyz")
         monkeypatch.setattr(mod, "_plugin_root", lambda: fake_root)
+        monkeypatch.setattr(
+            SessionService, "_default_plugin_root", staticmethod(lambda: fake_root)
+        )
 
         with pytest.raises(SystemExit) as exc_info:
             mod.session_guidance()

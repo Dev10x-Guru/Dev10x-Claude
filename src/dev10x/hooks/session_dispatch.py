@@ -4,6 +4,7 @@ Event-routing module. Owns the entry points referenced by
 ``hooks/scripts/session-*.py`` and ``commands/hook.py``. Rendering and
 data assembly live elsewhere:
 
+* Session orchestration / context builders — :mod:`dev10x.session.service`.
 * Document I/O — :mod:`dev10x.domain.session_document`.
 * Named policies (friction parsing, permission migration, decision
   guidance) — :mod:`dev10x.hooks.session_policy`.
@@ -21,11 +22,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.domain.documents.session_context import (
-    SessionContextQuery,
-    format_compaction_summary,
-    format_reload_context,
-)
 from dev10x.domain.documents.session_state import SessionState
 from dev10x.domain.git_context import GitContext
 from dev10x.domain.session_document import (
@@ -34,6 +30,7 @@ from dev10x.domain.session_document import (
     write_state,
 )
 from dev10x.hooks.session_policy import MigratePluginPermissionsRule
+from dev10x.session.service import SessionService
 
 
 def _get_toplevel() -> str | None:
@@ -95,11 +92,7 @@ def drain_stdin() -> None:
 
 def build_reload_context() -> str:
     """Build the session-reload additionalContext string. Empty when no state."""
-    toplevel = _get_toplevel()
-    if not toplevel:
-        return ""
-    ctx = SessionContextQuery.gather_reload(toplevel=toplevel)
-    return format_reload_context(ctx=ctx)
+    return SessionService().build_reload_context(toplevel=_get_toplevel())
 
 
 def session_reload() -> None:
@@ -108,19 +101,17 @@ def session_reload() -> None:
 
 def context_compact() -> None:
     drain_stdin()
-    toplevel = _get_toplevel()
-    if not toplevel:
+    service = SessionService()
+    summary = service.build_compaction_context(toplevel=_get_toplevel())
+    if not summary:
         sys.exit(0)
-    ctx = SessionContextQuery.gather_compaction(toplevel=toplevel)
-    summary = format_compaction_summary(ctx=ctx, plugin_root=_plugin_root())
     escaped = _escape_for_json(s=summary)
     print(f'{{"hookSpecificOutput":{{"systemMessage":"{escaped}"}}}}')
 
 
 def build_guidance_context() -> str:
     """Return the session-guidance.md contents, or empty string if missing."""
-    guidance_file = _plugin_root() / "hooks" / "scripts" / "session-guidance.md"
-    return guidance_file.read_text() if guidance_file.exists() else ""
+    return SessionService().build_guidance_context()
 
 
 def build_autonomy_reassurance_context() -> str:
@@ -129,16 +120,7 @@ def build_autonomy_reassurance_context() -> str:
     Returns an empty string outside the autonomous-shipping profile; the
     orchestrator drops empty segments so non-solo sessions see no change.
     """
-    from dev10x.domain.documents.session_yaml import SessionYamlDocument
-    from dev10x.domain.session_rules import BuildAutonomyReassuranceRule
-
-    toplevel = _get_toplevel()
-    if not toplevel:
-        return ""
-    friction_level, active_modes = SessionYamlDocument(toplevel=toplevel).read_friction_and_modes()
-    return BuildAutonomyReassuranceRule(
-        friction_level=friction_level, active_modes=active_modes
-    ).apply()
+    return SessionService().build_autonomy_reassurance_context(toplevel=_get_toplevel())
 
 
 def build_install_check_context() -> str:
@@ -147,24 +129,7 @@ def build_install_check_context() -> str:
     Returns an empty string when the install is current — the orchestrator
     drops empty segments, so a no-op leaves no trace in additionalContext.
     """
-    from dev10x.domain.install_version import install_state
-
-    state = install_state()
-    if state.needs_bootstrap:
-        return (
-            "Dev10x config folder is missing at ~/.config/Dev10x.\n"
-            "Run `/Dev10x:upgrade-cleanup` to bootstrap the userspace install."
-        )
-    if state.needs_upgrade:
-        plugin = state.plugin_version or "unknown"
-        applied = state.applied_version or "never applied"
-        return (
-            f"Dev10x plugin {plugin} is installed but upgrade-cleanup was last "
-            f"run for {applied}.\n"
-            "Run `/Dev10x:upgrade-cleanup` to refresh permissions and "
-            "migrate config files."
-        )
-    return ""
+    return SessionService().build_install_check_context()
 
 
 def build_hook_version_drift_context() -> str:
@@ -185,24 +150,7 @@ def build_hook_version_drift_context() -> str:
     Returns an empty string when no drift is detected or when either version
     cannot be determined (``--plugin-dir`` dev installs, new users, etc.).
     """
-    from dev10x.domain.install_version import (
-        read_latest_installed_version,
-        read_running_hook_version,
-    )
-
-    running = read_running_hook_version()
-    if running is None:
-        return ""
-    latest = read_latest_installed_version()
-    if latest is None:
-        return ""
-    if running == latest:
-        return ""
-    return (
-        f"Dev10x hooks running v{running} but v{latest} is installed on disk.\n"
-        "Restart this session (or run `/Dev10x:upgrade-cleanup`) to activate "
-        "shipped friction fixes, validators, and catalog improvements."
-    )
+    return SessionService().build_hook_version_drift_context()
 
 
 def session_install_check() -> None:
