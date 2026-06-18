@@ -37,9 +37,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import yaml
-
 from dev10x.domain.common.mcp_tool_name import McpToolName
+from dev10x.domain.common.policy import PolicyCatalog, PolicySensitivity
 from dev10x.domain.sensitivity import name_is_sensitive, tokenize_identifier
 from dev10x.skills.permission.enumerate_mcp import (
     _server_prefix_from_tool,
@@ -424,25 +423,27 @@ def catalog_default_safe_surface(catalog_path: Path) -> tuple[list[str], list[st
     groups are skipped. Only MCP-tool and ``WebFetch(domain:…)`` rules are
     returned; ``Bash``/``Skill`` rules are seeded into project settings by
     ``ensure_base``, not promoted to global here.
+
+    The catalog is read through :meth:`PolicyCatalog.load` (GH-505) so the
+    tier/sensitivity gate runs against typed :class:`Policy` objects rather
+    than a raw dict — the proactive seeder is the first production consumer
+    of the GH-271 permission-policy model. ``load`` already tolerates a
+    missing file, unparseable YAML, or a non-mapping document by returning
+    an empty policy list, so this surface stays empty in those cases.
     """
-    try:
-        data = yaml.safe_load(Path(catalog_path).read_text())
-    except (OSError, yaml.YAMLError):
-        return [], []
+    policies = PolicyCatalog.load(catalog_path)
     tools: list[str] = []
     domains: list[str] = []
-    for group in (data or {}).get("groups", {}).values():
-        if group.get("tier") != 2 or group.get("sensitivity") != "benign":
+    for policy in policies:
+        if policy.tier != 2 or policy.sensitivity != PolicySensitivity.BENIGN:
             continue
-        for rule in group.get("rules", []):
-            if not isinstance(rule, str):
-                continue
-            if McpToolName.is_mcp(rule) and not rule.endswith("*"):
-                tools.append(rule)
-            else:
-                match = _WEBFETCH_RE.match(rule)
-                if match:
-                    domains.append(match.group("domain"))
+        rule = policy.signature
+        if McpToolName.is_mcp(rule) and not rule.endswith("*"):
+            tools.append(rule)
+        else:
+            match = _WEBFETCH_RE.match(rule)
+            if match:
+                domains.append(match.group("domain"))
     return tools, domains
 
 
