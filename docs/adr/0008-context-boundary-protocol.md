@@ -242,6 +242,23 @@ Shipped together under GH-244 (one PR, atomic commits per finding):
 
 5. I1 (`audit → skills`) — tracked for M7 under ADR-0010.
 
+## Patterns Used
+
+This ADR's "domain owns the contract, adapters inject the
+implementation" shape is the **Separated Interface** pattern
+(Fowler, *PoEAA*): the interface is declared in one package and its
+implementation lives in another, so the using package depends only
+on the interface. In this codebase:
+
+- `dev10x.domain.audit_writer.AuditWriter` — implemented by
+  `dev10x.audit.log_reader` (the `hooks → audit` inversion).
+- `dev10x.domain.config_loader.ConfigLoader` — implemented by
+  `dev10x.config.loader`.
+
+Both Protocols are structural Separated Interfaces (PEP 544), and
+their docstrings name the pattern so contributors can cross-
+reference them against each other.
+
 ## References
 
 ### Internal References
