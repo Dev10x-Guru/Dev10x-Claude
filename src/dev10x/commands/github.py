@@ -136,3 +136,97 @@ def review_rules(
             routing_fragment=result.value["routing_fragment"],
         )
     )
+
+
+@github.command(name="learn")
+@click.option(
+    "--repo",
+    default=None,
+    help="owner/name to mine and target. Defaults to the current repository.",
+)
+@click.option(
+    "--base-dir",
+    default=None,
+    help="Checked-out repo root where rule docs are written and git runs. "
+    "Defaults to the current directory ($GITHUB_WORKSPACE in the Action).",
+)
+@click.option(
+    "--branch",
+    default=None,
+    help="Branch the rules-update PR is force-pushed to.",
+)
+@click.option(
+    "--base",
+    "base_branch",
+    default=None,
+    help="PR base branch. Defaults to the repository's default branch.",
+)
+@click.option(
+    "--limit",
+    type=int,
+    default=50,
+    show_default=True,
+    help="Max merged PRs scanned for review comments.",
+)
+@click.option(
+    "--min-frequency",
+    type=int,
+    default=2,
+    show_default=True,
+    help="Minimum reviewer frequency for a validated pattern.",
+)
+@click.option(
+    "--max-fp-rate",
+    type=float,
+    default=0.5,
+    show_default=True,
+    help="Maximum estimated false-positive rate for a validated pattern.",
+)
+def learn(
+    *,
+    repo: str | None,
+    base_dir: str | None,
+    branch: str | None,
+    base_branch: str | None,
+    limit: int,
+    min_frequency: int,
+    max_fp_rate: float,
+) -> None:
+    """Run the continuous learning loop: mine rules, open a rules-update PR.
+
+    Wraps :func:`dev10x.github.learn_loop.run_learning_loop`. On a closed
+    PR the Action invokes this to harvest the repository's recurring
+    reviewer patterns into validated reference rules and open a PR
+    proposing them for human approval. When no pattern validates (or the
+    proposal is already up to date) it prints a notice and exits 0 so the
+    Action's learn step is a no-op rather than a failure. A genuine mining,
+    git, or ``gh`` failure prints to stderr and exits non-zero.
+    """
+    import os
+
+    from dev10x.domain.common.result import SuccessResult
+    from dev10x.github import learn_loop
+
+    result = asyncio.run(
+        learn_loop.run_learning_loop(
+            base_dir=base_dir or os.getcwd(),
+            repo=repo,
+            branch=branch or learn_loop.DEFAULT_LEARN_BRANCH,
+            base_branch=base_branch,
+            limit=limit,
+            min_frequency=min_frequency,
+            max_fp_rate=max_fp_rate,
+        )
+    )
+
+    if not isinstance(result, SuccessResult):
+        click.echo(f"[ERROR] {result.error}", err=True)
+        sys.exit(1)
+
+    if result.value["opened_pr"]:
+        click.echo(
+            f"Opened rules-update PR with {result.value['rules_authored']} "
+            f"rule(s): {result.value['pr_url']}"
+        )
+    else:
+        click.echo(f"No rules-update PR opened: {result.value['reason']}.")
