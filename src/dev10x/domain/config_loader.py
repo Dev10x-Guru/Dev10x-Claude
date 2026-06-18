@@ -1,9 +1,12 @@
 """ConfigLoader Protocol — shared interface for YAML config loading.
 
-Defines the loading interface that config/loader.py implements
-with msgpack caching. Standalone uv scripts in skills/permission/
-may inline their own loading — this is an acceptable trade-off
-since they run outside the dev10x package context.
+This is a **Separated Interface** (Fowler PoEAA): the interface lives
+in the ``domain/`` core while ``config/loader.py`` provides the
+concrete implementation with msgpack caching — the same pattern as
+``dev10x.domain.audit_writer.AuditWriter``. Standalone uv scripts in
+skills/permission/ may inline their own loading — this is an
+acceptable trade-off since they run outside the dev10x package
+context.
 """
 
 from __future__ import annotations

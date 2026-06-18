@@ -1,5 +1,12 @@
 """Strategy registry for Dev10x:plugin-doctor (GH-87).
 
+``load_strategies`` is a **Plugin loader** (Fowler PoEAA): module
+paths act as configuration and each module is bound late via
+``import_module``, collecting its ``STRATEGY`` constant. This is the
+same Plugin pattern ``dev10x.validators.registry`` uses for
+validators; the two loaders are independent today (a shared
+``PluginLoader[T]`` utility is a possible future consolidation).
+
 The registry knows how to load shipped strategies (plus optional
 user-defined strategies under
 ``~/.claude/Dev10x/doctor/strategies/``). Loading is explicit —
