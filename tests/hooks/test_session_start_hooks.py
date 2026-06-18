@@ -459,7 +459,7 @@ class TestBuildMigrationReplacements:
 
 class TestMigrateRules:
     def test_replaces_old_path_in_rule(self, tmp_path: Path) -> None:
-        from dev10x.hooks.session import _migrate_rules
+        from dev10x.domain.documents.settings_document import _migrate_rules
 
         old = str(tmp_path / "old") + "/"
         new = str(tmp_path / "new") + "/"
@@ -470,7 +470,7 @@ class TestMigrateRules:
         assert new in result[0]
 
     def test_preserves_unmatched_rules(self) -> None:
-        from dev10x.hooks.session import _migrate_rules
+        from dev10x.domain.documents.settings_document import _migrate_rules
 
         rules = ["Read", "Write", "Bash(~/.claude/tools/:*)"]
         result, count = _migrate_rules(rules=rules, replacements=[("/old/", "/new/")])
@@ -481,7 +481,7 @@ class TestMigrateRules:
 
 class TestDeduplicateRules:
     def test_removes_duplicates(self) -> None:
-        from dev10x.hooks.session import _deduplicate_rules
+        from dev10x.domain.documents.settings_document import _deduplicate_rules
 
         rules = ["rule-a", "rule-b", "rule-a", "rule-c"]
         result = _deduplicate_rules(rules=rules)
@@ -489,7 +489,7 @@ class TestDeduplicateRules:
         assert result == ["rule-a", "rule-b", "rule-c"]
 
     def test_preserves_order(self) -> None:
-        from dev10x.hooks.session import _deduplicate_rules
+        from dev10x.domain.documents.settings_document import _deduplicate_rules
 
         rules = ["c", "a", "b", "a"]
         result = _deduplicate_rules(rules=rules)

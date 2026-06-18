@@ -18,11 +18,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from dev10x.domain.documents.settings_document import (
-    SettingsDocument,
-    _deduplicate_rules,
-    _migrate_rules,
-)
+from dev10x.domain.documents.settings_document import SettingsDocument
 from dev10x.domain.rules.policy_rule import PolicyRule
 from dev10x.domain.session_rules import (
     BuildAutonomyReassuranceRule,
@@ -122,6 +118,4 @@ __all__ = [
     "DecisionGuidanceRule",
     "MigratePluginPermissionsRule",
     "_build_migration_replacements",
-    "_migrate_rules",
-    "_deduplicate_rules",
 ]
