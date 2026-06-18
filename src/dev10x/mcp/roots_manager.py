@@ -41,6 +41,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from dev10x.domain.common.result import Result, ok
+from dev10x.domain.common.singleton_holder import SingletonHolder
 
 if TYPE_CHECKING:  # pragma: no cover
     from mcp.server.session import ServerSession
@@ -212,7 +213,10 @@ class ClientRootsManager:
 
 # ── module-level registry ──────────────────────────────────────────
 
-_manager: ClientRootsManager | None = None
+#: Module-level singleton slot for the active manager. Backed by
+#: :class:`SingletonHolder` so the ``global``/``get``/``set`` trio is not
+#: reimplemented here (GH-522).
+_holder: SingletonHolder[ClientRootsManager] = SingletonHolder()
 
 # GH-498: the event loop holds only weak references to bare
 # ``create_task`` results, so a fire-and-forget refresh can be garbage
@@ -224,7 +228,7 @@ _background_tasks: set[asyncio.Task[None]] = set()
 
 def get_manager() -> ClientRootsManager | None:
     """Return the currently registered :class:`ClientRootsManager`, or ``None``."""
-    return _manager
+    return _holder.get()
 
 
 def list_roots() -> Result[dict[str, Any]]:
@@ -277,8 +281,7 @@ def wire_roots_to_server(
 
     import mcp.types as mcp_types
 
-    global _manager
-    _manager = manager
+    _holder.set(manager)
 
     async def _on_initialized(notification: mcp_types.InitializedNotification) -> None:
         try:

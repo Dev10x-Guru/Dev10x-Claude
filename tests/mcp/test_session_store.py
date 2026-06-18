@@ -26,6 +26,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from dev10x.domain.common.singleton_holder import SingletonHolder
 from dev10x.mcp.session_store import (
     SessionEntry,
     SessionStore,
@@ -407,7 +408,7 @@ class TestSingleton:
 
     def test_set_store_replaces_singleton(self, monkeypatch: pytest.MonkeyPatch) -> None:
         fresh = SessionStore(ttl=10.0, max_sessions=5)
-        monkeypatch.setattr("dev10x.mcp.session_store._store", fresh)
+        monkeypatch.setattr("dev10x.mcp.session_store._holder", SingletonHolder(default=fresh))
         assert get_store() is fresh
 
     def test_set_store_function(self, monkeypatch: pytest.MonkeyPatch) -> None:

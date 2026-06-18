@@ -12,7 +12,8 @@ Architecture
 designed to be owned by :class:`~dev10x.mcp.daemon.DaemonLifecycle`
 so all session data is cleared on daemon stop.
 
-The module exposes a *process-level singleton* (``_store``) that
+The module exposes a *process-level singleton* (held in a
+:class:`~dev10x.domain.common.singleton_holder.SingletonHolder`) that
 tool handlers can access via :func:`get_store`.  This pattern avoids
 threading the store through every call chain while keeping the
 store injectable for tests.
@@ -63,6 +64,8 @@ import os
 import threading
 import time
 from typing import Any
+
+from dev10x.domain.common.singleton_holder import SingletonHolder
 
 log = logging.getLogger(__name__)
 
@@ -358,9 +361,11 @@ class SessionStore:
 # Process-level singleton
 # ---------------------------------------------------------------------------
 
-#: Module-level singleton, used by tool handlers when no explicit store is
-#: injected.  Tests override it via :func:`set_store`.
-_store: SessionStore = SessionStore()
+#: Module-level singleton slot, used by tool handlers when no explicit
+#: store is injected.  Tests override it via :func:`set_store`. Backed by
+#: :class:`SingletonHolder` so the ``global``/``get``/``set`` trio is not
+#: reimplemented here (GH-522).
+_holder: SingletonHolder[SessionStore] = SingletonHolder(default=SessionStore())
 
 
 def get_store() -> SessionStore:
@@ -373,7 +378,11 @@ def get_store() -> SessionStore:
 
         entry = get_store().get_or_create(session_id)
     """
-    return _store
+    store = _holder.get()
+    if store is None:
+        store = SessionStore()
+        _holder.set(store)
+    return store
 
 
 def set_store(store: SessionStore) -> None:
@@ -382,13 +391,11 @@ def set_store(store: SessionStore) -> None:
     Intended for testing — inject a fresh store with custom TTL/max
     settings and restore it on teardown::
 
-        def test_something(monkeypatch):
-            fresh = SessionStore(ttl=60, max_sessions=10)
-            monkeypatch.setattr("dev10x.mcp.session_store._store", fresh)
+        def test_something():
+            set_store(SessionStore(ttl=60, max_sessions=10))
             ...
     """
-    global _store
-    _store = store
+    _holder.set(store)
 
 
 # ---------------------------------------------------------------------------
