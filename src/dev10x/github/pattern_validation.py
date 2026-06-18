@@ -34,7 +34,7 @@ from dev10x.domain.common.result import Result, SuccessResult, err, ok
 from dev10x.github import review_patterns
 from dev10x.subprocess_utils import async_run
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 # A pattern fires on a diff when at least this fraction of its signature
 # tokens appear among the diff's added-line tokens. Kept below 1.0 so a
@@ -198,7 +198,7 @@ async def _pr_diff(*, repo: str, pr_number: int) -> str | None:
         timeout=60,
     )
     if result.returncode != 0:
-        logger.warning(
+        log.warning(
             "skipping PR diff",
             extra={"repo": repo, "pr_number": pr_number, "stderr": result.stderr.strip()},
         )
@@ -209,7 +209,7 @@ async def _pr_diff(*, repo: str, pr_number: int) -> str | None:
 async def _recent_diffs(*, repo: str, limit: int) -> list[str]:
     numbers_result = await _merged_pr_numbers(repo=repo, limit=limit)
     if not isinstance(numbers_result, SuccessResult):
-        logger.warning("skipping repo diffs", extra={"repo": repo, "error": numbers_result.error})
+        log.warning("skipping repo diffs", extra={"repo": repo, "error": numbers_result.error})
         return []
     diffs: list[str] = []
     for pr_number in numbers_result.value:

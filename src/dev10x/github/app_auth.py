@@ -32,7 +32,7 @@ try:  # PyJWT is an optional dependency; its absence surfaces as ImportError
 except ImportError:  # pragma: no cover - exercised only without PyJWT installed
     _PyJWTError = ()  # type: ignore[assignment, misc]
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 DEFAULT_CONFIG_PATH = Dev10xConfigDir.github_app_yaml()
 
@@ -88,7 +88,7 @@ def _parse_expires_at(raw: str | None) -> float:
     if not raw:
         return time.time() + 3600
     try:
-        return datetime.fromisoformat(raw.replace("Z", "+00:00")).timestamp()
+        return datetime.fromisoformat(raw).timestamp()
     except ValueError:
         return time.time() + 3600
 
@@ -186,7 +186,7 @@ async def get_bot_token(
     try:
         private_key = cfg.private_key_path.read_text()
     except OSError as exc:
-        logger.warning(
+        log.warning(
             "GitHub App private key unreadable at %s: %s",
             cfg.private_key_path,
             exc,
@@ -196,7 +196,7 @@ async def get_bot_token(
     try:
         app_jwt = _create_app_jwt(app_id=cfg.app_id, private_key=private_key)
     except (_PyJWTError, ImportError, ValueError, TypeError) as exc:
-        logger.warning(
+        log.warning(
             "GitHub App JWT creation failed for app_id=%s: %s",
             cfg.app_id,
             exc,
@@ -208,7 +208,7 @@ async def get_bot_token(
         app_jwt=app_jwt,
     )
     if installation_id is None:
-        logger.warning(
+        log.warning(
             "GitHub App installation-id resolution failed for repo=%s app_id=%s",
             repo,
             cfg.app_id,
@@ -220,7 +220,7 @@ async def get_bot_token(
         app_jwt=app_jwt,
     )
     if exchanged is None:
-        logger.warning(
+        log.warning(
             "GitHub App token exchange failed for repo=%s installation_id=%s",
             repo,
             installation_id,

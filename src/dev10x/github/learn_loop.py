@@ -30,7 +30,7 @@ from dev10x.github import rule_authoring
 from dev10x.github.rule_authoring import RuleDoc
 from dev10x.subprocess_utils import async_run
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 # Stable branch the bot reuses for its rules-update PR. Reusing one branch
 # (force-pushed each run) keeps a single open proposal per repo rather than

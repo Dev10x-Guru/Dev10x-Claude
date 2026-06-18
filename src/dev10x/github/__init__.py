@@ -34,7 +34,7 @@ from dev10x.subprocess_utils import (
     parse_key_value_output,
 )
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 async def _detect_repo() -> str | None:
@@ -115,7 +115,7 @@ async def _bot_env(*, repo: str) -> dict[str, str] | None:
     token = await get_bot_token(repo=canonical_repo)
     if token is None:
         if AppConfig.load() is not None:
-            logger.warning(
+            log.warning(
                 "GitHub App auth configured but bot token exchange failed for %s — "
                 "falling back to engineer credentials. Verify the App is installed "
                 "on the repo and the private key matches the app_id.",

@@ -26,7 +26,7 @@ from typing import Any
 from dev10x.domain.common.result import Result, SuccessResult, err, ok
 from dev10x.subprocess_utils import async_run
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 # Words that carry no signal for clustering review feedback. Kept small
 # and review-specific rather than a full NLP stop-list.
@@ -223,7 +223,7 @@ async def _pr_review_comments(*, repo: str, pr_number: int) -> list[ReviewCommen
         timeout=60,
     )
     if result.returncode != 0:
-        logger.warning(
+        log.warning(
             "skipping PR review comments",
             extra={"repo": repo, "pr_number": pr_number, "stderr": result.stderr.strip()},
         )
@@ -231,7 +231,7 @@ async def _pr_review_comments(*, repo: str, pr_number: int) -> list[ReviewCommen
     try:
         payload = json.loads(result.stdout or "[]")
     except json.JSONDecodeError:
-        logger.warning("unparseable review comments", extra={"repo": repo, "pr_number": pr_number})
+        log.warning("unparseable review comments", extra={"repo": repo, "pr_number": pr_number})
         return []
     return [
         ReviewComment(
@@ -294,7 +294,7 @@ async def cluster_review_comments(
     for repo in targets:
         result = await get_review_comments(repo=repo, limit=limit)
         if not isinstance(result, SuccessResult):
-            logger.warning("skipping repo", extra={"repo": repo, "error": result.error})
+            log.warning("skipping repo", extra={"repo": repo, "error": result.error})
             continue
         all_comments.extend(result.value)
         scanned.append(repo)

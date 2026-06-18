@@ -204,7 +204,7 @@ def session_persist(data: dict | None = None) -> None:
         session_id=session_id,
         toplevel=toplevel,
         run_git=lambda *args: _run_git_safe(git, *args),
-        timestamp=datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        timestamp=datetime.now(UTC).isoformat(),
     ).to_dict()
     state["working_directory"] = toplevel
     state["has_plan"] = plan_path_for_toplevel(toplevel=toplevel).exists()
