@@ -6,6 +6,9 @@ import pytest
 
 from dev10x.skills.playbook.compare import (
     MISSING,
+    DiffStatus,
+    PlayDiff,
+    StepDiff,
     compare_playbooks,
 )
 
@@ -233,3 +236,31 @@ class TestComparePlaybooks:
         }
         result = _diff(default_doc, user)
         assert result.has_findings is True
+
+
+class TestDiffStatusBehavior:
+    def test_step_symbols_cover_each_status(self) -> None:
+        symbols = {
+            DiffStatus.NEW: "+",
+            DiffStatus.REMOVED: "-",
+            DiffStatus.CHANGED: "~",
+            DiffStatus.UNCHANGED: " ",
+        }
+        for status, expected in symbols.items():
+            assert StepDiff(subject="s", status=status).symbol() == expected
+
+    def test_not_overridden_step_symbol_falls_back(self) -> None:
+        step = StepDiff(subject="s", status=DiffStatus.NOT_OVERRIDDEN)
+        assert step.symbol() == "?"
+
+    def test_is_actionable_true_for_changes(self) -> None:
+        for status in (DiffStatus.NEW, DiffStatus.REMOVED, DiffStatus.CHANGED):
+            assert PlayDiff(play_name="p", status=status).is_actionable() is True
+
+    def test_is_actionable_false_for_quiet_statuses(self) -> None:
+        for status in (DiffStatus.UNCHANGED, DiffStatus.NOT_OVERRIDDEN):
+            assert PlayDiff(play_name="p", status=status).is_actionable() is False
+
+    def test_status_renders_as_its_string_value(self) -> None:
+        assert f"{DiffStatus.NOT_OVERRIDDEN}" == "not-overridden"
+        assert DiffStatus.NEW == "new"
