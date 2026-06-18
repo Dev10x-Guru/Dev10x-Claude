@@ -109,6 +109,30 @@ def find_settings_files(
     return unique
 
 
+def _rewrite_plugin_version_match(
+    match: re.Match,
+    *,
+    target_publisher: str | None,
+    target_version: str,
+) -> str:
+    """Return the version/publisher-rewritten text for a single match.
+
+    Pure helper shared by the counting pass and the locked re-apply so
+    both agree on the replacement without double-counting.
+    """
+    prefix = match.group(1)
+    publisher = match.group(2)
+    plugin_slug = match.group(3)
+    old_ver = match.group(4)
+    new_publisher = (
+        target_publisher if target_publisher and publisher != target_publisher else publisher
+    )
+    new_ver = target_version if old_ver != target_version else old_ver
+    if new_publisher == publisher and new_ver == old_ver:
+        return match.group(0)
+    return prefix + new_publisher + plugin_slug + new_ver
+
+
 def update_file(
     path: Path,
     target_version: str,
@@ -156,9 +180,21 @@ def update_file(
             return 0, [f"  SKIP (invalid JSON after replacement): {e}"]
 
         from dev10x.skills.permission.backup import create_backup
+        from dev10x.skills.permission.file_lock import locked_json_update
 
         create_backup(path)
-        path.write_text(new_content)
+        with locked_json_update(path=path) as live_data:
+            live_text = json.dumps(live_data, indent=2) + "\n"
+            rewritten = VERSION_PATTERN.sub(
+                lambda m: _rewrite_plugin_version_match(
+                    m,
+                    target_publisher=target_publisher,
+                    target_version=target_version,
+                ),
+                live_text,
+            )
+            live_data.clear()
+            live_data.update(json.loads(rewritten))
 
     messages = []
     for old_pub in sorted(old_publishers):
@@ -804,6 +840,16 @@ def generalize_permission(entry: str) -> str | None:
     return None
 
 
+def _generalizations(allow_list: list[str]) -> list[tuple[str, str]]:
+    existing = set(allow_list)
+    replacements: list[tuple[str, str]] = []
+    for entry in allow_list:
+        generalized = generalize_permission(entry)
+        if generalized and generalized != entry and generalized not in existing:
+            replacements.append((entry, generalized))
+    return replacements
+
+
 def generalize_permissions(
     path: Path,
     *,
@@ -819,26 +865,20 @@ def generalize_permissions(
     if not allow_list:
         return 0, []
 
-    existing = set(allow_list)
-    replacements: list[tuple[str, str]] = []
-    for entry in allow_list:
-        generalized = generalize_permission(entry)
-        if generalized and generalized != entry and generalized not in existing:
-            replacements.append((entry, generalized))
+    replacements = _generalizations(allow_list)
 
     if not replacements:
         return 0, []
 
     if not dry_run:
         from dev10x.skills.permission.backup import create_backup
+        from dev10x.skills.permission.file_lock import locked_json_update
 
         create_backup(path)
-        new_allow = list(allow_list)
-        for old, new in replacements:
-            idx = new_allow.index(old)
-            new_allow[idx] = new
-        data["permissions"]["allow"] = new_allow
-        path.write_text(json.dumps(data, indent=2) + "\n")
+        with locked_json_update(path=path) as live_data:
+            live_allow = live_data.get("permissions", {}).get("allow", [])
+            for old, new in _generalizations(live_allow):
+                live_allow[live_allow.index(old)] = new
 
     messages = [f"  {old} → {new}" for old, new in replacements]
     return len(replacements), messages
