@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dev10x.skills.playbook.compare import (
     MISSING,
+    DiffStatus,
     FieldDiff,
     PlaybookDiff,
     PlayDiff,
@@ -32,13 +33,7 @@ def _render_field_diff(diff: FieldDiff) -> str:
 
 
 def _render_step(step_diff: StepDiff) -> list[str]:
-    symbol = {
-        "new": "+",
-        "removed": "-",
-        "changed": "~",
-        "unchanged": " ",
-    }.get(step_diff.status, "?")
-    header = f"{symbol} **{step_diff.subject}** _({step_diff.status})_"
+    header = f"{step_diff.symbol()} **{step_diff.subject}** _({step_diff.status})_"
     lines = [header]
     if step_diff.customized_fields:
         joined = ", ".join(sorted(step_diff.customized_fields))
@@ -50,15 +45,15 @@ def _render_step(step_diff: StepDiff) -> list[str]:
 
 def _render_play(play: PlayDiff, *, kind: str) -> list[str]:
     heading = f"### {kind}: `{play.play_name}` — {play.status}"
-    if play.status == "unchanged":
+    if play.status == DiffStatus.UNCHANGED:
         return [heading, "  (no upstream changes detected)"]
-    if play.status == "not-overridden":
+    if play.status == DiffStatus.NOT_OVERRIDDEN:
         return [heading, "  (user has not overridden this — defaults apply)"]
-    if play.status == "removed":
+    if play.status == DiffStatus.REMOVED:
         return [heading, "  (no longer present in plugin default — orphan override)"]
     lines: list[str] = [heading]
     for step_diff in play.step_diffs:
-        if step_diff.status == "unchanged":
+        if step_diff.status == DiffStatus.UNCHANGED:
             continue
         lines.extend(_render_step(step_diff))
     return lines
@@ -79,7 +74,7 @@ def render_markdown_report(diff: PlaybookDiff) -> str:
         lines.append("**No upstream changes detected.** User customizations are up to date.")
         return "\n".join(lines) + "\n"
 
-    overridden = [p for p in diff.play_diffs if p.status not in ("unchanged", "not-overridden")]
+    overridden = [p for p in diff.play_diffs if p.is_actionable()]
     if overridden:
         lines.append("### Plays with upstream changes")
         lines.append("")
@@ -87,9 +82,7 @@ def render_markdown_report(diff: PlaybookDiff) -> str:
             lines.extend(_render_play(play, kind="Play"))
             lines.append("")
 
-    fragments_with_changes = [
-        f for f in diff.fragment_diffs if f.status not in ("unchanged", "not-overridden")
-    ]
+    fragments_with_changes = [f for f in diff.fragment_diffs if f.is_actionable()]
     if fragments_with_changes:
         lines.append("### Fragments with upstream changes")
         lines.append("")

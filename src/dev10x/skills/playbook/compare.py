@@ -28,7 +28,19 @@ or a CLI summary without re-parsing.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 from typing import Any
+
+
+class DiffStatus(StrEnum):
+    """Outcome of comparing one step or play against the default."""
+
+    NEW = "new"
+    REMOVED = "removed"
+    CHANGED = "changed"
+    UNCHANGED = "unchanged"
+    NOT_OVERRIDDEN = "not-overridden"
+
 
 # Step fields the diff inspects. ``steps`` (epic children) and ``fragment``
 # are handled separately because they recurse / are structural references.
@@ -56,14 +68,26 @@ class FieldDiff:
     user_value: Any  # MISSING sentinel when the user did not set the field
 
 
+_STEP_SYMBOLS: dict[DiffStatus, str] = {
+    DiffStatus.NEW: "+",
+    DiffStatus.REMOVED: "-",
+    DiffStatus.CHANGED: "~",
+    DiffStatus.UNCHANGED: " ",
+}
+
+
 @dataclass
 class StepDiff:
     """Per-step diff entry."""
 
     subject: str
-    status: str  # "new" | "removed" | "changed" | "unchanged"
+    status: DiffStatus
     customized_fields: list[str] = field(default_factory=list)
     upstream_changed_fields: list[FieldDiff] = field(default_factory=list)
+
+    def symbol(self) -> str:
+        """Return the one-character render marker for this step's status."""
+        return _STEP_SYMBOLS.get(self.status, "?")
 
 
 @dataclass
@@ -71,9 +95,13 @@ class PlayDiff:
     """Per-play diff entry."""
 
     play_name: str
-    status: str  # "new" | "removed" | "changed" | "unchanged" | "not-overridden"
+    status: DiffStatus
     step_diffs: list[StepDiff] = field(default_factory=list)
     prompt_changed: bool = False
+
+    def is_actionable(self) -> bool:
+        """True when the play needs user attention (not unchanged/defaulted)."""
+        return self.status not in (DiffStatus.UNCHANGED, DiffStatus.NOT_OVERRIDDEN)
 
 
 @dataclass
@@ -90,10 +118,7 @@ class PlaybookDiff:
 
     @property
     def has_findings(self) -> bool:
-        return any(
-            p.status not in ("unchanged", "not-overridden")
-            for p in self.play_diffs + self.fragment_diffs
-        )
+        return any(p.is_actionable() for p in self.play_diffs + self.fragment_diffs)
 
 
 def _step_key(step: dict[str, Any]) -> str:
@@ -142,7 +167,7 @@ def _diff_step(
             continue
         if user_value != default_value:
             customized.append(key)
-    status = "changed" if upstream_changed or customized else "unchanged"
+    status = DiffStatus.CHANGED if upstream_changed or customized else DiffStatus.UNCHANGED
     return StepDiff(
         subject=subject,
         status=status,
@@ -174,10 +199,10 @@ def _diff_steps(
                 )
             )
         else:
-            diffs.append(StepDiff(subject=key, status="new"))
+            diffs.append(StepDiff(subject=key, status=DiffStatus.NEW))
     for key in user_index:
         if key not in default_index:
-            diffs.append(StepDiff(subject=key, status="removed"))
+            diffs.append(StepDiff(subject=key, status=DiffStatus.REMOVED))
     return diffs
 
 
@@ -204,10 +229,10 @@ def _diff_play(
     """Diff one play. ``user_steps=None`` means the user has not overridden it."""
     default_steps = default_play.get("steps") or []
     if user_steps is None:
-        return PlayDiff(play_name=play_name, status="not-overridden")
+        return PlayDiff(play_name=play_name, status=DiffStatus.NOT_OVERRIDDEN)
     step_diffs = _diff_steps(default_steps=default_steps, user_steps=user_steps)
-    has_changes = any(diff.status != "unchanged" for diff in step_diffs)
-    status = "changed" if has_changes else "unchanged"
+    has_changes = any(diff.status != DiffStatus.UNCHANGED for diff in step_diffs)
+    status = DiffStatus.CHANGED if has_changes else DiffStatus.UNCHANGED
     return PlayDiff(play_name=play_name, status=status, step_diffs=step_diffs)
 
 
@@ -223,20 +248,20 @@ def _diff_fragments(
             continue
         user_steps = user_fragments.get(name)
         if not isinstance(user_steps, list):
-            diffs.append(PlayDiff(play_name=name, status="not-overridden"))
+            diffs.append(PlayDiff(play_name=name, status=DiffStatus.NOT_OVERRIDDEN))
             continue
         step_diffs = _diff_steps(default_steps=default_steps, user_steps=user_steps)
-        has_changes = any(d.status != "unchanged" for d in step_diffs)
+        has_changes = any(d.status != DiffStatus.UNCHANGED for d in step_diffs)
         diffs.append(
             PlayDiff(
                 play_name=name,
-                status="changed" if has_changes else "unchanged",
+                status=DiffStatus.CHANGED if has_changes else DiffStatus.UNCHANGED,
                 step_diffs=step_diffs,
             )
         )
     for name in user_fragments:
         if name not in default_fragments:
-            diffs.append(PlayDiff(play_name=name, status="removed"))
+            diffs.append(PlayDiff(play_name=name, status=DiffStatus.REMOVED))
     return diffs
 
 
@@ -279,7 +304,7 @@ def compare_playbooks(
             continue
         play_name = override.get("play")
         if play_name and play_name not in default_play_names:
-            play_diffs.append(PlayDiff(play_name=str(play_name), status="removed"))
+            play_diffs.append(PlayDiff(play_name=str(play_name), status=DiffStatus.REMOVED))
 
     fragment_diffs = _diff_fragments(
         default_fragments=default_fragments,
