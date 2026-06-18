@@ -23,6 +23,8 @@ from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from dev10x.domain import HookRetry
 
 SETUP_TOKENS = frozenset(
@@ -343,23 +345,26 @@ class PrefixFrictionValidator(ValidatorBase):
     profile: ClassVar[ProfileTier] = ProfileTier.STANDARD
     _allow_patterns: list[str] | None = field(default=None, repr=False)
 
-    # Ordered chain of prefix checks (PrefixCheck = method taking
-    # ``*, inp: HookInput`` and returning the first matching ``HookResult``).
-    # ``validate`` walks this list in order; the last entry is the
-    # fall-through ``&&``-chaining check.
-    _CHECKS: ClassVar[tuple[str, ...]] = (
-        "_check_uv_run_inner_allow",
-        "_check_cd_revparse_chain",
-        "_check_git_c_noop",
-        "_check_env_prefix_git",
-        "_check_merge_base",
-        "_check_cd_noop_chain",
-        "_check_cd_git_chain",
-        "_check_redirect_then_positional",
-        "_check_semicolon_chain",
-        "_check_shell_loop_wrap",
-        "_check_and_chaining",
-    )
+    def _checks(self) -> list[Callable[..., HookResult | HookAllow | None]]:
+        """Return the ordered chain of bound prefix-check callables.
+
+        ``validate`` walks this list in order; the last entry is the
+        fall-through ``&&``-chaining check. Adding a check only requires
+        adding an entry here — no separate name-string to keep in sync.
+        """
+        return [
+            self._check_uv_run_inner_allow,
+            self._check_cd_revparse_chain,
+            self._check_git_c_noop,
+            self._check_env_prefix_git,
+            self._check_merge_base,
+            self._check_cd_noop_chain,
+            self._check_cd_git_chain,
+            self._check_redirect_then_positional,
+            self._check_semicolon_chain,
+            self._check_shell_loop_wrap,
+            self._check_and_chaining,
+        ]
 
     def should_run(self, inp: HookInput) -> bool:
         cmd = inp.command
@@ -382,8 +387,8 @@ class PrefixFrictionValidator(ValidatorBase):
         )
 
     def validate(self, inp: HookInput) -> HookResult | HookAllow | None:
-        for check_name in self._CHECKS:
-            result: HookResult | HookAllow | None = getattr(self, check_name)(inp=inp)
+        for check in self._checks():
+            result: HookResult | HookAllow | None = check(inp=inp)
             if result is not None:
                 return result
         return None
