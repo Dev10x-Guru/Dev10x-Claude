@@ -73,10 +73,9 @@ class TestMissingLinearMcpAllowDetect:
         assert findings[0].strategy_id == "missing-linear-mcp-allow"
         assert findings[0].severity == "drift"
         assert str(settings_with_partial_linear) == findings[0].location
-        assert "missing_tools" in findings[0].metadata
+        assert findings[0].data is not None
         assert (
-            len(findings[0].metadata["missing_tools"])
-            >= missing_linear_mcp_allow.MISSING_THRESHOLD - 1
+            len(findings[0].data.missing_tools) >= missing_linear_mcp_allow.MISSING_THRESHOLD - 1
         )
 
     def test_silent_when_baseline_complete(self, settings_with_full_baseline: Path) -> None:

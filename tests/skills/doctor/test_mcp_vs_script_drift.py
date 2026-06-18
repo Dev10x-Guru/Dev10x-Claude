@@ -28,7 +28,9 @@ class TestDetect:
         finding = findings[0]
         assert finding.strategy_id == "mcp-vs-script-drift"
         assert finding.severity == "drift"
-        assert finding.metadata["mcp_tool"] == "mcp__plugin_Dev10x_cli__mktmp"
+        assert finding.data is not None
+        assert finding.data.mcp_tool == "mcp__plugin_Dev10x_cli__mktmp"
+        assert finding.data.kind == "edit_memory"
 
     def test_skill_md_with_script_before_mcp_produces_finding(
         self,
@@ -79,13 +81,17 @@ class TestRemediate:
             location="/tmp/memory/old.md",
             evidence="memory references obsolete script ('/tmp/.../mktmp.sh')",
             proposed_fix="rewrite memory body",
-            metadata={"mcp_tool": "mcp__plugin_Dev10x_cli__mktmp"},
+            data=strategy_mod.ScriptDriftRemediation(
+                mcp_tool="mcp__plugin_Dev10x_cli__mktmp",
+                kind="edit_memory",
+            ),
         )
 
         remediation = strategy_mod.remediate(finding=finding)
 
         assert remediation.kind == "edit_memory"
         assert remediation.target == "/tmp/memory/old.md"
+        assert remediation.action["mcp_tool"] == "mcp__plugin_Dev10x_cli__mktmp"
 
     def test_skill_md_finding_maps_to_file_issue(self) -> None:
         from dev10x.skills.doctor.strategy import Finding
@@ -96,7 +102,10 @@ class TestRemediate:
             location="/plugin/skills/example/SKILL.md",
             evidence="SKILL.md shows script form before MCP form",
             proposed_fix="reorder",
-            metadata={"mcp_tool": "mcp__plugin_Dev10x_cli__pr_detect"},
+            data=strategy_mod.ScriptDriftRemediation(
+                mcp_tool="mcp__plugin_Dev10x_cli__pr_detect",
+                kind="file_issue",
+            ),
         )
 
         remediation = strategy_mod.remediate(finding=finding)

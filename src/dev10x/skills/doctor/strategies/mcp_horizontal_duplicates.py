@@ -19,6 +19,7 @@ one machine (claude.ai, user-installed, plugin-distributed).
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 from dev10x.skills.doctor.strategy import (
@@ -32,6 +33,30 @@ from dev10x.skills.permission.enumerate_mcp import (
     build_capability_groups,
     discover_all_mcp_servers,
 )
+
+
+@dataclass(frozen=True)
+class HorizontalDuplicateRemediation:
+    """Remediation payload for an mcp-horizontal-duplicates finding."""
+
+    capability_group: str
+    server_count: int
+    entries: tuple[tuple[str, str], ...]
+
+    def to_remediation(self, *, finding: Finding) -> Remediation:
+        return Remediation(
+            kind="file_issue",
+            target="permissions.allow",
+            action={
+                "capability_group": self.capability_group,
+                "server_count": self.server_count,
+                "entries": [{"prefix": prefix, "tool": tool} for prefix, tool in self.entries],
+                "reason": (
+                    "Multiple MCP servers expose the same capability. "
+                    "Review and consolidate to reduce auth overhead."
+                ),
+            },
+        )
 
 
 def _settings_paths_from_context(context: Context) -> list[Path]:
@@ -75,14 +100,11 @@ def detect(context: Context) -> list[Finding]:
                     "Consolidating to a single source reduces auth/connection "
                     "overhead and simplifies the catalog."
                 ),
-                metadata={
-                    "capability_group": group.capability_group,
-                    "tool_name": group.tool_name,
-                    "server_count": group.server_count,
-                    "entries": [
-                        {"prefix": prefix, "tool": tool} for prefix, tool in group.entries
-                    ],
-                },
+                data=HorizontalDuplicateRemediation(
+                    capability_group=group.capability_group,
+                    server_count=group.server_count,
+                    entries=tuple(group.entries),
+                ),
             )
         )
     return findings
@@ -90,19 +112,7 @@ def detect(context: Context) -> list[Finding]:
 
 def remediate(finding: Finding) -> Remediation:
     """Propose surfacing the duplication as an informational file issue."""
-    return Remediation(
-        kind="file_issue",
-        target="permissions.allow",
-        action={
-            "capability_group": finding.metadata.get("capability_group"),
-            "server_count": finding.metadata.get("server_count"),
-            "entries": finding.metadata.get("entries", []),
-            "reason": (
-                "Multiple MCP servers expose the same capability. "
-                "Review and consolidate to reduce auth overhead."
-            ),
-        },
-    )
+    return finding.to_remediation()
 
 
 STRATEGY = Strategy(

@@ -39,6 +39,29 @@ class Context:
 
 
 @dataclass
+class Remediation:
+    """Concrete action that resolves a :class:`Finding`."""
+
+    kind: RemediationKind
+    target: str
+    action: dict = field(default_factory=dict)
+
+
+@runtime_checkable
+class RemediationData(Protocol):
+    """Typed remediation payload a strategy attaches to its findings.
+
+    Replaces the former untyped ``Finding.metadata`` dict (GH-518).
+    Each strategy defines a frozen dataclass implementing this
+    protocol so the knowledge of "which fields map to a Remediation"
+    lives with the data, not in an external ``remediate`` body that
+    reaches into a string-keyed bag.
+    """
+
+    def to_remediation(self, *, finding: Finding) -> Remediation: ...
+
+
+@dataclass
 class Finding:
     """One drift instance detected by a strategy."""
 
@@ -47,16 +70,21 @@ class Finding:
     location: str
     evidence: str
     proposed_fix: str
-    metadata: dict = field(default_factory=dict)
+    data: RemediationData | None = None
 
+    def to_remediation(self) -> Remediation:
+        """Build the :class:`Remediation` this finding's data describes.
 
-@dataclass
-class Remediation:
-    """Concrete action that resolves a :class:`Finding`."""
-
-    kind: RemediationKind
-    target: str
-    action: dict = field(default_factory=dict)
+        Tell-Don't-Ask: the finding owns the state needed to produce
+        a remediation, so it produces one instead of exposing a
+        dict for an external caller to unpack.
+        """
+        if self.data is None:
+            raise ValueError(
+                f"Finding for strategy {self.strategy_id!r} carries no "
+                "remediation data; cannot build a Remediation"
+            )
+        return self.data.to_remediation(finding=self)
 
 
 @runtime_checkable

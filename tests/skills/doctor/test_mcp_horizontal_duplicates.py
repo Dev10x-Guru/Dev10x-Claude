@@ -80,9 +80,9 @@ class TestMcpHorizontalDuplicatesDetect:
         findings = mcp_horizontal_duplicates.detect(context)
 
         for f in findings:
-            assert "capability_group" in f.metadata
-            assert "server_count" in f.metadata
-            assert f.metadata["server_count"] >= 2
+            assert f.data is not None
+            assert f.data.capability_group
+            assert f.data.server_count >= 2
 
     def test_finding_severity_is_suggestion(
         self, settings_with_three_sentry_servers: Path
@@ -155,11 +155,12 @@ class TestMcpHorizontalDuplicatesDetect:
         findings = mcp_horizontal_duplicates.detect(context)
 
         for f in findings:
-            entries = f.metadata.get("entries", [])
+            assert f.data is not None
+            entries = f.data.entries
             assert len(entries) >= 2
-            for entry in entries:
-                assert "prefix" in entry
-                assert "tool" in entry
+            for prefix, tool in entries:
+                assert prefix
+                assert tool
 
 
 class TestMcpHorizontalDuplicatesRemediate:

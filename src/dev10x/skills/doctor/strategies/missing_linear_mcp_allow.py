@@ -16,6 +16,7 @@ only incidentally.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 from dev10x.domain.common.allow_rule import AllowRuleLoader
@@ -25,6 +26,24 @@ from dev10x.skills.doctor.strategy import (
     Remediation,
     Strategy,
 )
+
+
+@dataclass(frozen=True)
+class LinearBaselineRemediation:
+    """Remediation payload for a missing-linear-mcp-allow finding."""
+
+    missing_tools: tuple[str, ...]
+
+    def to_remediation(self, *, finding: Finding) -> Remediation:
+        return Remediation(
+            kind="delegate_skill",
+            target="Dev10x:upgrade-cleanup",
+            action={
+                "reason": "install Linear MCP baseline allow rules",
+                "missing_tools": list(self.missing_tools),
+            },
+        )
+
 
 LINEAR_RULE_PREFIXES: tuple[str, ...] = (
     "mcp__claude_ai_Linear__",
@@ -81,23 +100,14 @@ def detect(context: Context) -> list[Finding]:
                     "ensure-base`) to install the Linear MCP baseline shipped "
                     "in `skills/upgrade-cleanup/projects.yaml`"
                 ),
-                metadata={
-                    "missing_tools": missing,
-                },
+                data=LinearBaselineRemediation(missing_tools=tuple(missing)),
             )
         )
     return findings
 
 
 def remediate(finding: Finding) -> Remediation:
-    return Remediation(
-        kind="delegate_skill",
-        target="Dev10x:upgrade-cleanup",
-        action={
-            "reason": "install Linear MCP baseline allow rules",
-            "missing_tools": finding.metadata.get("missing_tools", []),
-        },
-    )
+    return finding.to_remediation()
 
 
 STRATEGY = Strategy(
