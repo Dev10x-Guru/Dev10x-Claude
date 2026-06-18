@@ -42,6 +42,11 @@ from dev10x.skills.release.classifier import (
 
 DEFAULT_TICKET_PATTERN = TICKET_ID_PATTERN
 
+# Upper bound on merged PRs fetched in one batch (GH-550). A release
+# window rarely exceeds this; the former per-ticket search had no such
+# cap but paid one subprocess per ticket.
+MERGED_PR_FETCH_LIMIT = 300
+
 
 @dataclass
 class Commit:
@@ -168,23 +173,27 @@ def collect_ticket_groups(
     return dict(groups)
 
 
-def find_prs_for_ticket(
-    ticket_id: str,
+def fetch_merged_prs(
     repo_path: str,
+    limit: int = MERGED_PR_FETCH_LIMIT,
 ) -> list[dict]:
+    """Fetch all merged PRs in one ``gh`` call (GH-550).
+
+    Replaces the former per-ticket ``gh pr list --search <id>`` loop,
+    which spawned one subprocess per release ticket (N+1). Ticket IDs
+    are matched against these PRs in-memory by ``find_matching_prs``.
+    """
     output = run(
         [
             "gh",
             "pr",
             "list",
-            "--search",
-            ticket_id,
             "--state",
             "merged",
             "--json",
             "number,title,body",
             "--limit",
-            "5",
+            str(limit),
         ],
         cwd=repo_path,
         check=False,
@@ -195,6 +204,20 @@ def find_prs_for_ticket(
         return json.loads(output)
     except json.JSONDecodeError:
         return []
+
+
+def find_matching_prs(
+    ticket_id: str,
+    merged_prs: list[dict],
+) -> list[dict]:
+    """Return merged PRs whose title or body references ``ticket_id``."""
+    pattern = re.compile(rf"\b{re.escape(ticket_id)}\b")
+    matches: list[dict] = []
+    for pr in merged_prs:
+        haystack = f"{pr.get('title', '')}\n{pr.get('body', '')}"
+        if pattern.search(haystack):
+            matches.append(pr)
+    return matches
 
 
 def parse_args() -> argparse.Namespace:
@@ -260,6 +283,8 @@ def main() -> None:
 
     skipped = [c for c in commits if c.sha in reverted_shas or c.category in SKIP_CATEGORIES]
 
+    merged_prs = fetch_merged_prs(repo_path=repo_path)
+
     seen_pr_numbers: dict[int, PRInfo] = {}
     feature_prs: list[PRInfo] = []
     maintenance_prs: list[PRInfo] = []
@@ -268,9 +293,9 @@ def main() -> None:
     for ticket_id, group_commits in ticket_groups.items():
         group_category = classify_group(categories={c.category for c in group_commits})
 
-        pr_list = find_prs_for_ticket(
+        pr_list = find_matching_prs(
             ticket_id=ticket_id,
-            repo_path=repo_path,
+            merged_prs=merged_prs,
         )
 
         if pr_list:
