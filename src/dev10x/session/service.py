@@ -75,6 +75,21 @@ class SessionService:
         guidance_file = self._plugin_root / "hooks" / "scripts" / "session-guidance.md"
         return guidance_file.read_text() if guidance_file.exists() else ""
 
+    def build_background_preamble_context(self) -> str:
+        """Return the background-dispatch friction preamble (GH-610).
+
+        Background subagents (workflow / monitor / loop / fanout) start with
+        a fresh system prompt and never receive the SessionStart friction
+        briefing. Dispatchers prepend this text to each subagent prompt so it
+        avoids hook-tripping command shapes and stays on the pre-approved
+        tool surface. Returns the canonical preamble document contents, or an
+        empty string when the document is missing.
+        """
+        preamble_file = (
+            self._plugin_root / "references" / "orchestration" / "background-preamble.md"
+        )
+        return preamble_file.read_text() if preamble_file.exists() else ""
+
     def build_autonomy_reassurance_context(self, *, toplevel: str | None = _UNSET) -> str:  # type: ignore[assignment]
         """Return a reassurance block for adaptive + solo-maintainer sessions (GH-261).
 

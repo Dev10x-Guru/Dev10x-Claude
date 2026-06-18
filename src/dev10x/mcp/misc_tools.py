@@ -10,8 +10,33 @@ from typing import Literal, cast
 # `from __future__ import annotations`.
 from mcp.server.fastmcp import Context  # noqa: F401
 
-from dev10x.domain.common.result import to_wire
+from dev10x.domain.common.result import err, ok, to_wire
 from dev10x.mcp._app import server
+
+
+@server.tool()
+async def background_preamble() -> dict:
+    """Return the friction-avoidance preamble for background subagents (GH-610).
+
+    Background subagents (workflow / monitor / loop / fanout) start with a
+    fresh system prompt and never receive the SessionStart friction briefing.
+    Dispatchers fetch this text and prepend it verbatim to each subagent
+    prompt so the subagent avoids hook-tripping command shapes and stays on
+    the pre-approved tool surface. The canonical source is
+    ``references/orchestration/background-preamble.md``; this tool serves it
+    without a Read permission prompt and keeps the dispatch paths from
+    drifting.
+
+    Returns:
+        Dictionary with key: preamble (str) — the preamble document text.
+        Returns ``{"error": ...}`` when the canonical document is missing.
+    """
+    from dev10x.session.service import SessionService
+
+    text = SessionService().build_background_preamble_context()
+    if not text:
+        return to_wire(err("background-preamble.md not found in plugin root"))
+    return to_wire(ok({"preamble": text}))
 
 
 @server.tool()

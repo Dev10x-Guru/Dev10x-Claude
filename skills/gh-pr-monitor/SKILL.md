@@ -21,6 +21,7 @@ allowed-tools:
   - mcp__plugin_Dev10x_cli__ci_check_status
   - mcp__plugin_Dev10x_cli__check_top_level_comments
   - mcp__plugin_Dev10x_cli__milestone_close
+  - mcp__plugin_Dev10x_cli__background_preamble
   - Bash(gh:*)
   - Skill(Dev10x:qa-scope)
   - Skill(Dev10x:request-review)

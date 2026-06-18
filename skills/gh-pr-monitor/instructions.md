@@ -164,6 +164,15 @@ Two narrow haiku sub-agents replace the prior monolithic background
 agent. Each has a minimal tool allowlist, a hard turn budget, no
 ability to delegate further, and no ability to mutate state.
 
+**Friction-avoidance preamble (REQUIRED, GH-610):** Both micro-agents
+run in fresh subagents that never saw the SessionStart friction
+briefing. Before each dispatch, fetch the preamble via
+`mcp__plugin_Dev10x_cli__background_preamble` and prepend its
+`preamble` text to the micro-agent prompt below. The narrow
+`allowed_tools` lists are the pre-seeded tool surface — keep them
+explicit (do NOT widen to escape a hook block, and never recommend
+auto-mode). See `references/orchestration/background-preamble.md`.
+
 #### Micro-agent A: haiku-ci-poll
 
 Polls CI until the verdict changes from `pending`, then returns

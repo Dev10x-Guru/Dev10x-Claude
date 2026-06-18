@@ -80,6 +80,35 @@ appears idle and may be closed prematurely.
 This pattern applies to ALL skills that launch background
 agents, not just `gh-pr-monitor`.
 
+## Background Friction Preamble (REQUIRED, GH-610)
+
+Background subagents (workflow / monitor / loop / fanout) start
+with a **fresh system prompt** — they never receive the
+SessionStart "Session Guidance — Patterns & Anti-Patterns"
+briefing. Without it they emit hook-tripping command shapes
+(`cd && …`, `$(…)`, pipe chains, `git -C`) and bypass MCP
+wrappers, then the harness offers the "switch to auto mode"
+nudge (the GH-310 footgun).
+
+**REQUIRED for every background dispatch:** prepend the canonical
+friction-avoidance preamble to the subagent prompt, and pre-seed
+its tool surface so the preferred tools are actually available.
+
+1. Fetch the preamble text via
+   `mcp__plugin_Dev10x_cli__background_preamble` (no Read prompt,
+   single source of truth). The canonical document is
+   [`background-preamble.md`](background-preamble.md).
+2. Prepend the returned text verbatim to the subagent's prompt.
+3. Ensure `allowed_tools` includes `Read`, `Grep`, `Glob`, the
+   `cli` wrappers the work needs (`mktmp`, `push_safe`,
+   `create_pr`, `ci_check_status`, …), and `Skill` only when the
+   subagent is meant to delegate.
+
+Recommend pre-seeding over disabling prompts: a narrow correct
+tool surface beats blanket `bypassPermissions`. See
+`background-preamble.md` § Pre-seed for the full contract and
+the harness-owned coverage limits (`/loop`, built-in `Workflow`).
+
 ## Wave-Based Orchestration
 
 When orchestrating multiple independent analysis phases, structure

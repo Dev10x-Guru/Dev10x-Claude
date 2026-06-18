@@ -170,6 +170,7 @@ supporting each tool:
 | `rule_confidence_report` | `cli` | GH-350 | v0.80.0+ |
 | `record_rule_feedback` | `cli` | GH-350 | v0.80.0+ |
 | `request_sampling` | `cli` | GH-343 | v0.80.0+ |
+| `background_preamble` | `cli` | GH-610 | v0.80.0+ |
 | `query` | `db` | PR #126 | v0.25.0+ |
 
 When adding a new tool, update this table and note any dependencies on

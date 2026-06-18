@@ -120,6 +120,29 @@ class TestBuildGuidanceContext:
         assert len(result) > 0
 
 
+class TestBuildBackgroundPreambleContext:
+    def test_empty_when_preamble_file_missing(self, tmp_path: Path) -> None:
+        svc = SessionService(plugin_root=tmp_path)
+        assert svc.build_background_preamble_context() == ""
+
+    def test_returns_file_contents_when_present(self, tmp_path: Path) -> None:
+        orchestration_dir = tmp_path / "references" / "orchestration"
+        orchestration_dir.mkdir(parents=True)
+        preamble = orchestration_dir / "background-preamble.md"
+        preamble.write_text("# Background Friction Preamble\nNo cd && chaining.")
+
+        svc = SessionService(plugin_root=tmp_path)
+        result = svc.build_background_preamble_context()
+
+        assert "Background Friction Preamble" in result
+        assert "No cd && chaining" in result
+
+    def test_real_plugin_root_has_preamble_file(self) -> None:
+        svc = SessionService()
+        result = svc.build_background_preamble_context()
+        assert len(result) > 0
+
+
 class TestBuildInstallCheckContext:
     def test_empty_when_install_current(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
