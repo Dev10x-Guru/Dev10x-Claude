@@ -13,7 +13,7 @@ import json
 
 import pytest
 
-from dev10x.domain.events.hook_input import HookAllow, HookResult
+from dev10x.domain.events.hook_input import HookAllow, HookAsk, HookResult
 from dev10x.hooks.hook_transport import emit, read_hook_input
 
 
@@ -47,6 +47,35 @@ class TestEmitHookAllow:
     def test_omits_system_message_when_empty(self, capsys: pytest.CaptureFixture[str]) -> None:
         with pytest.raises(SystemExit):
             emit(HookAllow())
+        output = json.loads(capsys.readouterr().err)
+        assert "systemMessage" not in output
+
+
+class TestEmitHookAsk:
+    def test_exits_with_code_0(self) -> None:
+        with pytest.raises(SystemExit) as exc_info:
+            emit(HookAsk(message="sensitive", reason="why"))
+        assert exc_info.value.code == 0
+
+    def test_writes_ask_envelope(self, capsys: pytest.CaptureFixture[str]) -> None:
+        with pytest.raises(SystemExit):
+            emit(HookAsk(message="sensitive probe", reason="DX014 INFRA target"))
+        output = json.loads(capsys.readouterr().err)
+        hook_output = output["hookSpecificOutput"]
+        assert hook_output["hookEventName"] == "PreToolUse"
+        assert hook_output["permissionDecision"] == "ask"
+        assert hook_output["permissionDecisionReason"] == "DX014 INFRA target"
+        assert output["systemMessage"] == "sensitive probe"
+
+    def test_reason_falls_back_to_message(self, capsys: pytest.CaptureFixture[str]) -> None:
+        with pytest.raises(SystemExit):
+            emit(HookAsk(message="only a message"))
+        output = json.loads(capsys.readouterr().err)
+        assert output["hookSpecificOutput"]["permissionDecisionReason"] == "only a message"
+
+    def test_omits_system_message_when_empty(self, capsys: pytest.CaptureFixture[str]) -> None:
+        with pytest.raises(SystemExit):
+            emit(HookAsk(reason="reason only"))
         output = json.loads(capsys.readouterr().err)
         assert "systemMessage" not in output
 

@@ -141,6 +141,15 @@ class Dev10xConfigDir:
         )
 
     @classmethod
+    def sensitivity_exceptions_yaml(cls) -> Path:
+        """User-owned sensitivity-exception catalog (GH-604).
+
+        No legacy migration: introduced after the ``~/.config/Dev10x``
+        move, so it only ever lives at the canonical path.
+        """
+        return cls._resolve("sensitivity-exceptions.yaml")
+
+    @classmethod
     def github_bot_dir(cls) -> Path:
         return _with_lazy_migration(cls._resolve("github-bot"), _legacy_github_bot_dir)
 

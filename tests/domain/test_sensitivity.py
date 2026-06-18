@@ -8,15 +8,20 @@ tier=safe-read and reversibility=trivial, yet plainly sensitive.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from dev10x.domain.sensitivity import (
     SENSITIVE_NAME_TOKENS,
+    ExceptionEffect,
     SensitivityClassifier,
+    SensitivityException,
     SensitivityLabel,
     SensitivityMatch,
     SensitivityPattern,
     name_is_sensitive,
+    resolve_exception_effect,
     tokenize_identifier,
 )
 
@@ -335,7 +340,6 @@ class TestCustomPatterns:
         assert classifier.classify(command="gh secret list") == []
 
     def test_single_custom_pattern(self) -> None:
-        import re
 
         custom = SensitivityPattern(
             label=SensitivityLabel.INFRA,
@@ -349,7 +353,6 @@ class TestCustomPatterns:
         assert matches[0].pattern == "custom prod db"
 
     def test_custom_pattern_no_match(self) -> None:
-        import re
 
         custom = SensitivityPattern(
             label=SensitivityLabel.SECRET,
@@ -495,3 +498,121 @@ class TestNameIsSensitive:
     def test_custom_token_set_overrides_default(self) -> None:
         assert name_is_sensitive("get_token", tokens=frozenset({"token"}))
         assert not name_is_sensitive("get_token")
+
+
+# ---------------------------------------------------------------------------
+# Sensitivity-exception catalog — value objects + resolver (GH-604)
+# ---------------------------------------------------------------------------
+
+
+def _match(label: SensitivityLabel, text: str = "x") -> SensitivityMatch:
+    return SensitivityMatch(label=label, pattern="p", matched_text=text)
+
+
+class TestExceptionEffect:
+    def test_values(self) -> None:
+        assert {e.value for e in ExceptionEffect} == {"allow", "ask"}
+
+    def test_repr_includes_name(self) -> None:
+        assert "ALLOW" in repr(ExceptionEffect.ALLOW)
+
+
+class TestSensitivityExceptionConstruction:
+    def test_default_effect_is_allow(self) -> None:
+        exc = SensitivityException(label=SensitivityLabel.INFRA)
+        assert exc.effect is ExceptionEffect.ALLOW
+
+    def test_requires_at_least_one_matcher(self) -> None:
+        with pytest.raises(ValueError, match="at least one of label/shape/target"):
+            SensitivityException()
+
+    def test_label_only_matcher_is_valid(self) -> None:
+        assert SensitivityException(label=SensitivityLabel.SECRET).label is SensitivityLabel.SECRET
+
+    def test_shape_only_matcher_is_valid(self) -> None:
+        assert SensitivityException(shape=re.compile(r"\bnc\b")) is not None
+
+
+class TestSensitivityExceptionApplies:
+    def test_label_matches_when_all_matches_share_label(self) -> None:
+        exc = SensitivityException(label=SensitivityLabel.INFRA)
+        matches = [_match(SensitivityLabel.INFRA), _match(SensitivityLabel.INFRA)]
+        assert exc.applies(matches=matches, command="nc -zv host 5432") is True
+
+    def test_label_does_not_match_when_a_second_label_present(self) -> None:
+        # A blessed INFRA entry must not downgrade a command that also
+        # trips an un-blessed CREDENTIAL match (all(...) guard).
+        exc = SensitivityException(label=SensitivityLabel.INFRA)
+        matches = [_match(SensitivityLabel.INFRA), _match(SensitivityLabel.CREDENTIAL)]
+        assert exc.applies(matches=matches, command="rg DB_PASSWORD 10.0.0.5") is False
+
+    def test_shape_matches_command(self) -> None:
+        exc = SensitivityException(shape=re.compile(r"\bnc\b.*-[zv]+"))
+        assert exc.applies(matches=[_match(SensitivityLabel.INFRA)], command="nc -zv h 5432")
+
+    def test_shape_mismatch_does_not_apply(self) -> None:
+        exc = SensitivityException(shape=re.compile(r"\bdig\b"))
+        assert not exc.applies(matches=[_match(SensitivityLabel.INFRA)], command="nc -zv h 5432")
+
+    def test_target_matches_command(self) -> None:
+        exc = SensitivityException(target=re.compile(r"bastion\.example\.internal"))
+        cmd = "nc -zv bastion.example.internal 22"
+        assert exc.applies(matches=[_match(SensitivityLabel.INFRA)], command=cmd)
+
+    def test_all_supplied_fields_must_match(self) -> None:
+        # Shape matches but target does not → AND semantics → no apply.
+        exc = SensitivityException(
+            shape=re.compile(r"\bnc\b"),
+            target=re.compile(r"bastion\.example\.internal"),
+        )
+        assert not exc.applies(
+            matches=[_match(SensitivityLabel.INFRA)],
+            command="nc -zv other.host 22",
+        )
+
+    def test_empty_matches_never_applies(self) -> None:
+        exc = SensitivityException(shape=re.compile(r"\bnc\b"))
+        assert exc.applies(matches=[], command="nc -zv h 5432") is False
+
+
+class TestResolveExceptionEffect:
+    def test_no_exceptions_returns_none(self) -> None:
+        result = resolve_exception_effect(
+            matches=[_match(SensitivityLabel.INFRA)], command="nc -zv h 5432", exceptions=[]
+        )
+        assert result is None
+
+    def test_first_applicable_wins(self) -> None:
+        exceptions = [
+            SensitivityException(effect=ExceptionEffect.ASK, shape=re.compile(r"\bnc\b")),
+            SensitivityException(effect=ExceptionEffect.ALLOW, shape=re.compile(r"\bnc\b")),
+        ]
+        result = resolve_exception_effect(
+            matches=[_match(SensitivityLabel.INFRA)],
+            command="nc -zv h 5432",
+            exceptions=exceptions,
+        )
+        assert result is ExceptionEffect.ASK
+
+    def test_returns_allow_when_blessed(self) -> None:
+        exceptions = [
+            SensitivityException(
+                effect=ExceptionEffect.ALLOW,
+                target=re.compile(r"bastion\.example\.internal"),
+            )
+        ]
+        result = resolve_exception_effect(
+            matches=[_match(SensitivityLabel.INFRA)],
+            command="nc -zv bastion.example.internal 22",
+            exceptions=exceptions,
+        )
+        assert result is ExceptionEffect.ALLOW
+
+    def test_non_matching_exception_returns_none(self) -> None:
+        exceptions = [SensitivityException(shape=re.compile(r"\bdig\b"))]
+        result = resolve_exception_effect(
+            matches=[_match(SensitivityLabel.INFRA)],
+            command="nc -zv h 5432",
+            exceptions=exceptions,
+        )
+        assert result is None

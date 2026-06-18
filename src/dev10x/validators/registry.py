@@ -27,7 +27,7 @@ from dev10x.domain.common.rule_id import RuleId
 from dev10x.domain.profile_tier import ProfileTier
 
 if TYPE_CHECKING:
-    from dev10x.domain import HookAllow, HookInput, HookResult, HookRetry
+    from dev10x.domain import HookAllow, HookAsk, HookInput, HookResult, HookRetry
     from dev10x.validators.base import Validator
 
 log = logging.getLogger(__name__)
@@ -234,14 +234,14 @@ class ValidatorChain:
 
     registry: ValidatorRegistry
 
-    def run(self, inp: HookInput) -> list[HookResult | HookAllow]:
+    def run(self, inp: HookInput) -> list[HookResult | HookAllow | HookAsk]:
         """Invoke ``validate()`` on every applicable validator.
 
         Returns the list of non-None results in registration order;
         callers emit each in turn. When a safety-critical validator
         raises, a fail-closed block is appended in its place (GH-494).
         """
-        results: list[HookResult | HookAllow] = []
+        results: list[HookResult | HookAllow | HookAsk] = []
         for validator in self.registry.active():
             try:
                 if not validator.should_run(inp=inp):

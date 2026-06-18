@@ -3,10 +3,13 @@
 Covers:
 - should_run() fast-skip predicate
 - validate() returning None for benign commands
-- validate() returning HookResult for each sensitivity label
+- validate() returning HookAsk for each sensitivity label (GH-604:
+  the sensitivity axis elevates to ``ask``, not hard ``deny``)
+- exception-catalog downgrade: HookAllow when blessed (GH-604)
 - deny-overrides semantics: multi-match accumulates all matches
 - Registry integration: DX014 appears in standard profile
 - Custom classifier injection via with_patterns()
+- Exception-catalog injection via with_exceptions()
 
 Fixtures are drawn from GH-271 evidence #267–#273 (same corpus as
 the SensitivityClassifier unit tests in tests/domain/test_sensitivity.py).
@@ -14,10 +17,20 @@ the SensitivityClassifier unit tests in tests/domain/test_sensitivity.py).
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
+from dev10x.domain import HookAllow, HookAsk
+from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.profile_tier import ProfileTier
-from dev10x.domain.sensitivity import SensitivityClassifier, SensitivityLabel, SensitivityPattern
+from dev10x.domain.sensitivity import (
+    ExceptionEffect,
+    SensitivityClassifier,
+    SensitivityException,
+    SensitivityLabel,
+    SensitivityPattern,
+)
 from dev10x.validators import get_validators, reset_registry
 from dev10x.validators.sensitivity_target import SensitivityTargetValidator
 from tests.fakers import BashHookInputFaker
@@ -25,6 +38,21 @@ from tests.fakers import BashHookInputFaker
 
 def _inp(command: str) -> BashHookInputFaker:
     return BashHookInputFaker.build(command=command)
+
+
+@pytest.fixture(autouse=True)
+def _empty_catalog(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin the exception catalog to an empty config home (hermetic).
+
+    DX014 lazily loads ``~/.config/Dev10x/sensitivity-exceptions.yaml``
+    on the first sensitivity match. Point it at an empty tmp dir so the
+    default validator behaves as 'no exceptions' regardless of the
+    developer's real config (GH-604).
+    """
+    monkeypatch.setenv("DEV10X_CONFIG_HOME", str(tmp_path))
+    Dev10xConfigDir.reset_cache()
+    yield
+    Dev10xConfigDir.reset_cache()
 
 
 # ---------------------------------------------------------------------------
@@ -238,7 +266,6 @@ class TestDenyOverrides:
         result = validator.validate(inp=_inp(cmd))
         assert result is not None
         # The count line must show > 1.
-        import re
 
         count_match = re.search(r"matched (\d+) sensitivity pattern", result.message)
         assert count_match is not None
@@ -281,9 +308,102 @@ class TestMessageFormat:
 # ---------------------------------------------------------------------------
 
 
+class TestAskElevation:
+    """GH-604: a sensitivity hit elevates to ``ask``, not hard ``deny``."""
+
+    def test_returns_hook_ask_for_sensitive_command(
+        self, validator: SensitivityTargetValidator
+    ) -> None:
+        result = validator.validate(inp=_inp("nc -zv 10.0.0.5 5432"))
+        assert isinstance(result, HookAsk)
+
+    def test_ask_reason_names_label(self, validator: SensitivityTargetValidator) -> None:
+        result = validator.validate(inp=_inp("nc -zv 10.0.0.5 5432"))
+        assert isinstance(result, HookAsk)
+        assert "INFRA" in result.reason
+        assert "DX014" in result.reason
+
+    def test_ask_message_retains_detail(self, validator: SensitivityTargetValidator) -> None:
+        result = validator.validate(inp=_inp("gh secret list"))
+        assert isinstance(result, HookAsk)
+        assert "SECRET" in result.message
+        assert "DX014" in result.message
+
+
+class TestExceptionCatalogDowngrade:
+    """GH-604: a blessed exception downgrades ``ask`` to ``allow`` / keeps ``ask``."""
+
+    def test_allow_exception_returns_hook_allow(self) -> None:
+        exc = SensitivityException(
+            effect=ExceptionEffect.ALLOW,
+            target=re.compile(r"bastion\.example\.internal"),
+        )
+        v = SensitivityTargetValidator(exceptions=[exc])
+        result = v.validate(inp=_inp("nc -zv bastion.example.internal 22"))
+        assert isinstance(result, HookAllow)
+
+    def test_allow_exception_silent_message(self) -> None:
+        exc = SensitivityException(effect=ExceptionEffect.ALLOW, shape=re.compile(r"\bnc\b"))
+        v = SensitivityTargetValidator(exceptions=[exc])
+        result = v.validate(inp=_inp("nc -zv host 5432"))
+        assert isinstance(result, HookAllow)
+        assert result.message == ""
+
+    def test_ask_exception_keeps_ask(self) -> None:
+        exc = SensitivityException(effect=ExceptionEffect.ASK, shape=re.compile(r"\bnc\b"))
+        v = SensitivityTargetValidator(exceptions=[exc])
+        result = v.validate(inp=_inp("nc -zv host 5432"))
+        assert isinstance(result, HookAsk)
+
+    def test_non_matching_exception_keeps_ask(self) -> None:
+        exc = SensitivityException(
+            effect=ExceptionEffect.ALLOW,
+            target=re.compile(r"bastion\.example\.internal"),
+        )
+        v = SensitivityTargetValidator(exceptions=[exc])
+        # Different target → exception does not apply → still ask.
+        result = v.validate(inp=_inp("nc -zv other.host 22"))
+        assert isinstance(result, HookAsk)
+
+    def test_label_scoped_allow_does_not_downgrade_multilabel(self) -> None:
+        # An INFRA-only allow must not bless a command that also trips
+        # CREDENTIAL (the all-matches-share-label guard).
+        exc = SensitivityException(effect=ExceptionEffect.ALLOW, label=SensitivityLabel.INFRA)
+        v = SensitivityTargetValidator(exceptions=[exc])
+        result = v.validate(inp=_inp("rg DB_PASSWORD 10.0.0.5"))
+        assert isinstance(result, HookAsk)
+
+    def test_benign_command_skips_catalog(self) -> None:
+        # No sensitivity match → None, exceptions never consulted.
+        exc = SensitivityException(effect=ExceptionEffect.ALLOW, shape=re.compile(r".*"))
+        v = SensitivityTargetValidator(exceptions=[exc])
+        assert v.validate(inp=_inp("git status")) is None
+
+    def test_with_exceptions_factory(self) -> None:
+        exc = SensitivityException(effect=ExceptionEffect.ALLOW, shape=re.compile(r"\bnc\b"))
+        base = SensitivityTargetValidator()
+        blessed = base.with_exceptions(exceptions=[exc])
+        # Base still elevates to ask; blessed instance allows.
+        assert isinstance(base.validate(inp=_inp("nc -zv host 5432")), HookAsk)
+        assert isinstance(blessed.validate(inp=_inp("nc -zv host 5432")), HookAllow)
+
+    def test_with_patterns_preserves_exceptions(self) -> None:
+        exc = SensitivityException(effect=ExceptionEffect.ALLOW, shape=re.compile(r"\bzzz\b"))
+        v = SensitivityTargetValidator(exceptions=[exc]).with_patterns(
+            patterns=[
+                SensitivityPattern(
+                    label=SensitivityLabel.SECRET,
+                    regex=re.compile(r"\bzzz\b"),
+                    description="zzz",
+                )
+            ]
+        )
+        # The injected exception survives with_patterns and downgrades.
+        assert isinstance(v.validate(inp=_inp("run zzz now")), HookAllow)
+
+
 class TestCustomClassifier:
     def test_custom_wordlist_replaces_default(self) -> None:
-        import re
 
         custom_pattern = SensitivityPattern(
             label=SensitivityLabel.SECRET,
@@ -302,7 +422,6 @@ class TestCustomClassifier:
         assert "SECRET" in result.message
 
     def test_with_patterns_factory(self) -> None:
-        import re
 
         base = SensitivityTargetValidator()
         custom = base.with_patterns(

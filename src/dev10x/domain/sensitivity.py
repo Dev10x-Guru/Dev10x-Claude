@@ -315,6 +315,91 @@ class SensitivityClassifier:
 
 
 # ---------------------------------------------------------------------------
+# Sensitivity-exception catalog — the user-owned downgrade layer (GH-604)
+#
+# DX014 elevates a sensitive command to ``ask`` by default. A user who
+# has blessed a specific read-only probe to a known target should not be
+# re-prompted every time. The exception catalog (Tier 2, synced via
+# ~/.config/Dev10x/sensitivity-exceptions.yaml) downgrades blessed hits
+# from ``ask`` to ``allow`` (or keeps an explicit ``ask``).
+#
+# These value objects and the resolver are pure domain logic; loading the
+# YAML file is an infra concern handled in
+# ``dev10x.validators.sensitivity_exceptions``.
+# ---------------------------------------------------------------------------
+
+
+class ExceptionEffect(StrEnum):
+    """Effect a matched catalog entry applies to a DX014 sensitivity hit."""
+
+    ALLOW = "allow"
+    ASK = "ask"
+
+    def __repr__(self) -> str:
+        return f"ExceptionEffect.{self.name}"
+
+
+@dataclass(frozen=True)
+class SensitivityException:
+    """One blessed entry in the sensitivity-exception catalog (GH-604).
+
+    Hybrid target+shape matching (decision D5): an entry downgrades a
+    DX014 hit to ``effect`` when *every* supplied matcher applies —
+
+        label   apply only when every match carries this exact label
+        shape   regex searched against the full command string
+        target  regex searched against the full command string
+
+    At least one matcher must be set; a matcher-less entry would bless
+    every sensitive command and is rejected at construction. The
+    ``label`` guard uses ``all(...)`` so a command that trips a second,
+    un-blessed label (e.g. CREDENTIAL alongside a blessed INFRA probe)
+    is not silently downgraded — only a label-less (shape/target) entry
+    can bless a multi-label command, which is the user's explicit call.
+    """
+
+    effect: ExceptionEffect = ExceptionEffect.ALLOW
+    label: SensitivityLabel | None = None
+    shape: re.Pattern[str] | None = None
+    target: re.Pattern[str] | None = None
+    description: str = ""
+
+    def __post_init__(self) -> None:
+        if self.label is None and self.shape is None and self.target is None:
+            raise ValueError("SensitivityException requires at least one of label/shape/target")
+
+    def applies(self, *, matches: list[SensitivityMatch], command: str) -> bool:
+        """Return True when every supplied matcher applies to this hit."""
+        if not matches:
+            return False
+        if self.label is not None and not all(m.label == self.label for m in matches):
+            return False
+        if self.shape is not None and not self.shape.search(command):
+            return False
+        if self.target is not None and not self.target.search(command):
+            return False
+        return True
+
+
+def resolve_exception_effect(
+    *,
+    matches: list[SensitivityMatch],
+    command: str,
+    exceptions: list[SensitivityException],
+) -> ExceptionEffect | None:
+    """Return the effect of the first applicable catalog entry, or None.
+
+    First-match-wins by catalog order — the user controls precedence by
+    ordering entries. ``None`` means no entry blessed this command, so
+    the caller keeps DX014's default ``ask`` elevation.
+    """
+    for exc in exceptions:
+        if exc.applies(matches=matches, command=command):
+            return exc.effect
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Identifier sensitivity — the NAME axis (GH-607)
 #
 # This module is the single source of the sensitivity vocabulary for every
@@ -373,10 +458,13 @@ def name_is_sensitive(name: str, *, tokens: frozenset[str] = SENSITIVE_NAME_TOKE
 
 __all__ = [
     "SENSITIVE_NAME_TOKENS",
+    "ExceptionEffect",
     "SensitivityClassifier",
+    "SensitivityException",
     "SensitivityLabel",
     "SensitivityMatch",
     "SensitivityPattern",
     "name_is_sensitive",
+    "resolve_exception_effect",
     "tokenize_identifier",
 ]

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from dev10x.domain import HookAllow, HookInput, HookResult
+from dev10x.domain import HookAllow, HookAsk, HookInput, HookResult
 
 
 class TestHookInputFromDict:
@@ -56,3 +56,18 @@ class TestHookAllow:
 
     def test_to_dict_message_preserved(self) -> None:
         assert HookAllow(message="auto-approved").to_dict()["message"] == "auto-approved"
+
+
+class TestHookAsk:
+    def test_to_dict_decision_ask(self) -> None:
+        assert HookAsk().to_dict()["decision"] == "ask"
+
+    def test_to_dict_message_and_reason_default_empty(self) -> None:
+        result = HookAsk().to_dict()
+        assert result["message"] == ""
+        assert result["reason"] == ""
+
+    def test_to_dict_preserves_message_and_reason(self) -> None:
+        result = HookAsk(message="sensitive", reason="DX014 INFRA target").to_dict()
+        assert result["message"] == "sensitive"
+        assert result["reason"] == "DX014 INFRA target"

@@ -36,10 +36,18 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import ClassVar
 
-from dev10x.domain import HookInput, HookResult
+from dev10x.domain import HookAllow, HookAsk, HookInput
 from dev10x.domain.profile_tier import ProfileTier
-from dev10x.domain.sensitivity import SensitivityClassifier, SensitivityMatch, SensitivityPattern
+from dev10x.domain.sensitivity import (
+    ExceptionEffect,
+    SensitivityClassifier,
+    SensitivityException,
+    SensitivityMatch,
+    SensitivityPattern,
+    resolve_exception_effect,
+)
 from dev10x.validators.base import ValidatorBase
+from dev10x.validators.sensitivity_exceptions import load_sensitivity_exceptions
 
 _ASK_MSG_TEMPLATE = """\
 ⚠️  Sensitive target detected — command requires review before execution.
@@ -65,18 +73,33 @@ def _format_matches(matches: list[SensitivityMatch]) -> str:
     return "\n".join(lines)
 
 
+def _ask_reason(matches: list[SensitivityMatch]) -> str:
+    """One-line ``permissionDecisionReason`` for the approval dialog."""
+    labels = ", ".join(sorted({m.label.value.upper() for m in matches}))
+    return f"DX014 sensitivity axis: {labels} target — approve only if intentional and safe."
+
+
 @dataclass
 class SensitivityTargetValidator(ValidatorBase):
-    """Block commands that match the PAP sensitivity wordlist.
+    """Elevate commands matching the PAP sensitivity wordlist to ``ask``.
 
     Uses ``SensitivityClassifier`` to check the full command string
-    against the default wordlist.  Returns a ``HookResult`` (deny with
-    message) when *any* sensitivity pattern fires, implementing the
-    deny-overrides rule: a sensitivity hit on the third axis elevates
-    the effective effect regardless of tier and reversibility scores.
+    against the default wordlist. When *any* sensitivity pattern fires,
+    the sensitivity axis elevates the effective effect to ``ask``
+    (``HookAsk``) — a prompt the user can approve in-session — rather
+    than a hard ``deny`` that drops them to a manual ``!`` shell (GH-604,
+    evidence #3). Genuine destructive writes are still hard-denied by the
+    safety-tier validators (DX001–DX005/DX012), which run *before* DX014
+    in the chain and short-circuit on a ``deny``.
+
+    A user-owned, synced exception catalog (Tier 2,
+    ``~/.config/Dev10x/sensitivity-exceptions.yaml``) can downgrade a
+    blessed read-only probe from ``ask`` to ``allow`` — see
+    ``with_exceptions`` and :func:`resolve_exception_effect`.
 
     The wordlist can be customised per test by injecting a ``classifier``
-    instance; production code always uses the default wordlist.
+    instance; the exception catalog can be injected via ``exceptions``
+    (``None`` = lazy-load from the user config; production default).
     """
 
     name: ClassVar[str] = "sensitivity-target"
@@ -86,6 +109,13 @@ class SensitivityTargetValidator(ValidatorBase):
     classifier: SensitivityClassifier = field(
         default_factory=SensitivityClassifier,
         repr=False,
+    )
+    exceptions: list[SensitivityException] | None = field(default=None, repr=False)
+    _loaded_exceptions: list[SensitivityException] | None = field(
+        default=None,
+        init=False,
+        repr=False,
+        compare=False,
     )
 
     def should_run(self, inp: HookInput) -> bool:
@@ -97,26 +127,60 @@ class SensitivityTargetValidator(ValidatorBase):
         """
         return bool(inp.command.strip())
 
-    def validate(self, inp: HookInput) -> HookResult | None:
-        """Return a HookResult if the command matches the sensitivity wordlist.
+    def validate(self, inp: HookInput) -> HookAsk | HookAllow | None:
+        """Elevate a sensitive command to ``ask``, or ``allow`` if blessed.
 
-        Deny-overrides: any sensitivity match wins over tier/reversibility.
+        Any sensitivity match wins over tier/reversibility (deny-overrides
+        on the sensitivity axis). A matching exception-catalog entry with
+        effect ``allow`` downgrades the hit to a silent ``HookAllow``; an
+        explicit ``ask`` entry — or no matching entry — keeps the ``ask``
+        prompt. The catalog is consulted only after a match, so benign
+        commands never touch the filesystem.
         """
         matches = self.classifier.classify(command=inp.command)
         if not matches:
             return None
-        matches_detail = _format_matches(matches=matches)
+        effect = resolve_exception_effect(
+            matches=matches,
+            command=inp.command,
+            exceptions=self._resolved_exceptions(),
+        )
+        if effect is ExceptionEffect.ALLOW:
+            return HookAllow()
         message = _ASK_MSG_TEMPLATE.format(
             count=len(matches),
-            matches_detail=matches_detail,
+            matches_detail=_format_matches(matches=matches),
         )
-        return HookResult(message=message)
+        return HookAsk(message=message, reason=_ask_reason(matches=matches))
+
+    def _resolved_exceptions(self) -> list[SensitivityException]:
+        """Return injected exceptions, else lazily load (and cache) the catalog."""
+        if self.exceptions is not None:
+            return self.exceptions
+        if self._loaded_exceptions is None:
+            self._loaded_exceptions = load_sensitivity_exceptions()
+        return self._loaded_exceptions
 
     def with_patterns(self, patterns: list[SensitivityPattern]) -> SensitivityTargetValidator:
         """Return a new validator instance using the supplied wordlist.
 
         Useful for tests and for project-local sensitivity overrides.
+        Preserves any injected exception catalog.
         """
         return SensitivityTargetValidator(
             classifier=SensitivityClassifier(patterns=patterns),
+            exceptions=self.exceptions,
+        )
+
+    def with_exceptions(
+        self, exceptions: list[SensitivityException]
+    ) -> SensitivityTargetValidator:
+        """Return a new validator using the supplied exception catalog.
+
+        Mirrors ``with_patterns`` — the seam GH-604 uses to inject the
+        user-owned, synced sensitivity-exception catalog.
+        """
+        return SensitivityTargetValidator(
+            classifier=self.classifier,
+            exceptions=exceptions,
         )
