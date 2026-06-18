@@ -19,6 +19,7 @@ from dev10x.skills.permission_investigator.matrix import (
     Matrix,
     MatrixQuery,
     MatrixResult,
+    MatrixStatus,
     PathPrefix,
     WildcardShape,
 )
@@ -30,7 +31,7 @@ class Delta:
     suggested_rules: list[str]
 
 
-def aggregate_results(matrix: Matrix) -> dict[str, list[MatrixResult]]:
+def aggregate_results(matrix: Matrix) -> dict[MatrixStatus, list[MatrixResult]]:
     """Group results by status (works / prompts / error / unknown)."""
     return MatrixQuery(matrix=matrix).aggregate()
 
@@ -48,7 +49,12 @@ def render_markdown_report(matrix: Matrix) -> str:
     lines.append("")
     lines.append("| Status | Count |")
     lines.append("|--------|-------|")
-    for status in ("works", "prompts", "error", "unknown"):
+    for status in (
+        MatrixStatus.WORKS,
+        MatrixStatus.PROMPTS,
+        MatrixStatus.ERROR,
+        MatrixStatus.UNKNOWN,
+    ):
         lines.append(f"| {status} | {len(grouped.get(status, []))} |")
     lines.append("")
 
@@ -58,11 +64,11 @@ def render_markdown_report(matrix: Matrix) -> str:
     lines.append("|------|------|--------|----------|----------|--------|-------|")
     for cell in matrix.cells:
         result = matrix.results.get(cell.cell_id)
-        status = result.status if result else "(not run)"
+        cell_status = result.status if result else "(not run)"
         notes = (result.notes if result else "").replace("|", "\\|")
         lines.append(
             f"| `{cell.cell_id}` | {cell.shape.tool} | {cell.shape.prefix} | "
-            f"{cell.shape.wildcard} | {cell.location} | {status} | {notes} |"
+            f"{cell.shape.wildcard} | {cell.location} | {cell_status} | {notes} |"
         )
     lines.append("")
     return "\n".join(lines) + "\n"
@@ -78,8 +84,8 @@ def compute_delta(
     A rule is flagged ineffective when at least one matrix cell with
     a matching wildcard/prefix shape was recorded as ``prompts``.
     """
-    prompting_shapes = _shapes_for_status(matrix=matrix, status="prompts")
-    working_shapes = _shapes_for_status(matrix=matrix, status="works")
+    prompting_shapes = _shapes_for_status(matrix=matrix, status=MatrixStatus.PROMPTS)
+    working_shapes = _shapes_for_status(matrix=matrix, status=MatrixStatus.WORKS)
 
     ineffective: list[str] = []
     for rule in base_permissions:
@@ -99,7 +105,7 @@ def compute_delta(
 def _shapes_for_status(
     *,
     matrix: Matrix,
-    status: str,
+    status: MatrixStatus,
 ) -> set[tuple[PathPrefix, WildcardShape]]:
     return MatrixQuery(matrix=matrix).shapes_for_status(status=status)
 

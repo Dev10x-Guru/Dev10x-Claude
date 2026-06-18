@@ -73,3 +73,24 @@ class TestParseIndex:
         entries = parse_index(index_path=path)
         assert len(entries) == 1
         assert entries[0].source == "good"
+
+
+class TestRuleEntryMatches:
+    def _entry(self, *patterns: str) -> RuleEntry:
+        return RuleEntry(patterns=patterns, source="s", description="d")
+
+    def test_matches_literal_pattern(self) -> None:
+        entry = self._entry("src/foo.py")
+        assert entry.matches(path="src/foo.py") is True
+
+    def test_matches_double_star_glob(self) -> None:
+        entry = self._entry("**/*.py")
+        assert entry.matches(path="src/dev10x/foo.py") is True
+
+    def test_matches_any_of_multiple_patterns(self) -> None:
+        entry = self._entry("**/*.md", "**/*.py")
+        assert entry.matches(path="docs/readme.md") is True
+
+    def test_returns_false_when_no_pattern_matches(self) -> None:
+        entry = self._entry("**/*.py")
+        assert entry.matches(path="Makefile") is False

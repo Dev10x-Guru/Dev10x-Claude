@@ -69,7 +69,11 @@ def _read_friction_level(*, toplevel: str):
 
 def _format_decision_guidance(*, plan, friction_level):
     """Compatibility shim — prefer ``DecisionGuidanceRule(...).apply()``."""
-    return DecisionGuidanceRule(plan=plan, friction_level=friction_level).apply()
+    from dev10x.domain.documents.session_state import PlanSummary
+
+    return DecisionGuidanceRule(
+        plan=PlanSummary.from_dict(data=plan), friction_level=friction_level
+    ).apply()
 
 
 __all__ = [

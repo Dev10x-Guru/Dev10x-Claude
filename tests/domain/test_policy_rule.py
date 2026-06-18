@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from dev10x.domain.documents.session_state import PlanSummary
 from dev10x.domain.friction_level import FrictionLevel
 from dev10x.domain.rules.policy_rule import PolicyRule
 from dev10x.domain.session_rules import (
@@ -19,7 +20,9 @@ from dev10x.hooks.session_policy import MigratePluginPermissionsRule
 @pytest.mark.parametrize(
     "rule",
     [
-        DecisionGuidanceRule(plan={}, friction_level=FrictionLevel.default()),
+        DecisionGuidanceRule(
+            plan=PlanSummary.from_dict(data={}), friction_level=FrictionLevel.default()
+        ),
         BuildAutonomyReassuranceRule(friction_level=FrictionLevel.default(), active_modes=[]),
         MigratePluginPermissionsRule(plugin_root=Path("/p"), home_path=Path("/h")),
     ],

@@ -8,6 +8,7 @@ from dev10x.skills.permission_investigator.matrix import (
     Matrix,
     MatrixCell,
     MatrixResult,
+    MatrixStatus,
     RuleShape,
 )
 from dev10x.skills.permission_investigator.report import (
@@ -61,9 +62,9 @@ class TestAggregateResults:
     def test_groups_results_by_status(self, populated_matrix: Matrix) -> None:
         grouped = aggregate_results(populated_matrix)
 
-        assert len(grouped["works"]) == 1
-        assert len(grouped["prompts"]) == 1
-        assert len(grouped["error"]) == 1
+        assert len(grouped[MatrixStatus.WORKS]) == 1
+        assert len(grouped[MatrixStatus.PROMPTS]) == 1
+        assert len(grouped[MatrixStatus.ERROR]) == 1
 
     def test_ignores_results_without_matching_cell(self) -> None:
         matrix = Matrix()
@@ -71,7 +72,7 @@ class TestAggregateResults:
 
         grouped = aggregate_results(matrix)
 
-        assert grouped["works"] == []
+        assert grouped[MatrixStatus.WORKS] == []
 
 
 class TestRenderMarkdownReport:
