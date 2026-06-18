@@ -14,6 +14,30 @@ from dev10x.domain.common.result import err, ok
 from dev10x.mcp import server_cli as cli_server
 
 
+class TestBackgroundPreamble:
+    @pytest.mark.asyncio
+    @patch(
+        "dev10x.session.service.SessionService.build_background_preamble_context",
+        return_value="# Background Friction Preamble\nNo cd && chaining.",
+    )
+    async def test_returns_preamble_text(self, _mock_fn: MagicMock) -> None:
+        result = await cli_server.background_preamble()
+
+        assert result["preamble"].startswith("# Background Friction Preamble")
+        assert "error" not in result
+
+    @pytest.mark.asyncio
+    @patch(
+        "dev10x.session.service.SessionService.build_background_preamble_context",
+        return_value="",
+    )
+    async def test_returns_error_when_document_missing(self, _mock_fn: MagicMock) -> None:
+        result = await cli_server.background_preamble()
+
+        assert "error" in result
+        assert "preamble" not in result
+
+
 class TestMktmp:
     @pytest.mark.asyncio
     @patch("dev10x.utilities.mktmp", new_callable=AsyncMock)

@@ -192,6 +192,26 @@ and safe — never the dead-on-arrival or over-granting default.
 Only Bash command rules are generalized; `mcp__*`, `WebFetch(...)`,
 and `Read(...)` rules pass through unchanged.
 
+### Step 3e: Background-dispatch pre-seed over auto-mode (GH-610)
+
+When the friction arose inside a **background subagent** (workflow /
+monitor / loop / fanout child) — or the only "fix" on offer is the
+harness's "switch to auto mode" / disable-prompts nudge (the GH-310
+footgun) — do NOT recommend blanket `bypassPermissions`. The correct
+remedy is to fix the **dispatcher**, not to silence prompts:
+
+1. Prepend the canonical friction-avoidance preamble to the subagent
+   prompt (fetch via `mcp__plugin_Dev10x_cli__background_preamble`).
+2. Pre-seed the subagent's `allowed_tools` with the wrappers it needs
+   (`Read`, `Grep`, `Glob`, `mktmp`, `push_safe`, `create_pr`, …) so
+   the preferred tool surface is actually available.
+
+Surface this as the primary recommendation whenever the offending
+command came from a background dispatch path. See
+`references/orchestration/background-preamble.md` and
+`references/orchestration/subagent-dispatch.md` § Background Friction
+Preamble.
+
 ### Step 4: Output reinforcement message
 
 Output a firm, concise reinforcement message with seven sections:

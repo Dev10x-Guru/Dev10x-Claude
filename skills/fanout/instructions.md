@@ -456,7 +456,19 @@ decision-gate rules (wait vs bail), and producer/consumer
 contracts live in
 [`references/orchestration/fanout-bus.md`](../../references/orchestration/fanout-bus.md).
 
-**Per-item agent prompt template:**
+**Friction-avoidance preamble (REQUIRED, GH-610):** Before building
+the prompt below, fetch the canonical preamble via
+`mcp__plugin_Dev10x_cli__background_preamble` and prepend its
+`preamble` text verbatim to the top of each child's prompt. Swarm
+children run a full `Dev10x:work-on` lifecycle in a fresh subagent that
+never saw the SessionStart friction briefing — the preamble keeps them
+off hook-tripping shapes and on MCP wrappers. Pre-seed each child's
+`allowed_tools` with `Read`, `Grep`, `Glob`, `Skill`, and the `cli`
+wrappers (`mktmp`, `push_safe`, `create_pr`, …) rather than relying on
+auto-mode. See `references/orchestration/background-preamble.md`.
+
+**Per-item agent prompt template** (prepend the preamble above the
+`You are working as part of …` line):
 
 ```
 You are working as part of a Dev10x:fanout swarm.
