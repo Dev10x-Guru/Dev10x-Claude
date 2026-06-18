@@ -41,8 +41,6 @@ from dev10x.hooks.session_place import session_git_aliases, session_tmpdir
 from dev10x.hooks.session_policy import (
     DecisionGuidanceRule,
     _build_migration_replacements,
-    _deduplicate_rules,
-    _migrate_rules,
 )
 
 
@@ -93,11 +91,9 @@ __all__ = [
     "session_tmpdir",
     "_build_migration_replacements",
     "_claim_state_file",
-    "_deduplicate_rules",
     "_format_decision_guidance",
     "_format_plan_summary",
     "_format_session_state",
-    "_migrate_rules",
     "_read_friction_level",
     "_read_json",
 ]
