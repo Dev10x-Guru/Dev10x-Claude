@@ -366,7 +366,7 @@ def cmd_send(args: argparse.Namespace) -> None:
             from dev10x.domain.common.result import ErrorResult
             from dev10x.skills.notifications import slack_notify as _slack
 
-            result = _slack.send_slack_message(channel=args.channel, message=message)
+            result = _slack.notify_slack(channel=args.channel, message=message)
             if isinstance(result, ErrorResult):
                 print(f"❌ Slack notification failed: {result.error}", file=sys.stderr)
                 sys.exit(1)

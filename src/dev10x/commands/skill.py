@@ -78,18 +78,16 @@ def slack_send(
 
     from dev10x.skills.notifications import slack_notify
 
-    if workspace is not None:
-        slack_notify.set_workspace(workspace)
-
     msg: str
     if message_file is not None:
         msg = message_file.read_text()
     else:
         msg = message  # type: ignore[assignment]  # validated above
 
-    result = slack_notify.send_slack_message(
+    result = slack_notify.notify_slack(
         channel=channel,
         message=msg,
+        workspace=workspace,
         thread_ts=thread_ts,
     )
     if isinstance(result, ErrorResult):

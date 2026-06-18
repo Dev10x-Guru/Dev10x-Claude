@@ -31,9 +31,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from dev10x import subprocess_utils
+from dev10x.domain.common.baseline_catalog import load_baseline_dict
 from dev10x.domain.plugin_identity import PLUGIN_NAMES
 
 PINNED_VERSION_RE = re.compile(
@@ -388,8 +387,13 @@ class Catalog:
 
 
 def load_catalog(path: Path = CATALOG_PATH) -> Catalog:
-    """Load the baseline-permissions catalog from YAML."""
-    raw = yaml.safe_load(path.read_text())
+    """Load the baseline-permissions catalog from YAML.
+
+    Reading and parsing the baseline YAML is delegated to the shared
+    loader (GH-587); ``strict=True`` preserves the raise-on-missing
+    contract this consumer has always had.
+    """
+    raw = load_baseline_dict(path, strict=True)
     return Catalog(
         version=int(raw.get("version", 0)),
         last_audited=str(raw.get("last_audited", "")),

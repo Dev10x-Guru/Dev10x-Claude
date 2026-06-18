@@ -377,6 +377,31 @@ class TestInitUserspaceConfig:
         assert result["exit_code"] == 1
         assert any("Plugin default config not found" in e for e in result["errors"])
 
+    def test_rechecks_inside_lock_when_config_appears(
+        self,
+        config_paths: tuple[Path, Path, Path],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Double-checked locking (GH-587): a config that appears between the
+        outer check and the lock must not be clobbered."""
+        from contextlib import contextmanager
+
+        memory, userspace, _plugin = config_paths
+        userspace.write_text("roots: [/work/legacy]\n")
+
+        @contextmanager
+        def racing_lock(path: Path, **_: object):
+            memory.write_text("roots: [/work/winner]\n")
+            yield
+
+        monkeypatch.setattr("dev10x.domain.file_locks.file_lock", racing_lock)
+
+        result = init_userspace_config()
+
+        assert result["exit_code"] == 0
+        assert memory.read_text() == "roots: [/work/winner]\n"
+        assert any("already exists" in m for m in result["messages"])
+
 
 class TestEnsureBasePermissions:
     @pytest.fixture()

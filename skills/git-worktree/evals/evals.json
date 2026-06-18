@@ -1,0 +1,210 @@
+{
+  "skill_name": "Dev10x:git-worktree",
+  "eval_dimensions": [
+    {
+      "id": "mode_selection",
+      "name": "Mode Selection Gate",
+      "description": "Presents Same Session vs External+New Session via AskUserQuestion; does NOT auto-select a mode without user input"
+    },
+    {
+      "id": "branch_naming",
+      "name": "Branch Naming",
+      "description": "Derives branch name following username/TICKET-ID/slug convention; detects existing username from git branch -a"
+    },
+    {
+      "id": "path_a_execution",
+      "name": "Path A — EnterWorktree",
+      "description": "Calls EnterWorktree tool (not a shell command) for same-session mode; session CWD switches correctly"
+    },
+    {
+      "id": "path_b_execution",
+      "name": "Path B — External Worktree",
+      "description": "Creates worktree via script, installs SessionEnd cleanup hook, then STOPS — does not continue ticket workflow"
+    },
+    {
+      "id": "hook_setup",
+      "name": "post-checkout Hook Setup",
+      "description": "Reads existing post-checkout hook; proposes template only when missing or incomplete; requires user approval before writing"
+    }
+  ],
+  "evals": [
+    {
+      "id": 1,
+      "name": "same-session-enter-worktree",
+      "prompt": "/Dev10x:git-worktree",
+      "description": "User chooses Same Session mode for ticket GH-42. Skill must call EnterWorktree and resume workflow inside the new worktree.",
+      "setup": {
+        "repo": "example-org/app-pos",
+        "current_branch": "main",
+        "ticket": "GH-42",
+        "user_choice": "same_session"
+      },
+      "dimensions": ["mode_selection", "branch_naming", "path_a_execution"],
+      "assertions": [
+        {
+          "id": "presents-mode-gate",
+          "text": "Calls AskUserQuestion with Same Session and External+New Session options",
+          "check": "tool_called",
+          "signals": ["AskUserQuestion", "Same session", "External"]
+        },
+        {
+          "id": "derives-branch-from-ticket",
+          "text": "Derived branch name contains GH-42 ticket segment",
+          "check": "transcript_contains",
+          "signals": ["GH-42"]
+        },
+        {
+          "id": "calls-enter-worktree-tool",
+          "text": "Uses EnterWorktree tool call (not git worktree add via Bash)",
+          "check": "tool_called",
+          "signals": ["EnterWorktree"]
+        },
+        {
+          "id": "no-stop-message-path-a",
+          "text": "Does NOT print the 'close this session' hand-off message for Path A",
+          "check": "output_absent",
+          "signals": ["Close this session", "cd <worktree-path> && claude"]
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "external-worktree-hands-off",
+      "prompt": "/Dev10x:git-worktree",
+      "description": "User chooses External+New Session mode. Skill must create the worktree, install SessionEnd hook, print the hand-off message, and STOP.",
+      "setup": {
+        "repo": "example-org/app-pos",
+        "current_branch": "main",
+        "ticket": "GH-55",
+        "user_choice": "external"
+      },
+      "dimensions": ["mode_selection", "path_b_execution"],
+      "assertions": [
+        {
+          "id": "confirms-worktree-path",
+          "text": "Asks user to confirm the calculated worktree path before creating it",
+          "check": "tool_called",
+          "signals": ["AskUserQuestion", "worktree", "path"]
+        },
+        {
+          "id": "prints-handoff-message",
+          "text": "Prints the hand-off message instructing user to close session and open new one",
+          "check": "output_contains",
+          "signals": ["Close this session", "claude"]
+        },
+        {
+          "id": "stops-after-handoff",
+          "text": "Does NOT continue with ticket workflow steps after Path B hand-off",
+          "check": "behavioral",
+          "signals": ["STOP", "hand-off", "no further steps"]
+        },
+        {
+          "id": "installs-session-end-hook",
+          "text": "Runs setup-session-end-hook.sh so the new session prompts cleanup on exit",
+          "check": "command_contains",
+          "signals": ["setup-session-end-hook.sh"]
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "post-checkout-hook-missing",
+      "prompt": "/Dev10x:git-worktree",
+      "description": "Python/uv project has no post-checkout hook. Skill must detect project type, propose Template A, and require approval before writing.",
+      "setup": {
+        "repo": "example-org/app-pos",
+        "has_post_checkout_hook": false,
+        "project_type": "python_uv",
+        "user_choice": "same_session"
+      },
+      "dimensions": ["hook_setup", "path_a_execution"],
+      "assertions": [
+        {
+          "id": "reads-existing-hook-first",
+          "text": "Attempts to read .git/hooks/post-checkout or .husky/post-checkout before proposing template",
+          "check": "tool_called",
+          "signals": ["Read", "post-checkout"]
+        },
+        {
+          "id": "proposes-template-a",
+          "text": "Proposes Template A (Python/uv) based on uv.lock or pyproject.toml detection",
+          "check": "transcript_contains",
+          "signals": ["Template A", "uv sync", "post-checkout"]
+        },
+        {
+          "id": "requires-user-approval-before-write",
+          "text": "Does NOT write the hook file without user approval",
+          "check": "tool_called",
+          "signals": ["AskUserQuestion"]
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "branch-naming-from-git-log",
+      "prompt": "/Dev10x:git-worktree GH-100 enable-caching",
+      "description": "Skill detects the current user's username from existing branch patterns in git branch -a and constructs a properly formatted branch name.",
+      "setup": {
+        "repo": "example-org/app-pos",
+        "existing_branches": ["janusz/GH-90/prior-work", "janusz/GH-91/other-fix"],
+        "ticket": "GH-100"
+      },
+      "dimensions": ["branch_naming"],
+      "assertions": [
+        {
+          "id": "detects-username-from-branches",
+          "text": "Runs git branch -a to detect existing username pattern",
+          "check": "command_contains",
+          "signals": ["git branch"]
+        },
+        {
+          "id": "branch-contains-ticket",
+          "text": "Proposed branch name contains the ticket ID GH-100",
+          "check": "transcript_contains",
+          "signals": ["GH-100"]
+        },
+        {
+          "id": "branch-follows-convention",
+          "text": "Branch name follows username/TICKET-ID/slug pattern",
+          "check": "output_matches_pattern",
+          "pattern": "[a-z]+/GH-100/[a-z0-9-]+"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "description": "Queries that should/should-not trigger the git-worktree skill",
+    "should_trigger": [
+      {
+        "query": "/Dev10x:git-worktree",
+        "rationale": "Direct invocation"
+      },
+      {
+        "query": "create a worktree for GH-42 so I can work in isolation",
+        "rationale": "Explicit worktree creation request"
+      },
+      {
+        "query": "I need a new isolated workspace for this feature branch",
+        "rationale": "Workspace isolation is the core use case"
+      },
+      {
+        "query": "start working on GH-200 in a separate worktree",
+        "rationale": "Feature work needing isolation — canonical trigger"
+      }
+    ],
+    "should_not_trigger": [
+      {
+        "query": "list all my worktrees",
+        "rationale": "Read-only query — use git worktree list directly"
+      },
+      {
+        "query": "remove the worktree at ../.worktrees/app-pos-3",
+        "rationale": "Cleanup action — use git worktree remove directly"
+      },
+      {
+        "query": "I'm already in a worktree, let's commit these changes",
+        "rationale": "Already isolated — use Dev10x:git-commit instead"
+      }
+    ]
+  }
+}
