@@ -38,7 +38,7 @@ class SettingsFile:
 
 
 @dataclass(frozen=True)
-class RuleMatch:
+class SettingsRuleMatch:
     settings_file: SettingsFile
     matching_rule: str | None
     has_allow_list: bool
@@ -53,11 +53,11 @@ class RuleMatch:
 @dataclass(frozen=True)
 class DiagnosticResult:
     tool_signature: str
-    matches: list[RuleMatch]
+    matches: list[SettingsRuleMatch]
     diagnosis: str
     fix_suggestion: str
 
-    def matched(self) -> list[RuleMatch]:
+    def matched(self) -> list[SettingsRuleMatch]:
         return [m for m in self.matches if m.is_matched()]
 
 
@@ -128,14 +128,14 @@ def diagnose(raw: dict[str, Any], *, cwd: str = "") -> DiagnosticResult | None:
         cwd = effective_cwd() or os.getcwd()
 
     settings_files = _resolve_settings_files(cwd=cwd)
-    matches: list[RuleMatch] = []
+    matches: list[SettingsRuleMatch] = []
     winning_file: SettingsFile | None = None
 
     for sf in settings_files:
         rules = _load_allow_rules(path=sf.path)
         if rules is None:
             matches.append(
-                RuleMatch(
+                SettingsRuleMatch(
                     settings_file=sf,
                     matching_rule=None,
                     has_allow_list=False,
@@ -145,7 +145,7 @@ def diagnose(raw: dict[str, Any], *, cwd: str = "") -> DiagnosticResult | None:
 
         matching_rule = _find_matching_rule(signature=signature, rules=rules)
         matches.append(
-            RuleMatch(
+            SettingsRuleMatch(
                 settings_file=sf,
                 matching_rule=matching_rule,
                 has_allow_list=True,
@@ -175,7 +175,7 @@ def diagnose(raw: dict[str, Any], *, cwd: str = "") -> DiagnosticResult | None:
 
 def _build_diagnosis(
     *,
-    matches: list[RuleMatch],
+    matches: list[SettingsRuleMatch],
     winning_file: SettingsFile | None,
 ) -> str:
     files_with_match = [m for m in matches if m.is_matched()]
@@ -216,7 +216,7 @@ def _build_diagnosis(
 def _build_fix_suggestion(
     *,
     signature: str,
-    matches: list[RuleMatch],
+    matches: list[SettingsRuleMatch],
     winning_file: SettingsFile | None,
 ) -> str:
     files_with_match = [m for m in matches if m.is_matched()]

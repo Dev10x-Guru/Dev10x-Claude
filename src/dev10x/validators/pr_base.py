@@ -15,16 +15,15 @@ from typing import ClassVar
 
 from dev10x import subprocess_utils
 from dev10x.domain import HookInput, HookResult
+from dev10x.domain.common.branch_name import BASE_BRANCH_PRIORITY
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
 
 GH_PR_CREATE_RE = re.compile(r"gh\s+pr\s+create")
 
-BRANCH_CANDIDATES = ["develop", "development", "main", "master", "trunk"]
-
 
 def _detect_base_branch() -> str | None:
-    for candidate in BRANCH_CANDIDATES:
+    for candidate in BASE_BRANCH_PRIORITY:
         result = subprocess_utils.run(
             ["git", "rev-parse", "--verify", f"origin/{candidate}"],
             capture_output=True,

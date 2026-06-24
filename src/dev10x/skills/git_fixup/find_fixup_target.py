@@ -70,6 +70,9 @@ def _run(args: list[str], *, cwd: Path | None = None) -> str:
 
 def detect_base_branch(*, cwd: Path | None = None) -> str:
     """Detect the base branch — prefer develop, fall back to main/master."""
+    # Local copy of dev10x.domain.common.branch_name.BASE_BRANCH_PRIORITY:
+    # this script runs standalone via `uv run --script` in an isolated
+    # venv, so it must not import the dev10x package (GH-583).
     candidates = ("develop", "development", "main", "master", "trunk")
     for candidate in candidates:
         try:

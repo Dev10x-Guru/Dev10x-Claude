@@ -9,8 +9,8 @@ import pytest
 
 from dev10x.hooks.permission_diagnostics import (
     DiagnosticResult,
-    RuleMatch,
     SettingsFile,
+    SettingsRuleMatch,
     _matches_rule,
     _suggest_rule,
     diagnose,
@@ -484,12 +484,12 @@ class TestFormatDiagnostic:
         return DiagnosticResult(
             tool_signature="Write(/tmp/Dev10x/gh-issue/review.md)",
             matches=[
-                RuleMatch(
+                SettingsRuleMatch(
                     settings_file=project_local,
                     matching_rule=None,
                     has_allow_list=True,
                 ),
-                RuleMatch(
+                SettingsRuleMatch(
                     settings_file=user_settings,
                     matching_rule="Write(/tmp/Dev10x/**)",
                     has_allow_list=True,
@@ -535,7 +535,7 @@ class TestFormatDiagnostic:
         result = DiagnosticResult(
             tool_signature="Bash(git status)",
             matches=[
-                RuleMatch(settings_file=sf, matching_rule=None, has_allow_list=False),
+                SettingsRuleMatch(settings_file=sf, matching_rule=None, has_allow_list=False),
             ],
             diagnosis="No matching allow rule found in any settings file.",
             fix_suggestion="",
