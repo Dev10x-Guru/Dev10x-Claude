@@ -1,9 +1,10 @@
 """Audit log reader and append API (GH-143).
 
 Owns the JSONL audit log surface: path resolution, record iteration,
-pruning, and the append API consumed by `dev10x.hooks.audit_emit`
-(the write side). Record summarization lives in
-`dev10x.audit.summarizer` (re-exported here for the legacy import path).
+and the append API consumed by `dev10x.hooks.audit_emit` (the write
+side). Record summarization lives in `dev10x.audit.summarizer` and
+retention/pruning in `dev10x.audit.log_pruner` (GH-530) — both
+re-exported through the `dev10x.audit` package.
 
 Two-layer observability:
 
@@ -24,7 +25,6 @@ from __future__ import annotations
 
 import json
 import os
-import time
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -162,27 +162,3 @@ class LogReaderAuditWriter:
 
     def classify_outcome(self, *, exit_code: int) -> HookOutcome:
         return classify_outcome(exit_code=exit_code)
-
-
-def prune(*, retain_days: int | None = None, base_dir: Path | None = None) -> int:
-    """Remove log files older than retain_days. Returns count deleted."""
-    days = retain_days
-    if days is None:
-        raw = os.environ.get(AUDIT_RETAIN_ENV, str(DEFAULT_RETAIN_DAYS))
-        try:
-            days = int(raw)
-        except ValueError:
-            days = DEFAULT_RETAIN_DAYS
-    cutoff = time.time() - days * 86400
-    log_dir = base_dir or audit_dir()
-    if not log_dir.exists():
-        return 0
-    deleted = 0
-    for path in log_dir.glob("hooks-*.jsonl"):
-        try:
-            if path.stat().st_mtime < cutoff:
-                path.unlink()
-                deleted += 1
-        except OSError:
-            pass
-    return deleted
