@@ -10,13 +10,13 @@ from pathlib import Path
 
 import pytest
 
+from dev10x.audit.log_pruner import prune
 from dev10x.audit.log_reader import (
     AUDIT_DIR_ENV,
     AUDIT_ENABLE_ENV,
     AUDIT_RETAIN_ENV,
     SPAN_ID_ENV,
     iter_records,
-    prune,
     summarize,
 )
 from dev10x.hooks.audit_emit import (
