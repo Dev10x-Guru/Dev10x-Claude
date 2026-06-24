@@ -14,9 +14,11 @@ from dataclasses import dataclass
 
 from dev10x.domain.common.ticket_id import TicketId
 
-PROTECTED_BRANCHES: frozenset[str] = frozenset(
-    {"main", "master", "develop", "development", "trunk"}
-)
+# Base-branch detection priority — first existing branch wins. The
+# protected-branch set is exactly these names (membership, order-free).
+BASE_BRANCH_PRIORITY: tuple[str, ...] = ("develop", "development", "main", "master", "trunk")
+
+PROTECTED_BRANCHES: frozenset[str] = frozenset(BASE_BRANCH_PRIORITY)
 
 # Slug constraints — lower-case alphanumerics with hyphens/underscores.
 _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
