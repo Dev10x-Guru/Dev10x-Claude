@@ -37,7 +37,9 @@ from pathlib import Path
 from typing import Any
 
 from dev10x.domain.common.repository_ref import RepositoryRef
+from dev10x.domain.common.result import ErrorResult
 from dev10x.skills.common.jtbd import extract_jtbd, md_to_slack_bold
+from dev10x.skills.notifications import slack_notify
 
 
 def gh_json(args: list[str]) -> Any:
@@ -363,10 +365,7 @@ def cmd_send(args: argparse.Namespace) -> None:
         # Post via importable slack_notify module (GH-442). Works in both
         # plugin-checkout and uvx-installed contexts.
         if args.channel:
-            from dev10x.domain.common.result import ErrorResult
-            from dev10x.skills.notifications import slack_notify as _slack
-
-            result = _slack.notify_slack(channel=args.channel, message=message)
+            result = slack_notify.notify_slack(channel=args.channel, message=message)
             if isinstance(result, ErrorResult):
                 print(f"❌ Slack notification failed: {result.error}", file=sys.stderr)
                 sys.exit(1)
