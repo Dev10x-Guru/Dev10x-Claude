@@ -138,6 +138,7 @@ supporting each tool:
 | `update_pr` | `cli` | GH-60 | v0.70.0+ |
 | `merge_pr` | `cli` | GH-232 | v0.73.0+ |
 | `run_tests` | `cli` | GH-238 | v0.74.0+ |
+| `run_node_tests` | `cli` | GH-703 | v0.80.0+ |
 | `milestone_close` | `cli` | GH-187 | v0.71.0+ |
 | `milestone_create` | `cli` | GH-220 | v0.73.0+ |
 | `issue_edit` | `cli` | GH-220 | v0.73.0+ |
@@ -268,6 +269,22 @@ the MCP server is unavailable.
 | `gh pr edit` | `mcp__plugin_Dev10x_cli__update_pr` |
 | `gh pr create` | `Dev10x:gh-pr-create` (wraps `create_pr`) |
 | `gh pr merge` | `Dev10x:gh-pr-merge` (wraps `merge_pr`) |
+
+### Routed test commands (S12 map)
+
+The `diag-friction` command-skill map (`command-skill-map.yaml`)
+advisorily routes test runners to MCP wrappers so they run off the
+Bash layer — sidestepping the core-harness brace-expansion block that
+no allow-rule can suppress (GH-703).
+
+| Raw command | MCP tool |
+|-------------|----------|
+| `pytest` / `uv run pytest` | `Dev10x:py-test` (wraps `run_tests`) |
+| `jest` / `yarn … test` / `npm test` / `pnpm test` / `vitest` | `mcp__plugin_Dev10x_cli__run_node_tests` |
+
+`run_node_tests` accepts a `runner` arg (`jest` default, plus
+`vitest`/`yarn`/`npm`/`pnpm`); `jest`/`vitest` get `--coverage` when
+`coverage=true`.
 
 ## Official GitHub MCP Server
 

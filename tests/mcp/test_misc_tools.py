@@ -326,3 +326,84 @@ class TestRunTests:
             await cli_server.run_tests(cwd=str(tmp_path))
 
         mock_use_cwd.assert_called_once_with(str(tmp_path))
+
+
+def _node_ok(**overrides: object) -> object:
+    payload = {
+        "returncode": 0,
+        "runner": "jest",
+        "summary": "7 passed, 7 total",
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0,
+        "total": 7,
+        "stdout": "",
+        "stderr": "",
+    }
+    payload.update(overrides)
+    return ok(payload)
+
+
+class TestRunNodeTests:
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.run_node_tests", new_callable=AsyncMock)
+    async def test_delegates_to_runner_module(self, mock_fn: AsyncMock) -> None:
+        mock_fn.return_value = _node_ok()
+
+        result = await cli_server.run_node_tests()
+
+        assert result["returncode"] == 0
+        assert result["passed"] == 7
+        assert mock_fn.call_args.kwargs["runner"] == "jest"
+        assert mock_fn.call_args.kwargs["coverage"] is True
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.run_node_tests", new_callable=AsyncMock)
+    async def test_forwards_runner_args_and_flags(self, mock_fn: AsyncMock) -> None:
+        mock_fn.return_value = _node_ok(runner="yarn")
+
+        await cli_server.run_node_tests(
+            runner="yarn",
+            args=["--watchAll=false"],
+            coverage=False,
+            timeout=120,
+        )
+
+        assert mock_fn.call_args.kwargs["runner"] == "yarn"
+        assert mock_fn.call_args.kwargs["args"] == ["--watchAll=false"]
+        assert mock_fn.call_args.kwargs["coverage"] is False
+        assert mock_fn.call_args.kwargs["timeout"] == 120
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.run_node_tests", new_callable=AsyncMock)
+    async def test_returns_error_on_failure(self, mock_fn: AsyncMock) -> None:
+        mock_fn.return_value = err("Unknown node test runner 'mocha'.")
+
+        result = await cli_server.run_node_tests(runner="mocha")
+
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.run_node_tests", new_callable=AsyncMock)
+    async def test_reports_progress_when_ctx_present(self, mock_fn: AsyncMock) -> None:
+        mock_fn.return_value = _node_ok(failed=2)
+        ctx = MagicMock()
+        ctx.report_progress = AsyncMock()
+        ctx.info = AsyncMock()
+        ctx.log = AsyncMock()
+
+        await cli_server.run_node_tests(ctx=ctx)
+
+        assert ctx.report_progress.await_count == 2
+        ctx.log.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.run_node_tests", new_callable=AsyncMock)
+    async def test_forwards_cwd(self, mock_fn: AsyncMock, tmp_path) -> None:
+        mock_fn.return_value = _node_ok()
+
+        with patch("dev10x.subprocess_utils.use_cwd") as mock_use_cwd:
+            await cli_server.run_node_tests(cwd=str(tmp_path))
+
+        mock_use_cwd.assert_called_once_with(str(tmp_path))

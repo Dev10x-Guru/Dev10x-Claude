@@ -512,6 +512,36 @@ rules:
       Restoring advisory behavior pending the skill-context-aware
       hook protocol (GH-271 Phase 8).
 
+  - name: node-tests
+    matcher: Bash
+    patterns:
+      - jest
+      - npx jest
+      - yarn test
+      - yarn .* test
+      - npm test
+      - npm run test
+      - pnpm test
+      - vitest
+    hook_block: false
+    compensations:
+      - type: use-tool
+        tool: mcp__plugin_Dev10x_cli__run_node_tests
+        guardrails: routes off the Bash layer, sidesteps the brace-expansion core-harness block
+        fallback: >
+          If the run_node_tests MCP tool is unavailable, reload the MCP
+          server (/mcp) and retry; as a last resort run the test command
+          in a `!` shell so the brace-expansion block does not apply.
+    reason: >
+      jest / `yarn … test` otherwise run through the Bash layer, where a
+      quoted-brace coverage glob (`--collectCoverageFrom="…{ts,tsx}"`)
+      trips the core-harness brace-expansion check that no allow-rule can
+      suppress (GH-703 evidence #36). The run_node_tests MCP wrapper
+      sidesteps the Bash layer entirely.
+
+      Advisory only (hook_block: false) — mirrors the pytest rule; the
+      wrapper is the steer, not a hard block.
+
   - name: gh-pr-comment-reply
     matcher: Bash
     patterns:
