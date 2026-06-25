@@ -5,6 +5,153 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.80.0 — Continuous Learning Loop, Installable PR-Review Action & Source-Derived Permissions
+
+Released 2026-06-25
+
+### Features
+
+- **Close the review-to-rule learning loop** — recurring PR review
+  comments are mined into candidate patterns, scored for confidence and
+  false-positive risk, authored into reference rules, and surfaced for
+  review, so the system learns from past reviews instead of repeating
+  them ([GH-346](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/346),
+  [GH-347](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/347),
+  [GH-348](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/348),
+  [GH-349](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/349),
+  [GH-350](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/350),
+  [GH-353](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/353))
+- **Install Dev10x PR review as a GitHub Action on any repo** — a guided
+  setup wires up the reviewer Action, including learned-rule review, on
+  repositories beyond this one
+  ([GH-351](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/351),
+  [GH-352](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/352),
+  [GH-707](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/707))
+- **Derive permissions from a source two-axis manifest** — a
+  source-derived manifest plus proactive seeding grants default-safe
+  reads for surfaces like Sentry, JIRA, and Vercel, unifies sensitivity
+  classification across surfaces, and seeds rule provenance fleet-wide
+  for worktrees, so safe reads stop re-prompting per project
+  ([GH-600](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/600),
+  [GH-601](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/601),
+  [GH-602](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/602),
+  [GH-603](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/603),
+  [GH-606](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/606),
+  [GH-607](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/607))
+- **Approve sensitive read probes in-session** — credentialed reads and
+  sensitive probes can be approved without dropping to a manual shell,
+  and read-only MCP tools can be promoted to global settings
+  ([GH-604](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/604),
+  [GH-480](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/480))
+- **Run node/yarn dev loops off the Bash layer** — `run_node_tests`
+  brings jest/vitest/yarn/npm/pnpm test runs through the MCP boundary,
+  sidestepping the brace-expansion block no allow-rule could suppress
+  ([GH-703](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/703))
+- **Run PR-state merge checks without the raw CLI** and **distinguish
+  required from advisory CI verdicts**, so merge gating reflects which
+  checks actually block
+  ([GH-668](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/668),
+  [GH-658](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/658))
+- **Enable server-initiated LLM sampling** via a `request_sampling` MCP
+  tool ([GH-343](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/343))
+- **Trust the plan while attending later gates** — background subagents
+  stay off hook-tripping command shapes and the supervisor can defer
+  attention to later decision gates
+  ([GH-678](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/678),
+  [GH-610](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/610))
+- **Register platforms during onboarding** and resolve skill-script
+  paths canonically, with diag-friction routing for four more raw
+  command shapes
+  ([GH-528](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/528),
+  [GH-611](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/611),
+  [GH-609](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/609))
+- **Establish pre-commit as the canonical lint entry point** — ruff,
+  shellcheck, and mypy run through `.pre-commit-config.yaml` as the
+  single lint gate
+  ([GH-619](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/619))
+
+### Security
+
+- **Close the DX003 interpreter-stdin execution bypass** — piping a
+  script into an interpreter's stdin no longer evades the execution
+  safety validator
+  ([GH-687](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/687))
+
+### Performance
+
+- **Collect release PRs in one batch query** instead of per-PR fetches,
+  and reduce git subprocess forks at session stop
+  ([GH-550](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/550),
+  [GH-552](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/552))
+
+### Fixes
+
+- **Resolve git-fixup misfire on a stale local develop** — the
+  fixup-target resolver cross-checks `origin/develop` instead of a stale
+  local ref ([GH-676](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/676))
+- **Enable closing issues as not planned**
+  ([GH-674](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/674))
+- **Match plugin skill-script grants across roots and `//`**
+  ([GH-704](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/704))
+- **Surface hook-denial findings to MCP audit callers** and in default
+  installs, so friction-riddled sessions no longer report zero unmatched
+  calls ([GH-507](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/507),
+  [GH-574](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/574))
+- **Fail closed when safety validators raise**, rather than letting an
+  exception open the gate
+  ([GH-494](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/494))
+- **Prevent the daemon from killing the wrong process** and keep the
+  roots cache fresh by retaining the refresh task
+  ([GH-573](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/573),
+  [GH-498](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/498))
+
+### Hardening
+
+- **Close write races across session, settings, and lock state** —
+  bounded waits on contended file locks, torn-write protection for the
+  applied-version stamp, lost-update protection for `SessionStore.update`
+  and settings mutators, and non-interleaving concurrent skill-metric
+  lines ([GH-555](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/555),
+  [GH-558](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/558),
+  [GH-562](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/562),
+  [GH-571](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/571))
+- **Ensure Slack send failures reach callers** and keep the MCP server
+  from crashing on missing config
+  ([GH-537](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/537),
+  [GH-532](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/532))
+
+### Refactors
+
+- **Enforce the Result contract at the MCP boundary** (ADR-0009) and
+  adopt Catalog, Query Object, AbstractHook, and Value Object archetypes
+  across the permission, session, github, and validator packages, sealing
+  package boundaries and typing the domain models throughout
+  ([GH-509](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/509),
+  [GH-654](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/654),
+  [GH-584](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/584))
+- **Consolidate permission config on `projects.yaml`** and centralize
+  protected-branch handling, validator dispatch, and session-state
+  capture ([GH-577](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/577),
+  [GH-583](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/583),
+  [GH-635](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/635))
+
+### Tests
+
+- **Enforce default-stage mypy and shellcheck warnings** and strengthen
+  the permission-classifier fixture corpus via evidence triage, closing
+  CI-hang and reproducibility gaps
+  ([GH-619](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/619),
+  [GH-271](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/271),
+  [GH-614](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/614))
+
+### Docs
+
+- **Document any-repo install and the learning loop**, the accepted App
+  JWT argv exposure, and permission-rule generalization patterns
+  ([GH-354](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/354),
+  [GH-499](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/499),
+  [GH-592](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/592))
+
 ## 0.79.0 — Permission Friction Reduction, Structured Policy Model & Cross-Fork PRs
 
 Released 2026-06-08
