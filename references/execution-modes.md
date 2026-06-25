@@ -42,6 +42,20 @@ belong to `friction_level` (strict/guided/adaptive).
 | `supervised` | Extra approval gates at design/PR/merge | Default attended behavior |
 | `cautious` | Extra verification, confirm destructive ops | No current equivalent |
 | `pair-review` | Human review at implementation checkpoints | No current equivalent |
+| `auto-plan` | Auto-approve the plan gate only; downstream gates follow `friction_level` | Unreachable friction cell (GH-678) |
+
+### Gate-flipping modes (the `solo-maintainer` / `auto-plan` exception)
+
+Most modes are *purely* structural. Two are not: `solo-maintainer`
+and `auto-plan` change how the **plan-approval gate** resolves. This
+is a deliberate, bounded exception — the plan gate is a single,
+well-known gate, and expressing "trust the plan" as a mode lets it
+compose with any `friction_level` (e.g. `guided + auto-plan` =
+auto-approve the plan, attend everything else). `auto-plan` flips
+*only* the plan gate; it never touches downstream gate pacing, which
+stays on the friction axis. See
+[`friction-levels.md`](friction-levels.md) § Plan-Approval Gate and
+[ADR-0014](../docs/adr/0014-auto-plan-mode-for-plan-approval-gate.md).
 
 **Not modes** (use friction_level instead):
 - `afk` -> `friction_level: adaptive`
@@ -200,6 +214,13 @@ pre-adapted prompts and don't need detection at all.
 - Every gate blocks for user input
 - Reviewer assignment requires explicit selection
 - Merge requires approval + all checks passing
+
+**auto-plan + guided** (trust the plan, attend the calls — GH-678):
+- Plan-approval gate -> auto-approved, execution starts (mode: auto-plan)
+- "Design implementation approach" A/B fork -> fires (friction: guided)
+- Strategy / batch-layout gates -> fire (friction: guided)
+- Merge gate is ALWAYS_ASK regardless -> fires
+- Net: no babysitting the plan gate; hand stays on every judgment call
 
 ## Migration from Ad-Hoc Patterns
 

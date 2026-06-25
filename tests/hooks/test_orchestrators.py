@@ -145,6 +145,53 @@ class TestAutonomyReassurance:
         assert hasattr(session, "build_autonomy_reassurance_context")
 
 
+class TestAutoPlanGuidanceWiring:
+    """GH-678: auto-plan SessionStart briefing flows dispatch -> service -> rule."""
+
+    def _write_session_yaml(self, *, tmp_path: Path, content: str) -> Path:
+        toplevel = tmp_path / "repo"
+        (toplevel / ".claude" / "Dev10x").mkdir(parents=True)
+        (toplevel / ".claude" / "Dev10x" / "session.yaml").write_text(content)
+        return toplevel
+
+    def test_dispatch_returns_empty_without_toplevel(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from dev10x.hooks import session_dispatch
+
+        monkeypatch.setattr(session_dispatch, "_get_toplevel", lambda: None)
+        assert session_dispatch.build_auto_plan_guidance_context() == ""
+
+    def test_dispatch_emits_briefing_with_auto_plan(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from dev10x.hooks import session_dispatch
+
+        toplevel = self._write_session_yaml(
+            tmp_path=tmp_path,
+            content="friction_level: guided\nactive_modes: [auto-plan]\n",
+        )
+        monkeypatch.setattr(session_dispatch, "_get_toplevel", lambda: str(toplevel))
+        assert "`auto-plan` mode active" in session_dispatch.build_auto_plan_guidance_context()
+
+    def test_dispatch_silent_without_auto_plan(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from dev10x.hooks import session_dispatch
+
+        toplevel = self._write_session_yaml(
+            tmp_path=tmp_path,
+            content="friction_level: adaptive\nactive_modes: [solo-maintainer]\n",
+        )
+        monkeypatch.setattr(session_dispatch, "_get_toplevel", lambda: str(toplevel))
+        assert session_dispatch.build_auto_plan_guidance_context() == ""
+
+    def test_facade_reexports_dispatch(self) -> None:
+        from dev10x.hooks import session
+
+        assert hasattr(session, "build_auto_plan_guidance_context")
+
+
 class TestRunFeatureBufferDiscard:
     """E9: _run_feature must discard partial stdout when a feature raises.
 

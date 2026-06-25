@@ -113,6 +113,29 @@ class SessionService:
             friction_level=friction_level, active_modes=active_modes
         ).apply()
 
+    def build_auto_plan_guidance_context(self, *, toplevel: str | None = _UNSET) -> str:  # type: ignore[assignment]
+        """Return a SessionStart briefing for ``auto-plan`` sessions (GH-678).
+
+        Returns an empty string outside ``auto-plan`` mode.
+
+        Pass ``toplevel`` as a pre-resolved string to skip git discovery.
+        Pass ``None`` explicitly to return early without git discovery. Omit
+        the parameter to let the service run git discovery itself.
+        """
+        from dev10x.domain.documents.session_yaml import SessionYamlDocument
+        from dev10x.domain.git_context import GitContext
+        from dev10x.domain.session_rules import BuildAutoPlanGuidanceRule
+
+        resolved: str | None = GitContext().toplevel if toplevel is _UNSET else toplevel
+        if not resolved:
+            return ""
+        friction_level, active_modes = SessionYamlDocument(
+            toplevel=resolved
+        ).read_friction_and_modes()
+        return BuildAutoPlanGuidanceRule(
+            friction_level=friction_level, active_modes=active_modes
+        ).apply()
+
     def build_install_check_context(self) -> str:
         """Return a warning when the Dev10x install needs bootstrap or upgrade.
 

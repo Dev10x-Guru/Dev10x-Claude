@@ -123,6 +123,15 @@ def build_autonomy_reassurance_context() -> str:
     return SessionService().build_autonomy_reassurance_context(toplevel=_get_toplevel())
 
 
+def build_auto_plan_guidance_context() -> str:
+    """Briefing for ``auto-plan`` sessions: plan gate auto-resolves (GH-678).
+
+    Returns an empty string outside ``auto-plan`` mode; the orchestrator
+    drops empty segments, so non-``auto-plan`` sessions see no change.
+    """
+    return SessionService().build_auto_plan_guidance_context(toplevel=_get_toplevel())
+
+
 def build_install_check_context() -> str:
     """Warn the user when the Dev10x install needs bootstrap or upgrade.
 
@@ -234,6 +243,7 @@ __all__ = [
     "build_install_check_context",
     "build_reload_context",
     "build_autonomy_reassurance_context",
+    "build_auto_plan_guidance_context",
     "build_guidance_context",
     "session_reload",
     "context_compact",
