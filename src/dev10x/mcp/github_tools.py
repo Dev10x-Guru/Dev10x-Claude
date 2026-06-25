@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import functools
+import inspect
 
 # Context is required at runtime: FastMCP evaluates tool annotations with
 # eval_str=True to detect the injected context parameter (GH-342). The
@@ -21,18 +22,34 @@ def github_tool(fn):
 
     The inner ``fn`` returns a ``Result``; this decorator enters
     ``use_cwd(kwargs["cwd"])`` and calls ``to_wire()`` at the MCP
-    boundary. ``functools.wraps`` preserves the inner signature so
-    FastMCP builds the correct tool schema.
+    boundary, so the value FastMCP actually receives is the flattened
+    wire ``dict`` — never a ``Result``.
+
+    ``functools.wraps`` preserves the inner signature so FastMCP builds
+    the correct *input* schema, but it also copies the inner ``->
+    Result[dict]`` return annotation (and sets ``__wrapped__``). Newer
+    FastMCP reads that annotation via ``inspect.signature(..., eval_str=
+    True)`` and derives an *output* schema from the ``SuccessResult |
+    ErrorResult`` union — which then rejects the flattened dict
+    ``to_wire()`` returns (GH-712, GH-713: every github tool failed
+    output-schema validation despite the underlying call succeeding).
+
+    Pin the public signature's return type to ``dict`` (matching the
+    directly-``@server.tool()`` handlers, for which no output schema is
+    derived) via an explicit ``__signature__``. ``inspect.signature``
+    honours ``__signature__`` ahead of the ``__wrapped__`` chain, so
+    this is what FastMCP sees while the inner ``fn`` keeps its honest
+    ``Result`` annotation for type-checking.
     """
 
-    @server.tool()
     @functools.wraps(fn)
     async def wrapper(*args, **kwargs):
         with subprocess_utils.use_cwd(kwargs.get("cwd")):
             result = await fn(*args, **kwargs)
         return to_wire(result)
 
-    return wrapper
+    wrapper.__signature__ = inspect.signature(fn, eval_str=True).replace(return_annotation=dict)
+    return server.tool()(wrapper)
 
 
 @github_tool
