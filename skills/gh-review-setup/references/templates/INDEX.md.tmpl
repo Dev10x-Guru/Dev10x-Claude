@@ -1,0 +1,25 @@
+# Rendered by Dev10x:gh-review-setup. Domain-routing table for code review.
+# Rows are generated from the domains discovered in THIS repo — not copied.
+# Code Review orchestrator reads this file to route changed files.
+
+# Review Routing
+
+## File Pattern → Reviewer → References
+
+| File Pattern | Reviewer Agent(s) | Required References |
+|---|---|---|
+{{ROUTING_TABLE}}
+
+## Cross-Cutting
+
+Always load `references/rules/review-checks-common.md` (false-positive
+prevention) for every domain, in addition to the row's references.
+
+## How routing works
+
+1. The Code Review workflow classifies each changed file against the
+   patterns above (top-to-bottom; first match wins per file, but a file may
+   match multiple rows when patterns overlap — load all matched reviewers).
+2. Each matched `reviewer-*` spec lives in `.claude/agents/`.
+3. Files with no matching row fall back to `reviewer-generic` when present;
+   otherwise they receive only the cross-cutting checks.

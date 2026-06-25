@@ -1,0 +1,46 @@
+# Rendered by Dev10x:gh-review-setup. Distill an ADR from a merged PR.
+# Only scaffolded when docs/adr/ or an architectural surface was discovered.
+name: Claude ADR Distillation
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  adr:
+    # Only merged PRs with an architectural surface; skip pure docs/config.
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: {{DEFAULT_BRANCH}}
+
+      - name: Distill ADR candidate
+        uses: {{ACTION_REF}}
+        with:
+          anthropic_api_key: ${{ secrets.{{REVIEW_KEY}} }}
+          # Capable tier: this step commits and opens a PR. Cheap tiers tend
+          # to exit silently mid-task on git ops — keep this on {{MODEL_CAPABLE}}.
+          claude_args: "--model {{MODEL_CAPABLE}}"
+          prompt: |
+            Merged PR #${{ github.event.pull_request.number }} in
+            ${{ github.repository }} may encode an architectural decision.
+
+            1. Inspect the diff and PR discussion. Decide whether a genuine
+               decision was made (a choice between alternatives with
+               trade-offs). If not, STOP — do nothing.
+            2. If yes, draft an ADR in `docs/adr/` using the next sequential
+               number and the existing ADR format (read a sibling ADR to
+               match it). Capture: context, decision, alternatives
+               considered, consequences.
+            3. Generalize — no transient PR-specific phrasing; the ADR must
+               read as a standing decision.
+            4. Open a DRAFT PR targeting {{DEFAULT_BRANCH}} with the new ADR.
+               Title: an outcome-focused summary. Do NOT auto-merge.
+{{SLACK_NOTIFY_BLOCK}}

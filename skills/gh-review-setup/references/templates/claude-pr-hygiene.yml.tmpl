@@ -1,0 +1,48 @@
+# Rendered by Dev10x:gh-review-setup. PR title/body/commit hygiene.
+# Only scaffolded when an issue tracker was discovered.
+name: Claude PR Hygiene
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: claude-hygiene-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  hygiene:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Claude PR hygiene check
+        uses: {{ACTION_REF}}
+        with:
+          anthropic_api_key: ${{ secrets.{{HYGIENE_KEY}} }}
+          claude_args: "--model {{MODEL_CLASSIFY}}"
+          prompt: |
+            Check the metadata hygiene of PR
+            #${{ github.event.pull_request.number }} in
+            ${{ github.repository }}. This is NOT a code review — only
+            title, body, and commit messages.
+
+            Validate:
+            1. TITLE — outcome-focused, concise (≤72 chars), describes what
+               the change enables ("Enable X", not "Add X").
+            2. BODY — opens with a JTBD Job Story (When … I want to … so …).
+               Ends with a `Fixes:` trailer.
+               {{TRACKER_FIXES_RULE}}
+            3. COMMITS — atomic, outcome-focused, ≤72-char subject lines.
+
+            If everything passes, stay SILENT (post nothing). If something
+            fails, post ONE compact comment listing each issue as REQUIRED
+            (blocks merge intent) or RECOMMENDED (advisory). Do not review
+            code. Do not repeat a comment that already exists on the PR.
