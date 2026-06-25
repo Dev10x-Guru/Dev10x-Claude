@@ -2078,7 +2078,7 @@ class TestIssueClose:
 
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run", new_callable=AsyncMock)
-    async def test_accepts_not_planned_reason(
+    async def test_translates_not_planned_to_gh_spelling(
         self,
         mock_run: AsyncMock,
         mock_resolve_repo: AsyncMock,
@@ -2089,7 +2089,9 @@ class TestIssueClose:
 
         assert isinstance(result, SuccessResult)
         called_args = mock_run.call_args.kwargs["args"]
-        assert "not_planned" in called_args
+        # gh wants the space spelling; the underscore must never reach it (GH-674).
+        assert "not planned" in called_args
+        assert "not_planned" not in called_args
 
     @pytest.mark.asyncio
     async def test_rejects_invalid_reason(self) -> None:
