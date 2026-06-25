@@ -366,6 +366,22 @@ def scan_plugin_scripts(plugin_root: Path) -> list[Path]:
     return sorted(set(scripts))
 
 
+_DUP_SLASH_RE = re.compile(r"(?<!:)/{2,}")
+
+
+def collapse_double_slashes(path: str) -> str:
+    """Collapse runs of ``/`` to a single ``/`` without touching ``://``.
+
+    ``${CLAUDE_PLUGIN_ROOT}`` resolves with a trailing slash, so a naive
+    ``f"{root}/{rel}"`` join yields ``.../<ver>//skills/...`` (GH-704). The
+    verbatim permission matcher treats ``//`` ≠ ``/``, so such a rule never
+    matches. Normalizing at the rule-generation source guarantees we never
+    emit a ``//`` that the matcher would silently reject. The ``(?<!:)``
+    guard preserves scheme separators like ``mcp://`` untouched.
+    """
+    return _DUP_SLASH_RE.sub("/", path)
+
+
 def build_script_allow_rules(
     scripts: list[Path],
     *,
@@ -374,7 +390,45 @@ def build_script_allow_rules(
     rules: list[str] = []
     for script in scripts:
         relative = script.relative_to(plugin_root)
-        rules.append(str(AllowRule.bash(f"{plugin_root}/{relative}:*")))
+        body = collapse_double_slashes(f"{plugin_root}/{relative}")
+        rules.append(str(AllowRule.bash(f"{body}:*")))
+    return rules
+
+
+def build_marketplaces_script_rules(
+    scripts: list[Path],
+    *,
+    plugin_root: Path,
+    plugin_cache: str,
+    user_home: Path,
+) -> list[str]:
+    """Emit unversioned marketplace-root Bash rules for plugin scripts (GH-704).
+
+    :func:`build_script_allow_rules` pins the versioned ``cache/<ver>/``
+    dispatch root, but the runtime also dispatches skill scripts from the
+    unversioned ``marketplaces/<publisher>/`` root. A grant for one root
+    family never matches the other (GH-488 evidence #31), so a cache-pinned
+    rule leaves marketplace-dispatched scripts re-prompting forever.
+
+    This mirrors :func:`build_marketplaces_read_rules` for the Bash
+    skill-script scope: for each script, emit ``~/`` and ``/home/<user>/``
+    twins anchored at ``marketplaces/<publisher>/<relative>`` so a grant
+    matches whichever root family dispatches the script. ``relative`` is the
+    same sub-path in both layouts (``skills/<name>/scripts/<file>`` etc.).
+    """
+    publisher = extract_cache_publisher(plugin_cache)
+    if not publisher:
+        return []
+
+    home = user_home.expanduser().resolve()
+    rel_root = f".claude/plugins/marketplaces/{publisher}"
+    rules: list[str] = []
+    for script in scripts:
+        relative = script.relative_to(plugin_root)
+        tilde = collapse_double_slashes(f"~/{rel_root}/{relative}")
+        absolute = collapse_double_slashes(f"{home}/{rel_root}/{relative}")
+        rules.append(str(AllowRule.bash(f"{tilde}:*")))
+        rules.append(str(AllowRule.bash(f"{absolute}:*")))
     return rules
 
 
@@ -1266,6 +1320,15 @@ def ensure_scripts(
     expected_rules = build_script_allow_rules(
         scripts,
         plugin_root=plugin_root,
+    )
+    # GH-704: also seed the unversioned marketplace-root twins so a grant
+    # matches whichever root family (cache vs marketplaces) dispatches the
+    # script.
+    expected_rules += build_marketplaces_script_rules(
+        scripts,
+        plugin_root=plugin_root,
+        plugin_cache=config["plugin_cache"],
+        user_home=Path.home(),
     )
 
     if not quiet:

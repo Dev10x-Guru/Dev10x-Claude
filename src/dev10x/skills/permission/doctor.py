@@ -43,6 +43,13 @@ PINNED_VERSION_RE = re.compile(
 
 CATALOG_PATH = Path(__file__).resolve().parent / "baseline-permissions.yaml"
 
+# GH-704: ``${CLAUDE_PLUGIN_ROOT}`` resolves with a trailing slash, so the
+# expanded command (and Claude Code's "don't ask again" remediation) bakes a
+# literal ``//`` into ``settings`` (e.g. ``.../<ver>//skills/...``). The
+# verbatim matcher treats ``//`` ≠ ``/`` so the polluted rule never matches.
+# The ``(?<!:)`` guard leaves scheme separators like ``mcp://`` untouched.
+_DUP_SLASH_RE = re.compile(r"(?<!:)/{2,}")
+
 
 def canonicalize_rule(rule: str) -> str | None:
     """Rewrite a single allow-rule string to canonical form.
@@ -50,19 +57,21 @@ def canonicalize_rule(rule: str) -> str | None:
     Returns the rewritten rule, or ``None`` when no rewrite applies.
 
     Rewrites:
+      - Collapse duplicate slashes (``//`` → ``/``) outside a ``://`` scheme
+        (GH-704) so ``${CLAUDE_PLUGIN_ROOT}`` trailing-slash pollution matches.
       - ``/home/<user>/.claude/plugins/cache/<pub>/<plugin>/<version>/``
         → ``~/.claude/plugins/cache/<pub>/<plugin>/**/``
       - ``~/.claude/plugins/cache/<pub>/<plugin>/<version>/``
         → ``~/.claude/plugins/cache/<pub>/<plugin>/**/``
     """
-    match = PINNED_VERSION_RE.search(rule)
-    if match is None:
+    collapsed = _DUP_SLASH_RE.sub("/", rule)
+    match = PINNED_VERSION_RE.search(collapsed)
+    if match is not None:
+        canonical = f"~/.claude/plugins/cache/{match['publisher']}/{match['plugin']}/**/"
+        collapsed = collapsed[: match.start()] + canonical + collapsed[match.end() :]
+    if collapsed == rule:
         return None
-    canonical = f"~/.claude/plugins/cache/{match['publisher']}/{match['plugin']}/**/"
-    rewritten = rule[: match.start()] + canonical + rule[match.end() :]
-    if rewritten == rule:
-        return None
-    return rewritten
+    return collapsed
 
 
 @dataclass
