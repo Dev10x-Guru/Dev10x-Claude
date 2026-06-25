@@ -5,6 +5,25 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.81.1 — GitHub MCP Tool Responses & Review-Setup Gate Fixes
+
+Released 2026-06-25
+
+### Fixes
+
+- **Restore GitHub MCP tool success responses** — every github MCP tool
+  (`issue_get`, `pr_comments`, `pr_comment_reply`, `detect_base_branch`,
+  `verify_pr_state`, …) failed Pydantic output-schema validation in
+  0.80.0 despite the underlying GitHub call succeeding; the
+  `@github_tool` decorator now pins the wrapper's return type to `dict`
+  so FastMCP derives no output schema and accepts the flattened wire
+  dict ([GH-712](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/712))
+- **Keep gh-review-setup's module gate within the option cap** — the six
+  review modules are split across two `AskUserQuestion` questions in one
+  call, since each question caps at four options, so the setup gate no
+  longer fails with `InputValidationError`
+  ([GH-713](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/713))
+
 ## 0.80.0 — Continuous Learning Loop, Installable PR-Review Action & Source-Derived Permissions
 
 Released 2026-06-25
