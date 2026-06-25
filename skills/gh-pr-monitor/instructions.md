@@ -412,15 +412,43 @@ The PR body **must** start with a JTBD Job Story as its first paragraph.
 
 ---
 
-## Phase 1: CI Monitoring (orchestrator + ci-poll micro-agent)
+## Phase 1: CI Monitoring (server-side wait, preferred)
 
-The supervisor does not loop on CI itself. It dispatches the
-`haiku-ci-poll` micro-agent (see "Micro-agent A" above) which
-loops `ci-check-status.py` until the verdict changes from
-`"pending"` and returns the final JSON. The supervisor then
-branches on the returned `verdict`.
+The supervisor does not loop on CI itself.
 
-### Dispatch ci-poll
+### Primary mechanism: `ci_check_status(wait=true)` (GH-675)
+
+**Preferred — call `mcp__plugin_Dev10x_cli__ci_check_status`
+directly with `wait=true`.** It polls **server-side** to a
+terminal verdict (`green` / `failing` / `conflicting`) with no
+Bash, no `sleep`, and no background sub-agent:
+
+```
+mcp__plugin_Dev10x_cli__ci_check_status(
+    pr_number={pr_number}, repo="{repo}", wait=True)
+```
+
+This returns the same verdict JSON the `haiku-ci-poll` micro-agent
+emits, so the **Interpret verdict** table below applies unchanged.
+
+**Why this is preferred over the haiku-ci-poll micro-agent:** the
+micro-agent's `sleep 30` loop hits a permission boundary in some
+environments and returns after a **single** poll with a
+non-terminal verdict, reporting "I can execute immediate Bash
+commands but not long-running background polling loops" (GH-675).
+The orchestrator then never receives a terminal verdict. Polling
+server-side via `ci_check_status(wait=true)` removes the `sleep`
+loop, the Bash dependency, and the `gh-pr-checks-watch` friction
+class entirely.
+
+### Fallback: dispatch the `haiku-ci-poll` micro-agent
+
+Use the micro-agent (see "Micro-agent A" above) only when
+`ci_check_status(wait=true)` is unavailable (older plugin version)
+or you specifically want the poll to run in the background while
+the supervisor works on Phase 2. It loops `ci-check-status.py`
+until the verdict changes from `"pending"` and returns the final
+JSON.
 
 ```
 Agent(
@@ -438,7 +466,10 @@ Agent(
 Because `run_in_background=True`, the supervisor receives a
 completion notification when the poll ends — there is no need to
 poll the poller. The supervisor can work on Phase 2 (thread scan)
-or other unrelated tasks in the meantime.
+or other unrelated tasks in the meantime. If the micro-agent
+returns after a single poll with a non-terminal verdict (the
+GH-675 sleep-permission limitation), fall back to
+`ci_check_status(wait=true)`.
 
 ### Interpret verdict
 
