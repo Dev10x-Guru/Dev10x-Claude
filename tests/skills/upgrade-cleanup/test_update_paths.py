@@ -9,7 +9,9 @@ import pytest
 
 from dev10x.skills.permission import update_paths
 from dev10x.skills.permission.update_paths import (
+    build_marketplaces_script_rules,
     build_script_allow_rules,
+    collapse_double_slashes,
     collapse_legacy_upgrade_cleanup_rule,
     collapse_legacy_upgrade_cleanup_rules,
     ensure_base_denies,
@@ -513,6 +515,65 @@ class TestBuildScriptAllowRules:
 
     def test_empty_for_no_scripts(self, tmp_path: Path) -> None:
         assert build_script_allow_rules([], plugin_root=tmp_path) == []
+
+    def test_collapses_double_slash_from_trailing_root(self, tmp_path: Path) -> None:
+        # GH-704: a plugin_root carrying a trailing slash must not emit `//`.
+        root = Path(f"{tmp_path}/")
+        (tmp_path / "bin").mkdir()
+        script = tmp_path / "bin" / "release.sh"
+        script.write_text("")
+        rules = build_script_allow_rules([script], plugin_root=root)
+        assert "//" not in rules[0]
+        assert rules == [f"Bash({tmp_path}/bin/release.sh:*)"]
+
+
+class TestCollapseDoubleSlashes:
+    def test_collapses_runs(self) -> None:
+        assert collapse_double_slashes("/a//b///c") == "/a/b/c"
+
+    def test_preserves_scheme(self) -> None:
+        assert collapse_double_slashes("https://x//y") == "https://x/y"
+
+    def test_noop_on_clean(self) -> None:
+        assert collapse_double_slashes("/a/b/c") == "/a/b/c"
+
+
+class TestBuildMarketplacesScriptRules:
+    def test_emits_unversioned_marketplace_twins(self, tmp_path: Path) -> None:
+        # GH-704: seed both root forms so cache- and marketplace-dispatched
+        # scripts both match a grant.
+        plugin_cache = "~/.claude/plugins/cache/Dev10x-Guru/Dev10x"
+        plugin_root = tmp_path / "Dev10x-Guru" / "Dev10x" / "0.79.0"
+        (plugin_root / "skills" / "foo" / "scripts").mkdir(parents=True)
+        script = plugin_root / "skills" / "foo" / "scripts" / "bar.py"
+        script.write_text("")
+        home = tmp_path / "home"
+        home.mkdir()
+        rules = build_marketplaces_script_rules(
+            [script],
+            plugin_root=plugin_root,
+            plugin_cache=plugin_cache,
+            user_home=home,
+        )
+        rel = ".claude/plugins/marketplaces/Dev10x-Guru/skills/foo/scripts/bar.py"
+        assert rules == [
+            f"Bash(~/{rel}:*)",
+            f"Bash({home}/{rel}:*)",
+        ]
+        assert all("//" not in rule for rule in rules)
+
+    def test_empty_when_publisher_unresolvable(self, tmp_path: Path) -> None:
+        script = tmp_path / "x.py"
+        script.write_text("")
+        assert (
+            build_marketplaces_script_rules(
+                [script],
+                plugin_root=tmp_path,
+                plugin_cache="/not/a/cache/path",
+                user_home=tmp_path,
+            )
+            == []
+        )
 
 
 class TestIsDeadGlobScriptRule:

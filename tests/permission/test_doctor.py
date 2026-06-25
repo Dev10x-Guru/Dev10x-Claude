@@ -40,6 +40,26 @@ class TestCanonicalizeRule:
         assert doctor.canonicalize_rule("Bash(git status:*)") is None
         assert doctor.canonicalize_rule("Read(/tmp/Dev10x/**)") is None
 
+    def test_collapses_double_slash_and_version_pins(self) -> None:
+        # GH-704: ${CLAUDE_PLUGIN_ROOT} trailing-slash pollution bakes a `//`
+        # into the rule; collapse it AND version-pin in one pass.
+        rule = (
+            "Bash(/home/janusz/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.79.0"
+            "//skills/foo/scripts/bar.sh:*)"
+        )
+        assert doctor.canonicalize_rule(rule) == (
+            "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/skills/foo/scripts/bar.sh:*)"
+        )
+
+    def test_collapses_double_slash_without_version(self) -> None:
+        rule = "Bash(~/.claude/plugins/marketplaces/Dev10x-Guru//skills/x/scripts/y.py:*)"
+        assert doctor.canonicalize_rule(rule) == (
+            "Bash(~/.claude/plugins/marketplaces/Dev10x-Guru/skills/x/scripts/y.py:*)"
+        )
+
+    def test_preserves_scheme_double_slash(self) -> None:
+        assert doctor.canonicalize_rule("WebFetch(domain:https://example.com)") is None
+
 
 class TestCanonicalizeRulesIterable:
     def test_collects_rewrites(self) -> None:
@@ -111,6 +131,27 @@ class TestCanonicalizeSettingsFile:
                     "permissions": {
                         "allow": [
                             "Bash(/home/u/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.71.0/x.sh:*)",
+                            "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/x.sh:*)",
+                        ]
+                    }
+                }
+            )
+        )
+        doctor.canonicalize_settings_file(settings)
+        data = json.loads(settings.read_text())
+        assert data["permissions"]["allow"] == [
+            "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/x.sh:*)"
+        ]
+
+    def test_dedupes_double_slash_polluted_against_clean(self, tmp_path: Path) -> None:
+        # GH-704: a `//`-polluted literal collapses onto its clean twin.
+        settings = tmp_path / "settings.local.json"
+        settings.write_text(
+            json.dumps(
+                {
+                    "permissions": {
+                        "allow": [
+                            "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**//x.sh:*)",
                             "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/x.sh:*)",
                         ]
                     }
