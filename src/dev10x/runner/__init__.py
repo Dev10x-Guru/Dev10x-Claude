@@ -98,6 +98,118 @@ async def run_tests(
     return ok(payload)
 
 
+# GH-703: node/JS test runners. Routing the run through the MCP server
+# keeps it off the Bash layer — including the core-harness brace-expansion
+# check that no allow-rule can suppress (e.g. a quoted ``{ts,tsx}`` glob).
+_NODE_RUNNERS: dict[str, list[str]] = {
+    "jest": ["npx", "jest"],
+    "vitest": ["npx", "vitest", "run"],
+    "yarn": ["yarn", "test"],
+    "npm": ["npm", "test"],
+    "pnpm": ["pnpm", "test"],
+}
+# Runners that accept a ``--coverage`` flag directly. ``yarn``/``npm``/
+# ``pnpm`` delegate to the project's configured ``test`` script, so the
+# coverage flag is left to that script rather than injected here.
+_NODE_COVERAGE_FLAG: dict[str, str] = {"jest": "--coverage", "vitest": "--coverage"}
+
+_NODE_TESTS_RE = re.compile(r"^Tests:\s+(?P<body>.+)$", re.MULTILINE)
+_NODE_COUNT_RE = re.compile(r"(\d+)\s+(passed|failed|skipped|todo|pending)")
+_NODE_TOTAL_RE = re.compile(r"(\d+)\s+total")
+
+
+async def run_node_tests(
+    *,
+    runner: str = "jest",
+    args: list[str] | None = None,
+    coverage: bool = True,
+    timeout: float = 600,
+) -> Result[dict[str, Any]]:
+    """Run a node/JS test runner and return a structured summary (GH-703).
+
+    Mirrors :func:`run_tests` for the node dev loop. ``yarn ... test`` and
+    ``jest`` can only run through the Bash layer otherwise, where they hit
+    permission prompts and the brace-expansion core-harness block. Because
+    the subprocess is launched from the MCP server, the Bash hook does not
+    apply (GH-238 pattern).
+
+    Args:
+        runner: One of ``jest``, ``vitest``, ``yarn``, ``npm``, ``pnpm``.
+        args: Extra arguments appended after the coverage flag.
+        coverage: When True and the runner supports it, add ``--coverage``.
+        timeout: Subprocess timeout in seconds (default 10 minutes).
+
+    Returns:
+        ok({"returncode", "runner", "summary", "passed", "failed",
+            "skipped", "todo", "total", "stdout", "stderr"})
+
+        err(...) only when the runner binary is missing, the runner name
+        is unknown, or the subprocess times out. A non-zero runner
+        returncode is *not* an MCP-level error.
+    """
+    base = _NODE_RUNNERS.get(runner)
+    if base is None:
+        return err(
+            f"Unknown node test runner {runner!r}. "
+            f"Expected one of: {', '.join(sorted(_NODE_RUNNERS))}."
+        )
+    cmd = list(base)
+    if coverage and runner in _NODE_COVERAGE_FLAG:
+        cmd.append(_NODE_COVERAGE_FLAG[runner])
+    cmd += list(args) if args else []
+
+    try:
+        proc = await async_run(args=cmd, timeout=timeout)
+    except FileNotFoundError:
+        return err(
+            f"{base[0]} not found on PATH — install Node tooling or run the "
+            f"test via the documented fallback."
+        )
+
+    if proc.returncode == -1 and "timed out" in proc.stderr.lower():
+        return err(
+            f"node tests timed out after {timeout:.0f}s",
+            stdout=proc.stdout,
+            stderr=proc.stderr,
+        )
+
+    # jest/vitest write their summary to stderr; scan both streams.
+    parsed = _parse_node(f"{proc.stdout}\n{proc.stderr}")
+    payload: dict[str, Any] = {
+        "returncode": proc.returncode,
+        "runner": runner,
+        "stdout": proc.stdout,
+        "stderr": proc.stderr,
+        **parsed,
+    }
+    return ok(payload)
+
+
+def _parse_node(output: str) -> dict[str, Any]:
+    """Extract structured results from a jest/vitest-style ``Tests:`` line."""
+    counts = {"passed": 0, "failed": 0, "skipped": 0, "todo": 0}
+    summary = ""
+    total: int | None = None
+
+    match = _NODE_TESTS_RE.search(output)
+    if match:
+        summary = match.group("body").strip()
+        for count, label in _NODE_COUNT_RE.findall(summary):
+            key = "skipped" if label == "pending" else label
+            counts[key] = int(count)
+        total_match = _NODE_TOTAL_RE.search(summary)
+        total = int(total_match.group(1)) if total_match else None
+
+    return {
+        "summary": summary,
+        "passed": counts["passed"],
+        "failed": counts["failed"],
+        "skipped": counts["skipped"],
+        "todo": counts["todo"],
+        "total": total,
+    }
+
+
 def _parse(stdout: str) -> dict[str, Any]:
     """Extract structured test results from pytest stdout."""
     counts = {"passed": 0, "failed": 0, "skipped": 0, "errors": 0}
@@ -136,4 +248,4 @@ def _parse(stdout: str) -> dict[str, Any]:
     }
 
 
-__all__ = ["run_tests"]
+__all__ = ["run_node_tests", "run_tests"]

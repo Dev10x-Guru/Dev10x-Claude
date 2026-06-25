@@ -89,6 +89,29 @@ class TestOptInGroups:
         assert "Bash(gh secret list:*)" in rules
 
 
+class TestNodeDevLoopGroup:
+    """GH-703: generalized node dev-loop shapes are opt-in, not default-seed."""
+
+    def test_tier_3_and_mutating(self, groups: dict) -> None:
+        group = groups["node-dev-loop"]
+        assert group["tier"] == 3
+        assert group["sensitivity"] == Sensitivity.MUTATING
+
+    def test_contains_generalized_dev_loop_shapes(self, groups: dict) -> None:
+        rules = set(groups["node-dev-loop"]["rules"])
+        assert "Bash(yarn build:*)" in rules
+        assert "Bash(yarn typecheck)" in rules
+        assert "Bash(yarn typecheck:*)" in rules
+
+    def test_not_default_seeded(self, groups: dict) -> None:
+        # The dev-loop shapes must NOT leak into any tier-2 (default-seed) group.
+        tier2_rules = {
+            r for g in groups.values() if g.get("tier") == 2 for r in g.get("rules", [])
+        }
+        dev_loop_rules = set(groups["node-dev-loop"]["rules"])
+        assert not (dev_loop_rules & tier2_rules)
+
+
 class TestNoVerbBlindBroadEntry:
     """Acceptance: no `vercel:*` / `aws-vault exec:*`-style broad entry."""
 

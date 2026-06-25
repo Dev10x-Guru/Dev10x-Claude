@@ -261,3 +261,67 @@ async def run_tests(
         await ctx.log(level=level, message=f"run_tests: {summary or 'complete'}")
 
     return result
+
+
+@server.tool()
+async def run_node_tests(
+    runner: str = "jest",
+    args: list[str] | None = None,
+    coverage: bool = True,
+    timeout: int = 600,
+    cwd: str | None = None,
+    ctx: Context | None = None,
+) -> dict:
+    """Run jest / yarn / npm / pnpm / vitest tests off the Bash layer (GH-703).
+
+    Symmetric to ``run_tests`` but for the node dev loop: the subprocess
+    is launched from the MCP server, so the PreToolUse hook — including
+    the core-harness brace-expansion block that no allow-rule can suppress
+    (e.g. a quoted ``--collectCoverageFrom="…{ts,tsx}"`` glob) — does not
+    apply. This makes ``yarn … test`` reachable from sessions where the
+    Bash layer would otherwise prompt or hard-block it.
+
+    Args:
+        runner: One of ``jest`` (default), ``vitest``, ``yarn``, ``npm``,
+            ``pnpm``. ``jest``/``vitest`` accept ``--coverage`` directly;
+            the package-manager runners delegate to the project's
+            configured ``test`` script.
+        args: Extra arguments appended after the coverage flag.
+        coverage: When True (default) and the runner supports it, add
+            ``--coverage``.
+        timeout: Subprocess timeout in seconds (default 600).
+        cwd: Effective working directory (GH-979).
+        ctx: FastMCP context injected automatically — do not pass (GH-342).
+
+    Returns:
+        Dictionary with keys: returncode (int), runner (str),
+        summary (str), passed (int), failed (int), skipped (int),
+        todo (int), total (int | None), stdout (str), stderr (str).
+        A non-zero ``returncode`` is *not* an MCP-level error —
+        callers read ``returncode`` to decide.
+    """
+    from dev10x import runner as test_runner
+    from dev10x.subprocess_utils import use_cwd
+
+    if ctx is not None:
+        await ctx.report_progress(progress=0, total=100, message=f"Starting {runner}")
+        await ctx.info(f"run_node_tests: launching {runner}")
+
+    with use_cwd(cwd):
+        result = to_wire(
+            await test_runner.run_node_tests(
+                runner=runner, args=args, coverage=coverage, timeout=timeout
+            )
+        )
+
+    if ctx is not None:
+        summary = result.get("summary", "")
+        failed = result.get("failed", 0)
+        await ctx.report_progress(progress=100, total=100, message=f"{runner} done: {summary}")
+        level = cast(
+            Literal["debug", "info", "warning", "error"],
+            "warning" if failed else "info",
+        )
+        await ctx.log(level=level, message=f"run_node_tests: {summary or 'complete'}")
+
+    return result

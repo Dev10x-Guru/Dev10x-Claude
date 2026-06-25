@@ -365,6 +365,29 @@ groups:
       - Bash(yarn lint:eslint:*)
       - Bash(yarn lint:tsc)
 
+  # GH-703: generalized read-only / idempotent node dev-loop shapes
+  # (build, typecheck). `yarn build:<app>` and `yarn typecheck` re-prompt
+  # because the default node-toolchain lacks the `:*` generalization
+  # (evidence #17/#33). These run arbitrary package.json scripts, so they
+  # are trusted-exec — tier 3 (per-project opt-in), NEVER default-seeded,
+  # the same class as uv:*/python:*. Aggressive default seeding is D7
+  # (deferred to PERM-M2). Jest/`yarn … test` run via the run_node_tests
+  # MCP wrapper instead, which sidesteps the Bash layer entirely.
+  node-dev-loop:
+    tier: 3
+    sensitivity: mutating
+    description: >
+      Generalized read-only / idempotent node dev-loop commands
+      (build, typecheck). Trusted-exec, per-project opt-in (GH-703).
+    rules:
+      - Bash(yarn build:*)
+      - Bash(yarn typecheck)
+      - Bash(yarn typecheck:*)
+      - Bash(yarn tsc --noEmit)
+      - Bash(npm run build:*)
+      - Bash(npm run typecheck:*)
+      - Bash(pnpm typecheck:*)
+
   docker:
     tier: 2
     description: >
