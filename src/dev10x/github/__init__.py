@@ -1131,6 +1131,14 @@ async def issue_edit(
     )
 
 
+# gh's --reason wants the space spelling "not planned"; the wrapper takes the
+# underscore spelling and translates at the gh boundary (GH-674).
+_CLOSE_REASON_GH_VALUE: dict[str, str] = {
+    "completed": "completed",
+    "not_planned": "not planned",
+}
+
+
 async def issue_close(
     *,
     number: int,
@@ -1138,7 +1146,7 @@ async def issue_close(
     comment: str | None = None,
     repo: str | None = None,
 ) -> Result[dict[str, Any]]:
-    """Close a GitHub issue (GH-268).
+    """Close a GitHub issue (GH-268, GH-674).
 
     Wraps ``gh issue close N --reason <reason> [--comment <body>]``.
 
@@ -1151,10 +1159,11 @@ async def issue_close(
     Returns:
         On success: ``{"number": int, "state": "closed", "url": str}``.
     """
-    if reason not in ("completed", "not_planned"):
-        return err(f"reason must be 'completed' or 'not_planned', got: {reason}")
+    if reason not in _CLOSE_REASON_GH_VALUE:
+        valid = ", ".join(repr(key) for key in _CLOSE_REASON_GH_VALUE)
+        return err(f"reason must be one of {valid}, got: {reason!r}")
 
-    args = ["gh", "issue", "close", str(number), "--reason", reason]
+    args = ["gh", "issue", "close", str(number), "--reason", _CLOSE_REASON_GH_VALUE[reason]]
     if repo:
         args.extend(["--repo", repo])
     if comment is not None:
