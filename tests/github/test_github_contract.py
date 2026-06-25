@@ -85,6 +85,35 @@ class TestPrGetContract:
         )
 
     @pytest.mark.asyncio
+    async def test_pr_get_gh668_state_fields_present(self) -> None:
+        """pr_get must expose isDraft/mergeable/reviewDecision/reviewRequests (GH-668).
+
+        These let gh-pr-merge Checks 3/4/7 and verify-acc-dod read draft,
+        mergeability, and approval state from the routed MCP tool instead
+        of the hook-blocked raw ``gh pr view``.
+        """
+        result = await gh.pr_get(
+            number=_FIXTURE_PR_NUMBER,
+            repo=_FIXTURE_REPO,
+        )
+        from dev10x.domain.common.result import SuccessResult
+
+        assert isinstance(result, SuccessResult)
+        payload = result.value
+        gh668_fields = {
+            "isDraft",
+            "mergeable",
+            "reviewDecision",
+            "reviewRequests",
+        }
+        missing = gh668_fields - payload.keys()
+        assert not missing, (
+            f"pr_get response missing GH-668 fields: {sorted(missing)}. "
+            f"Returned keys: {sorted(payload.keys())}. "
+            "gh-pr-get.sh must request these in its --json field list."
+        )
+
+    @pytest.mark.asyncio
     async def test_pr_get_number_matches_fixture(self) -> None:
         """pr_get response number must match the requested PR number."""
         result = await gh.pr_get(

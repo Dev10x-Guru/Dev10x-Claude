@@ -259,23 +259,27 @@ user out of the loop for routine code fixes while still
 requiring human judgement for cases where the agent cannot
 safely decide.
 
-### Check 3: PR is not in draft
+### Checks 3, 4, 7: Draft / mergeable / approval (one `pr_get` call)
 
-```bash
-gh pr view NUMBER --json isDraft
+Raw `gh pr view` is hook-blocked and routes to the MCP wrapper.
+`pr_get` now exposes `isDraft`, `mergeable`, `reviewDecision`, and
+`reviewRequests` (GH-668), so a single call satisfies Checks 3, 4,
+and 7 — read each field from the one response:
+
+```
+mcp__plugin_Dev10x_cli__pr_get(number=NUMBER, repo="OWNER/REPO")
 ```
 
-If `isDraft` is `true`, report that the PR must be marked
-ready before merging.
+### Check 3: PR is not in draft
+
+Read `isDraft` from the `pr_get` response. If `isDraft` is `true`,
+report that the PR must be marked ready before merging.
 
 ### Check 4: No merge conflicts
 
-```bash
-gh pr view NUMBER --json mergeable
-```
-
-The `mergeable` field must be `MERGEABLE`. If `CONFLICTING`,
-report that merge conflicts must be resolved first.
+Read `mergeable` from the `pr_get` response. The field must be
+`MERGEABLE`. If `CONFLICTING`, report that merge conflicts must be
+resolved first.
 
 ### Check 5: Working copy is clean
 
@@ -298,11 +302,8 @@ first (via `Dev10x:git-groom`).
 
 ### Check 7: Review approval
 
-```bash
-gh pr view NUMBER --json reviewDecision
-```
-
-Check that `reviewDecision` is `APPROVED`.
+Read `reviewDecision` from the `pr_get` response (same call as
+Checks 3/4). Check that `reviewDecision` is `APPROVED`.
 
 **Solo-maintainer override:** If `solo_maintainer: true` in
 config, skip this check entirely. Solo maintainers do not
@@ -312,14 +313,16 @@ require external approval.
 
 ### Step 1: Detect PR
 
-Detect the current PR using the branch name:
+Detect the current PR from the branch name via the MCP wrapper
+(raw `gh pr view` is hook-blocked):
 
-```bash
-gh pr view --json number,headRefName,baseRefName
+```
+mcp__plugin_Dev10x_cli__pr_detect(arg="")
 ```
 
-If no PR exists for the current branch, report and stop.
-Extract owner/repo from `gh repo view --json owner,name`.
+It returns `PR_NUMBER`, `REPO`, `PR_URL`, and `BRANCH`. If no PR
+exists for the current branch, report and stop. (The base branch,
+if needed, is available from `pr_get`'s `baseRefName`.)
 
 ### Step 2: Load merge strategy config
 
@@ -340,8 +343,9 @@ as a final gate immediately before Step 5 merge. This
 eliminates the race where a bot posts a REQUIRED finding
 after the comment check but before the merge.
 
-Run non-comment checks in parallel where possible (checks 2-7
-use `gh`/`git` commands). **Check 1b MUST be run as a
+Run non-comment checks in parallel where possible (Check 2 uses
+`gh pr checks`, Checks 3/4/7 share one `pr_get` MCP call, and
+Checks 5/6 use `git`). **Check 1b MUST be run as a
 separate step after Check 1** — it calls
 `check-top-level-comments.sh` and is NOT part of the
 GraphQL batch (GH-728). Collect all results before

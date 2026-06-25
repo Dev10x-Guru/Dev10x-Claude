@@ -447,3 +447,23 @@ class TestGhPrGetScriptContractLint:
         assert "mergedAt" in gh_pr_view_json_fields, (
             "gh-pr-get.sh must explicitly declare 'mergedAt' in --json fields (GH-329 fix)."
         )
+
+    @pytest.mark.parametrize(
+        "field",
+        ["isDraft", "mergeable", "reviewDecision", "reviewRequests"],
+    )
+    def test_pr_state_fields_present(
+        self,
+        gh_pr_view_json_fields: set[str],
+        field: str,
+    ) -> None:
+        """pr_get must expose the draft/mergeable/review fields (GH-668).
+
+        These make pr_get a drop-in for the hook-blocked
+        ``gh pr view --json ...`` checks in gh-pr-merge (Checks 3/4/7).
+        Dropping any of them re-opens the GH-668 gap.
+        """
+        assert field in gh_pr_view_json_fields, (
+            f"gh-pr-get.sh must declare {field!r} in --json fields (GH-668). "
+            "gh-pr-merge Checks 3/4/7 read these from pr_get instead of raw gh pr view."
+        )

@@ -244,6 +244,47 @@ class TestGhPrMergeRedirect:
         assert "pre-merge checks" in result.message
 
 
+class TestGhPrViewRedirect:
+    """gh pr view routes to pr_get unless it carries the DoD allow marker (GH-668)."""
+
+    def test_blocks_gh_pr_view_isdraft(self, validator: SkillRedirectValidator) -> None:
+        inp = _make_input(command="gh pr view 42 --json isDraft")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "mcp__plugin_Dev10x_cli__pr_get" in result.message
+
+    def test_blocks_gh_pr_view_minimal(self, validator: SkillRedirectValidator) -> None:
+        inp = _make_input(command="gh pr view 7")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "mcp__plugin_Dev10x_cli__pr_get" in result.message
+
+    def test_allows_gh_pr_view_with_cli_friction_marker(
+        self, validator: SkillRedirectValidator
+    ) -> None:
+        """DoD-runner check templates carry the marker and must NOT be blocked."""
+        inp = _make_input(
+            command=(
+                "gh pr view 42 --repo o/r --json isDraft -q .isDraft  "
+                "# cli-friction: allow raw-gh-pr — DoD runner executes this template"
+            )
+        )
+        result = validator.validate(inp=inp)
+        assert result is None
+
+    def test_allows_gh_pr_view_review_requests_with_marker(
+        self, validator: SkillRedirectValidator
+    ) -> None:
+        inp = _make_input(
+            command=(
+                "gh pr view 42 --repo o/r --json reviewRequests "
+                "-q '.reviewRequests | length'  # cli-friction: allow raw-gh-pr"
+            )
+        )
+        result = validator.validate(inp=inp)
+        assert result is None
+
+
 class TestGhIssueViewRedirect:
     def test_blocks_gh_issue_view(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="gh issue view 539 --repo Dev10x-Guru/dev10x-claude")
