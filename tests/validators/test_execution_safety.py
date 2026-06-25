@@ -6,6 +6,7 @@ import pytest
 
 from dev10x.validators.execution_safety import (
     INPLACE_EDIT_MSG,
+    PYTHON3_INLINE_MSG,
     SHELL_INTERP_MSG,
     ExecutionSafetyValidator,
 )
@@ -208,13 +209,15 @@ class TestPython3InlineEdgeCases:
     def validator(self) -> ExecutionSafetyValidator:
         return ExecutionSafetyValidator()
 
-    def test_unbalanced_quotes_in_python3_check_returns_none(
+    def test_unbalanced_quotes_in_python3_check_fails_closed(
         self, validator: ExecutionSafetyValidator
     ) -> None:
-        # python3 is in the string but shlex.split will raise ValueError
+        # GH-687: an unparseable command naming python3 is suspicious, not
+        # safe. shlex.split raises ValueError → fail closed (was: returns None).
         inp = _make_input(command="python3 -c 'print(\"hello)")
         result = validator.validate(inp=inp)
-        assert result is None
+        assert result is not None
+        assert result.message == PYTHON3_INLINE_MSG
 
     def test_python3_as_argument_not_command_returns_none(
         self, validator: ExecutionSafetyValidator
@@ -293,10 +296,12 @@ class TestShellInterpreter:
         result = validator.validate(inp=inp)
         assert result is None
 
-    def test_unbalanced_quotes_returns_none(self, validator: ExecutionSafetyValidator) -> None:
+    def test_unbalanced_quotes_fails_closed(self, validator: ExecutionSafetyValidator) -> None:
+        # GH-687: fail closed when shlex cannot parse a command naming a shell.
         inp = _make_input(command="bash -c 'echo hi")
         result = validator.validate(inp=inp)
-        assert result is None
+        assert result is not None
+        assert result.message == SHELL_INTERP_MSG
 
     def test_interpreter_as_argument_returns_none(
         self, validator: ExecutionSafetyValidator
@@ -313,3 +318,88 @@ class TestShellInterpreter:
         inp = _make_input(command="python3 /tmp/Dev10x/x.py")
         result = validator.validate(inp=inp)
         assert result is not None
+
+
+class TestInterpreterStdinBypass:
+    """GH-687: scripts delivered via stdin must be blocked like inline -c."""
+
+    @pytest.fixture()
+    def validator(self) -> ExecutionSafetyValidator:
+        return ExecutionSafetyValidator()
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "python3 << 'PY'\nimport os\nPY",  # heredoc
+            "python3 <<-PY\nimport os\nPY",  # dash-heredoc
+            "python3 <<< 'import os'",  # here-string
+            "FOO=1 python3 <<EOF\nimport os\nEOF",  # env-prefixed heredoc
+            "python3 << 'PY'\nx = a | b\nPY",  # heredoc body contains a pipe
+            "python3 -",  # bare dash reads program from stdin
+            "echo 'import os' | python3",  # pipe-fed, no script arg
+        ],
+    )
+    def test_blocks_python3_stdin_forms(
+        self, validator: ExecutionSafetyValidator, command: str
+    ) -> None:
+        inp = _make_input(command=command)
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert result.message == PYTHON3_INLINE_MSG
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "bash << 'SH'\nrm -rf /tmp/x\nSH",  # heredoc
+            "sh -s",  # -s reads the script from stdin
+            "bash -",  # bare dash
+            "zsh <<< 'print hi'",  # here-string
+            "echo 'rm -rf /' | sh",  # pipe-fed, no script arg
+        ],
+    )
+    def test_blocks_shell_stdin_forms(
+        self, validator: ExecutionSafetyValidator, command: str
+    ) -> None:
+        inp = _make_input(command=command)
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert result.message == SHELL_INTERP_MSG
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "cat data.json | python3 -m json.tool",  # -m module, piped — allowed
+            "cat input.txt | python3 process.py",  # relative script arg — allowed
+            "python3 -s manage.py runserver",  # python3 -s is a site-flag, not stdin
+        ],
+    )
+    def test_allows_legit_piped_and_site_flag_forms(
+        self, validator: ExecutionSafetyValidator, command: str
+    ) -> None:
+        inp = _make_input(command=command)
+        result = validator.validate(inp=inp)
+        assert result is None
+
+    def test_node_stdin_is_scoped_out(self, validator: ExecutionSafetyValidator) -> None:
+        # node/ruby/perl never had the inline `-c`/`-e` guard, so their stdin
+        # channel is intentionally out of scope for GH-687 (tracked separately).
+        inp = _make_input(command="echo 'console.log(1)' | node")
+        result = validator.validate(inp=inp)
+        assert result is None
+
+    def test_bare_interpreter_repl_is_allowed(self, validator: ExecutionSafetyValidator) -> None:
+        # A bare interpreter in the first segment is an interactive REPL with
+        # no piped stdin — not a script smuggle.
+        inp = _make_input(command="python3")
+        result = validator.validate(inp=inp)
+        assert result is None
+
+    def test_substring_match_does_not_fail_closed(
+        self, validator: ExecutionSafetyValidator
+    ) -> None:
+        # `gosh` merely contains the substring `sh`; an unparseable command
+        # that does not name an interpreter as a whole word must not fail
+        # closed (the word-boundary guard prevents a false block).
+        inp = _make_input(command="gosh -c 'unterminated")
+        result = validator.validate(inp=inp)
+        assert result is None
