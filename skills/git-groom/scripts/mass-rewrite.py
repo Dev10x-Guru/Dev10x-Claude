@@ -26,7 +26,10 @@ Config JSON:
     }
 
 Notes:
-  - SHAs must be 7-char prefixes from the current branch HEAD.
+  - Config SHAs may be full 40-char or short prefixes — both are
+    resolved via `git rev-parse` to the commit's 7-char form, the
+    abbreviation git rebase lists in its todo (GH-646). Keys that
+    don't resolve to a branch commit are reported as stale.
   - Commits with renames: all mv + amend ops are chained in a single exec
     line to keep the index clean between rebase steps.
   - On failure: git rebase --abort; to recover: git reflog
@@ -62,6 +65,31 @@ def get_current_commits(base_sha: str) -> list[tuple[str, str]]:
     return commits
 
 
+def normalize_config_shas(commits_config: dict) -> dict:
+    """Re-key the commits map to 7-char short SHAs.
+
+    Config keys may be full 40-char SHAs — the natural copy from
+    `git rev-parse` / `git log --format=%H` — or short prefixes.
+    git rebase lists commits by abbreviated SHA, so the rewrite
+    matches keys on their 7-char form internally; a full SHA would
+    never match and the run would fail with "don't exist" while the
+    same commit is printed (abbreviated) in the branch listing
+    (GH-646). Resolve every key via `git rev-parse` and re-key to the
+    resolved commit's 7-char prefix. Keys that do not resolve are left
+    untouched so validate_shas reports them as genuinely stale.
+    """
+    normalized: dict = {}
+    for key, spec in commits_config.items():
+        result = run(
+            ["git", "rev-parse", "--verify", "--quiet", f"{key}^{{commit}}"],
+            check=False,
+        )
+        resolved = result.stdout.strip()
+        short = resolved[:7] if result.returncode == 0 and resolved else key
+        normalized[short] = spec
+    return normalized
+
+
 def validate_shas(config_shas: set[str], current_shas: set[str]) -> None:
     stale = config_shas - current_shas
     if not stale:
@@ -69,7 +97,15 @@ def validate_shas(config_shas: set[str], current_shas: set[str]) -> None:
     print("ERROR: These SHAs from config don't exist in current branch:", file=sys.stderr)
     for sha in sorted(stale):
         print(f"  {sha}", file=sys.stderr)
-    print("\nRe-check SHAs with: git log --oneline develop..HEAD", file=sys.stderr)
+    print(
+        "\nConfig SHAs (full or short) are matched against the branch's 7-char commits.",
+        file=sys.stderr,
+    )
+    print(
+        "Re-check with: git log --oneline origin/develop..HEAD "
+        "(use origin/<base> if local lags after a rebase-merge).",
+        file=sys.stderr,
+    )
     sys.exit(1)
 
 
@@ -185,7 +221,7 @@ def main() -> None:
     config = json.load(sys.stdin) if src == "-" else json.loads(Path(src).read_text())
 
     base_ref: str = config.get("base", "develop")
-    commits_config: dict = config["commits"]
+    commits_config: dict = normalize_config_shas(config["commits"])
 
     workdir = create_workdir()
     msgs_dir = workdir / "msgs"
