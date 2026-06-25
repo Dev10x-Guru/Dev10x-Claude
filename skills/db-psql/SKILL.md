@@ -19,11 +19,11 @@ runtime to the resolved cache path. User settings that pin the
 absolute path (`/home/<user>/.claude/plugins/cache/.../db.sh:*`)
 or omit the tilde will not match this rule. Run
 `Dev10x:plugin-maintenance` (mode: full) or
-`Dev10x:upgrade-cleanup` to canonicalize pinned/absolute paths in
-`settings.local.json` to the `~/.claude/plugins/cache/.../**/`
-wildcard form, which matches across plugin version bumps. The
-canonicalization is implemented in
-`src/dev10x/skills/permission/doctor.py::canonicalize_rule`.
+`Dev10x:upgrade-cleanup` to refresh pinned/absolute paths in
+`settings.local.json` to the current plugin version via
+`update-paths`, which runs on every upgrade. Paths are NOT
+rewritten to `**` wildcards (GH-715) — `**` matching is unreliable
+in the permission engine.
 -->
 
 

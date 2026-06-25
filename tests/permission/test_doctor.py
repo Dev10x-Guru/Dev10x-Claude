@@ -11,44 +11,34 @@ doctor = pytest.importorskip("dev10x.skills.permission.doctor")
 
 
 class TestCanonicalizeRule:
-    def test_rewrites_resolved_username_and_version(self) -> None:
+    def test_version_pinned_path_is_not_rewritten(self) -> None:
+        # GH-715: version-pinned paths must NOT be rewritten to `**`
+        # wildcards — `**` matching is unreliable in the permission engine.
         rule = (
             "Bash(/home/janusz/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.71.0"
             "/skills/foo/scripts/bar.sh:*)"
         )
-        assert doctor.canonicalize_rule(rule) == (
-            "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/skills/foo/scripts/bar.sh:*)"
-        )
+        assert doctor.canonicalize_rule(rule) is None
 
-    def test_rewrites_tilde_version(self) -> None:
+    def test_tilde_version_pinned_path_is_not_rewritten(self) -> None:
         rule = "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.5.0/bin/release.sh:*)"
-        assert doctor.canonicalize_rule(rule) == (
-            "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/bin/release.sh:*)"
-        )
-
-    def test_rewrites_dev10x_claude_plugin_name(self) -> None:
-        rule = "Bash(/home/u/.claude/plugins/cache/Other/dev10x-claude/1.2.3/skills/x/y.sh:*)"
-        assert doctor.canonicalize_rule(rule) == (
-            "Bash(~/.claude/plugins/cache/Other/dev10x-claude/**/skills/x/y.sh:*)"
-        )
-
-    def test_returns_none_when_already_canonical(self) -> None:
-        rule = "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/bin/release.sh:*)"
         assert doctor.canonicalize_rule(rule) is None
 
     def test_returns_none_when_unrelated(self) -> None:
         assert doctor.canonicalize_rule("Bash(git status:*)") is None
         assert doctor.canonicalize_rule("Read(/tmp/Dev10x/**)") is None
 
-    def test_collapses_double_slash_and_version_pins(self) -> None:
+    def test_collapses_double_slash_keeping_version(self) -> None:
         # GH-704: ${CLAUDE_PLUGIN_ROOT} trailing-slash pollution bakes a `//`
-        # into the rule; collapse it AND version-pin in one pass.
+        # into the rule; collapse it. GH-715: the version segment stays —
+        # it is NOT replaced with a `**` wildcard.
         rule = (
             "Bash(/home/janusz/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.79.0"
             "//skills/foo/scripts/bar.sh:*)"
         )
         assert doctor.canonicalize_rule(rule) == (
-            "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/skills/foo/scripts/bar.sh:*)"
+            "Bash(/home/janusz/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.79.0"
+            "/skills/foo/scripts/bar.sh:*)"
         )
 
     def test_collapses_double_slash_without_version(self) -> None:
@@ -60,18 +50,31 @@ class TestCanonicalizeRule:
     def test_preserves_scheme_double_slash(self) -> None:
         assert doctor.canonicalize_rule("WebFetch(domain:https://example.com)") is None
 
+    def test_never_emits_double_star_wildcard(self) -> None:
+        # GH-715 regression: no input should yield a `**` path wildcard.
+        inputs = [
+            "Bash(/home/u/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.71.0/x.sh:*)",
+            "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.5.0//bin/release.sh:*)",
+            "Bash(/home/u/.claude/plugins/cache/Other/dev10x-claude/1.2.3/y.sh:*)",
+        ]
+        for rule in inputs:
+            result = doctor.canonicalize_rule(rule)
+            assert result is None or "**" not in result
+
 
 class TestCanonicalizeRulesIterable:
     def test_collects_rewrites(self) -> None:
+        # Only `//`-polluted rules are rewritten (GH-704); version-pinned
+        # paths without a `//` are left unchanged (GH-715).
         result = doctor.canonicalize_rules(
             [
-                "Bash(/home/a/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.1.0/x.sh:*)",
+                "Bash(/home/a/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.1.0//x.sh:*)",
                 "Bash(git status:*)",
                 "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.2.0/y.sh:*)",
             ]
         )
-        assert result.changed == 2
-        assert result.unchanged == 1
+        assert result.changed == 1
+        assert result.unchanged == 2
 
     def test_handles_empty_iterable(self) -> None:
         result = doctor.canonicalize_rules([])
@@ -81,17 +84,19 @@ class TestCanonicalizeRulesIterable:
 
 class TestCanonicalizeSettingsFile:
     def test_rewrites_allow_and_deny_blocks(self, tmp_path: Path) -> None:
+        # GH-704: `//` pollution is collapsed in both allow and deny.
+        # GH-715: the version segment is preserved, not wildcarded.
         settings = tmp_path / "settings.local.json"
         settings.write_text(
             json.dumps(
                 {
                     "permissions": {
                         "allow": [
-                            "Bash(/home/u/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.71.0/skills/a.sh:*)",
+                            "Bash(/home/u/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.71.0//skills/a.sh:*)",
                             "Bash(git status:*)",
                         ],
                         "deny": [
-                            "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.5.0/dangerous.sh:*)",
+                            "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.5.0//dangerous.sh:*)",
                         ],
                     }
                 }
@@ -101,11 +106,11 @@ class TestCanonicalizeSettingsFile:
         assert result.changed == 2
         data = json.loads(settings.read_text())
         assert (
-            "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/skills/a.sh:*)"
+            "Bash(/home/u/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.71.0/skills/a.sh:*)"
             in data["permissions"]["allow"]
         )
         assert (
-            "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/dangerous.sh:*)"
+            "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.5.0/dangerous.sh:*)"
             in data["permissions"]["deny"]
         )
 
@@ -114,7 +119,7 @@ class TestCanonicalizeSettingsFile:
         original = {
             "permissions": {
                 "allow": [
-                    "Bash(/home/u/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.71.0/x.sh:*)",
+                    "Bash(/home/u/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.71.0//x.sh:*)",
                 ]
             }
         }
@@ -124,14 +129,15 @@ class TestCanonicalizeSettingsFile:
         assert json.loads(settings.read_text()) == original
 
     def test_dedupes_collisions(self, tmp_path: Path) -> None:
+        # A `//`-polluted version-pinned rule collapses onto its clean twin.
         settings = tmp_path / "settings.local.json"
         settings.write_text(
             json.dumps(
                 {
                     "permissions": {
                         "allow": [
+                            "Bash(/home/u/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.71.0//x.sh:*)",
                             "Bash(/home/u/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.71.0/x.sh:*)",
-                            "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/x.sh:*)",
                         ]
                     }
                 }
@@ -140,7 +146,7 @@ class TestCanonicalizeSettingsFile:
         doctor.canonicalize_settings_file(settings)
         data = json.loads(settings.read_text())
         assert data["permissions"]["allow"] == [
-            "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/x.sh:*)"
+            "Bash(/home/u/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.71.0/x.sh:*)"
         ]
 
     def test_dedupes_double_slash_polluted_against_clean(self, tmp_path: Path) -> None:
@@ -225,7 +231,9 @@ class TestCatalogAndDeprecations:
         catalog = doctor.load_catalog()
         assert catalog.version >= 1
         assert "git-core" in catalog.groups
-        assert any(d.get("action") == "canonicalize" for d in catalog.deprecations)
+        # GH-715: no shipped deprecation may canonicalize to a `**` wildcard.
+        assert all(d.get("action") != "canonicalize" for d in catalog.deprecations)
+        assert any(d.get("action") == "remove" for d in catalog.deprecations)
 
     def test_tier_rules_filters_by_tier(self) -> None:
         catalog = doctor.load_catalog()
@@ -234,15 +242,16 @@ class TestCatalogAndDeprecations:
         tier3 = catalog.tier_rules(tiers=[3])
         assert any("kubectl" in r for r in tier3)
 
-    def test_apply_deprecations_canonicalizes(self) -> None:
+    def test_apply_deprecations_leaves_version_pin_unchanged(self) -> None:
+        # GH-715: the shipped catalog no longer canonicalizes version-pinned
+        # paths, so apply-deprecations must leave them untouched — no `**`.
         catalog = doctor.load_catalog()
         rules = [
             "Bash(/home/u/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.71.0/x.sh:*)",
         ]
         new_rules, outcomes = doctor.apply_deprecations(rules, catalog=catalog)
-        assert len(outcomes) == 1
-        assert outcomes[0].action == "canonicalize"
-        assert new_rules == ["Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/x.sh:*)"]
+        assert outcomes == []
+        assert new_rules == rules
 
     def test_apply_deprecations_removes(self) -> None:
         catalog = doctor.load_catalog()
@@ -596,11 +605,13 @@ class TestApplyDeprecationsToFiles:
         data = json.loads(settings.read_text())
         assert data["permissions"]["allow"] == ["Bash(git status:*)"]
 
-    def test_canonicalize_action(self, tmp_path: Path) -> None:
-        pinned = "Bash(/home/u/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.71.0/x.sh:*)"
-        settings = _write_settings(tmp_path, allow=[pinned])
+    def test_canonicalize_action_collapses_slashes_not_wildcards(self, tmp_path: Path) -> None:
+        # GH-715: a `canonicalize` action now only collapses `//` (GH-704);
+        # it never rewrites the version segment into a `**` wildcard.
+        polluted = "Bash(/home/u/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.71.0//x.sh:*)"
+        settings = _write_settings(tmp_path, allow=[polluted])
         catalog = self._catalog(
-            [{"pattern": r"cache/.+/\d+\.\d+\.\d+/", "action": "canonicalize", "reason": "pin"}]
+            [{"pattern": r"cache/.+/\d+\.\d+\.\d+//", "action": "canonicalize", "reason": "slash"}]
         )
 
         result = doctor.apply_deprecations_to_files([settings], catalog=catalog)
@@ -609,8 +620,9 @@ class TestApplyDeprecationsToFiles:
         assert "CANON" in joined
         data = json.loads(settings.read_text())
         assert data["permissions"]["allow"] == [
-            "Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/x.sh:*)"
+            "Bash(/home/u/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.71.0/x.sh:*)"
         ]
+        assert "**" not in data["permissions"]["allow"][0]
 
     def test_unknown_action_keeps_rule(self, tmp_path: Path) -> None:
         settings = _write_settings(tmp_path, allow=["Bash(flagged:*)"])

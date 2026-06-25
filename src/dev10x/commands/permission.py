@@ -842,11 +842,16 @@ def doctor() -> None:
 @click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
 @click.option("--quiet", is_flag=True, help="Suppress per-file details")
 def doctor_canonicalize(*, dry_run: bool, quiet: bool) -> None:
-    """Rewrite version-pinned plugin paths to ~/.claude/plugins/cache/**/ form.
+    """Collapse duplicate-slash path typos (``//`` → ``/``) in allow rules.
 
-    Rules of the form ``Bash(/home/<user>/.claude/plugins/cache/Dev10x-Guru/
-    Dev10x/0.71.0/...)`` rot on every plugin upgrade. This command rewrites
-    them to the version-wildcard form so they survive future updates.
+    ``${CLAUDE_PLUGIN_ROOT}`` expands with a trailing slash, so an expanded
+    rule can bake a literal ``//`` into settings that the verbatim matcher
+    never matches (GH-704). This command collapses those.
+
+    It does NOT rewrite version-pinned plugin paths to ``**`` wildcards
+    (GH-715) — ``**`` matching is unreliable; use
+    ``dev10x permission update-paths`` to keep pinned paths current on
+    upgrade.
     """
     from dev10x.skills.permission import doctor as mod
 
@@ -869,8 +874,8 @@ def doctor_canonicalize(*, dry_run: bool, quiet: bool) -> None:
                 for original, rewritten in result.rewrites:
                     click.echo(f"  - {original}")
                     click.echo(f"  + {rewritten}")
-    verb = "Would rewrite" if dry_run else "Rewrote"
-    click.echo(f"\n{verb} {total_rewrites} pinned paths across {files_changed} files.")
+    verb = "Would collapse" if dry_run else "Collapsed"
+    click.echo(f"\n{verb} {total_rewrites} duplicate-slash typos across {files_changed} files.")
 
 
 @doctor.command(name="cross-contamination")
