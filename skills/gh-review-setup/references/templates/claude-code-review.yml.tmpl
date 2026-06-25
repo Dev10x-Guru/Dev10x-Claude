@@ -1,0 +1,62 @@
+# Rendered by Dev10x:gh-review-setup. Domain-routed Claude code review.
+# Placeholders ({{...}}) are filled at generation time from discovery.
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, ready_for_review, synchronize]
+    paths:
+{{PATH_GLOBS}}
+      - "!.github/workflows/claude*.yml"
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Claude code review
+        uses: {{ACTION_REF}}
+        with:
+          anthropic_api_key: ${{ secrets.{{REVIEW_KEY}} }}
+          claude_args: "--model {{MODEL_CLASSIFY}}"
+          prompt: |
+            Review pull request #${{ github.event.pull_request.number }} in
+            repository ${{ github.repository }}.
+
+            You are the review orchestrator. Do NOT assume a stack — classify
+            the changed files and route each to the matching domain reviewer.
+
+            1. Read the routing table at `.claude/rules/INDEX.md`. For each
+               changed file, find the matching row and load the named
+               `.claude/agents/reviewer-*.md` spec(s).
+            2. ALWAYS load `references/rules/review-checks-common.md` (false-
+               positive prevention) and apply its gate to every drafted
+               comment.
+            3. Apply `references/rules/review-guidelines.md` for workflow,
+               thread handling, and the one-summary-per-cycle rule.
+            4. Review ONLY changed lines. Pre-existing issues are out of
+               scope. Verify claims by reading the actual file, not just the
+               diff hunk. Check later commits before flagging.
+            5. Post substantive findings as inline review comments. Use
+               GitHub suggestion blocks for committable fixes. Acknowledge
+               clean code — positive validation is valuable.
+            6. Maintain an idempotent checklist in the PR body between the
+               markers `<!-- claude-review:start -->` and
+               `<!-- claude-review:end -->`. Replace the block on re-runs;
+               never append a second block.
+
+            Keep the summary to one block. Trust formatters (do not nitpick
+            style a linter would catch).

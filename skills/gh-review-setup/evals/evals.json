@@ -1,0 +1,72 @@
+{
+  "skill_name": "Dev10x:gh-review-setup",
+  "description": "Guided, discovery-driven setup of Claude code-review GitHub Actions on any repo",
+  "evals": [
+    {
+      "name": "module-selection-gate",
+      "description": "Module selection uses AskUserQuestion (multiSelect), not plain text",
+      "setup": "/Dev10x:gh-review-setup",
+      "checks": [
+        {"type": "tool_called", "tool": "AskUserQuestion", "assertion": "module_gate_uses_tool", "signal": "Phase 2 module menu uses AskUserQuestion with multiSelect"},
+        {"type": "behavioral", "assertion": "modules_skippable", "signal": "Every module is independently skippable; ADR/hygiene skip is first-class"}
+      ]
+    },
+    {
+      "name": "strategy-gate-with-pros-cons",
+      "description": "Each strategy decision presents pros/cons and a recommended default before asking",
+      "setup": "/Dev10x:gh-review-setup",
+      "checks": [
+        {"type": "tool_called", "tool": "AskUserQuestion", "assertion": "strategy_gate_uses_tool", "signal": "Phase 3 strategy decisions use AskUserQuestion"},
+        {"type": "behavioral", "assertion": "options_carry_tradeoffs", "signal": "Each option description carries pros/cons; one option is marked recommended"}
+      ]
+    },
+    {
+      "name": "discovery-driven-roster",
+      "description": "Path globs and reviewer roster are derived from discovery, not hardcoded",
+      "setup": "/Dev10x:gh-review-setup (run on a non-Python repo: shell + markdown + workflow-yaml)",
+      "checks": [
+        {"type": "behavioral", "assertion": "globs_from_discovery", "signal": "Generated path globs match the discovered file types, not a fixed Python set"},
+        {"type": "behavioral", "assertion": "roster_from_discovery", "signal": "Only reviewers for present domains are scaffolded; no Python/migration rows on a config repo"}
+      ]
+    },
+    {
+      "name": "zero-project-strings",
+      "description": "Generated workflows contain zero project-identifying strings from any source project",
+      "setup": "/Dev10x:gh-review-setup",
+      "checks": [
+        {"type": "behavioral", "assertion": "sanitization_grep_gate", "signal": "Phase 5 runs a grep gate over rendered files and reports zero hits"},
+        {"type": "behavioral", "assertion": "repo_slug_is_expression", "signal": "Repo slugs render as ${{ github.repository }}, never a literal source slug"}
+      ]
+    },
+    {
+      "name": "lessons-learned-guardrails",
+      "description": "Lessons-learned module ships scope-lock, sanitization, size-budget, and single-PR lock",
+      "setup": "/Dev10x:gh-review-setup (select Lessons-Learned, draft-PR destination)",
+      "checks": [
+        {"type": "behavioral", "assertion": "scope_lock_present", "signal": "Auto-apply allowlist limited to CLAUDE.md + .claude/ + references/; never skills/ or workflows"},
+        {"type": "behavioral", "assertion": "single_pr_lock_present", "signal": "Fixed lessons branch + existing-open-PR check prevents parallel PRs"},
+        {"type": "behavioral", "assertion": "size_budgets_and_sanitization", "signal": "Per-file size budgets and prose+code sanitization embedded in the workflow prompt"}
+      ]
+    },
+    {
+      "name": "secrets-out-of-scope",
+      "description": "Skill prints required secrets but never creates them",
+      "setup": "/Dev10x:gh-review-setup",
+      "checks": [
+        {"type": "behavioral", "assertion": "secrets_printed_not_created", "signal": "Phase 5 lists required secret names and where to add them; no secret-creation call"}
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "should_trigger": [
+      "/Dev10x:gh-review-setup",
+      "set up Claude code review on this repo",
+      "scaffold the review GitHub Actions"
+    ],
+    "should_not_trigger": [
+      "/Dev10x:gh-pr-review 1293",
+      "/Dev10x:review",
+      "/Dev10x:gh-pr-monitor"
+    ]
+  }
+}

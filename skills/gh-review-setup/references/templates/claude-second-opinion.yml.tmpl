@@ -1,0 +1,48 @@
+# Rendered by Dev10x:gh-review-setup. Independent second-opinion pass.
+# Only scaffolded when a second API key / vendor was configured. Runs as a
+# separate workflow so its budget and tier are independent of the primary.
+name: Claude Second Opinion
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+{{PATH_GLOBS}}
+      - "!.github/workflows/claude*.yml"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: claude-second-opinion-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  second-opinion:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Independent second-opinion review
+        uses: {{ACTION_REF}}
+        with:
+          anthropic_api_key: ${{ secrets.{{HYGIENE_KEY}} }}
+          claude_args: "--model {{MODEL_CLASSIFY}}"
+          prompt: |
+            Provide an INDEPENDENT second-opinion review of PR
+            #${{ github.event.pull_request.number }} in
+            ${{ github.repository }}. Do NOT read or anchor on the primary
+            review's comments — form your own assessment from the diff.
+
+            Apply `references/rules/review-checks-common.md`. Focus on what a
+            second reviewer catches that the first misses: alternative
+            failure modes, security blind spots, and design trade-offs.
+
+            Post findings under a clearly labeled "Second opinion" summary so
+            they are distinguishable from the primary review. Keep it to one
+            block; acknowledge if you concur with the primary review and have
+            nothing material to add.

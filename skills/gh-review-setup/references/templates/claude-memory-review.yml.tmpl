@@ -1,0 +1,76 @@
+# Rendered by Dev10x:gh-review-setup. Lessons-learned self-improvement loop.
+# Embeds the four mandatory guardrails: scope-lock, sanitization, size
+# budgets, single-open-draft-PR lock. Capable tier required (commits + PR).
+name: Claude Lessons Learned
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  lessons:
+    # Skip drafts and reverts; analyze substantive closed PRs.
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: {{DEFAULT_BRANCH}}
+
+      - name: Analyze closed PR and apply lessons
+        uses: {{ACTION_REF}}
+        with:
+          anthropic_api_key: ${{ secrets.{{REVIEW_KEY}} }}
+          # Capable tier: this step commits and opens a PR. Cheap tiers tend
+          # to exit silently mid-task on git ops — keep on {{MODEL_CAPABLE}}.
+          claude_args: "--model {{MODEL_CAPABLE}}"
+          prompt: |
+            Analyze closed PR #${{ github.event.pull_request.number }} in
+            ${{ github.repository }} for review-process lessons, then feed
+            durable improvements back into the project's review rules.
+
+            ## Phase A — Analyze
+            Read the PR diff, comments, and reviews. Identify review feedback
+            patterns: which suggestions recurred, which were accepted vs
+            rejected. Produce a short lessons report and post it as a PR
+            comment (ephemeral — provenance lives in git blame, not in the
+            rules you write).
+
+            ## Phase B — Apply (scope-locked)
+            For each candidate improvement, pass ALL four value filters or
+            drop it:
+              1. Deduplication — target file already covers it → skip.
+              2. Recurrence — pattern in ≥2 PRs, not a one-off → skip if not.
+              3. Actionability — concrete check, not vague advice → skip.
+              4. Budget — would exceed the file's size budget → skip.
+            Apply only if ≥2 candidates survive; otherwise open no PR.
+
+            ### Scope-lock (HARD) — you may modify ONLY:
+{{LESSONS_ALLOWLIST}}
+            NEVER touch skills/, .github/workflows/, bin/, hooks/, commands/,
+            or application source. Abort the PR if a change falls outside the
+            allowlist.
+
+            ### Sanitization (HARD)
+            Before committing rule text, strip every project-identifying
+            string from BOTH prose and code examples (org/repo names,
+            vendor/domain nouns, sibling-service names). Distil the
+            trade-off, never the anecdote. Do not write "PR #N showed…".
+
+            ### Size budgets (HARD)
+{{SIZE_BUDGETS}}
+            A change that would exceed a budget is skipped (or condense
+            first).
+
+            ### Single open draft-PR lock (HARD)
+            Use the fixed branch `claude/lessons-learned`. Before creating a
+            PR, check for an existing open PR from that branch and UPDATE it
+            in place instead of opening a parallel one. Open as DRAFT,
+            target {{DEFAULT_BRANCH}}, label `rules-maintenance`. Never
+            auto-merge — a human approves.
+{{SLACK_NOTIFY_BLOCK}}
