@@ -2,11 +2,14 @@
 
 Three concerns this module addresses:
 
-1. **Pinned plugin paths** — rules of the form
-   ``Bash(/home/<user>/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.71.0/...)``
-   rot on every ``claude plugin update`` because the resolved version
-   segment becomes orphan. The fix is to canonicalize them to the
-   version-wildcard form ``Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/...)``.
+1. **Duplicate-slash path typos** — ``${CLAUDE_PLUGIN_ROOT}`` expands with a
+   trailing slash, so an expanded rule can bake a literal ``//`` into
+   ``settings`` (e.g. ``.../<ver>//skills/...``); the verbatim matcher treats
+   ``//`` ≠ ``/`` so the rule never matches. The fix collapses ``//`` → ``/``.
+   Version-pinned plugin paths are deliberately NOT rewritten to ``**``
+   wildcards (GH-715) — ``**`` matching is unreliable in the permission
+   engine; pinned paths are kept current by
+   ``dev10x permission update-paths`` on every upgrade instead.
 
 2. **Cross-contamination** — rules referencing another project's
    absolute path (copy-paste leakage) and, in worktree CWDs, rules
@@ -33,13 +36,6 @@ from typing import Any
 
 from dev10x import subprocess_utils
 from dev10x.domain.common.baseline_catalog import load_baseline_dict
-from dev10x.domain.plugin_identity import PLUGIN_NAMES
-
-PINNED_VERSION_RE = re.compile(
-    rf"(?P<prefix>/home/[^/]+/|~/)"
-    rf"\.claude/plugins/cache/(?P<publisher>[^/]+)/(?P<plugin>{PLUGIN_NAMES})/"
-    rf"(?P<version>\d+\.\d+\.\d+)/"
-)
 
 CATALOG_PATH = Path(__file__).resolve().parent / "baseline-permissions.yaml"
 
@@ -52,23 +48,20 @@ _DUP_SLASH_RE = re.compile(r"(?<!:)/{2,}")
 
 
 def canonicalize_rule(rule: str) -> str | None:
-    """Rewrite a single allow-rule string to canonical form.
+    """Normalize a single allow-rule string to canonical form.
 
     Returns the rewritten rule, or ``None`` when no rewrite applies.
 
-    Rewrites:
-      - Collapse duplicate slashes (``//`` → ``/``) outside a ``://`` scheme
-        (GH-704) so ``${CLAUDE_PLUGIN_ROOT}`` trailing-slash pollution matches.
-      - ``/home/<user>/.claude/plugins/cache/<pub>/<plugin>/<version>/``
-        → ``~/.claude/plugins/cache/<pub>/<plugin>/**/``
-      - ``~/.claude/plugins/cache/<pub>/<plugin>/<version>/``
-        → ``~/.claude/plugins/cache/<pub>/<plugin>/**/``
+    The only rewrite is collapsing duplicate slashes (``//`` → ``/``)
+    outside a ``://`` scheme (GH-704) so ``${CLAUDE_PLUGIN_ROOT}``
+    trailing-slash pollution matches the verbatim engine.
+
+    Version-pinned plugin paths are deliberately NOT rewritten to ``**``
+    wildcards (GH-715): ``**`` matching is unreliable in the permission
+    engine, so pinned paths are kept current by
+    ``dev10x permission update-paths`` on each upgrade instead.
     """
     collapsed = _DUP_SLASH_RE.sub("/", rule)
-    match = PINNED_VERSION_RE.search(collapsed)
-    if match is not None:
-        canonical = f"~/.claude/plugins/cache/{match['publisher']}/{match['plugin']}/**/"
-        collapsed = collapsed[: match.start()] + canonical + collapsed[match.end() :]
     if collapsed == rule:
         return None
     return collapsed

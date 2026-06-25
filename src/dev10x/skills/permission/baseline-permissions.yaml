@@ -7,9 +7,10 @@
 # Conventions:
 #   - Use `${CLAUDE_PLUGIN_ROOT}/...` for plugin-script rules. Never paste
 #     resolved cache paths (e.g. `/plugins/cache/Dev10x-Guru/Dev10x/0.71.0/`)
-#     — those rot on every plugin upgrade. The `~/.claude/plugins/cache/**/`
-#     form is also acceptable; the doctor canonicalizes pinned paths to
-#     that form.
+#     — those rot on every plugin upgrade. Do NOT rewrite them to a
+#     `**` wildcard either (GH-715): `**` matching is unreliable in the
+#     permission engine. Keep pinned paths current with
+#     `dev10x permission update-paths`, which runs on every upgrade.
 #   - Trailing wildcard form: prefer `Bash(cmd:*)` (colon). GH-127 audit
 #     showed the colon form is the only one that reliably matches
 #     general invocations like `rg -n PATTERN path/`. The space form
@@ -844,21 +845,11 @@ groups:
 # ─── DEPRECATIONS ─────────────────────────────────────────────────────
 # Rules the doctor should rewrite or remove on sweep.
 
+# GH-715: version-pinned plugin paths are NOT canonicalized to `**`
+# wildcards here. `**` matching is unreliable in the permission engine, so
+# pinned paths are refreshed in place by `dev10x permission update-paths`
+# on every upgrade instead of being rewritten to a wildcard.
 deprecations:
-  - pattern: 'Bash\(/home/[^/]+/\.claude/plugins/cache/Dev10x-Guru/Dev10x/\d+\.\d+\.\d+/'
-    reason: >
-      Version-pinned plugin path with resolved username. Rotted on every
-      `claude plugin update` — the version segment becomes orphan.
-    action: canonicalize
-    canonical_replacement: '~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/'
-
-  - pattern: 'Bash\(~/\.claude/plugins/cache/Dev10x-Guru/Dev10x/\d+\.\d+\.\d+/'
-    reason: >
-      Version-pinned plugin path. Already uses `~/` but still rots on
-      upgrade because the version segment is hardcoded.
-    action: canonicalize
-    canonical_replacement: '~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/'
-
   - pattern: '^Bash\(/tmp/claude/bin/mktmp\.sh:\*\)$'
     reason: >
       Legacy mktmp shell helper. Superseded by MCP tool
@@ -871,7 +862,10 @@ invariants:
   - id: no-resolved-plugin-cache
     description: >
       No allow rule may reference a resolved plugin cache path. Use
-      `${CLAUDE_PLUGIN_ROOT}` or `~/.claude/plugins/cache/**/`.
+      `${CLAUDE_PLUGIN_ROOT}`, or a version-pinned `~/.claude/plugins/
+      cache/<pub>/<plugin>/<version>/` path kept current by
+      `update-paths`. Do NOT use a `**` wildcard (GH-715) — `**`
+      matching is unreliable in the permission engine.
   - id: no-cross-project-paths
     description: >
       No allow rule may reference another project's absolute path
@@ -900,8 +894,9 @@ invariants:
 # 2. Tier 3 groups: opt-in via `dev10x permission doctor
 #    --enable-group=<name>`. Not added by default.
 # 3. Deprecations:
-#    - `action: canonicalize` → rewrite rule string to
-#      `canonical_replacement`.
 #    - `action: remove` → drop the rule entirely.
+#    - `action: canonicalize` → normalize the rule string by collapsing
+#      duplicate slashes (`//` → `/`, GH-704). It NEVER rewrites a path
+#      into a `**` wildcard (GH-715). No shipped entry uses it today.
 # 4. Invariants: surfaced as warnings during `dev10x permission doctor`;
 #    not auto-applied (require user confirmation).

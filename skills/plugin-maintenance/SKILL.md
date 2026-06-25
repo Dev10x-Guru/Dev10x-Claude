@@ -116,10 +116,11 @@ on the mode. Execute these `TaskCreate` calls at startup:
 
 > ⚠ **#47 default-safety.** Step 12 (Clean) runs the safe default
 > only — it does NOT pass `--aggressive`, so global-duplicate
-> stripping is skipped (global→project merge is not guaranteed).
-> Step 13 (doctor) skips `canonicalize` by default (it emits
-> unreliable `**` wildcards). Both are opt-in; see §11–§12 for the
-> evidence gate and `clean --restore` recovery.
+> stripping is skipped (global→project merge is not guaranteed); it
+> is opt-in — see §11 for the evidence gate and `clean --restore`
+> recovery. Step 13 (doctor) never rewrites paths into `**` wildcards
+> (GH-715) — `**` matching is unreliable; pinned paths are kept
+> current by `update-paths` instead.
 
 Set sequential dependencies. Mark each step `in_progress` when
 starting and `completed` when done. Steps that produce no
@@ -734,31 +735,27 @@ Apply the baseline-permissions catalog and detect cross-project /
 worktree↔source-repo contamination. The doctor handles three classes
 of friction not covered by the other steps:
 
-- **Pinned plugin paths** — version-rotted rules like
-  `Bash(/home/u/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.71.0/...)`
-  are rewritten to the version-wildcard form
-  `Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/...)` so they
-  survive `claude plugin update`.
-- **Catalog deprecations** — entries from
-  `src/dev10x/skills/permission/baseline-permissions.yaml` with
-  `action: canonicalize` are rewritten; `action: remove` entries
-  (e.g., legacy `/tmp/claude/bin/mktmp.sh:*`) are dropped.
+- **Duplicate-slash path typos** — `${CLAUDE_PLUGIN_ROOT}` expands with a
+  trailing slash, so an expanded rule can bake a literal `//` into settings
+  (e.g. `.../<ver>//skills/...`) that the verbatim matcher never matches
+  (GH-704). The doctor collapses `//` → `/`. Version-pinned plugin paths
+  are NOT rewritten to `**` wildcards (GH-715) — `**` matching is
+  unreliable; `update-paths` (step 1) keeps pinned paths current instead.
+- **Catalog deprecations** — `action: remove` entries from
+  `src/dev10x/skills/permission/baseline-permissions.yaml` (e.g., legacy
+  `/tmp/claude/bin/mktmp.sh:*`) are dropped. No shipped entry rewrites a
+  path to a `**` wildcard (GH-715).
 - **Cross-contamination** — rules whose absolute paths point outside
   the current project, or into the source repo when CWD is a worktree,
   are flagged so the user can remove them.
 
-1. Canonicalize pinned paths *(opt-in — do NOT run by default)*:
+1. Collapse duplicate-slash typos (`//` → `/`):
 
-> ⚠ **#47 — `**` wildcards are unreliable.** Canonicalize rewrites
-> a working version-pinned `~/` path into a `**`-wildcard path.
-> #47 found single `*` segments match but `**` and `*/**` were
-> unreliable — so canonicalize trades a path that works today (but
-> rots on upgrade) for one that may silently fail to match. Skip
-> this step in the default full-mode sweep. Only run it when the
-> user explicitly accepts the trade-off, or after
-> `uvx dev10x permission investigate` confirms `**` matches in this
-> environment. Recover with `clean --restore` (the pre-clean backup
-> predates canonicalize, so one restore undoes both).
+> **Note (GH-715):** This command only collapses `//` → `/` (GH-704). It
+> does NOT rewrite version-pinned plugin paths into `**` wildcards —
+> `**` matching is unreliable in the permission engine. To survive
+> `claude plugin update`, rely on `update-paths` (step 1 of this skill),
+> which refreshes pinned paths in place on every upgrade.
 
 ```bash
 uvx dev10x permission doctor canonicalize --dry-run
