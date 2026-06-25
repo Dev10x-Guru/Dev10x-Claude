@@ -40,25 +40,40 @@ capable → a stronger multi-turn tier for agentic git ops.
 text. Every module is independently skippable — skipping ADR/hygiene is
 first-class, not a workaround.
 
+`AskUserQuestion` caps each question at **4 options** (GH-713: passing all
+six modules as one question fails with `InputValidationError: too_big —
+options expected array to have <=4 items`). Split the six modules across
+**two questions in a single call** — core modules and add-ons — so no
+module is dropped. Both questions are `multiSelect`; union their answers.
+
 ```
-AskUserQuestion(questions=[{
-  question: "Which review modules should I scaffold? (pre-checked = recommended for this repo)",
-  header: "Modules",
-  multiSelect: true,
-  options: [
-    {label: "Code Review", description: "Domain-routed PR review on open/sync. Core module — recommended on."},
-    {label: "PR Hygiene", description: "Title/body/commit checks on PR open. Recommended ON when a tracker exists; noise without one."},
-    {label: "ADR Distillation", description: "Distill an ADR from a merged PR. Recommended when docs/adr/ or architectural surface exists."},
-    {label: "Lessons-Learned", description: "Feed closed-PR review patterns back into .claude/ rules via a scope-locked draft PR. Recommended when .claude/ rules exist."},
-    {label: "Second-opinion (multi-vendor)", description: "Independent second-vendor pass on open/sync. Needs a second API key. Off unless configured."},
-    {label: "Interactive (@claude)", description: "On-demand review when someone @-mentions claude in a PR/issue comment. Off by default."}
-  ]
-}])
+AskUserQuestion(questions=[
+  {
+    question: "Which CORE review modules should I scaffold? (pre-checked = recommended for this repo)",
+    header: "Core modules",
+    multiSelect: true,
+    options: [
+      {label: "Code Review", description: "Domain-routed PR review on open/sync. Core module — recommended on."},
+      {label: "PR Hygiene", description: "Title/body/commit checks on PR open. Recommended ON when a tracker exists; noise without one."},
+      {label: "ADR Distillation", description: "Distill an ADR from a merged PR. Recommended when docs/adr/ or architectural surface exists."},
+      {label: "Lessons-Learned", description: "Feed closed-PR review patterns back into .claude/ rules via a scope-locked draft PR. Recommended when .claude/ rules exist."}
+    ]
+  },
+  {
+    question: "Which ADD-ON review modules should I scaffold? (optional — off by default)",
+    header: "Add-ons",
+    multiSelect: true,
+    options: [
+      {label: "Second-opinion (multi-vendor)", description: "Independent second-vendor pass on open/sync. Needs a second API key. Off unless configured."},
+      {label: "Interactive (@claude)", description: "On-demand review when someone @-mentions claude in a PR/issue comment. Off by default."}
+    ]
+  }
+])
 ```
 
 **Adaptive friction:** pre-select the discovery defaults (the modules whose
 default rule resolves to on/recommended) and emit the call so the user can
 still toggle. Do not skip the tool call.
 
-Record the resolved set in `discovery.modules`. Phase 4 renders exactly the
-selected modules — no more, no less.
+Record the union of both questions' answers in `discovery.modules`. Phase 4
+renders exactly the selected modules — no more, no less.

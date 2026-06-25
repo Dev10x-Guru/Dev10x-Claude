@@ -96,8 +96,11 @@ pros/cons live in [`references/modules.md`](references/modules.md) and
 [`references/strategies.md`](references/strategies.md).
 
 1. **Module selection** (Phase 2) — **REQUIRED: Call `AskUserQuestion`**
-   (multiSelect). Pre-checks reflect discovery defaults; every module is
-   independently skippable. Skipping ADR/hygiene is first-class, not a hack.
+   (multiSelect). The six modules are split across **two questions in one
+   call** (core + add-ons) because `AskUserQuestion` caps each question at
+   4 options (GH-713); union the answers. Pre-checks reflect discovery
+   defaults; every module is independently skippable. Skipping ADR/hygiene
+   is first-class, not a hack.
 2. **Strategy decisions** (Phase 3) — **REQUIRED: Call `AskUserQuestion`**
    for each decision whose recommended default the user has not pre-stated.
    Batch related decisions into one call (1–4 questions). Each option
