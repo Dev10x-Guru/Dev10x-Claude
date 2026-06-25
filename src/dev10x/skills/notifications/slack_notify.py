@@ -232,14 +232,21 @@ def upload_slack_files(
     file_paths: list[str],
     message: str | None = None,
     thread_ts: str | None = None,
-) -> str | None:
+) -> Result[str | None]:
+    """Upload files to a channel, returning the first file id (GH-533).
+
+    Returns a :class:`Result` instead of printing and returning ``None`` so
+    the importable module shares one error contract with the rest of the
+    package; the caller owns any user-facing output (script-domain-boundaries
+    H3). On success the value is the first uploaded file id, or ``None`` when
+    Slack returns no file metadata.
+    """
     from slack_sdk import WebClient
     from slack_sdk.errors import SlackApiError
 
     token_result = get_token()
     if isinstance(token_result, ErrorResult):
-        print(f"❌ {token_result.error}", file=sys.stderr)
-        return None
+        return token_result
     token = token_result.value
     client = WebClient(token=token)
     resolved_message = resolve_mentions(message) if message else None
@@ -247,8 +254,7 @@ def upload_slack_files(
     file_uploads = []
     for path in file_paths:
         if not os.path.exists(path):
-            print(f"❌ File not found: {path}", file=sys.stderr)
-            return None
+            return err(f"File not found: {path}")
         file_uploads.append({"file": path, "title": os.path.basename(path)})
 
     try:
@@ -259,19 +265,26 @@ def upload_slack_files(
             initial_comment=resolved_message,
             thread_ts=thread_ts,
         )
-        files: list[dict] = result.get("files", [])
-        print(f"✅ Uploaded {len(file_uploads)} file(s): {[f.get('id') for f in files]}")
-        return files[0].get("id") if files else None
     except SlackApiError as ex:
-        if ex.response.get("error") == "missing_scope":
+        error = ex.response.get("error")
+        if error == "missing_scope":
             needed = ex.response.get("needed", "files:write")
-            print(
-                f"❌ Bot token missing '{needed}' scope. "
-                f"Add it at https://api.slack.com/apps → OAuth & Permissions.",
-                file=sys.stderr,
+            return err(
+                f"Bot token missing '{needed}' scope. "
+                f"Add it at https://api.slack.com/apps → OAuth & Permissions."
             )
-            raise SystemExit(1) from ex
-        raise
+        if error == "not_in_channel":
+            return err(
+                f"Bot is not a member of channel {channel} and cannot auto-join. "
+                f"Invite the bot via channel settings → Integrations."
+            )
+        log.error("Failed to upload Slack file(s)", exc_info=ex)
+        return err(f"Failed to upload Slack file(s): {ex}")
+
+    files: list[dict] = result.get("files", [])
+    file_id = files[0].get("id") if files else None
+    log.info("Uploaded %d file(s): %s", len(file_uploads), [f.get("id") for f in files])
+    return ok(file_id)
 
 
 def _files_upload_v2(
@@ -281,6 +294,12 @@ def _files_upload_v2(
     initial_comment: str | None,
     thread_ts: str | None,
 ) -> SlackResponse:
+    """Upload files, auto-joining the channel once on ``not_in_channel``.
+
+    Raises :class:`SlackApiError` on failure — including a failed auto-join —
+    so the caller maps it to a descriptive :class:`Result` error rather than
+    exiting the process (GH-533).
+    """
     from slack_sdk.errors import SlackApiError
 
     try:
@@ -291,103 +310,103 @@ def _files_upload_v2(
             thread_ts=thread_ts,
         )
     except SlackApiError as ex:
-        if ex.response.get("error") == "not_in_channel":
-            try:
-                print("Bot not in channel, joining…", file=sys.stderr)
-                client.conversations_join(channel=channel)
-                return client.files_upload_v2(
-                    file_uploads=file_uploads,
-                    channel=channel,
-                    initial_comment=initial_comment,
-                    thread_ts=thread_ts,
-                )
-            except SlackApiError:
-                print(
-                    f"❌ Bot is not a member of channel {channel} and cannot auto-join. "
-                    f"Invite the bot via channel settings → Integrations.",
-                    file=sys.stderr,
-                )
-                raise SystemExit(1) from ex
-        raise
+        if ex.response.get("error") != "not_in_channel":
+            raise
+        log.info("Bot not in channel %s, joining…", channel)
+        client.conversations_join(channel=channel)
+        return client.files_upload_v2(
+            file_uploads=file_uploads,
+            channel=channel,
+            initial_comment=initial_comment,
+            thread_ts=thread_ts,
+        )
 
 
-def send_reminder(message: str) -> str | None:
+def send_reminder(message: str) -> Result[str]:
+    """Send a reminder DM to the configured self user (GH-533).
+
+    Returns ``ok(ts)`` with the posted message timestamp, or ``err(...)``
+    when the self user is unconfigured, the token is missing, or the Slack
+    API rejects the DM. Programmer errors (e.g. a malformed API response)
+    propagate, mirroring :func:`send_slack_message` (GH-537).
+    """
+    from slack_sdk.errors import SlackApiError
+
     self_user_id = _self_user_id()
     if not self_user_id:
-        print(
-            "❌ self_user_id not configured. Set it in "
-            f"{_config_path()} or SLACK_SELF_USER_ID env var.",
-            file=sys.stderr,
+        return err(
+            f"self_user_id not configured. Set it in {_config_path()} "
+            f"or the SLACK_SELF_USER_ID env var."
         )
-        return None
+    token_result = get_token()
+    if isinstance(token_result, ErrorResult):
+        return token_result
+    token = token_result.value
     try:
         from slack_sdk import WebClient
 
-        token_result = get_token()
-        if isinstance(token_result, ErrorResult):
-            print(f"❌ Failed to send reminder: {token_result.error}", file=sys.stderr)
-            return None
-        token = token_result.value
         client = WebClient(token=token)
         dm = client.conversations_open(users=self_user_id)
         channel = dm["channel"]["id"]
-        result = send_slack_message(channel=channel, message=message)
-        if isinstance(result, ErrorResult):
-            print(f"❌ Failed to send reminder: {result.error}", file=sys.stderr)
-            return None
-        return result.value
-    except Exception as ex:
-        print(f"❌ Failed to send reminder: {ex}", file=sys.stderr)
-        return None
+    except (SlackApiError, OSError) as ex:
+        log.error("Failed to open reminder DM", exc_info=ex)
+        return err(f"Failed to send reminder: {ex}")
+    return send_slack_message(channel=channel, message=message)
 
 
-def update_slack_message(channel: str, ts: str, message: str) -> bool:
+def update_slack_message(channel: str, ts: str, message: str) -> Result[None]:
+    """Edit an existing message (GH-533). Returns ``ok(None)`` on success."""
+    from slack_sdk.errors import SlackApiError
+
+    resolved_message = resolve_mentions(message)
+    token_result = get_token()
+    if isinstance(token_result, ErrorResult):
+        return token_result
+    token = token_result.value
     try:
         from slack_sdk import WebClient
 
-        resolved_message = resolve_mentions(message)
-        token_result = get_token()
-        if isinstance(token_result, ErrorResult):
-            print(f"❌ Failed to update Slack message: {token_result.error}", file=sys.stderr)
-            return False
-        token = token_result.value
         client = WebClient(token=token)
         client.chat_update(channel=channel, ts=ts, text=resolved_message)
-        return True
-    except Exception as ex:
-        print(f"❌ Failed to update Slack message: {ex}", file=sys.stderr)
-        return False
+    except (SlackApiError, OSError) as ex:
+        log.error("Failed to update Slack message", exc_info=ex)
+        return err(f"Failed to update Slack message: {ex}")
+    return ok(None)
 
 
-def delete_slack_message(channel: str, ts: str) -> bool:
+def delete_slack_message(channel: str, ts: str) -> Result[None]:
+    """Delete a message (GH-533). Returns ``ok(None)`` on success."""
+    from slack_sdk.errors import SlackApiError
+
+    token_result = get_token()
+    if isinstance(token_result, ErrorResult):
+        return token_result
+    token = token_result.value
     try:
         from slack_sdk import WebClient
 
-        token_result = get_token()
-        if isinstance(token_result, ErrorResult):
-            print(f"❌ Failed to delete Slack message: {token_result.error}", file=sys.stderr)
-            return False
-        token = token_result.value
         client = WebClient(token=token)
         client.chat_delete(channel=channel, ts=ts)
-        return True
-    except Exception as ex:
-        print(f"❌ Failed to delete Slack message: {ex}", file=sys.stderr)
-        return False
+    except (SlackApiError, OSError) as ex:
+        log.error("Failed to delete Slack message", exc_info=ex)
+        return err(f"Failed to delete Slack message: {ex}")
+    return ok(None)
 
 
-def delete_slack_file(file_id: str) -> bool:
+def delete_slack_file(file_id: str) -> Result[None]:
+    """Delete a file (GH-533). Returns ``ok(None)`` on success."""
+    from slack_sdk.errors import SlackApiError
+
+    token_result = get_token()
+    if isinstance(token_result, ErrorResult):
+        return token_result
+    token = token_result.value
     try:
         from slack_sdk import WebClient
 
-        token_result = get_token()
-        if isinstance(token_result, ErrorResult):
-            print(f"❌ Failed to delete Slack file: {token_result.error}", file=sys.stderr)
-            return False
-        token = token_result.value
         client = WebClient(token=token)
         client.files_delete(file=file_id)
-        return True
-    except Exception as ex:
-        print(f"❌ Failed to delete Slack file: {ex}", file=sys.stderr)
-        return False
+    except (SlackApiError, OSError) as ex:
+        log.error("Failed to delete Slack file", exc_info=ex)
+        return err(f"Failed to delete Slack file: {ex}")
+    return ok(None)

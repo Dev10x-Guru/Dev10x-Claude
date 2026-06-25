@@ -12,6 +12,13 @@ from dev10x.domain.common.result import ErrorResult, ok
 from dev10x.skills.notifications import slack_notify as mod
 
 
+def _slack_api_error(error: str, **extra: object) -> Exception:
+    """Build a SlackApiError whose response exposes ``error``/extra keys."""
+    from slack_sdk.errors import SlackApiError
+
+    return SlackApiError("boom", {"error": error, **extra})
+
+
 @pytest.fixture(autouse=True)
 def reset_state(monkeypatch: pytest.MonkeyPatch) -> None:
     """Reset module-level state so tests are isolated."""
@@ -311,3 +318,333 @@ class TestUvxEnvImportSmoke:
         from slack_sdk import WebClient
 
         assert WebClient is not None
+
+
+class TestUploadSlackFilesResult:
+    """GH-533: upload_slack_files returns Result instead of print + None."""
+
+    def test_returns_token_err(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mod, "_keyring_lookup", lambda *, service, key: None)
+        result = mod.upload_slack_files(channel="C1", file_paths=[])
+        assert isinstance(result, ErrorResult)
+        assert "No Slack token found" in result.error
+
+    def test_returns_err_when_file_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import slack_sdk
+
+        monkeypatch.setenv("SLACK_TOKEN", "xoxb-test")
+        monkeypatch.setattr(slack_sdk, "WebClient", lambda token: object())
+        result = mod.upload_slack_files(channel="C1", file_paths=["/no/such/file"])
+        assert isinstance(result, ErrorResult)
+        assert "File not found" in result.error
+
+    def test_returns_first_file_id(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path,
+    ) -> None:
+        upload = tmp_path / "a.txt"
+        upload.write_text("hi")
+        captured: dict = {}
+
+        class FakeClient:
+            def __init__(self, token: str) -> None: ...
+
+            def files_upload_v2(self, **kwargs: object) -> dict:
+                captured.update(kwargs)
+                return {"files": [{"id": "F1"}, {"id": "F2"}]}
+
+        import slack_sdk
+
+        monkeypatch.setenv("SLACK_TOKEN", "xoxb-test")
+        monkeypatch.setattr(slack_sdk, "WebClient", FakeClient)
+        result = mod.upload_slack_files(channel="C1", file_paths=[str(upload)], message="hey")
+        assert result == ok("F1")
+        assert captured["channel"] == "C1"
+
+    def test_returns_ok_none_when_no_files(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path,
+    ) -> None:
+        upload = tmp_path / "a.txt"
+        upload.write_text("hi")
+
+        class FakeClient:
+            def __init__(self, token: str) -> None: ...
+
+            def files_upload_v2(self, **kwargs: object) -> dict:
+                return {"files": []}
+
+        import slack_sdk
+
+        monkeypatch.setenv("SLACK_TOKEN", "xoxb-test")
+        monkeypatch.setattr(slack_sdk, "WebClient", FakeClient)
+        result = mod.upload_slack_files(channel="C1", file_paths=[str(upload)])
+        assert result == ok(None)
+
+    def test_missing_scope_returns_err(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path,
+    ) -> None:
+        upload = tmp_path / "a.txt"
+        upload.write_text("hi")
+
+        class FakeClient:
+            def __init__(self, token: str) -> None: ...
+
+            def files_upload_v2(self, **kwargs: object):
+                raise _slack_api_error("missing_scope", needed="files:write")
+
+        import slack_sdk
+
+        monkeypatch.setenv("SLACK_TOKEN", "xoxb-test")
+        monkeypatch.setattr(slack_sdk, "WebClient", FakeClient)
+        result = mod.upload_slack_files(channel="C1", file_paths=[str(upload)])
+        assert isinstance(result, ErrorResult)
+        assert "files:write" in result.error
+
+    def test_not_in_channel_autojoin_then_success(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path,
+    ) -> None:
+        upload = tmp_path / "a.txt"
+        upload.write_text("hi")
+        calls = {"upload": 0, "join": 0}
+
+        class FakeClient:
+            def __init__(self, token: str) -> None: ...
+
+            def files_upload_v2(self, **kwargs: object) -> dict:
+                calls["upload"] += 1
+                if calls["upload"] == 1:
+                    raise _slack_api_error("not_in_channel")
+                return {"files": [{"id": "F9"}]}
+
+            def conversations_join(self, channel: str) -> None:
+                calls["join"] += 1
+
+        import slack_sdk
+
+        monkeypatch.setenv("SLACK_TOKEN", "xoxb-test")
+        monkeypatch.setattr(slack_sdk, "WebClient", FakeClient)
+        result = mod.upload_slack_files(channel="C1", file_paths=[str(upload)])
+        assert result == ok("F9")
+        assert calls == {"upload": 2, "join": 1}
+
+    def test_not_in_channel_autojoin_fails_returns_err(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path,
+    ) -> None:
+        upload = tmp_path / "a.txt"
+        upload.write_text("hi")
+
+        class FakeClient:
+            def __init__(self, token: str) -> None: ...
+
+            def files_upload_v2(self, **kwargs: object):
+                raise _slack_api_error("not_in_channel")
+
+            def conversations_join(self, channel: str) -> None: ...
+
+        import slack_sdk
+
+        monkeypatch.setenv("SLACK_TOKEN", "xoxb-test")
+        monkeypatch.setattr(slack_sdk, "WebClient", FakeClient)
+        result = mod.upload_slack_files(channel="C1", file_paths=[str(upload)])
+        assert isinstance(result, ErrorResult)
+        assert "cannot auto-join" in result.error
+
+    def test_generic_slack_error_returns_err(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path,
+    ) -> None:
+        upload = tmp_path / "a.txt"
+        upload.write_text("hi")
+
+        class FakeClient:
+            def __init__(self, token: str) -> None: ...
+
+            def files_upload_v2(self, **kwargs: object):
+                raise _slack_api_error("internal_error")
+
+        import slack_sdk
+
+        monkeypatch.setenv("SLACK_TOKEN", "xoxb-test")
+        monkeypatch.setattr(slack_sdk, "WebClient", FakeClient)
+        result = mod.upload_slack_files(channel="C1", file_paths=[str(upload)])
+        assert isinstance(result, ErrorResult)
+        assert "Failed to upload" in result.error
+
+
+class TestSendReminderResult:
+    """GH-533: send_reminder returns Result carrying the message ts."""
+
+    def test_err_when_self_user_unconfigured(self) -> None:
+        result = mod.send_reminder("ping")
+        assert isinstance(result, ErrorResult)
+        assert "self_user_id not configured" in result.error
+
+    def test_err_when_token_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("SLACK_SELF_USER_ID", "U1")
+        monkeypatch.setattr(mod, "_keyring_lookup", lambda *, service, key: None)
+        result = mod.send_reminder("ping")
+        assert isinstance(result, ErrorResult)
+        assert "No Slack token found" in result.error
+
+    def test_ok_returns_ts(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("SLACK_SELF_USER_ID", "U1")
+        monkeypatch.setenv("SLACK_TOKEN", "xoxb-test")
+
+        class FakeClient:
+            def __init__(self, token: str) -> None: ...
+
+            def conversations_open(self, users: str) -> dict:
+                return {"channel": {"id": "D1"}}
+
+        import slack_sdk
+
+        monkeypatch.setattr(slack_sdk, "WebClient", FakeClient)
+        captured: dict = {}
+
+        def fake_send(**kwargs: object):
+            captured.update(kwargs)
+            return ok("9.9")
+
+        monkeypatch.setattr(mod, "send_slack_message", fake_send)
+        result = mod.send_reminder("ping")
+        assert result == ok("9.9")
+        assert captured["channel"] == "D1"
+        assert captured["message"] == "ping"
+
+    def test_err_on_dm_open_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("SLACK_SELF_USER_ID", "U1")
+        monkeypatch.setenv("SLACK_TOKEN", "xoxb-test")
+
+        class FakeClient:
+            def __init__(self, token: str) -> None: ...
+
+            def conversations_open(self, users: str):
+                raise _slack_api_error("user_not_found")
+
+        import slack_sdk
+
+        monkeypatch.setattr(slack_sdk, "WebClient", FakeClient)
+        result = mod.send_reminder("ping")
+        assert isinstance(result, ErrorResult)
+        assert "Failed to send reminder" in result.error
+
+
+class TestUpdateSlackMessageResult:
+    """GH-533: update_slack_message returns Result[None]."""
+
+    def test_err_when_token_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mod, "_keyring_lookup", lambda *, service, key: None)
+        result = mod.update_slack_message(channel="C1", ts="1.0", message="x")
+        assert isinstance(result, ErrorResult)
+
+    def test_ok_on_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        class FakeClient:
+            def __init__(self, token: str) -> None: ...
+
+            def chat_update(self, **kwargs: object) -> dict:
+                return {"ok": True}
+
+        import slack_sdk
+
+        monkeypatch.setenv("SLACK_TOKEN", "xoxb-test")
+        monkeypatch.setattr(slack_sdk, "WebClient", FakeClient)
+        assert mod.update_slack_message(channel="C1", ts="1.0", message="x") == ok(None)
+
+    def test_err_on_slack_api_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        class FakeClient:
+            def __init__(self, token: str) -> None: ...
+
+            def chat_update(self, **kwargs: object):
+                raise _slack_api_error("message_not_found")
+
+        import slack_sdk
+
+        monkeypatch.setenv("SLACK_TOKEN", "xoxb-test")
+        monkeypatch.setattr(slack_sdk, "WebClient", FakeClient)
+        result = mod.update_slack_message(channel="C1", ts="1.0", message="x")
+        assert isinstance(result, ErrorResult)
+        assert "Failed to update" in result.error
+
+
+class TestDeleteSlackMessageResult:
+    """GH-533: delete_slack_message returns Result[None]."""
+
+    def test_err_when_token_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mod, "_keyring_lookup", lambda *, service, key: None)
+        result = mod.delete_slack_message(channel="C1", ts="1.0")
+        assert isinstance(result, ErrorResult)
+
+    def test_ok_on_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        class FakeClient:
+            def __init__(self, token: str) -> None: ...
+
+            def chat_delete(self, **kwargs: object) -> dict:
+                return {"ok": True}
+
+        import slack_sdk
+
+        monkeypatch.setenv("SLACK_TOKEN", "xoxb-test")
+        monkeypatch.setattr(slack_sdk, "WebClient", FakeClient)
+        assert mod.delete_slack_message(channel="C1", ts="1.0") == ok(None)
+
+    def test_err_on_slack_api_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        class FakeClient:
+            def __init__(self, token: str) -> None: ...
+
+            def chat_delete(self, **kwargs: object):
+                raise _slack_api_error("message_not_found")
+
+        import slack_sdk
+
+        monkeypatch.setenv("SLACK_TOKEN", "xoxb-test")
+        monkeypatch.setattr(slack_sdk, "WebClient", FakeClient)
+        result = mod.delete_slack_message(channel="C1", ts="1.0")
+        assert isinstance(result, ErrorResult)
+        assert "Failed to delete Slack message" in result.error
+
+
+class TestDeleteSlackFileResult:
+    """GH-533: delete_slack_file returns Result[None]."""
+
+    def test_err_when_token_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mod, "_keyring_lookup", lambda *, service, key: None)
+        result = mod.delete_slack_file(file_id="F1")
+        assert isinstance(result, ErrorResult)
+
+    def test_ok_on_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        class FakeClient:
+            def __init__(self, token: str) -> None: ...
+
+            def files_delete(self, **kwargs: object) -> dict:
+                return {"ok": True}
+
+        import slack_sdk
+
+        monkeypatch.setenv("SLACK_TOKEN", "xoxb-test")
+        monkeypatch.setattr(slack_sdk, "WebClient", FakeClient)
+        assert mod.delete_slack_file(file_id="F1") == ok(None)
+
+    def test_err_on_slack_api_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        class FakeClient:
+            def __init__(self, token: str) -> None: ...
+
+            def files_delete(self, **kwargs: object):
+                raise _slack_api_error("file_not_found")
+
+        import slack_sdk
+
+        monkeypatch.setenv("SLACK_TOKEN", "xoxb-test")
+        monkeypatch.setattr(slack_sdk, "WebClient", FakeClient)
+        result = mod.delete_slack_file(file_id="F1")
+        assert isinstance(result, ErrorResult)
+        assert "Failed to delete Slack file" in result.error
