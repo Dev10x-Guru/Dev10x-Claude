@@ -1,6 +1,7 @@
 """Tests for ci-check-status.py verdict logic."""
 
 import importlib.util
+import sys
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,10 @@ _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
 compute_verdict = _mod.compute_verdict
+# The shim re-exports via `import *`; the functions live in the real
+# module, so cross-function calls (get_annotated_checks → get_checks)
+# resolve names there. Patch the real module, not the shim.
+_impl = sys.modules[compute_verdict.__module__]
 
 
 class TestComputeVerdict:
@@ -160,6 +165,126 @@ class TestComputeVerdict:
         checks = [{"name": "build", "bucket": "pass"}]
         result = compute_verdict(checks=checks, mergeable=mergeable)
         assert result["verdict"] == "green"
+
+
+class TestRequiredVerdict:
+    def test_default_required_verdict_empty_without_annotation(self):
+        checks = [{"name": "build", "bucket": "pass"}]
+        result = compute_verdict(checks=checks)
+        assert result["verdict"] == "green"
+        assert result["required_verdict"] == "empty"
+
+    def test_advisory_failure_does_not_fail_required_verdict(self):
+        checks = [
+            {"name": "build", "bucket": "pass", "required": True},
+            {"name": "lint-advisory", "bucket": "fail", "required": False},
+        ]
+        result = compute_verdict(checks=checks, mergeable="MERGEABLE")
+        assert result["verdict"] == "failing"
+        assert result["required_verdict"] == "green"
+
+    def test_required_failure_fails_required_verdict(self):
+        checks = [
+            {"name": "build", "bucket": "fail", "required": True},
+            {"name": "lint-advisory", "bucket": "pass", "required": False},
+        ]
+        result = compute_verdict(checks=checks)
+        assert result["verdict"] == "failing"
+        assert result["required_verdict"] == "failing"
+
+    def test_required_pending_advisory_green(self):
+        checks = [
+            {"name": "build", "bucket": "pending", "required": True},
+            {"name": "lint-advisory", "bucket": "pass", "required": False},
+        ]
+        result = compute_verdict(checks=checks)
+        assert result["required_verdict"] == "pending"
+
+    def test_per_check_required_flag_in_output(self):
+        checks = [
+            {"name": "build", "bucket": "pass", "required": True},
+            {"name": "lint", "bucket": "pass"},
+        ]
+        result = compute_verdict(checks=checks)
+        assert result["checks"][0]["required"] is True
+        assert result["checks"][1]["required"] is False
+
+    def test_conflicting_sets_both_verdicts(self):
+        checks = [{"name": "build", "bucket": "pass", "required": True}]
+        result = compute_verdict(checks=checks, mergeable="CONFLICTING")
+        assert result["verdict"] == "conflicting"
+        assert result["required_verdict"] == "conflicting"
+
+
+class TestGetRequiredNames:
+    def _stub(self, *, returncode, stdout):
+        class _R:
+            pass
+
+        r = _R()
+        r.returncode = returncode
+        r.stdout = stdout
+        r.stderr = ""
+        return r
+
+    def test_parses_required_names(self, monkeypatch):
+        monkeypatch.setattr(
+            _mod.subprocess,
+            "run",
+            lambda *a, **k: self._stub(
+                returncode=0, stdout='[{"name": "build"}, {"name": "test"}]'
+            ),
+        )
+        assert _mod.get_required_names(pr_number=1, repo="o/r") == {"build", "test"}
+
+    def test_nonzero_exit_returns_empty(self, monkeypatch):
+        monkeypatch.setattr(
+            _mod.subprocess,
+            "run",
+            lambda *a, **k: self._stub(returncode=1, stdout=""),
+        )
+        assert _mod.get_required_names(pr_number=1, repo="o/r") == set()
+
+    def test_blank_stdout_returns_empty(self, monkeypatch):
+        monkeypatch.setattr(
+            _mod.subprocess,
+            "run",
+            lambda *a, **k: self._stub(returncode=0, stdout="   "),
+        )
+        assert _mod.get_required_names(pr_number=1, repo="o/r") == set()
+
+    def test_unparseable_stdout_returns_empty(self, monkeypatch):
+        monkeypatch.setattr(
+            _mod.subprocess,
+            "run",
+            lambda *a, **k: self._stub(returncode=0, stdout="not json"),
+        )
+        assert _mod.get_required_names(pr_number=1, repo="o/r") == set()
+
+
+class TestGetAnnotatedChecks:
+    def test_required_only_marks_all_required(self, monkeypatch):
+        monkeypatch.setattr(
+            _impl,
+            "get_checks",
+            lambda **k: [{"name": "build", "bucket": "pass"}],
+        )
+        checks = _impl.get_annotated_checks(pr_number=1, repo="o/r", required_only=True)
+        assert checks[0]["required"] is True
+
+    def test_annotates_required_by_name(self, monkeypatch):
+        monkeypatch.setattr(
+            _impl,
+            "get_checks",
+            lambda **k: [
+                {"name": "build", "bucket": "pass"},
+                {"name": "lint", "bucket": "pass"},
+            ],
+        )
+        monkeypatch.setattr(_impl, "get_required_names", lambda **k: {"build"})
+        checks = _impl.get_annotated_checks(pr_number=1, repo="o/r")
+        by_name = {c["name"]: c["required"] for c in checks}
+        assert by_name == {"build": True, "lint": False}
 
 
 class TestGetChecksError:

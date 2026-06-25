@@ -669,14 +669,26 @@ same sequential chain are affected:
 1. Fetch the base via `mcp__plugin_Dev10x_cli__detect_base_branch`
    to determine the merge target.
 2. For each active branch in the chain, delegate the rebase to
-   `Skill(Dev10x:git-groom)` — it rebases onto the resolved base
-   and force-pushes through `Skill(Dev10x:git)` (protected-branch
-   safety). Never invoke `git rebase origin/<base>` directly from
-   this skill — see Skill Routing Enforcement in
-   `skills/work-on/instructions.md`.
+   `Skill(Dev10x:git)` — its non-interactive rebase anchors on the
+   `<base-ref>` you pass (`origin/<base>`, the just-merged tip), and
+   its `push_safe` completes the force-push with protected-branch
+   safety. This is the dedicated base-advance primitive.
 3. If rebase conflicts → resolve, commit, then re-invoke
-   `Skill(Dev10x:git-groom)` to complete the force-push.
+   `Skill(Dev10x:git)` to complete the force-push.
 4. If rebase succeeds → continue processing.
+
+**Why not `Dev10x:git-groom` here (GH-658).** Post-merge rebasing
+needs to *advance the branch onto the new `origin/<base>` tip* —
+a base-advance, not a history cleanup. `Dev10x:git-groom` is the
+wrong primitive for it on two counts: at adaptive friction it
+fast-exits "Nothing to groom" for a clean single-commit branch
+(GH-776), and where it does rebase it anchors on the merge-base,
+not the advanced `origin/<base>`. Either way the dependent branch
+never picks up the just-merged base commit. Route base-advancing
+to `Skill(Dev10x:git)` (which rebases onto the ref you pass); use
+`Dev10x:git-groom` only when the downstream branch genuinely needs
+its *own* history cleaned. Invoking `Skill(Dev10x:git)` satisfies
+Skill Routing Enforcement — it is not a raw `git rebase`.
 
 ### Merge Mode (GH-688)
 
@@ -698,8 +710,10 @@ Controls whether PRs are merged autonomously after CI passes.
 **Cascade logic** (when merge_mode is `cascade`):
 1. Merge PR N via `Skill(Dev10x:gh-pr-merge)`
 2. `git fetch origin develop`
-3. Rebase PR N+1 onto `origin/develop`
-4. Force-push, wait for CI (60s initial delay)
+3. Base-advance PR N+1 onto `origin/develop` via `Skill(Dev10x:git)`
+   (rebase onto the passed `<base-ref>` + safe force-push — same
+   primitive as Post-Merge Rebase above, not a raw `git rebase`)
+4. Wait for CI (60s initial delay)
 5. Merge PR N+1
 6. Repeat for all PRs in the sequential chain
 

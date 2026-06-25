@@ -21,9 +21,11 @@ can call the script once with --wait to get a definitive answer.
 
 Output (JSON):
     {
-        "verdict": "pending",      # "green", "pending", "failing",
-                                   # "conflicting", "empty"
-        "mergeable": "MERGEABLE",  # "MERGEABLE", "CONFLICTING", "UNKNOWN"
+        "verdict": "failing",          # "green", "pending", "failing",
+                                       # "conflicting", "empty"
+        "required_verdict": "green",   # same vocabulary, computed over
+                                       # required (merge-blocking) checks only
+        "mergeable": "MERGEABLE",      # "MERGEABLE", "CONFLICTING", "UNKNOWN"
         "total": 5,
         "pass": 3,
         "fail": 0,
@@ -31,18 +33,28 @@ Output (JSON):
         "skipping": 0,
         "cancel": 0,
         "checks": [
-            {"name": "build", "bucket": "pass"},
-            {"name": "test", "bucket": "pending"},
+            {"name": "build", "bucket": "pass", "required": True},
+            {"name": "lint", "bucket": "fail", "required": False},
             ...
         ]
     }
 
-Verdict logic:
+Verdict logic (applies to both `verdict` and `required_verdict`):
     - "conflicting" → PR has merge conflicts (regardless of CI status)
     - "empty"       → no checks found (GitHub hasn't registered suites yet)
     - "failing"     → at least one check failed
     - "pending"     → at least one check is pending (none failing)
     - "green"       → all non-skipping checks passed and no conflicts
+
+Required vs advisory (GH-658): `verdict` blends required (merge-blocking)
+and advisory (non-required) checks into one signal, so a red advisory
+check reads as "failing" even when the host's required-checks auto-merge
+would proceed. `required_verdict` is the same computation restricted to
+checks the host marks required (sourced from `gh pr checks --required`),
+plus a per-check `required: bool`. A caller — e.g. gh-pr-merge Check 2 —
+branches on `required_verdict` to tell a true merge blocker from an
+advisory red without a manual per-job log fetch. When the host reports
+no required checks, `required_verdict` is "empty".
 """
 
 import argparse
@@ -102,11 +114,64 @@ def get_checks(
     return json.loads(result.stdout)
 
 
-def compute_verdict(
+def get_required_names(
     *,
-    checks: list[dict],
-    mergeable: str = "UNKNOWN",
-) -> dict:
+    pr_number: int,
+    repo: str,
+) -> set[str]:
+    """Names of the required (merge-blocking) checks for the PR.
+
+    Sourced from `gh pr checks --required` (the `--json` output has no
+    `isRequired` field). Tolerant by design: a repo with no branch
+    protection returns no required checks, which must annotate as
+    "all advisory" rather than abort the verdict — so any non-zero exit
+    or unparseable output yields an empty set.
+    """
+    cmd = [
+        "gh",
+        "pr",
+        "checks",
+        str(pr_number),
+        "--repo",
+        repo,
+        "--required",
+        "--json",
+        "name",
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0 or not result.stdout.strip():
+        return set()
+    try:
+        return {check.get("name") for check in json.loads(result.stdout)}
+    except json.JSONDecodeError:
+        return set()
+
+
+def get_annotated_checks(
+    *,
+    pr_number: int,
+    repo: str,
+    required_only: bool = False,
+) -> list[dict]:
+    """Fetch checks and tag each with `required` (merge-blocking) status.
+
+    When `required_only` is set every returned check is required by
+    definition; otherwise required-ness is resolved by name against
+    `get_required_names`.
+    """
+    checks = get_checks(pr_number=pr_number, repo=repo, required_only=required_only)
+    if required_only:
+        for check in checks:
+            check["required"] = True
+        return checks
+    required_names = get_required_names(pr_number=pr_number, repo=repo)
+    for check in checks:
+        check["required"] = check.get("name") in required_names
+    return checks
+
+
+def _summarize(checks: list[dict]) -> tuple[str, dict[str, int]]:
+    """Bucket a check list and derive its verdict (ignores conflicts)."""
     counts: dict[str, int] = {
         "pass": 0,
         "fail": 0,
@@ -123,9 +188,7 @@ def compute_verdict(
 
     non_skipping = counts["pass"] + counts["fail"] + counts["pending"] + counts["cancel"]
 
-    if mergeable == "CONFLICTING":
-        verdict = "conflicting"
-    elif not checks:
+    if not checks:
         verdict = "empty"
     elif counts["fail"] > 0:
         verdict = "failing"
@@ -136,13 +199,33 @@ def compute_verdict(
     else:
         verdict = "green"
 
+    return verdict, counts
+
+
+def compute_verdict(
+    *,
+    checks: list[dict],
+    mergeable: str = "UNKNOWN",
+) -> dict:
+    verdict, counts = _summarize(checks)
+    required_verdict, _ = _summarize([c for c in checks if c.get("required")])
+
+    if mergeable == "CONFLICTING":
+        verdict = "conflicting"
+        required_verdict = "conflicting"
+
     return {
         "verdict": verdict,
+        "required_verdict": required_verdict,
         "mergeable": mergeable,
         "total": len(checks),
         **counts,
         "checks": [
-            {"name": c.get("name", "unknown"), "bucket": c.get("bucket", "pending")}
+            {
+                "name": c.get("name", "unknown"),
+                "bucket": c.get("bucket", "pending"),
+                "required": bool(c.get("required", False)),
+            }
             for c in checks
         ],
     }
@@ -172,7 +255,7 @@ def poll_until_terminal(
     time.sleep(initial_wait)
 
     for attempt in range(1, max_polls + 1):
-        checks = get_checks(
+        checks = get_annotated_checks(
             pr_number=pr_number,
             repo=repo,
             required_only=required_only,
@@ -247,7 +330,7 @@ def main() -> None:
             max_polls=args.max_polls,
         )
     else:
-        checks = get_checks(
+        checks = get_annotated_checks(
             pr_number=args.pr,
             repo=repo,
             required_only=args.required_only,
