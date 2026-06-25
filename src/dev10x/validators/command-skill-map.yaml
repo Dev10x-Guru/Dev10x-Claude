@@ -190,7 +190,14 @@ rules:
     matcher: Bash
     patterns:
       - gh pr view
-    except: []
+    except:
+      # DoD-runner / skill check templates that legitimately need raw
+      # `gh pr view` carry this marker in the command string so they
+      # bypass the block (GH-668). Used by verify-acc-dod defaults.yaml
+      # checks ("PR not draft", "Review requested") executed verbatim
+      # via Bash. Plain agent `gh pr view` calls (no marker) still block
+      # and route to pr_get, which now exposes the same fields.
+      - "cli-friction: allow raw-gh-pr"
     hook_block: true
     compensations:
       - type: use-tool
@@ -202,9 +209,11 @@ rules:
     reason: >
       Direct gh pr view requires Bash permission approval on every
       call. The MCP tool provides structured JSON (number, title,
-      body, state, baseRefName, headRefName, merged, mergedAt,
-      closedAt, labels, milestone, assignees, author, url) and
-      avoids permission friction.
+      body, state, baseRefName, headRefName, mergedAt, closedAt,
+      labels, milestone, assignees, author, url, isDraft, mergeable,
+      reviewDecision, reviewRequests) and avoids permission friction.
+      The isDraft/mergeable/reviewDecision/reviewRequests fields
+      (GH-668) make pr_get a drop-in for gh-pr-merge Checks 3/4/7.
 
   - name: gh-issue-close
     matcher: Bash

@@ -48,12 +48,12 @@ defaults:
       - name: No unresolved review threads
         check: >
           gh pr view {pr_number} --repo {repo}
-          --json reviewThreads -q '[.reviewThreads[] | select(.isResolved == false)] | length'
+          --json reviewThreads -q '[.reviewThreads[] | select(.isResolved == false)] | length'  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect: "0"
       - name: Review requested
         check: >
           gh pr view {pr_number} --repo {repo}
-          --json reviewRequests -q '.reviewRequests | length'
+          --json reviewRequests -q '.reviewRequests | length'  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect_gt: 0
         modes:
           solo-maintainer:
@@ -88,12 +88,12 @@ defaults:
       - name: No unresolved review threads
         check: >
           gh pr view {pr_number} --repo {repo}
-          --json reviewThreads -q '[.reviewThreads[] | select(.isResolved == false)] | length'
+          --json reviewThreads -q '[.reviewThreads[] | select(.isResolved == false)] | length'  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect: "0"
       - name: Review requested
         check: >
           gh pr view {pr_number} --repo {repo}
-          --json reviewRequests -q '.reviewRequests | length'
+          --json reviewRequests -q '.reviewRequests | length'  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect_gt: 0
         modes:
           solo-maintainer:
@@ -124,12 +124,12 @@ defaults:
       - name: No unresolved review threads
         check: >
           gh pr view {pr_number} --repo {repo}
-          --json reviewThreads -q '[.reviewThreads[] | select(.isResolved == false)] | length'
+          --json reviewThreads -q '[.reviewThreads[] | select(.isResolved == false)] | length'  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect: "0"
       - name: Re-review requested
         check: >
           gh pr view {pr_number} --repo {repo}
-          --json reviewRequests -q '.reviewRequests | length'
+          --json reviewRequests -q '.reviewRequests | length'  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect_gt: 0
         modes:
           solo-maintainer:

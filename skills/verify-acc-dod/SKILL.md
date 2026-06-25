@@ -17,6 +17,7 @@ allowed-tools:
   - Bash(git status:*)
   - Bash(git log:*)
   - Bash(git diff:*)
+  - mcp__plugin_Dev10x_cli__pr_detect
 ---
 
 # Verify Acceptance Criteria / Definition of Done
@@ -101,7 +102,7 @@ repos:
         - name: Sentry issue linked
           check: >
             gh pr view {pr_number} --repo {repo}
-            --json body -q .body
+            --json body -q .body  # cli-friction: allow raw-gh-pr
           expect_contains: "sentry.io"
       remove:
         - Slack notification posted
@@ -113,7 +114,7 @@ repos:
         - name: PR ready (solo maintainer)
           check: >
             gh pr view {pr_number} --repo {repo}
-            --json isDraft -q .isDraft
+            --json isDraft -q .isDraft  # cli-friction: allow raw-gh-pr
           expect: "false"
 ```
 
@@ -158,7 +159,7 @@ Before running each check command, resolve placeholders:
 
 | Placeholder | Source |
 |-------------|--------|
-| `{pr_number}` | Current PR number (from `gh pr view --json number -q .number` or session context) |
+| `{pr_number}` | Current PR number (from `mcp__plugin_Dev10x_cli__pr_detect(arg="")` → `PR_NUMBER`, or session context) |
 | `{repo}` | Current repo (from `gh repo view --json nameWithOwner -q .nameWithOwner` or session context) |
 
 If no PR exists (e.g., `local-only`), skip checks that reference
