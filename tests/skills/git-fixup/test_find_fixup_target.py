@@ -11,9 +11,11 @@ import pytest
 from dev10x.skills.git_fixup.find_fixup_target import (
     Hunk,
     blame_hunk,
+    branch_commits,
     detect_base_branch,
     main,
     parse_staged_hunks,
+    remote_qualified_base,
 )
 
 
@@ -256,3 +258,91 @@ class TestEmptyBranch:
         assert rc == 1
         assert payload["status"] == "error"
         assert "develop..HEAD" in payload["error"]
+
+
+class TestStaleLocalBase:
+    """Local develop lags origin/develop — GH-676 (GH-486 stale-base class).
+
+    origin/develop:  B0 -> M1   (M1 already merged upstream)
+    local  develop:  B0          (never fast-forwarded)
+    feature HEAD:    B0 -> M1 -> C1
+
+    Against local ``develop`` the range ``develop..HEAD`` is inflated to
+    ``{M1, C1}``, so a hunk owned by the already-merged M1 is mis-attributed
+    to a branch commit. Qualifying the base to ``origin/develop`` shrinks the
+    range to ``{C1}`` so M1 is correctly treated as base history.
+    """
+
+    @pytest.fixture
+    def stale_repo(self, tmp_path: Path) -> Path:
+        origin = tmp_path / "origin.git"
+        local = tmp_path / "local"
+        local.mkdir()
+        subprocess.run(
+            ["git", "init", "-q", "--bare", str(origin)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        _git("init", "-q", "-b", "develop", cwd=local)
+        _git("config", "user.email", "t@example.com", cwd=local)
+        _git("config", "user.name", "Test", cwd=local)
+        _git("config", "commit.gpgsign", "false", cwd=local)
+        _git("remote", "add", "origin", str(origin), cwd=local)
+
+        _write(local / "payments.py", "L1\nL2\nL3\nL4\nL5\n")
+        _git("add", ".", cwd=local)
+        _git("commit", "-q", "-m", "B0 base commit", cwd=local)
+        b0 = _git("rev-parse", "HEAD", cwd=local).strip()
+        _git("push", "-q", "origin", "develop", cwd=local)
+
+        # M1 merged upstream — modifies payments.py:1, pushed to origin.
+        _write(local / "payments.py", "M1_L1\nL2\nL3\nL4\nL5\n")
+        _git("commit", "-q", "-am", "M1 upstream merge", cwd=local)
+        _git("push", "-q", "origin", "develop", cwd=local)
+
+        # Feature branch off M1 (the origin tip), then add C1.
+        _git("checkout", "-q", "-b", "feature", cwd=local)
+        _write(local / "tests.py", "T1\nT2\nT3\n")
+        _git("add", "tests.py", cwd=local)
+        _git("commit", "-q", "-m", "C1 feature work", cwd=local)
+
+        # Local develop rewinds to B0 (lags origin/develop); refresh refs.
+        _git("branch", "-f", "develop", b0, cwd=local)
+        _git("fetch", "-q", "origin", cwd=local)
+        return local
+
+    def test_remote_qualified_base_prefers_origin(self, stale_repo: Path) -> None:
+        assert remote_qualified_base("develop", cwd=stale_repo) == "origin/develop"
+
+    def test_remote_qualified_base_passthrough_when_no_remote(self, repo: Path) -> None:
+        # The local-only `repo` fixture has no origin remote.
+        assert remote_qualified_base("develop", cwd=repo) == "develop"
+
+    def test_remote_qualified_base_passthrough_when_already_qualified(self, repo: Path) -> None:
+        # An origin/-prefixed base is returned unchanged without a git call.
+        assert remote_qualified_base("origin/develop", cwd=repo) == "origin/develop"
+
+    def test_qualification_excludes_already_merged_commit(self, stale_repo: Path) -> None:
+        local_range = branch_commits("develop", cwd=stale_repo)
+        remote_range = branch_commits("origin/develop", cwd=stale_repo)
+        c1 = _sha(stale_repo, "HEAD")
+        assert local_range == {c1, _sha(stale_repo, "HEAD~")}  # inflated: M1 + C1
+        assert remote_range == {c1}  # qualified: C1 only
+
+    def test_main_attributes_to_real_branch_commit(
+        self, stale_repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Edit payments.py:1 — owned by M1 (already on origin/develop). With
+        # the stale local base this would mis-resolve to M1; qualified, M1 is
+        # base history so the hunk is out_of_branch and falls back to C1.
+        _write(stale_repo / "payments.py", "FIXUP_L1\nL2\nL3\nL4\nL5\n")
+        _git("add", "payments.py", cwd=stale_repo)
+
+        rc, payload = _run_main(stale_repo, capsys)
+
+        assert rc == 3
+        assert payload["status"] == "out_of_branch"
+        assert payload["base"] == "origin/develop"
+        assert payload["fallback_target"] == _sha(stale_repo, "HEAD")  # C1, not M1

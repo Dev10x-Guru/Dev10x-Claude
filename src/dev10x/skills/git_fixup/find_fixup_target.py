@@ -95,6 +95,30 @@ def detect_base_branch(*, cwd: Path | None = None) -> str:
     raise RuntimeError("Could not detect base branch (develop/main/master)")
 
 
+def remote_qualified_base(base: str, *, cwd: Path | None = None) -> str:
+    """Prefer the remote-tracking ref so a stale local base doesn't widen the range.
+
+    ``detect_base_branch`` resolves the local ``develop`` head first. When
+    local ``develop`` lags ``origin/develop`` (the GH-486 stale-base class,
+    common in long-lived worktrees), ``base..HEAD`` includes commits already
+    merged to the remote base, and the ``out_of_branch`` fallback points at a
+    commit already on the base rather than the branch's real commit. Qualifying
+    the base to ``origin/<base>`` computes the range against the fetched remote
+    state instead (GH-676). Already-qualified refs (``origin/...``) and bases
+    with no matching remote-tracking ref are returned unchanged.
+    """
+    if base.startswith("origin/"):
+        return base
+    try:
+        _run(
+            ["git", "show-ref", "--verify", "--quiet", f"refs/remotes/origin/{base}"],
+            cwd=cwd,
+        )
+    except subprocess.CalledProcessError:
+        return base
+    return f"origin/{base}"
+
+
 def branch_commits(base: str, *, cwd: Path | None = None) -> set[str]:
     """Return full SHAs of commits in ``base..HEAD`` (the fixup target window)."""
     out = _run(["git", "rev-list", f"{base}..HEAD"], cwd=cwd)
@@ -264,6 +288,10 @@ def main(argv: list[str] | None = None) -> int:
     except RuntimeError as exc:
         print(json.dumps({"status": "error", "error": str(exc)}))
         return 1
+
+    # Qualify to origin/<base> so a stale local base doesn't widen the
+    # range and yield an out_of_branch fallback already on the base (GH-676).
+    base = remote_qualified_base(base, cwd=cwd)
 
     try:
         branch_shas = branch_commits(base, cwd=cwd)
