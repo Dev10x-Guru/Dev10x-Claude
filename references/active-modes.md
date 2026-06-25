@@ -37,6 +37,41 @@ Documented behaviors:
 When NOT to use: team repositories where PRs require external
 review. The mode short-circuits the review cycle entirely.
 
+### `auto-plan`
+
+"Trust the plan" pacing for the plan-approval gate only (GH-678).
+The supervisor wants execution to start on the agent's plan without
+an approval click, but keeps the *downstream* judgment calls
+attended.
+
+Documented behaviors:
+
+- `Dev10x:work-on` Phase 3 plan-approval gate is **auto-approved** —
+  execution starts immediately on the agent's plan, no
+  `AskUserQuestion` widget for plan sign-off
+- Downstream decision gates (design forks, A/B choices, strategy
+  selection, batch layout) **still fire per `friction_level`** —
+  `auto-plan` does NOT auto-resolve them. Pair with
+  `friction_level: guided` for the canonical "attend the judgment
+  calls" behavior
+- `ALWAYS_ASK` gates fire unchanged
+- The Plan Completion Gate still fires for end-state sign-off
+- Composes with other modes without re-enabling reviewers, Slack, or
+  self-merge — `auto-plan` touches only the plan gate. Under
+  `solo-maintainer`, the existing `adaptive+solo-maintainer` bypass
+  (GH-252) already covers the plan gate, so adding `auto-plan` there
+  is a no-op
+
+Scope nuance: this is a mode that flips a gate's resolution, which
+mildly bends the "modes are purely structural" taxonomy in
+`references/execution-modes.md`. The precedent is `solo-maintainer`,
+which already flips the same gate under adaptive. See
+[ADR-0014](../docs/adr/0014-auto-plan-mode-for-plan-approval-gate.md).
+
+When NOT to use: when you also want downstream gates to auto-resolve
+(use `friction_level: adaptive` instead) or when you want to keep the
+plan gate as a veto point (omit `auto-plan`).
+
 ## Resolution order
 
 Active modes are resolved in this order (see

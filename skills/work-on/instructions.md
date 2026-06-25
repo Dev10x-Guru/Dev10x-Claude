@@ -69,6 +69,13 @@ Options:
 - Strict — All gates fire, no auto-selection. Every
   decision requires explicit user input.
 
+For the in-between "trust the plan, attend the rest" posture, keep
+`friction_level: guided` and add the `auto-plan` mode to
+`active_modes` (GH-678) — the Phase 3 plan-approval gate then
+auto-approves while downstream decision gates keep firing. `auto-plan`
+is set via `active_modes`, not this friction prompt. See
+`references/active-modes.md` § `auto-plan`.
+
 **Persist the choice** to `.claude/Dev10x/session.yaml`:
 
 ```yaml
@@ -953,13 +960,23 @@ the persisted plan-sync context already shows the modes are
 unchanged.
 
 **REQUIRED: Call `AskUserQuestion`** when the plan was
-agent-generated (do NOT use plain text), EXCEPT when the
-adaptive+solo-maintainer bypass below applies.
+agent-generated (do NOT use plain text), EXCEPT when the plan-gate
+auto-approve rule below applies (`adaptive`+`solo-maintainer`, or the
+`auto-plan` mode).
 
-**Adaptive friction behavior (GH-808, GH-158, refined GH-252):**
+**Canonical plan-gate rule.** The decision "does the plan gate
+auto-approve?" is encoded once in
+`dev10x.domain.session_rules.plan_gate_auto_approves()` and tabulated
+in `references/friction-levels.md` § Plan-Approval Gate. The bullets
+below are the operational restatement — when in doubt, that table
+wins.
+
+**Adaptive friction behavior (GH-808, GH-158, refined GH-252,
+GH-678):**
 
 - At `friction_level: strict` or `friction_level: guided`,
-  the `AskUserQuestion` tool call ALWAYS fires.
+  the `AskUserQuestion` tool call ALWAYS fires — UNLESS `auto-plan`
+  is active (see the `auto-plan` bullet below).
 - At `friction_level: adaptive` WITHOUT `solo-maintainer` in
   `active_modes`, the `AskUserQuestion` tool call MUST still
   emit so the user retains override capability. The agent
@@ -980,13 +997,26 @@ adaptive+solo-maintainer bypass below applies.
   invocation of the same session despite unchanged friction
   context). The supervisor can still interrupt mid-execution
   via the standard input channel.
+- When `auto-plan` is in `active_modes` (GH-678), the plan-approval
+  gate is bypassed entirely **at every friction level** — do not call
+  `AskUserQuestion` for plan sign-off, do not present the plan as
+  prose for approval. Auto-select "Approve" and proceed directly to
+  Phase 4. This is the "trust the plan" mode: it auto-approves the
+  plan gate ONLY. Every **downstream** decision gate (epic A/B forks,
+  strategy/batch gates, the Plan Completion Gate) STILL fires per
+  `friction_level` — `auto-plan` does NOT license skipping them, and
+  `ALWAYS_ASK` gates are untouched. The common pairing is
+  `friction_level: guided` + `auto-plan`. Under `solo-maintainer`,
+  the GH-252 bypass already covers the plan gate, so `auto-plan` is a
+  no-op there.
 
 This bypass applies only to **agent-generated** plans. When
 the user provides a numbered, actionable plan inline (per
 "Implicit approval bypass" below), no gate fires at any
 friction level.
 
-**Friction levels OTHER than `adaptive`+`solo-maintainer`:** Call
+**When the plan gate is NOT auto-approved** (per the canonical rule —
+i.e. not `adaptive`+`solo-maintainer` and not `auto-plan`): Call
 `AskUserQuestion`:
 
 1. `AskUserQuestion(questions=[{question: "How would you like to proceed with the work plan?", header: "Plan", options: [{label: "Approve (Recommended)", description: "Start execution immediately"}, {label: "Edit", description: "Describe what to change (add/remove/reorder steps)"}], multiSelect: false}])`

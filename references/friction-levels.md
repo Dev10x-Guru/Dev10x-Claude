@@ -152,6 +152,62 @@ line ends with "— no checkpoints under adaptive friction." so
 the rule travels with the orchestration contract regardless of
 which skill is in flight.
 
+## Plan-Approval Gate (work-on Phase 3)
+
+The `Dev10x:work-on` Phase 3 plan-approval gate is a special case. It
+is the supervisor's one chance to veto wrong scope *before* any branch
+checkout, so its resolution does not follow the generic
+"adaptive auto-selects `(Recommended)`" rule verbatim. This section is
+the canonical rule (GH-678 reconciliation); where the generic gate
+prose above and this section appear to disagree about the plan gate,
+this section wins.
+
+**Canonical resolution rule** — the plan gate *auto-approves* (the
+agent starts execution without presenting the approval widget) iff:
+
+| friction_level | active_modes | Plan gate |
+|----------------|-------------|-----------|
+| `strict` | (any) | **Fires** — always |
+| `guided` | (no `auto-plan`) | **Fires** with recommendation |
+| `guided` | `auto-plan` | **Auto-approved** (GH-678) |
+| `adaptive` | (no `solo-maintainer`, no `auto-plan`) | **Fires** — widget still emits to preserve veto; agent auto-selects "Approve" if not overridden |
+| `adaptive` | `solo-maintainer` | **Auto-approved** (GH-252) |
+| (any) | `auto-plan` | **Auto-approved** (GH-678) |
+
+The boolean is encoded once in
+`dev10x.domain.session_rules.plan_gate_auto_approves()` — work-on's
+markdown and any future consumer defer to it rather than
+re-deriving the matrix.
+
+**Doc-vs-observed note (GH-678 AC#1):** the generic `adaptive` rule
+("auto-select `(Recommended)`, no `AskUserQuestion` interruption")
+does NOT apply to the plan gate when `solo-maintainer` is absent —
+there the widget still fires to preserve the veto. That is the
+observed behaviour, and it is intentional, not a bug. `auto-plan` is
+the mode that finally makes "skip the plan widget but keep downstream
+gates firing" reachable.
+
+**`auto-plan` scope.** The mode auto-approves the plan gate ONLY.
+Downstream decision gates, the Plan Completion Gate, and `ALWAYS_ASK`
+gates all resolve by `friction_level` exactly as they would without
+the mode. See `references/active-modes.md` § `auto-plan` and
+`references/execution-modes.md`.
+
+**Walk-away precedence.** When `walk_away: true` (the `Dev10x:afk`
+layer) and `auto-plan` are both set, walk-away is the stronger "I am
+gone" signal: downstream non-destructive gates are *suppressed and
+logged to the `doubt_sink`*, not fired. `auto-plan`'s "downstream
+gates still fire" intent assumes the supervisor is present; once
+walk-away declares absence, suppression wins. The full single-gate
+precedence is unchanged:
+
+1. Destructive or blocking → fire (neither walk-away nor `auto-plan`
+   waives)
+2. Plan-approval gate → auto-approve when
+   `plan_gate_auto_approves()` is true (covers `auto-plan`)
+3. Else `walk_away: true` → suppress + log to `doubt_sink`
+4. Else `friction_level` rules apply (strict/guided/adaptive)
+
 ## Acceptance Criteria (verify-acc-dod)
 
 | Level | Automated checks | Manual checks | Decision gate |

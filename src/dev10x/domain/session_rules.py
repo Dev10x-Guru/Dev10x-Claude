@@ -29,6 +29,38 @@ class UnknownFrictionLevelError(ValueError):
     """Raised when decision guidance is asked to format an unknown friction level."""
 
 
+AUTO_PLAN_MODE = "auto-plan"
+SOLO_MAINTAINER_MODE = "solo-maintainer"
+
+
+def plan_gate_auto_approves(
+    *,
+    friction_level: FrictionLevel,
+    active_modes: list[str],
+) -> bool:
+    """Decide whether the work-on Phase 3 plan-approval gate auto-resolves.
+
+    Single source of truth for the GH-678 reconciliation: the plan gate
+    auto-approves (the agent proceeds without presenting the approval
+    widget) when EITHER
+
+    * ``auto-plan`` is an active mode — the supervisor trusts the plan but
+      keeps downstream decision gates firing per ``friction_level``; or
+    * the long-standing ``adaptive`` + ``solo-maintainer`` profile is in
+      effect (GH-252), where the friction profile already resolves to a
+      clear default.
+
+    Returns ``False`` for every other combination — notably ``adaptive``
+    *without* ``solo-maintainer``, where the gate still emits its widget to
+    preserve the supervisor's veto (it merely auto-selects the recommended
+    option). This boolean is specifically "skip the widget", not "auto-pick
+    once shown".
+    """
+    if AUTO_PLAN_MODE in active_modes:
+        return True
+    return friction_level is FrictionLevel.ADAPTIVE and SOLO_MAINTAINER_MODE in active_modes
+
+
 @dataclass(frozen=True)
 class DecisionGuidanceRule(PolicyRule[str]):
     """Format resume guidance for the agent based on plan + friction level.
@@ -97,8 +129,53 @@ class BuildAutonomyReassuranceRule(PolicyRule[str]):
         return self.REASSURANCE_TEXT
 
 
+@dataclass(frozen=True)
+class BuildAutoPlanGuidanceRule(PolicyRule[str]):
+    """Build a SessionStart briefing for ``auto-plan`` sessions (GH-678).
+
+    Fires only when ``auto-plan`` is among ``active_modes``. Reinforces the
+    half of the contract that survives compaction least well: the
+    plan-approval gate auto-resolved, but downstream decision gates still
+    fire per ``friction_level`` and MUST NOT be skipped. Without this, a
+    resumed/compacted session can over-generalise "the plan auto-approved"
+    into "auto-advance through every gate".
+
+    Returns an empty string outside ``auto-plan`` so the SessionStart
+    orchestrator drops the segment silently. The caller reads
+    ``friction_level`` and ``active_modes`` from
+    :class:`dev10x.domain.documents.session_yaml.SessionYamlDocument` and
+    passes them in as frozen fields — the rule performs no file I/O
+    (ADR-0007 D3).
+    """
+
+    friction_level: FrictionLevel
+    active_modes: list[str]
+
+    GUIDANCE_TEXT = (
+        "**`auto-plan` mode active.** The work-on plan-approval gate "
+        "auto-resolves — start executing the plan without presenting it for "
+        "approval. This is scoped to the plan gate ONLY:\n"
+        "\n"
+        "- Downstream decision gates (design forks, A/B choices, strategy "
+        "selection) STILL fire per `friction_level` — do NOT skip them.\n"
+        "- `ALWAYS_ASK` gates (destructive/irreversible ops) fire unchanged.\n"
+        "- The Plan Completion Gate still fires for end-state sign-off.\n"
+        "\n"
+        'In short: "trust the plan — start; wake me for the judgment calls."'
+    )
+
+    def apply(self) -> str:
+        if AUTO_PLAN_MODE not in self.active_modes:
+            return ""
+        return self.GUIDANCE_TEXT
+
+
 __all__ = [
     "UnknownFrictionLevelError",
     "DecisionGuidanceRule",
     "BuildAutonomyReassuranceRule",
+    "BuildAutoPlanGuidanceRule",
+    "plan_gate_auto_approves",
+    "AUTO_PLAN_MODE",
+    "SOLO_MAINTAINER_MODE",
 ]
