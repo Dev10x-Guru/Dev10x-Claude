@@ -7,13 +7,23 @@ Blocks:
   1. Shell-based file writes (cat >, echo >, printf >)
   2. In-place file editors (sed -i, perl -i, gawk -i inplace, dd of=)
   3. Interpreter inline code (python3 -c, bash/sh/zsh -c)
-  4. Interpreters running untrusted absolute script paths
+  4. Interpreters reading a script via stdin (heredoc/here-string,
+     bare `-`, shell `-s`, or a pipe feeding the interpreter) — GH-687
+  5. Interpreters running untrusted absolute script paths
      (python3/bash/sh/zsh <untrusted-abs-path>)
 
 The interpreter guard (GH-469) treats bash/sh/zsh as siblings of
 python3: the `bash <verb> *` catch-all is the higher-severity footgun
 (arbitrary shell, total rule bypass), so it must be hook-enforced here
 rather than left to an unreliable permission deny-rule.
+
+The stdin channels (GH-687) are the inverse of the `-c` guard: the real
+payload runs inside the interpreter subprocess, invisible to every other
+PreToolUse validator (skill-redirect, sql-safety, sensitivity). The `-c`
+block (GH-469) closed the flag channel; this closes the stdin channels.
+node/ruby/perl are intentionally out of scope here — they never had the
+`-c`/`-e` inline guard, so closing only their stdin channel would be
+incoherent; tracked as separate follow-up.
 """
 
 from __future__ import annotations
@@ -63,7 +73,7 @@ INPLACE_EDIT_MSG = (
 )
 
 PYTHON3_INLINE_MSG = """\
-\U0001f6ab  python3 inline/untrusted script blocked.
+\U0001f6ab  python3 inline/stdin/untrusted script blocked.
 
 Use the Write tool to create a self-contained uv script instead:
 
@@ -90,16 +100,37 @@ If the script needs no third-party deps, the # /// block can be omitted."""
 
 SHELL_INTERPRETERS = ("bash", "sh", "zsh")
 
+
+def _heredoc_into_re(interpreter: str) -> re.Pattern[str]:
+    """Match a heredoc/here-string feeding ``interpreter`` via stdin (GH-687).
+
+    The interpreter must appear at a command boundary (start, pipe, ``;``,
+    ``&``, or newline), optionally preceded by ``VAR=value`` env prefixes,
+    and be followed on the same line by ``<<`` (heredoc) or ``<<<``
+    (here-string). Matched on the whole command so a ``|`` inside the
+    heredoc body never confuses pipeline splitting.
+    """
+    return re.compile(
+        r"(?:^|[|;&\n])\s*"
+        r"(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*" + re.escape(interpreter) + r"\b[^\n]*?<<"
+    )
+
+
+# python3 plus the shell interpreters that already block inline `-c`.
+_STDIN_GUARDED_INTERPRETERS = ("python3", *SHELL_INTERPRETERS)
+_HEREDOC_INTO = {name: _heredoc_into_re(name) for name in _STDIN_GUARDED_INTERPRETERS}
+
 # Shell interpreters may additionally run scripts staged under the Dev10x
 # temp dir (GH-370 pre-approves /tmp/Dev10x/ execution); python3 keeps the
 # narrower APPROVED_ABS_PREFIXES set.
 SHELL_APPROVED_ABS_PREFIXES = (*APPROVED_ABS_PREFIXES, "/tmp/Dev10x/")
 
 SHELL_INTERP_MSG = """\
-\U0001f6ab  shell inline/untrusted script execution blocked.
+\U0001f6ab  shell inline/stdin/untrusted script execution blocked.
 
-`bash`/`sh`/`zsh` running inline code (`-c`) or an untrusted absolute
-script path bypasses every PreToolUse guardrail. Use one of:
+`bash`/`sh`/`zsh` running inline code (`-c`), a script via stdin
+(heredoc, `-s`, `-`, or a pipe), or an untrusted absolute script path
+bypasses every PreToolUse guardrail. Use one of:
 
   - Inline logic — Write a self-contained uv script to
     /tmp/Dev10x/<name>.py via the Write tool, then `uv run --script` it
@@ -239,6 +270,7 @@ class ExecutionSafetyValidator(ValidatorBase):
             approved=APPROVED_ABS_PREFIXES,
             message=PYTHON3_INLINE_MSG,
             allow_module=True,
+            dash_s_stdin=False,  # python3 -s is a site-flag, not stdin delivery
         )
         if result:
             return result
@@ -250,6 +282,7 @@ class ExecutionSafetyValidator(ValidatorBase):
                 approved=SHELL_APPROVED_ABS_PREFIXES,
                 message=SHELL_INTERP_MSG,
                 allow_module=False,
+                dash_s_stdin=True,  # bash/sh/zsh -s reads the script from stdin
             )
             if result:
                 return result
@@ -264,39 +297,67 @@ class ExecutionSafetyValidator(ValidatorBase):
         approved: tuple[str, ...],
         message: str,
         allow_module: bool,
+        dash_s_stdin: bool,
     ) -> HookResult | None:
         if interpreter not in command:
             return None
 
-        first_cmd = command.split("|")[0].strip()
-
-        try:
-            parts = shlex.split(first_cmd)
-        except ValueError:
-            return None
-
-        parts = _strip_env_prefix(parts)
-
-        if not parts or parts[0] != interpreter:
-            return None
-
-        argv = parts[1:]
-
-        if allow_module and "-m" in argv:
-            return None
-
-        if any(a == "-c" or a.startswith("-c") for a in argv):
+        # Heredoc / here-string feeding the interpreter via stdin (GH-687).
+        # Checked on the whole command so a `|` inside the heredoc body does
+        # not confuse the pipeline split below.
+        if _HEREDOC_INTO[interpreter].search(command):
             return HookResult(message=message)
 
-        script = next(
-            (a for a in argv if not a.startswith("-")),
-            None,
-        )
+        for idx, raw_segment in enumerate(command.split("|")):
+            segment = raw_segment.strip()
 
-        if script is None or not Path(script).expanduser().is_absolute():
-            return None
+            try:
+                parts = shlex.split(segment)
+            except ValueError:
+                # Fail closed (GH-687): an unparseable command naming the
+                # interpreter is suspicious, not safe. The old `return None`
+                # let a quoting trick smuggle execution past the guard.
+                if re.search(rf"\b{re.escape(interpreter)}\b", command):
+                    return HookResult(message=message)
+                return None
 
-        if _is_approved_path(script, approved):
-            return None
+            parts = _strip_env_prefix(parts)
+            if not parts or parts[0] != interpreter:
+                continue
 
-        return HookResult(message=message)
+            argv = parts[1:]
+
+            if allow_module and "-m" in argv:
+                continue
+
+            if any(a == "-c" or a.startswith("-c") for a in argv):
+                return HookResult(message=message)
+
+            # Bare `-` reads the program from stdin for every interpreter;
+            # `-s` (possibly clustered, e.g. `-se`) does so for the shells.
+            if "-" in argv:
+                return HookResult(message=message)
+            if dash_s_stdin and any(
+                a.startswith("-") and not a.startswith("--") and "s" in a[1:] for a in argv
+            ):
+                return HookResult(message=message)
+
+            script = next((a for a in argv if not a.startswith("-")), None)
+
+            if script is None:
+                # No script file. An upstream pipe makes the interpreter read
+                # the piped data as its program (GH-687); a bare interpreter in
+                # the first segment is just a REPL — not a script smuggle.
+                if idx > 0:
+                    return HookResult(message=message)
+                continue
+
+            if not Path(script).expanduser().is_absolute():
+                continue
+
+            if _is_approved_path(script, approved):
+                continue
+
+            return HookResult(message=message)
+
+        return None
