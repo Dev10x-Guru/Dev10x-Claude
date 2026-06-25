@@ -1706,6 +1706,18 @@ above hold simultaneously. Tickets without overlap signals
 form singleton batches. Never put more than 5 tickets in a
 single batch — review readability degrades past that point.
 
+**Shared-file tickets always collapse into one batch (GH-591).**
+When two bundle members edit the **same file**, they CANNOT become
+separate per-issue commits: splitting them would require hunk-level
+selective staging, which `Dev10x:git-commit` explicitly prohibits
+("NEVER stage individual files by name"). A shared file is a strong
+form of the **shared component** signal — treat it as decisive on
+its own and place the members in one batch even if no second signal
+holds. The batched-layout convention then applies: one atomic
+commit whose body lists every member with a `Fixes:` line per
+ticket (see the per-batch commit-message convention below). Do NOT
+attempt per-issue commits for shared-file members.
+
 **Surfacing the batch plan:**
 
 After detection, present the proposed batch layout via

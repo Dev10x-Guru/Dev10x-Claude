@@ -46,14 +46,29 @@ because the parent cannot predict which grooming strategy is
 appropriate. The parent's "Full shipping pipeline" selection
 establishes *intent to groom*, not *which strategy to use*.
 
-**NEVER auto-select a grooming strategy.** Even when invoked
-from a parent orchestrator that has chosen "Full shipping
-pipeline", you MUST present the `AskUserQuestion` gate for
-strategy selection. Auto-selecting autosquash because it is
-"Recommended" is a gate bypass — the recommendation is a
-default hint for the user, not permission to skip the gate.
-Anti-pattern (GH-458): agent ran `git autosquash-develop`
-without presenting the strategy gate in nested mode.
+**NEVER auto-select a grooming strategy at strict/guided
+friction.** Even when invoked from a parent orchestrator that
+has chosen "Full shipping pipeline", you MUST present the
+`AskUserQuestion` gate for strategy selection. Auto-selecting
+autosquash because it is "Recommended" is a gate bypass — the
+recommendation is a default hint for the user, not permission to
+skip the gate. Anti-pattern (GH-458): agent ran
+`git autosquash-develop` without presenting the strategy gate in
+nested mode.
+
+**Friction level wins over nested mode (GH-591).** GH-458 (never
+auto-select, even nested) and GH-530 (adaptive auto-selects
+silently) only conflict if read as peers — they are not. The
+friction level is the deciding axis. At `strict`/`guided` the
+gate always fires (the rule above), nested or not. At `adaptive`
+the deterministic auto-select in Phase 2 governs — nesting does
+NOT re-impose the gate, because `adaptive` is the supervisor's
+standing pre-authorization to proceed without prompts. The one
+carve-out: `adaptive` may auto-select only deterministic,
+non-destructive strategies (fast-exit, autosquash of `fixup!`
+commits, message-only mass rewrite); when the only viable path is
+a destructive Full restructure or interactive reorder, fire the
+gate even at `adaptive`. See Phase 2 for the auto-select rules.
 
 ## Workflow
 
@@ -241,6 +256,21 @@ Auto-select strategy based on commit analysis:
 - No fixups, only message issues → auto-select "Mass rewrite"
 - Mixed structural issues → auto-select "Fixup" (safest default)
 - No `AskUserQuestion` call — execution continues uninterrupted
+
+**Applies even when nested (GH-591).** The nested-mode rule does
+not re-impose the gate at adaptive — friction level wins (see the
+Friction-level note near the top of this file). Every bullet above
+is deterministic and non-destructive, so auto-selecting them
+honors both GH-458 (no silent destructive rewrites) and GH-530
+(no AFK prompts).
+
+**Carve-out — destructive ambiguity still gates (GH-591).** If
+commit analysis cannot resolve to one of the deterministic options
+above and the only viable path is a destructive Full restructure
+(soft reset + rebuild) or an interactive reorder, fire the
+strategy `AskUserQuestion` gate even at `adaptive`. A
+history-destroying operation with no deterministic answer is the
+one case the supervisor must confirm regardless of friction.
 
 See `references/friction-levels.md` for the universal model.
 
