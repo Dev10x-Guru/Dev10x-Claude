@@ -188,6 +188,41 @@ Sequential chain: Issue #10 → Issue #15 (shared files)
 Parallel group 2: Issue #20, Issue #25 (independent)
 ```
 
+### Base Re-Sync Across Items (GH-626)
+
+The base branch advances while a fanout runs, so an item branched
+early can be working against a stale base by the time it ships —
+producing merge conflicts and superseded-duplicate work that only
+surface at merge time. Keep each item on a fresh base:
+
+1. **Branch each item from a freshly-fetched `origin/<base>`.**
+   Resolve `<base>` via `mcp__plugin_Dev10x_cli__detect_base_branch`
+   (develop → main fallback) and create the branch via
+   `Skill(Dev10x:ticket-branch)` (which already fetches and
+   branches from `origin/<base>`) — never a stale local ref.
+2. **After any item merges, rebase the remaining in-flight items
+   onto the new base before continuing** — via
+   `Skill(Dev10x:git-groom)` / the rebase wrapper, never raw
+   `git rebase`. This generalizes the conflict-driven "later items
+   rebase before continuing" rule above to *all* in-flight items,
+   not only ones with a detected file overlap.
+3. After any force-push from a pre-review rebase, re-monitor CI.
+
+**Critical constraint — never rebase once review fixups exist.**
+This re-sync applies **only before reviews start** on a given
+item. Once fixup commits are addressing in-progress review
+threads, a rebase rewrites the base SHAs that review-thread
+permalinks reference (`/pull/N/commits/<sha>` → 404) and destroys
+the per-comment audit trail. This is the same invariant
+`Dev10x:git-groom` enforces in **Phase 0 (refuse pre-merge groom
+with open unresolved threads, GH-68 Fix E)**:
+
+- **Suppress** the re-sync for any item whose PR has an unresolved
+  review thread or a review fixup.
+- Such an item stays on its original base; only true merge
+  conflicts at that point are resolved in place, never a wholesale
+  rebase that orphans review permalinks.
+
 ### Supervisor Gate
 
 **Implicit approval bypass:** If the user's original input
