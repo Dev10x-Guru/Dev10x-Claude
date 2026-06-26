@@ -240,22 +240,41 @@ Mark the phase transition: `TaskUpdate(taskId=strategy_task, status="pending", m
 **At strict/guided level:**
 
 **REQUIRED: Call `AskUserQuestion`** (do NOT use plain text, call spec: [ask-restructuring-strategy.md](./tool-calls/ask-restructuring-strategy.md)).
-Options:
-- Fixup (Recommended) — Small targeted fixes to specific commits
-- Full restructure — Reset all commits, rebuild from scratch
+
+The "Recommended" marker is **conditional on fixup presence** — fixup
+commits are the discriminator between the two common requests:
+
+- Fixup (Recommended when `fixup!`/`squash!` commits exist) — Small
+  targeted fixes applied to specific commits
+- Full restructure (Recommended when no fixups exist) — Reset all
+  commits, rebuild from scratch as atomic layer/component commits
 - Mass rewrite — Non-interactive message rewrite from JSON
 - Interactive rebase — Full manual control over commit order
 
+Rationale: if fixups exist, the user almost always wants them applied;
+if there are no fixups, a "full restructure" is the probable request.
+
 **At adaptive level (GH-530):**
 
-Auto-select strategy based on commit analysis:
+Auto-select strategy based on commit analysis. **Fixup presence is the
+primary discriminator** — if fixups exist, apply them; if there are no
+fixups, a full restructure is the probable request:
+
 - Single clean commit, no fixups, message OK → **fast exit**
   with "Nothing to groom" (GH-776). This keeps the decision
   within the groom skill rather than the orchestrator.
-- Only fixup commits present → auto-select "Fixup"
+- **Fixup commits present → auto-select "Fixup" and apply them.**
+  The presence of `fixup!`/`squash!` commits is the strongest signal
+  the user wants targeted squashing, not a rebuild.
 - No fixups, only message issues → auto-select "Mass rewrite"
 - Mixed structural issues → auto-select "Fixup" (safest default)
+- **No fixups and structural reorganization is needed → "Full
+  restructure" is the probable request.** Because that path is
+  destructive (soft reset + rebuild), do NOT auto-execute it — fire
+  the strategy `AskUserQuestion` gate with Full restructure as the
+  recommended option (see the destructive-ambiguity carve-out below).
 - No `AskUserQuestion` call — execution continues uninterrupted
+  (except the destructive Full-restructure case above)
 
 **Applies even when nested (GH-591).** The nested-mode rule does
 not re-impose the gate at adaptive — friction level wins (see the
@@ -328,6 +347,47 @@ git add -p      # Interactively stage hunks
 git commit -m "First logical change"
 # Repeat for each logical unit
 ```
+
+##### Granularity & cohesion
+
+A "full restructure" decomposes the branch — it does **not** collapse it.
+**"Full restructure" ≠ squash-to-one.**
+Squash-to-one is the *Fixup* strategy's outcome (Strategy A), not a full
+restructure; producing a single commit here is the opposite of what was
+asked.
+
+When rebuilding the atomic commits, make each one:
+
+1. **Small — the smaller the better, up to a point.**
+   Commit-per-class is *too* granular.
+   The unit is a coherent layer/component, not a single file or symbol.
+2. **Separated by architectural layer and component.**
+   Each layer gets its own commit, ordered bottom-up by dependency so
+   each commit builds on the ones before it.
+3. **Highly cohesive — tests and fakers ship in the SAME commit as the
+   production code they cover.**
+   A commit carries its own verification; do not split tests or fakers
+   into a separate "add tests" commit.
+4. **Autonomous.**
+   Each commit should build / typecheck / test in isolation and in
+   dependency order.
+   Pre-commit stashing of unstaged files already gives a good isolation
+   signal — staging whole files per layer means each commit's hooks run
+   standalone.
+
+**Layer → commit example** (from a Square payments terminal branch,
+ordered bottom-up):
+
+| # | Commit (layer / component)              | Example modules                              |
+|---|-----------------------------------------|----------------------------------------------|
+| 1 | API facade / client adapters            | `payments.square.client.*`                   |
+| 2 | service adapter / aggregator + its DTO  | `payments.square.terminal` + `dto`           |
+| 3 | transport / GraphQL layer               | `payments.api.queries`                       |
+
+**Re-run Phase 4 for every rewritten SHA.** A multi-commit split orphans
+more PR permalinks than a single squash does — each new commit boundary
+is a new SHA — so the PR-reference refresh in Phase 4 (Update PR
+References) must run for *all* rewritten commits, not just the tip.
 
 #### Strategy D: Non-Interactive Mass Rewrite (for bulk message updates)
 
