@@ -117,6 +117,83 @@ class TestGitCNoop:
         assert "redundant" in result.message
 
 
+class TestGitCConfig:
+    """Lowercase `git -c <key>=<value>` config-prefix block (GH-488 S19)."""
+
+    @pytest.fixture()
+    def validator(self) -> PrefixFrictionValidator:
+        return PrefixFrictionValidator()
+
+    def test_should_run_for_git_c_config(self, validator: PrefixFrictionValidator) -> None:
+        inp = _make_input(command="git -c core.pager=cat status --porcelain")
+        assert validator.should_run(inp=inp) is True
+
+    def test_blocks_pager_status(self, validator: PrefixFrictionValidator) -> None:
+        inp = _make_input(command="git -c core.pager=cat status --porcelain")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "page" in result.message
+        assert "git status --porcelain" in result.message
+        assert "git nopager" in result.message
+
+    def test_blocks_pager_branch(self, validator: PrefixFrictionValidator) -> None:
+        inp = _make_input(command="git -c core.pager=cat branch --show-current")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "git branch --show-current" in result.message
+
+    def test_blocks_hookspath_with_safety_message(
+        self, validator: PrefixFrictionValidator
+    ) -> None:
+        inp = _make_input(command="git -c core.hooksPath=/dev/null diff --cached")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "hooks" in result.message
+        assert "git diff --cached" in result.message
+
+    def test_blocks_general_config_override(self, validator: PrefixFrictionValidator) -> None:
+        inp = _make_input(command="git -c user.name=Bot commit -m wip")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "user.name" in result.message
+        assert "git-alias-setup" in result.message
+
+    def test_strips_multiple_c_flags_in_bare_command(
+        self, validator: PrefixFrictionValidator
+    ) -> None:
+        inp = _make_input(command="git -c core.pager=cat -c color.ui=always status")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "git status" in result.message
+        assert "-c " not in result.message.split("git status")[1]
+
+    def test_blocks_color_ui(self, validator: PrefixFrictionValidator) -> None:
+        inp = _make_input(command="git -c color.ui=never log --oneline")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "color" in result.message
+        assert "git nocolor" in result.message
+        assert "git log --oneline" in result.message
+
+    def test_allows_nopager_alias(self, validator: PrefixFrictionValidator) -> None:
+        inp = _make_input(command="git nopager status --short")
+        assert validator.should_run(inp=inp) is False
+        assert validator.validate(inp=inp) is None
+
+    def test_allows_nocolor_alias(self, validator: PrefixFrictionValidator) -> None:
+        inp = _make_input(command="git nocolor status --short")
+        assert validator.should_run(inp=inp) is False
+        assert validator.validate(inp=inp) is None
+
+    def test_does_not_match_capital_c_directory_flag(
+        self, validator: PrefixFrictionValidator
+    ) -> None:
+        # `git -C <dir>` (capital) is the directory flag, handled separately;
+        # the config check must not fire on it.
+        inp = _make_input(command="git -C /some/path log --oneline")
+        assert validator._check_git_c_config(inp=inp) is None
+
+
 class TestCdNoopChain:
     @pytest.fixture()
     def validator(self) -> PrefixFrictionValidator:
