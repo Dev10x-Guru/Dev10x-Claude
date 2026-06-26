@@ -64,7 +64,7 @@ on the first lookup means it is not registered in this session.
 |---------|----------|----------------|
 | GitHub | `gh` CLI | `gh issue create` |
 | Linear | Linear MCP | `mcp__claude_ai_Linear__save_issue` |
-| JIRA | `JIRA_TENANT` + keyring | Delegate to `Dev10x:jira` skill |
+| JIRA | Atlassian MCP | `mcp__claude_ai_Atlassian__createJiraIssue` |
 
 ## When to Use This Skill
 
@@ -274,13 +274,32 @@ mcp__claude_ai_Linear__save_issue(
 
 **JIRA:**
 
-Delegate to the `Dev10x:jira` skill:
+Create via the Atlassian MCP `createJiraIssue` tool, mirroring the
+GitHub/Linear branches above. The `Dev10x:jira` skill ships only
+read / search / update / comment / link scripts — it has **no create
+path** — so the Atlassian MCP is the JIRA-creation surface (GH-631):
 
 ```
-Skill(skill="Dev10x:jira")
+mcp__claude_ai_Atlassian__createJiraIssue(
+    cloudId: <from getAccessibleAtlassianResources>,
+    projectKey: <from getVisibleJiraProjects>,
+    issueTypeName: <Task | Bug — from getJiraProjectIssueTypesMetadata>,
+    summary: TITLE,
+    description: DESCRIPTION,
+)
 ```
 
-Pass the ticket ID and payload path as arguments.
+Resolve `cloudId`, `projectKey`, and the issue-type name via the
+read-only Atlassian tools (all pre-approved) before the create call;
+use the live tool schema for exact field names.
+
+The Atlassian ticket-management **write** tools (`createJiraIssue`,
+`editJiraIssue`, `addCommentToJiraIssue`, …) are pre-approved in the
+permission baseline (`mcp-atlassian-write` group, GH-631), so this
+create runs **unattended even from the background creation agent**
+dispatched in Step 5 — which previously stalled because the write
+tool prompted and a background agent cannot answer a permission
+prompt.
 
 > Team-specific IDs are documented in the tracker skill (`Dev10x:linear`, `Dev10x:jira`).
 

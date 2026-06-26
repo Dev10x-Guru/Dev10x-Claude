@@ -157,6 +157,48 @@ class TestManifestAlignment:
         assert all(Access(classify_mcp_tool(r)) is Access.READ for r in reads)
 
 
+class TestAtlassianWriteException:
+    """GH-631: Atlassian ticket-management writes are seeded by an
+    explicit, documented exception to GH-593 write-precedence.
+
+    Unlike every other tier-2 group, this one is ``mutating`` rather
+    than ``benign`` — the maintainer accepted pre-approval of the
+    non-destructive JIRA write verbs so ticket-create's background-agent
+    JIRA path does not stall on a permission prompt. These tests pin the
+    exception so a future curation sweep cannot silently delete it nor
+    let the writes leak back into the read-only group.
+    """
+
+    WRITE_TOOLS = (
+        "mcp__claude_ai_Atlassian__createJiraIssue",
+        "mcp__claude_ai_Atlassian__editJiraIssue",
+        "mcp__claude_ai_Atlassian__addCommentToJiraIssue",
+        "mcp__claude_ai_Atlassian__createIssueLink",
+        "mcp__claude_ai_Atlassian__transitionJiraIssue",
+        "mcp__claude_ai_Atlassian__addWorklogToJiraIssue",
+    )
+
+    def test_group_is_tier_2_and_mutating(self, groups: dict) -> None:
+        group = groups["mcp-atlassian-write"]
+        assert group["tier"] == 2
+        assert group["sensitivity"] == Sensitivity.MUTATING
+
+    def test_atlassian_write_is_deliberate_exception(self, groups: dict) -> None:
+        # Every rule is a real write (proves the exception is the write
+        # counterpart, not a misclassified read), and the full set is present.
+        rules = groups["mcp-atlassian-write"]["rules"]
+        assert set(rules) == set(self.WRITE_TOOLS)
+        assert all(Access(classify_mcp_tool(r)) is Access.WRITE for r in rules)
+
+    def test_no_delete_verb_pre_approved(self, groups: dict) -> None:
+        rules = groups["mcp-atlassian-write"]["rules"]
+        assert not any("delete" in r.lower() for r in rules)
+
+    def test_writes_absent_from_readonly_group(self, groups: dict) -> None:
+        readonly = set(groups["mcp-atlassian-readonly"]["rules"])
+        assert not (set(self.WRITE_TOOLS) & readonly)
+
+
 class TestReadonlySkillsCuration:
     """GH-608 D13: conservative skill-invocation surface."""
 
