@@ -74,6 +74,33 @@ template from the **Hook Templates** section below. Present to the user for
 approval before writing. The hook must always ensure `.claude` exists —
 either by copying from the source repo or creating an empty scaffold.
 
+**Session config seeding (GH-705).** `.claude/Dev10x/session.yaml` is
+gitignored (so it never trips the clean-tree gates in `verify_pr_state`
+/ `gh-pr-merge` / `create_pr`), which means `git worktree add` does not
+carry it into a new worktree. Every template in the **Hook Templates**
+section copies it as part of the `.claude/` copy and then seeds a
+default via `dev10x session seed` when the source had none — both inside
+a marker-guarded block:
+
+```sh
+# >>> Dev10x session-seed (GH-705) >>>
+if [ ! -f .claude/Dev10x/session.yaml ]; then
+    if command -v dev10x >/dev/null 2>&1; then
+        dev10x session seed || true
+    elif command -v uvx >/dev/null 2>&1; then
+        uvx dev10x session seed || true
+    fi
+fi
+# <<< Dev10x session-seed (GH-705) <<<
+```
+
+**When the project already has an adequate post-checkout hook**, do NOT
+overwrite it — **augment it idempotently**: read the hook, and only if
+the `Dev10x session-seed (GH-705)` marker is absent, inject the block
+above just before the hook's final cleanup/exit (inside the all-zeros
+SHA guard if one exists). A hook that already contains the marker is
+left untouched, so re-running this skill never duplicates the block.
+
 ### Step A1b: Detect Husky Version and Bootstrap ~/.huskyrc
 
 When the project uses Husky, detect the version before creating

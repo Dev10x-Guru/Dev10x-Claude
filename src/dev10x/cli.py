@@ -48,6 +48,7 @@ class LazyGroup(click.Group):
         "permission": "dev10x.commands.permission.permission",
         "platform": "dev10x.commands.platform.platform",
         "playbook": "dev10x.commands.playbook.playbook",
+        "session": "dev10x.commands.session.session",
         "validate": "dev10x.commands.validate.validate",
         "skill": "dev10x.commands.skill.skill",
     },
