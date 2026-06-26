@@ -1660,16 +1660,61 @@ related, and benefit from a single review cycle.
 
 **Bundled execution pattern:**
 ```
-1. Set up workspace (one branch for all issues)
+1. Set up workspace (one branch for all issues), branched
+   from a freshly-fetched origin/<base>
 2. Batch the issues (see § Batch Detection below)
 3. For each BATCH (sequentially):
-   a. Design approach for this batch
-   b. Implement changes
-   c. Create atomic commit (one per batch; ticket IDs of
+   a. Re-sync onto fresh base (see § Per-Batch Base Re-Sync
+      below) — pre-review hygiene only; SKIPPED once review
+      fixups / unresolved threads exist
+   b. Design approach for this batch
+   c. Implement changes
+   d. Create atomic commit (one per batch; ticket IDs of
       every batch member appear in the commit body)
 4. Verify (run tests once for all changes)
 5. Shipping pipeline (review → PR → CI → groom → merge)
 ```
+
+#### Per-Batch Base Re-Sync (GH-626)
+
+In an actively-developed area the base branch advances while the
+bundle is being worked, so later batches — and the shipping
+pipeline — hit merge conflicts and **superseded-duplicate** work
+that only surface at `Monitor CI` / merge time. Re-syncing each
+batch onto the fresh base *before* working it converts those
+late, expensive conflict cycles into cheap up-front detection.
+
+Before step 3b (Design) of each batch:
+
+1. Resolve `<base>` via `mcp__plugin_Dev10x_cli__detect_base_branch`
+   (develop → main fallback). Always rebase onto `origin/<base>`,
+   never the possibly-stale local ref (same caution
+   `Dev10x:git-groom` documents in Phase 1, GH-486).
+2. Fetch `origin/<base>` and rebase the bundle branch onto it via
+   `Skill(Dev10x:git-groom)` / the existing rebase wrapper —
+   never raw `git rebase`.
+3. After any force-push from this pre-review rebase, re-monitor
+   CI (already required — see § CI Re-Monitoring After Force Push).
+
+**Critical constraint — never rebase once review fixups exist.**
+The auto re-sync applies **only before reviews start**. Once
+fixup commits are addressing in-progress review threads, a rebase
+rewrites the base SHAs that review-thread permalinks reference
+(`/pull/N/commits/<sha>` → 404) and destroys the per-comment
+audit trail. This is the same invariant `Dev10x:git-groom`
+enforces in **Phase 0 (refuse pre-merge groom with open
+unresolved threads, GH-68 Fix E)** — the two rules compose:
+
+- **Suppress** the re-sync when any unresolved review thread or
+  review fixup exists on the PR.
+- Fixup commits stay on their original base; only true merge
+  conflicts at that point are resolved in place (resolve-in-rebase
+  or a base-merge that does not rewrite the fixup SHAs), never a
+  wholesale rebase that orphans permalinks.
+
+In short: **re-sync-onto-fresh-base is a per-batch pre-work /
+pre-review hygiene step; it is forbidden once a review cycle has
+begun.**
 
 The "Implement changes" epic expands to one sub-task per
 **batch** — not per individual issue. Each sub-task produces
