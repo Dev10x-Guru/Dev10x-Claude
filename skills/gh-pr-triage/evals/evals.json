@@ -1,0 +1,180 @@
+{
+  "skill_name": "Dev10x:gh-pr-triage",
+  "eval_dimensions": [
+    {
+      "id": "no-auto-resolve",
+      "name": "No Auto-Resolve",
+      "description": "Threads are never auto-resolved. Resolution requires explicit user confirmation from the calling skill or user. This applies to all verdicts including INVALID, QUESTION, and OUT_OF_SCOPE."
+    },
+    {
+      "id": "skill-only-entry",
+      "name": "Skill-Only Entry Point",
+      "description": "Verdicts (VALID/YAGNI/INVALID/QUESTION/OUT_OF_SCOPE) appear only as the output of Skill(Dev10x:gh-pr-triage). They must NOT appear in narrative text as inline classification without a preceding Skill() call."
+    },
+    {
+      "id": "verdict-output",
+      "name": "Verdict Output Contract",
+      "description": "Each run returns exactly one verdict from the documented set. VALID returns no reply and no thread action. INVALID/QUESTION/OUT_OF_SCOPE/YAGNI post a reply via mcp__plugin_Dev10x_cli__pr_comment_reply but do not resolve the thread."
+    },
+    {
+      "id": "jtbd-scope-check",
+      "name": "JTBD Scope Check",
+      "description": "Before returning VALID, Step 4.5 checks whether the commented code is in scope for the PR's stated JTBD. Out-of-scope code with a valid bug report routes to YAGNI, not VALID."
+    },
+    {
+      "id": "orchestration",
+      "name": "Task Orchestration",
+      "description": "Three TaskCreate calls fire at startup: fetch-context, validate, draft-verdict."
+    }
+  ],
+  "evals": [
+    {
+      "id": "invalid-verdict-no-auto-resolve",
+      "name": "INVALID verdict replies but does not resolve thread",
+      "description": "Investigation shows the comment is factually wrong (field exists in base class). Skill must post an evidence-based reply and return INVALID. Thread must remain open.",
+      "input": "/Dev10x:gh-pr-triage https://github.com/org/repo/pull/42#discussion_r12345",
+      "assertions": [
+        {
+          "dimension": "no-auto-resolve",
+          "check": "tool_called",
+          "tool": "mcp__plugin_Dev10x_cli__pr_comment_reply",
+          "signal": "pr_comment_reply is called to post the evidence-based reply"
+        },
+        {
+          "dimension": "no-auto-resolve",
+          "check": "behavioral",
+          "signal": "resolveReviewThread is NOT called — thread left open for user to resolve"
+        },
+        {
+          "dimension": "verdict-output",
+          "check": "output_contains",
+          "value": "INVALID",
+          "signal": "Verdict INVALID is returned to the caller"
+        }
+      ]
+    },
+    {
+      "id": "valid-verdict-no-reply",
+      "name": "VALID verdict returns without reply or thread action",
+      "description": "Investigation confirms the comment is correct. Skill must return VALID with no reply posted and no thread action taken.",
+      "input": "/Dev10x:gh-pr-triage https://github.com/org/repo/pull/42#discussion_r22222",
+      "assertions": [
+        {
+          "dimension": "verdict-output",
+          "check": "output_contains",
+          "value": "VALID",
+          "signal": "Verdict VALID is returned to the caller"
+        },
+        {
+          "dimension": "no-auto-resolve",
+          "check": "behavioral",
+          "signal": "mcp__plugin_Dev10x_cli__pr_comment_reply is NOT called for a VALID verdict"
+        },
+        {
+          "dimension": "no-auto-resolve",
+          "check": "behavioral",
+          "signal": "resolveReviewThread is NOT called for a VALID verdict"
+        }
+      ]
+    },
+    {
+      "id": "yagni-verdict-scope-mismatch",
+      "name": "YAGNI verdict when commented code is out of scope for PR JTBD",
+      "description": "Comment is a correct bug report, but Step 4.5 determines the commented code is speculative scope-creep not part of the PR's stated JTBD. Must return YAGNI and post a reply naming the scope mismatch.",
+      "input": "/Dev10x:gh-pr-triage https://github.com/org/repo/pull/42#discussion_r33333",
+      "assertions": [
+        {
+          "dimension": "jtbd-scope-check",
+          "check": "output_contains",
+          "value": "YAGNI",
+          "signal": "YAGNI verdict returned when code is out of scope for the PR JTBD"
+        },
+        {
+          "dimension": "jtbd-scope-check",
+          "check": "output_contains",
+          "value": "scope",
+          "signal": "Reply mentions scope mismatch and the PR JTBD outcome"
+        },
+        {
+          "dimension": "no-auto-resolve",
+          "check": "behavioral",
+          "signal": "Thread is left open after YAGNI reply — caller bundles related verdicts into removal commit"
+        }
+      ]
+    },
+    {
+      "id": "no-inline-classification",
+      "name": "Verdicts never appear as inline text without Skill() call",
+      "description": "Parent caller (gh-pr-respond) processes 3 comments. All 3 verdicts must come from Skill(Dev10x:gh-pr-triage) tool calls, not from narrative text like 'Comment 2 is VALID'.",
+      "input": "/Dev10x:gh-pr-respond https://github.com/org/repo/pull/42",
+      "assertions": [
+        {
+          "dimension": "skill-only-entry",
+          "check": "tool_called",
+          "tool": "Skill",
+          "signal": "Skill(Dev10x:gh-pr-triage) is called for each comment — verdict not written inline"
+        },
+        {
+          "dimension": "skill-only-entry",
+          "check": "behavioral",
+          "signal": "No verdict keyword (VALID/INVALID/YAGNI/QUESTION/OUT_OF_SCOPE) appears in prose before a Skill() call in the same turn"
+        }
+      ]
+    },
+    {
+      "id": "startup-task-creation",
+      "name": "Three phase tasks created before any work",
+      "description": "Skill must create 3 TaskCreate entries at startup before fetching the comment.",
+      "input": "/Dev10x:gh-pr-triage https://github.com/org/repo/pull/42#discussion_r44444",
+      "assertions": [
+        {
+          "dimension": "orchestration",
+          "check": "tool_called",
+          "tool": "TaskCreate",
+          "signal": "TaskCreate is called 3 times at startup for each orchestration phase"
+        },
+        {
+          "dimension": "orchestration",
+          "check": "output_contains",
+          "value": "Fetch comment context",
+          "signal": "Fetch comment context task is created at startup"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "description": "Queries that should/should-not trigger the gh-pr-triage skill",
+    "should_trigger": [
+      {
+        "query": "/Dev10x:gh-pr-triage https://github.com/org/repo/pull/42#discussion_r456",
+        "rationale": "Direct invocation with comment URL — core standalone use case"
+      },
+      {
+        "query": "triage the review comment at https://github.com/org/repo/pull/42#discussion_r456 — is it valid?",
+        "rationale": "Explicit validation request for a single comment"
+      },
+      {
+        "query": "check if this review comment is correct before I implement the fix: https://github.com/org/repo/pull/42#discussion_r789",
+        "rationale": "Validation before implementing — matches skill purpose"
+      }
+    ],
+    "should_not_trigger": [
+      {
+        "query": "respond to all the review comments on my PR",
+        "rationale": "Full respond workflow — use Dev10x:gh-pr-respond"
+      },
+      {
+        "query": "implement the fix for this review comment",
+        "rationale": "Fix implementation — use Dev10x:gh-pr-fixup directly"
+      },
+      {
+        "query": "review this PR and post findings",
+        "rationale": "Creating a new review — use Dev10x:gh-pr-review"
+      },
+      {
+        "query": "resolve the review thread at https://github.com/org/repo/pull/42#discussion_r456",
+        "rationale": "Direct thread resolution — triage never resolves threads"
+      }
+    ]
+  }
+}

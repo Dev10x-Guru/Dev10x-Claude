@@ -1,0 +1,180 @@
+{
+  "skill_name": "Dev10x:gh-pr-review",
+  "eval_dimensions": [
+    {
+      "id": "draft-gate",
+      "name": "Draft vs Submit Gate",
+      "description": "Step 8a uses AskUserQuestion to present Draft/Comment/Request-Changes/Approve options. Never auto-submits without user confirmation. Default biases to Draft when draft-intent phrases are in the invocation, and when reviewer is the PR author."
+    },
+    {
+      "id": "courtesy-fixup-gate",
+      "name": "Courtesy-Fixup Scope Gate",
+      "description": "Step 6b uses AskUserQuestion when courtesy_fixes is non-empty (ALWAYS_ASK). Skipped entirely when the list is empty. Never auto-applies fixups."
+    },
+    {
+      "id": "no-auto-submit",
+      "name": "No Auto-Submit",
+      "description": "Review is never posted without user confirming the submission mode at Step 8a. Transport B (bot comment) bypasses 8a and posts directly — this is the documented exception."
+    },
+    {
+      "id": "skill-delegation",
+      "name": "Skill Delegation",
+      "description": "Courtesy fixes are applied via Skill(Dev10x:gh-pr-fixup), never via inline shell commands. Spec compliance check delegates to the spec-reviewer agent."
+    },
+    {
+      "id": "orchestration",
+      "name": "Task Orchestration",
+      "description": "Six TaskCreate calls fire at startup in dependency order before any review work begins."
+    }
+  ],
+  "evals": [
+    {
+      "id": "draft-gate-fires",
+      "name": "Draft vs submit gate uses AskUserQuestion",
+      "description": "Open PR with normal diff. Step 8a must use AskUserQuestion with 4 options: Draft, Comment, Request Changes, Approve. Plain-text question is forbidden.",
+      "input": "/Dev10x:gh-pr-review https://github.com/org/repo/pull/42",
+      "assertions": [
+        {
+          "dimension": "draft-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion is called at Step 8a draft-vs-submit decision point"
+        },
+        {
+          "dimension": "draft-gate",
+          "check": "output_contains",
+          "value": "Draft",
+          "signal": "Draft (PENDING) option is presented to the user"
+        },
+        {
+          "dimension": "draft-gate",
+          "check": "output_contains",
+          "value": "COMMENT",
+          "signal": "Submit as COMMENT option is presented to the user"
+        },
+        {
+          "dimension": "no-auto-submit",
+          "check": "behavioral",
+          "signal": "Review payload is NOT posted before AskUserQuestion gate fires"
+        }
+      ]
+    },
+    {
+      "id": "draft-intent-default",
+      "name": "Draft-intent phrase biases default to Draft",
+      "description": "Invocation contains 'leave as draft'. Step 8a default selection must be Draft (PENDING), not Submit as COMMENT.",
+      "input": "/Dev10x:gh-pr-review https://github.com/org/repo/pull/42 leave as draft",
+      "assertions": [
+        {
+          "dimension": "draft-gate",
+          "check": "output_contains",
+          "value": "Draft",
+          "signal": "Draft (PENDING) is the default option when draft-intent phrase detected"
+        },
+        {
+          "dimension": "draft-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion still fires — draft-intent is a default bias, not an auto-selection"
+        }
+      ]
+    },
+    {
+      "id": "courtesy-fixup-gate-fires",
+      "name": "Courtesy-fixup scope gate fires when fixes are classified",
+      "description": "Step 5b classifies one mechanical finding as courtesy-fixable. Step 6b must call AskUserQuestion before applying any fix.",
+      "input": "/Dev10x:gh-pr-review https://github.com/org/repo/pull/42",
+      "assertions": [
+        {
+          "dimension": "courtesy-fixup-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion is called at Step 6b courtesy-fixup scope gate"
+        },
+        {
+          "dimension": "courtesy-fixup-gate",
+          "check": "behavioral",
+          "signal": "Skill(Dev10x:gh-pr-fixup) is NOT called before AskUserQuestion gate fires"
+        },
+        {
+          "dimension": "skill-delegation",
+          "check": "tool_called",
+          "tool": "Skill",
+          "signal": "Skill(Dev10x:gh-pr-fixup) is called only after user approves at the gate"
+        }
+      ]
+    },
+    {
+      "id": "courtesy-fixup-gate-skipped",
+      "name": "Courtesy-fixup gate is skipped when list is empty",
+      "description": "All findings are author-fix candidates (none are mechanical unambiguous fixes). Step 6b must be skipped entirely — no AskUserQuestion for courtesy fixes.",
+      "input": "/Dev10x:gh-pr-review https://github.com/org/repo/pull/42",
+      "assertions": [
+        {
+          "dimension": "courtesy-fixup-gate",
+          "check": "behavioral",
+          "signal": "No AskUserQuestion for courtesy-fixup scope when courtesy_fixes list is empty"
+        }
+      ]
+    },
+    {
+      "id": "startup-task-creation",
+      "name": "Six phase tasks created before any review work",
+      "description": "Skill must create 6 TaskCreate entries at startup before fetching the diff.",
+      "input": "/Dev10x:gh-pr-review https://github.com/org/repo/pull/42",
+      "assertions": [
+        {
+          "dimension": "orchestration",
+          "check": "tool_called",
+          "tool": "TaskCreate",
+          "signal": "TaskCreate is called 6 times at startup for each orchestration phase"
+        },
+        {
+          "dimension": "orchestration",
+          "check": "output_contains",
+          "value": "Fetch PR diff",
+          "signal": "Fetch PR diff task created at startup"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "description": "Queries that should/should-not trigger the gh-pr-review skill",
+    "should_trigger": [
+      {
+        "query": "/Dev10x:gh-pr-review https://github.com/org/repo/pull/42",
+        "rationale": "Direct invocation with PR URL"
+      },
+      {
+        "query": "review PR #42 and post your findings",
+        "rationale": "Explicit intent to review and post to GitHub"
+      },
+      {
+        "query": "can you review this PR and leave inline comments? https://github.com/org/repo/pull/42",
+        "rationale": "Review request with GitHub posting intent"
+      },
+      {
+        "query": "/Dev10x:gh-pr-review 42 leave as draft",
+        "rationale": "Direct invocation with draft-intent phrase"
+      }
+    ],
+    "should_not_trigger": [
+      {
+        "query": "review my own branch changes before I create a PR",
+        "rationale": "Self-review before PR creation — use Dev10x:review instead"
+      },
+      {
+        "query": "respond to the review comments on my PR",
+        "rationale": "Responding to existing comments — use Dev10x:gh-pr-respond"
+      },
+      {
+        "query": "merge PR #42 into develop",
+        "rationale": "Merge operation — use Dev10x:gh-pr-merge"
+      },
+      {
+        "query": "triage the review comment at https://github.com/org/repo/pull/42#discussion_r123",
+        "rationale": "Single comment triage — use Dev10x:gh-pr-triage"
+      }
+    ]
+  }
+}
