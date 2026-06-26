@@ -107,6 +107,27 @@ Write this file using the Write tool only when the content
 actually needs to change. The PreCompact hook reads it to
 inject friction context into recovery summaries.
 
+**Gitignore session.yaml (GH-705).** `session.yaml` is session
+state, not source — it must never enter a feature PR, and when it
+is git-tracked its constant rewrites trip the clean-tree gates in
+`verify_pr_state`, `Dev10x:gh-pr-merge` Check 5, and `create_pr`
+(forcing a manual stash/pop on every git step). Before (or right
+after) the first write in a project, ensure it is ignored: if
+`git check-ignore .claude/Dev10x/session.yaml` reports nothing,
+append `.claude/Dev10x/session.yaml` to the project `.gitignore`.
+Skip when already ignored (this repo ignores `.claude/Dev10x/`
+wholesale).
+
+**Seeding when missing (GH-705).** When `session.yaml` is absent and
+you only need a default (no friction level chosen yet — e.g. resuming
+in a fresh worktree the `post-checkout` hook did not seed), delegate
+to `Skill(Dev10x:session-config-seed)` rather than hand-writing the
+file; it wraps the same idempotent `dev10x session seed` CLI the
+`post-checkout` hook uses, so the file shape stays consistent across
+both entry points. When the Phase 0 prompt has just collected an
+explicit friction level / active modes, write those directly (above)
+instead — the seed only ever creates a *default* file.
+
 **How skills consume the level:**
 - Gates marked `(Recommended)` auto-select at `adaptive`
 - Gates marked `ALWAYS_ASK` always fire regardless of level

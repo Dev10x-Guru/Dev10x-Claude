@@ -248,6 +248,7 @@ groups:
       - Bash(uvx dev10x permission merge-worktree:*)
       - Bash(uvx dev10x permission record-upgrade:*)
       - Bash(uvx dev10x permission update-paths:*)
+      - Bash(uvx dev10x session seed:*)
       - Bash(uvx dev10x playbook diff:*)
       - Bash(uvx dev10x skill count-instructions:*)
       - Bash(uvx dev10x skill notify:*)

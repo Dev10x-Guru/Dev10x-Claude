@@ -86,6 +86,21 @@ if [ "$1" = "0000000000000000000000000000000000000000" ]; then
         echo '{}' > .claude/settings.local.json
     fi
 
+    # >>> Dev10x session-seed (GH-705) >>>
+    # session.yaml is gitignored, so `git worktree add` never brings it
+    # across. The .claude/ copy above carries it when the source worktree
+    # has one; seed a default when it does not, so work-on / verify-acc-dod
+    # have a config from the first session in this worktree. Best-effort —
+    # a missing dev10x CLI is non-fatal (work-on Phase 0 seeds later).
+    if [ ! -f .claude/Dev10x/session.yaml ]; then
+        if command -v dev10x >/dev/null 2>&1; then
+            dev10x session seed || true
+        elif command -v uvx >/dev/null 2>&1; then
+            uvx dev10x session seed || true
+        fi
+    fi
+    # <<< Dev10x session-seed (GH-705) <<<
+
     rm -f "$DIRTY_LIST"
 
     # ── Post-copy setup ─────────────────────────────────────────────

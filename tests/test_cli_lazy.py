@@ -23,6 +23,7 @@ EXPECTED_SUBCOMMANDS = {
     "permission",
     "platform",
     "playbook",
+    "session",
     "validate",
     "skill",
 }
