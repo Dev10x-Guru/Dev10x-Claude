@@ -134,6 +134,125 @@ class TestCreateWorktree:
 
         mock_use_cwd.assert_called_once_with(str(tmp_path))
 
+    @pytest.mark.asyncio
+    @patch("dev10x.git.create_worktree", new_callable=AsyncMock)
+    @patch("dev10x.skills.permission.update_paths.find_config")
+    @patch("dev10x.skills.permission.update_paths.load_config")
+    @patch("dev10x.skills.permission.update_paths.seed_worktree")
+    async def test_seed_success_adds_seeded_permissions(
+        self,
+        mock_seed: AsyncMock,
+        mock_load: AsyncMock,
+        mock_find: AsyncMock,
+        mock_create: AsyncMock,
+    ) -> None:
+        from dev10x.domain.common.result import ok as domain_ok
+
+        mock_create.return_value = ok(
+            {"worktree_path": "/tmp/wt", "branch": "feat", "created": True}
+        )
+        mock_find.return_value = domain_ok("/fake/config.yaml")
+        mock_load.return_value = {"base_permissions": ["Bash(git)"]}
+        mock_seed.return_value = domain_ok(
+            {"added": 3, "path": "/tmp/wt/.claude/settings.local.json"}
+        )
+
+        result = await cli_server.create_worktree(branch="feat")
+
+        assert result.get("seeded_permissions") == 3
+
+    @pytest.mark.asyncio
+    @patch("dev10x.git.create_worktree", new_callable=AsyncMock)
+    @patch("dev10x.skills.permission.update_paths.find_config")
+    async def test_seed_skipped_when_find_config_fails(
+        self,
+        mock_find: AsyncMock,
+        mock_create: AsyncMock,
+    ) -> None:
+        from dev10x.domain.common.result import err as domain_err
+
+        mock_create.return_value = ok(
+            {"worktree_path": "/tmp/wt", "branch": "feat", "created": True}
+        )
+        mock_find.return_value = domain_err("config not found")
+
+        result = await cli_server.create_worktree(branch="feat")
+
+        # No seed keys when config lookup fails — creation still succeeds.
+        assert "error" not in result
+        assert "seeded_permissions" not in result
+        assert "seed_error" not in result
+
+    @pytest.mark.asyncio
+    @patch("dev10x.git.create_worktree", new_callable=AsyncMock)
+    @patch("dev10x.skills.permission.update_paths.find_config")
+    @patch("dev10x.skills.permission.update_paths.load_config")
+    @patch("dev10x.skills.permission.update_paths.seed_worktree")
+    async def test_seed_failure_records_seed_error_not_error(
+        self,
+        mock_seed: AsyncMock,
+        mock_load: AsyncMock,
+        mock_find: AsyncMock,
+        mock_create: AsyncMock,
+    ) -> None:
+        from dev10x.domain.common.result import err as domain_err
+        from dev10x.domain.common.result import ok as domain_ok
+
+        mock_create.return_value = ok(
+            {"worktree_path": "/tmp/wt", "branch": "feat", "created": True}
+        )
+        mock_find.return_value = domain_ok("/fake/config.yaml")
+        mock_load.return_value = {}
+        mock_seed.return_value = domain_err("permission denied writing settings")
+
+        result = await cli_server.create_worktree(branch="feat")
+
+        # Seed failure must not shadow the successful worktree creation.
+        assert "error" not in result
+        assert result.get("seed_error") == "permission denied writing settings"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.git.create_worktree", new_callable=AsyncMock)
+    @patch("dev10x.skills.permission.update_paths.find_config")
+    async def test_oserror_during_seed_records_seed_error(
+        self,
+        mock_find: AsyncMock,
+        mock_create: AsyncMock,
+    ) -> None:
+
+        mock_create.return_value = ok(
+            {"worktree_path": "/tmp/wt", "branch": "feat", "created": True}
+        )
+        mock_find.side_effect = OSError("disk full")
+
+        result = await cli_server.create_worktree(branch="feat")
+
+        assert "error" not in result
+        assert "disk full" in result.get("seed_error", "")
+
+    @pytest.mark.asyncio
+    @patch("dev10x.git.create_worktree", new_callable=AsyncMock)
+    async def test_seed_skipped_when_result_has_error(self, mock_create: AsyncMock) -> None:
+        mock_create.return_value = err("branch already checked out")
+
+        result = await cli_server.create_worktree(branch="feature")
+
+        # An error result must not trigger seeding and must not gain a seed_error key.
+        assert "error" in result
+        assert "seeded_permissions" not in result
+        assert "seed_error" not in result
+
+    @pytest.mark.asyncio
+    @patch("dev10x.git.create_worktree", new_callable=AsyncMock)
+    async def test_seed_skipped_when_worktree_path_absent(self, mock_create: AsyncMock) -> None:
+        # git module may return a payload without worktree_path on certain code-paths.
+        mock_create.return_value = ok({"branch": "feat", "created": True})
+
+        result = await cli_server.create_worktree(branch="feat")
+
+        assert "seeded_permissions" not in result
+        assert "seed_error" not in result
+
 
 class TestMassRewrite:
     @pytest.mark.asyncio

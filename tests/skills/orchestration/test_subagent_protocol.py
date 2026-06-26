@@ -108,3 +108,37 @@ class TestStatusPromptTemplate:
     )
     def test_template_documents_every_status(self, marker: str):
         assert marker in STATUS_PROMPT_TEMPLATE
+
+
+class TestParseSubagentStatusEdgeCases:
+    def test_needs_context_does_not_require_fallback(self):
+        parsed = parse_subagent_status(result="NEEDS_CONTEXT: need ticket body")
+        assert requires_main_session_fallback(status=parsed.status) is False
+
+    def test_done_with_concerns_does_not_require_fallback(self):
+        parsed = parse_subagent_status(result="DONE_WITH_CONCERNS: minor style issues")
+        assert requires_main_session_fallback(status=parsed.status) is False
+
+    def test_colon_and_spaces_in_payload_are_preserved(self):
+        parsed = parse_subagent_status(result="BLOCKED: gh auth: token expired")
+        assert parsed.payload == "gh auth: token expired"
+
+    def test_done_not_confused_with_done_with_concerns_prefix(self):
+        # "DONE_WITH_CONCERNS" starts with "DONE" but must not parse as DONE.
+        parsed = parse_subagent_status(result="DONE_WITH_CONCERNS: something")
+        assert parsed.status == SubagentStatus.DONE_WITH_CONCERNS
+
+    def test_status_line_buried_mid_output_is_ignored(self):
+        # Only the LAST non-empty line counts as the status line.
+        result = "BLOCKED: early signal\nsome follow-up prose\nDONE"
+        parsed = parse_subagent_status(result=result)
+        assert parsed.status == SubagentStatus.DONE
+
+    def test_raw_line_is_preserved_for_debugging(self):
+        parsed = parse_subagent_status(result="NEEDS_CONTEXT: re-check issue body")
+        assert parsed.raw_line == "NEEDS_CONTEXT: re-check issue body"
+
+    def test_malformed_carries_raw_line_for_debugging(self):
+        parsed = parse_subagent_status(result="This is not a valid status")
+        assert parsed.raw_line == "This is not a valid status"
+        assert parsed.payload == ""
