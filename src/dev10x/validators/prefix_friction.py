@@ -79,6 +79,12 @@ CD_GIT_CHAIN_RE = re.compile(r'^cd\s+("(?:[^"]+)"|\'(?:[^\']+)\'|\S+)\s*&&\s*git
 # auto-approval, so `uv run --with <pkg> <tool>` falls through to the
 # normal `uv run` fence-tool ask rather than being silently approved
 # (GH-485 `--with` caveat; aligns with the fence-tool ask policy).
+# `uv run [--extra dev] pre-commit …` / `uvx pre-commit …` — pre-commit is on
+# PATH, so the `uv run` wrapper (and any `--extra` env flag) only shifts the
+# matched prefix away from `Bash(pre-commit:*)` and forces an approval prompt.
+# Route to the bare `pre-commit` invocation (GH-717 follow-up).
+_UV_PRECOMMIT_RE = re.compile(r"^\s*(?:uvx|uv\s+run\b)[^|&;]*?\s+pre-commit\b(?P<rest>[^|&;]*)")
+
 _UV_RUN_RE = re.compile(r"^\s*uv\s+run\b(?P<rest>.*)$", re.DOTALL)
 _UV_ENV_VALUE_FLAGS = frozenset({"--directory", "--project", "--python", "--extra"})
 _UV_ENV_BOOL_FLAGS = frozenset({"--frozen", "--no-project", "--locked", "--no-sync"})
@@ -352,6 +358,19 @@ UV_RUN_NORMALIZE_MSG = (
     "existing Bash allow-rule (Dev10x DX007)."
 )
 
+UV_PRECOMMIT_MSG = (
+    "⚠️  `uv run … pre-commit` blocked — run pre-commit directly.\n\n"
+    "pre-commit is installed on PATH, so the `uv run` wrapper (and any\n"
+    "`--extra dev`) only shifts the matched command string — "
+    "`Bash(pre-commit:*)`\n"
+    "never fires and you get an approval prompt every time.\n\n"
+    "Run it directly:\n"
+    "    {bare_command}\n\n"
+    "If pre-commit is missing, install it once:\n"
+    "    pipx install pre-commit       (preferred — isolated)\n"
+    "    pip install --user pre-commit"
+)
+
 
 def _load_all_allow_patterns() -> list[str]:
     patterns: list[str] = []
@@ -426,6 +445,7 @@ class PrefixFrictionValidator(ValidatorBase):
         adding an entry here — no separate name-string to keep in sync.
         """
         return [
+            self._check_uv_run_precommit,
             self._check_uv_run_inner_allow,
             self._check_cd_revparse_chain,
             self._check_git_c_noop,
@@ -459,6 +479,8 @@ class PrefixFrictionValidator(ValidatorBase):
             # GH-485: `uv run [env-flags] <inner>` prefix normalization —
             # the strip helper is the single source of truth for the flag set.
             or _strip_uv_run_env_flags(cmd) is not None
+            # GH-717 follow-up: `uv run … pre-commit` / `uvx pre-commit`
+            or ("pre-commit" in cmd and ("uv run" in cmd or "uvx" in cmd))
         )
 
     def validate(self, inp: HookInput) -> HookResult | HookAllow | None:
@@ -467,6 +489,14 @@ class PrefixFrictionValidator(ValidatorBase):
             if result is not None:
                 return result
         return None
+
+    def _check_uv_run_precommit(self, *, inp: HookInput) -> HookResult | None:
+        match = _UV_PRECOMMIT_RE.match(inp.command)
+        if not match:
+            return None
+        rest = match.group("rest")
+        bare = f"pre-commit{rest}".rstrip()
+        return HookResult(message=UV_PRECOMMIT_MSG.format(bare_command=bare))
 
     def _check_uv_run_inner_allow(self, *, inp: HookInput) -> HookAllow | None:
         inner = _strip_uv_run_env_flags(inp.command)

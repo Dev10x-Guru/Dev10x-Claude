@@ -194,6 +194,47 @@ class TestGitCConfig:
         assert validator._check_git_c_config(inp=inp) is None
 
 
+class TestUvRunPrecommit:
+    """Block `uv run … pre-commit`; route to the direct invocation (GH-717)."""
+
+    @pytest.fixture()
+    def validator(self) -> PrefixFrictionValidator:
+        return PrefixFrictionValidator()
+
+    def test_should_run_for_uv_run_precommit(self, validator: PrefixFrictionValidator) -> None:
+        inp = _make_input(command="uv run --extra dev pre-commit run --files a.py")
+        assert validator.should_run(inp=inp) is True
+
+    def test_blocks_uv_run_extra_dev_precommit(self, validator: PrefixFrictionValidator) -> None:
+        inp = _make_input(command="uv run --extra dev pre-commit run --files a.py b.py")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "pre-commit directly" in result.message
+        assert "pre-commit run --files a.py b.py" in result.message
+        assert "pipx install pre-commit" in result.message
+
+    def test_blocks_plain_uv_run_precommit(self, validator: PrefixFrictionValidator) -> None:
+        inp = _make_input(command="uv run pre-commit run --all-files")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "pre-commit run --all-files" in result.message
+
+    def test_blocks_uvx_precommit(self, validator: PrefixFrictionValidator) -> None:
+        inp = _make_input(command="uvx pre-commit run")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "pre-commit run" in result.message
+
+    def test_allows_bare_precommit(self, validator: PrefixFrictionValidator) -> None:
+        inp = _make_input(command="pre-commit run --files a.py")
+        assert validator.should_run(inp=inp) is False
+        assert validator.validate(inp=inp) is None
+
+    def test_non_precommit_uv_run_not_matched(self, validator: PrefixFrictionValidator) -> None:
+        inp = _make_input(command="uv run pytest -q")
+        assert validator._check_uv_run_precommit(inp=inp) is None
+
+
 class TestCdNoopChain:
     @pytest.fixture()
     def validator(self) -> PrefixFrictionValidator:
