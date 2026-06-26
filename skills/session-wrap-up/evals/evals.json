@@ -1,0 +1,272 @@
+{
+  "skill_name": "Dev10x:session-wrap-up",
+  "eval_dimensions": [
+    {
+      "id": "task-tracking",
+      "name": "Task Tracking",
+      "description": "Creates exactly 3 tasks at startup (Discover, Route, Summary) with sequential dependencies; marks each completed as phases finish"
+    },
+    {
+      "id": "open-loop-discovery",
+      "name": "Open Loop Discovery",
+      "description": "Phase 1 auto-scan collects in-session tasks, git status, TODOs, open PRs, project TODO file, and MEMORY.md in-progress section"
+    },
+    {
+      "id": "decision-gates",
+      "name": "Decision Gates",
+      "description": "Phase 2 gap-fill and Phase 3 per-item triage use AskUserQuestion (not plain text) for every blocking choice"
+    },
+    {
+      "id": "item-routing",
+      "name": "Item Routing",
+      "description": "Offers Finish-now / Defer / Drop for each open loop; delegates Defer items to Dev10x:park via Skill() call"
+    },
+    {
+      "id": "state-persistence",
+      "name": "Session State Persistence",
+      "description": "Phase 3b writes pending tasks, continuation prompt, and insights to .claude/Dev10x/session.yaml without overwriting friction_level or active_modes"
+    },
+    {
+      "id": "task-list-invariant",
+      "name": "Task List Invariant",
+      "description": "Skill never empties the task list — leaves at least one open task (Verify AC) when all other items are resolved"
+    }
+  ],
+  "evals": [
+    {
+      "id": "task-creation-at-startup",
+      "name": "Creates 3 tasks at startup with sequential dependencies",
+      "description": "Verifies REQUIRED task creation contract: Discover, Route, Summary with blocked-by chain.",
+      "input": "/Dev10x:session-wrap-up",
+      "assertions": [
+        {
+          "dimension": "task-tracking",
+          "check": "tool_called_count",
+          "value": "TaskCreate>=3",
+          "signal": "At least 3 TaskCreate calls at startup: Discover open items, Route deferred items, Post session summary"
+        },
+        {
+          "dimension": "task-tracking",
+          "check": "tool_called",
+          "tool": "TaskUpdate",
+          "signal": "TaskUpdate called with addBlockedBy to set sequential dependencies"
+        },
+        {
+          "dimension": "task-tracking",
+          "check": "behavioral",
+          "signal": "Sequential dependencies set: Route blocked by Discover, Summary blocked by Route"
+        }
+      ]
+    },
+    {
+      "id": "phase1-auto-scan",
+      "name": "Phase 1 auto-scan collects all loop sources",
+      "description": "Verifies all 6 scan sources are checked: TaskList, git status, git diff TODOs, pr_detect, TODO.md, MEMORY.md.",
+      "input": "/Dev10x:session-wrap-up",
+      "assertions": [
+        {
+          "dimension": "open-loop-discovery",
+          "check": "tool_called",
+          "tool": "TaskList",
+          "signal": "TaskList called during Phase 1 to collect in-session tasks"
+        },
+        {
+          "dimension": "open-loop-discovery",
+          "check": "tool_called",
+          "tool": "Bash",
+          "signal": "git status --short called to find uncommitted files"
+        },
+        {
+          "dimension": "open-loop-discovery",
+          "check": "tool_called",
+          "tool": "mcp__plugin_Dev10x_cli__pr_detect",
+          "signal": "pr_detect called with no arg to find open PR for current branch"
+        },
+        {
+          "dimension": "open-loop-discovery",
+          "check": "output_contains_structure",
+          "value": "Session Wrap-up",
+          "signal": "Phase 2 output includes '## Session Wrap-up — Open Loops Found' summary block"
+        }
+      ]
+    },
+    {
+      "id": "gap-fill-gate",
+      "name": "Phase 2 gap-fill uses AskUserQuestion",
+      "description": "After presenting open loops, the skill must use AskUserQuestion for the free-text gap-fill — plain text is prohibited.",
+      "input": "/Dev10x:session-wrap-up",
+      "assertions": [
+        {
+          "dimension": "decision-gates",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion called at Phase 2 'Is there anything else?' gap-fill point"
+        },
+        {
+          "dimension": "decision-gates",
+          "check": "behavioral",
+          "signal": "No inline 'Is there anything else to capture?' plain text before the AskUserQuestion call"
+        }
+      ]
+    },
+    {
+      "id": "per-item-triage-gate",
+      "name": "Phase 3 per-item triage uses AskUserQuestion for each item",
+      "description": "For each open loop, the skill must present Finish-now / Defer / Drop via AskUserQuestion — not plain text.",
+      "input": "/Dev10x:session-wrap-up",
+      "setup": {
+        "open_tasks": 2,
+        "note": "Session has 2 non-completed tasks"
+      },
+      "assertions": [
+        {
+          "dimension": "decision-gates",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion called with options Finish now / Defer / Drop for each item"
+        },
+        {
+          "dimension": "item-routing",
+          "check": "output_contains",
+          "value": "Finish now",
+          "signal": "Options include 'Finish now'"
+        },
+        {
+          "dimension": "item-routing",
+          "check": "output_contains",
+          "value": "Defer",
+          "signal": "Options include 'Defer'"
+        },
+        {
+          "dimension": "item-routing",
+          "check": "output_contains",
+          "value": "Drop",
+          "signal": "Options include 'Drop'"
+        }
+      ]
+    },
+    {
+      "id": "defer-delegates-to-park",
+      "name": "Defer selection delegates to Dev10x:park via Skill()",
+      "description": "When user picks Defer, skill must call Skill(Dev10x:park) — not inline text or raw file writes.",
+      "input": "/Dev10x:session-wrap-up",
+      "setup": {
+        "user_choice": "Defer",
+        "note": "User selects Defer for the first open item"
+      },
+      "assertions": [
+        {
+          "dimension": "item-routing",
+          "check": "tool_called",
+          "tool": "Skill",
+          "signal": "Skill(Dev10x:park) called after user picks Defer — not raw Write to TODO.md"
+        },
+        {
+          "dimension": "item-routing",
+          "check": "behavioral",
+          "signal": "Skill parameter passed to the Skill() call is Dev10x:park"
+        },
+        {
+          "dimension": "item-routing",
+          "check": "behavioral",
+          "value": "no-inline-defer",
+          "signal": "Skill does not write directly to .claude/TODO.md without going through Dev10x:park"
+        }
+      ]
+    },
+    {
+      "id": "state-persistence",
+      "name": "Phase 3b writes session.yaml without overwriting config",
+      "description": "After triage, skill persists tasks+continuation_prompt+insights to session.yaml and preserves existing friction_level.",
+      "input": "/Dev10x:session-wrap-up",
+      "setup": {
+        "existing_session_yaml": "friction_level: adaptive\nactive_modes: []\n",
+        "note": "session.yaml already contains friction_level setting"
+      },
+      "assertions": [
+        {
+          "dimension": "state-persistence",
+          "check": "tool_called",
+          "tool": "Write",
+          "signal": "Write tool called targeting .claude/Dev10x/session.yaml"
+        },
+        {
+          "dimension": "state-persistence",
+          "check": "behavioral",
+          "signal": "Write tool file_path parameter targets .claude/Dev10x/session.yaml"
+        },
+        {
+          "dimension": "state-persistence",
+          "check": "output_contains",
+          "value": "continuation_prompt",
+          "signal": "Written content includes continuation_prompt field"
+        },
+        {
+          "dimension": "state-persistence",
+          "check": "behavioral",
+          "value": "preserves-friction-level",
+          "signal": "friction_level from existing session.yaml is preserved — not overwritten with default"
+        }
+      ]
+    },
+    {
+      "id": "task-list-invariant",
+      "name": "Skill never leaves task list empty",
+      "description": "When all items are resolved (drop/defer), a Verify AC task must be seeded before the skill completes.",
+      "input": "/Dev10x:session-wrap-up",
+      "setup": {
+        "all_items_resolved": true,
+        "note": "User drops or defers every item — no Finish-now selections"
+      },
+      "assertions": [
+        {
+          "dimension": "task-list-invariant",
+          "check": "task_exists",
+          "value": "Verify AC",
+          "signal": "TaskCreate called with subject containing 'Verify AC' before skill returns control"
+        },
+        {
+          "dimension": "task-list-invariant",
+          "check": "behavioral",
+          "value": "verify-ac-not-completed",
+          "signal": "The Verify AC task is left pending — skill does NOT mark it completed autonomously"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "description": "Queries that should/should-not trigger Dev10x:session-wrap-up",
+    "should_trigger": [
+      {
+        "query": "let's wrap up for today and save my progress",
+        "rationale": "Explicit session-end signal — primary use case"
+      },
+      {
+        "query": "I'm done for today, let's capture any open loops",
+        "rationale": "User signals end of session with open-loop awareness"
+      },
+      {
+        "query": "pause — I need to close this session but there's still CI running",
+        "rationale": "Unconfirmed CI is a hard trigger for session-wrap-up"
+      },
+      {
+        "query": "that's it for now, let me park whatever is outstanding",
+        "rationale": "'park' + session-end context maps to session-wrap-up orchestration"
+      }
+    ],
+    "should_not_trigger": [
+      {
+        "query": "let's start on https://github.com/example-org/app-pos/issues/247",
+        "rationale": "Starting new work — use Dev10x:work-on"
+      },
+      {
+        "query": "add a TODO: fix the retry logic here",
+        "rationale": "Adding a single TODO mid-session — inline note, not a full wrap-up"
+      },
+      {
+        "query": "park this idea about caching for later",
+        "rationale": "Single-item deferral — use Dev10x:park directly"
+      }
+    ]
+  }
+}

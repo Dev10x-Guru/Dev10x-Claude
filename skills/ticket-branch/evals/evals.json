@@ -1,0 +1,230 @@
+{
+  "skill_name": "Dev10x:ticket-branch",
+  "eval_dimensions": [
+    {
+      "id": "branch-naming",
+      "name": "Branch Naming Convention",
+      "description": "Produces branch name matching username/TICKET-ID/[worktree-name/]slug pattern from SKILL.md §Step 5"
+    },
+    {
+      "id": "worktree-detection",
+      "name": "Worktree Detection",
+      "description": "Detects whether CWD is a worktree (primary: .worktrees/ path; fallback: .git is a file) and includes worktree-name segment when true"
+    },
+    {
+      "id": "dirty-worktree-gate",
+      "name": "Uncommitted Changes Gate",
+      "description": "Warns user and gates on uncommitted changes before creating a branch"
+    },
+    {
+      "id": "develop-sync",
+      "name": "Develop Sync",
+      "description": "Fetches and pulls latest develop before creating the branch; branches from origin/develop in worktree context where develop is checked out elsewhere"
+    },
+    {
+      "id": "branch-collision",
+      "name": "Branch Collision Handling",
+      "description": "Detects when the target branch already exists and offers checkout rather than failing silently"
+    },
+    {
+      "id": "task-tracking",
+      "name": "Task Tracking",
+      "description": "Creates a task at invocation and marks it completed when the branch is confirmed"
+    }
+  ],
+  "evals": [
+    {
+      "id": "basic-regular-repo",
+      "name": "Create branch in regular repo (no worktree)",
+      "description": "Clean working directory, main repo. Tests full 7-step happy path producing username/TICKET-ID/slug.",
+      "input": "/Dev10x:ticket-branch PAY-133 \"Fix MotorTimeoutException in payment processing\"",
+      "assertions": [
+        {
+          "dimension": "task-tracking",
+          "check": "tool_called",
+          "tool": "TaskCreate",
+          "signal": "TaskCreate called at invocation with subject containing 'branch'"
+        },
+        {
+          "dimension": "develop-sync",
+          "check": "tool_called",
+          "tool": "Bash",
+          "signal": "git fetch origin develop called before branch creation"
+        },
+        {
+          "dimension": "worktree-detection",
+          "check": "behavioral",
+          "value": "no-worktree-segment",
+          "signal": "Branch name does NOT contain a worktree segment — .git is a directory (main repo)"
+        },
+        {
+          "dimension": "branch-naming",
+          "check": "output_contains",
+          "value": "PAY-133",
+          "signal": "Final branch name contains ticket ID PAY-133"
+        },
+        {
+          "dimension": "branch-naming",
+          "check": "output_contains",
+          "value": "fix-motor-timeout",
+          "signal": "Slug extracted from title: 'fix-motor-timeout' (removes stopwords, lowercases, hyphenates)"
+        },
+        {
+          "dimension": "task-tracking",
+          "check": "tool_called",
+          "tool": "TaskUpdate",
+          "signal": "TaskUpdate called with status=completed after branch confirmed"
+        }
+      ]
+    },
+    {
+      "id": "worktree-branch-naming",
+      "name": "Create branch inside a worktree",
+      "description": "CWD is /work/example/.worktrees/app-pos-7. Tests that worktree-name segment is inserted between TICKET-ID and slug.",
+      "input": "/Dev10x:ticket-branch PAY-133 \"Fix MotorTimeoutException in payment processing\"",
+      "setup": {
+        "cwd": "/work/example/.worktrees/app-pos-7",
+        "note": "CWD contains .worktrees/ — primary CWD-based detection should fire"
+      },
+      "assertions": [
+        {
+          "dimension": "worktree-detection",
+          "check": "transcript_contains",
+          "value": "worktree",
+          "signal": "Skill identifies CWD as a worktree via .worktrees/ path segment"
+        },
+        {
+          "dimension": "worktree-detection",
+          "check": "transcript_contains",
+          "value": "app-pos-7",
+          "signal": "Worktree name 'app-pos-7' extracted from CWD path"
+        },
+        {
+          "dimension": "branch-naming",
+          "check": "output_contains",
+          "value": "app-pos-7",
+          "signal": "Branch name contains worktree segment: username/PAY-133/app-pos-7/fix-motor-timeout"
+        },
+        {
+          "dimension": "develop-sync",
+          "check": "behavioral",
+          "value": "branches-from-origin-develop",
+          "signal": "Uses 'git checkout -b <branch> origin/develop' since develop is checked out in main worktree"
+        }
+      ]
+    },
+    {
+      "id": "dirty-working-tree",
+      "name": "Gate on uncommitted changes",
+      "description": "Working directory has uncommitted files. Skill must warn and use AskUserQuestion before proceeding.",
+      "input": "/Dev10x:ticket-branch ENG-42 \"Add retry mechanism for Square API\"",
+      "setup": {
+        "git_status": "M src/payments/service.py",
+        "note": "git status --porcelain returns non-empty output"
+      },
+      "assertions": [
+        {
+          "dimension": "dirty-worktree-gate",
+          "check": "output_contains",
+          "value": "uncommitted",
+          "signal": "Skill warns user with a message containing 'uncommitted' (Step 1: plain-text warning per SKILL.md)"
+        },
+        {
+          "dimension": "dirty-worktree-gate",
+          "check": "behavioral",
+          "signal": "Skill asks whether to continue before proceeding — plain-text question surfaced to user"
+        },
+        {
+          "dimension": "dirty-worktree-gate",
+          "check": "behavioral",
+          "signal": "git checkout -b is NOT called before the user explicitly confirms they want to continue"
+        }
+      ]
+    },
+    {
+      "id": "branch-already-exists",
+      "name": "Branch collision — offer checkout instead of failing",
+      "description": "Target branch already exists. Skill detects and offers to check it out.",
+      "input": "/Dev10x:ticket-branch PAY-100 \"Update customer search\"",
+      "setup": {
+        "existing_branch": "janusz/PAY-100/app-pos-7/update-customer-search",
+        "cwd_is_worktree": true
+      },
+      "assertions": [
+        {
+          "dimension": "branch-collision",
+          "check": "output_contains",
+          "value": "already exists",
+          "signal": "Skill informs user that the target branch already exists (Step 6 plain-text notification per SKILL.md)"
+        },
+        {
+          "dimension": "branch-collision",
+          "check": "behavioral",
+          "signal": "Skill offers to check out the existing branch rather than failing silently — plain-text question to user"
+        },
+        {
+          "dimension": "branch-collision",
+          "check": "behavioral",
+          "signal": "git checkout -b (new branch creation) is NOT called when the branch already exists"
+        }
+      ]
+    },
+    {
+      "id": "slug-generation",
+      "name": "Slug generation removes stopwords and truncates",
+      "description": "Verifies slug rules: lowercase, hyphens, strip stopwords (a/the/in/for/with/of/to/and), max 3-4 words.",
+      "input": "/Dev10x:ticket-branch ENG-99 \"Refactor the invoice generation service for performance\"",
+      "assertions": [
+        {
+          "dimension": "branch-naming",
+          "check": "output_contains",
+          "value": "refactor-invoice-generation",
+          "signal": "Stopwords 'the' and 'for' removed; slug is 'refactor-invoice-generation' (3 words)"
+        },
+        {
+          "dimension": "branch-naming",
+          "check": "behavioral",
+          "value": "slug-max-4-words",
+          "signal": "Slug has at most 4 hyphen-separated segments"
+        },
+        {
+          "dimension": "branch-naming",
+          "check": "behavioral",
+          "value": "slug-lowercase-only",
+          "signal": "Slug contains only lowercase letters and hyphens — no uppercase or special characters"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "description": "Queries that should/should-not trigger Dev10x:ticket-branch",
+    "should_trigger": [
+      {
+        "query": "Create a branch for PAY-133: Fix MotorTimeoutException in payment processing",
+        "rationale": "Explicit ticket ID + title — primary use case"
+      },
+      {
+        "query": "/Dev10x:ticket-branch DEV-42 'Add retry mechanism'",
+        "rationale": "Direct invocation with ticket ID and title"
+      },
+      {
+        "query": "I need a feature branch for ENG-99 — the invoice refactor ticket",
+        "rationale": "Natural-language request with ticket ID and implicit title"
+      }
+    ],
+    "should_not_trigger": [
+      {
+        "query": "Create a new worktree for DEV-55",
+        "rationale": "Worktree creation belongs to Dev10x:git-worktree, which creates the branch internally"
+      },
+      {
+        "query": "commit these changes to the current branch",
+        "rationale": "Committing — no branch creation needed"
+      },
+      {
+        "query": "switch to branch janusz/PAY-100/fix-something",
+        "rationale": "Checking out an already-existing branch — no creation needed"
+      }
+    ]
+  }
+}
