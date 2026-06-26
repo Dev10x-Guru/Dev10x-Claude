@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
-# Sets up git aliases that wrap $(git merge-base ...) subshells.
-# These aliases keep Bash command prefixes stable for Claude Code
-# permission matching, eliminating unnecessary approval prompts.
+# Sets up git aliases that keep Bash command prefixes stable for Claude
+# Code permission matching, eliminating unnecessary approval prompts:
+#   - branch-comparison aliases that wrap $(git merge-base ...) subshells
+#   - `nopager` / `nocolor`, the sanctioned non-paging / non-color reads
+#     (replace the `git -c core.pager=cat` / `git -c color.ui=never` prefix-shift
+#     shapes blocked by DX007 / GH-488 S19)
 
 set -euo pipefail
 
 ALIASES=(
+    "nopager:git --no-pager"
+    "nocolor:git -c color.ui=never"
     "develop-log:git log --oneline \$(git merge-base develop HEAD)..HEAD"
     "develop-diff:git diff \$(git merge-base develop HEAD)..HEAD"
     "develop-rebase:git rebase -i --autosquash \$(git merge-base develop HEAD)"

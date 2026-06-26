@@ -7,6 +7,7 @@ allow-rule matching:
   1. && chaining with setup commands (mkdir, cd, export, etc.)
   2. ENV=value git ... prefix
   3. $(git merge-base ...) subshells
+  4. git -c <key>=<value> config-override prefix (GH-488 S19 / #35/#38/#40)
 """
 
 from __future__ import annotations
@@ -46,6 +47,14 @@ SETTINGS_FILES = [
 ]
 
 GIT_C_RE = re.compile(r'\bgit\s+-C\s+("(?:[^"]+)"|\'(?:[^\']+)\'|\S+)')
+# Lowercase `-c <key>=<value>` config override *before* the subcommand —
+# distinct from `git -C <dir>` above. This is the GH-488 prefix-shift family
+# (evidence #35/#38/#40): `git -c core.pager=cat <verb>` was a pervasive agent
+# habit (4 hits in one session), and `git -c core.hooksPath=/dev/null` is the
+# dangerous arm (disables hooks). The `-c <kv>` prefix shifts the matched
+# command string so `Bash(git <verb>:*)` never fires and only the over-broad
+# `git *` is offered as "don't ask again".
+GIT_C_CONFIG_RE = re.compile(r"\bgit\s+-c\s+(?P<key>[\w.]+)=(?P<value>\S+)")
 ENV_PREFIX_GIT_RE = re.compile(r"^[A-Z_]+=\S*\s+git\b")
 MERGE_BASE_RE = re.compile(r"\$\(git\s+merge-base\s+(\w+)\s+HEAD\)")
 GIT_SUBCOMMAND_RE = re.compile(r"\bgit\s+(log|diff|rebase)\b")
@@ -186,6 +195,60 @@ GIT_C_NOOP_MSG = (
     "\u26a0\ufe0f  `git -C {path}` is redundant — CWD is already `{cwd}`.\n\n"
     "Drop the `-C` flag and run the command directly:\n"
     "    {bare_command}"
+)
+
+GIT_C_PAGER_MSG = (
+    "⚠️  `git -c core.pager=cat` blocked — redundant and breaks "
+    "allow-rule matching.\n\n"
+    "git does not page when stdout is not a TTY, which is always the case for\n"
+    "tool calls — so `-c core.pager=cat` is pure noise. Worse, a `-c <kv>`\n"
+    "override *before* the subcommand shifts the matched command string, so\n"
+    '`Bash(git <verb>:*)` never fires and the only "don\'t ask again" option\n'
+    "offered is the over-broad `git *`.\n\n"
+    "Drop the prefix and run the verb directly:\n"
+    "    {bare_command}\n\n"
+    "If you want an explicit non-paging form, use the sanctioned alias:\n"
+    "    git nopager <verb> …      (pre-approved via Bash(git nopager:*))\n"
+    "Missing it? Run: /Dev10x:git-alias-setup"
+)
+
+GIT_C_COLOR_MSG = (
+    "⚠️  `git -c color.ui=never` blocked — redundant and breaks "
+    "allow-rule matching.\n\n"
+    "git omits color when stdout is not a TTY, which is always the case for\n"
+    "tool calls — so `-c color.ui=never` is pure noise. Worse, a `-c <kv>`\n"
+    "override *before* the subcommand shifts the matched command string, so\n"
+    '`Bash(git <verb>:*)` never fires and the only "don\'t ask again" option\n'
+    "offered is the over-broad `git *`.\n\n"
+    "Drop the prefix and run the verb directly:\n"
+    "    {bare_command}\n\n"
+    "If color genuinely leaks (e.g. `color.ui=always` in config), use the\n"
+    "sanctioned alias:\n"
+    "    git nocolor <verb> …      (pre-approved via Bash(git nocolor:*))\n"
+    "Missing it? Run: /Dev10x:git-alias-setup"
+)
+
+GIT_C_HOOKSPATH_MSG = (
+    "\U0001f6ab  `git -c core.hooksPath={value}` blocked — disables git hooks "
+    "(safety).\n\n"
+    "`-c core.hooksPath=…` turns off the repo's git hooks AND, as a `-c <kv>`\n"
+    "prefix, shifts the matched command string so allow-rule matching breaks.\n"
+    "On a mutating verb this is a security downgrade — never widen it to `git *`.\n\n"
+    "Run the verb without the prefix:\n"
+    "    {bare_command}\n\n"
+    "If a hook is genuinely misfiring, fix the hook — don't disable it."
+)
+
+GIT_C_CONFIG_MSG = (
+    "⚠️  `git -c {key}={value}` prefix blocked — breaks allow-rule "
+    "matching.\n\n"
+    "A `-c <kv>` config override before the subcommand shifts the matched\n"
+    "command string, so `Bash(git <verb>:*)` never fires — the only\n"
+    '"don\'t ask again" option offered is the over-broad `git *`.\n\n'
+    "If the override is unnecessary, drop it:\n"
+    "    {bare_command}\n\n"
+    "If you need it repeatedly, provision a stable, pre-approvable alias:\n"
+    "    /Dev10x:git-alias-setup    (e.g. `git <name>` → Bash(git <name>:*))"
 )
 
 CD_GIT_CHAIN_MSG = (
@@ -330,6 +393,16 @@ def _extract_bare_command(command: str) -> str:
     return match.group(1) if match else command
 
 
+def _strip_git_c_config(command: str) -> str:
+    """Drop every ``-c <key>=<value>`` token and collapse the gap.
+
+    ``git -c core.pager=cat status --porcelain`` → ``git status --porcelain``;
+    multiple ``-c`` flags are all removed.
+    """
+    bare = re.sub(r"\s+-c\s+[\w.]+=\S+", "", command)
+    return re.sub(r"\s{2,}", " ", bare).strip()
+
+
 def _suggest_alias(*, branch: str, subcommand: str | None) -> str:
     if subcommand and branch:
         return f"{branch}-{subcommand}"
@@ -356,6 +429,7 @@ class PrefixFrictionValidator(ValidatorBase):
             self._check_uv_run_inner_allow,
             self._check_cd_revparse_chain,
             self._check_git_c_noop,
+            self._check_git_c_config,
             self._check_env_prefix_git,
             self._check_merge_base,
             self._check_cd_noop_chain,
@@ -373,6 +447,7 @@ class PrefixFrictionValidator(ValidatorBase):
             or ENV_PREFIX_GIT_RE.match(cmd) is not None
             or "merge-base" in cmd
             or "git -C" in cmd
+            or GIT_C_CONFIG_RE.search(cmd) is not None
             or "rev-parse --show-toplevel" in cmd
             # GH-119: shapes that bypass allow-rule prefix matching
             or ";" in cmd
@@ -439,6 +514,25 @@ class PrefixFrictionValidator(ValidatorBase):
                 cwd=inp.cwd,
                 bare_command=bare,
             ),
+        )
+
+    def _check_git_c_config(self, *, inp: HookInput) -> HookResult | None:
+        match = GIT_C_CONFIG_RE.search(inp.command)
+        if not match:
+            return None
+        key = match.group("key")
+        value = match.group("value")
+        bare = _strip_git_c_config(inp.command)
+        if key == "core.hooksPath":
+            return HookResult(
+                message=GIT_C_HOOKSPATH_MSG.format(value=value, bare_command=bare),
+            )
+        if key == "core.pager":
+            return HookResult(message=GIT_C_PAGER_MSG.format(bare_command=bare))
+        if key == "color.ui":
+            return HookResult(message=GIT_C_COLOR_MSG.format(bare_command=bare))
+        return HookResult(
+            message=GIT_C_CONFIG_MSG.format(key=key, value=value, bare_command=bare),
         )
 
     def _check_cd_noop_chain(self, *, inp: HookInput) -> HookResult | None:

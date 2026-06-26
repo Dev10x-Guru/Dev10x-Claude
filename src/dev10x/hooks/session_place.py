@@ -17,6 +17,8 @@ from pathlib import Path
 from dev10x.domain.git_context import GitContext
 
 BASE_BRANCH_ALIASES: tuple[str, ...] = (
+    "nopager",
+    "nocolor",
     "develop-log",
     "develop-diff",
     "develop-rebase",

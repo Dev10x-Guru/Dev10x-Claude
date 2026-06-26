@@ -92,6 +92,8 @@ groups:
     tier: 1
     description: Aliases installed by Dev10x:git-alias-setup.
     rules:
+      - Bash(git nopager:*)
+      - Bash(git nocolor:*)
       - Bash(git develop-log:*)
       - Bash(git develop-diff:*)
       - Bash(git develop-rebase:*)
