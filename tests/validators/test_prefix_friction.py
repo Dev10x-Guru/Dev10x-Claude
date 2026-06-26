@@ -158,6 +158,26 @@ class TestGitCConfig:
         assert "user.name" in result.message
         assert "git-alias-setup" in result.message
 
+    def test_blocks_core_editor_rebase_continue(self, validator: PrefixFrictionValidator) -> None:
+        inp = _make_input(command="git -c core.editor=true rebase --continue")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "git rebase --continue" in result.message
+        assert "autosquash" in result.message
+        assert "editor override" in result.message
+
+    def test_blocks_sequence_editor_rebase(self, validator: PrefixFrictionValidator) -> None:
+        inp = _make_input(command="git -c sequence.editor=true rebase -i --autosquash HEAD~3")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "editor override" in result.message
+        assert "git rebase -i --autosquash HEAD~3" in result.message
+
+    def test_allows_bare_rebase_continue(self, validator: PrefixFrictionValidator) -> None:
+        inp = _make_input(command="git rebase --continue")
+        assert validator.should_run(inp=inp) is False
+        assert validator.validate(inp=inp) is None
+
     def test_strips_multiple_c_flags_in_bare_command(
         self, validator: PrefixFrictionValidator
     ) -> None:

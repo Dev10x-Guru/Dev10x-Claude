@@ -257,6 +257,22 @@ GIT_C_CONFIG_MSG = (
     "    /Dev10x:git-alias-setup    (e.g. `git <name>` → Bash(git <name>:*))"
 )
 
+GIT_C_EDITOR_MSG = (
+    "⚠️  `git -c {key}=…` (editor override) blocked — and unnecessary.\n\n"
+    "The `-c <kv>` prefix shifts the matched command string so\n"
+    "`Bash(git rebase:*)` never fires. You don't need it to rebase\n"
+    "unattended:\n\n"
+    "  • After a content conflict, plain `git rebase --continue` reuses the\n"
+    "    commit message verbatim — no editor opens in a non-TTY tool call.\n"
+    "  • For interactive / autosquash rebases, use the pre-approved aliases\n"
+    "    (they bake in `GIT_SEQUENCE_EDITOR=true`) or the grooming skill:\n"
+    "        git autosquash-develop      (or -main / -master / -trunk)\n"
+    "        Dev10x:git-groom            (non-interactive history cleanup)\n\n"
+    "Drop the prefix and run:\n"
+    "    {bare_command}\n\n"
+    "Missing the aliases? Run: /Dev10x:git-alias-setup"
+)
+
 CD_GIT_CHAIN_MSG = (
     "\u26a0\ufe0f  `cd {path} && git {args}` chaining blocked \u2014 use `git -C` instead.\n\n"
     "`cd` before `&&` shifts the effective command prefix, breaking\n"
@@ -561,6 +577,10 @@ class PrefixFrictionValidator(ValidatorBase):
             return HookResult(message=GIT_C_PAGER_MSG.format(bare_command=bare))
         if key == "color.ui":
             return HookResult(message=GIT_C_COLOR_MSG.format(bare_command=bare))
+        if key in ("core.editor", "sequence.editor"):
+            return HookResult(
+                message=GIT_C_EDITOR_MSG.format(key=key, bare_command=bare),
+            )
         return HookResult(
             message=GIT_C_CONFIG_MSG.format(key=key, value=value, bare_command=bare),
         )
