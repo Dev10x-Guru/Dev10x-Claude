@@ -5,6 +5,89 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.82.0 — Unattended JIRA Tickets, Worktree Session Seeding & Prefix-Friction Fixes
+
+Released 2026-06-26
+
+### Features
+
+- **Create JIRA tickets unattended** — `Dev10x:ticket-create`'s JIRA
+  path dispatched a background agent that stalled on the Atlassian MCP
+  write-tool permission prompt; a new `mcp-atlassian-write` tier-2
+  baseline group pre-approves the six non-destructive JIRA write verbs
+  (create / edit / comment / link / transition / worklog, no deletes),
+  routes the JIRA branch through `createJiraIssue`, and pins the
+  GH-593 write-precedence override as a deliberate, audited exception
+  ([GH-631](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/631))
+- **Carry session config across worktrees without dirtying the tree** —
+  `session.yaml` is work-on session state, but git-tracking it tripped
+  the clean-tree gates in `verify_pr_state`, `Dev10x:gh-pr-merge`
+  Check 5, and `create_pr`, while gitignoring it broke continuity in
+  new worktrees; `dev10x session seed` now does an idempotent O_EXCL
+  write of a default, post-checkout templates copy or seed it, and a
+  new `Dev10x:session-config-seed` skill wraps the CLI for agent-time
+  delegation ([GH-705](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/705))
+
+### Fixes
+
+- **Stop recommending unreliable `**` path wildcards** — the permission
+  tooling rewrote version-pinned plugin paths into `**` wildcards, but
+  `**` matching proved unreliable in the permission engine; the two
+  canonicalize deprecations are dropped, `canonicalize_rule` is
+  narrowed to the GH-704 `//` collapse, and regression tests assert no
+  `**` is ever emitted
+  ([GH-715](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/715))
+- **Prevent `git -c` prefix friction** — a `git -c <key>=<value>`
+  prefix shifts the matched command string so `Bash(git <verb>:*)`
+  never fires; DX007 now blocks the prefix, routes `core.pager` /
+  `color.ui` to `git nopager` / `git nocolor` aliases, treats
+  `core.hooksPath` as a safety block, and routes the
+  `core.editor` / `sequence.editor` rebase form to a plain
+  `git rebase --continue`
+  ([GH-717](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/717),
+  [GH-720](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/720))
+- **Prevent `uv run`/`uvx pre-commit` prefix friction** — the wrapper
+  shifts the matched command string so `Bash(pre-commit run:*)` never
+  fires; DX007 now blocks it and routes to the bare `pre-commit` form
+  ([GH-717](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/717))
+
+### Tests
+
+- **Cover the PR lifecycle skills and MCP tools** — eval coverage for
+  `gh-pr-review`, `gh-pr-merge`, and `gh-pr-triage`, plus unit tests
+  for `merge_pr` safety gates, `resolve_review_thread`, and
+  `unresolved_threads`
+  ([GH-547](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/547))
+- **Cover fanout dispatch and worktree wrappers** — `create_worktree`
+  error paths, `next_worktree_name` collisions, batch-detection edges,
+  and subagent status-protocol parsing
+  ([GH-553](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/553))
+- **Cover audit/plan MCP error paths** — the `err()`/`{"error": ...}`
+  wire contract for the audit tools and `plan_sync` key-conflict,
+  archive-race, and CWD-binding paths
+  ([GH-556](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/556))
+- **Cover the work-on pipeline skills** — evals for `ticket-branch`,
+  `session-wrap-up`, and `session-tasks` guarding branch naming, the
+  never-empty task-list invariant, and wrap-up routing
+  ([GH-560](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/560))
+- **Cover the MCP daemon lifecycle** — restart, STDIO fallback,
+  deleted-CWD recovery, StreamableHTTP concurrent sessions, and
+  session-TTL expiry
+  ([GH-563](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/563))
+
+### Docs
+
+- **Prevent stale-base conflicts in bundle and fanout** — work-on
+  Strategy B gains a per-batch fetch + rebase-onto-`origin/<base>`
+  pre-step and fanout branches each item from a fresh base, both gated
+  off once review fixups or unresolved threads exist
+  ([GH-626](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/626))
+- **Guide full restructure to atomic layer commits** — Strategy B now
+  documents commit granularity and cohesion (small atomic layer
+  commits, ordered bottom-up), disambiguates "full restructure" from
+  squash-to-one, and gates strategy selection by fixup presence
+  ([GH-723](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/723))
+
 ## 0.81.1 — GitHub MCP Tool Responses & Review-Setup Gate Fixes
 
 Released 2026-06-25
