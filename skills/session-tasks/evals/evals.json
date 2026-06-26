@@ -1,0 +1,184 @@
+{
+  "skill_name": "Dev10x:session-tasks",
+  "eval_dimensions": [
+    {
+      "id": "task-tracking",
+      "name": "Self-tracking",
+      "description": "Creates a tracking task for its own invocation and marks it completed when done"
+    },
+    {
+      "id": "task-display",
+      "name": "Task Display",
+      "description": "Shows all current session tasks grouped by status in a markdown table using TaskList"
+    },
+    {
+      "id": "task-add",
+      "name": "Task Add",
+      "description": "Creates new tasks via TaskCreate with subject and optional description"
+    },
+    {
+      "id": "task-update",
+      "name": "Task Update",
+      "description": "Updates task status (in_progress, completed, pending) via TaskUpdate"
+    },
+    {
+      "id": "auto-advance",
+      "name": "Auto-Advance",
+      "description": "After creating tasks, immediately begins executing the first pending task without pausing to ask 'should I start?'"
+    },
+    {
+      "id": "task-list-invariant",
+      "name": "Task List Invariant",
+      "description": "Seeds a 'Verify AC and close session' task when all work items are completed, ensuring the list is never empty"
+    }
+  ],
+  "evals": [
+    {
+      "id": "show-tasks",
+      "name": "Show all current session tasks",
+      "description": "User asks to see open tasks. Skill calls TaskList and formats result as a markdown table.",
+      "input": "/Dev10x:session-tasks show",
+      "assertions": [
+        {
+          "dimension": "task-tracking",
+          "check": "tool_called",
+          "tool": "TaskCreate",
+          "signal": "TaskCreate called at invocation (self-tracking task)"
+        },
+        {
+          "dimension": "task-display",
+          "check": "tool_called",
+          "tool": "TaskList",
+          "signal": "TaskList called to retrieve current tasks"
+        },
+        {
+          "dimension": "task-display",
+          "check": "output_contains_structure",
+          "value": "Status",
+          "signal": "Output includes a table with Status and Task columns"
+        },
+        {
+          "dimension": "task-tracking",
+          "check": "tool_called",
+          "tool": "TaskUpdate",
+          "signal": "Self-tracking task marked completed after display"
+        },
+        {
+          "dimension": "task-tracking",
+          "check": "behavioral",
+          "signal": "TaskUpdate is called with status=completed for the self-tracking task"
+        }
+      ]
+    },
+    {
+      "id": "add-task",
+      "name": "Add a new session task",
+      "description": "User asks to add a task. Skill calls TaskCreate and immediately begins executing it.",
+      "input": "/Dev10x:session-tasks add 'Implement retry logic in webhook handler'",
+      "assertions": [
+        {
+          "dimension": "task-add",
+          "check": "tool_called",
+          "tool": "TaskCreate",
+          "signal": "TaskCreate called with subject='Implement retry logic in webhook handler'"
+        },
+        {
+          "dimension": "auto-advance",
+          "check": "tool_called",
+          "tool": "TaskUpdate",
+          "signal": "TaskUpdate called immediately to mark task in_progress — no 'should I start?' pause"
+        },
+        {
+          "dimension": "auto-advance",
+          "check": "behavioral",
+          "signal": "TaskUpdate is called with status=in_progress immediately after TaskCreate"
+        },
+        {
+          "dimension": "auto-advance",
+          "check": "behavioral",
+          "value": "no-confirmation-pause",
+          "signal": "Skill does NOT ask 'Should I start working on this?' before beginning execution"
+        }
+      ]
+    },
+    {
+      "id": "update-task-status",
+      "name": "Update task status to completed",
+      "description": "User marks a task as done. Skill calls TaskUpdate with status=completed.",
+      "input": "/Dev10x:session-tasks update task-id completed",
+      "assertions": [
+        {
+          "dimension": "task-update",
+          "check": "tool_called",
+          "tool": "TaskUpdate",
+          "signal": "TaskUpdate called with provided task ID and status=completed"
+        }
+      ]
+    },
+    {
+      "id": "task-list-invariant-seeding",
+      "name": "Seeds Verify AC task when all work items are completed",
+      "description": "When TaskList shows all tasks completed, skill creates a 'Verify AC and close session' task before returning control.",
+      "input": "/Dev10x:session-tasks",
+      "setup": {
+        "all_tasks_completed": true,
+        "note": "All existing session tasks have status=completed"
+      },
+      "assertions": [
+        {
+          "dimension": "task-list-invariant",
+          "check": "task_exists",
+          "value": "Verify AC",
+          "signal": "TaskCreate called with subject containing 'Verify AC and close session'"
+        },
+        {
+          "dimension": "task-list-invariant",
+          "check": "output_contains",
+          "value": "PR",
+          "signal": "Verify AC task description includes PR links or summary of shipped changes"
+        },
+        {
+          "dimension": "task-list-invariant",
+          "check": "behavioral",
+          "value": "verify-ac-left-pending",
+          "signal": "Verify AC task is left in pending status — skill does NOT auto-complete it"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "description": "Queries that should/should-not trigger Dev10x:session-tasks",
+    "should_trigger": [
+      {
+        "query": "show me what's on my task list right now",
+        "rationale": "Viewing current tasks — core use case"
+      },
+      {
+        "query": "add a task: review the Square webhook retry logic",
+        "rationale": "Adding a mid-session work item"
+      },
+      {
+        "query": "mark the webhook task as done",
+        "rationale": "Status update for an existing task"
+      },
+      {
+        "query": "what are the open loops from this session?",
+        "rationale": "Viewing open tasks — maps to show command"
+      }
+    ],
+    "should_not_trigger": [
+      {
+        "query": "let's start on DEV-42, the payment retry ticket",
+        "rationale": "Starting structured work from a ticket — use Dev10x:work-on"
+      },
+      {
+        "query": "wrap up the session, I'm done for today",
+        "rationale": "Session end with triage — use Dev10x:session-wrap-up"
+      },
+      {
+        "query": "park this idea about caching — I'll come back to it",
+        "rationale": "Deferring to a future session — use Dev10x:park"
+      }
+    ]
+  }
+}
