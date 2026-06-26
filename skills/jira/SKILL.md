@@ -41,6 +41,13 @@ pre-approved via `allowed-tools`.
 | `jira-update.sh` | Update issue from JSON file | `jira-update.sh PROJ-100 /tmp/payload.json` |
 | `jira-comment.sh` | Add a comment from a file | `jira-comment.sh PROJ-100 /tmp/body.md` |
 
+**No create script (GH-631).** These scripts read, search, link,
+update, and comment — there is intentionally no `jira-create.sh`.
+JIRA issue **creation** goes through the Atlassian MCP
+`mcp__claude_ai_Atlassian__createJiraIssue` tool (pre-approved via
+the `mcp-atlassian-write` baseline group). `Dev10x:ticket-create`'s
+JIRA branch calls it directly; see that skill's Step 5.
+
 ## Tenant Wrapper Pattern
 
 A tenant wrapper skill (e.g. `acme:jira`) binds a fixed

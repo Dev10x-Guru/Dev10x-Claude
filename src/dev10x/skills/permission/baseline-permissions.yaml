@@ -667,7 +667,8 @@ groups:
       project reads plus JQL search — default-safe. Write tools
       (``createJiraIssue``, ``editJiraIssue``, ``addCommentToJiraIssue``,
       ``transitionJiraIssue``, ``createIssueLink``, ``addWorklogToJiraIssue``)
-      are absent (write-precedence catches the camelCase verbs via GH-593).
+      live in the separate ``mcp-atlassian-write`` group (GH-631), not
+      here — this group stays reads-only.
     rules:
       - mcp__claude_ai_Atlassian__atlassianUserInfo
       - mcp__claude_ai_Atlassian__getAccessibleAtlassianResources
@@ -682,6 +683,32 @@ groups:
       - mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql
       - mcp__claude_ai_Atlassian__fetch
       - mcp__claude_ai_Atlassian__search
+
+  mcp-atlassian-write:
+    tier: 2
+    sensitivity: mutating
+    description: >
+      Atlassian / JIRA ticket-management write MCP tools (GH-631).
+      Seeded by default so Dev10x:ticket-create's JIRA path — which
+      dispatches a background agent that cannot answer a permission
+      prompt — does not stall on ``createJiraIssue``. This
+      DELIBERATELY overrides the GH-593 write-precedence default
+      (which would keep these camelCase writes prompting): the
+      maintainer accepted pre-approval of these non-destructive
+      create / edit / comment / link / transition / worklog verbs in
+      exchange for an unattended JIRA-creation path. No delete verbs
+      are included — destructive Atlassian ops are NOT pre-approved
+      and keep prompting. This is the one tier-2 group whose
+      ``sensitivity`` is ``mutating`` rather than ``benign``; the
+      curation test (``test_atlassian_write_is_deliberate_exception``)
+      asserts the exception is intentional, not a leak.
+    rules:
+      - mcp__claude_ai_Atlassian__createJiraIssue
+      - mcp__claude_ai_Atlassian__editJiraIssue
+      - mcp__claude_ai_Atlassian__addCommentToJiraIssue
+      - mcp__claude_ai_Atlassian__createIssueLink
+      - mcp__claude_ai_Atlassian__transitionJiraIssue
+      - mcp__claude_ai_Atlassian__addWorklogToJiraIssue
 
   vercel-cli-readonly:
     tier: 2
