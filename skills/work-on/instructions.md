@@ -917,7 +917,32 @@ The structured-spec play differs from `feature` in two ways:
 
 ### Supervisor Approval Gate
 
-Present the plan as a numbered list.
+Present the plan as a **box-drawing tree** (Hybrid display
+convention, GH-730): phases are top-level nodes and their
+subtasks nest beneath them with box-drawing glyphs, preserving
+the Phase → subtask structure that a flat numbered list
+flattens away. The tree is **presentation only** — the plan
+still feeds the same `TaskCreate` calls regardless of how it is
+rendered, so the approval logic below is unchanged.
+
+Template:
+
+```
+Phase 4: Execute <work-type>
+├─ 4.1  <step subject>             → <skill>
+├─ 4.2  <epic subject>
+│        ├─ <child step>
+│        └─ <child step>
+├─ 4.3  <step subject>             → <skill>
+└─ 4.N  Verify acceptance criteria → Dev10x:verify-acc-dod
+```
+
+Use `├─` for every node except the last at a given depth, `└─`
+for the last node, and `│` to carry the parent's vertical run
+across a nested block. Flat two-level output (e.g., the Session
+mode summary below) keeps its bullet-indent form — see
+[`references/display-conventions.md`](../../references/display-conventions.md)
+for the full hybrid convention.
 
 **Implicit approval bypass:** Skip `AskUserQuestion` ONLY when
 ALL three conditions are met:
