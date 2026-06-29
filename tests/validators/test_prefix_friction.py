@@ -603,6 +603,31 @@ class TestShellLoopWrap:
         assert inner in result.message
         assert "parallel Bash tool calls" in result.message
 
+    @pytest.mark.parametrize(
+        ("command", "inner"),
+        [
+            (r"find . -name '*.py' -exec grep -l yaml {} \;", "grep"),
+            (r"find /hooks -type f -name '*.sh' -exec grep -l yaml {} \;", "grep"),
+            (r"find . -type f -exec cat {} \;", "cat"),
+            (r"find . -name '*.py' -exec sed -n '1p' {} \;", "sed"),
+        ],
+    )
+    def test_find_exec_search_steers_to_ripgrep(
+        self,
+        validator: PrefixFrictionValidator,
+        command: str,
+        inner: str,
+    ) -> None:
+        # GH-726 F2/F3: `find -exec <search-tool>` gets the ripgrep / Grep
+        # steer, NOT the parallel-Bash advice reserved for mutating inners.
+        inp = _make_input(command=command)
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert inner in result.message
+        assert "rg" in result.message
+        assert "Grep tool" in result.message
+        assert "parallel Bash tool calls" not in result.message
+
     def test_allows_loop_with_unrelated_body(
         self,
         validator: PrefixFrictionValidator,

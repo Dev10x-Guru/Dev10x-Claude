@@ -713,6 +713,37 @@ rules:
       checks. The Grep tool covers both with no permission prompt
       (GH-488 #15/#28).
 
+  - name: find-search
+    matcher: Bash
+    patterns:
+      # `find … -exec <search-tool>` and name-glob searches — the
+      # archetypal un-allowable find shape (GH-726 F2/F3).
+      - "find .*-exec\\s+(grep|egrep|fgrep|rg|cat|wc|head|tail|sort|sed|awk)"
+      - "find .*-(name|iname|path|regex)\\b"
+    hook_block: false
+    compensations:
+      - type: use-tool
+        tool: Grep
+        guardrails: recursive search by glob/type, no Bash allow-rule, no find -exec
+        description: >
+          Use the Grep tool (wraps ripgrep) to search file contents — set
+          glob/type and output_mode (files_with_matches / count) instead of
+          `find … -exec grep`.
+      - type: use-tool
+        tool: Glob
+        guardrails: name-glob file discovery, no Bash allow-rule
+        description: >
+          Use the Glob tool to find files by name pattern instead of
+          `find -name`. For a one-shot Bash search, `rg -l <pat> -g '<glob>'`
+          is already covered by Bash(rg:*).
+    reason: >
+      `find` is structurally un-allowable: `Bash(find:*)` does not reliably
+      match embedded paths/pipes, and `find … -exec <cmd>` is independently
+      blocked because -exec wraps an arbitrary command (defeating the inner
+      tool's allow-rule). The fix is tool substitution, not a new allow-rule
+      — steer searches to ripgrep / the Grep + Glob tools (GH-726 F2/F3,
+      themes T1 + T3).
+
   - name: fish-interactive-abbr
     matcher: Bash
     patterns:
