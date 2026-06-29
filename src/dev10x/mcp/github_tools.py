@@ -533,6 +533,8 @@ async def merge_pr(
     pr_number: int,
     strategy: str = "rebase",
     delete_branch: bool = True,
+    admin: bool = False,
+    auto: bool = False,
     repo: str | None = None,
     cwd: str | None = None,
 ) -> Result[dict]:
@@ -556,6 +558,16 @@ async def merge_pr(
             resolution table.
         delete_branch: Pass ``--delete-branch`` to ``gh pr merge``
             when True (default).
+        admin: Pass ``--admin`` when True — use administrator
+            privileges to merge a PR left ``BLOCKED`` by a
+            required-review rule the account cannot satisfy (e.g. a
+            solo maintainer who cannot self-approve). Only the
+            ``Dev10x:gh-pr-merge`` Step 5 admin-override gate should
+            set this, and only after the 7 non-approval checks pass
+            (GH-733).
+        auto: Pass ``--auto`` when True — enable GitHub auto-merge so
+            the PR merges once branch-protection requirements are met
+            (GH-733).
         repo: Repository (owner/repo). Auto-detected if omitted.
             Always passed as ``--repo`` to ``gh pr merge`` for
             worktree safety (GH-773).
@@ -563,12 +575,15 @@ async def merge_pr(
 
     Returns:
         Dictionary with keys: pr_number (int), url (str),
-        strategy (str), branch_deleted (bool), repo (str).
+        strategy (str), branch_deleted (bool), admin (bool),
+        auto (bool), repo (str).
     """
     return await gh.merge_pr(
         pr_number=pr_number,
         strategy=strategy,
         delete_branch=delete_branch,
+        admin=admin,
+        auto=auto,
         repo=repo,
     )
 

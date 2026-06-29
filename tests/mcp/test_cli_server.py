@@ -795,8 +795,34 @@ class TestMergePrMcp:
             "pr_number": 42,
             "strategy": "rebase",
             "delete_branch": True,
+            "admin": False,
+            "auto": False,
             "repo": None,
         }
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.merge_pr", new_callable=AsyncMock)
+    async def test_forwards_admin_and_auto_flags(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = ok(
+            {
+                "pr_number": 42,
+                "url": "https://github.com/o/r/pull/42",
+                "strategy": "rebase",
+                "branch_deleted": True,
+                "admin": True,
+                "auto": False,
+                "repo": "o/r",
+            }
+        )
+
+        result = await cli_server.merge_pr(pr_number=42, admin=True)
+
+        assert result["admin"] is True
+        assert mock_fn.call_args.kwargs["admin"] is True
+        assert mock_fn.call_args.kwargs["auto"] is False
 
     @pytest.mark.asyncio
     @patch("dev10x.github.merge_pr", new_callable=AsyncMock)
