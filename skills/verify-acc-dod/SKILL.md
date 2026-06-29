@@ -18,6 +18,7 @@ allowed-tools:
   - Bash(git log:*)
   - Bash(git diff:*)
   - mcp__plugin_Dev10x_cli__pr_detect
+  - mcp__plugin_Dev10x_cli__verify_pr_state
 ---
 
 # Verify Acceptance Criteria / Definition of Done
@@ -51,7 +52,7 @@ This skill adapts behavior based on the project's friction level
 |-------|-----------------|---------------|---------------|
 | strict | Run, must all pass | AskUserQuestion per item | AskUserQuestion required |
 | guided | Run, failures shown | AskUserQuestion per item | AskUserQuestion with recommendation |
-| adaptive | Run, auto-pass/fail | Converted to `prompt` (Claude evaluates) | Auto-select "Work complete" if all pass |
+| adaptive | Run, auto-pass/fail | Converted to `prompt` (Claude evaluates) | Merge-gated (GH-729): auto-complete only when merged / PR-less; open PR → auto-start background monitor; any failure → Go back |
 
 **Resolving friction level:** Read from session context or
 playbook step metadata. If not available, default to `guided`.
@@ -232,31 +233,83 @@ Checks:
 Show the actual command output on failure so the user can
 diagnose without re-running.
 
+## PR Merge State (GH-729)
+
+Completion is reserved for the **merged** state — "shippable / handed
+off" is **not** terminal. Before resolving the gate, determine the PR
+state and feed it in as a gate input:
+
+1. Resolve the associated PR via
+   `mcp__plugin_Dev10x_cli__pr_detect(arg="")`. An `error` / no-PR
+   response means **PR-less** (e.g. `investigation` / `local-only`).
+2. When a PR exists, read its merge state via
+   `mcp__plugin_Dev10x_cli__verify_pr_state` (or the PR's `mergedAt`
+   field) — merged vs open.
+
+This merge signal is a **gate input, not a pass/fail check.** Do NOT
+add it to the automated checks list: an unmerged-but-otherwise-green
+PR is the normal *awaiting-review* state, and a failing "PR merged"
+check would auto-route to "Go back" forever (you cannot merge without
+review). Instead it selects the recommended option below.
+
+The three-way recommendation is encoded once in
+`dev10x.domain.session_rules.completion_gate_recommendation()` — this
+skill's prose and `work-on`'s Plan Completion Gate defer to it rather
+than re-deriving the matrix:
+
+| PR state | Blocking checks | Recommended | Auto (adaptive) |
+|----------|-----------------|-------------|-----------------|
+| Merged / no PR | pass | **Work complete** | auto-complete |
+| Open, awaiting review | pass | **Monitor for review** (→ `Dev10x:gh-pr-monitor`, ~5 min) | auto-start monitor (background) |
+| Any | fail / pending | **Go back** | Go back |
+
+"Blocking checks" are the automated/manual criteria above (CI, draft
+state, unresolved threads, clean tree). The merge signal is excluded.
+
 ## Decision Gate
+
+Resolve the recommendation from PR merge state + blocking-check
+results (see the table above). **Never** offer or auto-select "Work
+complete" while an associated PR is open/unmerged.
 
 **At strict/guided level:**
 
-**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text).
-Options:
-- **"Work complete" (Recommended)** — All criteria met, close
-  the task list
-- **"Override — complete anyway"** — Accept despite failures
-  (ask whether to persist this override)
-- **"Go back"** — Return to fix failing checks
+**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text). The
+options depend on the resolved recommendation:
 
-**At adaptive level (GH-851 F4):**
+*Recommendation **Work complete*** (merged or PR-less, all checks pass):
+- **"Work complete" (Recommended)** — All criteria met, close the
+  task list
+- **"Go back"** — Re-examine a completed step
 
-Skip `AskUserQuestion`. Auto-select based on results:
-- All checks pass → auto-complete ("Work complete")
-- Any check fails → auto-select "Go back" and report failures
-  to the parent orchestrator for resolution
-- Any check pending → auto-select "Go back" and report pending
-  checks to the parent orchestrator
-- No user interruption in either case
-- **No "non-blocking" exception category exists.** Every check
-  in pending or fail state triggers "Go back". Do NOT invent
-  exceptions for pending CI review checks or classify failures
-  as non-blocking — that category is not part of this spec.
+*Recommendation **Monitor for review*** (open PR, otherwise green):
+- **"Monitor for review" (Recommended)** — Keep the session open;
+  dispatch `Dev10x:gh-pr-monitor` to background-watch the PR every
+  ~5 min and surface review comments / ready-to-merge
+- **"Keep open (manual)"** — Leave the session open, no auto-monitor
+- **"Override — complete anyway"** — Accept the unmerged PR as done
+  (ask whether to persist)
+
+*Recommendation **Go back*** (a blocking check failed):
+- **"Go back" (Recommended)** — Return to fix the failing checks
+- **"Override — complete anyway"** — Accept despite failures (ask
+  whether to persist)
+
+**At adaptive level (GH-851 F4, GH-729):**
+
+Skip `AskUserQuestion`. Auto-select on the same recommendation:
+- **Work complete** (merged / PR-less, all checks pass) →
+  auto-complete
+- **Monitor for review** (open PR, otherwise green) → dispatch
+  `Skill(Dev10x:gh-pr-monitor)` in the background and keep the
+  session open. The residual terminal task becomes **"Monitor PR
+  #<N> for review / merge"** — do NOT auto-complete.
+- **Go back** (any check fails/pending) → report failures to the
+  parent orchestrator for resolution
+- No user interruption in any case
+- **No "non-blocking" exception category exists.** Every check in
+  pending or fail state triggers "Go back". An open PR is **not** a
+  failed check — it routes to monitor, never to auto-complete.
 
 If the user picks "Override", ask whether to persist:
 
@@ -278,7 +331,9 @@ session — it is **not** the supervisor sign-off itself. The terminal
 explicitly chooses "Work complete" (or runs `Dev10x:session-wrap-up`).
 "Checks pass" ≠ "supervisor confirmed session done": a draft/open PR
 with a pending human review can satisfy every automated check while the
-session is still live.
+session is still live. The Decision Gate makes this concrete (GH-729):
+while the PR is open/unmerged, the recommended action is **Monitor for
+review** (→ `Dev10x:gh-pr-monitor`), never "Work complete".
 
 The empty-task-list guard (`hooks/scripts/task-guard.py`, GH-149)
 enforces this: it **refuses** a `TaskUpdate` that marks the terminal

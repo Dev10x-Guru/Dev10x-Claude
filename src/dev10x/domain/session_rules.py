@@ -18,6 +18,7 @@ rule and ADR-0007 for the Policy Rule archetype these satisfy.
 
 from __future__ import annotations
 
+import enum
 from dataclasses import dataclass
 
 from dev10x.domain.documents.session_state import PlanSummary
@@ -59,6 +60,55 @@ def plan_gate_auto_approves(
     if AUTO_PLAN_MODE in active_modes:
         return True
     return friction_level is FrictionLevel.ADAPTIVE and SOLO_MAINTAINER_MODE in active_modes
+
+
+class CompletionRecommendation(enum.Enum):
+    """The session-completion gate's recommended action (GH-729).
+
+    Mirrors the canonical-rule pattern of :func:`plan_gate_auto_approves`:
+    the decision is encoded once here so verify-acc-dod's markdown,
+    work-on's Plan Completion Gate, and any future consumer defer to it
+    rather than re-deriving the matrix.
+    """
+
+    WORK_COMPLETE = "work_complete"
+    MONITOR_REVIEW = "monitor_review"
+    GO_BACK = "go_back"
+
+
+def completion_gate_recommendation(
+    *,
+    has_associated_pr: bool,
+    pr_merged: bool,
+    blocking_checks_pass: bool,
+) -> CompletionRecommendation:
+    """Decide what the verify-acc-dod completion gate recommends (GH-729).
+
+    Completion is reserved for the *merged* state: "shippable / handed
+    off" is not terminal. The recommendation is friction-agnostic — the
+    friction level governs only whether the gate fires as a widget or
+    auto-selects this recommendation; it never changes which option is
+    recommended.
+
+    * ``blocking_checks_pass is False`` → :attr:`CompletionRecommendation.GO_BACK`.
+      A real failure (CI red, unresolved review threads, dirty tree,
+      draft PR) must be resolved first. The PR-merge signal is
+      deliberately *not* one of these checks — an unmerged-but-otherwise
+      -green PR is the normal awaiting-review state, and treating it as a
+      blocking failure would loop forever (you cannot merge without
+      review).
+    * No associated PR (``investigation`` / ``local-only``) or the PR is
+      merged → :attr:`CompletionRecommendation.WORK_COMPLETE`.
+    * Otherwise the PR is open and otherwise-green →
+      :attr:`CompletionRecommendation.MONITOR_REVIEW`: keep the session
+      open and background-watch the PR for review / ready-to-merge via
+      ``Dev10x:gh-pr-monitor``.
+    """
+    if not blocking_checks_pass:
+        return CompletionRecommendation.GO_BACK
+    if not has_associated_pr or pr_merged:
+        return CompletionRecommendation.WORK_COMPLETE
+    return CompletionRecommendation.MONITOR_REVIEW
 
 
 @dataclass(frozen=True)
@@ -175,7 +225,9 @@ __all__ = [
     "DecisionGuidanceRule",
     "BuildAutonomyReassuranceRule",
     "BuildAutoPlanGuidanceRule",
+    "CompletionRecommendation",
     "plan_gate_auto_approves",
+    "completion_gate_recommendation",
     "AUTO_PLAN_MODE",
     "SOLO_MAINTAINER_MODE",
 ]

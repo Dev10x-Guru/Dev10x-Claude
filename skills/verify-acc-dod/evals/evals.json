@@ -1,0 +1,88 @@
+{
+  "skill_name": "Dev10x:verify-acc-dod",
+  "eval_dimensions": [
+    {
+      "id": "criteria-resolution",
+      "name": "Criteria Resolution",
+      "description": "Loads plugin-default checks for the work type, applies repo overrides (remove/replace/add), and filters by active modes"
+    },
+    {
+      "id": "check-execution",
+      "name": "Check Execution",
+      "description": "Runs each automated check, resolves {pr_number}/{repo} placeholders, evaluates expect/expect_contains/expect_gt fields, and reports a pass/fail table"
+    },
+    {
+      "id": "merge-gated-completion",
+      "name": "Merge-Gated Completion Gate (GH-729)",
+      "description": "Never offers or auto-selects 'Work complete' while an associated PR is open/unmerged; recommends background review-monitoring instead; reserves completion for the merged (or PR-less) state"
+    }
+  ],
+  "evals": [
+    {
+      "id": 1,
+      "name": "open-pr-recommends-monitor-not-complete",
+      "prompt": "/Dev10x:verify-acc-dod feature  (session: friction_level guided; all automated checks pass; PR #42 is OPEN and awaiting review)",
+      "description": "Tests that when every acceptance criterion passes but the associated PR is open/unmerged, the gate recommends 'Monitor for review' (routing to Dev10x:gh-pr-monitor) and NOT 'Work complete'.",
+      "expected_output": "AskUserQuestion fires with 'Monitor for review (Recommended)' as the first option, routing to Dev10x:gh-pr-monitor. 'Work complete' is NOT offered as the recommended option while PR #42 is unmerged.",
+      "dimensions": ["merge-gated-completion"],
+      "assertions": [
+        {
+          "id": "resolves-pr-merge-state",
+          "text": "Resolves PR merge state via pr_detect / verify_pr_state before deciding the gate",
+          "check": "tool_called",
+          "signals": ["pr_detect", "verify_pr_state"]
+        },
+        {
+          "id": "recommends-monitor",
+          "text": "Recommended option is 'Monitor for review' routing to Dev10x:gh-pr-monitor",
+          "check": "tool_called",
+          "signals": ["AskUserQuestion", "Monitor for review", "gh-pr-monitor"]
+        },
+        {
+          "id": "does-not-recommend-work-complete",
+          "text": "'Work complete' is NOT the recommended/auto-selected option while the PR is open/unmerged",
+          "check": "behavioral",
+          "signals": ["no Work complete recommended", "PR open/unmerged"]
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "adaptive-open-pr-auto-starts-monitor",
+      "prompt": "/Dev10x:verify-acc-dod feature  (session: friction_level adaptive, active_modes [solo-maintainer]; all checks pass; PR #42 OPEN, unmerged)",
+      "description": "Tests that at adaptive level with an open/unmerged PR, the skill auto-starts the background monitor instead of auto-completing, and the residual terminal task becomes 'Monitor PR #N for review / merge'.",
+      "expected_output": "No 'Work complete' auto-completion. Skill(Dev10x:gh-pr-monitor) is dispatched in the background; the residual task is 'Monitor PR #42 for review / merge'. No AskUserQuestion interruption.",
+      "dimensions": ["merge-gated-completion"],
+      "assertions": [
+        {
+          "id": "no-auto-complete-while-unmerged",
+          "text": "Does NOT auto-complete 'Work complete' while the PR is open/unmerged",
+          "check": "behavioral",
+          "signals": ["no auto-complete", "PR unmerged"]
+        },
+        {
+          "id": "dispatches-monitor",
+          "text": "Dispatches Dev10x:gh-pr-monitor in the background",
+          "check": "tool_called",
+          "signals": ["Skill", "gh-pr-monitor"]
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "merged-pr-allows-work-complete",
+      "prompt": "/Dev10x:verify-acc-dod feature  (session: friction_level guided; all checks pass; PR #42 is MERGED)",
+      "description": "Tests that once the PR is merged (or the work is PR-less), the gate offers/auto-selects 'Work complete' as before.",
+      "expected_output": "AskUserQuestion offers 'Work complete (Recommended)' because PR #42 is merged.",
+      "dimensions": ["merge-gated-completion"],
+      "assertions": [
+        {
+          "id": "merged-allows-complete",
+          "text": "'Work complete' is the recommended option once the PR is merged",
+          "check": "tool_called",
+          "signals": ["AskUserQuestion", "Work complete"]
+        }
+      ]
+    }
+  ]
+}

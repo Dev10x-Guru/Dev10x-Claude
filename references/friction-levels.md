@@ -214,14 +214,41 @@ precedence is unchanged:
 |-------|-----------------|---------------|---------------|
 | strict | Run, must all pass | AskUserQuestion per item | AskUserQuestion required |
 | guided | Run, failures shown | AskUserQuestion per item | AskUserQuestion with recommendation |
-| adaptive | Run, auto-pass/fail | Converted to `prompt` (Claude evaluates) | Auto-select "Work complete" if all pass |
+| adaptive | Run, auto-pass/fail | Converted to `prompt` (Claude evaluates) | Merge-gated (GH-729) — see § Completion Gate below |
 
 At adaptive level, the ACC skill runs fully unattended:
 1. Execute all automated checks
 2. Convert `manual` checks to `prompt` checks (Claude evaluates
    from session context)
-3. If all pass → auto-complete, no user interruption
-4. If any fail → queue failure report, continue with next task
+3. Resolve the completion recommendation (see § Completion Gate)
+4. If recommendation is **Work complete** → auto-complete, no
+   user interruption
+5. If **Monitor for review** → dispatch `Dev10x:gh-pr-monitor` in
+   the background and keep the session open (residual task:
+   "Monitor PR #<N> for review / merge")
+6. If **Go back** → queue failure report, continue with next task
+
+### Completion Gate (verify-acc-dod) — merge-gated (GH-729)
+
+Completion is reserved for the **merged** state — "shippable /
+handed off" is not terminal. The gate's recommended (and, at
+`adaptive`, auto-selected) option is driven by PR merge state, not
+just "all checks pass":
+
+| PR state | Blocking checks | Recommended | Auto (adaptive) |
+|----------|-----------------|-------------|-----------------|
+| Merged / no PR | pass | **Work complete** | auto-complete |
+| Open, awaiting review | pass | **Monitor for review** (→ `Dev10x:gh-pr-monitor`, ~5 min) | auto-start monitor (background) |
+| Any | fail / pending | **Go back** | Go back |
+
+The PR-merge signal is a **gate input, not a pass/fail check** — an
+unmerged-but-green PR is the normal awaiting-review state, so a
+failing "PR merged" check would loop on "Go back" forever. The
+three-way recommendation is encoded once in
+`dev10x.domain.session_rules.completion_gate_recommendation()` —
+verify-acc-dod's markdown and work-on's Plan Completion Gate defer to
+it rather than re-deriving the matrix. This is the completion-gate
+analogue of `plan_gate_auto_approves()` (§ Plan-Approval Gate).
 
 ## Loop Enforcement
 
