@@ -13,7 +13,9 @@ from dev10x.domain.rules.policy_rule import PolicyRule
 from dev10x.domain.session_rules import (
     BuildAutonomyReassuranceRule,
     BuildAutoPlanGuidanceRule,
+    CompletionRecommendation,
     DecisionGuidanceRule,
+    completion_gate_recommendation,
     plan_gate_auto_approves,
 )
 from dev10x.hooks.session_policy import MigratePluginPermissionsRule
@@ -66,6 +68,53 @@ class TestPlanGateAutoApproves:
         assert (
             plan_gate_auto_approves(friction_level=friction_level, active_modes=active_modes)
             is expected
+        )
+
+
+class TestCompletionGateRecommendation:
+    """GH-729: completion is merge-gated — never recommend "Work complete"
+    while an associated PR is open/unmerged."""
+
+    @pytest.mark.parametrize(
+        ("has_associated_pr", "pr_merged", "blocking_checks_pass", "expected"),
+        [
+            # Merged PR, checks green → complete.
+            (True, True, True, CompletionRecommendation.WORK_COMPLETE),
+            # No PR (investigation / local-only), checks green → complete.
+            (False, False, True, CompletionRecommendation.WORK_COMPLETE),
+            # Open, unmerged, otherwise green → monitor, NOT complete.
+            (True, False, True, CompletionRecommendation.MONITOR_REVIEW),
+            # Any blocking check failing → go back, regardless of PR state.
+            (True, False, False, CompletionRecommendation.GO_BACK),
+            (True, True, False, CompletionRecommendation.GO_BACK),
+            (False, False, False, CompletionRecommendation.GO_BACK),
+        ],
+    )
+    def test_matrix(
+        self,
+        has_associated_pr: bool,
+        pr_merged: bool,
+        blocking_checks_pass: bool,
+        expected: CompletionRecommendation,
+    ) -> None:
+        assert (
+            completion_gate_recommendation(
+                has_associated_pr=has_associated_pr,
+                pr_merged=pr_merged,
+                blocking_checks_pass=blocking_checks_pass,
+            )
+            is expected
+        )
+
+    def test_open_unmerged_pr_never_recommends_work_complete(self) -> None:
+        # The load-bearing GH-729 invariant.
+        assert (
+            completion_gate_recommendation(
+                has_associated_pr=True,
+                pr_merged=False,
+                blocking_checks_pass=True,
+            )
+            is not CompletionRecommendation.WORK_COMPLETE
         )
 
 

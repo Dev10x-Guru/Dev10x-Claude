@@ -101,6 +101,14 @@ response (no PR for branch) as "no open PR" rather than a
 failure. No raw `gh` invocation or branch-name subshell is
 needed.
 
+**Merge-gated completion (GH-729).** An open/unmerged PR means the
+session is **not** complete — "shippable / handed off to review" is
+not terminal. When a detected PR is unmerged, the right deferral is
+a **"Monitor PR #<N> for review / merge"** task (owned by
+`Dev10x:gh-pr-monitor`), not a passive "Verify AC and close". This
+mirrors `verify-acc-dod`'s merge-gated Decision Gate and keeps the
+task-list invariant (GH-149) pointed at the real remaining work.
+
 ### 1e. Project TODO file
 
 Read `.claude/TODO.md` if it exists. Extract pending items (lines

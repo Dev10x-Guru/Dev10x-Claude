@@ -1478,6 +1478,27 @@ If any check fails, resolve it before presenting the gate.
 Do NOT present "Work complete" as recommended when preconditions
 are unmet.
 
+**Merge-gated completion (GH-729).** Completion is reserved for the
+**merged** state — "shippable / handed off to review" is NOT
+terminal. Resolve the PR merge state (via
+`mcp__plugin_Dev10x_cli__pr_detect` / `verify_pr_state`) and apply
+`dev10x.domain.session_rules.completion_gate_recommendation()`:
+
+- **Merged / no PR**, checks green → recommend **"Work complete"**.
+- **Open, awaiting review** (CI green, comments addressed) →
+  recommend **"Monitor PR for review"**: dispatch
+  `Skill(Dev10x:gh-pr-monitor)` to background-watch the PR (~5 min)
+  and keep the session open. Under `solo-maintainer` the monitor →
+  auto-merge path already runs (see § Solo-Maintainer Post-Create
+  Monitor Mandate); the gate simply must not auto-select "Work
+  complete" before the merge lands. The residual terminal task is
+  **"Monitor PR #<N> for review / merge"**, not a passive
+  "Verify AC and close".
+- **CI failing / comments unaddressed** → resolve first (Go back).
+
+Never offer or auto-select "Work complete" while an associated PR
+is open/unmerged.
+
 **Background agent task status:** Tasks for background agents
 (e.g., PR monitor dispatched via `run_in_background`) MUST remain
 `in_progress` until the agent confirms completion. Do NOT mark
@@ -1489,7 +1510,11 @@ agent's result notification arrives and confirms success.
 **REQUIRED: Call `AskUserQuestion`** (do NOT use plain text).
 Show the full task list via `TaskList`, then call:
 
-1. `AskUserQuestion(questions=[{question: "All tasks completed. How would you like to proceed?", header: "Done", options: [{label: "Work complete — hand over (Recommended)", description: "All checks pass, ready to close"}, {label: "Add more tasks", description: "Continue with additional work"}, {label: "Revisit a step", description: "Re-examine a completed task"}], multiSelect: false}])`
+1. **When the PR is merged (or the work is PR-less):**
+   `AskUserQuestion(questions=[{question: "All tasks completed. How would you like to proceed?", header: "Done", options: [{label: "Work complete — hand over (Recommended)", description: "PR merged (or PR-less), all checks pass — ready to close"}, {label: "Add more tasks", description: "Continue with additional work"}, {label: "Revisit a step", description: "Re-examine a completed task"}], multiSelect: false}])`
+2. **When an associated PR is open/unmerged but otherwise green
+   (GH-729):**
+   `AskUserQuestion(questions=[{question: "All checks pass and PR #<N> is awaiting review. How would you like to proceed?", header: "Done", options: [{label: "Monitor PR for review (Recommended)", description: "Keep the session open; background-watch PR #<N> every ~5 min via Dev10x:gh-pr-monitor and surface review/ready-to-merge"}, {label: "Add more tasks", description: "Continue with additional work"}, {label: "Override — complete anyway", description: "Accept the unmerged PR as done"}], multiSelect: false}])`
 
 Never auto-complete the plan without supervisor confirmation.
 The supervisor must explicitly sign off that work is done.
