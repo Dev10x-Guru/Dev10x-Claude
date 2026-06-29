@@ -387,6 +387,11 @@ mcp__plugin_Dev10x_cli__merge_pr(
 )
 ```
 
+The `admin` and `auto` parameters default to `false` here — a
+normal merge never sets them. They are set ONLY by the
+required-review block override below, and only with explicit
+user confirmation.
+
 The MCP tool wraps `gh pr merge` inside the MCP server's
 subprocess, so the PreToolUse hook that blocks raw `gh pr
 merge` Bash invocations does not apply. This is the only
@@ -397,7 +402,7 @@ hook layer (see `.claude/rules/hook-patterns.md`), not at the
 skill caller.
 
 The tool returns `{pr_number, url, strategy, branch_deleted,
-repo}` on success and `{error: "..."}` on failure.
+admin, auto, repo}` on success and `{error: "..."}` on failure.
 
 **Worktree safety (GH-773):** The tool always passes
 `--repo OWNER/REPO` to `gh pr merge` (auto-detected when
@@ -410,6 +415,55 @@ disconnected (`merge_pr` listed as "no longer available" in
 system-reminders), STOP and ask the user to reconnect via
 `/mcp` or restart the session. Raw `gh pr merge` is blocked
 and the SKIP env-var prefix is not the documented contract.
+
+**Required-review block override (GH-733, ALWAYS_ASK):** When
+Checks 1–7 pass but the merge cannot land because the PR is
+`BLOCKED` by a required-review branch-protection rule the
+current account cannot satisfy, `merge_pr` returns an error
+containing "base branch policy prohibits the merge" (and `gh`
+advises adding `--admin` or `--auto`). This is the canonical
+solo-maintainer case — GitHub forbids self-approval, so the
+PR can never reach `reviewDecision: APPROVED` on its own. It
+is NOT a check failure to route around: the 7 non-approval
+checks already passed, and approval (Check 7) is the only
+unsatisfiable gate.
+
+Fire this gate **only when `solo_maintainer: true`** in config.
+Without solo-maintainer mode, a `BLOCKED` PR means a real
+reviewer still owes an approval — do NOT offer an admin bypass;
+report the block and stop.
+
+**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text).
+This gate is `ALWAYS_ASK` — it fires at every friction level
+including `adaptive`+`solo-maintainer`, mirroring the Check-2
+infrastructure override. Auto-merging with admin privileges
+silently would defeat the gate's purpose.
+
+- Question: "PR #NUMBER passed all checks but is BLOCKED by a
+  required-review rule you cannot self-approve. Merge with
+  administrator privileges, enable auto-merge, or abort?"
+- Options:
+  - **Merge with admin override (Recommended)** — re-call
+    `merge_pr(pr_number=NUMBER, strategy="...", admin=true,
+    repo="OWNER/REPO")`. Record the reason in task metadata:
+    `TaskUpdate(taskId, metadata={"merge_override_reason":
+    "solo-maintainer required-review block",
+    "override_check": "branch-protection",
+    "override_state": "BLOCKED"})` so `Dev10x:skill-audit`
+    can surface override patterns later.
+  - **Enable auto-merge** — re-call
+    `merge_pr(pr_number=NUMBER, strategy="...", auto=true,
+    repo="OWNER/REPO")`. GitHub queues the merge and lands it
+    once branch-protection requirements are met; nothing merges
+    immediately. Use when a reviewer is expected to approve
+    later.
+  - **Abort** — leave the PR open.
+
+Never set `admin=true` or `auto=true` autonomously — only the
+user may authorize either path through this gate. The flags
+exist so the sanctioned MCP path can complete the merge
+instead of forcing a raw `gh api .../merge` admin bypass that
+skips the entire 8-check gate.
 
 **Any check fails:** Do NOT merge. Report which checks failed
 and what action is needed to resolve each one. Suggest the

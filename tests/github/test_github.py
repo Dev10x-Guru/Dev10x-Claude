@@ -1889,6 +1889,8 @@ class TestMergePr:
             "url": "https://github.com/owner/repo/pull/42",
             "strategy": "rebase",
             "branch_deleted": True,
+            "admin": False,
+            "auto": False,
             "repo": "owner/repo",
         }
         called_args = mock_run.call_args.kwargs["args"]
@@ -1902,6 +1904,8 @@ class TestMergePr:
             "--rebase",
             "--delete-branch",
         ]
+        assert "--admin" not in called_args
+        assert "--auto" not in called_args
 
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run", new_callable=AsyncMock)
@@ -1924,6 +1928,42 @@ class TestMergePr:
         called_args = mock_run.call_args.kwargs["args"]
         assert "--squash" in called_args
         assert "--delete-branch" not in called_args
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_admin_flag_appended(
+        self,
+        mock_run: AsyncMock,
+        mock_resolve_repo,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="merged\n")
+
+        result = await gh.merge_pr(pr_number=42, admin=True)
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["admin"] is True
+        assert result.value["auto"] is False
+        called_args = mock_run.call_args.kwargs["args"]
+        assert "--admin" in called_args
+        assert "--auto" not in called_args
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_auto_flag_appended(
+        self,
+        mock_run: AsyncMock,
+        mock_resolve_repo,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="auto-merge enabled\n")
+
+        result = await gh.merge_pr(pr_number=42, auto=True)
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["auto"] is True
+        assert result.value["admin"] is False
+        called_args = mock_run.call_args.kwargs["args"]
+        assert "--auto" in called_args
+        assert "--admin" not in called_args
 
     @pytest.mark.asyncio
     async def test_rejects_invalid_strategy(self) -> None:

@@ -923,6 +923,8 @@ async def merge_pr(
     pr_number: int,
     strategy: str = "rebase",
     delete_branch: bool = True,
+    admin: bool = False,
+    auto: bool = False,
     repo: str | None = None,
 ) -> Result[dict[str, Any]]:
     """Merge a pull request via ``gh pr merge``.
@@ -937,14 +939,24 @@ async def merge_pr(
         pr_number: PR number to merge.
         strategy: One of ``rebase``, ``squash``, ``merge``.
         delete_branch: Pass ``--delete-branch`` when True.
+        admin: Pass ``--admin`` when True — use administrator
+            privileges to merge immediately, bypassing a
+            required-review branch-protection rule the current
+            account cannot satisfy (e.g. a solo maintainer who
+            cannot self-approve). Gated upstream by the
+            ``Dev10x:gh-pr-merge`` Step 5 admin-override prompt;
+            the 7 non-approval checks still run first (GH-733).
+        auto: Pass ``--auto`` when True — enable GitHub auto-merge
+            so the PR merges once all branch-protection
+            requirements are met (GH-733).
         repo: Repository (owner/repo). Auto-detected if omitted.
             Always passed as ``--repo`` to ``gh pr merge`` so the
             command never tries to check out the base branch
             locally — required for worktree safety (GH-773).
 
     Returns:
-        ok({"pr_number", "url", "strategy", "branch_deleted", "repo"})
-        on success, err(...) otherwise.
+        ok({"pr_number", "url", "strategy", "branch_deleted",
+        "admin", "auto", "repo"}) on success, err(...) otherwise.
     """
     if strategy not in {"rebase", "squash", "merge"}:
         return err(f"Invalid merge strategy: {strategy!r}. Use rebase, squash, or merge.")
@@ -965,6 +977,10 @@ async def merge_pr(
     ]
     if delete_branch:
         args.append("--delete-branch")
+    if admin:
+        args.append("--admin")
+    if auto:
+        args.append("--auto")
 
     result = await async_run(args=args, timeout=60)
 
@@ -978,6 +994,8 @@ async def merge_pr(
             "url": url,
             "strategy": strategy,
             "branch_deleted": delete_branch,
+            "admin": admin,
+            "auto": auto,
             "repo": str(repo_ref),
         }
     )
