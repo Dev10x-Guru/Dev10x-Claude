@@ -111,6 +111,15 @@ keeps the *decision* (which paths to migrate, building the
 replacement list, whether the rule is applicable) and delegates the
 read-mutate-write to a new `SettingsDocument` in the Document layer.
 
+> **Clarification ([ADR-0015](0015-config-io-read-helper.md), GH-536):**
+> the D3 invariant targets **read-modify-write / persistence** inside a
+> Policy Rule — every example above is a read-mutate-write of
+> `settings.json`. **Read-only config/catalog deserialization** (load +
+> parse, no mutation, no write-back) is permitted in `domain/` via the
+> shared `domain/common/config_io.py` helper, returning a parsed value
+> with no write counterpart. Persistence and read-modify-write still
+> route through the Document layer / `file_locks` per D3.
+
 ### New Components
 
 | Component | Location | Responsibility |
