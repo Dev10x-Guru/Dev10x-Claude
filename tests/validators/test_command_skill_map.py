@@ -182,6 +182,30 @@ class TestGh609RoutingEntries:
         for pattern in _rule_by_name(name)["patterns"]:
             re.compile(pattern)
 
+    def test_find_exec_search_recognized(self) -> None:
+        rule = _rule_by_name("find-search")
+        assert _matches_any_pattern(
+            rule=rule, command=r"find . -name '*.py' -exec grep -l yaml {} \;"
+        )
+
+    def test_find_name_search_recognized(self) -> None:
+        rule = _rule_by_name("find-search")
+        assert _matches_any_pattern(rule=rule, command="find /hooks -type f -name '*.sh'")
+
+    def test_find_search_routes_to_grep_and_glob(self) -> None:
+        targets = _compensation_targets(_rule_by_name("find-search"))
+        assert "Grep" in targets
+        assert "Glob" in targets
+
+    def test_find_search_is_advisory(self) -> None:
+        # find is structurally un-allowable — a hook block would dead-end;
+        # this is a diag-friction steer, not an enforced block.
+        assert _rule_by_name("find-search")["hook_block"] is False
+
+    def test_find_search_patterns_compile(self) -> None:
+        for pattern in _rule_by_name("find-search")["patterns"]:
+            re.compile(pattern)
+
     def test_graphql_variants_already_routed(self) -> None:
         # GH-609 also lists the 3 gh api graphql variants; GH-598 already
         # covers them via gh-review-threads-graphql → unresolved_threads.

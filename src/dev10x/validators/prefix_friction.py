@@ -181,6 +181,16 @@ FIND_EXEC_WRAP_RE = re.compile(r"\bfind\b[^|;]*?-exec\s+(?P<rest>[^;]+?)(?:\\;|'
 _WRAPPED_INNER_TOKENS = frozenset(
     {"gh", "git", "kubectl", "docker", "psql", "aws", "uv", "python", "python3"}
 )
+# GH-726 F2/F3: `find … -exec <search-tool>` is the archetypal un-allowable
+# search shape — `find -exec` can't be auto-allowed and the inner search
+# tool's own allow rule never fires inside `-exec`. Unlike the mutating
+# inners above (where the remedy is parallel Bash calls), the correct steer
+# for a *search* is ripgrep / the Grep tool, which recurse and filter by
+# glob in one pre-approved call. Listed separately so the find branch can
+# emit a search-specific message instead of the parallel-calls advice.
+_FIND_SEARCH_INNER_TOKENS = frozenset(
+    {"grep", "egrep", "fgrep", "rg", "cat", "head", "tail", "wc", "sort", "sed", "awk"}
+)
 
 CD_REVPARSE_MSG = (
     '\u26a0\ufe0f  `cd "$(git rev-parse --show-toplevel)"` is unnecessary.\n\n'
@@ -353,6 +363,20 @@ SHELL_LOOP_WRAP_MSG = (
     "allow rule cleanly.\n\n"
     "Example: send N separate Bash calls in one message, each running\n"
     "`{inner} ...` with the iteration value substituted in.\n"
+)
+
+FIND_EXEC_SEARCH_MSG = (
+    "⚠️  `find … -exec {inner} …` blocked — and the wrong tool for the job.\n\n"
+    "`find -exec` can't be auto-allowed (it runs an arbitrary command), and\n"
+    "`{inner}`'s own allow-rule never fires inside `-exec`. For *searching*\n"
+    "files, reach for ripgrep or the Grep tool instead — both recurse and\n"
+    "filter by glob in a single pre-approved call:\n\n"
+    "  • `rg <pattern> -g '<glob>' <path>`  — ripgrep recurses by default\n"
+    "    (no `-type f`); `-g` does the name globs; `-l` lists matching files\n"
+    "    (== `grep -l`). `Bash(rg:*)` is already a shipped allow-rule.\n"
+    "  • The built-in Grep tool — wraps ripgrep, needs no Bash allow-rule\n"
+    '    at all (use output_mode="files_with_matches" / "count").\n\n'
+    "One `rg`/Grep call replaces the whole find → filter → search pipeline.\n"
 )
 
 MERGE_BASE_MSG = (
@@ -687,6 +711,10 @@ class PrefixFrictionValidator(ValidatorBase):
             if inner in _WRAPPED_INNER_TOKENS:
                 return HookResult(
                     message=SHELL_LOOP_WRAP_MSG.format(wrapper="find -exec", inner=inner),
+                )
+            if inner in _FIND_SEARCH_INNER_TOKENS:
+                return HookResult(
+                    message=FIND_EXEC_SEARCH_MSG.format(inner=inner),
                 )
 
         return None
