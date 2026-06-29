@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import os
 import subprocess
 from unittest.mock import AsyncMock, patch
 
@@ -1323,8 +1324,22 @@ class TestAuditHookRecent:
 
 @contextlib.contextmanager
 def _noop_cwd_stub(path: str):
-    """Noop use_cwd stub: records the call without binding the CWD ContextVar."""
-    yield
+    """use_cwd stub: records the call and chdirs into ``path`` for the body.
+
+    The handler is still invoked for real to prove it routes ``cwd``
+    through ``use_cwd``, so binding the process CWD to the tmp_path
+    sandbox is what keeps a handler that runs real git (e.g.
+    start_split_rebase's rebase + reset HEAD~1) inside the sandbox
+    instead of the test runner's real repository — running it in the
+    real repo silently rewound the real HEAD (GH-699). The ContextVar
+    is intentionally left unbound; only the process CWD is moved.
+    """
+    prev = os.getcwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(prev)
 
 
 CWD_HANDLERS: list[tuple[str, dict]] = [

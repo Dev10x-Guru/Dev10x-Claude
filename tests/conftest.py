@@ -1,3 +1,4 @@
+import subprocess
 from collections.abc import Generator
 from pathlib import Path
 
@@ -11,6 +12,58 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 
 def _repo_root_magicmock_files() -> set[Path]:
     return {entry for entry in _REPO_ROOT.iterdir() if entry.name.startswith("<MagicMock")}
+
+
+def _real_repo_head() -> str | None:
+    """HEAD SHA of the real repository this test session runs in.
+
+    Returns None when git is unavailable or _REPO_ROOT is not a checkout,
+    so the guard degrades to a no-op rather than erroring.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=_REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return result.stdout.strip()
+
+
+@pytest.fixture(autouse=True)
+def _guard_real_repo_head_unchanged() -> Generator[None, None, None]:
+    """Fail the test if it moves the real repository's HEAD (GH-699).
+
+    A git rebase/reset whose cwd defaults to the real repo — instead of a
+    ``tmp_path`` sandbox — silently rewinds the branch under test and can
+    drop a commit before a push (observed dropping a commit twice while
+    shipping PR #698). Snapshot HEAD around every test; if it moved, move
+    the branch pointer back with ``reset --soft`` (restores the dropped tip
+    without touching the working tree, so local WIP is never clobbered) and
+    fail loudly naming the offending test so its unsandboxed git call can be
+    given ``cwd=tmp_path``.
+    """
+    before = _real_repo_head()
+    yield
+    after = _real_repo_head()
+    if before is None or after is None or before == after:
+        return
+    subprocess.run(
+        ["git", "reset", "--soft", before],
+        cwd=_REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    pytest.fail(
+        f"Test rewound the real repo HEAD {before[:12]} -> {after[:12]} "
+        "(GH-699): a git rebase/reset ran against the real repository "
+        "instead of a tmp_path sandbox. The branch pointer was restored; "
+        "sandbox the offending git invocation with cwd=tmp_path.",
+        pytrace=False,
+    )
 
 
 @pytest.fixture(scope="session", autouse=True)
