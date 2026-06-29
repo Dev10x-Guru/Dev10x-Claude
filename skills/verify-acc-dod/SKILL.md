@@ -270,6 +270,37 @@ Update the global YAML file at
 Create the file if absent. Add the override under the current
 repo's key using add/remove/replace semantics.
 
+## Session Close vs Task Completion (GH-681)
+
+A green run of this skill is a **precondition** for closing the
+session — it is **not** the supervisor sign-off itself. The terminal
+"Verify acceptance criteria" task is closed only when the supervisor
+explicitly chooses "Work complete" (or runs `Dev10x:session-wrap-up`).
+"Checks pass" ≠ "supervisor confirmed session done": a draft/open PR
+with a pending human review can satisfy every automated check while the
+session is still live.
+
+The empty-task-list guard (`hooks/scripts/task-guard.py`, GH-149)
+enforces this: it **refuses** a `TaskUpdate` that marks the terminal
+Verify-AC task — or the last remaining open task — `completed`/`deleted`
+in a `Dev10x:work-on` session. When the supervisor has confirmed
+completion, close the task with the deliberate marker so the guard
+allows it:
+
+```
+TaskUpdate(taskId=<verify-ac-id>, status="completed",
+           metadata={"supervisor_confirmed": true})
+```
+
+At adaptive level, "all checks pass → auto-complete" still routes
+through this marker — auto-completion is not a licence to empty the
+list without the explicit sign-off step.
+
+**Post-completion re-open.** If new supervisor instructions arrive
+after Verify-AC was closed, create a fresh "Verify acceptance criteria"
+task **before** starting the new work, so the task list never sits
+empty mid-session.
+
 ## Integration
 
 ```

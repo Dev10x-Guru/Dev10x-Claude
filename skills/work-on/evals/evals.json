@@ -499,6 +499,12 @@
           "text": "Acceptance criteria verification is the final action in the execution",
           "check": "behavioral",
           "signals": ["last subtask", "acceptance criteria", "CI", "fixup", "groom", "review"]
+        },
+        {
+          "id": "terminal-task-not-auto-closed",
+          "text": "Does not mark the terminal 'Verify acceptance criteria' task completed/deleted without explicit supervisor sign-off; the empty-task-list invariant (GH-149) keeps at least one open task until the supervisor confirms, and closing the terminal task after confirmation carries metadata.supervisor_confirmed=true (enforced by the GH-681 task-guard hook)",
+          "check": "behavioral",
+          "signals": ["supervisor_confirmed", "empty-task-list invariant", "GH-149", "no auto-complete"]
         }
       ]
     },

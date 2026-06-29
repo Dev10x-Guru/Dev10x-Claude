@@ -43,6 +43,16 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "TaskUpdate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PLUGIN_ROOT/hooks/scripts/audit-wrap task-guard $CLAUDE_PLUGIN_ROOT/hooks/scripts/task-guard.py",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "Stop": [
