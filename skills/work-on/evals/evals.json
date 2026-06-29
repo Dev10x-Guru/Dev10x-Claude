@@ -138,6 +138,12 @@
           "signals": ["AskUserQuestion", "Approve"]
         },
         {
+          "id": "plan-rendered-as-box-drawing-tree",
+          "text": "Renders the Proposed plan block as a box-drawing tree (phases nest subtasks with box-drawing glyphs) per the GH-730 hybrid display convention; the flat Session mode summary keeps bullet-indent",
+          "check": "output_contains",
+          "signals": ["├─", "└─"]
+        },
+        {
           "id": "plan-adapts-to-feature",
           "text": "Plan follows feature template (Design+Implement+Verify+PR+Fixups+Groom+Review+Acceptance)",
           "check": "task_exists",
