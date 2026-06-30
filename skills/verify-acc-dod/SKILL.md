@@ -142,6 +142,16 @@ check with a `modes:` field, check if any active mode has
 `skip: true`. If so, remove the check from the list and report
 it as "skipped (mode: <mode-name>)".
 
+Modes encode an explicit scope decision so the DoD stays honest
+rather than red-but-ignored (GH-736). For example, `review-deferred`
+skips both the **"No unresolved review threads"** check and the
+**"Review requested" / "Re-review requested"** check — set it when
+the supervisor has deferred open review threads to a follow-up, so a
+green run honestly recommends Work complete / Monitor instead of
+papering over a failing thread check. `solo-maintainer` skips only
+the review-request check (thread resolution is still expected). See
+[`references/active-modes.md`](../../references/active-modes.md).
+
 ### Resolution order (summary)
 
 1. Load plugin defaults for `work_type`

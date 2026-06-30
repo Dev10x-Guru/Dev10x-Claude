@@ -1503,6 +1503,46 @@ If any check fails, resolve it before presenting the gate.
 Do NOT present "Work complete" as recommended when preconditions
 are unmet.
 
+**Recommendation defers to verify-acc-dod (GH-736).** The completion
+gate recommendation is computed from the verify-acc-dod result, never
+overridden by gate framing. While **any** blocking DoD check is
+failing/pending —
+`dev10x.domain.session_rules.completion_gate_recommendation()` returns
+`GO_BACK` — you MUST NOT label, present, or auto-select "Work complete"
+as Recommended. "The requested fix is done" is not "the PR is
+merge-ready": a still-red check (e.g. open review threads) makes
+**Go back** the only recommended option until the check is resolved or
+the failing criterion is honestly removed from scope (see below).
+
+**Scope-deferred review threads (GH-736).** When the supervisor has
+explicitly deferred open PR review threads for this session (e.g.
+"land the CI fix only, leave the review comments for a follow-up"),
+the **"No unresolved review threads"** DoD check will stay red. Do NOT
+paper over it by recommending "Work complete" anyway. Instead, make
+the scope decision explicit so the DoD reflects it:
+
+1. Detect the defer — a supervisor message scoping the session away
+   from review-thread resolution ("defer the threads", "skip the
+   review comments", "just the CI fix", "leave the open threads").
+2. Set `review-deferred` in `active_modes` (`.claude/Dev10x/session.yaml`)
+   so `Dev10x:verify-acc-dod` skips the unresolved-threads and
+   re-review checks (see `references/active-modes.md`):
+   - At `friction_level: adaptive`, apply the mode automatically and
+     note it in the next status line.
+   - At `friction_level: strict`/`guided`, **REQUIRED: Call
+     `AskUserQuestion`** — "Open review threads remain. Defer them
+     (set `review-deferred`) or resolve them now?" with options
+     "Defer review threads (set review-deferred)" and "Resolve threads
+     now (Go back)".
+3. Re-run the verify-acc-dod gate. With the deferred checks excluded,
+   a green run resolves honestly to **Work complete** / **Monitor for
+   review** per the table below. The unresolved-threads check is
+   *removed from scope*, not silently passed — `verify-acc-dod`
+   reports it as "skipped (mode: review-deferred)".
+
+If the supervisor has NOT deferred the threads, an open thread is a
+failing blocking check → **Go back**; never "Work complete".
+
 **Merge-gated completion (GH-729).** Completion is reserved for the
 **merged** state — "shippable / handed off to review" is NOT
 terminal. Resolve the PR merge state (via

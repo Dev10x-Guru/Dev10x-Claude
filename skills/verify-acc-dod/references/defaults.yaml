@@ -50,6 +50,9 @@ defaults:
           gh pr view {pr_number} --repo {repo}
           --json reviewThreads -q '[.reviewThreads[] | select(.isResolved == false)] | length'  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect: "0"
+        modes:
+          review-deferred:
+            skip: true
       - name: Review requested
         check: >
           gh pr view {pr_number} --repo {repo}
@@ -90,6 +93,9 @@ defaults:
           gh pr view {pr_number} --repo {repo}
           --json reviewThreads -q '[.reviewThreads[] | select(.isResolved == false)] | length'  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect: "0"
+        modes:
+          review-deferred:
+            skip: true
       - name: Review requested
         check: >
           gh pr view {pr_number} --repo {repo}
@@ -126,6 +132,9 @@ defaults:
           gh pr view {pr_number} --repo {repo}
           --json reviewThreads -q '[.reviewThreads[] | select(.isResolved == false)] | length'  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect: "0"
+        modes:
+          review-deferred:
+            skip: true
       - name: Re-review requested
         check: >
           gh pr view {pr_number} --repo {repo}

@@ -72,6 +72,31 @@ When NOT to use: when you also want downstream gates to auto-resolve
 (use `friction_level: adaptive` instead) or when you want to keep the
 plan gate as a veto point (omit `auto-plan`).
 
+### `review-deferred`
+
+The supervisor has explicitly scoped the session to **defer** open PR
+review threads — e.g. "land the CI fix only, leave the review comments
+for a follow-up". The review workflow is out of scope for *this*
+session, so the definition-of-done must not stay red on review-thread
+criteria the supervisor agreed to skip.
+
+Documented behaviors:
+
+- `Dev10x:verify-acc-dod` skips the **"No unresolved review threads"**
+  check (the `modes.review-deferred.skip: true` clause in
+  `skills/verify-acc-dod/references/defaults.yaml`)
+- `Dev10x:verify-acc-dod` skips the **"Review requested" /
+  "Re-review requested"** check
+- The Plan Completion Gate then resolves honestly: with the deferred
+  checks excluded, a green run recommends **Work complete** (merged /
+  PR-less) or **Monitor for review** (open PR) instead of papering over
+  a known-red check with gate framing (GH-736)
+
+When NOT to use: when open review threads must be resolved before the
+work is shippable. This mode records an explicit scope decision — it is
+not a blanket "ignore reviews" switch. Set it only when the supervisor
+has deferred review threads for the current session.
+
 ## Resolution order
 
 Active modes are resolved in this order (see
