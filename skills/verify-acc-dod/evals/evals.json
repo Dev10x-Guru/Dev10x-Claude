@@ -15,6 +15,11 @@
       "id": "merge-gated-completion",
       "name": "Merge-Gated Completion Gate (GH-729)",
       "description": "Never offers or auto-selects 'Work complete' while an associated PR is open/unmerged; recommends background review-monitoring instead; reserves completion for the merged (or PR-less) state"
+    },
+    {
+      "id": "scope-deferred-review",
+      "name": "Scope-Deferred Review Threads (GH-736)",
+      "description": "Honors review-deferred mode by skipping the unresolved-threads and review-request checks so the DoD reflects the agreed scope; never recommends 'Work complete' while a blocking check is failing"
     }
   ],
   "evals": [
@@ -81,6 +86,28 @@
           "text": "'Work complete' is the recommended option once the PR is merged",
           "check": "tool_called",
           "signals": ["AskUserQuestion", "Work complete"]
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "review-deferred-skips-thread-check",
+      "prompt": "/Dev10x:verify-acc-dod bugfix  (session: friction_level adaptive, active_modes [solo-maintainer, review-deferred]; CI green, working copy clean, PR #42 OPEN; two review threads remain unresolved)",
+      "description": "Tests that with review-deferred active, the unresolved-threads and review-request checks are removed from scope (reported as skipped), so the gate resolves honestly to Monitor for review instead of staying red — and is NOT papered over as 'Work complete'.",
+      "expected_output": "The 'No unresolved review threads' and 'Re-review requested' checks are reported as 'skipped (mode: review-deferred)'. Remaining checks pass, PR #42 is open → recommendation is 'Monitor for review' (background gh-pr-monitor). 'Work complete' is NOT recommended.",
+      "dimensions": ["scope-deferred-review", "merge-gated-completion"],
+      "assertions": [
+        {
+          "id": "skips-unresolved-threads-check",
+          "text": "Removes the 'No unresolved review threads' check from scope and reports it as skipped (mode: review-deferred)",
+          "check": "behavioral",
+          "signals": ["skipped", "review-deferred", "No unresolved review threads"]
+        },
+        {
+          "id": "no-papered-over-completion",
+          "text": "Does NOT recommend/auto-select 'Work complete' on the strength of skipping the deferred check while the PR is still open",
+          "check": "behavioral",
+          "signals": ["no Work complete recommended", "PR open/unmerged"]
         }
       ]
     }
