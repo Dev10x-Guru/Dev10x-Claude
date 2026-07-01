@@ -1753,8 +1753,17 @@ async def check_top_level_comments(
 async def unresolved_threads(
     *,
     repo: str,
+    pr_number: int | None = None,
     limit: int = 200,
 ) -> Result[dict[str, Any]]:
+    # A single-PR check delegates to the per-PR GraphQL path (one
+    # query, sub-2s). The repo-wide sweep below fans out to ~2 gh
+    # subprocesses per merged PR and times out at scale (GH-710).
+    if pr_number is not None:
+        return await _list_unresolved_threads(
+            resolved_repo=repo,
+            pr_number=pr_number,
+        )
     result = await async_run_script(
         "skills/gh-pr-doctor/scripts/gh-unresolved-threads.py",
         "--repo",

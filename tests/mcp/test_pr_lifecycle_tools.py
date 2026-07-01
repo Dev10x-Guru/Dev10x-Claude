@@ -142,6 +142,70 @@ class TestUnresolvedThreadsContract:
         assert isinstance(result, ErrorResult)
         assert "JSON" in result.error or "Invalid" in result.error
 
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_pr_number_uses_fast_single_pr_path(
+        self,
+        mock_api_raw: AsyncMock,
+        mock_run: AsyncMock,
+    ) -> None:
+        # GH-710: pr_number short-circuits to the single-PR GraphQL
+        # query, never the repo-wide merged-PR sweep that times out.
+        mock_api_raw.return_value = _completed(
+            stdout=json.dumps(
+                {"data": {"repository": {"pullRequest": {"reviewThreads": {"nodes": []}}}}}
+            )
+        )
+
+        result = await gh.unresolved_threads(repo="owner/repo", pr_number=706)
+
+        assert isinstance(result, SuccessResult)
+        assert result.value == {"unresolved_threads": [], "count": 0}
+        mock_run.assert_not_called()
+        query = mock_api_raw.call_args.kwargs["fields"]["query"]
+        assert "pullRequest(number: 706)" in query
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_pr_number_counts_only_unresolved(
+        self,
+        mock_api_raw: AsyncMock,
+        mock_run: AsyncMock,
+    ) -> None:
+        nodes = [
+            {
+                "id": "PRRT_1",
+                "isResolved": False,
+                "isOutdated": False,
+                "comments": {
+                    "nodes": [
+                        {
+                            "databaseId": 11,
+                            "body": "fix this",
+                            "path": "a.py",
+                            "line": 3,
+                            "author": {"login": "bot"},
+                        }
+                    ]
+                },
+            },
+            {"id": "PRRT_2", "isResolved": True, "comments": {"nodes": []}},
+        ]
+        mock_api_raw.return_value = _completed(
+            stdout=json.dumps(
+                {"data": {"repository": {"pullRequest": {"reviewThreads": {"nodes": nodes}}}}}
+            )
+        )
+
+        result = await gh.unresolved_threads(repo="owner/repo", pr_number=42)
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["count"] == 1
+        assert result.value["unresolved_threads"][0]["thread_id"] == "PRRT_1"
+        mock_run.assert_not_called()
+
 
 class TestMergePrContract:
     """gh.merge_pr — argument construction and error propagation."""

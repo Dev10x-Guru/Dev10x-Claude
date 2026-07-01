@@ -92,7 +92,7 @@ one session). Use these shapes verbatim:
 | `issue_get` | `number` | `issue_id` |
 | `pr_get` | `number` | `pr_number` |
 | `pr_comments` | `pr_number`, `action` (no default) | omitting `action` |
-| `unresolved_threads` | `repo` (no CWD default) | omitting `repo` |
+| `unresolved_threads` | `repo` (no CWD default); pass `pr_number` for a single PR | omitting `repo`; omitting `pr_number` for a per-PR check |
 | `check_top_level_comments` | `repo` (no CWD default) | omitting `repo` |
 | `push_safe` | `args` list, e.g. `["-u", "origin", "<branch>"]` | bare call |
 | `resolve_review_thread` | `thread_ids` (list) | singular `thread_id` |
@@ -103,9 +103,12 @@ Behavioral caveats:
   "push_failed"}` with no further diagnostic; a successful push may
   return `{}` — treat any non-`error` payload without
   `"pushed": false` as success.
-- `unresolved_threads` has timed out where the equivalent raw GraphQL
-  query returned in under 2s; retry once before falling back per
-  skill guidance.
+- `unresolved_threads` runs in two modes: with `pr_number` it issues
+  a single per-PR `reviewThreads` GraphQL query (sub-2s, returns
+  `{"unresolved_threads": [...], "count": N}`); without it, it sweeps
+  up to `limit` merged PRs (slower — one subprocess pair per PR —
+  returns `{"prs": [...], "count": N}`). For a single-PR check always
+  pass `pr_number` (GH-710).
 
 Parameter normalization (accepting aliases, defaulting `repo` from
 CWD, richer `push_safe` diagnostics) is tracked as follow-up work;
