@@ -118,9 +118,10 @@ GraphQL query and returns only the unresolved threads:
 mcp__plugin_Dev10x_cli__unresolved_threads(repo="OWNER/REPO", pr_number=NUMBER)
 ```
 
-`unresolved_threads` requires an explicit `repo` (no CWD default).
-If it times out, retry once before falling back. Each returned
-thread is unresolved; report the count and first comment of each.
+`unresolved_threads` requires an explicit `repo` (no CWD default);
+pass `pr_number` so it runs the fast single-PR GraphQL query rather
+than a repo-wide merged-PR sweep. Each returned thread is
+unresolved; report the count and first comment of each.
 
 ### Check 1b: No unaddressed top-level PR comments (GH-698)
 

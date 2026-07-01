@@ -1081,20 +1081,25 @@ async def check_top_level_comments(
 @github_tool
 async def unresolved_threads(
     repo: str,
+    pr_number: int | None = None,
     limit: int = 200,
     cwd: str | None = None,
 ) -> Result[dict]:
-    """Scan merged PRs for unresolved review comment threads.
+    """Fetch unresolved review comment threads.
 
     Args:
         repo: Repository in owner/repo format
-        limit: Max PRs to scan (default 200)
+        pr_number: When set, check only this PR via a single fast
+            GraphQL query — returns {"unresolved_threads": [...],
+            "count": N}. When omitted, sweep up to `limit` merged
+            PRs — returns {"prs": [...], "count": N}.
+        limit: Max PRs to scan in the repo-wide sweep (default 200)
         cwd: Effective working directory (GH-979).
 
     Returns:
-        Dictionary with keys: prs (list), count (int)
+        Dictionary — response shape depends on pr_number (see above).
     """
-    return await gh.unresolved_threads(repo=repo, limit=limit)
+    return await gh.unresolved_threads(repo=repo, pr_number=pr_number, limit=limit)
 
 
 @github_tool
