@@ -48,7 +48,9 @@ The current model's levers:
 | `walk_away` + `doubt_sink` | whether non-destructive gates fire at all |
 
 A DDD workshop (2026-07-03) modeled the domain and the supervisor
-directed the design through eight decisions (D-1..D-8 below).
+directed the design through eight decisions (D-1..D-8 below), amended
+the same day with D-9 (guided-preset relaxation + effect rename,
+GH-748).
 
 ## Decision
 
@@ -69,10 +71,10 @@ mcp__plugin_Dev10x_cli__resolve_gate(
     context={"author_type": "bot", "destructive": false,
              "overlap_signals": 2, "confidence": 85,
              "valid_fixup_count": 0})
-→ {"effect": "auto",                  # ask | auto | skip
+→ {"effect": "auto-advance",          # ask | auto-advance | skip
    "resolved_option": "Recommended",
    "log_to": "pr-description",
-   "reason": "preset:adaptive thread_resolution=auto_if_bot author=bot",
+   "reason": "preset:adaptive thread_resolution=auto-advance-if-bot author=bot",
    "floors_applied": []}
 ```
 
@@ -85,38 +87,40 @@ resolver). The MCP boundary routes through `to_wire()` per ADR-0009.
 
 ### D-3: Toggles are typed — bool, enum, weight
 
-22 toggles derived from the gate inventory. Effects vocabulary (D-6):
-`ask` (fire, block) / `auto` (resolve to recommended, never block) /
-`skip` (structural removal). Conditional autos: `auto_if_bot`,
-`auto_if_safe`, `auto_if_merged`, `auto_if_stale_free`. Weights are
-numeric thresholds feeding conditional autos.
+22 toggles derived from the gate inventory. Effects vocabulary (D-6,
+renamed by D-9): `ask` (fire, block) / `auto-advance` (resolve to
+recommended, never block — the name every skill's orchestration
+contract already uses) / `skip` (structural removal). Conditional
+auto-advances: `auto-advance-if-bot`, `auto-advance-if-safe`,
+`auto-advance-if-merged`, `auto-advance-if-stale-free`. Weights are
+numeric thresholds feeding the conditional auto-advances.
 
 | Toggle | Type | Values |
 |---|---|---|
-| `plan_approval` | enum | ask / auto |
-| `batch_layout` | enum | ask / auto (weight-conditioned) |
-| `strategy_choice` | enum | ask / auto |
-| `artifact_preview` | enum | ask / auto |
-| `triage_response` | enum | ask / auto_if_bot / auto |
-| `thread_resolution` | enum | ask / auto_if_bot / auto |
-| `comment_hide` | enum | ask / auto |
-| `yagni_routing` | enum | ask / auto |
-| `shipping_continuation` | enum | ask / auto |
-| `request_review` | enum | ask / auto / skip |
-| `external_notify` | enum | ask / auto / skip |
-| `merge` | enum | ask / auto |
-| `completion_signoff` | enum | ask / auto |
-| `history_rewrite` | enum | ask / auto_if_safe / auto |
-| `workspace_choice` | enum | ask / auto |
-| `branch_cleanup` | enum | ask / auto_if_merged / auto (D-5) |
-| `session_adoption` | enum | ask / auto_if_stale_free / auto |
+| `plan_approval` | enum | ask / auto-advance |
+| `batch_layout` | enum | ask / auto-advance (weight-conditioned) |
+| `strategy_choice` | enum | ask / auto-advance |
+| `artifact_preview` | enum | ask / auto-advance |
+| `triage_response` | enum | ask / auto-advance-if-bot / auto-advance |
+| `thread_resolution` | enum | ask / auto-advance-if-bot / auto-advance |
+| `comment_hide` | enum | ask / auto-advance |
+| `yagni_routing` | enum | ask / auto-advance |
+| `shipping_continuation` | enum | ask / auto-advance |
+| `request_review` | enum | ask / auto-advance / skip |
+| `external_notify` | enum | ask / auto-advance / skip |
+| `merge` | enum | ask / auto-advance |
+| `completion_signoff` | enum | ask / auto-advance |
+| `history_rewrite` | enum | ask / auto-advance-if-safe / auto-advance |
+| `workspace_choice` | enum | ask / auto-advance |
+| `branch_cleanup` | enum | ask / auto-advance-if-merged / auto-advance (D-5) |
+| `session_adoption` | enum | ask / auto-advance-if-stale-free / auto-advance |
 | `zero_valid_autoflow` | bool | batch gates auto-advance on zero VALID fixups |
 | `autofix_confidence` | weight | 0–100; review-fix auto-sends findings ≥ threshold |
 | `batch_ambiguity_floor` | weight | min overlap signals to auto-accept a batch |
 | `doubt_sink` | enum | pr-description / session-bookmark / commit-footer |
 | `anchor_recommendations` | bool | show "(Recommended)" anchoring in ask widgets |
 
-`auto_if_bot` encodes the GH-745 author-type rule: bot-authored threads
+`auto-advance-if-bot` encodes the GH-745 author-type rule: bot-authored threads
 resolve autonomously; human-authored threads escalate to `ask`
 regardless of preset.
 
@@ -135,7 +139,7 @@ plugin preset < project override < session preset choice
 Reversibility is tri-state (trivial / assisted / none). Only
 *none*-tier operations are floors. Branch deletion is
 assisted-recoverable (reflog) → the `branch_cleanup` toggle with
-`auto_if_merged` (auto-delete only branches whose tips are reachable
+`auto-advance-if-merged` (auto-delete only branches whose tips are reachable
 from base). Mass delete of untracked files, worktree removal holding
 uncommitted work → floors.
 
@@ -145,16 +149,16 @@ uncommitted work → floors.
 anchoring bias in the widget, not behavior. `anchor_recommendations`
 (bool, preset-level) captures it honestly.
 
-### D-7: `auto` is never silent
+### D-7: `auto-advance` is never silent
 
 Every auto-resolution MUST surface a visible one-line record in the
-session transcript — `⚙ gate:<toggle> auto → "<option>" (<reason>)` —
+session transcript — `⚙ gate:<toggle> auto-advance → "<option>" (<reason>)` —
 so a present supervisor can notice and override mid-flight, AND append
 to the audit log + `doubt_sink`. An auto-resolution without a visible
 record is a compliance bug (extends walk-away.md's silent-suppression
 anti-pattern to the whole resolver).
 
-### D-8: Merge is auto at adaptive; the human boundary lives at the project tier
+### D-8: Merge auto-advances at adaptive; the human boundary lives at the project tier
 
 `adaptive` IS the walk-away autonomy posture, merges included. The
 team-repo human boundary is a **project-tier concern**: a team-reviewed
@@ -164,43 +168,71 @@ sessions on that repo still stop for a human merge while solo repos
 merge autonomously. Repo character (solo vs team) is a durable property
 of the repo — encoding it per-project kills the GH-743/744 failure mode
 at the right layer, and a stale session file can no longer cross the
-boundary (D-8 composes with `session_adoption: auto_if_stale_free`,
+boundary (D-8 composes with `session_adoption: auto-advance-if-stale-free`,
 which re-prompts when `session.yaml` mismatches the current
 invocation — GH-742 F1).
+
+### D-9: Guided is light-AFK — auto-advance through self-review, supervised team interactions (GH-748)
+
+Amendment (2026-07-03, supervisor-directed). The original guided
+column fired every gate, differing from strict only by anchoring,
+weights, and stale-session trust. That wasted an attended-but-busy
+supervisor's time on repeatable mechanical choices. New posture:
+
+- **Guided auto-advances the mechanical pipeline through
+  self-review** — plan approval, batches, strategies, artifact
+  previews, bot-thread handling, groom-if-safe, cleanup-if-merged,
+  zero-VALID flow.
+- **Team interactions stay supervised.** `request_review` fires its
+  widget: the agent *reaches* the step, the supervisor decides — with
+  a **Stand by** option so they can run a self-review pass before
+  reviewers are pinged. `external_notify` and `completion_signoff`
+  also ask.
+- **The merge is a strictly human action through the PR UI** —
+  `merge: skip`: the agent's merge step does not exist at guided. The
+  session hands off after request-review, or monitors waiting for a
+  teammate's approval (the completion gate's Monitor-for-review path).
+- **Effect rename:** `auto` → `auto-advance` (and conditional values
+  accordingly), aligning the resolver vocabulary with the
+  "Auto-advance" contract line every skill already carries.
+
+Net ladder: guided = adaptive except `request_review` (widget with
+stand-by), `merge` (skip vs auto-advance), and `completion_signoff`
+(ask vs auto-advance).
 
 ### Shipped presets
 
 | Toggle | strict | guided | adaptive |
 |---|---|---|---|
-| plan_approval | ask | ask | auto |
-| batch_layout | ask | ask | auto |
-| strategy_choice | ask | ask | auto |
-| artifact_preview | ask | ask | auto |
-| triage_response | ask | ask | auto_if_bot |
-| thread_resolution | ask | ask | auto_if_bot |
-| comment_hide | ask | ask | auto |
-| yagni_routing | ask | ask | auto |
-| shipping_continuation | ask | ask | auto |
-| request_review | ask | ask | auto |
+| plan_approval | ask | auto-advance | auto-advance |
+| batch_layout | ask | auto-advance | auto-advance |
+| strategy_choice | ask | auto-advance | auto-advance |
+| artifact_preview | ask | auto-advance | auto-advance |
+| triage_response | ask | auto-advance-if-bot | auto-advance-if-bot |
+| thread_resolution | ask | auto-advance-if-bot | auto-advance-if-bot |
+| comment_hide | ask | auto-advance | auto-advance |
+| yagni_routing | ask | auto-advance | auto-advance |
+| shipping_continuation | ask | auto-advance | auto-advance |
+| request_review | ask | ask (widget w/ stand-by) | auto-advance |
 | external_notify | ask | ask | ask |
-| merge | ask | ask | auto |
-| completion_signoff | ask | ask | auto |
-| history_rewrite | ask | ask | auto_if_safe |
-| workspace_choice | ask | ask | auto |
-| branch_cleanup | ask | ask | auto_if_merged |
-| session_adoption | ask | auto_if_stale_free | auto_if_stale_free |
-| zero_valid_autoflow | 0 | 0 | 1 |
+| merge | ask | **skip** (human via PR UI) | auto-advance |
+| completion_signoff | ask | ask | auto-advance |
+| history_rewrite | ask | auto-advance-if-safe | auto-advance-if-safe |
+| workspace_choice | ask | auto-advance | auto-advance |
+| branch_cleanup | ask | auto-advance-if-merged | auto-advance-if-merged |
+| session_adoption | ask | auto-advance-if-stale-free | auto-advance-if-stale-free |
+| zero_valid_autoflow | 0 | 1 | 1 |
 | autofix_confidence | 101 (never) | 70 | 70 |
 | batch_ambiguity_floor | ∞ (always ask) | 3 | 3 |
 | anchor_recommendations | false | true | true |
 
 Overlay presets (patches on a base): `solo-maintainer`
-(request_review: skip, external_notify: skip, merge: auto at any base)
-and `afk` (session_adoption: auto, external_notify queued to
-doubt_sink, doubt_sink: pr-description). The afk skill composes
-presets instead of appending `solo-maintainer` to `active_modes`
-(GH-743 F1, GH-744 F2); conflicting oversight configuration is
-reconciled by preset replacement.
+(request_review: skip, external_notify: skip, merge: auto-advance at
+any base) and `afk` (session_adoption: auto-advance, external_notify
+queued to doubt_sink, doubt_sink: pr-description). The afk skill
+composes presets instead of appending `solo-maintainer` to
+`active_modes` (GH-743 F1, GH-744 F2); conflicting oversight
+configuration is reconciled by preset replacement.
 
 ### Safety floors (deny-overrides)
 
@@ -235,7 +267,7 @@ with no blind-pickable safe default:
    resolution order, floors, and logging; drift returns within a few
    releases. Rejected: the tool is what makes skills policy-ignorant
    and the contract testable in one place.
-4. **Three effects (ask / notify / auto)** with `notify` =
+4. **Three effects (ask / notify / auto-advance)** with `notify` =
    fire-and-proceed (widget emitted, agent proceeds on recommended if
    not overridden) — genuinely distinct middle ground with precedent in
    the plan gate at adaptive; deferred, not adopted: D-7's visible

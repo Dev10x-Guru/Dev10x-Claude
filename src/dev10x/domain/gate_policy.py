@@ -11,6 +11,14 @@ Resolution pipeline (ADR-0016 D-4, lowest to highest precedence):
     plugin preset < project override < session preset choice
                   < per-toggle session override < safety floors
 
+Preset postures (ADR-0016 D-9): ``strict`` fires every gate;
+``guided`` is light-AFK — the agent auto-advances the mechanical
+pipeline through self-review, team interactions stay supervised
+(request-review widget with a stand-by option), and the merge is a
+strictly human action through the PR UI (``merge: skip`` — the agent
+hands off or monitors for teammate approval); ``adaptive`` is the
+walk-away posture, merges included.
+
 All functions are free of file I/O (ADR-0007 D3): the caller reads
 session/project configuration and passes parsed values in. Shipped
 preset value-maps live here as data; the planned
@@ -25,10 +33,10 @@ from dataclasses import dataclass, field
 
 
 class GateEffect(enum.Enum):
-    """How a gate resolves for the current session (ADR-0016 D-6)."""
+    """How a gate resolves for the current session (ADR-0016 D-6, D-9)."""
 
     ASK = "ask"
-    AUTO = "auto"
+    AUTO_ADVANCE = "auto-advance"
     SKIP = "skip"
 
 
@@ -40,11 +48,12 @@ class UnknownPresetError(ValueError):
     """Raised when a preset name is not shipped and not user-supplied."""
 
 
-# Conditional toggle values — auto when the condition holds, else ask.
-AUTO_IF_BOT = "auto_if_bot"
-AUTO_IF_SAFE = "auto_if_safe"
-AUTO_IF_MERGED = "auto_if_merged"
-AUTO_IF_STALE_FREE = "auto_if_stale_free"
+AUTO_ADVANCE = "auto-advance"
+# Conditional toggle values — auto-advance when the condition holds, else ask.
+AUTO_ADVANCE_IF_BOT = "auto-advance-if-bot"
+AUTO_ADVANCE_IF_SAFE = "auto-advance-if-safe"
+AUTO_ADVANCE_IF_MERGED = "auto-advance-if-merged"
+AUTO_ADVANCE_IF_STALE_FREE = "auto-advance-if-stale-free"
 
 _ENUM_TOGGLES: frozenset[str] = frozenset(
     {
@@ -77,7 +86,8 @@ _SETTING_TOGGLES: frozenset[str] = frozenset({"doubt_sink"})
 KNOWN_TOGGLES: frozenset[str] = _ENUM_TOGGLES | _WEIGHT_TOGGLES | _BOOL_TOGGLES | _SETTING_TOGGLES
 
 # ADR-0016 "Shipped presets" table. A weight of NEVER_THRESHOLD means the
-# weight-conditioned auto can never trigger; ALWAYS_ASK_SIGNALS likewise.
+# weight-conditioned auto-advance can never trigger; ALWAYS_ASK_SIGNALS
+# likewise.
 NEVER_THRESHOLD = 101
 ALWAYS_ASK_SIGNALS = 10_000
 
@@ -90,33 +100,54 @@ SHIPPED_PRESETS: dict[str, dict[str, str | int | bool]] = {
         "anchor_recommendations": False,
         "doubt_sink": "pr-description",
     },
+    # D-9: light-AFK guided — auto-advance the mechanical pipeline through
+    # self-review; team interactions supervised. request_review fires its
+    # widget (supervisor decides, with a stand-by option for a self-review
+    # pass first); merge is a strictly human action through the PR UI, so
+    # the agent's merge step does not exist (skip) — the session hands off
+    # after request-review or monitors for teammate approval.
     "guided": {
-        **{toggle: "ask" for toggle in _ENUM_TOGGLES},
-        "session_adoption": AUTO_IF_STALE_FREE,
-        "zero_valid_autoflow": False,
+        "plan_approval": AUTO_ADVANCE,
+        "batch_layout": AUTO_ADVANCE,
+        "strategy_choice": AUTO_ADVANCE,
+        "artifact_preview": AUTO_ADVANCE,
+        "triage_response": AUTO_ADVANCE_IF_BOT,
+        "thread_resolution": AUTO_ADVANCE_IF_BOT,
+        "comment_hide": AUTO_ADVANCE,
+        "yagni_routing": AUTO_ADVANCE,
+        "shipping_continuation": AUTO_ADVANCE,
+        "request_review": "ask",
+        "external_notify": "ask",
+        "merge": "skip",
+        "completion_signoff": "ask",
+        "history_rewrite": AUTO_ADVANCE_IF_SAFE,
+        "workspace_choice": AUTO_ADVANCE,
+        "branch_cleanup": AUTO_ADVANCE_IF_MERGED,
+        "session_adoption": AUTO_ADVANCE_IF_STALE_FREE,
+        "zero_valid_autoflow": True,
         "autofix_confidence": 70,
         "batch_ambiguity_floor": 3,
         "anchor_recommendations": True,
         "doubt_sink": "pr-description",
     },
     "adaptive": {
-        "plan_approval": "auto",
-        "batch_layout": "auto",
-        "strategy_choice": "auto",
-        "artifact_preview": "auto",
-        "triage_response": AUTO_IF_BOT,
-        "thread_resolution": AUTO_IF_BOT,
-        "comment_hide": "auto",
-        "yagni_routing": "auto",
-        "shipping_continuation": "auto",
-        "request_review": "auto",
+        "plan_approval": AUTO_ADVANCE,
+        "batch_layout": AUTO_ADVANCE,
+        "strategy_choice": AUTO_ADVANCE,
+        "artifact_preview": AUTO_ADVANCE,
+        "triage_response": AUTO_ADVANCE_IF_BOT,
+        "thread_resolution": AUTO_ADVANCE_IF_BOT,
+        "comment_hide": AUTO_ADVANCE,
+        "yagni_routing": AUTO_ADVANCE,
+        "shipping_continuation": AUTO_ADVANCE,
+        "request_review": AUTO_ADVANCE,
         "external_notify": "ask",
-        "merge": "auto",
-        "completion_signoff": "auto",
-        "history_rewrite": AUTO_IF_SAFE,
-        "workspace_choice": "auto",
-        "branch_cleanup": AUTO_IF_MERGED,
-        "session_adoption": AUTO_IF_STALE_FREE,
+        "merge": AUTO_ADVANCE,
+        "completion_signoff": AUTO_ADVANCE,
+        "history_rewrite": AUTO_ADVANCE_IF_SAFE,
+        "workspace_choice": AUTO_ADVANCE,
+        "branch_cleanup": AUTO_ADVANCE_IF_MERGED,
+        "session_adoption": AUTO_ADVANCE_IF_STALE_FREE,
         "zero_valid_autoflow": True,
         "autofix_confidence": 70,
         "batch_ambiguity_floor": 3,
@@ -130,10 +161,10 @@ SHIPPED_OVERLAYS: dict[str, dict[str, str | int | bool]] = {
     "solo-maintainer": {
         "request_review": "skip",
         "external_notify": "skip",
-        "merge": "auto",
+        "merge": AUTO_ADVANCE,
     },
     "afk": {
-        "session_adoption": "auto",
+        "session_adoption": AUTO_ADVANCE,
         "doubt_sink": "pr-description",
     },
 }
@@ -234,24 +265,24 @@ def _apply_conditions(
         return GateEffect.SKIP, f"{gate}=skip"
     if value == "ask":
         return GateEffect.ASK, f"{gate}=ask"
-    if value == AUTO_IF_BOT:
+    if value == AUTO_ADVANCE_IF_BOT:
         author = context.author_type or "human"
         if author == "bot":
-            return GateEffect.AUTO, f"{gate}={AUTO_IF_BOT} author=bot"
-        return GateEffect.ASK, f"{gate}={AUTO_IF_BOT} author={author}"
-    if value == AUTO_IF_SAFE:
+            return GateEffect.AUTO_ADVANCE, f"{gate}={AUTO_ADVANCE_IF_BOT} author=bot"
+        return GateEffect.ASK, f"{gate}={AUTO_ADVANCE_IF_BOT} author={author}"
+    if value == AUTO_ADVANCE_IF_SAFE:
         if context.provably_safe:
-            return GateEffect.AUTO, f"{gate}={AUTO_IF_SAFE} safe=true"
-        return GateEffect.ASK, f"{gate}={AUTO_IF_SAFE} safe=false"
-    if value == AUTO_IF_MERGED:
+            return GateEffect.AUTO_ADVANCE, f"{gate}={AUTO_ADVANCE_IF_SAFE} safe=true"
+        return GateEffect.ASK, f"{gate}={AUTO_ADVANCE_IF_SAFE} safe=false"
+    if value == AUTO_ADVANCE_IF_MERGED:
         if context.branch_merged:
-            return GateEffect.AUTO, f"{gate}={AUTO_IF_MERGED} merged=true"
-        return GateEffect.ASK, f"{gate}={AUTO_IF_MERGED} merged=false"
-    if value == AUTO_IF_STALE_FREE:
+            return GateEffect.AUTO_ADVANCE, f"{gate}={AUTO_ADVANCE_IF_MERGED} merged=true"
+        return GateEffect.ASK, f"{gate}={AUTO_ADVANCE_IF_MERGED} merged=false"
+    if value == AUTO_ADVANCE_IF_STALE_FREE:
         if not context.session_stale:
-            return GateEffect.AUTO, f"{gate}={AUTO_IF_STALE_FREE} stale=false"
-        return GateEffect.ASK, f"{gate}={AUTO_IF_STALE_FREE} stale=true"
-    if value == "auto":
+            return GateEffect.AUTO_ADVANCE, f"{gate}={AUTO_ADVANCE_IF_STALE_FREE} stale=false"
+        return GateEffect.ASK, f"{gate}={AUTO_ADVANCE_IF_STALE_FREE} stale=true"
+    if value == AUTO_ADVANCE:
         effect, reason = _weight_conditions(gate=gate, context=context, toggles=toggles)
         return effect, reason
     raise UnknownToggleError(f"Unknown value {value!r} for toggle {gate!r}")
@@ -260,25 +291,25 @@ def _apply_conditions(
 def _weight_conditions(
     *, gate: str, context: GateContext, toggles: dict[str, str | int | bool]
 ) -> tuple[GateEffect, str]:
-    """Weight toggles and the zero-VALID bool condition plain ``auto``."""
+    """Weight toggles and the zero-VALID bool condition plain auto-advance."""
     if gate == "batch_layout" and context.overlap_signals is not None:
         floor = int(toggles["batch_ambiguity_floor"])
         if context.overlap_signals < floor:
             return (
                 GateEffect.ASK,
-                f"{gate}=auto signals={context.overlap_signals}<floor={floor}",
+                f"{gate}={AUTO_ADVANCE} signals={context.overlap_signals}<floor={floor}",
             )
         return (
-            GateEffect.AUTO,
-            f"{gate}=auto signals={context.overlap_signals}>=floor={floor}",
+            GateEffect.AUTO_ADVANCE,
+            f"{gate}={AUTO_ADVANCE} signals={context.overlap_signals}>=floor={floor}",
         )
     if (
         gate in {"triage_response", "thread_resolution", "comment_hide"}
         and context.valid_fixup_count == 0
         and not bool(toggles["zero_valid_autoflow"])
     ):
-        return GateEffect.ASK, f"{gate}=auto zero_valid_autoflow=0"
-    return GateEffect.AUTO, f"{gate}=auto"
+        return GateEffect.ASK, f"{gate}={AUTO_ADVANCE} zero_valid_autoflow=0"
+    return GateEffect.AUTO_ADVANCE, f"{gate}={AUTO_ADVANCE}"
 
 
 def resolve_gate(
@@ -291,7 +322,7 @@ def resolve_gate(
     session_overrides: dict[str, str | int | bool] | None = None,
     user_presets: dict[str, dict[str, str | int | bool]] | None = None,
 ) -> GateResolution:
-    """Resolve one decision gate to ask / auto / skip (ADR-0016).
+    """Resolve one decision gate to ask / auto-advance / skip (ADR-0016).
 
     Pipeline: merge layers (preset → overlays → project → session
     per-toggle), evaluate conditional values against ``context``, then
@@ -326,7 +357,7 @@ def resolve_gate(
     return GateResolution(
         gate=gate,
         effect=effect,
-        resolved_option="Recommended" if effect is GateEffect.AUTO else None,
+        resolved_option="Recommended" if effect is GateEffect.AUTO_ADVANCE else None,
         log_to=log_to,
         reason=f"preset:{preset} {reason}",
         floors_applied=[],
@@ -357,6 +388,7 @@ def legacy_session_mapping(
 
 
 __all__ = [
+    "AUTO_ADVANCE",
     "GateContext",
     "GateEffect",
     "GateResolution",

@@ -39,7 +39,7 @@ class TestResolveGateForToplevel:
         )
         result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
         payload = result.to_dict()
-        assert payload["effect"] == "auto"
+        assert payload["effect"] == "auto-advance"
         assert "preset:adaptive" in payload["reason"]
 
     @pytest.mark.asyncio
@@ -53,11 +53,11 @@ class TestResolveGateForToplevel:
     async def test_session_gate_override_outranks_project_pin(self, tmp_path: Path) -> None:
         _write_session_yaml(
             tmp_path,
-            "friction_level: adaptive\ngate_overrides:\n  merge: auto\n",
+            "friction_level: adaptive\ngate_overrides:\n  merge: auto-advance\n",
         )
         _write_project_policy(tmp_path, "overrides:\n  merge: ask\n")
         result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
-        assert result.to_dict()["effect"] == "auto"
+        assert result.to_dict()["effect"] == "auto-advance"
 
     @pytest.mark.asyncio
     async def test_missing_session_yaml_defaults_to_strict_ask(self, tmp_path: Path) -> None:
@@ -78,7 +78,7 @@ class TestResolveGateForToplevel:
             context={"session_stale": True},
             toplevel=str(tmp_path),
         )
-        assert result.to_dict()["effect"] == "auto"
+        assert result.to_dict()["effect"] == "auto-advance"
 
     @pytest.mark.asyncio
     async def test_bot_author_context_reaches_resolver(self, tmp_path: Path) -> None:
@@ -88,7 +88,7 @@ class TestResolveGateForToplevel:
             context={"author_type": "bot", "valid_fixup_count": 1},
             toplevel=str(tmp_path),
         )
-        assert result.to_dict()["effect"] == "auto"
+        assert result.to_dict()["effect"] == "auto-advance"
 
     @pytest.mark.asyncio
     async def test_unknown_context_field_errors(self, tmp_path: Path) -> None:
