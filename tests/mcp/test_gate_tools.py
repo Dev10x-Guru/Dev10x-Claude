@@ -12,6 +12,8 @@ import pytest
 
 from dev10x.domain.documents.session_yaml import SessionYamlDocument
 from dev10x.mcp.gate_tools import (
+    DOUBT_SINK_RELPATH,
+    LEGACY_PROJECT_POLICY_RELPATH,
     PROJECT_POLICY_RELPATH,
     _project_overrides,
     resolve_gate_for_toplevel,
@@ -141,6 +143,8 @@ class TestSessionYamlGatePolicyInputs:
             "active_modes": ["solo-maintainer"],
             "walk_away": True,
             "gate_overrides": {"merge": "ask"},
+            "gate_preset": None,
+            "gate_overlays": [],
         }
 
     def test_missing_file_yields_soft_defaults(self, tmp_path: Path) -> None:
@@ -150,7 +154,24 @@ class TestSessionYamlGatePolicyInputs:
             "active_modes": [],
             "walk_away": False,
             "gate_overrides": {},
+            "gate_preset": None,
+            "gate_overlays": [],
         }
+
+    def test_reads_new_style_gate_keys(self, tmp_path: Path) -> None:
+        _write_session_yaml(
+            tmp_path,
+            "gate_preset: adaptive\ngate_overlays: [afk]\n",
+        )
+        inputs = SessionYamlDocument(toplevel=str(tmp_path)).read_gate_policy_inputs()
+        assert inputs["gate_preset"] == "adaptive"
+        assert inputs["gate_overlays"] == ["afk"]
+
+    def test_invalid_new_style_keys_degrade(self, tmp_path: Path) -> None:
+        _write_session_yaml(tmp_path, "gate_preset: [not-a-string]\ngate_overlays: nope\n")
+        inputs = SessionYamlDocument(toplevel=str(tmp_path)).read_gate_policy_inputs()
+        assert inputs["gate_preset"] is None
+        assert inputs["gate_overlays"] == []
 
     def test_invalid_shapes_degrade(self, tmp_path: Path) -> None:
         _write_session_yaml(
@@ -160,3 +181,143 @@ class TestSessionYamlGatePolicyInputs:
         inputs = SessionYamlDocument(toplevel=str(tmp_path)).read_gate_policy_inputs()
         assert inputs["active_modes"] == []
         assert inputs["gate_overrides"] == {}
+
+
+class TestNewStylePresetResolution:
+    # ADR-0016 #753: gate_preset/gate_overlays win over the legacy mapping.
+
+    @pytest.mark.asyncio
+    async def test_gate_preset_key_drives_resolution(self, tmp_path: Path) -> None:
+        _write_session_yaml(tmp_path, "gate_preset: strict\n")
+        result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
+        payload = result.to_dict()
+        assert payload["effect"] == "ask"
+        assert "preset:strict" in payload["reason"]
+
+    @pytest.mark.asyncio
+    async def test_gate_overlays_apply_over_new_preset(self, tmp_path: Path) -> None:
+        _write_session_yaml(tmp_path, "gate_preset: guided\ngate_overlays: [solo-maintainer]\n")
+        result = await resolve_gate_for_toplevel(
+            gate="request_review", context={}, toplevel=str(tmp_path)
+        )
+        # guided asks for request_review; the solo-maintainer overlay skips it.
+        assert result.to_dict()["effect"] == "skip"
+
+    @pytest.mark.asyncio
+    async def test_new_style_preset_outranks_legacy_keys(self, tmp_path: Path) -> None:
+        # Both shapes present — the new-style gate_preset wins (D-4).
+        _write_session_yaml(tmp_path, "friction_level: strict\ngate_preset: adaptive\n")
+        result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
+        assert result.to_dict()["effect"] == "auto-advance"
+
+    @pytest.mark.asyncio
+    async def test_gate_preset_inherits_legacy_overlays_when_gate_overlays_absent(
+        self, tmp_path: Path
+    ) -> None:
+        # Round 1 review C3: a transition file (gate_preset + legacy
+        # active_modes, no gate_overlays) must NOT silently drop the
+        # solo-maintainer overlay — request_review stays skipped.
+        _write_session_yaml(
+            tmp_path,
+            "gate_preset: guided\nactive_modes: [solo-maintainer]\n",
+        )
+        result = await resolve_gate_for_toplevel(
+            gate="request_review", context={}, toplevel=str(tmp_path)
+        )
+        assert result.to_dict()["effect"] == "skip"
+
+
+class TestDurableProjectPin:
+    # ADR-0016 #752: durable git-tracked pin with legacy fallback.
+
+    def test_prefers_durable_path(self, tmp_path: Path) -> None:
+        (tmp_path / PROJECT_POLICY_RELPATH).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / PROJECT_POLICY_RELPATH).write_text("overrides:\n  merge: ask\n")
+        assert _project_overrides(str(tmp_path)) == {"merge": "ask"}
+
+    def test_falls_back_to_legacy_path(self, tmp_path: Path) -> None:
+        (tmp_path / LEGACY_PROJECT_POLICY_RELPATH).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / LEGACY_PROJECT_POLICY_RELPATH).write_text("overrides:\n  merge: ask\n")
+        assert _project_overrides(str(tmp_path)) == {"merge": "ask"}
+
+    def test_durable_path_wins_over_legacy(self, tmp_path: Path) -> None:
+        (tmp_path / PROJECT_POLICY_RELPATH).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / PROJECT_POLICY_RELPATH).write_text("overrides:\n  merge: auto-advance\n")
+        (tmp_path / LEGACY_PROJECT_POLICY_RELPATH).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / LEGACY_PROJECT_POLICY_RELPATH).write_text("overrides:\n  merge: ask\n")
+        assert _project_overrides(str(tmp_path)) == {"merge": "auto-advance"}
+
+
+class TestSessionAdoptionStaleness:
+    # ADR-0016 #753 / GH-742 F1: session_adoption keys on computed staleness.
+
+    @pytest.mark.asyncio
+    async def test_missing_identity_is_stale_and_asks(self, tmp_path: Path) -> None:
+        _write_session_yaml(tmp_path, "gate_preset: adaptive\n")
+        result = await resolve_gate_for_toplevel(
+            gate="session_adoption", context={}, toplevel=str(tmp_path)
+        )
+        payload = result.to_dict()
+        assert payload["effect"] == "ask"
+        assert "stale=true" in payload["reason"]
+
+    @pytest.mark.asyncio
+    async def test_explicit_session_stale_context_is_respected(self, tmp_path: Path) -> None:
+        _write_session_yaml(tmp_path, "gate_preset: adaptive\n")
+        result = await resolve_gate_for_toplevel(
+            gate="session_adoption",
+            context={"session_stale": False},
+            toplevel=str(tmp_path),
+        )
+        assert result.to_dict()["effect"] == "auto-advance"
+
+
+class TestAutoAdvanceRecordEmission:
+    # ADR-0016 #754 / D-7: auto-advances surface + persist a visible record.
+
+    @pytest.mark.asyncio
+    async def test_auto_advance_payload_carries_record_and_writes_sink(
+        self, tmp_path: Path
+    ) -> None:
+        _write_session_yaml(tmp_path, "gate_preset: adaptive\n")
+        result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
+        payload = result.to_dict()
+        assert payload["effect"] == "auto-advance"
+        assert payload["record"].startswith("⚙ gate:merge auto-advance")
+        sink = tmp_path / DOUBT_SINK_RELPATH
+        assert sink.exists()
+        assert "gate:merge auto-advance" in sink.read_text()
+
+    @pytest.mark.asyncio
+    async def test_ask_resolution_emits_no_record(self, tmp_path: Path) -> None:
+        _write_session_yaml(tmp_path, "gate_preset: strict\n")
+        result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
+        payload = result.to_dict()
+        assert "record" not in payload
+        assert not (tmp_path / DOUBT_SINK_RELPATH).exists()
+
+    @pytest.mark.asyncio
+    async def test_missing_shipped_yaml_falls_back_to_domain_defaults(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # presets/friction/ absent at runtime → empty load → domain default.
+        import dev10x.config.friction_presets as fp
+
+        monkeypatch.setattr(fp, "load_shipped_presets", lambda: {})
+        monkeypatch.setattr(fp, "load_shipped_overlays", lambda: {})
+        _write_session_yaml(tmp_path, "gate_preset: adaptive\n")
+        result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
+        assert result.to_dict()["effect"] == "auto-advance"
+
+    @pytest.mark.asyncio
+    async def test_sink_write_failure_is_swallowed(self, tmp_path: Path) -> None:
+        # The doubt_sink write is best-effort — an OSError must not break
+        # the resolution (the record still returns in the payload).
+        _write_session_yaml(tmp_path, "gate_preset: adaptive\n")
+        sink = tmp_path / DOUBT_SINK_RELPATH
+        sink.parent.mkdir(parents=True, exist_ok=True)
+        sink.mkdir()  # a directory where the record file goes → append raises
+        result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
+        payload = result.to_dict()
+        assert payload["effect"] == "auto-advance"
+        assert payload["record"].startswith("⚙ gate:merge auto-advance")

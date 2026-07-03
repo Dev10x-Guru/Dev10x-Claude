@@ -136,6 +136,30 @@ def write_wrap_record(
     writer.append_record(record=record)
 
 
+def append_gate_record(*, gate: str, option: str | None, reason: str, sink: str) -> None:
+    """Append a D-7 auto-advance record to the audit log (ADR-0016 #754).
+
+    Every ``resolve_gate`` auto-advance routes through here so autonomous
+    decisions are auditable; a no-op when auditing is disabled. Kept in
+    this module because it owns the ``AuditWriter`` seam (audit memo I6).
+    """
+    writer = _get_writer()
+    if not writer.audit_enabled():
+        return
+    writer.append_record(
+        record={
+            "phase": HookPhase.BODY,
+            "ts": datetime.now(UTC).isoformat(),
+            "hook": "resolve_gate",
+            "event": "gate_auto_advance",
+            "gate": gate,
+            "option": option,
+            "reason": reason,
+            "sink": sink,
+        }
+    )
+
+
 def new_wrap_context() -> tuple[str, float]:
     """Called by the wrapper (via CLI shim) to mint a span id and
     record the start time. Returns (span_id, start_perf_counter).

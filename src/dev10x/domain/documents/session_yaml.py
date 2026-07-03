@@ -65,20 +65,58 @@ class SessionYamlDocument:
     def read_gate_policy_inputs(self) -> dict[str, Any]:
         """Return the resolver inputs for ``gate_policy`` from one read (ADR-0016).
 
-        Legacy keys (``friction_level``, ``active_modes``, ``walk_away``)
-        feed :func:`dev10x.domain.gate_policy.legacy_session_mapping`;
-        the new-style ``gate_overrides`` mapping carries per-toggle
-        session overrides. Missing/invalid values degrade to the same
-        soft fallbacks as the other readers.
+        Two input styles coexist (ADR-0016 D-4). The new-style keys
+        ``gate_preset`` / ``gate_overlays`` name a preset + overlays
+        directly; when absent, the legacy keys (``friction_level``,
+        ``active_modes``, ``walk_away``) feed
+        :func:`dev10x.domain.gate_policy.legacy_session_mapping`. Either
+        way ``gate_overrides`` carries per-toggle session overrides.
+        Missing/invalid values degrade to the same soft fallbacks as the
+        other readers.
         """
         data = self._load()
         modes = data.get("active_modes")
         overrides = data.get("gate_overrides")
+        preset = data.get("gate_preset")
+        overlays = data.get("gate_overlays")
         return {
             "friction_level": FrictionLevel.from_yaml(data.get("friction_level")).value,
             "active_modes": modes if isinstance(modes, list) else [],
             "walk_away": bool(data.get("walk_away", False)),
             "gate_overrides": overrides if isinstance(overrides, dict) else {},
+            "gate_preset": preset if isinstance(preset, str) else None,
+            "gate_overlays": overlays if isinstance(overlays, list) else [],
+        }
+
+    def read_session_identity(self) -> dict[str, Any]:
+        """Return the persisted session identity for staleness comparison.
+
+        Feeds :func:`dev10x.domain.session_staleness.session_stale` (the
+        GH-742 F1 seam): the ``branch`` the session was pinned to and the
+        ``tickets`` it was working. Missing/invalid values degrade to
+        ``None`` / ``[]`` so a bare or legacy file reads as identity-less
+        (and therefore stale).
+
+        **Producer contract (GATE-M2, #755).** No caller writes these
+        top-level ``branch:`` / ``tickets:`` keys yet — ``render()`` /
+        ``write()`` and ``dev10x session seed`` do not emit them — so
+        until a producer ships this reader is identity-less by design and
+        the computed staleness path always resolves to *stale* (the safe
+        direction, inert while nothing consumes ``session_adoption``).
+        Whoever wires ``session_adoption`` to a live gate (GATE-M2) MUST
+        also ship the producer: work-on Phase 0 writes ``branch:`` +
+        ``tickets:`` on plan approval. Connecting the gate before the
+        producer exists would make every adaptive session ask on a gate
+        that can never prove freshness.
+        """
+        data = self._load()
+        branch = data.get("branch")
+        tickets = data.get("tickets")
+        return {
+            "branch": branch if isinstance(branch, str) else None,
+            "tickets": [t for t in tickets if isinstance(t, str)]
+            if isinstance(tickets, list)
+            else [],
         }
 
     @staticmethod

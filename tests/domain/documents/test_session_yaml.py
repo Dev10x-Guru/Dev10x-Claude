@@ -136,3 +136,29 @@ class TestWrite:
         level, modes = doc.read_friction_and_modes()
         assert level is FrictionLevel.GUIDED
         assert modes == []
+
+
+class TestReadSessionIdentity:
+    """ADR-0016 #753: recorded identity feeds the session_stale predicate."""
+
+    def test_reads_branch_and_tickets(self, tmp_path: Path) -> None:
+        toplevel = _write(
+            tmp_path=tmp_path,
+            content="branch: user/GH-1/x\ntickets: [GH-1, GH-2]\n",
+        )
+        identity = SessionYamlDocument(toplevel=toplevel).read_session_identity()
+        assert identity == {"branch": "user/GH-1/x", "tickets": ["GH-1", "GH-2"]}
+
+    def test_missing_file_yields_identity_less(self, tmp_path: Path) -> None:
+        identity = SessionYamlDocument(toplevel=str(tmp_path)).read_session_identity()
+        assert identity == {"branch": None, "tickets": []}
+
+    def test_invalid_shapes_degrade(self, tmp_path: Path) -> None:
+        toplevel = _write(tmp_path=tmp_path, content="branch: [a]\ntickets: nope\n")
+        identity = SessionYamlDocument(toplevel=toplevel).read_session_identity()
+        assert identity == {"branch": None, "tickets": []}
+
+    def test_non_string_tickets_filtered(self, tmp_path: Path) -> None:
+        toplevel = _write(tmp_path=tmp_path, content="tickets: [GH-1, 3, GH-2]\n")
+        identity = SessionYamlDocument(toplevel=toplevel).read_session_identity()
+        assert identity["tickets"] == ["GH-1", "GH-2"]

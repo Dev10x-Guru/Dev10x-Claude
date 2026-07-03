@@ -217,6 +217,19 @@ class GateResolution:
             "anchor_recommendations": self.anchor_recommendations,
         }
 
+    def visible_record(self) -> str | None:
+        """The D-7 one-line transcript record for an auto-advance (ADR-0016).
+
+        Returns ``None`` for ``ask``/``skip`` — only auto-advances need a
+        visible record so a present supervisor can notice and override
+        mid-flight. Silent auto-advance is a compliance bug (D-7); the
+        infra tier both surfaces this string and appends it to the audit
+        log + ``doubt_sink``.
+        """
+        if self.effect is not GateEffect.AUTO_ADVANCE:
+            return None
+        return f'⚙ gate:{self.gate} auto-advance → "{self.resolved_option}" ({self.reason})'
+
 
 def _floors(context: GateContext) -> list[str]:
     """Safety floors — deny-overrides; ``ask`` regardless of any toggle."""
@@ -240,18 +253,26 @@ def _merge_layers(
     overlays: list[str],
     project_overrides: dict[str, str | int | bool],
     session_overrides: dict[str, str | int | bool],
+    shipped_presets: dict[str, dict[str, str | int | bool]] | None = None,
+    shipped_overlays: dict[str, dict[str, str | int | bool]] | None = None,
     user_presets: dict[str, dict[str, str | int | bool]] | None = None,
 ) -> dict[str, str | int | bool]:
-    presets = {**SHIPPED_PRESETS, **(user_presets or {})}
+    # The shipped maps default to the domain constants so pure-domain
+    # callers/tests need no I/O; the infra tier injects the YAML-hydrated
+    # maps (ADR-0016 D-1) at the MCP boundary. A drift-guard test keeps
+    # the two identical.
+    base_presets = SHIPPED_PRESETS if shipped_presets is None else shipped_presets
+    base_overlays = SHIPPED_OVERLAYS if shipped_overlays is None else shipped_overlays
+    presets = {**base_presets, **(user_presets or {})}
     if preset not in presets:
-        raise UnknownPresetError(f"Unknown preset {preset!r}; shipped: {sorted(SHIPPED_PRESETS)}")
+        raise UnknownPresetError(f"Unknown preset {preset!r}; shipped: {sorted(base_presets)}")
     resolved = dict(presets[preset])
     for overlay in overlays:
-        if overlay not in SHIPPED_OVERLAYS:
+        if overlay not in base_overlays:
             raise UnknownPresetError(
-                f"Unknown overlay {overlay!r}; shipped: {sorted(SHIPPED_OVERLAYS)}"
+                f"Unknown overlay {overlay!r}; shipped: {sorted(base_overlays)}"
             )
-        resolved.update(SHIPPED_OVERLAYS[overlay])
+        resolved.update(base_overlays[overlay])
     resolved.update(project_overrides)
     resolved.update(session_overrides)
     return resolved
@@ -320,13 +341,18 @@ def resolve_gate(
     overlays: list[str] | None = None,
     project_overrides: dict[str, str | int | bool] | None = None,
     session_overrides: dict[str, str | int | bool] | None = None,
+    shipped_presets: dict[str, dict[str, str | int | bool]] | None = None,
+    shipped_overlays: dict[str, dict[str, str | int | bool]] | None = None,
     user_presets: dict[str, dict[str, str | int | bool]] | None = None,
 ) -> GateResolution:
     """Resolve one decision gate to ask / auto-advance / skip (ADR-0016).
 
     Pipeline: merge layers (preset → overlays → project → session
     per-toggle), evaluate conditional values against ``context``, then
-    apply safety floors — floors always win (deny-overrides).
+    apply safety floors — floors always win (deny-overrides). The
+    ``shipped_presets`` / ``shipped_overlays`` maps default to the domain
+    constants; the infra tier injects the YAML-hydrated maps (ADR-0016
+    D-1).
     """
     if gate not in _ENUM_TOGGLES:
         raise UnknownToggleError(f"Unknown gate {gate!r}; known: {sorted(_ENUM_TOGGLES)}")
@@ -335,6 +361,8 @@ def resolve_gate(
         overlays=list(overlays or []),
         project_overrides=dict(project_overrides or {}),
         session_overrides=dict(session_overrides or {}),
+        shipped_presets=shipped_presets,
+        shipped_overlays=shipped_overlays,
         user_presets=user_presets,
     )
     anchor = bool(toggles["anchor_recommendations"])

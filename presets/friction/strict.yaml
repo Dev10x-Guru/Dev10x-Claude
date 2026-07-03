@@ -1,0 +1,29 @@
+# Friction preset: strict (ADR-0016 D-1).
+# Every gate fires; no auto-selection. The safe-floor posture.
+#
+# Shipped source of truth for the resolver — hydrated at the infra tier
+# by dev10x.config.friction_presets and injected into
+# dev10x.domain.gate_policy.resolve_gate. A drift-guard test asserts this
+# file stays identical to the domain default SHIPPED_PRESETS["strict"].
+plan_approval: ask
+batch_layout: ask
+strategy_choice: ask
+artifact_preview: ask
+triage_response: ask
+thread_resolution: ask
+comment_hide: ask
+yagni_routing: ask
+shipping_continuation: ask
+request_review: ask
+external_notify: ask
+merge: ask
+completion_signoff: ask
+history_rewrite: ask
+workspace_choice: ask
+branch_cleanup: ask
+session_adoption: ask
+zero_valid_autoflow: false
+autofix_confidence: 101       # NEVER_THRESHOLD — review-fix never auto-sends
+batch_ambiguity_floor: 10000  # ALWAYS_ASK_SIGNALS — batches always ask
+anchor_recommendations: false
+doubt_sink: pr-description

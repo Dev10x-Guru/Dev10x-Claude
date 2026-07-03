@@ -1,0 +1,29 @@
+# Friction preset: adaptive (ADR-0016 D-8, walk-away autonomy).
+# Auto-select recommended at every gate, merges included. The team-repo
+# human boundary is a project-tier concern: a reviewed repo pins
+# `merge: ask` (and typically `external_notify: ask`) in its project
+# gate-policy so adaptive sessions still stop for a human merge.
+#
+# Shipped source of truth for the resolver — see strict.yaml header.
+plan_approval: auto-advance
+batch_layout: auto-advance
+strategy_choice: auto-advance
+artifact_preview: auto-advance
+triage_response: auto-advance-if-bot
+thread_resolution: auto-advance-if-bot
+comment_hide: auto-advance
+yagni_routing: auto-advance
+shipping_continuation: auto-advance
+request_review: auto-advance
+external_notify: ask
+merge: auto-advance
+completion_signoff: auto-advance
+history_rewrite: auto-advance-if-safe
+workspace_choice: auto-advance
+branch_cleanup: auto-advance-if-merged
+session_adoption: auto-advance-if-stale-free
+zero_valid_autoflow: true
+autofix_confidence: 70
+batch_ambiguity_floor: 3
+anchor_recommendations: true
+doubt_sink: pr-description

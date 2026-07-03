@@ -12,7 +12,7 @@ from dev10x.audit.log_reader import LogReaderAuditWriter
 from dev10x.domain.audit_writer import AuditWriter
 from dev10x.domain.hook_telemetry import HookOutcome
 from dev10x.hooks import audit_emit
-from dev10x.hooks.audit_emit import audit_hook, set_audit_writer
+from dev10x.hooks.audit_emit import append_gate_record, audit_hook, set_audit_writer
 
 
 @dataclass
@@ -74,4 +74,33 @@ def test_disabled_writer_skips_record(reset_writer: None) -> None:
         return 1
 
     assert target() == 1
+    assert writer.records == []
+
+
+def test_append_gate_record_writes_auto_advance_record(reset_writer: None) -> None:
+    # ADR-0016 #754: resolve_gate auto-advances append a D-7 audit record.
+    writer = _RecordingWriter()
+    set_audit_writer(writer)
+
+    append_gate_record(
+        gate="merge", option="Recommended", reason="preset:adaptive", sink="pr-description"
+    )
+
+    assert len(writer.records) == 1
+    record = writer.records[0]
+    assert record["hook"] == "resolve_gate"
+    assert record["event"] == "gate_auto_advance"
+    assert record["gate"] == "merge"
+    assert record["option"] == "Recommended"
+    assert record["sink"] == "pr-description"
+
+
+def test_append_gate_record_skips_when_disabled(reset_writer: None) -> None:
+    writer = _RecordingWriter(enabled=False)
+    set_audit_writer(writer)
+
+    append_gate_record(
+        gate="merge", option="Recommended", reason="preset:adaptive", sink="pr-description"
+    )
+
     assert writer.records == []

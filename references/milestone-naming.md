@@ -48,6 +48,7 @@ MCP-M6: Installable GitHub bot/Action
 | `MCP` | MCP knowledge primitives roadmap | active |
 | `PKG` | Per-package architecture & code-review audit (2026-06-10) | active |
 | `PERM` | Permission-friction reduction (GH-488) | active |
+| `GATE` | Friction gate-policy resolver (ADR-0016, GH-751) | active |
 
 When starting a new initiative that spans multiple milestones, register
 its prefix here before creating the first milestone. Pick a prefix that
