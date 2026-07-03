@@ -1,0 +1,9 @@
+# Overlay preset: afk (ADR-0016).
+# Sparse patch — walk-away trusts the persisted session (adopts it even
+# when stale) and routes deferred decisions to the PR description sink.
+# The afk skill composes this overlay instead of appending
+# `solo-maintainer` to active_modes (GH-743 F1, GH-744 F2).
+#
+# Shipped source of truth — drift-guarded against SHIPPED_OVERLAYS["afk"].
+session_adoption: auto-advance
+doubt_sink: pr-description

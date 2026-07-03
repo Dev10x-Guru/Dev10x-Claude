@@ -1,0 +1,10 @@
+# Overlay preset: solo-maintainer (ADR-0016).
+# Sparse patch applied on top of a base preset — a solo repo has no
+# team reviewers, so review requests and external notifications are
+# structural no-ops and the merge is autonomous at any base.
+#
+# Shipped source of truth — drift-guarded against
+# SHIPPED_OVERLAYS["solo-maintainer"].
+request_review: skip
+external_notify: skip
+merge: auto-advance

@@ -110,6 +110,17 @@ Behavioral caveats:
   up to `limit` merged PRs (slower — one subprocess pair per PR —
   returns `{"prs": [...], "count": N}`). For a single-PR check always
   pass `pr_number` (GH-710).
+- `resolve_gate` returns `{gate, effect (ask|auto-advance|skip),
+  resolved_option, log_to, reason, floors_applied,
+  anchor_recommendations}`; on an `auto-advance` it adds a `record`
+  key carrying the visible D-7 line (`⚙ gate:… → "…" (reason)`),
+  absent for `ask`/`skip` (ADR-0016 #754). Session policy is read
+  from `.claude/Dev10x/session.yaml` — the new-style `gate_preset`
+  / `gate_overlays` / `gate_overrides` keys take precedence over the
+  legacy `friction_level` / `active_modes` / `walk_away` mapping
+  (#753); the durable project pin lives at git-tracked
+  `.dev10x/gate-policy.yaml` (legacy `.claude/Dev10x/gate-policy.yaml`
+  still read as a fallback, #752).
 
 Parameter normalization (accepting aliases, defaulting `repo` from
 CWD, richer `push_safe` diagnostics) is tracked as follow-up work;

@@ -335,9 +335,17 @@ mechanical fixes reshaped to consume the resolver).
 ## Open Questions (resolved defaults)
 
 - **Unknown author type** → treated as `human` (safe direction).
-- **Preset files** → plugin ships `presets/friction/*.yaml`; user
-  presets in `~/.config/Dev10x/friction-presets.yaml`; session pick +
-  per-toggle overrides in `.claude/Dev10x/session.yaml`.
+- **Preset files** → plugin ships `presets/friction/*.yaml` (presets)
+  and `presets/friction/overlays/*.yaml` (overlays); user presets in
+  `~/.config/Dev10x/friction-presets.yaml`; session pick + per-toggle
+  overrides in `.claude/Dev10x/session.yaml`.
+- **Project-tier pin location** → the durable, git-tracked project
+  gate policy lives at repo-root `.dev10x/gate-policy.yaml`
+  (`overrides: {<toggle>: <value>}`). It is intentionally *outside*
+  the gitignored `.claude/Dev10x/` tree so a team repo can commit and
+  share its pins (e.g. `merge: ask`) — the D-8 "repo character is a
+  durable property" boundary. The spike's gitignored
+  `.claude/Dev10x/gate-policy.yaml` is still read as a legacy fallback.
 
 ## References
 

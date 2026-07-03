@@ -361,3 +361,59 @@ class TestLegacySessionMapping:
             gate="merge", context=GateContext(), preset=preset, overlays=overlays
         )
         assert resolution.effect is GateEffect.AUTO_ADVANCE
+
+
+class TestInjectedShippedPresets:
+    # ADR-0016 #752: the infra tier injects YAML-hydrated preset maps.
+
+    def test_injected_presets_replace_the_domain_default(self) -> None:
+        resolution = resolve_gate(
+            gate="merge",
+            context=GateContext(),
+            preset="custom",
+            shipped_presets={"custom": {**SHIPPED_PRESETS["adaptive"], "merge": "ask"}},
+        )
+        assert resolution.effect is GateEffect.ASK
+
+    def test_injected_overlays_replace_the_domain_default(self) -> None:
+        resolution = resolve_gate(
+            gate="merge",
+            context=GateContext(),
+            preset="adaptive",
+            overlays=["freeze"],
+            shipped_overlays={"freeze": {"merge": "ask"}},
+        )
+        assert resolution.effect is GateEffect.ASK
+
+    def test_unknown_preset_reports_injected_set(self) -> None:
+        with pytest.raises(UnknownPresetError, match="only-one"):
+            resolve_gate(
+                gate="merge",
+                context=GateContext(),
+                preset="missing",
+                shipped_presets={"only-one": SHIPPED_PRESETS["strict"]},
+            )
+
+
+class TestVisibleRecord:
+    # ADR-0016 #754 / D-7: auto-advances carry a one-line transcript record.
+
+    def test_auto_advance_formats_record(self) -> None:
+        record = resolve_gate(
+            gate="plan_approval", context=GateContext(), preset="adaptive"
+        ).visible_record()
+        assert record is not None
+        assert record.startswith('⚙ gate:plan_approval auto-advance → "Recommended" (')
+        assert record.endswith(")")
+
+    def test_ask_has_no_record(self) -> None:
+        assert (
+            resolve_gate(gate="merge", context=GateContext(), preset="strict").visible_record()
+            is None
+        )
+
+    def test_skip_has_no_record(self) -> None:
+        assert (
+            resolve_gate(gate="merge", context=GateContext(), preset="guided").visible_record()
+            is None
+        )
