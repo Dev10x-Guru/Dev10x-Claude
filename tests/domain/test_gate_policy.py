@@ -2,7 +2,7 @@
 
 The parametrized cases replay the four audit scenarios that motivated
 the design (GH-742, GH-743, GH-744, GH-745) plus the layer-precedence
-and floor invariants.
+and floor invariants, and the D-9 guided-preset posture (GH-748).
 """
 
 from __future__ import annotations
@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 
 from dev10x.domain.gate_policy import (
+    AUTO_ADVANCE,
     KNOWN_TOGGLES,
     SHIPPED_PRESETS,
     GateContext,
@@ -25,22 +26,23 @@ from dev10x.domain.gate_policy import (
 class TestGatePolicyResolver:
     # --- Audit scenario 1: GH-742 F1 — stale session.yaml auto-merge ---
 
-    def test_stale_session_adoption_asks_at_adaptive(self) -> None:
+    @pytest.mark.parametrize("preset", ["guided", "adaptive"])
+    def test_stale_session_adoption_asks(self, preset: str) -> None:
         resolution = resolve_gate(
             gate="session_adoption",
             context=GateContext(session_stale=True),
-            preset="adaptive",
+            preset=preset,
         )
         assert resolution.effect is GateEffect.ASK
         assert "stale=true" in resolution.reason
 
-    def test_fresh_session_adoption_auto_resolves_at_adaptive(self) -> None:
+    def test_fresh_session_adoption_auto_advances_at_adaptive(self) -> None:
         resolution = resolve_gate(
             gate="session_adoption",
             context=GateContext(session_stale=False),
             preset="adaptive",
         )
-        assert resolution.effect is GateEffect.AUTO
+        assert resolution.effect is GateEffect.AUTO_ADVANCE
 
     def test_afk_overlay_trusts_session_adoption_even_when_stale(self) -> None:
         resolution = resolve_gate(
@@ -49,33 +51,34 @@ class TestGatePolicyResolver:
             preset="adaptive",
             overlays=["afk"],
         )
-        assert resolution.effect is GateEffect.AUTO
+        assert resolution.effect is GateEffect.AUTO_ADVANCE
 
     # --- Audit scenario 2: GH-745 F4 — bot vs human thread keying ---
 
+    @pytest.mark.parametrize("preset", ["guided", "adaptive"])
     @pytest.mark.parametrize(
         ("author_type", "expected_effect"),
         [
-            ("bot", GateEffect.AUTO),
+            ("bot", GateEffect.AUTO_ADVANCE),
             ("human", GateEffect.ASK),
             (None, GateEffect.ASK),  # unknown author resolves as human
         ],
     )
-    def test_thread_resolution_keys_on_author_type_at_adaptive(
-        self, author_type: str | None, expected_effect: GateEffect
+    def test_thread_resolution_keys_on_author_type(
+        self, preset: str, author_type: str | None, expected_effect: GateEffect
     ) -> None:
         resolution = resolve_gate(
             gate="thread_resolution",
             context=GateContext(author_type=author_type, valid_fixup_count=1),
-            preset="adaptive",
+            preset=preset,
         )
         assert resolution.effect is expected_effect
 
-    # --- Audit scenario 3: GH-743/744 — team repo pins merge at project tier ---
+    # --- Audit scenario 3: GH-743/744 — the merge human boundary ---
 
-    def test_merge_is_auto_at_adaptive_by_default(self) -> None:
+    def test_merge_is_auto_advance_at_adaptive_by_default(self) -> None:
         resolution = resolve_gate(gate="merge", context=GateContext(), preset="adaptive")
-        assert resolution.effect is GateEffect.AUTO
+        assert resolution.effect is GateEffect.AUTO_ADVANCE
 
     def test_team_repo_project_pin_outranks_adaptive_preset(self) -> None:
         resolution = resolve_gate(
@@ -92,14 +95,21 @@ class TestGatePolicyResolver:
             context=GateContext(),
             preset="adaptive",
             project_overrides={"merge": "ask"},
-            session_overrides={"merge": "auto"},
+            session_overrides={"merge": AUTO_ADVANCE},
         )
-        assert resolution.effect is GateEffect.AUTO
+        assert resolution.effect is GateEffect.AUTO_ADVANCE
 
-    @pytest.mark.parametrize("preset", ["strict", "guided"])
-    def test_merge_asks_at_attended_presets(self, preset: str) -> None:
-        resolution = resolve_gate(gate="merge", context=GateContext(), preset=preset)
+    def test_merge_asks_at_strict(self) -> None:
+        resolution = resolve_gate(gate="merge", context=GateContext(), preset="strict")
         assert resolution.effect is GateEffect.ASK
+
+    def test_merge_is_skipped_at_guided(self) -> None:
+        # D-9 (GH-748): merge is a strictly human action through the PR
+        # UI at guided — the agent's merge step does not exist. The
+        # session hands off after request-review or monitors approval.
+        resolution = resolve_gate(gate="merge", context=GateContext(), preset="guided")
+        assert resolution.effect is GateEffect.SKIP
+        assert resolution.resolved_option is None
 
     def test_solo_maintainer_overlay_skips_review_request(self) -> None:
         resolution = resolve_gate(
@@ -110,22 +120,62 @@ class TestGatePolicyResolver:
         )
         assert resolution.effect is GateEffect.SKIP
 
+    # --- D-9 (GH-748): light-AFK guided posture ---
+
+    @pytest.mark.parametrize(
+        "gate",
+        [
+            "plan_approval",
+            "batch_layout",
+            "strategy_choice",
+            "artifact_preview",
+            "comment_hide",
+            "yagni_routing",
+            "shipping_continuation",
+            "workspace_choice",
+        ],
+    )
+    def test_guided_auto_advances_mechanical_gates(self, gate: str) -> None:
+        resolution = resolve_gate(gate=gate, context=GateContext(), preset="guided")
+        assert resolution.effect is GateEffect.AUTO_ADVANCE
+
+    @pytest.mark.parametrize("gate", ["request_review", "external_notify", "completion_signoff"])
+    def test_guided_supervises_team_interactions(self, gate: str) -> None:
+        resolution = resolve_gate(gate=gate, context=GateContext(), preset="guided")
+        assert resolution.effect is GateEffect.ASK
+
+    def test_guided_differs_from_adaptive_only_at_the_human_boundary(self) -> None:
+        guided = SHIPPED_PRESETS["guided"]
+        adaptive = SHIPPED_PRESETS["adaptive"]
+        differing = {key for key in guided if guided[key] != adaptive[key]}
+        assert differing == {"request_review", "merge", "completion_signoff"}
+
+    def test_strict_fires_every_enum_gate(self) -> None:
+        strict = SHIPPED_PRESETS["strict"]
+        enum_values = {
+            key: value
+            for key, value in strict.items()
+            if isinstance(value, str) and key not in {"doubt_sink"}
+        }
+        assert all(value == "ask" for value in enum_values.values())
+
     # --- Audit scenario 4: GH-745 F1 — zero-VALID batch auto-flow ---
 
-    def test_zero_valid_batch_auto_flows_at_adaptive(self) -> None:
+    @pytest.mark.parametrize("preset", ["guided", "adaptive"])
+    def test_zero_valid_batch_auto_flows(self, preset: str) -> None:
         resolution = resolve_gate(
             gate="comment_hide",
             context=GateContext(valid_fixup_count=0),
-            preset="adaptive",
+            preset=preset,
         )
-        assert resolution.effect is GateEffect.AUTO
+        assert resolution.effect is GateEffect.AUTO_ADVANCE
 
     def test_zero_valid_batch_asks_when_autoflow_disabled(self) -> None:
         resolution = resolve_gate(
             gate="comment_hide",
             context=GateContext(valid_fixup_count=0),
             preset="adaptive",
-            session_overrides={"comment_hide": "auto", "zero_valid_autoflow": False},
+            session_overrides={"comment_hide": AUTO_ADVANCE, "zero_valid_autoflow": False},
         )
         assert resolution.effect is GateEffect.ASK
 
@@ -152,7 +202,7 @@ class TestGatePolicyResolver:
             context=context,
             preset="adaptive",
             overlays=["solo-maintainer", "afk"],
-            session_overrides={"merge": "auto"},
+            session_overrides={"merge": AUTO_ADVANCE},
         )
         assert resolution.effect is GateEffect.ASK
         assert expected_floor in resolution.floors_applied
@@ -163,7 +213,7 @@ class TestGatePolicyResolver:
             context=GateContext(destructive=True, branch_merged=True),
             preset="adaptive",
         )
-        assert resolution.effect is GateEffect.AUTO
+        assert resolution.effect is GateEffect.AUTO_ADVANCE
 
     def test_unmerged_branch_cleanup_asks_at_adaptive(self) -> None:
         resolution = resolve_gate(
@@ -175,7 +225,7 @@ class TestGatePolicyResolver:
 
     @pytest.mark.parametrize(
         ("provably_safe", "expected_effect"),
-        [(True, GateEffect.AUTO), (False, GateEffect.ASK)],
+        [(True, GateEffect.AUTO_ADVANCE), (False, GateEffect.ASK)],
     )
     def test_history_rewrite_keys_on_provable_safety_at_adaptive(
         self, provably_safe: bool, expected_effect: GateEffect
@@ -200,7 +250,7 @@ class TestGatePolicyResolver:
 
     @pytest.mark.parametrize(
         ("signals", "expected_effect"),
-        [(2, GateEffect.ASK), (3, GateEffect.AUTO), (5, GateEffect.AUTO)],
+        [(2, GateEffect.ASK), (3, GateEffect.AUTO_ADVANCE), (5, GateEffect.AUTO_ADVANCE)],
     )
     def test_batch_layout_respects_ambiguity_floor(
         self, signals: int, expected_effect: GateEffect
@@ -212,11 +262,11 @@ class TestGatePolicyResolver:
         )
         assert resolution.effect is expected_effect
 
-    # --- D-7: auto resolutions are visible-record shaped ---
+    # --- D-7: auto-advance resolutions are visible-record shaped ---
 
-    def test_auto_resolution_carries_option_reason_and_sink(self) -> None:
+    def test_auto_advance_resolution_carries_option_reason_and_sink(self) -> None:
         resolution = resolve_gate(gate="plan_approval", context=GateContext(), preset="adaptive")
-        assert resolution.effect is GateEffect.AUTO
+        assert resolution.effect is GateEffect.AUTO_ADVANCE
         assert resolution.resolved_option == "Recommended"
         assert resolution.log_to == "pr-description"
         assert "preset:adaptive" in resolution.reason
@@ -225,7 +275,7 @@ class TestGatePolicyResolver:
         payload = resolve_gate(
             gate="plan_approval", context=GateContext(), preset="adaptive"
         ).to_payload()
-        assert payload["effect"] == "auto"
+        assert payload["effect"] == "auto-advance"
         assert set(payload) == {
             "gate",
             "effect",
@@ -241,19 +291,6 @@ class TestGatePolicyResolver:
     def test_every_preset_covers_every_toggle(self) -> None:
         for name, preset in SHIPPED_PRESETS.items():
             assert set(preset) == set(KNOWN_TOGGLES), name
-
-    def test_strict_differs_from_guided_only_by_anchoring_weights_staleness(
-        self,
-    ) -> None:
-        strict = SHIPPED_PRESETS["strict"]
-        guided = SHIPPED_PRESETS["guided"]
-        differing = {key for key in strict if strict[key] != guided[key]}
-        assert differing == {
-            "anchor_recommendations",
-            "autofix_confidence",
-            "batch_ambiguity_floor",
-            "session_adoption",
-        }
 
     def test_unknown_gate_raises(self) -> None:
         with pytest.raises(UnknownToggleError):
@@ -323,4 +360,4 @@ class TestLegacySessionMapping:
         resolution: GateResolution = resolve_gate(
             gate="merge", context=GateContext(), preset=preset, overlays=overlays
         )
-        assert resolution.effect is GateEffect.AUTO
+        assert resolution.effect is GateEffect.AUTO_ADVANCE

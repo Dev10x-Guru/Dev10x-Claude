@@ -98,7 +98,7 @@ async def resolve_gate(
         cwd: Effective working directory (GH-979).
 
     Returns:
-        Dictionary with keys: gate, effect (ask|auto|skip),
+        Dictionary with keys: gate, effect (ask|auto-advance|skip),
         resolved_option, log_to, reason, floors_applied,
         anchor_recommendations. `{"error": ...}` on unknown gate,
         context field, or preset.
