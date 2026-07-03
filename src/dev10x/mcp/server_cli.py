@@ -35,6 +35,7 @@ from typing import Literal, cast
 # Importing sampling_tools registers the request_sampling tool (GH-343).
 from dev10x.mcp import (  # noqa: E402, F401
     audit_tools,
+    gate_tools,
     git_tools,
     github_tools,
     knowledge_prompts,
@@ -50,6 +51,7 @@ from dev10x.mcp._app import (
     server,  # noqa: F401  (re-exported for callers importing server from server_cli)
 )
 from dev10x.mcp.audit_tools import *  # noqa: E402, F401, F403
+from dev10x.mcp.gate_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.git_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.github_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.misc_tools import *  # noqa: E402, F401, F403

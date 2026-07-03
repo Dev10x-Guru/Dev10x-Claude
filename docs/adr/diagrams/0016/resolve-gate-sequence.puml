@@ -1,0 +1,29 @@
+@startuml resolve-gate-sequence
+!theme plain
+title resolve_gate — resolution pipeline (ADR-0016)
+
+participant "Skill\n(policy-ignorant)" as Skill
+participant "MCP cli server\nresolve_gate" as Tool
+participant "session_rules\nresolver" as Domain
+database "presets/friction/*.yaml\n(plugin)" as Presets
+database "project config\n(e.g. merge: ask pin)" as Project
+database ".claude/Dev10x/\nsession.yaml" as Session
+
+Skill -> Tool : resolve_gate(gate="thread_resolution",\ncontext={author_type: "bot", ...})
+Tool -> Domain : resolve(gate, context)
+Domain -> Presets : 1. load base preset + overlays
+Domain -> Project : 2. apply project overrides
+Domain -> Session : 3. apply session preset pick\n+ per-toggle overrides
+Domain -> Domain : 4. conditional enums vs context\n(auto_if_bot: author=bot → auto)
+Domain -> Domain : 5. safety floors — always win\n(secrets, irreversible, blocking)
+Domain --> Tool : GateResolution{effect, resolved_option,\nlog_to, reason, floors_applied}
+Tool --> Skill : to_wire(result)
+
+alt effect == "auto" (D-7: never silent)
+  Skill -> Skill : emit visible record\n⚙ gate:thread_resolution auto → "Resolve" (reason)
+  Skill -> Session : append to audit log + doubt_sink
+  Skill -> Skill : proceed on resolved_option
+else effect == "ask"
+  Skill -> Skill : fire AskUserQuestion\n(anchor per anchor_recommendations)
+end
+@enduml
