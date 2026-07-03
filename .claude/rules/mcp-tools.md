@@ -96,6 +96,7 @@ one session). Use these shapes verbatim:
 | `check_top_level_comments` | `repo` (no CWD default) | omitting `repo` |
 | `push_safe` | `args` list, e.g. `["-u", "origin", "<branch>"]` | bare call |
 | `resolve_review_thread` | `thread_ids` (list) | singular `thread_id` |
+| `resolve_gate` | `gate` (toggle name); optional `context` dict of gate facts | passing preset/friction values — the tool reads session policy itself (ADR-0016 D-2) |
 
 Behavioral caveats:
 
@@ -175,6 +176,7 @@ supporting each tool:
 | `record_rule_feedback` | `cli` | GH-350 | v0.80.0+ |
 | `request_sampling` | `cli` | GH-343 | v0.80.0+ |
 | `background_preamble` | `cli` | GH-610 | v0.80.0+ |
+| `resolve_gate` | `cli` | GH-742 (ADR-0016 spike) | v0.83.0+ |
 | `query` | `db` | PR #126 | v0.25.0+ |
 
 When adding a new tool, update this table and note any dependencies on

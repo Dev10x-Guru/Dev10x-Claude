@@ -62,6 +62,25 @@ class SessionYamlDocument:
         modes = data.get("active_modes")
         return level, (modes if isinstance(modes, list) else [])
 
+    def read_gate_policy_inputs(self) -> dict[str, Any]:
+        """Return the resolver inputs for ``gate_policy`` from one read (ADR-0016).
+
+        Legacy keys (``friction_level``, ``active_modes``, ``walk_away``)
+        feed :func:`dev10x.domain.gate_policy.legacy_session_mapping`;
+        the new-style ``gate_overrides`` mapping carries per-toggle
+        session overrides. Missing/invalid values degrade to the same
+        soft fallbacks as the other readers.
+        """
+        data = self._load()
+        modes = data.get("active_modes")
+        overrides = data.get("gate_overrides")
+        return {
+            "friction_level": FrictionLevel.from_yaml(data.get("friction_level")).value,
+            "active_modes": modes if isinstance(modes, list) else [],
+            "walk_away": bool(data.get("walk_away", False)),
+            "gate_overrides": overrides if isinstance(overrides, dict) else {},
+        }
+
     @staticmethod
     def render(*, friction_level: str = "guided", active_modes: list[str] | None = None) -> str:
         """Render the canonical ``session.yaml`` body.
