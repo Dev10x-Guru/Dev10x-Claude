@@ -17,17 +17,15 @@ position matters.
 
 from __future__ import annotations
 
-import re
 import shlex
 from dataclasses import dataclass
 from typing import ClassVar
 
 from dev10x.domain import HookInput, HookResult
+from dev10x.domain.common.bash_tokens import ENV_VAR_RE
 from dev10x.domain.common.mcp_tool_name import McpToolName
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
-
-ENV_VAR_RE = re.compile(r"^[A-Z_][A-Z0-9_]*=\S*$")
 
 MCP_PREFIX_MSG = """\
 ⛔  MCP tool name used as a shell command — blocked.

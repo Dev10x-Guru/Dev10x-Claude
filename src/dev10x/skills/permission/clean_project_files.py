@@ -499,15 +499,10 @@ def find_settings_files(roots: list[str]) -> list[Path]:
 
 
 def _restore(*, config_path: Path) -> int:
-    from dev10x.skills.permission.backup import restore_all
+    from dev10x.skills.permission.backup import restore_report
 
     config = load_config(config_path)
     settings_files = find_settings_files(roots=config.get("roots", []))
-    restored = restore_all(paths=settings_files)
-    if not restored:
-        print("No backups found to restore.")
-        return 0
-    for original, backup in restored:
-        print(f"  Restored {original} from {backup.name}")
-    print(f"\nRestored {len(restored)} files.")
-    return 0
+    code, report = restore_report(paths=settings_files)
+    print(report)
+    return code

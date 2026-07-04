@@ -37,6 +37,7 @@ from typing import ClassVar
 
 from dev10x.domain import HookInput, HookResult
 from dev10x.domain.claude_paths import ClaudeDir
+from dev10x.domain.common.bash_tokens import ENV_VAR_RE
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
 
@@ -46,8 +47,6 @@ SHELL_WRITE_RE = re.compile(
     r"|\bprintf\b.*\s*(>|>>)\s*\S"
     r"|\$\(printf\b"
 )
-
-ENV_VAR_RE = re.compile(r"^[A-Z_][A-Z0-9_]*=\S*$")
 
 # Matches dd of= writes to real files; excludes /dev/null, /dev/stdout, /dev/stderr
 _DD_OF_RE = re.compile(r"\bof=(?!/dev/(null|stdout|stderr)\b)\S")
