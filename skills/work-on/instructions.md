@@ -1044,6 +1044,27 @@ and inline its documented behavior bullets. Unknown mode names
 emit a single warning bullet ("mode not documented — verify
 with `Dev10x:playbook`") rather than failing.
 
+**Contradiction warning (GH-744 F3).** Oversight modes that force
+checkpoints — `supervised` and `pair-review` — oppose an
+autonomous posture. When either appears in `active_modes` (or as a
+gate overlay) alongside `friction_level: adaptive`, `gate_preset:
+adaptive`, `walk_away: true`, or the `afk` overlay, append a
+warning line to the summary so the contradiction is visible before
+the plan gate:
+
+```
+  ⚠ Contradiction: <mode> forces checkpoints but the session is
+    adaptive/walk-away — every gate will still fire. Drop <mode>
+    (e.g., re-run Dev10x:afk, which reconciles it) or lower the
+    friction posture.
+```
+
+This was the root cause of every gate firing during an
+intended-AFK session (GH-744 F3): the oversight modes silently
+outranked the adaptive intent with no surfaced contradiction. The
+warning is advisory — it does not block; `resolve_gate` still
+governs actual gate behavior.
+
 `friction_level`/`active_modes` describe the session's declared
 posture for this display only. They no longer drive gate behavior
 directly in this skill — `mcp__plugin_Dev10x_cli__resolve_gate`
