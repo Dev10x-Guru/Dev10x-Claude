@@ -1,31 +1,61 @@
 # Walk-Away Mode — Contract for Downstream Skills
 
-Defines how skills that emit `AskUserQuestion` consult the
-`walk_away` flag set by `Dev10x:afk` and route mid-flight
-doubts to the `doubt_sink` instead of pausing.
+> **ADR-0016 convergence (GH-760).** Gate behavior is now resolved
+> by the `resolve_gate` tool (`dev10x.domain.gate_policy`), not by
+> skills reading `walk_away` and hand-classifying each question.
+> `Dev10x:afk` composes the walk-away posture as `gate_preset:
+> adaptive` + `gate_overlays: [afk]`; the `afk` overlay carries
+> `session_adoption: auto-advance` and `doubt_sink: pr-description`.
+> **`walk_away` is deprecated** — the resolver's `legacy_session_mapping`
+> still reads a `walk_away: true` on an un-migrated `session.yaml` and
+> maps it to the `afk` overlay (read-compat), but `Dev10x:afk` no
+> longer writes it and no skill should hand-roll the classification
+> below. This document is retained for the `doubt_sink` contract
+> (still a live overlay toggle) and as background on the pre-resolver
+> model. For current gate behavior, see
+> `references/friction-levels.md` § Plan-Approval Gate.
 
 Companion to `references/friction-levels.md` (which controls
 gate behavior universally) and `skills/afk/SKILL.md` (which
-sets the flag).
+composes the preset + overlay).
 
 ## Config Surface
 
 ```yaml
-# .claude/Dev10x/session.yaml
+# .claude/Dev10x/session.yaml — current (ADR-0016)
+gate_preset: adaptive         # walk-away base
+gate_overlays: [afk]          # session_adoption: auto-advance + doubt_sink
+```
+
+```yaml
+# .claude/Dev10x/session.yaml — legacy (read-compat only, deprecated)
 friction_level: adaptive
 active_modes: [solo-maintainer]
 walk_away: true
 doubt_sink: pr-description    # pr-description | session-bookmark | commit-footer
 ```
 
-The four fields together define a "walk-away session." Skills
-read all four with one `Read` call and branch on `walk_away`
-before classifying the question.
+The resolver reads the new-style keys directly; a legacy file is
+mapped to `(preset, overlays)` by `legacy_session_mapping` before
+resolution. `doubt_sink` remains a real toggle — it is supplied by
+the `afk` overlay (default `pr-description`) and read from the
+resolver's resolved policy, not hand-parsed by each skill.
 
-## Question Classification
+## Question Classification (superseded by resolver floors)
 
-Skills that call `AskUserQuestion` MUST classify the question
-into one of four categories before firing:
+> The four-class manual classification below is **superseded**: the
+> `resolve_gate` resolver now performs the equivalent decision. The
+> `destructive` and `blocking` classes map to the resolver's **safety
+> floors** (`destructive_irreversible`, `secret_access`,
+> `cross_author_push`, `privacy_disclosure`, `blocking`), which force
+> `ask` regardless of preset. The `strategy` / `informational` classes
+> map to preset auto-advance under the `adaptive` base + `afk` overlay.
+> Skills pass the concrete facts (author type, destructiveness,
+> blocking) as `context` to `resolve_gate` and honor the returned
+> `effect` — they do not hand-classify. The table is retained to show
+> how the historical classes correspond to resolver behavior.
+
+Historical four-category model (pre-resolver):
 
 | Class | Examples | Walk-away behavior |
 |-------|----------|---------------------|
@@ -39,7 +69,12 @@ mid-execution) are always `strategy`-class. The first prompt may
 have fired before walk-away was enabled; the second MUST be
 suppressed.
 
-## Decision Flowchart
+## Decision Flowchart (legacy — pre-resolver)
+
+The flowchart below is the pre-ADR-0016 model, kept for context.
+Today a skill calls `resolve_gate` and branches on the returned
+`effect` (see § Relationship to Friction Levels for the current
+pipeline).
 
 ```
 AskUserQuestion call site
@@ -117,15 +152,20 @@ For a skill that emits `AskUserQuestion`:
 |-------|----------|----------------|
 | `friction_level` | How gates with a `(Recommended)` option resolve | `references/friction-levels.md` |
 | `active_modes` | Which playbook steps exist | `references/execution-modes.md` |
-| `walk_away` | Whether non-destructive gates fire **at all** | this document |
-| `doubt_sink` | Where suppressed doubts are logged | this document |
+| `gate_overlays: [afk]` | Trusts a stale session + sets `doubt_sink` | `presets/friction/overlays/afk.yaml` |
+| `doubt_sink` | Where suppressed doubts are logged | the `afk` overlay (this document documents the sinks) |
 
-Precedence at a single gate:
+Precedence at a single gate is the **resolver pipeline** (ADR-0016
+D-4), not the legacy walk-away branch — see
+`references/friction-levels.md` § Plan-Approval Gate:
 
-1. If question is `destructive` or `blocking` → fire (walk-away off)
-2. Else if `walk_away: true` → suppress + log to `doubt_sink`
-3. Else if `friction_level: adaptive` and gate has Recommended → auto-select
-4. Else → fire normally
+1. Safety floors (destructive+irreversible, blocking, secret access,
+   cross-author, privacy disclosure) → `ask` (deny-overrides)
+2. Else the resolved toggle from `gate_preset` + `gate_overlays` +
+   project pin + session `gate_overrides` decides
+   `ask` / `auto-advance` / `skip`
+3. On `auto-advance`, the resolver's `record` line is logged to
+   `doubt_sink` so a present supervisor can still veto
 
 ## Anti-Patterns
 

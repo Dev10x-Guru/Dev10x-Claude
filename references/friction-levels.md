@@ -289,29 +289,33 @@ own `friction:` mappings.
 
 ## Reading Friction Level in Skills
 
-Skills read friction level and active modes from
-`.claude/Dev10x/session.yaml`:
+> **ADR-0016 (GH-760):** Skills do **not** read `friction_level` /
+> `active_modes` / `walk_away` to derive whether a gate fires. They
+> call `mcp__plugin_Dev10x_cli__resolve_gate(gate=..., context=...)`
+> and honor the returned `effect` (`ask` / `auto-advance` / `skip`).
+> The resolver reads session policy itself — `gate_preset`,
+> `gate_overlays`, the project pin, and `gate_overrides`, with a
+> read-compat mapping for legacy `friction_level` / `active_modes` /
+> `walk_away` files. The guidance below is retained for the two
+> layers that legitimately still read the session file directly.
 
-```yaml
-friction_level: adaptive
-active_modes: [solo-maintainer]
-```
-
-Resolution order: session override > project override > default.
-
-The recommended approach:
+The remaining direct readers:
 
 1. **Hook-based enforcement** (preferred): The PreToolUse hook
-   already reads friction_level and blocks/allows accordingly.
-   Most skills don't need to read it directly.
+   reads `friction_level` for command-redirect strictness
+   (strict/guided/adaptive per ADR-0002). This is the
+   command-redirect axis, not the decision-gate axis.
 
-2. **Skill-level awareness** (for gate behavior): Skills that
-   modify their `AskUserQuestion` behavior based on friction
-   level should read `.claude/Dev10x/session.yaml` and adapt.
+2. **Session Mode Summary display**: `Dev10x:work-on` reads the
+   session file to *print* the resolved posture (GH-189). This is
+   display-only — it does not drive gate behavior.
 
 3. **Playbook-level override**: Playbook steps can include
-   `friction:` mappings to override the global setting
-   for specific steps.
+   `friction:` mappings to skip/override steps at a given level.
+   This shapes *which steps exist*, not how a gate resolves.
+
+For anything that decides whether an `AskUserQuestion` fires, call
+`resolve_gate` — do not re-derive it from the session file.
 
 ## Examples
 
@@ -351,24 +355,26 @@ Skills adopting friction-level awareness should:
 3. Add tests for adaptive auto-selection logic
 4. Update playbook steps if level-specific behavior differs
 
-## Walk-Away Layer
+## Walk-Away Layer (ADR-0016: the `afk` overlay)
 
-`Dev10x:afk` adds a `walk_away: true` flag on top of `adaptive`
-that further suppresses `AskUserQuestion` gates which do not
-classify as destructive or blocking. Suppressed doubts are
-logged to a configured `doubt_sink` (PR description by default)
-instead of pausing execution.
+`Dev10x:afk` composes the walk-away posture as `gate_preset:
+adaptive` + `gate_overlays: [afk]`. The `afk` overlay
+(`presets/friction/overlays/afk.yaml`) sets `session_adoption:
+auto-advance` (trust a stale session) and `doubt_sink:
+pr-description` (route deferred decisions to the PR body). Gate
+suppression itself is just the `adaptive` base auto-advancing every
+non-floored toggle — there is no separate suppression layer.
 
-Walk-away is **orthogonal to friction level** — it changes
-*which gates fire at all*, not how a fired gate resolves. See
-`references/walk-away.md` for the full contract and
-classification table.
+The legacy `walk_away: true` flag is **deprecated**: the resolver's
+`legacy_session_mapping` still maps it to the `afk` overlay for
+un-migrated sessions, but `Dev10x:afk` no longer writes it and
+skills must not branch on it. See `references/walk-away.md` for the
+deprecation note and the `doubt_sink` contract.
 
-Precedence at a single gate:
-
-1. Destructive or blocking → fire (walk-away does not waive)
-2. Else `walk_away: true` → suppress + log to `doubt_sink`
-3. Else friction_level rules apply (strict/guided/adaptive)
+Resolution at a single gate is the resolver pipeline (§ Plan-Approval
+Gate): safety floors → resolved toggle from preset + overlays +
+project pin + session overrides. Destructive/blocking are floors
+(always `ask`); everything else follows the composed preset.
 
 ## References
 
