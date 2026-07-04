@@ -15,6 +15,7 @@ allowed-tools:
   - mcp__plugin_Dev10x_cli__pr_comments
   - mcp__plugin_Dev10x_cli__pr_detect
   - mcp__plugin_Dev10x_cli__pr_issue_comment
+  - mcp__plugin_Dev10x_cli__resolve_gate
   - Bash(gh pr ready:*)
   - Bash(gh api graphql:*)
   - Bash(gh api repos/:*)

@@ -28,18 +28,25 @@ defaults:
       - subject: Confirm thread resolution
         type: detailed
         prompt: >
-          REQUIRED: Call AskUserQuestion (Gate 1). Present verdict
-          and reason. Options: "Resolve" / "Leave open".
-          Only fires for non-VALID verdicts — VALID comments are
-          handled entirely by gh-pr-fixup.
+          REQUIRED: Call resolve_gate(gate="thread_resolution",
+          context={author_type, valid_fixup_count}) first (Gate 1).
+          On effect=="ask", call AskUserQuestion with verdict and
+          reason. Options: "Resolve" / "Leave open". On
+          effect=="auto-advance", resolve without prompting and
+          surface the record line. Only fires for non-VALID
+          verdicts — VALID comments are handled entirely by
+          gh-pr-fixup.
         condition: non-valid-verdict
       - subject: Hide obsolete comment
         type: detailed
         prompt: >
-          REQUIRED: Call AskUserQuestion (Gate 6). After resolving
-          a thread, offer to minimize the root comment using the
+          REQUIRED: Call resolve_gate(gate="comment_hide",
+          context={author_type, valid_fixup_count}) first (Gate 6).
+          On effect=="ask", call AskUserQuestion. After resolving a
+          thread, offer to minimize the root comment using the
           minimizeComment GraphQL mutation with classifier OUTDATED.
-          Options: "Hide" / "Skip". Skip this gate if the thread
+          Options: "Hide" / "Skip". On effect=="auto-advance",
+          minimize without prompting. Skip this gate if the thread
           was left open.
         condition: thread-resolved
       - subject: Check remaining comments
@@ -89,10 +96,14 @@ defaults:
       - subject: Get user approval
         type: detailed
         prompt: >
-          REQUIRED: Call AskUserQuestion (Gate 3). Options:
-          "Approve all" / "Review one-by-one" / "Skip".
-          User may provide corrections in free text (verdict
-          override, priority flip, YAGNI bundle membership).
+          REQUIRED: Call resolve_gate(gate="triage_response",
+          context={author_type, valid_fixup_count}) first (Gate 3).
+          On effect=="ask", call AskUserQuestion. Options:
+          "Approve all" / "Review one-by-one" / "Skip". On
+          effect=="auto-advance", proceed as "Approve all" without
+          prompting and surface the record line. User may provide
+          corrections in free text (verdict override, priority
+          flip, YAGNI bundle membership) when the gate asks.
       - subject: Execute approved responses
         type: detailed
         prompt: >
@@ -102,25 +113,34 @@ defaults:
           batch into a single follow-up ticket via
           Dev10x:ticket-create, reply on each thread linking the
           ticket, skip fixup in this batch. YAGNI bundles → fire
-          Gate 7 (Step 1d-style) per bundle and route per user
-          choice. INVALID/QUESTION/OUT_OF_SCOPE → post reply via
-          MCP tool. Do NOT resolve threads yet.
+          Gate 7 (Step 1d-style, resolve_gate(gate="yagni_routing"))
+          per bundle and route per its effect. INVALID/QUESTION/
+          OUT_OF_SCOPE → post reply via MCP tool. Do NOT resolve
+          threads yet.
         skills: [Dev10x:gh-pr-fixup, Dev10x:ticket-create]
       - subject: Resolve threads
         type: detailed
         prompt: >
-          REQUIRED: Call AskUserQuestion (Gate 4). Collect all
-          replied-to but unresolved threads. Options:
+          REQUIRED: Call resolve_gate(gate="thread_resolution",
+          context={author_type, valid_fixup_count}) first (Gate 4).
+          Collect all replied-to but unresolved threads. On
+          effect=="ask", call AskUserQuestion. Options:
           "Resolve all" / "Review one-by-one" / "Leave all open".
-          If "Review one-by-one": per-thread confirmation.
-          Resolve only user-approved threads via GraphQL.
+          If "Review one-by-one": per-thread confirmation. On
+          effect=="auto-advance", resolve all listed threads
+          without prompting. Resolve only user-approved (or
+          auto-advanced) threads via GraphQL.
       - subject: Hide obsolete comments
         type: detailed
         prompt: >
           After resolving threads, offer to minimize resolved
-          comments. REQUIRED: Call AskUserQuestion (Gate 6).
-          Options: "Hide all resolved" / "Review one-by-one" /
-          "Skip". Uses minimizeComment GraphQL mutation with
+          comments. REQUIRED: Call resolve_gate(gate="comment_hide",
+          context={author_type, valid_fixup_count}) first (Gate 6).
+          On effect=="ask", call AskUserQuestion. Options:
+          "Hide all resolved" / "Review one-by-one" / "Skip". On
+          effect=="auto-advance", minimize all resolved comments
+          without prompting — still invoke minimize_comments
+          (GH-208). Uses minimizeComment GraphQL mutation with
           classifier OUTDATED. Skip if no threads were resolved.
         condition: has-resolved-threads
       - subject: Summary

@@ -71,35 +71,57 @@ structured decision flow the user relies on.
 
 Gates numbered by insertion order; execution order differs by mode.
 
-| # | Location | Purpose |
-|---|----------|---------|
-| 1 | Mode A, Step 1b | Confirm thread resolution |
-| 2 | Mode A, Step 3 | Continue / batch / stop |
-| 3 | Mode B, Step 3 | Approve / review / skip batch |
-| 4 | Mode B, Step 5 | Resolve threads confirmation |
-| 5 | Post-Response Continuation | Groom + push + monitor / Push only / Stop |
-| 6 | Mode B, Step 5b / Mode A, Step 1c | Hide obsolete comments |
-| 7 | Mode A, Step 1d / Mode B, Step 4 (per bundle) | YAGNI routing — remove / defer / keep-and-harden |
+| # | Location | Purpose | Gate toggle (ADR-0016) |
+|---|----------|---------|-------------------------|
+| 1 | Mode A, Step 1b | Confirm thread resolution | `thread_resolution` |
+| 2 | Mode A, Step 3 | Continue / batch / stop | (not policy-gated) |
+| 3 | Mode B, Step 3 | Approve / review / skip batch | `triage_response` |
+| 4 | Mode B, Step 5 | Resolve threads confirmation | `thread_resolution` |
+| 5 | Post-Response Continuation | Groom + push + monitor / Push only / Stop | `shipping_continuation` |
+| 6 | Mode B, Step 5b / Mode A, Step 1c | Hide obsolete comments | `comment_hide` |
+| 7 | Mode A, Step 1d / Mode B, Step 4 (per bundle) | YAGNI routing — remove / defer / keep-and-harden | `yagni_routing` |
+
+Gate 2 (continue/batch/stop) is a plain navigational prompt, not a
+policy-tunable decision gate — it stays a bare `AskUserQuestion`
+call, no `resolve_gate` lookup. Every other gate above MUST be
+preceded by a `resolve_gate` call — see § Gate Resolution
+(ADR-0016) below.
 
 Each gate is marked with **REQUIRED: `AskUserQuestion`** in the
-step description. If you see that marker, you MUST call the
-`AskUserQuestion` tool — never substitute with inline text.
+step description, gated behind a `resolve_gate` call for the 6
+gates listed in § Gate Resolution (ADR-0016). If you see the
+`AskUserQuestion` marker reached via `effect == "ask"`, you MUST
+call the `AskUserQuestion` tool — never substitute with inline
+text. Skills are policy-ignorant: they call `resolve_gate` and
+branch on its `effect`; they never read `friction_level` /
+`active_modes` / `walk_away` or re-derive gate behavior in prose.
 
 **Compaction-safe gate checklist** — re-inject after compaction:
 
-1. Gate 1 (thread resolution): `AskUserQuestion` — MANDATORY
+1. Gate 1 (thread resolution): `resolve_gate(gate=
+   "thread_resolution")` → `AskUserQuestion` on `effect == "ask"`
+   — MANDATORY
 2. Gate 2 (continue/batch/stop): `AskUserQuestion` — MANDATORY
-3. Gate 3 (approve batch): `AskUserQuestion` — MANDATORY
-4. Gate 4 (resolve threads): `AskUserQuestion` — MANDATORY
-5. Gate 5 (shipping pipeline): `AskUserQuestion` — MANDATORY
-6. Gate 6 (hide comments): `AskUserQuestion` — MANDATORY
-   (fires at every friction level, including `adaptive`; adaptive
-   auto-selects "Hide all resolved" but the gate still fires and
-   `minimize_comments` is invoked — GH-208)
-6a. Gate 7 (YAGNI routing): `AskUserQuestion` — MANDATORY per
-    YAGNI bundle (GH-297). Adaptive auto-selects "Remove
-    out-of-scope code" but the gate still fires so the user sees
-    the bundled comment IDs before the removal commit is created.
+   (not policy-gated, no `resolve_gate` call)
+3. Gate 3 (approve batch): `resolve_gate(gate="triage_response")`
+   → `AskUserQuestion` on `effect == "ask"` — MANDATORY
+4. Gate 4 (resolve threads): `resolve_gate(gate=
+   "thread_resolution")` → `AskUserQuestion` on `effect == "ask"`
+   — MANDATORY
+5. Gate 5 (shipping pipeline): `resolve_gate(gate=
+   "shipping_continuation")` → `AskUserQuestion` on `effect ==
+   "ask"` — MANDATORY
+6. Gate 6 (hide comments): `resolve_gate(gate="comment_hide")` →
+   `AskUserQuestion` on `effect == "ask"` — MANDATORY. On
+   `effect == "auto-advance"` the gate still MUST invoke
+   `minimize_comments` — silently skipping the call while
+   auto-advancing is the GH-208 regression.
+6a. Gate 7 (YAGNI routing): `resolve_gate(gate="yagni_routing")`
+    → `AskUserQuestion` on `effect == "ask"` — MANDATORY per
+    YAGNI bundle (GH-297). On `effect == "auto-advance"` the
+    resolved option still fires so the user sees the bundled
+    comment IDs recorded in the `record` line before the removal
+    commit is created.
 7. VALID comments: `Skill(Dev10x:gh-pr-fixup)` — NEVER inline,
    invoke immediately after triage verdict (no pause, no report)
 8. Triage: `Skill(Dev10x:gh-pr-triage)` — NEVER inline, even
@@ -108,6 +130,54 @@ step description. If you see that marker, you MUST call the
    a reviewed file, verify a `Skill()` call preceded it
 10. Merge: `Skill(Dev10x:gh-pr-merge)` — NEVER inline
     `gh pr merge` (GH-759 F3)
+
+## Gate Resolution (ADR-0016)
+
+This skill is policy-ignorant. It does NOT read `friction_level`,
+`active_modes`, or `walk_away` from session.yaml and does NOT
+re-derive gate behavior in prose. At every gate marked with a
+toggle name in the table above, call the resolver first:
+
+```
+mcp__plugin_Dev10x_cli__resolve_gate(
+    gate="<toggle>",
+    context={<facts about this gate instance>},
+)
+```
+
+Branch on the returned `effect`:
+
+1. `effect == "ask"` → fire the documented `AskUserQuestion`
+   widget for this gate, unchanged (same options, same headers).
+2. `effect == "auto-advance"` → proceed with the recommended
+   option WITHOUT prompting. Surface the returned `record` line
+   (`⚙ gate:… → "…" (reason)`) in the transcript so a present
+   supervisor can veto before the next step runs.
+3. `effect == "skip"` → skip the gate/step entirely — do not ask,
+   do not auto-advance an action.
+4. Response has an `error` key → fail safe: fire the
+   `AskUserQuestion` widget as if `effect == "ask"`.
+
+Do not pass preset, friction level, or `active_modes` values into
+`context` — the resolver reads session policy itself. `context`
+carries only facts about the concrete gate instance:
+
+- **`author_type`** (`"bot"` | `"human"`) — the comment author for
+  `thread_resolution` / `triage_response` / `comment_hide`. Omit
+  only when genuinely unknown (resolves to `"human"`, the safe
+  direction).
+- **`valid_fixup_count`** — pass `0` when the current triage/batch
+  round produced no VALID comments. The resolver reads the
+  session's `zero_valid_autoflow` toggle and forces `ask` on
+  `thread_resolution` / `triage_response` / `comment_hide` when
+  that toggle is `false` and this round is all-zero-VALID, even
+  if the preset would otherwise auto-advance. Omit this field for
+  gates unrelated to a triage round (e.g., `shipping_continuation`,
+  `yagni_routing`).
+
+The 6 gate sites below each name their toggle and the context
+facts to pass. See `mcp-tools.md` in `.claude/rules/` for the full
+`resolve_gate` parameter contract.
 
 ## Overview
 
@@ -512,21 +582,41 @@ Comment r{comment_id} on {path}:{line}:
 Resolve this thread?
 ```
 
-**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text).
-This blocks execution until the user responds. Options:
-- **"Resolve"** — Resolve the thread via GraphQL
-- **"Leave open"** — Keep the thread open (reply already posted)
+**REQUIRED: Call `resolve_gate(gate="thread_resolution",
+context={"author_type": "<comment author bot|human>"})`** first —
+see § Gate Resolution (ADR-0016). Pass `valid_fixup_count=0` in
+`context` when this comment's verdict round produced no VALID
+comments.
+
+- `effect == "ask"` → **REQUIRED: Call `AskUserQuestion`** (do NOT
+  use plain text). This blocks execution until the user responds.
+  Options:
+  - **"Resolve"** — Resolve the thread via GraphQL
+  - **"Leave open"** — Keep the thread open (reply already posted)
+- `effect == "auto-advance"` → resolve the thread via GraphQL
+  without prompting; surface the `record` line in the transcript.
+- `effect == "skip"` → leave the thread open, no action.
+- `error` key present → treat as `effect == "ask"`.
 
 ### Step 1c: Hide obsolete comment (optional)
 
 If the thread was resolved in Step 1b, offer to minimize the root
 comment to reduce PR conversation noise:
 
-**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text).
-Options:
-- **"Hide"** — Minimize the comment via GraphQL `minimizeComment`
-  with classifier `OUTDATED`
-- **"Skip"** — Leave the comment visible
+**REQUIRED: Call `resolve_gate(gate="comment_hide",
+context={"author_type": "<comment author bot|human>"})`** first —
+see § Gate Resolution (ADR-0016). Pass `valid_fixup_count=0` when
+this comment's verdict round produced no VALID comments.
+
+- `effect == "ask"` → **REQUIRED: Call `AskUserQuestion`** (do NOT
+  use plain text). Options:
+  - **"Hide"** — Minimize the comment via GraphQL `minimizeComment`
+    with classifier `OUTDATED`
+  - **"Skip"** — Leave the comment visible
+- `effect == "auto-advance"` → minimize the comment without
+  prompting; surface the `record` line in the transcript.
+- `effect == "skip"` → leave the comment visible, no action.
+- `error` key present → treat as `effect == "ask"`.
 
 **Skip this gate** if the thread was left open in Step 1b.
 
@@ -548,7 +638,17 @@ Fires only when `Dev10x:gh-pr-triage` returns `YAGNI`. Triage has
 already posted a reply naming the scope mismatch; this gate decides
 how to close the bundled threads.
 
-**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text).
+**REQUIRED: Call `resolve_gate(gate="yagni_routing", context={})`**
+first — see § Gate Resolution (ADR-0016). `author_type` and
+`valid_fixup_count` do not apply to this gate; omit them.
+
+- `effect == "ask"` → **REQUIRED: Call `AskUserQuestion`** (do NOT
+  use plain text) with the options below.
+- `effect == "auto-advance"` → proceed with the recommended option
+  (`resolved_option`) without prompting; surface the `record` line
+  in the transcript before creating the removal/deferral commit.
+- `effect == "skip"` → leave the bundle untouched, no action.
+- `error` key present → treat as `effect == "ask"`.
 
 Present:
 ```
@@ -782,11 +882,24 @@ proposed ticket title and body inline with the table for confirmation.
 
 ### Step 3: Get user approval
 
-**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text).
-This blocks execution until the user approves the batch plan. Options:
-- **"Approve all"** — Execute all proposed responses
-- **"Review one-by-one"** — Present each for individual approval (like Mode A)
-- **"Skip"** — Cancel batch
+**REQUIRED: Call `resolve_gate(gate="triage_response",
+context={"author_type": "<'bot' if every proposed-response row is
+from a bot author else 'human'>", "valid_fixup_count": <count of
+VALID rows in this batch>})`** first — see § Gate Resolution
+(ADR-0016).
+
+- `effect == "ask"` → **REQUIRED: Call `AskUserQuestion`** (do NOT
+  use plain text). This blocks execution until the user approves
+  the batch plan. Options:
+  - **"Approve all"** — Execute all proposed responses
+  - **"Review one-by-one"** — Present each for individual approval
+    (like Mode A)
+  - **"Skip"** — Cancel batch
+- `effect == "auto-advance"` → proceed as "Approve all" without
+  prompting; surface the `record` line in the transcript before
+  Step 4 executes.
+- `effect == "skip"` → cancel the batch, no responses executed.
+- `error` key present → treat as `effect == "ask"`.
 
 The user may also provide corrections in free text (e.g., "Comment 2 is not
 valid, we use DataclassField" or "Comment 4: make it a question to the
@@ -828,7 +941,8 @@ For each approved comment, route by **verdict + priority**:
   Do NOT resolve the thread automatically.
 - **YAGNI** → respect the bundle. For each YAGNI bundle named in
   the batch plan, fire one **Step 1d-style YAGNI routing gate**
-  (see Mode A § Step 1d) covering the whole bundle. The selected
+  (see Mode A § Step 1d, including its `resolve_gate(gate=
+  "yagni_routing")` call) covering the whole bundle. The selected
   option (remove / defer / keep-and-harden) determines whether
   `Dev10x:gh-pr-fixup` is invoked once with all bundled comment
   IDs (`bundled: true`), whether a deferral ticket is created, or
@@ -870,12 +984,23 @@ Present each thread with its verdict and reason:
 Resolve these threads?
 ```
 
-**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text).
-This blocks execution until the user confirms which threads
-to resolve. Options:
-- **"Resolve all"** — Resolve all listed threads
-- **"Review one-by-one"** — Confirm each thread individually
-- **"Leave all open"** — Keep all threads open (replies already posted)
+**REQUIRED: Call `resolve_gate(gate="thread_resolution",
+context={"author_type": "<'bot' if every listed thread's comment
+author is a bot else 'human'>", "valid_fixup_count": <count of
+VALID comments processed in this batch>})`** first — see § Gate
+Resolution (ADR-0016).
+
+- `effect == "ask"` → **REQUIRED: Call `AskUserQuestion`** (do NOT
+  use plain text). This blocks execution until the user confirms
+  which threads to resolve. Options:
+  - **"Resolve all"** — Resolve all listed threads
+  - **"Review one-by-one"** — Confirm each thread individually
+  - **"Leave all open"** — Keep all threads open (replies already
+    posted)
+- `effect == "auto-advance"` → resolve all listed threads without
+  prompting; surface the `record` line in the transcript.
+- `effect == "skip"` → leave all threads open, no action.
+- `error` key present → treat as `effect == "ask"`.
 
 **If "Review one-by-one":** For each thread, present:
 ```
@@ -932,21 +1057,30 @@ Present the resolved comments:
 Hide these comments?
 ```
 
-**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text).
-**Adaptive friction does NOT skip this gate** — at
-`friction_level: adaptive`, the recommended option ("Hide all
-resolved") is auto-selected, but the `AskUserQuestion` call still
-fires and `mcp__plugin_Dev10x_cli__minimize_comments` MUST be
-invoked on the resolved comments. Silently auto-advancing into
-the shipping pipeline without calling `minimize_comments` is the
-GH-208 regression and is caught by the
-`gate6_fires_after_resolution` eval assertion.
+**REQUIRED: Call `resolve_gate(gate="comment_hide",
+context={"author_type": "<'bot' if every resolved comment's author
+is a bot else 'human'>", "valid_fixup_count": <count of VALID
+comments processed in this batch>})`** first — see § Gate
+Resolution (ADR-0016). The resolver — not a hardcoded
+`friction_level` check — now decides whether this gate asks or
+auto-advances:
 
-Options:
-- **"Hide all resolved" (Recommended)** — Minimize all resolved
-  thread root comments with classifier `OUTDATED`
-- **"Review one-by-one"** — Confirm each comment individually
-- **"Skip"** — Leave all comments visible
+- `effect == "ask"` → **REQUIRED: Call `AskUserQuestion`** (do NOT
+  use plain text). Options:
+  - **"Hide all resolved" (Recommended)** — Minimize all resolved
+    thread root comments with classifier `OUTDATED`
+  - **"Review one-by-one"** — Confirm each comment individually
+  - **"Skip"** — Leave all comments visible
+- `effect == "auto-advance"` → minimize all resolved thread root
+  comments via `mcp__plugin_Dev10x_cli__minimize_comments` WITHOUT
+  prompting; surface the `record` line in the transcript. Silently
+  advancing into the shipping pipeline without actually calling
+  `minimize_comments` is the GH-208 regression and is caught by the
+  `gate6_fires_after_resolution` eval assertion — the auto-advance
+  branch still MUST invoke `minimize_comments`, it just skips the
+  prompt.
+- `effect == "skip"` → leave all comments visible, no action.
+- `error` key present → treat as `effect == "ask"`.
 
 **If "Review one-by-one":** For each comment, present:
 ```
@@ -1016,7 +1150,19 @@ continuation gate.
 **When no parent is detected** (standalone invocation), proceed
 with the gate below.
 
-**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text).
+**REQUIRED: Call `resolve_gate(gate="shipping_continuation",
+context={})`** first — see § Gate Resolution (ADR-0016).
+`author_type` and `valid_fixup_count` do not apply to this gate;
+omit them.
+
+- `effect == "ask"` → **REQUIRED: Call `AskUserQuestion`** (do NOT
+  use plain text) with the options below.
+- `effect == "auto-advance"` → proceed directly with "Full shipping
+  pipeline" without prompting; surface the `record` line in the
+  transcript before Step 1 of the pipeline runs.
+- `effect == "skip"` → stop without pushing, no action.
+- `error` key present → treat as `effect == "ask"`.
+
 Options:
 - **"Full shipping pipeline" (Recommended)** — Execute the complete
   post-response shipping sequence. **REQUIRED: Use `Skill()` for
