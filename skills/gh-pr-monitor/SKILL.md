@@ -22,6 +22,7 @@ allowed-tools:
   - mcp__plugin_Dev10x_cli__check_top_level_comments
   - mcp__plugin_Dev10x_cli__milestone_close
   - mcp__plugin_Dev10x_cli__background_preamble
+  - mcp__plugin_Dev10x_cli__resolve_gate
   - Bash(gh:*)
   - Skill(Dev10x:qa-scope)
   - Skill(Dev10x:request-review)
@@ -61,10 +62,14 @@ violation. The skill's background-dispatch model is the
 contract; substituting inline polling skips the fixup,
 notification, and verification side effects.
 
-**Solo-maintainer active mode behavior (clarified for GH-152):**
-When `active_modes` contains `solo-maintainer`, the Phase 3
-team notification step is silently skipped — there is no
-Slack channel and no reviewer assignment. The skill still
-runs Phases 1–2 (CI monitoring + fixup handling) and Phase 4
-(verification). The notification gate AskUserQuestion is
-not fired in solo-maintainer mode.
+**Notification gate resolution (ADR-0016, GH-757):** The Phase
+2.7 and Phase 3 notification steps each call
+`resolve_gate(gate="external_notify")` and branch on the
+returned `effect` (`ask` / `auto-advance` / `skip`). The
+resolver applies session policy — including the
+solo-maintainer overlay — so this skill does NOT special-case
+`active_modes` or `solo_maintainer` in prose. See
+`instructions.md` Phase 2.7 and Phase 3 for the branch
+pattern. The skill still runs Phases 1–2 (CI monitoring +
+fixup handling) and Phase 4 (verification) regardless of the
+notification gate's effect.

@@ -722,16 +722,26 @@ For each reviewer who requested changes, compose:
 
 Format this as a Slack message suitable for posting.
 
-### Step 3: Ask user for confirmation
+### Step 3: Resolve notification gate
 
-Use `AskUserQuestion` showing the exact message that will be posted.
+Call `mcp__plugin_Dev10x_cli__resolve_gate(gate="external_notify",
+context={})` before posting.
 
-Options: "Post re-review notification" / "Skip".
+1. `effect == "ask"` → Fire the EXISTING `AskUserQuestion` widget
+   showing the exact message that will be posted. Options: "Post
+   re-review notification" / "Skip".
+2. `effect == "auto-advance"` → Proceed straight to Step 4 (post
+   the notification) without prompting. Surface the returned
+   `record` line in the transcript.
+3. `effect == "skip"` → Do not post. Skip straight to Phase 3.
+4. Response has an `error` key → fail safe: treat as `ask`.
 
 ### Step 4: Post the notification
 
-If user approves, invoke the skill with the composed message. The skill
-reads the project's Slack config and posts to the configured channel.
+If the gate resolved to post (user approved the `ask` widget, or
+the gate auto-advanced), invoke the skill with the composed
+message. The skill reads the project's Slack config and posts to
+the configured channel.
 
 Example invocation:
 ```
@@ -747,16 +757,15 @@ The Dev10x:slack-review-request skill will:
 
 ## Phase 3: Notification (REQUIRES USER CONFIRMATION)
 
-**CRITICAL: Do NOT post notifications without user confirmation.**
+**CRITICAL: Do NOT post notifications without resolving the gate
+first.**
 
-Phase 3 always fires `AskUserQuestion` in this architecture —
-the supervisor is in-session and the user is present, so the
-prior background-agent dontAsk auto-advance does not apply.
-If the session friction level is `adaptive` and the user
-pre-authorised shipping pipeline auto-advance (in
-`.claude/Dev10x/session.yaml`), `AskUserQuestion` still fires
-but the recommended option is auto-selected — that is the
-correct adaptive behaviour.
+Phase 3's notification step calls `resolve_gate(gate=
+"external_notify")` (Step 2 below) and branches on the returned
+`effect`. The resolver — not this skill — decides whether to
+ask, auto-advance, or skip, based on session policy (preset,
+overlays, including the solo-maintainer overlay). Do NOT
+special-case `friction_level` or `active_modes` in prose here.
 
 ### Step 0: Verify PR state via MCP
 
@@ -785,12 +794,22 @@ count resolved threads as open if it uses the REST API.
 
 *Why?* Reviewers should only be pinged when the PR is fully ready.
 
-### Step 2: Ask user for confirmation
+### Step 2: Resolve notification gate
 
-Use `AskUserQuestion`:
-- Question: "PR #{pr_number} is ready for review. Post notification?"
-- Show the formatted message from the prepare output
-- Options: "Post notification" / "Skip notification"
+Call `mcp__plugin_Dev10x_cli__resolve_gate(gate="external_notify",
+context={})`.
+
+1. `effect == "ask"` → Fire the EXISTING `AskUserQuestion` widget:
+   - Question: "PR #{pr_number} is ready for review. Post notification?"
+   - Show the formatted message from the prepare output
+   - Options: "Post notification" / "Skip notification"
+2. `effect == "auto-advance"` → Proceed directly to Step 3
+   (post the notification) without prompting. Surface the
+   returned `record` line in the transcript.
+3. `effect == "skip"` → Skip notification entirely — go
+   directly to Step 4 (checklist-only, no Slack, no reviewer
+   assignment).
+4. Response has an `error` key → fail safe: treat as `ask`.
 
 ### Step 3: Execute (if user approves)
 
@@ -927,10 +946,11 @@ directly.
   (Phase 4). Does NOT cover merge.
 - **Do NOT merge PRs.** Merging is the supervisor's manual
   responsibility (or a separate `Dev10x:gh-pr-merge` invocation).
-- **Phase gates**: 2.5 (QA), 2.7 (re-review), 3 (notification) fire
-  `AskUserQuestion` regardless of friction level (adaptive
-  auto-selects the recommended option but still surfaces the
-  gate).
+- **Phase gates**: 2.5 (QA) always fires `AskUserQuestion`. 2.7
+  (re-review) and 3 (notification) each call
+  `resolve_gate(gate="external_notify")` and branch on `ask` /
+  `auto-advance` / `skip` per session policy — see Phase 2.7 and
+  Phase 3 above for the branch pattern.
 - **One fixup per comment**: Enforced by `gh-pr-respond`.
 - **Poll interval**: `haiku-ci-poll` sleeps 30s per iteration
   internally.
@@ -983,11 +1003,11 @@ directly.
     │       └── Skill(Dev10x:qa-scope)
     │
     ├── Phase 2.7: Re-review notification
-    │       ├── AskUserQuestion → confirm
+    │       ├── resolve_gate(gate="external_notify")
     │       └── Skill(Dev10x:slack-review-request)
     │
     ├── Phase 3: Notification
-    │       ├── AskUserQuestion → confirm
+    │       ├── resolve_gate(gate="external_notify")
     │       ├── Skill(Dev10x:request-review)
     │       └── pr-notify.py send (checklist-only)
     │

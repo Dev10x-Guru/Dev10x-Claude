@@ -81,7 +81,8 @@ the work plan, all interactive decision gates are bypassed:
 - Staging → auto-stage all changes
 - Commit type → auto-select from context
 - Problem/solution → auto-generate from session context
-- Preview → skip (orchestrator already approved the plan)
+- Preview → resolved by `resolve_gate(gate="artifact_preview")`
+  at Step 9 (see below) — not hardcoded to skip here
 - Next steps → return control to orchestrator immediately
 
 Detection: unattended mode activates when **both** conditions
@@ -115,13 +116,14 @@ points. In unattended mode, these gates are skipped:
   - Refactor — code restructuring
   - Test — adding or updating tests
 
-- **Message preview approval**:
-  **REQUIRED: Call `AskUserQuestion`** (do NOT use plain text,
-  call spec: [ask-message-preview.md](./tool-calls/ask-message-preview.md)).
-  Options:
-  - Commit (Recommended) — create the commit as shown
-  - Edit message — revise before creating
-  - Abort — cancel commit
+- **Message preview approval** is NOT governed by the
+  attended/unattended fork above. It is resolved via
+  `resolve_gate(gate="artifact_preview")` at Step 9 in every
+  invocation (nested or top-level) — see Step 9 for the full
+  branch pattern. When the resolved effect is `ask`, fire the
+  EXISTING widget (call spec:
+  [ask-message-preview.md](./tool-calls/ask-message-preview.md))
+  with options: Commit (Recommended) / Edit message / Abort.
 
 ## Scope Invariant (GH-153)
 
@@ -619,20 +621,31 @@ Suggestion: Split into two lines or shorten:
 - Rename stages for clarity (system-base, python-dependencies)
 ```
 
-### Step 9: Show Preview and Confirm
+### Step 9: Resolve Preview Gate and Confirm
 
-**Unattended mode:** Skip this gate entirely. The orchestrator
-has already approved the work plan, and the commit message was
-auto-generated from session context. Proceed directly to
-staging (Step 10) and commit creation (Step 11).
+**REQUIRED (ADR-0016, GH-757):** Call
+`mcp__plugin_Dev10x_cli__resolve_gate(gate="artifact_preview",
+context={})` before deciding whether to show the preview.
+Do NOT branch on unattended/attended mode, `friction_level`, or
+`active_modes` for this step — the resolver reads session
+policy (including the solo-maintainer overlay) itself.
 
-**Attended mode — this step is MANDATORY.** Never skip it when
-invoked directly by the user, even when Steps 5-6 were
-auto-generated from session context. **DO NOT proceed to
-`git commit` without user approval — skipping this gate is a
-compliance violation.**
+1. `effect == "ask"` → Display the formatted message below and
+   fire the EXISTING `AskUserQuestion` widget (call spec:
+   [ask-message-preview.md](./tool-calls/ask-message-preview.md)).
+   **This step is MANDATORY when the effect is `ask` — DO NOT
+   proceed to `git commit` without user approval; skipping the
+   widget in that case is a compliance violation.**
+2. `effect == "auto-advance"` → Skip the interactive prompt and
+   proceed directly to staging (Step 10) and commit creation
+   (Step 11) using the recommended option (create the commit as
+   shown). Surface the returned `record` line in the transcript.
+3. `effect == "skip"` → Skip the preview step entirely (no
+   display, no widget) and proceed directly to Step 10.
+4. Response has an `error` key → fail safe: treat as `ask` —
+   display the preview and fire the widget.
 
-**Display formatted message:**
+**Display formatted message** (when effect is `ask`):
 ```
 Preview of commit message:
 ─────────────────────────────────
