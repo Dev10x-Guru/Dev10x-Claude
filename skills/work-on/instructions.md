@@ -855,6 +855,19 @@ specific file/line, that is the starting point for investigation.
 4.10 [detailed] Verify acceptance criteria
 ```
 
+**Pr-continuation merge-state guard (GH-744 F1).** Task 4.1
+(Fetch PR and review context) MUST resolve the PR's merge state
+(`state` / `mergedAt` via `mcp__plugin_Dev10x_cli__pr_detect` or
+`pr_get`) before building the continuation plan. When the PR is
+already `MERGED`, do NOT instantiate the full triage → fixup →
+re-review plan — collapse to a **post-merge cleanup** scope
+(answer any still-unresolved bot/human comments for the record,
+then Verify AC). `Dev10x:gh-pr-respond` enforces the same
+short-circuit in its Merge-State Check preamble, so a respond
+cycle dispatched from 4.3 stays safe even if this guard is
+missed; catching it at 4.1 avoids planning work that will be
+discarded.
+
 **Pr-continuation deletion guard (GH-117 #1).** Tasks 4.6
 (Monitor CI), 4.8 (Update PR description), 4.9 (Request
 re-review), and 4.10 (Verify acceptance criteria) MUST NOT be
