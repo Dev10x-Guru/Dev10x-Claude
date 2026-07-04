@@ -154,59 +154,39 @@ which skill is in flight.
 
 ## Plan-Approval Gate (work-on Phase 3)
 
-The `Dev10x:work-on` Phase 3 plan-approval gate is a special case. It
-is the supervisor's one chance to veto wrong scope *before* any branch
-checkout, so its resolution does not follow the generic
-"adaptive auto-selects `(Recommended)`" rule verbatim. This section is
-the canonical rule (GH-678 reconciliation); where the generic gate
-prose above and this section appear to disagree about the plan gate,
-this section wins.
+The `Dev10x:work-on` Phase 3 plan-approval gate resolves through the
+gate-policy resolver (ADR-0016 Phase 2 / GH-755). Work-on calls
+`resolve_gate(gate="plan_approval")` (the `resolve_gate` MCP tool) and
+honours the returned `effect` instead of re-deriving the decision from
+`friction_level` / `active_modes`. The resolver is the single source
+of truth; the former
+`dev10x.domain.session_rules.plan_gate_auto_approves()` predicate is
+superseded — its `auto-plan` and `adaptive`+`solo-maintainer` shapes
+now live in the shipped presets and the `solo-maintainer` overlay.
 
-**Canonical resolution rule** — the plan gate *auto-approves* (the
-agent starts execution without presenting the approval widget) iff:
+**How the shipped presets resolve `plan_approval`:**
 
-| friction_level | active_modes | Plan gate |
-|----------------|-------------|-----------|
-| `strict` | (any) | **Fires** — always |
-| `guided` | (no `auto-plan`) | **Fires** with recommendation |
-| `guided` | `auto-plan` | **Auto-approved** (GH-678) |
-| `adaptive` | (no `solo-maintainer`, no `auto-plan`) | **Fires** — widget still emits to preserve veto; agent auto-selects "Approve" if not overridden |
-| `adaptive` | `solo-maintainer` | **Auto-approved** (GH-252) |
-| (any) | `auto-plan` | **Auto-approved** (GH-678) |
+| preset | `plan_approval` | Plan gate |
+|--------|-----------------|-----------|
+| `strict` | `ask` | **Fires** — supervisor approves before any branch checkout |
+| `guided` | `auto-advance` | **Auto-approved** — light-AFK: the mechanical pipeline (plan included) auto-advances; team interactions + merge stay gated (GH-748 / D-9) |
+| `adaptive` | `auto-advance` | **Auto-approved** — walk-away |
 
-The boolean is encoded once in
-`dev10x.domain.session_rules.plan_gate_auto_approves()` — work-on's
-markdown and any future consumer defer to it rather than
-re-deriving the matrix.
+A durable project pin (`.dev10x/gate-policy.yaml`) or a session
+`gate_overrides` entry can force `plan_approval: ask` back on when a
+repo or session wants the veto regardless of preset. Legacy
+`friction_level` / `active_modes` sessions are mapped to a preset +
+overlays by the resolver's read-compat seam, so an un-migrated
+`session.yaml` keeps working without change.
 
-**Doc-vs-observed note (GH-678 AC#1):** the generic `adaptive` rule
-("auto-select `(Recommended)`, no `AskUserQuestion` interruption")
-does NOT apply to the plan gate when `solo-maintainer` is absent —
-there the widget still fires to preserve the veto. That is the
-observed behaviour, and it is intentional, not a bug. `auto-plan` is
-the mode that finally makes "skip the plan widget but keep downstream
-gates firing" reachable.
-
-**`auto-plan` scope.** The mode auto-approves the plan gate ONLY.
-Downstream decision gates, the Plan Completion Gate, and `ALWAYS_ASK`
-gates all resolve by `friction_level` exactly as they would without
-the mode. See `references/active-modes.md` § `auto-plan` and
-`references/execution-modes.md`.
-
-**Walk-away precedence.** When `walk_away: true` (the `Dev10x:afk`
-layer) and `auto-plan` are both set, walk-away is the stronger "I am
-gone" signal: downstream non-destructive gates are *suppressed and
-logged to the `doubt_sink`*, not fired. `auto-plan`'s "downstream
-gates still fire" intent assumes the supervisor is present; once
-walk-away declares absence, suppression wins. The full single-gate
-precedence is unchanged:
-
-1. Destructive or blocking → fire (neither walk-away nor `auto-plan`
-   waives)
-2. Plan-approval gate → auto-approve when
-   `plan_gate_auto_approves()` is true (covers `auto-plan`)
-3. Else `walk_away: true` → suppress + log to `doubt_sink`
-4. Else `friction_level` rules apply (strict/guided/adaptive)
+**Effect semantics** (uniform across every gate): `ask` → fire the
+`AskUserQuestion` widget; `auto-advance` → proceed with the
+recommended option and surface the resolver's `record` line (the D-7
+`⚙ gate:…` transcript record) so a present supervisor can still veto;
+`skip` → do not present the gate at all. Safety floors
+(destructive/irreversible, blocking, secret access, cross-author,
+privacy disclosure) always resolve to `ask` regardless of preset —
+they are deny-overrides, the resolver's ALWAYS_ASK equivalent.
 
 ## Acceptance Criteria (verify-acc-dod)
 
@@ -247,8 +227,19 @@ failing "PR merged" check would loop on "Go back" forever. The
 three-way recommendation is encoded once in
 `dev10x.domain.session_rules.completion_gate_recommendation()` —
 verify-acc-dod's markdown and work-on's Plan Completion Gate defer to
-it rather than re-deriving the matrix. This is the completion-gate
-analogue of `plan_gate_auto_approves()` (§ Plan-Approval Gate).
+it rather than re-deriving the matrix. Whether that gate *fires* is
+resolved by `resolve_gate(gate="completion_signoff")`; this function
+only chooses which option it recommends (§ Plan-Approval Gate).
+
+**Boundary with verify-acc-dod's internal checks (GH-755).** The
+resolver decides only whether work-on's `completion_signoff` gate
+fires. The delegated `Dev10x:verify-acc-dod` skill keeps its own
+`friction_level`-keyed tables (above) for its *internal*
+automated/manual check behavior — that layer is intentionally left
+on the friction-level model until the Phase 3 long-tail migration
+(GATE-M3). The two systems meet at one gate by design: the resolver
+gates the completion prompt, verify-acc-dod's friction table gates
+its per-check evaluation. Neither overrides the other.
 
 ## Loop Enforcement
 

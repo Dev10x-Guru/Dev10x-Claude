@@ -16,7 +16,6 @@ from dev10x.domain.session_rules import (
     CompletionRecommendation,
     DecisionGuidanceRule,
     completion_gate_recommendation,
-    plan_gate_auto_approves,
 )
 from dev10x.hooks.session_policy import MigratePluginPermissionsRule
 
@@ -34,41 +33,6 @@ from dev10x.hooks.session_policy import MigratePluginPermissionsRule
 )
 def test_policy_classes_satisfy_protocol(rule: PolicyRule) -> None:
     assert isinstance(rule, PolicyRule)
-
-
-class TestPlanGateAutoApproves:
-    """GH-678: single source of truth for the plan-approval gate decision."""
-
-    @pytest.mark.parametrize(
-        ("friction_level", "active_modes", "expected"),
-        [
-            # auto-plan auto-approves at EVERY friction level.
-            (FrictionLevel.STRICT, ["auto-plan"], True),
-            (FrictionLevel.GUIDED, ["auto-plan"], True),
-            (FrictionLevel.ADAPTIVE, ["auto-plan"], True),
-            # auto-plan composes with other modes without being cancelled.
-            (FrictionLevel.GUIDED, ["solo-maintainer", "auto-plan"], True),
-            # adaptive + solo-maintainer keeps the GH-252 bypass.
-            (FrictionLevel.ADAPTIVE, ["solo-maintainer"], True),
-            # The unreachable-cell cases: gate is NOT auto-approved.
-            (FrictionLevel.GUIDED, [], False),
-            (FrictionLevel.STRICT, [], False),
-            (FrictionLevel.STRICT, ["solo-maintainer"], False),
-            # adaptive WITHOUT solo-maintainer: widget still fires (veto).
-            (FrictionLevel.ADAPTIVE, [], False),
-            (FrictionLevel.GUIDED, ["solo-maintainer"], False),
-        ],
-    )
-    def test_matrix(
-        self,
-        friction_level: FrictionLevel,
-        active_modes: list[str],
-        expected: bool,
-    ) -> None:
-        assert (
-            plan_gate_auto_approves(friction_level=friction_level, active_modes=active_modes)
-            is expected
-        )
 
 
 class TestCompletionGateRecommendation:

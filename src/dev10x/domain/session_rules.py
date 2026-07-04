@@ -34,39 +34,20 @@ AUTO_PLAN_MODE = "auto-plan"
 SOLO_MAINTAINER_MODE = "solo-maintainer"
 
 
-def plan_gate_auto_approves(
-    *,
-    friction_level: FrictionLevel,
-    active_modes: list[str],
-) -> bool:
-    """Decide whether the work-on Phase 3 plan-approval gate auto-resolves.
-
-    Single source of truth for the GH-678 reconciliation: the plan gate
-    auto-approves (the agent proceeds without presenting the approval
-    widget) when EITHER
-
-    * ``auto-plan`` is an active mode — the supervisor trusts the plan but
-      keeps downstream decision gates firing per ``friction_level``; or
-    * the long-standing ``adaptive`` + ``solo-maintainer`` profile is in
-      effect (GH-252), where the friction profile already resolves to a
-      clear default.
-
-    Returns ``False`` for every other combination — notably ``adaptive``
-    *without* ``solo-maintainer``, where the gate still emits its widget to
-    preserve the supervisor's veto (it merely auto-selects the recommended
-    option). This boolean is specifically "skip the widget", not "auto-pick
-    once shown".
-    """
-    if AUTO_PLAN_MODE in active_modes:
-        return True
-    return friction_level is FrictionLevel.ADAPTIVE and SOLO_MAINTAINER_MODE in active_modes
+# The plan-approval gate decision moved into the gate-policy resolver
+# (GH-755, ADR-0016 Phase 2): work-on resolves it via the ``plan_approval``
+# toggle of :func:`dev10x.domain.gate_policy.resolve_gate` (exposed as the
+# ``resolve_gate`` MCP tool) instead of a standalone predicate. The
+# ``auto-plan`` and ``adaptive``+``solo-maintainer`` shapes the former
+# ``plan_gate_auto_approves`` covered are now encoded in the shipped presets
+# and the ``solo-maintainer`` overlay.
 
 
 class CompletionRecommendation(enum.Enum):
     """The session-completion gate's recommended action (GH-729).
 
-    Mirrors the canonical-rule pattern of :func:`plan_gate_auto_approves`:
-    the decision is encoded once here so verify-acc-dod's markdown,
+    Mirrors the canonical-rule pattern of the gate-policy resolver: the
+    decision is encoded once here so verify-acc-dod's markdown,
     work-on's Plan Completion Gate, and any future consumer defer to it
     rather than re-deriving the matrix.
     """
@@ -226,7 +207,6 @@ __all__ = [
     "BuildAutonomyReassuranceRule",
     "BuildAutoPlanGuidanceRule",
     "CompletionRecommendation",
-    "plan_gate_auto_approves",
     "completion_gate_recommendation",
     "AUTO_PLAN_MODE",
     "SOLO_MAINTAINER_MODE",
