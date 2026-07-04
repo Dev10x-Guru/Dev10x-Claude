@@ -52,15 +52,25 @@ is a deliberate, bounded exception — the plan gate is a single,
 well-known gate, and expressing "trust the plan" as a mode lets it
 compose with any `friction_level` (e.g. `guided + auto-plan` =
 auto-approve the plan, attend everything else). `auto-plan` flips
-*only* the plan gate; it never touches downstream gate pacing, which
-stays on the friction axis. See
+*only* the plan gate; it never touches downstream gate pacing.
+
+**ADR-0016 (GH-760):** the actual gate resolution now runs through
+`resolve_gate` (`dev10x.domain.gate_policy`), not the former
+`session_rules.plan_gate_auto_approves()` predicate. The
+`solo-maintainer` effect lives in the `solo-maintainer` overlay
+(`presets/friction/overlays/solo-maintainer.yaml`:
+`request_review`/`external_notify: skip`, `merge: auto-advance`) and
+the `plan_approval` posture lives in the shipped presets. These modes
+still describe *intent* here; their gate effect is encoded as
+preset/overlay data the resolver composes. See
 [`friction-levels.md`](friction-levels.md) § Plan-Approval Gate and
 [ADR-0014](../docs/adr/0014-auto-plan-mode-for-plan-approval-gate.md).
 
-**Not modes** (use friction_level instead):
-- `afk` -> `friction_level: adaptive`
-- `auto-advance` -> `friction_level: adaptive`
-- `--unattended` -> `friction_level: adaptive`
+**Not modes** (composed as a preset or overlay instead):
+- `afk` -> `gate_overlays: [afk]` on the `adaptive` (or `guided`)
+  base — the `afk` overlay carries `session_adoption`/`doubt_sink`
+- `auto-advance` -> `gate_preset: adaptive`
+- `--unattended` -> `gate_preset: adaptive`
 
 ## Configuration
 

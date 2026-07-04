@@ -30,9 +30,17 @@ Documented behaviors:
   review threads exist
 - Auto-close milestone after PR merge if all milestone issues
   are resolved
-- `Dev10x:work-on` Phase 3 plan-approval gate is bypassed under
-  `adaptive+solo-maintainer` (GH-252) — the friction profile
-  already resolves to a clear default
+- Plan-approval and merge gate behavior is resolved by
+  `resolve_gate` (ADR-0016), not by re-deriving it from
+  `active_modes`. The gate effects are encoded in the
+  `solo-maintainer` overlay
+  (`presets/friction/overlays/solo-maintainer.yaml`:
+  `request_review`/`external_notify: skip`, `merge: auto-advance`),
+  which the resolver composes onto the session's base preset. The
+  former `adaptive+solo-maintainer` plan-gate bypass (GH-252) is
+  subsumed by that composition — `solo-maintainer` remains a
+  session mode for the *structural* behaviors above, and its gate
+  effect travels through the overlay
 
 When NOT to use: team repositories where PRs require external
 review. The mode short-circuits the review cycle entirely.
