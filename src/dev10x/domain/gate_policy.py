@@ -106,6 +106,10 @@ SHIPPED_PRESETS: dict[str, dict[str, str | int | bool]] = {
     # pass first); merge is a strictly human action through the PR UI, so
     # the agent's merge step does not exist (skip) — the session hands off
     # after request-review or monitors for teammate approval.
+    # The batch gates (triage_response / thread_resolution / comment_hide,
+    # GH-745 F4) key on the comment author: bot-authored threads
+    # auto-advance, human-authored threads always gate — replying to or
+    # hiding a teammate's comment is a social act, not a mechanical step.
     "guided": {
         "plan_approval": AUTO_ADVANCE,
         "batch_layout": AUTO_ADVANCE,
@@ -113,7 +117,7 @@ SHIPPED_PRESETS: dict[str, dict[str, str | int | bool]] = {
         "artifact_preview": AUTO_ADVANCE,
         "triage_response": AUTO_ADVANCE_IF_BOT,
         "thread_resolution": AUTO_ADVANCE_IF_BOT,
-        "comment_hide": AUTO_ADVANCE,
+        "comment_hide": AUTO_ADVANCE_IF_BOT,
         "yagni_routing": AUTO_ADVANCE,
         "shipping_continuation": AUTO_ADVANCE,
         "request_review": "ask",
@@ -137,7 +141,7 @@ SHIPPED_PRESETS: dict[str, dict[str, str | int | bool]] = {
         "artifact_preview": AUTO_ADVANCE,
         "triage_response": AUTO_ADVANCE_IF_BOT,
         "thread_resolution": AUTO_ADVANCE_IF_BOT,
-        "comment_hide": AUTO_ADVANCE,
+        "comment_hide": AUTO_ADVANCE_IF_BOT,
         "yagni_routing": AUTO_ADVANCE,
         "shipping_continuation": AUTO_ADVANCE,
         "request_review": AUTO_ADVANCE,

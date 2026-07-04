@@ -57,6 +57,10 @@ class TestGatePolicyResolver:
 
     @pytest.mark.parametrize("preset", ["guided", "adaptive"])
     @pytest.mark.parametrize(
+        "gate",
+        ["triage_response", "thread_resolution", "comment_hide"],
+    )
+    @pytest.mark.parametrize(
         ("author_type", "expected_effect"),
         [
             ("bot", GateEffect.AUTO_ADVANCE),
@@ -64,11 +68,14 @@ class TestGatePolicyResolver:
             (None, GateEffect.ASK),  # unknown author resolves as human
         ],
     )
-    def test_thread_resolution_keys_on_author_type(
-        self, preset: str, author_type: str | None, expected_effect: GateEffect
+    def test_batch_gates_key_on_author_type(
+        self, preset: str, gate: str, author_type: str | None, expected_effect: GateEffect
     ) -> None:
+        # GH-745 F4: all three batch gates — triage_response,
+        # thread_resolution, and comment_hide — auto-advance for bot
+        # authors and always gate for human (or unknown) authors.
         resolution = resolve_gate(
-            gate="thread_resolution",
+            gate=gate,
             context=GateContext(author_type=author_type, valid_fixup_count=1),
             preset=preset,
         )
@@ -129,7 +136,6 @@ class TestGatePolicyResolver:
             "batch_layout",
             "strategy_choice",
             "artifact_preview",
-            "comment_hide",
             "yagni_routing",
             "shipping_continuation",
             "workspace_choice",
@@ -162,15 +168,34 @@ class TestGatePolicyResolver:
     # --- Audit scenario 4: GH-745 F1 — zero-VALID batch auto-flow ---
 
     @pytest.mark.parametrize("preset", ["guided", "adaptive"])
-    def test_zero_valid_batch_auto_flows(self, preset: str) -> None:
+    @pytest.mark.parametrize("gate", ["triage_response", "thread_resolution", "comment_hide"])
+    def test_zero_valid_bot_batch_auto_flows(self, preset: str, gate: str) -> None:
+        # GH-745 F1: the audit scenario was a batch of automated-reviewer
+        # (bot) comments yielding zero VALID fixups; all three batch gates
+        # must auto-advance rather than block.
         resolution = resolve_gate(
-            gate="comment_hide",
-            context=GateContext(valid_fixup_count=0),
+            gate=gate,
+            context=GateContext(author_type="bot", valid_fixup_count=0),
             preset=preset,
         )
         assert resolution.effect is GateEffect.AUTO_ADVANCE
 
+    @pytest.mark.parametrize("preset", ["guided", "adaptive"])
+    @pytest.mark.parametrize("gate", ["triage_response", "thread_resolution", "comment_hide"])
+    def test_zero_valid_human_batch_still_gates(self, preset: str, gate: str) -> None:
+        # GH-745 F4 outranks F1 for human authors: hiding or dismissing a
+        # teammate's comment needs sign-off even when there is no VALID
+        # fixup to apply.
+        resolution = resolve_gate(
+            gate=gate,
+            context=GateContext(author_type="human", valid_fixup_count=0),
+            preset=preset,
+        )
+        assert resolution.effect is GateEffect.ASK
+
     def test_zero_valid_batch_asks_when_autoflow_disabled(self) -> None:
+        # Project/session override path: a batch gate pinned to plain
+        # AUTO_ADVANCE still honors zero_valid_autoflow.
         resolution = resolve_gate(
             gate="comment_hide",
             context=GateContext(valid_fixup_count=0),

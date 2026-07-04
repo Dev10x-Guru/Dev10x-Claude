@@ -11,7 +11,7 @@ strategy_choice: auto-advance
 artifact_preview: auto-advance
 triage_response: auto-advance-if-bot
 thread_resolution: auto-advance-if-bot
-comment_hide: auto-advance
+comment_hide: auto-advance-if-bot
 yagni_routing: auto-advance
 shipping_continuation: auto-advance
 request_review: ask
