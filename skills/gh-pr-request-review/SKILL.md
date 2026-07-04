@@ -9,6 +9,7 @@ user-invocable: true
 invocation-name: Dev10x:gh-pr-request-review
 allowed-tools:
   - mcp__plugin_Dev10x_cli__request_review
+  - mcp__plugin_Dev10x_cli__resolve_gate
   - mcp__plugin_Dev10x_cli__pr_detect
   - Bash(gh pr view:*)
   - Bash(gh pr ready:*)
@@ -72,6 +73,43 @@ projects:
   `active_modes` so `verify-acc-dod` skips the "Review requested" check
 - `default_action: ask` prompts the user for unconfigured projects;
   `skip` silently skips them; `standby` defers without prompting
+
+## Gate Resolution (ADR-0016 D-9)
+
+Before any pre-flight check, resolve whether this invocation should
+request review at all. Use `resolve_gate` for this — do NOT read
+`friction_level`, `active_modes`, or `walk_away` directly, and do NOT
+re-derive preset behavior in prose. The tool reads session policy
+(preset + overlays) itself.
+
+1. Call `mcp__plugin_Dev10x_cli__resolve_gate(gate="request_review",
+   context={})`.
+2. `effect == "ask"` → **REQUIRED: Call `AskUserQuestion`** (the
+   Stand-by widget below) before doing anything else.
+3. `effect == "auto-advance"` → skip the widget entirely; proceed
+   straight to the Pre-flight checks and Reviewer Resolution below;
+   surface the returned `record` line to the transcript.
+4. `effect == "skip"` → do NOT request review (solo-maintainer / no
+   review posture). Print "Skipping review request (solo-maintainer)"
+   and stop — do not run pre-flight checks or reviewer resolution.
+5. `error` key present → fail safe: treat exactly like `effect ==
+   "ask"` and fire the Stand-by widget.
+
+### Stand-by widget (the "ask" branch)
+
+**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text) with a
+`Review` header. Options:
+
+- **Request review now** — proceed to the Pre-flight checks and
+  Reviewer Resolution below (the skill's normal action).
+- **Stand-by — self-review first** — hold off requesting review; run
+  a self-review pass (e.g. `Dev10x:review`) before requesting. On this
+  choice: record `review-deferred` in `active_modes` per the Stand-by
+  / Defer path below, return without requesting review, and hand
+  control back to the caller to self-review — the caller re-enters
+  this gate afterward.
+- **Skip — no review needed** — suppresses this request only; does
+  not modify config.
 
 ### Pre-flight: Approval State Check (GH-993, GH-128)
 
