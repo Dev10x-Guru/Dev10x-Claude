@@ -80,7 +80,7 @@ class TestUpdatePathsInProcessRoute:
         result = await perm_mod.update_paths(init=True)
 
         assert isinstance(result, ErrorResult)
-        assert "uvx dev10x permission update-paths --init" in result.error
+        assert "uvx dev10x permission init" in result.error
 
 
 class TestUpdatePathsSubCommandRoute:

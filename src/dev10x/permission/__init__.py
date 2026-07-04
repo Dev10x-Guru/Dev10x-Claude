@@ -168,9 +168,7 @@ def _run_update_paths(
     from dev10x.skills.permission import update_paths as mod
 
     if init:
-        return err(
-            "init is not supported via MCP; run `uvx dev10x permission update-paths --init`."
-        )
+        return err("init is not supported via MCP; run `uvx dev10x permission init`.")
 
     ctx = load_permission_context()
     if isinstance(ctx, ErrorResult):
