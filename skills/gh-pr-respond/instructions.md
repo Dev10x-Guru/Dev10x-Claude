@@ -396,6 +396,26 @@ Skip this sub-phase when no replies were posted in the current
 session (e.g., resumed from a different process) OR when no
 fixup commits exist on the branch.
 
+## Preamble: Merge-State Check (GH-744 F1)
+
+**Run this first — before the branch and spec preambles.** A respond
+cycle on an already-merged PR is wasted work: the full triage → reply
+→ follow-up-ticket flow ran end-to-end on a PR a human had already
+merged (GH-744 F1), because no step checked merge state.
+
+1. Resolve PR state via
+   `mcp__plugin_Dev10x_cli__pr_detect(arg="<pr_number>")` — it returns
+   `state` (and the Branch Location preamble reuses the same call, so
+   this adds no extra request). When richer detail is needed, fall
+   back to `mcp__plugin_Dev10x_cli__pr_get(number=<pr_number>)` for
+   `state` / `mergedAt`.
+2. If `state == "MERGED"`, surface **"PR already merged — post-merge
+   cleanup only"** and short-circuit: do NOT open new fixups, file
+   follow-up tickets, or re-triage. The only permitted follow-up is
+   answering still-unresolved bot/human comments for the record; a
+   fixup that would need a new commit is out of scope on a merged PR.
+3. Otherwise (`OPEN` / `DRAFT`), continue to the preambles below.
+
 ## Preamble: Branch Location Check
 
 Before processing comments, verify the PR branch is accessible
