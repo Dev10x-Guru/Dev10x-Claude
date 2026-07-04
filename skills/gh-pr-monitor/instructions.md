@@ -257,7 +257,12 @@ prompt: |
        Mark as unaddressed if no top-level PR comment replies
        with `Re:` matching the finding ID.
     3. Run check-top-level-comments.sh — capture unaddressed
-       automated review findings.
+       automated review findings. The script spans BOTH issue
+       comments AND submitted review bodies, and flags bots by
+       account type, a known review-bot login, OR an embedded
+       HTML marker (third-party LLM reviewers post under generic
+       CI accounts, GH-743 F2), so a "clean" verdict here means no
+       automated surface is left unanswered.
 
   Output as the LAST line, single-line JSON:
     {
