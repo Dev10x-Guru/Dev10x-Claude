@@ -5,7 +5,7 @@
 #
 # Copy this file to ~/.claude/skills/Dev10x:upgrade-cleanup/
 # and customize with your own project roots:
-#   update-paths.py --init
+#   uvx dev10x permission init
 
 plugin_cache: ~/.claude/plugins/cache/Dev10x-Guru/Dev10x
 

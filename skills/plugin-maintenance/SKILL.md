@@ -298,7 +298,7 @@ Delegate via `Skill(Dev10x:onboarding)` and re-run this skill once
 Initialize userspace config with your project roots:
 
 ```bash
-uvx dev10x permission update-paths --init
+uvx dev10x permission init
 ```
 
 Then edit `~/.claude/skills/Dev10x:upgrade-cleanup/projects.yaml`
@@ -853,6 +853,9 @@ flag list.
 
 | Flag | Purpose |
 |------|---------|
-| `--init` | Copy plugin default config to userspace for customization |
 | `--version VER` | Target a specific version instead of latest |
 | `--restore` | Restore settings from most recent backups |
+
+> First-time userspace config seeding is a separate subcommand,
+> `uvx dev10x permission init` (formerly the `update-paths --init`
+> flag) — see [First-Time Setup](#first-time-setup).
