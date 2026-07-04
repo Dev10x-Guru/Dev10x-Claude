@@ -98,10 +98,13 @@ starting from Step 1 of this body — NOT as "resume from the last
 unfinished step" or "skip to the merge command". The full skill
 body, including all 8 checks, runs every time.
 
-Adaptive friction does NOT waive this skill body. The friction level
-only governs `AskUserQuestion` gates marked `(Recommended)`; the 8
-checks below still run. See `references/friction-levels.md` §
-"Adaptive does not waive skill bodies".
+Session policy does NOT waive this skill body. Whatever
+`resolve_gate(gate="merge")` returns at Step 5 governs only the
+final ask/auto-advance/skip decision immediately before
+executing the merge; the 8 checks below still run
+unconditionally on every invocation. See
+`references/friction-levels.md` § "Adaptive does not waive
+skill bodies".
 
 ## Pre-Merge Validation Checks
 
@@ -377,7 +380,35 @@ If any check fails, show `[ ]` with failure details:
 
 ### Step 5: Merge or refuse
 
-**All checks pass:** Execute merge via the MCP tool (GH-232):
+**Any check fails:** Do NOT merge — skip straight to the "Any
+check fails" table below. The merge gate below only applies once
+all 8 checks pass.
+
+**All checks pass — resolve the merge gate (ADR-0016, GH-757):**
+Call `mcp__plugin_Dev10x_cli__resolve_gate(gate="merge",
+context={})` before executing the merge. Do NOT special-case
+`solo_maintainer`, `friction_level`, or `active_modes` in prose
+here — the resolver reads session policy (preset + overlays,
+including the solo-maintainer overlay) itself.
+
+1. `effect == "ask"` → Fire `AskUserQuestion`:
+   - Question: "All 8 pre-merge checks passed for PR #NUMBER.
+     Merge now via STRATEGY?"
+   - Options: **Merge now (Recommended)** — proceed to the
+     `merge_pr` call below / **Abort** — leave the PR open.
+2. `effect == "auto-advance"` → Proceed directly to the
+   `merge_pr` call below without prompting. Surface the
+   returned `record` line in the transcript before merging.
+3. `effect == "skip"` → Do NOT merge. Report that gate policy
+   for this session hands merges to a human via the PR UI
+   (`gh pr merge` from the command line or the GitHub web UI),
+   and stop — this is the guided-preset behavior, not a check
+   failure.
+4. Response has an `error` key → fail safe: treat as `ask` and
+   fire the `AskUserQuestion` widget above.
+
+**Executing the merge** (after `ask` is approved or the gate
+auto-advances), call the MCP tool (GH-232):
 
 ```
 mcp__plugin_Dev10x_cli__merge_pr(
@@ -492,14 +523,16 @@ Remote branch deleted: yes/no
 
 ## Auto-Advance Behavior
 
-This skill is designed to auto-advance in shipping pipelines —
-**no checkpoints under adaptive friction**. After a successful
-merge, the calling skill proceeds immediately to the next step
-(typically acceptance criteria verification). There is NO
-confirmation gate after merge: a trailing "PR merged — ready to
-verify acceptance?" is a checkpoint and is forbidden under
-adaptive friction. The merge is a step in the no-checkpoints
-shipping sequence, not a natural stopping point.
+Whether the merge itself pauses for confirmation is decided
+once, at Step 5, by `resolve_gate(gate="merge")` — see Step 5
+for the branch pattern. This section covers what happens
+**after** a successful merge: the calling skill proceeds
+immediately to the next step (typically acceptance criteria
+verification), with **no checkpoints under adaptive friction**.
+There is NO confirmation gate after merge: a trailing "PR
+merged — ready to verify acceptance?" is a checkpoint and is
+forbidden under adaptive friction. The merge is a step in the
+no-checkpoints shipping sequence, not a natural stopping point.
 
 If merge fails (e.g., branch protection rules), report the
 error and let the calling skill decide how to proceed. A

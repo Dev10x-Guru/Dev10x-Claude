@@ -19,6 +19,7 @@ allowed-tools:
   - mcp__plugin_Dev10x_cli__pr_comments
   - mcp__plugin_Dev10x_cli__check_top_level_comments
   - mcp__plugin_Dev10x_cli__merge_pr
+  - mcp__plugin_Dev10x_cli__resolve_gate
   - Bash(gh repo view:*)
   - Bash(git status:*)
   - Bash(git log:*)
