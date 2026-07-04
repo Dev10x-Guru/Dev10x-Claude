@@ -769,7 +769,11 @@ mcp__plugin_Dev10x_cli__pr_issue_comment(
 
 This also covers replies to top-level bot comments (e.g., `claude[bot]`
 findings posted via `gh pr comment`) that surface through
-`check_top_level_comments` but have no review thread.
+`check_top_level_comments` but have no review thread. That tool spans
+both issue comments and submitted review bodies and flags bots by
+account type, a known review-bot login, or an embedded HTML marker
+(GH-743 F2), so a third-party reviewer posting under a generic CI
+account no longer slips past the "clean" check.
 
 **Fallback** (only when the MCP server is unavailable):
 ```bash
