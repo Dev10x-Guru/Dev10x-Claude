@@ -49,16 +49,28 @@ fetched, Phase 4 creates subtasks per plan step.
 the session friction level. This controls how aggressively the
 skill auto-advances vs pauses for confirmation.
 
-**Skip this prompt when:**
-- Running as a nested invocation from `Dev10x:fanout` (fanout
-  sets friction level once for the entire session)
-- Session config already exists at `.claude/Dev10x/session.yaml`
-  with a valid `friction_level` value (loaded after compaction
-  or from a prior invocation). When skipping, also skip the
-  write — the existing file is authoritative.
+**Skip this entirely when:** running as a nested invocation from
+`Dev10x:fanout` (fanout sets friction level once for the entire
+session).
 
-**REQUIRED: Call `AskUserQuestion`** (ALWAYS_ASK — fires at all
-friction levels, including adaptive).
+**Otherwise, resolve the session-adoption gate first.** Call
+`mcp__plugin_Dev10x_cli__resolve_gate(gate="session_adoption",
+context={})`. The tool determines on its own whether an existing
+`.claude/Dev10x/session.yaml` is stale (`session_stale`) — do not
+read or hand-compare the file's `friction_level` yourself.
+
+- `effect == "auto-advance"` — a valid, non-stale session config
+  exists; adopt it silently and skip the write below (the existing
+  file is authoritative). Surface the returned `record` line in the
+  transcript so a present supervisor can veto.
+- `effect == "ask"` — no valid session config exists (or it is
+  stale). Fall through to the Phase 0 friction prompt below.
+- `effect == "skip"` — skip the prompt entirely, no config change.
+- Response has an `error` key — fail safe: fall through to the
+  Phase 0 friction prompt below.
+
+**REQUIRED: Call `AskUserQuestion`** (this is the gate's `ask`
+branch — fires whenever no valid session config exists).
 
 Options:
 - Guided (Recommended) — Gates fire with recommendations,
@@ -106,6 +118,26 @@ Never overwrite a non-empty `active_modes` list with `[]`.
 Write this file using the Write tool only when the content
 actually needs to change. The PreCompact hook reads it to
 inject friction context into recovery summaries.
+
+**Write session identity for the session-adoption gate (GH-755).**
+The Phase 0 `session_adoption` gate keys on `session_stale`, which
+the resolver computes from top-level `branch:` and `tickets:` keys
+in `session.yaml`. Nothing else writes those keys, so work-on is
+their producer — persist them alongside the friction choice:
+
+```yaml
+branch: <current git branch>   # session identity (GH-755)
+tickets: []                    # backfilled at Persist Plan Context
+```
+
+Write `branch:` now (it is known at Phase 0) and backfill `tickets:`
+in the Persist Plan Context step once the plan's ticket list is
+resolved (Phase 3). Without this producer the gate has no freshness
+signal, `session_stale` stays `true`, and the friction prompt
+re-fires on every same-branch re-invocation (e.g. compaction
+recovery) — the GH-252 over-prompting the skip existed to prevent.
+Apply the same read-before-write guard: skip the write when
+`branch:`/`tickets:` already match on disk.
 
 **Gitignore session.yaml (GH-705).** `session.yaml` is session
 state, not source — it must never enter a feature PR, and when it
@@ -968,7 +1000,7 @@ or use Claude Code's built-in plan mode.
 
 **REQUIRED: Display the resolved session mode** immediately
 before any plan-approval gate, including when the gate is
-bypassed under `adaptive+solo-maintainer`. The block makes
+bypassed via an `auto-advance` effect. The block makes
 autonomous behavior auditable upfront — without it, supervisors
 cannot tell whether the session will auto-merge or pause for
 confirmation, which is the visibility gap GH-189 closes.
@@ -999,75 +1031,50 @@ and inline its documented behavior bullets. Unknown mode names
 emit a single warning bullet ("mode not documented — verify
 with `Dev10x:playbook`") rather than failing.
 
+`friction_level`/`active_modes` describe the session's declared
+posture for this display only. They no longer drive gate behavior
+directly in this skill — `mcp__plugin_Dev10x_cli__resolve_gate`
+(ADR-0016) reads session policy (preset/overlays/project-pin/
+session-overrides plus safety floors) itself and is the single
+source of truth for whether any gate below fires or auto-advances.
+Do not re-derive auto-approve/bypass decisions from
+`friction_level`/`active_modes` in prose.
+
 Print this block once per session, immediately after the
 context summary and before the plan-approval gate. Subsequent
 re-invocations within the same session may omit the block when
 the persisted plan-sync context already shows the modes are
 unchanged.
 
-**REQUIRED: Call `AskUserQuestion`** when the plan was
-agent-generated (do NOT use plain text), EXCEPT when the plan-gate
-auto-approve rule below applies (`adaptive`+`solo-maintainer`, or the
-`auto-plan` mode).
+**Plan-approval gate (`plan_approval`).** When the plan was
+agent-generated (skip entirely under the "Implicit approval
+bypass" conditions above — no gate fires there at any friction
+level), call
+`mcp__plugin_Dev10x_cli__resolve_gate(gate="plan_approval")` and
+branch on `effect`:
 
-**Canonical plan-gate rule.** The decision "does the plan gate
-auto-approve?" is encoded once in
-`dev10x.domain.session_rules.plan_gate_auto_approves()` and tabulated
-in `references/friction-levels.md` § Plan-Approval Gate. The bullets
-below are the operational restatement — when in doubt, that table
-wins.
+1. `effect == "ask"` — **REQUIRED: Call `AskUserQuestion`** (do NOT
+   use plain text):
+   `AskUserQuestion(questions=[{question: "How would you like to proceed with the work plan?", header: "Plan", options: [{label: "Approve (Recommended)", description: "Start execution immediately"}, {label: "Edit", description: "Describe what to change (add/remove/reorder steps)"}], multiSelect: false}])`
+2. `effect == "auto-advance"` — do not call `AskUserQuestion`, do not
+   present the plan as prose for approval. Auto-select "Approve" and
+   proceed directly to Phase 4. Surface the returned `record` line
+   (e.g. `⚙ gate:plan_approval → "Approve" (reason)`) in the
+   transcript so a present supervisor can veto. Safety floors
+   (destructive/irreversible/blocking work) make the resolver return
+   `ask` regardless of preset — this branch only fires when the
+   resolver itself judged the plan safe to auto-approve. This
+   supersedes the old `adaptive`+`solo-maintainer` and `auto-plan`
+   bypass rules; every **downstream** decision gate (epic A/B forks,
+   strategy/batch gates, the Plan Completion Gate) resolves
+   independently via its own `resolve_gate` call — an auto-advance
+   here does NOT license skipping them.
+3. `effect == "skip"` — skip the gate entirely, no prompt, no
+   auto-approve announcement.
+4. Response has an `error` key — fail safe: treat as `ask` and fire
+   the `AskUserQuestion` widget in step 1.
 
-**Adaptive friction behavior (GH-808, GH-158, refined GH-252,
-GH-678):**
-
-- At `friction_level: strict` or `friction_level: guided`,
-  the `AskUserQuestion` tool call ALWAYS fires — UNLESS `auto-plan`
-  is active (see the `auto-plan` bullet below).
-- At `friction_level: adaptive` WITHOUT `solo-maintainer` in
-  `active_modes`, the `AskUserQuestion` tool call MUST still
-  emit so the user retains override capability. The agent
-  auto-selects "Approve (Recommended)" and proceeds to Phase 4
-  only if the user does not override within the harness's
-  interactive window. Skipping the gate as plain text (audit
-  GH-158: ~45-minute response delay because the A/B choice was
-  presented as prose, not a structured widget) is a compliance
-  violation here.
-- At `friction_level: adaptive` AND `solo-maintainer` in
-  `active_modes`, the gate is bypassed entirely (GH-252) —
-  do not call `AskUserQuestion`, do not present the plan as
-  prose for approval. Auto-select "Approve (Recommended)" and
-  proceed directly to Phase 4. The friction profile already
-  resolves to a clear default; re-prompting on every
-  invocation creates the over-prompting regression documented
-  in GH-252 (Phase 3 fired a 4-option prompt on the second
-  invocation of the same session despite unchanged friction
-  context). The supervisor can still interrupt mid-execution
-  via the standard input channel.
-- When `auto-plan` is in `active_modes` (GH-678), the plan-approval
-  gate is bypassed entirely **at every friction level** — do not call
-  `AskUserQuestion` for plan sign-off, do not present the plan as
-  prose for approval. Auto-select "Approve" and proceed directly to
-  Phase 4. This is the "trust the plan" mode: it auto-approves the
-  plan gate ONLY. Every **downstream** decision gate (epic A/B forks,
-  strategy/batch gates, the Plan Completion Gate) STILL fires per
-  `friction_level` — `auto-plan` does NOT license skipping them, and
-  `ALWAYS_ASK` gates are untouched. The common pairing is
-  `friction_level: guided` + `auto-plan`. Under `solo-maintainer`,
-  the GH-252 bypass already covers the plan gate, so `auto-plan` is a
-  no-op there.
-
-This bypass applies only to **agent-generated** plans. When
-the user provides a numbered, actionable plan inline (per
-"Implicit approval bypass" below), no gate fires at any
-friction level.
-
-**When the plan gate is NOT auto-approved** (per the canonical rule —
-i.e. not `adaptive`+`solo-maintainer` and not `auto-plan`): Call
-`AskUserQuestion`:
-
-1. `AskUserQuestion(questions=[{question: "How would you like to proceed with the work plan?", header: "Plan", options: [{label: "Approve (Recommended)", description: "Start execution immediately"}, {label: "Edit", description: "Describe what to change (add/remove/reorder steps)"}], multiSelect: false}])`
-
-After approval (explicit or auto-selected), set task
+After approval (explicit or auto-advanced), set task
 dependencies where appropriate (use `TaskUpdate` with
 `addBlockedBy`). Mark the first task as `in_progress` and
 begin Phase 4.
@@ -1080,6 +1087,15 @@ calls immediately — do NOT defer or skip:
 1. `mcp__plugin_Dev10x_cli__plan_sync_set_context(args=["work_type=<detected_work_type>", "tickets=<JSON array of ticket IDs>", "routing_table={\"commit\":\"Skill(Dev10x:git-commit)\",\"create_pr\":\"Skill(Dev10x:gh-pr-create)\",\"monitor_ci\":\"Skill(Dev10x:gh-pr-monitor)\",\"monitor_pr\":\"Skill(Dev10x:gh-pr-monitor)\",\"push\":\"Skill(Dev10x:git)\",\"groom\":\"Skill(Dev10x:git-groom)\",\"branch\":\"Skill(Dev10x:ticket-branch)\",\"verify_acceptance\":\"Skill(Dev10x:verify-acc-dod)\",\"merge_pr\":\"Skill(Dev10x:gh-pr-merge)\",\"work_on\":\"work-on\"}"])`
 2. `mcp__plugin_Dev10x_cli__plan_sync_set_context(args=["gathered_summary=<1-3 sentence summary>"])`
 3. **When bundling (GH-196):** `mcp__plugin_Dev10x_cli__plan_sync_set_context(args=["bundling=true", "batches=<JSON array of arrays, e.g. [[\"GH-12\",\"GH-14\"],[\"GH-21\"]]>"])`. Skip this call entirely when `tickets` has fewer than 2 ticket IDs or the user chose Strategy A (fanout). When skipped, downstream consumers treat the absence as `bundling=false`.
+
+**Backfill session identity (GH-755).** Now that the plan's ticket
+list is resolved, write `tickets:` (and confirm `branch:`) into the
+top-level of `.claude/Dev10x/session.yaml` — these are the freshness
+inputs the Phase 0 `session_adoption` gate reads on the next
+same-branch invocation (see Phase 0 § "Write session identity").
+Apply the read-before-write guard: skip when both already match on
+disk. This is the session-identity write, distinct from the
+plan-sync context calls above.
 
 **Attribution keys (GH-152):** The `work_on` key with value
 `"work-on"` is the audit attribution string — skill audits
@@ -1477,8 +1493,8 @@ Return to the blocked task once the blocker resolves.
 
 ### Plan Completion Gate
 
-**REQUIRED: Pre-gate verification checklist.** Before triggering
-`AskUserQuestion`, verify ALL of the following:
+**REQUIRED: Pre-gate verification checklist.** Before resolving
+the `completion_signoff` gate, verify ALL of the following:
 
 1. All background agents have completed or reported results —
    check `TaskList` for any tasks still `in_progress`
@@ -1570,22 +1586,48 @@ is open/unmerged.
 them `completed` on dispatch — only mark `completed` when the
 agent's result notification arrives and confirms success.
 
-**After all checks pass:**
+**After all checks pass** (including the non-waivable
+`Skill(Dev10x:verify-acc-dod)` run from the pre-gate checklist
+above — that delegation ALWAYS runs first, regardless of the
+gate's resolved effect below):
 
-**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text).
-Show the full task list via `TaskList`, then call:
+Resolve whether the completion gate fires. Call
+`mcp__plugin_Dev10x_cli__resolve_gate(gate="completion_signoff")`
+and branch on `effect`. The recommended-option content itself
+(which of the two questions below, and which option is
+`(Recommended)`) still comes from
+`completion_gate_recommendation()` per the GH-736/GH-729 rules
+above — the resolver only decides whether confirmation is
+required.
 
-1. **When the PR is merged (or the work is PR-less):**
-   `AskUserQuestion(questions=[{question: "All tasks completed. How would you like to proceed?", header: "Done", options: [{label: "Work complete — hand over (Recommended)", description: "PR merged (or PR-less), all checks pass — ready to close"}, {label: "Add more tasks", description: "Continue with additional work"}, {label: "Revisit a step", description: "Re-examine a completed task"}], multiSelect: false}])`
-2. **When an associated PR is open/unmerged but otherwise green
-   (GH-729):**
-   `AskUserQuestion(questions=[{question: "All checks pass and PR #<N> is awaiting review. How would you like to proceed?", header: "Done", options: [{label: "Monitor PR for review (Recommended)", description: "Keep the session open; background-watch PR #<N> every ~5 min via Dev10x:gh-pr-monitor and surface review/ready-to-merge"}, {label: "Add more tasks", description: "Continue with additional work"}, {label: "Override — complete anyway", description: "Accept the unmerged PR as done"}], multiSelect: false}])`
+1. `effect == "ask"` — **REQUIRED: Call `AskUserQuestion`** (do NOT
+   use plain text). Show the full task list via `TaskList`, then
+   call:
+   - **When the PR is merged (or the work is PR-less):**
+     `AskUserQuestion(questions=[{question: "All tasks completed. How would you like to proceed?", header: "Done", options: [{label: "Work complete — hand over (Recommended)", description: "PR merged (or PR-less), all checks pass — ready to close"}, {label: "Add more tasks", description: "Continue with additional work"}, {label: "Revisit a step", description: "Re-examine a completed task"}], multiSelect: false}])`
+   - **When an associated PR is open/unmerged but otherwise green
+     (GH-729):**
+     `AskUserQuestion(questions=[{question: "All checks pass and PR #<N> is awaiting review. How would you like to proceed?", header: "Done", options: [{label: "Monitor PR for review (Recommended)", description: "Keep the session open; background-watch PR #<N> every ~5 min via Dev10x:gh-pr-monitor and surface review/ready-to-merge"}, {label: "Add more tasks", description: "Continue with additional work"}, {label: "Override — complete anyway", description: "Accept the unmerged PR as done"}], multiSelect: false}])`
+2. `effect == "auto-advance"` — auto-select the recommended option
+   from the applicable question above without prompting. Surface
+   the returned `record` line in the transcript so a present
+   supervisor can veto. Safety floors (e.g., an unmerged/CI-red PR)
+   make the resolver return `ask` regardless of preset — this
+   branch only fires when the resolver itself judged the work
+   genuinely done.
+3. `effect == "skip"` — skip the gate entirely, no prompt, no
+   auto-complete announcement. Still never mark the terminal
+   Verify-AC task completed autonomously (`essentials.md` Task
+   List Invariant).
+4. Response has an `error` key — fail safe: treat as `ask` and fire
+   the applicable widget in step 1.
 
-Never auto-complete the plan without supervisor confirmation.
-The supervisor must explicitly sign off that work is done.
+Never auto-complete the plan without the gate resolving to
+`auto-advance` or `skip`, and never skip the mandatory
+`Dev10x:verify-acc-dod` delegation above regardless of `effect`.
 Plain text questions (e.g., "Ready to merge?") are NOT
-acceptable — they allow the session to auto-proceed without
-structured confirmation.
+acceptable in the `ask` branch — they allow the session to
+auto-proceed without structured confirmation.
 
 ### Executing Detailed Tasks
 
@@ -1876,11 +1918,24 @@ attempt per-issue commits for shared-file members.
 
 **Surfacing the batch plan:**
 
-After detection, present the proposed batch layout via
-`AskUserQuestion`. Each option below is REQUIRED — do not
-collapse to plain-text confirmation:
+After detection, resolve the batch-layout gate. Compute
+`overlap_signals` as the signal count of the **least-confident**
+proposed non-singleton batch (when every proposed batch is a
+singleton, pass `context={}` — there is no non-singleton batch to
+score). Call `mcp__plugin_Dev10x_cli__resolve_gate(gate="batch_layout",
+context={"overlap_signals": <N>})` and branch on `effect`:
 
-1. `AskUserQuestion(questions=[{question: "Proposed batch layout for bundled execution:\n\n<batch_summary>\n\nHow would you like to proceed?", header: "Batches", options: [{label: "Accept (Recommended)", description: "Use the proposed batches; one commit per batch"}, {label: "Sequential (no batching)", description: "Treat every ticket as its own batch — one commit per ticket"}, {label: "Edit batches", description: "Describe regrouping (which tickets merge or split)"}], multiSelect: false}])`
+1. `effect == "ask"` — present the proposed batch layout. Each
+   option below is REQUIRED — do not collapse to plain-text
+   confirmation:
+   `AskUserQuestion(questions=[{question: "Proposed batch layout for bundled execution:\n\n<batch_summary>\n\nHow would you like to proceed?", header: "Batches", options: [{label: "Accept (Recommended)", description: "Use the proposed batches; one commit per batch"}, {label: "Sequential (no batching)", description: "Treat every ticket as its own batch — one commit per ticket"}, {label: "Edit batches", description: "Describe regrouping (which tickets merge or split)"}], multiSelect: false}])`
+2. `effect == "auto-advance"` — auto-select "Accept (Recommended)"
+   without prompting. Surface the returned `record` line in the
+   transcript so a present supervisor can veto.
+3. `effect == "skip"` — skip the gate entirely; use the proposed
+   batches as-is with no announcement.
+4. Response has an `error` key — fail safe: treat as `ask` and fire
+   the widget in step 1.
 
 The `<batch_summary>` placeholder enumerates each proposed
 batch, e.g.:
@@ -1893,12 +1948,10 @@ Batch 2: GH-21
   Signals: singleton — no overlap with others
 ```
 
-**Adaptive friction:** Auto-select "Accept (Recommended)" when
-every proposed batch has ≥3 overlap signals OR every batch is a
-singleton. When any proposed batch sits at exactly 2 signals, do
-NOT auto-accept — fire the gate even at adaptive level so the
-supervisor can confirm or regroup. Ambiguous batches are the one
-case where bundling needs explicit human sign-off.
+A batch sitting at exactly 2 signals is the resolver's designed
+`ask` boundary — ambiguous batches are the one case where bundling
+needs explicit human sign-off; do not second-guess an `ask` effect
+by auto-accepting anyway.
 
 **Persisting the batch plan:** After approval, extend the
 Phase 3 plan-sync context with the batch layout so it survives
@@ -1944,12 +1997,12 @@ Rule: in bundle mode, every per-issue commit is a child of
 changes` step must be positioned strictly AFTER all
 implementation children complete.
 
-**Strategy selection:** When the user explicitly requests
-bundling (e.g., "one PR", "atomic commits", "bundle these"),
-use Strategy B. When the user provides multiple independent
-issues without bundling intent, apply the **Same-Milestone
-Heuristic (GH-948)** below; otherwise use Strategy A (fanout).
-When still ambiguous, ask via `AskUserQuestion`.
+**Strategy selection:** Compute the **recommended** strategy —
+Strategy B when the user explicitly requests bundling (e.g.,
+"one PR", "atomic commits", "bundle these"), Strategy B when the
+**Same-Milestone Heuristic (GH-948)** below holds, otherwise
+Strategy A (fanout). The strategy-choice gate (`strategy_choice`)
+decides whether that recommendation needs confirmation — see below.
 
 **Same-Milestone Heuristic (GH-948):** Prefer Strategy B
 (bundled) when ALL of these conditions hold:
@@ -1970,13 +2023,25 @@ When still ambiguous, ask via `AskUserQuestion`.
    non-milestone label (e.g., all `audit:patterns`, all
    `refactor:cleanup`).
 
-When all four conditions hold, auto-select Strategy B at
-adaptive friction level; recommend Strategy B at guided level.
-When any condition fails, fall back to Strategy A (fanout).
+When all four conditions hold, the recommended strategy is
+Strategy B; when any condition fails, it falls back to Strategy A
+(fanout). The heuristic only changes the **recommended** strategy
+— it does not decide whether the gate fires.
 
-The heuristic only changes the **recommended** strategy — the
-strategy gate still presents both options so the user can
-override.
+**Resolving the strategy-choice gate.** Call
+`mcp__plugin_Dev10x_cli__resolve_gate(gate="strategy_choice")` and
+branch on `effect`:
+
+1. `effect == "ask"` — present both strategies via `AskUserQuestion`
+   with the recommended one marked `(Recommended)`:
+   `AskUserQuestion(questions=[{question: "Multiple issues detected. How should they be executed?", header: "Strategy", options: [{label: "Separate PRs (fanout)<Recommended marker on the winning option>", description: "Each issue gets its own branch, PR, and full playbook play"}, {label: "Bundled PR (atomic commits)<Recommended marker on the winning option>", description: "All issues share one branch/PR; each issue becomes one atomic commit"}], multiSelect: false}])`
+2. `effect == "auto-advance"` — use the recommended strategy without
+   prompting. Surface the returned `record` line in the transcript
+   so a present supervisor can veto.
+3. `effect == "skip"` — use the recommended strategy with no
+   announcement.
+4. Response has an `error` key — fail safe: treat as `ask` and fire
+   the widget in step 1.
 
 **Anti-pattern (PROHIBITED for both strategies):**
 ```
@@ -2028,12 +2093,23 @@ safest fallback for permission-sensitive operations.
 | Worktree, matching feature branch | No action needed — branch already exists |
 
 If the Phase 1 workspace decision was deferred (local-only
-work):
+work), resolve the workspace-choice gate. Call
+`mcp__plugin_Dev10x_cli__resolve_gate(gate="workspace_choice")` and
+branch on `effect`:
 
-**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text, call spec: [ask-workspace-decision.md](./tool-calls/ask-workspace-decision.md)).
-Options:
-- Work here (Recommended) — Use current directory and branch
-- New worktree — Create an isolated worktree
+1. `effect == "ask"` — **REQUIRED: Call `AskUserQuestion`** (do NOT
+   use plain text, call spec:
+   [ask-workspace-decision.md](./tool-calls/ask-workspace-decision.md)).
+   Options:
+   - Work here (Recommended) — Use current directory and branch
+   - New worktree — Create an isolated worktree
+2. `effect == "auto-advance"` — use the recommended option ("Work
+   here") without prompting. Surface the returned `record` line in
+   the transcript so a present supervisor can veto.
+3. `effect == "skip"` — use the recommended option with no
+   announcement.
+4. Response has an `error` key — fail safe: treat as `ask` and fire
+   the widget in step 1.
 
 **Job Story drafting:**
 - MUST invoke `Skill(Dev10x:jtbd)` explicitly — never draft inline

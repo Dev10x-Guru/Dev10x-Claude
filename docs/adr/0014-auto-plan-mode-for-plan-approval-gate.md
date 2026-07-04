@@ -4,7 +4,11 @@ Date: 2026-06-25
 
 ## Status
 
-Accepted
+Accepted — superseded by ADR-0016 Phase 2 (GH-755). The plan-gate
+decision now resolves through the gate-policy resolver's
+`plan_approval` toggle; the `plan_gate_auto_approves()` predicate
+this ADR introduced has been removed. The `auto-plan` mode concept
+is retained by the resolver's preset/overlay model.
 
 ## Context
 
