@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from typing import ClassVar
 
 from dev10x.domain import HookInput, HookResult
+from dev10x.domain.common.bash_tokens import ENV_VAR_RE
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
 
@@ -43,8 +44,6 @@ _RUNNER_SEQUENCES: tuple[tuple[str, ...], ...] = (
     ("yarn",),
 )
 
-_ENV_VAR_RE = re.compile(r"^[A-Z_][A-Z0-9_]*=\S*$")
-
 # Fast skip gate — only run the precise check when a linter name or a
 # ``lint`` token could plausibly appear.
 _TRIGGER_RE = re.compile(r"\b(ruff|black|mypy|isort|eslint|prettier|lint)\b")
@@ -63,7 +62,7 @@ INLINE_LINTER_MSG = (
 
 def _strip_env_prefix(parts: list[str]) -> list[str]:
     i = 0
-    while i < len(parts) and _ENV_VAR_RE.match(parts[i]):
+    while i < len(parts) and ENV_VAR_RE.match(parts[i]):
         i += 1
     return parts[i:]
 

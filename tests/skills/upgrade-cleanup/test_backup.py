@@ -12,6 +12,7 @@ from dev10x.skills.permission.backup import (
     find_latest_backup,
     restore_all,
     restore_backup,
+    restore_report,
 )
 
 
@@ -163,4 +164,29 @@ class TestRestoreAll:
         result = restore_all(paths=[file_a])
 
         assert result == []
+        assert file_a.read_text() == '{"a": "modified"}'
+
+
+class TestRestoreReport:
+    def test_reports_restored_files(self, tmp_path: Path) -> None:
+        file_a = tmp_path / "settings.local.json"
+        file_a.write_text('{"a": "modified"}')
+        backup = tmp_path / "settings.local.json.bak.20260414T100000Z"
+        backup.write_text('{"a": "orig"}')
+
+        code, message = restore_report(paths=[file_a])
+
+        assert code == 0
+        assert file_a.read_text() == '{"a": "orig"}'
+        assert "Restored 1 files." in message
+        assert backup.name in message
+
+    def test_reports_when_no_backups(self, tmp_path: Path) -> None:
+        file_a = tmp_path / "settings.local.json"
+        file_a.write_text('{"a": "modified"}')
+
+        code, message = restore_report(paths=[file_a])
+
+        assert code == 0
+        assert message == "No backups found to restore."
         assert file_a.read_text() == '{"a": "modified"}'

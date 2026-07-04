@@ -97,6 +97,14 @@ class TestIssuesBulkCreate:
         result = await gh.issues_bulk_create(issues=[])
         assert result.error == "issues_bulk_create requires at least one issue"
 
+    @pytest.mark.asyncio
+    @patch.object(gh, "issue_create", new_callable=AsyncMock)
+    async def test_records_missing_title_as_failure(self, mock_create: AsyncMock) -> None:
+        result = await gh.issues_bulk_create(issues=[{}])
+        assert result.value["created"] == []
+        assert result.value["failed"][0]["error"] == "missing title"
+        mock_create.assert_not_called()
+
 
 class TestIssuesBulkEdit:
     @pytest.mark.asyncio

@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, ClassVar
 from dev10x.domain import HookAllow, HookInput, HookResult
 from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.allow_rule import AllowRule, AllowRuleLoader
+from dev10x.domain.common.bash_tokens import GIT_C_DIR_RE
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
 
@@ -46,7 +47,6 @@ SETTINGS_FILES = [
     str(ClaudeDir.settings_json()),
 ]
 
-GIT_C_RE = re.compile(r'\bgit\s+-C\s+("(?:[^"]+)"|\'(?:[^\']+)\'|\S+)')
 # Lowercase `-c <key>=<value>` config override *before* the subcommand —
 # distinct from `git -C <dir>` above. This is the GH-488 prefix-shift family
 # (evidence #35/#38/#40): `git -c core.pager=cat <verb>` was a pervasive agent
@@ -570,14 +570,14 @@ class PrefixFrictionValidator(ValidatorBase):
     def _check_git_c_noop(self, *, inp: HookInput) -> HookResult | None:
         if not inp.cwd:
             return None
-        match = GIT_C_RE.search(inp.command)
+        match = GIT_C_DIR_RE.search(inp.command)
         if not match:
             return None
         target = os.path.normpath(os.path.expanduser(match.group(1).strip("\"'")))
         normalized_cwd = os.path.normpath(inp.cwd)
         if target != normalized_cwd:
             return None
-        bare = GIT_C_RE.sub("git", inp.command, count=1).strip()
+        bare = GIT_C_DIR_RE.sub("git", inp.command, count=1).strip()
         return HookResult(
             message=GIT_C_NOOP_MSG.format(
                 path=match.group(1),

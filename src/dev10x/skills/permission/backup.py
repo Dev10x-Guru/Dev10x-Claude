@@ -55,3 +55,19 @@ def restore_all(paths: list[Path]) -> list[tuple[Path, Path]]:
             if result is not None:
                 restored.append((path, result))
     return restored
+
+
+def restore_report(*, paths: list[Path]) -> tuple[int, str]:
+    """Restore the latest backup for each path and build a CLI report.
+
+    Shared tail for the permission-skill ``_restore`` sub-commands
+    (GH-583). Returns an ``(exit_code, message)`` pair so each entry
+    point owns the actual ``print`` — keeping this reusable helper on
+    the return-value side of the script/domain boundary (GH-246 H3).
+    """
+    restored = restore_all(paths=paths)
+    if not restored:
+        return 0, "No backups found to restore."
+    lines = [f"  Restored {original} from {backup.name}" for original, backup in restored]
+    lines.append(f"\nRestored {len(restored)} files.")
+    return 0, "\n".join(lines)

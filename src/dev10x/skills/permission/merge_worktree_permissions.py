@@ -196,17 +196,12 @@ def merge_permissions(
 
 
 def _restore(*, config_path: Path) -> int:
-    from dev10x.skills.permission.backup import restore_all
+    from dev10x.skills.permission.backup import restore_report
 
     config = load_config(config_path)
     roots = config.get("roots", [])
     groups = find_worktree_groups(roots)
     main_settings = [main_project / ".claude" / "settings.local.json" for main_project in groups]
-    restored = restore_all(paths=main_settings)
-    if not restored:
-        print("No backups found to restore.")
-        return 0
-    for original, backup in restored:
-        print(f"  Restored {original} from {backup.name}")
-    print(f"\nRestored {len(restored)} files.")
-    return 0
+    code, report = restore_report(paths=main_settings)
+    print(report)
+    return code
