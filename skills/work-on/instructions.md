@@ -857,8 +857,9 @@ specific file/line, that is the starting point for investigation.
 
 **Pr-continuation merge-state guard (GH-744 F1).** Task 4.1
 (Fetch PR and review context) MUST resolve the PR's merge state
-(`state` / `mergedAt` via `mcp__plugin_Dev10x_cli__pr_detect` or
-`pr_get`) before building the continuation plan. When the PR is
+(`state` / `mergedAt` via `mcp__plugin_Dev10x_cli__pr_get` — not
+`pr_detect`, whose payload is not guaranteed to carry `state`,
+GH-764 F2) before building the continuation plan. When the PR is
 already `MERGED`, do NOT instantiate the full triage → fixup →
 re-review plan — collapse to a **post-merge cleanup** scope
 (answer any still-unresolved bot/human comments for the record,

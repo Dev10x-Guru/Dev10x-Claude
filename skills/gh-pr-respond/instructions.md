@@ -404,11 +404,11 @@ cycle on an already-merged PR is wasted work: the full triage → reply
 merged (GH-744 F1), because no step checked merge state.
 
 1. Resolve PR state via
-   `mcp__plugin_Dev10x_cli__pr_detect(arg="<pr_number>")` — it returns
-   `state` (and the Branch Location preamble reuses the same call, so
-   this adds no extra request). When richer detail is needed, fall
-   back to `mcp__plugin_Dev10x_cli__pr_get(number=<pr_number>)` for
-   `state` / `mergedAt`.
+   `mcp__plugin_Dev10x_cli__pr_get(number=<pr_number>)` — it reliably
+   returns `state` and `mergedAt`. Do NOT read `state` from
+   `pr_detect`: its wire payload is not guaranteed to carry it
+   (GH-764 F2), so a `pr_detect`-based check can silently read a
+   missing key and conclude "not merged".
 2. If `state == "MERGED"`, surface **"PR already merged — post-merge
    cleanup only"** and short-circuit: do NOT open new fixups, file
    follow-up tickets, or re-triage. The only permitted follow-up is

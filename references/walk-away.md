@@ -150,10 +150,11 @@ For a skill that emits `AskUserQuestion`:
 
 | Layer | Controls | Source of truth |
 |-------|----------|----------------|
-| `friction_level` | How gates with a `(Recommended)` option resolve | `references/friction-levels.md` |
-| `active_modes` | Which playbook steps exist | `references/execution-modes.md` |
+| `gate_preset` | How each gate resolves (base preset the resolver composes) | `references/friction-levels.md` |
 | `gate_overlays: [afk]` | Trusts a stale session + sets `doubt_sink` | `presets/friction/overlays/afk.yaml` |
 | `doubt_sink` | Where suppressed doubts are logged | the `afk` overlay (this document documents the sinks) |
+| `friction_level` (legacy) | Command-redirect strictness + Session Mode Summary display only — no longer resolves gates (GH-760) | `references/friction-levels.md` |
+| `active_modes` | Which playbook steps exist (structural) | `references/execution-modes.md` |
 
 Precedence at a single gate is the **resolver pipeline** (ADR-0016
 D-4), not the legacy walk-away branch — see

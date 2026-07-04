@@ -103,7 +103,7 @@ numeric thresholds feeding the conditional auto-advances.
 | `artifact_preview` | enum | ask / auto-advance |
 | `triage_response` | enum | ask / auto-advance-if-bot / auto-advance |
 | `thread_resolution` | enum | ask / auto-advance-if-bot / auto-advance |
-| `comment_hide` | enum | ask / auto-advance |
+| `comment_hide` | enum | ask / auto-advance-if-bot / auto-advance |
 | `yagni_routing` | enum | ask / auto-advance |
 | `shipping_continuation` | enum | ask / auto-advance |
 | `request_review` | enum | ask / auto-advance / skip |
@@ -200,7 +200,17 @@ Net ladder: guided = adaptive except `request_review` (widget with
 stand-by), `merge` (skip vs auto-advance), and `completion_signoff`
 (ask vs auto-advance).
 
-### Shipped presets
+### D-10: `comment_hide` keys on comment author (GH-745 F4)
+
+Amendment (2026-07-04, GH-745 F4 / GH-764). `comment_hide` was
+originally `auto-advance` at guided/adaptive — it auto-hid
+**human**-authored comments, treating a social act as mechanical.
+It now resolves as `auto-advance-if-bot`, joining `triage_response`
+and `thread_resolution` on the author axis: bot-authored threads
+auto-advance, human-authored threads always gate regardless of
+preset. The tables above reflect this; the domain map
+(`SHIPPED_PRESETS`) and the shipped `presets/friction/*.yaml` are
+kept in lock-step by the drift-guard test.
 
 | Toggle | strict | guided | adaptive |
 |---|---|---|---|
@@ -210,7 +220,7 @@ stand-by), `merge` (skip vs auto-advance), and `completion_signoff`
 | artifact_preview | ask | auto-advance | auto-advance |
 | triage_response | ask | auto-advance-if-bot | auto-advance-if-bot |
 | thread_resolution | ask | auto-advance-if-bot | auto-advance-if-bot |
-| comment_hide | ask | auto-advance | auto-advance |
+| comment_hide | ask | auto-advance-if-bot | auto-advance-if-bot |
 | yagni_routing | ask | auto-advance | auto-advance |
 | shipping_continuation | ask | auto-advance | auto-advance |
 | request_review | ask | ask (widget w/ stand-by) | auto-advance |

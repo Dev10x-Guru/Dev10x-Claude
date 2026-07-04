@@ -1,0 +1,12 @@
+# Durable, git-tracked project gate-policy pin (ADR-0016 D-8, #752).
+#
+# Dev10x-Claude is a TEAM repo: PRs require human review and a human
+# merge through the PR UI. This pin forces `merge: ask` regardless of
+# the session preset, so an adaptive session — or a plain `/Dev10x:afk`,
+# which defaults to `gate_preset: adaptive` (merges included) — cannot
+# auto-merge here. The project tier outranks the session preset, so this
+# keeps the GH-742-class auto-merge hazard closed by construction rather
+# than relying on every session to remember not to enable auto-merge.
+# GH-764 F4.
+overrides:
+  merge: ask
