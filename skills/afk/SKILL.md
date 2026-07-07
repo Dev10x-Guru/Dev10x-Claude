@@ -4,9 +4,9 @@ description: >
   Walk-away mode — compose the walk-away gate policy so long-running
   sessions do not stall on re-strategy or confirmation gates. Writes
   gate_preset: adaptive and gate_overlays: [afk] to
-  .claude/Dev10x/session.yaml; the resolve_gate resolver reads those
-  keys and auto-advances the pipeline while routing deferred decisions
-  to the PR description.
+  .claude/Dev10x/config.yaml (durable prefs, GH-774); the resolve_gate
+  resolver reads those keys and auto-advances the pipeline while routing
+  deferred decisions to the PR description.
   TRIGGER when: starting a long-running unattended session (e.g.,
   bundle work, fanout swarm, overnight implementation), or user says
   "walk away" / "afk" / "headless" / "no more questions".
@@ -15,8 +15,9 @@ description: >
 user-invocable: true
 invocation-name: Dev10x:afk
 allowed-tools:
+  - Read(.claude/Dev10x/config.yaml)
+  - Write(.claude/Dev10x/config.yaml)
   - Read(.claude/Dev10x/session.yaml)
-  - Write(.claude/Dev10x/session.yaml)
 ---
 
 # Dev10x:afk — Walk-Away Mode
@@ -73,13 +74,14 @@ will be unavailable for hours. Typical entry points:
 
 ## Instructions
 
-### Step 1: Read existing session config
+### Step 1: Read existing config
 
-Read `.claude/Dev10x/session.yaml` if it exists. Capture the
-new-style keys `gate_preset`, `gate_overlays`, `gate_overrides` and
-the legacy keys `friction_level`, `active_modes`, `walk_away` (present
-in sessions written before the afk rewrite). If the file is missing,
-treat all keys as unset.
+Read `.claude/Dev10x/config.yaml` if it exists — the durable prefs home
+(GH-774). Capture the new-style keys `gate_preset`, `gate_overlays`,
+`gate_overrides`. Also read a pre-split `.claude/Dev10x/session.yaml` for
+the legacy keys `friction_level`, `active_modes`, `walk_away` (durable
+keys lived there before the GH-774 split); these are migration inputs.
+If both are missing, treat all keys as unset.
 
 ### Step 2: Compute desired state
 
@@ -122,9 +124,11 @@ not write them as top-level session keys.
 spurious permission prompts and prevents clobbering co-edited entries.
 
 Only when the preset or the overlay set differs, write the merged
-config back to `.claude/Dev10x/session.yaml` using the Write tool.
-When migrating a legacy file, drop the superseded `friction_level` /
-`active_modes` / `walk_away` keys in the same write.
+config to `.claude/Dev10x/config.yaml` using the Write tool (durable
+prefs live there since GH-774, so the worktree hook copies them to every
+worktree). When migrating a pre-split `session.yaml`, drop the superseded
+`friction_level` / `active_modes` / `walk_away` keys from it in a
+separate write — do not leave durable keys in the ephemeral file.
 
 ### Step 4: Report
 
@@ -196,7 +200,7 @@ solo / auto-merge-approved contexts.
 
 ## Reverting
 
-To exit walk-away mode mid-session, edit `.claude/Dev10x/session.yaml`
+To exit walk-away mode mid-session, edit `.claude/Dev10x/config.yaml`
 and remove `afk` from `gate_overlays` (and reset `gate_preset` to
 `guided` or `strict` if desired). The next gate-emitting skill reads
 the updated policy via `resolve_gate` and resumes normal behavior.
