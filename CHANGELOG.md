@@ -5,6 +5,123 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.84.0 — DDD Workshop Foundations & Capability-Based Authz Probes
+
+Released 2026-07-07
+
+### Features
+
+- **Ground the DDD workshop in researched domain knowledge** — the
+  `Dev10x:ddd` skill shipped with 11 loosely-sourced archetypes and no
+  pattern / anti-pattern / standards guidance; it now carries a
+  21-signal archetype catalog across four source families,
+  design-pattern / anti-pattern / authz / integration guides, a 30+
+  standards map with a verified bibliography, and solo-facilitation
+  tooling (blind persona panel, devil's advocate, `[ASSUMPTION]`
+  guardrail) as the documented default. Shared knowledge moves to
+  `references/domain/` for reuse by `project-audit`, the architect
+  agents, and `adr-evaluate`
+  ([GH-771](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/771))
+- **Probe capability-based authz in workshops** — the authz reference
+  covered only account-centric models (RBAC/ABAC/ReBAC); a new
+  bearer-invitation model adds a Capability row to the grant-sentence
+  and decision-guide tables plus a Step 2b with eight probe questions
+  (scope, forwardability, attenuation, expiry, redemption identity,
+  delegation, revocation, leak blast radius), grounded in W3C
+  capability URLs and Macaroons
+  ([GH-771](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/771))
+
+### Docs
+
+- **Scope the session.yaml durable/ephemeral split** — design for
+  separating durable session state from ephemeral state without
+  tripping the clean-tree gates
+  ([GH-774](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/774))
+- **Prevent implementation-flavored Job Story drafts** — jtbd guidance
+  keeps Job Stories situation-driven rather than implementation-flavored
+  ([GH-786](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/786))
+- **Keep the ddd SKILL.md budget override honest** — corrected the
+  documented line count for the ddd skill's budget override
+  ([GH-771](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/771))
+
+## 0.83.0 — Data-Driven Friction Gate Policy & Light-AFK Presets
+
+Released 2026-07-04
+
+### Features
+
+- **Tune friction per gate with a data-driven policy** — per-gate
+  friction policy backed by a `resolve_gate` resolver tool and
+  gate-policy foundations
+  ([GH-742](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/742),
+  [GH-752](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/752))
+- **Run light-AFK with human-gated merges** — a guided AFK preset that
+  auto-advances mechanical steps but keeps merge human-only; `afk`
+  recomposed as an adaptive+afk preset
+  ([GH-748](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/748),
+  [GH-759](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/759))
+- **Detect bot top-level and review-body comments** — recognize bot
+  top-level and review-body comments, and warn on contradictory
+  oversight modes at the adaptive level
+  ([GH-743](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/743),
+  [GH-744](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/744))
+- **Guard against premature completion while a PR is unmerged**
+  ([GH-729](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/729))
+- **Enforce the empty-task-list invariant**
+  ([GH-681](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/681))
+- **Override merge for blocked PRs with admin/auto**
+  ([GH-733](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/733))
+- **Offer ripgrep/Grep when `find -exec` search is blocked**
+  ([GH-726](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/726))
+- **Show the work-on plan structure as a box-drawing tree**
+  ([GH-730](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/730))
+- **Enable the request-review stand-by widget at guided**
+  ([GH-758](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/758))
+
+### Fixes
+
+- **Fix top-level bot-comment detection (identity vs signal)**
+  ([GH-764](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/764))
+- **Honor deferred review threads at the completion gate**
+  ([GH-736](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/736))
+- **Resolve stale permission `--init` references**
+  ([GH-741](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/741))
+
+### Performance
+
+- **Speed up single-PR unresolved-thread checks** — a single per-PR
+  `reviewThreads` GraphQL query replaces the merged-PR sweep
+  ([GH-710](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/710))
+
+### Refactors
+
+- **Route gates through the friction resolver** — work-on,
+  gh-pr-respond, and merge/commit/monitor gates now resolve through
+  the shared friction resolver; batch-gate auto-advance keys on comment
+  author and respond short-circuits on an already-merged PR
+  ([GH-755](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/755),
+  [GH-756](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/756),
+  [GH-757](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/757),
+  [GH-745](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/745),
+  [GH-744](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/744))
+- **Simplify duplicated bulk, restore, and regex helpers**
+  ([GH-583](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/583))
+
+### Docs
+
+- **Converge friction docs on the resolver, deprecate `walk_away`**
+  ([GH-760](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/760))
+- **Unblock config-loader consolidation via a read-I/O ADR**
+  ([GH-536](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/536))
+- **Document script-domain-boundaries enhancements** — reviewer
+  checklist and config-loader exception guidance from PR #382 lessons
+  ([GH-246](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/246))
+
+### Tests
+
+- **Prevent tests from rewinding the real repo HEAD**
+  ([GH-699](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/699))
+
 ## 0.82.0 — Unattended JIRA Tickets, Worktree Session Seeding & Prefix-Friction Fixes
 
 Released 2026-06-26
