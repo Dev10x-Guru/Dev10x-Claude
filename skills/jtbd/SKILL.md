@@ -167,6 +167,11 @@ From the gathered context, extract:
 3. **What triggers the need?** (the real-world moment)
    - Look at: parent ticket description, user quotes
    - Example: "processes a bank transfer", "runs end-of-month payroll"
+   - **Use the mundane situation the sources actually name — never
+     invent a more dramatic one.** A vivid crisis ("mid-shift outage")
+     reads better than "routine onboarding", but if the ticket doesn't
+     describe it, it misstates the job. Check: can you point at the
+     sentence in the ticket/parent/PR that names this trigger?
 
 4. **What's wrong today?** (the current pain)
    - Look at: why was the ticket created, what workaround exists
@@ -188,6 +193,13 @@ From the gathered context, extract:
   wants to send the customer an SMS, so the customer can pay immediately")
 - The "so [beneficiary] can" should contrast with the current broken state
 - One sentence. No bullet points. No implementation details.
+- The motivation names an **outcome with less effort**, not a UI action —
+  actors don't want to "see / view / manage" anything; ideally they want
+  to do nothing. "wants the setup to be obvious at a glance", not
+  "wants to see every device's status in the new view"
+- **One clause each** for situation, desire, and outcome. If you cannot
+  read the draft aloud in one breath to a non-technical stakeholder,
+  it is leaking implementation — length correlates with leakage
 - See `references/job-story-format.md` for detailed guidance
 
 ### Subject Selection by PR Type
@@ -238,6 +250,10 @@ value.
 | Implementation detail as benefit | "avoid misrouted traffic during restarts" | State the real outcome: "prevent broken releases from degrading UX" |
 | `I want to` when the actor is ambiguous | "I" doesn't identify the stakeholder | Prefer a named role ("the merchant", "the DevOps team"); `I want to` is fine as a fallback when the actor is clear from context |
 | "the developer wants to…" for refactoring / infra / dep bumps | Substitutes the engineer for the real beneficiary; the developer's convenience is not a business outcome | Trace upward to the user-facing feature this plumbing unblocks; use that feature's actor and beneficiary |
+| "wants to **see / view / check / manage** X" as the desire | UI verbs describe operating the feature, not the job. Seeing is usually effort spent reaching the real outcome — actors want less work, ideally none. (Exception: analytics/reporting, where insight *is* the deliverable — then pair the verb with the decision it enables) | Name the end state: "wants X to be obvious at a glance", "wants to be told when…", "wants the system to handle it" |
+| Naming the **replaced artifact** as the contrast ("instead of the old/redundant list/panel/dialog") | What-we-replaced is diff-framing — it describes the previous implementation, not the user's pain. (Naming the prior broken *behavior* is fine; naming the prior *component* is not) | Contrast with the pain itself: time lost, confusion, escalations. An outcome like "keep support calls short" carries the contrast implicitly |
+| **Enumerating capabilities** the feature surfaces (fields, statuses, IDs) | A capability list is the UI spec wearing a story costume. If a reader could reconstruct the screen from the story, it is too concrete | Collapse the list into the single outcome it buys |
+| **Invented dramatic situation** ("won't take payments mid-shift" when the ticket says "during onboarding") | A vivid failure the sources never describe misstates the job and erodes stakeholder trust | Anchor "When" on the mundane trigger the ticket actually names (see Step 2) |
 
 **The "why spend money" test:** Read the draft aloud. If a non-technical
 stakeholder would respond "so what?" or "why do I care?", the story
@@ -261,6 +277,26 @@ The first version describes *what* the code does. The second explains
 *why anyone should care*. The difference: substantive vs superficial
 checks (the real improvement), and preventing UX degradation (the
 real cost of not doing it).
+
+**Example — UI-consolidation PR (before and after):**
+
+Before (three red flags at once — UI verb, capability list,
+replaced-artifact contrast):
+> **When** setting up a store's payment devices, **staff want to** see
+> and manage every paired device — status, pairing code, location —
+> in the new summary view, **instead of** a second, redundant inline
+> list.
+
+After (mundane trigger, effort-free desire, ROI outcome):
+> **When** onboarding a store's payment devices — or fielding a
+> customer's call about them — **staff want** the setup to be obvious
+> at a glance, **so the vendor can** get the store live sooner and
+> keep support calls short.
+
+Note what the fix did: dropped every mechanism noun, dropped the
+what-we-replaced contrast, and shortened to one clause per slot. See
+`references/examples.md` Example 7 for the full draft-by-draft
+correction spiral behind this case.
 
 ### Step 4: Present or Return
 
@@ -339,4 +375,5 @@ See [`references/examples.md`](references/examples.md) for worked
 walkthroughs covering: feature with parent ticket context (Ex 1),
 feature with different actor and beneficiary (Ex 2), bug fix
 (Ex 3), internal tooling (Ex 4), refactor with trace-upward (Ex 5),
-and a pure dependency-bump PR with trace-upward (Ex 6).
+a pure dependency-bump PR with trace-upward (Ex 6), and a
+UI-consolidation PR's four-draft correction spiral (Ex 7).

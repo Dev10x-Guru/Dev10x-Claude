@@ -52,14 +52,35 @@ who gains the value, name both:
 Good: "the billing admin wants to send the customer an SMS, so the customer can pay"
 Bad:  "I want to send them an SMS, so they can pay"
 
+### 6. Less Work, Not More Features
+
+The strongest motivations describe an outcome the actor gets with
+*less* effort — ideally none. "wants to see / view / check / manage X"
+usually describes operating the feature, not the job: seeing is effort
+spent on the way to the real outcome. Rewrite toward the end state
+("wants X to be obvious at a glance", "wants to be told when…",
+"wants the system to handle it").
+
+Exception: in analytics and reporting, insight itself is the
+deliverable — "see revenue broken down by channel" is legitimate there,
+paired with the decision it enables ("adjust budget allocation").
+
+Length is a leak detector: one clause each for situation, desire, and
+outcome. If the story cannot be read aloud in one breath to a
+non-technical stakeholder, it is carrying implementation detail.
+
 ## Anti-Patterns
 
 | Anti-Pattern | Problem | Fix |
 |---|---|---|
 | Technical language | Not understandable by stakeholders | Use business/domain language |
 | Solution-focused "When" | Prescribes implementation | Describe the real-world trigger |
+| Invented dramatic "When" | A vivid crisis the sources never describe misstates the job | Use the mundane trigger the ticket actually names |
+| UI-verb motivation ("wants to see/view/manage") | Describes operating the feature, not the outcome | Name the end state: "wants X to be obvious", "wants to be told" (see Principle 6) |
+| Capability enumeration (fields, statuses, IDs) | The UI spec wearing a story costume — reader could reconstruct the screen | Collapse the list into the single outcome it buys |
+| Naming the replaced artifact ("instead of the old list/panel") | Contrasts with the previous implementation, not the user's pain | Contrast with the pain; prior broken *behavior* is fine, prior *component* is not |
 | Vague outcome | Not testable | Be specific about what improves |
-| No contrast with current state | Unclear why it matters | Show what's wrong today |
+| No contrast with current state | Unclear why it matters | Show what's wrong today (an outcome like "keep support calls short" carries it implicitly) |
 | Using "I"/"they" when the actor is ambiguous | Hides who is impacted | Prefer a named role: "the cashier", "the customer"; `I want to` is fine when context is clear |
 | Same actor when roles differ | Hides multi-stakeholder flow | Name both actor and beneficiary when they differ |
 

@@ -113,3 +113,56 @@ their own templates / forms / menus)
 Note: The dep bump itself does not ship the feature. The Job Story names
 the *downstream* business outcome the library unblocks. The library is
 the mechanism, never the actor.
+
+## Example 7: UI-consolidation PR — a real correction spiral
+
+**Domain:** Any SaaS where staff pair/configure hardware or accounts
+for a customer site
+
+**Context found:**
+- Follow-up ticket to a merged PR: retire an old inline device list in
+  favor of a newer summary + details view
+- Parent context: devices are configured during customer onboarding;
+  support also fields orientation calls about the current setup
+
+This case took four drafts because each round fixed one leak and
+sprang another. The spiral, draft by draft:
+
+**Draft 1 — rejected (UI verb + replaced-artifact contrast):**
+> …**staff want to** see and manage every paired device through the
+> single summary + details view **instead of** a second, redundant
+> inline list, **so they can** confirm each device's live status in
+> one consistent place…
+
+An ROI tail ("cutting support time") was tacked on, but the spine of
+the sentence was the UI. Actors don't want to *see and manage* —
+they want less work.
+
+**Draft 2 — rejected (invented drama):**
+> **When** a payment device won't take payments mid-shift…
+
+Overcorrecting toward "vivid" fabricated a crisis the ticket never
+described. The real situation was mundane: routine onboarding and
+support-call orientation.
+
+**Draft 3 — rejected (capability enumeration, artifact contrast again):**
+> …**staff want** one diagnostic view that lays out each device's
+> status, pairing code, and location… **instead of** piecing the
+> picture together **from a redundant second list**…
+
+Right situation now, but enumerating the surfaced fields is the UI
+spec wearing a story costume — and the replaced artifact crept back
+in as the contrast.
+
+**Accepted:**
+> **When** onboarding a store's payment devices — or helping a
+> customer who calls in about them — **staff want** the setup to be
+> obvious at a glance, **so the vendor can** get the store live sooner
+> and keep support calls short.
+
+Note: The accepted draft dropped every mechanism noun, dropped the
+what-we-replaced contrast entirely, and shortened to one clause per
+slot — situation / effort-free desire / two ROI outcomes. The
+contrast with the old pain survives *implicitly* in "keep support
+calls short". Each rejected draft maps to a red-flag row in the
+*Anti-pattern: Pseudo-Business Value* table in `SKILL.md`.
