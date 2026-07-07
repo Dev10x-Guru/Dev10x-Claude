@@ -12,7 +12,7 @@ from pathlib import Path
 
 import click
 
-from dev10x.domain.documents.session_yaml import SessionYamlDocument
+from dev10x.domain.documents.session_yaml import ConfigYamlDocument, SessionYamlDocument
 
 QUICK_START_WORKFLOWS = [
     (
@@ -80,8 +80,10 @@ def _seed_project(project_root: Path) -> list[Path]:
     written: list[Path] = []
 
     session_doc = SessionYamlDocument(toplevel=str(project_root))
+    config_doc = ConfigYamlDocument(toplevel=str(project_root))
     targets = [
-        (session_doc.path, SessionYamlDocument.render()),
+        (config_doc.path, ConfigYamlDocument.render()),
+        (session_doc.path, SessionYamlDocument.render_ephemeral()),
         (
             project_root / ".claude" / "Dev10x" / "playbooks" / "work-on.yaml",
             STARTER_WORK_ON_PLAYBOOK,
@@ -137,7 +139,8 @@ def init(*, setup: bool, non_interactive: bool, project_path: Path | None) -> No
         sys.exit(1)
 
     session_doc = SessionYamlDocument(toplevel=str(project_root))
-    existing = session_doc.path.exists()
+    config_doc = ConfigYamlDocument(toplevel=str(project_root))
+    existing = config_doc.path.exists() or session_doc.path.exists()
     if existing and not setup:
         click.echo(f"Dev10x config already present at {project_root}/.claude/Dev10x/")
         _print_card(project_root=project_root)
@@ -165,7 +168,9 @@ def init(*, setup: bool, non_interactive: bool, project_path: Path | None) -> No
     )
 
     modes = ["solo-maintainer"] if solo else []
-    session_doc.write(friction_level=friction_level.lower(), active_modes=modes)
+    config_doc.write(friction_level=friction_level.lower(), active_modes=modes)
+    click.echo(f"  + {config_doc.path.relative_to(project_root)}")
+    session_doc.write_ephemeral()
     click.echo(f"  + {session_doc.path.relative_to(project_root)}")
 
     playbook_path = project_root / ".claude" / "Dev10x" / "playbooks" / "work-on.yaml"

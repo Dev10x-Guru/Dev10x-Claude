@@ -13,8 +13,11 @@ if [ "$1" = "0000000000000000000000000000000000000000" ]; then
     ORIGINAL_REPO="/work/<org>/<project-name>"
 
     # ── Dirty-file exclusion ────────────────────────────────────────
+    # GH-774: -uall lists untracked files individually so an untracked
+    # sibling under .claude/Dev10x/ cannot collapse the dir into a single
+    # `--exclude=Dev10x/` that drops the durable config.yaml from the copy.
     DIRTY_LIST=$(mktemp)
-    git -C "$ORIGINAL_REPO" status --porcelain 2>/dev/null | \
+    git -C "$ORIGINAL_REPO" status --porcelain -uall 2>/dev/null | \
         sed 's/^...//' > "$DIRTY_LIST"
 
     copy_file() {
@@ -52,26 +55,28 @@ if [ "$1" = "0000000000000000000000000000000000000000" ]; then
     # ── FILES TO COPY (add new entries here) ────────────────────────
     copy_clean ".env"
     copy_clean ".env.supabase"
-    copy_clean ".claude/" worktrees
+    # GH-774: exclude ephemeral session.yaml (stale branch/tickets); it is
+    # seeded fresh below. Durable Dev10x/config.yaml IS copied.
+    copy_clean ".claude/" worktrees "Dev10x/session.yaml"
 
     if [ ! -d .claude ]; then
         mkdir -p .claude
         echo '{}' > .claude/settings.local.json
     fi
 
-    # >>> Dev10x session-seed (GH-705) >>>
-    # session.yaml is gitignored, so `git worktree add` never brings it
-    # across. The .claude/ copy above carries it when the source worktree
-    # has one; seed a default when it does not. Best-effort — a missing
-    # dev10x CLI is non-fatal (work-on Phase 0 seeds later).
-    if [ ! -f .claude/Dev10x/session.yaml ]; then
+    # >>> Dev10x session-seed (GH-705, GH-774) >>>
+    # The .claude/ copy brings the durable config.yaml across but EXCLUDES
+    # the ephemeral session.yaml; seed regenerates a fresh session.yaml here
+    # (and a default config.yaml when the source had none). Idempotent.
+    # Best-effort — a missing dev10x CLI is non-fatal (work-on Phase 0 seeds).
+    if [ ! -f .claude/Dev10x/session.yaml ] || [ ! -f .claude/Dev10x/config.yaml ]; then
         if command -v dev10x >/dev/null 2>&1; then
             dev10x session seed || true
         elif command -v uvx >/dev/null 2>&1; then
             uvx dev10x session seed || true
         fi
     fi
-    # <<< Dev10x session-seed (GH-705) <<<
+    # <<< Dev10x session-seed (GH-705, GH-774) <<<
 
     rm -f "$DIRTY_LIST"
 
