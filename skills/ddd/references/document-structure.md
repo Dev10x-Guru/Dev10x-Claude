@@ -32,7 +32,7 @@ docs/
 | File | Job | Mutability |
 |---|---|---|
 | `model.md` | **What the domain IS now.** Types, pipeline, aggregates, bounded contexts. No history. | Mutable (updated in place; git = history) |
-| `calculator.md` | **How calculations work.** Formulas, pipeline stages, golden test values. | Mutable |
+| `calculator.md` | **How calculations work.** Formulas, pipeline stages, golden test values. Optional — only for domains with computation (pricing, scheduling, scoring). | Mutable |
 | `decisions.md` | **Why we chose what we chose.** Every decision with ID, rationale, alternatives. | **Append-only.** Decisions never deleted, only superseded. |
 | `glossary.md` | **What terms mean.** Domain term → definition → code mapping. | Mutable (terms added/refined) |
 | `stress-tests.md` | **What we validated.** Scenarios, scorecards, stable core. | **Append-only.** New scenarios added, old ones preserved. |

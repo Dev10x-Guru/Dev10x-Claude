@@ -1,7 +1,11 @@
-# Pricing Pipeline Pattern
+# Pricing Pipeline Pattern (Worked Example)
 
-> The Pricing Archetype applied to estimation and costing domains.
-> This is a reusable pattern, not specific to any project.
+> The Pricing Archetype applied to estimation and costing domains —
+> a complete worked example of taking one archetype from recognition
+> through seam identification to stress-testable structure. Use it
+> as the template for depth when applying ANY archetype from
+> `archetypes-catalog.md`; the TypeScript shapes are illustrative,
+> not prescriptive.
 
 ## The Core Principle
 

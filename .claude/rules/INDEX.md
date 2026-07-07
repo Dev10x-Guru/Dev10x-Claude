@@ -179,6 +179,11 @@ cohesive, justified by scope):
 - `fanout` (~737 lines instructions) — native-Agent swarm
   orchestrator with 6-phase execution model, swarm context
   payload, recursive-fanout guard, and conflict-wave management
+- `ddd` (~370 lines) — workshop orchestration hub: 4 session
+  modes, 7-layer event storming flow, solo AI-cast facilitation,
+  and quality gates are semantically cohesive; depth already
+  extracted to 12 reference files. Split plan if it grows: move
+  scaffolding + mode task lists to `references/session-modes.md`
 
 ## Budget Overrides
 

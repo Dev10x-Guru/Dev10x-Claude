@@ -1,6 +1,6 @@
 ---
-name: Dev10x:ddd-workshop
-invocation-name: Dev10x:ddd-workshop
+name: Dev10x:ddd
+invocation-name: Dev10x:ddd
 description: >
   Run or continue a DDD Event Storming workshop to explore, model, and
   stress-test domain architecture.
@@ -12,6 +12,17 @@ description: >
   is new or crosses bounded context boundaries.
   DO NOT TRIGGER when: implementing code within a well-understood domain, or
   scoping a ticket in a known bounded context (use Dev10x:ticket-scope).
+user-invocable: true
+allowed-tools:
+  - TaskCreate
+  - TaskUpdate
+  - AskUserQuestion
+  - Agent
+  - Glob
+  - Grep
+  - Read
+  - Write(docs/**)
+  - Bash(mkdir -p docs:*)
 ---
 
 # DDD Event Storming Workshop
@@ -75,7 +86,15 @@ Before starting, determine which mode applies:
 | **New workshop** | No `docs/domain/` exists yet | `references/document-structure.md` |
 | **Continue workshop** | `docs/domain/model.md` exists | All existing domain docs (Step 1) |
 | **Stress test** | "What if we add X?" / "Does Y break?" | `references/stress-test-protocol.md` |
-| **Archetype application** | "This feels bloated" / "Apply archetype" | `references/archetypes-catalog.md` |
+| **Archetype application** | "This feels bloated" / "Apply archetype" | `../../references/domain/archetypes-catalog.md` |
+
+**Participation default: solo.** Assume ONE human (domain expert +
+decision-maker) facilitated by this skill with an AI cast — persona
+panel for blind event generation, devil's advocate for structural
+challenges. Read `references/solo-facilitation.md` at session start;
+it defines the role-substitution map and the `[ASSUMPTION]`
+guardrail. Multi-participant rooms are the exception: skip the AI
+cast and facilitate the humans instead.
 
 ---
 
@@ -85,14 +104,15 @@ Read these files **in this order** before proceeding:
 
 1. `docs/domain/model.md` — current domain model
 2. `docs/domain/decisions.md` — all prior decisions (append-only)
-3. `docs/domain/calculator.md` — pricing pipeline and formulas
+3. `docs/domain/calculator.md` — calculation formulas (if present)
 4. `docs/domain/stress-tests.md` — validated architectural seams
 5. `docs/domain/glossary.md` — ubiquitous language
 6. `docs/domain/epics.md` — tickets and priorities
 7. Latest file in `docs/domain/workshops/` — previous session
 
 Then read implementation state:
-8. `apps/web/src/lib/domain/` — current TypeScript (if any)
+8. The project's domain source directory (locate via CLAUDE.md or
+   glob for the model types named in `model.md`), if any
 9. `CLAUDE.md` — project conventions
 
 **Summarize** what you understand in 3-5 sentences before proceeding.
@@ -137,6 +157,11 @@ Read `references/exploration-methodology.md` for DDD techniques.
 
 ### Event Storming Flow
 
+In solo mode, run layers 1–4 with the persona panel's blind
+generation protocol (`references/solo-facilitation.md`): elicit the
+human's events first, dispatch personas in parallel, present the
+overlap analysis as one batched menu.
+
 1. **Identify domain events** — what happens in the system? (orange)
 2. **Identify commands** — what triggers each event? (blue)
 3. **Identify actors** — who issues each command? (yellow)
@@ -147,26 +172,58 @@ Read `references/exploration-methodology.md` for DDD techniques.
 
 ### Software Archetypes Recognition
 
-Read `references/archetypes-catalog.md` for the full pattern table.
+Read `../../references/domain/archetypes-catalog.md` for the full pattern table.
 
-At every stage, check: **does this problem match a known archetype?**
-
-| If you see... | Apply... |
-|---|---|
-| Flat config with N named fields | **Pricing** (composable pipeline) |
-| Raw `number` for money or effort | **Quantity** (Money, Effort, Ratio) |
-| Users, departments, vendors | **Party** (role-based) |
-| "What resources does this need?" | **Availability** / assignment |
-| Complex conditional logic | **Rules** (condition trees) |
-| Items in a hierarchy | **Product** (composite tree) |
-| "Is this available at time X?" | **Availability** (time-slotted) |
-| Bloated entity with mixed semantics | Step back — which archetype decomposition? |
+At every stage, check: **does this problem match a known
+archetype?** Run the 21-signal recognition table in
+`../../references/domain/archetypes-catalog.md` — raw numbers with implied
+units, flat config structs, party-shaped entities, time-bound
+happenings, and bloated mixed-semantics entities all have named
+decompositions there.
 
 **Applying an archetype is NOT premature abstraction.** It's
 recognizing that this problem has been solved before. The archetype
 provides the vocabulary and structure; the domain provides the
-specific rules. See `references/archetypes-catalog.md` for detailed
-guidance on each.
+specific rules. See `../../references/domain/archetypes-catalog.md` for the full
+recognition table (21 signals), source landscape, and composition
+guidance.
+
+### Patterns, Anti-Patterns, and Standards
+
+At each exploration layer, cross-check three references:
+
+- `../../references/domain/design-patterns.md` — tactical/strategic pattern
+  selection (aggregate rules, context mapping ladder, when NOT to
+  CQRS/ES) and workshop-method guidance
+- `../../references/domain/anti-patterns.md` — detection signals per workshop
+  stage; the devil's advocate agent uses this catalog
+- `../../references/domain/standards-and-references.md` — before inventing a
+  vocabulary, check whether an industry standard settled it
+  (Money → ISO 4217, recurrence → RFC 5545 RRULE, supply-chain
+  events → EPCIS, banking contexts → BIAN)
+
+### Integration & Topology Probe (guided)
+
+Once bounded contexts are named (layer 6) and someone asks
+"separate services?", run
+`../../references/domain/integration-patterns.md`: decide modular
+monolith vs split *per context*, check every boundary against the
+leak table ("could the other side change its internals without us
+noticing?"), and fill one contract line per context-map edge
+(style, artifact, pattern). Record topology and per-edge choices
+as `[D-NNN]` decisions.
+
+### Authorization Probe (guided)
+
+When actors multiply, commands become identity-dependent, or
+"role"/"owner"/"visibility" enter the language, run the guided
+authorization section in `../../references/domain/authz-patterns.md`: classify
+each guarded command's grant sentence into RBAC / ABAC / ReBAC,
+place the five policy-architecture boxes (PEP, PDP, PIP, PRP,
+PAP) on the context map, and record the model + engine choice as
+a `[D-NNN]` decision. Rule of engagement: invariants ≠
+permissions — permission checks live at the PEP, never inside
+aggregates.
 
 ### Design Philosophy
 
@@ -197,6 +254,10 @@ until the client-side foundation is solid.
 
 Before committing to any model change, validate it. Read
 `references/stress-test-protocol.md` for the full protocol.
+
+In solo mode, dispatch the devil's advocate before decision
+capture on structural changes, and collect one "what if" scenario
+per persona (`references/solo-facilitation.md`).
 
 ### Quick stress-test checklist
 
@@ -303,12 +364,19 @@ contain the depth.
 | File | Read when |
 |---|---|
 | `references/process-rules.md` | Starting any session |
+| `references/solo-facilitation.md` | Starting any session (solo default: personas, devil's advocate, [ASSUMPTION] guardrail) |
 | `references/exploration-methodology.md` | Doing event storming or domain modeling |
-| `references/archetypes-catalog.md` | Recognizing or applying a Software Archetype |
+| `../../references/domain/archetypes-catalog.md` | Recognizing or applying a Software Archetype |
+| `../../references/domain/design-patterns.md` | Selecting tactical/strategic patterns; context mapping; workshop methods |
+| `../../references/domain/anti-patterns.md` | Aggregate/context design reviews; devil's advocate dispatch; stress testing |
+| `../../references/domain/standards-and-references.md` | Naming a vocabulary an industry standard may have settled |
+| `../../references/domain/authz-patterns.md` | Actors/permissions surface: RBAC/ABAC/ReBAC decision + PEP/PDP/PIP/PRP/PAP placement |
+| `../../references/domain/integration-patterns.md` | Contexts named, deployment/interface questions arise: modular monolith vs split, leak prevention, contract design |
 | `references/stress-test-protocol.md` | Validating a model change or extension |
 | `references/session-deliverables.md` | Producing artifacts at end of session |
 | `references/document-structure.md` | Scaffolding docs/ for a new project |
-| `references/pricing-pipeline.md` | Working on pricing, rates, or cost calculation |
+| `../../references/domain/pricing-pipeline.md` | Working on pricing, rates, or cost calculation (worked archetype example) |
+| `../../references/domain/bibliography.md` | Sourcing citations; pre-workshop facilitator ramp reading |
 
 ---
 
@@ -325,3 +393,5 @@ Before ending a session, verify:
 - [ ] Workshop record created in `workshops/NNN-topic.md`
 - [ ] Proprietary data genericized in all outputs
 - [ ] Seams identified: zero-cost hooks for future extensions
+- [ ] Solo mode: no `[ASSUMPTION]` tags remain in model.md,
+      decisions.md, or glossary.md
