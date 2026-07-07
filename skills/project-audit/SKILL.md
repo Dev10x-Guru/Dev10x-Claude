@@ -10,7 +10,7 @@ description: >
   check, pattern catalog mapping, or comprehensive quality review.
   DO NOT TRIGGER when: reviewing a single branch (use Dev10x:review),
   scoping a single ticket (use Dev10x:ticket-scope), or running a
-  DDD workshop (use Dev10x:ddd-workshop).
+  DDD workshop (use Dev10x:ddd).
 user-invocable: true
 allowed-tools:
   - Agent
@@ -47,7 +47,7 @@ prioritized improvement backlog with milestones and blocking chains.
 **Do NOT use for:**
 - Single-branch code review → `Dev10x:review`
 - Single-ticket scoping → `Dev10x:ticket-scope`
-- DDD domain modeling → `Dev10x:ddd-workshop`
+- DDD domain modeling → `Dev10x:ddd`
 - Single-PR QA analysis → `Dev10x:qa-scope`
 
 ## Orchestration

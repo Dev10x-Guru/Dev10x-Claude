@@ -31,23 +31,32 @@ seam is in the wrong place or needs to be widened.
 
 ### Step 3: Check the Stable Core
 
-Verify each component that should NEVER change remains stable:
+Every project maintains its own **Stable Core** list — the
+components that should NEVER change — in the "Stable Core" section
+of `docs/domain/stress-tests.md`. It is established after the first
+archetype application and grows as seams are validated.
+
+A stable core typically names:
+- Core data structures (tree/graph shapes, aggregate roots)
+- The universal pipeline stages below each archetype seam
+- Value object types (Money, Quantity, Ratio)
+- Aggregation and derived-value math
+- Persistence and serialization contracts
+
+Example (an estimation tool's stable core):
 
 ```
 STABLE CORE (check each one):
 □ Tree structure (EstimateNode parentId/childIds)
-□ Dependency graph (DependencyEdge)
-□ applyModifiers() — Stage ④
-□ PriceModifier type
-□ PolicyOverlay mechanism
+□ applyModifiers() — universal modifier stage
 □ Money / Effort value objects
-□ Group aggregation (Σ prices)
-□ Confidence band math (√Σσ²)
+□ Group aggregation (Σ prices, √Σσ² confidence bands)
 □ Persistence (localStorage / shareable links)
 ```
 
-If ANY of these would need modification, the extension is signaling
-a deeper architectural problem. Investigate before proceeding.
+Verify each listed component against the proposed extension. If ANY
+of these would need modification, the extension is signaling a
+deeper architectural problem. Investigate before proceeding.
 
 ### Step 4: Identify Seams
 
@@ -100,20 +109,25 @@ remove existing scenarios — they document validated seams.
 The architecture's ultimate target is NOT the current use case.
 It's the most demanding scenario the product could eventually serve.
 
-For estimation tools, the endgame is typically:
+**Define the endgame per project** during the first workshop and
+record it in `stress-tests.md`. Scale every dimension of the current
+use case by 2-3 orders of magnitude and add the structural stressors
+the domain implies: multi-tenancy, hierarchy depth, mixed entity
+types, multi-currency/locale, versioning and branching, concurrent
+collaboration, access control.
+
+Example (an estimation tool's endgame):
 - **10-year infrastructure project** (not a 3-month software sprint)
 - **Thousands of work packages** (not 20 line items)
 - **Dozens of contributing departments/vendors** (not a single team)
 - **Mixed product types** (labor + goods + services + equipment)
-- **Per-item resource assignments** (not just global fractions)
 - **Hierarchical policy inheritance** (per-department pricing)
 - **Multi-currency aggregation** at boundaries
 - **Versioning and branching** for what-if scenarios
-- **Scoped collaboration** with access control
 
-Any proposal that works at 20 items but structurally cannot scale
-to this endgame must be flagged and either redesigned or explicitly
-documented as a known future migration.
+Any proposal that works at today's scale but structurally cannot
+reach the endgame must be flagged and either redesigned or
+explicitly documented as a known future migration.
 
 ## When to Stop
 

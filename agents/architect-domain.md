@@ -26,8 +26,11 @@ Before evaluation, read the project's:
 ## Capabilities
 
 1. **Archetype mapping** — analyze bounded contexts and suggest which
-   Software Archetypes (Party, Availability, Waitlist, GAP,
-   Configurator) apply to domain models
+   Software Archetypes (Party, Role, Moment-Interval, Description,
+   Quantity/Money, Rule, Availability, Waitlist, GAP, Configurator,
+   Plan, Accounting — full recognition table in
+   `references/domain/archetypes-catalog.md`) apply to domain
+   models
 2. **Aggregate boundary analysis** — evaluate aggregate root scoping,
    suggest splits/merges based on invariant ownership
 3. **Published language review** — assess BC interface completeness,

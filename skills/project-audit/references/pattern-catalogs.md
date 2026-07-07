@@ -112,26 +112,28 @@ Source: https://refactoring.guru/design-patterns/catalog
 
 ## Software Archetypes
 
-Source: https://www.softwarearchetypes.com/
+Sources: https://www.softwarearchetypes.com/ (Pilimon/Słota/
+Sobótka), Fowler *Analysis Patterns*, Coad *Modeling in Color*,
+Arlow & Neustadt *Enterprise Patterns and MDA*. Canonical
+recognition table: `references/domain/archetypes-catalog.md`.
 
 ### Core Archetypes
-- **Catalog/Inventory** — manages collections of items with
-  search, browse, filter. Examples: product catalog, service
-  menu, parts inventory.
-- **Document/Record** — creates, stores, retrieves structured
-  documents. Examples: invoices, work orders, contracts.
-- **Transaction/Event** — records and processes business events.
-  Examples: payments, shipments, status changes.
-- **Party/Role** — models people and organizations with their
-  roles. Examples: customers, dealers, employees.
-- **Place/Location** — represents physical or logical locations.
-  Examples: stores, warehouses, service areas.
-- **Thing/Item** — individual trackable items. Examples: tires,
-  vehicles, equipment.
-- **Quantity/Measurement** — measures and units. Examples: prices,
+- **Party / Role** — people and organizations with their roles.
+  Examples: customers, dealers, employees.
+- **Moment-Interval (Transaction/Event)** — time-bound business
+  happenings. Examples: payments, shipments, orders, rentals.
+- **Description** — type-instance catalogs. Examples: product
+  catalog entries, make/model classifying vehicles.
+- **Quantity / Money** — measures with units. Examples: prices,
   weights, dimensions, tire sizes.
-- **Rule/Policy** — encapsulates business rules and policies.
-  Examples: pricing rules, tax rules, discount policies.
+- **Rule** — business rules as data. Examples: pricing rules,
+  tax rules, discount policies.
+- **Product / Inventory / Order** — composite catalog items,
+  stock holdings, fulfillment-tracked requests.
+- **Availability / Waitlist / GAP** — time-slotted resources,
+  fair queues, assignment optimization.
+- **Plan / Accounting** — intent-vs-actual tracking; double-entry
+  ledgers with posting rules.
 
 ### Framework-Specific Pattern Focus
 
