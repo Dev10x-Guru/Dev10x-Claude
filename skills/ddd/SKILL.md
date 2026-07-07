@@ -218,7 +218,9 @@ as `[D-NNN]` decisions.
 When actors multiply, commands become identity-dependent, or
 "role"/"owner"/"visibility" enter the language, run the guided
 authorization section in `../../references/domain/authz-patterns.md`: classify
-each guarded command's grant sentence into RBAC / ABAC / ReBAC,
+each guarded command's grant sentence into RBAC / ABAC / ReBAC /
+Capability (bearer invitation for accountless actors — ask the
+forwardability, scope, expiry, and redemption-identity probes),
 place the five policy-architecture boxes (PEP, PDP, PIP, PRP,
 PAP) on the context map, and record the model + engine choice as
 a `[D-NNN]` decision. Rule of engagement: invariants ≠

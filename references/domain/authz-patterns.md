@@ -22,10 +22,12 @@ For each guarded command, ask which sentence shape grants access:
 | "Because of their position/function" | **RBAC** | "Accountants can post journal entries" |
 | "Because of properties of subject, resource, action, or context" | **ABAC** | "Managers may approve expenses < 5000 in their own cost center during business hours" |
 | "Because of a relationship chain to the resource" | **ReBAC** | "You can edit this doc because it's in a folder owned by a team you belong to" |
+| "Because they hold this invitation/link/token" | **Capability** | "Anyone with this invitation may book one conference slot" |
 
 Most real systems are **hybrid**: RBAC for coarse workforce
 access, ABAC conditions on top (tenancy, amount limits, time),
-ReBAC where sharing/hierarchy graphs drive access. Classify per
+ReBAC where sharing/hierarchy graphs drive access, capabilities
+where accountless outsiders need one scoped action. Classify per
 command cluster, not once per system.
 
 ## Step 2: Decision Guide
@@ -39,6 +41,8 @@ command cluster, not once per system.
 | Multi-tenant with per-tenant roles? | RBAC scoped by tenant attribute (hybrid) |
 | Will non-engineers author the rules? | ABAC/policy-engine with a PAP UI |
 | Are permission checks needed in list queries ("show only what I can see")? | ReBAC engines (filtering APIs) or ABAC partial evaluation |
+| Must people WITHOUT accounts get scoped access? | Capability (bearer invitation) |
+| Should a grant be forwardable to someone the system never met? | Capability with explicit transfer rules |
 
 **Detection smells:**
 - Role explosion (`editor_projectA_readonly_eu`) → relationships
@@ -47,6 +51,48 @@ command cluster, not once per system.
   model the actual grant sentence
 - Permission checks inside aggregates → invariants and permissions
   conflated (see Step 4)
+
+## Step 2b: Capability / Bearer-Invitation Access
+
+The model the account-centric trio misses: **possession of an
+unforgeable token IS the authorization.** Canonical case (a
+school-reservation system): a parent receives an invitation link
+to book a parent-teacher conference; the parent forwards it to a
+grandparent; the grandparent — who has no account — opens the
+link and books a slot. The system authorized the *bearer*, not an
+identity.
+
+Fires when: actors will never have accounts; sharing/forwarding
+is a feature, not a leak; the granted action is narrow (book one
+slot, view one document, upload to one folder).
+
+**Probe questions to ask in the workshop** (each answer becomes a
+`[D-NNN]` decision):
+
+| Probe | Decision it forces |
+|---|---|
+| Who needs access but will never have an account? | Capability vs forced registration |
+| What EXACTLY does possession authorize? | Scope — one command cluster, never "the page" |
+| May the holder forward it? To anyone, or constrained? | Transferable vs bound; forwarding is a FEATURE to design, not an accident to tolerate |
+| Can the forwarder narrow what they pass on? | Attenuation (macaroon-style caveats) vs all-or-nothing |
+| What happens when the link leaks publicly? | Blast radius → expiry, single-use, revocation list |
+| Does redemption create an identity (guest party) or stay anonymous? | Audit trail + later account-linking seam |
+| Does the bearer act as THEMSELVES or on behalf of the inviter? | Delegation semantics — who appears in the domain events? |
+| Can the original grantor revoke after forwarding? | Revocation authority chain |
+
+**Design rules:**
+
+- A capability converges on the **same PEP** as the account path —
+  redemption presents the token's claims as subject attributes to
+  the PDP; do not build a parallel "link access" side door.
+- Model the invitation as a first-class aggregate (issued →
+  forwarded? → redeemed → expired/revoked) — its lifecycle events
+  ARE the audit trail the bearer's anonymity would otherwise lose.
+- Party archetype: redemption may create a lightweight Party with
+  a role (e.g., `ConferenceBooker`) rather than a full account —
+  the account-linking seam stays open at zero cost.
+- OAuth scopes are NOT this: scopes bound a client app; a
+  capability grants an action to whoever holds it.
 
 ## Step 3: The Policy Architecture (XACML/NIST vocabulary)
 
@@ -95,6 +141,8 @@ language; attribute feeds = PIP contracts).
 | Aggregate-embedded checks | `if (!user.canEdit) throw` inside domain code | Move to PEP; pass identity as command metadata, not domain state |
 | Scattered policy | Same rule re-implemented per endpoint | Single PDP; policies in the PRP, versioned |
 | Scopes-as-permissions | OAuth scopes model fine-grained authz | Scopes bound the CLIENT; user permissions come from the PDP |
+| Capability side door | Link access bypasses the PDP ("it's just a share link") | Redeem token → claims → same PEP/PDP as account traffic |
+| Unbounded bearer token | Invitation grants "the page" forever, to anyone | Scope to a command cluster + expiry + single-use/revocation |
 
 ## Step 5: Record the Decision
 
@@ -115,6 +163,11 @@ five boxes changes?"
 - Pang et al. "Zanzibar: Google's Consistent, Global Authorization
   System" (USENIX ATC 2019) — the ReBAC reference design.
   https://www.usenix.org/conference/atc19/presentation/pang
+- W3C TAG. "Good Practices for Capability URLs" (2014 draft) —
+  capability-link design guidance. https://www.w3.org/TR/capability-urls/
+- Birgisson et al. "Macaroons: Cookies with Contextual Caveats for
+  Decentralized Authorization in the Cloud" (NDSS 2014) —
+  attenuable bearer tokens. [Verify canonical URL]
 - Engines: OPA/Rego https://www.openpolicyagent.org/ · AWS Cedar
   https://www.cedarpolicy.com/ · OpenFGA https://openfga.dev/ ·
   SpiceDB https://authzed.com/

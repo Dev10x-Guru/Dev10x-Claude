@@ -127,6 +127,8 @@ secondary sources only (standards body blocks automated access).
 - NIST SP 800-162. Guide to ABAC (2014). https://csrc.nist.gov/pubs/sp/800/162/upd2/final
 - Ferraiolo & Kuhn. "Role-Based Access Controls" (1992); ANSI INCITS 359 RBAC. [Verify canonical URL]
 - Pang et al. "Zanzibar: Google's Consistent, Global Authorization System" (USENIX ATC 2019). https://www.usenix.org/conference/atc19/presentation/pang — the ReBAC reference design.
+- W3C TAG. "Good Practices for Capability URLs" (2014). https://www.w3.org/TR/capability-urls/ — bearer-link design guidance.
+- Birgisson et al. "Macaroons: Cookies with Contextual Caveats" (NDSS 2014) — attenuable bearer tokens. [Verify canonical URL]
 - Policy engines: OPA https://www.openpolicyagent.org/ · Cedar https://www.cedarpolicy.com/ · OpenFGA https://openfga.dev/ · SpiceDB https://authzed.com/
 - IANA Time Zone Database. https://www.iana.org/time-zones — tz identifiers as VOs.
 - UCUM 2.2. https://ucum.org/ucum — machine-parseable units for Quantity VOs.
