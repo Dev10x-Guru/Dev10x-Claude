@@ -46,9 +46,16 @@ class TestInitNonInteractive:
     def test_creates_session_yaml(self, result: object, project: Path) -> None:
         assert (project / ".claude" / "Dev10x" / "session.yaml").exists()
 
-    def test_session_yaml_defaults_to_guided(self, result: object, project: Path) -> None:
-        content = (project / ".claude" / "Dev10x" / "session.yaml").read_text()
+    def test_creates_config_yaml(self, result: object, project: Path) -> None:
+        assert (project / ".claude" / "Dev10x" / "config.yaml").exists()
+
+    def test_config_yaml_defaults_to_guided(self, result: object, project: Path) -> None:
+        content = (project / ".claude" / "Dev10x" / "config.yaml").read_text()
         assert "friction_level: guided" in content
+
+    def test_session_stub_has_no_durable_keys(self, result: object, project: Path) -> None:
+        content = (project / ".claude" / "Dev10x" / "session.yaml").read_text()
+        assert "friction_level" not in content
 
     def test_creates_work_on_playbook(self, result: object, project: Path) -> None:
         assert (project / ".claude" / "Dev10x" / "playbooks" / "work-on.yaml").exists()
@@ -103,9 +110,9 @@ class TestInitInteractive:
         )
 
         assert result.exit_code == 0
-        session_yaml = (tmp_path / ".claude" / "Dev10x" / "session.yaml").read_text()
-        assert "friction_level: adaptive" in session_yaml
-        assert "solo-maintainer" in session_yaml
+        config_yaml = (tmp_path / ".claude" / "Dev10x" / "config.yaml").read_text()
+        assert "friction_level: adaptive" in config_yaml
+        assert "solo-maintainer" in config_yaml
 
 
 class TestInitMissingPath:
