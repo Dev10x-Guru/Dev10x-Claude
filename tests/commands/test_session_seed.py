@@ -1,4 +1,4 @@
-"""Tests for `dev10x session seed` (GH-705)."""
+"""Tests for `dev10x session seed` (GH-705, GH-774 split)."""
 
 from __future__ import annotations
 
@@ -10,8 +10,12 @@ from click.testing import CliRunner
 from dev10x.commands.session import session
 
 
-def _seed_path(root: Path) -> Path:
+def _session_path(root: Path) -> Path:
     return root / ".claude" / "Dev10x" / "session.yaml"
+
+
+def _config_path(root: Path) -> Path:
+    return root / ".claude" / "Dev10x" / "config.yaml"
 
 
 class TestSeedWhenAbsent:
@@ -22,33 +26,64 @@ class TestSeedWhenAbsent:
     def test_exits_successfully(self, result: object) -> None:
         assert result.exit_code == 0
 
-    def test_creates_session_yaml(self, result: object, tmp_path: Path) -> None:
-        assert _seed_path(tmp_path).exists()
+    def test_creates_config_yaml(self, result: object, tmp_path: Path) -> None:
+        assert _config_path(tmp_path).exists()
 
-    def test_defaults_to_guided(self, result: object, tmp_path: Path) -> None:
-        assert "friction_level: guided" in _seed_path(tmp_path).read_text()
+    def test_creates_session_yaml(self, result: object, tmp_path: Path) -> None:
+        assert _session_path(tmp_path).exists()
+
+    def test_config_defaults_to_guided(self, result: object, tmp_path: Path) -> None:
+        assert "friction_level: guided" in _config_path(tmp_path).read_text()
+
+    def test_session_stub_has_no_durable_keys(self, result: object, tmp_path: Path) -> None:
+        assert "friction_level" not in _session_path(tmp_path).read_text()
 
     def test_reports_seeded(self, result: object) -> None:
         assert "seeded" in result.output
 
 
-class TestSeedIsIdempotent:
-    @pytest.fixture
-    def existing(self, tmp_path: Path) -> Path:
-        target = _seed_path(tmp_path)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text("friction_level: adaptive\nactive_modes: ['solo-maintainer']\n")
-        return target
+class TestSeedMigratesPreSplitSession:
+    """A pre-split session.yaml's durable prefs migrate into config.yaml."""
 
     @pytest.fixture
-    def result(self, existing: Path, tmp_path: Path) -> object:
+    def result(self, tmp_path: Path) -> object:
+        legacy = _session_path(tmp_path)
+        legacy.parent.mkdir(parents=True, exist_ok=True)
+        legacy.write_text("friction_level: adaptive\nactive_modes: ['solo-maintainer']\n")
         return CliRunner().invoke(session, ["seed", "--path", str(tmp_path)])
 
     def test_exits_successfully(self, result: object) -> None:
         assert result.exit_code == 0
 
-    def test_preserves_existing_content(self, result: object, existing: Path) -> None:
-        assert existing.read_text() == (
+    def test_migrates_level_into_config(self, result: object, tmp_path: Path) -> None:
+        assert "friction_level: adaptive" in _config_path(tmp_path).read_text()
+
+    def test_migrates_modes_into_config(self, result: object, tmp_path: Path) -> None:
+        assert "solo-maintainer" in _config_path(tmp_path).read_text()
+
+    def test_preserves_existing_session_yaml(self, result: object, tmp_path: Path) -> None:
+        assert _session_path(tmp_path).read_text() == (
+            "friction_level: adaptive\nactive_modes: ['solo-maintainer']\n"
+        )
+
+
+class TestSeedIsIdempotent:
+    @pytest.fixture
+    def existing_config(self, tmp_path: Path) -> Path:
+        target = _config_path(tmp_path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("friction_level: adaptive\nactive_modes: ['solo-maintainer']\n")
+        return target
+
+    @pytest.fixture
+    def result(self, existing_config: Path, tmp_path: Path) -> object:
+        return CliRunner().invoke(session, ["seed", "--path", str(tmp_path)])
+
+    def test_exits_successfully(self, result: object) -> None:
+        assert result.exit_code == 0
+
+    def test_preserves_existing_config(self, result: object, existing_config: Path) -> None:
+        assert existing_config.read_text() == (
             "friction_level: adaptive\nactive_modes: ['solo-maintainer']\n"
         )
 
@@ -63,5 +98,5 @@ class TestSeedFrictionLevel:
             session, ["seed", "--path", str(tmp_path), "--friction-level", "adaptive"]
         )
 
-    def test_seeds_requested_level(self, result: object, tmp_path: Path) -> None:
-        assert "friction_level: adaptive" in _seed_path(tmp_path).read_text()
+    def test_seeds_requested_level_into_config(self, result: object, tmp_path: Path) -> None:
+        assert "friction_level: adaptive" in _config_path(tmp_path).read_text()

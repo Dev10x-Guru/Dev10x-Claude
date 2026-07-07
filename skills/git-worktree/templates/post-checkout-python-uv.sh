@@ -28,8 +28,15 @@ if [ "$1" = "0000000000000000000000000000000000000000" ]; then
     # git status --porcelain output: 2-char status + space + path
     # sed strips the 3-char prefix, leaving bare repo-relative paths.
     # Gitignored files do NOT appear, so they pass through to copy.
+    #
+    # GH-774: -uall lists untracked files INDIVIDUALLY. Without it git
+    # collapses a fully-untracked directory to a single `?? path/` entry;
+    # for `.claude/Dev10x/` (when a sibling like auto-advance-records.md is
+    # untracked-and-unignored) that collapsed entry becomes an
+    # `--exclude=Dev10x/` pattern in copy_folder and drops the WHOLE dir —
+    # including the durable config.yaml — from the worktree copy.
     DIRTY_LIST=$(mktemp)
-    git -C "$ORIGINAL_REPO" status --porcelain 2>/dev/null | \
+    git -C "$ORIGINAL_REPO" status --porcelain -uall 2>/dev/null | \
         sed 's/^...//' > "$DIRTY_LIST"
 
     # copy_file <path>
@@ -77,7 +84,11 @@ if [ "$1" = "0000000000000000000000000000000000000000" ]; then
     copy_clean ".env"
     copy_clean ".env.supabase"
     copy_clean "development.secrets.env"
-    copy_clean ".claude/" worktrees          # exclude worktrees subdir
+    # GH-774: exclude the ephemeral session.yaml — it carries a stale
+    # branch:/tickets: from the source worktree and must be seeded fresh
+    # (below). The durable Dev10x/config.yaml IS copied (gitignored, so
+    # absent from the dirty list).
+    copy_clean ".claude/" worktrees "Dev10x/session.yaml"
     copy_clean ".idea/"
 
     # Ensure .claude/ exists even if source had nothing to copy
@@ -86,20 +97,22 @@ if [ "$1" = "0000000000000000000000000000000000000000" ]; then
         echo '{}' > .claude/settings.local.json
     fi
 
-    # >>> Dev10x session-seed (GH-705) >>>
-    # session.yaml is gitignored, so `git worktree add` never brings it
-    # across. The .claude/ copy above carries it when the source worktree
-    # has one; seed a default when it does not, so work-on / verify-acc-dod
-    # have a config from the first session in this worktree. Best-effort —
-    # a missing dev10x CLI is non-fatal (work-on Phase 0 seeds later).
-    if [ ! -f .claude/Dev10x/session.yaml ]; then
+    # >>> Dev10x session-seed (GH-705, GH-774) >>>
+    # Provision the split config. The .claude/ copy above brings the durable
+    # config.yaml (friction_level, active_modes) across from the source
+    # worktree but EXCLUDES the ephemeral session.yaml, so seed regenerates a
+    # fresh session.yaml here (and provisions a default config.yaml when the
+    # source had none). Idempotent — seed leaves any present file untouched.
+    # Best-effort: a missing dev10x CLI is non-fatal (work-on Phase 0 seeds
+    # later).
+    if [ ! -f .claude/Dev10x/session.yaml ] || [ ! -f .claude/Dev10x/config.yaml ]; then
         if command -v dev10x >/dev/null 2>&1; then
             dev10x session seed || true
         elif command -v uvx >/dev/null 2>&1; then
             uvx dev10x session seed || true
         fi
     fi
-    # <<< Dev10x session-seed (GH-705) <<<
+    # <<< Dev10x session-seed (GH-705, GH-774) <<<
 
     rm -f "$DIRTY_LIST"
 
