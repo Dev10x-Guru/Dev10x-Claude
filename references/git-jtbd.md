@@ -88,6 +88,8 @@ that goes away. It should contrast with the current broken state.
 | No contrast with current state | Unclear why it matters | Show what's wrong today |
 | Solution-focused "I want to" | "I want to see X on separate lines" names the UI change, not the need | Describe the motivation: "I want to quickly triage incoming notifications" |
 | Solution-focused "I want to" (infra) | "I want to use stable, version-independent paths" names the technical fix, not the need | Describe the user motivation: "I want to run skills without being re-prompted for the same permission on every invocation" |
+| UI-verb motivation ("I want to see/view/manage X") | Describes operating the feature, not the outcome — the actor wants less work, ideally none | Name the end state: "I want X to be obvious at a glance", "I want to be told when…" |
+| Naming the replaced artifact ("instead of the old list/panel") | Contrasts with the previous implementation, not the pain — diff-framing | Contrast with the pain itself; naming prior broken *behavior* is fine, prior *component* is not |
 
 ## Title Writing Principle
 
