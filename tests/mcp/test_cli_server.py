@@ -770,6 +770,76 @@ class TestUpdatePrMcp:
         assert "error" in result
 
 
+class TestPrReviewEditMcp:
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_puts_review_body(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(stdout='{"id": 2, "body": "clean"}')
+
+        result = await cli_server.pr_review_edit(pr_number=1, review_id=2, body="clean")
+
+        assert result["id"] == 2
+        assert result["body"] == "clean"
+        endpoint = mock_api.call_args.args[0]
+        assert endpoint == "repos/owner/repo/pulls/1/reviews/2"
+        assert mock_api.call_args.kwargs["method"] == "PUT"
+        assert mock_api.call_args.kwargs["fields"] == {"body": "clean"}
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_returns_error_on_failure(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(returncode=1, stderr="not found")
+
+        result = await cli_server.pr_review_edit(pr_number=1, review_id=2, body="x")
+
+        assert "error" in result
+
+
+class TestPrReadyMcp:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_marks_ready(
+        self,
+        mock_run: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="")
+
+        result = await cli_server.pr_ready(pr_number=7)
+
+        assert result["pr_number"] == 7
+        assert result["url"].endswith("/pull/7")
+        assert mock_run.call_args.kwargs["args"] == [
+            "gh",
+            "pr",
+            "ready",
+            "7",
+            "--repo",
+            "owner/repo",
+        ]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_returns_error_on_failure(
+        self,
+        mock_run: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(returncode=1, stderr="already ready")
+
+        result = await cli_server.pr_ready(pr_number=7)
+
+        assert "error" in result
+
+
 class TestMergePrMcp:
     @pytest.mark.asyncio
     @patch("dev10x.github.merge_pr", new_callable=AsyncMock)
@@ -1729,6 +1799,12 @@ class TestIssueCreateLabelForwarding:
 
 DECORATED_DELEGATIONS: list[tuple[str, str, dict]] = [
     ("pr_review_comment_edit", "pr_comment_edit", {"comment_id": 1, "body": "x"}),
+    (
+        "pr_review_edit",
+        "pr_review_edit",
+        {"pr_number": 1, "review_id": 2, "body": "x"},
+    ),
+    ("pr_ready", "pr_ready", {"pr_number": 1}),
     ("detect_base_branch", "detect_base_branch", {}),
     ("issue_edit", "issue_edit", {"number": 1}),
     ("issue_comment", "issue_comment", {"number": 1, "body": "x"}),
