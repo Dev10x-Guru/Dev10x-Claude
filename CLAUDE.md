@@ -68,6 +68,18 @@ invoke the skill without approving tool access each time. See
   semantics (`git fetch`, HTTP fetch) or documented exceptions such as
   `fetch_mergeable`.
 
+## Rule Documentation Standards
+
+When documenting new rules in `.claude/rules/*.md`:
+- Expand reviewer checklists with concrete checks before they accumulate as
+  lint suggestions (a new rule invites new edge cases; document them when the
+  rule lands to prevent silent divergence)
+- Document acceptable exceptions explicitly (e.g., when `sys.exit()` is OK in
+  a domain function): future consolidations need clear guidance on what violates
+  the rule vs. what is an documented exception
+- Use numbered lists in checklists (not bullets) to signal mandatory sequential
+  verification steps to reviewers
+
 ### CWD Discipline (GH-979)
 
 Route subprocess/CWD access through `subprocess_utils` (`run`,
