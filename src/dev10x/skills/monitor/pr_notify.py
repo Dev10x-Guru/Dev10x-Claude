@@ -162,6 +162,9 @@ def update_pr_checklist(pr_number: int, repo: str, diff: str) -> None:
 
 
 def get_ci_checks(pr_number: int, repo: str) -> list[dict[str, Any]]:
+    # `gh pr checks --json` no longer accepts `conclusion` (GH-773); the
+    # normalized outcome now lives in `bucket`
+    # (pass/fail/pending/skipping/cancel).
     return gh_json(
         args=[
             "pr",
@@ -170,7 +173,7 @@ def get_ci_checks(pr_number: int, repo: str) -> list[dict[str, Any]]:
             "--repo",
             repo,
             "--json",
-            "name,state,conclusion,startedAt,completedAt",
+            "name,bucket,startedAt,completedAt",
         ]
     )
 
@@ -208,17 +211,18 @@ def format_ci_table(checks: list[dict[str, Any]]) -> str:
     if not checks:
         return "No CI checks found."
     lines = ["| Check | Status | Duration |", "| --- | --- | --- |"]
+    icons = {
+        "pass": "✅",
+        "fail": "❌",
+        "pending": "⏳",
+        "skipping": "⏭️",
+        "cancel": "🚫",
+    }
     for c in checks:
         name = c.get("name", "unknown")
-        state = c.get("state", "")
-        conclusion = c.get("conclusion", "")
-        if state == "COMPLETED":
-            icon = "✅" if conclusion == "SUCCESS" else "❌"
-            status = f"{icon} {conclusion.lower()}"
-        elif state == "IN_PROGRESS":
-            status = "⏳ running"
-        else:
-            status = f"⏸️ {state.lower()}"
+        bucket = c.get("bucket", "")
+        icon = icons.get(bucket, "⏸️")
+        status = f"{icon} {bucket or 'unknown'}"
         started = c.get("startedAt") or ""
         completed = c.get("completedAt") or ""
         if started and completed:
@@ -226,7 +230,7 @@ def format_ci_table(checks: list[dict[str, Any]]) -> str:
             t1 = datetime.fromisoformat(completed)
             secs = int((t1 - t0).total_seconds())
             duration = f"{secs // 60}m {secs % 60}s" if secs >= 60 else f"{secs}s"
-        elif state == "IN_PROGRESS":
+        elif bucket == "pending":
             duration = "..."
         else:
             duration = "-"

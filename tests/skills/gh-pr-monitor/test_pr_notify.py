@@ -142,50 +142,54 @@ class TestFormatCiTable:
         assert format_ci_table(checks=[]) == "No CI checks found."
 
     def test_passing_check_with_duration(self):
+        # GH-773: outcome comes from `bucket`, not the removed `conclusion`.
         checks = [
             {
                 "name": "ruff",
-                "state": "COMPLETED",
-                "conclusion": "SUCCESS",
+                "bucket": "pass",
                 "startedAt": "2026-03-23T10:00:00Z",
                 "completedAt": "2026-03-23T10:00:45Z",
             }
         ]
         result = format_ci_table(checks=checks)
-        assert "| ruff | ✅ success | 45s |" in result
+        assert "| ruff | ✅ pass | 45s |" in result
 
     def test_failing_check(self):
         checks = [
             {
                 "name": "pytest",
-                "state": "COMPLETED",
-                "conclusion": "FAILURE",
+                "bucket": "fail",
                 "startedAt": "2026-03-23T10:00:00Z",
                 "completedAt": "2026-03-23T10:02:30Z",
             }
         ]
         result = format_ci_table(checks=checks)
-        assert "| pytest | ❌ failure | 2m 30s |" in result
+        assert "| pytest | ❌ fail | 2m 30s |" in result
 
-    def test_in_progress_check(self):
+    def test_pending_check(self):
         checks = [
             {
                 "name": "build",
-                "state": "IN_PROGRESS",
-                "conclusion": "",
+                "bucket": "pending",
                 "startedAt": "2026-03-23T10:00:00Z",
                 "completedAt": None,
             }
         ]
         result = format_ci_table(checks=checks)
-        assert "| build | ⏳ running | ... |" in result
+        assert "| build | ⏳ pending | ... |" in result
+
+    def test_unknown_bucket_falls_back(self):
+        # A bucket value the icon map does not cover renders neutrally
+        # rather than crashing (GH-773 robustness).
+        checks = [{"name": "flaky", "bucket": "", "startedAt": None, "completedAt": None}]
+        result = format_ci_table(checks=checks)
+        assert "| flaky | ⏸️ unknown | - |" in result
 
     def test_table_has_header(self):
         checks = [
             {
                 "name": "lint",
-                "state": "COMPLETED",
-                "conclusion": "SUCCESS",
+                "bucket": "pass",
                 "startedAt": None,
                 "completedAt": None,
             }
