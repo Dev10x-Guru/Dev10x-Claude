@@ -101,3 +101,50 @@ def test_review_state_guard(state: str, expected: list[int], tmp_path: Path) -> 
 def test_source_tag_is_applied(tmp_path: Path) -> None:
     selected = _run_filter([FIXTURE[2]], "review", tmp_path)
     assert selected[0]["source"] == "review"
+
+
+class TestReplyDoesNotSelfTrigger:
+    """GH-777: a reply quoting a severity token must not be a finding."""
+
+    def test_re_reply_quoting_token_excluded(self, tmp_path: Path) -> None:
+        row = {
+            "id": 10,
+            "user": {"login": "janusz", "type": "User"},
+            "body": 'Re: Review Summary (review 123) — "CRITICAL: foo was removed" — refuted.',
+        }
+        assert _run_filter([row], "comment", tmp_path) == []
+
+    def test_bot_re_reply_quoting_token_excluded(self, tmp_path: Path) -> None:
+        # Even from a bot login, a Re: reply is a response, not a finding.
+        row = {
+            "id": 11,
+            "user": {"login": "claude", "type": "Bot"},
+            "body": "Re: BLOCKING finding — addressed in fixup abc123.",
+        }
+        assert _run_filter([row], "comment", tmp_path) == []
+
+    def test_blockquoted_token_excluded(self, tmp_path: Path) -> None:
+        row = {
+            "id": 12,
+            "user": {"login": "claude", "type": "Bot"},
+            "body": "Responding below:\n> CRITICAL: null deref\n\nFixed, thanks.",
+        }
+        assert _run_filter([row], "comment", tmp_path) == []
+
+    def test_inline_quoted_token_excluded(self, tmp_path: Path) -> None:
+        row = {
+            "id": 13,
+            "user": {"login": "claude", "type": "Bot"},
+            "body": 'The reviewer said "REQUIRED: rename" but that is done.',
+        }
+        assert _run_filter([row], "comment", tmp_path) == []
+
+    def test_genuine_finding_with_quoted_variable_still_selected(self, tmp_path: Path) -> None:
+        # Token is NOT inside quotes — a real finding is still flagged.
+        row = {
+            "id": 14,
+            "user": {"login": "claude", "type": "Bot"},
+            "body": 'CRITICAL: variable "foo" is undefined',
+        }
+        selected = _run_filter([row], "comment", tmp_path)
+        assert [r["id"] for r in selected] == [14]

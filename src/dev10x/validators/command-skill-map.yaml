@@ -308,6 +308,25 @@ rules:
       The MCP tool provides structured responses and avoids per-call
       Bash permission friction.
 
+  - name: gh-pr-ready
+    matcher: Bash
+    patterns:
+      - gh pr ready
+    except: []
+    hook_block: true
+    compensations:
+      - type: use-tool
+        tool: mcp__plugin_Dev10x_cli__pr_ready
+        guardrails: structured responses, no Bash permission friction
+        description: >
+          If the MCP server is unavailable, run gh pr ready <pr>
+          --repo <owner/repo> directly.
+    reason: >
+      The draft flag is not PATCHable via update_pr, so un-drafting
+      needs gh pr ready. The pr_ready MCP tool (GH-779) wraps it with
+      structured responses and no per-call Bash permission friction —
+      and repos whose CI skips drafts must mark ready before Monitor CI.
+
   - name: gh-issue-edit
     matcher: Bash
     patterns:

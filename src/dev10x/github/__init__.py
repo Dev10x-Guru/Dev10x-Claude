@@ -741,6 +741,51 @@ async def pr_comment_edit(
     )
 
 
+async def pr_review_edit(
+    *,
+    pr_number: int,
+    review_id: int,
+    body: str,
+    repo: str | None = None,
+) -> Result[dict[str, Any]]:
+    """Edit a submitted PR review BODY (GH-778).
+
+    Uses PUT against
+    ``/repos/{owner}/{repo}/pulls/{pr}/reviews/{review_id}`` — the only
+    surface that can rewrite a submitted review's summary text.
+    Distinct from :func:`pr_comment_edit` (inline review-thread
+    comments) and :func:`issue_comment_edit` (top-level issue/PR
+    comments). Use this to clear a stale severity token from a bot
+    review body that still trips the pre-merge gate (Check 1b via
+    :func:`check_top_level_comments`).
+
+    Runs as the bot identity so a review authored by the session's
+    GitHub App can be edited; falls back to engineer credentials when
+    no bot token is configured.
+
+    Args:
+        pr_number: PR number the review belongs to.
+        review_id: Numeric review ID (from the review's API URL).
+        body: New review body text (full replacement, not a delta).
+        repo: Repository (owner/repo). Auto-detected if omitted.
+
+    Returns:
+        On success: ``{"id": int, "body": str, ...}``.
+    """
+    repo_result = await _resolve_repo(repo)
+    if isinstance(repo_result, ErrorResult):
+        return repo_result
+    resolved_repo = repo_result.value
+
+    return await _gh_api(
+        f"repos/{resolved_repo}/pulls/{pr_number}/reviews/{review_id}",
+        method="PUT",
+        fields={"body": body},
+        repo=str(resolved_repo),
+        as_bot=True,
+    )
+
+
 async def pr_issue_comment(
     *,
     pr_number: int,
@@ -1000,6 +1045,45 @@ async def merge_pr(
             "repo": str(repo_ref),
         }
     )
+
+
+async def pr_ready(
+    *,
+    pr_number: int,
+    repo: str | None = None,
+) -> Result[dict[str, Any]]:
+    """Mark a draft PR as ready for review via ``gh pr ready`` (GH-779).
+
+    The ``draft`` flag is not PATCHable through the pulls endpoint, so
+    :func:`update_pr` cannot un-draft a PR — un-drafting needs the
+    dedicated GraphQL mutation that ``gh pr ready`` wraps. Symmetric to
+    :func:`merge_pr`: the subprocess launches from the MCP server, so
+    the PreToolUse hook that blocks raw ``gh pr ready`` Bash calls does
+    not apply. Repos whose CI skips draft PRs must mark ready BEFORE
+    monitoring CI, or the monitor polls a PR that never registers checks.
+
+    Args:
+        pr_number: PR number to mark ready.
+        repo: Repository (owner/repo). Auto-detected if omitted.
+
+    Returns:
+        ok({"pr_number", "url", "repo"}) on success, err(...) otherwise.
+    """
+    repo_result = await _resolve_repo(repo)
+    if isinstance(repo_result, ErrorResult):
+        return err(repo_result.error)
+    repo_ref = repo_result.value
+
+    result = await async_run(
+        args=["gh", "pr", "ready", str(pr_number), "--repo", str(repo_ref)],
+        timeout=30,
+    )
+
+    if result.returncode != 0:
+        return err(result.stderr.strip() or result.stdout.strip())
+
+    url = f"https://github.com/{repo_ref}/pull/{pr_number}"
+    return ok({"pr_number": pr_number, "url": url, "repo": str(repo_ref)})
 
 
 async def milestone_close(

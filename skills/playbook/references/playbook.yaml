@@ -103,7 +103,11 @@ fragments:
       type: detailed
       prompt: >
         Watch CI checks on the draft PR. Fix any failures
-        with fixup commits and push.
+        with fixup commits and push. NOTE (GH-779): if the repo's
+        CI skips draft PRs (no checks ever register on a draft),
+        mark the PR ready BEFORE this step via the `pr_ready` MCP
+        wrapper — otherwise the monitor polls a PR that never
+        produces a verdict.
       skills: [Dev10x:gh-pr-monitor]
     - subject: Apply fixups to review comments
       type: epic
@@ -134,7 +138,8 @@ fragments:
         solo-maintainer:
           subject: Mark PR ready for review
           prompt: >
-            Run `gh pr ready`. No reviewers, no Slack.
+            Mark ready via the `pr_ready` MCP wrapper (GH-779) — not
+            raw `gh pr ready`. No reviewers, no Slack.
       friction:
         adaptive:
           prompt: >
@@ -238,7 +243,8 @@ fragments:
         solo-maintainer:
           subject: Mark PR ready for review
           prompt: >
-            Run `gh pr ready` if still draft. No reviewer
+            Mark ready via the `pr_ready` MCP wrapper (GH-779) if
+            still draft — not raw `gh pr ready`. No reviewer
             assignment, no Slack.
     - subject: Merge PR
       type: detailed
