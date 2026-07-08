@@ -51,6 +51,46 @@ exactly one of these prefixes:
 Do not write anything after the status line.
 ```
 
+## Delivery channel — background vs synchronous (GH-776)
+
+The status line rides on the agent **result**. How that result
+reaches the controller depends on how the agent was dispatched:
+
+| Dispatch | Delivery of the result |
+|----------|------------------------|
+| Synchronous (`run_in_background=false`) | Final text IS the result — the trailing status line is parsed directly. |
+| Named background (`run_in_background=true`, `name=...`) | Plain text is **NOT delivered**. The controller only receives an `idle_notification` with no content. The status line never arrives on its own. |
+
+For named background agents the ONLY working delivery channels are:
+
+1. `SendMessage(to="main", summary="<5 words>", message=<full
+   report ending with the status line>)`.
+2. Write the report to the agent's scratchpad path, then a one-line
+   `SendMessage` confirming the path (fallback for oversized reports).
+
+Therefore every **background** dispatch prompt MUST append the
+delivery instruction in addition to the status template. The single
+importable source is `BACKGROUND_DELIVERY_TEMPLATE` in
+`dev10x.skills.orchestration.subagent_protocol` (sibling of
+`STATUS_PROMPT_TEMPLATE`).
+
+### Escalation ladder for a silent agent
+
+An `idle_notification` with no content means the agent finished
+**without delivering** — not that it is still working. Do not treat
+it as `DONE`. Escalate:
+
+1. **One nudge** — `SendMessage` the agent: "Your plain text is not
+   visible; call SendMessage(to=\"main\", …) with your report."
+2. **File fallback** — instruct it to Write the report to its
+   scratchpad path and send a one-line confirmation.
+3. **`TaskStop`** — if still silent after the file fallback, stop the
+   agent and fall back to main-session execution (treat as `BLOCKED`).
+
+Evidence (session 2026-07-07, PR #772): five research agents
+dispatched with the status template alone delivered zero reports
+spontaneously; recovery required the ladder above.
+
 ## Controller parse pattern
 
 Pseudo-code for the controller side:

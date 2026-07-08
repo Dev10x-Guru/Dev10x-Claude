@@ -10,6 +10,7 @@ from dev10x.skills.orchestration.batch_detection import (
     tickets_share_batch,
 )
 from dev10x.skills.orchestration.subagent_protocol import (
+    BACKGROUND_DELIVERY_TEMPLATE,
     STATUS_PROMPT_TEMPLATE,
     ParsedStatus,
     SubagentStatus,
@@ -18,6 +19,7 @@ from dev10x.skills.orchestration.subagent_protocol import (
 )
 
 __all__ = [
+    "BACKGROUND_DELIVERY_TEMPLATE",
     "BATCH_THRESHOLD",
     "MAX_BATCH_SIZE",
     "OverlapSignal",

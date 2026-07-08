@@ -469,9 +469,27 @@ Agent(subagent_type=source_agent_type,  # see table above
     - BLOCKED: <reason>              — permission wall, MCP unavailable,
                                        auth error
 
-    Do not write anything after the status line.""",
+    Do not write anything after the status line.
+
+    Your plain-text output is NOT delivered to the orchestrator when
+    you run in the background — it only sees an idle notification with
+    no content. Deliver your report by calling
+    SendMessage(to="main", summary="<5 words>", message=<full report
+    ending with your status line>). If it exceeds one message, split
+    into labeled parts. Fallback: Write the report to your scratchpad
+    path and send a one-line SendMessage confirming the path.""",
     run_in_background=true)
 ```
+
+**Delivery is mandatory for background dispatch (GH-776).** Because
+these agents run with `run_in_background=true`, their final text is
+never delivered on its own — the trailing status line rides inside a
+`SendMessage(to="main", …)` payload. An `idle_notification` with no
+content means the agent finished WITHOUT delivering; escalate per the
+ladder in `references/orchestration/subagent-status-protocol.md`
+(§ Delivery channel): one nudge → file fallback → `TaskStop`. The
+canonical instruction text is `BACKGROUND_DELIVERY_TEMPLATE` in
+`dev10x.skills.orchestration.subagent_protocol`.
 
 **Parse the trailing status line** per
 `references/orchestration/subagent-status-protocol.md` (GH-69):
