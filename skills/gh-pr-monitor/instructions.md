@@ -501,6 +501,14 @@ supervisor must re-dispatch after 60s rather than treating this
 as green — GitHub re-registers checks after `gh pr ready`. The
 micro-agent already returns `"empty"` not `"green"` in this case.
 
+**Mark ready BEFORE monitoring in draft-suppressing repos
+(GH-779):** In repos whose CI skips draft PRs entirely (e.g.
+Dev10x-Claude), a draft never registers checks, so monitoring
+polls forever. Un-draft the PR with
+`mcp__plugin_Dev10x_cli__pr_ready` (not raw `gh pr ready`) before
+the first CI poll — the shipping playbook now orders "Mark PR
+ready" ahead of "Monitor CI" for this reason.
+
 **Why not loop in the supervisor's session?** Because each loop
 iteration costs a supervisor turn, and supervisor turns are
 expensive context. Pushing the loop into a haiku sub-process

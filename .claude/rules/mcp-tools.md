@@ -153,6 +153,7 @@ supporting each tool:
 | `create_pr` | `cli` | PR #191 | v0.30.0+ |
 | `update_pr` | `cli` | GH-60 | v0.70.0+ |
 | `merge_pr` | `cli` | GH-232 | v0.73.0+ |
+| `pr_ready` | `cli` | GH-779 | v0.86.0+ |
 | `run_tests` | `cli` | GH-238 | v0.74.0+ |
 | `run_node_tests` | `cli` | GH-703 | v0.80.0+ |
 | `milestone_close` | `cli` | GH-187 | v0.71.0+ |
@@ -286,6 +287,7 @@ the MCP server is unavailable.
 | `gh pr edit` | `mcp__plugin_Dev10x_cli__update_pr` |
 | `gh pr create` | `Dev10x:gh-pr-create` (wraps `create_pr`) |
 | `gh pr merge` | `Dev10x:gh-pr-merge` (wraps `merge_pr`) |
+| `gh pr ready` | `mcp__plugin_Dev10x_cli__pr_ready` |
 
 ### Routed test commands (S12 map)
 

@@ -103,7 +103,9 @@ fragments:
       type: detailed
       prompt: >
         Watch CI checks on the draft PR. Fix any failures
-        with fixup commits and push.
+        with fixup commits and push. NOTE: if the repo's CI
+        skips draft PRs, mark the PR ready (via pr_ready) BEFORE
+        monitoring — a draft never registers checks (GH-779).
       skills: [Dev10x:gh-pr-monitor]
     - subject: Apply fixups to review comments
       type: epic

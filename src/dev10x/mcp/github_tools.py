@@ -625,6 +625,36 @@ async def merge_pr(
 
 
 @github_tool
+async def pr_ready(
+    pr_number: int,
+    repo: str | None = None,
+    cwd: str | None = None,
+) -> Result[dict]:
+    """Mark a draft PR ready for review via ``gh pr ready`` (GH-779).
+
+    Un-drafting is not PATCHable through the pulls endpoint, so
+    ``update_pr`` cannot do it — this wraps ``gh pr ready`` (the
+    ``markPullRequestReadyForReview`` mutation). Runs from the MCP
+    server so the PreToolUse hook that blocks raw ``gh pr ready``
+    Bash calls does not apply.
+
+    Call this BEFORE ``Monitor CI`` in repos whose CI skips draft
+    PRs (Dev10x-Claude) — otherwise the monitor polls a PR that
+    never registers checks.
+
+    Args:
+        pr_number: PR number to mark ready.
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: pr_number (int), url (str),
+        ready (bool).
+    """
+    return await gh.pr_ready(pr_number=pr_number, repo=repo)
+
+
+@github_tool
 async def issue_edit(
     number: int,
     title: str | None = None,

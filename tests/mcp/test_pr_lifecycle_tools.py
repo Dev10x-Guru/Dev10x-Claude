@@ -320,6 +320,41 @@ class TestPrReviewEditContract:
         assert "404" in result.error
 
 
+class TestPrReadyContract:
+    """gh.pr_ready — `gh pr ready` invocation (GH-779)."""
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_runs_gh_pr_ready_with_repo(
+        self,
+        mock_run: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed()
+
+        result = await gh.pr_ready(pr_number=42)
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["ready"] is True
+        called = mock_run.call_args.kwargs["args"]
+        assert called[:3] == ["gh", "pr", "ready"]
+        assert "--repo" in called
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_error_surfaces_as_err(
+        self,
+        mock_run: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(returncode=1, stderr="Pull request is not a draft")
+
+        result = await gh.pr_ready(pr_number=42)
+
+        assert isinstance(result, ErrorResult)
+        assert "draft" in result.error.lower()
+
+
 class TestResolveReviewThreadContract:
     """gh.resolve_review_thread — parameter validation and delegation."""
 

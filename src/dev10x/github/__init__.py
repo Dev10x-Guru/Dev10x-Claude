@@ -1042,6 +1042,48 @@ async def merge_pr(
     )
 
 
+async def pr_ready(
+    *,
+    pr_number: int,
+    repo: str | None = None,
+) -> Result[dict[str, Any]]:
+    """Mark a draft PR ready for review via ``gh pr ready`` (GH-779).
+
+    Un-drafting is not PATCHable through the pulls endpoint, so
+    :func:`update_pr` cannot do it — ``gh pr ready`` wraps the
+    dedicated ``markPullRequestReadyForReview`` GraphQL mutation.
+    Symmetric to :func:`merge_pr`: the subprocess runs from the MCP
+    server (the PreToolUse hook that blocks raw ``gh pr ready`` does
+    not apply) and ``--repo`` is always passed for worktree safety
+    (GH-773).
+
+    In repos whose CI skips draft PRs (Dev10x-Claude), the shipping
+    pipeline must call this BEFORE monitoring CI, or the monitor
+    polls a PR that never registers checks.
+
+    Args:
+        pr_number: PR number to mark ready.
+        repo: Repository (owner/repo). Auto-detected if omitted.
+
+    Returns:
+        ok({"pr_number", "url", "ready": True}) on success.
+    """
+    repo_result = await _resolve_repo(repo)
+    if isinstance(repo_result, ErrorResult):
+        return err(repo_result.error)
+    repo_ref = repo_result.value
+
+    result = await async_run(
+        args=["gh", "pr", "ready", str(pr_number), "--repo", str(repo_ref)],
+        timeout=60,
+    )
+    if result.returncode != 0:
+        return err(result.stderr.strip() or result.stdout.strip())
+
+    url = f"https://github.com/{repo_ref}/pull/{pr_number}"
+    return ok({"pr_number": pr_number, "url": url, "ready": True})
+
+
 async def milestone_close(
     *,
     number: int,

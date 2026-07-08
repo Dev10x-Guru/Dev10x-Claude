@@ -348,6 +348,13 @@ This script:
 4. Updates the body with linked commits (using `generate-commit-list.sh`)
 5. Outputs the PR number
 
+**Draft-suppression trap (GH-779):** Some repos configure CI to
+skip draft PRs entirely (e.g. Dev10x-Claude), so a freshly
+created draft never registers checks. When monitoring such a
+repo, mark the PR ready via `mcp__plugin_Dev10x_cli__pr_ready`
+BEFORE the first CI poll — the shipping playbook orders "Mark PR
+ready" ahead of "Monitor CI" for this reason.
+
 ### Step 6b: Cross-Fork PRs (GH-473)
 
 When contributing to an external repo from your own fork (the head
