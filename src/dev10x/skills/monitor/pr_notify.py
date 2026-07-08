@@ -162,6 +162,8 @@ def update_pr_checklist(pr_number: int, repo: str, diff: str) -> None:
 
 
 def get_ci_checks(pr_number: int, repo: str) -> list[dict[str, Any]]:
+    # `conclusion` was removed from `gh pr checks --json`; `bucket`
+    # (pass/fail/pending/skipping/cancel) is the normalized verdict (GH-773).
     return gh_json(
         args=[
             "pr",
@@ -170,7 +172,7 @@ def get_ci_checks(pr_number: int, repo: str) -> list[dict[str, Any]]:
             "--repo",
             repo,
             "--json",
-            "name,state,conclusion,startedAt,completedAt",
+            "name,state,bucket,startedAt,completedAt",
         ]
     )
 
@@ -204,32 +206,45 @@ def get_reviewers(pr_number: int, repo: str) -> dict[str, Any]:
     )
 
 
+_BUCKET_DISPLAY = {
+    "pass": "✅ pass",
+    "fail": "❌ fail",
+    "pending": "⏳ pending",
+    "skipping": "⏭️ skipping",
+    "cancel": "🚫 cancel",
+}
+
+
+def _is_zero_ts(ts: str) -> bool:
+    # gh emits the Go zero time for not-yet-run checks instead of an empty
+    # string, so a naive truthiness check treats them as real timestamps.
+    return not ts or ts.startswith("0001-01-01")
+
+
+def _format_check_duration(started: str, completed: str, bucket: str) -> str:
+    if _is_zero_ts(started) or _is_zero_ts(completed):
+        return "..." if bucket == "pending" else "-"
+    t0 = datetime.fromisoformat(started)
+    t1 = datetime.fromisoformat(completed)
+    secs = int((t1 - t0).total_seconds())
+    if secs < 0:
+        return "-"
+    return f"{secs // 60}m {secs % 60}s" if secs >= 60 else f"{secs}s"
+
+
 def format_ci_table(checks: list[dict[str, Any]]) -> str:
     if not checks:
         return "No CI checks found."
     lines = ["| Check | Status | Duration |", "| --- | --- | --- |"]
     for c in checks:
         name = c.get("name", "unknown")
-        state = c.get("state", "")
-        conclusion = c.get("conclusion", "")
-        if state == "COMPLETED":
-            icon = "✅" if conclusion == "SUCCESS" else "❌"
-            status = f"{icon} {conclusion.lower()}"
-        elif state == "IN_PROGRESS":
-            status = "⏳ running"
-        else:
-            status = f"⏸️ {state.lower()}"
-        started = c.get("startedAt") or ""
-        completed = c.get("completedAt") or ""
-        if started and completed:
-            t0 = datetime.fromisoformat(started)
-            t1 = datetime.fromisoformat(completed)
-            secs = int((t1 - t0).total_seconds())
-            duration = f"{secs // 60}m {secs % 60}s" if secs >= 60 else f"{secs}s"
-        elif state == "IN_PROGRESS":
-            duration = "..."
-        else:
-            duration = "-"
+        bucket = c.get("bucket", "")
+        status = _BUCKET_DISPLAY.get(bucket, f"⏸️ {bucket or 'unknown'}")
+        duration = _format_check_duration(
+            started=c.get("startedAt") or "",
+            completed=c.get("completedAt") or "",
+            bucket=bucket,
+        )
         lines.append(f"| {name} | {status} | {duration} |")
     return "\n".join(lines)
 
