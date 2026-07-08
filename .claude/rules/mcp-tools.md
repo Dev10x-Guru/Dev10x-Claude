@@ -144,6 +144,8 @@ supporting each tool:
 | `pr_comments` | `cli` | PR #126 | v0.25.0+ |
 | `pr_comment_reply` | `cli` | PR #399 | v0.37.0+ |
 | `pr_review_comment_edit` | `cli` | GH-304 | v0.76.0+ |
+| `pr_review_edit` | `cli` | GH-778 | v0.86.0+ |
+| `pr_ready` | `cli` | GH-779 | v0.86.0+ |
 | `pr_issue_comment` | `cli` | GH-205 | v0.72.0+ |
 | `request_review` | `cli` | PR #126 | v0.25.0+ |
 | `detect_base_branch` | `cli` | PR #191 | v0.30.0+ |
@@ -283,8 +285,15 @@ the MCP server is unavailable.
 | `gh pr view` | `mcp__plugin_Dev10x_cli__pr_get` |
 | `gh api .../milestones POST` | `mcp__plugin_Dev10x_cli__milestone_create` |
 | `gh pr edit` | `mcp__plugin_Dev10x_cli__update_pr` |
+| `gh pr ready` | `mcp__plugin_Dev10x_cli__pr_ready` |
 | `gh pr create` | `Dev10x:gh-pr-create` (wraps `create_pr`) |
 | `gh pr merge` | `Dev10x:gh-pr-merge` (wraps `merge_pr`) |
+
+For a stale severity token in a **review body** (state=COMMENTED)
+that trips gh-pr-merge Check 1b, edit it via
+`mcp__plugin_Dev10x_cli__pr_review_edit` (GH-778) — the review-body
+counterpart to `pr_review_comment_edit` (inline) and
+`issue_comment_edit` (top-level).
 
 ### Routed test commands (S12 map)
 

@@ -309,6 +309,66 @@ async def pr_review_comment_edit(
 
 
 @github_tool
+async def pr_review_edit(
+    pr_number: int,
+    review_id: int,
+    body: str,
+    repo: str | None = None,
+    cwd: str | None = None,
+) -> Result[dict]:
+    """Edit a submitted PR review BODY (GH-778).
+
+    Uses PUT against `/repos/{owner}/{repo}/pulls/{pr}/reviews/{id}` —
+    the only surface that can rewrite a submitted review's summary text.
+    Distinct from `pr_review_comment_edit` (inline review-thread
+    comments) and `issue_comment_edit` (top-level issue/PR comments).
+    Use this to clear a stale severity token (CRITICAL/REQUIRED/BLOCKING)
+    from a bot review body that still trips the pre-merge gate
+    (`check_top_level_comments` / gh-pr-merge Check 1b).
+
+    Args:
+        pr_number: PR number the review belongs to.
+        review_id: Numeric review ID (from the review's API URL).
+        body: New review body text (full replacement, not a delta).
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: id, body, and other review fields.
+    """
+    return await gh.pr_review_edit(
+        pr_number=pr_number,
+        review_id=review_id,
+        body=body,
+        repo=repo,
+    )
+
+
+@github_tool
+async def pr_ready(
+    pr_number: int,
+    repo: str | None = None,
+    cwd: str | None = None,
+) -> Result[dict]:
+    """Mark a draft PR as ready for review (GH-779).
+
+    Wraps `gh pr ready`, the only surface that un-drafts a PR — the
+    `draft` flag is not PATCHable via `update_pr`. Mark ready BEFORE
+    monitoring CI in repos whose CI skips draft PRs, or the monitor
+    polls a PR that never registers checks.
+
+    Args:
+        pr_number: PR number to mark ready.
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: pr_number, url, repo.
+    """
+    return await gh.pr_ready(pr_number=pr_number, repo=repo)
+
+
+@github_tool
 async def minimize_comments(
     node_ids: list[str],
     classifier: str = "OUTDATED",
