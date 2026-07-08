@@ -69,7 +69,7 @@ jobs:
       - name: Run Claude Code Review
         if: steps.dedup.outputs.skip != 'true' && steps.pr-state.outputs.skip != 'true'
         id: claude-review
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@f87768c6d25f92ae6efa7175e223ef77d4cbf97f # v1.0.166
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         with:
@@ -97,23 +97,51 @@ jobs:
             PR metadata (title, body, commits) is checked by claude-pr-hygiene.yml.
             Do NOT provide feedback on those items.
 
-            STEP 3 — DOMAIN-ROUTED REVIEW:
+            STEP 3 — DOMAIN-ROUTED REVIEW (delegate to haiku subagents):
             Run `gh pr diff ${{ github.event.pull_request.number }} --stat` to
-            classify changed files. For EACH affected domain, read the matching
-            agent spec from .claude/agents/ and apply its checklist:
+            classify changed files. For EACH affected domain, dispatch ONE
+            subagent via the Task tool using the registered agent name below
+            (the .claude/agents/ specs carry `model: haiku` frontmatter, so the
+            per-rule review work runs on the cheap tier while you — the
+            orchestrator — only route, deduplicate, verify, and post):
 
-            - Skills (skills/**) → .claude/agents/reviewer-skill.md
-            - Infrastructure (Makefile, **/*.sh, bin/**,
-              .github/workflows/**) → .claude/agents/reviewer-infra.md
-            - Documentation (docs/**/*.md, .claude/**/*.md, CLAUDE.md)
-              → .claude/agents/reviewer-docs.md
+            - Skills (skills/**) → reviewer-skill AND reviewer-skill-behavior
+            - Infrastructure (Makefile, **/*.sh, bin/**, hooks/**,
+              .github/workflows/**) → reviewer-infra
+            - Documentation (docs/**/*.md, .claude/**/*.md, CLAUDE.md,
+              README.md) → reviewer-docs
             - Rules/agents (.claude/rules/**, .claude/agents/**,
-              references/**) → .claude/agents/reviewer-rules-maintenance.md
+              agents/**, references/**) → reviewer-rules-maintenance
             - Python/shell code (**/*.py, **/*.sh, not covered above)
-              → .claude/agents/reviewer-generic.md
+              → reviewer-generic
 
-            Only load agent specs for domains with changed files. Skip irrelevant
-            domains to conserve context.
+            Dispatch all matched subagents in ONE message so they run in
+            parallel. Each subagent prompt MUST include:
+            1. The list of changed files for its domain and the PR number
+               (the agent reads actual files at HEAD; it must not rely on
+               diff snippets alone)
+            2. Its Required Reading rule files (the agent spec lists them)
+            3. This coverage-first instruction, verbatim: "Report every
+               issue you find, including ones you are uncertain about or
+               consider low-severity. Do not filter for importance or
+               confidence — the orchestrator verifies and ranks findings.
+               For each finding include file:line, severity (CRITICAL /
+               WARNING / INFO), confidence, and a one-sentence rationale."
+
+            Only dispatch agents for domains with changed files. When a
+            domain has more than ~15 changed files, split it across two
+            subagents by directory.
+
+            When the subagents return, YOU (the orchestrator) must:
+            1. Deduplicate findings that multiple agents raised on the
+               same file:line
+            2. Check every finding against
+               references/review-checks-common.md and drop false-positive
+               matches (note the dropped count in the summary)
+            3. Filter by confidence and severity — post CRITICAL/WARNING
+               findings; include INFO only when clearly actionable
+            4. Verify surviving findings against actual code (Read the
+               file at the cited line) before posting
 
             STEP 4 — CROSS-CUTTING CHECKS:
             Apply to ALL files regardless of domain:
@@ -156,4 +184,9 @@ jobs:
             If the count is 0 (no inline comments), do NOT convert to draft.
 
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          claude_args: '--model haiku --allowed-tools "Read,Grep,Glob,mcp__github_inline_comment__create_inline_comment,mcp__github__get_pull_request_review_comments,Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr review:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr ready:*),Bash(gh api:*)"'
+          # Cost shape: the sonnet orchestrator handles routing, dedup,
+          # verification, and posting (a small share of tokens); the bulk
+          # per-domain rule review runs on haiku subagents dispatched from
+          # .claude/agents/ frontmatter (the cheap tier). Task is required
+          # for subagent dispatch.
+          claude_args: '--model sonnet --allowed-tools "Task,Read,Grep,Glob,mcp__github_inline_comment__create_inline_comment,mcp__github__get_pull_request_review_comments,Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr review:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr ready:*),Bash(gh api:*)"'
