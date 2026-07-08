@@ -109,6 +109,21 @@ base_permissions:
   - "Read(.claude/Dev10x/**)"
   - "Write(.claude/Dev10x/**)"
   - "Edit(.claude/Dev10x/**)"
+  # GH-790: the ** globs above are unreliable in Claude Code's
+  # permission engine (verbatim path matching — see GH-774,
+  # project_permission_rules_do_not_merge_global_to_project), so
+  # writing session.yaml re-prompted mid-flow (work-on persists
+  # branch/tickets at Phase 0). Enumerate the concrete session-config
+  # files so the write is pre-approved and the supervisor is never
+  # asked to reconcile git-derivable state. config.yaml is the sibling
+  # durable-prefs file from the GH-774 split (friction_level,
+  # active_modes), written when the user changes prefs — same class.
+  - "Read(.claude/Dev10x/session.yaml)"
+  - "Write(.claude/Dev10x/session.yaml)"
+  - "Edit(.claude/Dev10x/session.yaml)"
+  - "Read(.claude/Dev10x/config.yaml)"
+  - "Write(.claude/Dev10x/config.yaml)"
+  - "Edit(.claude/Dev10x/config.yaml)"
   # GH-315: the two Bash(grep:*<path>) rules below were removed.
   # Claude Code rejects :* in a non-trailing position ("The :* pattern
   # must be at the end"). They were also redundant — Bash(grep:*)
