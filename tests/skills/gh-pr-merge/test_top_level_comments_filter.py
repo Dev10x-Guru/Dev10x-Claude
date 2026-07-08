@@ -101,3 +101,63 @@ def test_review_state_guard(state: str, expected: list[int], tmp_path: Path) -> 
 def test_source_tag_is_applied(tmp_path: Path) -> None:
     selected = _run_filter([FIXTURE[2]], "review", tmp_path)
     assert selected[0]["source"] == "review"
+
+
+# GH-777: replies that address a finding must not re-trigger the scanner.
+# The documented reply format begins "Re:" and quotes the finding title;
+# quoted context (blockquotes, inline code) is stripped before the
+# severity scan so a faithful quote is never itself a new blocker.
+
+
+def test_re_reply_quoting_finding_not_flagged(tmp_path: Path) -> None:
+    reply = {
+        "id": 10,
+        "user": {"login": "janusz-10x", "type": "Bot"},
+        "body": (
+            'Re: Review Summary (review 4643768329) — "CRITICAL: ddd override '
+            'was REMOVED" — refuted; the diff only ADDS the entry.'
+        ),
+    }
+    assert _run_filter([reply], "comment", tmp_path) == []
+
+
+def test_blockquoted_token_not_flagged(tmp_path: Path) -> None:
+    quoting = {
+        "id": 11,
+        "user": {"login": "claude", "type": "Bot"},
+        "body": "Addressed the finding:\n> CRITICAL: null deref in handler\nFixed in abc123.",
+    }
+    assert _run_filter([quoting], "comment", tmp_path) == []
+
+
+def test_inline_code_quoted_token_not_flagged(tmp_path: Path) -> None:
+    quoting = {
+        "id": 12,
+        "user": {"login": "claude", "type": "Bot"},
+        "body": "The `CRITICAL` label from the prior review was addressed.",
+    }
+    assert _run_filter([quoting], "comment", tmp_path) == []
+
+
+def test_paraphrased_lowercase_token_not_flagged(tmp_path: Path) -> None:
+    paraphrase = {
+        "id": 13,
+        "user": {"login": "claude", "type": "Bot"},
+        "body": "addressed the critical ddd override note (paraphrased, no token).",
+    }
+    assert _run_filter([paraphrase], "comment", tmp_path) == []
+
+
+def test_finding_plus_re_reply_only_finding_counts(tmp_path: Path) -> None:
+    finding = {
+        "id": 20,
+        "user": {"login": "claude", "type": "Bot"},
+        "body": "CRITICAL: null deref",
+    }
+    reply = {
+        "id": 21,
+        "user": {"login": "janusz-10x", "type": "Bot"},
+        "body": 'Re: "CRITICAL: null deref" — fixed in abc123.',
+    }
+    selected = _run_filter([finding, reply], "comment", tmp_path)
+    assert [row["id"] for row in selected] == [20]
