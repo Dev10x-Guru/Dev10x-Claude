@@ -1,3 +1,13 @@
+---
+name: reviewer-skill-behavior
+description: >
+  Behavioral, orchestration, and config checks for skill definitions
+  (skills/**) — decision gates, task tracking, playbook wiring.
+  Read-only — returns findings, never edits or posts.
+tools: Glob, Grep, Read
+model: haiku
+---
+
 # Skill Reviewer — Behavior & Orchestration
 
 Behavioral, orchestration, and config checks for skill definitions.

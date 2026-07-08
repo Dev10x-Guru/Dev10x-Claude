@@ -1,3 +1,13 @@
+---
+name: reviewer-rules-maintenance
+description: >
+  Review rule files, agent specs, references, and CLAUDE.md for size
+  budget compliance and structural consistency. Read-only — returns
+  findings, never edits or posts.
+tools: Glob, Grep, Read
+model: haiku
+---
+
 # Rules & Agents Maintenance Reviewer
 
 Review changes to rule files, agent specs, and CLAUDE.md for size

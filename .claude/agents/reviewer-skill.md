@@ -1,3 +1,13 @@
+---
+name: reviewer-skill
+description: >
+  Review skill definitions (skills/**) for structure, naming
+  convention, tool declarations, and completeness. Read-only —
+  returns findings, never edits or posts.
+tools: Glob, Grep, Read
+model: haiku
+---
+
 # Skill Reviewer — Structure & Tools
 
 Review skill definitions for structure, naming convention, and
