@@ -458,8 +458,11 @@ Agent(subagent_type=source_agent_type,  # see table above
     - Cross-references found (URLs, ticket IDs)
     Do NOT return full body text — summarize.
 
-    Report your final status as the LAST line of your output,
-    with exactly one of these prefixes:
+    Your plain-text output is NOT visible to the orchestrator
+    (this is a background agent — GH-776). Deliver your summary by
+    calling SendMessage(to="main", summary="<5 words>",
+    message=<the summary above, whose LAST line is your status
+    line, exactly one of these prefixes>):
 
     - DONE                           — fetch complete
     - DONE_WITH_CONCERNS: <text>     — fetched but flagged (e.g.,
@@ -469,11 +472,16 @@ Agent(subagent_type=source_agent_type,  # see table above
     - BLOCKED: <reason>              — permission wall, MCP unavailable,
                                        auth error
 
-    Do not write anything after the status line.""",
+    Fallback: Write the summary to a scratchpad file and send a
+    one-line SendMessage confirming the path. Do not rely on
+    plain stdout — an idle notification with no SendMessage means
+    the fetch was lost.""",
     run_in_background=true)
 ```
 
-**Parse the trailing status line** per
+**Parse the delivered status line** (from each agent's
+`SendMessage` payload — background agents do not return plain
+stdout, GH-776) per
 `references/orchestration/subagent-status-protocol.md` (GH-69):
 
 - `DONE` → mark the source's subtask `completed`, fold the summary

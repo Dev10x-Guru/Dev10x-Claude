@@ -188,6 +188,7 @@ allowed_tools:
   - mcp__plugin_Dev10x_cli__ci_check_status
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-monitor/scripts/ci-check-status.py:*)
   - Bash(sleep:*)
+  - SendMessage                  # deliver the verdict (GH-776)
 disallowed_tools:
   - Edit, Write, NotebookEdit
   - Bash(git:*), Bash(gh pr ready:*), Bash(gh pr edit:*),
@@ -203,8 +204,10 @@ prompt: |
   Loop:
     1. Run: ci-check-status.py --pr {pr_number} --repo {repo}
     2. Parse the JSON. If verdict == "pending" or "empty", sleep 30s.
-    3. If verdict in ["green", "failing", "conflicting"], emit
-       the verdict JSON as the LAST line of output and exit.
+    3. If verdict in ["green", "failing", "conflicting"], deliver
+       the verdict JSON via SendMessage(to="main",
+       summary="ci <verdict>", message=<the single-line JSON>)
+       and exit.
 
   You MUST NOT:
     - Decide what to do about the verdict — that is the supervisor's
@@ -212,10 +215,13 @@ prompt: |
     - Mark the PR ready, edit anything, comment, or push.
     - Invoke any Skill or further Agent.
     - Continue looping past 50 turns. If you reach turn 45 with the
-      verdict still pending, emit
-      {"verdict": "timeout", "polled_turns": <N>} and exit.
+      verdict still pending, deliver
+      {"verdict": "timeout", "polled_turns": <N>} via
+      SendMessage(to="main", ...) and exit.
 
-  Output JSON only on the final line. Anything else is debug.
+  Deliver the JSON ONLY through SendMessage(to="main", ...) — your
+  plain-text output is NOT visible to the supervisor (GH-776). An
+  idle notification with no SendMessage means the verdict was lost.
 ```
 
 #### Micro-agent B: haiku-thread-scan
@@ -468,12 +474,17 @@ Agent(
 )
 ```
 
-Because `run_in_background=True`, the supervisor receives a
-completion notification when the poll ends — there is no need to
-poll the poller. The supervisor can work on Phase 2 (thread scan)
-or other unrelated tasks in the meantime. If the micro-agent
-returns after a single poll with a non-terminal verdict (the
-GH-675 sleep-permission limitation), fall back to
+Because `run_in_background=True`, the supervisor keeps working
+(Phase 2 thread scan or unrelated tasks) while the poll runs.
+**The verdict arrives via the micro-agent's `SendMessage(to="main",
+...)` payload, NOT its plain-text output** — a background agent's
+final stdout is not delivered, so an idle/completion notification
+with no accompanying SendMessage means the verdict was lost, not
+that CI is clean (GH-776). If only an empty idle notification
+arrives, nudge the agent once to call SendMessage, then fall back
+to `ci_check_status(wait=true)`. If the micro-agent returns after a
+single poll with a non-terminal verdict (the GH-675
+sleep-permission limitation), also fall back to
 `ci_check_status(wait=true)`.
 
 ### Interpret verdict

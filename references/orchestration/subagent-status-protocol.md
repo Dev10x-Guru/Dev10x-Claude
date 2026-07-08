@@ -51,6 +51,55 @@ exactly one of these prefixes:
 Do not write anything after the status line.
 ```
 
+## Delivering the status line: background vs foreground (GH-776)
+
+**How the status line reaches the controller depends on how the
+agent was dispatched — the "last line of output" contract above
+holds for foreground agents only.**
+
+- **Foreground `Agent()`** (awaited, no `run_in_background`): the
+  agent's final message IS the tool-result string, so the status
+  line rides on its last line and the controller parses it
+  directly (see Controller parse pattern below).
+
+- **Background / named `Agent(..., run_in_background=true,
+  name=...)`**: the agent's final plain-text message is **NOT**
+  delivered to the orchestrator — the orchestrator only receives a
+  content-less `idle_notification`. Plain stdout is invisible here;
+  an `idle_notification` with no content means the agent finished
+  **without** delivering its report. The only channels that work:
+
+  1. `SendMessage(to="main", summary="<5 words>", message=<full
+     report whose LAST line is the status line>)`.
+  2. Write the report to a scratchpad file and confirm the path
+     via a one-line `SendMessage`.
+
+  So a background-agent prompt MUST end with an explicit delivery
+  instruction, not merely "end with a status line". Append:
+
+  ```
+  Your plain-text output is NOT visible to the orchestrator.
+  Deliver your report by calling SendMessage(to="main",
+  summary="<5 words>", message=<full report whose LAST line is
+  your status line: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT /
+  BLOCKED>). If the report exceeds one message, split it into
+  labeled parts. Fallback: Write the report to <scratchpad path>
+  and send a one-line confirmation of the path.
+  ```
+
+**Escalation ladder for a silent background agent (GH-776):**
+
+1. One nudge — `SendMessage(to=<agent>, "Your plain text is not
+   visible; call SendMessage(to=\"main\", ...) with your report.")`.
+2. File fallback — tell the agent to Write the report to a
+   scratchpad path and confirm the path in a one-line SendMessage.
+3. `TaskStop` — if it still emits only idle notifications, stop it
+   and treat the missing report as `NEEDS_CONTEXT`.
+
+The same evidence (session 2026-07-07, PR #772) showed
+`shutdown_request` ignored by 4 of 7 agents — do not rely on a
+cooperative shutdown; `TaskStop` is the backstop.
+
 ## Controller parse pattern
 
 Pseudo-code for the controller side:
@@ -77,6 +126,11 @@ else:
         "re-dispatch to complete remaining lifecycle"
     )
 ```
+
+For a background / named agent, `result` above is the text the
+agent delivered via `SendMessage(to="main", ...)` (or the
+confirmed scratchpad file) — never raw stdout, which the
+orchestrator does not receive (see § Delivering the status line).
 
 **Missing status line handling (GH-368 F2, GH-385 F1):** When
 a swarm agent hits a context limit, permission wall, or turn
