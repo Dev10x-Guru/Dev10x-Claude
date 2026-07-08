@@ -138,6 +138,8 @@ class TestMdToSlackBold:
 
 
 class TestFormatCiTable:
+    """`gh pr checks --json` exposes `bucket`, not `conclusion` (GH-773)."""
+
     def test_empty_checks(self):
         assert format_ci_table(checks=[]) == "No CI checks found."
 
@@ -145,47 +147,76 @@ class TestFormatCiTable:
         checks = [
             {
                 "name": "ruff",
-                "state": "COMPLETED",
-                "conclusion": "SUCCESS",
+                "bucket": "pass",
                 "startedAt": "2026-03-23T10:00:00Z",
                 "completedAt": "2026-03-23T10:00:45Z",
             }
         ]
         result = format_ci_table(checks=checks)
-        assert "| ruff | ✅ success | 45s |" in result
+        assert "| ruff | ✅ pass | 45s |" in result
 
     def test_failing_check(self):
         checks = [
             {
                 "name": "pytest",
-                "state": "COMPLETED",
-                "conclusion": "FAILURE",
+                "bucket": "fail",
                 "startedAt": "2026-03-23T10:00:00Z",
                 "completedAt": "2026-03-23T10:02:30Z",
             }
         ]
         result = format_ci_table(checks=checks)
-        assert "| pytest | ❌ failure | 2m 30s |" in result
+        assert "| pytest | ❌ fail | 2m 30s |" in result
 
-    def test_in_progress_check(self):
+    def test_pending_check(self):
         checks = [
             {
                 "name": "build",
-                "state": "IN_PROGRESS",
-                "conclusion": "",
+                "bucket": "pending",
                 "startedAt": "2026-03-23T10:00:00Z",
                 "completedAt": None,
             }
         ]
         result = format_ci_table(checks=checks)
-        assert "| build | ⏳ running | ... |" in result
+        assert "| build | ⏳ pending | ... |" in result
+
+    def test_pending_check_with_zero_completed_timestamp(self):
+        # gh emits the Go zero time for a not-yet-finished check.
+        checks = [
+            {
+                "name": "build",
+                "bucket": "pending",
+                "startedAt": "2026-03-23T10:00:00Z",
+                "completedAt": "0001-01-01T00:00:00Z",
+            }
+        ]
+        result = format_ci_table(checks=checks)
+        assert "| build | ⏳ pending | ... |" in result
+
+    def test_skipping_check(self):
+        checks = [{"name": "deploy", "bucket": "skipping"}]
+        result = format_ci_table(checks=checks)
+        assert "| deploy | ⏭️ skipping | - |" in result
+
+    def test_cancel_check(self):
+        checks = [{"name": "e2e", "bucket": "cancel"}]
+        result = format_ci_table(checks=checks)
+        assert "| e2e | 🚫 cancel | - |" in result
+
+    def test_unknown_bucket_falls_back(self):
+        checks = [{"name": "mystery", "bucket": "weird"}]
+        result = format_ci_table(checks=checks)
+        assert "| mystery | ⏸️ weird | - |" in result
+
+    def test_missing_bucket_falls_back_to_unknown(self):
+        checks = [{"name": "nameless"}]
+        result = format_ci_table(checks=checks)
+        assert "| nameless | ⏸️ unknown | - |" in result
 
     def test_table_has_header(self):
         checks = [
             {
                 "name": "lint",
-                "state": "COMPLETED",
-                "conclusion": "SUCCESS",
+                "bucket": "pass",
                 "startedAt": None,
                 "completedAt": None,
             }
