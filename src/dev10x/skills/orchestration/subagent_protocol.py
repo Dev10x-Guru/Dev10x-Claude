@@ -25,6 +25,26 @@ exactly one of these prefixes:
 
 Do not write anything after the status line."""
 
+# A named background agent's plain-text output is NOT delivered to the
+# orchestrator — only an idle notification with no content arrives
+# (GH-776). Background dispatches MUST append this so the status line
+# actually reaches the controller.
+BACKGROUND_DELIVERY_TEMPLATE = """\
+Your plain-text output is NOT delivered to the orchestrator when you
+run as a named background agent — the orchestrator only receives an
+idle notification with no content. Deliver your report explicitly:
+
+- Call SendMessage(to="main", summary="<5 words>", message=<full
+  report ending with your status line>).
+- If the report exceeds one message, split it into labeled parts and
+  send them in order.
+- Fallback: Write the report to the scratchpad path you were given,
+  then send a one-line SendMessage confirming the path.
+
+The status line (DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED)
+must be the LAST line of the SendMessage payload — bare stdout is
+never read."""
+
 
 class SubagentStatus(StrEnum):
     DONE = "DONE"

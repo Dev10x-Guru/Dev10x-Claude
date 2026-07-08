@@ -188,6 +188,7 @@ allowed_tools:
   - mcp__plugin_Dev10x_cli__ci_check_status
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-monitor/scripts/ci-check-status.py:*)
   - Bash(sleep:*)
+  - SendMessage                # deliver the verdict (GH-776)
 disallowed_tools:
   - Edit, Write, NotebookEdit
   - Bash(git:*), Bash(gh pr ready:*), Bash(gh pr edit:*),
@@ -203,8 +204,12 @@ prompt: |
   Loop:
     1. Run: ci-check-status.py --pr {pr_number} --repo {repo}
     2. Parse the JSON. If verdict == "pending" or "empty", sleep 30s.
-    3. If verdict in ["green", "failing", "conflicting"], emit
-       the verdict JSON as the LAST line of output and exit.
+    3. If verdict in ["green", "failing", "conflicting"], deliver
+       the verdict JSON and exit. Because you run in the background,
+       plain stdout is NOT read — you MUST call
+       SendMessage(to="main", summary="ci <verdict>",
+       message=<the verdict JSON>) to deliver it. The JSON must be
+       the LAST line of the SendMessage payload (GH-776).
 
   You MUST NOT:
     - Decide what to do about the verdict — that is the supervisor's
@@ -212,10 +217,12 @@ prompt: |
     - Mark the PR ready, edit anything, comment, or push.
     - Invoke any Skill or further Agent.
     - Continue looping past 50 turns. If you reach turn 45 with the
-      verdict still pending, emit
-      {"verdict": "timeout", "polled_turns": <N>} and exit.
+      verdict still pending, SendMessage
+      {"verdict": "timeout", "polled_turns": <N>} to main and exit.
 
-  Output JSON only on the final line. Anything else is debug.
+  Deliver the verdict JSON via SendMessage(to="main", …) — it must be
+  the LAST line of that payload. Do NOT rely on bare stdout; a
+  background agent's stdout never reaches the supervisor (GH-776).
 ```
 
 #### Micro-agent B: haiku-thread-scan
@@ -469,11 +476,15 @@ Agent(
 ```
 
 Because `run_in_background=True`, the supervisor receives a
-completion notification when the poll ends — there is no need to
-poll the poller. The supervisor can work on Phase 2 (thread scan)
-or other unrelated tasks in the meantime. If the micro-agent
-returns after a single poll with a non-terminal verdict (the
-GH-675 sleep-permission limitation), fall back to
+completion notification when the poll ends — but that notification
+carries NO content, so the micro-agent must deliver the verdict JSON
+via `SendMessage(to="main", …)` (GH-776); bare stdout is never read.
+A completion notification with no `SendMessage` means the poll
+finished WITHOUT delivering — nudge it once, then fall back to
+`ci_check_status(wait=true)`. The supervisor can work on Phase 2
+(thread scan) or other unrelated tasks in the meantime. If the
+micro-agent returns after a single poll with a non-terminal verdict
+(the GH-675 sleep-permission limitation), fall back to
 `ci_check_status(wait=true)`.
 
 ### Interpret verdict

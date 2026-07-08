@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from dev10x.skills.orchestration.subagent_protocol import (
+    BACKGROUND_DELIVERY_TEMPLATE,
     STATUS_PROMPT_TEMPLATE,
     ParsedStatus,
     SubagentStatus,
@@ -108,6 +109,21 @@ class TestStatusPromptTemplate:
     )
     def test_template_documents_every_status(self, marker: str):
         assert marker in STATUS_PROMPT_TEMPLATE
+
+
+class TestBackgroundDeliveryTemplate:
+    @pytest.mark.parametrize(
+        "marker",
+        ['SendMessage(to="main"', "idle notification", "LAST line", "Fallback"],
+    )
+    def test_template_documents_explicit_delivery(self, marker: str):
+        # GH-776: named background agents must deliver via SendMessage,
+        # not bare stdout.
+        assert marker in BACKGROUND_DELIVERY_TEMPLATE
+
+    def test_status_line_prefixes_present(self):
+        for prefix in ("DONE", "NEEDS_CONTEXT", "BLOCKED"):
+            assert prefix in BACKGROUND_DELIVERY_TEMPLATE
 
 
 class TestParseSubagentStatusEdgeCases:
