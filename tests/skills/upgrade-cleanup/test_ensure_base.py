@@ -588,3 +588,62 @@ class TestPrivilegeEscalationDenies:
         deny = json.loads(settings.read_text())["permissions"]["deny"]
         assert "Bash(sudo -n *)" in deny
         assert "Bash(sudo:*)" in deny
+
+
+class TestSessionConfigExactPathAllows:
+    """GH-790: session-config writes are pre-approved with exact paths.
+
+    The ``.claude/Dev10x/**`` globs are unreliable in Claude Code's
+    verbatim path matcher (GH-774), so writing ``session.yaml`` /
+    ``config.yaml`` re-prompted mid-flow. The shipped ``base_permissions``
+    must enumerate the concrete files alongside the globs so ``ensure-base``
+    pre-approves the write and the supervisor is never asked to reconcile
+    git-derivable state.
+    """
+
+    SESSION_CONFIG_ALLOWS = [
+        "Read(.claude/Dev10x/session.yaml)",
+        "Write(.claude/Dev10x/session.yaml)",
+        "Edit(.claude/Dev10x/session.yaml)",
+        "Read(.claude/Dev10x/config.yaml)",
+        "Write(.claude/Dev10x/config.yaml)",
+        "Edit(.claude/Dev10x/config.yaml)",
+    ]
+
+    @pytest.fixture()
+    def shipped_base_permissions(self) -> list[str]:
+        projects_yaml = (
+            Path(__file__).resolve().parents[3] / "skills" / "upgrade-cleanup" / "projects.yaml"
+        )
+        config = yaml.safe_load(projects_yaml.read_text())
+        return config.get("base_permissions", [])
+
+    @pytest.mark.parametrize("rule", SESSION_CONFIG_ALLOWS)
+    def test_catalog_ships_session_config_exact_path(
+        self,
+        rule: str,
+        shipped_base_permissions: list[str],
+    ) -> None:
+        assert rule in shipped_base_permissions
+
+    def test_glob_forms_retained_alongside_exact_paths(
+        self,
+        shipped_base_permissions: list[str],
+    ) -> None:
+        """The exact paths supplement — never replace — the ** globs."""
+        assert "Write(.claude/Dev10x/**)" in shipped_base_permissions
+
+    def test_ensure_base_propagates_session_write_allow(
+        self,
+        tmp_path: Path,
+        shipped_base_permissions: list[str],
+    ) -> None:
+        """GH-790: a fresh settings file gains the pre-approved session write."""
+        settings = tmp_path / "settings.local.json"
+        settings.write_text(json.dumps({"permissions": {"allow": [], "deny": []}}))
+
+        update_paths.ensure_base_permissions(settings, shipped_base_permissions)
+
+        allow = json.loads(settings.read_text())["permissions"]["allow"]
+        assert "Write(.claude/Dev10x/session.yaml)" in allow
+        assert "Write(.claude/Dev10x/config.yaml)" in allow
