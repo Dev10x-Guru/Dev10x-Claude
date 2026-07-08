@@ -795,6 +795,16 @@ account type, a known review-bot login, or an embedded HTML marker
 (GH-743 F2), so a third-party reviewer posting under a generic CI
 account no longer slips past the "clean" check.
 
+**Clearing a stale review-body token (GH-778):** When a submitted
+review's SUMMARY body carries a severity token (CRITICAL / REQUIRED
+/ BLOCKING) that is already addressed or factually wrong, a `Re:`
+reply stops it re-triggering the scanner (GH-777) — and the review
+body itself can be corrected in place via
+`mcp__plugin_Dev10x_cli__pr_review_edit(pr_number=…, review_id=…,
+body=…)`. This is the review-body counterpart to
+`pr_review_comment_edit` (inline threads) and `issue_comment_edit`
+(top-level comments).
+
 **Fallback** (only when the MCP server is unavailable):
 ```bash
 gh api --method POST \

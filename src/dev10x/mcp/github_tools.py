@@ -309,6 +309,42 @@ async def pr_review_comment_edit(
 
 
 @github_tool
+async def pr_review_edit(
+    pr_number: int,
+    review_id: int,
+    body: str,
+    repo: str | None = None,
+    cwd: str | None = None,
+) -> Result[dict]:
+    """Edit a PR review's BODY via PUT (GH-778).
+
+    Targets `/repos/{owner}/{repo}/pulls/{pr_number}/reviews/{review_id}`.
+    Distinct from `pr_review_comment_edit` (inline review-thread
+    comments) and `issue_comment_edit` (top-level issue/PR comments):
+    this edits the review SUMMARY body — the only surface a stale
+    automated-review severity token (CRITICAL/REQUIRED/BLOCKING) can
+    sit on with no other edit wrapper to clear it, which otherwise
+    re-blocks `Dev10x:gh-pr-merge` Check 1b.
+
+    Args:
+        pr_number: PR number the review belongs to.
+        review_id: Numeric review id (from the review payload / URL).
+        body: New review body text (full replacement, not a delta).
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: id, body, html_url.
+    """
+    return await gh.pr_review_edit(
+        pr_number=pr_number,
+        review_id=review_id,
+        body=body,
+        repo=repo,
+    )
+
+
+@github_tool
 async def minimize_comments(
     node_ids: list[str],
     classifier: str = "OUTDATED",

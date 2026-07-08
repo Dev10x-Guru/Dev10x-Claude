@@ -741,6 +741,46 @@ async def pr_comment_edit(
     )
 
 
+async def pr_review_edit(
+    *,
+    pr_number: int,
+    review_id: int,
+    body: str,
+    repo: str | None = None,
+) -> Result[dict[str, Any]]:
+    """Edit a PR review's BODY (GH-778).
+
+    Uses PUT against
+    ``/repos/{owner}/{repo}/pulls/{pr_number}/reviews/{review_id}``.
+    Distinct from :func:`pr_comment_edit` (inline review-thread
+    comments) and :func:`issue_comment_edit` (top-level issue / PR
+    comments) — this targets the review SUMMARY body, the only
+    surface that can carry a stale severity token no other edit
+    wrapper can clear (``check_top_level_comments`` Check 1b).
+
+    Args:
+        pr_number: PR number the review belongs to.
+        review_id: Numeric review id (from the review payload / URL).
+        body: New review body text (full replacement, not a delta).
+        repo: Repository (owner/repo). Auto-detected if omitted.
+
+    Returns:
+        On success: ``{"id": int, "body": str, "html_url": str, ...}``.
+    """
+    repo_result = await _resolve_repo(repo)
+    if isinstance(repo_result, ErrorResult):
+        return repo_result
+    resolved_repo = repo_result.value
+
+    return await _gh_api(
+        f"repos/{resolved_repo}/pulls/{pr_number}/reviews/{review_id}",
+        method="PUT",
+        fields={"body": body},
+        repo=str(resolved_repo),
+        as_bot=True,
+    )
+
+
 async def pr_issue_comment(
     *,
     pr_number: int,

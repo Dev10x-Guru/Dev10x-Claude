@@ -26,7 +26,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from dev10x.domain.common.repository_ref import RepositoryRef
-from dev10x.domain.common.result import ErrorResult, SuccessResult, ok
+from dev10x.domain.common.result import ErrorResult, SuccessResult, err, ok
 
 gh = pytest.importorskip("dev10x.github", reason="dev10x not installed")
 
@@ -284,6 +284,40 @@ class TestMergePrContract:
             result = await gh.merge_pr(pr_number=1, strategy=strategy)
             assert isinstance(result, ErrorResult)
             assert "Invalid merge strategy" in result.error
+
+
+class TestPrReviewEditContract:
+    """gh.pr_review_edit — PUT to the review endpoint (GH-778)."""
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api", new_callable=AsyncMock)
+    async def test_puts_to_review_endpoint(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = ok({"id": 5, "body": "clean", "html_url": "u"})
+
+        result = await gh.pr_review_edit(pr_number=42, review_id=5, body="clean")
+
+        assert isinstance(result, SuccessResult)
+        assert mock_api.call_args.args[0] == "repos/owner/repo/pulls/42/reviews/5"
+        assert mock_api.call_args.kwargs["method"] == "PUT"
+        assert mock_api.call_args.kwargs["fields"] == {"body": "clean"}
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api", new_callable=AsyncMock)
+    async def test_error_surfaces_as_err(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = err("404 Not Found")
+
+        result = await gh.pr_review_edit(pr_number=1, review_id=9, body="x")
+
+        assert isinstance(result, ErrorResult)
+        assert "404" in result.error
 
 
 class TestResolveReviewThreadContract:

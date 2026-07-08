@@ -157,6 +157,16 @@ comment in the thread references the automated comment's ID
 or quotes its content. If no reply exists, the finding is
 unaddressed.
 
+**Clearing a stale review-body token (GH-778):** When a finding
+sits in a submitted review's SUMMARY body and is already addressed
+or factually wrong, edit the body in place with
+`mcp__plugin_Dev10x_cli__pr_review_edit(pr_number=NUMBER,
+review_id=REVIEW_ID, body=…)` to drop the token — the review body
+is the one surface `issue_comment_edit` / `pr_review_comment_edit`
+cannot reach. Prefer a `Re:` reply to record the rationale; edit
+the body only when the token itself must be removed to clear the
+gate.
+
 ### Check 1c: No unaddressed inline review comments (GH-760)
 
 Inline review comments posted via `pulls/{n}/comments` are
