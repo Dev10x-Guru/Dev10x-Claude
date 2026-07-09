@@ -89,6 +89,23 @@ Parse the YAML and extract three sections:
 - `insights:` — a list of lessons / decisions the prior
   session carried forward. Surface each item verbatim.
 
+**Staleness classification (GH-782).** `Dev10x:session-wrap-up`
+stamps the payload with `branch:`, `tickets:`, and `wrapped_at:`.
+Classify the carried `continuation_prompt:` / `tasks:` /
+`insights:` before presenting them, using the same rule as the
+`session_stale` predicate the `session_adoption` gate applies:
+
+- **Live** — the recorded `branch:` equals the current branch,
+  OR a recorded ticket overlaps the resuming session's tickets.
+- **Stale** — neither holds (identity mismatch), or `wrapped_at`
+  is absent / clearly old.
+
+Present live entries as actionable. Present stale entries under a
+separate **Stale carryover (verify before resuming)** heading so
+months-old, already-shipped items are surfaced for pruning rather
+than re-offered as current work. Do not delete them — flagging is
+enough; the user (or a later `Dev10x:park` write) decides.
+
 ### 2. Read legacy `.claude/TODO.md` (back-compat)
 
 For repos that still carry items in the pre-GH-85 TODO file:
@@ -202,6 +219,11 @@ than any single TODO line.
 
 - <insight 1 verbatim>
 - <insight 2 verbatim>
+
+### Stale carryover (verify before resuming)
+
+- [<status>] <subject> — recorded on `<branch>` / `<tickets>`,
+  wrapped `<wrapped_at>` (identity ≠ current session)
 
 ### PR Session Bookmarks
 

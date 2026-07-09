@@ -24,7 +24,7 @@
     {
       "id": "state-persistence",
       "name": "Session State Persistence",
-      "description": "Phase 3b writes pending tasks, continuation prompt, and insights to .claude/Dev10x/session.yaml without overwriting friction_level or active_modes"
+      "description": "Phase 3b writes pending tasks, continuation prompt, insights, and a freshness stamp (branch/tickets/wrapped_at) to .claude/Dev10x/session.yaml; never writes durable keys (friction_level/active_modes) — those live in config.yaml post-GH-774 (GH-782)"
     },
     {
       "id": "task-list-invariant",
@@ -176,12 +176,12 @@
     },
     {
       "id": "state-persistence",
-      "name": "Phase 3b writes session.yaml without overwriting config",
-      "description": "After triage, skill persists tasks+continuation_prompt+insights to session.yaml and preserves existing friction_level.",
+      "name": "Phase 3b writes ephemeral state + freshness stamp, no durable keys",
+      "description": "After triage, skill persists tasks+continuation_prompt+insights plus a freshness stamp (branch/tickets/wrapped_at) to session.yaml, and does NOT write durable keys (friction_level/active_modes) — those live in config.yaml (GH-774/GH-782).",
       "input": "/Dev10x:session-wrap-up",
       "setup": {
-        "existing_session_yaml": "friction_level: adaptive\nactive_modes: []\n",
-        "note": "session.yaml already contains friction_level setting"
+        "existing_config_yaml": "friction_level: adaptive\nactive_modes: []\n",
+        "note": "Durable prefs live in config.yaml; session.yaml holds only ephemeral state"
       },
       "assertions": [
         {
@@ -203,9 +203,15 @@
         },
         {
           "dimension": "state-persistence",
+          "check": "output_contains",
+          "value": "wrapped_at",
+          "signal": "Written content includes the wrapped_at freshness stamp (GH-782) alongside branch/tickets identity"
+        },
+        {
+          "dimension": "state-persistence",
           "check": "behavioral",
-          "value": "preserves-friction-level",
-          "signal": "friction_level from existing session.yaml is preserved — not overwritten with default"
+          "value": "no-durable-keys",
+          "signal": "friction_level and active_modes are NOT written into session.yaml — durable keys stay in config.yaml (GH-774)"
         }
       ]
     },

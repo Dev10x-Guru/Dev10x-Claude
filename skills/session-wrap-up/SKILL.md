@@ -189,7 +189,7 @@ The `🔖 **Session bookmark**` prefix on the first line is required —
 `Dev10x:park-discover` scans for this exact pattern when checking open
 PRs for deferred work.
 
-## Phase 3b: Session State Persistence (GH-917)
+## Phase 3b: Session State Persistence (GH-917, GH-782)
 
 **After triage, before summary**, persist session state to
 `.claude/Dev10x/session.yaml` so a future session can resume
@@ -219,9 +219,34 @@ where this one left off.
    are not captured in code or commits. Store as
    `insights:` list.
 
-**Read-before-write:** Preserve existing `friction_level`
-and `active_modes` when updating session.yaml — only add
-the new fields, never overwrite existing config.
+4. **Freshness stamp (GH-782)** — stamp the persisted payload
+   with the session identity and a wrap timestamp so a later
+   session can tell live deferrals from stale carryover:
+   ```yaml
+   branch: <current git branch>
+   tickets: ["GH-782"]   # ticket IDs this session worked
+   wrapped_at: 2026-07-09T10:30:00Z   # ISO8601 UTC
+   ```
+   `Dev10x:park-discover` reads these keys to classify each
+   carried entry as **live** (branch matches, or a ticket
+   overlaps the resuming session) or **stale** (identity
+   mismatch, or an old `wrapped_at`) — see that skill's
+   *Staleness classification*. Without the stamp a months-old
+   `tasks:` list / `continuation_prompt:` is silently
+   re-surfaced as if current — the GH-782 root cause.
+
+**Ephemeral-only, no durable keys (GH-774).** Durable
+preferences — `friction_level`, `active_modes`, and the
+`gate_*` keys — now live in the sibling **`config.yaml`**, not
+`session.yaml`. This skill persists **only** ephemeral state:
+do NOT write `friction_level` or `active_modes` into
+`session.yaml`. A leftover `active_modes: [solo-maintainer]`
+carried in session state was the PR #740 auto-merge hazard;
+keeping durable keys out of the file this skill rewrites
+removes that class of stale-mode bug. Read the existing
+`session.yaml` first and preserve any identity keys (`branch`,
+`tickets`) it already holds — merge the new fields, never fold
+durable keys back in.
 
 **Integration with `/clear`:** After writing session.yaml,
 inform the user: "Session state saved. To resume after
