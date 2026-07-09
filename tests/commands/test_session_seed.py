@@ -18,6 +18,36 @@ def _config_path(root: Path) -> Path:
     return root / ".claude" / "Dev10x" / "config.yaml"
 
 
+def _gitignore_path(root: Path) -> Path:
+    return root / ".claude" / "Dev10x" / ".gitignore"
+
+
+class TestSeedGitignore:
+    """GH-809: seed a self-ignoring .claude/Dev10x/.gitignore ("*")."""
+
+    def test_creates_gitignore_with_star(self, tmp_path: Path) -> None:
+        CliRunner().invoke(session, ["seed", "--path", str(tmp_path)])
+        assert _gitignore_path(tmp_path).read_text() == "*\n"
+
+    def test_created_independently_of_existing_config(self, tmp_path: Path) -> None:
+        config = _config_path(tmp_path)
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text("friction_level: adaptive\n")
+        CliRunner().invoke(session, ["seed", "--path", str(tmp_path)])
+        assert _gitignore_path(tmp_path).exists()
+
+    def test_idempotent_preserves_existing_gitignore(self, tmp_path: Path) -> None:
+        existing = _gitignore_path(tmp_path)
+        existing.parent.mkdir(parents=True, exist_ok=True)
+        existing.write_text("# custom\nsession.yaml\n")
+        CliRunner().invoke(session, ["seed", "--path", str(tmp_path)])
+        assert existing.read_text() == "# custom\nsession.yaml\n"
+
+    def test_reports_seeded_gitignore(self, tmp_path: Path) -> None:
+        result = CliRunner().invoke(session, ["seed", "--path", str(tmp_path)])
+        assert ".gitignore" in result.output
+
+
 class TestSeedWhenAbsent:
     @pytest.fixture
     def result(self, tmp_path: Path) -> object:
