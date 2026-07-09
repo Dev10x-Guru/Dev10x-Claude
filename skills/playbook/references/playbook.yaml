@@ -527,12 +527,21 @@ defaults:
           the work as done locally.
       - fragment: shipping-pipeline
         condition: if-pr-decided
+      # The shipping-pipeline fragment already ends with its own
+      # "Verify acceptance criteria" step, which serves as the
+      # terminal gate on the PR path. This play-level verify runs
+      # ONLY on the no-PR path (fragment skipped) so exactly one
+      # Verify-AC task is ever instantiated (GH-781). Without the
+      # if-no-pr condition, choosing "create PR" produced two
+      # adjacent Verify-AC tasks.
       - subject: Verify acceptance criteria
         type: detailed
+        condition: if-no-pr
         prompt: >
-          Confirm work is complete per the acceptance criteria
-          for the chosen outcome. If no PR was created, verify
-          locally that all expected deliverables are done.
+          Terminal gate for the local (no-PR) outcome only — the
+          if-pr-decided path is already terminated by the shipping
+          fragment's own Verify-AC step. Verify locally that all
+          expected deliverables are done.
 
   investigation:
     prompt: >
