@@ -1863,7 +1863,22 @@ async def check_top_level_comments(
         findings = json.loads(result.stdout)
     except json.JSONDecodeError:
         return err(f"Invalid JSON output: {result.stdout[:200]}")
-    return ok({"findings": findings, "count": len(findings)})
+    # GH-808 F1: bucket by severity so callers can distinguish hard-blocking
+    # findings from non-blocking INFO/NOTE/SUGGESTION ones that still need an
+    # explicit disposition before the gate reads clean. `findings`/`count`
+    # stay for backward compatibility; the bucketed keys are additive.
+    blocking = [f for f in findings if f.get("severity") == "blocking"]
+    needs_disposition = [f for f in findings if f.get("severity") == "info"]
+    return ok(
+        {
+            "findings": findings,
+            "count": len(findings),
+            "blocking": blocking,
+            "blocking_count": len(blocking),
+            "needs_disposition": needs_disposition,
+            "needs_disposition_count": len(needs_disposition),
+        }
+    )
 
 
 async def unresolved_threads(

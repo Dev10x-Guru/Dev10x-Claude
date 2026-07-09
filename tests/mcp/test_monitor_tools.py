@@ -29,7 +29,7 @@ class TestCiCheckStatusMcp:
             "wait": False,
             "poll_interval": 30,
             "initial_wait": 60,
-            "max_polls": 60,
+            "max_polls": 40,
         }
 
     @pytest.mark.asyncio

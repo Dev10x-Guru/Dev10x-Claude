@@ -143,19 +143,31 @@ ${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-merge/scripts/check-top-level-comments.sh \
   OWNER REPO NUMBER
 ```
 
-The script returns a JSON array of unaddressed findings (empty
-array = pass).
+Prefer the MCP wrapper over the raw script:
 
-If any automated review comments contain unaddressed severity
-markers (`REQUIRED`, `CRITICAL`, `BLOCKING`), report the count
-and first line of each. A comment is considered "addressed" if
-a subsequent comment replies to it (contains `Re:` or quotes
-the finding).
+```
+mcp__plugin_Dev10x_cli__check_top_level_comments(repo="OWNER/REPO", pr_number=NUMBER)
+```
 
-**Heuristic for addressed comments:** Check if any later
-comment in the thread references the automated comment's ID
-or quotes its content. If no reply exists, the finding is
-unaddressed.
+The result carries `findings`/`count` plus two severity buckets
+(GH-808 F1): `blocking` (findings with a `REQUIRED`/`CRITICAL`/
+`BLOCKING` marker) and `needs_disposition` (non-blocking
+`INFO`/`NOTE`/`SUGGESTION` findings, incl. those in a
+`COMMENTED`/`APPROVED` review **body** that a severity-only scan
+used to miss). Both buckets must be clear before this check passes:
+
+- `blocking_count > 0` → hard-block merge; report the count and
+  first line of each.
+- `needs_disposition_count > 0` → block until each has an explicit
+  disposition (address / defer-with-ticket / reply-declining). A
+  non-blocking INFO recommendation must not merge silently
+  unaddressed — the human reviewer catching it later is the failure
+  GH-808 documents.
+
+**Heuristic for addressed findings:** a finding (either bucket) is
+"addressed" when a later comment replies to it — contains `Re:` or
+quotes it. The reply satisfies the disposition requirement for
+`needs_disposition` findings just as it clears a `blocking` one.
 
 ### Check 1c: No unaddressed inline review comments (GH-760)
 

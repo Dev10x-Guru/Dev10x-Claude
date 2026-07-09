@@ -41,9 +41,21 @@ def blocking:
   unquoted
   | test("REQUIRED|CRITICAL|BLOCKING|\\*\\*\\[BLOCKING\\]\\*\\*|\\*\\*\\[CRITICAL\\]\\*\\*");
 
+# SIGNAL: a non-blocking recommendation token (GH-808 F1). A bot finding
+# tagged INFO/NOTE/SUGGESTION in a COMMENTED/APPROVED review body is
+# invisible to a blocking-only scan, so it can merge with no disposition.
+# The set is kept narrow on purpose — matching arbitrary bot prose (a plain
+# LGTM) would flood the gate with noise. These findings do not hard-block;
+# they need an explicit disposition (a "Re:" reply satisfies it).
+def info_marker:
+  unquoted | test("\\bINFO\\b|\\bNOTE\\b|\\bSUGGESTION\\b");
+
+def severity:
+  if blocking then "blocking" else "info" end;
+
 def active:
   (.state // "") | (. != "PENDING" and . != "DISMISSED");
 
 [ .[]
-  | select(((.body // "") != "") and (is_reply | not) and is_bot and blocking and active)
-  | {id, user: .user.login, snippet: ((.body | split("\n")[0])[:80]), source: $src} ]
+  | select(((.body // "") != "") and (is_reply | not) and is_bot and (blocking or info_marker) and active)
+  | {id, user: .user.login, snippet: ((.body | split("\n")[0])[:80]), source: $src, severity: severity} ]

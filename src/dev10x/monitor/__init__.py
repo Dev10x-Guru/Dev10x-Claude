@@ -21,7 +21,7 @@ async def ci_check_status(
     wait: bool = False,
     poll_interval: int = 30,
     initial_wait: int = 60,
-    max_polls: int = 60,
+    max_polls: int = 40,
 ) -> Result[dict[str, Any]]:
     script = get_plugin_root() / "skills/gh-pr-monitor/scripts/ci-check-status.py"
     args: list[str] = [

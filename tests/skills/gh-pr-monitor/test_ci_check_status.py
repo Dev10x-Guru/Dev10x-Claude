@@ -302,3 +302,59 @@ class TestGetChecksError:
         assert '"error"' in captured.out
         assert "rate limited" in captured.out
         assert captured.err == ""
+
+
+class TestPollUntilTerminal:
+    """GH-808 F2: budget-exhaustion verdicts and the safe default budget."""
+
+    def _no_sleep(self, monkeypatch):
+        monkeypatch.setattr(_impl.time, "sleep", lambda *_a, **_k: None)
+
+    def test_persisting_empty_becomes_infra_unavailable(self, monkeypatch):
+        self._no_sleep(monkeypatch)
+        monkeypatch.setattr(_impl, "get_annotated_checks", lambda **k: [])
+        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "UNKNOWN")
+        result = _impl.poll_until_terminal(
+            pr_number=1, repo="o/r", initial_wait=0, poll_interval=0, max_polls=3
+        )
+        assert result["verdict"] == "infra_unavailable"
+
+    def test_persisting_pending_stays_pending(self, monkeypatch):
+        self._no_sleep(monkeypatch)
+        monkeypatch.setattr(
+            _impl,
+            "get_annotated_checks",
+            lambda **k: [{"name": "build", "bucket": "pending"}],
+        )
+        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "UNKNOWN")
+        result = _impl.poll_until_terminal(
+            pr_number=1, repo="o/r", initial_wait=0, poll_interval=0, max_polls=3
+        )
+        assert result["verdict"] == "pending"
+
+    def test_terminal_green_returns_immediately(self, monkeypatch):
+        self._no_sleep(monkeypatch)
+        monkeypatch.setattr(
+            _impl,
+            "get_annotated_checks",
+            lambda **k: [{"name": "build", "bucket": "pass"}],
+        )
+        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "MERGEABLE")
+        result = _impl.poll_until_terminal(
+            pr_number=1, repo="o/r", initial_wait=0, poll_interval=0, max_polls=3
+        )
+        assert result["verdict"] == "green"
+
+
+class TestDefaultBudgetUnderIdleTimeout:
+    """GH-808 F2: the default wait budget must return before the ~1800s MCP
+    idle-timeout, so a future default bump that regresses past it fails CI."""
+
+    def test_default_budget_below_idle_timeout(self):
+        import inspect
+
+        params = inspect.signature(_impl.poll_until_terminal).parameters
+        initial_wait = params["initial_wait"].default
+        poll_interval = params["poll_interval"].default
+        max_polls = params["max_polls"].default
+        assert initial_wait + poll_interval * max_polls < 1800

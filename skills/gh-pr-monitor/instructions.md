@@ -150,6 +150,7 @@ classify the result before deciding next action:
 | `verdict` | Meaning | Supervisor action |
 |---|---|---|
 | `green` / `failing` / `conflicting` | Completed normally | Branch on verdict (Phase 2+) |
+| `infra_unavailable` | `wait=true` budget exhausted while checks never registered — hosted-runner/infra outage, not a transient pending (GH-808 F2) | Do NOT read as failing. Re-invoke `ci_check_status(wait=true)` to detect recovery; if it recurs, **REQUIRED: Call `AskUserQuestion`** (keep waiting / escalate) |
 | `timeout` | Hit `max_turns` budget without resolution | Re-dispatch with the same prompt (CI just slow) |
 | missing JSON line | Permission denied or hard crash | Inspect transcript; do NOT silently re-dispatch — surface the failure to the user |
 | explicit `"error": …` | The agent reported an error and exited | Propagate the error message to the user |
@@ -204,7 +205,12 @@ prompt: |
   Loop:
     1. Run: ci-check-status.py --pr {pr_number} --repo {repo}
     2. Parse the JSON. If verdict == "pending" or "empty", sleep 30s.
-    3. If verdict in ["green", "failing", "conflicting"], deliver
+       (A single `ci_check_status(wait=true)` call self-polls with a
+       budget kept under the ~1800s MCP idle-timeout, GH-808 F2 — it
+       returns `infra_unavailable` rather than hanging if checks never
+       register.)
+    3. If verdict in ["green", "failing", "conflicting",
+       "infra_unavailable"], deliver
        the verdict JSON and exit. Because you run in the background,
        plain stdout is NOT read — you MUST call
        SendMessage(to="main", summary="ci <verdict>",
@@ -263,19 +269,25 @@ prompt: |
        INFO:, **[BLOCKING]**, numbered items with file:line).
        Mark as unaddressed if no top-level PR comment replies
        with `Re:` matching the finding ID.
-    3. Run check-top-level-comments.sh — capture unaddressed
-       automated review findings. The script spans BOTH issue
-       comments AND submitted review bodies, and flags bots by
-       account type, a known review-bot login, OR an embedded
-       HTML marker (third-party LLM reviewers post under generic
-       CI accounts, GH-743 F2), so a "clean" verdict here means no
-       automated surface is left unanswered.
+    3. Call mcp__plugin_Dev10x_cli__check_top_level_comments(
+       repo="{repo}", pr_number={pr_number}) — do NOT eyeball
+       severity yourself. It spans BOTH issue comments AND submitted
+       review bodies (flagging bots by account type, known login, or
+       HTML marker, GH-743 F2) and returns two structured buckets
+       (GH-808 F1): `blocking` (REQUIRED/CRITICAL/BLOCKING) and
+       `needs_disposition` (non-blocking INFO/NOTE/SUGGESTION,
+       including review-body findings a severity-only scan missed).
+       Put `blocking` findings in `top_level_findings` and
+       `needs_disposition` findings in `needs_disposition` below. A
+       "clean" scan requires BOTH buckets empty — a non-blocking INFO
+       still needs an explicit disposition (a `Re:` reply satisfies it).
 
   Output as the LAST line, single-line JSON:
     {
       "unresolved_threads": [{"id": ..., "author": ..., "path": ..., "body": ...}],
       "body_findings": [{"review_id": ..., "summary": ...}],
-      "top_level_findings": [{"comment_id": ..., "summary": ...}]
+      "top_level_findings": [{"comment_id": ..., "summary": ...}],
+      "needs_disposition": [{"comment_id": ..., "summary": ...}]
     }
 
   You MUST NOT:
@@ -593,13 +605,16 @@ Dispatch `haiku-thread-scan` (Micro-agent B). It returns:
 {
   "unresolved_threads": [...],
   "body_findings": [...],
-  "top_level_findings": [...]
+  "top_level_findings": [...],
+  "needs_disposition": [...]
 }
 ```
 
-Sum the three arrays. If any are non-empty → enter Phase 2. If
-all three are empty → mark the PR ready (`gh pr ready
-{pr_number}`) and proceed to Phase 2.5.
+Sum ALL FOUR arrays (incl. `needs_disposition`, GH-808 F1). If any
+are non-empty → enter Phase 2. If all four are empty → mark the PR
+ready (`gh pr ready {pr_number}`) and proceed to Phase 2.5. A
+non-blocking INFO in `needs_disposition` counts — it must be
+addressed or explicitly deferred before the PR reads clean.
 
 ---
 
