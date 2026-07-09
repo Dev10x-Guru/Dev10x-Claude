@@ -108,3 +108,15 @@ def seed(*, project_path: Path | None, friction_level: str | None) -> None:
         click.echo(f"seeded {session_doc.path}")
     else:
         click.echo(f"session.yaml already present at {session_doc.path}")
+
+    # GH-809: a self-ignoring .gitignore keeps every runtime artifact under
+    # .claude/Dev10x/ (session.yaml, auto-advance-records.md, plan-sync state)
+    # out of git status, so the clean-tree gates in verify_pr_state,
+    # gh-pr-merge Check 5, verify-acc-dod, and create_pr never trip on session
+    # state. A single "*" ignores everything in the directory including the
+    # .gitignore itself, so no per-project .gitignore edit is needed.
+    gitignore = config.path.parent / ".gitignore"
+    if _create_if_absent(target=gitignore, content="*\n"):
+        click.echo(f"seeded {gitignore}")
+    else:
+        click.echo(f".gitignore already present at {gitignore}")
