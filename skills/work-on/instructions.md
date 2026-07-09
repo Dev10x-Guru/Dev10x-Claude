@@ -799,6 +799,33 @@ prompt is a valid substitution — not a compliance violation.
 Skill audits should classify this as COMPLIANT (playbook
 substitution), not SKIPPED_STEP.
 
+**Single terminal Verify-AC — collapse adjacent duplicates
+(GH-781).** A play must instantiate **exactly one** terminal
+`Verify acceptance criteria` task. The bug appears when a play
+both composes a shipping fragment (which ends with its own
+Verify-AC step) *and* appends a play-level Verify-AC — the
+`local-only` play does this, so choosing "create PR" expanded
+the fragment and produced two adjacent Verify-AC tasks. The
+mechanical-instantiation rule (one TaskCreate per resolved step)
+would faithfully create both.
+
+When fragment expansion yields two adjacent Verify-AC steps,
+they are NOT co-equal: the fragment's step is the executable DoD
+delegation *and* the terminal gate on the PR path, while the
+play-level step is the terminal gate on the no-PR path. Collapse
+to one by honoring the play-level step's path condition:
+
+- The play-level Verify-AC carries `condition: if-no-pr` (the
+  inverse of the fragment's `if-pr-decided`). On the PR path the
+  fragment terminates the plan and the play-level duplicate is
+  conditioned out; on the no-PR path the fragment is skipped and
+  the play-level step is the sole terminal gate.
+- If you observe two adjacent Verify-AC tasks after resolution,
+  drop the one whose path condition is not satisfied — do not
+  create both. This is the one sanctioned exception to strict
+  one-TaskCreate-per-step instantiation (GH-729/GH-928), because
+  the two steps describe mutually-exclusive paths.
+
 ### Example Plays (Defaults)
 
 These are the built-in default plays. Full YAML definitions
