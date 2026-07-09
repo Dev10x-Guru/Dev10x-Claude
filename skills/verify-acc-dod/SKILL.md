@@ -86,6 +86,45 @@ ${CLAUDE_PLUGIN_ROOT}/skills/verify-acc-dod/references/defaults.yaml
 
 Extract `defaults[work_type].checks` — an array of check objects.
 
+### Step 1b: Re-infer from live session state (GH-780)
+
+The caller passes the `work_type` detected at **plan** time
+(work-on Phase 1). Some plays legitimately change shape
+mid-execution — the `local-only` play's "Decide: create ticket,
+create PR, or done" step can resolve to "create PR", so the
+session is feature-shaped by the time verification runs. Trusting
+the plan-time `work_type` then loads the thin `local-only`
+checklist (working copy + "changes verified") and silently skips
+the checks that now apply.
+
+After loading Step 1's checks, probe live state and **union** the
+richer check set in when a PR exists:
+
+1. Resolve the associated PR via
+   `mcp__plugin_Dev10x_cli__pr_detect(arg="")`. (This is the same
+   probe the PR-Merge-State section runs — resolve it once and
+   reuse the result; an `error` / no-PR response means PR-less.)
+2. If an **open** PR exists **and** the caller's `work_type` is a
+   PR-less type whose default check set lacks PR checks
+   (`local-only`, `investigation`), load `defaults.feature.checks`
+   and **union** them into the list from Step 1, de-duplicated by
+   `name` (a caller check with the same `name` wins — never
+   duplicate or overwrite it).
+3. This is a **union, not a replacement** — every check the
+   caller's `work_type` contributed is preserved; re-inference only
+   *adds* the missing PR checks (CI passing, PR not draft, no fixup
+   commits, no unresolved review threads, review requested).
+4. **Never downgrade.** When the caller's `work_type` already
+   carries PR checks (`feature`, `bugfix`, `pr-continuation`), or
+   no open PR exists, make no change.
+
+Record which checks re-inference added so the presentation can
+surface them (see Presentation → "added by live-state
+re-inference"). The subsequent override/merge (Step 2–3) and
+active-mode filter (Step 4) apply to the unioned list, so repo
+`remove`/`replace` deltas and mode skips still govern the added
+checks.
+
 ### Step 2: Load repo overrides (if present)
 
 Read overrides from a single global file:
@@ -155,12 +194,16 @@ the review-request check (thread resolution is still expected). See
 ### Resolution order (summary)
 
 1. Load plugin defaults for `work_type`
-2. If global file exists and has overrides for current repo +
+2. Re-infer from live state (GH-780): if an open PR exists and
+   `work_type` is PR-less (`local-only`/`investigation`), union in
+   `defaults.feature.checks` (dedupe by `name`); never downgrade a
+   PR-carrying `work_type`
+3. If global file exists and has overrides for current repo +
    `work_type`: apply remove → replace → add
-3. If global file is absent: use plugin defaults as-is
-4. If `work_type` has no entry in defaults: use empty checks list
+4. If global file is absent: use plugin defaults as-is
+5. If `work_type` has no entry in defaults: use empty checks list
    and warn
-5. Filter by active modes (skip checks marked for active modes)
+6. Filter by active modes (skip checks marked for active modes)
 
 ## Executing Checks
 
@@ -242,6 +285,15 @@ Checks:
 
 Show the actual command output on failure so the user can
 diagnose without re-running.
+
+When Step 1b added checks, name them so the reduced-coverage risk
+is visible rather than silent:
+
+```
++ 5 checks added by live-state re-inference (open PR #42 present;
+  caller work_type was 'local-only'): CI passing, PR not draft,
+  No fixup commits, No unresolved review threads, Review requested
+```
 
 ## PR Merge State (GH-729)
 
