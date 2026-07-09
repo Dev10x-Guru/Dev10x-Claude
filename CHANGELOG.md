@@ -5,6 +5,120 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.86.0 — Drift-Free Session Config & Merge-Gate Hygiene
+
+Released 2026-07-09
+
+### Features
+
+- **Split session config into durable and ephemeral state** — a single
+  gitignored `.claude/Dev10x/session.yaml` conflated durable repo prefs
+  (`friction_level`, `active_modes`, `gate_*`) with ephemeral
+  per-worktree state (branch, tickets), so every write tripped Claude
+  Code's self-edit gate and worktree provisioning carried stale
+  branches. Durable prefs now live in a copied-by-post-checkout
+  `config.yaml`; ephemeral state stays in a hook-seeded, read-only
+  `session.yaml`, with transparent migration from a pre-split file
+  ([GH-774](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/774))
+- **Guard against stale high-autonomy modes bypassing gates** — a
+  copied-forward `active_modes: [solo-maintainer]` could silently skip
+  request-review and external-notify repo-wide. A local, gitignored
+  `allowed_overlays` allow-list in `config.yaml` now filters overlays at
+  the `resolve_gate` boundary (dropping only removes autonomy, never
+  weakens a gate) and warns at SessionStart when a durable mode is
+  dropped ([GH-805](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/805))
+- **Keep the working tree clean during Dev10x sessions** — runtime
+  artifacts under `.claude/Dev10x/` surfaced as untracked and tripped
+  the clean-tree gates in `verify_pr_state`, gh-pr-merge, verify-acc-dod,
+  and `create_pr`. The session seed now writes a directory-wide
+  `.gitignore`, superseding the earlier per-file ignore
+  ([GH-809](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/809))
+- **Surface non-blocking findings and CI-infra outages** — INFO-level
+  bot recommendations in COMMENTED/APPROVED review bodies were invisible
+  to the merge/monitor comment gates, and `ci_check_status(wait=true)`
+  collided with the MCP idle-timeout during hosted-runner outages. The
+  gates now bucket blocking vs. needs-disposition findings and a distinct
+  `infra_unavailable` verdict is returned when checks never register
+  ([GH-808](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/808))
+- **Handle bot findings cleanly at the merge gate** — skip `Re:` replies
+  and strip quoted context before the severity scan, add a
+  `pr_review_edit` wrapper to rewrite a submitted review body, and add a
+  `pr_ready` wrapper to un-draft a PR so CI-suppressed drafts stop
+  stalling the monitor
+  ([GH-777](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/777),
+  [GH-778](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/778),
+  [GH-779](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/779))
+- **Reflect live PR state in DoD checks** — a local-only plan that
+  resolved "create PR" mid-run silently skipped the CI, draft, fixup,
+  review-thread, and review-request checks. verify-acc-dod now re-infers
+  the feature check set when an open PR is detected and surfaces the
+  re-inferred checks in the results table
+  ([GH-780](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/780))
+- **Surface stale session carryover before resuming** — session-wrap-up
+  now stamps its resume payload with branch, tickets, and a `wrapped_at`
+  timestamp, and classifies carried park-discover entries as live vs.
+  stale so a months-old task list is no longer re-surfaced as current
+  ([GH-782](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/782))
+- **Give bootstrap permission consent an informed disclosure** — the
+  onboarding bootstrap now surfaces the state-changing subset (git, gh,
+  script execution, settings) before the permission-approval gate so a
+  cautious new user can see what they are about to grant
+  ([GH-769](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/769))
+
+### Fixes
+
+- **Enable prompt-free session-config writes** — exact-path Read/Write/
+  Edit rules for `session.yaml` and `config.yaml` join the unreliable
+  `.claude/Dev10x/**` globs in base_permissions and propagate to every
+  `settings.local.json`, so a normal run no longer re-prompts on
+  git-derivable state
+  ([GH-790](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/790))
+- **Restore PR-monitor CI status reporting** — the status report crashed
+  because `gh pr checks --json` no longer accepts `conclusion`; it now
+  requests the normalized `bucket` field and guards duration math against
+  gh's zero-time timestamps
+  ([GH-773](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/773))
+- **Ensure background-agent reports reach the orchestrator** — named
+  background agents delivered only an idle notification, losing every
+  report; dispatch templates now deliver the report via `SendMessage`
+  with a documented escalation ladder
+  ([GH-776](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/776))
+- **Prevent duplicate Verify-AC tasks in the local-only play** — the
+  play-level Verify-AC is now conditioned to the no-PR path so exactly
+  one terminal gate instantiates on either path
+  ([GH-781](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/781))
+
+### Performance
+
+- **Tier Claude CI review models** — the code-review orchestrator now
+  runs on sonnet and dispatches one haiku subagent per matched domain
+  for the bulk per-rule review, and `anthropics/claude-code-action` is
+  pinned to a commit SHA across all four Claude workflows
+
+### Docs
+
+- **Record ADR-0017 for the mode-guard policy location** — `allowed_overlays`
+  is a personal-machine trust preference in gitignored `config.yaml`, not
+  a git-tracked pin; documents the defense-in-depth split from the
+  separate `.dev10x/gate-policy.yaml` project pin
+  ([GH-805](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/805))
+- **Document rule-documentation standards from consolidation review** —
+  guidance on when to expand reviewer checklists, when to document
+  exceptions, and checklist formatting
+  ([GH-788](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/788))
+- **Remove the GH-774 scoping spec merged into develop by mistake** —
+  `docs/specs/GH-774.md` shipped in 0.84.0 via a mistakenly-merged draft
+  PR; the implementation now supersedes it (forward delete, no history
+  rewrite) ([GH-774](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/774))
+- **Capture PR #382 lessons-learned implementation notes**
+
+## 0.85.0
+
+Released 2026-07-08
+
+Mechanical version-alignment release — no functional changes since
+0.84.0.
+
 ## 0.84.0 — DDD Workshop Foundations & Capability-Based Authz Probes
 
 Released 2026-07-07
