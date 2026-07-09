@@ -22,7 +22,8 @@ can call the script once with --wait to get a definitive answer.
 Output (JSON):
     {
         "verdict": "failing",          # "green", "pending", "failing",
-                                       # "conflicting", "empty"
+                                       # "conflicting", "empty",
+                                       # "infra_unavailable"
         "required_verdict": "green",   # same vocabulary, computed over
                                        # required (merge-blocking) checks only
         "mergeable": "MERGEABLE",      # "MERGEABLE", "CONFLICTING", "UNKNOWN"
@@ -45,6 +46,9 @@ Verdict logic (applies to both `verdict` and `required_verdict`):
     - "failing"     → at least one check failed
     - "pending"     → at least one check is pending (none failing)
     - "green"       → all non-skipping checks passed and no conflicts
+    - "infra_unavailable" → only from --wait: checks never registered across
+                      the full poll budget (likely a hosted-runner/infra
+                      outage), distinct from a transient "empty"/"pending"
 
 Required vs advisory (GH-658): `verdict` blends required (merge-blocking)
 and advisory (non-required) checks into one signal, so a red advisory
@@ -238,7 +242,7 @@ def poll_until_terminal(
     required_only: bool = False,
     poll_interval: int = 30,
     initial_wait: int = 60,
-    max_polls: int = 60,
+    max_polls: int = 40,
 ) -> dict:
     """Poll CI until a terminal verdict (green, failing, conflicting).
 
@@ -246,6 +250,12 @@ def poll_until_terminal(
     then polls every `poll_interval` seconds. Returns the final verdict
     dict. This removes polling logic from the agent — the script handles
     all waiting internally.
+
+    The default budget (`initial_wait 60 + poll_interval 30 * max_polls 40`
+    = 1320s) is kept below the ~1800s MCP idle-timeout so a `wait=true`
+    call returns a verdict rather than being torn down mid-poll (GH-808 F2).
+    A caller needing longer coverage re-invokes rather than raising the
+    budget past that ceiling.
     """
     print(
         f"Waiting {initial_wait}s for checks to register...",
@@ -278,6 +288,16 @@ def poll_until_terminal(
         if attempt < max_polls:
             time.sleep(poll_interval)
 
+    # Budget exhausted with no terminal verdict (GH-808 F2). If the final poll
+    # is still "empty" — no checks registered (or all skipping) after the whole
+    # budget — GitHub never scheduled real runners, a hosted-runner/infra
+    # outage rather than a normal "still pending" state (in practice check-runs
+    # do not un-register, so an empty final poll means empty throughout).
+    # Surface it as a distinct verdict so the caller can escalate (ask the
+    # user, retry later) instead of reading it as a transient pending. A
+    # "pending" budget-exhaustion is left as-is.
+    if result["verdict"] == "empty":
+        result["verdict"] = "infra_unavailable"
     return result
 
 
@@ -310,8 +330,9 @@ def main() -> None:
     parser.add_argument(
         "--max-polls",
         type=int,
-        default=60,
-        help="Max poll attempts before giving up (default: 60)",
+        default=40,
+        help="Max poll attempts before giving up (default: 40, keeping the "
+        "total wait under the ~1800s MCP idle-timeout)",
     )
     args = parser.parse_args()
 

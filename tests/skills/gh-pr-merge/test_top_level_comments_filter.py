@@ -148,3 +148,50 @@ class TestReplyDoesNotSelfTrigger:
         }
         selected = _run_filter([row], "comment", tmp_path)
         assert [r["id"] for r in selected] == [14]
+
+
+class TestInfoSeverityDisposition:
+    """GH-808 F1: non-blocking INFO/NOTE/SUGGESTION bot findings surface with
+    severity=info so they require a disposition; blocking findings keep
+    severity=blocking; untokened bot prose stays excluded."""
+
+    def test_info_marker_selected_with_info_severity(self, tmp_path: Path) -> None:
+        row = {
+            "id": 20,
+            "user": {"login": "claude", "type": "Bot"},
+            "body": "INFO: consider adding component render tests",
+        }
+        selected = _run_filter([row], "review", tmp_path)
+        assert [r["id"] for r in selected] == [20]
+        assert selected[0]["severity"] == "info"
+
+    def test_suggestion_and_note_tokens_selected(self, tmp_path: Path) -> None:
+        rows = [
+            {"id": 21, "user": {"login": "claude", "type": "Bot"}, "body": "NOTE: minor nit"},
+            {
+                "id": 22,
+                "user": {"login": "coderabbit", "type": "Bot"},
+                "body": "SUGGESTION: rename var",
+            },
+        ]
+        selected = _run_filter(rows, "review", tmp_path)
+        assert {r["id"] for r in selected} == {21, 22}
+        assert all(r["severity"] == "info" for r in selected)
+
+    def test_blocking_finding_keeps_blocking_severity(self, tmp_path: Path) -> None:
+        # FIXTURE[2] is id 3, a BLOCKING bot finding.
+        selected = _run_filter([FIXTURE[2]], "comment", tmp_path)
+        assert selected[0]["severity"] == "blocking"
+
+    def test_plain_bot_prose_without_token_excluded(self, tmp_path: Path) -> None:
+        # A routine bot LGTM with no severity token must NOT flood the gate.
+        row = {"id": 23, "user": {"login": "claude", "type": "Bot"}, "body": "LGTM, ship it"}
+        assert _run_filter([row], "review", tmp_path) == []
+
+    def test_re_reply_to_info_not_self_triggered(self, tmp_path: Path) -> None:
+        row = {
+            "id": 24,
+            "user": {"login": "claude", "type": "Bot"},
+            "body": "Re: INFO: add tests — deferred to GH-999.",
+        }
+        assert _run_filter([row], "comment", tmp_path) == []

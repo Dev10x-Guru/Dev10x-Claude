@@ -1013,6 +1013,32 @@ class TestCheckTopLevelComments:
 
         assert "error" in result
 
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_buckets_findings_by_severity(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        # GH-808 F1: severity-tagged findings split into blocking vs
+        # needs_disposition buckets; findings/count stay for back-compat.
+        mock_run.return_value = _completed(
+            stdout=json.dumps(
+                [
+                    {"id": 1, "severity": "blocking"},
+                    {"id": 2, "severity": "info"},
+                    {"id": 3, "severity": "info"},
+                ]
+            )
+        )
+
+        result = await cli_server.check_top_level_comments(pr_number=42, repo="o/r")
+
+        assert result["count"] == 3
+        assert result["blocking_count"] == 1
+        assert result["needs_disposition_count"] == 2
+        assert [f["id"] for f in result["blocking"]] == [1]
+        assert [f["id"] for f in result["needs_disposition"]] == [2, 3]
+
 
 class TestUnresolvedThreadsMcp:
     @pytest.mark.asyncio
