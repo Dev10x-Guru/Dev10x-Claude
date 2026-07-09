@@ -29,6 +29,7 @@ from dev10x.hooks.session_dispatch import (
     build_guidance_context,  # noqa: F401 — re-exported via __all__
     build_hook_version_drift_context,  # noqa: F401 — re-exported via __all__
     build_install_check_context,  # noqa: F401 — re-exported via __all__
+    build_mode_guard_context,  # noqa: F401 — re-exported via __all__
     build_reload_context,  # noqa: F401 — re-exported via __all__
     context_compact,  # noqa: F401 — re-exported via __all__
     session_goodbye,  # noqa: F401 — re-exported via __all__
@@ -81,6 +82,7 @@ __all__ = [
     "build_guidance_context",
     "build_hook_version_drift_context",
     "build_install_check_context",
+    "build_mode_guard_context",
     "build_reload_context",
     "context_compact",
     "session_git_aliases",

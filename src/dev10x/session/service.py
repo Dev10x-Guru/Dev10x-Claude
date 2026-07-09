@@ -136,6 +136,30 @@ class SessionService:
             friction_level=friction_level, active_modes=active_modes
         ).apply()
 
+    def build_mode_guard_context(self, *, toplevel: str | None = _UNSET) -> str:  # type: ignore[assignment]
+        """Return a warning when a durable high-autonomy overlay is repo-forbidden (GH-805).
+
+        Returns an empty string when the repo declares no ``allowed_overlays``
+        allow-list or when nothing would be dropped.
+
+        Pass ``toplevel`` as a pre-resolved string to skip git discovery.
+        Pass ``None`` explicitly to return early without git discovery. Omit
+        the parameter to let the service run git discovery itself.
+        """
+        from dev10x.domain.documents.session_yaml import SessionYamlDocument
+        from dev10x.domain.git_context import GitContext
+        from dev10x.domain.session_rules import ModeGuardRule
+
+        resolved: str | None = GitContext().toplevel if toplevel is _UNSET else toplevel
+        if not resolved:
+            return ""
+        inputs = SessionYamlDocument(toplevel=resolved).read_gate_policy_inputs()
+        return ModeGuardRule(
+            active_modes=inputs["active_modes"],
+            walk_away=inputs["walk_away"],
+            allowed_overlays=inputs["allowed_overlays"],
+        ).apply()
+
     def build_install_check_context(self) -> str:
         """Return a warning when the Dev10x install needs bootstrap or upgrade.
 

@@ -163,7 +163,53 @@ class TestReadGatePolicyInputs:
             "gate_overrides": {},
             "gate_preset": None,
             "gate_overlays": [],
+            "allowed_overlays": None,
         }
+
+    def test_reads_allowed_overlays_from_config(self, tmp_path: Path) -> None:
+        toplevel = _write_config(tmp_path=tmp_path, content="allowed_overlays: [afk]\n")
+        inputs = SessionYamlDocument(toplevel=toplevel).read_gate_policy_inputs()
+        assert inputs["allowed_overlays"] == ["afk"]
+
+    def test_allowed_overlays_empty_list_is_declared_not_unset(self, tmp_path: Path) -> None:
+        toplevel = _write_config(tmp_path=tmp_path, content="allowed_overlays: []\n")
+        inputs = SessionYamlDocument(toplevel=toplevel).read_gate_policy_inputs()
+        assert inputs["allowed_overlays"] == []
+
+
+class TestReadAllowedOverlays:
+    """GH-805: the local repo-character overlay allow-list."""
+
+    def test_reads_from_config(self, tmp_path: Path) -> None:
+        toplevel = _write_config(
+            tmp_path=tmp_path, content="allowed_overlays: [solo-maintainer]\n"
+        )
+        assert SessionYamlDocument(toplevel=toplevel).read_allowed_overlays() == [
+            "solo-maintainer"
+        ]
+
+    def test_empty_list_is_declared(self, tmp_path: Path) -> None:
+        toplevel = _write_config(tmp_path=tmp_path, content="allowed_overlays: []\n")
+        assert SessionYamlDocument(toplevel=toplevel).read_allowed_overlays() == []
+
+    def test_none_when_unset(self, tmp_path: Path) -> None:
+        toplevel = _write_config(tmp_path=tmp_path, content="friction_level: guided\n")
+        assert SessionYamlDocument(toplevel=toplevel).read_allowed_overlays() is None
+
+    def test_none_when_not_a_list(self, tmp_path: Path) -> None:
+        toplevel = _write_config(tmp_path=tmp_path, content="allowed_overlays: solo-maintainer\n")
+        assert SessionYamlDocument(toplevel=toplevel).read_allowed_overlays() is None
+
+    def test_none_when_both_missing(self, tmp_path: Path) -> None:
+        assert SessionYamlDocument(toplevel=str(tmp_path)).read_allowed_overlays() is None
+
+    def test_falls_back_to_pre_split_session(self, tmp_path: Path) -> None:
+        toplevel = _write(tmp_path=tmp_path, content="allowed_overlays: []\n")
+        assert SessionYamlDocument(toplevel=toplevel).read_allowed_overlays() == []
+
+    def test_coerces_non_string_entries(self, tmp_path: Path) -> None:
+        toplevel = _write_config(tmp_path=tmp_path, content="allowed_overlays: [afk, 3]\n")
+        assert SessionYamlDocument(toplevel=toplevel).read_allowed_overlays() == ["afk", "3"]
 
 
 class TestConfigRender:
@@ -189,6 +235,21 @@ class TestConfigRender:
             FrictionLevel.STRICT
         )
 
+    def test_omits_allowed_overlays_when_unset(self) -> None:
+        # Back-compat: the canonical body is unchanged when the repo has not
+        # opted into the GH-805 guard.
+        assert "allowed_overlays" not in ConfigYamlDocument.render()
+
+    def test_emits_allowed_overlays_when_declared(self) -> None:
+        body = ConfigYamlDocument.render(allowed_overlays=[])
+        assert "allowed_overlays: []" in body
+
+    def test_allowed_overlays_round_trips_through_reader(self, tmp_path: Path) -> None:
+        config = ConfigYamlDocument(toplevel=str(tmp_path))
+        (tmp_path / ".claude" / "Dev10x").mkdir(parents=True)
+        config.path.write_text(ConfigYamlDocument.render(allowed_overlays=["afk"]))
+        assert SessionYamlDocument(toplevel=str(tmp_path)).read_allowed_overlays() == ["afk"]
+
 
 class TestConfigWrite:
     def test_creates_parents_and_writes(self, tmp_path: Path) -> None:
@@ -204,6 +265,10 @@ class TestConfigWrite:
         level, modes = SessionYamlDocument(toplevel=str(tmp_path)).read_friction_and_modes()
         assert level is FrictionLevel.GUIDED
         assert modes == []
+
+    def test_write_persists_allowed_overlays(self, tmp_path: Path) -> None:
+        ConfigYamlDocument(toplevel=str(tmp_path)).write(allowed_overlays=[])
+        assert SessionYamlDocument(toplevel=str(tmp_path)).read_allowed_overlays() == []
 
 
 class TestEphemeralWrite:
