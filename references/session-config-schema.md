@@ -19,6 +19,13 @@ levels or activate session modes.
 |-------|------|----------|---------|---------|
 | `friction_level` | string (enum) | Yes | `strict` | `adaptive` |
 | `active_modes` | list of strings | Yes | `[]` | `[solo-maintainer, open-source]` |
+| `allowed_overlays` | list of strings | No | *unset = permissive* | `[]` |
+
+> Since GH-774 the durable keys (`friction_level`, `active_modes`,
+> `allowed_overlays`, `gate_*`) live in the sibling **`config.yaml`**;
+> `session.yaml` keeps ephemeral per-worktree identity (`branch`,
+> `tickets`). `SessionYamlDocument` reads either (config wins, pre-split
+> session.yaml is the migration fallback).
 
 ### friction_level
 
@@ -41,6 +48,33 @@ List of named modes that customize agent behavior. Known modes:
 | `swarm-child` | Internal mode for fanout skill (GH-300+). Agent is part of a swarm and reports to orchestrator. | Skill (set by fanout orchestrator) |
 
 Empty list is valid (no modes active).
+
+### allowed_overlays (GH-805)
+
+Local repo-character allow-list guarding against a **stale/incorrect
+high-autonomy mode** being honored where it should not be. It lives in
+the gitignored, worktree-copied `config.yaml` — durable between sessions
+and copied source→worktree by `post-checkout` (like `.claude`
+`settings.local` / `.idea`), but **never committed** to the remote, so
+it is a private repo-character preference teammates cannot dispute.
+
+| Value | Behavior |
+|-------|----------|
+| *unset* (key absent) | Permissive — every session overlay is honored (back-compat). |
+| `[]` | No high-autonomy overlay is honored — correct for a **team repo**. A stale `active_modes: [solo-maintainer]` is dropped before gate resolution. |
+| `[solo-maintainer]` | Only the listed overlays are honored; any other is dropped. |
+
+The gate resolver (`resolve_gate_for_toplevel`) filters the session's
+computed overlays (`solo-maintainer`, `afk`) against this list, dropping
+those absent from it — so their `request_review` / `external_notify` /
+`merge` skips never apply. Dropping only ever *removes* autonomy, so it
+can never make a gate less safe. The `session-mode-guard` SessionStart
+feature (`ModeGuardRule`) warns when it drops something.
+
+This is a separate, local tier from the git-tracked
+`.dev10x/gate-policy.yaml` project pin (`overrides: {merge: ask}`): the
+pin is shared repo policy for specific toggles; `allowed_overlays` is a
+private, whole-overlay allow-list.
 
 ## Readers (Consumers)
 

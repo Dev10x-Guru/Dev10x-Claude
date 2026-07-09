@@ -15,6 +15,7 @@ from dev10x.domain.session_rules import (
     BuildAutoPlanGuidanceRule,
     CompletionRecommendation,
     DecisionGuidanceRule,
+    ModeGuardRule,
     completion_gate_recommendation,
 )
 from dev10x.hooks.session_policy import MigratePluginPermissionsRule
@@ -28,6 +29,7 @@ from dev10x.hooks.session_policy import MigratePluginPermissionsRule
         ),
         BuildAutonomyReassuranceRule(friction_level=FrictionLevel.default(), active_modes=[]),
         BuildAutoPlanGuidanceRule(friction_level=FrictionLevel.default(), active_modes=[]),
+        ModeGuardRule(active_modes=[], walk_away=False, allowed_overlays=None),
         MigratePluginPermissionsRule(plugin_root=Path("/p"), home_path=Path("/h")),
     ],
 )
@@ -104,6 +106,43 @@ class TestBuildAutoPlanGuidanceRule:
             friction_level=FrictionLevel.STRICT, active_modes=["auto-plan"]
         ).apply()
         assert text != ""
+
+
+class TestModeGuardRule:
+    """GH-805: warn when a durable high-autonomy overlay is repo-forbidden."""
+
+    def test_silent_when_no_allow_list(self) -> None:
+        # allowed_overlays None → permissive, no warning even with solo-maintainer.
+        text = ModeGuardRule(
+            active_modes=["solo-maintainer"], walk_away=False, allowed_overlays=None
+        ).apply()
+        assert text == ""
+
+    def test_warns_on_dropped_solo_maintainer(self) -> None:
+        text = ModeGuardRule(
+            active_modes=["solo-maintainer"], walk_away=False, allowed_overlays=[]
+        ).apply()
+        assert "Durable-mode guard (GH-805)" in text
+        assert "solo-maintainer" in text
+
+    def test_warns_on_dropped_afk_from_walk_away(self) -> None:
+        text = ModeGuardRule(active_modes=[], walk_away=True, allowed_overlays=[]).apply()
+        assert "afk" in text
+
+    def test_silent_when_overlay_permitted(self) -> None:
+        text = ModeGuardRule(
+            active_modes=["solo-maintainer"],
+            walk_away=False,
+            allowed_overlays=["solo-maintainer"],
+        ).apply()
+        assert text == ""
+
+    def test_silent_when_no_overlays_produced(self) -> None:
+        # No high-autonomy modes → nothing to drop even with an empty allow-list.
+        text = ModeGuardRule(
+            active_modes=["auto-plan"], walk_away=False, allowed_overlays=[]
+        ).apply()
+        assert text == ""
 
 
 class TestMigrateTwoPass:

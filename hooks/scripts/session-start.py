@@ -167,6 +167,7 @@ def main() -> None:
         build_feature(name="session-guidance", fn=s.build_guidance_context),
         build_feature(name="session-autonomy", fn=s.build_autonomy_reassurance_context),
         build_feature(name="session-auto-plan", fn=s.build_auto_plan_guidance_context),
+        build_feature(name="session-mode-guard", fn=s.build_mode_guard_context),
         build_feature(name="session-install-check", fn=s.build_install_check_context),
         build_feature(name="session-hook-version-drift", fn=s.build_hook_version_drift_context),
         capture_feature(name="session-migrate-permissions", fn=s.session_migrate_permissions),

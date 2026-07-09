@@ -45,6 +45,21 @@ def _load_yaml_mapping(path: Path) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def _coerce_allowed_overlays(value: Any) -> list[str] | None:
+    """Coerce a durable ``allowed_overlays`` value to the guard's contract (GH-805).
+
+    ``None`` — key absent, non-list, or malformed — means *no* allow-list is
+    declared: the repo has not opted into overlay filtering, so every session
+    overlay is honored (back-compat). A ``list`` (including the empty list) is
+    an explicit allow-list: any session overlay not named here is dropped
+    before gate resolution. The distinction between "unset" and "explicitly
+    empty" is load-bearing, so an empty list must survive coercion.
+    """
+    if not isinstance(value, list):
+        return None
+    return [str(overlay) for overlay in value]
+
+
 @dataclass(frozen=True)
 class ConfigYamlDocument:
     """Reader/writer for durable prefs at ``.claude/Dev10x/config.yaml`` (GH-774)."""
@@ -59,9 +74,20 @@ class ConfigYamlDocument:
         return _load_yaml_mapping(self.path)
 
     @staticmethod
-    def render(*, friction_level: str = "guided", active_modes: list[str] | None = None) -> str:
-        """Render the canonical ``config.yaml`` body (durable prefs)."""
-        return (
+    def render(
+        *,
+        friction_level: str = "guided",
+        active_modes: list[str] | None = None,
+        allowed_overlays: list[str] | None = None,
+    ) -> str:
+        """Render the canonical ``config.yaml`` body (durable prefs).
+
+        ``allowed_overlays`` is emitted only when explicitly provided so the
+        canonical body is byte-identical to the pre-GH-805 shape when the repo
+        has not opted into the overlay guard — an omitted key reads back as
+        ``None`` (permissive) via :func:`_coerce_allowed_overlays`.
+        """
+        body = (
             "# Dev10x durable repo preferences (GH-774) — friction level and\n"
             "# active modes. Gitignored + copied to each worktree by the\n"
             "# post-checkout hook. Ephemeral per-worktree state (branch,\n"
@@ -69,13 +95,33 @@ class ConfigYamlDocument:
             f"friction_level: {friction_level}  # strict | guided | adaptive\n"
             f"active_modes: {active_modes or []!r}\n"
         )
+        if allowed_overlays is not None:
+            body += (
+                "# GH-805: local repo-character overlay allow-list. Any session\n"
+                "# overlay not named here (e.g. solo-maintainer) is dropped before\n"
+                "# gate resolution and flagged at SessionStart. An empty list\n"
+                "# honors no high-autonomy overlay — correct for a team repo.\n"
+                "# Omit the key entirely to allow every overlay (back-compat).\n"
+                f"allowed_overlays: {list(allowed_overlays)!r}\n"
+            )
+        return body
 
     def write(
-        self, *, friction_level: str = "guided", active_modes: list[str] | None = None
+        self,
+        *,
+        friction_level: str = "guided",
+        active_modes: list[str] | None = None,
+        allowed_overlays: list[str] | None = None,
     ) -> None:
         """Write ``config.yaml`` for this toplevel, creating parents as needed."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(self.render(friction_level=friction_level, active_modes=active_modes))
+        self.path.write_text(
+            self.render(
+                friction_level=friction_level,
+                active_modes=active_modes,
+                allowed_overlays=allowed_overlays,
+            )
+        )
 
 
 @dataclass(frozen=True)
@@ -123,6 +169,19 @@ class SessionYamlDocument:
         modes = data.get("active_modes")
         return level, (modes if isinstance(modes, list) else [])
 
+    def read_allowed_overlays(self) -> list[str] | None:
+        """Return the durable overlay allow-list, or ``None`` when unset (GH-805).
+
+        ``None`` means the repo has not opted into overlay filtering — every
+        session overlay is honored (back-compat). A list (including ``[]``) is
+        an explicit allow-list: a session overlay not named here is dropped
+        before gate resolution. This is a **local** repo-character preference:
+        it lives in the gitignored, worktree-copied ``config.yaml`` (never a
+        committed artifact), so a stale ``active_modes: [solo-maintainer]`` a
+        team repo copied worktree-wide is neutralised without a shared pin.
+        """
+        return _coerce_allowed_overlays(self._durable().get("allowed_overlays"))
+
     def read_gate_policy_inputs(self) -> dict[str, Any]:
         """Return the resolver inputs for ``gate_policy`` (ADR-0016).
 
@@ -133,6 +192,10 @@ class SessionYamlDocument:
         (``friction_level``, ``active_modes``, ``walk_away``) feed
         :func:`dev10x.domain.gate_policy.legacy_session_mapping`. Either way
         ``gate_overrides`` carries per-toggle session overrides.
+
+        ``allowed_overlays`` (GH-805) is the repo-character overlay allow-list:
+        ``None`` when unset (permissive), else the whitelist the resolver
+        filters the computed overlays against before resolving a gate.
         """
         data = self._durable()
         modes = data.get("active_modes")
@@ -146,6 +209,7 @@ class SessionYamlDocument:
             "gate_overrides": overrides if isinstance(overrides, dict) else {},
             "gate_preset": preset if isinstance(preset, str) else None,
             "gate_overlays": overlays if isinstance(overlays, list) else [],
+            "allowed_overlays": _coerce_allowed_overlays(data.get("allowed_overlays")),
         }
 
     def read_session_identity(self) -> dict[str, Any]:

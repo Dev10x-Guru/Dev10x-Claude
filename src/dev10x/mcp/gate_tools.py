@@ -179,6 +179,18 @@ async def resolve_gate_for_toplevel(
             walk_away=inputs["walk_away"],
         )
 
+    # GH-805 durable-mode guard: a repo may declare a local, gitignored
+    # ``allowed_overlays`` allow-list in config.yaml. Any overlay not on it —
+    # e.g. a stale ``solo-maintainer`` copied worktree-wide by post-checkout —
+    # is dropped BEFORE resolution so its request_review/external_notify/merge
+    # skips are never honored. Dropping only ever removes autonomy, so it can
+    # never make a gate less safe. ``None`` means no allow-list (permissive).
+    dropped_overlays: list[str] = []
+    allowed_overlays = inputs["allowed_overlays"]
+    if allowed_overlays is not None:
+        dropped_overlays = [o for o in overlays if o not in allowed_overlays]
+        overlays = [o for o in overlays if o in allowed_overlays]
+
     # session_adoption keys on computed staleness (GH-742 F1 seam) unless
     # the caller supplied session_stale explicitly.
     resolved_context = dict(context)
@@ -210,6 +222,8 @@ async def resolve_gate_for_toplevel(
     record = _emit_auto_advance(resolution=resolution, toplevel=toplevel)
     if record is not None:
         payload["record"] = record
+    if dropped_overlays:
+        payload["dropped_overlays"] = dropped_overlays
     return ok(payload)
 
 

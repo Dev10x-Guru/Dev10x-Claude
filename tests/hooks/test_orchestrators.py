@@ -192,6 +192,55 @@ class TestAutoPlanGuidanceWiring:
         assert hasattr(session, "build_auto_plan_guidance_context")
 
 
+class TestModeGuardWiring:
+    """GH-805: durable-mode guard flows dispatch -> service -> rule."""
+
+    def _write_config(self, *, tmp_path: Path, content: str) -> Path:
+        toplevel = tmp_path / "repo"
+        (toplevel / ".claude" / "Dev10x").mkdir(parents=True)
+        (toplevel / ".claude" / "Dev10x" / "config.yaml").write_text(content)
+        return toplevel
+
+    def test_dispatch_returns_empty_without_toplevel(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from dev10x.hooks import session_dispatch
+
+        monkeypatch.setattr(session_dispatch, "_get_toplevel", lambda: None)
+        assert session_dispatch.build_mode_guard_context() == ""
+
+    def test_dispatch_warns_on_forbidden_overlay(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from dev10x.hooks import session_dispatch
+
+        toplevel = self._write_config(
+            tmp_path=tmp_path,
+            content=(
+                "friction_level: guided\nactive_modes: [solo-maintainer]\nallowed_overlays: []\n"
+            ),
+        )
+        monkeypatch.setattr(session_dispatch, "_get_toplevel", lambda: str(toplevel))
+        assert "Durable-mode guard (GH-805)" in session_dispatch.build_mode_guard_context()
+
+    def test_dispatch_silent_when_permissive(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from dev10x.hooks import session_dispatch
+
+        toplevel = self._write_config(
+            tmp_path=tmp_path,
+            content="friction_level: guided\nactive_modes: [solo-maintainer]\n",
+        )
+        monkeypatch.setattr(session_dispatch, "_get_toplevel", lambda: str(toplevel))
+        assert session_dispatch.build_mode_guard_context() == ""
+
+    def test_facade_reexports_dispatch(self) -> None:
+        from dev10x.hooks import session
+
+        assert hasattr(session, "build_mode_guard_context")
+
+
 class TestRunFeatureBufferDiscard:
     """E9: _run_feature must discard partial stdout when a feature raises.
 
