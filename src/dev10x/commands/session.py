@@ -87,12 +87,17 @@ def seed(*, project_path: Path | None, friction_level: str | None) -> None:
     # rather than to FrictionLevel.default().
     durable = session_doc.durable_prefs()
     existing_modes = durable.get("active_modes")
+    # Carry a pre-existing overlay allow-list (GH-805) forward so a re-seed or
+    # a pre-split→config.yaml migration never silently drops the repo-character
+    # guard. Absent stays absent (permissive) — render omits the key entirely.
+    existing_allowed = durable.get("allowed_overlays")
     seed_level = (friction_level or durable.get("friction_level") or "guided").lower()
     if _create_if_absent(
         target=config.path,
         content=ConfigYamlDocument.render(
             friction_level=seed_level,
             active_modes=existing_modes if isinstance(existing_modes, list) else None,
+            allowed_overlays=existing_allowed if isinstance(existing_allowed, list) else None,
         ),
     ):
         click.echo(f"seeded {config.path}")

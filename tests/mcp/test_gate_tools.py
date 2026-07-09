@@ -107,6 +107,92 @@ class TestResolveGateForToplevel:
         assert "Unknown gate" in result.to_dict()["error"]
 
 
+class TestAllowedOverlaysGuard:
+    # GH-805: a local, gitignored config.yaml ``allowed_overlays`` allow-list
+    # drops disallowed high-autonomy overlays before gate resolution.
+
+    def _write_config(self, toplevel: Path, body: str) -> None:
+        path = toplevel / ".claude" / "Dev10x" / "config.yaml"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(body)
+
+    @pytest.mark.asyncio
+    async def test_empty_allow_list_drops_solo_maintainer_overlay(self, tmp_path: Path) -> None:
+        # A stale solo-maintainer overlay would skip request_review; the guard
+        # drops it so the base guided preset's "ask" stands.
+        self._write_config(
+            tmp_path,
+            "friction_level: guided\nactive_modes: [solo-maintainer]\nallowed_overlays: []\n",
+        )
+        result = await resolve_gate_for_toplevel(
+            gate="request_review", context={}, toplevel=str(tmp_path)
+        )
+        payload = result.to_dict()
+        assert payload["effect"] == "ask"
+        assert payload["dropped_overlays"] == ["solo-maintainer"]
+
+    @pytest.mark.asyncio
+    async def test_allow_list_keeps_named_overlay(self, tmp_path: Path) -> None:
+        # solo-maintainer explicitly permitted → overlay applies (skip), no drop.
+        self._write_config(
+            tmp_path,
+            "friction_level: guided\n"
+            "active_modes: [solo-maintainer]\n"
+            "allowed_overlays: [solo-maintainer]\n",
+        )
+        result = await resolve_gate_for_toplevel(
+            gate="request_review", context={}, toplevel=str(tmp_path)
+        )
+        payload = result.to_dict()
+        assert payload["effect"] == "skip"
+        assert "dropped_overlays" not in payload
+
+    @pytest.mark.asyncio
+    async def test_unset_allow_list_is_permissive(self, tmp_path: Path) -> None:
+        # No allowed_overlays key → back-compat: overlay honored, no drop.
+        self._write_config(
+            tmp_path,
+            "friction_level: guided\nactive_modes: [solo-maintainer]\n",
+        )
+        result = await resolve_gate_for_toplevel(
+            gate="request_review", context={}, toplevel=str(tmp_path)
+        )
+        payload = result.to_dict()
+        assert payload["effect"] == "skip"
+        assert "dropped_overlays" not in payload
+
+    @pytest.mark.asyncio
+    async def test_drops_afk_overlay_from_walk_away(self, tmp_path: Path) -> None:
+        # afk overlay (from walk_away) also filtered by an empty allow-list.
+        self._write_config(
+            tmp_path,
+            "friction_level: guided\nwalk_away: true\nallowed_overlays: []\n",
+        )
+        result = await resolve_gate_for_toplevel(
+            gate="session_adoption", context={"session_stale": True}, toplevel=str(tmp_path)
+        )
+        payload = result.to_dict()
+        # guided session_adoption is auto-advance-if-stale-free; stale → ask.
+        # afk would have forced auto-advance, but it is dropped.
+        assert payload["effect"] == "ask"
+        assert payload["dropped_overlays"] == ["afk"]
+
+    @pytest.mark.asyncio
+    async def test_filters_explicit_new_style_gate_overlays(self, tmp_path: Path) -> None:
+        # An explicit gate_overlays request is filtered too — the guard is
+        # about the repo forbidding overlays regardless of how requested.
+        self._write_config(
+            tmp_path,
+            "gate_preset: guided\ngate_overlays: [solo-maintainer]\nallowed_overlays: []\n",
+        )
+        result = await resolve_gate_for_toplevel(
+            gate="request_review", context={}, toplevel=str(tmp_path)
+        )
+        payload = result.to_dict()
+        assert payload["effect"] == "ask"
+        assert payload["dropped_overlays"] == ["solo-maintainer"]
+
+
 class TestProjectOverrides:
     def test_missing_file_yields_no_overrides(self, tmp_path: Path) -> None:
         assert _project_overrides(str(tmp_path)) == {}
@@ -145,6 +231,7 @@ class TestSessionYamlGatePolicyInputs:
             "gate_overrides": {"merge": "ask"},
             "gate_preset": None,
             "gate_overlays": [],
+            "allowed_overlays": None,
         }
 
     def test_missing_file_yields_soft_defaults(self, tmp_path: Path) -> None:
@@ -156,6 +243,7 @@ class TestSessionYamlGatePolicyInputs:
             "gate_overrides": {},
             "gate_preset": None,
             "gate_overlays": [],
+            "allowed_overlays": None,
         }
 
     def test_reads_new_style_gate_keys(self, tmp_path: Path) -> None:

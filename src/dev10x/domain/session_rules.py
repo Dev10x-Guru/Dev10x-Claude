@@ -23,6 +23,7 @@ from dataclasses import dataclass
 
 from dev10x.domain.documents.session_state import PlanSummary
 from dev10x.domain.friction_level import FrictionLevel
+from dev10x.domain.gate_policy import legacy_session_mapping
 from dev10x.domain.rules.policy_rule import PolicyRule
 
 
@@ -201,11 +202,61 @@ class BuildAutoPlanGuidanceRule(PolicyRule[str]):
         return self.GUIDANCE_TEXT
 
 
+@dataclass(frozen=True)
+class ModeGuardRule(PolicyRule[str]):
+    """Warn when a durable high-autonomy overlay is forbidden by repo policy (GH-805).
+
+    Fires when the repo declares an ``allowed_overlays`` allow-list (in the
+    gitignored, worktree-copied ``config.yaml``) and the durable session
+    config would produce an overlay outside it — the classic case being a
+    stale ``active_modes: [solo-maintainer]`` copied worktree-wide into a team
+    repo. The resolver already *drops* that overlay before gate resolution;
+    this rule makes the drop visible so a present supervisor sees the guard
+    acted and can fix the config if it was intentional.
+
+    Returns ``""`` when no allow-list is declared (``allowed_overlays is
+    None``) or nothing would be dropped, so the SessionStart orchestrator
+    drops the segment silently. I/O-free (ADR-0007 D3): the caller reads
+    ``active_modes`` / ``walk_away`` / ``allowed_overlays`` from
+    :class:`dev10x.domain.documents.session_yaml.SessionYamlDocument` and
+    passes them in as frozen fields.
+    """
+
+    active_modes: list[str]
+    walk_away: bool
+    allowed_overlays: list[str] | None
+
+    def apply(self) -> str:
+        if self.allowed_overlays is None:
+            return ""
+        # friction_level is irrelevant to overlay derivation — reuse the
+        # resolver's own mapping so the warning names exactly the overlays the
+        # boundary drops (no second, drifting derivation of the mode→overlay map).
+        _, overlays = legacy_session_mapping(
+            friction_level="guided",
+            active_modes=self.active_modes,
+            walk_away=self.walk_away,
+        )
+        dropped = [overlay for overlay in overlays if overlay not in self.allowed_overlays]
+        if not dropped:
+            return ""
+        names = ", ".join(dropped)
+        return (
+            f"**⚠ Durable-mode guard (GH-805).** This repo's `allowed_overlays` "
+            f"policy does not permit: {names}. That high-autonomy overlay is being "
+            "dropped before every gate resolution this session — request-review, "
+            "external-notify, and merge stay human-driven regardless of the durable "
+            "`active_modes` in config.yaml. If this is intentional, edit "
+            "`.claude/Dev10x/config.yaml` (`active_modes` or `allowed_overlays`)."
+        )
+
+
 __all__ = [
     "UnknownFrictionLevelError",
     "DecisionGuidanceRule",
     "BuildAutonomyReassuranceRule",
     "BuildAutoPlanGuidanceRule",
+    "ModeGuardRule",
     "CompletionRecommendation",
     "completion_gate_recommendation",
     "AUTO_PLAN_MODE",

@@ -132,6 +132,16 @@ def build_auto_plan_guidance_context() -> str:
     return SessionService().build_auto_plan_guidance_context(toplevel=_get_toplevel())
 
 
+def build_mode_guard_context() -> str:
+    """Warn when a durable high-autonomy overlay is forbidden by repo policy (GH-805).
+
+    Returns an empty string when the repo declares no ``allowed_overlays``
+    allow-list or nothing would be dropped; the orchestrator drops empty
+    segments, so repos that have not opted into the guard see no change.
+    """
+    return SessionService().build_mode_guard_context(toplevel=_get_toplevel())
+
+
 def build_install_check_context() -> str:
     """Warn the user when the Dev10x install needs bootstrap or upgrade.
 
@@ -241,6 +251,7 @@ def session_goodbye(data: dict | None = None) -> None:
 __all__ = [
     "build_hook_version_drift_context",
     "build_install_check_context",
+    "build_mode_guard_context",
     "build_reload_context",
     "build_autonomy_reassurance_context",
     "build_auto_plan_guidance_context",

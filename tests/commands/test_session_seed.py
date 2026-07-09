@@ -67,6 +67,35 @@ class TestSeedMigratesPreSplitSession:
         )
 
 
+class TestSeedCarriesAllowedOverlays:
+    """GH-805: a pre-split allowed_overlays migrates into config.yaml so the
+    repo-character guard is not silently dropped on migration."""
+
+    @pytest.fixture
+    def result(self, tmp_path: Path) -> object:
+        legacy = _session_path(tmp_path)
+        legacy.parent.mkdir(parents=True, exist_ok=True)
+        legacy.write_text("friction_level: guided\nallowed_overlays: []\n")
+        return CliRunner().invoke(session, ["seed", "--path", str(tmp_path)])
+
+    def test_exits_successfully(self, result: object) -> None:
+        assert result.exit_code == 0
+
+    def test_migrates_allow_list_into_config(self, result: object, tmp_path: Path) -> None:
+        assert "allowed_overlays: []" in _config_path(tmp_path).read_text()
+
+
+class TestSeedOmitsAllowedOverlaysWhenUnset:
+    """Back-compat: no allowed_overlays on the source → none in the seed."""
+
+    @pytest.fixture
+    def result(self, tmp_path: Path) -> object:
+        return CliRunner().invoke(session, ["seed", "--path", str(tmp_path)])
+
+    def test_config_has_no_allowed_overlays_key(self, result: object, tmp_path: Path) -> None:
+        assert "allowed_overlays" not in _config_path(tmp_path).read_text()
+
+
 class TestSeedIsIdempotent:
     @pytest.fixture
     def existing_config(self, tmp_path: Path) -> Path:
