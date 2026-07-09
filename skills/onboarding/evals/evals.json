@@ -33,6 +33,11 @@
           "check": "tool_called",
           "tool": "AskUserQuestion",
           "assertion": "platform_registration_offered"
+        },
+        {
+          "check": "output_contains",
+          "value": "STATE-CHANGING",
+          "assertion": "mutating_surface_disclosed_before_bootstrap_consent"
         }
       ]
     },

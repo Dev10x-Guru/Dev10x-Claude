@@ -88,9 +88,47 @@ run without per-invocation approval prompts. The bootstrap pass
 ensures those rules are present in your user settings.
 ```
 
+**Show the mutating surface before asking for consent (GH-769).**
+The bootstrap approves several hundred rules in one action, so a
+cautious user cannot tell what state-changing power they just
+granted. Before the approval gate below, surface the **mutating**
+subset explicitly — read-only and inert rules do not need a gate,
+only the surface that can change state. Display this disclosure:
+
+```
+Approving the bootstrap pre-approves these STATE-CHANGING actions
+(read-only rules are omitted — they can't alter your repo or account):
+
+  Git mutations (git-core)
+    git push · git reset --hard · git rebase · git commit ·
+    git merge · git cherry-pick · git restore · git stash · git tag
+  GitHub mutations (github-cli)
+    gh pr create/edit/review/merge · gh issue create/close/edit/comment ·
+    gh label create/edit · gh run rerun
+  Arbitrary script execution (dev10x-scaffolding)
+    /tmp/Dev10x/*.{py,sh} · ~/.claude/tools/* · plugin bin/ + hooks/
+    plus Write access under /tmp/Dev10x/
+  Settings mutations (dev10x-cli)
+    uvx dev10x permission clean / ensure-* (edits your settings.json)
+
+Full read-only + mutating catalog:
+  src/dev10x/skills/permission/baseline-permissions.yaml
+  skills/upgrade-cleanup/projects.yaml  (tracker MCP rules)
+```
+
+<!-- Maintenance (GH-769 follow-up): this list is curated to match the
+catalog's mutating surface. The durable fix is to generate it from the
+catalog by reading groups tagged `sensitivity: mutating` / `*-write`
+(and git/gh/script groups) rather than hand-maintaining it here — that
+programmatic generation depends on the PolicySensitivity model gaining a
+`mutating` member (today `sensitivity: mutating` in the YAML falls back
+to `unspecified`). Tracked under the PAP refactor (#796). Until then,
+keep this list in sync when the catalog's mutating groups change. -->
+
 **REQUIRED: Call `AskUserQuestion`** (do NOT use plain text).
 Options:
-- Set up permissions now (Recommended) — runs the fast bootstrap
+- Set up permissions now (Recommended) — approve the mutating surface
+  above and run the fast bootstrap
 - Skip — I'll run `/Dev10x:upgrade-cleanup` later
 
 If user chooses setup:
