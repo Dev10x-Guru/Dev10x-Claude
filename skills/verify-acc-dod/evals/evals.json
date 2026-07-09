@@ -20,6 +20,11 @@
       "id": "scope-deferred-review",
       "name": "Scope-Deferred Review Threads (GH-736)",
       "description": "Honors review-deferred mode by skipping the unresolved-threads and review-request checks so the DoD reflects the agreed scope; never recommends 'Work complete' while a blocking check is failing"
+    },
+    {
+      "id": "live-state-reinference",
+      "name": "Live-State work_type Re-Inference (GH-780)",
+      "description": "When the caller passes a PR-less work_type (local-only/investigation) but an open PR exists, unions the feature check set (CI, draft, fixup, threads, review) into the loaded checks rather than trusting the thin plan-time checklist"
     }
   ],
   "evals": [
@@ -108,6 +113,40 @@
           "text": "Does NOT recommend/auto-select 'Work complete' on the strength of skipping the deferred check while the PR is still open",
           "check": "behavioral",
           "signals": ["no Work complete recommended", "PR open/unmerged"]
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "local-only-open-pr-unions-feature-checks",
+      "prompt": "/Dev10x:verify-acc-dod local-only  (session: friction_level guided; a local-only plan resolved 'create PR' mid-execution, so PR #42 is now OPEN and unmerged)",
+      "description": "Tests that a local-only invocation with an open PR present re-infers from live state and executes the feature PR checks (CI passing, PR not draft, no unresolved review threads) instead of only the thin local-only checklist.",
+      "expected_output": "pr_detect resolves the open PR #42; the feature check set is unioned into the local-only checks (deduped by name). The run executes 'CI passing', 'PR not draft', and 'No unresolved review threads', and reports the added checks as 'added by live-state re-inference'. The caller's 'Working copy clean' check is preserved, not duplicated.",
+      "dimensions": ["live-state-reinference", "criteria-resolution"],
+      "assertions": [
+        {
+          "id": "detects-open-pr",
+          "text": "Resolves the open PR via pr_detect before finalizing the check list",
+          "check": "tool_called",
+          "signals": ["pr_detect"]
+        },
+        {
+          "id": "unions-feature-checks",
+          "text": "Executes the feature PR checks (CI passing, PR not draft, No unresolved review threads) even though the caller passed local-only",
+          "check": "behavioral",
+          "signals": ["CI passing", "PR not draft", "No unresolved review threads"]
+        },
+        {
+          "id": "reports-reinference",
+          "text": "Reports that checks were added by live-state re-inference rather than silently reducing coverage",
+          "check": "behavioral",
+          "signals": ["added by live-state re-inference", "local-only"]
+        },
+        {
+          "id": "no-duplicate-caller-checks",
+          "text": "Does NOT duplicate the caller's 'Working copy clean' check when unioning",
+          "check": "behavioral",
+          "signals": ["deduped by name", "Working copy clean"]
         }
       ]
     }
