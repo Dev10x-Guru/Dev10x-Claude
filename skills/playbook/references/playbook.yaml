@@ -527,12 +527,24 @@ defaults:
           the work as done locally.
       - fragment: shipping-pipeline
         condition: if-pr-decided
-      - subject: Verify acceptance criteria
+        # NOTE (GH-781): shipping-pipeline ends with its own
+        # "Verify acceptance criteria" step. In local-only that would
+        # duplicate the single terminal verify below (feature/bugfix/
+        # structured-spec END with the fragment, so the fragment copy
+        # IS their terminal — only local-only appends its own). work-on
+        # Phase 3 deduplicates: when this fragment is composed here, its
+        # trailing Verify-AC is dropped in favour of the distinctly named
+        # terminal step below. See work-on instructions
+        # § Acceptance Criteria Verification.
+      - subject: Verify acceptance criteria (terminal)
         type: detailed
         prompt: >
-          Confirm work is complete per the acceptance criteria
-          for the chosen outcome. If no PR was created, verify
-          locally that all expected deliverables are done.
+          Single terminal Verify-AC for local-only — delegate to
+          Dev10x:verify-acc-dod. Covers both outcomes: when a PR was
+          created, verify-acc-dod re-infers the feature/pr-continuation
+          checks from the open PR (GH-780); when no PR was created,
+          verify locally that all expected deliverables are done.
+        skills: [Dev10x:verify-acc-dod]
 
   investigation:
     prompt: >

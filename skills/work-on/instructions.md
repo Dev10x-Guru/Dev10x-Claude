@@ -799,6 +799,31 @@ prompt is a valid substitution — not a compliance violation.
 Skill audits should classify this as COMPLIANT (playbook
 substitution), not SKIPPED_STEP.
 
+**Duplicate Verify-AC dedup (GH-781).** The `feature`, `bugfix`,
+and `structured-spec` plays END with the `shipping-pipeline`
+fragment, whose last step is `Verify acceptance criteria` — that
+fragment copy IS their single terminal verify. The `local-only`
+play is the exception: it composes `shipping-pipeline` under
+`condition: if-pr-decided` AND appends its own terminal
+`Verify acceptance criteria (terminal)` step, because a terminal
+verify must exist even when no PR is created (the fragment, and
+thus its verify, is skipped in the no-PR path — GH-149 invariant).
+
+A strictly mechanical instantiation would therefore create TWO
+adjacent Verify-AC tasks for `local-only`. This is the one
+sanctioned exception to the no-collapse rule (§ Phase 3): when a
+play composes the `shipping-pipeline` fragment AND also defines
+its own terminal `Verify acceptance criteria …` step, instantiate
+**only the play-level terminal step** — drop the fragment's
+trailing Verify-AC. The two are the same logical gate; the
+play-level terminal covers both outcomes (PR created → the
+delegated `verify-acc-dod` re-infers the PR-shaped checks per
+GH-780; no PR → local verification). Dropping the fragment's
+trailing verify here is NOT a step-collapse violation and skill
+audits should classify it as COMPLIANT (GH-781 dedup). This
+carve-out is bounded to the fragment-plus-terminal composition —
+never collapse distinct steps elsewhere.
+
 ### Example Plays (Defaults)
 
 These are the built-in default plays. Full YAML definitions
@@ -929,6 +954,27 @@ in `TaskList`).
 4.12 [detailed] Request review            → Dev10x:gh-pr-request-review (if-pr-decided)
 4.13 [detailed] Verify acceptance criteria
 ```
+
+**Local-only work-type upgrade on "create PR" (GH-780).** When the
+"Decide" step (4.4) resolves to "create ticket + PR" or "create PR",
+the session is no longer PR-less — it is now feature-shaped. Right
+after the decision resolves to a PR outcome, update the plan-sync
+`work_type` so the terminal verification receives the corrected
+type:
+`mcp__plugin_Dev10x_cli__plan_sync_set_context(args=["work_type=feature"])`
+(use `pr-continuation` if the flow is continuing an existing PR).
+This complements the `verify-acc-dod` live-state re-inference
+(GH-780, Step 1b): even if the plan-sync update is missed,
+`verify-acc-dod` still unions the PR-shaped checks in from the open
+PR — but updating `work_type` here keeps the routing table and
+recovery context honest.
+
+**Local-only single terminal Verify-AC (GH-781).** The shipping
+pipeline (4.5–4.12 above) runs only under `if-pr-decided` and ends
+with its own Verify-AC; step 4.13 is the play's own terminal
+Verify-AC that also covers the no-PR path. Instantiate **one**
+terminal Verify-AC (4.13) — the fragment's trailing Verify-AC is
+deduped per § Acceptance Criteria Verification. Do not create two.
 
 **Investigation (no fix planned):**
 ```

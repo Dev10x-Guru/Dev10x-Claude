@@ -20,6 +20,11 @@
       "id": "scope-deferred-review",
       "name": "Scope-Deferred Review Threads (GH-736)",
       "description": "Honors review-deferred mode by skipping the unresolved-threads and review-request checks so the DoD reflects the agreed scope; never recommends 'Work complete' while a blocking check is failing"
+    },
+    {
+      "id": "live-state-reinference",
+      "name": "Live-State work_type Re-Inference (GH-780)",
+      "description": "After loading the caller's work_type, re-infers from live state: an open PR upgrades a PR-less work_type (local-only/investigation) by unioning in the feature/pr-continuation checks (union, not replacement), so CI/draft/unresolved-threads checks are executed rather than silently skipped"
     }
   ],
   "evals": [
@@ -108,6 +113,34 @@
           "text": "Does NOT recommend/auto-select 'Work complete' on the strength of skipping the deferred check while the PR is still open",
           "check": "behavioral",
           "signals": ["no Work complete recommended", "PR open/unmerged"]
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "local-only-with-open-pr-runs-feature-checks",
+      "prompt": "/Dev10x:verify-acc-dod local-only  (session: friction_level adaptive; work-on classified the free-text input as local-only at plan time, but the Decide step chose 'create PR' and PR #42 is now OPEN)",
+      "description": "Tests that a local-only invocation with an open PR present re-infers the PR-shaped work type and executes the CI + PR-not-draft + unresolved-threads checks, rather than running only the thin 2-check local-only checklist (GH-780).",
+      "expected_output": "pr_detect resolves PR #42. The feature (or pr-continuation) checks are unioned into the local-only checklist: 'CI passing', 'PR not draft', and 'No unresolved review threads' are executed and shown in the results table, annotated as re-inferred. The caller's local-only checks (Working copy clean, Changes verified) are retained, not replaced.",
+      "dimensions": ["live-state-reinference", "criteria-resolution"],
+      "assertions": [
+        {
+          "id": "resolves-pr-via-pr-detect",
+          "text": "Resolves the open PR via pr_detect before finalizing the check set",
+          "check": "tool_called",
+          "signals": ["pr_detect"]
+        },
+        {
+          "id": "unions-feature-checks",
+          "text": "Executes the re-inferred CI / PR-not-draft / unresolved-threads checks, not just the thin local-only checklist",
+          "check": "behavioral",
+          "signals": ["CI passing", "PR not draft", "No unresolved review threads", "re-inferred"]
+        },
+        {
+          "id": "retains-caller-checks",
+          "text": "Keeps the caller's local-only checks (union, not replacement)",
+          "check": "behavioral",
+          "signals": ["Working copy clean", "union", "not replaced"]
         }
       ]
     }

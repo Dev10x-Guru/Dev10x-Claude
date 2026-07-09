@@ -61,7 +61,10 @@ for unattended shipping pipelines.
 
 ## Input
 
-The skill accepts an optional `work_type` argument. If not
+The skill accepts an optional `work_type` argument. Treat it as
+the PLAN-time hint, not the final word — Step 1b re-infers from
+live session state (an open PR upgrades a PR-less `work_type` to
+the full PR-shaped check set, GH-780). If no argument is
 provided, infer from session context:
 
 | Context | Work type |
@@ -85,6 +88,40 @@ ${CLAUDE_PLUGIN_ROOT}/skills/verify-acc-dod/references/defaults.yaml
 ```
 
 Extract `defaults[work_type].checks` — an array of check objects.
+
+### Step 1b: Re-infer work_type from live session state (GH-780)
+
+The caller passes the `work_type` detected at PLAN time (work-on
+Phase 1), but some plays change shape mid-execution. The
+`local-only` play's "Decide" step can resolve to "create PR",
+making the session feature-shaped by the time verification runs.
+Loading only the thin `local-only` checklist (working copy +
+"changes verified") would then silently skip the checks that now
+apply (CI passing, PR not draft, no fixup commits, unresolved
+threads, review requested).
+
+After loading the caller's checks, probe live state and augment:
+
+1. Resolve the PR via `mcp__plugin_Dev10x_cli__pr_detect(arg="")`
+   (this is already needed for the merge-state gate below — reuse
+   the result).
+2. If a PR exists AND the caller's `work_type` is a PR-less type
+   (`local-only`, `investigation`), UNION in the checks of the
+   PR-shaped work type:
+   - Use `pr-continuation` when the PR carries review comments /
+     threads, otherwise `feature`.
+   - Union by check `name`: keep every caller check, then append
+     each re-inferred check whose `name` is not already present.
+     This is a **union, never a replacement** — a caller check is
+     never dropped.
+3. Report which checks were added by re-inference in the results
+   table (annotate them, e.g. `+ re-inferred (open PR #42)`), so
+   the coverage change is visible rather than silent.
+
+**Skip re-inference** when no PR exists (the caller's PR-less
+checklist is correct) or when the caller's `work_type` is already
+PR-shaped (`feature`, `bugfix`, `pr-continuation`) — those already
+carry the full check set.
 
 ### Step 2: Load repo overrides (if present)
 
@@ -155,12 +192,15 @@ the review-request check (thread resolution is still expected). See
 ### Resolution order (summary)
 
 1. Load plugin defaults for `work_type`
-2. If global file exists and has overrides for current repo +
+2. Re-infer from live state (GH-780): if a PR exists and the
+   caller's `work_type` is PR-less (`local-only`/`investigation`),
+   union in the `feature`/`pr-continuation` checks
+3. If global file exists and has overrides for current repo +
    `work_type`: apply remove → replace → add
-3. If global file is absent: use plugin defaults as-is
-4. If `work_type` has no entry in defaults: use empty checks list
+4. If global file is absent: use plugin defaults as-is
+5. If `work_type` has no entry in defaults: use empty checks list
    and warn
-5. Filter by active modes (skip checks marked for active modes)
+6. Filter by active modes (skip checks marked for active modes)
 
 ## Executing Checks
 
