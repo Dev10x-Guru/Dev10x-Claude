@@ -24,10 +24,17 @@ settings files leave unmatched signatures to the harness prompt.
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Iterable
 from pathlib import Path
 
-from dev10x.domain.common.policy import Policy, PolicyCatalog, PolicyEffect, PolicySource
+from dev10x.domain.common.policy import (
+    Policy,
+    PolicyAssessment,
+    PolicyCatalog,
+    PolicyEffect,
+    PolicySource,
+)
 
 PRECEDENCE: tuple[PolicySource, ...] = (
     PolicySource.PROJECT_LOCAL,
@@ -36,12 +43,24 @@ PRECEDENCE: tuple[PolicySource, ...] = (
 )
 
 
-def resolve_effect(*, policies: Iterable[Policy], signature: str) -> PolicyEffect | None:
-    """Resolve the layered effect for ``signature``; ``None`` when unmatched."""
+def resolve_effect(
+    *,
+    policies: Iterable[Policy],
+    signature: str,
+    context: str = "",
+) -> PolicyEffect | None:
+    """Resolve the layered effect for ``signature``; ``None`` when unmatched.
+
+    ``context`` is the active skill context (PAP-5, GH-802): a policy
+    whose ``scope.context`` is set participates only when the invocation
+    context matches it; unscoped policies always participate.
+    """
     matches = [
         policy
         for policy in policies
-        if policy.is_effective and policy.matches(signature=signature)
+        if policy.is_effective
+        and _in_context(policy=policy, context=context)
+        and policy.matches(signature=signature)
     ]
     if not matches:
         return None
@@ -55,6 +74,31 @@ def resolve_effect(*, policies: Iterable[Policy], signature: str) -> PolicyEffec
             return PolicyEffect.ASK
         return PolicyEffect.ALLOW
     return None
+
+
+def _in_context(*, policy: Policy, context: str) -> bool:
+    return policy.scope.context in ("", context)
+
+
+def attach_assessments(
+    *,
+    policies: Iterable[Policy],
+    records: dict[str, tuple[PolicyAssessment, ...]],
+) -> list[Policy]:
+    """Attach investigator/auditor records to their policies (PAP-5).
+
+    ``records`` maps a policy signature to the assessments recorded for
+    it. Policies without records pass through unchanged; existing
+    assessments are preserved and extended.
+    """
+    attached: list[Policy] = []
+    for policy in policies:
+        extra = records.get(policy.signature)
+        if not extra:
+            attached.append(policy)
+            continue
+        attached.append(dataclasses.replace(policy, assessments=policy.assessments + tuple(extra)))
+    return attached
 
 
 def load_policy_layers(
@@ -83,4 +127,4 @@ def load_policy_layers(
     return policies
 
 
-__all__ = ["PRECEDENCE", "load_policy_layers", "resolve_effect"]
+__all__ = ["PRECEDENCE", "attach_assessments", "load_policy_layers", "resolve_effect"]
