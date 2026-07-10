@@ -1,31 +1,50 @@
 # Session Configuration Schema
 
-Schema for `.claude/Dev10x/session.yaml`, read by SessionStart hooks
-to configure session behavior.
+Schema for the durable session preferences read by SessionStart
+hooks and `resolve_gate` to configure session behavior.
+
+> **ADR-0018 relocation (GH-812).** Durable prefs now live in the
+> **global `~/.config/Dev10x/friction.yaml`**, keyed by project
+> dir-path globs — NOT in a per-repo `.claude/Dev10x/config.yaml`.
+> The ephemeral `.claude/Dev10x/session.yaml` is **retired**; session
+> identity (`branch`/`tickets`) for the adoption/staleness gate comes
+> from plan-sync. Nothing durable is written under a repo's `.claude/`,
+> so Claude Code's self-settings gate never fires on Dev10x session
+> state. A legacy per-repo `config.yaml` is still *read* as a one-cycle
+> migration fallback. The field semantics below are unchanged — only
+> the file location and keying moved.
 
 ## File Location
 
 ```
-~/.claude/Dev10x/session.yaml
+~/.config/Dev10x/friction.yaml
 ```
 
-This file is user-created and persists across sessions. It is not
-auto-initialized; users create it when needed to customize friction
-levels or activate session modes.
+Machine-global, keyed by project. Hand-authored (or seeded via
+`dev10x session seed`, which writes a starter `defaults:` block).
+The resolver reads the first matching `projects[]` entry, then a
+legacy per-repo `config.yaml`, then `defaults:`.
+
+```yaml
+defaults:
+  friction_level: guided
+  active_modes: []
+projects:
+  - match: ["*/my-repo", "/abs/path/**"]
+    friction_level: adaptive
+    active_modes: [solo-maintainer]
+    allowed_overlays: []
+```
 
 ## Schema Definition
+
+Durable keys (in `defaults:` or a `projects[]` entry):
 
 | Field | Type | Required | Default | Example |
 |-------|------|----------|---------|---------|
 | `friction_level` | string (enum) | Yes | `strict` | `adaptive` |
 | `active_modes` | list of strings | Yes | `[]` | `[solo-maintainer, open-source]` |
 | `allowed_overlays` | list of strings | No | *unset = permissive* | `[]` |
-
-> Since GH-774 the durable keys (`friction_level`, `active_modes`,
-> `allowed_overlays`, `gate_*`) live in the sibling **`config.yaml`**;
-> `session.yaml` keeps ephemeral per-worktree identity (`branch`,
-> `tickets`). `SessionYamlDocument` reads either (config wins, pre-split
-> session.yaml is the migration fallback).
 
 ### friction_level
 
