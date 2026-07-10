@@ -74,6 +74,9 @@ SKILL_EXEMPTIONS: dict[str, frozenset[str]] = {
     "raw-git-branch": GIT_IMPLEMENTERS | META_DOC_SKILLS,
     "raw-pytest": PYTEST_IMPLEMENTERS | META_DOC_SKILLS | frozenset({"gh-pr-create"}),
     "no-verify": frozenset(),
+    # diag-friction quotes the bad `Write(.claude/…)` pattern back at the
+    # agent as the thing to avoid, so it is exempt from the write guard.
+    "write-guard-claude": META_DOC_SKILLS,
 }
 
 
@@ -172,6 +175,30 @@ RULES: tuple[Rule, ...] = (
         pattern=re.compile(r"--no-verify\b"),
         message="`--no-verify` skips pre-commit hooks (CLAUDE.md global rule)",
         suggestion="Fix the underlying hook failure instead of bypassing it",
+    ),
+)
+
+# Prose rules are scanned on EVERY doc line (outside front matter), not only
+# inside shell fences: they target tool-call *instructions* written in prose
+# (e.g. "Write the file to `.claude/Dev10x/session.yaml`"), not shell
+# commands. Same `# cli-friction: allow <rule-id>` opt-out and
+# SKILL_EXEMPTIONS apply.
+PROSE_RULES: tuple[Rule, ...] = (
+    Rule(
+        rule_id="write-guard-claude",
+        # Match a Write/Edit/MultiEdit tool call whose target path is under
+        # a `.claude/` directory. Catches `Write(.claude/Dev10x/session.yaml)`
+        # and `Edit(file_path="…/.claude/…")`. A bare backticked path in prose
+        # (no `Write(`/`Edit(`) does not match — describing a path is fine;
+        # instructing a runtime write to it is not.
+        pattern=re.compile(r"\b(?:Write|Edit|MultiEdit)\([^)\n]*\.claude/"),
+        message="Skill doc instructs a runtime Write/Edit under .claude/ (ADR-0018)",
+        suggestion=(
+            "Never Write/Edit `.claude/**` at runtime — it trips Claude Code's "
+            "self-settings consent gate regardless of allow rules (GH-812). Route "
+            "the write through an MCP/CLI writer (e.g. `dev10x session seed`) or "
+            "keep the state outside the repo (`~/.config/Dev10x/…`)."
+        ),
     ),
 )
 
@@ -307,14 +334,28 @@ def scan_file(path: Path) -> list[Violation]:
     violations: list[Violation] = []
 
     for line_no, line in enumerate(content.splitlines(), start=1):
-        if not _should_scan_line(line, state, path):
-            continue
+        # Always call _should_scan_line so fence/front-matter state stays in
+        # sync; its return only gates the fence-scoped CLI rules below.
+        should_scan = _should_scan_line(line, state, path)
 
         # Per-line opt-out — comma-separated list of rule IDs.
         allow_match = _INLINE_ALLOW.search(line)
         allowed_here: set[str] = set()
         if allow_match:
             allowed_here = {r.strip() for r in allow_match.group("rule").split(",")}
+
+        # Prose rules scan every line outside front matter — the pattern
+        # targets tool-call instructions that may be plain prose, not just
+        # shell-fenced commands.
+        if not state.in_frontmatter:
+            for rule in PROSE_RULES:
+                if rule.rule_id in allowed_here or _is_exempt(rule, skill_name):
+                    continue
+                if rule.pattern.search(line):
+                    violations.append(Violation(path=path, line_no=line_no, line=line, rule=rule))
+
+        if not should_scan:
+            continue
 
         for rule in RULES:
             if rule.rule_id in allowed_here:
