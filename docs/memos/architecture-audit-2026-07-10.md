@@ -28,13 +28,16 @@ assertions.
 
 ### Top priorities (Impact HIGH, sorted by effort)
 
+> Adjusted same-day by the post-merge re-verification addendum at the
+> end of this memo: the dual permission-catalog finding (D3/N7) was
+> resolved by GH-799 and is removed from this list.
+
 | # | Finding | Phase | Effort | Status |
 |---|---------|-------|--------|--------|
 | 1 | `rule_confidence.py` feedback store: unlocked read-modify-write (lost updates + truncation on crash) | E | S | NEW |
 | 2 | `gh-pr-monitor` / `gh-pr-request-review` eval-blind despite 48h-old hardening churn | G | M | NEW |
 | 3 | Unresolved-threads repo sweep still N+1 (2 subprocesses/PR; GH-710 fixed only single-PR path) | I | M | carried (partial) |
-| 4 | Dual permission-catalog files (`projects.yaml` vs `upgrade-cleanup-projects.yaml`) | D | M | carried (N7) |
-| 5 | ADR-0015 config-io helper never implemented; `rule_engine.py`/`platform/registry.py` still raise unguarded YAML errors into the hook path | H | L | carried (ADR accepted 2026-06-29) |
+| 4 | ADR-0015 config-io helper never implemented; `rule_engine.py`/`platform/registry.py` still raise unguarded YAML errors into the hook path | H | L | carried (ADR accepted 2026-06-29) |
 
 ### Carried-over reconciliation
 
@@ -240,3 +243,36 @@ selection, Phase 3 nine parallel sonnet Explore agents each primed with
 the 2026-06-10 memo to suppress re-reporting of remediated findings,
 Phase 4 orchestrator merge with one cross-agent conflict (N8)
 resolved by direct source verification.
+
+---
+
+## Addendum: post-merge re-verification (same day)
+
+While the audit ran, a parallel session merged 9 commits to develop
+past the audited baseline `b4af62da`: the PERM-M5 PAP/Policy refactor
+(GH-797..GH-802) and the session-state relocation (GH-812/GH-813,
+new ADR-0018).
+A targeted re-verification of every affected finding against
+`origin/develop` produced these adjustments:
+
+| Finding | Verdict | Notes |
+|---------|---------|-------|
+| D3/N7 dual permission catalog (HIGH) | **RESOLVED** | All subcommands resolve via one `resolve_config` chain (`Dev10xConfigDir.projects_yaml()` first); GH-799 added the unifying Policy loader. The two files persist only as an ordered lazy-migration fallback. Divergence may already have been stale at scan time (GH-577). |
+| E3 session_yaml non-atomic writes (MEDIUM) | **mostly RESOLVED** → LOW residual | `write_ephemeral` deleted (GH-812); new writers (`friction.yaml` O_EXCL create-only, `write_state` atomic) are clean. Residual: legacy `ConfigYamlDocument.write` (bare `write_text`, `session_yaml.py:251`) appears unreferenced — delete or atomicize. |
+| C1 AllowRule regex bypass | STILL VALID | All six regexes remain (doctor.py moved to ~:600). GH-799 added a **seventh** minor instance: `policy_catalog_migration.py:138-140`. |
+| F3, D1, C3, G2, A3, I2, E1, B2/F4 | STILL VALID | Unchanged by the 9 commits. |
+| H2 path literals | STILL VALID | ~31 literals; `session_yaml.py` literals relocated to `:204`/`:268` as legacy read fallbacks, not removed. |
+| H1 config-io absent | STILL VALID, not worsened | New policy modules introduce no new raw `yaml.safe_load` sites. |
+
+New surface (all clean, no anti-pattern repeats): ADR-0018,
+`FrictionYamlDocument`, `read_plan_identity`/`write_state` (atomic),
+`policy_resolution.py`, `workspace.py`, `policy_catalog_migration.py`,
+`policy_authoring.py`, `policy_renderer.py`, `policy_report.py`,
+`Policy` lifecycle/scope/assessment fields,
+`git_registered_worktrees`.
+
+Net effect on milestones: Milestone 5 loses its HIGH anchor (D3
+resolved) and shrinks to the C1 AllowRule-adoption cleanup (now 7
+call sites) plus F3 — mergeable into Milestone 6. Milestone 1 drops
+E3 to a LOW dead-code cleanup. HIGH findings after adjustment:
+E1, G5 (+G3 sweep), I1, H1.
