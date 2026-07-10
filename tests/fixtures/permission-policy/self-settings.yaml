@@ -1,0 +1,50 @@
+# PAP-0 permission-policy fixtures — surface: self-settings
+#
+# Supplementary surface (GH-812 S1): Write/Edit cells targeting
+# .claude/ paths, where the harness self-settings gate currently
+# fires `ask` regardless of matching allow rules (GH-812 RC-A).
+# `effect` records what the PAP engine SHOULD resolve — these cases
+# document the intended policy, and the delta against observed
+# behavior is the GH-812 evidence. See README.md for schema.
+
+surface: self-settings
+cases:
+  - id: "GH-812/RC-A-session-yaml"
+    input: "Write(.claude/Dev10x/session.yaml)"
+    sensitivity: benign
+    effect: allow
+    source_tier: project-local
+    notes: >
+      Gitignored session-state file the work-on adoption gate rewrites
+      every session — trivially reversible, never enters a PR; the
+      self-settings classification overriding an exact-path allow rule
+      is the RC-A friction.
+
+  - id: "GH-812/RC-B-session-edit"
+    input: "Edit(.claude/Dev10x/session.yaml)"
+    sensitivity: benign
+    effect: allow
+    source_tier: project-local
+    notes: >
+      Same target via Edit — stale `branch:`/`tickets:` identity
+      updates (GH-755) are runtime state, not settings authorship.
+
+  - id: "GH-812/settings-local"
+    input: "Edit(.claude/settings.local.json)"
+    sensitivity: unspecified
+    effect: ask
+    source_tier: project-local
+    notes: >
+      Genuine permission-rule authorship — the self-settings prompt is
+      CORRECT here; the PAP distinction is state files vs rule files,
+      not a blanket .claude/ bypass.
+
+  - id: "GH-812/gate-policy-tracked"
+    input: "Edit(.dev10x/gate-policy.yaml)"
+    sensitivity: unspecified
+    effect: ask
+    source_tier: project-local
+    notes: >
+      Git-tracked durable project pin (ADR-0016) — policy authorship,
+      so a prompt is warranted even though the path is outside
+      .claude/.
