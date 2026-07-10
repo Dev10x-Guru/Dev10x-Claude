@@ -1,0 +1,124 @@
+# PAP-0 permission-policy fixtures — surface: bash
+#
+# Bash-tool command shapes. Derived from the GH-271 Phase 0 corpus
+# (tests/fixtures/permission-friction/) and session-guidance hook
+# tables. See README.md for schema and classification principles.
+
+surface: bash
+cases:
+  - id: "GH-271/#282"
+    input: "git status --porcelain"
+    sensitivity: benign
+    effect: allow
+    source_tier: plugin-default
+    notes: Read-only working-tree probe; git-core tier-1 group.
+
+  - id: "GH-271/#2"
+    input: 'rg -rn "<pattern>" /work/<org>'
+    sensitivity: benign
+    effect: allow
+    source_tier: plugin-default
+    notes: >
+      Endorsed read-only search tool. Historical friction was a
+      workspace-boundary gap, not the verb.
+
+  - id: "GH-271/#61"
+    input: "gh --version"
+    sensitivity: benign
+    effect: allow
+    source_tier: plugin-default
+    notes: >
+      Version probe. The safe rule is the narrow `Bash(gh --version)` —
+      the option-2 catch-all `Bash(gh *)` shape must never be authored.
+
+  - id: "GH-271/#206"
+    input: "git clean -nd"
+    sensitivity: benign
+    effect: allow
+    source_tier: plugin-default
+    notes: Dry run — lists candidates, deletes nothing.
+
+  - id: "GH-271/#142"
+    input: "dev10x --help"
+    sensitivity: benign
+    effect: allow
+    source_tier: plugin-default
+    notes: Help output — read-only; dev10x-cli group.
+
+  - id: "baseline/fence-tool-narrow"
+    input: "uv run pytest"
+    sensitivity: benign
+    effect: allow
+    source_tier: plugin-default
+    notes: >
+      Narrow safe sub-form of a fence tool; the broad `uv run` surface
+      stays ask (fence-tool taxonomy).
+
+  - id: "baseline/fence-tool-broad"
+    input: "npx some-package"
+    sensitivity: unspecified
+    effect: ask
+    source_tier: plugin-default
+    notes: >
+      Fence tool executes arbitrary published code — broad shape is ask;
+      only enumerated sub-forms earn narrow allows.
+
+  - id: "DX014/env-read"
+    input: "cat .env"
+    sensitivity: secret
+    effect: ask
+    source_tier: plugin-default
+    notes: >
+      Read-only but secret-class target — DX014 sensitivity axis says
+      prompt (`ask`), never hard-deny a probe.
+
+  - id: "DX014/gh-secret-list"
+    input: "gh secret list"
+    sensitivity: secret
+    effect: ask
+    source_tier: plugin-default
+    notes: Credential enumeration — read-only yet worth a prompt.
+
+  - id: "SG/arbitrary-code-python"
+    input: 'python3 -c "import json; ..."'
+    sensitivity: unspecified
+    effect: deny
+    source_tier: plugin-default
+    notes: >
+      Inline arbitrary code — structured alternatives exist (jq, yq,
+      ~/.claude/tools/ scripts with uv shebang).
+
+  - id: "SG/arbitrary-code-sh"
+    input: 'sh -c "<code>"'
+    sensitivity: unspecified
+    effect: deny
+    source_tier: plugin-default
+    notes: >
+      Arbitrary-code class. Distinct from the `sh -n` syntax check,
+      which is a safe read.
+
+  - id: "GH-271/#66"
+    input: 'find . -name "*.tmp" -delete'
+    sensitivity: benign
+    effect: deny
+    source_tier: plugin-default
+    notes: >
+      Irreversible bulk delete; the safe path is `git clean -n` review
+      followed by exact `rm`.
+
+  - id: "GH-326/base-deny-sudo"
+    input: "sudo rm -rf /var/lib/something"
+    sensitivity: unspecified
+    effect: deny
+    source_tier: plugin-default
+    notes: Privilege escalation — base_denies tier (GH-326).
+
+  - id: "SG/poisoned-chain"
+    input: "git add . && git commit -m msg"
+    sensitivity: benign
+    effect: deny
+    source_tier: plugin-default
+    notes: >
+      Chaining shifts the effective command prefix and defeats
+      allow-rule matching (PREFIX_POISONED_CHAIN) — each command must
+      be a separate call.

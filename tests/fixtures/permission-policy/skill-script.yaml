@@ -1,0 +1,84 @@
+# PAP-0 permission-policy fixtures — surface: skill-script
+#
+# Skill-distributed script invocations: plugin scripts under
+# ${CLAUDE_PLUGIN_ROOT}, user tools under ~/.claude/tools/, and the
+# /tmp/Dev10x helpers. See README.md for schema.
+
+surface: skill-script
+cases:
+  - id: "baseline/plugin-skill-script"
+    input: "${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-create/scripts/create-pr.sh --unattended"
+    sensitivity: benign
+    effect: allow
+    source_tier: plugin-default
+    notes: >
+      Script declared in the skill's allowed-tools front matter — the
+      declaration is the grant; missing declarations are the #1 source
+      of per-invocation approval friction.
+
+  - id: "baseline/mktmp-shell-fallback"
+    input: "/tmp/Dev10x/bin/mktmp.sh git commit-msg .txt"
+    sensitivity: benign
+    effect: allow
+    source_tier: plugin-default
+    notes: >
+      Shell-context fallback for the mktmp MCP tool; handles its own
+      setup so no mkdir prefix is ever needed.
+
+  - id: "GH-47/user-tool-tilde"
+    input: "~/.claude/tools/gh271_curate.py /tmp/evidence.json /tmp"
+    sensitivity: benign
+    effect: allow
+    source_tier: user-private
+    notes: >
+      Self-executing user tool (uv shebang, PEP 723). Twin A of the
+      literal-match constraint: the `~/` spelling.
+
+  - id: "GH-47/user-tool-home"
+    input: "/home/<user>/.claude/tools/gh271_curate.py /tmp/evidence.json /tmp"
+    sensitivity: benign
+    effect: allow
+    source_tier: user-private
+    notes: >
+      Twin B — the resolved `/home/<user>/` spelling. Rule matching is
+      literal, so the renderer must emit BOTH twins (GH-47); one twin
+      alone leaves the other spelling prompting.
+
+  - id: "SG/uv-run-script-wrapper"
+    input: "uv run --script ~/.claude/skills/<skill>/scripts/foo.py"
+    sensitivity: benign
+    effect: ask
+    source_tier: plugin-default
+    notes: >
+      Redundant interpreter prefix shifts the effective command prefix
+      off the path-based allow rule — the direct shebang call is the
+      allowed shape; the wrapped form falls back to a prompt.
+
+  - id: "SG/setup-prefix-chain"
+    input: "mkdir -p /tmp/foo && ~/.claude/skills/<skill>/scripts/foo.sh"
+    sensitivity: benign
+    effect: deny
+    source_tier: plugin-default
+    notes: >
+      Setup prefix + chaining defeats `Bash(~/.claude/skills:*)` —
+      skill scripts handle their own setup; the chain is hook-blocked.
+
+  - id: "feedback/skip-validation-flag"
+    input: "DEV10X_SKIP_CMD_VALIDATION=1 <any command>"
+    sensitivity: unspecified
+    effect: deny
+    source_tier: plugin-default
+    notes: >
+      Validation-skip escape hatch is never an agent-facing option —
+      when a hook blocks a documented skill step, file an issue and
+      surface the impasse instead.
+
+  - id: "GH-594/worktree-script-copy"
+    input: "/work/<org>/.worktrees/<name>/skills/<skill>/scripts/foo.sh"
+    sensitivity: benign
+    effect: allow
+    source_tier: project-local
+    notes: >
+      Worktree copies of skill scripts run live from the worktree —
+      rules must re-anchor across `.worktrees/<name>/` roots rather
+      than accumulate per-worktree noise.

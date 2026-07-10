@@ -1,0 +1,93 @@
+# PAP-0 permission-policy fixtures — surface: mcp
+#
+# MCP tool-call shapes: Dev10x plugin wrappers plus claude.ai connector
+# tools. See README.md for schema and classification principles.
+
+surface: mcp
+cases:
+  - id: "baseline/dev10x-cli-read"
+    input: "mcp__plugin_Dev10x_cli__pr_get(number=794)"
+    sensitivity: benign
+    effect: allow
+    source_tier: plugin-default
+    notes: Read-only PR state wrapper; mcp-dev10x-readonly group.
+
+  - id: "baseline/dev10x-cli-mktmp"
+    input: 'mcp__plugin_Dev10x_cli__mktmp(namespace="git", prefix="msg", ext=".txt")'
+    sensitivity: benign
+    effect: allow
+    source_tier: plugin-default
+    notes: >
+      Temp-file factory under /tmp/Dev10x — preferred over the shell
+      fallback script precisely because the MCP call avoids Bash
+      permission friction.
+
+  - id: "baseline/dev10x-cli-push-safe"
+    input: 'mcp__plugin_Dev10x_cli__push_safe(args=["-u", "origin", "<branch>"])'
+    sensitivity: benign
+    effect: allow
+    source_tier: plugin-default
+    notes: >
+      Mutating but guarded — the wrapper blocks protected-branch force
+      pushes itself; raw `git push` does not inherit this effect.
+
+  - id: "GH-271/#150"
+    input: "mcp__claude_ai_Linear__get_issue(id, includeRelations=true)"
+    sensitivity: benign
+    effect: allow
+    source_tier: user-private
+    notes: >
+      Connector read. Prompted historically despite a present rule
+      (enumerated-tool gap) — the rule belongs in the synced user
+      catalog, not per-project settings.
+
+  - id: "GH-271/#311"
+    input: "mcp__claude_ai_Slack__slack_read_file(file_id)"
+    sensitivity: benign
+    effect: allow
+    source_tier: user-private
+    notes: Connector read tool — never mutates.
+
+  - id: "evidence/slack-send"
+    input: "mcp__claude_ai_Slack__slack_send_message(channel, text)"
+    sensitivity: benign
+    effect: ask
+    source_tier: user-private
+    notes: >
+      Outward-facing write — publishes to teammates; requires
+      confirmation unless a session explicitly authorized the send.
+
+  - id: "evidence/merge-pr"
+    input: "mcp__plugin_Dev10x_cli__merge_pr(pr_number=<N>)"
+    sensitivity: benign
+    effect: ask
+    source_tier: project-local
+    notes: >
+      Merge is human-gated in team repos — the wrapper validates
+      pre-merge conditions, but consent to merge is a project-local
+      policy decision.
+
+  - id: "DX004/db-select"
+    input: 'mcp__plugin_Dev10x_db__query("SELECT count(*) FROM users")'
+    sensitivity: pii
+    effect: allow
+    source_tier: plugin-default
+    notes: >
+      SELECT-only surface is allowed, but the pii sensitivity gates
+      proactive seeding of the rule.
+
+  - id: "DX004/db-write"
+    input: "mcp__plugin_Dev10x_db__query(\"DELETE FROM users WHERE id = 1\")"
+    sensitivity: pii
+    effect: deny
+    source_tier: plugin-default
+    notes: >
+      SQL writes are never executed by the agent — print the SQL and
+      hand it to the user (DX004 sql-safety).
+
+  - id: "evidence/gmail-send"
+    input: "mcp__claude_ai_Gmail__send_email(to, subject, body)"
+    sensitivity: pii
+    effect: ask
+    source_tier: user-private
+    notes: Outward-facing, irreversible once delivered — always confirm.

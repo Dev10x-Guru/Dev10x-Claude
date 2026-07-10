@@ -1,0 +1,57 @@
+# PAP-0 permission-policy fixtures — surface: skill-invocation
+#
+# Skill() tool invocations. The skill wrapper is the guardrail carrier:
+# invoking the skill is broadly safe; gates fire *inside* the skill.
+# See README.md for schema.
+
+surface: skill-invocation
+cases:
+  - id: "routing/git-commit"
+    input: "Skill(Dev10x:git-commit)"
+    sensitivity: benign
+    effect: allow
+    source_tier: plugin-default
+    notes: >
+      Canonical wrapper for commit creation — enforces gitmoji, ticket
+      reference, and 72-char limits that raw `git commit` skips.
+
+  - id: "routing/test"
+    input: "Skill(test)"
+    sensitivity: benign
+    effect: allow
+    source_tier: plugin-default
+    notes: Test-runner wrapper; the routed form of pytest execution.
+
+  - id: "routing/gh-pr-merge"
+    input: "Skill(Dev10x:gh-pr-merge)"
+    sensitivity: benign
+    effect: allow
+    source_tier: plugin-default
+    notes: >
+      Invocation is allowed — consent to merge is resolved INSIDE the
+      skill (pre-merge checks + merge gate), not at invocation time.
+
+  - id: "routing/aws-vault"
+    input: "Skill(Dev10x:aws-vault)"
+    sensitivity: secret
+    effect: ask
+    source_tier: user-private
+    notes: >
+      Secret retrieval skill — requires explicit confirmation before
+      any lookup, including read-only ones.
+
+  - id: "routing/db"
+    input: "Skill(Dev10x:db)"
+    sensitivity: pii
+    effect: allow
+    source_tier: plugin-default
+    notes: >
+      SELECT-only database skill; the pii sensitivity gates proactive
+      seeding, and writes are refused inside the skill (DX004).
+
+  - id: "routing/session-wrap-up"
+    input: "Skill(Dev10x:session-wrap-up)"
+    sensitivity: benign
+    effect: allow
+    source_tier: plugin-default
+    notes: Session-state routing skill — local, reversible effects only.
