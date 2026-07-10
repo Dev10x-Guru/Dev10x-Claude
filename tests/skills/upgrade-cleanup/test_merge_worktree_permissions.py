@@ -1,11 +1,25 @@
 """Tests for merge_worktree_permissions module."""
 
+from pathlib import Path
+from types import SimpleNamespace
+
 import pytest
 
+from dev10x.skills.permission import merge_worktree_permissions as mod
 from dev10x.skills.permission.merge_worktree_permissions import (
     generalize_permission,
     is_noise,
 )
+
+
+def _make_worktree(*, main: Path, wt: Path, settings: bool = True) -> None:
+    """Materialize a linked worktree whose .git points back at ``main``."""
+    wt.mkdir(parents=True, exist_ok=True)
+    (wt / ".git").write_text(f"gitdir: {main}/.git/worktrees/{wt.name}\n")
+    if settings:
+        claude = wt / ".claude"
+        claude.mkdir(parents=True, exist_ok=True)
+        (claude / "settings.local.json").write_text("{}")
 
 
 class TestIsNoise:
@@ -79,3 +93,66 @@ class TestGeneralizePermission:
         assert generalize_permission("Read(/work/dx/bin/release.sh)") == (
             "Read(/work/dx/bin/release.sh)"
         )
+
+
+class TestGitRegisteredWorktrees:
+    """GH-813 Finding 2: discover worktrees via `git worktree list`."""
+
+    def test_parses_porcelain_worktree_paths(self, tmp_path: Path, monkeypatch) -> None:
+        out = "worktree /a/main\nHEAD abc\n\nworktree /a/side/wt1\nHEAD def\n"
+        monkeypatch.setattr(
+            mod.subprocess_utils,
+            "run",
+            lambda *a, **k: SimpleNamespace(returncode=0, stdout=out),
+        )
+        assert mod.git_registered_worktrees(tmp_path) == [
+            Path("/a/main"),
+            Path("/a/side/wt1"),
+        ]
+
+    def test_empty_when_not_a_git_repo(self, tmp_path: Path, monkeypatch) -> None:
+        monkeypatch.setattr(
+            mod.subprocess_utils,
+            "run",
+            lambda *a, **k: SimpleNamespace(returncode=128, stdout=""),
+        )
+        assert mod.git_registered_worktrees(tmp_path) == []
+
+
+class TestFindWorktreeGroups:
+    """GH-813 Finding 2: union the .worktrees/ glob with git-registered
+    worktrees so a worktree living anywhere is discovered, not silently
+    skipped."""
+
+    def test_groups_git_registered_worktree_outside_layout(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        main = tmp_path / "proj"
+        main.mkdir()
+        wt = tmp_path / "elsewhere" / "wt1"
+        _make_worktree(main=main, wt=wt)
+        monkeypatch.setattr(mod, "git_registered_worktrees", lambda root_path: [wt])
+        assert mod.find_worktree_groups([str(main)]) == {main: [wt]}
+
+    def test_groups_conventional_worktrees_dir(self, tmp_path: Path, monkeypatch) -> None:
+        main = tmp_path / "proj"
+        wt = main / ".worktrees" / "wt1"
+        _make_worktree(main=main, wt=wt)
+        # Even with git unavailable, the glob still finds the conventional layout.
+        monkeypatch.setattr(mod, "git_registered_worktrees", lambda root_path: [])
+        assert mod.find_worktree_groups([str(main)]) == {main: [wt]}
+
+    def test_dedupes_worktree_seen_by_both_sources(self, tmp_path: Path, monkeypatch) -> None:
+        main = tmp_path / "proj"
+        wt = main / ".worktrees" / "wt1"
+        _make_worktree(main=main, wt=wt)
+        monkeypatch.setattr(mod, "git_registered_worktrees", lambda root_path: [wt])
+        assert mod.find_worktree_groups([str(main)]) == {main: [wt]}
+
+    def test_skips_worktree_without_settings(self, tmp_path: Path, monkeypatch) -> None:
+        main = tmp_path / "proj"
+        main.mkdir()
+        wt = tmp_path / "elsewhere" / "wt1"
+        _make_worktree(main=main, wt=wt, settings=False)
+        monkeypatch.setattr(mod, "git_registered_worktrees", lambda root_path: [wt])
+        assert mod.find_worktree_groups([str(main)]) == {}

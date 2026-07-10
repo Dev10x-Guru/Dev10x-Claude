@@ -633,6 +633,13 @@ def merge_worktree(*, dry_run: bool, restore: bool) -> None:
         click.echo("No worktree groups found.")
         return
 
+    # GH-813 Finding 2: surface coverage explicitly. Discovery now unions the
+    # .worktrees/ glob with `git worktree list`, so worktrees registered
+    # outside the conventional layout are included instead of silently
+    # skipped — echo the totals so a missing worktree is visible, not implied.
+    discovered = sum(len(dirs) for dirs in groups.values())
+    click.echo(f"Discovered {discovered} worktree(s) across {len(groups)} project(s).")
+
     if dry_run:
         click.echo("(dry run — no files will be modified)\n")
 
