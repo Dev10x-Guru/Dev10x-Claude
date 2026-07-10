@@ -55,13 +55,14 @@ session).
 
 **Otherwise, resolve the session-adoption gate first.** Call
 `mcp__plugin_Dev10x_cli__resolve_gate(gate="session_adoption",
-context={})`. The tool determines on its own whether an existing
-`.claude/Dev10x/session.yaml` is stale (`session_stale`) — do not
-read or hand-compare the file's `friction_level` yourself.
+context={})`. The tool determines on its own whether the persisted
+session is stale (`session_stale`) — computed from the plan-sync
+`branch`/`tickets` identity (ADR-0018), not a `.claude/Dev10x`
+file — so do not read or hand-compare any config yourself.
 
-- `effect == "auto-advance"` — a valid, non-stale session config
-  exists; adopt it silently and skip the write below (the existing
-  file is authoritative). Surface the returned `record` line in the
+- `effect == "auto-advance"` — a valid, non-stale session exists;
+  adopt it silently and skip the write below (the resolved prefs are
+  authoritative). Surface the returned `record` line in the
   transcript so a present supervisor can veto.
 - `effect == "ask"` — no valid session config exists (or it is
   stale). Fall through to the Phase 0 friction prompt below.
@@ -88,77 +89,51 @@ auto-approves while downstream decision gates keep firing. `auto-plan`
 is set via `active_modes`, not this friction prompt. See
 `references/active-modes.md` § `auto-plan`.
 
-**Persist the choice** to `.claude/Dev10x/session.yaml`:
+**Persist the choice** to the global `~/.config/Dev10x/friction.yaml`
+(ADR-0018) — **never** to any file under the repo's `.claude/`.
+Writing `.claude/Dev10x/*` with the Write/Edit tool trips Claude
+Code's self-settings consent gate on every session regardless of
+allow rules (GH-812); the global file lives outside every repo, so
+it is gate-free and syncs across a repo's worktrees by construction.
+The file is keyed by project dir-path globs:
 
 ```yaml
-friction_level: guided  # strict | guided | adaptive
-active_modes: []        # e.g., [solo-maintainer]
+defaults:
+  friction_level: guided   # strict | guided | adaptive
+  active_modes: []
+projects:
+  - match: ["*/<repo-name>", "/abs/path/**"]
+    friction_level: adaptive
+    active_modes: []         # e.g. [solo-maintainer]
 ```
 
-Also persist `active_modes` from the project playbook file
-(`memory/playbooks/work-on.yaml`) if present — copy them into
-session.yaml so skills can read modes without loading the full
-playbook. If the project file declares `active_modes`, merge
-them into the session config.
+**Prefer the CLI over a raw Write** so the write stays gate-free and
+the shape stays canonical: `dev10x session seed` (idempotent —
+creates a starter `friction.yaml` with a `defaults:` block when
+absent). For a per-project override, hand-add a `projects[]` entry;
+the resolver reads first-match-wins, falling back to a legacy
+per-repo `config.yaml` and then `defaults:` (ADR-0018 D4). Merge
+`active_modes` from the project playbook file into the chosen
+project entry.
 
-**Read-before-write (GH-846):** Before writing `session.yaml`,
-read the existing file (if present) and compare the desired
-`friction_level` and `active_modes` with what is already on
-disk. **Skip the write entirely** if both values already match.
-This avoids unnecessary permission prompts and prevents
-overwriting existing `active_modes` with empty defaults.
+**Read-before-write (GH-846):** `resolve_gate` already reads the
+resolved durable prefs; only persist a *changed* friction choice —
+skip the write when the resolved level/modes already match.
 
-Resolution order for `active_modes`:
-1. Existing `active_modes` in `session.yaml` (preserve)
-2. `active_modes` from project playbook file (merge new entries)
-3. Empty `[]` only if neither source provides modes
+**Session identity is NOT written here (ADR-0018).** The
+`session_adoption` gate keys on `session_stale`, which the resolver
+computes from the plan-sync `branch`/`tickets` (persisted at Persist
+Plan Context via `plan_sync_set_context` — both MCP-written and
+gate-free). The retired `.claude/Dev10x/session.yaml` no longer
+stores identity: do **not** Write/Edit it, and no per-project
+`.gitignore` edit for session state is needed — nothing durable is
+written under the repo's `.claude/` anymore.
 
-Never overwrite a non-empty `active_modes` list with `[]`.
-
-Write this file using the Write tool only when the content
-actually needs to change. The PreCompact hook reads it to
-inject friction context into recovery summaries.
-
-**Write session identity for the session-adoption gate (GH-755).**
-The Phase 0 `session_adoption` gate keys on `session_stale`, which
-the resolver computes from top-level `branch:` and `tickets:` keys
-in `session.yaml`. Nothing else writes those keys, so work-on is
-their producer — persist them alongside the friction choice:
-
-```yaml
-branch: <current git branch>   # session identity (GH-755)
-tickets: []                    # backfilled at Persist Plan Context
-```
-
-Write `branch:` now (it is known at Phase 0) and backfill `tickets:`
-in the Persist Plan Context step once the plan's ticket list is
-resolved (Phase 3). Without this producer the gate has no freshness
-signal, `session_stale` stays `true`, and the friction prompt
-re-fires on every same-branch re-invocation (e.g. compaction
-recovery) — the GH-252 over-prompting the skip existed to prevent.
-Apply the same read-before-write guard: skip the write when
-`branch:`/`tickets:` already match on disk.
-
-**Gitignore session.yaml (GH-705).** `session.yaml` is session
-state, not source — it must never enter a feature PR, and when it
-is git-tracked its constant rewrites trip the clean-tree gates in
-`verify_pr_state`, `Dev10x:gh-pr-merge` Check 5, and `create_pr`
-(forcing a manual stash/pop on every git step). Before (or right
-after) the first write in a project, ensure it is ignored: if
-`git check-ignore .claude/Dev10x/session.yaml` reports nothing,
-append `.claude/Dev10x/session.yaml` to the project `.gitignore`.
-Skip when already ignored (this repo ignores `.claude/Dev10x/`
-wholesale).
-
-**Seeding when missing (GH-705).** When `session.yaml` is absent and
-you only need a default (no friction level chosen yet — e.g. resuming
-in a fresh worktree the `post-checkout` hook did not seed), delegate
-to `Skill(Dev10x:session-config-seed)` rather than hand-writing the
-file; it wraps the same idempotent `dev10x session seed` CLI the
-`post-checkout` hook uses, so the file shape stays consistent across
-both entry points. When the Phase 0 prompt has just collected an
-explicit friction level / active modes, write those directly (above)
-instead — the seed only ever creates a *default* file.
+**Seeding when missing.** When no `friction.yaml` exists yet,
+delegate to `Skill(Dev10x:session-config-seed)` (or run `dev10x
+session seed`) rather than hand-writing it — the same idempotent
+CLI the `post-checkout` hook uses, so the file shape stays
+consistent across both entry points.
 
 **How skills consume the level:**
 - Gates marked `(Recommended)` auto-select at `adaptive`

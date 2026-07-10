@@ -84,11 +84,13 @@ if [ "$1" = "0000000000000000000000000000000000000000" ]; then
     copy_clean ".env"
     copy_clean ".env.supabase"
     copy_clean "development.secrets.env"
-    # GH-774: exclude the ephemeral session.yaml — it carries a stale
-    # branch:/tickets: from the source worktree and must be seeded fresh
-    # (below). The durable Dev10x/config.yaml IS copied (gitignored, so
-    # absent from the dirty list).
-    copy_clean ".claude/" worktrees "Dev10x/session.yaml"
+    # ADR-0018: session state no longer lives per-repo under
+    # .claude/Dev10x/. Durable prefs are global
+    # (~/.config/Dev10x/friction.yaml) and the ephemeral session.yaml is
+    # retired. Exclude Dev10x/ from the copy so no stale per-repo state
+    # (legacy config.yaml, auto-advance doubt-sink) rides across; seed
+    # (below) ensures the global friction.yaml + the .gitignore fresh.
+    copy_clean ".claude/" worktrees "Dev10x"
     copy_clean ".idea/"
 
     # Ensure .claude/ exists even if source had nothing to copy
@@ -97,22 +99,16 @@ if [ "$1" = "0000000000000000000000000000000000000000" ]; then
         echo '{}' > .claude/settings.local.json
     fi
 
-    # >>> Dev10x session-seed (GH-705, GH-774) >>>
-    # Provision the split config. The .claude/ copy above brings the durable
-    # config.yaml (friction_level, active_modes) across from the source
-    # worktree but EXCLUDES the ephemeral session.yaml, so seed regenerates a
-    # fresh session.yaml here (and provisions a default config.yaml when the
-    # source had none). Idempotent — seed leaves any present file untouched.
-    # Best-effort: a missing dev10x CLI is non-fatal (work-on Phase 0 seeds
-    # later).
-    if [ ! -f .claude/Dev10x/session.yaml ] || [ ! -f .claude/Dev10x/config.yaml ]; then
-        if command -v dev10x >/dev/null 2>&1; then
-            dev10x session seed || true
-        elif command -v uvx >/dev/null 2>&1; then
-            uvx dev10x session seed || true
-        fi
+    # >>> Dev10x session-seed (ADR-0018) >>>
+    # Ensure the global friction.yaml and the self-ignoring
+    # .claude/Dev10x/.gitignore exist. Idempotent — seed leaves present
+    # files untouched. Best-effort: a missing dev10x CLI is non-fatal.
+    if command -v dev10x >/dev/null 2>&1; then
+        dev10x session seed || true
+    elif command -v uvx >/dev/null 2>&1; then
+        uvx dev10x session seed || true
     fi
-    # <<< Dev10x session-seed (GH-705, GH-774) <<<
+    # <<< Dev10x session-seed (ADR-0018) <<<
 
     rm -f "$DIRTY_LIST"
 
