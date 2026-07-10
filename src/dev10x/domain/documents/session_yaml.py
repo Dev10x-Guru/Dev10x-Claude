@@ -20,13 +20,30 @@ migration is transparent (ADR-0007 D3 keeps Policy Rules I/O-free).
 
 from __future__ import annotations
 
+import fnmatch
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
 
+from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.friction_level import FrictionLevel
+
+# Durable preference keys (ADR-0018). The global ``friction.yaml`` and the
+# legacy per-repo ``config.yaml`` both carry a subset of these; readers
+# filter to this set so an unrelated key in a project entry cannot leak
+# into the resolver inputs.
+_DURABLE_KEYS = (
+    "friction_level",
+    "active_modes",
+    "allowed_overlays",
+    "gate_preset",
+    "gate_overlays",
+    "gate_overrides",
+    "walk_away",
+)
 
 
 def _load_yaml_mapping(path: Path) -> dict[str, Any]:
@@ -60,9 +77,125 @@ def _coerce_allowed_overlays(value: Any) -> list[str] | None:
     return [str(overlay) for overlay in value]
 
 
+def _normalize_toplevel(toplevel: str) -> str:
+    """Resolve ``toplevel`` to a canonical absolute path for glob matching."""
+    try:
+        return os.path.realpath(toplevel)
+    except OSError:
+        return toplevel
+
+
+def _match_globs(toplevel: str, patterns: Any) -> bool:
+    """Return ``True`` when ``toplevel`` matches any glob in ``patterns``.
+
+    Each pattern is matched against both the full resolved path (so
+    ``/work/dx/**`` works) and the final path segment (so ``*/dev10x-claude``
+    or a bare repo name works). ``fnmatch`` semantics — ``*`` spans ``/`` —
+    keep the globs forgiving, mirroring ``projects.yaml`` matching.
+    """
+    if not isinstance(patterns, list):
+        return False
+    target = _normalize_toplevel(toplevel)
+    base = os.path.basename(target.rstrip("/"))
+    for pattern in patterns:
+        if not isinstance(pattern, str):
+            continue
+        if fnmatch.fnmatch(target, pattern) or fnmatch.fnmatch(base, pattern):
+            return True
+    return False
+
+
+@dataclass(frozen=True)
+class FrictionYamlDocument:
+    """Global durable prefs keyed by project dir-path globs (GH-812, ADR-0018).
+
+    Lives at ``~/.config/Dev10x/friction.yaml``, outside every repo's
+    ``.claude/`` tree — so writing it never trips Claude Code's self-settings
+    gate, and one file serves every worktree/checkout of a repo. Shape mirrors
+    ``projects.yaml``::
+
+        defaults:
+          friction_level: guided
+          active_modes: []
+        projects:
+          - match: ["*/dev10x-claude", "/work/dx/**"]
+            friction_level: adaptive
+            gate_preset: adaptive
+
+    ``matched()`` is the first entry whose ``match`` globs hit ``toplevel``;
+    ``defaults()`` is the ``defaults:`` base. The durable seam layers them as
+    ``{**defaults, **matched}`` and only falls back to the legacy per-repo
+    ``config.yaml`` when no entry matches (ADR-0018 D4).
+    """
+
+    toplevel: str
+
+    @property
+    def path(self) -> Path:
+        return Dev10xConfigDir.friction_yaml()
+
+    def _doc(self) -> dict[str, Any]:
+        return _load_yaml_mapping(self.path)
+
+    def defaults(self) -> dict[str, Any]:
+        """Return the ``defaults:`` durable prefs, filtered to known keys."""
+        defaults = self._doc().get("defaults")
+        if not isinstance(defaults, dict):
+            return {}
+        return {key: value for key, value in defaults.items() if key in _DURABLE_KEYS}
+
+    def matched(self) -> dict[str, Any] | None:
+        """Return the first matching project entry's durable prefs, or ``None``.
+
+        ``None`` — no ``projects[]`` entry matches ``toplevel`` — signals the
+        durable seam to fall back to the legacy per-repo ``config.yaml`` before
+        applying ``defaults()`` (ADR-0018 D4 one-cycle migration).
+        """
+        projects = self._doc().get("projects")
+        if not isinstance(projects, list):
+            return None
+        for entry in projects:
+            if isinstance(entry, dict) and _match_globs(self.toplevel, entry.get("match")):
+                return {key: value for key, value in entry.items() if key in _DURABLE_KEYS}
+        return None
+
+    @staticmethod
+    def render_starter(
+        *,
+        friction_level: str = "guided",
+        active_modes: list[str] | None = None,
+    ) -> str:
+        """Render a fresh global ``friction.yaml`` (defaults + commented example).
+
+        Written once when absent; hand-authored thereafter (add a ``projects:``
+        entry per repo). Machines only *read* this file (ADR-0018), so the
+        comments survive — no upsert rewrites it.
+        """
+        return (
+            "# Dev10x global durable session preferences (GH-812, ADR-0018).\n"
+            "# One file per machine, keyed by project dir-path globs. Gate policy\n"
+            "# (resolve_gate) reads it here; nothing under a repo's .claude/ is\n"
+            "# written, so Claude Code's self-settings gate never fires on Dev10x\n"
+            "# session state. First matching projects[] entry wins.\n"
+            "defaults:\n"
+            f"  friction_level: {friction_level}  # strict | guided | adaptive\n"
+            f"  active_modes: {active_modes or []!r}\n"
+            "# projects:\n"
+            '#   - match: ["*/my-repo", "/abs/path/**"]\n'
+            "#     friction_level: adaptive\n"
+            "#     gate_preset: adaptive\n"
+            "#     allowed_overlays: []   # GH-805 overlay guard (empty = no overlays)\n"
+        )
+
+
 @dataclass(frozen=True)
 class ConfigYamlDocument:
-    """Reader/writer for durable prefs at ``.claude/Dev10x/config.yaml`` (GH-774)."""
+    """Legacy per-repo durable prefs at ``.claude/Dev10x/config.yaml`` (GH-774).
+
+    Retired by ADR-0018 in favor of the global :class:`FrictionYamlDocument`;
+    still read as a one-cycle migration fallback for repos not yet present in
+    ``friction.yaml``. ``upgrade-cleanup`` / ``plugin-doctor`` fold it in.
+    """
 
     toplevel: str
 
@@ -139,9 +272,23 @@ class SessionYamlDocument:
         return _load_yaml_mapping(self.path)
 
     def _durable(self) -> dict[str, Any]:
-        """Durable prefs: ``config.yaml`` wins; a pre-split ``session.yaml`` is
-        the migration fallback (durable keys historically lived there, GH-774)."""
-        return {**self._load(), **ConfigYamlDocument(toplevel=self.toplevel).data()}
+        """Durable prefs (ADR-0018 precedence).
+
+        1. A matching ``friction.yaml`` project entry (``{**defaults, **entry}``)
+           wins — the global, gate-free source of truth.
+        2. Else the legacy per-repo ``config.yaml`` (with a pre-split
+           ``session.yaml`` fallback) is honored so un-migrated repos are
+           untouched.
+        3. Else ``friction.yaml`` ``defaults`` apply to a brand-new repo.
+        """
+        friction = FrictionYamlDocument(toplevel=self.toplevel)
+        matched = friction.matched()
+        if matched is not None:
+            return {**friction.defaults(), **matched}
+        legacy = {**self._load(), **ConfigYamlDocument(toplevel=self.toplevel).data()}
+        if legacy:
+            return legacy
+        return friction.defaults()
 
     def durable_prefs(self) -> dict[str, Any]:
         """Explicit durable prefs (config wins, pre-split session fallback).
@@ -212,43 +359,12 @@ class SessionYamlDocument:
             "allowed_overlays": _coerce_allowed_overlays(data.get("allowed_overlays")),
         }
 
-    def read_session_identity(self) -> dict[str, Any]:
-        """Return the persisted session identity for staleness comparison.
-
-        Ephemeral — read from ``session.yaml`` **only**, never ``config.yaml``:
-        the ``branch`` the session was pinned to and the ``tickets`` it was
-        working. Missing/invalid values degrade to ``None`` / ``[]`` so a bare
-        file reads as identity-less (and therefore stale — the safe direction).
-        work-on Phase 0 writes these keys on plan approval (GH-755).
-        """
-        data = self._load()
-        branch = data.get("branch")
-        tickets = data.get("tickets")
-        return {
-            "branch": branch if isinstance(branch, str) else None,
-            "tickets": [t for t in tickets if isinstance(t, str)]
-            if isinstance(tickets, list)
-            else [],
-        }
-
-    @staticmethod
-    def render_ephemeral() -> str:
-        """Render a fresh ephemeral ``session.yaml`` stub (no durable keys).
-
-        Seeded per worktree; work-on fills ``branch`` / ``tickets`` at
-        runtime. Durable prefs live in the sibling ``config.yaml`` (GH-774).
-        """
-        return (
-            "# Dev10x ephemeral per-worktree session state (GH-774) — branch,\n"
-            "# tickets, continuation prompts. Seeded fresh per worktree; never\n"
-            "# copied between them. Durable repo preferences live in the\n"
-            "# sibling config.yaml.\n"
-        )
-
-    def write_ephemeral(self) -> None:
-        """Write a fresh ephemeral ``session.yaml`` stub, creating parents."""
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(self.render_ephemeral())
+    # ADR-0018: session identity (branch/tickets) is no longer persisted
+    # under .claude/Dev10x/session.yaml. Staleness reads it from plan-sync
+    # via dev10x.domain.session_document.read_plan_identity instead, and
+    # nothing writes session.yaml — so the self-settings gate never fires.
+    # ``_load``/``path`` survive only to read a legacy pre-split session.yaml
+    # as a durable-prefs migration fallback in ``_durable``.
 
 
-__all__ = ["ConfigYamlDocument", "SessionYamlDocument"]
+__all__ = ["ConfigYamlDocument", "FrictionYamlDocument", "SessionYamlDocument"]

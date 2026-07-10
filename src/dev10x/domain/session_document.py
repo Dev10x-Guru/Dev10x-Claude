@@ -81,6 +81,30 @@ def read_plan_summary(*, toplevel: str) -> dict[str, Any]:
     return Plan.load(path=plan_path).to_dict()
 
 
+def read_plan_identity(*, toplevel: str) -> dict[str, Any]:
+    """Return the persisted plan's session identity for staleness (ADR-0018).
+
+    Replaces the deleted ``.claude/Dev10x/session.yaml`` identity store:
+    plan-sync already persists ``branch`` (plan metadata) and ``tickets``
+    (plan context, written by ``plan_sync_set_context``), and both are
+    written by MCP tools — so nothing under the project ``.claude/`` needs a
+    Write-tool identity file. Missing/invalid values degrade to ``None`` /
+    ``[]`` so a plan-less repo reads as identity-less (and therefore stale —
+    the safe direction, matching the old session.yaml semantics).
+    """
+    summary = read_plan_summary(toplevel=toplevel)
+    plan = summary.get("plan") if isinstance(summary, dict) else None
+    plan = plan if isinstance(plan, dict) else {}
+    context = plan.get("context")
+    context = context if isinstance(context, dict) else {}
+    branch = plan.get("branch")
+    tickets = context.get("tickets")
+    return {
+        "branch": branch if isinstance(branch, str) else None,
+        "tickets": [t for t in tickets if isinstance(t, str)] if isinstance(tickets, list) else [],
+    }
+
+
 __all__ = [
     "state_path_for_toplevel",
     "plan_path_for_toplevel",
@@ -88,4 +112,5 @@ __all__ = [
     "claim_state_file",
     "write_state",
     "read_plan_summary",
+    "read_plan_identity",
 ]

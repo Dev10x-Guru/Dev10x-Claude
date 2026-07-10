@@ -141,6 +141,18 @@ class Dev10xConfigDir:
         )
 
     @classmethod
+    def friction_yaml(cls) -> Path:
+        """Global durable session preferences keyed by project (GH-812, ADR-0018).
+
+        Holds ``friction_level`` / ``active_modes`` / ``allowed_overlays`` and
+        the ADR-0016 gate keys under a ``defaults:`` block plus a per-project
+        ``projects: [{match, ...prefs}]`` list. No lazy single-file migration:
+        the retired per-repo ``.claude/Dev10x/config.yaml`` is folded in by
+        ``upgrade-cleanup`` / ``plugin-doctor``, not copied here.
+        """
+        return cls._resolve("friction.yaml")
+
+    @classmethod
     def sensitivity_exceptions_yaml(cls) -> Path:
         """User-owned sensitivity-exception catalog (GH-604).
 
