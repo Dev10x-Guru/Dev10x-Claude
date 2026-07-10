@@ -1015,6 +1015,32 @@ def doctor_anchor_worktree_roots(*, dry_run: bool, quiet: bool) -> None:
             )
 
 
+@doctor.command(name="migrate-config")
+@click.option(
+    "--cwd",
+    type=click.Path(exists=True),
+    default=None,
+    help="Project root (default: $PWD)",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Show the planned friction.yaml entry without writing or removing files",
+)
+def doctor_migrate_config(*, cwd: str | None, dry_run: bool) -> None:
+    """Fold a legacy per-repo config.yaml into the global friction.yaml (GH-812 R4).
+
+    ADR-0018 moved durable prefs to ``~/.config/Dev10x/friction.yaml``. This
+    folds a repo's legacy ``.claude/Dev10x/config.yaml`` (and any pre-split
+    ``session.yaml`` durable keys) into a ``projects[]`` entry there, then
+    removes the stale per-repo files once parity is confirmed.
+    """
+    from dev10x.skills.permission import migrate_config as mod
+
+    root = Path(cwd) if cwd else Path.cwd()
+    sys.exit(_emit_result(mod.migrate_config_to_friction(root=root, dry_run=dry_run)))
+
+
 @permission.command(name="record-upgrade")
 @click.option(
     "--version",

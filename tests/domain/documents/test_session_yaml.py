@@ -13,11 +13,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import yaml
+
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.documents.session_yaml import (
     ConfigYamlDocument,
     FrictionYamlDocument,
     SessionYamlDocument,
+    legacy_durable_prefs,
 )
 from dev10x.domain.friction_level import FrictionLevel
 
@@ -372,3 +375,109 @@ class TestFrictionStarterRender:
         # A fresh file must have no active projects entry — the example is
         # commented so machines read only `defaults` until a human adds one.
         assert "# projects:" in FrictionYamlDocument.render_starter()
+
+
+class TestMatchGlobsFor:
+    """GH-812 R4: match globs the migration keys a projects[] entry by."""
+
+    def test_returns_basename_glob_and_exact_path(self, tmp_path: Path) -> None:
+        globs = FrictionYamlDocument.match_globs_for(str(tmp_path))
+        assert globs == [f"*/{tmp_path.name}", str(tmp_path)]
+
+    def test_generated_entry_matches_its_own_toplevel(self, tmp_path: Path) -> None:
+        # The globs must resolve the very repo they were generated for.
+        globs = FrictionYamlDocument.match_globs_for(str(tmp_path))
+        _write_friction(
+            content=(f"projects:\n  - match: {globs!r}\n    friction_level: adaptive\n")
+        )
+        assert (
+            SessionYamlDocument(toplevel=str(tmp_path)).read_friction_level()
+            is FrictionLevel.ADAPTIVE
+        )
+
+
+class TestWithProject:
+    """GH-812 R4: idempotent projects[] upsert."""
+
+    def test_appends_entry_to_empty_doc(self) -> None:
+        doc = FrictionYamlDocument.with_project(
+            {}, match=["*/repo"], prefs={"friction_level": "adaptive"}
+        )
+        assert doc["projects"] == [{"match": ["*/repo"], "friction_level": "adaptive"}]
+
+    def test_replaces_entry_with_identical_match(self) -> None:
+        base = {"projects": [{"match": ["*/repo"], "friction_level": "guided"}]}
+        doc = FrictionYamlDocument.with_project(
+            base, match=["*/repo"], prefs={"friction_level": "adaptive"}
+        )
+        assert doc["projects"] == [{"match": ["*/repo"], "friction_level": "adaptive"}]
+
+    def test_preserves_other_entries_and_defaults(self) -> None:
+        base = {
+            "defaults": {"friction_level": "guided"},
+            "projects": [{"match": ["*/other"], "friction_level": "strict"}],
+        }
+        doc = FrictionYamlDocument.with_project(
+            base, match=["*/repo"], prefs={"friction_level": "adaptive"}
+        )
+        assert doc["defaults"] == {"friction_level": "guided"}
+        assert {"match": ["*/other"], "friction_level": "strict"} in doc["projects"]
+        assert {"match": ["*/repo"], "friction_level": "adaptive"} in doc["projects"]
+
+    def test_filters_non_durable_keys(self) -> None:
+        doc = FrictionYamlDocument.with_project(
+            {}, match=["*/repo"], prefs={"friction_level": "adaptive", "branch": "x"}
+        )
+        assert doc["projects"][0] == {"match": ["*/repo"], "friction_level": "adaptive"}
+
+    def test_tolerates_non_list_projects(self) -> None:
+        doc = FrictionYamlDocument.with_project({"projects": "oops"}, match=["*/repo"], prefs={})
+        assert doc["projects"] == [{"match": ["*/repo"]}]
+
+
+class TestRenderDocument:
+    def test_prepends_header_and_yaml_body(self) -> None:
+        text = FrictionYamlDocument.render_document(
+            {"projects": [{"match": ["*/repo"], "friction_level": "adaptive"}]}
+        )
+        assert text.startswith("# Dev10x global durable session preferences")
+        assert yaml.safe_load(text)["projects"][0]["friction_level"] == "adaptive"
+
+    def test_handles_empty_doc(self) -> None:
+        text = FrictionYamlDocument.render_document({})
+        assert text.startswith("# Dev10x global durable session preferences")
+
+
+class TestLegacyDurablePrefs:
+    """GH-812 R4: legacy-only durable reader (excludes friction.yaml)."""
+
+    def test_reads_config_only(self, tmp_path: Path) -> None:
+        toplevel = _write_config(
+            tmp_path=tmp_path,
+            content="friction_level: adaptive\nactive_modes: [solo-maintainer]\n",
+        )
+        assert legacy_durable_prefs(toplevel=toplevel) == {
+            "friction_level": "adaptive",
+            "active_modes": ["solo-maintainer"],
+        }
+
+    def test_config_wins_over_session(self, tmp_path: Path) -> None:
+        _write(tmp_path=tmp_path, content="friction_level: guided\n")
+        toplevel = _write_config(tmp_path=tmp_path, content="friction_level: strict\n")
+        assert legacy_durable_prefs(toplevel=toplevel) == {"friction_level": "strict"}
+
+    def test_filters_non_durable_keys(self, tmp_path: Path) -> None:
+        toplevel = _write_config(
+            tmp_path=tmp_path, content="friction_level: guided\nbranch: feature\n"
+        )
+        assert legacy_durable_prefs(toplevel=toplevel) == {"friction_level": "guided"}
+
+    def test_empty_when_no_legacy_files(self, tmp_path: Path) -> None:
+        assert legacy_durable_prefs(toplevel=str(tmp_path)) == {}
+
+    def test_ignores_friction_yaml(self, tmp_path: Path) -> None:
+        # A matching friction.yaml entry must NOT leak into the legacy reader.
+        _write_friction(
+            content=(f"projects:\n  - match: ['{tmp_path.name}']\n    friction_level: adaptive\n")
+        )
+        assert legacy_durable_prefs(toplevel=str(tmp_path)) == {}

@@ -45,6 +45,11 @@ _DURABLE_KEYS = (
     "walk_away",
 )
 
+# Public alias for cross-module callers (e.g. the GH-812 R4 migration) that
+# need to filter a mapping to the durable set without reaching for the
+# underscore-prefixed internal.
+DURABLE_KEYS = _DURABLE_KEYS
+
 
 def _load_yaml_mapping(path: Path) -> dict[str, Any]:
     """Tolerantly load a YAML mapping, degrading to ``{}`` on any failure.
@@ -186,6 +191,91 @@ class FrictionYamlDocument:
             "#     gate_preset: adaptive\n"
             "#     allowed_overlays: []   # GH-805 overlay guard (empty = no overlays)\n"
         )
+
+    # --- Migration seam (GH-812 R4) -------------------------------------
+    # Runtime resolvers only *read* friction.yaml; the agent-driven
+    # upgrade-cleanup migration is the sanctioned writer. It folds a repo's
+    # legacy durable prefs into a projects[] entry via these helpers.
+
+    _MIGRATION_HEADER = (
+        "# Dev10x global durable session preferences (GH-812, ADR-0018).\n"
+        "# One file per machine, keyed by project dir-path globs. Gate policy\n"
+        "# (resolve_gate) reads it here at runtime; only the agent-driven\n"
+        "# upgrade-cleanup migration (GH-812 R4) writes it. First matching\n"
+        "# projects[] entry wins.\n"
+    )
+
+    @staticmethod
+    def match_globs_for(toplevel: str) -> list[str]:
+        """Return the ``match`` globs for a repo: basename glob + exact path.
+
+        Mirrors the ``projects.yaml`` example shape (a forgiving ``*/repo``
+        basename glob plus the canonical absolute path so the entry resolves
+        from any worktree/checkout of the repo).
+        """
+        target = _normalize_toplevel(toplevel)
+        base = os.path.basename(target.rstrip("/"))
+        globs = [target]
+        if base:
+            globs.insert(0, f"*/{base}")
+        return globs
+
+    @staticmethod
+    def with_project(
+        doc: dict[str, Any],
+        *,
+        match: list[str],
+        prefs: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Upsert a ``projects[]`` entry into ``doc``, returning a new mapping.
+
+        The entry is keyed by its ``match`` list: an existing entry with the
+        identical ``match`` is replaced (idempotent re-runs), otherwise the
+        entry is appended. Only known durable keys survive from ``prefs`` so
+        an unrelated key cannot leak into the resolver inputs.
+        """
+        base = dict(doc) if isinstance(doc, dict) else {}
+        raw_projects = base.get("projects")
+        projects = list(raw_projects) if isinstance(raw_projects, list) else []
+        entry: dict[str, Any] = {"match": list(match)}
+        entry.update({key: value for key, value in prefs.items() if key in _DURABLE_KEYS})
+        replaced = False
+        merged: list[Any] = []
+        for existing in projects:
+            if isinstance(existing, dict) and existing.get("match") == list(match):
+                merged.append(entry)
+                replaced = True
+            else:
+                merged.append(existing)
+        if not replaced:
+            merged.append(entry)
+        base["projects"] = merged
+        return base
+
+    @staticmethod
+    def render_document(doc: dict[str, Any]) -> str:
+        """Render a full ``friction.yaml`` document (header + YAML body).
+
+        Used by the migration writer. A PyYAML round-trip does not preserve
+        the hand-authored example comments, so the canonical header is
+        re-prepended to keep the file self-documenting.
+        """
+        body = yaml.safe_dump(doc or {}, sort_keys=False, default_flow_style=False)
+        return FrictionYamlDocument._MIGRATION_HEADER + body
+
+
+def legacy_durable_prefs(*, toplevel: str) -> dict[str, Any]:
+    """Durable keys from the legacy per-repo files ONLY (GH-812 R4).
+
+    Reads ``config.yaml`` (durable home) with a pre-split ``session.yaml``
+    fallback, filtered to :data:`_DURABLE_KEYS`. Deliberately excludes the
+    global ``friction.yaml`` — the migration seam folds *these* legacy prefs
+    into it, so consulting friction.yaml here would be circular.
+    """
+    session = _load_yaml_mapping(SessionYamlDocument(toplevel=toplevel).path)
+    config = ConfigYamlDocument(toplevel=toplevel).data()
+    merged = {**session, **config}
+    return {key: value for key, value in merged.items() if key in _DURABLE_KEYS}
 
 
 @dataclass(frozen=True)
@@ -367,4 +457,10 @@ class SessionYamlDocument:
     # as a durable-prefs migration fallback in ``_durable``.
 
 
-__all__ = ["ConfigYamlDocument", "FrictionYamlDocument", "SessionYamlDocument"]
+__all__ = [
+    "DURABLE_KEYS",
+    "ConfigYamlDocument",
+    "FrictionYamlDocument",
+    "SessionYamlDocument",
+    "legacy_durable_prefs",
+]
