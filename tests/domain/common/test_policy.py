@@ -20,8 +20,11 @@ import yaml
 from dev10x.domain.common.allow_rule import AllowRule
 from dev10x.domain.common.policy import (
     Policy,
+    PolicyAssessment,
     PolicyCatalog,
     PolicyEffect,
+    PolicyLifecycle,
+    PolicyScope,
     PolicySensitivity,
     PolicySource,
 )
@@ -165,6 +168,128 @@ class TestPolicy:
         policy = Policy.from_rule_str("Bash(ls:*)", tier=1, source=PolicySource.PLUGIN_DEFAULT)
         with pytest.raises(AttributeError):
             policy.tier = 2  # type: ignore[misc]
+
+    def test_pap_fields_default_to_inactive_authoring_metadata(self) -> None:
+        policy = Policy.from_rule_str("Bash(ls:*)", tier=1, source=PolicySource.PLUGIN_DEFAULT)
+        assert policy.id == ""
+        assert policy.scope == PolicyScope()
+        assert policy.owner == ""
+        assert policy.reversible is None
+        assert policy.rationale == ""
+        assert policy.lifecycle == PolicyLifecycle.ACTIVE
+        assert policy.enabled is True
+        assert policy.assessments == ()
+
+    def test_pap_fields_are_preserved(self) -> None:
+        assessment = PolicyAssessment(kind="investigator", verdict="dead-rule")
+        policy = Policy.from_rule_str(
+            "Bash(git status:*)",
+            tier=1,
+            source=PolicySource.USER_PRIVATE,
+            id="git-status-read",
+            scope=PolicyScope(surface="bash", context="git"),
+            owner="janusz",
+            reversible=True,
+            rationale="read-only working-tree probe",
+            lifecycle=PolicyLifecycle.CANDIDATE,
+            enabled=False,
+            assessments=(assessment,),
+        )
+        assert policy.id == "git-status-read"
+        assert policy.scope.surface == "bash"
+        assert policy.scope.context == "git"
+        assert policy.owner == "janusz"
+        assert policy.reversible is True
+        assert policy.rationale == "read-only working-tree probe"
+        assert policy.lifecycle == PolicyLifecycle.CANDIDATE
+        assert policy.enabled is False
+        assert policy.assessments == (assessment,)
+
+    def test_statement_aliases_signature(self) -> None:
+        policy = Policy.from_rule_str(
+            "Bash(git push:*)", tier=1, source=PolicySource.PLUGIN_DEFAULT
+        )
+        assert policy.statement == policy.signature == "Bash(git push:*)"
+
+    @pytest.mark.parametrize(
+        ("enabled", "lifecycle", "expected"),
+        [
+            (True, PolicyLifecycle.ACTIVE, True),
+            (True, PolicyLifecycle.CANDIDATE, True),
+            (True, PolicyLifecycle.DEPRECATED, False),
+            (False, PolicyLifecycle.ACTIVE, False),
+        ],
+    )
+    def test_is_effective(self, enabled: bool, lifecycle: PolicyLifecycle, expected: bool) -> None:
+        policy = Policy.from_rule_str(
+            "Bash(ls:*)",
+            tier=1,
+            source=PolicySource.PLUGIN_DEFAULT,
+            enabled=enabled,
+            lifecycle=lifecycle,
+        )
+        assert policy.is_effective is expected
+
+
+class TestPolicyLifecycle:
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            ("candidate", PolicyLifecycle.CANDIDATE),
+            ("active", PolicyLifecycle.ACTIVE),
+            ("deprecated", PolicyLifecycle.DEPRECATED),
+            ("ACTIVE", PolicyLifecycle.ACTIVE),
+            ("  Deprecated  ", PolicyLifecycle.DEPRECATED),
+        ],
+    )
+    def test_from_yaml_parses_known_values(self, raw: str, expected: PolicyLifecycle) -> None:
+        assert PolicyLifecycle.from_yaml(raw) == expected
+
+    @pytest.mark.parametrize("raw", ["", "retired", None, 1, ["active"]])
+    def test_from_yaml_falls_back_to_default(self, raw: object) -> None:
+        assert PolicyLifecycle.from_yaml(raw) == PolicyLifecycle.default()
+
+    def test_default_is_active(self) -> None:
+        assert PolicyLifecycle.default() == PolicyLifecycle.ACTIVE
+
+
+class TestPolicyScope:
+    def test_from_yaml_parses_surface_and_context(self) -> None:
+        scope = PolicyScope.from_yaml({"surface": "mcp", "context": "gh-pr-create"})
+        assert scope == PolicyScope(surface="mcp", context="gh-pr-create")
+
+    @pytest.mark.parametrize("raw", [None, "bash", 3, ["surface"]])
+    def test_from_yaml_non_mapping_yields_unscoped(self, raw: object) -> None:
+        assert PolicyScope.from_yaml(raw) == PolicyScope()
+
+    def test_from_yaml_non_string_fields_are_absent(self) -> None:
+        scope = PolicyScope.from_yaml({"surface": 1, "context": None})
+        assert scope == PolicyScope()
+
+
+class TestPolicyAssessment:
+    def test_from_yaml_parses_full_record(self) -> None:
+        assessment = PolicyAssessment.from_yaml(
+            {"kind": "auditor", "verdict": "hook-enabled", "note": "DX006 backs this rule"}
+        )
+        assert assessment == PolicyAssessment(
+            kind="auditor", verdict="hook-enabled", note="DX006 backs this rule"
+        )
+
+    def test_from_yaml_trims_kind_and_defaults_optionals(self) -> None:
+        assessment = PolicyAssessment.from_yaml({"kind": " investigator "})
+        assert assessment == PolicyAssessment(kind="investigator", verdict="", note="")
+
+    @pytest.mark.parametrize(
+        "raw",
+        [None, "auditor", {}, {"kind": ""}, {"kind": "   "}, {"kind": 5}],
+    )
+    def test_from_yaml_malformed_yields_none(self, raw: object) -> None:
+        assert PolicyAssessment.from_yaml(raw) is None
+
+    def test_from_yaml_non_string_optionals_default_empty(self) -> None:
+        assessment = PolicyAssessment.from_yaml({"kind": "auditor", "verdict": 4, "note": []})
+        assert assessment == PolicyAssessment(kind="auditor", verdict="", note="")
 
 
 _BASELINE = {

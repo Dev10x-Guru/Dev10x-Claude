@@ -103,6 +103,28 @@ class PolicySensitivity(StrEnum):
         return _parse_enum(cls, raw)
 
 
+class PolicyLifecycle(StrEnum):
+    """Where a policy sits in its authoring lifecycle (PAP-1, GH-798)."""
+
+    CANDIDATE = "candidate"
+    ACTIVE = "active"
+    DEPRECATED = "deprecated"
+
+    @classmethod
+    def default(cls) -> PolicyLifecycle:
+        """Catalog rules without an explicit lifecycle are active."""
+        return cls.ACTIVE
+
+    @classmethod
+    def from_yaml(cls, raw: object) -> PolicyLifecycle:
+        """Parse a raw YAML value into a PolicyLifecycle.
+
+        Empty/unknown/non-string values fall back to :meth:`default`.
+        Case-insensitive; trims surrounding whitespace.
+        """
+        return _parse_enum(cls, raw)
+
+
 def _parse_enum[E: StrEnum](enum_cls: type[E], raw: object) -> E:
     if not isinstance(raw, str):
         return enum_cls.default()  # type: ignore[attr-defined]
@@ -111,6 +133,55 @@ def _parse_enum[E: StrEnum](enum_cls: type[E], raw: object) -> E:
         if member.value == normalized:
             return member
     return enum_cls.default()  # type: ignore[attr-defined]
+
+
+@dataclass(frozen=True)
+class PolicyScope:
+    """What a policy applies to — surface plus skill/session context (PAP-5)."""
+
+    surface: str = ""
+    context: str = ""
+
+    @classmethod
+    def from_yaml(cls, raw: object) -> PolicyScope:
+        """Parse a raw YAML mapping into a PolicyScope.
+
+        Non-mapping or missing values yield the empty (unscoped) scope;
+        non-string fields are treated as absent.
+        """
+        if not isinstance(raw, dict):
+            return cls()
+        surface = raw.get("surface")
+        context = raw.get("context")
+        return cls(
+            surface=surface if isinstance(surface, str) else "",
+            context=context if isinstance(context, str) else "",
+        )
+
+
+@dataclass(frozen=True)
+class PolicyAssessment:
+    """One recorded judgement about a policy (investigator/auditor, PAP-5)."""
+
+    kind: str
+    verdict: str = ""
+    note: str = ""
+
+    @classmethod
+    def from_yaml(cls, raw: object) -> PolicyAssessment | None:
+        """Parse a raw YAML mapping into an assessment; ``None`` when malformed."""
+        if not isinstance(raw, dict):
+            return None
+        kind = raw.get("kind")
+        if not isinstance(kind, str) or not kind.strip():
+            return None
+        verdict = raw.get("verdict")
+        note = raw.get("note")
+        return cls(
+            kind=kind.strip(),
+            verdict=verdict if isinstance(verdict, str) else "",
+            note=note if isinstance(note, str) else "",
+        )
 
 
 @dataclass(frozen=True)
@@ -123,11 +194,29 @@ class Policy:
     effect: PolicyEffect = PolicyEffect.ALLOW
     sensitivity: PolicySensitivity = PolicySensitivity.UNSPECIFIED
     group: str = ""
+    id: str = ""
+    scope: PolicyScope = PolicyScope()
+    owner: str = ""
+    reversible: bool | None = None
+    rationale: str = ""
+    lifecycle: PolicyLifecycle = PolicyLifecycle.ACTIVE
+    enabled: bool = True
+    assessments: tuple[PolicyAssessment, ...] = ()
 
     @property
     def signature(self) -> str:
         """The raw ``Tool(pattern)`` string this policy governs."""
         return self.rule.raw
+
+    @property
+    def statement(self) -> str:
+        """The policy statement — the ``Tool(pattern)`` string (PAP-1 alias)."""
+        return self.rule.raw
+
+    @property
+    def is_effective(self) -> bool:
+        """Whether this policy participates in resolution at all."""
+        return self.enabled and self.lifecycle is not PolicyLifecycle.DEPRECATED
 
     def matches(self, signature: str) -> bool:
         """Delegate matching to the wrapped :class:`AllowRule`."""
@@ -143,6 +232,14 @@ class Policy:
         effect: PolicyEffect = PolicyEffect.ALLOW,
         sensitivity: PolicySensitivity = PolicySensitivity.UNSPECIFIED,
         group: str = "",
+        id: str = "",
+        scope: PolicyScope = PolicyScope(),
+        owner: str = "",
+        reversible: bool | None = None,
+        rationale: str = "",
+        lifecycle: PolicyLifecycle = PolicyLifecycle.ACTIVE,
+        enabled: bool = True,
+        assessments: tuple[PolicyAssessment, ...] = (),
     ) -> Policy:
         return cls(
             rule=AllowRule.parse(rule),
@@ -151,6 +248,14 @@ class Policy:
             effect=effect,
             sensitivity=sensitivity,
             group=group,
+            id=id,
+            scope=scope,
+            owner=owner,
+            reversible=reversible,
+            rationale=rationale,
+            lifecycle=lifecycle,
+            enabled=enabled,
+            assessments=assessments,
         )
 
 
@@ -219,8 +324,11 @@ class PolicyCatalog:
 
 __all__ = [
     "Policy",
+    "PolicyAssessment",
     "PolicyCatalog",
     "PolicyEffect",
+    "PolicyLifecycle",
+    "PolicyScope",
     "PolicySensitivity",
     "PolicySource",
 ]
