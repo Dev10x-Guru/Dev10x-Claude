@@ -16,10 +16,12 @@ import re
 from pathlib import Path
 
 from dev10x.domain.common.mktmp_path import MKTMP_GENERALIZE_PATTERN, MKTMP_PATH_PATTERN
+from dev10x.domain.common.policy import Policy, PolicySource
 from dev10x.domain.common.result import Result
 from dev10x.domain.common.ticket_id import TICKET_ID_PATTERN
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.skills.permission.config import parse_config, resolve_config
+from dev10x.skills.permission.policy_authoring import policy_from_accepted_prompt
 
 MEMORY_CONFIG = Dev10xConfigDir.projects_yaml()
 USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
@@ -91,6 +93,25 @@ def is_noise(entry: str) -> bool:
     return any(p.search(entry) for p in NOISE_PATTERNS)
 
 
+def sync_candidates_as_policies(*, entries: list[str]) -> list[Policy]:
+    """Wrap stable worktree rules as candidate Policies (PAP-4, GH-801).
+
+    The worktree→main sync is an accepted-prompt persistence flow: each
+    stable entry becomes a ``project-local`` candidate Policy so the
+    merge carries provenance instead of bare strings. Noise entries are
+    dropped here, operating on the policy set rather than the raw list.
+    """
+    candidates = [
+        policy_from_accepted_prompt(
+            rule=entry,
+            source=PolicySource.PROJECT_LOCAL,
+            rationale="worktree sync (GH-603)",
+        )
+        for entry in entries
+    ]
+    return [policy for policy in candidates if not is_noise(policy.signature)]
+
+
 def resolve_main_project(worktree_dir: Path) -> Path | None:
     git_file = worktree_dir / ".git"
     if not git_file.is_file():
@@ -159,7 +180,8 @@ def merge_permissions(
 
     generalized = {generalize_permission(e) for e in new_entries}
     generalized -= main_allow
-    stable_entries = sorted(e for e in generalized if not is_noise(e))
+    candidates = sync_candidates_as_policies(entries=sorted(generalized))
+    stable_entries = [policy.signature for policy in candidates]
 
     if not stable_entries:
         return 0, []

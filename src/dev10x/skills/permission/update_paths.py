@@ -1215,8 +1215,9 @@ def seed_worktree(
     catalog, deduped against the user-global allow list. Returns the count
     added so the worktree-creation caller can report it.
     """
-    base_permissions = config.get("base_permissions", [])
-    base_denies = config.get("base_denies", [])
+    policies = migrate_flat_config(config=config)
+    base_permissions = flat_allow_rules(policies=policies)
+    base_denies = flat_deny_rules(policies=policies)
     settings = Path(worktree_root) / ".claude" / "settings.local.json"
 
     created_fresh = not settings.exists()
