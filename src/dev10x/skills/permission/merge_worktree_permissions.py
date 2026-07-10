@@ -15,6 +15,7 @@ import json
 import re
 from pathlib import Path
 
+from dev10x import subprocess_utils
 from dev10x.domain.common.mktmp_path import MKTMP_GENERALIZE_PATTERN, MKTMP_PATH_PATTERN
 from dev10x.domain.common.result import Result
 from dev10x.domain.common.ticket_id import TICKET_ID_PATTERN
@@ -106,23 +107,66 @@ def resolve_main_project(worktree_dir: Path) -> Path | None:
     return main_git_dir.parent
 
 
+def git_registered_worktrees(root_path: Path) -> list[Path]:
+    """Worktree paths git has registered for the repo at ``root_path``.
+
+    Uses ``git worktree list --porcelain`` so worktrees registered *outside*
+    the conventional ``<root>/.worktrees/`` layout are discovered too — the
+    glob-only scan silently skipped them, and a whole project could be
+    missed if it kept its worktrees elsewhere (GH-813 Finding 2). Returns
+    ``[]`` when ``root_path`` is not a git repo or git is unavailable, so a
+    non-repo root degrades to the directory glob rather than erroring.
+    """
+    result = subprocess_utils.run(
+        ["git", "worktree", "list", "--porcelain"],
+        cwd=str(root_path),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return []
+    return [
+        Path(line[len("worktree ") :].strip())
+        for line in result.stdout.splitlines()
+        if line.startswith("worktree ")
+    ]
+
+
 def find_worktree_groups(roots: list[str]) -> dict[Path, list[Path]]:
+    """Group each root's worktrees under their main project.
+
+    Discovery unions two sources (GH-813 Finding 2): the conventional
+    ``<root>/.worktrees/*`` glob (back-compat) and every worktree git has
+    registered for the root via ``git worktree list`` (captures worktrees
+    living anywhere). The main worktree is filtered out by
+    ``resolve_main_project`` (its ``.git`` is a directory, not a linked
+    ``gitdir:`` file), and only worktrees carrying a
+    ``.claude/settings.local.json`` are grouped.
+    """
     groups: dict[Path, list[Path]] = {}
     for root in roots:
         root_path = Path(root).expanduser()
+        # Preserve insertion order while de-duplicating across the two
+        # discovery sources (a worktree under .worktrees/ is also
+        # git-registered).
+        candidates: dict[Path, None] = {}
         worktrees_dir = root_path / ".worktrees"
-        if not worktrees_dir.is_dir():
-            continue
-        for wt_dir in sorted(worktrees_dir.iterdir()):
-            if not wt_dir.is_dir():
-                continue
+        if worktrees_dir.is_dir():
+            for wt_dir in sorted(worktrees_dir.iterdir()):
+                if wt_dir.is_dir():
+                    candidates[wt_dir] = None
+        for wt_dir in git_registered_worktrees(root_path):
+            candidates[wt_dir] = None
+        for wt_dir in sorted(candidates):
             settings = wt_dir / ".claude" / "settings.local.json"
             if not settings.exists():
                 continue
             main_project = resolve_main_project(wt_dir)
             if main_project is None:
                 continue
-            groups.setdefault(main_project, []).append(wt_dir)
+            if wt_dir not in groups.setdefault(main_project, []):
+                groups[main_project].append(wt_dir)
     return groups
 
 
