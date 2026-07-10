@@ -87,6 +87,73 @@ class TestRulesIgnoreProse:
         assert mod.scan_file(skill) == []
 
 
+class TestWriteGuardClaude:
+    """GH-817 (ADR-0018): forbid runtime Write/Edit(.claude/**) in skill docs.
+
+    Unlike the CLI rules, this one is scanned in PROSE (not only shell
+    fences) — a skill doc instructing a `.claude/` write is prose, not a
+    shell command.
+    """
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "Persist via `Write(.claude/Dev10x/session.yaml)` on adoption.",
+            "Then `Edit(.claude/settings.local.json)` to add the rule.",
+            'Call Write(file_path=".claude/Dev10x/config.yaml").',
+            "Use MultiEdit(.claude/Dev10x/session.yaml) for both keys.",
+        ],
+    )
+    def test_flags_write_edit_under_claude_in_prose(self, skill_root: Path, line: str) -> None:
+        skill = _write(skill_root / "demo" / "SKILL.md", "# Demo\n\n" + line + "\n")
+        rule_ids = {v.rule.rule_id for v in mod.scan_file(skill)}
+        assert "write-guard-claude" in rule_ids
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            # Describing a path (backticked, no Write/Edit call) is fine.
+            "The file `.claude/Dev10x/config.yaml` holds durable prefs.",
+            "Do NOT Write/Edit `.claude/**` at runtime.",
+            # A write to a non-.claude path is out of scope.
+            "Call `Write(/tmp/Dev10x/commit-msg.txt)` for the message.",
+            "Use `Write(~/.config/Dev10x/friction.yaml)` — outside the repo.",
+        ],
+    )
+    def test_ignores_path_mentions_and_non_claude_writes(
+        self, skill_root: Path, line: str
+    ) -> None:
+        skill = _write(skill_root / "demo" / "SKILL.md", "# Demo\n\n" + line + "\n")
+        rule_ids = {v.rule.rule_id for v in mod.scan_file(skill)}
+        assert "write-guard-claude" not in rule_ids
+
+    def test_inline_allow_silences_the_guard(self, skill_root: Path) -> None:
+        skill = _write(
+            skill_root / "demo" / "SKILL.md",
+            "# Demo\n\nWrite(.claude/Dev10x/x.yaml) "
+            "<!-- cli-friction: allow write-guard-claude — legacy example -->\n",
+        )
+        rule_ids = {v.rule.rule_id for v in mod.scan_file(skill)}
+        assert "write-guard-claude" not in rule_ids
+
+    def test_meta_doc_skill_is_exempt(self, skill_root: Path) -> None:
+        # diag-friction quotes the bad pattern back at the agent.
+        skill = _write(
+            skill_root / "diag-friction" / "SKILL.md",
+            "# Anti-pattern\n\nNever do `Write(.claude/Dev10x/session.yaml)`.\n",
+        )
+        rule_ids = {v.rule.rule_id for v in mod.scan_file(skill)}
+        assert "write-guard-claude" not in rule_ids
+
+    def test_frontmatter_is_ignored(self, skill_root: Path) -> None:
+        skill = _write(
+            skill_root / "demo" / "SKILL.md",
+            "---\nname: Dev10x:demo\ndesc: Write(.claude/x.yaml) in meta\n---\n\nBody.\n",
+        )
+        rule_ids = {v.rule.rule_id for v in mod.scan_file(skill)}
+        assert "write-guard-claude" not in rule_ids
+
+
 class TestSkillExemptions:
     """Skills that implement the underlying op are exempt from their rules."""
 
