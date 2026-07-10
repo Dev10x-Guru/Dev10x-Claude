@@ -19,7 +19,6 @@ from dev10x.domain.common.result import Result, err, ok, to_wire
 from dev10x.mcp._app import server
 
 if TYPE_CHECKING:  # pragma: no cover
-    from dev10x.domain.documents.session_yaml import SessionYamlDocument
     from dev10x.domain.gate_policy import GateResolution
 
 # Durable, git-tracked project pin (ADR-0016 #752). The spike wrote the
@@ -74,8 +73,12 @@ def _current_branch(toplevel: str) -> str | None:
     return None if branch == "unknown" else branch
 
 
-def _computed_session_stale(*, toplevel: str, session_doc: SessionYamlDocument) -> bool:
+def _computed_session_stale(*, toplevel: str) -> bool:
     """Compute ``session_stale`` for the session_adoption gate (GH-742 F1).
+
+    Identity comes from the plan-sync state (ADR-0018): the retired
+    ``.claude/Dev10x/session.yaml`` no longer stores ``branch``/``tickets`` —
+    plan-sync already persists both (MCP-written, gate-free).
 
     This is a **branch-only fallback**: ``current_tickets`` is empty because
     the boundary has no invocation ticket context, so a branch match is the
@@ -84,9 +87,10 @@ def _computed_session_stale(*, toplevel: str, session_doc: SessionYamlDocument) 
     invocation's tickets should pass ``session_stale`` in the gate context
     explicitly rather than rely on this computed fallback (Round 1 review C2).
     """
+    from dev10x.domain.session_document import read_plan_identity
     from dev10x.domain.session_staleness import session_stale
 
-    identity = session_doc.read_session_identity()
+    identity = read_plan_identity(toplevel=toplevel)
     return session_stale(
         recorded_branch=identity["branch"],
         current_branch=_current_branch(toplevel),
@@ -195,9 +199,7 @@ async def resolve_gate_for_toplevel(
     # the caller supplied session_stale explicitly.
     resolved_context = dict(context)
     if gate == "session_adoption" and "session_stale" not in resolved_context:
-        resolved_context["session_stale"] = _computed_session_stale(
-            toplevel=toplevel, session_doc=session_doc
-        )
+        resolved_context["session_stale"] = _computed_session_stale(toplevel=toplevel)
 
     # An empty load (presets/friction/ absent at runtime) falls back to the
     # domain default constants via ``None`` — the drift-guard test keeps the

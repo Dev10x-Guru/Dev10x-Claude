@@ -1,14 +1,17 @@
 """`dev10x session` — manage the project's session config.
 
 The `seed` subcommand exists so a shell-only `post-checkout` git hook
-can guarantee a new worktree has its Dev10x config without invoking a
-Claude skill (a git hook cannot). Since GH-774 the config is split:
+can guarantee a new checkout is ready without invoking a Claude skill (a
+git hook cannot). Since ADR-0018 durable prefs live in a single global
+`~/.config/Dev10x/friction.yaml` (keyed by project dir-path globs), and
+the ephemeral per-repo `session.yaml`/`config.yaml` are retired — nothing
+under a repo's `.claude/` is written on the hot path, so Claude Code's
+self-settings gate never fires (GH-812). So `seed` now only:
 
-- `config.yaml` — durable prefs (friction_level, active_modes). The hook
-  copies this from the source worktree; seed provisions a default only
-  when the source had none (e.g. a brand-new project).
-- `session.yaml` — ephemeral per-worktree state; seeded fresh, never
-  copied.
+- ensures the global `friction.yaml` exists (a starter with a `defaults:`
+  block; hand-authored thereafter), and
+- ensures a self-ignoring `.gitignore` under `.claude/Dev10x/` so the
+  MCP-written auto-advance doubt-sink stays out of `git status`.
 
 Both writes are idempotent (`O_EXCL`): an existing file is left
 untouched, so the hook may call `seed` unconditionally.
@@ -21,7 +24,8 @@ from pathlib import Path
 
 import click
 
-from dev10x.domain.documents.session_yaml import ConfigYamlDocument, SessionYamlDocument
+from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.domain.documents.session_yaml import FrictionYamlDocument
 
 
 def _create_if_absent(*, target: Path, content: str) -> bool:
@@ -60,62 +64,38 @@ def session() -> None:
     "--friction-level",
     type=click.Choice(["strict", "guided", "adaptive"], case_sensitive=False),
     default=None,
-    help="Friction level for a fresh config.yaml. Omit to migrate a "
-    "pre-split session.yaml's level (else defaults to guided).",
+    help="Friction level for a fresh global friction.yaml (defaults to "
+    "guided). Ignored when friction.yaml already exists.",
 )
 def seed(*, project_path: Path | None, friction_level: str | None) -> None:
-    """Provision the durable config.yaml and ephemeral session.yaml.
+    """Ensure the global friction.yaml + the .claude/Dev10x/ .gitignore exist.
 
-    Idempotent (``O_EXCL``): a present file is preserved so a post-checkout
-    hook can copy the durable config from the source worktree first and fall
-    back to this seed only when the source had none (GH-774).
-
-    Migration (GH-774): when config.yaml is absent but a pre-split
-    session.yaml still carries the durable keys, seed lifts the effective
-    ``friction_level`` / ``active_modes`` into config.yaml rather than
-    overwriting them with defaults — so migrating a repo never silently
-    downgrades an existing ``adaptive`` setting. An explicit
-    ``--friction-level`` overrides the migrated level.
+    Idempotent (``O_EXCL``): present files are preserved, so a post-checkout
+    hook may call ``seed`` unconditionally. Since ADR-0018 durable prefs are
+    global (``~/.config/Dev10x/friction.yaml``) and the per-repo
+    ``session.yaml``/``config.yaml`` are retired, seed no longer writes
+    anything durable under the repo's ``.claude/``.
     """
     project_root = (project_path or Path.cwd()).resolve()
-    config = ConfigYamlDocument(toplevel=str(project_root))
-    session_doc = SessionYamlDocument(toplevel=str(project_root))
 
-    # Read the EXPLICIT durable prefs BEFORE writing config.yaml — the
-    # facade falls back to a pre-split session.yaml (the migration source)
-    # and applies no defaulting, so an unset level falls back to "guided"
-    # rather than to FrictionLevel.default().
-    durable = session_doc.durable_prefs()
-    existing_modes = durable.get("active_modes")
-    # Carry a pre-existing overlay allow-list (GH-805) forward so a re-seed or
-    # a pre-split→config.yaml migration never silently drops the repo-character
-    # guard. Absent stays absent (permissive) — render omits the key entirely.
-    existing_allowed = durable.get("allowed_overlays")
-    seed_level = (friction_level or durable.get("friction_level") or "guided").lower()
+    # 1. Ensure the global friction.yaml exists (starter defaults block).
+    friction_path = Dev10xConfigDir.friction_yaml()
     if _create_if_absent(
-        target=config.path,
-        content=ConfigYamlDocument.render(
-            friction_level=seed_level,
-            active_modes=existing_modes if isinstance(existing_modes, list) else None,
-            allowed_overlays=existing_allowed if isinstance(existing_allowed, list) else None,
+        target=friction_path,
+        content=FrictionYamlDocument.render_starter(
+            friction_level=(friction_level or "guided").lower(),
         ),
     ):
-        click.echo(f"seeded {config.path}")
+        click.echo(f"seeded {friction_path}")
     else:
-        click.echo(f"config.yaml already present at {config.path}")
+        click.echo(f"friction.yaml already present at {friction_path}")
 
-    if _create_if_absent(target=session_doc.path, content=SessionYamlDocument.render_ephemeral()):
-        click.echo(f"seeded {session_doc.path}")
-    else:
-        click.echo(f"session.yaml already present at {session_doc.path}")
-
-    # GH-809: a self-ignoring .gitignore keeps every runtime artifact under
-    # .claude/Dev10x/ (session.yaml, auto-advance-records.md, plan-sync state)
-    # out of git status, so the clean-tree gates in verify_pr_state,
-    # gh-pr-merge Check 5, verify-acc-dod, and create_pr never trip on session
-    # state. A single "*" ignores everything in the directory including the
-    # .gitignore itself, so no per-project .gitignore edit is needed.
-    gitignore = config.path.parent / ".gitignore"
+    # 2. Self-ignoring .gitignore keeps the MCP-written auto-advance doubt-sink
+    # (and any other runtime artifact) under .claude/Dev10x/ out of git status,
+    # so the clean-tree gates in verify_pr_state, gh-pr-merge Check 5,
+    # verify-acc-dod, and create_pr never trip on it. A single "*" ignores
+    # everything in the directory including the .gitignore itself (GH-809).
+    gitignore = project_root / ".claude" / "Dev10x" / ".gitignore"
     if _create_if_absent(target=gitignore, content="*\n"):
         click.echo(f"seeded {gitignore}")
     else:

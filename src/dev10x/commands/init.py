@@ -12,7 +12,8 @@ from pathlib import Path
 
 import click
 
-from dev10x.domain.documents.session_yaml import ConfigYamlDocument, SessionYamlDocument
+from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.domain.documents.session_yaml import FrictionYamlDocument
 
 QUICK_START_WORKFLOWS = [
     (
@@ -75,19 +76,42 @@ def _write_if_missing(path: Path, content: str) -> bool:
     return True
 
 
-def _seed_project(project_root: Path) -> list[Path]:
-    """Create starter config files. Returns list of paths written."""
-    written: list[Path] = []
+def _display_path(path: Path, *, project_root: Path) -> str:
+    """Render ``path`` relative to the project when possible, else absolute.
 
-    session_doc = SessionYamlDocument(toplevel=str(project_root))
-    config_doc = ConfigYamlDocument(toplevel=str(project_root))
+    The global ``friction.yaml`` lives outside the project (ADR-0018), so a
+    naive ``relative_to`` would raise — fall back to the absolute path.
+    """
+    try:
+        return str(path.relative_to(project_root))
+    except ValueError:
+        return str(path)
+
+
+def _project_playbook_path(project_root: Path) -> Path:
+    return project_root / ".claude" / "Dev10x" / "playbooks" / "work-on.yaml"
+
+
+def _seed_project(
+    project_root: Path,
+    *,
+    friction_level: str = "guided",
+    active_modes: list[str] | None = None,
+) -> list[Path]:
+    """Create starter config files. Returns list of paths written.
+
+    Durable prefs live in the global ``~/.config/Dev10x/friction.yaml``
+    (ADR-0018); the only per-project starter is the work-on playbook.
+    """
+    written: list[Path] = []
     targets = [
-        (config_doc.path, ConfigYamlDocument.render()),
-        (session_doc.path, SessionYamlDocument.render_ephemeral()),
         (
-            project_root / ".claude" / "Dev10x" / "playbooks" / "work-on.yaml",
-            STARTER_WORK_ON_PLAYBOOK,
+            Dev10xConfigDir.friction_yaml(),
+            FrictionYamlDocument.render_starter(
+                friction_level=friction_level, active_modes=active_modes
+            ),
         ),
+        (_project_playbook_path(project_root), STARTER_WORK_ON_PLAYBOOK),
     ]
     for path, content in targets:
         if _write_if_missing(path, content):
@@ -138,9 +162,7 @@ def init(*, setup: bool, non_interactive: bool, project_path: Path | None) -> No
         click.echo(f"Project path does not exist: {project_root}", err=True)
         sys.exit(1)
 
-    session_doc = SessionYamlDocument(toplevel=str(project_root))
-    config_doc = ConfigYamlDocument(toplevel=str(project_root))
-    existing = config_doc.path.exists() or session_doc.path.exists()
+    existing = _project_playbook_path(project_root).exists()
     if existing and not setup:
         click.echo(f"Dev10x config already present at {project_root}/.claude/Dev10x/")
         _print_card(project_root=project_root)
@@ -149,7 +171,7 @@ def init(*, setup: bool, non_interactive: bool, project_path: Path | None) -> No
     if non_interactive:
         written = _seed_project(project_root)
         for path in written:
-            click.echo(f"  + {path.relative_to(project_root)}")
+            click.echo(f"  + {_display_path(path, project_root=project_root)}")
         _print_card(project_root=project_root)
         return
 
@@ -168,15 +190,12 @@ def init(*, setup: bool, non_interactive: bool, project_path: Path | None) -> No
     )
 
     modes = ["solo-maintainer"] if solo else []
-    config_doc.write(friction_level=friction_level.lower(), active_modes=modes)
-    click.echo(f"  + {config_doc.path.relative_to(project_root)}")
-    session_doc.write_ephemeral()
-    click.echo(f"  + {session_doc.path.relative_to(project_root)}")
-
-    playbook_path = project_root / ".claude" / "Dev10x" / "playbooks" / "work-on.yaml"
-    if not playbook_path.exists():
-        playbook_path.parent.mkdir(parents=True, exist_ok=True)
-        playbook_path.write_text(STARTER_WORK_ON_PLAYBOOK)
-        click.echo(f"  + {playbook_path.relative_to(project_root)}")
+    # Durable prefs land in the global friction.yaml (ADR-0018); the starter
+    # is written only when absent so re-running init never clobbers a
+    # hand-authored global file. The per-project playbook is always ensured.
+    for path in _seed_project(
+        project_root, friction_level=friction_level.lower(), active_modes=modes
+    ):
+        click.echo(f"  + {_display_path(path, project_root=project_root)}")
 
     _print_card(project_root=project_root)

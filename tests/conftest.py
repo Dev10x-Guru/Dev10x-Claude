@@ -6,6 +6,7 @@ import pytest
 from factory.random import reseed_random
 
 from dev10x.domain.claude_paths import ClaudeDir
+from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -93,6 +94,25 @@ def _guard_repo_root_magicmock_pollution() -> Generator[None, None, None]:
 def _reset_claude_dir_cache() -> None:
     """Clear ClaudeDir's path cache to keep DEV10X_CLAUDE_HOME overrides isolated."""
     ClaudeDir.reset_cache()
+
+
+@pytest.fixture(autouse=True)
+def _isolate_dev10x_config_home(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> Generator[None, None, None]:
+    """Point Dev10xConfigDir at an isolated tmp home (ADR-0018).
+
+    Durable session prefs now read the global ``~/.config/Dev10x/friction.yaml``
+    transitively via ``SessionYamlDocument._durable()``, and ``dev10x init`` /
+    ``dev10x session seed`` write it. Without isolation every session-config
+    test would read — and those commands would write — the developer's real
+    ``~/.config/Dev10x``. Tests that exercise default-root resolution override
+    this with their own ``monkeypatch.delenv`` (see ``test_dev10x_paths``).
+    """
+    monkeypatch.setenv(CONFIG_HOME_ENV_VAR, str(tmp_path / "dev10x-config-home"))
+    Dev10xConfigDir.reset_cache()
+    yield
+    Dev10xConfigDir.reset_cache()
 
 
 @pytest.fixture(autouse=True)

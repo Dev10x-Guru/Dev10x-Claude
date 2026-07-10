@@ -79,6 +79,49 @@ class TestReadPlanSummaryHasNoHookImport:
         assert "import dev10x.hooks" not in src
 
 
+class TestReadPlanIdentity:
+    """ADR-0018: staleness identity comes from plan-sync, not session.yaml."""
+
+    def _write_plan(self, *, tmp_path: Path, body: str) -> str:
+        plan_dir = tmp_path / ".claude" / "session"
+        plan_dir.mkdir(parents=True, exist_ok=True)
+        (plan_dir / "plan.yaml").write_text(body)
+        return str(tmp_path)
+
+    def test_reads_branch_and_tickets(self, tmp_path: Path) -> None:
+        toplevel = self._write_plan(
+            tmp_path=tmp_path,
+            body="plan:\n  branch: user/GH-1/x\n  context:\n    tickets: [GH-1, GH-2]\n",
+        )
+        assert session_document.read_plan_identity(toplevel=toplevel) == {
+            "branch": "user/GH-1/x",
+            "tickets": ["GH-1", "GH-2"],
+        }
+
+    def test_missing_plan_is_identity_less(self, tmp_path: Path) -> None:
+        assert session_document.read_plan_identity(toplevel=str(tmp_path)) == {
+            "branch": None,
+            "tickets": [],
+        }
+
+    def test_branch_without_tickets(self, tmp_path: Path) -> None:
+        toplevel = self._write_plan(tmp_path=tmp_path, body="plan:\n  branch: user/GH-9/y\n")
+        assert session_document.read_plan_identity(toplevel=toplevel) == {
+            "branch": "user/GH-9/y",
+            "tickets": [],
+        }
+
+    def test_non_string_tickets_filtered(self, tmp_path: Path) -> None:
+        toplevel = self._write_plan(
+            tmp_path=tmp_path,
+            body="plan:\n  context:\n    tickets: [GH-1, 3, GH-2]\n",
+        )
+        assert session_document.read_plan_identity(toplevel=toplevel)["tickets"] == [
+            "GH-1",
+            "GH-2",
+        ]
+
+
 class TestAtomicWriteTextRoundtrip:
     """Smoke-check: atomic helper still publishes via rename."""
 

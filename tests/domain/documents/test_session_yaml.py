@@ -13,8 +13,20 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from dev10x.domain.documents.session_yaml import ConfigYamlDocument, SessionYamlDocument
+from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.domain.documents.session_yaml import (
+    ConfigYamlDocument,
+    FrictionYamlDocument,
+    SessionYamlDocument,
+)
 from dev10x.domain.friction_level import FrictionLevel
+
+
+def _write_friction(*, content: str) -> None:
+    """Write the global (isolated-tmp) friction.yaml (ADR-0018 durable home)."""
+    path = Dev10xConfigDir.friction_yaml()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content)
 
 
 def _write(*, tmp_path: Path, content: str) -> str:
@@ -271,51 +283,92 @@ class TestConfigWrite:
         assert SessionYamlDocument(toplevel=str(tmp_path)).read_allowed_overlays() == []
 
 
-class TestEphemeralWrite:
-    """GH-774: session.yaml is seeded ephemeral — no durable keys."""
-
-    def test_stub_has_no_durable_keys(self) -> None:
-        body = SessionYamlDocument.render_ephemeral()
-        assert "friction_level" not in body
-        assert "active_modes" not in body
-
-    def test_write_creates_parents(self, tmp_path: Path) -> None:
-        doc = SessionYamlDocument(toplevel=str(tmp_path))
-        doc.write_ephemeral()
-        assert doc.path.exists()
-        # An ephemeral stub does not define durable prefs — reads default.
-        assert doc.read_friction_level() is FrictionLevel.default()
-
-
-class TestReadSessionIdentity:
-    """ADR-0016 #753: recorded identity feeds the session_stale predicate.
-
-    Identity is EPHEMERAL — read from session.yaml only, never config.yaml.
+class TestFrictionYaml:
+    """ADR-0018: durable prefs live in the global friction.yaml, keyed by
+    project dir-path globs. A matching entry wins over the legacy per-repo
+    config.yaml; defaults apply only when neither a match nor legacy exists.
     """
 
-    def test_reads_branch_and_tickets(self, tmp_path: Path) -> None:
-        toplevel = _write(
-            tmp_path=tmp_path,
-            content="branch: user/GH-1/x\ntickets: [GH-1, GH-2]\n",
+    def test_matched_full_path_wins_over_legacy_config(self, tmp_path: Path) -> None:
+        _write_config(tmp_path=tmp_path, content="friction_level: strict\n")
+        _write_friction(
+            content=(
+                "defaults:\n  friction_level: guided\n"
+                f"projects:\n  - match: ['{tmp_path}']\n    friction_level: adaptive\n"
+            )
         )
-        identity = SessionYamlDocument(toplevel=toplevel).read_session_identity()
-        assert identity == {"branch": "user/GH-1/x", "tickets": ["GH-1", "GH-2"]}
+        assert (
+            SessionYamlDocument(toplevel=str(tmp_path)).read_friction_level()
+            is FrictionLevel.ADAPTIVE
+        )
 
-    def test_ignores_config_yaml(self, tmp_path: Path) -> None:
-        _write_config(tmp_path=tmp_path, content="branch: leaked/from/config\n")
-        identity = SessionYamlDocument(toplevel=str(tmp_path)).read_session_identity()
-        assert identity == {"branch": None, "tickets": []}
+    def test_basename_glob_matches(self, tmp_path: Path) -> None:
+        _write_friction(
+            content=(f"projects:\n  - match: ['{tmp_path.name}']\n    friction_level: adaptive\n")
+        )
+        assert (
+            SessionYamlDocument(toplevel=str(tmp_path)).read_friction_level()
+            is FrictionLevel.ADAPTIVE
+        )
 
-    def test_missing_file_yields_identity_less(self, tmp_path: Path) -> None:
-        identity = SessionYamlDocument(toplevel=str(tmp_path)).read_session_identity()
-        assert identity == {"branch": None, "tickets": []}
+    def test_defaults_merge_under_matched_entry(self, tmp_path: Path) -> None:
+        _write_friction(
+            content=(
+                "defaults:\n  active_modes: [solo-maintainer]\n"
+                f"projects:\n  - match: ['{tmp_path.name}']\n    friction_level: adaptive\n"
+            )
+        )
+        level, modes = SessionYamlDocument(toplevel=str(tmp_path)).read_friction_and_modes()
+        assert level is FrictionLevel.ADAPTIVE
+        assert modes == ["solo-maintainer"]
 
-    def test_invalid_shapes_degrade(self, tmp_path: Path) -> None:
-        toplevel = _write(tmp_path=tmp_path, content="branch: [a]\ntickets: nope\n")
-        identity = SessionYamlDocument(toplevel=toplevel).read_session_identity()
-        assert identity == {"branch": None, "tickets": []}
+    def test_legacy_config_used_when_no_match(self, tmp_path: Path) -> None:
+        _write_config(tmp_path=tmp_path, content="friction_level: strict\n")
+        _write_friction(
+            content=(
+                "defaults:\n  friction_level: adaptive\n"
+                "projects:\n  - match: ['zzz-no-match']\n    friction_level: guided\n"
+            )
+        )
+        # No entry matches tmp_path -> legacy config.yaml wins over friction
+        # defaults (ADR-0018 D4 one-cycle migration fallback).
+        assert (
+            SessionYamlDocument(toplevel=str(tmp_path)).read_friction_level()
+            is FrictionLevel.STRICT
+        )
 
-    def test_non_string_tickets_filtered(self, tmp_path: Path) -> None:
-        toplevel = _write(tmp_path=tmp_path, content="tickets: [GH-1, 3, GH-2]\n")
-        identity = SessionYamlDocument(toplevel=toplevel).read_session_identity()
-        assert identity["tickets"] == ["GH-1", "GH-2"]
+    def test_defaults_used_when_no_match_and_no_legacy(self, tmp_path: Path) -> None:
+        _write_friction(content="defaults:\n  friction_level: adaptive\n")
+        assert (
+            SessionYamlDocument(toplevel=str(tmp_path)).read_friction_level()
+            is FrictionLevel.ADAPTIVE
+        )
+
+    def test_gate_inputs_from_matched_entry(self, tmp_path: Path) -> None:
+        _write_friction(
+            content=(
+                f"projects:\n  - match: ['{tmp_path.name}']\n"
+                "    gate_preset: adaptive\n    gate_overlays: [afk]\n"
+            )
+        )
+        inputs = SessionYamlDocument(toplevel=str(tmp_path)).read_gate_policy_inputs()
+        assert inputs["gate_preset"] == "adaptive"
+        assert inputs["gate_overlays"] == ["afk"]
+
+    def test_absent_friction_yaml_defaults(self, tmp_path: Path) -> None:
+        assert (
+            SessionYamlDocument(toplevel=str(tmp_path)).read_friction_level()
+            is FrictionLevel.default()
+        )
+
+
+class TestFrictionStarterRender:
+    def test_starter_has_defaults_block(self) -> None:
+        body = FrictionYamlDocument.render_starter(friction_level="adaptive")
+        assert "defaults:" in body
+        assert "friction_level: adaptive" in body
+
+    def test_starter_projects_are_commented(self) -> None:
+        # A fresh file must have no active projects entry — the example is
+        # commented so machines read only `defaults` until a human adds one.
+        assert "# projects:" in FrictionYamlDocument.render_starter()
