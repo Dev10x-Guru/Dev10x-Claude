@@ -36,6 +36,7 @@ from typing import Any
 
 from dev10x import subprocess_utils
 from dev10x.domain.common.baseline_catalog import load_baseline_dict
+from dev10x.domain.common.policy import Policy, PolicyAssessment, PolicyCatalog
 
 CATALOG_PATH = Path(__file__).resolve().parent / "baseline-permissions.yaml"
 
@@ -387,6 +388,10 @@ class Catalog:
     def group_rules(self, name: str) -> list[str]:
         return _effective_group_rules(self.groups.get(name, {}))
 
+    def policies(self) -> list[Policy]:
+        """The catalog as typed Policy entries (PAP-4, GH-801)."""
+        return PolicyCatalog.from_baseline_dict({"groups": self.groups})
+
 
 def load_catalog(path: Path = CATALOG_PATH) -> Catalog:
     """Load the baseline-permissions catalog from YAML.
@@ -411,6 +416,11 @@ class DeprecationOutcome:
     action: str
     replacement: str | None = None
     reason: str = ""
+
+    def as_assessment(self) -> PolicyAssessment:
+        """Record this outcome as a Policy assessment (PAP-4, GH-801)."""
+        verdict = self.action if self.replacement is None else f"{self.action}:{self.replacement}"
+        return PolicyAssessment(kind="doctor-deprecation", verdict=verdict, note=self.reason)
 
 
 def apply_deprecations(
