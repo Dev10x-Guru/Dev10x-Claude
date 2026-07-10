@@ -34,6 +34,11 @@ from dev10x.domain.common.result import Result, err, ok
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.plugin_identity import PLUGIN_NAMES
 from dev10x.skills.permission.config import parse_config, resolve_config
+from dev10x.skills.permission.policy_catalog_migration import (
+    flat_allow_rules,
+    flat_deny_rules,
+    migrate_flat_config,
+)
 
 MEMORY_CONFIG = Dev10xConfigDir.projects_yaml()
 USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
@@ -1112,8 +1117,9 @@ def ensure_base(
     messages: list[str] = []
     errors: list[str] = []
 
-    base_permissions = config.get("base_permissions", [])
-    base_denies = config.get("base_denies", [])
+    policies = migrate_flat_config(config=config)
+    base_permissions = flat_allow_rules(policies=policies)
+    base_denies = flat_deny_rules(policies=policies)
     if not base_permissions and not base_denies:
         messages.append("No base_permissions or base_denies defined in config.")
         return _result(exit_code=0, messages=messages, errors=errors)
