@@ -24,17 +24,11 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import sys
 
 from dev10x.domain.documents.plan import Plan, get_plan_path, get_toplevel
-from dev10x.domain.documents.task import TaskStatus
 from dev10x.domain.events.hook_input import HookResult
 from dev10x.hooks.hook_transport import emit
-
-_TERMINAL_SUBJECT = re.compile(r"verify\s+ac", re.IGNORECASE)
-_OPEN_STATUSES = (TaskStatus.PENDING, TaskStatus.IN_PROGRESS)
-_CLOSING_STATUSES = ("completed", "deleted")
 
 
 def _override_present(*, tool_input: dict) -> bool:
@@ -51,8 +45,7 @@ def _is_work_on_plan(*, plan: Plan) -> bool:
 
 def guard_decision(*, tool_input: dict, plan: Plan) -> HookResult | None:
     """Return a ``HookResult`` to block the update, or ``None`` to allow it."""
-    if tool_input.get("status") not in _CLOSING_STATUSES:
-        return None
+    status = tool_input.get("status")
     task_id = tool_input.get("taskId")
     if not task_id:
         return None
@@ -61,21 +54,15 @@ def guard_decision(*, tool_input: dict, plan: Plan) -> HookResult | None:
     if _override_present(tool_input=tool_input):
         return None
 
-    target = next((t for t in plan.tasks if t.id == task_id), None)
-    if target is None or target.status not in _OPEN_STATUSES:
+    violation = plan.would_violate_terminal_task_invariant(task_id=task_id, closing_status=status)
+    if violation is None:
         return None
 
-    remaining_open = [t for t in plan.tasks if t.id != task_id and t.status in _OPEN_STATUSES]
-    is_terminal = bool(_TERMINAL_SUBJECT.search(target.subject or ""))
-    if remaining_open and not is_terminal:
-        return None
-
-    status = tool_input["status"]
-    label = "terminal Verify-AC task" if is_terminal else "last open task"
+    label = "terminal Verify-AC task" if violation.is_terminal else "last open task"
     return HookResult(
         message=(
             f"Empty-task-list invariant (GH-149): refusing to mark the {label} "
-            f"'{target.subject}' as {status}. A Dev10x:work-on session must keep "
+            f"'{violation.subject}' as {status}. A Dev10x:work-on session must keep "
             "at least one open task until the supervisor confirms the work is "
             "shippable (PR merged, CI green, no open review comments). If the "
             "supervisor has confirmed completion, re-issue TaskUpdate with "

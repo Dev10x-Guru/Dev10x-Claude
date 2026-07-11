@@ -20,6 +20,13 @@ import yaml
 from dev10x.domain.documents.task import Task, TaskStatus
 from dev10x.domain.file_locks import atomic_write_text
 
+# Terminal-task invariant (GH-149 / GH-681). Owned here so the PreToolUse
+# guard asks the Plan rather than re-deriving the rule externally
+# (Tell-Don't-Ask).
+_TERMINAL_SUBJECT = re.compile(r"verify\s+ac", re.IGNORECASE)
+_OPEN_STATUSES = (TaskStatus.PENDING, TaskStatus.IN_PROGRESS)
+_CLOSING_STATUSES = ("completed", "deleted")
+
 
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
@@ -93,6 +100,20 @@ TASK_TRANSITIONS: dict[TaskStatus, TaskTransition] = {
         removes=True,
     ),
 }
+
+
+@dataclass(frozen=True)
+class TerminalTaskViolation:
+    """Descriptor for a close that would break the terminal-task invariant.
+
+    ``subject`` is the offending task's title; ``is_terminal`` distinguishes
+    the terminal Verify-AC task from the merely-last open task so the caller
+    can phrase its message. The Plan returns this instead of a bare bool so
+    the guard owns presentation while the domain owns the rule.
+    """
+
+    subject: str
+    is_terminal: bool
 
 
 @dataclass
@@ -213,6 +234,30 @@ class Plan:
         if not isinstance(context, dict):
             return []
         return list(context.keys())
+
+    def would_violate_terminal_task_invariant(
+        self, *, task_id: str, closing_status: str | None
+    ) -> TerminalTaskViolation | None:
+        """Return a violation if closing ``task_id`` would break the invariant.
+
+        Closing (``completed``/``deleted``) the terminal Verify-AC task, or
+        the last remaining open task, empties a work-on plan's open-task set
+        (GH-149). Returns a :class:`TerminalTaskViolation` naming the
+        offending task so the caller builds its own message, or ``None`` when
+        the close is safe — the status is not a closing status, the task is
+        absent or already closed, or other open tasks remain and this is not
+        the terminal task.
+        """
+        if closing_status not in _CLOSING_STATUSES:
+            return None
+        target = next((t for t in self.tasks if t.id == task_id), None)
+        if target is None or target.status not in _OPEN_STATUSES:
+            return None
+        remaining_open = [t for t in self.tasks if t.id != task_id and t.status in _OPEN_STATUSES]
+        is_terminal = bool(_TERMINAL_SUBJECT.search(target.subject or ""))
+        if remaining_open and not is_terminal:
+            return None
+        return TerminalTaskViolation(subject=target.subject or "", is_terminal=is_terminal)
 
     def _find_index(self, *, task_id: str) -> int | None:
         for idx, task in enumerate(self.tasks):
