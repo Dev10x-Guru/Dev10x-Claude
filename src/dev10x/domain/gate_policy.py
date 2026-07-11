@@ -29,6 +29,7 @@ structures at the infra tier.
 from __future__ import annotations
 
 import enum
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 
@@ -282,6 +283,52 @@ def _merge_layers(
     return resolved
 
 
+@dataclass(frozen=True)
+class _Conditional:
+    """A conditional toggle value: a predicate plus a reason-fact renderer.
+
+    ``predicate`` decides auto-advance (True) vs ask (False) from the gate
+    context; ``fact`` renders the context fact appended to the reason
+    string (e.g. ``author=bot``), given the context and whether the
+    predicate matched. Adding a new ``AUTO_ADVANCE_IF_*`` value is now a
+    table entry, not another copy-pasted branch (audit #845).
+    """
+
+    predicate: Callable[[GateContext], bool]
+    fact: Callable[[GateContext, bool], str]
+
+
+def _bool_fact(key: str) -> Callable[[GateContext, bool], str]:
+    return lambda _context, matched: f"{key}={'true' if matched else 'false'}"
+
+
+def _author_fact(context: GateContext, matched: bool) -> str:
+    return "author=bot" if matched else f"author={context.author_type or 'human'}"
+
+
+# Conditional toggle value → (predicate, reason-fact). The predicate's
+# truth selects auto-advance; ``fact`` mirrors the exact reason-string
+# suffix each branch produced before the table existed.
+_CONDITIONAL_TOGGLES: dict[str, _Conditional] = {
+    AUTO_ADVANCE_IF_BOT: _Conditional(
+        predicate=lambda c: (c.author_type or "human") == "bot",
+        fact=_author_fact,
+    ),
+    AUTO_ADVANCE_IF_SAFE: _Conditional(
+        predicate=lambda c: c.provably_safe,
+        fact=_bool_fact("safe"),
+    ),
+    AUTO_ADVANCE_IF_MERGED: _Conditional(
+        predicate=lambda c: c.branch_merged,
+        fact=_bool_fact("merged"),
+    ),
+    AUTO_ADVANCE_IF_STALE_FREE: _Conditional(
+        predicate=lambda c: not c.session_stale,
+        fact=lambda _context, matched: f"stale={'false' if matched else 'true'}",
+    ),
+}
+
+
 def _apply_conditions(
     *, gate: str, value: str, context: GateContext, toggles: dict[str, str | int | bool]
 ) -> tuple[GateEffect, str]:
@@ -290,26 +337,13 @@ def _apply_conditions(
         return GateEffect.SKIP, f"{gate}=skip"
     if value == "ask":
         return GateEffect.ASK, f"{gate}=ask"
-    if value == AUTO_ADVANCE_IF_BOT:
-        author = context.author_type or "human"
-        if author == "bot":
-            return GateEffect.AUTO_ADVANCE, f"{gate}={AUTO_ADVANCE_IF_BOT} author=bot"
-        return GateEffect.ASK, f"{gate}={AUTO_ADVANCE_IF_BOT} author={author}"
-    if value == AUTO_ADVANCE_IF_SAFE:
-        if context.provably_safe:
-            return GateEffect.AUTO_ADVANCE, f"{gate}={AUTO_ADVANCE_IF_SAFE} safe=true"
-        return GateEffect.ASK, f"{gate}={AUTO_ADVANCE_IF_SAFE} safe=false"
-    if value == AUTO_ADVANCE_IF_MERGED:
-        if context.branch_merged:
-            return GateEffect.AUTO_ADVANCE, f"{gate}={AUTO_ADVANCE_IF_MERGED} merged=true"
-        return GateEffect.ASK, f"{gate}={AUTO_ADVANCE_IF_MERGED} merged=false"
-    if value == AUTO_ADVANCE_IF_STALE_FREE:
-        if not context.session_stale:
-            return GateEffect.AUTO_ADVANCE, f"{gate}={AUTO_ADVANCE_IF_STALE_FREE} stale=false"
-        return GateEffect.ASK, f"{gate}={AUTO_ADVANCE_IF_STALE_FREE} stale=true"
+    conditional = _CONDITIONAL_TOGGLES.get(value)
+    if conditional is not None:
+        matched = conditional.predicate(context)
+        effect = GateEffect.AUTO_ADVANCE if matched else GateEffect.ASK
+        return effect, f"{gate}={value} {conditional.fact(context, matched)}"
     if value == AUTO_ADVANCE:
-        effect, reason = _weight_conditions(gate=gate, context=context, toggles=toggles)
-        return effect, reason
+        return _weight_conditions(gate=gate, context=context, toggles=toggles)
     raise UnknownToggleError(f"Unknown value {value!r} for toggle {gate!r}")
 
 
