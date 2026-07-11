@@ -9,6 +9,7 @@ import yaml
 from dev10x.domain.documents.plan import (
     Plan,
     TaskStatus,
+    TerminalTaskViolation,
     _extract_task_id,
     _set_nested,
     get_plan_path,
@@ -427,3 +428,67 @@ class TestGetPlanPath:
         path = get_plan_path(toplevel=str(tmp_path))
 
         assert path == tmp_path / ".claude" / "session" / "plan.yaml"
+
+
+VERIFY = Task(id="9", subject="Verify acceptance criteria", status=TaskStatus.PENDING)
+OPEN_A = Task(id="1", subject="Implement fix", status=TaskStatus.IN_PROGRESS)
+DONE_B = Task(id="2", subject="Set up workspace", status=TaskStatus.COMPLETED)
+
+
+class TestWouldViolateTerminalTaskInvariant:
+    def test_non_closing_status_is_safe(self) -> None:
+        plan = Plan(tasks=[VERIFY])
+
+        assert (
+            plan.would_violate_terminal_task_invariant(task_id="9", closing_status="in_progress")
+            is None
+        )
+
+    def test_none_status_is_safe(self) -> None:
+        plan = Plan(tasks=[VERIFY])
+
+        assert plan.would_violate_terminal_task_invariant(task_id="9", closing_status=None) is None
+
+    def test_unknown_task_is_safe(self) -> None:
+        plan = Plan(tasks=[VERIFY])
+
+        assert (
+            plan.would_violate_terminal_task_invariant(task_id="404", closing_status="completed")
+            is None
+        )
+
+    def test_already_closed_task_is_safe(self) -> None:
+        plan = Plan(tasks=[VERIFY, DONE_B])
+
+        assert (
+            plan.would_violate_terminal_task_invariant(task_id="2", closing_status="completed")
+            is None
+        )
+
+    def test_non_terminal_with_open_siblings_is_safe(self) -> None:
+        plan = Plan(tasks=[OPEN_A, VERIFY])
+
+        assert (
+            plan.would_violate_terminal_task_invariant(task_id="1", closing_status="completed")
+            is None
+        )
+
+    def test_last_open_task_violates_as_non_terminal(self) -> None:
+        plan = Plan(tasks=[OPEN_A, DONE_B])
+
+        violation = plan.would_violate_terminal_task_invariant(
+            task_id="1", closing_status="completed"
+        )
+
+        assert violation == TerminalTaskViolation(subject="Implement fix", is_terminal=False)
+
+    def test_terminal_task_with_open_siblings_violates(self) -> None:
+        plan = Plan(tasks=[OPEN_A, VERIFY])
+
+        violation = plan.would_violate_terminal_task_invariant(
+            task_id="9", closing_status="deleted"
+        )
+
+        assert violation == TerminalTaskViolation(
+            subject="Verify acceptance criteria", is_terminal=True
+        )
