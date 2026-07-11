@@ -15,7 +15,7 @@ import json
 import os
 import re
 import stat
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TextIO
 
@@ -90,7 +90,7 @@ class ToolCall:
         )
 
 
-@dataclass
+@dataclass(frozen=True)
 class Finding:
     index: int
     turn: int
@@ -111,8 +111,9 @@ class Finding:
         """Findings worth surfacing in the proposed-rules section."""
         return "MISSING_RULE" in self.classification or "NUISANCE" in self.classification
 
-    def mark_nuisance(self, *, count: int) -> None:
-        self.classification = f"NUISANCE_PATTERN ({count}x)"
+    def with_nuisance(self, *, count: int) -> Finding:
+        """Return a copy reclassified as an N-times nuisance pattern."""
+        return replace(self, classification=f"NUISANCE_PATTERN ({count}x)")
 
     def first_command_word(self) -> str:
         return self.command_display.split()[0] if self.command_display else ""
@@ -441,12 +442,13 @@ def count_nuisance_patterns(findings: list[Finding]) -> list[Finding]:
         if f.is_missing_rule():
             pattern_counts.setdefault(f.nuisance_key(), []).append(f)
 
+    replacements: dict[int, Finding] = {}
     for group in pattern_counts.values():
         if len(group) >= 3:
             for f in group:
-                f.mark_nuisance(count=len(group))
+                replacements[id(f)] = f.with_nuisance(count=len(group))
 
-    return findings
+    return [replacements.get(id(f), f) for f in findings]
 
 
 def audit_script_hygiene(skills_dir: str, tools_dir: str) -> list[HygieneFinding]:

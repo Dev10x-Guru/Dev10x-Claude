@@ -20,6 +20,7 @@ If output.md is omitted, writes to stdout.
 
 import io
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 from dev10x.audit.permissions_model import (
@@ -122,15 +123,17 @@ def main() -> None:
     extra = detect_known_friction(calls=calls, additional_dirs=additional_dirs)
     # Renumber the extra findings to continue past the base ones
     base_count = len(findings)
-    for offset, finding in enumerate(extra, start=1):
-        finding.index = base_count + offset
-    findings.extend(extra)
+    findings.extend(
+        replace(finding, index=base_count + offset)
+        for offset, finding in enumerate(extra, start=1)
+    )
 
     denials = detect_hook_denials(text=transcript)
     base_count = len(findings)
-    for offset, finding in enumerate(denials, start=1):
-        finding.index = base_count + offset
-    findings.extend(denials)
+    findings.extend(
+        replace(finding, index=base_count + offset)
+        for offset, finding in enumerate(denials, start=1)
+    )
 
     skills_dir = str(ClaudeDir.skills_dir())
     tools_dir = str(ClaudeDir.tools_dir())

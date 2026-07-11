@@ -14,7 +14,7 @@ from typing import Any
 import yaml
 
 from dev10x.domain.documents.config_document import Config
-from dev10x.domain.rules.validation_rule import Rule
+from dev10x.domain.rules.validation_rule import MatchingRule
 
 
 @dataclass(frozen=True)
@@ -25,14 +25,14 @@ class RuleMatch:
 
 @dataclass
 class RuleEngine:
-    edit_rules: list[Rule] = field(default_factory=list)
-    command_rules: list[Rule] = field(default_factory=list)
+    edit_rules: list[MatchingRule] = field(default_factory=list)
+    command_rules: list[MatchingRule] = field(default_factory=list)
 
     @classmethod
     def from_yaml(cls, *, path: Path) -> RuleEngine:
         data: dict[str, Any] = yaml.safe_load(path.read_text())
         rules = [
-            Rule.from_yaml_entry(entry=entry)
+            MatchingRule.from_yaml_entry(entry=entry)
             for entry in data.get("rules", [])
             if entry.get("hook_block", False)
         ]
@@ -44,7 +44,7 @@ class RuleEngine:
         return cls._split_rules(rules=rules)
 
     @classmethod
-    def _split_rules(cls, *, rules: list[Rule]) -> RuleEngine:
+    def _split_rules(cls, *, rules: list[MatchingRule]) -> RuleEngine:
         edit_rules = [r for r in rules if r.matcher == "Edit|Write"]
         command_rules = [r for r in rules if r.matcher == "Bash"]
         return cls(edit_rules=edit_rules, command_rules=command_rules)
@@ -66,7 +66,7 @@ class RuleEngine:
             )
         return None
 
-    def evaluate_command(self, *, command: str) -> Rule | None:
+    def evaluate_command(self, *, command: str) -> MatchingRule | None:
         for rule in self.command_rules:
             if rule.matches_command(command=command):
                 return rule

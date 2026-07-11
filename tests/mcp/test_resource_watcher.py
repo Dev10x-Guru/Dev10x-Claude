@@ -575,7 +575,7 @@ class TestWireWatcherToServer:
 
 class TestGetWatcher:
     def test_returns_none_before_registration(self) -> None:
-        resource_watcher._registry.watcher = None
+        resource_watcher._holder.reset()
 
         result = get_watcher()
 

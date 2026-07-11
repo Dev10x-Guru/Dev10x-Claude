@@ -48,9 +48,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from dev10x.domain.common.singleton_holder import SingletonHolder
 
 if TYPE_CHECKING:  # pragma: no cover
     from mcp.server.session import ServerSession
@@ -359,23 +361,15 @@ class KnowledgeResourceWatcher:
 # ── server wiring ─────────────────────────────────────────────────
 
 
-@dataclass
-class _WatcherRegistry:
-    """Module-level singleton holding the active watcher instance.
-
-    This indirection lets tests replace the watcher without modifying the
-    FastMCP server object.
-    """
-
-    watcher: KnowledgeResourceWatcher | None = field(default=None)
-
-
-_registry: _WatcherRegistry = _WatcherRegistry()
+# Module-level singleton holding the active watcher (GH-522): the shared
+# SingletonHolder replaces the bespoke _WatcherRegistry so tests swap the
+# watcher via the holder without touching the FastMCP server object.
+_holder: SingletonHolder[KnowledgeResourceWatcher] = SingletonHolder()
 
 
 def get_watcher() -> KnowledgeResourceWatcher | None:
     """Return the currently registered :class:`KnowledgeResourceWatcher`, or ``None``."""
-    return _registry.watcher
+    return _holder.get()
 
 
 def wire_watcher_to_server(
@@ -399,7 +393,7 @@ def wire_watcher_to_server(
     """
     import mcp.types as mcp_types
 
-    _registry.watcher = watcher
+    _holder.set(watcher)
 
     async def _on_initialized(notification: mcp_types.InitializedNotification) -> None:
         try:

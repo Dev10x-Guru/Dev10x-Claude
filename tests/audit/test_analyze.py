@@ -132,3 +132,36 @@ class TestAuditReportRender:
 
         assert "find /opt/data" in markdown
         assert "MISSING_RULE" in markdown
+
+
+class TestCountNuisancePatterns:
+    def _missing_rule(self, *, index: int) -> object:
+        from dev10x.audit.permissions_model import Finding
+
+        return Finding(
+            index=index,
+            turn=index,
+            time="12:00",
+            tool="Bash",
+            command_display="find /opt",
+            classification="MISSING_RULE",
+            fix="",
+        )
+
+    def test_reclassifies_repeated_missing_rules_without_mutation(self) -> None:
+        from dev10x.audit.permissions_model import count_nuisance_patterns
+
+        findings = [self._missing_rule(index=i) for i in range(3)]
+
+        result = count_nuisance_patterns(findings)
+
+        assert all(f.classification == "NUISANCE_PATTERN (3x)" for f in result)
+        # frozen Finding: inputs are untouched; replacements are new objects.
+        assert all(f.classification == "MISSING_RULE" for f in findings)
+
+    def test_below_threshold_finding_is_unchanged(self) -> None:
+        from dev10x.audit.permissions_model import count_nuisance_patterns
+
+        result = count_nuisance_patterns([self._missing_rule(index=0)])
+
+        assert result[0].classification == "MISSING_RULE"

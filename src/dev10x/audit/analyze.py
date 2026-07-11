@@ -16,7 +16,7 @@ MCP callers skip the subprocess hop and consume the report as data.
 from __future__ import annotations
 
 import io
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from dev10x.audit.permissions_model import (
@@ -90,18 +90,20 @@ def build_audit_report(
         project_root=project_root if project_root is not None else effective_cwd(),
     )
     base_count = len(findings)
-    for offset, finding in enumerate(extra, start=1):
-        finding.index = base_count + offset
-    findings.extend(extra)
+    findings.extend(
+        replace(finding, index=base_count + offset)
+        for offset, finding in enumerate(extra, start=1)
+    )
 
     # GH-507: surface PreToolUse hook denials hidden in tool-result blocks
     # so MCP callers see HOOK_DENIAL findings, matching the standalone CLI
     # path in dev10x.skills.audit.analyze_permissions.main.
     denials = detect_hook_denials(text=transcript)
     base_count = len(findings)
-    for offset, finding in enumerate(denials, start=1):
-        finding.index = base_count + offset
-    findings.extend(denials)
+    findings.extend(
+        replace(finding, index=base_count + offset)
+        for offset, finding in enumerate(denials, start=1)
+    )
 
     skills_root = str(skills_dir) if skills_dir else str(ClaudeDir.skills_dir())
     tools_root = str(tools_dir) if tools_dir else str(ClaudeDir.tools_dir())

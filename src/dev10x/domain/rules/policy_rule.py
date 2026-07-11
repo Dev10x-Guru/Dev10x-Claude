@@ -9,8 +9,8 @@ convention.
 The codebase has three deliberately distinct "rule" archetypes
 (ADR-0007); this Protocol formalises only the Policy Rule tier:
 
-- **Matching Rule** (``domain.rules.validation_rule.Rule``) — declarative
-  data + ``matches_*`` predicates, no ``apply()``.
+- **Matching Rule** (``domain.rules.validation_rule.MatchingRule``) —
+  declarative data + ``matches_*`` predicates, no ``apply()``.
 - **Policy Rule** (this Protocol) — one named decision via ``apply()``.
 - **Validator** (``validators.base.Validator``) — ``should_run()`` +
   ``validate()`` chain element with its own registry lifecycle.
