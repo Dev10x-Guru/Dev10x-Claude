@@ -5,6 +5,70 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.87.0 — Permission-As-Policy Re-Platform & Session-State Relocation
+
+Released 2026-07-11
+
+### Features
+
+- **Re-platform the permission catalog onto typed Policies** — two
+  catalogs had drifted apart (the flat `base_permissions`/`base_denies`
+  lists that `ensure_base` ships and the grouped, tier-tagged
+  `baseline-permissions.yaml`), and permission rules carried provenance
+  but had no engine to resolve conflicting layers. Every flat rule is now
+  a `Policy` with lifecycle, scope, owner, and assessments; a
+  forbid-wins, project > user > plugin resolution engine (`ask` beats
+  `allow` inside the deciding tier) answers which effect governs a
+  signature; and `ensure_base`, worktree seed/merge, doctor, and
+  settings.json rendering all operate on the Policy set. A golden-corpus
+  regression net gates the refactor and settings output stays byte-parity
+  with the pre-PAP lists — the one intended diff is home-dir twin
+  expansion for `~/` rules
+  ([GH-797](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/797),
+  [GH-798](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/798),
+  [GH-799](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/799),
+  [GH-800](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/800),
+  [GH-801](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/801),
+  [GH-802](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/802))
+- **Enable gate-free session prefs via a global friction.yaml** — writing
+  `.claude/Dev10x/{session,config}.yaml` with the Write/Edit tool tripped
+  Claude Code's self-settings consent gate on every session regardless of
+  allow rules, and per-repo durable prefs never synced across a repo's
+  worktrees. Durable prefs now live in a global
+  `~/.config/Dev10x/friction.yaml` keyed by project dir-path globs; the
+  ephemeral `session.yaml` is deleted and the adoption/staleness gate
+  reads branch/tickets from plan-sync; work-on Phase 0 and the
+  post-checkout templates no longer write per-repo session state (ADR-0018)
+  ([GH-812](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/812))
+- **Guard skill docs against runtime `.claude/` writes** — with session
+  state relocated out of a repo's `.claude/`, a new `write-guard-claude`
+  rule flags `Write/Edit/MultiEdit(...)` calls whose path is under
+  `.claude/`, scanning prose (not just shell fences) since the
+  instruction is typically plain text, with the standard
+  `# cli-friction: allow` opt-out
+  ([GH-817](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/817))
+
+### Fixes
+
+- **Stop plugin-maintenance silently skipping worktrees** — worktree
+  discovery only scanned `<root>/.worktrees/*`, so a project whose
+  worktrees live elsewhere (still registered in `git worktree list`) was
+  skipped entirely while the run reported success. Discovery now unions
+  the `git worktree list --porcelain` set with the `.worktrees/` glob and
+  the merge-worktree CLI echoes discovered coverage so a gap is visible,
+  not implied
+  ([GH-813](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/813))
+
+### Docs
+
+- **Record the 2026-07-10 A–I architecture audit memo** — the nine-phase
+  project audit produced 37 findings that existed only as agent
+  transcripts; they are now consolidated into one findings memo,
+  reconciled against the 2026-06-10 memo, and re-verified against
+  `origin/develop` after a parallel session merged the PAP and
+  session-relocation work past the audited baseline
+  ([GH-481](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/481))
+
 ## 0.86.0 — Drift-Free Session Config & Merge-Gate Hygiene
 
 Released 2026-07-09
