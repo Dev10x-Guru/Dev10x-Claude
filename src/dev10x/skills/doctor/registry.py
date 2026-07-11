@@ -1,23 +1,22 @@
 """Strategy registry for Dev10x:plugin-doctor (GH-87).
 
 ``load_strategies`` is a **Plugin loader** (Fowler PoEAA): module
-paths act as configuration and each module is bound late via
-``import_module``, collecting its ``STRATEGY`` constant. This is the
-same Plugin pattern ``dev10x.validators.registry`` uses for
-validators; the two loaders are independent today (a shared
-``PluginLoader[T]`` utility is a possible future consolidation).
+paths act as configuration and each module is bound late, collecting
+its ``STRATEGY`` constant. It composes the shared
+:class:`dev10x.domain.common.plugin_loader.PluginLoader` — the same
+utility ``dev10x.validators.registry`` uses (#844) — in its *lenient*
+posture: a module missing (or mistyping) ``STRATEGY`` is skipped so a
+misconfigured user strategy cannot break the doctor at import time.
 
 The registry knows how to load shipped strategies (plus optional
 user-defined strategies under
 ``~/.claude/Dev10x/doctor/strategies/``). Loading is explicit —
-no module-level discovery — so a misconfigured user strategy
-cannot break the doctor at import time.
+no module-level discovery.
 """
 
 from __future__ import annotations
 
-from importlib import import_module
-
+from dev10x.domain.common.plugin_loader import PluginLoader
 from dev10x.skills.doctor.strategy import StrategyProtocol
 
 DEFAULT_STRATEGY_MODULES: tuple[str, ...] = (
@@ -25,6 +24,14 @@ DEFAULT_STRATEGY_MODULES: tuple[str, ...] = (
     "dev10x.skills.doctor.strategies.missing_linear_mcp_allow",
     "dev10x.skills.doctor.strategies.forbidden_token_priming",
     "dev10x.skills.doctor.strategies.mcp_horizontal_duplicates",
+)
+
+_STRATEGY_MARKER = "STRATEGY"
+# StrategyProtocol is a runtime_checkable Protocol (isinstance works at
+# runtime); mypy still rejects a Protocol where a concrete type[T] is
+# expected, so the type-abstract check is suppressed here only.
+_loader: PluginLoader[StrategyProtocol] = PluginLoader(
+    protocol=StrategyProtocol  # type: ignore[type-abstract]
 )
 
 
@@ -36,10 +43,4 @@ def load_strategies(*, module_paths: tuple[str, ...] | None = None) -> list[Stra
     instead of a degraded doctor run.
     """
     paths = module_paths if module_paths is not None else DEFAULT_STRATEGY_MODULES
-    strategies: list[StrategyProtocol] = []
-    for module_path in paths:
-        module = import_module(module_path)
-        strategy = getattr(module, "STRATEGY", None)
-        if isinstance(strategy, StrategyProtocol):
-            strategies.append(strategy)
-    return strategies
+    return _loader.collect((path, _STRATEGY_MARKER) for path in paths)

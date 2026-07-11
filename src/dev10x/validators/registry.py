@@ -18,11 +18,11 @@ the registry verifies the two agree at registration time.
 
 from __future__ import annotations
 
-import importlib
 import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
+from dev10x.domain.common.plugin_loader import PluginLoader
 from dev10x.domain.common.rule_id import RuleId
 from dev10x.domain.profile_tier import ProfileTier
 
@@ -176,10 +176,16 @@ class ValidatorRegistry:
     def _instantiate(spec: ValidatorSpec) -> Validator:
         from dev10x.validators.base import Validator as V
 
-        module = importlib.import_module(spec.module_path)
-        cls = getattr(module, spec.class_name)
-        instance = cls()
-        assert isinstance(instance, V), f"{spec.class_name} does not implement Validator"
+        # Strict Plugin load (#844): a spec naming a missing class or a
+        # non-Validator raises at load time; _assert_metadata_matches then
+        # guards the rule_id/profile/experimental contract.
+        # Validator is abstract; isinstance works at runtime, but mypy rejects
+        # a Protocol/ABC where a concrete type[T] is expected (type-abstract).
+        loader: PluginLoader[Validator] = PluginLoader(
+            protocol=V,  # type: ignore[type-abstract]
+            transform=lambda cls: cls(),
+        )
+        instance = loader.require(module_path=spec.module_path, marker=spec.class_name)
         _assert_metadata_matches(instance=instance, spec=spec)
         return instance
 
