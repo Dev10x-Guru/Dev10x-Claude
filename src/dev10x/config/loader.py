@@ -12,7 +12,7 @@ from dev10x.domain.config_loader import ConfigLoader
 from dev10x.domain.documents.config_document import Config
 from dev10x.domain.file_locks import atomic_write_bytes
 from dev10x.domain.friction_level import FrictionLevel
-from dev10x.domain.rules.validation_rule import Compensation, Rule
+from dev10x.domain.rules.validation_rule import Compensation, MatchingRule
 
 DEFAULT_TTL_SECONDS = 1800
 
@@ -78,7 +78,7 @@ def _parse_yaml(*, yaml_path: Path) -> Config:
     data: dict[str, Any] = yaml.safe_load(yaml_path.read_text()) or {}
     cfg_data = data.get("config", {})
 
-    rules = [Rule.from_yaml_entry(entry=entry) for entry in data.get("rules", [])]
+    rules = [MatchingRule.from_yaml_entry(entry=entry) for entry in data.get("rules", [])]
 
     return Config(
         friction_level=FrictionLevel.from_yaml(cfg_data.get("friction_level")),
@@ -89,7 +89,7 @@ def _parse_yaml(*, yaml_path: Path) -> Config:
 
 def _dict_to_config(*, raw: dict[str, Any]) -> Config:
     rules = [
-        Rule(
+        MatchingRule(
             name=r["name"],
             patterns=r["patterns"],
             matcher=r.get("matcher", "Bash"),

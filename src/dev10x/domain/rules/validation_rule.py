@@ -36,7 +36,7 @@ def _resolved_executable(command: str) -> str:
 def _is_search_command(command: str) -> bool:
     """Return True when the resolved executable is a filesystem search tool.
 
-    Used by :meth:`Rule.matches_command` to suppress false positives where
+    Used by :meth:`MatchingRule.matches_command` to suppress false positives where
     a rule pattern matches a filename appearing as a *search argument*
     (e.g. ``find -name 'git-push-safe.sh'``) rather than a command being
     executed (GH-210). Commands containing ``-exec`` or shell pipelines
@@ -82,7 +82,7 @@ class Compensation:
 
 
 @dataclass(frozen=True)
-class Rule:
+class MatchingRule:
     name: str
     patterns: list[str] = field(default_factory=list)
     matcher: str = "Bash"
@@ -144,7 +144,7 @@ class Rule:
         return True
 
     @classmethod
-    def from_yaml_entry(cls, entry: dict[str, Any]) -> Rule:
+    def from_yaml_entry(cls, entry: dict[str, Any]) -> MatchingRule:
         compensations = [
             Compensation.from_yaml_entry(entry=c) for c in entry.get("compensations", [])
         ]
@@ -164,3 +164,10 @@ class Rule:
             file_substrings=entry.get("file_substrings", []),
             content_pattern=entry.get("content_pattern", ""),
         )
+
+
+# Deprecated alias — the Matching Rule archetype's canonical name is
+# ``MatchingRule`` (ADR-0007). ``Rule`` is retained for backward
+# compatibility with existing imports and will be removed in a future
+# release; prefer ``MatchingRule`` in new code.
+Rule = MatchingRule

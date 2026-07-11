@@ -391,6 +391,13 @@ def resolve_gate(
     ``shipped_presets`` / ``shipped_overlays`` maps default to the domain
     constants; the infra tier injects the YAML-hydrated maps (ADR-0016
     D-1).
+
+    Conditional toggle values (``auto-advance-if-*``) resolve through the
+    ``_CONDITIONAL_TOGGLES`` table, whose entries are the *function-form*
+    of a Policy Rule (ADR-0007): a ``GateContext -> bool`` predicate paired
+    with a reason-fact renderer, rather than a persisted ``PolicyRule``
+    object. The predicate's truth selects auto-advance vs ask; safety
+    floors still override the result.
     """
     if gate not in _ENUM_TOGGLES:
         raise UnknownToggleError(f"Unknown gate {gate!r}; known: {sorted(_ENUM_TOGGLES)}")
