@@ -201,6 +201,7 @@ def main() -> int:
     findings = []
     clean_count = 0
     skipped_count = 0
+    failed_count = 0
 
     pr_numbers = [pr["number"] for pr in prs]
     titles = {pr["number"]: pr["title"] for pr in prs}
@@ -210,6 +211,12 @@ def main() -> int:
         for index, pr_number in enumerate(chunk):
             pr_node = repo_data.get(f"pr{index}")
             if not pr_node:
+                # A failed chunk (fetch_chunk returned {}) or an
+                # unresolved alias drops the PR here. Count it instead
+                # of silently vanishing it — otherwise a mid-scan API
+                # hiccup would erase up to CHUNK_SIZE PRs from every
+                # counter and still exit 0 (GH-836 review).
+                failed_count += 1
                 continue
 
             if _has_audit_marker(pr_node):
@@ -230,12 +237,15 @@ def main() -> int:
 
     print(
         f"Results: {len(findings)} PRs with findings, "
-        f"{clean_count} clean, {skipped_count} skipped (already audited)",
+        f"{clean_count} clean, {skipped_count} skipped (already audited), "
+        f"{failed_count} unscanned (fetch failure)",
         file=sys.stderr,
     )
 
     print(json.dumps(findings, indent=2))
-    return 0
+    # A partial-failure sweep must not read as a clean pass — a non-zero
+    # exit distinguishes it for shell callers (GH-836 review).
+    return 1 if failed_count else 0
 
 
 if __name__ == "__main__":
