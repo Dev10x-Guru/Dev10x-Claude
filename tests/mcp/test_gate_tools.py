@@ -11,11 +11,13 @@ from pathlib import Path
 import pytest
 
 from dev10x.domain.documents.session_yaml import SessionYamlDocument
-from dev10x.mcp.gate_tools import (
-    DOUBT_SINK_RELPATH,
+from dev10x.mcp.gate_query import (
     LEGACY_PROJECT_POLICY_RELPATH,
     PROJECT_POLICY_RELPATH,
     _project_overrides,
+)
+from dev10x.mcp.gate_tools import (
+    DOUBT_SINK_RELPATH,
     resolve_gate_for_toplevel,
 )
 
