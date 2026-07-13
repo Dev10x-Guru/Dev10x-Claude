@@ -149,24 +149,48 @@ def _parse_gh_api_result(
         return ok({"raw_output": result.stdout})
 
 
-async def detect_tracker(*, ticket_id: str) -> Result[dict[str, Any]]:
-    result = await async_run_script(
-        "skills/gh-context/scripts/detect-tracker.sh",
-        ticket_id,
-    )
+async def _run_and_parse(
+    script: str,
+    *args: str,
+    fallback: Callable[[str], dict[str, Any]] | None = None,
+) -> Result[dict[str, Any]]:
+    """Run a ``gh``-wrapper script and parse its stdout as JSON.
+
+    Centralises the run → check-returncode → parse-JSON skeleton that was
+    duplicated across the ``async_run_script`` wrappers (GH-837), where
+    each copy had already drifted on its non-JSON fallback. On a non-zero
+    exit the stderr becomes the error. On success stdout is parsed as
+    JSON; if that fails, ``fallback`` (e.g. :func:`parse_key_value_output`)
+    is applied to the raw stdout, otherwise the raw text is wrapped under
+    ``raw_output``. Scripts that emit key=value rather than JSON pass
+    ``fallback=parse_key_value_output`` — the JSON attempt is a harmless
+    no-op for them and the fallback carries the parse.
+    """
+    result = await async_run_script(script, *args)
     if result.returncode != 0:
         return err(result.stderr.strip())
-    return ok(parse_key_value_output(result.stdout))
+    try:
+        return ok(json.loads(result.stdout))
+    except json.JSONDecodeError:
+        if fallback is not None:
+            return ok(fallback(result.stdout))
+        return ok({"raw_output": result.stdout})
+
+
+async def detect_tracker(*, ticket_id: str) -> Result[dict[str, Any]]:
+    return await _run_and_parse(
+        "skills/gh-context/scripts/detect-tracker.sh",
+        ticket_id,
+        fallback=parse_key_value_output,
+    )
 
 
 async def pr_detect(*, arg: str) -> Result[dict[str, Any]]:
-    result = await async_run_script(
+    return await _run_and_parse(
         "skills/gh-context/scripts/gh-pr-detect.sh",
         arg,
+        fallback=parse_key_value_output,
     )
-    if result.returncode != 0:
-        return err(result.stderr.strip())
-    return ok(parse_key_value_output(result.stdout))
 
 
 async def pr_get(
@@ -182,16 +206,11 @@ async def pr_get(
     args = [str(number)]
     if repo:
         args.append(repo)
-    result = await async_run_script(
+    return await _run_and_parse(
         "skills/gh-context/scripts/gh-pr-get.sh",
         *args,
+        fallback=parse_key_value_output,
     )
-    if result.returncode != 0:
-        return err(result.stderr.strip())
-    try:
-        return ok(json.loads(result.stdout))
-    except json.JSONDecodeError:
-        return ok(parse_key_value_output(result.stdout))
 
 
 async def issue_get(
@@ -202,16 +221,11 @@ async def issue_get(
     args = [str(number)]
     if repo:
         args.append(repo)
-    result = await async_run_script(
+    return await _run_and_parse(
         "skills/gh-context/scripts/gh-issue-get.sh",
         *args,
+        fallback=parse_key_value_output,
     )
-    if result.returncode != 0:
-        return err(result.stderr.strip())
-    try:
-        return ok(json.loads(result.stdout))
-    except json.JSONDecodeError:
-        return ok(parse_key_value_output(result.stdout))
 
 
 async def issue_comments(
@@ -222,16 +236,10 @@ async def issue_comments(
     args = [str(number)]
     if repo:
         args.append(repo)
-    result = await async_run_script(
+    return await _run_and_parse(
         "skills/gh-context/scripts/gh-issue-comments.sh",
         *args,
     )
-    if result.returncode != 0:
-        return err(result.stderr.strip())
-    try:
-        return ok(json.loads(result.stdout))
-    except json.JSONDecodeError:
-        return ok({"raw_output": result.stdout})
 
 
 async def issue_create(
@@ -252,16 +260,11 @@ async def issue_create(
         args.extend(["--milestone", milestone])
     if repo:
         args.extend(["--repo", repo])
-    result = await async_run_script(
+    return await _run_and_parse(
         "skills/gh-context/scripts/gh-issue-create.sh",
         *args,
+        fallback=parse_key_value_output,
     )
-    if result.returncode != 0:
-        return err(result.stderr.strip())
-    try:
-        return ok(json.loads(result.stdout))
-    except json.JSONDecodeError:
-        return ok(parse_key_value_output(result.stdout))
 
 
 async def _pr_comment_get(
@@ -868,15 +871,11 @@ async def verify_pr_state(*, force: bool = False) -> Result[dict[str, Any]]:
     if force:
         args.append("--force")
 
-    result = await async_run_script(
+    return await _run_and_parse(
         "skills/gh-pr-create/scripts/verify-state.sh",
         *args,
+        fallback=parse_key_value_output,
     )
-
-    if result.returncode != 0:
-        return err(result.stderr.strip())
-
-    return ok(parse_key_value_output(result.stdout))
 
 
 async def pre_pr_checks(*, base_branch: str | None = None) -> Result[dict[str, Any]]:
@@ -1161,6 +1160,33 @@ async def milestone_create(
     )
 
 
+async def _issue_result(
+    *,
+    number: int,
+    raw_url: str,
+    repo: str | None,
+    state: str | None = None,
+) -> dict[str, Any]:
+    """Assemble the ``{number, [state], url}`` payload for issue mutations.
+
+    Resolves the canonical issue URL from ``repo``; when the repo cannot
+    be resolved the ``gh`` command's own stdout (``raw_url``) is used as
+    the URL. Shared by issue_edit/close/reopen, whose repo-resolution +
+    URL-building tail was copy-pasted 3× (GH-838). ``state`` is omitted
+    from the payload when ``None`` so ``issue_edit`` keeps its
+    stateless ``{number, url}`` shape.
+    """
+    payload: dict[str, Any] = {"number": number}
+    if state is not None:
+        payload["state"] = state
+    repo_result = await _resolve_repo(repo)
+    if isinstance(repo_result, ErrorResult):
+        payload["url"] = raw_url
+    else:
+        payload["url"] = f"https://github.com/{repo_result.value}/issues/{number}"
+    return payload
+
+
 async def issue_edit(
     *,
     number: int,
@@ -1223,15 +1249,7 @@ async def issue_edit(
     if result.returncode != 0:
         return err(result.stderr.strip())
 
-    repo_result = await _resolve_repo(repo)
-    if isinstance(repo_result, ErrorResult):
-        return ok({"number": number, "url": result.stdout.strip()})
-    return ok(
-        {
-            "number": number,
-            "url": f"https://github.com/{repo_result.value}/issues/{number}",
-        }
-    )
+    return ok(await _issue_result(number=number, raw_url=result.stdout.strip(), repo=repo))
 
 
 # gh's --reason wants the space spelling "not planned"; the wrapper takes the
@@ -1276,15 +1294,10 @@ async def issue_close(
     if result.returncode != 0:
         return err(result.stderr.strip())
 
-    repo_result = await _resolve_repo(repo)
-    if isinstance(repo_result, ErrorResult):
-        return ok({"number": number, "state": "closed", "url": result.stdout.strip()})
     return ok(
-        {
-            "number": number,
-            "state": "closed",
-            "url": f"https://github.com/{repo_result.value}/issues/{number}",
-        }
+        await _issue_result(
+            number=number, raw_url=result.stdout.strip(), repo=repo, state="closed"
+        )
     )
 
 
@@ -1312,15 +1325,8 @@ async def issue_reopen(
     if result.returncode != 0:
         return err(result.stderr.strip())
 
-    repo_result = await _resolve_repo(repo)
-    if isinstance(repo_result, ErrorResult):
-        return ok({"number": number, "state": "open", "url": result.stdout.strip()})
     return ok(
-        {
-            "number": number,
-            "state": "open",
-            "url": f"https://github.com/{repo_result.value}/issues/{number}",
-        }
+        await _issue_result(number=number, raw_url=result.stdout.strip(), repo=repo, state="open")
     )
 
 
