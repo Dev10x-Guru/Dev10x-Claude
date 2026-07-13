@@ -303,17 +303,116 @@ class TestFormatReviewersSection:
 
 class TestFormatStatusReport:
     def test_combines_all_sections(self):
-        result = format_status_report(
-            checks=[],
-            comments=[],
+        snapshot = _mod.PRStatusSnapshot(
+            ci_checks=[],
+            review_comments=[],
             reviewers={"reviewRequests": [], "reviews": [], "latestReviews": []},
         )
+        result = format_status_report(snapshot=snapshot)
         assert "## CI Check Status" in result
         assert "## Review Comments" in result
         assert "## Reviewers" in result
         assert "No CI checks found." in result
         assert "No unhandled review comments." in result
         assert "No reviewers assigned." in result
+
+
+class TestFetchStatusSnapshot:
+    """The three status fetches run concurrently and land in a snapshot (GH-839)."""
+
+    def test_bundles_the_three_fetches(self):
+        with (
+            patch.object(_pr_notify_module, "get_ci_checks", return_value=[{"name": "ci"}]),
+            patch.object(_pr_notify_module, "get_review_comments", return_value=[{"id": 1}]),
+            patch.object(_pr_notify_module, "get_reviewers", return_value={"latestReviews": []}),
+        ):
+            snapshot = _pr_notify_module.fetch_status_snapshot(pr_number=7, repo="o/r")
+
+        assert snapshot.ci_checks == [{"name": "ci"}]
+        assert snapshot.review_comments == [{"id": 1}]
+        assert snapshot.reviewers == {"latestReviews": []}
+
+
+class TestBuildNotificationContext:
+    """cmd_prepare's fetches collapse into a PRNotificationContext (GH-839)."""
+
+    def _pr_view(self) -> dict:
+        return {
+            "number": 7,
+            "title": "PAY-1 Fix routing",
+            "body": "no jtbd here",
+            "url": "https://github.com/o/r/pull/7",
+            "state": "OPEN",
+        }
+
+    def test_ready_when_open_and_no_threads(self):
+        with (
+            patch.object(_pr_notify_module, "gh_json", return_value=self._pr_view()),
+            patch.object(_pr_notify_module, "count_open_threads", return_value=0),
+        ):
+            ctx = _pr_notify_module.build_notification_context(pr_number=7, repo="o/r")
+
+        assert ctx.pr_number == 7
+        assert ctx.pr_url == "https://github.com/o/r/pull/7"
+        assert ctx.open_threads == 0
+        assert ctx.ready is True
+        assert "Please review" in ctx.slack_message
+
+    def test_not_ready_with_open_threads(self):
+        with (
+            patch.object(_pr_notify_module, "gh_json", return_value=self._pr_view()),
+            patch.object(_pr_notify_module, "count_open_threads", return_value=3),
+        ):
+            ctx = _pr_notify_module.build_notification_context(pr_number=7, repo="o/r")
+
+        assert ctx.open_threads == 3
+        assert ctx.ready is False
+
+
+class TestCmdStatus:
+    """cmd_status is a thin adapter over the snapshot + formatter (GH-839)."""
+
+    def test_markdown_report(self, capsys: pytest.CaptureFixture[str]):
+        snapshot = _pr_notify_module.PRStatusSnapshot(
+            ci_checks=[], review_comments=[], reviewers={}
+        )
+        args = argparse.Namespace(pr=7, repo="o/r", json=False)
+        with patch.object(_pr_notify_module, "fetch_status_snapshot", return_value=snapshot):
+            _pr_notify_module.cmd_status(args)
+        assert "## CI Check Status" in capsys.readouterr().out
+
+    def test_json_report(self, capsys: pytest.CaptureFixture[str]):
+        snapshot = _pr_notify_module.PRStatusSnapshot(
+            ci_checks=[{"name": "ci"}], review_comments=[], reviewers={}
+        )
+        args = argparse.Namespace(pr=7, repo="o/r", json=True)
+        with patch.object(_pr_notify_module, "fetch_status_snapshot", return_value=snapshot):
+            _pr_notify_module.cmd_status(args)
+        out = capsys.readouterr().out
+        assert '"ci_checks"' in out
+        assert '"report_markdown"' in out
+
+
+class TestCmdPrepare:
+    """cmd_prepare emits the notification context as JSON (GH-839)."""
+
+    def test_emits_context_json(self, capsys: pytest.CaptureFixture[str]):
+        ctx = _pr_notify_module.PRNotificationContext(
+            pr_number=7,
+            repo="o/r",
+            pr_url="https://github.com/o/r/pull/7",
+            pr_title="PAY-1 Fix",
+            pr_state="OPEN",
+            open_threads=0,
+            jtbd=None,
+            slack_message="Please review",
+        )
+        args = argparse.Namespace(pr=7, repo="o/r")
+        with patch.object(_pr_notify_module, "build_notification_context", return_value=ctx):
+            _pr_notify_module.cmd_prepare(args)
+        out = capsys.readouterr().out
+        assert '"ready": true' in out
+        assert '"jtbd_found": false' in out
 
 
 class TestRepoName:

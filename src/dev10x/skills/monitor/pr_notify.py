@@ -32,6 +32,8 @@ import argparse
 import json
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -293,32 +295,125 @@ def format_reviewers_section(data: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def format_status_report(
-    checks: list[dict[str, Any]],
-    comments: list[dict[str, Any]],
-    reviewers: dict[str, Any],
-) -> str:
+@dataclass(frozen=True)
+class PRStatusSnapshot:
+    """Immutable bundle of the three independent PR status fetches (GH-839).
+
+    Groups CI checks, review comments, and reviewer data into one value
+    object so the ``format_*`` helpers consume a single testable input
+    (buildable in-memory, no live PR needed) and so the fetches can run
+    concurrently instead of serially.
+    """
+
+    ci_checks: list[dict[str, Any]]
+    review_comments: list[dict[str, Any]]
+    reviewers: dict[str, Any]
+
+
+def fetch_status_snapshot(pr_number: int, repo: str) -> PRStatusSnapshot:
+    """Fetch CI checks, review comments, and reviewers concurrently (GH-839).
+
+    The three ``gh`` calls are independent, so a small thread pool collapses
+    their latency from 3× serial to ~1× per monitor tick. ``gh_json`` exits
+    non-zero on failure; that ``SystemExit`` surfaces via ``future.result()``.
+    """
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        checks = pool.submit(get_ci_checks, pr_number=pr_number, repo=repo)
+        comments = pool.submit(get_review_comments, pr_number=pr_number, repo=repo)
+        reviewers = pool.submit(get_reviewers, pr_number=pr_number, repo=repo)
+        return PRStatusSnapshot(
+            ci_checks=checks.result(),
+            review_comments=comments.result(),
+            reviewers=reviewers.result(),
+        )
+
+
+def format_status_report(snapshot: PRStatusSnapshot) -> str:
     sections = [
         "## CI Check Status\n",
-        format_ci_table(checks=checks),
+        format_ci_table(checks=snapshot.ci_checks),
         "\n## Review Comments\n",
-        format_comments_section(comments=comments),
+        format_comments_section(comments=snapshot.review_comments),
         "\n## Reviewers\n",
-        format_reviewers_section(data=reviewers),
+        format_reviewers_section(data=snapshot.reviewers),
     ]
     return "\n".join(sections)
 
 
+@dataclass(frozen=True)
+class PRNotificationContext:
+    """PR facts needed to prepare a review notification (GH-839).
+
+    Separates GitHub fetch results from the Slack/JTBD formatting so
+    ``cmd_prepare`` is a thin adapter over testable pieces.
+    """
+
+    pr_number: int
+    repo: str
+    pr_url: str
+    pr_title: str
+    pr_state: str
+    open_threads: int
+    jtbd: str | None
+    slack_message: str
+
+    @property
+    def ready(self) -> bool:
+        return self.open_threads == 0 and self.pr_state == "OPEN"
+
+
+def build_notification_context(pr_number: int, repo: str) -> PRNotificationContext:
+    """Assemble a :class:`PRNotificationContext`, fetching concurrently (GH-839).
+
+    The PR view and the open-thread count are independent gh calls, so they
+    run in parallel; JTBD extraction and Slack formatting are pure and run
+    afterward on the fetched data.
+    """
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        pr_future = pool.submit(
+            gh_json,
+            args=[
+                "pr",
+                "view",
+                str(pr_number),
+                "--repo",
+                repo,
+                "--json",
+                "number,title,body,url,state",
+            ],
+        )
+        threads_future = pool.submit(count_open_threads, pr_number=pr_number, repo=repo)
+        pr = pr_future.result()
+        open_threads = threads_future.result()
+
+    jtbd = extract_jtbd(body=pr.get("body") or "")
+    message = format_slack_message(
+        pr_number=pr_number,
+        repo=repo,
+        pr_url=pr["url"],
+        pr_title=pr["title"],
+        jtbd=jtbd,
+    )
+    return PRNotificationContext(
+        pr_number=pr_number,
+        repo=repo,
+        pr_url=pr["url"],
+        pr_title=pr["title"],
+        pr_state=pr["state"],
+        open_threads=open_threads,
+        jtbd=jtbd,
+        slack_message=message,
+    )
+
+
 def cmd_status(args: argparse.Namespace) -> None:
-    checks = get_ci_checks(pr_number=args.pr, repo=args.repo)
-    comments = get_review_comments(pr_number=args.pr, repo=args.repo)
-    reviewers = get_reviewers(pr_number=args.pr, repo=args.repo)
-    report = format_status_report(checks=checks, comments=comments, reviewers=reviewers)
+    snapshot = fetch_status_snapshot(pr_number=args.pr, repo=args.repo)
+    report = format_status_report(snapshot=snapshot)
     if args.json:
         output = {
-            "ci_checks": checks,
-            "review_comments": comments,
-            "reviewers": reviewers,
+            "ci_checks": snapshot.ci_checks,
+            "review_comments": snapshot.review_comments,
+            "reviewers": snapshot.reviewers,
             "report_markdown": report,
         }
         print(json.dumps(output, indent=2))
@@ -327,39 +422,18 @@ def cmd_status(args: argparse.Namespace) -> None:
 
 
 def cmd_prepare(args: argparse.Namespace) -> None:
-    pr = gh_json(
-        args=[
-            "pr",
-            "view",
-            str(args.pr),
-            "--repo",
-            args.repo,
-            "--json",
-            "number,title,body,url,state",
-        ]
-    )
-
-    open_threads = count_open_threads(pr_number=args.pr, repo=args.repo)
-    jtbd = extract_jtbd(body=pr.get("body") or "")
-    message = format_slack_message(
-        pr_number=args.pr,
-        repo=args.repo,
-        pr_url=pr["url"],
-        pr_title=pr["title"],
-        jtbd=jtbd,
-    )
-
+    ctx = build_notification_context(pr_number=args.pr, repo=args.repo)
     output = {
-        "pr_number": args.pr,
-        "repo": args.repo,
-        "pr_url": pr["url"],
-        "pr_title": pr["title"],
-        "pr_state": pr["state"],
-        "open_threads": open_threads,
-        "jtbd_found": jtbd is not None,
-        "jtbd": jtbd,
-        "slack_message": message,
-        "ready": open_threads == 0 and pr["state"] == "OPEN",
+        "pr_number": ctx.pr_number,
+        "repo": ctx.repo,
+        "pr_url": ctx.pr_url,
+        "pr_title": ctx.pr_title,
+        "pr_state": ctx.pr_state,
+        "open_threads": ctx.open_threads,
+        "jtbd_found": ctx.jtbd is not None,
+        "jtbd": ctx.jtbd,
+        "slack_message": ctx.slack_message,
+        "ready": ctx.ready,
     }
 
     print(json.dumps(output, indent=2))
