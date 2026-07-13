@@ -8,6 +8,13 @@
 Uses GitHub REST API to list merged PRs and GraphQL to check
 thread resolution status. Skips PRs with audit trail markers.
 
+The sweep batches PRs into chunked GraphQL queries via field
+aliasing (GH-836): each request resolves up to ``CHUNK_SIZE`` PRs
+and folds the audit-marker comment fetch into the same query, so a
+200-PR scan costs ~1 REST call + ceil(200/CHUNK_SIZE) GraphQL calls
+instead of the previous ~2 gh subprocesses per PR (which timed out
+at scale — GH-710 only fixed the single-PR path in the MCP wrapper).
+
 Output: JSON array of PRs with unresolved threads.
 """
 
@@ -15,28 +22,38 @@ import argparse
 import json
 import subprocess
 import sys
+from collections.abc import Iterator
 
 AUDIT_MARKER = "PR Audit"
 
-GRAPHQL_QUERY = """
-query($owner: String!, $repo: String!, $pr: Int!) {
-  repository(owner: $owner, name: $repo) {
-    pullRequest(number: $pr) {
-      reviewThreads(first: 100) {
-        nodes {
-          isResolved
-          comments(first: 1) {
-            nodes {
-              body
-              author { login }
-              path
-            }
+# PRs per chunked GraphQL request (GH-836). GitHub caps aliased node
+# resolution and query cost; 25 keeps each request well under the
+# 500k node-count budget while cutting subprocess count ~50×.
+CHUNK_SIZE = 25
+
+# Per-PR field selection, reused for every alias in a chunk. Pulls the
+# review threads AND the conversation comments (for the audit marker)
+# in one shot so no separate ``gh pr view`` call is needed per PR.
+# ``comments(first: 100)`` is GraphQL's per-connection max; a PR whose
+# audit marker only appears past its first 100 conversation comments is
+# re-scanned rather than skipped — an accepted trade-off for dropping the
+# per-PR ``gh pr view`` round-trip (GH-836).
+_PR_FIELDS = """
+    number
+    title
+    comments(first: 100) { nodes { body } }
+    reviewThreads(first: 100) {
+      nodes {
+        isResolved
+        comments(first: 1) {
+          nodes {
+            body
+            author { login }
+            path
           }
         }
       }
     }
-  }
-}
 """
 
 
@@ -76,55 +93,66 @@ def fetch_merged_prs(
     return json.loads(output)
 
 
-def has_audit_marker(
-    repo: str,
-    pr_number: int,
-) -> bool:
-    output = run_gh(
-        [
-            "pr",
-            "view",
-            str(pr_number),
-            "--repo",
-            repo,
-            "--json",
-            "comments",
-            "--jq",
-            ".comments[].body",
-        ]
+def _chunked(items: list[int], size: int) -> Iterator[list[int]]:
+    for start in range(0, len(items), size):
+        yield items[start : start + size]
+
+
+def _build_chunk_query(pr_numbers: list[int]) -> str:
+    """Assemble one GraphQL query aliasing every PR in the chunk.
+
+    PR numbers come from our own ``gh pr list`` output and are coerced
+    to ``int``, so embedding them directly in the query is injection-safe
+    and avoids declaring one ``$prN`` variable per alias.
+    """
+    aliases = "\n".join(
+        f"    pr{index}: pullRequest(number: {int(number)}) {{{_PR_FIELDS}    }}"
+        for index, number in enumerate(pr_numbers)
     )
-    return AUDIT_MARKER in output
+    return (
+        "query($owner: String!, $repo: String!) {\n"
+        "  repository(owner: $owner, name: $repo) {\n"
+        f"{aliases}\n"
+        "  }\n"
+        "}\n"
+    )
 
 
-def fetch_unresolved_threads(
+def fetch_chunk(
     owner: str,
     repo_name: str,
-    pr_number: int,
-) -> list[dict]:
+    pr_numbers: list[int],
+) -> dict:
+    """Resolve one chunk of PRs; returns the ``repository`` object.
+
+    Keys are the ``pr0``..``prN`` aliases (a null value means the PR
+    could not be resolved). Returns an empty dict on gh/JSON failure.
+    """
     output = run_gh(
         [
             "api",
             "graphql",
             "-f",
-            f"query={GRAPHQL_QUERY}",
+            f"query={_build_chunk_query(pr_numbers)}",
             "-f",
             f"owner={owner}",
             "-f",
             f"repo={repo_name}",
-            "-F",
-            f"pr={pr_number}",
         ]
     )
     if not output:
-        return []
+        return {}
     data = json.loads(output)
-    threads = (
-        data.get("data", {})
-        .get("repository", {})
-        .get("pullRequest", {})
-        .get("reviewThreads", {})
-        .get("nodes", [])
-    )
+    return data.get("data", {}).get("repository", {}) or {}
+
+
+def _has_audit_marker(pr_node: dict) -> bool:
+    comments = pr_node.get("comments", {}).get("nodes", [])
+    return any(AUDIT_MARKER in (comment.get("body") or "") for comment in comments)
+
+
+def _extract_unresolved(pr_node: dict) -> list[dict]:
+    threads = pr_node.get("reviewThreads", {}).get("nodes", [])
     unresolved = []
     for thread in threads:
         if thread.get("isResolved"):
@@ -174,29 +202,31 @@ def main() -> int:
     clean_count = 0
     skipped_count = 0
 
-    for pr in prs:
-        pr_number = pr["number"]
+    pr_numbers = [pr["number"] for pr in prs]
+    titles = {pr["number"]: pr["title"] for pr in prs}
 
-        if has_audit_marker(repo=args.repo, pr_number=pr_number):
-            skipped_count += 1
-            continue
+    for chunk in _chunked(pr_numbers, CHUNK_SIZE):
+        repo_data = fetch_chunk(owner=owner, repo_name=repo_name, pr_numbers=chunk)
+        for index, pr_number in enumerate(chunk):
+            pr_node = repo_data.get(f"pr{index}")
+            if not pr_node:
+                continue
 
-        threads = fetch_unresolved_threads(
-            owner=owner,
-            repo_name=repo_name,
-            pr_number=pr_number,
-        )
+            if _has_audit_marker(pr_node):
+                skipped_count += 1
+                continue
 
-        if threads:
-            findings.append(
-                {
-                    "pr_number": pr_number,
-                    "title": pr["title"],
-                    "threads": threads,
-                }
-            )
-        else:
-            clean_count += 1
+            threads = _extract_unresolved(pr_node)
+            if threads:
+                findings.append(
+                    {
+                        "pr_number": pr_number,
+                        "title": pr_node.get("title") or titles.get(pr_number, ""),
+                        "threads": threads,
+                    }
+                )
+            else:
+                clean_count += 1
 
     print(
         f"Results: {len(findings)} PRs with findings, "
