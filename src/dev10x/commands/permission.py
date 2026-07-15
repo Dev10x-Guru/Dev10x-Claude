@@ -71,6 +71,39 @@ def _require_settings(
     return ctx
 
 
+def _run_fix(
+    fn: object,
+    *,
+    needs_config: bool,
+    dry_run: bool,
+    quiet: bool,
+    show_config: bool = False,
+) -> None:
+    """Run one ``ensure_*``/``generalize`` fix behind the shared preamble.
+
+    Collapses the ``_require_settings`` → early-return → ``sys.exit(
+    _emit_result(mod.FN(...)))`` skeleton that every single-call ``ensure_*``
+    handler repeated (audit GH-842). ``needs_config`` forwards ``config`` only
+    for the handlers that accept it (``generalize`` does not); ``show_config``
+    echoes the config path (``ensure-base`` only). Exits the process with the
+    fix's exit code, or returns early when no settings files are found.
+
+    ``ensure-scripts`` folds two domain calls with ``max(...)`` and stays an
+    explicit handler — the one documented exception to this runner.
+    """
+    ctx = _require_settings(show_config=show_config, quiet=quiet)
+    if ctx is None:
+        return
+    kwargs: dict[str, object] = {
+        "settings_files": ctx.settings_files,
+        "dry_run": dry_run,
+        "quiet": quiet,
+    }
+    if needs_config:
+        kwargs["config"] = ctx.config
+    sys.exit(_emit_result(fn(**kwargs)))  # type: ignore[operator]
+
+
 @permission.command(name="update-paths")
 @click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
 @click.option(
@@ -181,20 +214,7 @@ def ensure_base(*, dry_run: bool, quiet: bool) -> None:
     """Add missing base permissions from projects.yaml."""
     from dev10x.skills.permission import update_paths as mod
 
-    ctx = _require_settings(show_config=True, quiet=quiet)
-    if ctx is None:
-        return
-
-    sys.exit(
-        _emit_result(
-            mod.ensure_base(
-                config=ctx.config,
-                settings_files=ctx.settings_files,
-                dry_run=dry_run,
-                quiet=quiet,
-            )
-        )
-    )
+    _run_fix(mod.ensure_base, needs_config=True, dry_run=dry_run, quiet=quiet, show_config=True)
 
 
 @permission.command()
@@ -204,19 +224,7 @@ def generalize(*, dry_run: bool, quiet: bool) -> None:
     """Replace session-specific permission args with wildcard patterns."""
     from dev10x.skills.permission import update_paths as mod
 
-    ctx = _require_settings()
-    if ctx is None:
-        return
-
-    sys.exit(
-        _emit_result(
-            mod.generalize(
-                settings_files=ctx.settings_files,
-                dry_run=dry_run,
-                quiet=quiet,
-            )
-        )
-    )
+    _run_fix(mod.generalize, needs_config=False, dry_run=dry_run, quiet=quiet)
 
 
 @permission.command(name="ensure-workspace")
@@ -231,20 +239,7 @@ def ensure_workspace(*, dry_run: bool, quiet: bool) -> None:
     """
     from dev10x.skills.permission import update_paths as mod
 
-    ctx = _require_settings()
-    if ctx is None:
-        return
-
-    sys.exit(
-        _emit_result(
-            mod.ensure_workspace(
-                config=ctx.config,
-                settings_files=ctx.settings_files,
-                dry_run=dry_run,
-                quiet=quiet,
-            )
-        )
-    )
+    _run_fix(mod.ensure_workspace, needs_config=True, dry_run=dry_run, quiet=quiet)
 
 
 @permission.command(name="ensure-scripts")
@@ -285,20 +280,7 @@ def ensure_reads(*, dry_run: bool, quiet: bool) -> None:
     """Emit per-skill folder Read rules with ~/ + /home/<user>/ twins."""
     from dev10x.skills.permission import update_paths as mod
 
-    ctx = _require_settings()
-    if ctx is None:
-        return
-
-    sys.exit(
-        _emit_result(
-            mod.ensure_reads(
-                config=ctx.config,
-                settings_files=ctx.settings_files,
-                dry_run=dry_run,
-                quiet=quiet,
-            )
-        )
-    )
+    _run_fix(mod.ensure_reads, needs_config=True, dry_run=dry_run, quiet=quiet)
 
 
 @permission.command()
