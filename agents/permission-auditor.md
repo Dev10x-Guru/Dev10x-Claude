@@ -55,6 +55,8 @@ The HOOK_ENABLED vs DEAD_RULE distinction is critical: removing
 a HOOK_ENABLED rule replaces an educational redirect with a
 generic permission prompt. See ADR-0003 for the rationale.
 
+`dev10x permission audit` (PAP-6, GH-867) pre-computes these tokens.
+
 See [`references/agents/permission-auditor/classification.md`](../references/agents/permission-auditor/classification.md)
 for the full category table, criteria, examples, and the
 HOOK_ENABLED vs DEAD_RULE rule.
