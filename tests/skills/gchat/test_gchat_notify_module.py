@@ -109,3 +109,65 @@ class TestMintAccessToken:
         monkeypatch.setattr(mod, "_post_form", lambda url, fields: ok({"expires_in": 1}))
         result = mod.mint_access_token({"client_email": "x", "private_key": "k"}, now=1)
         assert isinstance(result, ErrorResult)
+
+
+class TestPostMessage:
+    def test_posts_json_and_returns_message_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured: dict = {}
+
+        def fake_post_json(url, payload, token):  # noqa: ANN001, ANN202
+            captured["url"] = url
+            captured["payload"] = payload
+            captured["token"] = token
+            return ok({"name": "spaces/AAAA123/messages/XYZ"})
+
+        monkeypatch.setattr(mod, "_post_json", fake_post_json)
+        result = mod.post_message(space_id="AAAA123", text="hi", token="tok")
+        assert isinstance(result, SuccessResult)
+        assert result.value == "spaces/AAAA123/messages/XYZ"
+        assert captured["url"] == f"{mod.CHAT_API_BASE}/spaces/AAAA123/messages"
+        assert captured["payload"] == {"text": "hi"}
+        assert captured["token"] == "tok"
+
+    def test_errors_when_response_lacks_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mod, "_post_json", lambda url, payload, token: ok({}))
+        result = mod.post_message(space_id="AAAA123", text="hi", token="tok")
+        assert isinstance(result, ErrorResult)
+
+
+class TestNotifyGchat:
+    def _wire(self, monkeypatch: pytest.MonkeyPatch, captured: dict) -> None:
+        monkeypatch.setattr(mod, "_load_config", lambda: {"user_groups": {"@team": "<GROUP>"}})
+        monkeypatch.setattr(mod, "resolve_space_id", lambda alias: ok("AAAA123"))
+        monkeypatch.setattr(
+            mod, "get_sa_info", lambda: ok({"client_email": "x", "private_key": "k"})
+        )
+        monkeypatch.setattr(mod, "mint_access_token", lambda info: ok("tok"))
+
+        def fake_post_message(*, space_id, text, token):  # noqa: ANN001, ANN202
+            captured.update(space_id=space_id, text=text, token=token)
+            return ok("spaces/AAAA123/messages/XYZ")
+
+        monkeypatch.setattr(mod, "post_message", fake_post_message)
+
+    def test_resolves_and_posts(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured: dict = {}
+        self._wire(monkeypatch, captured)
+        result = mod.notify_gchat(space="tt-reviews", message="@team please review")
+        assert isinstance(result, SuccessResult)
+        assert result.value == "spaces/AAAA123/messages/XYZ"
+        assert captured["text"] == "<GROUP> please review"
+        assert captured["space_id"] == "AAAA123"
+
+    def test_short_circuits_on_missing_space(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mod, "resolve_space_id", lambda alias: err("no space"))
+        result = mod.notify_gchat(space="bad", message="hi")
+        assert isinstance(result, ErrorResult)
+        assert result.error == "no space"
+
+    def test_short_circuits_on_missing_credentials(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mod, "resolve_space_id", lambda alias: ok("AAAA123"))
+        monkeypatch.setattr(mod, "get_sa_info", lambda: err("no key"))
+        result = mod.notify_gchat(space="tt-reviews", message="hi")
+        assert isinstance(result, ErrorResult)
+        assert result.error == "no key"
