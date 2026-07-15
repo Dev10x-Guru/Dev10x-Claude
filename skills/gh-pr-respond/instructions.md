@@ -1208,7 +1208,7 @@ Options:
      marking ready.
   6. If CI passes and no new comments → merge via
      `Skill(Dev10x:gh-pr-merge)` — NEVER raw `gh pr merge`
-     (GH-759 F3). The skill validates 8 pre-merge conditions
+     (GH-759 F3). The skill validates 9 pre-merge conditions
      including unaddressed review comments that raw merge
      bypasses.
 - **"Groom + push only"** — Groom and push, but stop before

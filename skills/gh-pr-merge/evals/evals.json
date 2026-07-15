@@ -18,8 +18,8 @@
     },
     {
       "id": "all-checks-pass",
-      "name": "All 8 Checks Required",
-      "description": "All 8 pre-merge checks run on every invocation. No check is skippable based on agent recollection from a previous invocation."
+      "name": "All 9 Checks Required",
+      "description": "All 9 pre-merge checks run on every invocation. No check is skippable based on agent recollection from a previous invocation."
     },
     {
       "id": "merge-tool",
@@ -30,6 +30,11 @@
       "id": "infra-failure-gate",
       "name": "Infrastructure Failure Gate",
       "description": "AskUserQuestion fires only when CI failure is clearly infrastructure-related and the auto-fix loop is exhausted. Never fires for routine code failures."
+    },
+    {
+      "id": "fixes-scope-block",
+      "name": "Fixes-Linked Scope Delivery Block",
+      "description": "Check 1d compares each Fixes:/Closes:-linked issue's stated scope against the diff and refuses merge when a titled capability is unbuilt (including self-disclosed cuts)."
     }
   ],
   "evals": [
@@ -130,7 +135,7 @@
     {
       "id": "happy-path-merge",
       "name": "All checks pass — merge executes via MCP tool",
-      "description": "All 8 checks pass. Merge must execute via mcp__plugin_Dev10x_cli__merge_pr, not raw gh pr merge.",
+      "description": "All 9 checks pass. Merge must execute via mcp__plugin_Dev10x_cli__merge_pr, not raw gh pr merge.",
       "input": "/Dev10x:gh-pr-merge",
       "assertions": [
         {
@@ -157,6 +162,25 @@
           "signal": "No raw 'gh pr merge' Bash command is invoked"
         }
       ]
+    },
+    {
+      "id": "fixes-scope-undelivered-blocks-merge",
+      "name": "Fixes-linked scope undelivered blocks merge",
+      "description": "A Fixes:-linked issue's title names a capability with no corresponding diff (new code has no non-test caller). Check 1d must refuse merge and recommend narrowing the Fixes link or splitting a follow-up issue.",
+      "input": "/Dev10x:gh-pr-merge",
+      "assertions": [
+        {
+          "dimension": "fixes-scope-block",
+          "check": "output_contains",
+          "value": "scope",
+          "signal": "Merge is refused because a Fixes-linked issue's scope is under-delivered"
+        },
+        {
+          "dimension": "merge-tool",
+          "check": "behavioral",
+          "signal": "mcp__plugin_Dev10x_cli__merge_pr is NOT called when Fixes-linked scope is undelivered"
+        }
+      ]
     }
   ],
   "trigger_evals": {
@@ -164,7 +188,7 @@
     "should_trigger": [
       {
         "query": "/Dev10x:gh-pr-merge",
-        "rationale": "Direct invocation — runs the full 8-check gate and merges if clean"
+        "rationale": "Direct invocation — runs the full 9-check gate and merges if clean"
       },
       {
         "query": "the PR looks good, go ahead and merge it",

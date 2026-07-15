@@ -605,7 +605,7 @@ async def merge_pr(
     can ship the merge without hitting the PreToolUse hook that
     blocks raw ``gh pr merge`` Bash invocations.
 
-    The skill must still run all 8 pre-merge checks before calling
+    The skill must still run all 9 pre-merge checks before calling
     this tool — the hook block was the only reason the documented
     Step 5 was unreachable; the checks themselves remain mandatory.
 
