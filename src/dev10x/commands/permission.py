@@ -650,6 +650,49 @@ def merge_worktree(*, dry_run: bool, restore: bool) -> None:
         click.echo(f"\n{verb} {total_merged} permissions into {projects_changed} projects.")
 
 
+@permission.command(name="audit")
+def permission_audit() -> None:
+    """Classify allow rules onto typed auditor assessments (PAP-6, GH-867)."""
+    from dev10x.skills.permission import policy_audit
+    from dev10x.skills.permission.doctor import CATALOG_PATH, load_catalog
+
+    ctx = _require_settings()
+    if ctx is None:
+        return
+    catalog_policies = {
+        policy.signature: policy for policy in load_catalog(CATALOG_PATH).policies()
+    }
+    rules = policy_audit.rules_from_settings(ctx.settings_files)
+    for line in policy_audit.audit_report(rules=rules, catalog_policies=catalog_policies):
+        click.echo(line)
+
+
+@permission.command(name="resolve")
+@click.argument("signature")
+@click.option("--context", default="", help="Active skill context for PAP-5 scoped resolution")
+@click.option(
+    "--project",
+    "project_path",
+    type=click.Path(),
+    default=None,
+    help="Project catalog layer (grouped or flat YAML); optional",
+)
+def permission_resolve(*, signature: str, context: str, project_path: str | None) -> None:
+    """Resolve the layered policy effect for a tool-call SIGNATURE (PAP-6, GH-868)."""
+    from dev10x.domain.dev10x_paths import Dev10xConfigDir
+    from dev10x.skills.permission.doctor import CATALOG_PATH
+    from dev10x.skills.permission.resolve import resolve_report
+
+    for line in resolve_report(
+        signature=signature,
+        context=context,
+        plugin_path=CATALOG_PATH,
+        user_path=Dev10xConfigDir.projects_yaml(),
+        project_path=Path(project_path) if project_path else None,
+    ):
+        click.echo(line)
+
+
 @permission.group()
 def investigate() -> None:
     """Permission Pattern Investigator (GH-47).
