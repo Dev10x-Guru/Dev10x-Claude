@@ -12,10 +12,14 @@ import json
 import logging
 import subprocess
 import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from pathlib import Path
 
 from dev10x import subprocess_utils
-from dev10x.domain.common.result import Result, err, ok
+from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 
 log = logging.getLogger(__name__)
@@ -93,3 +97,43 @@ def get_sa_info() -> Result[dict]:
         return ok(json.loads(raw))
     except json.JSONDecodeError as ex:
         return err(f"Google Chat service-account key is not valid JSON: {ex}")
+
+
+def _post_form(url: str, fields: dict[str, str]) -> Result[dict]:
+    data = urllib.parse.urlencode(fields).encode()
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310
+            return ok(json.loads(resp.read().decode()))
+    except urllib.error.HTTPError as ex:
+        detail = ex.read().decode(errors="replace")
+        return err(f"HTTP {ex.code}: {detail}")
+    except urllib.error.URLError as ex:
+        return err(f"Token endpoint unreachable: {ex.reason}")
+
+
+def mint_access_token(sa_info: dict, *, now: int | None = None) -> Result[str]:
+    """Sign a JWT with the SA key and exchange it for an access token."""
+    import jwt
+
+    iat = now if now is not None else int(time.time())
+    claims = {
+        "iss": sa_info["client_email"],
+        "scope": GCHAT_SCOPE,
+        "aud": TOKEN_URI,
+        "iat": iat,
+        "exp": iat + 3600,
+    }
+    assertion = jwt.encode(claims, sa_info["private_key"], algorithm="RS256")
+    form_result = _post_form(TOKEN_URI, {"grant_type": _JWT_GRANT, "assertion": assertion})
+    if isinstance(form_result, ErrorResult):
+        return form_result
+    token = form_result.value.get("access_token")
+    if not token:
+        return err("Token endpoint returned no access_token")
+    return ok(token)
