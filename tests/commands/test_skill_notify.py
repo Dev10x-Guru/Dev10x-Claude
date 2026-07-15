@@ -205,3 +205,96 @@ class TestSlackSend:
 
         assert result.exit_code == 0, result.output
         assert "Slack message sent" in result.output
+
+
+class TestGchatSend:
+    def test_requires_message_or_file(self, runner: CliRunner) -> None:
+        result = runner.invoke(
+            cli,
+            ["skill", "notify", "gchat-send", "--space", "tt-reviews"],
+        )
+
+        assert result.exit_code != 0
+        assert "Provide --message or --message-file" in result.output
+
+    def test_calls_notify_gchat(
+        self,
+        runner: CliRunner,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        captured: dict[str, object] = {}
+
+        def fake_notify(*, space: str, message: str) -> Result[str]:
+            captured["space"] = space
+            captured["message"] = message
+            return ok("spaces/A/messages/X")
+
+        from dev10x.skills.notifications import gchat_notify
+
+        monkeypatch.setattr(gchat_notify, "notify_gchat", fake_notify)
+
+        result = runner.invoke(
+            cli,
+            ["skill", "notify", "gchat-send", "--space", "tt-reviews", "--message", "hi"],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert captured["space"] == "tt-reviews"
+        assert captured["message"] == "hi"
+        assert "spaces/A/messages/X" in result.output
+
+    def test_reads_message_from_file(
+        self,
+        runner: CliRunner,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        captured: dict[str, object] = {}
+
+        def fake_notify(*, space: str, message: str) -> Result[str]:
+            captured["message"] = message
+            return ok("spaces/A/messages/X")
+
+        from dev10x.skills.notifications import gchat_notify
+
+        monkeypatch.setattr(gchat_notify, "notify_gchat", fake_notify)
+
+        msg_file = tmp_path / "msg.txt"
+        msg_file.write_text("hello from file")
+
+        result = runner.invoke(
+            cli,
+            [
+                "skill",
+                "notify",
+                "gchat-send",
+                "--space",
+                "tt-reviews",
+                "--message-file",
+                str(msg_file),
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert captured["message"] == "hello from file"
+
+    def test_exits_nonzero_on_send_failure(
+        self,
+        runner: CliRunner,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from dev10x.skills.notifications import gchat_notify
+
+        monkeypatch.setattr(
+            gchat_notify,
+            "notify_gchat",
+            lambda **kw: err("no space"),
+        )
+
+        result = runner.invoke(
+            cli,
+            ["skill", "notify", "gchat-send", "--space", "bad", "--message", "hi"],
+        )
+
+        assert result.exit_code == 1
+        assert "no space" in result.output
