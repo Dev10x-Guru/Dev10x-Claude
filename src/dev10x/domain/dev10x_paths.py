@@ -190,6 +190,20 @@ class Dev10xConfigDir:
             _legacy_settings_pr_merge_yaml,
         )
 
+    @classmethod
+    def gchat_config_yaml(cls) -> Path:
+        """Google Chat transport config (spaces, user_groups, users).
+
+        No legacy migration: introduced after the ~/.config/Dev10x move,
+        so it only ever lives at the canonical path (mirrors friction_yaml).
+        """
+        return cls._resolve("gchat-config.yaml")
+
+    @classmethod
+    def gchat_review_config_yaml(cls) -> Path:
+        """Per-repo Google Chat review-request config (space + mentions)."""
+        return cls._resolve("gchat-config-code-review-requests.yaml")
+
 
 def _with_lazy_migration(current: Path, legacy_provider: Callable[[], Path]) -> Path:
     migrate_path(legacy=legacy_provider(), current=current)
