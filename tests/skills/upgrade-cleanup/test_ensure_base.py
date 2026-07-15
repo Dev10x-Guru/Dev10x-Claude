@@ -671,3 +671,44 @@ class TestNoRuntimeClaudeWriteSeeds:
     ) -> None:
         # Tier-2 playbook resolution still reads legacy overrides here.
         assert "Read(~/.claude/memory/Dev10x/**)" in shipped_base_permissions
+
+
+class TestGitSafeDeleteAllowed:
+    """GH-864: `git branch -d` (safe merge-checked delete) ships as a
+    pre-approved base permission so AFK/fanout worktree teardown does not
+    prompt. It is stratified from the destructive `-D`/`--force` form —
+    git itself refuses `-d` on an unmerged branch, so the safe delete
+    cannot destroy work. Mirrors the `git-safe-flags` group already
+    declared in baseline-permissions.yaml (which was never synced to the
+    flat catalog `ensure-base`/`seed_worktree` actually deploy)."""
+
+    @pytest.fixture()
+    def shipped_base_permissions(self) -> list[str]:
+        projects_yaml = (
+            Path(__file__).resolve().parents[3] / "skills" / "upgrade-cleanup" / "projects.yaml"
+        )
+        config = yaml.safe_load(projects_yaml.read_text())
+        return config.get("base_permissions", [])
+
+    @pytest.mark.parametrize(
+        "rule",
+        ["Bash(git branch -d:*)", "Bash(git branch --delete:*)"],
+    )
+    def test_catalog_ships_safe_delete(
+        self,
+        rule: str,
+        shipped_base_permissions: list[str],
+    ) -> None:
+        assert rule in shipped_base_permissions
+
+    @pytest.mark.parametrize(
+        "rule",
+        ["Bash(git branch -D:*)", "Bash(git branch --force:*)"],
+    )
+    def test_catalog_never_ships_force_delete(
+        self,
+        rule: str,
+        shipped_base_permissions: list[str],
+    ) -> None:
+        # The destructive force-delete must stay behind the prompt.
+        assert rule not in shipped_base_permissions
