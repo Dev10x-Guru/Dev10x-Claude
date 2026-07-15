@@ -23,9 +23,8 @@ from __future__ import annotations
 
 import re
 
+from dev10x.domain.common.allow_rule import AllowRule
 from dev10x.skills.permission.merge_worktree_permissions import generalize_permission
-
-_BASH_RULE_RE = re.compile(r"^Bash\((?P<inner>.*)\)$")
 
 # Over-broad: verb-blind command prefixes whose bare ``*`` grants
 # destructive subcommands. Narrow each to the safe read subcommand the
@@ -48,9 +47,9 @@ _OVERNARROW_RE = re.compile(r"(?P<script>\S+\.(?:sh|py))\s+\S+(?:\s+\*)?\s*")
 
 def _split_rule(rule: str) -> tuple[str, str]:
     """Return ``("Bash", inner)`` for a ``Bash(...)`` rule, else ``("", rule)``."""
-    match = _BASH_RULE_RE.match(rule)
-    if match:
-        return "Bash", match.group("inner")
+    parsed = AllowRule.parse(rule)
+    if parsed.tool == "Bash":
+        return "Bash", parsed.inner
     return "", rule
 
 

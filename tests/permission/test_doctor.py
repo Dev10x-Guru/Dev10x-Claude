@@ -645,7 +645,8 @@ class TestApplyDeprecationsToFiles:
 
         assert result["exit_code"] == 0
         joined = "\n".join(result["messages"])
-        assert "REMOVE" in joined
+        # PAP-6 (GH-819): outcomes render as typed Policy assessment lines.
+        assert "doctor-deprecation:remove" in joined
         assert "Applied 1 deprecation actions." in joined
         data = json.loads(settings.read_text())
         assert data["permissions"]["allow"] == ["Bash(git status:*)"]
@@ -662,7 +663,8 @@ class TestApplyDeprecationsToFiles:
         result = doctor.apply_deprecations_to_files([settings], catalog=catalog)
 
         joined = "\n".join(result["messages"])
-        assert "CANON" in joined
+        # PAP-6 (GH-819): outcomes render as typed Policy assessment lines.
+        assert "doctor-deprecation:canonicalize" in joined
         data = json.loads(settings.read_text())
         assert data["permissions"]["allow"] == [
             "Bash(/home/u/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.71.0/x.sh:*)"
@@ -685,7 +687,8 @@ class TestApplyDeprecationsToFiles:
         result = doctor.apply_deprecations_to_files([settings], catalog=catalog)
 
         joined = "\n".join(result["messages"])
-        assert "REWRITE" in joined
+        # PAP-6 (GH-819): outcomes render as typed Policy assessment lines.
+        assert "doctor-deprecation:rewrite" in joined
         data = json.loads(settings.read_text())
         assert data["permissions"]["allow"] == ["Edit(/tmp/Dev10x/git/**)"]
 
@@ -696,7 +699,8 @@ class TestApplyDeprecationsToFiles:
         result = doctor.apply_deprecations_to_files([settings], catalog=catalog)
 
         joined = "\n".join(result["messages"])
-        assert "? FLAG:" in joined
+        # PAP-6 (GH-819): outcomes render as typed Policy assessment lines.
+        assert "doctor-deprecation:flag" in joined
         data = json.loads(settings.read_text())
         assert data["permissions"]["allow"] == ["Bash(flagged:*)"]
 
@@ -709,6 +713,25 @@ class TestApplyDeprecationsToFiles:
 
         assert "Would apply 1 deprecation actions." in "\n".join(result["messages"])
         assert settings.read_text() == original
+
+    def test_rendered_line_carries_catalog_tier_when_rule_is_known(self, tmp_path: Path) -> None:
+        # PAP-6 (GH-819): a deprecated rule that also has a group entry in
+        # `Catalog.policies()` renders with its real tier/source/effect
+        # instead of the tier-0 project-local fallback.
+        settings = _write_settings(tmp_path, allow=["Bash(oldcmd:*)"])
+        catalog = doctor.Catalog(
+            version=1,
+            last_audited="",
+            groups={"legacy": {"tier": 1, "rules": ["Bash(oldcmd:*)"]}},
+            deprecations=[{"pattern": "oldcmd", "action": "remove", "reason": "retired"}],
+            invariants=[],
+        )
+
+        result = doctor.apply_deprecations_to_files([settings], catalog=catalog)
+
+        joined = "\n".join(result["messages"])
+        assert "[tier 1, plugin-default, allow]" in joined
+        assert "doctor-deprecation:remove" in joined
 
 
 class TestEnableGroupInFiles:

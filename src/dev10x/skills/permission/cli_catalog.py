@@ -14,17 +14,18 @@ fail on drift before it reaches a session. It never introduces a broad
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 import yaml
+
+from dev10x.domain.common.allow_rule import AllowRule
 
 # Command groups that are NOT agent-facing: harness hook entry points and
 # the direct validator-testing surface. They are intentionally absent
 # from the agent allow-list and excluded from the drift check.
 INTERNAL_GROUPS = frozenset({"hook", "validate"})
 
-_RULE_RE = re.compile(r"^Bash\(uvx dev10x (?P<path>[^:()]+?)\s*:\*\)$")
+_UVX_PREFIX = "uvx dev10x "
 
 
 def enumerate_leaf_commands(group, prefix: tuple[str, ...] = ()) -> list[tuple[str, ...]]:
@@ -46,9 +47,16 @@ def catalog_rule_paths(catalog_path: Path) -> list[tuple[str, ...]]:
     rules = data.get("groups", {}).get("dev10x-cli", {}).get("rules", [])
     paths: list[tuple[str, ...]] = []
     for rule in rules:
-        match = _RULE_RE.match(rule)
-        if match:
-            paths.append(tuple(match.group("path").split()))
+        parsed = AllowRule.parse(rule)
+        if parsed.tool != "Bash" or not parsed.inner.endswith(":*"):
+            continue
+        body = parsed.inner[: -len(":*")].rstrip()
+        if not body.startswith(_UVX_PREFIX):
+            continue
+        path = body[len(_UVX_PREFIX) :]
+        if not path or any(char in path for char in ":()"):
+            continue
+        paths.append(tuple(path.split()))
     return paths
 
 

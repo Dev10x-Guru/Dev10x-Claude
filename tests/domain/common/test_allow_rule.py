@@ -43,6 +43,34 @@ class TestParse:
         assert str(AllowRule.parse("Bash(ls:*)")) == "Bash(ls:*)"
 
 
+class TestInner:
+    def test_inner_returns_pattern(self) -> None:
+        rule = AllowRule.parse("Bash(git status:*)")
+        assert rule.inner == rule.pattern == "git status:*"
+
+    def test_inner_empty_for_bare_token(self) -> None:
+        assert AllowRule.parse("WebFetch").inner == ""
+
+
+class TestMatchesPrefix:
+    def test_bash_suffix_exact(self) -> None:
+        assert AllowRule.parse("Bash(git status:*)").matches_prefix("git status")
+
+    def test_bash_suffix_space_boundary(self) -> None:
+        rule = AllowRule.parse("Bash(git:*)")
+        assert rule.matches_prefix("git status")
+        assert not rule.matches_prefix("github-cli auth")
+
+    def test_path_suffix_directory_prefix(self) -> None:
+        rule = AllowRule.parse("Write(/tmp/Dev10x/**)")
+        assert rule.matches_prefix("/tmp/Dev10x/msg.txt")
+        assert not rule.matches_prefix("/etc/passwd")
+
+    def test_no_suffix_falls_back_to_fnmatch(self) -> None:
+        assert AllowRule.parse("Read(/x/*.py)").matches_prefix("/x/mod.py")
+        assert not AllowRule.parse("Bash(ls)").matches_prefix("ls -la")
+
+
 class TestFactories:
     @pytest.mark.parametrize(
         ("factory", "arg", "expected"),

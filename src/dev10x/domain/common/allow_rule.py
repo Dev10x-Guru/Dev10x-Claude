@@ -72,6 +72,11 @@ class AllowRule:
     def skill(cls, name: str) -> AllowRule:
         return cls.parse(f"Skill({name})")
 
+    @property
+    def inner(self) -> str:
+        """The text between the parens (alias for :attr:`pattern`)."""
+        return self.pattern
+
     def matches(self, signature: str) -> bool:
         if "(" not in self.raw or not self.raw.endswith(")"):
             return fnmatch.fnmatch(name=signature, pat=self.raw)
@@ -84,9 +89,15 @@ class AllowRule:
             return False
 
         value = signature[sig_paren + 1 :].rstrip(")")
-        return self._matches_value(value=value)
+        return self.matches_prefix(value)
 
-    def _matches_value(self, *, value: str) -> bool:
+    def matches_prefix(self, value: str) -> bool:
+        """Match ``value`` against this rule's Bash ``:*`` / path ``**`` suffix.
+
+        Falls back to ``fnmatch`` on :attr:`pattern` when the rule carries
+        neither suffix. This is the public form of the matching semantics
+        previously private to :meth:`matches`.
+        """
         if self.tool == "Bash" and self.pattern.endswith(":*"):
             prefix = _expand(self.pattern[:-2])
             expanded = _expand(value)

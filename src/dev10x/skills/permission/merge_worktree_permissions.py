@@ -16,6 +16,7 @@ import re
 from pathlib import Path
 
 from dev10x import subprocess_utils
+from dev10x.domain.common.allow_rule import AllowRule
 from dev10x.domain.common.mktmp_path import MKTMP_GENERALIZE_PATTERN, MKTMP_PATH_PATTERN
 from dev10x.domain.common.policy import Policy, PolicySource
 from dev10x.domain.common.result import Result
@@ -33,10 +34,6 @@ PLUGIN_CONFIG = (
 NOISE_PATTERNS = [
     re.compile(r"\.[A-Za-z0-9]{8,}\.(txt|md|json)"),
     re.compile(MKTMP_PATH_PATTERN),
-    re.compile(r"Bash\(if \["),
-    re.compile(r"Bash\(then "),
-    re.compile(r"Bash\(else "),
-    re.compile(r"Bash\(fi\b"),
     re.compile(r"GROOM_SEQ_FILE="),
     re.compile(rf'"{TICKET_ID_PATTERN}"'),
     re.compile(r"detect-tracker\.sh\s+\S"),
@@ -45,15 +42,27 @@ NOISE_PATTERNS = [
     re.compile(r"generate-commit-list\.sh\s+\d"),
     re.compile(r"generate-commit-list\.sh\s+PLACEHOLDER"),
     re.compile(r"extract-session\.sh\s+"),
-    re.compile(r"Bash\(bash -[nc] "),
-    re.compile(r"Bash\(bash -c '"),
     re.compile(r"\.local/.*\.py\s+/tmp/"),
     re.compile(r"\s+2>&1"),
     re.compile(r'\.sh\)"?\s*$'),
     re.compile(r"git-push-safe\.sh\s+-u\s+origin\s+\S+/"),
-    re.compile(r"Bash\(find "),
     # Source-line references (e.g. features/foo.feature:60, bar.py:42)
     re.compile(r"\.(?:feature|py|js|ts|tsx|sh|md):\d+"),
+]
+
+# Bash-inner noise patterns (moved off the raw string, GH-841): each used to
+# be anchored on the literal ``Bash(`` prefix; now matched against
+# ``AllowRule.parse(entry).inner`` so the Bash-wrapper handling lives in one
+# place. Anchored with ``^`` since the ``Bash(`` prefix guaranteed the match
+# started at the beginning of the parenthesized body.
+BASH_INNER_NOISE_PATTERNS = [
+    re.compile(r"^if \["),
+    re.compile(r"^then "),
+    re.compile(r"^else "),
+    re.compile(r"^fi\b"),
+    re.compile(r"^bash -[nc] "),
+    re.compile(r"^bash -c '"),
+    re.compile(r"^find "),
 ]
 
 GENERALIZE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
@@ -91,7 +100,10 @@ def load_config(config_path: Path) -> dict:
 
 
 def is_noise(entry: str) -> bool:
-    return any(p.search(entry) for p in NOISE_PATTERNS)
+    if any(p.search(entry) for p in NOISE_PATTERNS):
+        return True
+    parsed = AllowRule.parse(entry)
+    return parsed.tool == "Bash" and any(p.search(parsed.inner) for p in BASH_INNER_NOISE_PATTERNS)
 
 
 def sync_candidates_as_policies(*, entries: list[str]) -> list[Policy]:

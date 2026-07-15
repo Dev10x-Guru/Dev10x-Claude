@@ -540,6 +540,37 @@ class TestEnsureBaseDenies:
         assert "mcp__claude_ai_Linear__get_issue" in data["permissions"]["allow"]
         assert "mcp__claude_ai_Linear__delete_customer" in data["permissions"]["deny"]
 
+    def test_ensure_base_emits_home_twin_for_tilde_rule(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """ensure_base renders through render_permissions, so a ~/ allow rule
+        merges non-destructively AND gains its resolved /home/<user>/ twin
+        (GH-47) — additive over the pre-PAP flat-shim output."""
+        monkeypatch.setattr(
+            "dev10x.skills.permission.update_paths.Path.home",
+            lambda: tmp_path / "home",
+        )
+        (tmp_path / "home" / ".claude").mkdir(parents=True)
+
+        settings = tmp_path / "settings.local.json"
+        settings.write_text(
+            json.dumps({"permissions": {"allow": ["Bash(git log:*)"], "deny": []}})
+        )
+
+        result = update_paths.ensure_base(
+            config={"base_permissions": ["Read(~/.claude/tools/**)"], "base_denies": []},
+            settings_files=[settings],
+            dry_run=False,
+        )
+
+        assert result["total_added"] == 2
+        allow = json.loads(settings.read_text())["permissions"]["allow"]
+        assert "Bash(git log:*)" in allow  # pre-existing user rule preserved
+        assert "Read(~/.claude/tools/**)" in allow
+        assert f"Read({tmp_path}/home/.claude/tools/**)" in allow
+
 
 class TestPrivilegeEscalationDenies:
     """GH-326: sudo/doas/pkexec ship as plugin-default deny rules."""
