@@ -96,6 +96,44 @@ def slack_send(
     click.echo(f"✅ Slack message sent successfully! ts={result.value}")
 
 
+@notify.command(name="gchat-send")
+@click.option("--space", required=True, help="Google Chat space alias (see gchat-config.yaml)")
+@click.option("--message", default=None, help="Message text (or use --message-file)")
+@click.option(
+    "--message-file",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=None,
+    help="Read message body from this file",
+)
+def gchat_send(
+    *,
+    space: str,
+    message: str | None,
+    message_file: Path | None,
+) -> None:
+    """Send a Google Chat message via the importable gchat_notify module.
+
+    Posts through the private Chat bot (service-account app auth). Mirrors
+    `slack-send`; works under `uvx` because the logic lives in the package.
+    """
+    if not message and not message_file:
+        raise click.UsageError("Provide --message or --message-file.")
+
+    from dev10x.skills.notifications import gchat_notify
+
+    msg: str
+    if message_file is not None:
+        msg = message_file.read_text()
+    else:
+        msg = message  # type: ignore[assignment]  # validated above
+
+    result = gchat_notify.notify_gchat(space=space, message=msg)
+    if isinstance(result, ErrorResult):
+        click.echo(f"❌ {result.error}", err=True)
+        sys.exit(1)
+    click.echo(f"✅ Google Chat message sent! name={result.value}")
+
+
 @skill.command(name="count-instructions")
 @click.argument(
     "paths",
