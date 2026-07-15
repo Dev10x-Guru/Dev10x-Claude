@@ -190,6 +190,43 @@ Parse `tracker`, `ticket_number`, and `fixes_url` from the response.
 Each classified input becomes a **source** entry with its type and
 extracted identifiers. Collect all sources into a list for Phase 2.
 
+### Embedded Questions Are Side Quests (GH-865)
+
+`Dev10x:work-on` delivers a **real artifact** — a merged PR, a
+committed fix, a shipped change — in ~99% of invocations.
+Answering a question or "just investigating" is almost never the
+terminal goal. When the input mixes an artifact target (a ticket
+URL, PR link, or issue/ticket ID) with an inline question (e.g.
+`work-on <PR-URL> what does ignore_conflicts=True do?`), the
+question is **supplementary context**, not the goal.
+
+**Classification rule:**
+
+- A free-text question or investigation ask that accompanies at
+  least one recognized artifact target is folded into that
+  target's context — it feeds Phase 2 (Gather) and Phase 3
+  (Plan). It does NOT become a standalone `note` that supersedes
+  task-list creation. **The work-on workflow always wins:**
+  instantiate the full Phase 1–4 task list and answer the
+  question inline as part of the work.
+- Flag such notes as `context_only = true` in the Phase 1 output
+  so Phase 3 never routes them into a `local-only` "answer the
+  question" play.
+
+**Edge case — pure question, no artifact target:** Only when
+**every** input classifies as `note` and reads as a question (no
+ticket, PR, or URL present) is answering plausibly the intent.
+Handle it as the exception via the Ambiguous Input Fallback below
+(the pure-question confirmation), not the default. When any
+artifact target is present, skip the confirmation and default to
+the full workflow.
+
+**Anti-pattern (GH-865):** `work-on <PR-URL> what does
+ignore_conflicts=True do?` handled as a Q&A turn — the Phase 1–4
+task list was never created until the supervisor asked "where is
+the work-on task list?". The question displaced the workflow
+instead of feeding it.
+
 ### Multi-Ticket Detection (GH-196)
 
 After classification, count sources whose type is a ticket or
@@ -267,6 +304,18 @@ When ALL inputs classify as `note` (no URLs, ticket IDs, or PR
 numbers matched), the user likely provided natural language
 (e.g., "fix the retry logic", "add dark mode support"). This
 is a valid entry point — do not reject it.
+
+**Pure-question confirmation (GH-865):** If the all-`note` input
+reads as a question or investigation ask (interrogative phrasing —
+"what / why / how does…", "explain…"), **REQUIRED: Call
+`AskUserQuestion`** (do NOT use plain text): "This looks like a
+question, not artifact work — just answer, or start the full
+work-on plan?". Proceed with the fallback path below only when the
+user picks the full plan. This
+edge case applies **only** when no artifact target is present in
+the input — when a ticket / PR / URL is present, the question is
+context and the full workflow runs without asking (see § Embedded
+Questions Are Side Quests).
 
 **Fallback path:**
 
