@@ -195,3 +195,56 @@ class TestInfoSeverityDisposition:
             "body": "Re: INFO: add tests — deferred to GH-999.",
         }
         assert _run_filter([row], "comment", tmp_path) == []
+
+
+class TestRoundSummaryWrapperExcluded:
+    """GH-858 F2: the reviewer's own '## Review Summary (Round N)' comment
+    restates fixed findings under 'Addressed since last review'; only its
+    'Remaining issues' section should be scanned for live blockers."""
+
+    def test_round_summary_with_no_remaining_issues_not_flagged(self, tmp_path: Path) -> None:
+        row = {
+            "id": 30,
+            "user": {"login": "claude", "type": "Bot"},
+            "body": (
+                "## Review Summary (Round 3)\n\n"
+                "### Addressed since last review\n- REQUIRED: fixed null check\n\n"
+                "### Remaining issues\n- none"
+            ),
+        }
+        assert _run_filter([row], "comment", tmp_path) == []
+
+    def test_round_summary_with_genuine_remaining_issue_still_flagged(
+        self, tmp_path: Path
+    ) -> None:
+        row = {
+            "id": 31,
+            "user": {"login": "claude", "type": "Bot"},
+            "body": (
+                "## Review Summary (Round 3)\n\n"
+                "### Addressed since last review\n- REQUIRED: fixed null check\n\n"
+                "### Remaining issues\n- CRITICAL: still missing timeout"
+            ),
+        }
+        selected = _run_filter([row], "comment", tmp_path)
+        assert [r["id"] for r in selected] == [31]
+
+    def test_round_summary_missing_remaining_section_treated_as_clean(
+        self, tmp_path: Path
+    ) -> None:
+        row = {
+            "id": 32,
+            "user": {"login": "claude", "type": "Bot"},
+            "body": "## Review Summary (Round 1)\n\n### Addressed since last review\n- BLOCKING: x",
+        }
+        assert _run_filter([row], "comment", tmp_path) == []
+
+    def test_normal_bot_finding_still_scans_full_body(self, tmp_path: Path) -> None:
+        # A non-summary bot comment must keep full-body scanning (no regression).
+        row = {
+            "id": 33,
+            "user": {"login": "claude", "type": "Bot"},
+            "body": "REQUIRED: fix the missing null guard in handler",
+        }
+        selected = _run_filter([row], "comment", tmp_path)
+        assert [r["id"] for r in selected] == [33]

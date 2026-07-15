@@ -126,6 +126,25 @@ pass `pr_number` so it runs the fast single-PR GraphQL query rather
 than a repo-wide merged-PR sweep. Each returned thread is
 unresolved; report the count and first comment of each.
 
+**AFK bot-authored auto-remediation (GH-858 F1).** Each returned
+thread carries `author_type` (`"bot"` / `"human"`). A bot-to-bot
+review cycle that has already been addressed must not block a
+walk-away merge on a supervisor prompt. So before treating an
+unresolved-thread count as a hard failure, resolve
+`mcp__plugin_Dev10x_cli__resolve_gate(gate="thread_resolution",
+context={"author_type": "bot"})`:
+
+- When its `effect == "auto-advance"` (AFK) **and every** unresolved
+  thread has `author_type == "bot"`, do NOT stop here. Auto-delegate
+  to `Skill(Dev10x:gh-pr-respond)` — the same auto-remediation shape
+  Check 2 uses for CI failures — to address/auto-resolve the bot
+  threads, then re-run Check 1.
+- Fall through to the hard stop only when **any** thread has
+  `author_type == "human"`, or when `gh-pr-respond` itself surfaces
+  an `AskUserQuestion` (its own gate result is authoritative). A
+  single human-authored unresolved thread keeps the whole check
+  blocking — the all-bot condition must be strict.
+
 ### Check 1b: No unaddressed top-level PR comments (GH-698)
 
 **REQUIRED:** This check MUST run after Check 1. Top-level PR
@@ -168,6 +187,17 @@ used to miss). Both buckets must be clear before this check passes:
 "addressed" when a later comment replies to it — contains `Re:` or
 quotes it. The reply satisfies the disposition requirement for
 `needs_disposition` findings just as it clears a `blocking` one.
+
+**Reviewer round-summary wrapper excluded (GH-858 F2).** The
+automated reviewer's own `## Review Summary (Round N)` comment
+restates already-fixed findings under `### Addressed since last
+review`. `top-level-comments.jq` now scans only that comment's
+`### Remaining issues` section, so a round summary with no live
+remaining issues no longer false-blocks this check. Combined with
+the AFK auto-remediation in Check 1, a bot-authored
+`needs_disposition` finding under an `auto-advance`
+`thread_resolution` gate follows the same auto-delegate-to-
+`gh-pr-respond` path rather than forcing a manual merge override.
 
 ### Check 1c: No unaddressed inline review comments (GH-760)
 

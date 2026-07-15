@@ -59,6 +59,17 @@ version: "0.88.0.dev0"
 
 fragments:
   shipping-pipeline:
+    - subject: Commit implementation changes
+      type: detailed
+      prompt: >
+        Commit outstanding implementation work now so Dev10x:review
+        has a non-empty diff to inspect — the review skills compute
+        their diff from commits against base (develop-diff), not the
+        working tree, so an uncommitted-only branch reviews nothing
+        (GH-858 F3). Atomic commits, gitmoji + ticket ID.
+        Auto-advance — do not pause after committing. No-op when the
+        Implement epic already committed.
+      skills: [Dev10x:git-commit]
     - subject: Code review
       type: detailed
       prompt: >

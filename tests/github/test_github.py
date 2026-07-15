@@ -628,8 +628,80 @@ class TestPrCommentListFilters:
         assert result.value["count"] == 1
         assert result.value["unresolved_threads"][0]["thread_id"] == "PRRT_1"
         assert result.value["unresolved_threads"][0]["databaseId"] == 11
+        # GH-858 F1: a human login (alice) classifies as human so the
+        # merge gate keeps the supervisor in the loop for this thread.
+        assert result.value["unresolved_threads"][0]["author_type"] == "human"
         # Verify the GraphQL endpoint was called, not the REST list
         assert mock_api.call_args.args[0] == "graphql"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_unresolved_thread_bot_author_classified(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        # GH-858 F1: a bot-authored unresolved thread carries
+        # author_type="bot" so the merge check can auto-delegate to
+        # gh-pr-respond under AFK instead of prompting the supervisor.
+        mock_api.return_value = _completed(
+            stdout=json.dumps(
+                {
+                    "data": {
+                        "repository": {
+                            "pullRequest": {
+                                "reviewThreads": {
+                                    "nodes": [
+                                        {
+                                            "id": "PRRT_9",
+                                            "isResolved": False,
+                                            "isOutdated": False,
+                                            "comments": {
+                                                "nodes": [
+                                                    {
+                                                        "databaseId": 99,
+                                                        "body": "REQUIRED: fix",
+                                                        "path": "a.py",
+                                                        "line": 3,
+                                                        "author": {"login": "claude"},
+                                                        "pullRequestReview": {"databaseId": 1},
+                                                    }
+                                                ]
+                                            },
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            ),
+        )
+
+        result = await gh.pr_comments(
+            action="list",
+            pr_number=42,
+            unresolved_only=True,
+        )
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["unresolved_threads"][0]["author_type"] == "bot"
+
+
+class TestIsBotLogin:
+    """GH-858 F1: the shared review-bot login classifier, kept in sync
+    with top-level-comments.jq's is_bot login branch."""
+
+    @pytest.mark.parametrize(
+        "login",
+        ["claude", "github-actions[bot]", "coderabbitai", "sourcery-ai", "openai-bot"],
+    )
+    def test_known_bot_logins(self, login: str) -> None:
+        assert gh.is_bot_login(login) is True
+
+    @pytest.mark.parametrize("login", ["alice", "bob-dev", "", None])
+    def test_human_and_missing_logins(self, login: str | None) -> None:
+        assert gh.is_bot_login(login) is False
 
 
 class TestMinimizeComments:
