@@ -17,6 +17,13 @@ allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git-groom/scripts/:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git/scripts/git-rebase-groom.sh:*)
   - Bash(git reset --soft:*)
+  - Bash(git reset --hard groom-backup-*:*)
+  - Bash(git reset HEAD:*)
+  - Bash(git tag -f groom-backup-*:*)
+  - Bash(git diff groom-backup-*:*)
+  - Bash(git add -f:*)
+  - Bash(git write-tree:*)
+  - Bash(git commit-tree:*)
   - Bash(git push --force-with-lease:*)
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
   - mcp__plugin_Dev10x_cli__mktmp
