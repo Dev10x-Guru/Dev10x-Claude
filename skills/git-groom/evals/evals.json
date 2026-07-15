@@ -1,0 +1,119 @@
+{
+  "skill_name": "Dev10x:git-groom",
+  "eval_dimensions": [
+    {
+      "id": "target-shape-gate",
+      "name": "Target-Shape Gate Enforcement",
+      "description": "Full Restructure fires AskUserQuestion for the 5-axis target shape before the destructive git reset --soft, not plain text"
+    },
+    {
+      "id": "atomicity-smell",
+      "name": "Atomicity Smell Detection",
+      "description": "Flags a commit sequence where a later commit refactors code an earlier commit in the same PR introduced (\"the PR refactors its own code\")"
+    },
+    {
+      "id": "hook-safe-reconstruction",
+      "name": "Hook-Safe Reconstruction Recipe",
+      "description": "Rebuild uses git plumbing (reset HEAD / add -f / write-tree / commit-tree) instead of hook-blocked git commit, git commit --amend, or git rebase -i"
+    },
+    {
+      "id": "tree-equality-gate",
+      "name": "Tree-Equality Gate Before Push",
+      "description": "Backup tag created before the soft reset; tree-equality diff against the tag asserted (and rolled back on mismatch) before the force-push"
+    }
+  ],
+  "evals": [
+    {
+      "id": "full-restructure-gate-uses-tool",
+      "name": "Full Restructure fires target-shape AskUserQuestion",
+      "description": "Selecting Strategy B triggers the 5-axis target-shape gate via AskUserQuestion before any reset --soft runs",
+      "input": "/Dev10x:git-groom (Strategy B: Full restructure selected)",
+      "assertions": [
+        {
+          "dimension": "target-shape-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion called for target shape (Target Shape header) before git reset --soft"
+        },
+        {
+          "dimension": "target-shape-gate",
+          "check": "plain_text",
+          "signal": "No inline 'What target shape should I use?' text before the tool call"
+        },
+        {
+          "dimension": "target-shape-gate",
+          "check": "behavioral",
+          "signal": "git reset --soft is not executed until AskUserQuestion returns a response"
+        }
+      ]
+    },
+    {
+      "id": "atomicity-smell-flagged",
+      "name": "Detects a commit refactoring earlier same-PR code",
+      "description": "When drafting commit specs, a later spec that restructures code an earlier spec just introduced is merged, not left split",
+      "input": "/Dev10x:git-groom (Full restructure; diff shows commit N adds a function later renamed in commit N+2)",
+      "assertions": [
+        {
+          "dimension": "atomicity-smell",
+          "check": "output_contains",
+          "value": "refactors its own code",
+          "signal": "Agent names the smell explicitly when planning the commit-spec partition"
+        },
+        {
+          "dimension": "atomicity-smell",
+          "check": "behavioral",
+          "signal": "The two touch points are merged into one commit spec instead of preserved as provisional-then-refactored"
+        }
+      ]
+    },
+    {
+      "id": "reconstruction-uses-plumbing-not-porcelain",
+      "name": "Reconstruction loop avoids hook-blocked commands",
+      "description": "The N-commit rebuild uses git write-tree/commit-tree plumbing, never raw git commit, git commit --amend, or git rebase -i",
+      "input": "/Dev10x:git-groom (Strategy B execution phase)",
+      "assertions": [
+        {
+          "dimension": "hook-safe-reconstruction",
+          "check": "tool_called",
+          "tool": "Bash",
+          "signal": "Bash calls include 'git write-tree' and 'git commit-tree ... -F' for each planned commit spec"
+        },
+        {
+          "dimension": "hook-safe-reconstruction",
+          "check": "behavioral",
+          "signal": "No 'git commit -m', 'git commit --amend', or 'git rebase -i' call appears during the rebuild loop"
+        },
+        {
+          "dimension": "hook-safe-reconstruction",
+          "check": "behavioral",
+          "signal": "Partition-completeness check runs (union of commit-spec paths equals git diff --name-only <base>..HEAD) before any commit-tree call; a mismatch aborts the rebuild"
+        }
+      ]
+    },
+    {
+      "id": "backup-tag-and-tree-equality-before-push",
+      "name": "Backup tag precedes reset; tree-equality gate precedes push",
+      "description": "groom-backup-<slug> tag is created before git reset --soft, and git diff against that tag is asserted empty before git push --force-with-lease",
+      "input": "/Dev10x:git-groom (Strategy B, Phase 3 push)",
+      "assertions": [
+        {
+          "dimension": "tree-equality-gate",
+          "check": "tool_called",
+          "tool": "Bash",
+          "signal": "'git tag -f groom-backup-<branch-slug> HEAD' runs before 'git reset --soft'"
+        },
+        {
+          "dimension": "tree-equality-gate",
+          "check": "tool_called",
+          "tool": "Bash",
+          "signal": "'git diff groom-backup-<branch-slug> HEAD' runs before 'git push --force-with-lease'"
+        },
+        {
+          "dimension": "tree-equality-gate",
+          "check": "behavioral",
+          "signal": "A non-empty tree-equality diff triggers 'git reset --hard groom-backup-<branch-slug>' and the force-push does NOT run"
+        }
+      ]
+    }
+  ]
+}

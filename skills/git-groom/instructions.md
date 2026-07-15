@@ -296,6 +296,26 @@ See `references/friction-levels.md` for the universal model.
 After selection, update the execute task description with the
 chosen strategy and auto-advance into Phase 3.
 
+### Phase 2b: Target-Shape Gate (Full Restructure only)
+
+When Strategy B (Full Restructure) is selected, agree the target
+shape with the supervisor BEFORE running `git reset --soft <base>`
+— the gate captures five axes (final location, layer-per-commit,
+tests-with-subject, ticket/PR-boundary split, repository/DAL
+extraction) and names the atomicity criterion the rebuild must
+satisfy. See [`references/target-shape-gate.md`](references/target-shape-gate.md)
+for the full gate spec and the `AskUserQuestion` call. This phase
+does not apply to Strategies A, C, or D.
+
+### Phase 2c: Backup Tag (REQUIRED before soft reset)
+
+Immediately before `git reset --soft <base>` in Strategy B, create
+`git tag -f groom-backup-<branch-slug> HEAD` so the pre-rebuild tree
+is recoverable by name. See
+[`references/tree-reconstruction.md`](references/tree-reconstruction.md)
+for the tagging convention and the tree-equality assertion this tag
+enables at the end of Phase 3.
+
 ### Phase 3 Precondition: Stash Guard
 
 Before any rebase operation, check for unstaged changes that
@@ -335,18 +355,26 @@ git autosquash-develop
 
 #### Strategy B: Full Restructure (for major reorganization)
 
-Use when commits need complete reorganization:
+Use when commits need complete reorganization. The target-shape gate
+(Phase 2b) and backup tag (Phase 2c) MUST both complete before the
+soft reset below runs:
 
 ```bash
+# Phase 2c: tag the pre-rebuild tip first
+git tag -f groom-backup-<branch-slug> HEAD
+
 # Soft reset to base, keeping all changes staged
 git reset --soft <base-commit>
-
-# Now selectively create new atomic commits
-git reset HEAD  # Unstage everything
-git add -p      # Interactively stage hunks
-git commit -m "First logical change"
-# Repeat for each logical unit
 ```
+
+**Execute the rebuild via the documented plumbing recipe**, not ad
+hoc `git commit -m` calls — see
+[`references/tree-reconstruction.md`](references/tree-reconstruction.md)
+for the full non-interactive `git reset HEAD` → `git add -f` →
+`git write-tree` → `git commit-tree ... -F <msgfile>` loop, its
+partition-completeness check, and the required tree-equality
+assertion (`git diff groom-backup-<branch-slug> HEAD`) before Phase
+3's force-push.
 
 ##### Granularity & cohesion
 
@@ -513,6 +541,15 @@ via Bash. Do NOT call `git rebase --abort` unless resolution fails.
 ### Phase 3: Push Changes
 
 Mark phase transition: `TaskUpdate(taskId=execute_task, status="completed")` then `TaskUpdate(taskId=push_task, status="in_progress")`
+
+**REQUIRED for Strategy B only — tree-equality assertion before the
+force-push.** Run `git diff groom-backup-<branch-slug> HEAD` and
+confirm it is empty before continuing. A non-empty diff means the
+rebuild changed content, not just commit boundaries — roll back with
+`git reset --hard groom-backup-<branch-slug>` and re-run the
+reconstruction loop instead of pushing. See
+[`references/tree-reconstruction.md`](references/tree-reconstruction.md)
+§ "Tree-Equality Post-Condition".
 
 ```bash
 # Force push with lease (safer than --force)
