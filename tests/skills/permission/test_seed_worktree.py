@@ -70,3 +70,18 @@ def test_create_error_is_reported(tmp_path: Path, config: dict):
     result = mod.seed_worktree(worktree_root=blocker, config=config)
     assert isinstance(result, ErrorResult)
     assert "cannot create" in result.error
+
+
+def test_seeds_tilde_rule_with_home_twin(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Routing through render_permissions now emits the GH-47 /home/<user>/
+    twin alongside every ~/ rule (the one intended diff vs the flat shim)."""
+    monkeypatch.setattr(
+        "dev10x.skills.permission.update_paths.Path.home",
+        lambda: Path("/home/tester"),
+    )
+    config = {"base_permissions": ["Read(~/.claude/memory/**)"], "base_denies": []}
+    result = mod.seed_worktree(worktree_root=tmp_path, config=config)
+    allow = _allow(tmp_path)
+    assert "Read(~/.claude/memory/**)" in allow
+    assert "Read(/home/tester/.claude/memory/**)" in allow
+    assert result.value["added"] == 2

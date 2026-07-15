@@ -21,8 +21,14 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+from dev10x.domain.common.policy import Policy, PolicyAssessment, PolicySource
+from dev10x.domain.common.policy_resolution import attach_assessments
 from dev10x.skills.permission_investigator import fixtures, load_matrix_from_state
-from dev10x.skills.permission_investigator.matrix import RuleShape, generate_matrix
+from dev10x.skills.permission_investigator.matrix import Matrix, RuleShape, generate_matrix
+from dev10x.skills.permission_investigator.policy_report import (
+    investigator_assessment,
+    render_policy_report,
+)
 from dev10x.skills.permission_investigator.report import render_markdown_report
 
 
@@ -54,6 +60,7 @@ def prepare(*, workdir: Path, user_home: Path, default_workdir: Path) -> dict[st
             "global_settings": str(paths.global_settings),
             "workdir": str(paths.workdir),
             "publisher_root": str(paths.publisher_root),
+            "user_home": str(user_home),
         },
         "cells": [
             {
@@ -164,13 +171,74 @@ def restore(*, state_path: Path) -> dict[str, Any]:
     return {"messages": messages, "exit_code": 0}
 
 
+def _render_investigator_assessments(
+    *,
+    matrix: Matrix,
+    fixture_relpath: str,
+    user_home: str,
+) -> list[str]:
+    """Render recorded matrix outcomes as typed Policy assessment lines (PAP-5, GH-802).
+
+    Each cell that recorded an outcome becomes an
+    :func:`investigator_assessment` (``works`` / ``prompts`` / ``error`` /
+    ``unknown``) keyed by the rule signature its shape renders to. Cells
+    sharing a signature (same shape at different locations) accumulate under
+    one entry via :func:`attach_assessments`, so the report references each
+    tested rule as a typed :class:`Policy` — signature, tier, source, effect —
+    instead of the pre-PAP shape-only prose.
+    """
+    records: dict[str, list[PolicyAssessment]] = {}
+    ordered_signatures: list[str] = []
+    for cell in matrix.cells:
+        result = matrix.results.get(cell.cell_id)
+        if result is None:
+            continue
+        signature = cell.shape.render(fixture_relpath=fixture_relpath, user_home=user_home)
+        note = cell.location if not result.notes else f"{cell.location}: {result.notes}"
+        if signature not in records:
+            records[signature] = []
+            ordered_signatures.append(signature)
+        records[signature].append(investigator_assessment(status=str(result.status), note=note))
+    if not ordered_signatures:
+        return []
+    policies = [
+        Policy.from_rule_str(signature, tier=0, source=PolicySource.PLUGIN_DEFAULT)
+        for signature in ordered_signatures
+    ]
+    attached = attach_assessments(
+        policies=policies,
+        records={signature: tuple(items) for signature, items in records.items()},
+    )
+    return render_policy_report(policies=attached)
+
+
 def build_report(*, state_path: Path, output: str | None) -> dict[str, Any]:
-    """Render the populated matrix as a markdown report."""
+    """Render the populated matrix as a markdown report.
+
+    The markdown outcome table is followed by a PAP-5 policy-assessment
+    section (GH-802): every recorded cell outcome is emitted as a typed
+    :class:`~dev10x.domain.common.policy.PolicyAssessment` and rendered
+    against the rule it judged via
+    :func:`~dev10x.skills.permission_investigator.policy_report.render_policy_report`.
+    """
     if not state_path.is_file():
         return _state_missing()
     state = json.loads(state_path.read_text())
 
-    rendered = render_markdown_report(load_matrix_from_state(state))
+    matrix = load_matrix_from_state(state)
+    rendered = render_markdown_report(matrix)
+
+    fixture = state.get("fixture", {})
+    assessment_lines = _render_investigator_assessments(
+        matrix=matrix,
+        fixture_relpath=fixture.get("fixture_relpath", ""),
+        user_home=fixture.get("user_home", ""),
+    )
+    if assessment_lines:
+        rendered = (
+            f"{rendered}\n## Policy Assessments (PAP-5)\n\n" + "\n".join(assessment_lines) + "\n"
+        )
+
     if output:
         Path(output).write_text(rendered)
         return {"messages": [f"Wrote report to {output}"], "exit_code": 0}

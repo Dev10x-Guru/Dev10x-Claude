@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from dev10x.domain.claude_paths import ClaudeDir
+from dev10x.domain.common.allow_rule import AllowRule
 from dev10x.domain.common.plugin_version import SEMVER_PATTERN, PluginVersion
 from dev10x.domain.common.result import Result
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
@@ -48,7 +49,7 @@ VERSION_PATTERN = re.compile(
 )
 PUBLISHER_PATTERN = re.compile(rf"plugins/cache/([^/]+)/{PLUGIN_NAMES}/", re.IGNORECASE)
 
-ENV_PREFIX_PATTERN = re.compile(r"^Bash\([A-Z_]+=")
+_ENV_PREFIX_INNER_RE = re.compile(r"^[A-Z_]+=")
 
 SHELL_FRAGMENTS = frozenset(
     {
@@ -87,13 +88,13 @@ def is_deprecated_read_glob(rule: str) -> bool:
     return any(p.match(rule) for p in DEPRECATED_READ_GLOBS)
 
 
-HOOK_ENABLED_PATTERNS: list[re.Pattern[str]] = [
-    re.compile(r"^Bash\(gh pr create"),
-    re.compile(r"^Bash\(git push"),
-    re.compile(r"^Bash\(git rebase -i"),
-    re.compile(r"^Bash\(git commit -m"),
-    re.compile(r"^Bash\(gh pr checks"),
-]
+HOOK_ENABLED_INNER_PREFIXES: tuple[str, ...] = (
+    "gh pr create",
+    "git push",
+    "git rebase -i",
+    "git commit -m",
+    "gh pr checks",
+)
 
 SECRET_INDICATORS = [
     re.compile(r"LINEAR_KEY=lin_api_"),
@@ -106,13 +107,12 @@ SECRET_INDICATORS = [
 ]
 
 
-WILDCARD_BYPASS_PATTERNS = [
-    re.compile(r"^Bash\(\*\)$"),
-    re.compile(r"^Bash\(\.\*\)$"),
-    re.compile(r"^Read\(\*\)$"),
-    re.compile(r"^Write\(\*\)$"),
-    re.compile(r"^Edit\(\*\)$"),
-]
+_WILDCARD_BYPASS_TOOLS: dict[str, frozenset[str]] = {
+    "Bash": frozenset({"*", ".*"}),
+    "Read": frozenset({"*"}),
+    "Write": frozenset({"*"}),
+    "Edit": frozenset({"*"}),
+}
 
 
 @dataclass
@@ -183,6 +183,11 @@ def is_shell_fragment(rule: str) -> bool:
     return False
 
 
+def is_env_noise(rule: str) -> bool:
+    parsed = AllowRule.parse(rule)
+    return parsed.tool == "Bash" and _ENV_PREFIX_INNER_RE.match(parsed.inner) is not None
+
+
 def is_stale_publisher(
     rule: str,
     *,
@@ -214,7 +219,10 @@ def is_old_version(
 
 
 def is_hook_enabled(rule: str) -> bool:
-    return any(p.search(rule) for p in HOOK_ENABLED_PATTERNS)
+    parsed = AllowRule.parse(rule)
+    return parsed.tool == "Bash" and any(
+        parsed.inner.startswith(prefix) for prefix in HOOK_ENABLED_INNER_PREFIXES
+    )
 
 
 def has_leaked_secret(rule: str) -> bool:
@@ -222,7 +230,8 @@ def has_leaked_secret(rule: str) -> bool:
 
 
 def is_wildcard_bypass(rule: str) -> bool:
-    return any(p.match(rule) for p in WILDCARD_BYPASS_PATTERNS)
+    parsed = AllowRule.parse(rule)
+    return parsed.inner in _WILDCARD_BYPASS_TOOLS.get(parsed.tool, frozenset())
 
 
 def find_allow_deny_contradictions(
@@ -309,7 +318,7 @@ def classify_rules(
             result.old_versions.append(rule)
             continue
 
-        if ENV_PREFIX_PATTERN.search(rule):
+        if is_env_noise(rule):
             result.env_noise.append(rule)
             continue
 

@@ -57,3 +57,56 @@ class TestApplyCell:
 
         assert result["exit_code"] == 1
         assert "unknown cell_id" in result["errors"][0]
+
+
+class TestBuildReport:
+    def test_emits_pap_investigator_assessment_for_recorded_cell(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        state_path, _ = _prepare(tmp_path)
+        state = json.loads(state_path.read_text())
+        cell_id = state["cells"][0]["cell_id"]
+        runner.record_outcome(
+            state_path=state_path,
+            cell_id=cell_id,
+            auto_approved=True,
+            error=None,
+            notes="",
+        )
+
+        report = runner.build_report(state_path=state_path, output=None)["messages"][0]
+
+        assert "## Policy Assessments (PAP-5)" in report
+        assert "[tier 0, plugin-default, allow]" in report
+        assert "investigator:works" in report
+
+    def test_prompted_cell_renders_prompts_verdict_with_note(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        state_path, _ = _prepare(tmp_path)
+        state = json.loads(state_path.read_text())
+        cell_id = state["cells"][0]["cell_id"]
+        runner.record_outcome(
+            state_path=state_path,
+            cell_id=cell_id,
+            auto_approved=False,
+            error=None,
+            notes="asked",
+        )
+
+        report = runner.build_report(state_path=state_path, output=None)["messages"][0]
+
+        assert "investigator:prompts" in report
+        assert "asked" in report
+
+    def test_omits_assessment_section_when_no_outcomes_recorded(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        state_path, _ = _prepare(tmp_path)
+
+        report = runner.build_report(state_path=state_path, output=None)["messages"][0]
+
+        assert "Policy Assessments" not in report

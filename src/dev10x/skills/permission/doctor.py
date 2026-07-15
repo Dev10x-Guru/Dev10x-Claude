@@ -26,6 +26,7 @@ CLI entry points live under ``dev10x permission doctor``.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import re
 import subprocess
@@ -35,8 +36,10 @@ from pathlib import Path
 from typing import Any
 
 from dev10x import subprocess_utils
+from dev10x.domain.common.allow_rule import AllowRule
 from dev10x.domain.common.baseline_catalog import load_baseline_dict
-from dev10x.domain.common.policy import Policy, PolicyAssessment, PolicyCatalog
+from dev10x.domain.common.policy import Policy, PolicyAssessment, PolicyCatalog, PolicySource
+from dev10x.skills.permission_investigator.policy_report import render_policy_report
 
 CATALOG_PATH = Path(__file__).resolve().parent / "baseline-permissions.yaml"
 
@@ -507,6 +510,43 @@ def apply_deprecations(
     return output, outcomes
 
 
+def _render_deprecation_outcomes(
+    outcomes: Iterable[DeprecationOutcome],
+    *,
+    catalog_policies: dict[str, Policy],
+) -> list[str]:
+    """Render deprecation outcomes as typed Policy assessment lines (PAP-6, GH-819).
+
+    Each outcome becomes a :class:`PolicyAssessment` via
+    :meth:`DeprecationOutcome.as_assessment` and is attached to its
+    matching entry from ``catalog_policies`` (built from
+    :meth:`Catalog.policies`) so the rendered line carries the rule's
+    real tier/source/effect. A rule the catalog doesn't define (e.g. a
+    settings-file rule with no group entry) falls back to an unscoped
+    tier-0 project-local Policy so the assessment can still render via
+    :func:`render_policy_report`.
+    """
+    lines: list[str] = []
+    for outcome in outcomes:
+        assessment = outcome.as_assessment()
+        base = catalog_policies.get(outcome.rule)
+        policy = (
+            dataclasses.replace(base, assessments=base.assessments + (assessment,))
+            if base is not None
+            else Policy.from_rule_str(
+                outcome.rule,
+                tier=0,
+                source=PolicySource.PROJECT_LOCAL,
+                assessments=(assessment,),
+            )
+        )
+        (line,) = render_policy_report(policies=[policy])
+        lines.append(f"  {line}")
+        if outcome.replacement and outcome.action in ("canonicalize", "rewrite"):
+            lines.append(f"      → {outcome.replacement}")
+    return lines
+
+
 def apply_deprecations_to_files(
     settings_files: Iterable[Path],
     *,
@@ -519,9 +559,14 @@ def apply_deprecations_to_files(
     allow/deny/ask bucket, and (unless ``dry_run``) writes the result
     back. Returns a result dict consumable by
     ``commands.permission._emit_result``.
+
+    Deprecation outcomes render as typed Policy assessment lines (PAP-6,
+    GH-819) via :func:`_render_deprecation_outcomes`, sourced from
+    ``catalog.policies()``.
     """
     messages: list[str] = []
     total_actions = 0
+    catalog_policies = {policy.signature: policy for policy in catalog.policies()}
     for path in sorted(settings_files):
         data = json.loads(path.read_text())
         perms = data.get("permissions", {})
@@ -534,17 +579,9 @@ def apply_deprecations_to_files(
             if outcomes:
                 changes_in_file += len(outcomes)
                 messages.append(f"\n{path} [{bucket}] — {len(outcomes)} actions")
-                for outcome in outcomes:
-                    if outcome.action == "remove":
-                        messages.append(f"  - REMOVE: {outcome.rule}  # {outcome.reason}")
-                    elif outcome.action == "canonicalize":
-                        messages.append(f"  ~ CANON:  {outcome.rule}")
-                        messages.append(f"           → {outcome.replacement}")
-                    elif outcome.action == "rewrite":
-                        messages.append(f"  ~ REWRITE: {outcome.rule}")
-                        messages.append(f"           → {outcome.replacement}")
-                    else:
-                        messages.append(f"  ? {outcome.action.upper()}: {outcome.rule}")
+                messages.extend(
+                    _render_deprecation_outcomes(outcomes, catalog_policies=catalog_policies)
+                )
             perms[bucket] = new_rules
         if changes_in_file and not dry_run:
             from dev10x.skills.permission.backup import create_backup
@@ -625,7 +662,9 @@ class WorktreeAnchorResult:
         return self.workspace_anchored
 
 
-_RELATIVE_SKILL_SCRIPT_RE = re.compile(r"Bash\(\.claude/skills/(?P<tail>[^:)]+)")
+def _is_relative_skill_script_rule(rule: str) -> bool:
+    parsed = AllowRule.parse(rule)
+    return parsed.tool == "Bash" and parsed.inner.startswith(".claude/skills/")
 
 
 def discover_worktrees_parents(roots: Iterable[str]) -> list[Path]:
@@ -724,7 +763,7 @@ def anchor_worktree_roots(
         for rule in allow_rules:
             if not isinstance(rule, str):
                 continue
-            if _RELATIVE_SKILL_SCRIPT_RE.search(rule):
+            if _is_relative_skill_script_rule(rule):
                 suggestion = (
                     "Rewrite to absolute plugin-cache path or replace "
                     "with Skill() invocation. Relative paths resolve against "

@@ -171,6 +171,54 @@ class TestLoadPolicyLayers:
     def test_no_layers_yields_empty_set(self) -> None:
         assert load_policy_layers() == []
 
+    def _write_flat(self, path: Path, *, allow: list[str], deny: list[str] | None = None) -> Path:
+        data = {"base_permissions": allow, "base_denies": deny or []}
+        path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+        return path
+
+    def test_flat_user_layer_is_normalized_and_tagged_user_private(self, tmp_path: Path) -> None:
+        user = self._write_flat(tmp_path / "user.yaml", allow=["Bash(rg:*)"])
+        policies = load_policy_layers(user_path=user)
+        assert len(policies) == 1
+        assert policies[0].signature == "Bash(rg:*)"
+        assert policies[0].source is PolicySource.USER_PRIVATE
+        assert policies[0].effect is PolicyEffect.ALLOW
+
+    def test_flat_project_layer_is_normalized_and_tagged_project_local(
+        self, tmp_path: Path
+    ) -> None:
+        project = self._write_flat(
+            tmp_path / "project.yaml", allow=["Bash(jq:*)"], deny=["Bash(rm -rf /:*)"]
+        )
+        policies = load_policy_layers(project_path=project)
+        by_signature = {p.signature: p for p in policies}
+        assert by_signature["Bash(jq:*)"].source is PolicySource.PROJECT_LOCAL
+        assert by_signature["Bash(jq:*)"].effect is PolicyEffect.ALLOW
+        assert by_signature["Bash(rm -rf /:*)"].source is PolicySource.PROJECT_LOCAL
+        assert by_signature["Bash(rm -rf /:*)"].effect is PolicyEffect.DENY
+
+    def test_flat_layer_rules_resolve_through_resolve_effect(self, tmp_path: Path) -> None:
+        project = self._write_flat(tmp_path / "project.yaml", allow=["Bash(jq:*)"])
+        policies = load_policy_layers(project_path=project)
+        assert (
+            resolve_effect(policies=policies, signature="Bash(jq --version)") == PolicyEffect.ALLOW
+        )
+
+    def test_flat_plugin_layer_keeps_plugin_default_source(self, tmp_path: Path) -> None:
+        plugin = self._write_flat(tmp_path / "plugin.yaml", allow=["Bash(ls:*)"])
+        policies = load_policy_layers(plugin_path=plugin)
+        assert policies[0].source is PolicySource.PLUGIN_DEFAULT
+
+    def test_structured_layer_with_groups_is_not_double_migrated(self, tmp_path: Path) -> None:
+        path = tmp_path / "structured.yaml"
+        data = {
+            "groups": {"g": {"tier": 1, "rules": ["Bash(ls:*)"]}},
+            "base_permissions": ["Bash(rg:*)"],
+        }
+        path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+        policies = load_policy_layers(user_path=path)
+        assert [policy.signature for policy in policies] == ["Bash(ls:*)"]
+
 
 _CORPUS_DIR = Path(__file__).resolve().parents[2] / "fixtures" / "permission-policy"
 

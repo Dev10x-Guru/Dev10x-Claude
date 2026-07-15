@@ -34,11 +34,8 @@ from dev10x.domain.common.result import Result, err, ok
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.plugin_identity import PLUGIN_NAMES
 from dev10x.skills.permission.config import parse_config, resolve_config
-from dev10x.skills.permission.policy_catalog_migration import (
-    flat_allow_rules,
-    flat_deny_rules,
-    migrate_flat_config,
-)
+from dev10x.skills.permission.policy_catalog_migration import migrate_flat_config
+from dev10x.skills.permission.policy_renderer import render_permissions
 
 MEMORY_CONFIG = Dev10xConfigDir.projects_yaml()
 USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
@@ -592,23 +589,32 @@ def verify_script_coverage(
     covered: list[str] = []
     missing: list[str] = []
     for rule in expected_rules:
-        match = re.search(r"Bash\((.+?):\*\)", rule)
-        if not match:
+        parsed = AllowRule.parse(rule)
+        if parsed.tool != "Bash" or not parsed.inner.endswith(":*"):
             missing.append(rule)
             continue
-        script_name = Path(match.group(1)).name
-        pattern = re.compile(rf"Bash\(.*/{re.escape(script_name)}:\*\)")
+        script_name = Path(parsed.inner[: -len(":*")]).name
         # GH-471: a ** cache glob never matches in Claude Code's Bash
         # matcher and update-paths cannot re-version it (no literal X.Y.Z
         # segment), so it is NOT real coverage. Skip dead globs here so a
         # concrete version-pinned rule is emitted instead.
         if rule in allow_list or any(
-            pattern.search(entry) for entry in allow_list if not is_dead_glob_script_rule(entry)
+            _entry_covers_script(entry, script_name)
+            for entry in allow_list
+            if not is_dead_glob_script_rule(entry)
         ):
             covered.append(rule)
         else:
             missing.append(rule)
     return covered, missing
+
+
+def _entry_covers_script(entry: str, script_name: str) -> bool:
+    """Whether ``entry`` is a ``Bash(.../<script_name>:*)`` coverage rule."""
+    parsed = AllowRule.parse(entry)
+    if parsed.tool != "Bash" or not parsed.inner.endswith(":*"):
+        return False
+    return parsed.inner[: -len(":*")].endswith("/" + script_name)
 
 
 def scan_skill_directories(
@@ -1118,8 +1124,9 @@ def ensure_base(
     errors: list[str] = []
 
     policies = migrate_flat_config(config=config)
-    base_permissions = flat_allow_rules(policies=policies)
-    base_denies = flat_deny_rules(policies=policies)
+    rendered = render_permissions(policies=policies, home=str(Path.home()))
+    base_permissions = rendered.get("allow", [])
+    base_denies = rendered.get("deny", [])
     if not base_permissions and not base_denies:
         messages.append("No base_permissions or base_denies defined in config.")
         return _result(exit_code=0, messages=messages, errors=errors)
@@ -1216,8 +1223,9 @@ def seed_worktree(
     added so the worktree-creation caller can report it.
     """
     policies = migrate_flat_config(config=config)
-    base_permissions = flat_allow_rules(policies=policies)
-    base_denies = flat_deny_rules(policies=policies)
+    rendered = render_permissions(policies=policies, home=str(Path.home()))
+    base_permissions = rendered.get("allow", [])
+    base_denies = rendered.get("deny", [])
     settings = Path(worktree_root) / ".claude" / "settings.local.json"
 
     created_fresh = not settings.exists()

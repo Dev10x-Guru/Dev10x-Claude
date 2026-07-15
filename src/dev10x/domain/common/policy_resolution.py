@@ -28,6 +28,7 @@ import dataclasses
 from collections.abc import Iterable
 from pathlib import Path
 
+from dev10x.domain.common.baseline_catalog import load_baseline_dict
 from dev10x.domain.common.policy import (
     Policy,
     PolicyAssessment,
@@ -35,6 +36,7 @@ from dev10x.domain.common.policy import (
     PolicyEffect,
     PolicySource,
 )
+from dev10x.domain.common.policy_migration import migrate_flat_config
 
 PRECEDENCE: tuple[PolicySource, ...] = (
     PolicySource.PROJECT_LOCAL,
@@ -107,12 +109,16 @@ def load_policy_layers(
     user_path: str | Path | None = None,
     project_path: str | Path | None = None,
 ) -> list[Policy]:
-    """Load up to three existing-shape catalog files into one policy set.
+    """Load up to three catalog files into one tagged policy set.
 
-    Each layer is the grouped ``baseline-permissions.yaml`` shape and is
-    tagged with its :class:`PolicySource`. Missing or malformed files
-    contribute nothing (mirroring :meth:`PolicyCatalog.load`), so a
-    partial installation still resolves against the layers it has.
+    Each layer may be either the grouped ``baseline-permissions.yaml``
+    shape or a flat ``base_permissions``/``base_denies`` config (GH-819).
+    A flat layer is normalized through :func:`migrate_flat_config` and
+    re-tagged with this layer's :class:`PolicySource` so it participates
+    in resolution instead of silently contributing nothing. Missing or
+    malformed files still contribute nothing (mirroring
+    :meth:`PolicyCatalog.load`), so a partial installation still resolves
+    against the layers it has.
     """
     layers: list[tuple[str | Path | None, PolicySource]] = [
         (plugin_path, PolicySource.PLUGIN_DEFAULT),
@@ -123,8 +129,36 @@ def load_policy_layers(
     for path, source in layers:
         if path is None:
             continue
-        policies.extend(PolicyCatalog.load(path, source=source))
+        policies.extend(_load_layer(path=path, source=source))
     return policies
+
+
+def _load_layer(*, path: str | Path, source: PolicySource) -> list[Policy]:
+    data = load_baseline_dict(Path(path), strict=False)
+    if not data:
+        return []
+    if not _is_flat_shape(data=data):
+        return PolicyCatalog.from_baseline_dict(data, source=source)
+    migrated = migrate_flat_config(config=data)
+    if source is PolicySource.PLUGIN_DEFAULT:
+        return migrated
+    return [dataclasses.replace(policy, source=source) for policy in migrated]
+
+
+def _is_flat_shape(*, data: dict) -> bool:
+    """Detect the PAP-2 flat shape vs the grouped structured catalog.
+
+    Structured catalogs key their rules under ``groups``; flat configs
+    (``projects.yaml``-style) carry bare ``base_permissions``/
+    ``base_denies`` lists instead. A layer carrying a ``groups`` mapping
+    is treated as structured even if it also has flat-looking keys, so
+    an already-migrated layer is never double-migrated.
+    """
+    if isinstance(data.get("groups"), dict):
+        return False
+    return isinstance(data.get("base_permissions"), list) or isinstance(
+        data.get("base_denies"), list
+    )
 
 
 __all__ = ["PRECEDENCE", "attach_assessments", "load_policy_layers", "resolve_effect"]
