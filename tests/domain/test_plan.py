@@ -304,6 +304,24 @@ class TestPlanSetContext:
 
         assert plan.metadata["context"]["tickets"] == ["GH-1", "GH-2"]
 
+    def test_branch_key_mirrors_to_top_level(self) -> None:
+        # GH-861: the resume banner reads the top-level metadata["branch"],
+        # frozen at creation on the base branch. An explicit branch context
+        # write must refresh it so the banner reports the real branch.
+        plan = Plan(metadata={"branch": "develop", "context": {}})
+
+        plan.set_context(key="branch", value="janusz/GH-861/feature")
+
+        assert plan.metadata["branch"] == "janusz/GH-861/feature"
+        assert plan.metadata["context"]["branch"] == "janusz/GH-861/feature"
+
+    def test_non_branch_key_leaves_top_level_branch_untouched(self) -> None:
+        plan = Plan(metadata={"branch": "develop", "context": {}})
+
+        plan.set_context(key="work_type", value="feature")
+
+        assert plan.metadata["branch"] == "develop"
+
 
 class TestPlanEnsureMetadata:
     @patch("dev10x.domain.documents.plan._get_branch", return_value="feature/test")

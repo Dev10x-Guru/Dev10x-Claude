@@ -142,6 +142,40 @@ consistent across both entry points.
   full behavior matrix
 - Playbook steps may override with `friction_level:` per step
 
+## Phase 0.5: Resumed-Plan Task-List Reconstruction (GH-861)
+
+On a process restart mid-work-on, the SessionStart hook rehydrates
+the plan-sync **context** banner but CANNOT repopulate the visible
+**TaskList** — a hook only mirrors Claude's `TaskCreate`/`TaskUpdate`
+calls into `plan.yaml` (PostToolUse), it cannot issue them. So after
+a resume the task tree is empty even though the persisted plan still
+holds every task. Left unhandled, the empty-task-list invariant
+(GH-149) is silently violated across the resume boundary and the
+terminal Verify-AC / Monitor gate is lost.
+
+**REQUIRED before creating the fresh 4 phase tasks:** detect and
+reconstruct a resumed plan. Execute these steps at startup:
+
+1. Call `mcp__plugin_Dev10x_cli__plan_sync_json_summary()`.
+2. If the response has `plan.status == "in_progress"` AND
+   `plan.tasks` is non-empty AND the current `TaskList` is empty
+   (the resume signature), do NOT create the fresh 4 phase tasks.
+   Instead, for each persisted task re-issue `TaskCreate` (subject
+   from `task.subject`, description/metadata carried over) and then
+   `TaskUpdate` to restore its `status`, oldest first so ordering is
+   preserved. This rebuilds the supervisor's visible tree from the
+   persisted plan rather than from conversation memory.
+3. Confirm the reconstructed list ends with the terminal Verify-AC
+   (or "Monitor PR") task; if the persisted plan lacks one, append it
+   so the invariant holds.
+4. If any condition in step 2 is false (fresh session, no persisted
+   plan, or TaskList already populated), skip reconstruction and
+   proceed to Phase 1's normal 4-phase-task creation.
+
+The banner's `Plan branch` now reflects the persisted branch (the
+`branch` reserved key mirrors to the plan's top-level metadata), so
+a resumed session shows the real feature branch, not the base.
+
 ## Prerequisites
 
 | Capability | Required for | Tool |

@@ -335,6 +335,14 @@ class Plan:
     def set_context(self, *, key: str, value: str) -> None:
         context = self.metadata.setdefault("context", {})
         _set_nested(d=context, dotpath=key, value=value)
+        # "branch" is a reserved key (GH-861). The session-resume banner
+        # reads the top-level metadata["branch"], which ensure_metadata
+        # stamps ONCE at plan creation — before the feature branch exists,
+        # so it freezes on the base branch (e.g. "develop") — and never
+        # refreshes. Mirror an explicit branch context write up to the
+        # top level so the banner reports the plan's actual branch.
+        if key == "branch" and isinstance(value, str):
+            self.metadata["branch"] = value
 
 
 def _coerce_status(raw: Any) -> TaskStatus | None:
