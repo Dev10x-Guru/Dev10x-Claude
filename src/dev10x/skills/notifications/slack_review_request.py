@@ -26,6 +26,7 @@ from typing import Any
 
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.skills.common.jtbd import extract_jtbd, md_to_slack_bold
+from dev10x.skills.notifications._gh import GhCommandError, gh_json
 
 
 def load_yaml(path: Path) -> dict:
@@ -95,22 +96,6 @@ def format_review_message(
     if jtbd:
         lines.append(f"> {md_to_slack_bold(jtbd)}")
     return "\n".join(lines)
-
-
-class GhCommandError(RuntimeError):
-    """A `gh` invocation failed — raised so entry points own exit codes."""
-
-
-def gh_json(args: list[str]) -> Any:
-    result = subprocess.run(
-        ["gh", *args],
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    if result.returncode != 0:
-        raise GhCommandError(f"gh {' '.join(args)}: {result.stderr.strip()}")
-    return json.loads(result.stdout)
 
 
 def cmd_prepare(args: argparse.Namespace) -> None:
