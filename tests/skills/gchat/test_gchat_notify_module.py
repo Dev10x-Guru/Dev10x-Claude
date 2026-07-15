@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import io
 import json
+import urllib.error
 
 import pytest
 
@@ -111,6 +113,59 @@ class TestMintAccessToken:
         assert isinstance(result, ErrorResult)
 
 
+class _FakeResponse:
+    """Minimal context-manager stand-in for urllib.request.urlopen()'s return value."""
+
+    def __init__(self, body: bytes) -> None:
+        self._body = body
+
+    def __enter__(self) -> _FakeResponse:
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        return None
+
+    def read(self) -> bytes:
+        return self._body
+
+
+class TestPostJson:
+    def test_posts_and_parses_success_response(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            mod.urllib.request,
+            "urlopen",
+            lambda req, timeout=30: _FakeResponse(b'{"name": "spaces/A/messages/X"}'),
+        )
+        result = mod._post_json(f"{mod.CHAT_API_BASE}/spaces/A/messages", {"text": "hi"}, "tok")
+        assert isinstance(result, SuccessResult)
+        assert result.value == {"name": "spaces/A/messages/X"}
+
+    def test_errors_on_http_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def fake_urlopen(req, timeout=30):  # noqa: ANN001, ANN202
+            raise urllib.error.HTTPError(
+                "https://chat.googleapis.com/v1/spaces/A/messages",
+                403,
+                "Forbidden",
+                hdrs=None,
+                fp=io.BytesIO(b"denied"),
+            )
+
+        monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
+        result = mod._post_json(f"{mod.CHAT_API_BASE}/spaces/A/messages", {"text": "hi"}, "tok")
+        assert isinstance(result, ErrorResult)
+        assert "403" in result.error
+        assert "denied" in result.error
+
+    def test_errors_on_url_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def fake_urlopen(req, timeout=30):  # noqa: ANN001, ANN202
+            raise urllib.error.URLError("boom")
+
+        monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
+        result = mod._post_json(f"{mod.CHAT_API_BASE}/spaces/A/messages", {"text": "hi"}, "tok")
+        assert isinstance(result, ErrorResult)
+        assert "boom" in result.error
+
+
 class TestPostMessage:
     def test_posts_json_and_returns_message_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured: dict = {}
@@ -133,6 +188,12 @@ class TestPostMessage:
         monkeypatch.setattr(mod, "_post_json", lambda url, payload, token: ok({}))
         result = mod.post_message(space_id="AAAA123", text="hi", token="tok")
         assert isinstance(result, ErrorResult)
+
+    def test_propagates_post_json_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mod, "_post_json", lambda url, payload, token: err("boom"))
+        result = mod.post_message(space_id="AAAA123", text="hi", token="tok")
+        assert isinstance(result, ErrorResult)
+        assert result.error == "boom"
 
 
 class TestNotifyGchat:
@@ -171,3 +232,18 @@ class TestNotifyGchat:
         result = mod.notify_gchat(space="tt-reviews", message="hi")
         assert isinstance(result, ErrorResult)
         assert result.error == "no key"
+
+    def test_short_circuits_on_mint_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mod, "resolve_space_id", lambda alias: ok("AAAA123"))
+        monkeypatch.setattr(
+            mod, "get_sa_info", lambda: ok({"client_email": "x", "private_key": "k"})
+        )
+        monkeypatch.setattr(mod, "mint_access_token", lambda info: err("no token"))
+        monkeypatch.setattr(
+            mod,
+            "post_message",
+            lambda **kwargs: pytest.fail("post_message must not be reached"),
+        )
+        result = mod.notify_gchat(space="tt-reviews", message="hi")
+        assert isinstance(result, ErrorResult)
+        assert result.error == "no token"

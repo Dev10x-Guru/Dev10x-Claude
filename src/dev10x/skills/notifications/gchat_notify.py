@@ -139,7 +139,7 @@ def mint_access_token(sa_info: dict, *, now: int | None = None) -> Result[str]:
     return ok(token)
 
 
-def _post_json(url: str, payload: dict, token: str) -> Result[dict]:
+def _post_json(url: str, payload: dict[str, str], token: str) -> Result[dict]:
     data = json.dumps(payload).encode()
     req = urllib.request.Request(
         url,
