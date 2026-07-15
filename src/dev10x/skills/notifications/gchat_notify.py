@@ -137,3 +137,58 @@ def mint_access_token(sa_info: dict, *, now: int | None = None) -> Result[str]:
     if not token:
         return err("Token endpoint returned no access_token")
     return ok(token)
+
+
+def _post_json(url: str, payload: dict, token: str) -> Result[dict]:
+    data = json.dumps(payload).encode()
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={
+            "Content-Type": "application/json; charset=UTF-8",
+            "Authorization": f"Bearer {token}",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310
+            return ok(json.loads(resp.read().decode()))
+    except urllib.error.HTTPError as ex:
+        detail = ex.read().decode(errors="replace")
+        return err(f"Google Chat POST failed (HTTP {ex.code}): {detail}")
+    except urllib.error.URLError as ex:
+        return err(f"Google Chat unreachable: {ex.reason}")
+
+
+def post_message(*, space_id: str, text: str, token: str) -> Result[str]:
+    url = f"{CHAT_API_BASE}/spaces/{space_id}/messages"
+    result = _post_json(url, {"text": text}, token)
+    if isinstance(result, ErrorResult):
+        return result
+    name = result.value.get("name")
+    if not name:
+        return err(f"Google Chat accepted the POST but returned no message name: {result.value}")
+    return ok(name)
+
+
+def send_gchat_message(*, space: str, message: str) -> Result[str]:
+    space_result = resolve_space_id(space)
+    if isinstance(space_result, ErrorResult):
+        return space_result
+    sa_result = get_sa_info()
+    if isinstance(sa_result, ErrorResult):
+        return sa_result
+    token_result = mint_access_token(sa_result.value)
+    if isinstance(token_result, ErrorResult):
+        return token_result
+    resolved = resolve_mentions(message)
+    return post_message(space_id=space_result.value, text=resolved, token=token_result.value)
+
+
+def notify_gchat(*, space: str, message: str) -> Result[str]:
+    """Single service entry for sending a Google Chat message.
+
+    Returns ``ok(message_name)`` or ``err(reason)``; callers own their own
+    user-facing output formatting (mirrors ``slack_notify.notify_slack``).
+    """
+    return send_gchat_message(space=space, message=message)
