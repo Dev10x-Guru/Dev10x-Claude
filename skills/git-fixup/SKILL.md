@@ -13,7 +13,7 @@ invocation-name: Dev10x:git-fixup
 allowed-tools:
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git-fixup/scripts/:*)
-  - Write(/tmp/Dev10x/git/**)
+  - Edit(/tmp/Dev10x/git/**)
   - mcp__plugin_Dev10x_cli__pr_detect
   - mcp__plugin_Dev10x_cli__pr_comments
   - mcp__plugin_Dev10x_cli__push_safe

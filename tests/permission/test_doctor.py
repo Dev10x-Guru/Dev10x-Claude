@@ -262,6 +262,51 @@ class TestCatalogAndDeprecations:
         assert new_rules == []
         assert outcomes[0].action == "remove"
 
+    def _rewrite_catalog(self) -> doctor.Catalog:
+        return doctor.Catalog(
+            version=1,
+            last_audited="",
+            groups={},
+            deprecations=[{"pattern": r"^Write\(", "action": "rewrite", "replacement": "Edit("}],
+            invariants=[],
+        )
+
+    def test_rewrite_substitutes_matched_span(self) -> None:
+        new_rules, outcomes = doctor.apply_deprecations(
+            ["Write(/tmp/Dev10x/git/**)"],
+            catalog=self._rewrite_catalog(),
+        )
+        assert new_rules == ["Edit(/tmp/Dev10x/git/**)"]
+        assert outcomes[0].action == "rewrite"
+        assert outcomes[0].replacement == "Edit(/tmp/Dev10x/git/**)"
+
+    def test_rewrite_dedupes_when_edit_precedes_write(self) -> None:
+        new_rules, _ = doctor.apply_deprecations(
+            ["Edit(/x/**)", "Write(/x/**)"],
+            catalog=self._rewrite_catalog(),
+        )
+        assert new_rules == ["Edit(/x/**)"]
+
+    def test_rewrite_dedupes_when_write_precedes_edit(self) -> None:
+        new_rules, _ = doctor.apply_deprecations(
+            ["Write(/x/**)", "Edit(/x/**)"],
+            catalog=self._rewrite_catalog(),
+        )
+        assert new_rules == ["Edit(/x/**)"]
+
+    def test_rewrite_without_replacement_keeps_rule(self) -> None:
+        catalog = doctor.Catalog(
+            version=1,
+            last_audited="",
+            groups={},
+            deprecations=[{"pattern": r"^Write\(", "action": "rewrite"}],
+            invariants=[],
+        )
+        new_rules, outcomes = doctor.apply_deprecations(["Write(/x/**)"], catalog=catalog)
+        assert new_rules == ["Write(/x/**)"]
+        assert outcomes[0].action == "rewrite"
+        assert outcomes[0].replacement is None
+
 
 class TestExpandFlagOverrides:
     @pytest.mark.parametrize(
@@ -623,6 +668,26 @@ class TestApplyDeprecationsToFiles:
             "Bash(/home/u/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.71.0/x.sh:*)"
         ]
         assert "**" not in data["permissions"]["allow"][0]
+
+    def test_rewrite_action_migrates_write_to_edit(self, tmp_path: Path) -> None:
+        settings = _write_settings(tmp_path, allow=["Write(/tmp/Dev10x/git/**)"])
+        catalog = self._catalog(
+            [
+                {
+                    "pattern": r"^Write\(",
+                    "action": "rewrite",
+                    "replacement": "Edit(",
+                    "reason": "GH-862",
+                }
+            ]
+        )
+
+        result = doctor.apply_deprecations_to_files([settings], catalog=catalog)
+
+        joined = "\n".join(result["messages"])
+        assert "REWRITE" in joined
+        data = json.loads(settings.read_text())
+        assert data["permissions"]["allow"] == ["Edit(/tmp/Dev10x/git/**)"]
 
     def test_unknown_action_keeps_rule(self, tmp_path: Path) -> None:
         settings = _write_settings(tmp_path, allow=["Bash(flagged:*)"])

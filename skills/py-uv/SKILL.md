@@ -15,7 +15,6 @@ allowed-tools:
   - AskUserQuestion
   - Read(~/.claude/**)
   - Edit(~/.claude/**)
-  - Write(~/.claude/**)
   - Bash(chmod:*)
 ---
 

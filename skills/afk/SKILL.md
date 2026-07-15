@@ -16,7 +16,7 @@ user-invocable: true
 invocation-name: Dev10x:afk
 allowed-tools:
   - Read(.claude/Dev10x/config.yaml)
-  - Write(.claude/Dev10x/config.yaml)
+  - Edit(.claude/Dev10x/config.yaml)
   - Read(.claude/Dev10x/session.yaml)
 ---
 

@@ -19,8 +19,6 @@ allowed-tools:
   - Read(~/.claude/skills/**)
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
   - Read(/tmp/Dev10x/skill-audit/**)
-  - Write(~/.claude/**)
-  - Write(/tmp/Dev10x/skill-audit/**)
   - Edit(~/.claude/**)
   - Edit(/tmp/Dev10x/skill-audit/**)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/skill-audit/scripts/:*)

@@ -98,32 +98,19 @@ base_permissions:
   - "Bash(uvx dev10x init:*)"
   - "Bash(uvx dev10x github-app:*)"
 
-  # --- Dev10x config file access (GH-878, GH-135) ---
-  # Skills read/write playbook overrides, session config, slack config,
-  # reviewer config, database config under these directories. Grep
-  # rules cover skill investigations that scan plugin config and the
-  # plugin cache for allow rules, scripts, and references.
+  # --- Dev10x config file access (GH-878, GH-135, GH-862) ---
+  # Playbook overrides and other legacy read-only config live under
+  # ~/.claude/memory/Dev10x — a Read seed keeps tier-2 resolution
+  # prompt-free. No Write/Edit seeds under .claude/ are shipped:
+  # ADR-0018 (GH-812) retired runtime writes there — durable state
+  # moved to ~/.config/Dev10x and is written via the `dev10x` CLI,
+  # not a Write/Edit allow rule (which trips Claude Code's
+  # self-settings consent gate regardless, and is flagged by the
+  # write-guard-claude scanner). The retired .claude/Dev10x/session.yaml
+  # and config.yaml seeds were removed with the same change; in-repo
+  # reads under .claude/Dev10x (e.g. project-local playbooks) need no
+  # allow rule since the repo root is already a working directory.
   - "Read(~/.claude/memory/Dev10x/**)"
-  - "Write(~/.claude/memory/Dev10x/**)"
-  - "Edit(~/.claude/memory/Dev10x/**)"
-  - "Read(.claude/Dev10x/**)"
-  - "Write(.claude/Dev10x/**)"
-  - "Edit(.claude/Dev10x/**)"
-  # GH-790: the ** globs above are unreliable in Claude Code's
-  # permission engine (verbatim path matching — see GH-774,
-  # project_permission_rules_do_not_merge_global_to_project), so
-  # writing session.yaml re-prompted mid-flow (work-on persists
-  # branch/tickets at Phase 0). Enumerate the concrete session-config
-  # files so the write is pre-approved and the supervisor is never
-  # asked to reconcile git-derivable state. config.yaml is the sibling
-  # durable-prefs file from the GH-774 split (friction_level,
-  # active_modes), written when the user changes prefs — same class.
-  - "Read(.claude/Dev10x/session.yaml)"
-  - "Write(.claude/Dev10x/session.yaml)"
-  - "Edit(.claude/Dev10x/session.yaml)"
-  - "Read(.claude/Dev10x/config.yaml)"
-  - "Write(.claude/Dev10x/config.yaml)"
-  - "Edit(.claude/Dev10x/config.yaml)"
   # GH-315: the two Bash(grep:*<path>) rules below were removed.
   # Claude Code rejects :* in a non-trailing position ("The :* pattern
   # must be at the end"). They were also redundant — Bash(grep:*)
@@ -176,31 +163,22 @@ base_permissions:
   # Each /tmp/Dev10x/<namespace>/ is created by mktmp and used by
   # skills for intermediate files. Enumerate all namespaces here.
   - "Read(/tmp/Dev10x/git/**)"
-  - "Write(/tmp/Dev10x/git/**)"
   - "Edit(/tmp/Dev10x/git/**)"
   - "Read(/tmp/Dev10x/review/**)"
-  - "Write(/tmp/Dev10x/review/**)"
   - "Edit(/tmp/Dev10x/review/**)"
   - "Read(/tmp/Dev10x/skill-audit/**)"
-  - "Write(/tmp/Dev10x/skill-audit/**)"
   - "Edit(/tmp/Dev10x/skill-audit/**)"
   - "Read(/tmp/Dev10x/playwright/**)"
-  - "Write(/tmp/Dev10x/playwright/**)"
   - "Edit(/tmp/Dev10x/playwright/**)"
   - "Read(/tmp/Dev10x/self-qa/**)"
-  - "Write(/tmp/Dev10x/self-qa/**)"
   - "Edit(/tmp/Dev10x/self-qa/**)"
   - "Read(/tmp/Dev10x/ticket-scope/**)"
-  - "Write(/tmp/Dev10x/ticket-scope/**)"
   - "Edit(/tmp/Dev10x/ticket-scope/**)"
   - "Read(/tmp/Dev10x/slack/**)"
-  - "Write(/tmp/Dev10x/slack/**)"
   - "Edit(/tmp/Dev10x/slack/**)"
   - "Read(/tmp/Dev10x/pr-monitor/**)"
-  - "Write(/tmp/Dev10x/pr-monitor/**)"
   - "Edit(/tmp/Dev10x/pr-monitor/**)"
   - "Read(/tmp/Dev10x/gh/**)"
-  - "Write(/tmp/Dev10x/gh/**)"
   - "Edit(/tmp/Dev10x/gh/**)"
 
   # --- gh CLI patterns (GH-98) ---

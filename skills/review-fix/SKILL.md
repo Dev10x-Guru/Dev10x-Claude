@@ -16,7 +16,7 @@ allowed-tools:
   - Bash(pre-commit run:*)
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
   - Read(/tmp/Dev10x/review/**)
-  - Write(/tmp/Dev10x/review/**)
+  - Edit(/tmp/Dev10x/review/**)
   - Bash(git commit:*)
 ---
 

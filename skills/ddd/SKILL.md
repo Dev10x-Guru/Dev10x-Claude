@@ -21,7 +21,7 @@ allowed-tools:
   - Glob
   - Grep
   - Read
-  - Write(docs/**)
+  - Edit(docs/**)
   - Bash(mkdir -p docs:*)
 ---
 

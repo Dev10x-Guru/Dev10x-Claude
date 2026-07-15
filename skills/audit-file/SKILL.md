@@ -11,7 +11,7 @@ invocation-name: Dev10x:audit-file
 allowed-tools:
   - AskUserQuestion
   - Read(/tmp/Dev10x/skill-audit/**)
-  - Write(/tmp/Dev10x/skill-audit/**)
+  - Edit(/tmp/Dev10x/skill-audit/**)
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
   - Skill(Dev10x:ticket-create)
   - Bash(ls ~/.claude/plugins/cache/:*)

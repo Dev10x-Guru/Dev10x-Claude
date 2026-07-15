@@ -16,7 +16,7 @@ allowed-tools:
   - Bash(gh:*)
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
   - Bash(~/.claude/tools/gh-bot-comment.py:*)
-  - Write(/tmp/Dev10x/git/**)
+  - Edit(/tmp/Dev10x/git/**)
   - mcp__plugin_Dev10x_cli__pr_detect
   - mcp__plugin_Dev10x_cli__mktmp
   - AskUserQuestion

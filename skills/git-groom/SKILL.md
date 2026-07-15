@@ -20,7 +20,7 @@ allowed-tools:
   - Bash(git push --force-with-lease:*)
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
   - mcp__plugin_Dev10x_cli__mktmp
-  - Write(/tmp/Dev10x/git/**)
+  - Edit(/tmp/Dev10x/git/**)
   - AskUserQuestion
 ---
 

@@ -19,7 +19,7 @@ allowed-tools:
   - Bash(git branch:*)
   - Bash(git rev-parse:*)
   - mcp__plugin_Dev10x_cli__mktmp
-  - Write(/tmp/Dev10x/slack/**)
+  - Edit(/tmp/Dev10x/slack/**)
 ---
 
 # Dev10x:park-remind — Slack DM Reminder

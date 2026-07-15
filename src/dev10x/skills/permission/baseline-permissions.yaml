@@ -194,9 +194,12 @@ groups:
     rules:
       - Skill(Dev10x:*)
       - Read(/tmp/claude/git/**)
-      - Write(/tmp/claude/git/**)
+      # Edit(path) covers all file-editing tools (Write, Edit,
+      # NotebookEdit); Write(path) rules are no longer matched by
+      # Claude Code's file-permission checks (GH-862).
+      - Edit(/tmp/claude/git/**)
       - Read(/tmp/Dev10x/**)
-      - Write(/tmp/Dev10x/**)
+      - Edit(/tmp/Dev10x/**)
       # GH-127 #4: skills load their own instructions.md and references
       # from the marketplace cache; without this, every fresh skill
       # invocation triggers a Read prompt.
@@ -885,6 +888,15 @@ deprecations:
       Legacy mktmp shell helper. Superseded by MCP tool
       `mcp__plugin_Dev10x_cli__mktmp`.
     action: remove
+  - pattern: '^Write\('
+    replacement: 'Edit('
+    reason: >
+      Claude Code file-permission checks match Edit(path) rules only;
+      Write(path) rules are ignored and warned about at session start.
+      Edit(path) covers all file-editing tools (Write, Edit,
+      NotebookEdit), so Write(X) is rewritten to Edit(X) and deduped
+      against any existing Edit(X) (GH-862).
+    action: rewrite
 
 # ─── INVARIANTS THE DOCTOR ENFORCES ───────────────────────────────────
 
@@ -928,5 +940,8 @@ invariants:
 #    - `action: canonicalize` → normalize the rule string by collapsing
 #      duplicate slashes (`//` → `/`, GH-704). It NEVER rewrites a path
 #      into a `**` wildcard (GH-715). No shipped entry uses it today.
+#    - `action: rewrite` → substitute the matched span with the entry's
+#      `replacement` (regex sub), deduping the result against rules
+#      already present. Used to migrate Write(X) → Edit(X) (GH-862).
 # 4. Invariants: surfaced as warnings during `dev10x permission doctor`;
 #    not auto-applied (require user confirmation).
