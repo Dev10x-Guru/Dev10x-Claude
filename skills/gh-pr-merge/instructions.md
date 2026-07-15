@@ -13,7 +13,7 @@ Mark completed when done: `TaskUpdate(taskId, status="completed")`
 
 ## Overview
 
-Pre-merge validation gate that checks 8 conditions before
+Pre-merge validation gate that checks 9 conditions before
 executing `gh pr merge`. Prevents premature merges like PR #633
 (merged with 7 unaddressed review comments) and PRs #690-692
 (merged with unaddressed top-level automated review comments).
@@ -67,7 +67,7 @@ All fields are optional. Defaults:
 
 ## Self-Check Before Pre-Merge Validation
 
-**REQUIRED — call `TaskList` now.** Verify the 8 pre-merge subtasks
+**REQUIRED — call `TaskList` now.** Verify the 9 pre-merge subtasks
 exist under the merge task. If fewer are present, create the missing
 ones before proceeding. Do NOT shortcut to `gh pr merge` based on a
 single `gh pr view` JSON read — that is the regression this check
@@ -84,31 +84,31 @@ on the agent's recollection that "the checks just passed" — those
 checks belong to a sibling skill's context, not this one.
 
 **Re-invocation contract:** Every invocation of `Dev10x:gh-pr-merge`
-re-runs the full skill body from Step 1, including all 8 pre-merge
+re-runs the full skill body from Step 1, including all 9 pre-merge
 checks. Check results from a prior `Dev10x:gh-pr-monitor` phase,
 prior `Dev10x:verify-acc-dod` run, or earlier invocation of this
 same skill are NOT reusable. CI state, review comments, draft
 toggles, and force-push state can drift between invocations — the
-8 checks exist precisely to detect that drift.
+9 checks exist precisely to detect that drift.
 
 **"Re-run the skill" expansion:** When the supervisor says
 "execute the whole skill again", "re-run the skill", "run it once
 more", or any equivalent phrasing, treat that as a fresh invocation
 starting from Step 1 of this body — NOT as "resume from the last
 unfinished step" or "skip to the merge command". The full skill
-body, including all 8 checks, runs every time.
+body, including all 9 checks, runs every time.
 
 Session policy does NOT waive this skill body. Whatever
 `resolve_gate(gate="merge")` returns at Step 5 governs only the
 final ask/auto-advance/skip decision immediately before
-executing the merge; the 8 checks below still run
+executing the merge; the 9 checks below still run
 unconditionally on every invocation. See
 `references/friction-levels.md` § "Adaptive does not waive
 skill bodies".
 
 ## Pre-Merge Validation Checks
 
-Run ALL 8 checks before merging. Report results as a checklist.
+Run ALL 9 checks before merging. Report results as a checklist.
 If ANY check fails, refuse to merge and report which failed.
 
 ### Check 1: No unresolved review threads
@@ -185,6 +185,39 @@ Filter for bot users with unaddressed severity markers
 addressed if a reply exists (same `in_reply_to_id`).
 If unaddressed findings remain, report them and block
 merge.
+
+### Check 1d: Fixes-linked issue scope delivered (GH-856)
+
+A `Fixes:`/`Closes:` link auto-closes its issue on merge
+regardless of how much of the issue's stated scope the diff
+delivers. Checks 1–1c and 2–7 validate only code that is
+*present*; nothing compares the linked issue's scope against the
+diff. Under session-close pressure a narrower slice merges with
+the full-scope `Fixes:` link intact and the issue closes short —
+including *self-disclosed* cuts (a PR body or unchecked checklist
+noting remaining work), because the link fires on merge
+regardless of disclosure.
+
+Read the PR body via `mcp__plugin_Dev10x_cli__pr_get`. For each
+`Fixes:`/`Closes:` link, compare the linked issue's title +
+acceptance criteria against the diff (`git diff
+origin/<base>..HEAD`). This is a reasoning judgment, not a shell
+command:
+
+- **Block** when a titled capability is unbuilt — tell-tales:
+  new production code with no non-test caller, a titled
+  sub-feature (e.g. "aggregate **+ promoteYear mutation**") with
+  no corresponding diff, or a review comment / unchecked
+  checklist item noting remaining work.
+- **Pass** when every titled capability of each linked issue is
+  represented in the diff.
+
+On failure, do NOT merge. Recommend one of: drop or narrow the
+`Fixes:`/`Closes:` link so the issue stays open for the
+undelivered scope, or split the undelivered scope into a tracked
+follow-up issue **before** merge and keep the link. This mirrors
+the disposition requirement of Checks 1b/1c — an under-delivered
+scope must not merge silently.
 
 ### Check 2: CI checks passing
 
@@ -346,15 +379,16 @@ Read the per-project config file. If it does not exist, use
 defaults (`strategy: rebase`, `delete_branch: true`,
 `solo_maintainer: false`).
 
-### Step 3: Run all 8 validation checks
+### Step 3: Run all 9 validation checks
 
-**Comment-check ordering (GH-462 F3):** Checks 1, 1b, and
-1c fetch comment state that is time-sensitive — automated
-review bots continue posting comments during the CI window,
-so comment state read before CI settles is stale. Run
+**Comment-check ordering (GH-462 F3):** Checks 1, 1b, 1c,
+and 1d fetch comment/PR-body state that is time-sensitive —
+automated review bots continue posting comments during the CI
+window, and the `Fixes:`/`Closes:` links Check 1d reads can be
+edited then too, so state read before CI settles is stale. Run
 Checks 2–7 first (CI, draft, mergeable, working copy,
 fixup, approval). Only after Check 2 confirms CI is green
-(all checks `pass`) re-fetch and run Checks 1, 1b, and 1c
+(all checks `pass`) re-fetch and run Checks 1, 1b, 1c, and 1d
 as a final gate immediately before Step 5 merge. This
 eliminates the race where a bot posts a REQUIRED finding
 after the comment check but before the merge.
@@ -376,6 +410,7 @@ Present results as a checklist:
 
 - [x] No unresolved review threads (0 unresolved)
 - [x] No unaddressed automated review comments (0 found)
+- [x] Fixes-linked issue scope delivered (2/2 links)
 - [x] CI checks passing (12/12 green)
 - [x] PR is not in draft
 - [x] No merge conflicts (MERGEABLE)
@@ -394,7 +429,7 @@ If any check fails, show `[ ]` with failure details:
 
 **Any check fails:** Do NOT merge — skip straight to the "Any
 check fails" table below. The merge gate below only applies once
-all 8 checks pass.
+all 9 checks pass.
 
 **All checks pass — resolve the merge gate (ADR-0016, GH-757):**
 Call `mcp__plugin_Dev10x_cli__resolve_gate(gate="merge",
@@ -404,7 +439,7 @@ here — the resolver reads session policy (preset + overlays,
 including the solo-maintainer overlay) itself.
 
 1. `effect == "ask"` → Fire `AskUserQuestion`:
-   - Question: "All 8 pre-merge checks passed for PR #NUMBER.
+   - Question: "All 9 pre-merge checks passed for PR #NUMBER.
      Merge now via STRATEGY?"
    - Options: **Merge now (Recommended)** — proceed to the
      `merge_pr` call below / **Abort** — leave the PR open.
@@ -507,7 +542,7 @@ Never set `admin=true` or `auto=true` autonomously — only the
 user may authorize either path through this gate. The flags
 exist so the sanctioned MCP path can complete the merge
 instead of forcing a raw `gh api .../merge` admin bypass that
-skips the entire 8-check gate.
+skips the entire 9-check gate.
 
 **Any check fails:** Do NOT merge. Report which checks failed
 and what action is needed to resolve each one. Suggest the
@@ -517,6 +552,7 @@ appropriate skill for remediation:
 |-------------|-------------|
 | Unresolved threads | `Dev10x:gh-pr-respond` |
 | Unaddressed automated comments | Review and address findings |
+| Under-delivered Fixes scope | Narrow the `Fixes:` link or split a follow-up issue |
 | CI failing | `Dev10x:gh-pr-monitor` |
 | Still in draft | `gh pr ready` |
 | Merge conflicts | Rebase onto base branch |
@@ -558,7 +594,7 @@ auto-fix loop is exhausted. See `references/friction-levels.md`
 
 ## Important Notes
 
-- Never merge without running ALL 8 checks first
+- Never merge without running ALL 9 checks first
 - Never bypass checks even if "it looks fine" — any `PENDING`,
   `IN_PROGRESS`, or `FAILURE` (required or not) blocks the
   merge. Check 2 handles these by delegating to

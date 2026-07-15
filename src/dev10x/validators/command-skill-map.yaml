@@ -100,7 +100,7 @@ rules:
     compensations:
       - type: use-skill
         skill: Dev10x:gh-pr-merge
-        guardrails: 8 pre-merge checks (unresolved threads, CI, draft, mergeability, working copy, fixup commits, approval, branch protection)
+        guardrails: 9 pre-merge checks (unresolved threads, CI, draft, mergeability, working copy, fixup commits, approval, Fixes-linked scope, branch protection)
         fallback: >
           The skill's Step 5 executes the merge via
           `mcp__plugin_Dev10x_cli__merge_pr` (GH-232) — symmetric
@@ -111,7 +111,7 @@ rules:
           unavailable, stop and ask the user to reconnect via
           `/mcp` rather than running raw `gh pr merge`.
     reason: >
-      Direct gh pr merge bypasses the 8 pre-merge checks the skill
+      Direct gh pr merge bypasses the 9 pre-merge checks the skill
       enforces. Adaptive friction does not waive the skill body —
       see references/friction-levels.md.
 

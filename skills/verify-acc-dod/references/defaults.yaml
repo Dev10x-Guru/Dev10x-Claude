@@ -45,6 +45,19 @@ defaults:
           raw git push)? Check iterative loops especially — the first
           iteration often uses the skill but subsequent iterations
           fall back to raw CLI.
+      - name: Fixes-linked issue scope delivered
+        check: prompt
+        prompt: >
+          For each Fixes:/Closes: link on the PR, compare the linked
+          issue's title and acceptance criteria against the diff (git
+          diff origin/develop..HEAD). FAIL when a titled capability is
+          unbuilt — tell-tales: new production code with no non-test
+          caller, or a review comment / unchecked checklist item noting
+          remaining work. A Fixes: link auto-closes its issue on merge
+          regardless of disclosure, so this catches self-disclosed cuts
+          too. On failure, recommend: drop or narrow the Fixes: link, or
+          split the undelivered scope into a tracked follow-up issue
+          before merge.
       - name: No unresolved review threads
         check: >
           gh pr view {pr_number} --repo {repo}
@@ -88,6 +101,19 @@ defaults:
           test runs delegated to the test skill (not raw pytest/uv
           run pytest)? Were all commits via Dev10x:git-commit? Were
           all pushes via Dev10x:git? Check iterative loops especially.
+      - name: Fixes-linked issue scope delivered
+        check: prompt
+        prompt: >
+          For each Fixes:/Closes: link on the PR, compare the linked
+          issue's title and acceptance criteria against the diff (git
+          diff origin/develop..HEAD). FAIL when a titled capability is
+          unbuilt — tell-tales: new production code with no non-test
+          caller, or a review comment / unchecked checklist item noting
+          remaining work. A Fixes: link auto-closes its issue on merge
+          regardless of disclosure, so this catches self-disclosed cuts
+          too. On failure, recommend: drop or narrow the Fixes: link, or
+          split the undelivered scope into a tracked follow-up issue
+          before merge.
       - name: No unresolved review threads
         check: >
           gh pr view {pr_number} --repo {repo}
@@ -127,6 +153,19 @@ defaults:
           Review the session for skill routing violations in
           iterative fix-test loops: did all test runs use the test
           skill? Did all commits use Dev10x:git-commit?
+      - name: Fixes-linked issue scope delivered
+        check: prompt
+        prompt: >
+          For each Fixes:/Closes: link on the PR, compare the linked
+          issue's title and acceptance criteria against the diff (git
+          diff origin/develop..HEAD). FAIL when a titled capability is
+          unbuilt — tell-tales: new production code with no non-test
+          caller, or a review comment / unchecked checklist item noting
+          remaining work. A Fixes: link auto-closes its issue on merge
+          regardless of disclosure, so this catches self-disclosed cuts
+          too. On failure, recommend: drop or narrow the Fixes: link, or
+          split the undelivered scope into a tracked follow-up issue
+          before merge.
       - name: No unresolved review threads
         check: >
           gh pr view {pr_number} --repo {repo}

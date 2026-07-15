@@ -63,6 +63,16 @@ def test_review_deferred_skips_review_request(
 
 
 @pytest.mark.parametrize("work_type", REVIEW_WORK_TYPES)
+def test_fixes_scope_delivery_check_present(defaults: dict, work_type: str) -> None:
+    # GH-856: a Fixes:/Closes: link auto-closes its issue on merge
+    # regardless of delivered scope. The prompt check blocks a
+    # short-closing merge, including self-disclosed cuts.
+    check = _check_by_name(defaults[work_type]["checks"], "Fixes-linked issue scope delivered")
+    assert check["check"] == "prompt"
+    assert "Fixes" in check["prompt"]
+
+
+@pytest.mark.parametrize("work_type", REVIEW_WORK_TYPES)
 def test_solo_maintainer_still_skips_only_review_request(defaults: dict, work_type: str) -> None:
     # solo-maintainer defers reviewer assignment but NOT thread resolution —
     # the unresolved-threads check stays blocking for solo maintainers.
