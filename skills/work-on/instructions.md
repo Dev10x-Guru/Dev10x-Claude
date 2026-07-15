@@ -2101,6 +2101,17 @@ Rule: in bundle mode, every per-issue commit is a child of
 changes` step must be positioned strictly AFTER all
 implementation children complete.
 
+**Pre-review commit step (GH-858 F3):** The shipping pipeline now
+opens with a `Commit implementation changes` step *before* `Code
+review`. `Dev10x:review` diffs commits against base (`develop-diff`),
+not the working tree, so a single-ticket branch whose implementation
+is still uncommitted would review an empty diff. The new step commits
+that work first. In bundle mode this is a no-op — the per-issue
+commits already happened inside "Implement changes" — so the two
+commit steps do not conflict: the pre-review step catches the
+non-bundle case, and the trailing `Commit outstanding changes` step
+still sweeps residual review/simplify changes.
+
 **Strategy selection:** Compute the **recommended** strategy —
 Strategy B when the user explicitly requests bundling (e.g.,
 "one PR", "atomic commits", "bundle these"), Strategy B when the

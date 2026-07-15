@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import subprocess
 from collections.abc import Awaitable, Callable
 from pathlib import Path
@@ -311,6 +312,27 @@ async def _pr_comment_list(
     return ok(comments)
 
 
+# Known automated-reviewer login pattern. Kept in sync with the `is_bot`
+# login branch in skills/gh-pr-merge/scripts/top-level-comments.jq so the
+# Python thread classifier and the jq top-level-comment classifier agree
+# on which accounts are bots (GH-858 F1, hook-patterns.md dual-impl parity).
+_BOT_LOGIN_RE = re.compile(
+    r"claude|github-actions|coderabbit|sourcery|openai|codex|copilot",
+    re.IGNORECASE,
+)
+
+
+def is_bot_login(login: str | None) -> bool:
+    """True when a GitHub account login matches a known review-bot pattern.
+
+    Conservative on purpose — the caller uses this to decide whether a
+    review thread is bot-authored (auto-advanceable under AFK) or
+    human-authored (must keep the supervisor in the loop), so a login it
+    cannot confidently classify as a bot resolves to human.
+    """
+    return bool(login) and bool(_BOT_LOGIN_RE.search(login or ""))
+
+
 async def _list_unresolved_threads(
     *,
     resolved_repo: str,
@@ -356,9 +378,11 @@ async def _list_unresolved_threads(
             continue
         comments = thread.get("comments", {}).get("nodes", [])
         first = comments[0] if comments else {}
+        first_author_login = (first.get("author") or {}).get("login")
         normalized = {
             "thread_id": thread.get("id"),
             "is_outdated": thread.get("isOutdated"),
+            "author_type": "bot" if is_bot_login(first_author_login) else "human",
             **first,
         }
         reaction_groups = normalized.pop("reactionGroups", None)

@@ -29,11 +29,35 @@ def is_bot:
 def is_reply:
   (.body // "") | test("^[[:space:]]*Re:"; "i");
 
+# The reviewer's own re-review wrapper (references/review-guidelines.md):
+# a "## Review Summary (Round N)" comment whose "### Addressed since last
+# review" section RESTATES already-fixed findings (severity tokens and
+# all). Scanning that restated text self-triggers the finding as if it
+# were live (GH-858 F2), permanently false-blocking Check 1b. This is the
+# reviewer's own aggregate summary, not an author "Re:" reply, so is_reply
+# does not catch it.
+def is_round_summary:
+  (.body // "") | test("^[[:space:]]*##[[:space:]]*Review Summary[[:space:]]*\\(Round"; "im");
+
+# For a round summary, scan ONLY the "### Remaining issues" section — the
+# live, still-unaddressed findings — and ignore the "Addressed since last
+# review" restatement above it. Non-summary comments scan the full body
+# unchanged. A summary with no "Remaining issues" heading (or an empty one)
+# yields no scan text and is treated as clean (fail-open) — the same posture
+# a fully-addressed round already warrants.
+def scan_body:
+  if is_round_summary then
+    ((.body // "")
+     | (capture("(?s)###[[:space:]]*Remaining issues[[:space:]]*\n(?<rest>.*)"; "i").rest // ""))
+  else
+    (.body // "")
+  end;
+
 # Remove quoted context so a token that only appears inside a quote does
 # not read as a fresh blocking finding (GH-777): markdown blockquote
 # lines (`> …`), inline code spans, and double-quoted strings.
 def unquoted:
-  ((.body // "") | split("\n") | map(select(test("^[[:space:]]*>") | not)) | join("\n"))
+  (scan_body | split("\n") | map(select(test("^[[:space:]]*>") | not)) | join("\n"))
   | gsub("`[^`]*`"; "")
   | gsub("\"[^\"]*\""; "");
 
