@@ -41,7 +41,7 @@ allowed-tools:
   - Bash(claude plugin list:*)
   - Bash(uv tool list:*)
   - Read(~/.config/Dev10x/*)
-  - Write(~/.config/Dev10x/*)
+  - Edit(~/.config/Dev10x/*)
   - Agent(Dev10x:permission-auditor)
   - AskUserQuestion
   - TaskCreate
@@ -429,7 +429,7 @@ databases.yaml migration steps:
 
 Register paths outside the project root (e.g. `/tmp/Dev10x`) under
 `permissions.additionalDirectories` in every settings file. Allow-rules
-like `Write(/tmp/Dev10x/**)` are NOT sufficient — Claude Code requires
+like `Edit(/tmp/Dev10x/**)` are NOT sufficient — Claude Code requires
 the directory to be registered as an additional working directory
 or it prompts on every Write/Edit/Read until the user runs
 `/permissions add /tmp/Dev10x` interactively.

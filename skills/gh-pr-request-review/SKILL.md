@@ -18,7 +18,7 @@ allowed-tools:
   - Bash(yq:*)
   - Bash(jq:*)
   - AskUserQuestion
-  - Write(.claude/Dev10x/session.yaml)
+  - Edit(.claude/Dev10x/session.yaml)
 ---
 
 ## Orchestration

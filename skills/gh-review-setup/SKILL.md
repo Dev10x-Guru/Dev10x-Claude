@@ -21,10 +21,10 @@ allowed-tools:
   - Bash(git remote:*)
   - Bash(mkdir -p:*)
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
-  - Write(.github/workflows/**)
-  - Write(.claude/**)
-  - Write(references/**)
-  - Write(CLAUDE.md)
+  - Edit(.github/workflows/**)
+  - Edit(.claude/**)
+  - Edit(references/**)
+  - Edit(CLAUDE.md)
   - mcp__plugin_Dev10x_cli__mktmp
   - mcp__plugin_Dev10x_cli__detect_tracker
   - mcp__plugin_Dev10x_cli__detect_base_branch

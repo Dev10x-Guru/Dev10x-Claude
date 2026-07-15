@@ -17,7 +17,7 @@ allowed-tools:
   - Read(~/.config/Dev10x/playbooks/work-on.yaml)
   - Read(~/.claude/memory/Dev10x/playbooks/work-on.yaml)
   - Read(${CLAUDE_PLUGIN_ROOT}/skills/playbook/references/playbook.yaml)
-  - Write(.claude/Dev10x/**)
+  - Edit(.claude/Dev10x/**)
   - Skill(skill="Dev10x:verify-acc-dod")
   - mcp__plugin_Dev10x_cli__plan_sync_set_context
   - mcp__plugin_Dev10x_cli__plan_sync_json_summary

@@ -19,7 +19,7 @@ allowed-tools:
   - Bash(git develop-diff:*)
   - Bash(pre-commit run:*)
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
-  - Write(/tmp/Dev10x/review/**)
+  - Edit(/tmp/Dev10x/review/**)
   - AskUserQuestion
 ---
 

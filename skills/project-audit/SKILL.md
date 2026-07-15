@@ -19,7 +19,7 @@ allowed-tools:
   - Grep
   - Glob
   - Read
-  - Write(docs/memos/**)
+  - Edit(docs/memos/**)
   - Bash(gh pr list:*)
   - TaskCreate
   - TaskUpdate

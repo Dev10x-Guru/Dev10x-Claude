@@ -446,9 +446,11 @@ def apply_deprecations(
             output.append(rule)
             continue
         matched_entry = None
+        matched_pattern = None
         for pattern, entry in compiled:
             if pattern.search(rule):
                 matched_entry = entry
+                matched_pattern = pattern
                 break
         if matched_entry is None:
             if rule not in seen:
@@ -473,6 +475,29 @@ def apply_deprecations(
             if replacement not in seen:
                 output.append(replacement)
                 seen.add(replacement)
+            continue
+        if action == "rewrite":
+            substitution = matched_entry.get("replacement")
+            if substitution is None or matched_pattern is None:
+                # Misconfigured entry (no replacement) — keep the rule.
+                outcomes.append(DeprecationOutcome(rule=rule, action=action, reason=reason))
+                if rule not in seen:
+                    output.append(rule)
+                    seen.add(rule)
+                continue
+            rewritten = matched_pattern.sub(substitution, rule)
+            outcomes.append(
+                DeprecationOutcome(
+                    rule=rule,
+                    action="rewrite",
+                    replacement=rewritten,
+                    reason=reason,
+                )
+            )
+            # Dedup: a Write(X) rewrite collapses onto an existing Edit(X).
+            if rewritten not in seen:
+                output.append(rewritten)
+                seen.add(rewritten)
             continue
         # Unknown action — keep the rule, flag the outcome.
         outcomes.append(DeprecationOutcome(rule=rule, action=action, reason=reason))
@@ -514,6 +539,9 @@ def apply_deprecations_to_files(
                         messages.append(f"  - REMOVE: {outcome.rule}  # {outcome.reason}")
                     elif outcome.action == "canonicalize":
                         messages.append(f"  ~ CANON:  {outcome.rule}")
+                        messages.append(f"           → {outcome.replacement}")
+                    elif outcome.action == "rewrite":
+                        messages.append(f"  ~ REWRITE: {outcome.rule}")
                         messages.append(f"           → {outcome.replacement}")
                     else:
                         messages.append(f"  ? {outcome.action.upper()}: {outcome.rule}")

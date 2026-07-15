@@ -17,7 +17,7 @@ allowed-tools:
   - Bash(git reset --soft:*)
   - Bash(git push --force-with-lease:*)
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
-  - Write(/tmp/Dev10x/git/**)
+  - Edit(/tmp/Dev10x/git/**)
 ---
 
 **Announce:** "Using Dev10x:git to [push / groom commits]."
@@ -247,7 +247,7 @@ Add to your project's `.claude/settings.local.json`:
       "Bash(git reset --soft:*)",
       "Bash(git push --force-with-lease:*)",
       "Bash(/tmp/Dev10x/bin/mktmp.sh:*)",
-      "Write(/tmp/Dev10x/git/**)"
+      "Edit(/tmp/Dev10x/git/**)"
     ]
   }
 }

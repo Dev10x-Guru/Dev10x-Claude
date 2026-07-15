@@ -282,7 +282,7 @@ class TestEnsureBasePermissions:
     BASE_PERMISSIONS = [
         "Bash(/tmp/Dev10x/bin/mktmp.sh:*)",
         "Bash(gh pr view:*)",
-        "Write(/tmp/Dev10x/git/**)",
+        "Edit(/tmp/Dev10x/git/**)",
     ]
 
     @pytest.fixture()
@@ -343,7 +343,7 @@ class TestEnsureBasePermissions:
         data = json.loads(partial_settings.read_text())
         allow = data["permissions"]["allow"]
         assert "Bash(gh pr view:*)" in allow
-        assert "Write(/tmp/Dev10x/git/**)" in allow
+        assert "Edit(/tmp/Dev10x/git/**)" in allow
         assert "Bash(git log:*)" in allow  # pre-existing preserved
 
     def test_no_changes_when_complete(self, full_settings: Path) -> None:
@@ -590,25 +590,18 @@ class TestPrivilegeEscalationDenies:
         assert "Bash(sudo:*)" in deny
 
 
-class TestSessionConfigExactPathAllows:
-    """GH-790: session-config writes are pre-approved with exact paths.
+class TestNoRuntimeClaudeWriteSeeds:
+    """GH-862/ADR-0018: no runtime Write/Edit seed under .claude/.
 
-    The ``.claude/Dev10x/**`` globs are unreliable in Claude Code's
-    verbatim path matcher (GH-774), so writing ``session.yaml`` /
-    ``config.yaml`` re-prompted mid-flow. The shipped ``base_permissions``
-    must enumerate the concrete files alongside the globs so ``ensure-base``
-    pre-approves the write and the supervisor is never asked to reconcile
-    git-derivable state.
+    The GH-790 session-config exact-path seeds (session.yaml /
+    config.yaml) were retired by ADR-0018 (GH-812) — durable state
+    moved to ~/.config/Dev10x and is written via the `dev10x` CLI,
+    not an allow rule. Runtime writes under .claude/ trip Claude
+    Code's self-settings consent gate regardless of allow rules and
+    are flagged by the write-guard-claude scanner, so the shipped
+    base_permissions must not seed any Write/Edit rule targeting a
+    .claude/ path.
     """
-
-    SESSION_CONFIG_ALLOWS = [
-        "Read(.claude/Dev10x/session.yaml)",
-        "Write(.claude/Dev10x/session.yaml)",
-        "Edit(.claude/Dev10x/session.yaml)",
-        "Read(.claude/Dev10x/config.yaml)",
-        "Write(.claude/Dev10x/config.yaml)",
-        "Edit(.claude/Dev10x/config.yaml)",
-    ]
 
     @pytest.fixture()
     def shipped_base_permissions(self) -> list[str]:
@@ -618,32 +611,32 @@ class TestSessionConfigExactPathAllows:
         config = yaml.safe_load(projects_yaml.read_text())
         return config.get("base_permissions", [])
 
-    @pytest.mark.parametrize("rule", SESSION_CONFIG_ALLOWS)
-    def test_catalog_ships_session_config_exact_path(
-        self,
-        rule: str,
-        shipped_base_permissions: list[str],
-    ) -> None:
-        assert rule in shipped_base_permissions
-
-    def test_glob_forms_retained_alongside_exact_paths(
+    def test_no_write_or_edit_seed_targets_claude_path(
         self,
         shipped_base_permissions: list[str],
     ) -> None:
-        """The exact paths supplement — never replace — the ** globs."""
-        assert "Write(.claude/Dev10x/**)" in shipped_base_permissions
+        offenders = [
+            rule
+            for rule in shipped_base_permissions
+            if rule.startswith(("Write(", "Edit(")) and ".claude/" in rule
+        ]
+        assert offenders == [], f"runtime .claude/ write seeds must be removed: {offenders}"
 
-    def test_ensure_base_propagates_session_write_allow(
+    def test_retired_session_config_seeds_absent(
         self,
-        tmp_path: Path,
         shipped_base_permissions: list[str],
     ) -> None:
-        """GH-790: a fresh settings file gains the pre-approved session write."""
-        settings = tmp_path / "settings.local.json"
-        settings.write_text(json.dumps({"permissions": {"allow": [], "deny": []}}))
+        retired = {
+            "Read(.claude/Dev10x/session.yaml)",
+            "Edit(.claude/Dev10x/session.yaml)",
+            "Read(.claude/Dev10x/config.yaml)",
+            "Edit(.claude/Dev10x/config.yaml)",
+        }
+        assert not (retired & set(shipped_base_permissions))
 
-        update_paths.ensure_base_permissions(settings, shipped_base_permissions)
-
-        allow = json.loads(settings.read_text())["permissions"]["allow"]
-        assert "Write(.claude/Dev10x/session.yaml)" in allow
-        assert "Write(.claude/Dev10x/config.yaml)" in allow
+    def test_memory_read_seed_retained(
+        self,
+        shipped_base_permissions: list[str],
+    ) -> None:
+        # Tier-2 playbook resolution still reads legacy overrides here.
+        assert "Read(~/.claude/memory/Dev10x/**)" in shipped_base_permissions
