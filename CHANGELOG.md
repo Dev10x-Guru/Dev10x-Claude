@@ -5,6 +5,23 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.89.0 — Surface Silent Plugin-Load Failures
+
+Released 2026-07-16
+
+### Features
+
+- **Warn when the Dev10x plugin was silently skipped at session start** —
+  a startup race between concurrent sessions can leave Claude Code
+  loading the session without the Dev10x plugin, and because no plugin
+  hook fires nothing warns the user until a skill invocation fails. The
+  race is upstream and unfixable from here, but it no longer stays
+  silent: the SessionStart orchestrator writes a per-session load
+  marker, and a userspace `plugin-load-guard.sh` that runs even when the
+  plugin was skipped points the user to `/plugin reload` when the marker
+  is absent
+  ([GH-874](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/874))
+
 ## 0.88.0 — AFK Session Robustness & Permission-Policy Completion
 
 Released 2026-07-16
