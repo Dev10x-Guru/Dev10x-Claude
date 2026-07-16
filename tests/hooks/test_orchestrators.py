@@ -7,10 +7,12 @@ and still emit valid hookSpecificOutput envelopes.
 
 from __future__ import annotations
 
+import io
 import json
 import subprocess
 import sys
 import tempfile
+import uuid
 from pathlib import Path
 
 import pytest
@@ -20,6 +22,7 @@ from dev10x.domain.friction_level import FrictionLevel
 SCRIPTS = Path(__file__).resolve().parents[2] / "hooks" / "scripts"
 SESSION_START = SCRIPTS / "session-start.py"
 SESSION_STOP = SCRIPTS / "session-stop.py"
+PLUGIN_LOAD_GUARD = SCRIPTS / "plugin-load-guard.sh"
 
 # Isolated HOME so orchestrator subprocesses read no real ~/.claude state —
 # decouples assertions from the host's home layout (GH-570).
@@ -315,3 +318,137 @@ class TestRunFeatureBufferDiscard:
             audit_hook=fake_audit_hook,
         )
         assert "HELLO" in result
+
+
+class TestSessionLoadMarker:
+    """GH-874: SessionStart writes a per-session plugin-load marker so a
+    userspace guard can detect a silently-skipped plugin."""
+
+    def test_feature_writes_marker(self) -> None:
+        from dev10x.hooks.session_place import session_load_marker
+
+        session_id = f"gh874-{uuid.uuid4()}"
+        marker = Path("/tmp/Dev10x/sessions") / session_id
+        try:
+            session_load_marker(data={"session_id": session_id})
+            assert marker.exists()
+        finally:
+            marker.unlink(missing_ok=True)
+
+    def test_feature_noop_without_session_id(self) -> None:
+        from dev10x.hooks.session_place import session_load_marker
+
+        # Empty session_id must return without raising and without
+        # creating a named marker file.
+        assert session_load_marker(data={"session_id": ""}) is None
+
+    def test_feature_reads_stdin_when_no_data(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from dev10x.hooks.session_place import session_load_marker
+
+        session_id = f"gh874-stdin-{uuid.uuid4()}"
+        marker = Path("/tmp/Dev10x/sessions") / session_id
+        monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({"session_id": session_id})))
+        try:
+            session_load_marker()
+            assert marker.exists()
+        finally:
+            marker.unlink(missing_ok=True)
+
+    def test_feature_exits_on_invalid_stdin(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from dev10x.hooks.session_place import session_load_marker
+
+        monkeypatch.setattr("sys.stdin", io.StringIO("not json"))
+        with pytest.raises(SystemExit):
+            session_load_marker()
+
+    def test_facade_reexports_marker(self) -> None:
+        from dev10x.hooks import session
+
+        assert hasattr(session, "session_load_marker")
+
+    def test_orchestrator_writes_marker(self) -> None:
+        session_id = f"gh874-orch-{uuid.uuid4()}"
+        marker = Path("/tmp/Dev10x/sessions") / session_id
+        try:
+            result = _run(SESSION_START, {"session_id": session_id})
+            assert result.returncode == 0
+            assert marker.exists()
+        finally:
+            marker.unlink(missing_ok=True)
+
+
+class TestPluginLoadGuard:
+    """GH-874: the userspace guard warns only when the plugin's marker is
+    absent though the marker directory exists — silent otherwise."""
+
+    def _run_guard(
+        self,
+        *,
+        payload: dict,
+        marker_dir: Path,
+        home: Path,
+        grace: str = "0",
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["sh", str(PLUGIN_LOAD_GUARD)],
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env={
+                "PATH": "/usr/bin:/bin:/usr/local/bin",
+                "HOME": str(home),
+                "DEV10X_PLUGIN_LOAD_GUARD_DIR": str(marker_dir),
+                "DEV10X_PLUGIN_LOAD_GUARD_GRACE": grace,
+            },
+        )
+
+    def test_silent_when_marker_present(self, tmp_path: Path) -> None:
+        marker_dir = tmp_path / "sessions"
+        marker_dir.mkdir()
+        (marker_dir / "s-1").touch()
+        result = self._run_guard(
+            payload={"session_id": "s-1"}, marker_dir=marker_dir, home=tmp_path
+        )
+        assert result.returncode == 0
+        assert result.stdout.strip() == ""
+
+    def test_warns_when_marker_absent_but_dir_exists(self, tmp_path: Path) -> None:
+        marker_dir = tmp_path / "sessions"
+        marker_dir.mkdir()  # dir exists, but no marker for this session
+        result = self._run_guard(
+            payload={"session_id": "s-2"}, marker_dir=marker_dir, home=tmp_path
+        )
+        assert result.returncode == 0
+        obj = json.loads(result.stdout)
+        assert obj["hookSpecificOutput"]["hookEventName"] == "SessionStart"
+        assert "/plugin reload" in obj["hookSpecificOutput"]["additionalContext"]
+
+    def test_silent_when_marker_dir_missing(self, tmp_path: Path) -> None:
+        marker_dir = tmp_path / "does-not-exist"
+        result = self._run_guard(
+            payload={"session_id": "s-3"}, marker_dir=marker_dir, home=tmp_path
+        )
+        assert result.returncode == 0
+        assert result.stdout.strip() == ""
+
+    def test_silent_without_session_id(self, tmp_path: Path) -> None:
+        marker_dir = tmp_path / "sessions"
+        marker_dir.mkdir()
+        result = self._run_guard(payload={}, marker_dir=marker_dir, home=tmp_path)
+        assert result.returncode == 0
+        assert result.stdout.strip() == ""
+
+    def test_silent_when_plugin_disabled(self, tmp_path: Path) -> None:
+        marker_dir = tmp_path / "sessions"
+        marker_dir.mkdir()  # dir exists, marker absent — would warn if enabled
+        claude_dir = tmp_path / ".claude"
+        claude_dir.mkdir()
+        (claude_dir / "settings.json").write_text(
+            json.dumps({"enabledPlugins": {"Dev10x@Dev10x-Guru": False}})
+        )
+        result = self._run_guard(
+            payload={"session_id": "s-4"}, marker_dir=marker_dir, home=tmp_path
+        )
+        assert result.returncode == 0
+        assert result.stdout.strip() == ""
