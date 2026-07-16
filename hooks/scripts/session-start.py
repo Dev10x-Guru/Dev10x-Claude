@@ -156,7 +156,16 @@ def main() -> None:
     s, audit_hook = _import_session_modules()
 
     # Order matters for readability of the merged additionalContext.
+    # The load marker runs first (side-effect only) so the userspace
+    # plugin-load-guard can detect a successful load as early as
+    # possible (GH-874).
     features = [
+        capture_feature(
+            name="session-load-marker",
+            fn=s.session_load_marker,
+            pass_data=True,
+            emits_context=False,
+        ),
         capture_feature(name="session-git-aliases", fn=s.session_git_aliases),
         capture_feature(
             name="session-tmpdir",

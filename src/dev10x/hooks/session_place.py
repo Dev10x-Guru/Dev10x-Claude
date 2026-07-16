@@ -74,6 +74,33 @@ def session_tmpdir(data: dict | None = None) -> None:
         dest.chmod(0o755)
 
 
+def session_load_marker(data: dict | None = None) -> None:
+    """Write a per-session plugin-load marker (SessionStart hook, GH-874).
+
+    Records that the Dev10x SessionStart orchestrator ran for this
+    session by touching ``/tmp/Dev10x/sessions/<session_id>``. The
+    userspace ``plugin-load-guard.sh`` — which runs even when Claude
+    Code's plugin discovery silently skipped the plugin — checks for
+    this marker to tell "plugin loaded" from "plugin skipped". Kept in
+    a dedicated ``sessions/`` directory (not the ``/tmp/Dev10x/<id>``
+    scratch dir) so the guard can stay silent when the directory is
+    missing entirely (old plugin, cleared tmp) rather than false-alarm.
+    """
+    if data is None:
+        try:
+            data = json.load(sys.stdin)
+        except (json.JSONDecodeError, EOFError):
+            sys.exit(0)
+
+    session_id = data.get("session_id") or ""
+    if not session_id:
+        return
+
+    sessions_dir = Path("/tmp/Dev10x/sessions")
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+    (sessions_dir / session_id).touch()
+
+
 def session_git_aliases() -> None:
     """Check git branch-comparison aliases and report status (SessionStart hook)."""
     missing: list[str] = []
@@ -96,4 +123,9 @@ def session_git_aliases() -> None:
     print("Run the git-alias-setup skill (/Dev10x:git-alias-setup) to configure them.")
 
 
-__all__ = ["session_tmpdir", "session_git_aliases", "BASE_BRANCH_ALIASES"]
+__all__ = [
+    "session_tmpdir",
+    "session_load_marker",
+    "session_git_aliases",
+    "BASE_BRANCH_ALIASES",
+]

@@ -39,7 +39,11 @@ from dev10x.hooks.session_dispatch import (
     session_persist,  # noqa: F401 — re-exported via __all__
     session_reload,  # noqa: F401 — re-exported via __all__
 )
-from dev10x.hooks.session_place import session_git_aliases, session_tmpdir
+from dev10x.hooks.session_place import (
+    session_git_aliases,
+    session_load_marker,
+    session_tmpdir,
+)
 from dev10x.hooks.session_policy import (
     DecisionGuidanceRule,
     _build_migration_replacements,
@@ -89,6 +93,7 @@ __all__ = [
     "session_goodbye",
     "session_guidance",
     "session_install_check",
+    "session_load_marker",
     "session_migrate_permissions",
     "session_persist",
     "session_reload",
