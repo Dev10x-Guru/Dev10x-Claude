@@ -5,6 +5,121 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.88.0 — AFK Session Robustness & Permission-Policy Completion
+
+Released 2026-07-16
+
+### Features
+
+- **Complete the Permission-As-Policy platform with an auditor and a
+  resolver** — PAP-3/4/5 shipped `auditor_assessment`,
+  `resolve_effect(context=)`, and `load_policy_layers` as tested
+  surfaces with no production caller. `dev10x permission audit` now
+  classifies allow rules (OVERLY_BROAD, WILDCARD_ESCAPE, HOOK_ENABLED,
+  REDUNDANT) through the shared renderer, `dev10x permission resolve`
+  resolves an effect with skill context off the layered tiers, and the
+  seven ad-hoc `Bash(...)` regex parsers are unified behind `AllowRule`
+  and `Policy`
+  ([GH-819](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/819),
+  [GH-841](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/841),
+  [GH-867](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/867),
+  [GH-868](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/868))
+- **Migrate legacy per-repo config into the global friction.yaml** —
+  ADR-0018 retired `.claude/Dev10x/config.yaml` but PR #815 shipped only
+  a lazy read fallback, so existing repos kept working while their
+  durable prefs never migrated and the stale files lingered. An
+  agent-driven upgrade-cleanup step now folds a repo's legacy durable
+  keys into a `friction.yaml` `projects[]` entry and removes the stale
+  files once parity is confirmed
+  ([GH-818](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/818))
+- **Gate git-groom Strategy B on target shape before rebuilding** — Full
+  Restructure reached the intended commit shape only after several
+  destructive re-groom passes because the skill guessed the shape and
+  iterated. A pre-rewrite AskUserQuestion gate now elicits the
+  shape-defining constraints up front, a hook-safe N-commit
+  reconstruction recipe replaces the improvised path, and a backup tag
+  plus tree-equality diff gate the force-push
+  ([GH-860](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/860))
+- **Stop prompting on safe branch deletes under AFK** — `git branch -d`
+  still prompted during fanout worktree teardown even though git refuses
+  it for any unmerged branch. The stratified safe-delete forms are now
+  synced into the flat `projects.yaml` catalog that ensure-base deploys,
+  while the destructive `-D`/`--force` form stays behind the prompt
+  ([GH-864](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/864))
+- **Keep work-on artifact delivery ahead of embedded questions** —
+  work-on could latch onto an inline question as the primary task and
+  stop instead of keeping artifact delivery as the goal. A Phase 1 rule
+  now treats a question alongside an artifact target as context, and a
+  pure-question fallback fires only when there is no artifact target at
+  all
+  ([GH-865](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/865))
+- **Prevent short-closing a Fixes-linked issue at merge** — a Fixes:
+  link auto-closes its issue on merge regardless of how much of the
+  stated scope the diff delivers, so a narrower slice could close the
+  issue short. A new verify-acc-dod scope check and gh-pr-merge Check 1d
+  compare the linked issue's scope against the diff before merge
+  ([GH-856](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/856))
+
+### Fixes
+
+- **Restore file-write pre-approval via Edit() rules** — recent Claude
+  Code versions no longer honor `Write(path)` permission rules or skill
+  allowed-tools; only `Edit(path)` matches, and it covers all
+  file-editing tools. `Write()` is converted to `Edit()` across the
+  baseline catalog, the upgrade-cleanup seed, and ~18 skill
+  allowed-tools blocks, and a doctor `rewrite` deprecation migrates
+  already-seeded user rules
+  ([GH-862](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/862))
+- **Unblock AFK bot-to-bot review cycles and fix review order** —
+  bot-authored threads still forced supervisor prompts, the reviewer's
+  own round summary false-blocked the merge gate, and Code review ran
+  before any commit existed. Threads now carry `author_type` and
+  auto-delegate to gh-pr-respond when every unresolved thread is
+  bot-authored, the jq filter scans only "Remaining issues", and the
+  shipping pipeline commits before review
+  ([GH-858](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/858))
+- **Restore branch and task list on session resume** — a mid-work-on
+  restart lost the visible TaskList and reported the base branch instead
+  of the feature branch. `branch` is now a reserved `set_context` key
+  that mirrors to the banner's top-level metadata, and a work-on Phase
+  0.5 step rebuilds the TaskList from the persisted plan on a detected
+  resume
+  ([GH-861](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/861))
+
+### Performance
+
+- **Speed up the unresolved-threads sweep at scale** — the repo-wide
+  sweep fired ~2 gh subprocesses per merged PR and timed out at scale.
+  Batching PRs into chunked GraphQL queries via field aliasing (25 per
+  request) and folding the audit-marker fetch into the same query drops
+  ~400 subprocesses to ~9
+  ([GH-836](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/836))
+- **Speed up pr_notify with concurrent PR fetches** — three independent
+  gh fetches ran serially (3× latency per monitor tick). New
+  `PRStatusSnapshot`/`PRNotificationContext` value objects run the calls
+  concurrently via a thread pool and make the formatters testable
+  without a live PR
+  ([GH-839](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/839))
+
+### Internal
+
+- **Consolidate the 2026-07-10 architecture-audit polish** — a run of
+  archetype-alignment and testability refactors from the audit: gate
+  resolution split into a testable query object, the ensure-* CLI folded
+  behind a shared runner, the gh wrappers unified behind a run-and-parse
+  skeleton, gate conditions made data-driven, plugin loading shared
+  across validators and doctor, the Plan terminal-task invariant pulled
+  into the aggregate, domain archetypes aligned, and the `skills/`
+  directory added to `.gitignore`
+  ([GH-837](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/837),
+  [GH-838](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/838),
+  [GH-840](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/840),
+  [GH-842](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/842),
+  [GH-843](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/843),
+  [GH-844](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/844),
+  [GH-845](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/845),
+  [GH-846](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/846))
+
 ## 0.87.0 — Permission-As-Policy Re-Platform & Session-State Relocation
 
 Released 2026-07-11
