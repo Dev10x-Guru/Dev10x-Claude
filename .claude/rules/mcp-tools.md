@@ -81,6 +81,31 @@ Callers must know each tool's specific success response format. Branch
 on the presence of an `"error"` key, never on whether the dict is
 empty.
 
+### Concurrency conventions for new tools (GH-827, ADR-0011)
+
+MCP tools run in a long-lived daemon and are hit concurrently by
+parallel worktrees and agents. When a new tool (or the domain module
+behind it) touches shared state, it MUST follow the write-safety model:
+
+- **New shared-state file** — a JSON/YAML store or log under
+  `~/.config/Dev10x/`, a repo's `.claude/`, or a home cache — routes
+  through `dev10x.domain.file_locks`, never a bare `Path.write_text` /
+  `open(…, "w"|"a")`: `locked_json_update` / `locked_yaml_update` for a
+  read-modify-write cycle (or `file_lock` wrapping a typed load/save
+  when the store deserializes to a dataclass), `atomic_write_text` for
+  a full overwrite, `atomic_append_line` for an append. An unlocked
+  load→mutate→save is a lost-update race; a bare `write_text` truncates
+  on crash. Two writers on the SAME file must lock on the same sidecar
+  — `file_lock` appends `.lock` to the full name while
+  `locked_json_update` replaces the suffix, so mixing them on one path
+  silently fails to exclude.
+- **New subprocess call** passes `timeout=` (in-package code via
+  `subprocess_utils`, which bounds it; standalone uv-scripts via a
+  local `_SUBPROCESS_TIMEOUT_SECONDS` constant since they cannot import
+  `dev10x`).
+
+The `reviewer-generic` checklist enforces both on `**/*.py` changes.
+
 ## Canonical Parameter Shapes
 
 Parameter naming is not uniform across tools, which defeats agent

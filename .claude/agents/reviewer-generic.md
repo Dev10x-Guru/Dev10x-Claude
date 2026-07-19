@@ -70,6 +70,29 @@ domain-specific reviewers).
     same PR. WARNING when missing. Does NOT apply to: pure data
     classes/DTOs with no methods, abstract base classes tested
     via concrete subclasses, or config/registration modules.
+11. **Concurrency conventions (GH-827, ADR-0011)** — flag as
+    WARNING when new code diverges from the write-safety model:
+    - A new **shared-state file** (a JSON/YAML store or log under
+      `~/.config/Dev10x/`, a repo's `.claude/`, or a home cache)
+      is written with a bare `Path.write_text` / `open(…, "w"|"a")`
+      instead of routing through `dev10x.domain.file_locks`:
+      `locked_json_update` / `locked_yaml_update` for a
+      read-modify-write cycle (or `file_lock` wrapping a typed
+      load/save when the store deserializes to a dataclass rather
+      than a raw dict, as `rule_confidence.record_feedback` does),
+      `atomic_write_text` for a full overwrite, `atomic_append_line`
+      for an append. A bare load→mutate→save without a lock is a
+      lost-update race; a bare `write_text` can truncate on crash.
+      When two writers touch the SAME file, confirm they lock on the
+      same sidecar — `file_lock` appends `.lock` to the full name
+      while `locked_json_update` replaces the suffix, so mixing them
+      on one path silently fails to exclude (see `file_locks`
+      module docstring).
+    - A new `subprocess.run` / `subprocess.Popen` call omits
+      `timeout=`. Standalone uv-scripts declare a local
+      `_SUBPROCESS_TIMEOUT_SECONDS` constant (they cannot import
+      `dev10x`); in-package code routes through `subprocess_utils`,
+      which bounds the call already.
 
 ## MCP Server Implementations
 
