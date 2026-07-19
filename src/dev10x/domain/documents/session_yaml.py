@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import fnmatch
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -29,6 +30,7 @@ from typing import Any
 import yaml
 
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.domain.file_locks import atomic_write_text, file_lock
 from dev10x.domain.friction_level import FrictionLevel
 
 # Durable preference keys (ADR-0018). The global ``friction.yaml`` and the
@@ -264,6 +266,108 @@ class FrictionYamlDocument:
         return FrictionYamlDocument._MIGRATION_HEADER + body
 
 
+def seed_strict_baseline_if_absent(*, path: Path | None = None) -> bool:
+    """Seed a ``strict`` baseline global ``friction.yaml`` when absent (GH-886).
+
+    The SessionStart detector calls this the first time it sees no global
+    ``friction.yaml``: a ``strict`` scaffold makes every gate fire until the
+    supervisor explicitly chooses a posture via ``Dev10x:friction-setup``,
+    replacing the silent guided-preset fallback (the failure mode that once
+    auto-merged a PR).
+
+    Race-safe and idempotent: an exclusive lock guards a re-check so two
+    worktrees hitting SessionStart concurrently cannot both write, and the
+    atomic write leaves no truncated file on a crash (GH-827 / ADR-0011). A
+    present file is left untouched. Returns ``True`` only when this call wrote.
+    """
+    target = path or Dev10xConfigDir.friction_yaml()
+    if target.exists():
+        return False
+    with file_lock(target):
+        if target.exists():
+            return False
+        atomic_write_text(target, FrictionYamlDocument.render_starter(friction_level="strict"))
+    return True
+
+
+#: Synthetic active-mode name under which ``Dev10x:friction-setup`` records
+#: per-step skips it chose. The resolver honors step ``skip`` actions from any
+#: active mode's ``mode_extensions`` (references/execution-modes.md resolution
+#: 3b/3d), so a project-scoped step skip needs no new plumbing.
+FRICTION_SETUP_SKIP_MODE = "friction-setup-skips"
+
+
+def upsert_project_prefs(
+    *, toplevel: str, prefs: dict[str, Any], path: Path | None = None
+) -> Path:
+    """Upsert this repo's durable gate prefs into the global ``friction.yaml`` (GH-886).
+
+    The gate axis of ``Dev10x:friction-setup``: writes a ``projects[]`` entry
+    (keyed by this repo's dir-path globs) carrying ``gate_preset`` /
+    ``gate_overlays`` / ``gate_overrides``. Only durable keys survive (via
+    :meth:`FrictionYamlDocument.with_project`). Concurrency-safe and idempotent
+    — an exclusive lock guards the read-modify-write and the atomic write leaves
+    no truncated file (GH-827 / ADR-0011); re-running with the same match list
+    replaces the entry rather than appending. Returns the file written.
+    """
+    target = path or Dev10xConfigDir.friction_yaml()
+    match = FrictionYamlDocument.match_globs_for(toplevel)
+    with file_lock(target):
+        doc = _load_yaml_mapping(target)
+        updated = FrictionYamlDocument.with_project(doc, match=match, prefs=prefs)
+        atomic_write_text(target, FrictionYamlDocument.render_document(updated))
+    return target
+
+
+def set_playbook_modes(
+    *,
+    skill: str,
+    active_modes: list[str],
+    skip_steps: list[str] | None = None,
+    home: Path | None = None,
+) -> Path:
+    """Write the playbook axis of ``Dev10x:friction-setup`` to a global playbook (GH-886).
+
+    Persists ``active_modes`` (the modes the supervisor enabled) into
+    ``~/.config/Dev10x/playbooks/<skill>.yaml`` — the tier-2 project playbook the
+    work-on resolver reads (instructions.md Phase 3 step 6). ``skip_steps`` names
+    play-step subjects to always drop (e.g. ``"Draft Job Story"``); they are
+    recorded as ``mode_extensions`` step ``skip`` actions under the synthetic
+    :data:`FRICTION_SETUP_SKIP_MODE`, which is appended to ``active_modes`` so the
+    resolver applies them (no new plumbing — execution-modes resolution 3b/3d).
+
+    Concurrency-safe (exclusive lock + atomic write, GH-827 / ADR-0011) and
+    idempotent — ``active_modes`` is replaced wholesale on each run. Returns the
+    file written.
+
+    ``skill`` is interpolated into the playbook filename, so it is validated
+    against ``[A-Za-z0-9_-]+`` first: without this a value like
+    ``../../../../tmp/evil`` would traverse outside the playbooks directory and
+    write an arbitrary file (a manipulated CLI invocation / prompt injection).
+    """
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", skill):
+        raise ValueError(
+            f"invalid skill name {skill!r}: expected [A-Za-z0-9_-]+ (no path separators)"
+        )
+    base = home or Dev10xConfigDir.home()
+    target = base / "playbooks" / f"{skill}.yaml"
+    modes = list(active_modes)
+    with file_lock(target):
+        doc = _load_yaml_mapping(target)
+        if skip_steps:
+            extensions = doc.get("mode_extensions")
+            extensions = dict(extensions) if isinstance(extensions, dict) else {}
+            extensions[FRICTION_SETUP_SKIP_MODE] = {
+                "steps": {subject: {"skip": True} for subject in skip_steps}
+            }
+            doc["mode_extensions"] = extensions
+            if FRICTION_SETUP_SKIP_MODE not in modes:
+                modes.append(FRICTION_SETUP_SKIP_MODE)
+        doc["active_modes"] = modes
+        atomic_write_text(target, yaml.safe_dump(doc, sort_keys=False, default_flow_style=False))
+    return target
+
+
 def legacy_durable_prefs(*, toplevel: str) -> dict[str, Any]:
     """Durable keys from the legacy per-repo files ONLY (GH-812 R4).
 
@@ -442,8 +546,12 @@ class SessionYamlDocument:
 
 __all__ = [
     "DURABLE_KEYS",
+    "FRICTION_SETUP_SKIP_MODE",
     "ConfigYamlDocument",
     "FrictionYamlDocument",
     "SessionYamlDocument",
     "legacy_durable_prefs",
+    "seed_strict_baseline_if_absent",
+    "set_playbook_modes",
+    "upsert_project_prefs",
 ]

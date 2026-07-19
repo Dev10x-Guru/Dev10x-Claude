@@ -26,6 +26,7 @@ from dev10x.domain.session_document import (
 from dev10x.hooks.session_dispatch import (
     build_auto_plan_guidance_context,  # noqa: F401 — re-exported via __all__
     build_autonomy_reassurance_context,  # noqa: F401 — re-exported via __all__
+    build_friction_setup_context,  # noqa: F401 — re-exported via __all__
     build_guidance_context,  # noqa: F401 — re-exported via __all__
     build_hook_version_drift_context,  # noqa: F401 — re-exported via __all__
     build_install_check_context,  # noqa: F401 — re-exported via __all__
@@ -83,6 +84,7 @@ def _format_decision_guidance(*, plan, friction_level):
 __all__ = [
     "build_auto_plan_guidance_context",
     "build_autonomy_reassurance_context",
+    "build_friction_setup_context",
     "build_guidance_context",
     "build_hook_version_drift_context",
     "build_install_check_context",

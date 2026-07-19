@@ -142,6 +142,17 @@ def build_mode_guard_context() -> str:
     return SessionService().build_mode_guard_context(toplevel=_get_toplevel())
 
 
+def build_friction_setup_context() -> str:
+    """Nudge unconfigured repos to run ``Dev10x:friction-setup`` (GH-886).
+
+    Seeds a ``strict`` baseline ``friction.yaml`` on first sight and nudges;
+    nudges (no write) when the file exists but this repo is unmatched; empty
+    string when a project entry matches. The orchestrator drops empty
+    segments, so configured repos see no change.
+    """
+    return SessionService().build_friction_setup_context(toplevel=_get_toplevel())
+
+
 def build_install_check_context() -> str:
     """Warn the user when the Dev10x install needs bootstrap or upgrade.
 
@@ -249,6 +260,7 @@ def session_goodbye(data: dict | None = None) -> None:
 
 
 __all__ = [
+    "build_friction_setup_context",
     "build_hook_version_drift_context",
     "build_install_check_context",
     "build_mode_guard_context",
