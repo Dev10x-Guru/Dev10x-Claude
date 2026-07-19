@@ -531,6 +531,49 @@ rules:
       Restoring advisory behavior pending the skill-context-aware
       hook protocol (GH-271 Phase 8).
 
+  - name: node-tests-npm-monorepo
+    matcher: Bash
+    patterns:
+      - 'npm\b.*--prefix.* test'
+      - 'npm\b.*--workspace.* test'
+      - 'npm\b.* -C .* test'
+      - 'npm\b.* -w .* test'
+    except: []
+    hook_block: true
+    compensations:
+      - type: use-tool
+        tool: mcp__plugin_Dev10x_cli__run_node_tests
+        guardrails: routes off the Bash layer; --prefix/-C/-w DIR maps to the tool's cwd= param
+        description: >
+          Run the scoped monorepo test through the MCP wrapper instead:
+
+            run_node_tests(runner="npm", cwd="<dir>", args=["--", "<name>"], coverage=false)
+
+          Translate the CLI shape:
+            • `--prefix DIR` / `-C DIR` / `-w DIR` → `cwd="DIR"` (never a flag
+              after `test` — npm silently ignores a mis-positioned --prefix).
+            • the test name after `test --` → `args=["--", "<name>"]`.
+            • drop `2>&1 | tail -N` — run_node_tests returns a structured
+              summary, so the redirect + pipe are redundant (and each trips its
+              own core-harness / DX011 block).
+          Keep `runner="npm"` — the command names npm and the runner is a
+          project-local fact (package-lock.json, no pnpm-lock.yaml). Do NOT
+          apply the global "use pnpm" steer here.
+    reason: >
+      The monorepo-scoped `npm --prefix <dir> test` / `-C <dir>` / `-w <ws>`
+      shape stacks four friction sources at once — the npm `ask` prompt, the
+      `| tail` DX011 pipe, the `2>&1` redirect, and the brace-expansion
+      core-harness block — none individually allow-listable (GH-880, #877 E3).
+      A hard block carrying the exact run_node_tests translation converts that
+      pile-up into one actionable steer. Blocked (not advisory) because the
+      steer target is an MCP tool, so — unlike the generic `node-tests` /
+      `pytest` rules kept advisory to avoid re-triggering the Bash hook
+      recursively — there is no recursion risk. Listed before the generic
+      `node-tests` rule so first-match-wins routes the monorepo shape to the
+      block while plain `npm test` / `jest` / `yarn test` stay advisory.
+    related:
+      - Dev10x:diag-friction
+
   - name: node-tests
     matcher: Bash
     patterns:

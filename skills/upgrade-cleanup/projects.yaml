@@ -149,6 +149,11 @@ base_permissions:
   - "mcp__plugin_Dev10x_cli__check_top_level_comments"
   - "mcp__plugin_Dev10x_cli__unresolved_threads"
   - "mcp__plugin_Dev10x_cli__ci_check_status"
+  # Test runners (GH-880, #877 E3 gap 1) — the diag-friction steer target
+  # for scoped py/node tests. Without these, the steered one-liner
+  # (run_node_tests(runner="npm", cwd=...)) just moves the prompt.
+  - "mcp__plugin_Dev10x_cli__run_tests"
+  - "mcp__plugin_Dev10x_cli__run_node_tests"
   - "mcp__plugin_Dev10x_cli__update_paths"
   - "mcp__plugin_Dev10x_cli__collect_prs"
   - "mcp__plugin_Dev10x_cli__generate_skill_index"

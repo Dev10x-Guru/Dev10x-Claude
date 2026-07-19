@@ -910,4 +910,47 @@ class TestBlockedVsAllowed:
             )
 
 
+class TestNodeTestsNpmMonorepo:
+    """GH-880: scoped monorepo `npm --prefix <dir> test` is hard-blocked and
+    steered to run_node_tests; plain `npm test` / `npm run test` are not."""
+
+    def test_should_run_true_for_npm(self, validator: SkillRedirectValidator) -> None:
+        inp = _make_input(command="npm --prefix apps/web test -- NavList")
+        assert validator.should_run(inp=inp) is True
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "npm --prefix apps/web test -- NavList",
+            "npm --prefix=apps/web test",
+            "npm -C apps/web test",
+            "npm -w web test",
+            "npm --prefix apps/web test -- NavList 2>&1 | tail -30",
+        ],
+    )
+    def test_blocks_monorepo_scoped_test(
+        self, validator: SkillRedirectValidator, command: str
+    ) -> None:
+        result = validator.validate(inp=_make_input(command=command))
+        assert result is not None
+        assert "run_node_tests" in result.message
+
+    def test_block_message_carries_cwd_translation(
+        self, validator: SkillRedirectValidator
+    ) -> None:
+        result = validator.validate(
+            inp=_make_input(command="npm --prefix apps/web test -- NavList")
+        )
+        assert result is not None
+        assert "cwd" in result.message
+
+    @pytest.mark.parametrize(
+        "command",
+        ["npm test", "npm run test", "npm install", "npm ci"],
+    )
+    def test_allows_generic_npm(self, validator: SkillRedirectValidator, command: str) -> None:
+        result = validator.validate(inp=_make_input(command=command))
+        assert result is None
+
+
 # Make _YAML_PATH accessible for tests above
