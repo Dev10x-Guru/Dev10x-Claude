@@ -44,6 +44,7 @@ brief stays authored by the foreman; the watchdog stays a dumb relay.
 | Base branch moves under an open PR | `BASE MOVED:` | Relay chain → active worker: fetch, rebase, re-verify, safe force-push; never merge on stale ancestry. Re-check freshness immediately before every merge gate. |
 | Worker "completes" but issues stay open | Foreman closure verification (issue_get per Fixes link) | Foreman closes stragglers with a completion comment, or reopens the chunk as a remainder |
 | Idle-notification noise mistaken for stalls | Idle pings between turns, often delayed | Ignore as evidence; only heartbeat mtimes and live PR/CI state count |
+| Catastrophic harness loss (session killed, host reboot — run dir in /tmp is gone) | Nothing fires; discovered by the supervisor | The tracker is the durable store by contract: every queued chunk maps to open issues and every scope cut left an open issue (crew contract). A fresh foreman run rebuilds the queue from open milestone/label issues alone; nothing is lost but time. |
 
 ## Heartbeat protocol
 

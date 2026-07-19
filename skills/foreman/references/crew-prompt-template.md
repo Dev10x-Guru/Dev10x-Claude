@@ -64,10 +64,27 @@ Skill(Dev10x:ticket-branch).
   push safely. Re-check freshness immediately before the merge gate.
 - Groom before merge — zero fixup! commits. Merge via
   Skill(Dev10x:gh-pr-merge), rebase merge.
-- SCOPE CUTS: a failure resisting 2 fix attempts, or scope needing a
-  product decision → drop the commit, issue_comment exactly what remains
-  and why, leave the issue open, remove it from Fixes AND reword the
-  commit footer. Cut scope goes to the queue end, not the trash.
+- SCOPE CUTS — every cut MUST end as a tracker issue. The run manifest
+  and queue live in a temp dir; if the harness dies catastrophically,
+  an issue is the only record that survives. A remainder that exists
+  only in a queue entry, a comment thread on a closed issue, or the
+  morning report is a compliance violation. Two forms:
+  (a) DEFER (nothing delivered from the issue): a failure resisting 2
+  fix attempts → drop the commit, remove the issue from Fixes AND
+  reword the commit footer, issue_comment a structured deferral
+  (what remains, why, what was attempted) so the still-OPEN original
+  issue is the permanent record, and requeue it at the queue end BY
+  ISSUE NUMBER so the queue is reconstructable from the tracker alone.
+  (b) SPLIT (partially delivered, original will close via Fixes):
+  file a NEW scoped issue via issue_create for the remainder (name the
+  undecided question explicitly, quote file:line evidence, reference
+  the parent), add a non-closing `Refs:` to it in the PR body, and
+  note the split in the closing comment. Field precedent: zebra #2070
+  → PR #2081 (cases 1+4) + issue #2078 (cases 2+3 pending a product
+  call).
+  Litmus test before ending your chunk: could the next loop rebuild
+  every piece of cut scope from open tracker issues alone? If not,
+  file the missing issue now.
 - After merge: verify issues closed (issue_get); close stragglers with a
   completion comment; close the milestone via milestone_close when whole.
 ```
