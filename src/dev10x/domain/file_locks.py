@@ -11,7 +11,8 @@ This module exposes three layers:
 1. ``file_lock(path)`` — bare exclusive flock on a ``.lock`` sidecar
 2. ``atomic_write_text`` / ``atomic_write_bytes`` — durable writes
    via ``mkstemp`` + ``os.rename`` (no lock; safe for non-mutating
-   overwrites such as cache files)
+   overwrites such as cache files); ``atomic_append_line`` — a single
+   ``O_APPEND`` ``os.write`` for interleave-safe log/sink appends
 3. ``locked_json_update`` / ``locked_yaml_update`` — full
    load→mutate→save cycle under a lock, with atomic durable write
 
@@ -147,6 +148,29 @@ def atomic_write_bytes(path: Path, content: bytes) -> None:
 def atomic_write_text(path: Path, content: str) -> None:
     """Write ``content`` (UTF-8) to ``path`` atomically."""
     atomic_write_bytes(path, content.encode("utf-8"))
+
+
+def atomic_append_line(path: Path, line: str) -> None:
+    """Append ``line`` to ``path`` as a single atomic write.
+
+    Uses ``os.open(O_APPEND|O_WRONLY|O_CREAT)`` + a single ``os.write`` so
+    concurrent appenders never interleave partial lines — the exact
+    guarantee a buffered ``TextIOWrapper.write`` (``open(path, "a")``)
+    fails to provide, since it may split one logical write across several
+    syscalls. POSIX guarantees a single ``write()`` to an ``O_APPEND`` fd
+    is atomic up to ``PIPE_BUF`` bytes, so keep appended lines short (the
+    doubt-sink / audit records this serves are well under that limit).
+
+    A trailing newline is appended when ``line`` lacks one so callers pass
+    the bare record text.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = line if line.endswith("\n") else line + "\n"
+    fd = os.open(str(path), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+    try:
+        os.write(fd, payload.encode("utf-8"))
+    finally:
+        os.close(fd)
 
 
 @contextmanager
