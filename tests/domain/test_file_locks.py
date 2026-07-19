@@ -15,6 +15,7 @@ import yaml
 from dev10x.domain.file_locks import (
     LOCK_TIMEOUT_SECONDS,
     LockTimeoutError,
+    atomic_append_line,
     atomic_write_bytes,
     atomic_write_text,
     file_lock,
@@ -65,6 +66,40 @@ class TestAtomicWriteBytes:
         target = tmp_path / "out.bin"
         atomic_write_bytes(target, b"\x00\x01\x02")
         assert target.read_bytes() == b"\x00\x01\x02"
+
+
+class TestAtomicAppendLine:
+    def test_creates_file_and_adds_newline(self, tmp_path: Path) -> None:
+        target = tmp_path / "subdir" / "sink.md"
+        atomic_append_line(target, "first")
+        assert target.read_text() == "first\n"
+
+    def test_appends_without_truncating(self, tmp_path: Path) -> None:
+        target = tmp_path / "sink.md"
+        atomic_append_line(target, "one")
+        atomic_append_line(target, "two")
+        assert target.read_text() == "one\ntwo\n"
+
+    def test_preserves_existing_trailing_newline(self, tmp_path: Path) -> None:
+        target = tmp_path / "sink.md"
+        atomic_append_line(target, "line\n")
+        assert target.read_text() == "line\n"
+
+    def test_concurrent_appends_do_not_interleave(self, tmp_path: Path) -> None:
+        target = tmp_path / "sink.md"
+        ctx = mp.get_context("fork")
+        workers = 8
+        processes = [
+            ctx.Process(target=_concurrent_append, args=(str(target), f"rec-{i}"))
+            for i in range(workers)
+        ]
+        for p in processes:
+            p.start()
+        for p in processes:
+            p.join(timeout=10)
+            assert p.exitcode == 0, f"worker failed with {p.exitcode}"
+        lines = target.read_text().splitlines()
+        assert sorted(lines) == sorted(f"rec-{i}" for i in range(workers))
 
 
 class TestFileLock:
@@ -193,6 +228,10 @@ def _concurrent_increment(path_str: str, key: str) -> None:
     path = Path(path_str)
     with locked_json_update(path) as data:
         data[key] = data.get(key, 0) + 1
+
+
+def _concurrent_append(path_str: str, line: str) -> None:
+    atomic_append_line(Path(path_str), line)
 
 
 class TestConcurrency:

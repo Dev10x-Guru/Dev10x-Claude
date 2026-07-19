@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from dev10x.domain.common.result import ErrorResult, Result, err, ok, to_wire
+from dev10x.domain.file_locks import atomic_append_line
 from dev10x.mcp._app import server
 
 # Read/compute half of gate resolution (GH-840). Re-exported here so the
@@ -65,9 +66,7 @@ def _emit_auto_advance(*, resolution: GateResolution, toplevel: str) -> str | No
     )
     sink_path = Path(toplevel) / DOUBT_SINK_RELPATH
     try:
-        sink_path.parent.mkdir(parents=True, exist_ok=True)
-        with sink_path.open("a", encoding="utf-8") as handle:
-            handle.write(f"{record}\n")
+        atomic_append_line(sink_path, record)
     except OSError:
         pass
     return record
