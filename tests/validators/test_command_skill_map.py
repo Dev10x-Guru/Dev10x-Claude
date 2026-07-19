@@ -156,6 +156,47 @@ class TestGh609RoutingEntries:
         cmd = "/home/u/.claude/plugins/cache/Dev10x/0.79.0/skills/x/scripts/y.py"
         assert _matches_any_pattern(rule=rule, command=cmd)
 
+
+class TestGh879WatchLoopEntry:
+    """Inline watch/poll loop shapes (GH-879) are recognized and steered."""
+
+    def test_while_true_sleep_recognized(self) -> None:
+        rule = _rule_by_name("watch-loop-handrolled")
+        cmd = "while true; do ls -t /run | head -1; sleep 300; done"
+        assert _matches_any_pattern(rule=rule, command=cmd)
+
+    def test_while_test_sleep_recognized(self) -> None:
+        rule = _rule_by_name("watch-loop-handrolled")
+        cmd = "while [ ! -f done.flag ]; do sleep 30; done"
+        assert _matches_any_pattern(rule=rule, command=cmd)
+
+    def test_watch_n_recognized(self) -> None:
+        rule = _rule_by_name("watch-loop-handrolled")
+        assert _matches_any_pattern(rule=rule, command="watch -n 60 git status")
+
+    def test_until_sleep_recognized(self) -> None:
+        rule = _rule_by_name("watch-loop-handrolled")
+        cmd = "until grep -q Ready dev.log; do sleep 1; done"
+        assert _matches_any_pattern(rule=rule, command=cmd)
+
+    def test_ci_shaped_loop_left_to_ci_rule(self) -> None:
+        rule = _rule_by_name("watch-loop-handrolled")
+        cmd = "while true; do gh pr checks 42; sleep 30; done"
+        assert any(exc in cmd for exc in rule.get("except", []))
+
+    def test_is_advisory_not_blocking(self) -> None:
+        rule = _rule_by_name("watch-loop-handrolled")
+        assert rule["hook_block"] is False
+
+    def test_routes_to_ci_check_status_for_ci_shapes(self) -> None:
+        rule = _rule_by_name("watch-loop-handrolled")
+        assert "mcp__plugin_Dev10x_cli__ci_check_status" in _compensation_targets(rule)
+
+    def test_alternative_names_foreman_watch(self) -> None:
+        rule = _rule_by_name("watch-loop-handrolled")
+        descriptions = " ".join(str(comp.get("description", "")) for comp in rule["compensations"])
+        assert "dev10x foreman watch" in descriptions
+
     @pytest.mark.parametrize(
         "name",
         [

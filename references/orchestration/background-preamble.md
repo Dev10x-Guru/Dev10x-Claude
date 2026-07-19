@@ -33,6 +33,16 @@ cannot inject into them automatically. The contract is therefore on the
 **dispatcher**: whenever a Dev10x skill or workflow script builds a
 subagent prompt, it prepends this preamble.
 
+**Monitor tool commands are permission-matched like Bash (GH-879).**
+The built-in Monitor tool's `command` string goes through the same
+allow-rule matching as a Bash call — an inline `while … sleep` loop or
+pipeline stage can prompt even when a near-identical shape passed
+earlier, and in an unattended session that prompt freezes the
+dispatching turn until a human returns (field case: 7 hours). Arm
+monitors ONLY with pre-approved single-command shapes: the
+`dev10x foreman watch` CLI, or a bare script path under
+`~/.claude/tools/` — never an inline loop.
+
 ## The preamble (prepend verbatim)
 
 <!-- BEGIN PREAMBLE -->
