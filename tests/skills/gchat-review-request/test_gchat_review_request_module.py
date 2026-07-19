@@ -9,6 +9,21 @@ import pytest
 from dev10x.skills.notifications import gchat_review_request as mod
 
 
+class TestLoadYaml:
+    def test_missing_file_returns_empty_dict(self, tmp_path: Path) -> None:
+        assert mod.load_yaml(tmp_path / "nope.yaml") == {}
+
+    def test_present_file_returns_parsed_dict(self, tmp_path: Path) -> None:
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text(
+            "default_action: ask\nprojects:\n  my-app:\n    space: tt-reviews\n"
+        )
+        assert mod.load_yaml(config_path) == {
+            "default_action": "ask",
+            "projects": {"my-app": {"space": "tt-reviews"}},
+        }
+
+
 class TestResolveProjectConfig:
     def test_configured_repo_returns_space_and_mentions(self) -> None:
         config = {"projects": {"my-app": {"space": "tt-reviews", "mentions": ["@team"]}}}
