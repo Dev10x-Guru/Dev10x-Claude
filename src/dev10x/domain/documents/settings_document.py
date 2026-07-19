@@ -13,7 +13,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from dev10x.domain.file_locks import atomic_write_text, file_lock
+from dev10x.domain.file_locks import locked_json_update
 
 
 def _migrate_rules(
@@ -44,6 +44,29 @@ def _deduplicate_rules(rules: list[str]) -> list[str]:
     return deduped
 
 
+def _migrate_permissions(
+    permissions: dict[str, list[str]],
+    *,
+    replacements: list[tuple[str, str]],
+) -> int:
+    """Rewrite stale prefixes in the allow/deny lists in place.
+
+    Mutates ``permissions`` and returns the count of rules rewritten. A
+    key is only reassigned (and deduplicated) when at least one of its
+    rules changed, so an untouched list keeps its original ordering.
+    """
+    migrated = 0
+    for key in ("allow", "deny"):
+        raw = permissions.get(key, [])
+        if not raw:
+            continue
+        new_rules, count = _migrate_rules(rules=raw, replacements=replacements)
+        if count:
+            permissions[key] = _deduplicate_rules(rules=new_rules)
+            migrated += count
+    return migrated
+
+
 @dataclass(frozen=True)
 class SettingsDocument:
     """A Claude Code ``settings.json`` / ``settings.local.json`` file."""
@@ -53,17 +76,23 @@ class SettingsDocument:
     def apply_replacements(self, *, replacements: list[tuple[str, str]]) -> int:
         """Rewrite stale prefixes in the ``permissions`` allow/deny lists.
 
-        Performs the full locked read-modify-write so a concurrent
-        session never observes a half-written file. Returns the count of
-        rules rewritten; writes only when something changed. Raises
-        ``json.JSONDecodeError`` / ``OSError`` on read/parse/write failure
-        so the caller can decide whether to skip the file.
+        Runs the read-modify-write under :func:`locked_json_update` — the
+        SAME lock (and ``settings.local.lock`` sidecar) the permission
+        skills use for this file — so the migration mutually excludes with
+        a concurrent ``doctor`` / ``update_paths`` run, not merely with
+        another migration. ``file_lock`` would append ``.lock`` to the
+        full name (``settings.local.json.lock``), a different sidecar that
+        does NOT exclude those callers (GH-825, GH-827 review). Re-reads a
+        fresh copy under the lock so an edit landing after the dry-run
+        preview is re-migrated, not clobbered. Returns the count of rules
+        rewritten. Raises ``json.JSONDecodeError`` / ``OSError`` on
+        read/parse/write failure so the caller can decide whether to skip.
         """
-        with file_lock(self.path):
-            new_content, migrated = self.preview_replacements(replacements=replacements)
-            if new_content is not None:
-                atomic_write_text(self.path, new_content)
-        return migrated
+        with locked_json_update(self.path) as settings:
+            permissions = settings.get("permissions")
+            if not isinstance(permissions, dict):
+                return 0
+            return _migrate_permissions(permissions, replacements=replacements)
 
     def preview_replacements(
         self, *, replacements: list[tuple[str, str]]
@@ -77,41 +106,23 @@ class SettingsDocument:
         writing any of them (the dry-run pass of a two-pass migration,
         ADR-0011 Layer 4).
 
-        This reads ``self.path`` WITHOUT holding ``file_lock``. The
-        two-pass migration in ``MigratePluginPermissionsRule`` tolerates
-        the read/write gap deliberately (the apply pass re-locks per
-        file). A caller that needs the preview to stay consistent with
-        the subsequent write MUST hold ``file_lock(self.path)`` across
-        both calls itself — ``apply_replacements`` is the locked
-        single-file path for that case.
+        This reads ``self.path`` WITHOUT holding a lock — it is a
+        read-only dry run. It never commits its result: the apply pass in
+        ``MigratePluginPermissionsRule`` calls :meth:`apply_replacements`,
+        which re-reads and re-migrates under the lock, so an edit landing
+        after this preview is not clobbered (GH-825). Any caller that
+        needs a preview-then-write MUST likewise go through
+        :meth:`apply_replacements` — never persist this method's output
+        directly.
         """
         settings = json.loads(self.path.read_text())
-        permissions = settings.get("permissions", {})
-        migrated = 0
-        changed = False
-        for key in ("allow", "deny"):
-            raw = permissions.get(key, [])
-            if not raw:
-                continue
-            new_rules, count = _migrate_rules(rules=raw, replacements=replacements)
-            new_rules = _deduplicate_rules(rules=new_rules)
-            migrated += count
-            if count:
-                permissions[key] = new_rules
-                changed = True
-        if not changed:
+        permissions = settings.get("permissions")
+        if not isinstance(permissions, dict):
+            return None, 0
+        migrated = _migrate_permissions(permissions, replacements=replacements)
+        if not migrated:
             return None, migrated
         return json.dumps(settings, indent=2) + "\n", migrated
-
-    def write_migrated(self, content: str) -> None:
-        """Atomically write precomputed migrated ``content`` under lock.
-
-        The apply pass of a two-pass migration: the content was already
-        computed and validated by :meth:`preview_replacements`, so the
-        only remaining failure mode is a write-time I/O error.
-        """
-        with file_lock(self.path):
-            atomic_write_text(self.path, content)
 
 
 __all__ = ["SettingsDocument", "_migrate_rules", "_deduplicate_rules"]

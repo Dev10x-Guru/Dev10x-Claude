@@ -86,28 +86,37 @@ class MigratePluginPermissionsRule(PolicyRule[tuple[int, list[str]]]):
             if f.exists()
         ]
 
-        # Two-pass dry-run-then-apply (ADR-0011 Layer 4): compute and
-        # validate every file's migrated content before writing any of
-        # them. This keeps all parse/transform failures in the read pass
-        # so a corrupt file can no longer leave an already-written sibling
-        # mismatched. The only failure left in the write pass is a true
-        # I/O error, which we surface instead of swallowing.
-        planned: list[tuple[SettingsDocument, str, int]] = []
+        # Two-pass dry-run-then-apply (ADR-0011 Layer 4): the dry-run pass
+        # validates every file's migrated content up front so a corrupt
+        # file surfaces before any sibling is written. The apply pass then
+        # re-runs the migration against a fresh read *under the lock*
+        # (apply_replacements), rather than blindly writing the dry-run
+        # content — an edit landing between the preview and the write must
+        # not be clobbered (GH-825). The migrated count therefore comes
+        # from the locked apply, not the stale dry-run.
+        planned: list[SettingsDocument] = []
         for settings_file in settings_files:
             doc = SettingsDocument(path=settings_file)
             try:
-                new_content, count = doc.preview_replacements(replacements=replacements)
+                _new_content, count = doc.preview_replacements(replacements=replacements)
             except (json.JSONDecodeError, OSError):
                 continue
-            if count and new_content is not None:
-                planned.append((doc, new_content, count))
+            if count:
+                planned.append(doc)
 
         total_migrated = 0
         files_changed: list[str] = []
-        for doc, new_content, count in planned:
-            doc.write_migrated(new_content)
-            total_migrated += count
-            files_changed.append(doc.path.name)
+        for doc in planned:
+            try:
+                migrated = doc.apply_replacements(replacements=replacements)
+            except (json.JSONDecodeError, OSError):
+                # A concurrent edit corrupted the file between the dry-run
+                # and the locked apply — skip it rather than break session
+                # start; the next hook run re-converges.
+                continue
+            if migrated:
+                total_migrated += migrated
+                files_changed.append(doc.path.name)
 
         return total_migrated, files_changed
 

@@ -108,12 +108,16 @@ Implications:
 `SettingsDocument.preview_replacements` reads and computes the
 migrated content for every targeted file *without writing*, so a
 parse failure (the common case — a hand-edited corrupt
-`settings.local.json`) is detected before any file is written. Only
-after every file's content is computed does the apply pass call
-`SettingsDocument.write_migrated` per file. This does not provide a
-true cross-file rollback, but it shrinks the inconsistency window to
-genuine write-time I/O errors (disk full, `EACCES`), which are far
-rarer than the parse failures the dry-run pass now catches up front.
+`settings.local.json`) is detected before any file is written. The
+apply pass then calls `SettingsDocument.apply_replacements` per file,
+which re-reads and re-migrates the file *under `file_lock`* rather
+than persisting the dry-run's precomputed content (GH-825). An edit
+landing between the preview and the write is therefore re-migrated,
+not clobbered — the single-file lost-update window is closed and the
+migrated count reflects the locked apply, not the stale preview. What
+remains uncovered is only cross-file atomicity: a genuine write-time
+I/O error (disk full, `EACCES`) on file 2 can still leave file 1
+already migrated, since each file locks independently.
 
 We accept this boundary because:
 
