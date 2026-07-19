@@ -115,15 +115,23 @@ def test_preview_replacements_raises_on_bad_json(settings_path: Path) -> None:
         SettingsDocument(path=settings_path).preview_replacements(replacements=REPLACEMENTS)
 
 
-def test_write_migrated_persists_precomputed_content(settings_path: Path) -> None:
-    settings_path.write_text(json.dumps({"permissions": {"allow": ["Bash(/old/v1/x)"]}}) + "\n")
+def test_apply_reads_fresh_state_not_stale_preview(settings_path: Path) -> None:
+    # GH-825: a preview snapshot must never be persisted directly. When a
+    # concurrent writer edits the file after the dry-run preview, the apply
+    # pass re-reads under the lock, so the concurrent edit survives and the
+    # migration still applies.
+    _write(settings_path, {"permissions": {"allow": ["Bash(/old/v1/x)"]}})
     doc = SettingsDocument(path=settings_path)
-    new_content, _ = doc.preview_replacements(replacements=REPLACEMENTS)
-    assert new_content is not None
+    doc.preview_replacements(replacements=REPLACEMENTS)  # stale snapshot, discarded
 
-    doc.write_migrated(new_content)
+    _write(settings_path, {"permissions": {"allow": ["Bash(/old/v1/x)", "Bash(/keep/me)"]}})
 
-    assert json.loads(settings_path.read_text())["permissions"]["allow"] == ["Bash(/new/v2/x)"]
+    migrated = doc.apply_replacements(replacements=REPLACEMENTS)
+
+    allow = json.loads(settings_path.read_text())["permissions"]["allow"]
+    assert migrated == 1
+    assert "Bash(/new/v2/x)" in allow
+    assert "Bash(/keep/me)" in allow
 
 
 def test_migrate_rules_counts_each_rewrite() -> None:
