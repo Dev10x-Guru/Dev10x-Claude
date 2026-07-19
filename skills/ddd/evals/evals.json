@@ -1,0 +1,188 @@
+{
+  "skill_name": "Dev10x:ddd",
+  "eval_dimensions": [
+    {
+      "id": "session-mode-selection",
+      "name": "Session Mode Selection",
+      "description": "The skill detects the correct session mode from context — New workshop (no docs/domain/), Continue (docs/domain/model.md exists), Stress test (\"what if we add X?\"), Archetype application (\"apply archetype\"/\"feels bloated\") — reads the mode's designated reference file, and creates the mode-specific task set."
+    },
+    {
+      "id": "context-load-order",
+      "name": "Ordered Context Load",
+      "description": "In Continue / Stress-test modes, Step 1 reads the domain docs in the documented order: model.md, decisions.md, calculator.md, stress-tests.md, glossary.md, epics.md, latest workshop, then implementation source and CLAUDE.md."
+    },
+    {
+      "id": "event-storming-order",
+      "name": "7-Layer Event Storming Order",
+      "description": "Exploration runs the event-storming layers in the documented order: (1) domain events, (2) commands, (3) actors, (4) policies, (5) aggregates, (6) bounded contexts, (7) value objects. Layers are not skipped or reordered."
+    },
+    {
+      "id": "batched-decisions",
+      "name": "Batched Decision Menu",
+      "description": "When input is genuinely needed, the skill batches ALL questions into a single structured AskUserQuestion decision menu — never one question at a time — and otherwise proceeds on reasonable assumptions to minimize interruptions."
+    },
+    {
+      "id": "decision-protection",
+      "name": "Decision Protection / Explicit Supersession",
+      "description": "Prior decisions in decisions.md are never silently overridden. Contradicting information produces a NEW decision that explicitly supersedes the old one (supersedes: D-NNN), updating the old entry's status to Superseded."
+    },
+    {
+      "id": "solo-facilitation",
+      "name": "Solo AI-Cast Facilitation",
+      "description": "The solo default dispatches the persona panel for blind event generation and the devil's advocate before decision capture on structural changes, marks assumptions with [ASSUMPTION], and genericizes proprietary data."
+    },
+    {
+      "id": "quality-gate",
+      "name": "Quality Checklist Gate",
+      "description": "Before ending a session the quality checklist is verified as the final gate — decisions recorded with IDs, model.md current, workshop record written, and in solo mode no [ASSUMPTION] tags remain in model.md/decisions.md/glossary.md."
+    }
+  ],
+  "evals": [
+    {
+      "id": "new-workshop-mode",
+      "name": "New workshop mode scaffolds docs",
+      "description": "With no docs/domain/ present, the skill selects New workshop mode, reads references/document-structure.md, and scaffolds the docs/domain/ structure before exploration.",
+      "input": "/Dev10x:ddd let's model a new pricing domain",
+      "assertions": [
+        {
+          "dimension": "session-mode-selection",
+          "check": "behavioral",
+          "signal": "No docs/domain/ present → New workshop mode; docs/domain/ scaffold is created and references/document-structure.md is read first"
+        }
+      ]
+    },
+    {
+      "id": "continue-mode-ordered-load",
+      "name": "Continue mode loads context in order",
+      "description": "With docs/domain/model.md present, the skill selects Continue mode and reads the domain docs in the documented order before proceeding.",
+      "input": "/Dev10x:ddd continue the domain session",
+      "assertions": [
+        {
+          "dimension": "session-mode-selection",
+          "check": "behavioral",
+          "signal": "docs/domain/model.md exists → Continue mode selected"
+        },
+        {
+          "dimension": "context-load-order",
+          "check": "behavioral",
+          "signal": "Step 1 reads model.md → decisions.md → calculator.md → stress-tests.md → glossary.md → epics.md → latest workshop in that order before exploring"
+        }
+      ]
+    },
+    {
+      "id": "stress-test-mode",
+      "name": "Stress-test question selects stress-test mode",
+      "description": "A \"what if we add X / does Y break\" prompt selects Stress test mode and reads references/stress-test-protocol.md.",
+      "input": "/Dev10x:ddd what breaks if we add multi-currency pricing?",
+      "assertions": [
+        {
+          "dimension": "session-mode-selection",
+          "check": "behavioral",
+          "signal": "\"what breaks if we add X\" → Stress test mode; references/stress-test-protocol.md is read"
+        }
+      ]
+    },
+    {
+      "id": "event-storming-7-layer-order",
+      "name": "Event storming runs 7 layers in order",
+      "description": "Exploration proceeds through the seven layers in the documented order without skipping or reordering.",
+      "input": "/Dev10x:ddd model the order fulfillment domain",
+      "assertions": [
+        {
+          "dimension": "event-storming-order",
+          "check": "behavioral",
+          "signal": "Layers run in order: events → commands → actors → policies → aggregates → bounded contexts → value objects"
+        }
+      ]
+    },
+    {
+      "id": "batched-decision-menu",
+      "name": "Questions are batched into one AskUserQuestion menu",
+      "description": "When the skill needs input it presents a single batched AskUserQuestion decision menu rather than asking one question at a time.",
+      "input": "/Dev10x:ddd model a new tax domain with several open choices",
+      "assertions": [
+        {
+          "dimension": "batched-decisions",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "Genuine decision points use AskUserQuestion with a single batched menu of options"
+        },
+        {
+          "dimension": "batched-decisions",
+          "check": "behavioral",
+          "signal": "The skill does NOT ask one question at a time; it proceeds on reasonable assumptions until a batch is warranted"
+        }
+      ]
+    },
+    {
+      "id": "decision-supersession-not-silent",
+      "name": "Contradictions supersede, never silently override",
+      "description": "When new information contradicts a prior decision, the skill records a NEW decision that explicitly supersedes it rather than silently changing the old one.",
+      "input": "/Dev10x:ddd revisit the money representation decision",
+      "assertions": [
+        {
+          "dimension": "decision-protection",
+          "check": "behavioral",
+          "signal": "A contradicting choice creates a new D-NNN with supersedes: D-MMM and marks the old decision Superseded — never a silent override"
+        }
+      ]
+    },
+    {
+      "id": "solo-ai-cast",
+      "name": "Solo mode dispatches persona panel and devil's advocate",
+      "description": "In the solo default, the persona panel runs blind event generation and the devil's advocate is dispatched before decision capture on structural changes; assumptions are tagged [ASSUMPTION].",
+      "input": "/Dev10x:ddd model the invoicing domain",
+      "assertions": [
+        {
+          "dimension": "solo-facilitation",
+          "check": "behavioral",
+          "signal": "Solo default: persona panel does blind event generation and devil's advocate is dispatched before structural decision capture; assumptions tagged [ASSUMPTION]"
+        }
+      ]
+    },
+    {
+      "id": "quality-checklist-final-gate",
+      "name": "Quality checklist is the terminal verification gate",
+      "description": "Before ending, the skill verifies the quality checklist, including that no [ASSUMPTION] tags remain in solo mode.",
+      "input": "/Dev10x:ddd wrap up the workshop",
+      "assertions": [
+        {
+          "dimension": "quality-gate",
+          "check": "behavioral",
+          "signal": "Session end runs the Quality Checklist; decisions recorded with IDs, workshop record written, and no [ASSUMPTION] tags remain in model.md/decisions.md/glossary.md"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "description": "Queries that should/should-not trigger the ddd skill",
+    "should_trigger": [
+      {
+        "query": "/Dev10x:ddd",
+        "rationale": "Direct invocation — runs or continues a DDD event-storming workshop"
+      },
+      {
+        "query": "let's event storm the payments domain and find the bounded contexts",
+        "rationale": "Domain exploration crossing bounded-context boundaries — the core use case"
+      },
+      {
+        "query": "what breaks in the architecture if we add goods pricing?",
+        "rationale": "Architecture stress test against a future scenario"
+      }
+    ],
+    "should_not_trigger": [
+      {
+        "query": "scope this ticket in the known invoicing context",
+        "rationale": "Single well-defined ticket in a known context — use Dev10x:ticket-scope"
+      },
+      {
+        "query": "write the ADR for the already-decided money type",
+        "rationale": "ADR for an already-decided topic — use the write-adr flow"
+      },
+      {
+        "query": "implement the tax calculator in the existing pricing module",
+        "rationale": "Pure implementation with no open domain questions"
+      }
+    ]
+  }
+}
