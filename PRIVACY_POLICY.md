@@ -64,6 +64,7 @@ with credentials you supply:
 | Linear (MCP) | Your Linear OAuth session | Issues and comments you read or write |
 | JIRA (`Dev10x:jira`) | API token from your OS keyring | Issue lookups and comments you request |
 | Slack (MCP) | Your Slack app token | Channel reads and messages you post |
+| Google Chat (`Dev10x:gchat`) | Service-account key from your OS keyring | Direct calls to `chat.googleapis.com` (via `oauth2.googleapis.com` for a token) to post review-request messages you approve to your configured Chat space |
 | Sentry (MCP) | Your Sentry auth | Issue details you fetch |
 | AWS Secrets Manager (`aws-vault`) | Your AWS profile | Secret lookups you approve |
 | Kubernetes API (`aws-vault` kubectl wrapper) | Your AWS profile via `aws-vault exec` | Read-only `kubectl` commands you submit (get, describe, logs, top, events, etc.); cluster context and namespace resolved from your local `service-registry.yaml` |
