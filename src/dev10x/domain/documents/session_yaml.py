@@ -329,23 +329,6 @@ class ConfigYamlDocument:
             )
         return body
 
-    def write(
-        self,
-        *,
-        friction_level: str = "guided",
-        active_modes: list[str] | None = None,
-        allowed_overlays: list[str] | None = None,
-    ) -> None:
-        """Write ``config.yaml`` for this toplevel, creating parents as needed."""
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(
-            self.render(
-                friction_level=friction_level,
-                active_modes=active_modes,
-                allowed_overlays=allowed_overlays,
-            )
-        )
-
 
 @dataclass(frozen=True)
 class SessionYamlDocument:
