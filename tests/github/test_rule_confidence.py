@@ -9,6 +9,7 @@ Contract class: real
 from __future__ import annotations
 
 import json
+import multiprocessing as mp
 from pathlib import Path
 from unittest.mock import patch
 
@@ -88,6 +89,29 @@ class TestFeedbackStore:
     def test_record_unknown_outcome_raises(self, tmp_path: Path) -> None:
         with pytest.raises(ValueError, match="unknown outcome"):
             rc.record_feedback(rule_id="r", outcome="maybe", store_path=tmp_path / "fb.json")
+
+
+def _concurrent_record(store_path_str: str) -> None:
+    rc.record_feedback(rule_id="r", outcome=rc.CATCH, store_path=Path(store_path_str))
+
+
+class TestConcurrency:
+    def test_concurrent_records_do_not_lose_tallies(self, tmp_path: Path) -> None:
+        # GH-822: the load->mutate->save cycle runs under file_lock, so N
+        # racing recorders must land N catches — an unlocked cycle would
+        # lose updates when two workers read the same stale count.
+        store = tmp_path / "fb.json"
+        ctx = mp.get_context("fork")
+        workers = 8
+        processes = [
+            ctx.Process(target=_concurrent_record, args=(str(store),)) for _ in range(workers)
+        ]
+        for p in processes:
+            p.start()
+        for p in processes:
+            p.join(timeout=10)
+            assert p.exitcode == 0, f"worker failed with {p.exitcode}"
+        assert rc.load_feedback(store_path=store)["r"].catches == workers
 
 
 class TestRuleConfidenceReport:
