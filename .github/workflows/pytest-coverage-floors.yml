@@ -9,6 +9,10 @@ name: Coverage Floors
 # drop still fails. Raise them as the coverage-debt issues land.
 #
 # Measured on develop (2026-06-15): commands 64%, mcp 99%.
+# Extended 2026-07-19 (GH-834): domain 99%, validators 95%, config 96%,
+# spec 96%, audit 92%, hooks 85%, skills 83% — floors set a few points
+# below each measured value so a real regression fails while trivial
+# churn does not. Raise them as coverage-debt issues land.
 # The `session` package was folded into `domain/documents`, so it has
 # no standalone floor yet — add one once it is re-extracted.
 
@@ -58,3 +62,24 @@ jobs:
 
       - name: Enforce mcp floor
         run: uv run coverage report --include='src/dev10x/mcp/*' --fail-under=95
+
+      - name: Enforce domain floor
+        run: uv run coverage report --include='src/dev10x/domain/*' --fail-under=95
+
+      - name: Enforce validators floor
+        run: uv run coverage report --include='src/dev10x/validators/*' --fail-under=90
+
+      - name: Enforce config floor
+        run: uv run coverage report --include='src/dev10x/config/*' --fail-under=90
+
+      - name: Enforce spec floor
+        run: uv run coverage report --include='src/dev10x/spec/*' --fail-under=90
+
+      - name: Enforce audit floor
+        run: uv run coverage report --include='src/dev10x/audit/*' --fail-under=87
+
+      - name: Enforce hooks floor
+        run: uv run coverage report --include='src/dev10x/hooks/*' --fail-under=80
+
+      - name: Enforce skills floor
+        run: uv run coverage report --include='src/dev10x/skills/*' --fail-under=78
