@@ -153,8 +153,12 @@ def _get_config_and_engine() -> tuple[Config, RuleEngine]:
     return _CONFIG, _ENGINE
 
 
+# "npm" gates the node-tests-npm-monorepo block (GH-880): without it,
+# should_run() short-circuits before evaluate_command() ever sees an
+# `npm --prefix <dir> test` shape. The fast-path filter is intentionally
+# broad — evaluate_command() still applies the precise per-rule regex.
 _QUICK_TOKENS = frozenset(
-    ["commit", "create", "push", "rebase", "checks", "issue", "merge", "edit", "api"]
+    ["commit", "create", "push", "rebase", "checks", "issue", "merge", "edit", "api", "npm"]
 )
 
 _COMMIT_HEAL_MSG = (

@@ -211,3 +211,54 @@ class TestGh609RoutingEntries:
         # covers them via gh-review-threads-graphql → unresolved_threads.
         rule = _rule_by_name("gh-review-threads-graphql")
         assert "mcp__plugin_Dev10x_cli__unresolved_threads" in _compensation_targets(rule)
+
+
+class TestNpmMonorepoBlock:
+    """GH-880: scoped monorepo `npm --prefix <dir> test` is hard-blocked and
+    steered to run_node_tests; generic node test shapes stay advisory."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "npm --prefix apps/web test -- NavList",
+            "npm --prefix=apps/web test",
+            "npm -C apps/web test",
+            "npm -w web test",
+            "npm --workspace web test",
+            "npm --prefix apps/web test -- NavList 2>&1 | tail -30",
+        ],
+    )
+    def test_monorepo_shapes_recognized(self, command: str) -> None:
+        rule = _rule_by_name("node-tests-npm-monorepo")
+        assert _matches_any_pattern(rule=rule, command=command)
+
+    @pytest.mark.parametrize(
+        "command",
+        ["npm test", "npm run test", "yarn test", "jest", "pnpm test"],
+    )
+    def test_generic_shapes_not_matched(self, command: str) -> None:
+        rule = _rule_by_name("node-tests-npm-monorepo")
+        assert not _matches_any_pattern(rule=rule, command=command)
+
+    def test_routes_to_run_node_tests(self) -> None:
+        rule = _rule_by_name("node-tests-npm-monorepo")
+        assert "mcp__plugin_Dev10x_cli__run_node_tests" in _compensation_targets(rule)
+
+    def test_is_hook_block(self) -> None:
+        assert _rule_by_name("node-tests-npm-monorepo")["hook_block"] is True
+
+    def test_generic_node_tests_stays_advisory(self) -> None:
+        assert _rule_by_name("node-tests")["hook_block"] is False
+
+    def test_patterns_compile(self) -> None:
+        for pattern in _rule_by_name("node-tests-npm-monorepo")["patterns"]:
+            re.compile(pattern)
+
+    def test_precedes_generic_node_tests(self) -> None:
+        names = [r.get("name") for r in _load_rules()]
+        assert names.index("node-tests-npm-monorepo") < names.index("node-tests")
+
+    def test_compensation_carries_cwd_translation(self) -> None:
+        rule = _rule_by_name("node-tests-npm-monorepo")
+        desc = " ".join(c.get("description", "") for c in rule["compensations"])
+        assert 'cwd="' in desc
