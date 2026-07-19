@@ -754,6 +754,45 @@ rules:
     related:
       - Dev10x:gh-pr-monitor
 
+  - name: watch-loop-handrolled
+    matcher: Bash
+    patterns:
+      - "while true.*sleep"
+      - "while \\[.*\\]; do.*sleep"
+      - "watch -n"
+      - "until .*; do sleep"
+    except:
+      - "gh pr checks"
+      - "gh pr view"
+    hook_block: false
+    compensations:
+      - type: use-alternative
+        description: >
+          For orchestration/heartbeat watching, arm the pre-approved
+          watcher CLI instead: `dev10x foreman watch --scratchpad
+          <run-dir>` (heartbeat stalls, base-branch movement, quota
+          events from one process). For bespoke conditions, wrap the
+          loop in a PEP 723 uv-shebang script under ~/.claude/tools/
+          (covered by the standard Bash(~/.claude/tools/*:*) allow
+          rule) and invoke the bare script path.
+      - type: use-tool
+        tool: mcp__plugin_Dev10x_cli__ci_check_status
+        guardrails: single server-side poll, structured verdict
+        description: >
+          When the loop is CI-shaped, ci_check_status(wait=true)
+          replaces it (the gh-specific shapes are matched by
+          ci-loop-handrolled above).
+    reason: >
+      Inline while/until/sleep and `watch -n` shapes are structurally
+      un-allow-listable — small variations (adding a pipeline stage)
+      re-trigger permission matching. Monitor tool commands are
+      permission-matched exactly like Bash, and in an unattended
+      session a prompted watch command freezes the orchestrator turn
+      until a human returns (GH-879: a 7-hour overnight stall).
+    related:
+      - Dev10x:foreman
+      - Dev10x:gh-pr-monitor
+
   - name: cat-grep-pipeline
     matcher: Bash
     patterns:
