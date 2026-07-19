@@ -155,6 +155,7 @@ base_permissions:
   - "mcp__plugin_Dev10x_cli__audit_extract_session"
   - "mcp__plugin_Dev10x_cli__audit_analyze_actions"
   - "mcp__plugin_Dev10x_cli__audit_analyze_permissions"
+  - "mcp__plugin_Dev10x_cli__usage_blocks"
 
   # --- Dev10x MCP tools: db server (GH-878) ---
   - "mcp__plugin_Dev10x_db__query"

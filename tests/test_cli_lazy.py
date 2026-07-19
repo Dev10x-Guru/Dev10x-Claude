@@ -26,6 +26,7 @@ EXPECTED_SUBCOMMANDS = {
     "session",
     "validate",
     "skill",
+    "usage",
 }
 
 

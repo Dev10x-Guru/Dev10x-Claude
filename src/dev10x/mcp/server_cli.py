@@ -46,6 +46,7 @@ from dev10x.mcp import (  # noqa: E402, F401
     release_tools,
     roots_tools,
     sampling_tools,
+    usage_tools,
 )
 from dev10x.mcp._app import (
     server,  # noqa: F401  (re-exported for callers importing server from server_cli)
@@ -60,6 +61,7 @@ from dev10x.mcp.plan_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.release_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.roots_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.sampling_tools import *  # noqa: E402, F401, F403
+from dev10x.mcp.usage_tools import *  # noqa: E402, F401, F403
 
 
 def main() -> None:

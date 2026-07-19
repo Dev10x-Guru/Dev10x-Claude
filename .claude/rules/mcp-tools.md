@@ -215,6 +215,7 @@ supporting each tool:
 | `request_sampling` | `cli` | GH-343 | v0.80.0+ |
 | `background_preamble` | `cli` | GH-610 | v0.80.0+ |
 | `resolve_gate` | `cli` | GH-742 (ADR-0016 spike) | v0.83.0+ |
+| `usage_blocks` | `cli` | GH-878 | v0.90.0+ |
 | `query` | `db` | PR #126 | v0.25.0+ |
 
 When adding a new tool, update this table and note any dependencies on
