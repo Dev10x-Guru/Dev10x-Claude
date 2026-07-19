@@ -134,6 +134,27 @@ def gchat_send(
     click.echo(f"✅ Google Chat message sent! name={result.value}")
 
 
+@notify.command(name="gchat-review-prepare")
+@click.option("--pr", type=int, required=True, help="PR number")
+@click.option("--repo", required=True, help="GitHub repo (owner/name)")
+def gchat_review_prepare(*, pr: int, repo: str) -> None:
+    """Resolve gchat-review-request project config and emit the JSON envelope.
+
+    Mirrors `slack-review-prepare`. Output keys: skip, ask, space, mentions,
+    resolved_mentions, message, pr_url, pr_title.
+    """
+    import argparse
+
+    from dev10x.skills.notifications import gchat_review_request
+
+    args = argparse.Namespace(pr=pr, repo=repo)
+    try:
+        gchat_review_request.cmd_prepare(args)
+    except gchat_review_request.GhCommandError as ex:
+        click.echo(f"[ERROR] {ex}", err=True)
+        sys.exit(1)
+
+
 @skill.command(name="count-instructions")
 @click.argument(
     "paths",
