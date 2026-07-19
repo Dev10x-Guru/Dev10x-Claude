@@ -57,6 +57,14 @@ Drop reviews whose `author.login` ends with `[bot]` or `author.type == "Bot"`.
 If a HUMAN `APPROVED` review matches `headRefOid`, report "skipped — already
 approved" and stop. Skip this precheck when invoked with `--force`.
 
+### Step 0.5: Draft check
+
+If the PR is still a draft, do NOT post the review request — a draft is not
+ready for review.
+Report that the PR must be marked ready first (via
+`Dev10x:gh-pr-request-review` / `gh pr ready`) and stop.
+Skip this check when invoked with `--force`.
+
 ### Step 1: Prepare
 
 **REQUIRED:** Run the prepare subcommand — do NOT inline YAML reads or
