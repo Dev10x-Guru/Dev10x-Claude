@@ -298,3 +298,41 @@ class TestGchatSend:
 
         assert result.exit_code == 1
         assert "no space" in result.output
+
+
+def test_gchat_review_prepare_invokes_cmd_prepare(monkeypatch: pytest.MonkeyPatch) -> None:
+    from dev10x.commands import skill as skill_cmd
+    from dev10x.skills.notifications import gchat_review_request
+
+    called: dict = {}
+
+    def fake_prepare(args) -> None:  # noqa: ANN001
+        called["pr"] = args.pr
+        called["repo"] = args.repo
+        print('{"skip": false}')
+
+    monkeypatch.setattr(gchat_review_request, "cmd_prepare", fake_prepare)
+    runner = CliRunner()
+    result = runner.invoke(
+        skill_cmd.skill,
+        ["notify", "gchat-review-prepare", "--pr", "42", "--repo", "org/app"],
+    )
+    assert result.exit_code == 0
+    assert called == {"pr": 42, "repo": "org/app"}
+
+
+def test_gchat_review_prepare_maps_gh_error_to_exit_1(monkeypatch: pytest.MonkeyPatch) -> None:
+    from dev10x.commands import skill as skill_cmd
+    from dev10x.skills.notifications import gchat_review_request
+
+    def boom(args) -> None:  # noqa: ANN001
+        raise gchat_review_request.GhCommandError("gh pr view: not found")
+
+    monkeypatch.setattr(gchat_review_request, "cmd_prepare", boom)
+    runner = CliRunner()
+    result = runner.invoke(
+        skill_cmd.skill,
+        ["notify", "gchat-review-prepare", "--pr", "1", "--repo", "org/app"],
+    )
+    assert result.exit_code == 1
+    assert "not found" in result.output
