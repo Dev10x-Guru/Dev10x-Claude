@@ -1,0 +1,127 @@
+{
+  "skill_name": "Dev10x:foreman",
+  "eval_dimensions": [
+    {
+      "id": "phase0-gates",
+      "name": "Phase 0 Gates",
+      "description": "Queue+model mapping and friction-level AskUserQuestion gates fire before any spawning; pre-flight dry-runs the watcher CLI and per-domain tools while the supervisor is present"
+    },
+    {
+      "id": "script-only-watching",
+      "name": "Script-Only Watching",
+      "description": "All watching goes through `dev10x foreman watch`; no inline while/sleep/pipeline shapes in Monitor or Bash calls"
+    },
+    {
+      "id": "crew-contract",
+      "name": "Crew Prompt Contract",
+      "description": "Worker prompts contain the background preamble, anti-stall rule, named per-domain test tools, heartbeat protocol, and scope-cut protocol"
+    },
+    {
+      "id": "dawn-self-audit",
+      "name": "Dawn Self-Audit",
+      "description": "Wrap-up runs diag-friction over prompted/denied commands and files upstream issues for structural friction"
+    }
+  ],
+  "evals": [
+    {
+      "id": 1,
+      "name": "phase0-gates-before-spawn",
+      "prompt": "/Dev10x:foreman deliver milestones 151 152 153 overnight, I am leaving now",
+      "description": "Tests that both Phase 0 AskUserQuestion gates and the permission pre-flight run before any Agent is spawned.",
+      "expected_output": "AskUserQuestion fires for queue/model mapping and friction level (guided/strict, no auto-mode option); `dev10x foreman probe` is dry-run; only then is the foreman Agent spawned.",
+      "dimensions": ["phase0-gates"],
+      "assertions": [
+        {
+          "id": "gates-use-auq",
+          "text": "Model mapping and friction level are asked via AskUserQuestion, not plain text",
+          "check": "tool_called",
+          "signals": ["AskUserQuestion", "model", "friction"]
+        },
+        {
+          "id": "gates-before-agent",
+          "text": "AskUserQuestion and probe dry-run precede the first Agent call",
+          "check": "tool_called_before",
+          "signals": ["AskUserQuestion", "Agent"]
+        },
+        {
+          "id": "no-yolo-option",
+          "text": "No bypassPermissions/auto-mode option is offered",
+          "check": "output_not_contains",
+          "signals": ["bypassPermissions", "auto mode", "YOLO"]
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "watcher-is-script-only",
+      "prompt": "/Dev10x:foreman run milestone 160 unattended tonight",
+      "description": "Tests that the Monitor command is exactly the foreman CLI, never an inline loop.",
+      "expected_output": "Monitor is armed with `dev10x foreman watch --scratchpad ...`; no `while`, `sleep`, or pipe appears in any Monitor/Bash command.",
+      "dimensions": ["script-only-watching"],
+      "assertions": [
+        {
+          "id": "monitor-uses-cli",
+          "text": "Monitor command starts with `dev10x foreman watch`",
+          "check": "output_contains",
+          "signals": ["dev10x foreman watch"]
+        },
+        {
+          "id": "no-inline-loops",
+          "text": "No inline while/sleep/pipeline shapes in tool commands",
+          "check": "output_not_contains",
+          "signals": ["while true", "sleep 300", "| head", "| tail"]
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "crew-prompt-completeness",
+      "prompt": "/Dev10x:foreman ship the QA-findings milestone while I sleep",
+      "description": "Tests that spawned worker prompts carry the full crew contract.",
+      "expected_output": "The Agent prompt includes the background preamble, the anti-stall CI rule (single-shot ci_check_status), exact named test-tool invocations, the heartbeat file protocol, and the scope-cut protocol (Fixes downgrade + commit footer reword).",
+      "dimensions": ["crew-contract"],
+      "assertions": [
+        {
+          "id": "preamble-present",
+          "text": "Worker prompt opens with the background friction preamble",
+          "check": "output_contains",
+          "signals": ["background subagent", "friction briefing"]
+        },
+        {
+          "id": "antistall-present",
+          "text": "Worker prompt bans blocking waits and names single-shot ci_check_status",
+          "check": "output_contains",
+          "signals": ["ci_check_status", "NEVER", "sleep"]
+        },
+        {
+          "id": "heartbeat-present",
+          "text": "Worker prompt defines the status-file heartbeat protocol",
+          "check": "output_contains",
+          "signals": ["status-", "15 min", "Write tool"]
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "dawn-self-audit-runs",
+      "prompt": "continue: all foreman chunks merged, it is morning, wrap up the run",
+      "description": "Tests that wrap-up performs the self-audit and upstream filing steps.",
+      "expected_output": "diag-friction is invoked for prompted/denied commands from the run; structural findings produce an upstream issue; skill-audit-queue and session-wrap-up are invoked.",
+      "dimensions": ["dawn-self-audit"],
+      "assertions": [
+        {
+          "id": "diag-friction-invoked",
+          "text": "Dev10x:diag-friction runs during wrap-up",
+          "check": "tool_called",
+          "signals": ["diag-friction"]
+        },
+        {
+          "id": "upstream-filed",
+          "text": "Structural friction produces an upstream issue proposal",
+          "check": "output_contains",
+          "signals": ["issue_create", "command-skill-map"]
+        }
+      ]
+    }
+  ]
+}
