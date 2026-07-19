@@ -12,6 +12,7 @@ invocation-name: Dev10x:gchat-review-request
 allowed-tools:
   - Bash(uvx dev10x skill notify gchat-review-prepare:*)
   - Bash(gh pr view:*)
+  - AskUserQuestion
 ---
 
 # Google Chat Review Request
