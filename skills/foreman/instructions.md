@@ -128,10 +128,11 @@ turn are the most precious resources on site:
   or respawn interrupted crew.
 - A decision only the supervisor can make (product call, invariant
   semantics, destructive migration) → do NOT guess and do NOT block
-  the queue: have the scope cut per the crew contract, a follow-up
-  issue filed, and the chunk (or its remainder) moved to the queue
-  end. Log it in `DECISIONS.md` in the run directory for morning
-  review.
+  the queue: have the scope cut per the crew contract — which ALWAYS
+  leaves a tracker issue (the still-open original or a new split
+  issue) as the permanent record — and the chunk (or its remainder)
+  moved to the queue end by issue number. Log it in `DECISIONS.md`
+  in the run directory for morning review.
 - Every supervisor-grade decision the watchdog does make gets a
   numbered entry (D1, D2, …) in `DECISIONS.md` with rationale.
 
@@ -164,7 +165,7 @@ cost hours in the field (GH-890):
 | Anti-stall rule: no `sleep`/`--watch`/poll loops; CI via single-shot `ci_check_status` | A blocking wait dies on a permission wall and the worker hangs silently |
 | Named per-domain test tools with exact invocation (from Phase 0.4) | Generic "run the tests" prose sends workers to `npm … \| tail` shapes that prompt |
 | Heartbeat protocol: append one line to `status-<chunk>.md` via Write every ~15 min AND at phase transitions | File mtime is the stall detector's ground truth; self-reported timestamps lie, mtimes don't |
-| Scope authority + cut protocol: `issue_comment` the remainder, leave open, EXCLUDE from `Fixes:` and reword the commit footer | A cut issue that still auto-closes on merge is a silent lie to the tracker |
+| Scope authority + cut protocol — every cut ends as a tracker issue: defer (original stays OPEN with a structured deferral comment, EXCLUDED from `Fixes:`, commit footer reworded, requeued by issue number) or split (partial PR closes the original; remainder becomes a NEW scoped issue, `Refs:`-linked) | The queue and manifest live in a temp dir — after a catastrophic harness failure, open tracker issues are the ONLY surviving record of cut scope; a cut issue that still auto-closes on merge is a silent lie to the tracker |
 | Merge discipline: rebase-merge on fresh ancestry only; pending CI is not green; zero `fixup!` at merge; address ALL top-level review comments (even INFO); auto-resolve addressed BOT threads only — never human threads | Every one of these is a merge-gate failure mode observed in the field |
 | Decision log file per chunk | The supervisor audits choices in the morning, not at 03:00 |
 
