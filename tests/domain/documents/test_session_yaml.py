@@ -266,24 +266,24 @@ class TestConfigRender:
         assert SessionYamlDocument(toplevel=str(tmp_path)).read_allowed_overlays() == ["afk"]
 
 
-class TestConfigWrite:
-    def test_creates_parents_and_writes(self, tmp_path: Path) -> None:
-        ConfigYamlDocument(toplevel=str(tmp_path)).write(
-            friction_level="adaptive", active_modes=["solo-maintainer"]
+class TestConfigReadFrictionAndModes:
+    """GH-826: the dead ConfigYamlDocument.write path was retired; the
+    combined reader stays covered by seeding config.yaml via render()."""
+
+    def test_reads_rendered_level_and_modes(self, tmp_path: Path) -> None:
+        config = ConfigYamlDocument(toplevel=str(tmp_path))
+        (tmp_path / ".claude" / "Dev10x").mkdir(parents=True)
+        config.path.write_text(
+            ConfigYamlDocument.render(friction_level="adaptive", active_modes=["solo-maintainer"])
         )
         level, modes = SessionYamlDocument(toplevel=str(tmp_path)).read_friction_and_modes()
         assert level is FrictionLevel.ADAPTIVE
         assert modes == ["solo-maintainer"]
 
-    def test_write_defaults(self, tmp_path: Path) -> None:
-        ConfigYamlDocument(toplevel=str(tmp_path)).write()
+    def test_defaults_when_config_absent(self, tmp_path: Path) -> None:
         level, modes = SessionYamlDocument(toplevel=str(tmp_path)).read_friction_and_modes()
-        assert level is FrictionLevel.GUIDED
+        assert level is FrictionLevel.STRICT
         assert modes == []
-
-    def test_write_persists_allowed_overlays(self, tmp_path: Path) -> None:
-        ConfigYamlDocument(toplevel=str(tmp_path)).write(allowed_overlays=[])
-        assert SessionYamlDocument(toplevel=str(tmp_path)).read_allowed_overlays() == []
 
 
 class TestFrictionYaml:
