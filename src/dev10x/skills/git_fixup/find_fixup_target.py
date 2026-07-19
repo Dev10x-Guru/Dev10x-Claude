@@ -31,6 +31,10 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+# Bound git subprocesses so a wedged git cannot hang the resolver
+# indefinitely (GH-824), matching pr_notify.py / slack_review_request.py.
+_SUBPROCESS_TIMEOUT_SECONDS = 30
+
 # Hunk header: @@ -<start>[,<count>] +<start>[,<count>] @@
 _HUNK_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@")
 
@@ -64,6 +68,7 @@ def _run(args: list[str], *, cwd: Path | None = None) -> str:
         check=True,
         capture_output=True,
         text=True,
+        timeout=_SUBPROCESS_TIMEOUT_SECONDS,
     )
     return result.stdout
 
