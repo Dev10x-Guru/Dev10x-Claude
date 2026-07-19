@@ -1,0 +1,178 @@
+{
+  "skill_name": "Dev10x:friction-setup",
+  "eval_dimensions": [
+    {
+      "id": "gate-enforcement",
+      "name": "Decision Gate Enforcement",
+      "description": "Each preference choice (preset, overlays, per-gate deviations, skippable steps) is presented via AskUserQuestion, never plain text"
+    },
+    {
+      "id": "write-on-completion",
+      "name": "Write Only On Completion",
+      "description": "Persists preferences only after a genuine choice completes the walk; dismissing a required gate aborts with no write"
+    },
+    {
+      "id": "gate-axis-persist",
+      "name": "Gate Axis Persistence",
+      "description": "Writes preset/overlays/gate-overrides to the global friction.yaml via dev10x session set-friction (never a bare Write)"
+    },
+    {
+      "id": "playbook-axis-persist",
+      "name": "Playbook Axis Persistence",
+      "description": "Writes active_modes / per-step skips to the global playbook via dev10x session set-playbook"
+    },
+    {
+      "id": "deviations-only",
+      "name": "Deviations Only",
+      "description": "Records only gates that deviate from the chosen preset in gate_overrides"
+    },
+    {
+      "id": "task-tracking",
+      "name": "Self-tracking",
+      "description": "Creates a tracking task at invocation and completes it after persistence"
+    }
+  ],
+  "evals": [
+    {
+      "id": "guided-preset-no-deviations",
+      "name": "Configure a project with the guided preset and no deviations",
+      "description": "Supervisor picks guided, no overlays, keeps preset gate defaults, skips no steps. Skill writes only gate_preset via set-friction.",
+      "input": "/Dev10x:friction-setup",
+      "assertions": [
+        {
+          "dimension": "task-tracking",
+          "check": "tool_called",
+          "tool": "TaskCreate",
+          "signal": "TaskCreate called at invocation (self-tracking task)"
+        },
+        {
+          "dimension": "gate-enforcement",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "Preset choice presented via AskUserQuestion, not plain text"
+        },
+        {
+          "dimension": "gate-enforcement",
+          "check": "behavioral",
+          "signal": "Overlays, per-gate-deviation, and skippable-step gates are each AskUserQuestion calls"
+        },
+        {
+          "dimension": "gate-axis-persist",
+          "check": "command_run",
+          "value": "dev10x session set-friction",
+          "signal": "Persists via `dev10x session set-friction --preset guided`"
+        },
+        {
+          "dimension": "deviations-only",
+          "check": "behavioral",
+          "value": "no-gate-override",
+          "signal": "No --gate-override flags passed when the supervisor kept preset defaults"
+        },
+        {
+          "dimension": "playbook-axis-persist",
+          "check": "behavioral",
+          "value": "no-set-playbook-when-unchanged",
+          "signal": "set-playbook is NOT called when no overlays and no skipped steps were selected"
+        },
+        {
+          "dimension": "task-tracking",
+          "check": "tool_called",
+          "tool": "TaskUpdate",
+          "signal": "Tracking task marked completed after the write returns"
+        }
+      ]
+    },
+    {
+      "id": "adaptive-with-overlay-and-skip",
+      "name": "Configure adaptive + solo-maintainer overlay and skip Draft Job Story",
+      "description": "Supervisor picks adaptive, solo-maintainer overlay, one gate deviation (merge=ask), and skips the JTBD step. Both axes are written.",
+      "input": "/Dev10x:friction-setup",
+      "assertions": [
+        {
+          "dimension": "gate-axis-persist",
+          "check": "command_run",
+          "value": "set-friction --preset adaptive --overlay solo-maintainer --gate-override merge=ask",
+          "signal": "set-friction carries preset, overlay, and the one deviating gate"
+        },
+        {
+          "dimension": "deviations-only",
+          "check": "behavioral",
+          "signal": "Only merge=ask is passed as a gate override — unchanged gates are omitted"
+        },
+        {
+          "dimension": "playbook-axis-persist",
+          "check": "command_run",
+          "value": "set-playbook",
+          "signal": "set-playbook run with --skip-step 'Draft Job Story' (and --mode for structural overlays)"
+        }
+      ]
+    },
+    {
+      "id": "dismiss-no-write",
+      "name": "Dismissing the preset gate aborts with no write",
+      "description": "Supervisor dismisses the required preset AskUserQuestion. Skill writes nothing and leaves the project unconfigured so the nudge fires again next session.",
+      "input": "/Dev10x:friction-setup",
+      "setup": {
+        "preset_gate_dismissed": true,
+        "note": "Supervisor cancels the first required AskUserQuestion"
+      },
+      "assertions": [
+        {
+          "dimension": "write-on-completion",
+          "check": "behavioral",
+          "value": "no-set-friction",
+          "signal": "dev10x session set-friction is NOT run when the walk is dismissed"
+        },
+        {
+          "dimension": "write-on-completion",
+          "check": "behavioral",
+          "value": "no-set-playbook",
+          "signal": "dev10x session set-playbook is NOT run when the walk is dismissed"
+        },
+        {
+          "dimension": "write-on-completion",
+          "check": "behavioral",
+          "value": "abort-clean",
+          "signal": "Skill reports it aborted without writing; project stays unconfigured"
+        },
+        {
+          "dimension": "write-on-completion",
+          "check": "tool_called",
+          "tool": "TaskUpdate",
+          "signal": "Tracking task left pending (not deleted) when the walk is dismissed"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "description": "Queries that should / should-not trigger Dev10x:friction-setup",
+    "should_trigger": [
+      {
+        "query": "this project isn't configured for friction — set it up",
+        "rationale": "Responding to the SessionStart unconfigured nudge — core use case"
+      },
+      {
+        "query": "configure the autonomy posture for this repo",
+        "rationale": "Deliberate per-project gate configuration"
+      },
+      {
+        "query": "friction setup",
+        "rationale": "Direct invocation phrase"
+      }
+    ],
+    "should_not_trigger": [
+      {
+        "query": "walk away, no more questions this session",
+        "rationale": "One-session walk-away toggle — use Dev10x:afk"
+      },
+      {
+        "query": "set up Dev10x in this brand-new project",
+        "rationale": "Install-time bootstrap — use dev10x init --setup"
+      },
+      {
+        "query": "why did that gate auto-advance?",
+        "rationale": "Explaining resolver behavior, not changing preferences"
+      }
+    ]
+  }
+}

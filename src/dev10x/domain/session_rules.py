@@ -251,11 +251,74 @@ class ModeGuardRule(PolicyRule[str]):
         )
 
 
+class FrictionSetupState(enum.Enum):
+    """Which SessionStart friction-setup notice a project warrants (GH-886).
+
+    Computed by the service after it probes the global ``friction.yaml``:
+
+    * :attr:`SEEDED` — the file was absent, so a ``strict`` baseline scaffold
+      was just written; every gate fires until the supervisor chooses a
+      posture.
+    * :attr:`UNMATCHED` — the file exists but no ``projects[]`` entry matches
+      this repo, so gate policy falls back to ``defaults:`` (no write happens).
+    * :attr:`MATCHED` — a project entry matches; the project is configured and
+      the notice is silent.
+    """
+
+    SEEDED = "seeded"
+    UNMATCHED = "unmatched"
+    MATCHED = "matched"
+
+
+@dataclass(frozen=True)
+class FrictionSetupNudgeRule(PolicyRule[str]):
+    """Build the SessionStart nudge to run ``Dev10x:friction-setup`` (GH-886).
+
+    Detects when a project has no explicit friction/overlay preferences and
+    would otherwise *silently* fall back to a preset — the failure mode that
+    once auto-merged a PR the supervisor never authorised. Fires for the
+    :attr:`FrictionSetupState.SEEDED` and :attr:`FrictionSetupState.UNMATCHED`
+    states and is silent for :attr:`FrictionSetupState.MATCHED`, so the
+    SessionStart orchestrator drops the segment for configured projects.
+
+    I/O-free (ADR-0007 D3): the service probes the global ``friction.yaml``,
+    performs any seed write, and passes the resolved ``state`` (and the repo
+    basename for the unmatched message) in as frozen fields.
+    """
+
+    state: FrictionSetupState
+    repo_name: str | None = None
+
+    _SEEDED_TEXT = (
+        "**⚙ Friction preferences not configured (GH-886).** No "
+        "`~/.config/Dev10x/friction.yaml` existed, so a `strict` baseline was "
+        "seeded — every decision gate will fire until you choose a posture. Run "
+        "`/Dev10x:friction-setup` to set this project's preset, overlays, and "
+        "gate/step preferences."
+    )
+
+    def apply(self) -> str:
+        if self.state is FrictionSetupState.SEEDED:
+            return self._SEEDED_TEXT
+        if self.state is FrictionSetupState.UNMATCHED:
+            target = f"`{self.repo_name}`" if self.repo_name else "this project"
+            return (
+                "**⚙ This project has no friction preferences (GH-886).** "
+                "`~/.config/Dev10x/friction.yaml` exists but no `projects[]` entry "
+                f"matches this repo, so gate policy falls back to `defaults:`. Run "
+                f"`/Dev10x:friction-setup` to configure {target} explicitly. "
+                "Skipping is fine — you'll be reminded next session until you choose."
+            )
+        return ""
+
+
 __all__ = [
     "UnknownFrictionLevelError",
     "DecisionGuidanceRule",
     "BuildAutonomyReassuranceRule",
     "BuildAutoPlanGuidanceRule",
+    "FrictionSetupNudgeRule",
+    "FrictionSetupState",
     "ModeGuardRule",
     "CompletionRecommendation",
     "completion_gate_recommendation",

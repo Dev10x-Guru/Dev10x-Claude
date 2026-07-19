@@ -16,8 +16,11 @@ the dispatch functions.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Final
+
+log = logging.getLogger(__name__)
 
 # Sentinel used by methods that accept an optional pre-resolved ``toplevel``
 # string. A caller that passes ``_UNSET`` (the default) triggers git
@@ -159,6 +162,60 @@ class SessionService:
             walk_away=inputs["walk_away"],
             allowed_overlays=inputs["allowed_overlays"],
         ).apply()
+
+    def build_friction_setup_context(self, *, toplevel: str | None = _UNSET) -> str:  # type: ignore[assignment]
+        """Return a nudge to run ``Dev10x:friction-setup`` for unconfigured repos (GH-886).
+
+        Probes the global ``friction.yaml``: absent → seed a ``strict`` baseline
+        and nudge; present but this repo unmatched → nudge (no write); matched →
+        empty string (configured, silent). Seeding a ``strict`` scaffold makes
+        the resolver fail safe (every gate fires) instead of silently adopting a
+        preset the supervisor never chose.
+
+        Pass ``toplevel`` as a pre-resolved string to skip git discovery. Pass
+        ``None`` explicitly to return early without git discovery. Omit the
+        parameter to let the service run git discovery itself.
+        """
+        import os
+
+        from dev10x.domain.dev10x_paths import Dev10xConfigDir
+        from dev10x.domain.documents.session_yaml import (
+            ConfigYamlDocument,
+            FrictionYamlDocument,
+            seed_strict_baseline_if_absent,
+        )
+        from dev10x.domain.git_context import GitContext
+        from dev10x.domain.session_rules import FrictionSetupNudgeRule, FrictionSetupState
+
+        resolved: str | None = GitContext().toplevel if toplevel is _UNSET else toplevel
+        if not resolved:
+            return ""
+        repo_name = os.path.basename(resolved.rstrip("/")) or None
+        if not Dev10xConfigDir.friction_yaml().exists():
+            try:
+                seed_strict_baseline_if_absent()
+            except OSError:
+                # A failed seed must still surface the nudge — never degrade to a
+                # silent "" (the GH-886 failure mode, one layer down). The
+                # SessionStart build_feature wrapper swallows exceptions and
+                # drops the segment, so catch here and return the unconfigured
+                # nudge rather than relying on that silent-discard path.
+                log.warning("friction-setup: strict baseline seed failed", exc_info=True)
+                return FrictionSetupNudgeRule(
+                    state=FrictionSetupState.UNMATCHED, repo_name=repo_name
+                ).apply()
+            return FrictionSetupNudgeRule(state=FrictionSetupState.SEEDED).apply()
+        # A repo is "configured" if the global friction.yaml matches it OR a
+        # legacy per-repo config.yaml exists — SessionYamlDocument._durable()
+        # honors that legacy file at HIGHER precedence than friction.yaml's
+        # defaults, so nudging "unconfigured" while resolve_gate silently reads
+        # the legacy preset would recreate the GH-886 failure mode one layer
+        # down. Treat a matched legacy file as configured (silent).
+        configured = FrictionYamlDocument(toplevel=resolved).matched() is not None or bool(
+            ConfigYamlDocument(toplevel=resolved).data()
+        )
+        state = FrictionSetupState.MATCHED if configured else FrictionSetupState.UNMATCHED
+        return FrictionSetupNudgeRule(state=state, repo_name=repo_name).apply()
 
     def build_install_check_context(self) -> str:
         """Return a warning when the Dev10x install needs bootstrap or upgrade.

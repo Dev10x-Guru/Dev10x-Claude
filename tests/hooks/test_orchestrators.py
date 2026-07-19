@@ -244,6 +244,164 @@ class TestModeGuardWiring:
         assert hasattr(session, "build_mode_guard_context")
 
 
+class TestFrictionSetupNudge:
+    """GH-886: SessionStart detects unconfigured repos and nudges the
+    supervisor to run Dev10x:friction-setup instead of silently falling back
+    to a preset. Global friction.yaml absent → seed a strict baseline + note;
+    present but this repo unmatched → nudge (no write); matched → silent."""
+
+    def _isolate_config(self, *, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+        from dev10x.domain.dev10x_paths import Dev10xConfigDir
+
+        cfg = tmp_path / "config-home"
+        monkeypatch.setenv("DEV10X_CONFIG_HOME", str(cfg))
+        Dev10xConfigDir.reset_cache()
+        return cfg
+
+    def test_rule_seeded_text_points_to_skill(self) -> None:
+        from dev10x.domain.session_rules import FrictionSetupNudgeRule, FrictionSetupState
+
+        text = FrictionSetupNudgeRule(state=FrictionSetupState.SEEDED).apply()
+        assert "strict" in text
+        assert "/Dev10x:friction-setup" in text
+
+    def test_rule_unmatched_names_repo(self) -> None:
+        from dev10x.domain.session_rules import FrictionSetupNudgeRule, FrictionSetupState
+
+        text = FrictionSetupNudgeRule(
+            state=FrictionSetupState.UNMATCHED, repo_name="my-repo"
+        ).apply()
+        assert "my-repo" in text
+        assert "/Dev10x:friction-setup" in text
+
+    def test_rule_matched_is_silent(self) -> None:
+        from dev10x.domain.session_rules import FrictionSetupNudgeRule, FrictionSetupState
+
+        assert FrictionSetupNudgeRule(state=FrictionSetupState.MATCHED).apply() == ""
+
+    def test_dispatch_returns_empty_without_toplevel(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from dev10x.hooks import session_dispatch
+
+        monkeypatch.setattr(session_dispatch, "_get_toplevel", lambda: None)
+        assert session_dispatch.build_friction_setup_context() == ""
+
+    def test_seeds_strict_baseline_when_absent(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from dev10x.domain.dev10x_paths import Dev10xConfigDir
+        from dev10x.session.service import SessionService
+
+        self._isolate_config(monkeypatch=monkeypatch, tmp_path=tmp_path)
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        try:
+            text = SessionService().build_friction_setup_context(toplevel=str(repo))
+            friction = Dev10xConfigDir.friction_yaml()
+            assert friction.exists()
+            assert "friction_level: strict" in friction.read_text()
+            assert "/Dev10x:friction-setup" in text
+        finally:
+            Dev10xConfigDir.reset_cache()
+
+    def test_unmatched_nudges_without_writing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from dev10x.session.service import SessionService
+
+        cfg = self._isolate_config(monkeypatch=monkeypatch, tmp_path=tmp_path)
+        cfg.mkdir(parents=True)
+        friction = cfg / "friction.yaml"
+        friction.write_text("defaults:\n  friction_level: guided\n")
+        before = friction.read_text()
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        try:
+            from dev10x.domain.dev10x_paths import Dev10xConfigDir
+
+            text = SessionService().build_friction_setup_context(toplevel=str(repo))
+            assert "/Dev10x:friction-setup" in text
+            assert "repo" in text
+            # Skip = no write: an unmatched project must not mutate friction.yaml.
+            assert friction.read_text() == before
+        finally:
+            Dev10xConfigDir.reset_cache()
+
+    def test_matched_is_silent(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        import os
+
+        from dev10x.domain.dev10x_paths import Dev10xConfigDir
+        from dev10x.session.service import SessionService
+
+        cfg = self._isolate_config(monkeypatch=monkeypatch, tmp_path=tmp_path)
+        cfg.mkdir(parents=True)
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        target = os.path.realpath(str(repo))
+        (cfg / "friction.yaml").write_text(
+            "defaults:\n  friction_level: guided\n"
+            "projects:\n"
+            f"  - match: ['{target}']\n"
+            "    gate_preset: strict\n"
+        )
+        try:
+            assert SessionService().build_friction_setup_context(toplevel=str(repo)) == ""
+        finally:
+            Dev10xConfigDir.reset_cache()
+
+    def test_legacy_config_yaml_is_silent(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # A repo with a legacy .claude/Dev10x/config.yaml is configured (the
+        # resolver honors it above friction.yaml defaults), so it must NOT be
+        # nudged as unconfigured (GH-886 one-layer-down guard).
+        from dev10x.domain.dev10x_paths import Dev10xConfigDir
+        from dev10x.session.service import SessionService
+
+        cfg = self._isolate_config(monkeypatch=monkeypatch, tmp_path=tmp_path)
+        cfg.mkdir(parents=True)
+        (cfg / "friction.yaml").write_text("defaults:\n  friction_level: guided\n")
+        repo = tmp_path / "repo"
+        (repo / ".claude" / "Dev10x").mkdir(parents=True)
+        (repo / ".claude" / "Dev10x" / "config.yaml").write_text(
+            "friction_level: adaptive\nactive_modes: [solo-maintainer]\n"
+        )
+        try:
+            assert SessionService().build_friction_setup_context(toplevel=str(repo)) == ""
+        finally:
+            Dev10xConfigDir.reset_cache()
+
+    def test_seed_failure_still_nudges(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # A failing seed write must not degrade to a silent "" (GH-886 failure
+        # mode, one layer down) — the supervisor still gets the nudge.
+        from dev10x.domain.documents import session_yaml
+        from dev10x.session.service import SessionService
+
+        self._isolate_config(monkeypatch=monkeypatch, tmp_path=tmp_path)
+        repo = tmp_path / "repo"
+        repo.mkdir()
+
+        def _boom(*, path: Path | None = None) -> bool:
+            raise OSError("disk full")
+
+        monkeypatch.setattr(session_yaml, "seed_strict_baseline_if_absent", _boom)
+        try:
+            text = SessionService().build_friction_setup_context(toplevel=str(repo))
+            assert "/Dev10x:friction-setup" in text
+        finally:
+            from dev10x.domain.dev10x_paths import Dev10xConfigDir
+
+            Dev10xConfigDir.reset_cache()
+
+    def test_facade_reexports_dispatch(self) -> None:
+        from dev10x.hooks import session
+
+        assert hasattr(session, "build_friction_setup_context")
+
+
 class TestRunFeatureBufferDiscard:
     """E9: _run_feature must discard partial stdout when a feature raises.
 

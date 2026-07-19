@@ -25,7 +25,43 @@ from pathlib import Path
 import click
 
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.documents.session_yaml import FrictionYamlDocument
+from dev10x.domain.documents.session_yaml import (
+    FrictionYamlDocument,
+    set_playbook_modes,
+    upsert_project_prefs,
+)
+
+_OVERLAY_CHOICES = ("solo-maintainer", "afk")
+
+#: Values a per-gate override may take. Conditional preset values
+#: (``auto-advance-if-*``) are preset-internal and not user-selectable here.
+_GATE_OVERRIDE_VALUES = ("ask", "auto-advance", "skip")
+
+
+def _parse_gate_overrides(pairs: tuple[str, ...]) -> dict[str, str]:
+    """Parse + validate ``toggle=value`` CLI pairs into a gate-override mapping.
+
+    Validates eagerly against the known gate names and override values so a
+    typo (``marge=ask``, ``merge=atuo-advance``) fails fast at the CLI rather
+    than corrupting the durable ``friction.yaml`` and surfacing later as an
+    ``UnknownToggleError`` deep inside ``resolve_gate`` (code review GH-886).
+    """
+    from dev10x.domain.gate_policy import _ENUM_TOGGLES
+
+    overrides: dict[str, str] = {}
+    for pair in pairs:
+        key, sep, value = pair.partition("=")
+        if not sep or not key:
+            raise click.BadParameter(f"expected toggle=value, got {pair!r}")
+        if key not in _ENUM_TOGGLES:
+            raise click.BadParameter(f"unknown gate {key!r}; known: {sorted(_ENUM_TOGGLES)}")
+        if value not in _GATE_OVERRIDE_VALUES:
+            allowed = list(_GATE_OVERRIDE_VALUES)
+            raise click.BadParameter(
+                f"invalid value {value!r} for {key!r}; expected one of {allowed}"
+            )
+        overrides[key] = value
+    return overrides
 
 
 def _create_if_absent(*, target: Path, content: str) -> bool:
@@ -100,3 +136,90 @@ def seed(*, project_path: Path | None, friction_level: str | None) -> None:
         click.echo(f"seeded {gitignore}")
     else:
         click.echo(f".gitignore already present at {gitignore}")
+
+
+@session.command("set-friction")
+@click.option(
+    "--path",
+    "project_path",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=None,
+    help="Project root (defaults to the current directory).",
+)
+@click.option(
+    "--preset",
+    type=click.Choice(["strict", "guided", "adaptive"], case_sensitive=False),
+    required=True,
+    help="Gate preset for this project.",
+)
+@click.option(
+    "--overlay",
+    "overlays",
+    type=click.Choice(_OVERLAY_CHOICES, case_sensitive=False),
+    multiple=True,
+    help="Overlay(s) layered on the preset (repeatable).",
+)
+@click.option(
+    "--gate-override",
+    "gate_overrides",
+    multiple=True,
+    metavar="TOGGLE=VALUE",
+    help="Per-gate override (repeatable), e.g. --gate-override merge=ask.",
+)
+def set_friction(
+    *,
+    project_path: Path | None,
+    preset: str,
+    overlays: tuple[str, ...],
+    gate_overrides: tuple[str, ...],
+) -> None:
+    """Write this project's gate preferences into the global friction.yaml.
+
+    The gate axis of ``Dev10x:friction-setup``: upserts a ``projects[]`` entry
+    keyed by the repo's dir-path globs. Only deviations are written — omit an
+    axis to leave it on the preset. Idempotent: re-running replaces the entry.
+    """
+    project_root = (project_path or Path.cwd()).resolve()
+    prefs: dict[str, object] = {"gate_preset": preset.lower()}
+    if overlays:
+        prefs["gate_overlays"] = [overlay.lower() for overlay in overlays]
+    parsed_overrides = _parse_gate_overrides(gate_overrides)
+    if parsed_overrides:
+        prefs["gate_overrides"] = parsed_overrides
+    written = upsert_project_prefs(toplevel=str(project_root), prefs=prefs)
+    click.echo(f"wrote friction preferences for {project_root} to {written}")
+
+
+@session.command("set-playbook")
+@click.option(
+    "--skill",
+    default="work-on",
+    show_default=True,
+    help="Playbook skill to configure (e.g. work-on).",
+)
+@click.option(
+    "--mode",
+    "modes",
+    multiple=True,
+    help="Active mode(s) to enable for this skill's playbook (repeatable).",
+)
+@click.option(
+    "--skip-step",
+    "skip_steps",
+    multiple=True,
+    metavar="SUBJECT",
+    help="Play-step subject to always skip (repeatable), e.g. 'Draft Job Story'.",
+)
+def set_playbook(*, skill: str, modes: tuple[str, ...], skip_steps: tuple[str, ...]) -> None:
+    """Write playbook active-modes / step skips into the global playbooks dir.
+
+    The playbook axis of ``Dev10x:friction-setup``: records ``active_modes`` (and
+    any per-step ``skip`` actions) into ``~/.config/Dev10x/playbooks/<skill>.yaml``,
+    reusing the execution-modes resolver — no core plumbing change.
+    """
+    written = set_playbook_modes(
+        skill=skill,
+        active_modes=[mode for mode in modes],
+        skip_steps=list(skip_steps) or None,
+    )
+    click.echo(f"wrote playbook modes for {skill} to {written}")
