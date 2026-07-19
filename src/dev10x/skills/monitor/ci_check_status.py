@@ -69,6 +69,10 @@ import time
 
 from dev10x.domain.common.repository_ref import RepositoryRef
 
+# Bound every gh subprocess so a wedged CLI cannot hang the poll loop
+# indefinitely (GH-824), matching pr_notify.py / slack_review_request.py.
+_SUBPROCESS_TIMEOUT_SECONDS = 30
+
 
 def fetch_mergeable(
     *,
@@ -87,7 +91,9 @@ def fetch_mergeable(
         "-q",
         ".mergeable",
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT_SECONDS
+    )
     if result.returncode != 0:
         return "UNKNOWN"
     return result.stdout.strip() or "UNKNOWN"
@@ -111,7 +117,9 @@ def get_checks(
     ]
     if required_only:
         cmd.append("--required")
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT_SECONDS
+    )
     if result.returncode != 0:
         print(json.dumps({"error": f"gh pr checks failed: {result.stderr.strip()}"}))
         sys.exit(1)
@@ -142,7 +150,9 @@ def get_required_names(
         "--json",
         "name",
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT_SECONDS
+    )
     if result.returncode != 0 or not result.stdout.strip():
         return set()
     try:

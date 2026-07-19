@@ -47,6 +47,10 @@ DEFAULT_TICKET_PATTERN = TICKET_ID_PATTERN
 # cap but paid one subprocess per ticket.
 MERGED_PR_FETCH_LIMIT = 300
 
+# Bound gh/git subprocesses so a wedged CLI cannot hang collection
+# indefinitely (GH-824), matching pr_notify.py / slack_review_request.py.
+_SUBPROCESS_TIMEOUT_SECONDS = 30
+
 
 @dataclass
 class Commit:
@@ -79,6 +83,7 @@ def run(
         capture_output=True,
         text=True,
         cwd=cwd,
+        timeout=_SUBPROCESS_TIMEOUT_SECONDS,
     )
     if check and result.returncode != 0:
         print(f"Error: {' '.join(cmd)} failed with code {result.returncode}", file=sys.stderr)
