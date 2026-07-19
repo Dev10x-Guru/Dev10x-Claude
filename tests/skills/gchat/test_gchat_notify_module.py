@@ -163,6 +163,24 @@ class TestMintAccessToken:
         result = mod.mint_access_token({"client_email": "x", "private_key": "k"}, now=1)
         assert isinstance(result, ErrorResult)
 
+    def test_errors_on_missing_sa_info_field(self) -> None:
+        result = mod.mint_access_token({"private_key": "x"}, now=1)
+        assert isinstance(result, ErrorResult)
+        assert "client_email" in result.error or "unusable for signing" in result.error
+
+    def test_errors_when_jwt_encode_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import jwt
+
+        def fake_encode(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202
+            raise ValueError("bad key")
+
+        monkeypatch.setattr(jwt, "encode", fake_encode)
+        result = mod.mint_access_token(
+            {"client_email": "bot@proj.iam", "private_key": "bad"}, now=1
+        )
+        assert isinstance(result, ErrorResult)
+        assert "unusable for signing" in result.error
+
 
 class _FakeResponse:
     """Minimal context-manager stand-in for urllib.request.urlopen()'s return value."""

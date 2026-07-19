@@ -122,14 +122,25 @@ def mint_access_token(sa_info: dict, *, now: int | None = None) -> Result[str]:
     import jwt
 
     iat = now if now is not None else int(time.time())
-    claims = {
-        "iss": sa_info["client_email"],
-        "scope": GCHAT_SCOPE,
-        "aud": TOKEN_URI,
-        "iat": iat,
-        "exp": iat + 3600,
-    }
-    assertion = jwt.encode(claims, sa_info["private_key"], algorithm="RS256")
+    try:
+        claims = {
+            "iss": sa_info["client_email"],
+            "scope": GCHAT_SCOPE,
+            "aud": TOKEN_URI,
+            "iat": iat,
+            "exp": iat + 3600,
+        }
+        assertion = jwt.encode(claims, sa_info["private_key"], algorithm="RS256")
+    except KeyError as ex:
+        return err(
+            "Google Chat service-account key is missing client_email/private_key "
+            f"or is unusable for signing: {ex}"
+        )
+    except Exception as ex:  # noqa: BLE001 - jwt/cryptography can raise many types
+        return err(
+            "Google Chat service-account key is missing client_email/private_key "
+            f"or is unusable for signing: {ex}"
+        )
     form_result = _post_form(TOKEN_URI, {"grant_type": _JWT_GRANT, "assertion": assertion})
     if isinstance(form_result, ErrorResult):
         return form_result
