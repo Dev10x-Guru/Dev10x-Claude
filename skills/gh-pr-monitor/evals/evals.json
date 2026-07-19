@@ -1,0 +1,221 @@
+{
+  "skill_name": "Dev10x:gh-pr-monitor",
+  "eval_dimensions": [
+    {
+      "id": "model-tier",
+      "name": "Micro-Agent Model Tier",
+      "description": "Bounded mechanical work (CI polling, thread scanning) is dispatched at the haiku tier — never sonnet or opus. The dispatch banner reports model=haiku and the micro-agents carry a narrow read-only tool allowlist (GH-68)."
+    },
+    {
+      "id": "notify-gate-escalation",
+      "name": "Notification Gate Escalation vs Auto-Advance",
+      "description": "Phase 2.7 and Phase 3 notification steps resolve the external_notify gate and branch on effect: ask fires AskUserQuestion before posting; auto-advance posts without prompting and surfaces the record line; skip posts nothing. Notifications are never posted without resolving the gate first."
+    },
+    {
+      "id": "readiness-gate",
+      "name": "No Silent Readiness-Gate Skip",
+      "description": "After CI returns green, the Post-CI comment re-check (haiku-thread-scan) runs before the PR is marked ready. The PR is marked ready only when all four thread-scan arrays (unresolved_threads, body_findings, top_level_findings, needs_disposition) are empty — a non-blocking INFO in needs_disposition still blocks readiness (GH-465, GH-808 F1)."
+    },
+    {
+      "id": "qa-gate",
+      "name": "QA Scope Gate",
+      "description": "Phase 2.5 delegates to Skill(Dev10x:qa-scope), which always presents a QA assessment via AskUserQuestion once Phase 2 completes."
+    },
+    {
+      "id": "infra-failure-escalation",
+      "name": "Infrastructure Failure Escalation",
+      "description": "An infra_unavailable verdict is not read as a code failure. On recurrence the supervisor fires AskUserQuestion (keep waiting / escalate) rather than silently treating CI as failing or looping forever (GH-808 F2)."
+    },
+    {
+      "id": "no-merge",
+      "name": "Monitor Never Merges",
+      "description": "Monitoring scope ends at review request (Phase 3) plus acceptance verification (Phase 4). The monitor never merges the PR — no merge_pr MCP call and no raw gh pr merge."
+    }
+  ],
+  "evals": [
+    {
+      "id": "ci-poll-uses-haiku-tier",
+      "name": "CI polling runs at the haiku tier",
+      "description": "CI is polled via ci_check_status(wait=true) or a haiku-ci-poll micro-agent. Any dispatched poller uses model=haiku — never sonnet or opus for mechanical polling.",
+      "input": "/Dev10x:gh-pr-monitor",
+      "assertions": [
+        {
+          "dimension": "model-tier",
+          "check": "behavioral",
+          "signal": "CI polling uses ci_check_status(wait=true) or a micro-agent dispatched with model=haiku; no sonnet/opus poller is launched"
+        },
+        {
+          "dimension": "model-tier",
+          "check": "output_contains",
+          "value": "haiku",
+          "signal": "When a poller is dispatched, the startup banner shows model=haiku (e.g. dispatch=haiku-ci-poll model=haiku)"
+        }
+      ]
+    },
+    {
+      "id": "thread-scan-uses-haiku-tier",
+      "name": "Thread scan runs at the haiku tier and is read-only",
+      "description": "The haiku-thread-scan micro-agent enumerates unresolved surfaces at model=haiku with a read-only tool allowlist — it cannot Edit/Write, push, or invoke Skill().",
+      "input": "/Dev10x:gh-pr-monitor",
+      "assertions": [
+        {
+          "dimension": "model-tier",
+          "check": "behavioral",
+          "signal": "haiku-thread-scan is dispatched with model=haiku and no Edit/Write/push/Skill in its allowed tools"
+        }
+      ]
+    },
+    {
+      "id": "notify-gate-ask-fires-askuserquestion",
+      "name": "external_notify ask effect fires AskUserQuestion",
+      "description": "When resolve_gate(external_notify) returns effect=ask, the notification phase fires AskUserQuestion showing the exact message before posting — no plain-text 'post notification?' substitute.",
+      "input": "/Dev10x:gh-pr-monitor",
+      "assertions": [
+        {
+          "dimension": "notify-gate-escalation",
+          "check": "tool_called",
+          "tool": "mcp__plugin_Dev10x_cli__resolve_gate",
+          "signal": "resolve_gate(gate=\"external_notify\") is called before any notification is posted"
+        },
+        {
+          "dimension": "notify-gate-escalation",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "ask effect fires AskUserQuestion with Post/Skip options before posting"
+        },
+        {
+          "dimension": "notify-gate-escalation",
+          "check": "plain_text",
+          "signal": "No inline 'Post notification?' plain-text question substitutes for the AskUserQuestion widget"
+        }
+      ]
+    },
+    {
+      "id": "notify-gate-auto-advance-no-prompt",
+      "name": "external_notify auto-advance posts without prompting",
+      "description": "When resolve_gate(external_notify) returns effect=auto-advance, the notification is posted without firing AskUserQuestion, and the returned record line is surfaced to the transcript.",
+      "input": "/Dev10x:gh-pr-monitor",
+      "assertions": [
+        {
+          "dimension": "notify-gate-escalation",
+          "check": "behavioral",
+          "signal": "auto-advance effect posts the notification WITHOUT calling AskUserQuestion"
+        },
+        {
+          "dimension": "notify-gate-escalation",
+          "check": "output_contains",
+          "value": "external_notify",
+          "signal": "The auto-advance record line (gate:external_notify) is surfaced so a present supervisor can veto"
+        }
+      ]
+    },
+    {
+      "id": "readiness-recheck-before-ready",
+      "name": "Post-CI re-check runs before marking ready",
+      "description": "After CI is green, haiku-thread-scan re-scans for comments before the PR is marked ready. The PR is marked ready only when all four arrays are empty.",
+      "input": "/Dev10x:gh-pr-monitor",
+      "assertions": [
+        {
+          "dimension": "readiness-gate",
+          "check": "behavioral",
+          "signal": "The Post-CI comment re-check (haiku-thread-scan) runs after a green verdict and before gh pr ready"
+        },
+        {
+          "dimension": "readiness-gate",
+          "check": "behavioral",
+          "signal": "PR is NOT marked ready while any of unresolved_threads / body_findings / top_level_findings / needs_disposition is non-empty"
+        }
+      ]
+    },
+    {
+      "id": "needs-disposition-blocks-ready",
+      "name": "Non-blocking INFO still blocks readiness",
+      "description": "A non-empty needs_disposition array (a non-blocking INFO with no Re: reply) prevents the readiness gate from passing — it must be addressed or explicitly deferred first (GH-808 F1).",
+      "input": "/Dev10x:gh-pr-monitor",
+      "assertions": [
+        {
+          "dimension": "readiness-gate",
+          "check": "behavioral",
+          "signal": "A lone needs_disposition INFO keeps the PR from being marked ready until dispositioned"
+        }
+      ]
+    },
+    {
+      "id": "qa-gate-always-runs",
+      "name": "Phase 2.5 delegates to qa-scope",
+      "description": "Once Phase 2 completes, Phase 2.5 invokes Skill(Dev10x:qa-scope), which presents its QA assessment via AskUserQuestion.",
+      "input": "/Dev10x:gh-pr-monitor",
+      "assertions": [
+        {
+          "dimension": "qa-gate",
+          "check": "tool_called",
+          "tool": "Skill",
+          "signal": "Skill(Dev10x:qa-scope) is invoked in Phase 2.5, not skipped or inlined"
+        }
+      ]
+    },
+    {
+      "id": "infra-unavailable-escalates",
+      "name": "Recurring infra_unavailable escalates via AskUserQuestion",
+      "description": "An infra_unavailable verdict is re-probed via ci_check_status(wait=true); on recurrence the supervisor fires AskUserQuestion (keep waiting / escalate) instead of treating CI as failing.",
+      "input": "/Dev10x:gh-pr-monitor",
+      "assertions": [
+        {
+          "dimension": "infra-failure-escalation",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "Recurring infra_unavailable fires AskUserQuestion with keep-waiting / escalate options"
+        },
+        {
+          "dimension": "infra-failure-escalation",
+          "check": "behavioral",
+          "signal": "infra_unavailable is NOT branched into CI Failure Handling as a code failure"
+        }
+      ]
+    },
+    {
+      "id": "monitor-does-not-merge",
+      "name": "Monitor does not merge the PR",
+      "description": "The monitor's scope ends at review request plus acceptance verification. It never merges.",
+      "input": "/Dev10x:gh-pr-monitor",
+      "assertions": [
+        {
+          "dimension": "no-merge",
+          "check": "behavioral",
+          "signal": "mcp__plugin_Dev10x_cli__merge_pr is NOT called and no raw 'gh pr merge' Bash command is invoked"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "description": "Queries that should/should-not trigger the gh-pr-monitor skill",
+    "should_trigger": [
+      {
+        "query": "/Dev10x:gh-pr-monitor",
+        "rationale": "Direct invocation — runs the Phase 0-4 monitoring loop"
+      },
+      {
+        "query": "I just created the draft PR, monitor CI and review comments",
+        "rationale": "Post-create monitoring — the core use case"
+      },
+      {
+        "query": "watch PR #42 until CI passes and ping reviewers when ready",
+        "rationale": "CI monitoring through review request — Phases 1-3"
+      }
+    ],
+    "should_not_trigger": [
+      {
+        "query": "create a PR for my current branch",
+        "rationale": "PR creation — use Dev10x:gh-pr-create first"
+      },
+      {
+        "query": "merge PR #42 now that checks pass",
+        "rationale": "Merge is out of scope — use Dev10x:gh-pr-merge"
+      },
+      {
+        "query": "respond to the review comments on my PR",
+        "rationale": "Direct comment response — use Dev10x:gh-pr-respond"
+      }
+    ]
+  }
+}
