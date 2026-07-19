@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import io
 import json
+import subprocess
 import urllib.error
+from types import SimpleNamespace
 
 import pytest
 
@@ -60,6 +62,55 @@ class TestGetSaInfo:
         monkeypatch.setattr(mod, "_keyring_lookup", lambda *, service, key: "{not json")
         result = mod.get_sa_info()
         assert isinstance(result, ErrorResult)
+
+
+class TestLoadConfig:
+    def test_returns_parsed_yaml_when_file_present(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: object
+    ) -> None:
+        monkeypatch.setenv("DEV10X_CONFIG_HOME", str(tmp_path))
+        config_path = tmp_path / "gchat-config.yaml"  # type: ignore[operator]
+        config_path.write_text("spaces:\n  tt-reviews:\n    space_id: AAAA123\n")
+        mod._config = None
+        assert mod._load_config() == {"spaces": {"tt-reviews": {"space_id": "AAAA123"}}}
+        assert mod._get_config() == {"spaces": {"tt-reviews": {"space_id": "AAAA123"}}}
+
+    def test_returns_empty_dict_when_file_missing(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: object
+    ) -> None:
+        monkeypatch.setenv("DEV10X_CONFIG_HOME", str(tmp_path))
+        mod._config = None
+        assert mod._load_config() == {}
+
+
+class TestKeyringLookup:
+    def test_returns_stripped_stdout_on_darwin(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mod.sys, "platform", "darwin")
+        monkeypatch.setattr(
+            mod.subprocess_utils, "run", lambda *a, **k: SimpleNamespace(stdout="val\n")
+        )
+        assert mod._keyring_lookup(service="gchat", key="sa_key") == "val"
+
+    def test_returns_stripped_stdout_on_linux(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mod.sys, "platform", "linux")
+        monkeypatch.setattr(
+            mod.subprocess_utils, "run", lambda *a, **k: SimpleNamespace(stdout="val\n")
+        )
+        assert mod._keyring_lookup(service="gchat", key="sa_key") == "val"
+
+    def test_returns_none_on_called_process_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def fake_run(*a, **k):  # noqa: ANN001, ANN202
+            raise subprocess.CalledProcessError(1, "secret-tool")
+
+        monkeypatch.setattr(mod.subprocess_utils, "run", fake_run)
+        assert mod._keyring_lookup(service="gchat", key="sa_key") is None
+
+    def test_returns_none_on_file_not_found(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def fake_run(*a, **k):  # noqa: ANN001, ANN202
+            raise FileNotFoundError
+
+        monkeypatch.setattr(mod.subprocess_utils, "run", fake_run)
+        assert mod._keyring_lookup(service="gchat", key="sa_key") is None
 
 
 class TestMintAccessToken:
@@ -164,6 +215,43 @@ class TestPostJson:
         result = mod._post_json(f"{mod.CHAT_API_BASE}/spaces/A/messages", {"text": "hi"}, "tok")
         assert isinstance(result, ErrorResult)
         assert "boom" in result.error
+
+
+class TestPostForm:
+    def test_posts_and_parses_success_response(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            mod.urllib.request,
+            "urlopen",
+            lambda req, timeout=30: _FakeResponse(b'{"access_token": "x"}'),
+        )
+        result = mod._post_form(mod.TOKEN_URI, {"grant_type": mod._JWT_GRANT, "assertion": "j"})
+        assert isinstance(result, SuccessResult)
+        assert result.value == {"access_token": "x"}
+
+    def test_errors_on_http_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def fake_urlopen(req, timeout=30):  # noqa: ANN001, ANN202
+            raise urllib.error.HTTPError(
+                mod.TOKEN_URI,
+                400,
+                "Bad Request",
+                hdrs=None,
+                fp=io.BytesIO(b"invalid_grant"),
+            )
+
+        monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
+        result = mod._post_form(mod.TOKEN_URI, {"grant_type": mod._JWT_GRANT, "assertion": "j"})
+        assert isinstance(result, ErrorResult)
+        assert "400" in result.error
+        assert "invalid_grant" in result.error
+
+    def test_errors_on_url_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def fake_urlopen(req, timeout=30):  # noqa: ANN001, ANN202
+            raise urllib.error.URLError("down")
+
+        monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
+        result = mod._post_form(mod.TOKEN_URI, {"grant_type": mod._JWT_GRANT, "assertion": "j"})
+        assert isinstance(result, ErrorResult)
+        assert "down" in result.error
 
 
 class TestPostMessage:
