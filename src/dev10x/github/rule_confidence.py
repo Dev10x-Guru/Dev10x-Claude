@@ -28,6 +28,7 @@ from typing import Any
 
 from dev10x.domain.common.result import Result, err, ok
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.domain.file_locks import atomic_write_text, file_lock
 
 _FEEDBACK_FILENAME = "rule-feedback.json"
 
@@ -127,17 +128,29 @@ def load_feedback(*, store_path: Path) -> dict[str, RuleFeedback]:
 
 
 def save_feedback(*, feedback: dict[str, RuleFeedback], store_path: Path) -> None:
-    """Persist the feedback store as sorted, indented JSON."""
+    """Persist the feedback store as sorted, indented JSON.
+
+    Writes via :func:`atomic_write_text` (mkstemp + rename) so a crash
+    mid-write can never truncate the store (ADR-0011 Layer 1). Callers
+    that read-modify-write must hold :func:`file_lock` across the cycle
+    to avoid lost updates — see :func:`record_feedback`.
+    """
     store_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         rule_id: {"catches": item.catches, "false_positives": item.false_positives}
         for rule_id, item in feedback.items()
     }
-    store_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    atomic_write_text(store_path, json.dumps(payload, indent=2, sort_keys=True))
 
 
 def record_feedback(*, rule_id: str, outcome: str, store_path: Path) -> RuleFeedback:
     """Increment a rule's catch or false-positive tally and persist it.
+
+    The load→mutate→save cycle runs under :func:`file_lock` so
+    concurrent recorders (parallel worktrees / agents) cannot lose
+    tallies by reading stale state; the write itself is atomic. Without
+    the lock the read-modify-write is a classic lost-update race
+    (GH-822).
 
     Raises ``ValueError`` on an unknown outcome so direct callers fail
     loud; the MCP orchestrator validates first and returns an error
@@ -145,22 +158,23 @@ def record_feedback(*, rule_id: str, outcome: str, store_path: Path) -> RuleFeed
     """
     if outcome not in _OUTCOMES:
         raise ValueError(f"unknown outcome {outcome!r}; expected one of {sorted(_OUTCOMES)}")
-    feedback = load_feedback(store_path=store_path)
-    current = feedback.get(rule_id, RuleFeedback(rule_id=rule_id))
-    if outcome == CATCH:
-        updated = RuleFeedback(
-            rule_id=rule_id,
-            catches=current.catches + 1,
-            false_positives=current.false_positives,
-        )
-    else:
-        updated = RuleFeedback(
-            rule_id=rule_id,
-            catches=current.catches,
-            false_positives=current.false_positives + 1,
-        )
-    feedback[rule_id] = updated
-    save_feedback(feedback=feedback, store_path=store_path)
+    with file_lock(store_path):
+        feedback = load_feedback(store_path=store_path)
+        current = feedback.get(rule_id, RuleFeedback(rule_id=rule_id))
+        if outcome == CATCH:
+            updated = RuleFeedback(
+                rule_id=rule_id,
+                catches=current.catches + 1,
+                false_positives=current.false_positives,
+            )
+        else:
+            updated = RuleFeedback(
+                rule_id=rule_id,
+                catches=current.catches,
+                false_positives=current.false_positives + 1,
+            )
+        feedback[rule_id] = updated
+        save_feedback(feedback=feedback, store_path=store_path)
     return updated
 
 
