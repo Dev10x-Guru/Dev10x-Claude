@@ -7,7 +7,9 @@ Source: https://jtbd.info/replacing-the-user-story-with-the-job-story-af7cdee10c
 **When** [situation], **[actor] wants to** [motivation], **so [beneficiary] can** [expected outcome].
 
 The actor and beneficiary may be the same or different roles. Always name them
-explicitly — never use "I", "we", or "they".
+explicitly with a concrete domain role — never first-person ("I", "we") and
+never a faceless "the user". Once the actor is named, an anaphoric
+back-reference in the outcome clause ("so they can …") is fine.
 
 ## Key Principles
 
@@ -43,11 +45,10 @@ Bad:  "so the system supports ACH"
 
 ### 5. Name Actors Explicitly
 
-Prefer role names over "I", "we", or "they" — a named persona ("the
-merchant", "the billing admin") adds context at a glance. `I want to`
-is acceptable as a fallback when the actor is obvious from context.
-When the actor who triggers the action differs from the beneficiary
-who gains the value, name both:
+Always name a concrete domain role ("the merchant", "the billing admin") —
+never first-person "I"/"we" and never a faceless "the user". A named role
+adds context at a glance. When the actor who triggers the action differs
+from the beneficiary who gains the value, name both:
 
 Good: "the billing admin wants to send the customer an SMS, so the customer can pay"
 Bad:  "I want to send them an SMS, so they can pay"
@@ -81,7 +82,7 @@ non-technical stakeholder, it is carrying implementation detail.
 | Naming the replaced artifact ("instead of the old list/panel") | Contrasts with the previous implementation, not the user's pain | Contrast with the pain; prior broken *behavior* is fine, prior *component* is not |
 | Vague outcome | Not testable | Be specific about what improves |
 | No contrast with current state | Unclear why it matters | Show what's wrong today (an outcome like "keep support calls short" carries it implicitly) |
-| Using "I"/"they" when the actor is ambiguous | Hides who is impacted | Prefer a named role: "the cashier", "the customer"; `I want to` is fine when context is clear |
+| First-person "I"/"we", or a faceless "the user" | Hides who is impacted | Name a concrete role: "the cashier", "the customer" (see § Choosing the Actor in `references/git-jtbd.md`) |
 | Same actor when roles differ | Hides multi-stakeholder flow | Name both actor and beneficiary when they differ |
 
 ## Examples

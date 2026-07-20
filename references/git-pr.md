@@ -95,15 +95,17 @@ The body should be **compact** to avoid cluttering Slack previews.
 
 ### Examples
 
-**VOICE REQUIREMENT**: The "I want to" form is mandatory—never use objective
-voice like "wants to" or "the developer wants to". See
-`references/git-jtbd.md` § Voice Requirement (lines 35-50).
+**VOICE REQUIREMENT**: Third-person domain-actor voice is mandatory — name a
+concrete actor and beneficiary (`**the service writer wants to** … **so the
+dealer can** …`). Never use first-person ("I want to") or a faceless "the user
+wants to". See `references/git-jtbd.md` § Voice Requirement and
+§ Choosing the Actor.
 
 **WRONG** — Header before JTBD (breaks release notes parsing):
 ```markdown
 ## Summary
 
-**When** reviewing code, **I want to** have automated checks, **so I can** catch issues.
+**When** reviewing code, **the admin wants to** have automated checks, **so the team can** catch issues.
 
 [Details...]
 
@@ -112,7 +114,7 @@ Fixes: ...
 
 **CORRECT** — JTBD as absolute first element:
 ```markdown
-**When** reviewing code, **I want to** have automated checks, **so I can** catch issues.
+**When** reviewing code, **the admin wants to** have automated checks, **so the team can** catch issues.
 
 [Details or commit list — optional...]
 
@@ -122,8 +124,8 @@ Fixes: ...
 ### Proper Format
 
 ```markdown
-**When** reviewing PRs without automated checks, **I want to** have
-Claude review code quality, **so I can** catch issues before merging.
+**When** reviewing PRs without automated checks, **the admin wants to** have
+Claude review code quality, **so the team can** catch issues before merging.
 
 [`b3a015a`](REPO_URL/commit/HASH) ✨ GH-7 Enable code review
 [`fec4999`](REPO_URL/commit/HASH) 📝 GH-7 Document review agents

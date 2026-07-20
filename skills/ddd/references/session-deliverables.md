@@ -94,7 +94,7 @@ New tickets follow this format:
 ```markdown
 ### PERT-NN: [Title]
 
-**When** [situation], **I want to** [motivation], **so I can** [outcome].
+**When** [situation], **[actor] wants to** [motivation], **so [beneficiary] can** [outcome].
 
 **Scope:** [What this ticket covers]
 

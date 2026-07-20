@@ -4,9 +4,14 @@ from __future__ import annotations
 
 import re
 
+# Accepts third-person domain-actor voice (`**the dealer wants to** …,
+# **so the service writer can** …`) as well as the legacy first-person
+# (`**I want to** …, **so I can** …`) form for already-merged PRs (GH-847).
+# The actor/beneficiary slots match any concrete role phrase; the outcome
+# verb may be "can", "don't", or "doesn't".
 JTBD_PATTERN: re.Pattern[str] = re.compile(
-    r"\*\*When\*\*\s+(.+?)\s*,\s*\*\*(?:I want to|they want to)\*\*\s+(.+?)\s*,"
-    r"\s*\*\*so (?:I can|they can|I don't)\*\*\s+(.+?)(?:\.|$)",
+    r"\*\*When\*\*\s+(.+?)\s*,\s*\*\*(?:I want to|they want to|.+? wants? to)\*\*\s+(.+?)\s*,"
+    r"\s*\*\*so (?:.+? (?:can|don't|doesn't))\*\*\s+(.+?)(?:\.|$)",
     re.DOTALL,
 )
 

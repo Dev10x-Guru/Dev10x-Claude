@@ -100,11 +100,12 @@ Before raising any of these, **verify actual code**:
     the block message but not the Why or How to recover. Do NOT skip the
     docs check.
 21. **JTBD voice violations** — when a PR body, commit message, or issue
-    title contains a Job Story using objective voice (e.g., "the developer
-    wants to"), flag as REQUIRED. First-person ("I want to") or explicit
-    third-party ("so [person] can") are required. Objective voice breaks
-    release notes parsing and is explicitly listed as wrong in
-    `references/git-jtbd.md` lines 31–45.
+    title contains a Job Story using first-person ("I want to") or a
+    faceless actor ("the user wants to"), flag as REQUIRED. Third-person
+    domain-actor voice with a concrete role and beneficiary
+    ("the service writer wants to … so the dealer can …") is required.
+    Malformed voice breaks release notes parsing; see
+    `references/git-jtbd.md` § Voice Requirement and § Choosing the Actor.
 22. **SKILL.md table/implementation skew** — when a PR modifies an
     executable construct (alias, script command, option, environment variable)
     documented in a SKILL.md reference table, cross-check that the table is

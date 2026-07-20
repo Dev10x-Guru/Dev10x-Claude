@@ -9,7 +9,7 @@
     {
       "id": "title",
       "name": "PR Title",
-      "description": "Single-commit PRs use commit title; multi-commit PRs derive title from JTBD 'so I can' clause or best overall outcome commit"
+      "description": "Single-commit PRs use commit title; multi-commit PRs derive title from JTBD 'so [beneficiary] can' clause or best overall outcome commit"
     },
     {
       "id": "tracker-integration",
@@ -48,9 +48,9 @@
         },
         {
           "id": "body-starts-with-job-story",
-          "text": "PR body starts with a JTBD Job Story in **When** / **I want to** / **so I can** format",
+          "text": "PR body starts with a JTBD Job Story in **When** / **[actor] wants to** / **so [beneficiary] can** format",
           "check": "output_contains",
-          "signals": ["**When**", "**I want to**", "**so I can**"]
+          "signals": ["**When**", "wants to", "so "]
         },
         {
           "id": "body-has-commit-list",
@@ -106,7 +106,7 @@
       "id": 2,
       "name": "multi-commit-pr-with-jtbd",
       "prompt": "/Dev10x:gh-pr-create",
-      "description": "Multiple commits on branch. Tests that PR title is derived from JTBD 'so I can' clause rather than last commit title.",
+      "description": "Multiple commits on branch. Tests that PR title is derived from JTBD 'so [beneficiary] can' clause rather than last commit title.",
       "setup": {
         "branch": "janusz/PAY-200/multi-location-routing",
         "commits_ahead": 4,

@@ -50,6 +50,30 @@ class TestExtractJtbdStructured:
     @pytest.mark.parametrize(
         "body",
         [
+            # Third-person domain-actor voice (GH-847) — distinct actor and
+            # beneficiary roles.
+            "**When** reconciling a payout, **the dealer wants to** see each"
+            " line item, **so the service writer can** resolve disputes.",
+            # Same role in both slots.
+            "**When** onboarding, **the admin wants to** copy config,"
+            " **so the admin can** skip manual setup.",
+            # Negative-outcome verb.
+            "**When** notifications pile up, **the wholesaler wants to** batch"
+            " them, **so the wholesaler doesn't** miss orders.",
+            # Legacy first-person back-compat.
+            "**When** A, **I want to** B, **so I can** C.",
+            # Legacy third-person plural back-compat.
+            "**When** A, **they want to** B, **so they can** C.",
+        ],
+    )
+    def test_matches_third_person_and_legacy_voice(self, body: str):
+        result = extract_jtbd_structured(body=body)
+        assert result is not None
+        assert result.startswith("**When** ")
+
+    @pytest.mark.parametrize(
+        "body",
+        [
             "",
             "no jtbd structure at all",
             "**When** X happens but no want clause",

@@ -11,7 +11,7 @@ This skill creates properly formatted git commits following project conventions:
 
 ## Guiding Principle: User-Facing Outcomes
 
-**Shift the perspective from what changed in the code to what it enables for the user.** The same principle drives Job Stories — the "so I can" clause captures the outcome, not the mechanism. This applies to commit titles, PR titles, ticket titles, and branch grooming.
+**Shift the perspective from what changed in the code to what it enables for the actor.** The same principle drives Job Stories — the "so [beneficiary] can" clause captures the outcome, not the mechanism. This applies to commit titles, PR titles, ticket titles, and branch grooming.
 
 - Bad: `Add DEVICES_READ to Square OAuth scopes` (implementation)
 - Good: `Enable automatic terminal discovery` (outcome)
@@ -368,8 +368,8 @@ This step activates when **any** of these conditions are met:
 
 **Flow:**
 1. Invoke the `Dev10x:jtbd` base skill in **unattended** mode with `ticket_id`
-2. Extract the "so I can" clause from the returned story
-3. Transform it to an imperative title (e.g., "so I can track Zelle transactions" → "Enable Zelle transaction tracking")
+2. Extract the "so [beneficiary] can" clause from the returned story
+3. Transform it to an imperative title (e.g., "so the merchant can track Zelle transactions" → "Enable Zelle transaction tracking")
 4. Present as a suggestion:
    ```
    Suggested title: Enable Zelle transaction tracking

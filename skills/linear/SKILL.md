@@ -124,7 +124,7 @@ checking that every expected ticket ID appears in the results.
 To find an existing Job Story on a Linear ticket:
 
 1. Get issue: `mcp__claude_ai_Linear__get_issue(id: "TEAM-133")`
-2. Search the description for `**When**` / `**I want to**` / `**so I can**` pattern
+2. Search the description for `**When**` / `**[actor] wants to**` / `**so [beneficiary] can**` pattern (legacy `**I want to**` / `**so I can**` also matches)
 3. If not found, list comments: `mcp__claude_ai_Linear__list_comments(issueId: "TEAM-133")`
 4. Search each comment body for the same pattern
 5. Return the first match, or empty if none found
