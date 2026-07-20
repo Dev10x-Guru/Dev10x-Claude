@@ -154,6 +154,32 @@ For each work item, determine:
    Within PRs: ready-to-merge first, then draft with CI
    passing, then draft needing work.
 
+### Provenance Check (GH-876 F2)
+
+Classification from title/label/body alone is not enough for issues
+that **claim a capability is missing, unwired, dormant, or not yet
+delivered** ("X is not called anywhere", "wire up Y", "Z is a TODO",
+"stub only"). Such claims are frequently stale — the capability may
+already have shipped in a later PR (a superseded follow-up), or the
+issue may be blocked on a prerequisite that does not exist yet.
+Routing either into an implementation lane wastes a worktree.
+
+Before routing any issue whose body uses that language, run a
+lightweight provenance check:
+
+1. **`git log` the named path/symbol** on `origin/<base>` — was the
+   change already made? (`git log --oneline -S"<symbol>"` or on the
+   file path.)
+2. **`rg` for the symbol** across the repo — does the "missing" code
+   already exist and get called?
+3. **Confirm any named prerequisite exists** before treating the
+   issue as ready.
+
+Record the result on the item: `LIVE` (proceed), `ALREADY_DELIVERED`
+(surface to the supervisor for close-as-done, do NOT implement), or
+`BLOCKED_ON_PREREQ` (defer, name the missing prerequisite). Never
+silently drop an issue — surface the finding.
+
 ### Conflict Analysis
 
 Build a conflict graph:
@@ -551,6 +577,12 @@ ANTI-STALL CONTRACT (highest priority — read before invoking work-on):
 - After work-on returns, if the PR is open but not merged,
   that is NOT done. Invoke Skill(Dev10x:gh-pr-monitor) and
   then Skill(Dev10x:gh-pr-merge) to complete.
+- FULL TEST SUITE BEFORE DONE (GH-876 F1): run the COMPLETE test
+  suite with coverage — never only the edited-file subset — before
+  you report DONE. A subset-green run misses regressions in
+  unedited callers and the 100%-coverage gate, which then fail in
+  CI after you have already returned. Route through Skill(test) /
+  Skill(Dev10x:py-test) with NO path-narrowing args.
 - If your turn ends before the PR is merged, your final line
   MUST be NEEDS_CONTEXT (not DONE). The orchestrator will
   re-dispatch to finish.
@@ -589,6 +621,12 @@ Etiquette (REQUIRED):
   `git push -u origin HEAD` (never a bare `git push`).
 - Your worktree is ephemeral; assume it is destroyed if you
   make no changes.
+- CWD guard for PR creation (GH-873 F1): always pass your worktree
+  path as `cwd=` when creating a PR (via Dev10x:gh-pr-create /
+  `create_pr`). The MCP daemon is shared and defaults to the
+  orchestrator's CWD, so omitting `cwd=` pushes the wrong branch and
+  opens a stray PR. `create_pr` now refuses when HEAD resolves to a
+  base branch — that refusal means your `cwd=` was missing or wrong.
 
 Return on completion:
 - PR URL (or "no PR produced — <reason>")
@@ -602,7 +640,8 @@ Return on completion:
   NEEDS_CONTEXT: <what> | BLOCKED: <reason>
 
 Status line rules (GH-368, GH-385):
-- DONE requires: PR merged, no open comments, CI green.
+- DONE requires: PR merged, no open comments, CI green, and the
+  FULL test suite + coverage run green locally (not a subset).
 - DONE_WITH_CONCERNS: PR merged but flagged issues remain.
 - NEEDS_CONTEXT: interrupted before merge (branch or PR open
   but not merged) — the orchestrator will re-dispatch.

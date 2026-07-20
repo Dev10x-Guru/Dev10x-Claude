@@ -104,12 +104,16 @@ class GateResolutionOutcome:
 
     ``context`` is the concrete ``GateContext`` that was resolved (including
     any computed ``session_stale`` fallback); ``dropped_overlays`` lists the
-    overlays the durable-mode guard removed before resolution.
+    overlays the durable-mode guard removed before resolution;
+    ``ignored_context_fields`` lists caller-supplied context keys that are
+    not ``GateContext`` fields — they are dropped (resolving in the safe
+    direction) rather than hard-failing the call (GH-854 F1).
     """
 
     context: GateContext
     resolution: GateResolution
     dropped_overlays: list[str]
+    ignored_context_fields: list[str]
 
 
 @dataclass(frozen=True)
@@ -143,9 +147,13 @@ class GateResolutionQuery:
         )
 
         known_fields = {field.name for field in dataclasses.fields(GateContext)}
-        unknown = sorted(set(self.context) - known_fields)
-        if unknown:
-            return err(f"Unknown context fields: {unknown}; known: {sorted(known_fields)}")
+        ignored_context_fields = sorted(set(self.context) - known_fields)
+        # Warn-and-ignore rather than hard-fail (GH-854 F1): a mistyped or
+        # extra context key drops out and the gate resolves on the remaining
+        # facts (omitted facts resolve in the safe direction) instead of
+        # erroring the whole call. The dropped keys are surfaced on the wire
+        # so the caller can spot a typo.
+        accepted_context = {k: v for k, v in self.context.items() if k in known_fields}
 
         session_doc = SessionYamlDocument(toplevel=self.toplevel)
         inputs = session_doc.read_gate_policy_inputs()
@@ -188,7 +196,7 @@ class GateResolutionQuery:
 
         # session_adoption keys on computed staleness (GH-742 F1 seam) unless
         # the caller supplied session_stale explicitly.
-        resolved_context = dict(self.context)
+        resolved_context = dict(accepted_context)
         if self.gate == "session_adoption" and "session_stale" not in resolved_context:
             resolved_context["session_stale"] = _computed_session_stale(toplevel=self.toplevel)
 
@@ -218,5 +226,6 @@ class GateResolutionQuery:
                 context=gate_context,
                 resolution=resolution,
                 dropped_overlays=dropped_overlays,
+                ignored_context_fields=ignored_context_fields,
             )
         )

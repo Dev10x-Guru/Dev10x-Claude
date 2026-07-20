@@ -95,11 +95,15 @@ class TestResolveGateForToplevel:
         assert result.to_dict()["effect"] == "auto-advance"
 
     @pytest.mark.asyncio
-    async def test_unknown_context_field_errors(self, tmp_path: Path) -> None:
+    async def test_unknown_context_field_ignored_and_surfaced(self, tmp_path: Path) -> None:
+        # GH-854 F1: an unknown context key is dropped and reported on the wire
+        # under ``ignored_context_fields`` rather than hard-failing the call.
         result = await resolve_gate_for_toplevel(
             gate="merge", context={"vibe": "good"}, toplevel=str(tmp_path)
         )
-        assert "Unknown context fields" in result.to_dict()["error"]
+        payload = result.to_dict()
+        assert "error" not in payload
+        assert payload["ignored_context_fields"] == ["vibe"]
 
     @pytest.mark.asyncio
     async def test_unknown_gate_errors(self, tmp_path: Path) -> None:

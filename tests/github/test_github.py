@@ -2829,3 +2829,42 @@ class TestMalformedJsonGuards:
 
         assert isinstance(result, ErrorResult)
         assert "Invalid JSON" in result.error
+
+
+class TestCreatePrBaseBranchGuard:
+    """GH-873 F1: refuse to open a PR when HEAD is on a base branch — the
+    tell-tale of a wrong/unbound working directory (e.g. a swarm child that
+    omitted cwd= and resolved to the orchestrator's CWD)."""
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.domain.git_context.GitContext")
+    async def test_refuses_pr_from_base_branch(
+        self,
+        mock_git_context: object,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        mock_git_context.return_value.branch = "develop"
+
+        result = await gh.create_pr(title="t", job_story="js", issue_id="GH-1")
+
+        assert isinstance(result, ErrorResult)
+        assert "base branch" in result.error
+        mock_run_script.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.domain.git_context.GitContext")
+    async def test_creates_pr_from_feature_branch(
+        self,
+        mock_git_context: object,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        mock_git_context.return_value.branch = "janusz/GH-1/feature"
+        mock_run_script.return_value = _completed(stdout="https://github.com/o/r/pull/7\n7")
+
+        result = await gh.create_pr(title="t", job_story="js", issue_id="GH-1")
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["pr_number"] == 7
+        mock_run_script.assert_called_once()

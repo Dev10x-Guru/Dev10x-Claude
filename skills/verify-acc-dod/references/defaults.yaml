@@ -4,7 +4,9 @@
 #
 # Schema per check:
 #   name:             Human-readable criterion name (required)
-#   check:            Shell command to run (use {pr_number} and {repo} placeholders)
+#   check:            Shell command to run (use {pr_number}, {repo}, and
+#                     {base_branch} placeholders — {base_branch} avoids a
+#                     hardcoded develop so main-only repos work, GH-854 F2)
 #                     Special values:
 #                       "manual"  — ask the user via AskUserQuestion
 #                       "prompt"  — Claude evaluates the prompt from session context
@@ -16,7 +18,11 @@
 #                     For "prompt": instruction Claude evaluates contextually
 #   modes:            Per-mode overrides (optional). Map of mode name
 #                     to {skip: true} to skip when that mode is active.
-#                     Read active_modes from .claude/Dev10x/session.yaml.
+#                     Resolve active_modes from the DURABLE gate policy —
+#                     global ~/.config/Dev10x/friction.yaml (projects[]
+#                     match), falling back to legacy .claude/Dev10x/config.yaml.
+#                     NOT the retired ephemeral .claude/Dev10x/session.yaml
+#                     (ADR-0018, GH-854 F3).
 #
 # Only one expect_* field per check. First match wins.
 
@@ -33,7 +39,7 @@ defaults:
         check: gh pr view {pr_number} --repo {repo} --json isDraft -q .isDraft  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect: "false"
       - name: No fixup commits
-        check: git log --oneline origin/develop..HEAD
+        check: git log --oneline origin/{base_branch}..HEAD
         expect_not_contains: "fixup!"
       - name: Skill routing compliance
         check: prompt
@@ -50,7 +56,7 @@ defaults:
         prompt: >
           For each Fixes:/Closes: link on the PR, compare the linked
           issue's title and acceptance criteria against the diff (git
-          diff origin/develop..HEAD). FAIL when a titled capability is
+          diff origin/{base_branch}..HEAD). FAIL when a titled capability is
           unbuilt — tell-tales: new production code with no non-test
           caller, or a review comment / unchecked checklist item noting
           remaining work. A Fixes: link auto-closes its issue on merge
@@ -89,10 +95,10 @@ defaults:
         check: gh pr view {pr_number} --repo {repo} --json isDraft -q .isDraft  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect: "false"
       - name: Regression test present
-        check: git diff origin/develop..HEAD --stat
+        check: git diff origin/{base_branch}..HEAD --stat
         expect_contains: "test_"
       - name: No fixup commits
-        check: git log --oneline origin/develop..HEAD
+        check: git log --oneline origin/{base_branch}..HEAD
         expect_not_contains: "fixup!"
       - name: Skill routing compliance
         check: prompt
@@ -106,7 +112,7 @@ defaults:
         prompt: >
           For each Fixes:/Closes: link on the PR, compare the linked
           issue's title and acceptance criteria against the diff (git
-          diff origin/develop..HEAD). FAIL when a titled capability is
+          diff origin/{base_branch}..HEAD). FAIL when a titled capability is
           unbuilt — tell-tales: new production code with no non-test
           caller, or a review comment / unchecked checklist item noting
           remaining work. A Fixes: link auto-closes its issue on merge
@@ -145,7 +151,7 @@ defaults:
         check: gh pr view {pr_number} --repo {repo} --json isDraft -q .isDraft  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect: "false"
       - name: No fixup commits
-        check: git log --oneline origin/develop..HEAD
+        check: git log --oneline origin/{base_branch}..HEAD
         expect_not_contains: "fixup!"
       - name: Skill routing compliance
         check: prompt
@@ -158,7 +164,7 @@ defaults:
         prompt: >
           For each Fixes:/Closes: link on the PR, compare the linked
           issue's title and acceptance criteria against the diff (git
-          diff origin/develop..HEAD). FAIL when a titled capability is
+          diff origin/{base_branch}..HEAD). FAIL when a titled capability is
           unbuilt — tell-tales: new production code with no non-test
           caller, or a review comment / unchecked checklist item noting
           remaining work. A Fixes: link auto-closes its issue on merge

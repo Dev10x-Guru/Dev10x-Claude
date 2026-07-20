@@ -176,10 +176,14 @@ prevents removing a just-added check or replacing a removed one.
 
 ### Step 4: Filter by active modes
 
-Read `active_modes` from `.claude/Dev10x/session.yaml`. For each
-check with a `modes:` field, check if any active mode has
-`skip: true`. If so, remove the check from the list and report
-it as "skipped (mode: <mode-name>)".
+Resolve `active_modes` from the DURABLE gate policy — global
+`~/.config/Dev10x/friction.yaml` (first matching `projects[]` entry),
+falling back to legacy `.claude/Dev10x/config.yaml`. Do NOT read the
+retired ephemeral `.claude/Dev10x/session.yaml`, which no longer
+carries durable modes (ADR-0018, GH-854 F3). For each check with a
+`modes:` field, check if any active mode has `skip: true`. If so,
+remove the check from the list and report it as "skipped (mode:
+<mode-name>)".
 
 Modes encode an explicit scope decision so the DoD stays honest
 rather than red-but-ignored (GH-736). For example, `review-deferred`
@@ -215,6 +219,7 @@ Before running each check command, resolve placeholders:
 |-------------|--------|
 | `{pr_number}` | Current PR number (from `mcp__plugin_Dev10x_cli__pr_detect(arg="")` → `PR_NUMBER`, or session context) |
 | `{repo}` | Current repo (from `gh repo view --json nameWithOwner -q .nameWithOwner` or session context) |
+| `{base_branch}` | PR base branch from `mcp__plugin_Dev10x_cli__detect_base_branch` (`develop`→`main` fallback) — never hardcode `develop` (GH-854 F2) |
 
 If no PR exists (e.g., `local-only`), skip checks that reference
 `{pr_number}` and mark them as "skipped (no PR)".

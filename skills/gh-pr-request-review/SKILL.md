@@ -90,8 +90,12 @@ re-derive preset behavior in prose. The tool reads session policy
    straight to the Pre-flight checks and Reviewer Resolution below;
    surface the returned `record` line to the transcript.
 4. `effect == "skip"` → do NOT request review (solo-maintainer / no
-   review posture). Print "Skipping review request (solo-maintainer)"
-   and stop — do not run pre-flight checks or reviewer resolution.
+   review posture), but STILL run the **Pre-flight: Draft State Check**
+   below first (GH-854 F4): a draft PR whose CI is suppressed until it
+   is marked ready would otherwise never run CI and never become
+   mergeable. Flip draft→ready via `gh pr ready`, then print "Skipping
+   review request (solo-maintainer)" and stop — skip only reviewer
+   resolution, not the draft flip.
 5. `error` key present → fail safe: treat exactly like `effect ==
    "ask"` and fire the Stand-by widget.
 
@@ -216,7 +220,13 @@ the deferral path:
 2. Record `review-deferred` in `active_modes` by appending it to
    `.claude/Dev10x/session.yaml`:
    - Read the file, append `review-deferred` to the `active_modes`
-     list if not already present, write back via the Write tool
+     list if not already present, write back via the Edit tool
+   - `review-deferred` is a **one-time, ephemeral** flag, so it belongs
+     in the ephemeral `session.yaml` — NOT the durable
+     `friction.yaml`/`config.yaml` where durable modes like
+     `solo-maintainer` live (ADR-0018 / GH-854 F3). The durable read
+     facade still merges `session.yaml`'s `active_modes`, so
+     `verify-acc-dod` sees this flag.
 3. Do NOT mark the PR as draft; leave it ready
 4. Return cleanly so the calling orchestrator's completion gate does
    not treat the missing review request as a failure

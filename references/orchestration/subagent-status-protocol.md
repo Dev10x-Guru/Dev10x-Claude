@@ -4,6 +4,20 @@ Structured status reporting for subagents dispatched via `Agent()`,
 adapted from the implementer/spec-reviewer pattern in
 [obra/superpowers](https://github.com/obra/superpowers).
 
+> **Size-budget override (GH-848, per `.claude/rules/INDEX.md`
+> § Budget Overrides).** This file exceeds the 200-line
+> `references/**` budget. The status protocol is a single cohesive
+> contract — the four statuses, the prompt/delivery templates, the
+> escalation ladder, the non-resumable cases, and the addressing
+> quirks are read *together* by every orchestration hub (work-on,
+> fanout, gh-pr-monitor, skill-audit, adr-evaluate), and splitting
+> them would scatter one contract across files that must stay in
+> sync. **Conditional split seam:** if this file grows past 300
+> lines, split the core protocol (statuses, prompt template,
+> delivery channel) from the operational guidance (escalation
+> ladder, non-resumable cases, addressing quirks, adoption
+> checklist).
+
 ## Why a status protocol
 
 Dev10x orchestration hubs (work-on, fanout, skill-audit,
@@ -74,6 +88,30 @@ importable source is `BACKGROUND_DELIVERY_TEMPLATE` in
 `dev10x.skills.orchestration.subagent_protocol` (sibling of
 `STATUS_PROMPT_TEMPLATE`).
 
+### Addressing the orchestrator (GH-848 F1)
+
+`SendMessage(to="main", …)` is the documented default, but some
+harness configurations reject the literal `"main"` recipient with
+**"Send to a named agent instead"** — in those configs `"main"` is
+not a registered addressee. When a dispatched agent sees that
+rejection, it MUST retry addressing the orchestrator by the **actual
+name/ID it was told to report to** at dispatch, not the literal
+string `"main"`. To make this unambiguous, an orchestrator that
+runs under a non-default name SHOULD state its own address in the
+dispatch prompt (e.g. "deliver via `SendMessage(to=\"team-lead\", …)`")
+rather than relying on the `"main"` alias. The `BACKGROUND_DELIVERY_TEMPLATE`
+keeps `"main"` as the default; skills whose orchestrator is named
+override the recipient when constructing the prompt.
+
+### `TaskOutput` does not reach `Agent`-tool teammates (GH-848 F3)
+
+Do NOT try to retrieve a background teammate's result with
+`TaskOutput(task_id=…)`. Agents spawned via the `Agent` tool are not
+task-runner processes — `TaskOutput` returns "No task found" for
+them. Their ONLY result channel is the `SendMessage` delivery above.
+`TaskOutput` is valid only for work started through the task runner,
+never for `Agent`-dispatched teammates.
+
 ### Escalation ladder for a silent agent
 
 An `idle_notification` with no content means the agent finished
@@ -132,6 +170,25 @@ in-context state (PR branch, CI results, diff history) and
 typically completes the lifecycle at lower cost. Re-dispatch a
 fresh agent only when the agent is no longer resumable (turn
 expired, session ended, or the original agent returned BLOCKED).
+
+**Non-resumable cases — skip the resume attempt (GH-848 F2, GH-873 F2):**
+Resume-first is correct only for agents that are still resumable. Two
+failure modes are NOT resumable and a `SendMessage` resume against them
+wastes a round-trip before failing:
+
+- **Account/session-limit kill (GH-848 F2)** — when the agent was
+  terminated because the account hit its usage/session limit (not a
+  per-turn budget), the agent context is gone; a resume returns
+  nothing. Recover by **respawning a fresh agent** with the original
+  prompt plus the last known PR URL/branch (see the re-dispatch
+  fields below) — do not attempt a resume first.
+- **User-killed via `TaskStop` (GH-873 F2)** — an agent the supervisor
+  (or the orchestrator) stopped with `TaskStop` will not resume, even
+  in the same session. Do NOT send it a continuation prompt. Go
+  straight to salvaging its work: finish the remaining lifecycle
+  inline in the orchestrator, or cherry-pick its commits onto a fresh
+  branch (the cross-repo salvage path). Treat a user-killed agent the
+  same as `BLOCKED` for routing purposes.
 
 When a fresh re-dispatch is needed, the prompt should include:
 - The last known PR URL (if visible in the result)
