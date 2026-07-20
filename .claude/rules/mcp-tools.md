@@ -183,6 +183,8 @@ supporting each tool:
 | `run_node_tests` | `cli` | GH-703 | v0.80.0+ |
 | `milestone_close` | `cli` | GH-187 | v0.71.0+ |
 | `milestone_create` | `cli` | GH-220 | v0.73.0+ |
+| `milestone_reopen` | `cli` | GH-850 | v0.90.0+ |
+| `milestone_edit` | `cli` | GH-850 | v0.90.0+ |
 | `issue_edit` | `cli` | GH-220 | v0.73.0+ |
 | `issue_comment` | `cli` | GH-220 | v0.73.0+ |
 | `issue_comment_edit` | `cli` | GH-283 | v0.75.0+ |
@@ -310,6 +312,8 @@ the MCP server is unavailable.
 | `gh issue list` | `mcp__plugin_Dev10x_cli__issue_list` (advisory) |
 | `gh pr view` | `mcp__plugin_Dev10x_cli__pr_get` |
 | `gh api .../milestones POST` | `mcp__plugin_Dev10x_cli__milestone_create` |
+| `gh api .../milestones/{n} PATCH state=open` | `mcp__plugin_Dev10x_cli__milestone_reopen` |
+| `gh api .../milestones/{n} PATCH` (title/desc/state/due) | `mcp__plugin_Dev10x_cli__milestone_edit` |
 | `gh pr edit` | `mcp__plugin_Dev10x_cli__update_pr` |
 | `gh pr ready` | `mcp__plugin_Dev10x_cli__pr_ready` |
 | `gh pr create` | `Dev10x:gh-pr-create` (wraps `create_pr`) |

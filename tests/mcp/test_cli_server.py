@@ -1842,6 +1842,8 @@ DECORATED_DELEGATIONS: list[tuple[str, str, dict]] = [
     ("issues_bulk_create", "issues_bulk_create", {"issues": []}),
     ("issues_bulk_edit", "issues_bulk_edit", {"edits": []}),
     ("milestone_close", "milestone_close", {"number": 1}),
+    ("milestone_reopen", "milestone_reopen", {"number": 1}),
+    ("milestone_edit", "milestone_edit", {"number": 1, "title": "t"}),
 ]
 
 
