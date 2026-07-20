@@ -12,6 +12,9 @@ This skill creates properly formatted git commits following project conventions:
 ## Guiding Principle: User-Facing Outcomes
 
 **Shift the perspective from what changed in the code to what it enables for the user.** The same principle drives Job Stories — the "so I can" clause captures the outcome, not the mechanism. This applies to commit titles, PR titles, ticket titles, and branch grooming.
+Use the project or ticket language for Job Stories and user-story prose;
+when BDD or Gherkin-derived keywords appear, use Cucumber's official
+language reference: https://cucumber.io/docs/gherkin/languages/
 
 - Bad: `Add DEVICES_READ to Square OAuth scopes` (implementation)
 - Good: `Enable automatic terminal discovery` (outcome)

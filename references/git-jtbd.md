@@ -20,6 +20,21 @@ commit messages, and issue tickets.
 
 One sentence. No bullet points. No implementation details.
 
+## Language and Localization
+
+Write Job Stories and user-story prose in the project or ticket language.
+For English projects, use the English format shown above. For localized
+projects, translate the structural labels and prose consistently.
+
+When a story, ticket, or acceptance criterion uses Gherkin-derived
+keywords such as `Feature`, `Scenario`, `Given`, `When`, `Then`, `And`,
+or `But`, use Cucumber's official language reference instead of
+inventing translations:
+https://cucumber.io/docs/gherkin/languages/
+
+Feature-file-style blocks must include the matching `# language: <code>`
+header from the Cucumber language table.
+
 **Third-party outcome variant**: When the beneficiary of the outcome
 is a third party (e.g., a teammate, a CI system, an end user),
 `**so**` without "I can" is acceptable:

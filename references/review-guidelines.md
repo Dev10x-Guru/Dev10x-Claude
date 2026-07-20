@@ -234,6 +234,11 @@ reviewers can catch issues" (per `git-jtbd.md`) are acceptable—mark as
 RECOMMENDED, not REQUIRED. Canonical first-person "**so I can**" is
 preferred but not mandatory when third-party intent is clear.
 
+For story and scenario language, require the project or ticket language.
+When BDD or Gherkin-derived keywords appear, validate them against
+Cucumber's official language reference:
+https://cucumber.io/docs/gherkin/languages/
+
 ## Positive Validation
 
 When a PR demonstrates excellent practices:

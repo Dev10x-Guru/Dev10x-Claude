@@ -426,6 +426,9 @@ The PR body **must** start with a JTBD Job Story as its first paragraph.
 2. Check if the first paragraph matches the Job Story pattern:
    - Starts with `**When**` (bold "When")
    - Contains `**I want to**` and `**so I can**`
+   - Uses the project or ticket language; when BDD/Gherkin-derived
+     keywords appear, they match Cucumber's language reference:
+     https://cucumber.io/docs/gherkin/languages/
 
 3. If a valid Job Story is present → skip to Phase 1.
 

@@ -9,6 +9,17 @@ Source: https://jtbd.info/replacing-the-user-story-with-the-job-story-af7cdee10c
 The actor and beneficiary may be the same or different roles. Always name them
 explicitly — never use "I", "we", or "they".
 
+## Language
+
+Write Job Stories and user-story prose in the project or ticket language.
+For localized projects, translate the structural labels and prose
+consistently. When BDD or Gherkin-derived keywords appear, use
+Cucumber's official language reference:
+https://cucumber.io/docs/gherkin/languages/
+
+Feature-file-style blocks must include the matching `# language: <code>`
+header from the Cucumber language table.
+
 ## Key Principles
 
 ### 1. No Personas — Focus on Situation

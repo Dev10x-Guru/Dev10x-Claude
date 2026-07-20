@@ -17,6 +17,11 @@
       "description": "Detects tracker (GitHub/Linear/JIRA) from branch name, searches for existing Job Story in ticket, generates Fixes: link"
     },
     {
+      "id": "story-language",
+      "name": "Story Language",
+      "description": "Job Stories, user stories, and BDD scenarios use the project/ticket language; Gherkin-derived keywords use Cucumber's language reference"
+    },
+    {
       "id": "safety",
       "name": "PR Safety",
       "description": "Creates as draft, targets develop (never main), runs pre-PR checks, blocks on uncommitted changes or protected branches"
@@ -38,7 +43,7 @@
         "commits_ahead": 1,
         "commit_title": "✅ PAY-310 Stabilize tax amount tests"
       },
-      "dimensions": ["title", "body-format", "safety", "workflow"],
+      "dimensions": ["title", "body-format", "story-language", "safety", "workflow"],
       "assertions": [
         {
           "id": "title-from-commit",
@@ -51,6 +56,12 @@
           "text": "PR body starts with a JTBD Job Story in **When** / **I want to** / **so I can** format",
           "check": "output_contains",
           "signals": ["**When**", "**I want to**", "**so I can**"]
+        },
+        {
+          "id": "uses-ticket-language",
+          "text": "PR body uses the project or ticket language for Job Story and BDD/user-story prose",
+          "check": "output_contains",
+          "signals": ["cucumber.io/docs/gherkin/languages", "project or ticket language"]
         },
         {
           "id": "body-has-commit-list",

@@ -27,6 +27,9 @@ Universal rules for every session. Detailed guides live in
 
 - First paragraph: JTBD Job Story (`**When** ... **wants to** ...
   **so** ... **can** ...`)
+- Use the project or ticket language for Job Stories and BDD scenarios.
+  For Gherkin-derived keywords, use Cucumber's language reference:
+  https://cucumber.io/docs/gherkin/languages/
 - Optional: Compact commit list (one line per commit)
 - Last line: `Fixes:` link (issue URL or `none — self-motivated`)
 - Do NOT add extra separators (`---`) between Job Story and

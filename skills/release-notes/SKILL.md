@@ -140,6 +140,11 @@ For feature PRs listed as "MISSING JTBDs":
 >
 > Approve these? (y/edit/n)
 
+Generate missing Job Stories in the project or ticket language. If a PR
+or ticket includes BDD/Gherkin-derived keywords, use Cucumber's official
+language reference for translations:
+https://cucumber.io/docs/gherkin/languages/
+
 ### 4. Synthesize Release Summary
 
 **A. Group by business theme** — cluster JTBDs by area. Themes emerge

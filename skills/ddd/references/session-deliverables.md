@@ -103,6 +103,11 @@ New tickets follow this format:
 **Decisions:** [D-NNN], [D-MMM]
 ```
 
+Write ticket stories in the project language. If acceptance criteria use
+BDD or Gherkin-derived keywords, use Cucumber's official language
+reference and include `# language: <code>` in feature-file-style blocks:
+https://cucumber.io/docs/gherkin/languages/
+
 Completed tickets: change status to `[DONE]`, don't delete.
 
 ### 6. New scenario in `stress-tests.md` — when a stress test was run

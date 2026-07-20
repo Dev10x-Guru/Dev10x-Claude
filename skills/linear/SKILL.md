@@ -125,9 +125,14 @@ To find an existing Job Story on a Linear ticket:
 
 1. Get issue: `mcp__claude_ai_Linear__get_issue(id: "TEAM-133")`
 2. Search the description for `**When**` / `**I want to**` / `**so I can**` pattern
-3. If not found, list comments: `mcp__claude_ai_Linear__list_comments(issueId: "TEAM-133")`
-4. Search each comment body for the same pattern
-5. Return the first match, or empty if none found
+3. For localized tickets, also search for translated structural labels in
+   the ticket language
+4. If BDD or Gherkin-derived keywords appear, validate translations
+   against Cucumber's language reference:
+   https://cucumber.io/docs/gherkin/languages/
+5. If not found, list comments: `mcp__claude_ai_Linear__list_comments(issueId: "TEAM-133")`
+6. Search each comment body for the same pattern
+7. Return the first match, or empty if none found
 
 ## MCP Tool Variants
 
