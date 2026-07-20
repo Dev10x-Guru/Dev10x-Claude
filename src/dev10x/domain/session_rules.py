@@ -55,6 +55,7 @@ class CompletionRecommendation(enum.Enum):
 
     WORK_COMPLETE = "work_complete"
     MONITOR_REVIEW = "monitor_review"
+    AUTO_MERGE = "auto_merge"
     GO_BACK = "go_back"
 
 
@@ -63,14 +64,17 @@ def completion_gate_recommendation(
     has_associated_pr: bool,
     pr_merged: bool,
     blocking_checks_pass: bool,
+    solo_maintainer: bool = False,
+    adaptive: bool = False,
 ) -> CompletionRecommendation:
     """Decide what the verify-acc-dod completion gate recommends (GH-729).
 
     Completion is reserved for the *merged* state: "shippable / handed
-    off" is not terminal. The recommendation is friction-agnostic — the
-    friction level governs only whether the gate fires as a widget or
-    auto-selects this recommendation; it never changes which option is
-    recommended.
+    off" is not terminal. The recommendation is friction-agnostic for the
+    team case — the friction level governs only whether the gate fires as
+    a widget or auto-selects this recommendation; it never changes which
+    option is recommended. The **sole** exception is the solo-maintainer
+    autonomous profile (GH-883), below.
 
     * ``blocking_checks_pass is False`` → :attr:`CompletionRecommendation.GO_BACK`.
       A real failure (CI red, unresolved review threads, dirty tree,
@@ -81,6 +85,17 @@ def completion_gate_recommendation(
       review).
     * No associated PR (``investigation`` / ``local-only``) or the PR is
       merged → :attr:`CompletionRecommendation.WORK_COMPLETE`.
+    * Open, otherwise-green PR under ``solo_maintainer`` + ``adaptive``
+      (GH-883) → :attr:`CompletionRecommendation.AUTO_MERGE`: there is no
+      external reviewer to wait for and the adaptive contract forbids a
+      manual checkpoint, so the terminal action is to auto-advance to
+      ``Dev10x:gh-pr-merge`` (whose solo-maintainer config supplies the
+      approval override). Without this branch the session dead-ends at
+      "monitor for review" and has to improvise a manual prompt that
+      violates the adaptive no-checkpoints contract. Repo policy still
+      wins: an ``allowed_overlays`` allow-list that forbids the
+      solo-maintainer overlay drops it before this ever resolves
+      (:class:`ModeGuardRule`), so a team repo never reaches AUTO_MERGE.
     * Otherwise the PR is open and otherwise-green →
       :attr:`CompletionRecommendation.MONITOR_REVIEW`: keep the session
       open and background-watch the PR for review / ready-to-merge via
@@ -90,6 +105,8 @@ def completion_gate_recommendation(
         return CompletionRecommendation.GO_BACK
     if not has_associated_pr or pr_merged:
         return CompletionRecommendation.WORK_COMPLETE
+    if solo_maintainer and adaptive:
+        return CompletionRecommendation.AUTO_MERGE
     return CompletionRecommendation.MONITOR_REVIEW
 
 

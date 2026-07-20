@@ -95,6 +95,8 @@ async def resolve_gate_for_toplevel(
         payload["record"] = record
     if outcome.dropped_overlays:
         payload["dropped_overlays"] = outcome.dropped_overlays
+    if outcome.ignored_context_fields:
+        payload["ignored_context_fields"] = outcome.ignored_context_fields
     return ok(payload)
 
 

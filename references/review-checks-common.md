@@ -100,11 +100,12 @@ Before raising any of these, **verify actual code**:
     the block message but not the Why or How to recover. Do NOT skip the
     docs check.
 21. **JTBD voice violations** — when a PR body, commit message, or issue
-    title contains a Job Story using objective voice (e.g., "the developer
-    wants to"), flag as REQUIRED. First-person ("I want to") or explicit
-    third-party ("so [person] can") are required. Objective voice breaks
-    release notes parsing and is explicitly listed as wrong in
-    `references/git-jtbd.md` lines 31–45.
+    title contains a Job Story using first-person ("I want to") or a
+    faceless actor ("the user wants to"), flag as REQUIRED. Third-person
+    domain-actor voice with a concrete role and beneficiary
+    ("the service writer wants to … so the dealer can …") is required.
+    Malformed voice breaks release notes parsing; see
+    `references/git-jtbd.md` § Voice Requirement and § Choosing the Actor.
 22. **Story language violations** — when a PR body, ticket, or acceptance
     criterion writes Job Stories, user stories, or BDD scenarios in the
     wrong project/ticket language, flag as REQUIRED. For BDD and
@@ -120,7 +121,7 @@ Before raising any of these, **verify actual code**:
     risk (users copy stale alias → command fails) → CRITICAL/REQUIRED. Pure
     cosmetic drift (table describes intent, example text outdated) →
     RECOMMENDED. Confirm intent via commit message when unclear.
-23. **MCP tool enumeration consistency** — when a PR adds MCP tool support via
+24. **MCP tool enumeration consistency** — when a PR adds MCP tool support via
     new `mcp__plugin_*` declarations in `allowed-tools:`: (a) verify all MCP
     tools are declared in `.claude-plugin/plugin.json`, (b) verify the tool
     naming follows `mcp__plugin_Dev10x_<server>__<function>`, (c) when a tool

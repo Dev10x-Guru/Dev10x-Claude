@@ -229,10 +229,12 @@ fixed code here
 ## Review Comment Format & JTBD Variants
 
 Structure findings as **[REQUIRED/RECOMMENDED]** — [title], explanation,
-rule reference, fix. For JTBD grammar: third-party outcomes like "**so**
-reviewers can catch issues" (per `git-jtbd.md`) are acceptable—mark as
-RECOMMENDED, not REQUIRED. Canonical first-person "**so I can**" is
-preferred but not mandatory when third-party intent is clear.
+rule reference, fix. For JTBD grammar: name a concrete beneficiary in the
+outcome clause — "**so the dealer can** reconcile payouts" (per
+`git-jtbd.md`). When the actor and beneficiary are the same role, repeating
+it is fine; a differing beneficiary must be named explicitly. Faceless
+"**so the user can**" or first-person "**so I can**" phrasing is a
+RECOMMENDED fix toward a concrete role.
 
 For story and scenario language, require the project or ticket language.
 When BDD or Gherkin-derived keywords appear, validate them against

@@ -26,3 +26,4 @@ dist/
 .claude/worktrees/
 .claude/session/
 .claude/Dev10x/
+.claude-output/

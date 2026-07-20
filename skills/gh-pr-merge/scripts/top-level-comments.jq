@@ -39,6 +39,15 @@ def is_reply:
 def is_round_summary:
   (.body // "") | test("^[[:space:]]*##[[:space:]]*Review Summary[[:space:]]*\\(Round"; "im");
 
+# The round number N from a "## Review Summary (Round N)" comment, or 0 when
+# absent. Used to supersede earlier rounds (GH-873 F3): once a later round is
+# posted, an earlier round's "Remaining issues" are a historical snapshot, not
+# live blockers — only the highest round number is authoritative.
+def round_number:
+  ((.body // "")
+   | (capture("##[[:space:]]*Review Summary[[:space:]]*\\(Round[[:space:]]*(?<n>[0-9]+)"; "im").n // "0")
+   | tonumber);
+
 # For a round summary, scan ONLY the "### Remaining issues" section — the
 # live, still-unaddressed findings — and ignore the "Addressed since last
 # review" restatement above it. Non-summary comments scan the full body
@@ -80,6 +89,18 @@ def severity:
 def active:
   (.state // "") | (. != "PENDING" and . != "DISMISSED");
 
-[ .[]
-  | select(((.body // "") != "") and (is_reply | not) and is_bot and (blocking or info_marker) and active)
+# Latest authoritative round: the highest "Round N" across all round-summary
+# rows (0 when there are none). Earlier round summaries are superseded and
+# excluded below so a green final round clears stale earlier "Remaining
+# issues" (GH-873 F3).
+(([ .[] | select(is_round_summary) | round_number ] | max) // 0) as $latest_round
+| [ .[]
+  | select(
+      ((.body // "") != "")
+      and (is_reply | not)
+      and is_bot
+      and (blocking or info_marker)
+      and active
+      and ((is_round_summary | not) or (round_number >= $latest_round))
+    )
   | {id, user: .user.login, snippet: ((.body | split("\n")[0])[:80]), source: $src, severity: severity} ]

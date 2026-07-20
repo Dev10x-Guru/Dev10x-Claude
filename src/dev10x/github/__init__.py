@@ -38,6 +38,10 @@ from dev10x.subprocess_utils import (
 
 log = logging.getLogger(__name__)
 
+# Branch names that are never a legitimate PR head — HEAD on one of these
+# when opening a PR signals a wrong/unbound working directory (GH-873 F1).
+_BASE_BRANCH_NAMES = frozenset({"develop", "development", "main", "master", "trunk"})
+
 
 async def _detect_repo() -> str | None:
     result = await async_run(
@@ -929,6 +933,27 @@ async def create_pr(
     draft: bool = True,
     head_repo: str | None = None,
 ) -> Result[dict[str, Any]]:
+    # Assert-or-refuse against a wrong/unbound CWD (GH-873 F1). A
+    # worktree-isolated swarm child that omits `cwd=` resolves to the
+    # long-lived MCP process's own CWD (the orchestrator's), which is
+    # typically the base branch — create-pr.sh would then push that base
+    # branch and open a PR from it (a stray-branch failure). HEAD on a base
+    # branch is never a legitimate PR source, so refuse loudly and name the
+    # cause instead of silently pushing the wrong branch. GitContext resolves
+    # through the effective-CWD seam, so an explicit `cwd=` (bound by the MCP
+    # wrapper's use_cwd) is honoured here.
+    from dev10x.domain.git_context import GitContext
+
+    current_branch = GitContext().branch
+    if current_branch in _BASE_BRANCH_NAMES:
+        return err(
+            f"Refusing to create a PR from base branch '{current_branch}' "
+            "(GH-873 F1): HEAD is on a base branch, which usually means the "
+            "call resolved to the wrong working directory. Pass an explicit "
+            "cwd= (the worktree path) so the PR is created from your feature "
+            "branch, not the base."
+        )
+
     args = [title, job_story, issue_id]
     args.append(fixes_url or "")
     args.append(base_branch or "")

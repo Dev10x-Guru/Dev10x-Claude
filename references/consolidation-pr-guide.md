@@ -25,14 +25,14 @@ https://cucumber.io/docs/gherkin/languages/
 
 **Example JTBD for consolidation**:
 ```markdown
-**When** managing 11 separate plugin directories, **I want to** unify them
-into a single Dev10x plugin, **so I can** simplify distribution and reduce
-maintenance overhead.
+**When** managing 11 separate plugin directories, **the maintainer wants to**
+unify them into a single Dev10x plugin, **so the maintainer can** simplify
+distribution and reduce maintenance overhead.
 ```
 
 Not:
 ```markdown
-**When** shipping a feature, **I want to** add feature X, **so I can** enable Y.
+**When** shipping a feature, **the maintainer wants to** add feature X, **so the maintainer can** enable Y.
 ```
 
 The consolidation outcome is the "why" — the individual features/fixes are supporting details.
@@ -107,8 +107,8 @@ dev10x/
 
 **PR body**:
 ```markdown
-**When** managing 11 separate plugin directories, **I want to**
-consolidate them into a single Dev10x plugin, **so I can** reduce
+**When** managing 11 separate plugin directories, **the maintainer wants to**
+consolidate them into a single Dev10x plugin, **so the maintainer can** reduce
 distribution complexity and improve maintainability.
 
 [Brief summary of changes]

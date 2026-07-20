@@ -216,12 +216,30 @@ class Plan:
         return archive_path
 
     def ensure_metadata(self) -> None:
+        current_branch = _get_branch()
         if not self.metadata:
             self.metadata = {
                 "created_at": _now_iso(),
-                "branch": _get_branch(),
+                "branch": current_branch,
                 "status": "in_progress",
             }
+        elif current_branch and current_branch != "unknown":
+            # The plan is being reused on a different branch (GH-852 F2).
+            # ensure_metadata stamps ``branch``/``created_at`` ONCE at
+            # creation — often on the base branch, before the feature branch
+            # exists — and the resume banner then surfaces the frozen base
+            # branch and a stale creation time. Refresh the top-level branch
+            # so the banner is accurate. Guard against ``"unknown"`` (git
+            # resolution failed / CWD stale) so a transient failure never
+            # churns the recorded branch. Only reset ``created_at`` on a
+            # genuine change from a previously-recorded branch — a plan that
+            # simply lacked a branch key gets it filled in with its true age
+            # preserved.
+            stored_branch = self.metadata.get("branch")
+            if stored_branch != current_branch:
+                self.metadata["branch"] = current_branch
+                if stored_branch is not None:
+                    self.metadata["created_at"] = _now_iso()
         self.metadata["last_synced"] = _now_iso()
 
     @property

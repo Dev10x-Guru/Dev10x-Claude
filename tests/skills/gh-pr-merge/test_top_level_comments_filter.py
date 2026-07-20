@@ -235,7 +235,9 @@ class TestRoundSummaryWrapperExcluded:
         row = {
             "id": 32,
             "user": {"login": "claude", "type": "Bot"},
-            "body": "## Review Summary (Round 1)\n\n### Addressed since last review\n- BLOCKING: x",
+            "body": (
+                "## Review Summary (Round 1)\n\n### Addressed since last review\n- BLOCKING: x"
+            ),
         }
         assert _run_filter([row], "comment", tmp_path) == []
 
@@ -248,3 +250,60 @@ class TestRoundSummaryWrapperExcluded:
         }
         selected = _run_filter([row], "comment", tmp_path)
         assert [r["id"] for r in selected] == [33]
+
+
+class TestOnlyLatestRoundIsAuthoritative:
+    """GH-873 F3: with several '## Review Summary (Round N)' comments, only the
+    highest round is authoritative — earlier rounds' 'Remaining issues' are a
+    historical snapshot and must not false-block once a later round supersedes
+    them."""
+
+    @staticmethod
+    def _round(cid: int, n: int, remaining: str) -> dict:
+        return {
+            "id": cid,
+            "user": {"login": "claude", "type": "Bot"},
+            "body": (
+                f"## Review Summary (Round {n})\n\n"
+                "### Addressed since last review\n- REQUIRED: earlier fix\n\n"
+                f"### Remaining issues\n- {remaining}"
+            ),
+        }
+
+    def test_green_final_round_clears_stale_earlier_rounds(self, tmp_path: Path) -> None:
+        rows = [
+            self._round(40, 1, "CRITICAL: missing timeout"),
+            self._round(41, 3, "REQUIRED: null guard"),
+            self._round(42, 4, "none"),
+        ]
+        # Round 4 (latest) is clean; Rounds 1 and 3 are superseded.
+        assert _run_filter(rows, "comment", tmp_path) == []
+
+    def test_latest_round_with_live_issue_still_flagged(self, tmp_path: Path) -> None:
+        rows = [
+            self._round(43, 1, "CRITICAL: missing timeout"),
+            self._round(44, 3, "REQUIRED: still missing null guard"),
+        ]
+        # Only Round 3 (latest) is authoritative and it has a live issue.
+        selected = _run_filter(rows, "comment", tmp_path)
+        assert [r["id"] for r in selected] == [44]
+
+    def test_single_round_summary_unchanged(self, tmp_path: Path) -> None:
+        # One round == the latest round; the GH-858 F2 behaviour is preserved.
+        rows = [self._round(45, 2, "CRITICAL: still broken")]
+        selected = _run_filter(rows, "comment", tmp_path)
+        assert [r["id"] for r in selected] == [45]
+
+    def test_superseded_round_excluded_but_non_summary_finding_kept(self, tmp_path: Path) -> None:
+        rows = [
+            self._round(46, 1, "CRITICAL: old issue"),
+            self._round(47, 2, "none"),
+            {
+                "id": 48,
+                "user": {"login": "claude", "type": "Bot"},
+                "body": "REQUIRED: fix the missing null guard in handler",
+            },
+        ]
+        # Round 1 superseded, Round 2 clean, standalone finding still flagged.
+        selected = _run_filter(rows, "comment", tmp_path)
+        assert [r["id"] for r in selected] == [48]

@@ -41,7 +41,7 @@ orchestrating skill (e.g., `Dev10x:work-on`, `Dev10x:git-promote`,
 work plan, all interactive decision gates are bypassed:
 - PR preview gate → skip (orchestrator already approved the plan)
 - Title → auto-generate from commit(s) (single-commit: use
-  title; multi-commit: derive from JTBD "so I can" clause)
+  title; multi-commit: derive from JTBD "so [beneficiary] can" clause)
 - Job Story → auto-generate inline for simple changes; reuse
   session context for complex ones (skip full `Dev10x:jtbd` skill)
 - Pre-PR checks → still run (safety gate, not interactive)
@@ -190,10 +190,10 @@ last incremental step, not the overall change. Instead:
    ```bash
    git log origin/$BASE_BRANCH..HEAD --reverse --format=%s
    ```
-2. Check if the JTBD "so I can" clause (from Step 3) suggests a
-   better title — transform it to imperative form with the ticket's
-   gitmoji prefix (e.g., "so I can reuse outbox for SMS" →
-   `♻️ PROJ-551 Enable outbox reuse for SMS messaging`).
+2. Check if the JTBD "so [beneficiary] can" clause (from Step 3)
+   suggests a better title — transform it to imperative form with the
+   ticket's gitmoji prefix (e.g., "so the merchant can reuse outbox for
+   SMS" → `♻️ PROJ-551 Enable outbox reuse for SMS messaging`).
 3. If no JTBD is available yet, select the commit title that best
    describes the **overall outcome** of the PR, not an intermediate
    step.
@@ -226,8 +226,9 @@ Dispatch based on TRACKER:
 | `jira` | JIRA API for description |
 | `unknown` | Skip ticket search, rely on commit messages |
 
-Search each source for the `**When**` / `**I want to**` / `**so I can**`
-pattern.
+Search each source for the `**When**` / `**[actor] wants to**` /
+`**so [beneficiary] can**` pattern (legacy first-person
+`**I want to**` / `**so I can**` also matches).
 For localized tickets, also search for translated structural labels in
 the project language. If a ticket or PR uses BDD/Gherkin-derived
 keywords, validate translations against Cucumber's official language
@@ -248,13 +249,14 @@ If none found, generate a Job Story:
 - Use the project or ticket language for the Job Story and user-story
   prose.
 - **For simple/trivial fixes** (flaky tests, typos, single-line changes):
-  generate the Job Story inline in `**When** / **I want to** / **so I can**`
+  generate the Job Story inline in
+  `**When** / **[actor] wants to** / **so [beneficiary] can**`
   format without invoking the full `Dev10x:jtbd` skill.
 - **For features, bug fixes, and multi-commit PRs**: follow the `Dev10x:jtbd`
   base skill workflow:
   1. Gather context (ticket, parent ticket, diff)
   2. Identify the situation (who, trigger, current pain)
-  3. Draft using format: `**When** [situation], **I want to** [motivation], **so I can** [expected outcome].`
+  3. Draft using format: `**When** [situation], **[actor] wants to** [motivation], **so [beneficiary] can** [expected outcome].`
   4. Present draft and ask user: "Apply this Job Story to the PR? (y/edit/n)"
 
 ### Step 4: Generate PR Body
@@ -272,7 +274,7 @@ above. The script is an internal implementation detail.
 
 **Body format (Job Story + separator + commit list + issue link + separator + checklist):**
 ```markdown
-**When** [situation], **I want to** [motivation], **so I can** [expected outcome].
+**When** [situation], **[actor] wants to** [motivation], **so [beneficiary] can** [expected outcome].
 
 ---
 
@@ -453,11 +455,22 @@ Next steps:
   protected branch checks and body formatting. Audit sessions
   GH-448 and GH-446 confirmed this regression pattern.
 - Create PRs as drafts initially — **exception:** when
-  `.claude/Dev10x/session.yaml` has `active_modes` containing
-  `solo-maintainer`, pass `draft=False` to `create_pr` so the PR
-  is immediately ready-for-review. There is no reviewer in
-  solo-maintainer mode, so leaving the PR draft just adds a
-  manual flip step (GH-184).
+  `solo-maintainer` is in the DURABLE `active_modes` (global
+  `~/.config/Dev10x/friction.yaml` for this repo, falling back to
+  legacy `.claude/Dev10x/config.yaml` — NOT the retired ephemeral
+  `.claude/Dev10x/session.yaml`, ADR-0018 / GH-854 F3), pass
+  `draft=False` to `create_pr` so the PR is immediately
+  ready-for-review. There is no reviewer in solo-maintainer mode, so
+  leaving the PR draft just adds a manual flip step (GH-184).
+- **Auto-merge warning at creation (GH-848 F4).** When the session
+  posture will auto-advance to merge on green — `solo-maintainer` +
+  `adaptive` (the GH-883 AUTO_MERGE terminal), or auto-merge is armed
+  on the PR — say so plainly in the creation summary: "This PR is on
+  an auto-merge path: it will merge itself once CI passes, without a
+  further checkpoint." This makes the autonomous shipping visible to a
+  supervisor who may still want to review. On a team repo (where
+  `allowed_overlays` drops the solo-maintainer overlay), no such path
+  exists and the warning is omitted.
 - **Milestone-bundle PRs:** when a single PR ships multiple
   issues (e.g., closing several sub-tickets of a milestone),
   pass the issue numbers as `closes=[N, M, ...]` to `create_pr`.
