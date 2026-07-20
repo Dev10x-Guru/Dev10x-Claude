@@ -1184,6 +1184,111 @@ async def milestone_create(
     )
 
 
+async def milestone_reopen(
+    *,
+    number: int,
+    repo: str | None = None,
+) -> Result[dict[str, Any]]:
+    """Re-open a closed GitHub milestone (GH-850).
+
+    Symmetric to ``milestone_close``. Wraps
+    ``gh api -X PATCH repos/{repo}/milestones/{N} -f state=open``.
+
+    Args:
+        number: Milestone number to re-open.
+        repo: Repository (owner/repo). Auto-detected if omitted.
+
+    Returns:
+        On success: ``{"number": int, "state": "open", "url": str}``.
+    """
+    repo_result = await _resolve_repo(repo)
+    if isinstance(repo_result, ErrorResult):
+        return err(repo_result.error)
+    repo_ref = repo_result.value
+
+    result = await _gh_api_raw(
+        f"repos/{repo_ref}/milestones/{number}",
+        method="PATCH",
+        fields={"state": "open"},
+    )
+
+    if result.returncode != 0:
+        return err(result.stderr.strip())
+
+    url = f"https://github.com/{repo_ref}/milestone/{number}"
+    return ok({"number": number, "state": "open", "url": url})
+
+
+async def milestone_edit(
+    *,
+    number: int,
+    title: str | None = None,
+    description: str | None = None,
+    state: str | None = None,
+    due_on: str | None = None,
+    repo: str | None = None,
+) -> Result[dict[str, Any]]:
+    """Edit a GitHub milestone's title, description, state, or due date (GH-850).
+
+    Generalizes ``milestone_close``/``milestone_reopen``: wraps
+    ``gh api -X PATCH repos/{repo}/milestones/{N}`` with any subset of
+    editable fields. Use for renames, description edits, due-date
+    changes, or state transitions (``state="open"``/``"closed"``).
+
+    Args:
+        number: Milestone number to edit.
+        title: New milestone title (optional).
+        description: New milestone description (optional).
+        state: New state — ``"open"`` or ``"closed"`` (optional).
+        due_on: New ISO-8601 due-date timestamp (optional).
+        repo: Repository (owner/repo). Auto-detected if omitted.
+
+    Returns:
+        On success: ``{"number": int, "title": str, "state": str, "url": str}``.
+    """
+    if state is not None and state not in ("open", "closed"):
+        return err(f"Invalid milestone state {state!r}: must be 'open' or 'closed'.")
+
+    fields: dict[str, str | int | list[str]] = {}
+    if title is not None:
+        fields["title"] = title
+    if description is not None:
+        fields["description"] = description
+    if state is not None:
+        fields["state"] = state
+    if due_on is not None:
+        fields["due_on"] = due_on
+
+    if not fields:
+        return err("milestone_edit requires at least one field to change.")
+
+    repo_result = await _resolve_repo(repo)
+    if isinstance(repo_result, ErrorResult):
+        return err(repo_result.error)
+    repo_ref = repo_result.value
+
+    result = await _gh_api_raw(
+        f"repos/{repo_ref}/milestones/{number}",
+        method="PATCH",
+        fields=fields,
+    )
+    if result.returncode != 0:
+        return err(result.stderr.strip())
+    try:
+        data = json.loads(result.stdout) if result.stdout.strip() else {}
+    except json.JSONDecodeError:
+        return err(f"Invalid JSON from GitHub API: {result.stdout[:200]}")
+
+    return ok(
+        {
+            "number": number,
+            "title": data.get("title", title),
+            "state": data.get("state", state),
+            "url": f"https://github.com/{repo_ref}/milestone/{number}",
+        }
+    )
+
+
 async def _issue_result(
     *,
     number: int,

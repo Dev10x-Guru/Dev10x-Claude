@@ -1008,6 +1008,71 @@ async def milestone_close(
 
 
 @github_tool
+async def milestone_reopen(
+    number: int,
+    repo: str | None = None,
+    cwd: str | None = None,
+) -> Result[dict]:
+    """Re-open a closed GitHub milestone via REST API (GH-850).
+
+    Symmetric to milestone_close. Wraps
+    `gh api -X PATCH repos/{repo}/milestones/{N} -f state=open`,
+    which the plugin permission manifest blocks at the Bash layer.
+
+    Args:
+        number: Milestone number to re-open
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: number (int), state ("open"), url (str)
+    """
+    return await gh.milestone_reopen(
+        number=number,
+        repo=repo,
+    )
+
+
+@github_tool
+async def milestone_edit(
+    number: int,
+    title: str | None = None,
+    description: str | None = None,
+    state: str | None = None,
+    due_on: str | None = None,
+    repo: str | None = None,
+    cwd: str | None = None,
+) -> Result[dict]:
+    """Edit a GitHub milestone's title, description, state, or due date (GH-850).
+
+    Generalizes milestone_close/milestone_reopen: wraps
+    `gh api -X PATCH repos/{repo}/milestones/{N}` with any subset of
+    editable fields. Use for renames, description edits, due-date
+    changes, or state transitions (state="open"/"closed").
+
+    Args:
+        number: Milestone number to edit
+        title: New milestone title (optional)
+        description: New milestone description (optional)
+        state: New state — "open" or "closed" (optional)
+        due_on: New ISO-8601 due-date timestamp (optional)
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: number (int), title (str), state (str), url (str)
+    """
+    return await gh.milestone_edit(
+        number=number,
+        title=title,
+        description=description,
+        state=state,
+        due_on=due_on,
+        repo=repo,
+    )
+
+
+@github_tool
 async def generate_commit_list(
     pr_number: int,
     base_branch: str | None = None,

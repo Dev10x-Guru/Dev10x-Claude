@@ -1287,6 +1287,170 @@ class TestMilestoneCreate:
         assert "422" in result.error
 
 
+class TestMilestoneReopen:
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_reopens_milestone(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(stdout="{}")
+
+        result = await gh.milestone_reopen(number=38)
+
+        assert isinstance(result, SuccessResult)
+        assert result.value == {
+            "number": 38,
+            "state": "open",
+            "url": "https://github.com/owner/repo/milestone/38",
+        }
+        call = mock_api.call_args
+        assert call.args[0] == "repos/owner/repo/milestones/38"
+        assert call.kwargs["method"] == "PATCH"
+        assert call.kwargs["fields"] == {"state": "open"}
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_returns_error_when_repo_unresolved(
+        self,
+        mock_api: AsyncMock,
+    ) -> None:
+        with patch.object(gh, "_detect_repo", new_callable=AsyncMock, return_value=None):
+            result = await gh.milestone_reopen(number=1)
+
+        assert isinstance(result, ErrorResult)
+        mock_api.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_returns_error_on_api_failure(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(returncode=1, stderr="HTTP 403")
+
+        result = await gh.milestone_reopen(number=5)
+
+        assert isinstance(result, ErrorResult)
+        assert "403" in result.error
+
+
+class TestMilestoneEdit:
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_edits_title_and_description(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(
+            stdout=json.dumps({"number": 5, "title": "New Title", "state": "open"})
+        )
+
+        result = await gh.milestone_edit(number=5, title="New Title", description="New desc")
+
+        assert isinstance(result, SuccessResult)
+        assert result.value == {
+            "number": 5,
+            "title": "New Title",
+            "state": "open",
+            "url": "https://github.com/owner/repo/milestone/5",
+        }
+        call = mock_api.call_args
+        assert call.args[0] == "repos/owner/repo/milestones/5"
+        assert call.kwargs["method"] == "PATCH"
+        assert call.kwargs["fields"] == {"title": "New Title", "description": "New desc"}
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_edits_state_and_due_on(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(
+            stdout=json.dumps({"number": 9, "title": "M9", "state": "closed"})
+        )
+
+        result = await gh.milestone_edit(number=9, state="closed", due_on="2026-12-31T00:00:00Z")
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["state"] == "closed"
+        call = mock_api.call_args
+        assert call.kwargs["fields"] == {
+            "state": "closed",
+            "due_on": "2026-12-31T00:00:00Z",
+        }
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_rejects_invalid_state(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        result = await gh.milestone_edit(number=5, state="frozen")
+
+        assert isinstance(result, ErrorResult)
+        assert "open" in result.error and "closed" in result.error
+        mock_api.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_requires_at_least_one_field(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        result = await gh.milestone_edit(number=5)
+
+        assert isinstance(result, ErrorResult)
+        assert "at least one field" in result.error
+        mock_api.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_returns_error_when_repo_unresolved(
+        self,
+        mock_api: AsyncMock,
+    ) -> None:
+        with patch.object(gh, "_detect_repo", new_callable=AsyncMock, return_value=None):
+            result = await gh.milestone_edit(number=1, title="x")
+
+        assert isinstance(result, ErrorResult)
+        mock_api.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_returns_error_on_api_failure(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(returncode=1, stderr="HTTP 404")
+
+        result = await gh.milestone_edit(number=5, title="x")
+
+        assert isinstance(result, ErrorResult)
+        assert "404" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_guards_malformed_json(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(stdout="not json")
+
+        result = await gh.milestone_edit(number=5, title="x")
+
+        assert isinstance(result, ErrorResult)
+        assert "Invalid JSON" in result.error
+
+
 class TestIssueEdit:
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run", new_callable=AsyncMock)

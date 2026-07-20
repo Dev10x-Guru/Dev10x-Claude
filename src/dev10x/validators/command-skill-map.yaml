@@ -401,6 +401,29 @@ rules:
       structural "no MCP path means file a ticket" principle. Use the
       MCP tool instead.
 
+  - name: gh-milestone-edit
+    matcher: Bash
+    patterns:
+      - "gh api .*/milestones/[0-9]+ --method PATCH"
+      - "gh api .*/milestones/[0-9]+ -X PATCH"
+    except: []
+    hook_block: true
+    compensations:
+      - type: use-tool
+        tool: mcp__plugin_Dev10x_cli__milestone_edit
+        guardrails: structured responses, no raw gh api PATCH in transcripts
+        description: >
+          Use milestone_reopen for a plain state=open re-open, or
+          milestone_edit for title/description/state/due_on changes.
+          If the MCP server is unavailable, the raw gh api PATCH is the
+          documented fallback — but the MCP tool is preferred so the
+          milestone CRUD path stays uniform with milestone_close/create.
+    reason: >
+      Raw gh api PATCH against a milestone endpoint bypasses the
+      structural "no MCP path means file a ticket" principle (GH-850
+      closed exactly this gap for re-open). Use milestone_reopen or
+      milestone_edit instead.
+
   - name: git-push-safe-script
     matcher: Bash
     patterns:
