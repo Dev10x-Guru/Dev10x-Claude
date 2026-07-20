@@ -5,6 +5,111 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.90.0 — Google Chat Notifications & Unattended Delivery
+
+Released 2026-07-20
+
+### Features
+
+- **Deliver PR review requests to Google Chat alongside Slack** —
+  reviewers who watch Google Chat had no equivalent of the Slack
+  review ping. A full transport slice now posts through a private
+  Chat bot: config and service-account key resolution from the OS
+  keyring, RS256 JWT access-token minting on the existing
+  pyjwt + stdlib stack (no new dependency), message posting, and the
+  `Dev10x:gchat` (send) and `Dev10x:gchat-review-request` skills with
+  human-approval and draft guards mirroring the Slack pair
+- **Enable unattended overnight milestone delivery** — long
+  unattended runs died on permission stalls: an inline watch loop in
+  a Monitor command once froze the supervisor session for seven hours
+  while crew workers hung on blocking CI waits. The new
+  `Dev10x:foreman` skill plus `dev10x foreman probe|watch` CLI give a
+  two-tier watchdog/foreman/crew harness where every watcher lives
+  behind one pre-approved command enumerated while the supervisor is
+  present, and cut scope always survives harness loss by persisting to
+  tracker issues
+  ([GH-890](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/890))
+- **Guide per-project friction setup at session start** — gate policy
+  silently fell back to a preset for any repo without an explicit
+  `friction.yaml` entry, so a project could run an autonomy posture
+  the supervisor never chose. SessionStart now seeds a strict baseline
+  when the file is absent, nudges when the project is unmatched, and
+  the new `Dev10x:friction-setup` skill walks the supervisor through
+  choosing gate and playbook axes
+  ([GH-886](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/886))
+- **Report the active usage block offline via dev10x cli** — agents
+  reached for `npx ccusage` to read the active 5-hour usage block,
+  which hard-prompts on every worktree and cannot be allow-listed. A
+  native `dev10x usage blocks --active --json` command and pre-approved
+  `usage_blocks` MCP tool provide the capability at source, parsing
+  `~/.claude` usage JSONL with a bundled offline rate table
+  ([GH-878](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/878))
+- **Strengthen orchestration and merge-gate reliability** — a bundle
+  of six skill-audit findings across work-on, fanout, gh-pr-merge,
+  verify-acc-dod, gh-pr-create and gh-pr-request-review: armed
+  auto-merge detection, plan-branch refresh on branch change,
+  warn-and-ignore unknown gate context, non-resumable user-killed
+  agents, a mandated full-suite gate before DONE, and a solo-maintainer
+  adaptive completion gate
+  ([GH-848](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/848))
+- **Enable milestone re-open and editing via MCP** — re-opening a
+  closed milestone was the only milestone mutation with no wrapper,
+  forcing a raw `gh api PATCH`. New `milestone_reopen` and
+  `milestone_edit` tools close that gap and satisfy the no-raw-gh-api
+  rule
+  ([GH-850](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/850))
+- **Steer inline watch loops to pre-approved watchers** —
+  structurally un-allow-listable `while`/`until`/`sleep` and
+  `watch -n` shapes are matched exactly like Bash even as Monitor
+  commands, so one prompted watch froze an orchestrator turn for
+  seven hours. An advisory rule now routes them to `dev10x foreman
+  watch`, `~/.claude/tools` scripts, or `ci_check_status`
+  ([GH-879](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/879))
+- **Route npm monorepo tests through run_node_tests** — the
+  `npm --prefix <dir> test` shape stacked four friction sources with
+  no single allow-rule. A hook-block rule now steers the monorepo
+  forms to `run_node_tests(cwd=DIR)`
+  ([GH-880](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/880))
+
+### Fixes
+
+- **Harden shared-state writes against concurrency (ADR-0011 wave)** —
+  a bundle closing the gaps the ADR-0011 concurrency wave left behind:
+  the rule-confidence store now holds a lock across load→mutate→save
+  and writes atomically, the doubt-sink appends via a single
+  `atomic_append_line`, the settings-migration apply pass re-reads
+  under lock so a racing edit is never overwritten, gh/git subprocess
+  calls in five polling scripts are bounded with timeouts, the dead
+  `ConfigYamlDocument.write` path is retired, and reviewer checklists
+  now enforce file-locks + timeouts on new stores and subprocess calls
+  ([GH-822](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/822),
+  [GH-823](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/823),
+  [GH-824](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/824),
+  [GH-825](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/825),
+  [GH-826](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/826),
+  [GH-827](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/827))
+
+### Testing
+
+- **Close eval and unit-test gaps on orchestration surfaces** — add
+  evals for gh-pr-monitor and gh-pr-request-review, the ddd workshop
+  skill, parametrized unit tests for session_rules policy decisions,
+  and per-package coverage floors for domain, validators, config,
+  spec, audit, hooks and skills
+  ([GH-831](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/831),
+  [GH-832](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/832),
+  [GH-833](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/833),
+  [GH-834](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/834))
+
+### Docs
+
+- **Adopt third-person domain-actor Job Story voice** — Job Story
+  guidance mandated first-person voice, hiding the concrete domain
+  role behind the need. The canonical reference and all skill docs now
+  require a third-person actor + beneficiary, with "Choosing the
+  Actor" and localized-story guidance added
+  ([GH-847](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/847))
+
 ## 0.89.0 — Surface Silent Plugin-Load Failures
 
 Released 2026-07-16
