@@ -19,6 +19,9 @@ so reviewers can evaluate each feature independently.
 ## PR Body for Consolidation
 
 The JTBD Job Story must capture the **consolidation outcome**, not individual features.
+Write it in the project or ticket language; if the PR includes BDD or
+Gherkin-derived terms, use Cucumber's official language reference:
+https://cucumber.io/docs/gherkin/languages/
 
 **Example JTBD for consolidation**:
 ```markdown

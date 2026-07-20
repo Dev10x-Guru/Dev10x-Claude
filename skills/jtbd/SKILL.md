@@ -186,6 +186,10 @@ From the gathered context, extract:
 
 **Rules:**
 - Use **business language**, not technical language
+- Use the project or ticket language for the Job Story and user-story
+  prose. If BDD or Gherkin-derived keywords appear in the surrounding
+  ticket, use Cucumber's official language reference:
+  https://cucumber.io/docs/gherkin/languages/
 - The "When" describes a real-world moment, not a UI interaction
 - Always name the actor explicitly — never use "I", "we", or "they"
 - The actor ("wants to") and beneficiary ("so X can") may be **different

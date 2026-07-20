@@ -236,6 +236,11 @@ it is fine; a differing beneficiary must be named explicitly. Faceless
 "**so the user can**" or first-person "**so I can**" phrasing is a
 RECOMMENDED fix toward a concrete role.
 
+For story and scenario language, require the project or ticket language.
+When BDD or Gherkin-derived keywords appear, validate them against
+Cucumber's official language reference:
+https://cucumber.io/docs/gherkin/languages/
+
 ## Positive Validation
 
 When a PR demonstrates excellent practices:

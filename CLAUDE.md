@@ -111,6 +111,10 @@ uv-scripts are exempt. Full rules: `.claude/rules/cwd-discipline.md`.
   ("I want to") or a faceless "the user wants to". See
   `.claude/rules/essentials.md` and `references/git-jtbd.md`
   § Choosing the Actor
+- **Story language**: write Job Stories, user stories, and BDD scenarios
+  in the project or ticket language. For Gherkin-derived keywords, use
+  Cucumber's official language reference:
+  https://cucumber.io/docs/gherkin/languages/
 - See `references/git-commits.md`, `git-pr.md`, `git-jtbd.md`
 
 ### Plugin Directory Renames

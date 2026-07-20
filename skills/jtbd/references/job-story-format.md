@@ -11,6 +11,17 @@ explicitly with a concrete domain role — never first-person ("I", "we") and
 never a faceless "the user". Once the actor is named, an anaphoric
 back-reference in the outcome clause ("so they can …") is fine.
 
+## Language
+
+Write Job Stories and user-story prose in the project or ticket language.
+For localized projects, translate the structural labels and prose
+consistently. When BDD or Gherkin-derived keywords appear, use
+Cucumber's official language reference:
+https://cucumber.io/docs/gherkin/languages/
+
+Feature-file-style blocks must include the matching `# language: <code>`
+header from the Cucumber language table.
+
 ## Key Principles
 
 ### 1. No Personas — Focus on Situation
