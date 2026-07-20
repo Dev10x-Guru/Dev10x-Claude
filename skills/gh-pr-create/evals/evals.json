@@ -50,7 +50,7 @@
           "id": "body-starts-with-job-story",
           "text": "PR body starts with a JTBD Job Story in **When** / **[actor] wants to** / **so [beneficiary] can** format",
           "check": "output_contains",
-          "signals": ["**When**", "wants to", "so "]
+          "signals": ["**When**", "wants to", "**so"]
         },
         {
           "id": "body-has-commit-list",
