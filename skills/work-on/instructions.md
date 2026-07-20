@@ -549,6 +549,13 @@ ladder in `references/orchestration/subagent-status-protocol.md`
 canonical instruction text is `BACKGROUND_DELIVERY_TEMPLATE` in
 `dev10x.skills.orchestration.subagent_protocol`.
 
+**Recipient addressing (GH-848 F1).** `to="main"` is the default, but
+some harness configs reject it with "Send to a named agent instead".
+If the orchestrator runs under a name, state that name in the dispatch
+prompt so the agent addresses it directly; on rejection the agent must
+retry with the actual orchestrator name/ID, not the literal `"main"`.
+See § Addressing the orchestrator in the protocol reference.
+
 **Parse the trailing status line** per
 `references/orchestration/subagent-status-protocol.md` (GH-69):
 
@@ -1351,6 +1358,16 @@ routing for shipping actions. If you are about to run a raw
 git/gh command that appears in the "Never use directly" column,
 STOP and invoke the corresponding skill instead.
 
+**Full-suite gate before declaring a work item done (GH-876 F1).**
+The `Run tests` verification that gates commit / PR / task-completion
+MUST run the COMPLETE test suite with coverage — never only the
+subset covering edited files. A subset-green run misses regressions
+in unedited callers and the 100%-coverage gate; those then fail in
+CI after the item was already reported done. Narrow `Skill(test)`
+args (e.g. `-k` / a path) are fine for fast inner-loop iteration,
+but the final pre-commit / pre-DONE verification runs the full
+suite with no path-narrowing args.
+
 **Compaction preservation (CRITICAL):** When context is
 compacted, the summary MUST retain this routing table
 verbatim. Without it, the agent loses skill-to-action
@@ -1746,6 +1763,19 @@ required.
    - **When an associated PR is open/unmerged but otherwise green
      (GH-729):**
      `AskUserQuestion(questions=[{question: "All checks pass and PR #<N> is awaiting review. How would you like to proceed?", header: "Done", options: [{label: "Monitor PR for review (Recommended)", description: "Keep the session open; background-watch PR #<N> every ~5 min via Dev10x:gh-pr-monitor and surface review/ready-to-merge"}, {label: "Add more tasks", description: "Continue with additional work"}, {label: "Override — complete anyway", description: "Accept the unmerged PR as done"}], multiSelect: false}])`
+   - **When the PR is open/green under solo-maintainer + adaptive
+     (GH-883) — `completion_gate_recommendation()` returns
+     `AUTO_MERGE`:** there is no external reviewer to wait for and the
+     adaptive contract forbids a manual checkpoint, so the terminal
+     action is to auto-advance directly to `Skill(Dev10x:gh-pr-merge)`
+     (its solo-maintainer config supplies the approval override) — NOT
+     "monitor for review". Under `adaptive` the `completion_signoff`
+     gate resolves to `auto-advance` (no widget). If it nonetheless
+     resolves to `ask`, present the merged/PR-less question with "Merge
+     now (Recommended)" as the lead option. Repo `allowed_overlays`
+     policy still drops the solo-maintainer overlay before this ever
+     resolves (`ModeGuardRule`), so a team repo (e.g. this one) never
+     reaches AUTO_MERGE — it falls through to `MONITOR_REVIEW`.
 2. `effect == "auto-advance"` — auto-select the recommended option
    from the applicable question above without prompting. Surface
    the returned `record` line in the transcript so a present

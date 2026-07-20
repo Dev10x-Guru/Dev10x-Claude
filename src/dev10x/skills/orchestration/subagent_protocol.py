@@ -36,6 +36,10 @@ idle notification with no content. Deliver your report explicitly:
 
 - Call SendMessage(to="main", summary="<5 words>", message=<full
   report ending with your status line>).
+- If SendMessage(to="main", ...) is rejected with "Send to a named
+  agent instead", the "main" alias is not registered in this harness
+  config — retry addressing the orchestrator by the actual name/ID it
+  told you to report to at dispatch.
 - If the report exceeds one message, split it into labeled parts and
   send them in order.
 - Fallback: Write the report to the scratchpad path you were given,

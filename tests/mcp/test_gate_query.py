@@ -36,12 +36,27 @@ class TestGateResolutionQuery:
         assert outcome.dropped_overlays == []
 
     @pytest.mark.asyncio
-    async def test_unknown_context_field_errors(self, tmp_path: Path) -> None:
+    async def test_unknown_context_field_ignored_not_errored(self, tmp_path: Path) -> None:
+        # GH-854 F1: an unknown context key is dropped and surfaced, not
+        # hard-failed — the gate still resolves on the remaining facts.
         result = await GateResolutionQuery(
             gate="merge", context={"vibe": "good"}, toplevel=str(tmp_path)
         ).run()
-        assert isinstance(result, ErrorResult)
-        assert "Unknown context fields" in result.error
+        assert not isinstance(result, ErrorResult)
+        assert result.value.ignored_context_fields == ["vibe"]
+        assert result.value.resolution.gate == "merge"
+
+    @pytest.mark.asyncio
+    async def test_known_and_unknown_fields_partitioned(self, tmp_path: Path) -> None:
+        # A valid field is kept and applied; only the unknown one is dropped.
+        result = await GateResolutionQuery(
+            gate="batch_layout",
+            context={"overlap_signals": 2, "typo_field": 1},
+            toplevel=str(tmp_path),
+        ).run()
+        assert not isinstance(result, ErrorResult)
+        assert result.value.ignored_context_fields == ["typo_field"]
+        assert result.value.context.overlap_signals == 2
 
     @pytest.mark.asyncio
     async def test_session_adoption_computes_stale_onto_context(self, tmp_path: Path) -> None:

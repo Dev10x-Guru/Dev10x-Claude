@@ -75,6 +75,60 @@ class TestCompletionGateRecommendation:
         )
         assert result is expected
 
+    @pytest.mark.parametrize(
+        "solo_maintainer,adaptive,expected",
+        [
+            # Solo-maintainer + adaptive on an open, green PR → auto-merge
+            # terminal (GH-883): no reviewer to wait for, no manual gate.
+            (True, True, CompletionRecommendation.AUTO_MERGE),
+            # Either half missing keeps the team behaviour: monitor for review.
+            (True, False, CompletionRecommendation.MONITOR_REVIEW),
+            (False, True, CompletionRecommendation.MONITOR_REVIEW),
+            (False, False, CompletionRecommendation.MONITOR_REVIEW),
+        ],
+    )
+    def test_solo_maintainer_adaptive_auto_merges_open_pr(
+        self,
+        solo_maintainer: bool,
+        adaptive: bool,
+        expected: CompletionRecommendation,
+    ) -> None:
+        result = completion_gate_recommendation(
+            has_associated_pr=True,
+            pr_merged=False,
+            blocking_checks_pass=True,
+            solo_maintainer=solo_maintainer,
+            adaptive=adaptive,
+        )
+        assert result is expected
+
+    @pytest.mark.parametrize(
+        "has_associated_pr,pr_merged,blocking_checks_pass,expected",
+        [
+            # A failing blocking check still dominates the solo+adaptive branch.
+            (True, False, False, CompletionRecommendation.GO_BACK),
+            # A merged PR completes even under solo+adaptive — nothing to merge.
+            (True, True, True, CompletionRecommendation.WORK_COMPLETE),
+            # No PR completes even under solo+adaptive — nothing to merge.
+            (False, False, True, CompletionRecommendation.WORK_COMPLETE),
+        ],
+    )
+    def test_solo_maintainer_adaptive_does_not_override_terminal_states(
+        self,
+        has_associated_pr: bool,
+        pr_merged: bool,
+        blocking_checks_pass: bool,
+        expected: CompletionRecommendation,
+    ) -> None:
+        result = completion_gate_recommendation(
+            has_associated_pr=has_associated_pr,
+            pr_merged=pr_merged,
+            blocking_checks_pass=blocking_checks_pass,
+            solo_maintainer=True,
+            adaptive=True,
+        )
+        assert result is expected
+
 
 class TestDecisionGuidanceRule:
     def test_unknown_friction_level_raises(self) -> None:

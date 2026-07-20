@@ -199,6 +199,14 @@ the AFK auto-remediation in Check 1, a bot-authored
 `thread_resolution` gate follows the same auto-delegate-to-
 `gh-pr-respond` path rather than forcing a manual merge override.
 
+**Only the latest round is authoritative (GH-873 F3).** When several
+`## Review Summary (Round N)` comments exist, `top-level-comments.jq`
+now keeps only the highest `Round N` and treats earlier rounds as
+superseded — their `### Remaining issues` are a historical snapshot,
+not live blockers. So a green final round (Round 4) clears the stale
+"remaining issues" that Rounds 1/3 listed at the time, instead of
+each historical round independently false-blocking the merge.
+
 ### Check 1c: No unaddressed inline review comments (GH-760)
 
 Inline review comments posted via `pulls/{n}/comments` are
@@ -348,6 +356,30 @@ and 7 — read each field from the one response:
 ```
 mcp__plugin_Dev10x_cli__pr_get(number=NUMBER, repo="OWNER/REPO")
 ```
+
+### Check 2b: PR not already merged; auto-merge not silently armed (GH-848 F4)
+
+`pr_get` now also returns `state` and `autoMergeRequest` — read both
+from the same response before evaluating Checks 3/4/7:
+
+1. **Already merged.** If `state == "MERGED"` (or `mergedAt` is
+   non-null), the PR self-merged — almost always because auto-merge
+   was armed and CI went green before this gate ran. Do NOT attempt to
+   merge again. **Short-circuit to post-merge verification**: confirm
+   the merge commit, then hand off to `Dev10x:verify-acc-dod`. Report
+   that the merge already happened; the remaining checks are moot.
+2. **Auto-merge armed on an open PR.** If `state != "MERGED"` and
+   `autoMergeRequest` is non-null, the PR will self-merge the instant
+   CI passes — potentially before a deferred human review lands. Surface
+   this to the supervisor. When review was deliberately deferred,
+   **offer to disable auto-merge** (`gh pr merge --disable-auto NUMBER`,
+   routed via the merge wrapper) so the pre-merge checks below actually
+   gate the merge. At `adaptive` + `solo-maintainer` (where arming
+   auto-merge is the intended terminal), leave it armed and proceed.
+
+This check runs BEFORE Checks 3/4/7 because a merged/armed PR makes
+those checks either moot (merged) or racing against the auto-merge
+(armed).
 
 ### Check 3: PR is not in draft
 
