@@ -397,7 +397,7 @@ appending; description edits require a separate gate.
 # [TICKET-ID]: [Title]
 
 ## Job Story
-**When** [situation], **I want to** [motivation], **so I can** [expected outcome].
+**When** [situation], **[actor] wants to** [motivation], **so [beneficiary] can** [expected outcome].
 
 ## Objective
 [Business value and user impact]
@@ -460,7 +460,7 @@ Rationale:
 # [TICKET-ID]: [Title]
 
 ## Job Story
-**When** [situation], **I want to** [motivation], **so I can** [expected outcome].
+**When** [situation], **[actor] wants to** [motivation], **so [beneficiary] can** [expected outcome].
 
 ## Objective
 [Technical goal]
@@ -496,7 +496,7 @@ Rationale:
 # [TICKET-ID]: [Title]
 
 ## Job Story
-**When** [situation], **I want to** [motivation], **so I can** [expected outcome].
+**When** [situation], **[actor] wants to** [motivation], **so [beneficiary] can** [expected outcome].
 
 ## Problem Statement
 [What's broken]

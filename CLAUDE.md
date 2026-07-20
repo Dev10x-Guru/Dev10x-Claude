@@ -105,9 +105,12 @@ uv-scripts are exempt. Full rules: `.claude/rules/cwd-discipline.md`.
   (worktree: `username/TICKET-ID/worktree-name/short-description`)
 - **Commit format**: `<gitmoji> <TICKET-ID> <JTBD outcome>`
 - **Commit titles**: outcome-focused — "Enable X" not "Add X"
-- **Job Story voice** (REQUIRED): First-person "**I want to**" or explicit
-  third-party "**so [name] can**" — never objective voice ("wants to")
-  See `.claude/rules/essentials.md` and `references/git-jtbd.md` lines 31–45
+- **Job Story voice** (REQUIRED): Third-person domain actor —
+  "**[actor] wants to** ... **so [beneficiary] can** ..." with concrete
+  roles (service writer, dealer, admin, wholesaler) — never first-person
+  ("I want to") or a faceless "the user wants to". See
+  `.claude/rules/essentials.md` and `references/git-jtbd.md`
+  § Choosing the Actor
 - See `references/git-commits.md`, `git-pr.md`, `git-jtbd.md`
 
 ### Plugin Directory Renames

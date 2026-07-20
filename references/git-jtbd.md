@@ -5,9 +5,13 @@ commit messages, and issue tickets.
 
 > **Scope**: This format governs Job Stories in commits and PR descriptions.
 > It also applies to issue titles and tickets.
-> **Critical dependency**: Release notes parsing requires precise JTBD
-> voice format (first-person "I want to" or explicit third-party "so X can").
-> Objective voice ("wants to") breaks automated release notes collection.
+> **Critical dependency**: Release notes parsing requires the precise JTBD
+> structured format — `**When** … **[actor] wants to** … **so [beneficiary]
+> can** …`. Dropping the `**[actor] wants to**` / `**so [beneficiary] can**`
+> markers breaks automated release notes collection
+> (`extract_jtbd_structured`). The extractor accepts any concrete actor and
+> beneficiary phrase; it still tolerates the legacy first-person
+> (`**I want to**` / `**so I can**`) form for already-merged PRs.
 > Skills may define their own output formats in `references/`
 > documents. If a skill's reference doc diverges from this format,
 > verify the skill output is not used for PR/commit descriptions.
@@ -15,38 +19,79 @@ commit messages, and issue tickets.
 ## Format
 
 ```
-**When** [situation], **I want to** [motivation], **so I can** [expected outcome].
+**When** [situation], **[actor] wants to** [motivation], **so [beneficiary] can** [expected outcome].
 ```
 
 One sentence. No bullet points. No implementation details.
 
-**Third-party outcome variant**: When the beneficiary of the outcome
-is a third party (e.g., a teammate, a CI system, an end user),
-`**so**` without "I can" is acceptable:
-
-```
-**When** ..., **I want to** ..., **so** [third party] can [outcome].
-```
-
-Example: "**so** reviewers can catch issues before merging."
-The canonical `**so I can**` form is preferred for first-person
-outcomes. Either form is accepted by the hygiene reviewer.
+Name a concrete domain **actor** (who has the need) and a concrete
+**beneficiary** (who gains from the outcome). They are often the same
+role — then name that role in both slots ("**the dealer wants to** …
+**so the dealer can** …"). When they differ, name both explicitly (a
+service writer does the work so a dealer benefits). See § Choosing the
+Actor for how to pick the role.
 
 ## Voice Requirement
 
-Job Stories must use first-person or explicit third-party voice.
-Objective voice ("wants to") is incorrect:
+Job Stories must use **third-person, domain-actor voice**: name the
+actor and beneficiary as concrete roles. First-person ("I want to") and
+faceless ("the user wants to") phrasing are both wrong.
 
 | Form | Example | Status |
 |------|---------|--------|
-| ✅ First-person | **I want to** have Claude config copied | REQUIRED |
-| ✅ Third-party | **so** reviewers can catch issues | REQUIRED |
-| ❌ Objective voice | **wants to** have Claude config copied | WRONG |
-| ❌ Mixed voice | **I want to** X **so** reviewer wants Y | WRONG |
+| ✅ Third-person actor | **the service writer wants to** batch quotes | REQUIRED |
+| ✅ Explicit beneficiary | **so the dealer can** reconcile payouts | REQUIRED |
+| ❌ First-person | **I want to** batch quotes | WRONG (legacy) |
+| ❌ Faceless actor | **the user wants to** batch quotes | WRONG (no role) |
 
-The difference: "I want to" (first-person) vs "wants to" (objective).
-When describing outcomes benefiting others, use explicit names:
-`**so** [person/system] can ...` — not just `**so**` alone.
+The difference: name the role ("the service writer wants to"), never
+"I" and never a generic "user"/"customer". When the outcome benefits a
+different role, say so explicitly: `**so [role/system] can** ...`.
+
+## Choosing the Actor
+
+- Name a concrete domain role, never a faceless "user" or "customer".
+  In TireTutor apps the common actors are **service writer**, **dealer**,
+  **admin**, and **wholesaler**.
+- This set is open — discover new actors as the domain grows, and
+  combine roles when a stakeholder wears both hats (e.g. **Dealer
+  Owner**, **Wholesaler Admin**).
+- Internal teams are rarely the actor. When one genuinely is, make the
+  business benefit explicit (reduces cost, increases speed to market).
+  Developer tooling is the honest exception — a Job Story whose actor is
+  a developer or maintainer is legitimate when the change is tooling.
+
+> **[Verify]** The actor list (service writer / dealer / admin /
+> wholesaler) reflects the working domain vocabulary, not an
+> authoritative product taxonomy — confirm against the canonical domain
+> model when a story hinges on the exact role.
+
+## Localized Story Guidance
+
+Write Job Stories, user-story prose, and BDD scenarios in the language
+of the project or ticket — match the language the team and stakeholders
+use rather than defaulting to English.
+
+For Gherkin-derived keywords (Feature / Scenario / Given / When / Then),
+use Cucumber's official language reference for the correct localized
+keywords: <https://cucumber.io/docs/gherkin/languages/>. Add a
+`# language: <code>` header to feature-file-style blocks so the keywords
+parse (e.g. `# language: pl` for Polish, `# language: es` for Spanish).
+
+```gherkin
+# language: pl
+Funkcja: Rezerwacja opon
+  Scenariusz: Klient rezerwuje montaż
+    Zakładając że koszyk zawiera cztery opony
+    Kiedy klient wybiera termin montażu
+    Wtedy rezerwacja zostaje potwierdzona
+```
+
+The structured JTBD markers (`**When**`, `**[actor] wants to**`,
+`**so [beneficiary] can**`) stay in their canonical English form so the
+release-notes extractor keeps recognizing the Job Story; the free-text
+situation, motivation, and outcome — and any BDD scenario body — are
+written in the project language.
 
 ## Key Principles
 
@@ -64,17 +109,19 @@ The "When" clause describes the real-world context, not UI interactions.
 
 ### 3. Motivation Reveals Anxiety
 
-The "I want to" clause captures what the user is trying to accomplish.
+The "[actor] wants to" clause captures what the actor is trying to
+accomplish.
 
-- Good: "I want to have Claude review code automatically"
-- Bad:  "I want a new workflow file"
+- Good: "the admin wants to have Claude review code automatically"
+- Bad:  "the admin wants a new workflow file"
 
 ### 4. Expected Outcome Shows Value
 
-The "so I can" clause describes the measurable benefit or the problem
-that goes away. It should contrast with the current broken state.
+The "so [beneficiary] can" clause describes the measurable benefit or
+the problem that goes away. It should contrast with the current broken
+state.
 
-- Good: "so I can catch regressions before they reach production"
+- Good: "so the maintainer can catch regressions before production"
 - Bad:  "so the system has reviews"
 
 ## Anti-Patterns
@@ -86,15 +133,17 @@ that goes away. It should contrast with the current broken state.
 | CLI/command-invocation "When" | "When running `make release-features`" prescribes the tool | Describe the real-world trigger: "When a feature release produces skipped version numbers" |
 | Vague outcome | Not testable | Be specific about what improves |
 | No contrast with current state | Unclear why it matters | Show what's wrong today |
-| Solution-focused "I want to" | "I want to see X on separate lines" names the UI change, not the need | Describe the motivation: "I want to quickly triage incoming notifications" |
-| Solution-focused "I want to" (infra) | "I want to use stable, version-independent paths" names the technical fix, not the need | Describe the user motivation: "I want to run skills without being re-prompted for the same permission on every invocation" |
-| UI-verb motivation ("I want to see/view/manage X") | Describes operating the feature, not the outcome — the actor wants less work, ideally none | Name the end state: "I want X to be obvious at a glance", "I want to be told when…" |
+| Faceless actor ("the user wants to") | No concrete role — untraceable to the domain | Name the role: "the service writer wants to" (see § Choosing the Actor) |
+| Solution-focused "wants to" | "the dealer wants to see X on separate lines" names the UI change, not the need | Describe the motivation: "the dealer wants to quickly triage incoming notifications" |
+| Solution-focused "wants to" (infra) | "the maintainer wants to use stable, version-independent paths" names the technical fix, not the need | Describe the motivation: "the maintainer wants to run skills without being re-prompted for the same permission" |
+| UI-verb motivation ("wants to see/view/manage X") | Describes operating the feature, not the outcome — the actor wants less work, ideally none | Name the end state: "wants X to be obvious at a glance", "wants to be told when…" |
 | Naming the replaced artifact ("instead of the old list/panel") | Contrasts with the previous implementation, not the pain — diff-framing | Contrast with the pain itself; naming prior broken *behavior* is fine, prior *component* is not |
 
 ## Title Writing Principle
 
 Shift the perspective from what changed in the code to what it
-enables for the user. The "so I can" clause captures the outcome.
+enables for the actor. The "so [beneficiary] can" clause captures the
+outcome.
 
 ### Common patterns
 
@@ -111,35 +160,35 @@ enables for the user. The "so I can" clause captures the outcome.
 ### The "rename test"
 
 If your title reads like a git diff summary, rewrite it. Ask:
-*"What can the user do now that they couldn't before?"* — that
+*"What can the actor do now that they couldn't before?"* — that
 answer is your title.
 
 ## Examples
 
 ### Skill Feature
-**When** starting work on a new feature branch, **I want to**
-create an isolated worktree automatically, **so I can** avoid
-cross-indexing conflicts between branches in my IDE.
+**When** starting work on a new feature branch, **the maintainer wants
+to** create an isolated worktree automatically, **so the maintainer can**
+avoid cross-indexing conflicts between branches in the IDE.
 
 ### Code Review
-**When** reviewing PRs without automated checks, **I want to** have
-Claude review code for quality and patterns, **so I can** catch
-regressions before they reach production.
+**When** reviewing PRs without automated checks, **the admin wants to**
+have Claude review code for quality and patterns, **so the team can**
+catch regressions before they reach production.
 
 ### Bug Fix
-**When** committing changes with heredoc syntax, **I want to** the
-security hook to recognize safe patterns, **so I can** commit without
-false positive blocks disrupting my workflow.
+**When** committing changes with heredoc syntax, **the maintainer wants
+to** have the security hook recognize safe patterns, **so the maintainer
+can** commit without false-positive blocks disrupting the workflow.
 
 ### Documentation
-**When** onboarding a new contributor, **I want to** have clear rules
-for naming skills, **so** contributors can follow conventions without
-reading every existing skill directory.
+**When** onboarding a new contributor, **the maintainer wants to** have
+clear rules for naming skills, **so contributors can** follow conventions
+without reading every existing skill directory.
 
 ### Release
-**When** a batch of features is ready, **I want to** publish a semver
-release, **so** users can pin to a stable version and get predictable
-updates.
+**When** a batch of features is ready, **the maintainer wants to** publish
+a semver release, **so users can** pin to a stable version and get
+predictable updates.
 
 ## See Also
 

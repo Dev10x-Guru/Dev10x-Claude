@@ -425,7 +425,8 @@ The PR body **must** start with a JTBD Job Story as its first paragraph.
 
 2. Check if the first paragraph matches the Job Story pattern:
    - Starts with `**When**` (bold "When")
-   - Contains `**I want to**` and `**so I can**`
+   - Contains `**[actor] wants to**` and `**so [beneficiary] can**`
+     (legacy first-person `**I want to**` / `**so I can**` also matches)
 
 3. If a valid Job Story is present → skip to Phase 1.
 
