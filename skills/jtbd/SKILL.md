@@ -219,6 +219,17 @@ person who gains the benefit, name both explicitly:
 > "the billing admin wants to send the customer an SMS with the payment link,
 > so the customer can pay immediately from their phone"
 
+**Outcomes, not work — the "happiest doing nothing" test:** The actor
+rarely wants to *do* anything; in the ideal case they want the outcome
+to happen with zero effort on their part. If the actor would be happiest
+doing nothing, name the outcome they want to *happen*, then check whether
+the true beneficiary — whoever captures the money or saves the time — is
+a *different* role than the one performing the action. When it is, the
+performer is the **mechanism** and the beneficiary owns the job. A
+customer paying an invoice online is a mechanism; the real jobs are the
+dealer collecting payment without manual card processing (time saved) and
+TireTutor capturing the revenue.
+
 **Anti-pattern for plumbing PRs:** Do not name "the developer" as
 actor for refactoring, dependency bumps, or infrastructure
 changes. These PRs are not actor-less — they have a real actor
@@ -251,6 +262,7 @@ value.
 | First-person `I want to`, or a faceless "the user wants to" | "I"/"the user" doesn't identify the stakeholder | Name a concrete role ("the merchant", "the DevOps team") — third-person actor voice is required (see § Choosing the Actor in `references/git-jtbd.md`) |
 | "the developer wants to…" for refactoring / infra / dep bumps | Substitutes the engineer for the real beneficiary; the developer's convenience is not a business outcome | Trace upward to the user-facing feature this plumbing unblocks; use that feature's actor and beneficiary |
 | "wants to **see / view / check / manage** X" as the desire | UI verbs describe operating the feature, not the job. Seeing is usually effort spent reaching the real outcome — actors want less work, ideally none. (Exception: analytics/reporting, where insight *is* the deliverable — then pair the verb with the decision it enables) | Name the end state: "wants X to be obvious at a glance", "wants to be told when…", "wants the system to handle it" |
+| "wants to **pay / submit / enter / upload / do X**" as the desire | Transactional effort verbs name work the actor performs, not the outcome they want — nobody wants to *pay* or *submit*, they want the result those actions produce. Framing the mechanism as the desire usually misidentifies both the actor and the true beneficiary (whoever captures the money or saves the time) | Name the outcome and re-check the roles: the customer paying is the *mechanism*; "**the dealer wants** payment collected without manual card entry, **so the vendor can** capture the revenue" |
 | Naming the **replaced artifact** as the contrast ("instead of the old/redundant list/panel/dialog") | What-we-replaced is diff-framing — it describes the previous implementation, not the user's pain. (Naming the prior broken *behavior* is fine; naming the prior *component* is not) | Contrast with the pain itself: time lost, confusion, escalations. An outcome like "keep support calls short" carries the contrast implicitly |
 | **Enumerating capabilities** the feature surfaces (fields, statuses, IDs) | A capability list is the UI spec wearing a story costume. If a reader could reconstruct the screen from the story, it is too concrete | Collapse the list into the single outcome it buys |
 | **Invented dramatic situation** ("won't take payments mid-shift" when the ticket says "during onboarding") | A vivid failure the sources never describe misstates the job and erodes stakeholder trust | Anchor "When" on the mundane trigger the ticket actually names (see Step 2) |

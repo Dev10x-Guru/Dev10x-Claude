@@ -50,6 +50,15 @@ different role, say so explicitly: `**so [role/system] can** ...`.
 
 ## Choosing the Actor
 
+- **Actors want outcomes, not work.** Nobody wants to *work*, and no
+  company wants to *execute a feature* — people and companies want
+  **outcomes**. The actor rarely wants to *do* anything; in the ideal
+  case they want the outcome to happen with zero effort on their part.
+  If the actor would be happiest doing nothing, name the outcome they
+  want to *happen* — then check whether the true beneficiary (whoever
+  captures the money or saves the time) is a *different* role than the
+  one performing the action. When it is, the performer is a
+  **mechanism**, and the beneficiary owns the job.
 - Name a concrete domain role, never a faceless "user" or "customer".
   In TireTutor apps the common actors are **service writer**, **dealer**,
   **admin**, and **wholesaler**.
@@ -137,6 +146,7 @@ state.
 | Solution-focused "wants to" | "the dealer wants to see X on separate lines" names the UI change, not the need | Describe the motivation: "the dealer wants to quickly triage incoming notifications" |
 | Solution-focused "wants to" (infra) | "the maintainer wants to use stable, version-independent paths" names the technical fix, not the need | Describe the motivation: "the maintainer wants to run skills without being re-prompted for the same permission" |
 | UI-verb motivation ("wants to see/view/manage X") | Describes operating the feature, not the outcome — the actor wants less work, ideally none | Name the end state: "wants X to be obvious at a glance", "wants to be told when…" |
+| Transactional-effort "wants to" ("wants to pay / submit / enter X") | Names work the actor performs, not the outcome — nobody wants to *pay*; paying is a mechanism, and it usually misidentifies the actor and beneficiary | Name the outcome and re-check the roles: the customer paying is the mechanism; "**the dealer wants** payment collected without manual card entry, **so the vendor can** capture the revenue" |
 | Naming the replaced artifact ("instead of the old list/panel") | Contrasts with the previous implementation, not the pain — diff-framing | Contrast with the pain itself; naming prior broken *behavior* is fine, prior *component* is not |
 
 ## Title Writing Principle
@@ -189,6 +199,25 @@ without reading every existing skill directory.
 **When** a batch of features is ready, **the maintainer wants to** publish
 a semver release, **so users can** pin to a stable version and get
 predictable updates.
+
+### Money Movement (actor ≠ beneficiary — outcome, not the payment)
+A first draft framed the actor as "the customer wants to pay the balance
+online right there." But the customer does not *want* to pay — paying is
+the **mechanism**. The real jobs belong to the roles who capture the
+money or save the time:
+
+- Bad: **When** an order has an unpaid balance, **the customer wants to**
+  pay online, **so the customer can** settle up.
+- Good: **When** a completed order still has an unpaid balance, **the
+  dealer wants** the balance collected without manually keying a card,
+  **so TireTutor can** capture the revenue the moment the customer taps
+  "pay".
+
+The customer tapping "pay" is *how* the outcome happens, not the outcome
+itself — so it belongs in neither the "wants to" nor the "so … can"
+clause. Trace the money and the time: whoever captures the revenue
+(TireTutor) or is spared the manual work (the dealer) is the actor and
+beneficiary; the person performing the transaction is the mechanism.
 
 ## See Also
 
