@@ -16,7 +16,6 @@ letting silent drift cause friction.
 
 from __future__ import annotations
 
-import json
 import os
 from datetime import UTC, datetime
 from pathlib import Path
@@ -24,6 +23,7 @@ from typing import Any
 
 import yaml
 
+from dev10x.domain.common.config_io import load_json, load_yaml
 from dev10x.domain.common.plugin_version import PluginVersion
 from dev10x.domain.common.result import Result, err, ok
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
@@ -40,12 +40,7 @@ def read_plugin_version(*, plugin_root: Path | None = None) -> str | None:
     if root is None:
         return None
     manifest = root / ".claude-plugin" / "plugin.json"
-    if not manifest.is_file():
-        return None
-    try:
-        data = json.loads(manifest.read_text())
-    except (OSError, json.JSONDecodeError):
-        return None
+    data = load_json(manifest)
     version = data.get("version")
     return version if isinstance(version, str) else None
 
@@ -57,14 +52,7 @@ def read_applied_version(*, version_yaml: Path | None = None) -> str | None:
     does not contain a ``plugin_version`` string.
     """
     path = version_yaml or Dev10xConfigDir.version_yaml()
-    if not path.is_file():
-        return None
-    try:
-        data = yaml.safe_load(path.read_text())
-    except (OSError, yaml.YAMLError):
-        return None
-    if not isinstance(data, dict):
-        return None
+    data = load_yaml(path)
     version = data.get("plugin_version")
     return version if isinstance(version, str) else None
 
