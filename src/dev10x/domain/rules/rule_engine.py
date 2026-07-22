@@ -9,10 +9,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
-import yaml
-
+from dev10x.domain.common.config_io import load_yaml
 from dev10x.domain.documents.config_document import Config
 from dev10x.domain.rules.validation_rule import MatchingRule
 
@@ -30,7 +28,7 @@ class RuleEngine:
 
     @classmethod
     def from_yaml(cls, *, path: Path) -> RuleEngine:
-        data: dict[str, Any] = yaml.safe_load(path.read_text())
+        data = load_yaml(path, strict=True)
         rules = [
             MatchingRule.from_yaml_entry(entry=entry)
             for entry in data.get("rules", [])

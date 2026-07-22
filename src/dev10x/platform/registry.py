@@ -7,6 +7,7 @@ from pathlib import Path
 
 import yaml
 
+from dev10x.domain.common.config_io import load_yaml
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.file_locks import atomic_write_text, file_lock  # noqa: F401
 
@@ -162,9 +163,7 @@ class PlatformRepository:
         self.path = path or REGISTRY_FILE
 
     def load(self) -> dict[str, PlatformConfig]:
-        if not self.path.is_file():
-            return {}
-        data = yaml.safe_load(self.path.read_text()) or {}
+        data = load_yaml(self.path)
         entries = data.get("platforms", [])
         return {entry["name"]: PlatformConfig.from_dict(entry) for entry in entries}
 

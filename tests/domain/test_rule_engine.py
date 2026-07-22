@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from dev10x.domain.common.config_io import ConfigIOError
 from dev10x.domain.documents.config_document import Config
 from dev10x.domain.rules.rule_engine import RuleEngine
 from dev10x.domain.rules.validation_rule import Compensation, Rule
@@ -104,7 +105,7 @@ class TestRuleEngineFromYaml:
         path = tmp_path / "bad.yaml"
         path.write_text(": invalid: yaml: [")
 
-        with pytest.raises(yaml.YAMLError):
+        with pytest.raises(ConfigIOError):
             RuleEngine.from_yaml(path=path)
 
 
