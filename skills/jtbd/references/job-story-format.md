@@ -66,6 +66,15 @@ Exception: in analytics and reporting, insight itself is the
 deliverable — "see revenue broken down by channel" is legitimate there,
 paired with the decision it enables ("adjust budget allocation").
 
+The same trap hides in **transactional effort verbs** — "wants to
+pay / submit / enter / upload X". Nobody wants to *pay* or *submit*;
+those name work the actor performs, not the outcome they want. When the
+desire reads as an action the actor would gladly skip, name the end
+state instead — and re-check whether the role who actually benefits is a
+*different* one. A customer paying an invoice is the mechanism; the jobs
+are the dealer collecting payment without manual card entry (time saved)
+and the vendor capturing the revenue.
+
 Length is a leak detector: one clause each for situation, desire, and
 outcome. If the story cannot be read aloud in one breath to a
 non-technical stakeholder, it is carrying implementation detail.
@@ -78,6 +87,7 @@ non-technical stakeholder, it is carrying implementation detail.
 | Solution-focused "When" | Prescribes implementation | Describe the real-world trigger |
 | Invented dramatic "When" | A vivid crisis the sources never describe misstates the job | Use the mundane trigger the ticket actually names |
 | UI-verb motivation ("wants to see/view/manage") | Describes operating the feature, not the outcome | Name the end state: "wants X to be obvious", "wants to be told" (see Principle 6) |
+| Transactional-verb motivation ("wants to pay/submit/enter") | Names work the actor performs, not the outcome — nobody wants to pay; paying is the mechanism | Name the outcome and re-check the actor/beneficiary: "so the dealer can collect payment without manual card entry" (see Principle 6) |
 | Capability enumeration (fields, statuses, IDs) | The UI spec wearing a story costume — reader could reconstruct the screen | Collapse the list into the single outcome it buys |
 | Naming the replaced artifact ("instead of the old list/panel") | Contrasts with the previous implementation, not the user's pain | Contrast with the pain; prior broken *behavior* is fine, prior *component* is not |
 | Vague outcome | Not testable | Be specific about what improves |
