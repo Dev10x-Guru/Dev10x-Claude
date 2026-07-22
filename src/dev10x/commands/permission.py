@@ -6,6 +6,7 @@ from types import ModuleType
 
 import click
 
+from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.result import ErrorResult
 from dev10x.permission.service import PermissionContext, load_permission_context
 
@@ -507,7 +508,7 @@ def promote_plan(
     """
     from dev10x.skills.permission import promote as mod
 
-    global_settings = Path.home() / ".claude" / "settings.json"
+    global_settings = ClaudeDir.settings_json()
     if proactive:
         catalog = Path(mod.__file__).parent / "baseline-permissions.yaml"
         plan = mod.build_proactive_seed_plan(

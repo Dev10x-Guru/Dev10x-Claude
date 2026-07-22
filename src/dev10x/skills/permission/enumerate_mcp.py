@@ -31,6 +31,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.mcp_tool_name import McpToolName
 
 # MCP server registration file convention.
@@ -217,10 +218,9 @@ def discover_all_mcp_servers(
         distinct server prefix found in any allow rule.
     """
     if settings_paths is None:
-        home = Path.home()
         settings_paths = [
-            home / ".claude" / "settings.json",
-            home / ".claude" / "settings.local.json",
+            ClaudeDir.settings_json(),
+            ClaudeDir.settings_local_json(),
         ]
 
     prefix_to_entry: dict[str, McpServerEntry] = {}
