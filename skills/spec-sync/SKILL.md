@@ -23,6 +23,8 @@ allowed-tools:
   - Write
   - Bash(git diff:*)
   - Bash(git status:*)
+  - Bash(dev10x spec drift:*)
+  - Bash(uvx dev10x spec drift:*)
   - Skill
   - TaskCreate
   - TaskUpdate
@@ -81,22 +83,23 @@ user whether to run `Dev10x:ticket-scope` to create one.
 
 ### Step 2: Run the Drift Detector
 
-Call the shared module:
+Call the shared module via the CLI wrapper — inline `python -c`
+is hook-blocked, and the CLI keeps both skills on one detector:
 
-```python
-from pathlib import Path
-from dev10x.spec import detect_drift
-
-report = detect_drift(
-    spec_path=Path("docs/specs/<TICKET-ID>.md"),
-    project_root=Path("."),
-)
+```bash
+dev10x spec drift docs/specs/<TICKET-ID>.md --project-root .
 ```
 
-The report's `signals` list classifies each mismatch as
-`DriftKind.STRUCTURAL` or `DriftKind.BEHAVIOURAL`. The same
-detector is used by `Dev10x:spec-update` — both skills agree on
-what counts as drift.
+Exit code `0` means no drift, `1` means structural drift only,
+`2` means behavioural drift is present; each signal line is
+printed as `[<kind>] <section>: <detail>`. The same detector is
+used by `Dev10x:spec-update` — both skills agree on what counts
+as drift.
+
+**Gitignored spec warning.** If `docs/specs/` is listed in
+`.gitignore`, the spec is local-only and invisible to CI — commit
+it (drop the ignore rule) or explicitly warn the user that no
+teammate or CI run will see the drift check.
 
 ### Step 3: Branch on Drift Kind
 

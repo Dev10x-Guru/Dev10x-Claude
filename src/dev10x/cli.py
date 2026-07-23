@@ -52,6 +52,7 @@ class LazyGroup(click.Group):
         "session": "dev10x.commands.session.session",
         "validate": "dev10x.commands.validate.validate",
         "skill": "dev10x.commands.skill.skill",
+        "spec": "dev10x.commands.spec.spec",
         "usage": "dev10x.commands.usage.usage",
     },
     invoke_without_command=True,

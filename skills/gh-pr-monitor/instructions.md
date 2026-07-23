@@ -573,7 +573,18 @@ because the supervisor's reasoning capacity is in the loop.
 
 ### Conflict Handling
 
-When `gh pr view` reports `mergeable: CONFLICTING`:
+**Merge-state check first (GH-904 F4).** On ANY unexpected
+branch-head change (e.g. a maintainer ran GitHub's "Update
+branch", or the local HEAD sha no longer matches what this
+monitor last observed), resolve the PR merge state via
+`mcp__plugin_Dev10x_cli__pr_get` (read `state` / `mergedAt`) —
+same pattern as `Dev10x:gh-pr-respond`'s Merge-State Check
+preamble — BEFORE re-dispatching `haiku-ci-poll` or delegating to
+`Dev10x:git-groom` for a rebase. If `state == "MERGED"`, stop:
+do not rebase or force-push a branch whose PR already merged.
+
+When `gh pr view` reports `mergeable: CONFLICTING` (and the PR is
+confirmed not merged):
 
 1. Resolve the base branch via `mcp__plugin_Dev10x_cli__pr_detect`
    (returns `baseRefName`).
@@ -689,6 +700,15 @@ query($owner: String!, $repo: String!, $pr: Int!) {
 Only threads where `isResolved == false` AND the author has not
 replied count as unaddressed. Resolved threads are done — do not
 report them as needing attention.
+
+**Re-scan after a review submits (GH-904 F5a).** Do not treat the
+first `haiku-thread-scan` result as the complete comment set. When
+a human review transitions to submitted, or on any re-monitor pass,
+re-scan ALL of that review's threads rather than only the ones
+already triaged — GitHub commonly attaches new comments to the
+submit event. Comments still in `PENDING` review state are
+non-repliable (no stable ID yet) — flag them for the next pass
+instead of dropping them.
 
 ### Exit condition for Phase 2 loop
 

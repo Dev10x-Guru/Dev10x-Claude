@@ -75,6 +75,11 @@ SIDE EFFECTS:
 Resolve `spec_path` from `ticket_id` if not supplied:
 `docs/specs/<TICKET-ID>.md`.
 
+**Gitignored spec warning.** If `docs/specs/` is listed in
+`.gitignore`, the spec is local-only and invisible to CI — commit
+it (drop the ignore rule) or explicitly warn the user that no
+teammate or CI run will see the drift check.
+
 If the file does not exist, **STOP**. Surface to the user:
 
 > "No canonical spec found at `docs/specs/<TICKET-ID>.md`. This
@@ -141,6 +146,9 @@ to confirm no structural drift remains:
 ```
 Skill(skill="Dev10x:spec-sync", args="--check-only <ticket_id>")
 ```
+
+`Dev10x:spec-sync` runs `dev10x spec drift docs/specs/<TICKET-ID>.md`
+under the hood — see that skill for the exit-code contract.
 
 If drift remains, surface it to the user. The session terminates
 with the supervisor's confirmation that the code now matches the

@@ -805,6 +805,15 @@ gh api --method POST \
 If no inline comments AND no review body findings found → report
 "No unaddressed comments" and stop.
 
+**Re-scan after a review submits (GH-904 F5a).** The first-triage
+comment set is not the complete set. After a human review
+transitions to submitted (or on any re-invocation of this mode),
+re-run Step 1 against ALL of that review's threads rather than
+diffing against what was triaged earlier — new comments commonly
+land alongside the submit event. Flag any review comment still in
+`PENDING` state (not yet submitted) as non-repliable: it has no
+stable ID to reply against until the reviewer submits.
+
 ### Step 2: Triage all comments (parallel)
 
 Mark phase transition: `TaskUpdate(taskId=triage_task, status="in_progress")`
