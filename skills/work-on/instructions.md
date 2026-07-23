@@ -906,20 +906,31 @@ skill. Users can customize these via
        ├─ Read relevant code
        ├─ Identify affected components
        └─ Propose approach
-4.4  [epic]     Implement changes
-4.5  [epic]     Verify
+4.4  [detailed] Plan the commit sequence  → (see below)
+4.5  [epic]     Implement changes
+4.6  [epic]     Verify
        ├─ Run tests                       → test
        └─ Run lint
-4.6  [detailed] Code review               → Dev10x:review + Dev10x:review-fix
-4.7  [detailed] Commit outstanding changes → Dev10x:git-commit
-4.8  [detailed] Create draft PR           → Dev10x:gh-pr-create (--unattended)
-4.9  [detailed] Monitor CI                → Dev10x:gh-pr-monitor
-4.10 [epic]     Apply fixups              → Dev10x:gh-pr-respond
-4.11 [detailed] Groom commit history      → Dev10x:git-groom
-4.12 [detailed] Update PR description     → Dev10x:gh-pr-create (update mode)
-4.13 [detailed] Request review            → Dev10x:gh-pr-request-review
-4.14 [detailed] Verify acceptance criteria
+4.7  [detailed] Code review               → Dev10x:review + Dev10x:review-fix
+4.8  [detailed] Commit outstanding changes → Dev10x:git-commit
+4.9  [detailed] Create draft PR           → Dev10x:gh-pr-create (--unattended)
+4.10 [detailed] Monitor CI                → Dev10x:gh-pr-monitor
+4.11 [epic]     Apply fixups              → Dev10x:gh-pr-respond
+4.12 [detailed] Groom commit history      → Dev10x:git-groom
+4.13 [detailed] Update PR description     → Dev10x:gh-pr-create (update mode)
+4.14 [detailed] Request review            → Dev10x:gh-pr-request-review
+4.15 [detailed] Verify acceptance criteria
 ```
+
+**Plan the commit sequence (4.4, GH-904 F1).** Before touching
+code, produce an explicit ordered per-commit plan: for each
+planned commit, note the gitmoji, the ticket ID, the files it
+owns, and which earlier commit(s) it depends on. **Refactor
+commits precede feature commits (GH-904 F2)** — reorder the plan
+so any pure-refactor commit lands before the feature commit that
+depends on it. Implement (4.5) executes this plan; deviations are
+expected but should be reconciled back into the plan, not
+silently improvised.
 
 **Bug fix from Sentry + ticket:**
 
@@ -1045,19 +1056,20 @@ shipping pipeline tail.
 4.2  [detailed] Scope ticket with REASONS        → Dev10x:ticket-scope
 4.3  [detailed] Record ADR (if architectural)    → Dev10x:adr
 4.4  [detailed] Spec-update gate (Golden Rule)   → Dev10x:spec-update
-4.5  [epic]     Implement changes
-4.6  [detailed] Verify — API tests               → test
-4.7  [detailed] Verify — unit tests              → test
-4.8  [detailed] Spec-sync gate before merge      → Dev10x:spec-sync
-4.9  [detailed] Code review                      → Dev10x:review
-4.10 [detailed] Commit outstanding changes       → Dev10x:git-commit
-4.11 [detailed] Create draft PR                  → Dev10x:gh-pr-create
-4.12 [detailed] Monitor CI                       → Dev10x:gh-pr-monitor
-4.13 [epic]     Apply fixups                     → Dev10x:gh-pr-respond
-4.14 [detailed] Groom commit history             → Dev10x:git-groom
-4.15 [detailed] Update PR description            → Dev10x:gh-pr-create
-4.16 [detailed] Request review                   → Dev10x:gh-pr-request-review
-4.17 [detailed] Verify acceptance criteria
+4.5  [detailed] Plan the commit sequence         → (see below)
+4.6  [epic]     Implement changes
+4.7  [detailed] Verify — API tests               → test
+4.8  [detailed] Verify — unit tests              → test
+4.9  [detailed] Spec-sync gate before merge      → Dev10x:spec-sync
+4.10 [detailed] Code review                      → Dev10x:review
+4.11 [detailed] Commit outstanding changes       → Dev10x:git-commit
+4.12 [detailed] Create draft PR                  → Dev10x:gh-pr-create
+4.13 [detailed] Monitor CI                       → Dev10x:gh-pr-monitor
+4.14 [epic]     Apply fixups                     → Dev10x:gh-pr-respond
+4.15 [detailed] Groom commit history             → Dev10x:git-groom
+4.16 [detailed] Update PR description            → Dev10x:gh-pr-create
+4.17 [detailed] Request review                   → Dev10x:gh-pr-request-review
+4.18 [detailed] Verify acceptance criteria
 ```
 
 The structured-spec play differs from `feature` in two ways:
@@ -1068,8 +1080,16 @@ The structured-spec play differs from `feature` in two ways:
    the single source of truth.
 2. **Two drift-detection gates bracket Implement** — the
    spec-update gate (4.4) catches behaviour changes mid-flight;
-   the spec-sync gate (4.8) catches structural drift before
+   the spec-sync gate (4.9) catches structural drift before
    merge. Both use `dev10x.spec.drift_detector` so they agree.
+
+**Plan the commit sequence (4.5, GH-904 F1).** Same contract as
+the `feature` play: an explicit ordered per-commit plan (gitmoji,
+ticket ID, owned files, dependencies), with **refactor commits
+preceding feature commits (GH-904 F2)**. This plan folds into the
+saved spec at `docs/specs/<TICKET-ID>.md` — record it there (e.g.
+as a checklist under Implementation Steps) rather than as a
+throwaway note, so it survives the spec-sync gate.
 
 ### Supervisor Approval Gate
 
@@ -1428,6 +1448,16 @@ This applies to the shipping pipeline sequence:
 ... → Groom (force push) → RE-MONITOR CI → Update PR → ...
 ```
 
+**Merge-state check before re-monitor/rewrite (GH-904 F4).** On
+ANY unexpected branch-head change — the local HEAD sha no longer
+matches what this session last pushed, most commonly because a
+maintainer ran GitHub's "Update branch" button — resolve the PR
+merge state via `mcp__plugin_Dev10x_cli__pr_get` (read `state` /
+`mergedAt`) BEFORE re-invoking `Dev10x:gh-pr-monitor` or any
+rebase/rewrite. Same pattern as `Dev10x:gh-pr-respond`'s
+Merge-State Check preamble. If `state == "MERGED"`, stop — do not
+rebase, force-push, or re-monitor a PR that already merged.
+
 ### Solo-Maintainer Post-Create Monitor Mandate (GH-185)
 
 **Hard rule:** When `.claude/Dev10x/session.yaml` has
@@ -1499,7 +1529,7 @@ the status line is their own responsibility.
 
 ### Apply Fixups Completion Guard (GH-851 F2)
 
-**Hard rule:** The "Apply fixups" task (4.10) CANNOT be marked
+**Hard rule:** The "Apply fixups" task CANNOT be marked
 complete until ALL PR checks — including automated review bots
 (claude-review, hygiene-review, openai-review) — have finished.
 A monitor returning "CI green" covers only core CI checks. Bot
@@ -2246,6 +2276,28 @@ Run them in parallel?
 - No, run sequentially
 ```
 
+**Subagent implementation model (GH-904 F3).** When Phase 4
+sub-tasks are dispatched to parallel implementer agents:
+
+- **Partition by disjoint file sets.** Each agent must own a
+  distinct set of files so two agents never write the same
+  working tree path — concurrent writes to a shared file are a
+  clobber, not a merge.
+- **Dependency spine + one parallel wave.** Model the work as a
+  sequential spine of tasks with real dependencies, plus at most
+  one wave of independent chunks dispatched in parallel off that
+  spine. Do not chain multiple parallel waves — the spine already
+  captures the ordering constraints.
+- **Never run a shared-DB test suite concurrently.** Parallel
+  implementers MUST NOT each run the full test suite against a
+  shared database at the same time — defer to a single serialized
+  test run after all chunks land, to avoid cross-agent state
+  interference.
+- **Import dependencies usually force a mostly-sequential spine.**
+  Most feature work has one module depending on another, so the
+  parallel wave is typically small — expect modest, not dramatic,
+  wall-clock gains from parallelism.
+
 **Worktree isolation limitation:** Agents dispatched with
 `isolation: "worktree"` cannot use the `Write` tool — Claude Code
 restricts Write access to the main session's working directory.
@@ -2401,21 +2453,22 @@ defaults → schema). Build subtasks of Phase 4:
 4.1  [detailed] Set up workspace          → Dev10x:ticket-branch
 4.2  [detailed] Draft Job Story           → Dev10x:jtbd
 4.3  [epic]     Design implementation approach (3 children)
-4.4  [epic]     Implement changes
-4.5  [epic]     Verify (2 children)
-4.6  [detailed] Code review               → Dev10x:review + Dev10x:review-fix
-4.7  [detailed] Commit outstanding changes → Dev10x:git-commit
-4.8  [detailed] Create draft PR           → Dev10x:gh-pr-create
-4.9  [detailed] Monitor CI                → Dev10x:gh-pr-monitor
-4.10 [epic]     Apply fixups              → Dev10x:gh-pr-respond
-4.11 [detailed] Groom commit history      → Dev10x:git-groom
-4.12 [detailed] Update PR description     → Dev10x:gh-pr-create
-4.13 [detailed] Request review            → Dev10x:gh-pr-request-review
-4.14 [detailed] Verify acceptance criteria
+4.4  [detailed] Plan the commit sequence
+4.5  [epic]     Implement changes
+4.6  [epic]     Verify (2 children)
+4.7  [detailed] Code review               → Dev10x:review + Dev10x:review-fix
+4.8  [detailed] Commit outstanding changes → Dev10x:git-commit
+4.9  [detailed] Create draft PR           → Dev10x:gh-pr-create
+4.10 [detailed] Monitor CI                → Dev10x:gh-pr-monitor
+4.11 [epic]     Apply fixups              → Dev10x:gh-pr-respond
+4.12 [detailed] Groom commit history      → Dev10x:git-groom
+4.13 [detailed] Update PR description     → Dev10x:gh-pr-create
+4.14 [detailed] Request review            → Dev10x:gh-pr-request-review
+4.15 [detailed] Verify acceptance criteria
 ```
 Supervisor approves.
 
-**Phase 4:** Auto-advance through subtasks 4.1-4.10, expanding
+**Phase 4:** Auto-advance through subtasks 4.1-4.15, expanding
 epics as reached. No pauses between tasks unless a genuine
 decision is needed.
 

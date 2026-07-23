@@ -700,6 +700,13 @@ Follow project standards. Common patterns:
 
 Limit title to 72 characters. Add body for complex changes.
 
+**Reuse git-commit's line-length validation.** Any hand-written or
+amended message during a groom (e.g. a Strategy B rebuild, or a
+`reword` in Strategy C) MUST pass the same ≤72-char title/body-line
+check that `Dev10x:git-commit` applies before staging. Skipping it
+lets a groom introduce a history-lint failure that only surfaces
+in CI, after the force-push.
+
 ## Troubleshooting
 
 ### Rebase Conflicts

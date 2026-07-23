@@ -380,12 +380,20 @@ defaults:
               Summarize the implementation strategy. If multiple
               valid approaches exist, present trade-offs and ask
               for supervisor input.
+      - subject: Plan the commit sequence
+        type: detailed
+        prompt: >
+          Produce an explicit ordered per-commit plan before writing
+          code: for each commit, note the gitmoji, ticket ID, files
+          it owns, and which earlier commit(s) it depends on.
+          Refactor commits precede feature commits.
       - subject: Implement changes
         type: epic
         prompt: >
-          Execute the approved approach. Create atomic commits per
-          logical change. Follow project coding conventions and
-          patterns from existing code.
+          Execute the approved approach and the commit-sequence plan.
+          Create atomic commits per logical change, refactor commits
+          before feature commits. Follow project coding conventions
+          and patterns from existing code.
       - subject: Verify
         type: epic
         prompt: >
@@ -648,12 +656,23 @@ defaults:
           to Implement.
         skills: [Dev10x:spec-update]
         condition: if-requirements-shifted
+      - subject: Plan the commit sequence
+        type: detailed
+        prompt: >
+          Produce an explicit ordered per-commit plan before writing
+          code: for each commit, note the gitmoji, ticket ID, files
+          it owns, and which earlier commit(s) it depends on.
+          Refactor commits precede feature commits. Fold this plan
+          into the saved spec at docs/specs/<TICKET-ID>.md (e.g. a
+          checklist under Implementation Steps) so it survives the
+          spec-sync gate.
       - subject: Implement changes
         type: epic
         prompt: >
-          Generate code from the spec. The spec — not a custom
-          plan — IS the prompt. Each Implementation Step in the
-          spec becomes a concrete edit.
+          Generate code from the spec and the commit-sequence plan.
+          The spec — not a custom plan — IS the prompt. Each
+          Implementation Step in the spec becomes a concrete edit,
+          refactor commits before feature commits.
       - subject: Verify — API tests
         type: detailed
         prompt: >
