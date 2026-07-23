@@ -169,6 +169,17 @@ cost hours in the field (GH-890):
 | Merge discipline: rebase-merge on fresh ancestry only; pending CI is not green; zero `fixup!` at merge; address ALL top-level review comments (even INFO); auto-resolve addressed BOT threads only — never human threads | Every one of these is a merge-gate failure mode observed in the field |
 | Decision log file per chunk | The supervisor audits choices in the morning, not at 03:00 |
 
+## Merge guidance when no watcher is armed
+
+The merge discipline above assumes the full night-shift harness
+(watcher relaying `BASE MOVED`). In the collapsed / in-session variant
+— no `dev10x foreman watch` armed — a rebase→CI-pending→park cycle
+re-triggers CI on every rebase and can ping-pong indefinitely. When
+`pr_get` reports the PR green and `MERGEABLE`, and the diff cannot
+conflict with what merged since (e.g. docs-only, disjoint files),
+merge directly and let the rebase-merge strategy replay the commit.
+Only fall back to a local rebase when `pr_get` reports `CONFLICTING`.
+
 ## Red flags — STOP, you are about to lose the night
 
 - An inline `while`/`sleep`/pipeline in a Monitor or Bash call —
@@ -181,6 +192,10 @@ cost hours in the field (GH-890):
 - Merging on pending CI, stale ancestry, or with `fixup!` commits.
 - The watchdog "quickly" doing implementation work in the main session.
 - Two open PRs from overlapping file areas.
+- Firing an `AskUserQuestion` the handoff already answered. Under afk
+  this freezes the run until the supervisor returns. A mid-run
+  clarifying question is NOT authorization to open a gate — answer
+  inline and continue.
 
 ## Rationalization table
 
