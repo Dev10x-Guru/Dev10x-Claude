@@ -160,6 +160,15 @@ and every gate-emitting skill inherits it uniformly. See
 [`references/friction-levels.md`](../../references/friction-levels.md)
 for the resolver contract and the per-gate toggle table.
 
+**Self-initiated gates still need the `ALWAYS_ASK` check.** When the
+composed policy resolves to auto-advance, a downstream skill must not
+open a self-initiated `AskUserQuestion` just because a decision feels
+uncertain. Check it against the `ALWAYS_ASK` allowlist first — secret
+access, destructive+irreversible actions, cross-author force-push. If
+the decision is not on that allowlist, decide-and-log instead of
+asking; asking anyway freezes the run exactly like the anti-pattern
+below.
+
 ## Relationship to Presets and Overlays
 
 `afk` is an **overlay**, not a friction level. It patches two toggles

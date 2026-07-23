@@ -61,6 +61,9 @@ Command shapes to avoid (each trips a hook or breaks allow-rule matching):
 - No inline interpreters (`python3 -c`, `sh -c`, `perl -e`, `node -e`) —
   use jq / yq / yamllint / actionlint, or extract a `uv run --script`
   tool.
+- Never prefix git with `-P` or `--no-pager` (commonly denied as
+  friction). Use the `git nopager` alias, or run git directly — it
+  does not page non-interactively.
 
 Prefer:
 - `Read` / `Grep` / `Glob` over `cat` / `grep` / `find` in Bash.
