@@ -218,6 +218,20 @@ the agent executes — include the relevant section in the agent's
 prompt (the fenced blocks under each tracker are reference material
 for the dispatched agent, not instructions for the main session).
 
+**Exception — inline creation is acceptable** when follow-on calls
+need the returned ticket key immediately (e.g. a small batch where
+`createIssueLink` needs the just-created issues' keys). Create the
+ticket directly in the main session instead of dispatching the
+background agent, so the key is available for the next call without
+a round trip.
+
+**Secondary fallback:** if JIRA writes are prompting for approval
+because the `mcp-atlassian-write` baseline group has not synced to
+your `settings.json` (see the troubleshooting note under the JIRA
+section below), create inline too — a background agent cannot
+answer that prompt. Prefer fixing the sync gap via
+`Dev10x:plugin-maintenance` over leaning on this fallback long-term.
+
 **Nested invocation:** When invoked from a background agent
 (e.g., from `project-scope`'s Phase 3 agent), skip the
 delegation wrapper and execute creation directly. Detection:
@@ -294,12 +308,20 @@ read-only Atlassian tools (all pre-approved) before the create call;
 use the live tool schema for exact field names.
 
 The Atlassian ticket-management **write** tools (`createJiraIssue`,
-`editJiraIssue`, `addCommentToJiraIssue`, …) are pre-approved in the
-permission baseline (`mcp-atlassian-write` group, GH-631), so this
-create runs **unattended even from the background creation agent**
-dispatched in Step 5 — which previously stalled because the write
-tool prompted and a background agent cannot answer a permission
-prompt.
+`editJiraIssue`, `addCommentToJiraIssue`, `transitionJiraIssue`,
+`createIssueLink`, …) **are** pre-approved via the
+`mcp-atlassian-write` baseline permission group (GH-631). This
+deliberately overrides the GH-593 write-precedence default, so the
+Step 5 background creation agent can call `createJiraIssue`
+unattended without stalling on a permission prompt.
+
+**Troubleshooting (GH-899):** if these writes still prompt for
+approval, the `mcp-atlassian-write` baseline group has not reached
+your live `settings.json` yet — that is a seed/sync gap, not the
+intended design. Re-apply base permissions with
+`Dev10x:plugin-maintenance` (or run `Dev10x:upgrade-cleanup`, which
+invokes it in full mode), then retry. See Step 5's inline-creation
+exception for a stopgap while the sync gap persists.
 
 > Team-specific IDs are documented in the tracker skill (`Dev10x:linear`, `Dev10x:jira`).
 
