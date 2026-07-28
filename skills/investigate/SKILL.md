@@ -15,7 +15,7 @@ allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/investigate/scripts/parse-slack-url.sh:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/investigate/scripts/reply.sh:*)
   - Skill(skill="Dev10x:ticket-create")
-  - Skill(skill="pr:review")
+  - Skill(skill="Dev10x:gh-pr-review")
 ---
 
 # Dev10x:investigate
@@ -66,13 +66,9 @@ Given a Slack thread URL, read the report, root-cause it in the codebase,
 post a technical reply with GitHub links, and optionally create a Linear ticket.
 
 **PR review requests:** When the Slack thread contains a GitHub PR link and the
-request is to review it or check its status, invoke the `pr:review` skill with
+request is to review it or check its status, invoke `Dev10x:gh-pr-review` with
 the PR URL instead of following Steps 3–6. Steps 1–2 (parse URL, read thread)
 still apply to get context before delegating.
-
-**External dependency:** `pr:review` is a user-level skill (installed at
-`~/.claude/skills/pr-review/`). If unavailable, fall back to
-`Dev10x:gh-pr-review` for PR review functionality.
 
 ## Workflow
 

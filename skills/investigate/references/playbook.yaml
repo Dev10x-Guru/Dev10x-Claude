@@ -84,7 +84,8 @@ defaults:
     prompt: >
       Use when the Slack thread contains a GitHub PR link and the
       request is to review it or check its status. Parse the URL and
-      read the thread for context, then delegate to pr:review.
+      read the thread for context, then delegate to
+      Dev10x:gh-pr-review.
     steps:
       - subject: Parse Slack URL
         type: detailed
@@ -99,8 +100,8 @@ defaults:
       - subject: Delegate to PR review
         type: detailed
         prompt: >
-          Invoke pr:review skill with the PR URL and Slack thread
-          context. Let the review skill handle the rest.
-        skills: [pr:review]
+          Invoke Dev10x:gh-pr-review skill with the PR URL and Slack
+          thread context. Let the review skill handle the rest.
+        skills: [Dev10x:gh-pr-review]
 
 overrides: []
