@@ -35,6 +35,11 @@
       "id": "quality-gate",
       "name": "Quality Checklist Gate",
       "description": "Before ending a session the quality checklist is verified as the final gate — decisions recorded with IDs, model.md current, workshop record written, and in solo mode no [ASSUMPTION] tags remain in model.md/decisions.md/glossary.md."
+    },
+    {
+      "id": "model-tier-gate",
+      "name": "Discussion-Agent Model Tier Gate",
+      "description": "In solo mode the skill asks ONCE per session — via AskUserQuestion batched with the persona-selection confirmation — which model tier to use for discussion agents (frontier recommended, sonnet, haiku with an explicit naive-output warning), persists the choice, and applies it to BOTH persona rounds and the devil's advocate. It never silently hard-codes haiku for personas."
     }
   ],
   "evals": [
@@ -150,6 +155,25 @@
           "dimension": "quality-gate",
           "check": "behavioral",
           "signal": "Session end runs the Quality Checklist; decisions recorded with IDs, workshop record written, and no [ASSUMPTION] tags remain in model.md/decisions.md/glossary.md"
+        }
+      ]
+    },
+    {
+      "id": "model-tier-asked-once-batched",
+      "name": "Model tier is asked once, batched with persona selection",
+      "description": "Before the first AI-cast dispatch the skill asks which model tier to use for discussion agents via AskUserQuestion batched with the persona-selection confirmation, with frontier recommended and haiku carrying a naive-output warning; the choice is reused for both persona rounds and the devil's advocate without re-asking.",
+      "input": "/Dev10x:ddd model the invoicing domain",
+      "assertions": [
+        {
+          "dimension": "model-tier-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "Model-tier choice is presented via AskUserQuestion (batched with the persona-selection confirmation), not plain text and not silently defaulted"
+        },
+        {
+          "dimension": "model-tier-gate",
+          "check": "behavioral",
+          "signal": "Frontier is marked (Recommended); haiku option carries an explicit naive-output warning; the selected tier is applied to persona dispatches AND the devil's advocate with no re-ask"
         }
       ]
     }

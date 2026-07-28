@@ -56,8 +56,9 @@ each); accept edits.
 
 1. **Human first**: elicit the human's domain events for the brief
    (or reuse ones already on the board).
-2. **Dispatch personas in parallel** (cheap models — haiku;
-   `general-purpose`, background). Each persona receives: the
+2. **Dispatch personas in parallel** (session-selected model tier
+   — see Cost & Cadence Defaults; `general-purpose`, background).
+   Each persona receives: the
    session brief, its perspective description, the glossary (if
    any) — and NOT the human's events, NOT other personas' output.
    Each returns: domain events (past tense), suspected policies,
@@ -85,7 +86,8 @@ each); accept edits.
 ## Devil's Advocate
 
 Before decision capture on any structural change, dispatch ONE
-adversarial agent (stronger model than personas — sonnet tier)
+adversarial agent (session-selected model tier — same as the
+personas, see Cost & Cadence Defaults)
 with: the proposed model delta, the anti-patterns catalog
 (`references/domain/anti-patterns.md` at the repo root), and the prior
 decisions list. Its brief:
@@ -103,12 +105,28 @@ decisions; rebuttals are recorded in the decision's Alternatives.
 
 ## Cost & Cadence Defaults
 
-- Personas: haiku, 3–5 agents, dispatched at most twice per
-  session (initial storming + one refinement round). More rounds
-  add anchoring risk, not signal.
-- Devil's advocate: sonnet, once per structural change batch.
+- **Model tier is user-selected, once per session** (GH-789):
+  the facilitator asks via `AskUserQuestion` — batched with the
+  persona-selection confirmation (§ Selecting personas above) —
+  which tier to use for ALL discussion agents
+  (personas + devil's advocate). See SKILL.md § Discussion-Agent
+  Model Tier.
+  - Frontier (inherit session default) — **recommended** for real
+    workshops. Evidence: identical persona prompts produced
+    compound-failure scenarios and actionable minimal-change
+    proposals on a frontier model, vs flat "when X always Y"
+    policies on haiku.
+  - Sonnet — budget middle ground.
+  - Haiku — **discouraged for discussion roles**; quick smoke-runs
+    of the mechanics only. Discussion agents do judgment work;
+    haiku output is naive enough to need supervisor interruption.
+- Personas: 3–5 agents, dispatched at most twice per session
+  (initial storming + one refinement round). More rounds add
+  anchoring risk, not signal.
+- Devil's advocate: once per structural change batch.
 - Everything else runs inline — solo mode must stay cheap enough
-  to be the default, not a special occasion.
+  to be the default, not a special occasion. Cadence, not tier,
+  is the cost lever for discussion agents.
 
 ## Solo-Mode Session Etiquette
 

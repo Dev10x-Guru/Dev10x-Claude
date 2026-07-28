@@ -17,6 +17,23 @@ wastes tokens; under-provisioning produces poor results.
 | **Review** | `opus` | Code review, PR review, architecture review |
 | **Design** | `opus` | New classes/components, architecture decisions, complex design |
 | **Investigate** | `opus` | Root cause analysis, deep debugging, cross-system tracing |
+| **Discussion** | user-selected (frontier recommended) | Workshop personas, devil's advocates, adversarial panels — see below |
+
+### Discussion agents are judgment work (GH-789)
+
+Discussion agents' entire output is a discussion contribution —
+the cost-tiering rationale for fetch/prep agents does not apply.
+Haiku personas in a real DDD workshop produced flat, generic
+policies; the same prompts on a frontier model produced
+compound-failure scenarios with actionable minimal-change
+proposals. Skills dispatching discussion agents MUST let the
+user pick the tier once per session (frontier recommended,
+haiku only with an explicit naive-output warning) instead of
+hard-coding a cheap tier. `Dev10x:ddd` implements this gate;
+`Dev10x:adr-evaluate` architect panels already dispatch at
+Design tier (`opus`). Reviewer panels (named agents pinned to
+`sonnet`) share the failure mode — prefer promoting a reviewer
+spec's `model:` over accepting shallow findings.
 
 ## Applying the Framework
 
@@ -51,7 +68,10 @@ Agent(
 If a skill dispatches a generic-purpose agent without specifying
 `model:`, it runs at the session default. This is acceptable
 ONLY for **Design** and **Investigate** tier tasks that need
-the most capable model. All other tiers MUST specify the model
+the most capable model, and for **Discussion** tier dispatches
+where the user selected the Frontier option at the session
+model-tier gate — a user-selected override, not a skill
+hard-coding "no model". All other tiers MUST specify the model
 explicitly to avoid wasting tokens on simple tasks.
 
 ## Current Assignments
@@ -71,6 +91,7 @@ explicitly to avoid wasting tokens on simple tasks.
 | `work-on` (Phase 2 gather) | Gather | `haiku` |
 | `skill-audit` (Wave 1+2) | Analyze | `sonnet` |
 | `adr-evaluate` (architects) | Design | `opus` |
+| `ddd` (personas + devil's advocate) | Discussion | user-selected (frontier recommended) |
 
 ## User Overrides via Playbooks
 

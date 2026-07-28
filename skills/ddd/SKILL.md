@@ -96,6 +96,32 @@ it defines the role-substitution map and the `[ASSUMPTION]`
 guardrail. Multi-participant rooms are the exception: skip the AI
 cast and facilitate the humans instead.
 
+### Discussion-Agent Model Tier (solo mode)
+
+Discussion agents (persona panel + devil's advocate) perform
+judgment work, not mechanical work — their entire output is a
+discussion contribution, so the cost-tiering rationale for
+fetch/prep agents does not apply (GH-789).
+
+**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text) ONCE
+per session before the first AI-cast dispatch, batched with the
+persona-selection confirmation (`references/solo-facilitation.md`
+§ Selecting personas — the structured menu presented before
+dispatch; process Rule 1 — never as a standalone interruption).
+Options:
+
+- **Frontier (Recommended)** — omit `model:` on dispatch so agents
+  inherit the session default. Recommended for real workshops.
+- **Sonnet** — budget middle ground.
+- **Haiku** — quick smoke-run only. Warn explicitly: haiku
+  discussion output is naive — generic policies, no
+  interaction-level thinking.
+
+Persist the choice for the whole session and use it for BOTH
+persona rounds (blind generation + stress-test round) AND the
+devil's advocate. See `references/solo-facilitation.md`
+§ Cost & Cadence Defaults.
+
 ---
 
 ## Step 1: Load Context (Continue/Stress-Test modes)
