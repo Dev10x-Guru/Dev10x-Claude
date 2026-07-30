@@ -149,6 +149,148 @@ class TestReplyDoesNotSelfTrigger:
         selected = _run_filter([row], "comment", tmp_path)
         assert [r["id"] for r in selected] == [14]
 
+    def test_keyed_reply_still_never_self_triggers(self, tmp_path: Path) -> None:
+        # GH-777 must survive GH-907: a reply that keys a finding id AND
+        # quotes a severity token is still a response, never a finding.
+        rows = [
+            {
+                "id": 5082812952,
+                "user": {"login": "claude", "type": "Bot"},
+                "body": "**REQUIRED**: add a footer link",
+            },
+            {
+                "id": 5083000015,
+                "user": {"login": "claude", "type": "Bot"},
+                "body": "Re: comment 5082812952 — REQUIRED footer link addressed.",
+            },
+        ]
+        # Both drop out: the finding is answered, the reply never counts.
+        assert _run_filter(rows, "comment", tmp_path) == []
+
+
+class TestKeyedReplyDisposesFinding:
+    """GH-907 / GH-884: Check 1b promises a finding is 'addressed' once a later
+    comment replies to it, but nothing mapped a reply back to its finding — so
+    `blocking_count` never returned to 0 and the merge gate dead-ended. A reply
+    whose `Re:` line carries the finding's comment id now drops that finding."""
+
+    FINDING = {
+        "id": 5082812952,
+        "user": {"login": "claude", "type": "Bot"},
+        "body": "**REQUIRED**: Add a footer link at the end of the PR body",
+    }
+    OTHER = {
+        "id": 5082900001,
+        "user": {"login": "claude", "type": "Bot"},
+        "body": "CRITICAL: missing timeout on the subprocess call",
+    }
+
+    def test_unanswered_finding_still_blocks(self, tmp_path: Path) -> None:
+        selected = _run_filter([self.FINDING], "comment", tmp_path)
+        assert [r["id"] for r in selected] == [5082812952]
+
+    @pytest.mark.parametrize(
+        "reply_body",
+        [
+            "Re: comment 5082812952 (**REQUIRED** footer link) — addressed.",
+            "Re: #5082812952 — fixed in abc123.",
+            "Re: 5082812952 — declined, see GH-999.",
+        ],
+    )
+    def test_keyed_reply_drops_the_finding(self, reply_body: str, tmp_path: Path) -> None:
+        reply = {"id": 5083000002, "user": {"login": "janusz", "type": "User"}, "body": reply_body}
+        assert _run_filter([self.FINDING, reply], "comment", tmp_path) == []
+
+    def test_only_the_keyed_finding_drops(self, tmp_path: Path) -> None:
+        reply = {
+            "id": 5083000002,
+            "user": {"login": "janusz", "type": "User"},
+            "body": "Re: comment 5082812952 — addressed.",
+        }
+        selected = _run_filter([self.FINDING, self.OTHER, reply], "comment", tmp_path)
+        assert [r["id"] for r in selected] == [5082900001]
+
+    def test_info_finding_disposed_by_keyed_reply(self, tmp_path: Path) -> None:
+        # GH-808's needs_disposition bucket is cleared by the same key.
+        rows = [
+            {
+                "id": 5083000003,
+                "user": {"login": "claude", "type": "Bot"},
+                "body": "INFO: consider adding render tests",
+            },
+            {
+                "id": 5083000004,
+                "user": {"login": "janusz", "type": "User"},
+                "body": "Re: #5083000003 INFO — deferred to GH-999.",
+            },
+        ]
+        assert _run_filter(rows, "comment", tmp_path) == []
+
+    def test_unkeyed_re_reply_leaves_the_finding_blocking(self, tmp_path: Path) -> None:
+        # A prose-only "Re:" with no id is not a disposition — the gate must
+        # not be cleared by an unkeyed reply.
+        reply = {
+            "id": 5083000005,
+            "user": {"login": "janusz", "type": "User"},
+            "body": "Re: the footer link thing — addressed.",
+        }
+        selected = _run_filter([self.FINDING, reply], "comment", tmp_path)
+        assert [r["id"] for r in selected] == [5082812952]
+
+    def test_ticket_ref_in_reply_cannot_clear_a_finding(self, tmp_path: Path) -> None:
+        # Short digit runs (GH-907, Round 4) stay under the 6-digit floor.
+        rows = [
+            {
+                "id": 907,
+                "user": {"login": "claude", "type": "Bot"},
+                "body": "BLOCKING: null deref",
+            },
+            {
+                "id": 5083000006,
+                "user": {"login": "janusz", "type": "User"},
+                "body": "Re: GH-907 Round 4 — unrelated note.",
+            },
+        ]
+        selected = _run_filter(rows, "comment", tmp_path)
+        assert [r["id"] for r in selected] == [907]
+
+    def test_key_matched_outside_code_spans(self, tmp_path: Path) -> None:
+        # The key is read from the RAW body, so backticking the id (the old
+        # manual stale-finding workaround) is no longer load-bearing.
+        reply = {
+            "id": 5083000007,
+            "user": {"login": "janusz", "type": "User"},
+            "body": "Re: comment `5082812952` — addressed.",
+        }
+        assert _run_filter([self.FINDING, reply], "comment", tmp_path) == []
+
+    def test_id_only_on_a_non_re_line_does_not_dispose(self, tmp_path: Path) -> None:
+        # Only the "Re:" line carries keys; a bare id in prose is not a
+        # disposition signal.
+        row = {
+            "id": 5083000008,
+            "user": {"login": "claude", "type": "Bot"},
+            "body": "REQUIRED: see also comment 5082812952 for context",
+        }
+        selected = _run_filter([self.FINDING, row], "comment", tmp_path)
+        assert {r["id"] for r in selected} == {5082812952, 5083000008}
+
+    def test_review_surface_uses_the_same_key(self, tmp_path: Path) -> None:
+        rows = [
+            {
+                "id": 5082812952,
+                "user": {"login": "rev-bot", "type": "Bot"},
+                "body": "REQUIRED: real issue",
+                "state": "CHANGES_REQUESTED",
+            },
+            {
+                "id": 5083000009,
+                "user": {"login": "janusz", "type": "User"},
+                "body": "Re: comment 5082812952 — addressed.",
+            },
+        ]
+        assert _run_filter(rows, "review", tmp_path) == []
+
 
 class TestInfoSeverityDisposition:
     """GH-808 F1: non-blocking INFO/NOTE/SUGGESTION bot findings surface with

@@ -782,10 +782,18 @@ the MCP tool (no permission friction, structured response):
 ```
 mcp__plugin_Dev10x_cli__pr_issue_comment(
     pr_number={pr_number},
-    body="Re: {finding_summary}\n\n{reply}",
+    body="Re: comment {comment_id} — {finding_summary}\n\n{reply}",
     repo="{owner}/{repo}",
 )
 ```
+
+**The comment id on the `Re:` line is REQUIRED, not decorative
+(GH-907, GH-884).** `gh-pr-merge` Check 1b keys its addressed-matching
+off that id: `top-level-comments.jq` drops a finding only when a reply
+names its comment id. A prose-only `Re: the footer thing` leaves the
+finding blocking and dead-ends the merge gate. Use the `id` of the
+comment or review being answered, exactly as
+`check_top_level_comments` reports it.
 
 This also covers replies to top-level bot comments (e.g., `claude[bot]`
 findings posted via `gh pr comment`) that surface through
@@ -799,7 +807,7 @@ account no longer slips past the "clean" check.
 ```bash
 gh api --method POST \
   repos/{owner}/{repo}/issues/{pr_number}/comments \
-  -f body="Re: {finding_summary}\n\n{reply}"
+  -f body="Re: comment {comment_id} — {finding_summary}\n\n{reply}"
 ```
 
 If no inline comments AND no review body findings found → report
