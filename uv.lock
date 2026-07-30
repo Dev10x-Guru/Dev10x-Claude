@@ -341,7 +341,7 @@ requires-dist = [
     { name = "click", specifier = ">=8.0" },
     { name = "factory-boy", marker = "extra == 'dev'", specifier = ">=3.3" },
     { name = "faker", marker = "extra == 'dev'", specifier = ">=33.0" },
-    { name = "mcp", marker = "extra == 'dev'", specifier = ">=1.0" },
+    { name = "mcp", marker = "extra == 'dev'", specifier = ">=1.0,<2" },
     { name = "msgpack", specifier = ">=1.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.0" },

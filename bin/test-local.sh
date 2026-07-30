@@ -104,7 +104,7 @@ uv venv "$venv" >/dev/null
 # Install the freshly-built wheel plus `mcp` — the plugin runtime supplies
 # `mcp` via each server's PEP 723 metadata, but it is not a wheel dependency.
 step "Installing wheel + mcp ..."
-uv pip install --python "$venv/bin/python" "$wheel" "mcp>=1.0" >/dev/null
+uv pip install --python "$venv/bin/python" "$wheel" "mcp>=1.0,<2" >/dev/null
 
 header "Phase 3 · Smoke the packaged artifact"
 step "dev10x --help ..."
