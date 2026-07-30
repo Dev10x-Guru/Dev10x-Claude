@@ -5,6 +5,99 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.91.0 — MCP Pin Recovery & Judgment-Tier Discussion
+
+Released 2026-07-30
+
+### Fixes
+
+- **Keep MCP servers loading when a new mcp major publishes** — both
+  server entry points declared an unbounded `mcp>=1.0` in their PEP 723
+  blocks, so every invocation resolved the newest release. When mcp 2.0
+  dropped `mcp.server.fastmcp`, both servers died at plugin load and
+  sessions started with no Dev10x tools, skills, or agents at all. The
+  range is now pinned to `mcp>=1.0,<2` across both servers, the dev
+  extra and the wheel smoke install, with a test rejecting any
+  unbounded mcp requirement so the trap cannot reopen
+  ([GH-914](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/914))
+- **Keep `Dev10x:investigate` on plugin-owned skills** — the skill
+  routed PR review to `pr:review`, a user-level skill that exists only
+  on one machine, so the documented path silently fell through for
+  every other install. Review now delegates to `Dev10x:gh-pr-review`
+  ([#909](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/909))
+
+### Features
+
+- **Let the supervisor pick the model tier for ddd discussion agents** —
+  solo facilitation hard-coded haiku personas, and in a real workshop
+  that produced naive output: generic policies with no
+  interaction-level thinking, where the same prompts on a frontier
+  model surfaced actionable compound-failure scenarios. Discussion
+  agents do judgment work, so the fetch/prep cost-tiering rationale
+  does not apply — a REQUIRED model-tier gate now runs once per
+  session and applies to both persona rounds and the devil's advocate
+  ([GH-789](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/789))
+
+### Infrastructure
+
+- **Parse read-only config uniformly** — `rule_engine.py` and
+  `platform/registry.py` read YAML with no error handling, so a
+  malformed or missing file raised straight into the PreToolUse hook
+  path while sibling readers degraded to `{}`. A shared
+  `domain/common/config_io.py` (ADR-0015) now provides tolerant-by-
+  default `load_yaml`/`load_json` with a strict mode raising a single
+  `ConfigIOError`, and the fragmented readers route through it
+  ([GH-828](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/828))
+- **Keep `~/.claude` path resolution behind ClaudeDir** — a few direct
+  `Path.home() / ".claude"` constructions lingered after GH-575/GH-80,
+  re-scattering home resolution and bypassing the
+  `DEV10X_CLAUDE_HOME` test override. The remaining sites now use the
+  accessors, and an AST ratchet test fails on any new home-relative
+  join outside them
+  ([GH-829](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/829))
+
+### Docs & Guidance
+
+- **Plan the commit sequence before implementing** — a bundle of seven
+  work-on findings: refactor-first commit planning in the feature and
+  structured-spec plays, a documented subagent implementation model
+  (disjoint-file partition, one parallel wave, no concurrent shared-DB
+  test runs), merge-state checks before re-monitoring CI or rewriting
+  history, a review-thread re-scan after human reviews, reuse of
+  git-commit's 72-char validation when grooming, and a new
+  `dev10x spec drift` CLI so SPDD gates run where inline python is
+  blocked
+  ([GH-904](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/904))
+- **Stop afk runs freezing on self-opened gates** — an overnight run
+  surfaced three orchestration gaps: a handoff-answered
+  `AskUserQuestion` freezes the run (answer inline instead), afk must
+  check the ALWAYS_ASK allowlist before self-initiated gates, and a
+  no-watcher foreman should merge directly on green rather than
+  rebasing a non-conflicting PR into CI ping-pong
+  ([GH-903](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/903))
+- **Create JIRA tickets reliably and own the k8s skill in-plugin** —
+  `ticket-create` claimed Atlassian writes were pre-approved when they
+  prompt as outward-facing mutations, so they cannot run from a
+  background agent; the k8s skill lived only in one user's local
+  skills dir behind a broken wrapper path. It ships as `Dev10x:k8s`
+  with plugin-relative paths and the read-only kubectl wrapper
+  ([GH-899](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/899))
+- **Frame JTBD actor wants as outcomes, not work** — guidance still
+  allowed the desire clause to read as effort ("the customer wants to
+  pay online"), but nobody wants to run a transaction, and framing the
+  mechanism as the want misidentifies both actor and beneficiary.
+  Transactional effort verbs are now discouraged alongside UI verbs,
+  with a "happiest doing nothing" heuristic and a money-movement
+  worked example
+  ([GH-902](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/902))
+- **Bless `load_*` and `read_*` as data-retrieval names** — the naming
+  rule sanctioned only `get_*`/`fetch_*`, while 33 functions across the
+  package already used `load_*` for config parsing and `read_*` for
+  file I/O with no documented standing. Both are now first-class
+  conventions, `fetch_merged_prs` is a documented exception, and
+  existing names must not be rename-swept
+  ([GH-830](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/830))
+
 ## 0.90.0 — Google Chat Notifications & Unattended Delivery
 
 Released 2026-07-20
