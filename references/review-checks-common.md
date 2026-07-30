@@ -106,7 +106,13 @@ Before raising any of these, **verify actual code**:
     ("the service writer wants to … so the dealer can …") is required.
     Malformed voice breaks release notes parsing; see
     `references/git-jtbd.md` § Voice Requirement and § Choosing the Actor.
-22. **SKILL.md table/implementation skew** — when a PR modifies an
+22. **Story language violations** — when a PR body, ticket, or acceptance
+    criterion writes Job Stories, user stories, or BDD scenarios in the
+    wrong project/ticket language, flag as REQUIRED. For BDD and
+    Gherkin-derived keywords, verify translations against Cucumber's
+    official language reference:
+    https://cucumber.io/docs/gherkin/languages/
+23. **SKILL.md table/implementation skew** — when a PR modifies an
     executable construct (alias, script command, option, environment variable)
     documented in a SKILL.md reference table, cross-check that the table is
     updated. If the table quotes the command being changed and the PR updates
@@ -115,7 +121,7 @@ Before raising any of these, **verify actual code**:
     risk (users copy stale alias → command fails) → CRITICAL/REQUIRED. Pure
     cosmetic drift (table describes intent, example text outdated) →
     RECOMMENDED. Confirm intent via commit message when unclear.
-23. **MCP tool enumeration consistency** — when a PR adds MCP tool support via
+24. **MCP tool enumeration consistency** — when a PR adds MCP tool support via
     new `mcp__plugin_*` declarations in `allowed-tools:`: (a) verify all MCP
     tools are declared in `.claude-plugin/plugin.json`, (b) verify the tool
     naming follows `mcp__plugin_Dev10x_<server>__<function>`, (c) when a tool

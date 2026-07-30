@@ -101,6 +101,11 @@ dealer can** …`). Never use first-person ("I want to") or a faceless "the user
 wants to". See `references/git-jtbd.md` § Voice Requirement and
 § Choosing the Actor.
 
+**LANGUAGE REQUIREMENT**: Write the Job Story and any user-story prose in
+the project or ticket language. When PR text includes BDD or
+Gherkin-derived keywords, use Cucumber's official language reference:
+https://cucumber.io/docs/gherkin/languages/
+
 **WRONG** — Header before JTBD (breaks release notes parsing):
 ```markdown
 ## Summary

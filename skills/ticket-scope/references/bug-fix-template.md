@@ -161,6 +161,14 @@ Example:
 - [ ] Bug no longer reproducible in staging
 - [ ] Test coverage maintained at 100%
 
+When acceptance criteria are written as BDD scenarios, use the
+project or ticket language for Gherkin keywords, scenario prose, and
+actor names.
+Reference Cucumber's official supported language list instead of
+inventing translations:
+https://cucumber.io/docs/gherkin/languages/
+Include `# language: <code>` when writing feature-file-style blocks.
+
 ---
 
 ## Entities
