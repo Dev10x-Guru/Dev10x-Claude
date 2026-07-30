@@ -19,7 +19,10 @@
 #              finding's severity token, so scanning its raw body makes
 #              the reply self-trigger as a NEW finding (GH-777). Replies
 #              are responses, not findings — exclude them, and strip
-#              quoted context before scanning everything else.
+#              quoted context before scanning everything else. A reply
+#              ALSO disposes of the finding it keys to: its "Re:" line
+#              carries that finding's comment id, and the keyed finding
+#              drops out of the result (GH-907, GH-884).
 
 def is_bot:
   (.user.type == "Bot")
@@ -28,6 +31,28 @@ def is_bot:
 
 def is_reply:
   (.body // "") | test("^[[:space:]]*Re:"; "i");
+
+# The comment ids a reply DISPOSES OF (GH-907, GH-884). `is_reply` alone only
+# stops the reply from self-triggering (GH-777) — nothing mapped it back to the
+# finding it answers, so the answered finding kept blocking forever and Check 1b
+# had no sanctioned exit. Matching is KEYED, not prose-fuzzy: the documented
+# gh-pr-respond reply format embeds the finding's comment id ("Re: comment
+# <id> …" / "Re: #<id> …"), so every digit run of 6+ characters on a "Re:" line
+# is taken as a disposed-of id. Comment ids are 9-10 digits; ticket refs
+# ("GH-907") and round numbers stay well under the floor, so they cannot
+# accidentally clear a live finding. The key is scanned from the RAW body, not
+# `unquoted`, so backticking the id (the old manual code-span workaround) is no
+# longer load-bearing.
+def reply_target_ids:
+  if is_reply then
+    ((.body // "")
+     | split("\n")
+     | map(select(test("^[[:space:]]*Re:"; "i")))
+     | join(" ")
+     | [ scan("[0-9]{6,}") ])
+  else
+    []
+  end;
 
 # The reviewer's own re-review wrapper (references/review-guidelines.md):
 # a "## Review Summary (Round N)" comment whose "### Addressed since last
@@ -94,6 +119,10 @@ def active:
 # excluded below so a green final round clears stale earlier "Remaining
 # issues" (GH-873 F3).
 (([ .[] | select(is_round_summary) | round_number ] | max) // 0) as $latest_round
+# Every comment id disposed of by a "Re:" reply anywhere in the array. A reply
+# keyed to id X necessarily post-dates X, so no explicit ordering check is
+# needed — the key itself carries the "later comment" semantics (GH-907).
+| ([ .[] | reply_target_ids ] | flatten | unique) as $answered_ids
 | [ .[]
   | select(
       ((.body // "") != "")
@@ -102,5 +131,6 @@ def active:
       and (blocking or info_marker)
       and active
       and ((is_round_summary | not) or (round_number >= $latest_round))
+      and ((.id | tostring) as $rid | ($answered_ids | index($rid)) | not)
     )
   | {id, user: .user.login, snippet: ((.body | split("\n")[0])[:80]), source: $src, severity: severity} ]

@@ -183,10 +183,21 @@ used to miss). Both buckets must be clear before this check passes:
   unaddressed — the human reviewer catching it later is the failure
   GH-808 documents.
 
-**Heuristic for addressed findings:** a finding (either bucket) is
-"addressed" when a later comment replies to it — contains `Re:` or
-quotes it. The reply satisfies the disposition requirement for
-`needs_disposition` findings just as it clears a `blocking` one.
+**Addressed findings are matched by key (GH-907, GH-884).** A finding
+(either bucket) is "addressed" when a later comment replies to it with
+the finding's **comment id on the `Re:` line** — the documented
+`Dev10x:gh-pr-respond` format, `Re: comment <id> — …`. `top-level-comments.jq`
+collects every id keyed by a reply and drops those findings from the
+result, so the reply satisfies the disposition requirement for a
+`needs_disposition` finding just as it clears a `blocking` one, and
+`blocking_count` actually returns to 0.
+
+Matching is deliberately keyed rather than prose-fuzzy: an unkeyed
+`Re: the footer thing` does NOT clear the gate, and short digit runs
+(`GH-907`, `Round 4`) stay under the 6-digit floor so a ticket reference
+can never wave a live finding through. The id is read from the raw body,
+so wrapping it in backticks is no longer needed to work around a stale
+finding. A reply still never counts as a finding itself (GH-777).
 
 **Reviewer round-summary wrapper excluded (GH-858 F2).** The
 automated reviewer's own `## Review Summary (Round N)` comment
