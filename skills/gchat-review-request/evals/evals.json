@@ -1,0 +1,149 @@
+{
+  "skill_name": "Dev10x:gchat-review-request",
+  "eval_dimensions": [
+    {
+      "id": "decision-gates",
+      "name": "Decision Gate Enforcement",
+      "description": "Blocking choices call AskUserQuestion instead of substituting plain-text questions"
+    },
+    {
+      "id": "prechecks",
+      "name": "Approval and Draft Prechecks",
+      "description": "Already-approved and draft PRs stop before any Google Chat post"
+    },
+    {
+      "id": "config-resolution",
+      "name": "Per-Repo Config Resolution",
+      "description": "Prepare subcommand owns YAML reads, skip/ask routing, and message formatting"
+    },
+    {
+      "id": "transport-delegation",
+      "name": "Transport Delegation",
+      "description": "Sending goes through Skill(Dev10x:gchat), never a direct gchat-send CLI call"
+    }
+  ],
+  "evals": [
+    {
+      "id": "unconfigured-repo-asks-for-space",
+      "name": "Unconfigured repo opens the space/mentions gate",
+      "description": "Step 2 with ask=true must block on AskUserQuestion for the space alias rather than guessing a space",
+      "input": "/Dev10x:gchat-review-request for a PR in a repo absent from gchat-config-code-review-requests.yaml",
+      "assertions": [
+        {
+          "dimension": "decision-gates",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "gate1_uses_tool — AskUserQuestion called to collect the space alias when prepare returns ask=true"
+        },
+        {
+          "dimension": "decision-gates",
+          "check": "plain_text",
+          "signal": "gate1_no_plain_text — no inline 'Which space should I post to?' prose asked before the tool call"
+        },
+        {
+          "dimension": "config-resolution",
+          "check": "output_contains",
+          "value": "ask",
+          "signal": "Prepare JSON envelope reports ask=true for the unconfigured repo"
+        }
+      ]
+    },
+    {
+      "id": "confirm-gate-before-posting",
+      "name": "Formatted message is confirmed before it is posted",
+      "description": "Step 3 must present the rendered message and block on AskUserQuestion before any send",
+      "input": "/Dev10x:gchat-review-request for a PR in a configured repo",
+      "assertions": [
+        {
+          "dimension": "decision-gates",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "gate2_uses_tool — AskUserQuestion called at the Step 3 confirmation point"
+        },
+        {
+          "dimension": "decision-gates",
+          "check": "tool_parameters",
+          "tool": "AskUserQuestion",
+          "signal": "gate2_correct_options — options are exactly 'Post to Google Chat' and 'Skip'"
+        },
+        {
+          "dimension": "decision-gates",
+          "check": "behavioral",
+          "signal": "no_auto_post — no message is sent before the user answers the confirmation gate"
+        }
+      ]
+    },
+    {
+      "id": "send-delegates-to-gchat-skill",
+      "name": "Sending delegates to Dev10x:gchat",
+      "description": "Step 4 must invoke the transport skill so transport rules stay centralized",
+      "input": "/Dev10x:gchat-review-request with the confirmation gate answered 'Post to Google Chat'",
+      "assertions": [
+        {
+          "dimension": "transport-delegation",
+          "check": "tool_called",
+          "tool": "Skill",
+          "signal": "skill1_uses_tool — Skill(Dev10x:gchat) is invoked as a tool call"
+        },
+        {
+          "dimension": "transport-delegation",
+          "check": "behavioral",
+          "signal": "no_direct_cli_send — 'dev10x skill notify gchat-send' is never run directly from this skill"
+        }
+      ]
+    },
+    {
+      "id": "approved-and-draft-prs-stop-early",
+      "name": "Approved or draft PRs stop before the gates",
+      "description": "Step 0 and Step 0.5 short-circuit without opening a gate or posting",
+      "input": "/Dev10x:gchat-review-request for a PR that is a draft, and for one already human-approved on its current HEAD",
+      "assertions": [
+        {
+          "dimension": "prechecks",
+          "check": "behavioral",
+          "signal": "no_post_when_approved — a human APPROVED review matching headRefOid stops the flow; bot approvals do not count"
+        },
+        {
+          "dimension": "prechecks",
+          "check": "behavioral",
+          "signal": "no_post_when_draft — a draft PR is reported as needing mark-ready and nothing is posted"
+        },
+        {
+          "dimension": "prechecks",
+          "check": "behavioral",
+          "signal": "force_bypasses_prechecks — --force skips both prechecks but still honors the Step 3 confirmation gate"
+        }
+      ]
+    },
+    {
+      "id": "skip-configured-repo-posts-nothing",
+      "name": "Repo configured with skip:true posts nothing",
+      "description": "A skip=true envelope reports the skip and ends without opening any gate",
+      "input": "/Dev10x:gchat-review-request for a repo with skip: true in gchat-config-code-review-requests.yaml",
+      "assertions": [
+        {
+          "dimension": "config-resolution",
+          "check": "output_contains",
+          "value": "skip",
+          "signal": "Prepare JSON envelope reports skip=true with a reason naming the repo"
+        },
+        {
+          "dimension": "transport-delegation",
+          "check": "behavioral",
+          "signal": "no_send_on_skip — Skill(Dev10x:gchat) is not invoked for a skip-configured repo"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "should_trigger": [
+      "A PR needs a Google Chat review notification posted to the team space",
+      "Direct invocation as /Dev10x:gchat-review-request with a PR number and repo"
+    ],
+    "should_not_trigger": [
+      "The review request should go to Slack (use Dev10x:slack-review-request)",
+      "An arbitrary non-review message needs sending to a space (use Dev10x:gchat)",
+      "Google Chat has no configured space or service-account key yet (run Dev10x:gchat first-time setup)"
+    ]
+  }
+}
