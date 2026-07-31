@@ -1,0 +1,126 @@
+{
+  "skill_name": "Dev10x:plugin-maintenance",
+  "eval_dimensions": [
+    {
+      "id": "version-update-gate",
+      "name": "Version Update Prompt (Step 6)",
+      "description": "When either the plugin or the uv tool is behind latest, the skill fires AskUserQuestion (Update both / Plugin only / uv tool only / Skip) — unless a saved `update_preference` other than `ask` exists in ~/.config/Dev10x/plugin-maintenance-prefs.yaml, in which case the saved choice auto-applies without prompting."
+    },
+    {
+      "id": "save-preference-gate",
+      "name": "Save Preference Prompt (Step 7)",
+      "description": "After the user makes a Step 6 choice, the skill fires a second AskUserQuestion asking whether to remember that choice for future sessions before writing to the prefs file."
+    },
+    {
+      "id": "dry-run-before-apply",
+      "name": "Dry-run Precedes Apply",
+      "description": "Every mutating uvx dev10x permission subcommand (update-paths, ensure-workspace, ensure-base, generalize, enumerate-mcp, merge-worktree, clean, doctor canonicalize/apply-deprecations/anchor-worktree-roots) runs with --dry-run and shows output to the user BEFORE the equivalent apply call runs."
+    }
+  ],
+  "evals": [
+    {
+      "id": "version-behind-fires-update-gate",
+      "name": "Behind-version state fires the update gate",
+      "description": "When Step 5's version report shows the plugin or uv tool behind latest and no saved preference exists, Step 6 fires AskUserQuestion before any maintenance step runs.",
+      "input": "/Dev10x:plugin-maintenance",
+      "assertions": [
+        {
+          "dimension": "version-update-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion fires with Update both / Plugin only / uv tool only / Skip options after the version report"
+        },
+        {
+          "dimension": "version-update-gate",
+          "check": "plain_text",
+          "signal": "No inline 'want to update?' text substitutes for the widget"
+        }
+      ]
+    },
+    {
+      "id": "saved-preference-skips-gate",
+      "name": "A saved non-ask preference auto-applies without prompting",
+      "description": "When ~/.config/Dev10x/plugin-maintenance-prefs.yaml has update_preference set to something other than ask (e.g. both, skip), Step 6 applies that choice directly and does not fire AskUserQuestion.",
+      "input": "/Dev10x:plugin-maintenance (with update_preference: skip saved)",
+      "assertions": [
+        {
+          "dimension": "version-update-gate",
+          "check": "behavioral",
+          "signal": "AskUserQuestion is NOT called for the update decision; the saved preference value is applied directly, though the version report is still displayed"
+        }
+      ]
+    },
+    {
+      "id": "up-to-date-skips-gate-entirely",
+      "name": "Both surfaces current skips Step 6 entirely",
+      "description": "When both the plugin and uv tool are already current, Step 5 shows the up-to-date table and Step 6 is skipped — no prompt is needed either way.",
+      "input": "/Dev10x:plugin-maintenance (both surfaces current)",
+      "assertions": [
+        {
+          "dimension": "version-update-gate",
+          "check": "behavioral",
+          "signal": "No AskUserQuestion is fired for version update when both surfaces report up to date"
+        }
+      ]
+    },
+    {
+      "id": "save-preference-gate-follows-update-choice",
+      "name": "Step 7 asks to remember the choice after Step 6 resolves",
+      "description": "After the user makes an update decision in Step 6 (interactively, not from a saved preference), Step 7 fires its own AskUserQuestion before writing to the prefs file.",
+      "input": "/Dev10x:plugin-maintenance",
+      "assertions": [
+        {
+          "dimension": "save-preference-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "A second AskUserQuestion fires asking 'Remember this choice for future maintenance sessions?'"
+        },
+        {
+          "dimension": "save-preference-gate",
+          "check": "behavioral",
+          "signal": "plugin-maintenance-prefs.yaml is only written after the user selects 'Yes, remember' — not written unconditionally"
+        }
+      ]
+    },
+    {
+      "id": "mutating-steps-dry-run-first",
+      "name": "Mutating steps show dry-run output before apply",
+      "description": "Steps 1, 3, 6, 9, 11, 12 (update-paths, ensure-workspace, enumerate-mcp, merge-worktree, clean, doctor canonicalize/apply-deprecations/anchor-worktree-roots) always run with --dry-run and surface the output before the corresponding apply call.",
+      "input": "/Dev10x:plugin-maintenance full",
+      "assertions": [
+        {
+          "dimension": "dry-run-before-apply",
+          "check": "behavioral",
+          "signal": "For every mutating subcommand, a --dry-run invocation and its output appear in the transcript BEFORE the equivalent apply invocation"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "description": "Queries that should/should-not trigger the plugin-maintenance skill",
+    "should_trigger": [
+      {
+        "query": "/Dev10x:plugin-maintenance",
+        "rationale": "Direct invocation — runs full mode maintenance"
+      },
+      {
+        "query": "I keep getting permission prompts after the plugin update, can you clean this up",
+        "rationale": "Post-upgrade friction — the core full-mode use case"
+      },
+      {
+        "query": "bootstrap Dev10x on this new machine",
+        "rationale": "First-time setup — bootstrap mode"
+      }
+    ],
+    "should_not_trigger": [
+      {
+        "query": "audit my permissions for security gaps",
+        "rationale": "Deep security audit — use Dev10x:permission-investigator or the permission-auditor agent directly"
+      },
+      {
+        "query": "everything is working fine, no prompts appearing",
+        "rationale": "No friction or upgrade in progress — nothing to maintain"
+      }
+    ]
+  }
+}

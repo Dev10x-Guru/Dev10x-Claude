@@ -593,6 +593,56 @@ pattern so the full audit has prior context.
 
 ---
 
+## Eval Coverage Check (Secondary, Standing, GH-835)
+
+A standing, repo-wide check for a different kind of gap than
+Phases 1-6 catch: a gated skill (one with a documented `REQUIRED:
+Call `AskUserQuestion`` marker) that ships zero eval assertions.
+Unlike Permission Friction, this check does not depend on the
+session transcript — it audits the current state of `skills/` —
+so it runs identically in lightweight and forensic strategies.
+
+**When it runs:**
+- **Lightweight strategy:** Run it whenever the inline findings
+  (Step 0b) touch a specific skill, or when the invocation
+  explicitly asks about eval/gate coverage.
+- **Forensic strategy:** Always run once during Wave 1, alongside
+  Phase 1 (both are deterministic, stdlib-only scripts with no
+  permission friction).
+
+**Command:**
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/bin/check-skill-eval-gaps.py --all
+```
+
+Exit code 0 means no gaps. Exit code 1 prints one line per gated
+skill with missing or empty eval coverage, e.g.:
+
+```
+- some-skill: [MISSING_EVALS] SKILL.md documents a REQUIRED
+  AskUserQuestion gate but evals/evals.json does not exist
+```
+
+**Classification:** Every reported skill is a `GAP` finding —
+route it through the same Phase 6/7 pipeline as other GAP
+findings (ticket-create in the forensic Report Findings step, or
+the lightweight Phase 0 disposition gate). Do NOT propose the
+specific assertions in the finding body — per Phase 6's
+"reports findings, does not design solutions" rule, the
+implementor writes the evals.json following the dimension-
+referenced format in `references/eval-schema.md` and the pattern
+established by `skills/gh-pr-monitor/evals/evals.json` +
+`skills/gh-pr-request-review/evals/evals.json` (GH-831).
+
+**Also enforced in CI:** `.github/workflows/skill-eval-gaps.yml`
+runs `bin/check-skill-eval-gaps.py --all` on every PR touching
+`skills/**/SKILL.md` or `skills/**/evals/evals.json`, so a new
+gate landing without eval coverage fails CI independently of
+whether skill-audit runs that session.
+
+---
+
 ## Phase Reference
 
 The following phase descriptions are used both as inline reference

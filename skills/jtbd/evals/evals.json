@@ -1,0 +1,103 @@
+{
+  "skill_name": "Dev10x:jtbd",
+  "eval_dimensions": [
+    {
+      "id": "attended-accept-gate",
+      "name": "Attended Mode Accept/Edit/Reject Gate",
+      "description": "In attended mode, Step 4 fires AskUserQuestion with Accept/Edit/Reject options before returning a story. The draft is never silently accepted or applied without the gate."
+    },
+    {
+      "id": "unattended-no-gate",
+      "name": "Unattended Mode Skips the Gate",
+      "description": "In unattended mode (release-notes batch generation, commit-title derivation), the skill returns the draft directly without firing AskUserQuestion — the caller owns the batch approval."
+    },
+    {
+      "id": "trace-upward-actor",
+      "name": "Trace-Upward Actor Selection for Plumbing PRs",
+      "description": "For refactor/infra/dependency-bump PRs, the drafted actor is the user-facing feature's actor traced upward through the dependency chain — never \"the developer\" as actor."
+    }
+  ],
+  "evals": [
+    {
+      "id": "attended-mode-fires-gate-before-returning",
+      "name": "Attended mode fires AskUserQuestion before returning a story",
+      "description": "Given mode=attended, the skill drafts a story then fires AskUserQuestion (Accept/Edit/Reject) before the story is applied to any target.",
+      "input": "Dev10x:jtbd invoked with mode=attended, ticket_id=PAY-123",
+      "assertions": [
+        {
+          "dimension": "attended-accept-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion fires with Accept / Edit / Reject options showing the drafted story"
+        },
+        {
+          "dimension": "attended-accept-gate",
+          "check": "plain_text",
+          "signal": "No inline 'does this story look right?' text substitutes for the widget"
+        }
+      ]
+    },
+    {
+      "id": "reject-returns-empty-string",
+      "name": "Reject returns an empty string, not the discarded draft",
+      "description": "When the user selects Reject at the attended-mode gate, the skill returns an empty string rather than applying the rejected draft anywhere.",
+      "input": "Dev10x:jtbd invoked with mode=attended; user selects Reject",
+      "assertions": [
+        {
+          "dimension": "attended-accept-gate",
+          "check": "behavioral",
+          "signal": "Reject selection returns an empty string; the rejected draft is not written to a PR body or ticket"
+        }
+      ]
+    },
+    {
+      "id": "unattended-mode-returns-without-prompting",
+      "name": "Unattended mode returns the draft with no AskUserQuestion",
+      "description": "When invoked in unattended mode (e.g. by release-notes for a batch of missing JTBDs, or by git-commit for a title derivation), the skill returns the draft directly.",
+      "input": "Dev10x:jtbd invoked with mode=unattended, pr_number=42",
+      "assertions": [
+        {
+          "dimension": "unattended-no-gate",
+          "check": "behavioral",
+          "signal": "AskUserQuestion is NOT called; the drafted story string is returned directly to the caller for batching"
+        }
+      ]
+    },
+    {
+      "id": "plumbing-pr-traces-upward-not-developer-actor",
+      "name": "A dependency-bump/refactor PR traces upward instead of naming the developer",
+      "description": "Given a PR that is a pure dependency bump or refactor, the drafted actor is the user-facing feature's actor/beneficiary the plumbing unblocks, never 'the developer'.",
+      "input": "Dev10x:jtbd invoked with pr_number for a dependency-bump-only PR",
+      "assertions": [
+        {
+          "dimension": "trace-upward-actor",
+          "check": "behavioral",
+          "signal": "Drafted story does NOT name 'the developer' or 'I' as actor; it traces to a concrete downstream role (e.g., end customer, ops team) per the trace-upward worked example"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "description": "Queries that should/should-not trigger the jtbd skill (not user-invocable — only via composing skills)",
+    "should_trigger": [
+      {
+        "query": "Skill(Dev10x:jtbd) invoked by Dev10x:gh-pr-create to source a missing Job Story",
+        "rationale": "Composed invocation from the PR creation skill — the core use case"
+      },
+      {
+        "query": "Skill(Dev10x:jtbd) invoked by Dev10x:release-notes in unattended mode for a batch of PRs",
+        "rationale": "Composed invocation from release-notes — unattended batch mode"
+      }
+    ],
+    "should_not_trigger": [
+      {
+        "query": "write a commit message for this change",
+        "rationale": "Commit message formatting — use Dev10x:git-commit (which internally may invoke jtbd for the title, but the user-facing entry point differs)"
+      },
+      {
+        "query": "the PR already has a Job Story in its description",
+        "rationale": "Story already exists — no drafting needed"
+      }
+    ]
+  }
+}

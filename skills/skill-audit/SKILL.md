@@ -22,6 +22,7 @@ allowed-tools:
   - Edit(~/.claude/**)
   - Edit(/tmp/Dev10x/skill-audit/**)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/skill-audit/scripts/:*)
+  - Bash(${CLAUDE_PLUGIN_ROOT}/bin/check-skill-eval-gaps.py:*)
   - mcp__plugin_Dev10x_cli__audit_extract_session
   - mcp__plugin_Dev10x_cli__audit_analyze_actions
   - mcp__plugin_Dev10x_cli__audit_analyze_permissions

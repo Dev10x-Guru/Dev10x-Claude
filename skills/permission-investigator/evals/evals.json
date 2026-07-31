@@ -1,0 +1,123 @@
+{
+  "skill_name": "Dev10x:permission-investigator",
+  "eval_dimensions": [
+    {
+      "id": "phase3-disposition-gate",
+      "name": "Phase 3 Disposition Gate on Non-Empty Delta",
+      "description": "When the Phase 3 delta report flags at least one rule shape as ineffective, the skill fires AskUserQuestion (File upstream issue / Save report only / Discard) before doing anything with the report — it never files or discards automatically."
+    },
+    {
+      "id": "empty-delta-skips-gate",
+      "name": "Empty Delta Skips the Gate",
+      "description": "When the delta report finds no ineffective rule shapes, Phase 3 does not fire AskUserQuestion — there is nothing to disposition."
+    },
+    {
+      "id": "restore-always-runs",
+      "name": "Phase 4 Restore Runs Unconditionally",
+      "description": "Settings are restored via `dev10x permission investigate restore` regardless of which Phase 3 disposition was chosen, and even when an earlier phase fails or errors."
+    }
+  ],
+  "evals": [
+    {
+      "id": "non-empty-delta-fires-disposition-gate",
+      "name": "A non-empty delta fires AskUserQuestion before any report action",
+      "description": "When `dev10x permission investigate delta` reports at least one ineffective rule shape, the skill must ask before filing or discarding the report.",
+      "input": "/Dev10x:permission-investigator (delta finds 2 ineffective rule shapes)",
+      "assertions": [
+        {
+          "dimension": "phase3-disposition-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion fires with 'File upstream issue (Recommended)' / 'Save report only' / 'Discard' options"
+        },
+        {
+          "dimension": "phase3-disposition-gate",
+          "check": "plain_text",
+          "signal": "No inline 'should I file this upstream?' text substitutes for the widget"
+        },
+        {
+          "dimension": "phase3-disposition-gate",
+          "check": "behavioral",
+          "signal": "mcp__plugin_Dev10x_cli__issue_create is NOT called before the gate resolves"
+        }
+      ]
+    },
+    {
+      "id": "file-upstream-choice-invokes-issue-create",
+      "name": "Selecting 'File upstream issue' invokes issue_create with the report body",
+      "description": "When the user selects the recommended option, the skill invokes the issue-creation MCP tool with the matrix/delta report as the body, labeled permission-friction and from-investigator.",
+      "input": "/Dev10x:permission-investigator — user selects 'File upstream issue'",
+      "assertions": [
+        {
+          "dimension": "phase3-disposition-gate",
+          "check": "tool_called",
+          "tool": "mcp__plugin_Dev10x_cli__issue_create",
+          "signal": "issue_create is invoked with labels including permission-friction and from-investigator, body from report.md"
+        }
+      ]
+    },
+    {
+      "id": "empty-delta-skips-gate-entirely",
+      "name": "Empty delta skips Phase 3's AskUserQuestion entirely",
+      "description": "When the delta report finds zero ineffective rule shapes, Phase 3 proceeds directly to Phase 4 without firing AskUserQuestion.",
+      "input": "/Dev10x:permission-investigator (delta finds 0 ineffective rule shapes)",
+      "assertions": [
+        {
+          "dimension": "empty-delta-skips-gate",
+          "check": "behavioral",
+          "signal": "AskUserQuestion is NOT called when the delta report is empty; the skill proceeds directly to Phase 4 restore"
+        }
+      ]
+    },
+    {
+      "id": "restore-runs-after-discard",
+      "name": "Restore still runs after the user picks Discard",
+      "description": "Even when the user selects Discard at the Phase 3 gate, Phase 4 restore runs — settings are never left mutated.",
+      "input": "/Dev10x:permission-investigator — user selects 'Discard'",
+      "assertions": [
+        {
+          "dimension": "restore-always-runs",
+          "check": "tool_called",
+          "tool": "Bash",
+          "signal": "`uv run dev10x permission investigate restore` runs after Discard is selected"
+        }
+      ]
+    },
+    {
+      "id": "restore-runs-on-phase-failure",
+      "name": "Restore runs even when an earlier phase errors",
+      "description": "If Phase 1 or Phase 2 fails partway through (e.g., a subagent probe errors), Phase 4 restore still executes rather than leaving mutated settings in place.",
+      "input": "/Dev10x:permission-investigator (Phase 2 cell dispatch errors mid-matrix)",
+      "assertions": [
+        {
+          "dimension": "restore-always-runs",
+          "check": "behavioral",
+          "signal": "`dev10x permission investigate restore` runs even after a Phase 1/2 failure; settings.local.json is not left in the mutated fixture state"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "description": "Queries that should/should-not trigger the permission-investigator skill",
+    "should_trigger": [
+      {
+        "query": "/Dev10x:permission-investigator",
+        "rationale": "Direct invocation — runs the full matrix investigation"
+      },
+      {
+        "query": "permission prompts are still appearing after plugin-maintenance cleanup, can you figure out why",
+        "rationale": "Persistent friction after cleanup — the core use case"
+      }
+    ],
+    "should_not_trigger": [
+      {
+        "query": "add this one rule to settings.local.json",
+        "rationale": "Ad-hoc single-rule debugging — write it directly and reload instead"
+      },
+      {
+        "query": "run plugin maintenance to fix my permissions",
+        "rationale": "Standard cleanup pass — use Dev10x:plugin-maintenance"
+      }
+    ]
+  }
+}

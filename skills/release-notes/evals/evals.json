@@ -1,0 +1,109 @@
+{
+  "skill_name": "Dev10x:release-notes",
+  "eval_dimensions": [
+    {
+      "id": "missing-override-gate",
+      "name": "Missing Playbook Override Gate (GH-271)",
+      "description": "When no user playbook override exists AND the resolved default config has output_target: stdout with empty ticket_links, Step 1 fires AskUserQuestion (use defaults / save as override / customize now) before proceeding to PR collection — preventing silent fallback to an unusable default, the root cause of 3/14 compliance deviations in a prior audit."
+    },
+    {
+      "id": "override-present-skips-gate",
+      "name": "Existing Override Skips the Gate",
+      "description": "When a project or global playbook override already exists (at any config-resolution tier), Step 1 proceeds directly without firing the missing-override gate."
+    },
+    {
+      "id": "jtbd-unattended-delegation",
+      "name": "Missing JTBDs Delegate to jtbd in Unattended Mode",
+      "description": "Step 3 invokes Dev10x:jtbd in unattended mode (not attended) for each PR missing a Job Story, then batches all drafts into a single approval prompt rather than approving one-by-one."
+    }
+  ],
+  "evals": [
+    {
+      "id": "no-override-and-unusable-defaults-fires-gate",
+      "name": "No override + stdout/no-ticket-links fires the missing-override gate",
+      "description": "When no override exists at any config-resolution tier and the default resolves to output_target: stdout with empty ticket_links, the skill must ask before collecting PRs.",
+      "input": "/Dev10x:release-notes (first run, no ~/.config/Dev10x/playbooks/release-notes.yaml)",
+      "assertions": [
+        {
+          "dimension": "missing-override-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion fires with 'Use defaults as-is' / 'Save defaults as project override' / 'Customize key settings now' options before Step 2 (Collect PRs) runs"
+        },
+        {
+          "dimension": "missing-override-gate",
+          "check": "plain_text",
+          "signal": "No inline 'want to configure output target?' text substitutes for the widget"
+        }
+      ]
+    },
+    {
+      "id": "existing-override-skips-gate",
+      "name": "An existing override skips the missing-override gate",
+      "description": "When a project or global playbook override is present, Step 1 loads it and proceeds directly to PR collection without firing AskUserQuestion.",
+      "input": "/Dev10x:release-notes (project override present at .claude/Dev10x/playbooks/release-notes.yaml)",
+      "assertions": [
+        {
+          "dimension": "override-present-skips-gate",
+          "check": "behavioral",
+          "signal": "AskUserQuestion is NOT called for config resolution; the project override's config block is used directly"
+        }
+      ]
+    },
+    {
+      "id": "configured-output-target-skips-gate",
+      "name": "Non-default output_target or non-empty ticket_links skips the gate even without an override file",
+      "description": "The gate only fires on the specific unusable-default combination (stdout + empty ticket_links). A resolved config with output_target: github-release or non-empty ticket_links does not trigger it.",
+      "input": "/Dev10x:release-notes (default playbook, output_target: github-release)",
+      "assertions": [
+        {
+          "dimension": "missing-override-gate",
+          "check": "behavioral",
+          "signal": "AskUserQuestion is NOT called when the resolved config already has a non-stdout output_target or non-empty ticket_links"
+        }
+      ]
+    },
+    {
+      "id": "missing-jtbds-batch-via-unattended-mode",
+      "name": "Missing JTBDs are drafted in unattended mode and batched",
+      "description": "Step 3 invokes Dev10x:jtbd in unattended mode for every PR missing a Job Story, collects all drafts, then presents one combined approval prompt — not per-PR gates.",
+      "input": "/Dev10x:release-notes --play release (3 PRs missing JTBDs)",
+      "assertions": [
+        {
+          "dimension": "jtbd-unattended-delegation",
+          "check": "tool_called",
+          "tool": "Skill",
+          "signal": "Skill(Dev10x:jtbd) is invoked once per missing-JTBD PR with mode=unattended"
+        },
+        {
+          "dimension": "jtbd-unattended-delegation",
+          "check": "behavioral",
+          "signal": "All drafted stories are presented in a single batched summary, not N separate per-PR AskUserQuestion gates"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "description": "Queries that should/should-not trigger the release-notes skill",
+    "should_trigger": [
+      {
+        "query": "/Dev10x:release-notes --play release --from v0.90.0 --to v0.91.0",
+        "rationale": "Direct invocation with explicit tag range"
+      },
+      {
+        "query": "generate release notes for the changes since the last tag",
+        "rationale": "Standard release-notes generation request"
+      }
+    ],
+    "should_not_trigger": [
+      {
+        "query": "write a commit message for this change",
+        "rationale": "Single commit, not a release summary — use Dev10x:git-commit"
+      },
+      {
+        "query": "draft a Job Story for this one PR",
+        "rationale": "Single-story drafting — use Dev10x:jtbd directly"
+      }
+    ]
+  }
+}

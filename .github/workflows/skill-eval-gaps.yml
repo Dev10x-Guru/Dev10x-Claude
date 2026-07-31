@@ -1,0 +1,53 @@
+name: Skill Eval Gaps
+
+on:
+  pull_request:
+    branches: [develop]
+    paths:
+      - "skills/**/SKILL.md"
+      - "skills/**/evals/evals.json"
+      - "src/dev10x/skills/audit/eval_gaps.py"
+      - "tests/skills/audit/test_eval_gaps.py"
+      - "bin/check-skill-eval-gaps.py"
+      - ".github/workflows/skill-eval-gaps.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scanner-tests:
+    name: Scanner unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Run scanner unit tests
+        run: |
+          uv run --extra dev pytest tests/skills/audit/test_eval_gaps.py \
+            -v --tb=short -o 'addopts='
+
+  eval-gap-check:
+    name: Check gated skills for eval coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Scan every skill for eval-coverage gaps
+        run: uv run bin/check-skill-eval-gaps.py --all
