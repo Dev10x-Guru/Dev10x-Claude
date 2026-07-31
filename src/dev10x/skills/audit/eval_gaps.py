@@ -118,6 +118,15 @@ def check_skill(skill_dir: Path) -> EvalGap | None:
             reason=f"evals.json failed to parse: {exc}",
         )
 
+    if not isinstance(evals_data, dict):
+        return EvalGap(
+            skill_name=skill_dir.name,
+            skill_md_path=skill_md_path,
+            evals_path=evals_path,
+            classification="UNPARSEABLE_EVALS",
+            reason=(f"evals.json parsed to a {type(evals_data).__name__}, expected a JSON object"),
+        )
+
     if _count_assertions(evals_data) == 0:
         return EvalGap(
             skill_name=skill_dir.name,

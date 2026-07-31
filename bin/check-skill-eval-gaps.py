@@ -48,13 +48,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.skill_dirs and not args.all:
         gaps = []
+        scanned = 0
         for skill_dir in args.skill_dirs:
             if not (skill_dir / "SKILL.md").is_file():
                 continue
+            scanned += 1
             gap = eval_gaps.check_skill(skill_dir)
             if gap is not None:
                 gaps.append(gap)
-        scanned = len(args.skill_dirs)
     else:
         skills_root = REPO_ROOT / "skills"
         gaps = eval_gaps.scan_skills_root(skills_root)

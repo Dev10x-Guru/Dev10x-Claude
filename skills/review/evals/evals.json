@@ -37,6 +37,11 @@
         },
         {
           "dimension": "spec-gate-blocked",
+          "check": "plain_text",
+          "signal": "No inline 'spec looks off, should I continue?' text substitutes for the widget"
+        },
+        {
+          "dimension": "spec-gate-blocked",
           "check": "behavioral",
           "signal": "Step 2 (automated checks) does NOT run before the gate resolves"
         }
@@ -66,6 +71,11 @@
           "check": "tool_called",
           "tool": "AskUserQuestion",
           "signal": "AskUserQuestion fires with 'Continue (Recommended)' / 'Re-review' options even though findings=0"
+        },
+        {
+          "dimension": "zero-findings-gate",
+          "check": "plain_text",
+          "signal": "No inline 'looks clean, want to continue?' text substitutes for the widget"
         }
       ]
     },
@@ -93,6 +103,11 @@
           "check": "tool_called",
           "tool": "AskUserQuestion",
           "signal": "AskUserQuestion fires with 'Fix all (Recommended)' / 'Pick findings' / 'Skip' options"
+        },
+        {
+          "dimension": "findings-present-gate",
+          "check": "plain_text",
+          "signal": "No inline 'want me to fix these findings?' text substitutes for the widget"
         },
         {
           "dimension": "findings-present-gate",

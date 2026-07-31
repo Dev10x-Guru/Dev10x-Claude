@@ -153,6 +153,17 @@ class TestCheckSkill:
         assert gap is not None
         assert gap.classification == "UNPARSEABLE_EVALS"
 
+    def test_gated_skill_with_non_dict_evals_json_is_gap_not_a_crash(
+        self, skills_root: Path
+    ) -> None:
+        skill_dir = _write_skill(skills_root, "demo", GATED_SKILL_MD)
+        evals_dir = skill_dir / "evals"
+        evals_dir.mkdir(parents=True)
+        (evals_dir / "evals.json").write_text("[]")
+        gap = mod.check_skill(skill_dir)
+        assert gap is not None
+        assert gap.classification == "UNPARSEABLE_EVALS"
+
     def test_gap_format_includes_skill_name_and_classification(self, skills_root: Path) -> None:
         skill_dir = _write_skill(skills_root, "demo", GATED_SKILL_MD)
         gap = mod.check_skill(skill_dir)
