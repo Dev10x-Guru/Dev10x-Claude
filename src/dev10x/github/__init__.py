@@ -206,7 +206,9 @@ async def pr_get(
     """Get GitHub PR details as a structured payload (GH-267).
 
     Wraps ``gh pr view --json …`` so agents have a routed alternative
-    to the hook-blocked ``gh pr view`` invocation.
+    to the hook-blocked ``gh pr view`` invocation. The payload includes
+    ``reviews`` and ``headRefOid`` (GH-917) so approval-state prechecks
+    resolve human-vs-bot and current-vs-stale approvals through this tool.
     """
     args = [str(number)]
     if repo:

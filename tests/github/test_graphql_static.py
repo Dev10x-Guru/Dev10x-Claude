@@ -84,6 +84,7 @@ _KNOWN_VALID_GH_PR_VIEW_JSON_FIELDS = frozenset(
         "state",
         "baseRefName",
         "headRefName",
+        "headRefOid",
         "mergedAt",
         "closedAt",
         "labels",
@@ -466,4 +467,22 @@ class TestGhPrGetScriptContractLint:
         assert field in gh_pr_view_json_fields, (
             f"gh-pr-get.sh must declare {field!r} in --json fields (GH-668). "
             "gh-pr-merge Checks 3/4/7 read these from pr_get instead of raw gh pr view."
+        )
+
+    @pytest.mark.parametrize("field", ["reviews", "headRefOid"])
+    def test_approval_precheck_fields_present(
+        self,
+        gh_pr_view_json_fields: set[str],
+        field: str,
+    ) -> None:
+        """pr_get must expose the per-review approval fields (GH-917).
+
+        ``reviewDecision`` alone cannot distinguish a human approval from a
+        bot one, nor a current approval from a stale one. Dropping either
+        field forces the review-request skills back onto the hook-blocked
+        raw ``gh pr view``.
+        """
+        assert field in gh_pr_view_json_fields, (
+            f"gh-pr-get.sh must declare {field!r} in --json fields (GH-917). "
+            "Dev10x:request-review Step 1.5 reads these from pr_get."
         )

@@ -8,7 +8,8 @@
 #
 # Output: JSON with number, title, body, state, baseRefName, headRefName,
 # mergedAt, closedAt, labels, milestone, assignees, author, url, isDraft,
-# mergeable, reviewDecision, reviewRequests, autoMergeRequest.
+# mergeable, reviewDecision, reviewRequests, autoMergeRequest, reviews,
+# headRefOid.
 # Note: ``merged`` is not a valid gh pr view field (GH-329); use mergedAt.
 # The isDraft/mergeable/reviewDecision/reviewRequests fields (GH-668) make
 # pr_get a drop-in for the hook-blocked ``gh pr view --json ...`` checks in
@@ -16,6 +17,9 @@
 # autoMergeRequest (GH-848 F4) is null unless auto-merge is armed; the merge
 # gate reads it to detect a PR that will self-merge on green before its
 # pre-merge checks run.
+# reviews + headRefOid (GH-917) let the review-request skills tell a human
+# approval on the current HEAD from a stale or bot one without dropping to
+# the hook-blocked raw ``gh pr view``.
 
 set -euo pipefail
 
@@ -23,4 +27,4 @@ NUMBER="${1:?Usage: gh-pr-get.sh NUMBER [REPO]}"
 REPO="${2:-$(gh repo view --json nameWithOwner -q '.nameWithOwner')}"
 
 gh pr view "$NUMBER" --repo "$REPO" \
-    --json number,title,body,state,baseRefName,headRefName,mergedAt,closedAt,labels,milestone,assignees,author,url,isDraft,mergeable,reviewDecision,reviewRequests,autoMergeRequest
+    --json number,title,body,state,baseRefName,headRefName,mergedAt,closedAt,labels,milestone,assignees,author,url,isDraft,mergeable,reviewDecision,reviewRequests,autoMergeRequest,reviews,headRefOid
