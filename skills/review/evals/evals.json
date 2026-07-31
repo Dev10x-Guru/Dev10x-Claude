@@ -1,0 +1,141 @@
+{
+  "skill_name": "Dev10x:review",
+  "eval_dimensions": [
+    {
+      "id": "spec-gate-blocked",
+      "name": "Phase 0 Spec-Compliance BLOCKED Escalation",
+      "description": "When the spec-reviewer subagent returns BLOCKED (FAIL_SCOPE / FAIL_MISSING / FAIL_OVER), the skill fires AskUserQuestion (Address spec gap first / Continue review anyway) before running Step 2+ — it never silently continues review on a failed spec check."
+    },
+    {
+      "id": "zero-findings-gate",
+      "name": "Zero-Findings Confirmation Gate (GH-447 F5)",
+      "description": "In attended mode, even when zero findings are produced, the skill fires AskUserQuestion to confirm the clean review rather than silently skipping through. The gate is exempted only when invoked with --unattended (GH-760 F6)."
+    },
+    {
+      "id": "findings-present-gate",
+      "name": "Findings-Present Disposition Gate",
+      "description": "When findings > 0 in attended mode, the skill fires AskUserQuestion (Fix all / Pick findings / Skip) before invoking Dev10x:review-fix — findings are never auto-fixed without user disposition in attended mode."
+    },
+    {
+      "id": "confidence-threshold-unattended",
+      "name": "Unattended Confidence-Threshold Filtering",
+      "description": "In unattended mode, only findings with confidence >= threshold (default 70) AND severity ERROR/WARNING are passed to Dev10x:review-fix; below-threshold findings are logged as INFO, not silently dropped or auto-fixed."
+    }
+  ],
+  "evals": [
+    {
+      "id": "spec-blocked-fires-askuserquestion",
+      "name": "spec-reviewer BLOCKED verdict fires the escalation gate",
+      "description": "When the Phase 0 spec-reviewer subagent's trailing status line is BLOCKED, the skill must stop and ask before running automated checks or per-file review.",
+      "input": "/Dev10x:review (spec-reviewer returns BLOCKED: FAIL_SCOPE)",
+      "assertions": [
+        {
+          "dimension": "spec-gate-blocked",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion fires with 'Address spec gap first (Recommended)' / 'Continue review anyway' options"
+        },
+        {
+          "dimension": "spec-gate-blocked",
+          "check": "behavioral",
+          "signal": "Step 2 (automated checks) does NOT run before the gate resolves"
+        }
+      ]
+    },
+    {
+      "id": "spec-done-with-concerns-continues-and-queues",
+      "name": "DONE_WITH_CONCERNS continues without a gate but queues the concern",
+      "description": "A PARTIAL spec verdict continues to Step 2 directly (no AskUserQuestion) but records the concern as a WARNING/spec finding in the final summary.",
+      "input": "/Dev10x:review (spec-reviewer returns DONE_WITH_CONCERNS: minor AC gap)",
+      "assertions": [
+        {
+          "dimension": "spec-gate-blocked",
+          "check": "behavioral",
+          "signal": "No AskUserQuestion fires for DONE_WITH_CONCERNS; review proceeds to Step 2 and the concern appears as a WARNING finding with source=spec in the final summary"
+        }
+      ]
+    },
+    {
+      "id": "zero-findings-fires-gate-in-attended-mode",
+      "name": "Zero findings still fires AskUserQuestion in attended mode",
+      "description": "A clean review (0 findings) in attended (default) mode must still confirm via AskUserQuestion — it does not silently report done.",
+      "input": "/Dev10x:review (attended mode, 0 findings)",
+      "assertions": [
+        {
+          "dimension": "zero-findings-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion fires with 'Continue (Recommended)' / 'Re-review' options even though findings=0"
+        }
+      ]
+    },
+    {
+      "id": "unattended-zero-findings-skips-gate",
+      "name": "--unattended exempts the zero-findings gate",
+      "description": "When invoked with --unattended (e.g. from work-on's shipping pipeline), a clean review auto-advances without firing AskUserQuestion (GH-760 F6).",
+      "input": "/Dev10x:review --unattended (0 findings)",
+      "assertions": [
+        {
+          "dimension": "zero-findings-gate",
+          "check": "behavioral",
+          "signal": "AskUserQuestion is NOT called when --unattended is set, even at 0 findings; the skill auto-advances"
+        }
+      ]
+    },
+    {
+      "id": "findings-present-fires-disposition-gate",
+      "name": "Findings > 0 in attended mode fires the disposition gate",
+      "description": "When the review produces at least one finding in attended mode, AskUserQuestion fires with Fix all / Pick findings / Skip before Dev10x:review-fix is invoked.",
+      "input": "/Dev10x:review (attended mode, 3 findings)",
+      "assertions": [
+        {
+          "dimension": "findings-present-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion fires with 'Fix all (Recommended)' / 'Pick findings' / 'Skip' options"
+        },
+        {
+          "dimension": "findings-present-gate",
+          "check": "behavioral",
+          "signal": "Skill(Dev10x:review-fix) is NOT invoked before the gate resolves"
+        }
+      ]
+    },
+    {
+      "id": "unattended-filters-by-confidence-threshold",
+      "name": "Unattended mode filters findings by confidence before fixing",
+      "description": "In unattended mode, only findings with confidence >= 70 (default) and severity ERROR/WARNING reach Dev10x:review-fix; below-threshold findings are logged as INFO.",
+      "input": "/Dev10x:review --unattended (2 findings confidence>=70, 1 finding confidence=40)",
+      "assertions": [
+        {
+          "dimension": "confidence-threshold-unattended",
+          "check": "behavioral",
+          "signal": "Only the two confidence>=70 findings are passed to Dev10x:review-fix; the confidence=40 finding appears as INFO in the summary, not sent to the fixer"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "description": "Queries that should/should-not trigger the review skill",
+    "should_trigger": [
+      {
+        "query": "/Dev10x:review",
+        "rationale": "Direct invocation — attended self-review of the current branch"
+      },
+      {
+        "query": "review my changes before I open a PR",
+        "rationale": "Pre-PR self-review — the core use case"
+      }
+    ],
+    "should_not_trigger": [
+      {
+        "query": "review PR #42 and post comments",
+        "rationale": "Remote PR review — use Dev10x:gh-pr-review"
+      },
+      {
+        "query": "my branch has no commits yet",
+        "rationale": "Nothing to review — no diff exists against base"
+      }
+    ]
+  }
+}

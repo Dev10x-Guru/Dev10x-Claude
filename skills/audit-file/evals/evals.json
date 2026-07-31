@@ -1,0 +1,120 @@
+{
+  "skill_name": "Dev10x:audit-file",
+  "eval_dimensions": [
+    {
+      "id": "target-repo-gate",
+      "name": "Target Repo Resolution Gate",
+      "description": "When neither --repo nor a findings-file `**Target repo**:` line is present, the skill fires AskUserQuestion to ask which repo receives the issue — it never silently defaults to Dev10x-Guru/dev10x-claude."
+    },
+    {
+      "id": "fictionalization-gate",
+      "name": "Unfictionalizable Finding Gate",
+      "description": "Step 3 requires every private identifier to be replaced with a pop-culture fictional stand-in before assembly. When a finding cannot be retold without losing its technical point, the skill fires AskUserQuestion (fictionalize aggressively / skip this finding) rather than filing unfictionalized text."
+    },
+    {
+      "id": "no-raw-gh-issue-create",
+      "name": "Filing Delegates to ticket-create",
+      "description": "The issue is always filed via Skill(Dev10x:ticket-create) in Step 9 — never a raw `gh issue create` call, even though `gh issue create` appears in allowed-tools (reserved for label sync failures, not filing)."
+    }
+  ],
+  "evals": [
+    {
+      "id": "target-repo-gate-fires-when-unresolved",
+      "name": "Missing --repo and no Target repo line fires the gate",
+      "description": "When invoked without --repo and the findings file has no `**Target repo**:` line, the skill must ask which repo to file at instead of guessing.",
+      "input": "/Dev10x:audit-file <findings-file-with-no-target-repo-line>",
+      "assertions": [
+        {
+          "dimension": "target-repo-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion fires asking which repo receives the issue before Step 4 (Generate issue body) runs"
+        },
+        {
+          "dimension": "target-repo-gate",
+          "check": "plain_text",
+          "signal": "No inline 'which repo should I file this to?' text substitutes for the widget"
+        },
+        {
+          "dimension": "target-repo-gate",
+          "check": "behavioral",
+          "signal": "The skill does NOT default to Dev10x-Guru/dev10x-claude when the gate is skipped"
+        }
+      ]
+    },
+    {
+      "id": "target-repo-resolves-without-gate-when-supplied",
+      "name": "--repo or Target repo line resolves without prompting",
+      "description": "When --repo is passed, or the findings file carries a `**Target repo**:` line, $TARGET_REPO resolves directly and the gate does not fire.",
+      "input": "/Dev10x:audit-file --repo owner/repo <findings-file>",
+      "assertions": [
+        {
+          "dimension": "target-repo-gate",
+          "check": "behavioral",
+          "signal": "AskUserQuestion is NOT called when --repo is explicitly supplied; the passed value is used verbatim and never overridden"
+        }
+      ]
+    },
+    {
+      "id": "unfictionalizable-finding-fires-gate",
+      "name": "A finding that resists fictionalization fires AskUserQuestion",
+      "description": "Step 3 fires the gate (fictionalize aggressively / skip this finding) rather than filing a finding with unfictionalized real identifiers.",
+      "input": "/Dev10x:audit-file <findings-file-with-hard-to-fictionalize-finding>",
+      "assertions": [
+        {
+          "dimension": "fictionalization-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion fires with 'Fictionalize aggressively and file (Recommended)' and 'Skip this finding' options"
+        },
+        {
+          "dimension": "fictionalization-gate",
+          "check": "behavioral",
+          "signal": "No real company/person/product name reaches the assembled issue body — every named entity is pop-culture fictional or the finding is excluded"
+        }
+      ]
+    },
+    {
+      "id": "filing-uses-ticket-create-skill",
+      "name": "Step 9 files via Skill(Dev10x:ticket-create), never raw gh issue create",
+      "description": "The final filing step always delegates to Dev10x:ticket-create, even though `gh issue create` is present in allowed-tools for other purposes.",
+      "input": "/Dev10x:audit-file --repo owner/repo <findings-file>",
+      "assertions": [
+        {
+          "dimension": "no-raw-gh-issue-create",
+          "check": "tool_called",
+          "tool": "Skill",
+          "signal": "Skill(Dev10x:ticket-create) is invoked to file the issue"
+        },
+        {
+          "dimension": "no-raw-gh-issue-create",
+          "check": "behavioral",
+          "signal": "No raw 'gh issue create' Bash call is made for filing (gh label list/create remain allowed for label sync in Step 8 only)"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "description": "Queries that should/should-not trigger the audit-file skill",
+    "should_trigger": [
+      {
+        "query": "/Dev10x:audit-file --repo owner/repo /tmp/Dev10x/skill-audit/findings-abc.md",
+        "rationale": "Direct invocation with an explicit target repo and findings file"
+      },
+      {
+        "query": "skill-audit Phase 7 confirmed the destination — file the findings upstream",
+        "rationale": "Delegated invocation from skill-audit Phase 7 sub-step D"
+      }
+    ],
+    "should_not_trigger": [
+      {
+        "query": "run a skill audit on this session",
+        "rationale": "Analysis, not filing — use Dev10x:skill-audit"
+      },
+      {
+        "query": "file a bug report about a crash I just hit",
+        "rationale": "Not an audit finding — use Dev10x:ticket-create directly"
+      }
+    ]
+  }
+}

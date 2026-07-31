@@ -223,6 +223,6 @@ the fixture path lies outside `additionalDirectories`.
 
 ## Resources
 
-- `references/eval-criteria.md` — none required for this skill.
+- `evals/evals.json` — Phase 3 disposition gate assertions (GH-835).
 - Python implementation: `src/dev10x/skills/permission_investigator/`
 - CLI: `dev10x permission investigate <subcommand>`
