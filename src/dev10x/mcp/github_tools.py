@@ -96,7 +96,12 @@ async def pr_get(number: int, repo: str | None = None, cwd: str | None = None) -
     Returns:
         Dictionary with keys: number, title, body, state, baseRefName,
         headRefName, merged, mergedAt, closedAt, labels, milestone,
-        assignees, author, url.
+        assignees, author, url, isDraft, mergeable, reviewDecision,
+        reviewRequests, autoMergeRequest, reviews, headRefOid.
+
+        ``reviews`` + ``headRefOid`` (GH-917) carry each review's state,
+        author and ``commit.oid``, so a caller can tell a human approval on
+        the current HEAD from a stale or bot one.
     """
     return await gh.pr_get(number=number, repo=repo)
 

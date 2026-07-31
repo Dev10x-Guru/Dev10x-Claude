@@ -6,6 +6,12 @@ to confirm the importable package module has identical behaviour.
 
 from __future__ import annotations
 
+import io
+import json
+import sys
+import urllib.error
+import urllib.request
+
 import pytest
 
 from dev10x.domain.common.result import ErrorResult, ok
@@ -267,6 +273,295 @@ class TestSendSlackMessageResult:
         monkeypatch.setattr(slack_sdk, "WebClient", BrokenClient)
         with pytest.raises(KeyError):
             mod.send_slack_message(channel="C123", message="hi")
+
+
+class TestSdkClient:
+    """GH-917: slack_sdk is an optional fast path, not a hard requirement."""
+
+    def test_returns_none_when_slack_sdk_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setitem(sys.modules, "slack_sdk", None)
+        assert mod.sdk_client(token="xoxb-test") is None
+
+    def test_returns_client_when_slack_sdk_present(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import slack_sdk
+
+        monkeypatch.setattr(slack_sdk, "WebClient", lambda token: {"token": token})
+        assert mod.sdk_client(token="xoxb-test") == {"token": "xoxb-test"}
+
+
+class TestCallSlackApi:
+    """GH-917: the dependency-free transport speaks the Slack Web API."""
+
+    @pytest.fixture()
+    def urlopen_calls(self) -> list[urllib.request.Request]:
+        return []
+
+    def _fake_urlopen(self, *, body: bytes, recorder: list) -> object:
+        class FakeResponse:
+            def __enter__(self_inner) -> FakeResponse:
+                return self_inner
+
+            def __exit__(self_inner, *exc: object) -> bool:
+                return False
+
+            def read(self_inner) -> bytes:
+                return body
+
+        def fake_urlopen(request: urllib.request.Request, timeout: int) -> object:
+            recorder.append(request)
+            return FakeResponse()
+
+        return fake_urlopen
+
+    def test_posts_json_with_bearer_token_and_drops_none_values(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        urlopen_calls: list,
+    ) -> None:
+        monkeypatch.setattr(
+            urllib.request,
+            "urlopen",
+            self._fake_urlopen(body=b'{"ok": true, "ts": "1.0"}', recorder=urlopen_calls),
+        )
+        result = mod.call_slack_api(
+            method="chat.postMessage",
+            payload={"channel": "C1", "text": "hi", "thread_ts": None},
+            token="xoxb-test",
+        )
+        assert result == ok({"ok": True, "ts": "1.0"})
+        request = urlopen_calls[0]
+        assert request.full_url == "https://slack.com/api/chat.postMessage"
+        assert request.get_header("Authorization") == "Bearer xoxb-test"
+        assert json.loads(request.data.decode()) == {"channel": "C1", "text": "hi"}
+
+    def test_slack_level_rejection_returns_err(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            urllib.request,
+            "urlopen",
+            self._fake_urlopen(body=b'{"ok": false, "error": "not_in_channel"}', recorder=[]),
+        )
+        result = mod.call_slack_api(method="chat.postMessage", payload={}, token="t")
+        assert isinstance(result, ErrorResult)
+        assert "not_in_channel" in result.error
+
+    def test_missing_error_key_reports_unknown_error(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            urllib.request,
+            "urlopen",
+            self._fake_urlopen(body=b'{"ok": false}', recorder=[]),
+        )
+        result = mod.call_slack_api(method="chat.delete", payload={}, token="t")
+        assert isinstance(result, ErrorResult)
+        assert "unknown_error" in result.error
+
+    def test_http_error_returns_err_with_status_and_detail(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        def raise_http_error(request: object, timeout: int) -> object:
+            raise urllib.error.HTTPError(
+                url="https://slack.com/api/chat.postMessage",
+                code=502,
+                msg="Bad Gateway",
+                hdrs=None,
+                fp=io.BytesIO(b"upstream down"),
+            )
+
+        monkeypatch.setattr(urllib.request, "urlopen", raise_http_error)
+        result = mod.call_slack_api(method="chat.postMessage", payload={}, token="t")
+        assert isinstance(result, ErrorResult)
+        assert "HTTP 502" in result.error
+        assert "upstream down" in result.error
+
+    def test_unreachable_host_returns_err(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def raise_url_error(request: object, timeout: int) -> object:
+            raise urllib.error.URLError("no route to host")
+
+        monkeypatch.setattr(urllib.request, "urlopen", raise_url_error)
+        result = mod.call_slack_api(method="chat.postMessage", payload={}, token="t")
+        assert isinstance(result, ErrorResult)
+        assert "unreachable" in result.error
+
+    def test_non_json_response_returns_err(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            urllib.request,
+            "urlopen",
+            self._fake_urlopen(body=b"<html>gateway</html>", recorder=[]),
+        )
+        result = mod.call_slack_api(method="chat.postMessage", payload={}, token="t")
+        assert isinstance(result, ErrorResult)
+        assert "non-JSON" in result.error
+
+
+class TestHttpFallbackTransport:
+    """GH-917: every message path works with slack_sdk absent."""
+
+    @pytest.fixture(autouse=True)
+    def no_sdk(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("SLACK_TOKEN", "xoxb-test")
+        monkeypatch.setattr(mod, "sdk_client", lambda *, token: None)
+
+    @pytest.fixture()
+    def api_calls(self, monkeypatch: pytest.MonkeyPatch) -> list[dict]:
+        calls: list[dict] = []
+
+        def fake_call(*, method: str, payload: dict, token: str):
+            calls.append({"method": method, "payload": payload, "token": token})
+            if method == "conversations.open":
+                return ok({"ok": True, "channel": {"id": "D1"}})
+            return ok({"ok": True, "ts": "1234.5678"})
+
+        monkeypatch.setattr(mod, "call_slack_api", fake_call)
+        return calls
+
+    def test_send_posts_chat_post_message(self, api_calls: list[dict]) -> None:
+        result = mod.send_slack_message(channel="C1", message="hi")
+        assert result == ok("1234.5678")
+        assert api_calls[0]["method"] == "chat.postMessage"
+        assert api_calls[0]["payload"]["channel"] == "C1"
+        assert api_calls[0]["payload"]["text"] == "hi"
+        assert api_calls[0]["token"] == "xoxb-test"
+
+    def test_send_resolves_mentions_before_posting(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        api_calls: list[dict],
+    ) -> None:
+        monkeypatch.setattr(mod, "_config", {"user_groups": {"@team": "<!subteam^S1>"}})
+        mod.send_slack_message(channel="C1", message="ping @team")
+        assert api_calls[0]["payload"]["text"] == "ping <!subteam^S1>"
+
+    def test_user_token_omits_bot_username(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("SLACK_TOKEN", "xoxp-user")
+        captured: dict = {}
+
+        def fake_call(*, method: str, payload: dict, token: str):
+            captured.update(payload)
+            return ok({"ok": True, "ts": "1.0"})
+
+        monkeypatch.setattr(mod, "call_slack_api", fake_call)
+        mod.send_slack_message(channel="C1", message="hi")
+        assert captured["username"] is None
+
+    def test_thread_reply_carries_broadcast_flag(self, api_calls: list[dict]) -> None:
+        mod.send_slack_message(channel="C1", message="hi", thread_ts="9.9", broadcast=True)
+        assert api_calls[0]["payload"]["thread_ts"] == "9.9"
+        assert api_calls[0]["payload"]["reply_broadcast"] is True
+
+    def test_reactions_are_added_after_post(self, api_calls: list[dict]) -> None:
+        result = mod.send_slack_message(channel="C1", message="hi", reactions=["eyes", "rocket"])
+        assert result == ok("1234.5678")
+        assert [call["method"] for call in api_calls] == [
+            "chat.postMessage",
+            "reactions.add",
+            "reactions.add",
+        ]
+        assert api_calls[1]["payload"] == {
+            "channel": "C1",
+            "timestamp": "1234.5678",
+            "name": "eyes",
+        }
+
+    def test_post_failure_returns_labelled_err(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        monkeypatch.setattr(
+            mod,
+            "call_slack_api",
+            lambda **_: ErrorResult(error="Slack chat.postMessage rejected: channel_not_found"),
+        )
+        with caplog.at_level("ERROR", logger="dev10x.skills.notifications.slack_notify"):
+            result = mod.send_slack_message(channel="C1", message="hi")
+        assert isinstance(result, ErrorResult)
+        assert result.error.startswith("Failed to send Slack message")
+        assert "channel_not_found" in result.error
+        assert "Failed to send Slack message" in caplog.text
+
+    def test_reaction_failure_returns_err(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def fake_call(*, method: str, payload: dict, token: str):
+            if method == "reactions.add":
+                return ErrorResult(error="already_reacted")
+            return ok({"ok": True, "ts": "1.0"})
+
+        monkeypatch.setattr(mod, "call_slack_api", fake_call)
+        result = mod.send_slack_message(channel="C1", message="hi", reactions=["eyes"])
+        assert isinstance(result, ErrorResult)
+        assert "Failed to add Slack reaction" in result.error
+
+    def test_reminder_opens_dm_then_sends(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("SLACK_SELF_USER_ID", "U1")
+        calls: list[dict] = []
+
+        def fake_call(*, method: str, payload: dict, token: str):
+            calls.append({"method": method, "payload": payload})
+            if method == "conversations.open":
+                return ok({"ok": True, "channel": {"id": "D1"}})
+            return ok({"ok": True, "ts": "7.7"})
+
+        monkeypatch.setattr(mod, "call_slack_api", fake_call)
+        assert mod.send_reminder("ping") == ok("7.7")
+        assert calls[0] == {"method": "conversations.open", "payload": {"users": "U1"}}
+        assert calls[1]["payload"]["channel"] == "D1"
+
+    def test_reminder_dm_failure_returns_err(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("SLACK_SELF_USER_ID", "U1")
+        monkeypatch.setattr(mod, "call_slack_api", lambda **_: ErrorResult(error="user_not_found"))
+        result = mod.send_reminder("ping")
+        assert isinstance(result, ErrorResult)
+        assert "Failed to send reminder" in result.error
+
+    def test_update_uses_chat_update(self, api_calls: list[dict]) -> None:
+        assert mod.update_slack_message(channel="C1", ts="1.0", message="x") == ok(None)
+        assert api_calls[0]["method"] == "chat.update"
+        assert api_calls[0]["payload"] == {"channel": "C1", "ts": "1.0", "text": "x"}
+
+    def test_update_failure_returns_err(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            mod, "call_slack_api", lambda **_: ErrorResult(error="message_not_found")
+        )
+        result = mod.update_slack_message(channel="C1", ts="1.0", message="x")
+        assert isinstance(result, ErrorResult)
+        assert "Failed to update Slack message" in result.error
+
+    def test_delete_message_uses_chat_delete(self, api_calls: list[dict]) -> None:
+        assert mod.delete_slack_message(channel="C1", ts="1.0") == ok(None)
+        assert api_calls[0]["method"] == "chat.delete"
+
+    def test_delete_message_failure_returns_err(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            mod, "call_slack_api", lambda **_: ErrorResult(error="message_not_found")
+        )
+        result = mod.delete_slack_message(channel="C1", ts="1.0")
+        assert isinstance(result, ErrorResult)
+        assert "Failed to delete Slack message" in result.error
+
+    def test_delete_file_uses_files_delete(self, api_calls: list[dict]) -> None:
+        assert mod.delete_slack_file(file_id="F1") == ok(None)
+        assert api_calls[0] == {
+            "method": "files.delete",
+            "payload": {"file": "F1"},
+            "token": "xoxb-test",
+        }
+
+    def test_delete_file_failure_returns_err(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mod, "call_slack_api", lambda **_: ErrorResult(error="file_not_found"))
+        result = mod.delete_slack_file(file_id="F1")
+        assert isinstance(result, ErrorResult)
+        assert "Failed to delete Slack file" in result.error
+
+    def test_upload_reports_actionable_error_instead_of_traceback(self) -> None:
+        result = mod.upload_slack_files(channel="C1", file_paths=["/tmp/x"])
+        assert isinstance(result, ErrorResult)
+        assert "slack_sdk" in result.error
+        assert "uv pip install slack-sdk" in result.error
 
 
 class TestNotifySlack:

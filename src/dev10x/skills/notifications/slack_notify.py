@@ -7,16 +7,25 @@ not part of the wheel and cannot be located via filesystem traversal.
 The standalone ``skills/slack/slack-notify.py`` uv-script remains the entry
 point for direct plugin-checkout invocations; this module powers the
 ``dev10x skill notify slack-send`` CLI command and any in-process callers.
+
+``slack_sdk`` is an optional fast path (GH-917). The in-process callers —
+notably the MCP server behind ``pr_notify`` — do not always run in an
+environment where the declared dependency was actually installed, so every
+message path falls back to :func:`call_slack_api`, a stdlib ``urllib`` POST to
+the Slack Web API. File uploads are the sole SDK-only path.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from dev10x import subprocess_utils
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
@@ -27,6 +36,9 @@ if TYPE_CHECKING:
     from slack_sdk.web import SlackResponse
 
 log = logging.getLogger(__name__)
+
+SLACK_API_BASE = "https://slack.com/api"
+_HTTP_TIMEOUT_SECONDS = 30
 
 _active_workspace: str | None = None
 _config: dict | None = None
@@ -155,6 +167,120 @@ def get_token() -> Result[str]:
     )
 
 
+def sdk_client(*, token: str) -> WebClient | None:
+    """Build a ``slack_sdk`` client, or ``None`` when the SDK is absent (GH-917).
+
+    The MCP server and other in-process callers do not always run in an
+    environment where the declared ``slack-sdk`` dependency was installed, so
+    every send path treats the SDK as an optional fast path and falls back to
+    :func:`call_slack_api`. This function is the injection seam tests use to
+    exercise the dependency-free transport.
+    """
+    try:
+        from slack_sdk import WebClient
+    except ImportError:
+        log.info("slack_sdk unavailable — using the stdlib HTTP Slack transport")
+        return None
+    return WebClient(token=token)
+
+
+def call_slack_api(
+    *,
+    method: str,
+    payload: dict[str, Any],
+    token: str,
+) -> Result[dict[str, Any]]:
+    """POST a JSON payload to a Slack Web API method using only the stdlib.
+
+    Keys whose value is ``None`` are dropped so the payload matches what the
+    ``slack_sdk`` client would have sent. A Slack-level rejection
+    (``{"ok": false}``) is returned as an :class:`ErrorResult` carrying
+    Slack's own error code.
+    """
+    body = {key: value for key, value in payload.items() if value is not None}
+    request = urllib.request.Request(
+        f"{SLACK_API_BASE}/{method}",
+        data=json.dumps(body).encode(),
+        headers={
+            "Content-Type": "application/json; charset=utf-8",
+            "Authorization": f"Bearer {token}",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(  # noqa: S310 - fixed https Slack API host
+            request,
+            timeout=_HTTP_TIMEOUT_SECONDS,
+        ) as response:
+            parsed = json.loads(response.read().decode())
+    except urllib.error.HTTPError as ex:
+        detail = ex.read().decode(errors="replace")
+        return err(f"Slack {method} failed (HTTP {ex.code}): {detail}")
+    except urllib.error.URLError as ex:
+        return err(f"Slack API unreachable: {ex.reason}")
+    except json.JSONDecodeError as ex:
+        return err(f"Slack {method} returned a non-JSON response: {ex}")
+    if not parsed.get("ok"):
+        return err(f"Slack {method} rejected the request: {parsed.get('error', 'unknown_error')}")
+    return ok(parsed)
+
+
+def _http_call(
+    *,
+    method: str,
+    payload: dict[str, Any],
+    token: str,
+    failure_label: str,
+) -> Result[dict[str, Any]]:
+    """Call the Slack API over HTTP, logging and labelling any failure."""
+    result = call_slack_api(method=method, payload=payload, token=token)
+    if isinstance(result, ErrorResult):
+        log.error("%s: %s", failure_label, result.error)
+        return err(f"{failure_label}: {result.error}")
+    return result
+
+
+def _send_over_http(
+    *,
+    channel: str,
+    resolved_message: str,
+    token: str,
+    thread_ts: str | None,
+    broadcast: bool,
+    reactions: list[str] | None,
+    unfurl: bool,
+) -> Result[str]:
+    """Post a message (and its reactions) without the ``slack_sdk`` dependency."""
+    is_user_token = token.startswith("xoxp-")
+    posted = _http_call(
+        method="chat.postMessage",
+        payload={
+            "channel": channel,
+            "text": resolved_message,
+            "username": None if is_user_token else _bot_username(),
+            "thread_ts": thread_ts,
+            "reply_broadcast": broadcast if thread_ts else None,
+            "unfurl_links": unfurl,
+            "unfurl_media": unfurl,
+        },
+        token=token,
+        failure_label="Failed to send Slack message",
+    )
+    if isinstance(posted, ErrorResult):
+        return posted
+    ts = posted.value["ts"]
+    for emoji in reactions or []:
+        reacted = _http_call(
+            method="reactions.add",
+            payload={"channel": channel, "timestamp": ts, "name": emoji},
+            token=token,
+            failure_label="Failed to add Slack reaction",
+        )
+        if isinstance(reacted, ErrorResult):
+            return reacted
+    return ok(ts)
+
+
 def send_slack_message(
     channel: str,
     message: str,
@@ -163,21 +289,27 @@ def send_slack_message(
     reactions: list[str] | None = None,
     unfurl: bool = False,
 ) -> Result[str]:
+    resolved_message = resolve_mentions(message)
+    token_result = get_token()
+    if isinstance(token_result, ErrorResult):
+        log.error("Failed to send Slack message: %s", token_result.error)
+        return token_result
+    token = token_result.value
+    client = sdk_client(token=token)
+    if client is None:
+        return _send_over_http(
+            channel=channel,
+            resolved_message=resolved_message,
+            token=token,
+            thread_ts=thread_ts,
+            broadcast=broadcast,
+            reactions=reactions,
+            unfurl=unfurl,
+        )
+    from slack_sdk.errors import SlackApiError
+
     try:
-        from slack_sdk import WebClient
-        from slack_sdk.errors import SlackApiError
-    except ImportError as ex:
-        log.error("slack_sdk is not installed", exc_info=ex)
-        return err(f"Failed to send Slack message: {ex}")
-    try:
-        resolved_message = resolve_mentions(message)
-        token_result = get_token()
-        if isinstance(token_result, ErrorResult):
-            log.error("Failed to send Slack message: %s", token_result.error)
-            return token_result
-        token = token_result.value
         is_user_token = token.startswith("xoxp-")
-        client = WebClient(token=token)
         result = client.chat_postMessage(
             channel=channel,
             text=resolved_message,
@@ -240,15 +372,25 @@ def upload_slack_files(
     package; the caller owns any user-facing output (script-domain-boundaries
     H3). On success the value is the first uploaded file id, or ``None`` when
     Slack returns no file metadata.
-    """
-    from slack_sdk import WebClient
-    from slack_sdk.errors import SlackApiError
 
+    This is the one path that still requires ``slack_sdk``: the upload flow is
+    a three-call multipart handshake, not a single JSON POST, so the GH-917
+    stdlib fallback does not cover it. Without the SDK the caller gets an
+    actionable error instead of an ``ImportError`` traceback.
+    """
     token_result = get_token()
     if isinstance(token_result, ErrorResult):
         return token_result
     token = token_result.value
-    client = WebClient(token=token)
+    client = sdk_client(token=token)
+    if client is None:
+        return err(
+            "Slack file uploads need the optional slack_sdk package "
+            "(the stdlib HTTP fallback covers messages only). "
+            "Install it with: uv pip install slack-sdk"
+        )
+    from slack_sdk.errors import SlackApiError
+
     resolved_message = resolve_mentions(message) if message else None
 
     file_uploads = []
@@ -330,8 +472,6 @@ def send_reminder(message: str) -> Result[str]:
     API rejects the DM. Programmer errors (e.g. a malformed API response)
     propagate, mirroring :func:`send_slack_message` (GH-537).
     """
-    from slack_sdk.errors import SlackApiError
-
     self_user_id = _self_user_id()
     if not self_user_id:
         return err(
@@ -342,10 +482,20 @@ def send_reminder(message: str) -> Result[str]:
     if isinstance(token_result, ErrorResult):
         return token_result
     token = token_result.value
-    try:
-        from slack_sdk import WebClient
+    client = sdk_client(token=token)
+    if client is None:
+        opened = _http_call(
+            method="conversations.open",
+            payload={"users": self_user_id},
+            token=token,
+            failure_label="Failed to send reminder",
+        )
+        if isinstance(opened, ErrorResult):
+            return opened
+        return send_slack_message(channel=opened.value["channel"]["id"], message=message)
+    from slack_sdk.errors import SlackApiError
 
-        client = WebClient(token=token)
+    try:
         dm = client.conversations_open(users=self_user_id)
         channel = dm["channel"]["id"]
     except (SlackApiError, OSError) as ex:
@@ -356,17 +506,23 @@ def send_reminder(message: str) -> Result[str]:
 
 def update_slack_message(channel: str, ts: str, message: str) -> Result[None]:
     """Edit an existing message (GH-533). Returns ``ok(None)`` on success."""
-    from slack_sdk.errors import SlackApiError
-
     resolved_message = resolve_mentions(message)
     token_result = get_token()
     if isinstance(token_result, ErrorResult):
         return token_result
     token = token_result.value
-    try:
-        from slack_sdk import WebClient
+    client = sdk_client(token=token)
+    if client is None:
+        updated = _http_call(
+            method="chat.update",
+            payload={"channel": channel, "ts": ts, "text": resolved_message},
+            token=token,
+            failure_label="Failed to update Slack message",
+        )
+        return updated if isinstance(updated, ErrorResult) else ok(None)
+    from slack_sdk.errors import SlackApiError
 
-        client = WebClient(token=token)
+    try:
         client.chat_update(channel=channel, ts=ts, text=resolved_message)
     except (SlackApiError, OSError) as ex:
         log.error("Failed to update Slack message", exc_info=ex)
@@ -376,16 +532,22 @@ def update_slack_message(channel: str, ts: str, message: str) -> Result[None]:
 
 def delete_slack_message(channel: str, ts: str) -> Result[None]:
     """Delete a message (GH-533). Returns ``ok(None)`` on success."""
-    from slack_sdk.errors import SlackApiError
-
     token_result = get_token()
     if isinstance(token_result, ErrorResult):
         return token_result
     token = token_result.value
-    try:
-        from slack_sdk import WebClient
+    client = sdk_client(token=token)
+    if client is None:
+        deleted = _http_call(
+            method="chat.delete",
+            payload={"channel": channel, "ts": ts},
+            token=token,
+            failure_label="Failed to delete Slack message",
+        )
+        return deleted if isinstance(deleted, ErrorResult) else ok(None)
+    from slack_sdk.errors import SlackApiError
 
-        client = WebClient(token=token)
+    try:
         client.chat_delete(channel=channel, ts=ts)
     except (SlackApiError, OSError) as ex:
         log.error("Failed to delete Slack message", exc_info=ex)
@@ -395,16 +557,22 @@ def delete_slack_message(channel: str, ts: str) -> Result[None]:
 
 def delete_slack_file(file_id: str) -> Result[None]:
     """Delete a file (GH-533). Returns ``ok(None)`` on success."""
-    from slack_sdk.errors import SlackApiError
-
     token_result = get_token()
     if isinstance(token_result, ErrorResult):
         return token_result
     token = token_result.value
-    try:
-        from slack_sdk import WebClient
+    client = sdk_client(token=token)
+    if client is None:
+        deleted = _http_call(
+            method="files.delete",
+            payload={"file": file_id},
+            token=token,
+            failure_label="Failed to delete Slack file",
+        )
+        return deleted if isinstance(deleted, ErrorResult) else ok(None)
+    from slack_sdk.errors import SlackApiError
 
-        client = WebClient(token=token)
+    try:
         client.files_delete(file=file_id)
     except (SlackApiError, OSError) as ex:
         log.error("Failed to delete Slack file", exc_info=ex)

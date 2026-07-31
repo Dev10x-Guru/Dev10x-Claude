@@ -12,10 +12,10 @@ user-invocable: true
 invocation-name: Dev10x:request-review
 allowed-tools:
   - mcp__plugin_Dev10x_cli__pr_detect
+  - mcp__plugin_Dev10x_cli__pr_get
+  - mcp__plugin_Dev10x_cli__pr_issue_comment
   - Skill(Dev10x:gh-pr-request-review)
   - Skill(Dev10x:slack-review-request)
-  - Bash(gh pr view:*)
-  - Bash(gh pr comment:*)
 ---
 
 ## Orchestration
@@ -52,10 +52,13 @@ approved on its current HEAD **by a human reviewer**. Bot
 approvals (e.g., `claude[bot]`, `github-actions[bot]`) MUST
 NOT short-circuit the human review request.
 
-```bash
-gh pr view {PR_NUMBER} --repo {REPO} \
-  --json reviewDecision,reviews,headRefOid
 ```
+mcp__plugin_Dev10x_cli__pr_get(number={PR_NUMBER}, repo="{REPO}")
+```
+
+Read `reviewDecision`, `reviews`, and `headRefOid` from the
+response — `pr_get` exposes all three (GH-917), so this precheck
+never needs the hook-blocked raw `gh pr view`.
 
 **Filter bot approvals first (GH-128).** Before matching reviews
 against `headRefOid`, drop any review whose `author.login` ends
@@ -119,8 +122,12 @@ Capture the outcome (posted / skipped / error) for the summary.
 
 Post a review request comment on the PR mentioning assigned reviewers:
 
-```bash
-gh pr comment {PR_NUMBER} --repo {REPO} --body "Ready for review @reviewer1 @reviewer2"
+```
+mcp__plugin_Dev10x_cli__pr_issue_comment(
+    pr_number={PR_NUMBER},
+    repo="{REPO}",
+    body="Ready for review @reviewer1 @reviewer2",
+)
 ```
 
 Skip this step if:
