@@ -50,6 +50,40 @@ class TestCanonicalizeRule:
     def test_preserves_scheme_double_slash(self) -> None:
         assert doctor.canonicalize_rule("WebFetch(domain:https://example.com)") is None
 
+    def test_preserves_perl_substitution_delimiters(self) -> None:
+        # GH-918: `//` in `s/pattern/replacement/g` is an empty replacement,
+        # not a duplicate path separator — collapsing it leaves two
+        # delimiters and a syntactically invalid expression.
+        rule = r"Bash(perl -pe 's/\e\[[0-9;]*m//g')"
+        assert doctor.canonicalize_rule(rule) is None
+
+    @pytest.mark.parametrize(
+        "rule",
+        [
+            r"Bash(sed -e 's/foo//g')",
+            r"Bash(awk '{gsub(/a//,\"b\")}')",
+            r"Bash(perl -e 's/x//')",
+        ],
+    )
+    def test_preserves_interpreter_expressions(self, rule: str) -> None:
+        assert doctor.canonicalize_rule(rule) is None
+
+    def test_ignores_non_path_double_slash(self) -> None:
+        # GH-918: only tokens that look like filesystem paths are collapsed.
+        assert doctor.canonicalize_rule("Bash(grep -E 'a//b':*)") is None
+
+    def test_collapses_path_argument_alongside_regex(self) -> None:
+        # GH-918: a genuine path typo is still fixed even when a quoted
+        # interpreter expression sits in the same rule.
+        rule = r"Bash(sed -e 's/a//g' /home/u//notes.txt)"
+        assert doctor.canonicalize_rule(rule) == (r"Bash(sed -e 's/a//g' /home/u/notes.txt)")
+
+    def test_collapses_unexpanded_plugin_root_variable(self) -> None:
+        rule = "Bash(${CLAUDE_PLUGIN_ROOT}//skills/foo/scripts/bar.sh:*)"
+        assert doctor.canonicalize_rule(rule) == (
+            "Bash(${CLAUDE_PLUGIN_ROOT}/skills/foo/scripts/bar.sh:*)"
+        )
+
     def test_never_emits_double_star_wildcard(self) -> None:
         # GH-715 regression: no input should yield a `**` path wildcard.
         inputs = [
