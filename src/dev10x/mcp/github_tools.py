@@ -369,6 +369,33 @@ async def pr_ready(
 
 
 @github_tool
+async def pr_close(
+    pr_number: int,
+    comment: str | None = None,
+    repo: str | None = None,
+    cwd: str | None = None,
+) -> Result[dict]:
+    """Close a pull request (GH-924).
+
+    Wraps `gh pr close`. `issue_close` cannot be reused here — `gh
+    issue close` rejects a pull-request number outright. Mirrors
+    `issue_close`'s shape, including the optional closing `comment`,
+    posted before the close so the rationale survives even if the
+    close itself fails.
+
+    Args:
+        pr_number: PR number to close.
+        comment: Optional closing comment (Markdown supported).
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: pr_number, state ("closed"), url.
+    """
+    return await gh.pr_close(pr_number=pr_number, comment=comment, repo=repo)
+
+
+@github_tool
 async def minimize_comments(
     node_ids: list[str],
     classifier: str = "OUTDATED",

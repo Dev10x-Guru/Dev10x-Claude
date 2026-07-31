@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Any
 
 from dev10x.domain.common.repository_ref import RepositoryRef
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.domain.common.result import ErrorResult, Result, SuccessResult, err, ok
 from dev10x.github.app_auth import AppConfig, get_bot_token
 from dev10x.subprocess_utils import (
     async_run,
@@ -1134,6 +1134,58 @@ async def pr_ready(
     return ok({"pr_number": pr_number, "url": url, "repo": str(repo_ref)})
 
 
+async def pr_close(
+    *,
+    pr_number: int,
+    comment: str | None = None,
+    repo: str | None = None,
+) -> Result[dict[str, Any]]:
+    """Close a pull request via ``gh pr close`` (GH-924).
+
+    Mirrors :func:`issue_close`'s shape — including the optional
+    closing ``comment`` — so retiring a stale/superseded PR is one
+    routed MCP call instead of the two-step "comment, then raw
+    ``gh pr close``" workaround this issue was filed to eliminate.
+    ``issue_close`` cannot be reused for this: `gh issue close`
+    rejects a pull-request number outright.
+
+    Args:
+        pr_number: PR number to close.
+        comment: Optional closing comment (Markdown supported),
+            posted before the close so the rationale survives even
+            if the close itself fails.
+        repo: Repository (owner/repo). Auto-detected if omitted.
+
+    Returns:
+        On success: ``{"pr_number": int, "state": "closed", "url": str}``.
+    """
+    repo_result = await _resolve_repo(repo)
+    if isinstance(repo_result, ErrorResult):
+        return err(repo_result.error)
+    repo_ref = repo_result.value
+
+    if comment is not None:
+        comment_result = await _gh_api_raw(
+            f"repos/{repo_ref}/issues/{pr_number}/comments",
+            method="POST",
+            fields={"body": comment},
+            repo=str(repo_ref),
+            as_bot=True,
+        )
+        if comment_result.returncode != 0:
+            return err(comment_result.stderr.strip() or comment_result.stdout.strip())
+
+    result = await async_run(
+        args=["gh", "pr", "close", str(pr_number), "--repo", str(repo_ref)],
+        timeout=30,
+    )
+    if result.returncode != 0:
+        return err(result.stderr.strip() or result.stdout.strip())
+
+    url = f"https://github.com/{repo_ref}/pull/{pr_number}"
+    return ok({"pr_number": pr_number, "state": "closed", "url": url})
+
+
 async def milestone_close(
     *,
     number: int,
@@ -1437,6 +1489,12 @@ async def issue_close(
     if reason not in _CLOSE_REASON_GH_VALUE:
         valid = ", ".join(repr(key) for key in _CLOSE_REASON_GH_VALUE)
         return err(f"reason must be one of {valid}, got: {reason!r}")
+
+    repo_result = await _resolve_repo(repo)
+    if isinstance(repo_result, SuccessResult):
+        pr_probe = await _gh_api(f"repos/{repo_result.value}/issues/{number}")
+        if isinstance(pr_probe, SuccessResult) and pr_probe.value.get("pull_request") is not None:
+            return err(f"{number} is a pull request; use pr_close")
 
     args = ["gh", "issue", "close", str(number), "--reason", _CLOSE_REASON_GH_VALUE[reason]]
     if repo:

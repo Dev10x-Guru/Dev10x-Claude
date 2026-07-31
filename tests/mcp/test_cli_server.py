@@ -1131,6 +1131,53 @@ class TestPrGet:
         assert "error" in result
 
 
+class TestPrClose:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.pr_close", new_callable=AsyncMock)
+    async def test_delegates_to_github_module(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = ok(
+            {"pr_number": 872, "state": "closed", "url": "https://example/pull/872"}
+        )
+
+        result = await cli_server.pr_close(pr_number=872, repo="o/r")
+
+        assert result["state"] == "closed"
+        assert mock_fn.call_args.kwargs == {
+            "pr_number": 872,
+            "comment": None,
+            "repo": "o/r",
+        }
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.pr_close", new_callable=AsyncMock)
+    async def test_passes_comment(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = ok(
+            {"pr_number": 872, "state": "closed", "url": "https://example/pull/872"}
+        )
+
+        await cli_server.pr_close(pr_number=872, comment="superseded by #900", repo="o/r")
+
+        assert mock_fn.call_args.kwargs["comment"] == "superseded by #900"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.pr_close", new_callable=AsyncMock)
+    async def test_returns_error_on_failure(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = err("Not Found")
+
+        result = await cli_server.pr_close(pr_number=999)
+
+        assert "error" in result
+
+
 class TestIssueClose:
     @pytest.mark.asyncio
     @patch("dev10x.github.issue_close", new_callable=AsyncMock)

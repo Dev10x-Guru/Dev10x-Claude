@@ -122,9 +122,14 @@ one session). Use these shapes verbatim:
 | `push_safe` | `args` list, e.g. `["-u", "origin", "<branch>"]` | bare call |
 | `resolve_review_thread` | `thread_ids` (list) | singular `thread_id` |
 | `resolve_gate` | `gate` (toggle name); optional `context` dict of gate facts | passing preset/friction values — the tool reads session policy itself (ADR-0016 D-2) |
+| `pr_close` | `pr_number` | `number` (that's `issue_close`'s param name) |
 
 Behavioral caveats:
 
+- `issue_close` called with a pull-request number fails loud with
+  `"N is a pull request; use pr_close"` instead of surfacing the raw
+  `gh issue close` rejection (GH-924) — reach for `pr_close` instead
+  of retrying `issue_close` with a different `reason`/`comment`.
 - `push_safe` failure returns `{"pushed": false, "blocked_reason":
   "push_failed"}` with no further diagnostic; a successful push may
   return `{}` — treat any non-`error` payload without
@@ -171,6 +176,7 @@ supporting each tool:
 | `pr_review_comment_edit` | `cli` | GH-304 | v0.76.0+ |
 | `pr_review_edit` | `cli` | GH-778 | v0.86.0+ |
 | `pr_ready` | `cli` | GH-779 | v0.86.0+ |
+| `pr_close` | `cli` | GH-924 | v0.92.0+ |
 | `pr_issue_comment` | `cli` | GH-205 | v0.72.0+ |
 | `request_review` | `cli` | PR #126 | v0.25.0+ |
 | `detect_base_branch` | `cli` | PR #191 | v0.30.0+ |
@@ -316,6 +322,7 @@ the MCP server is unavailable.
 | `gh api .../milestones/{n} PATCH` (title/desc/state/due) | `mcp__plugin_Dev10x_cli__milestone_edit` |
 | `gh pr edit` | `mcp__plugin_Dev10x_cli__update_pr` |
 | `gh pr ready` | `mcp__plugin_Dev10x_cli__pr_ready` |
+| `gh pr close` | `mcp__plugin_Dev10x_cli__pr_close` (GH-924) |
 | `gh pr create` | `Dev10x:gh-pr-create` (wraps `create_pr`) |
 | `gh pr merge` | `Dev10x:gh-pr-merge` (wraps `merge_pr`) |
 

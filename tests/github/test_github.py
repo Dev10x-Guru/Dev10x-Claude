@@ -2324,6 +2324,115 @@ class TestPrGet:
         assert "not found" in result.error
 
 
+class TestPrClose:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_closes_pr(
+        self,
+        mock_run: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="")
+
+        result = await gh.pr_close(pr_number=872, repo="owner/repo")
+
+        assert isinstance(result, SuccessResult)
+        assert result.value == {
+            "pr_number": 872,
+            "state": "closed",
+            "url": "https://github.com/owner/repo/pull/872",
+        }
+        called_args = mock_run.call_args.kwargs["args"]
+        assert called_args == ["gh", "pr", "close", "872", "--repo", "owner/repo"]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_posts_comment_before_closing(
+        self,
+        mock_run: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="")
+
+        result = await gh.pr_close(
+            pr_number=872,
+            comment="Superseded by #900",
+            repo="owner/repo",
+        )
+
+        assert isinstance(result, SuccessResult)
+        assert mock_run.call_count == 2
+        comment_args = mock_run.call_args_list[0].kwargs["args"]
+        assert comment_args[:2] == ["gh", "api"]
+        assert "repos/owner/repo/issues/872/comments" in comment_args
+        close_args = mock_run.call_args_list[1].kwargs["args"]
+        assert close_args == ["gh", "pr", "close", "872", "--repo", "owner/repo"]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_posts_comment_as_bot(
+        self,
+        mock_api: AsyncMock,
+        mock_run: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(stdout="")
+        mock_run.return_value = _completed(stdout="")
+
+        result = await gh.pr_close(
+            pr_number=872,
+            comment="Superseded by #900",
+            repo="owner/repo",
+        )
+
+        assert isinstance(result, SuccessResult)
+        call_kwargs = mock_api.call_args.kwargs
+        assert call_kwargs["as_bot"] is True
+        assert call_kwargs["repo"] == "owner/repo"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_returns_error_when_comment_post_fails(
+        self,
+        mock_run: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(returncode=1, stderr="comment rejected")
+
+        result = await gh.pr_close(pr_number=872, comment="notes", repo="owner/repo")
+
+        assert isinstance(result, ErrorResult)
+        assert "comment rejected" in result.error
+        assert mock_run.call_count == 1
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_returns_error_on_gh_failure(
+        self,
+        mock_run: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(returncode=1, stderr="pull request not found")
+
+        result = await gh.pr_close(pr_number=999, repo="owner/repo")
+
+        assert isinstance(result, ErrorResult)
+        assert "not found" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_returns_error_when_repo_unresolvable(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(returncode=1, stderr="not a git repo")
+
+        result = await gh.pr_close(pr_number=1)
+
+        assert isinstance(result, ErrorResult)
+
+
 class TestIssueClose:
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run", new_callable=AsyncMock)
@@ -2351,6 +2460,45 @@ class TestIssueClose:
             "--reason",
             "completed",
         ]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_signposts_pull_request_number(
+        self,
+        mock_run: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        # `gh api repos/{repo}/issues/{n}` returns a `pull_request` key
+        # when the number actually belongs to a PR (GH-924) — the probe
+        # this test exercises.
+        mock_run.return_value = _completed(
+            stdout=json.dumps({"number": 872, "pull_request": {"url": "https://x"}})
+        )
+
+        result = await gh.issue_close(number=872, repo="owner/repo")
+
+        assert isinstance(result, ErrorResult)
+        assert "872 is a pull request" in result.error
+        assert "pr_close" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_closes_plain_issue_when_pull_request_key_absent(
+        self,
+        mock_run: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        # First call is the `gh api` probe (no `pull_request` key), second
+        # is the actual `gh issue close`.
+        mock_run.side_effect = [
+            _completed(stdout=json.dumps({"number": 42})),
+            _completed(stdout=""),
+        ]
+
+        result = await gh.issue_close(number=42, repo="owner/repo")
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["state"] == "closed"
 
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run", new_callable=AsyncMock)
