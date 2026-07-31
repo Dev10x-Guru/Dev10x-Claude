@@ -63,7 +63,7 @@ with credentials you supply:
 | GitHub App API (`dev10x github-app setup` wizard) | App ID + private key you provide | Direct calls to `api.github.com` to verify the App key matches, list installations, exchange a JWT for an installation token, and read one repo per installation before writing config |
 | Linear (MCP) | Your Linear OAuth session | Issues and comments you read or write |
 | JIRA (`Dev10x:jira`) | API token from your OS keyring | Issue lookups and comments you request |
-| Slack (MCP) | Your Slack app token | Channel reads and messages you post |
+| Slack (MCP, `Dev10x:slack`) | Your Slack app token, from your OS keyring or `SLACK_TOKEN` | Channel reads and messages you post; direct calls to `slack.com/api` to send, edit, or delete the notifications you approve, made either via `slack_sdk` or — when that optional package is absent — an equivalent stdlib request |
 | Google Chat (`Dev10x:gchat`) | Service-account key from your OS keyring | Direct calls to `chat.googleapis.com` (via `oauth2.googleapis.com` for a token) to post review-request messages you approve to your configured Chat space |
 | Sentry (MCP) | Your Sentry auth | Issue details you fetch |
 | AWS Secrets Manager (`aws-vault`) | Your AWS profile | Secret lookups you approve |

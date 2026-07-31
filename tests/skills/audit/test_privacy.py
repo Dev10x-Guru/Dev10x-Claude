@@ -106,6 +106,33 @@ class TestNetImports:
         _, net = privacy.scan_paths([path])
         assert net == []
 
+    @pytest.mark.parametrize(
+        "module",
+        [
+            "src/dev10x/skills/notifications/gchat_notify.py",
+            "src/dev10x/skills/notifications/slack_notify.py",
+        ],
+    )
+    def test_documented_notification_transports_are_exempt(
+        self,
+        tmp_path: Path,
+        module: str,
+    ) -> None:
+        """User-invoked notification transports may reach the network (GH-917).
+
+        Both post messages the user approved to a service documented in
+        PRIVACY_POLICY.md. Dropping the exemption would force the Slack
+        transport back onto a hard `slack_sdk` dependency.
+        """
+        path = _write(tmp_path / module, "import urllib.request\n")
+        _, net = privacy.scan_paths([path])
+        assert net == []
+
+    def test_slack_transport_service_is_documented_in_policy(self) -> None:
+        """The exemption is only legitimate while the policy names Slack."""
+        policy = Path(__file__).parents[3] / "PRIVACY_POLICY.md"
+        assert "Slack" in privacy.parse_documented_services(policy.read_text())
+
 
 # ─────────────────────────────────────────────────────────────────────
 # Privacy policy parsing

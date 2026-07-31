@@ -151,6 +151,12 @@ _NET_IMPORT_EXEMPT_PATHS: tuple[str, ...] = (
     # space. User-invoked outbound integration covered by the Google
     # Chat row in PRIVACY_POLICY.md.
     "src/dev10x/skills/notifications/gchat_notify.py",
+    # Slack transport: same shape as the Google Chat one. The outbound
+    # call to slack.com was always there via `slack_sdk`; GH-917 only
+    # adds a stdlib equivalent for environments where that optional
+    # package is missing. No new destination, no new data — covered by
+    # the Slack row in PRIVACY_POLICY.md.
+    "src/dev10x/skills/notifications/slack_notify.py",
 )
 
 # Files exempt from service detection. The scanner defines the
