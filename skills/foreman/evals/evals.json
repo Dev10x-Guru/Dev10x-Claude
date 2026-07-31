@@ -17,6 +17,11 @@
       "description": "Worker prompts contain the background preamble, anti-stall rule, named per-domain test tools, heartbeat protocol, and scope-cut protocol"
     },
     {
+      "id": "tool-surface-split",
+      "name": "Tool Surface and Lifecycle Split",
+      "description": "Worker prompts name no Skill(...) calls and open with a ToolSearch select-query bootstrap; crew workers stop at PR-open (never merge, never close issues) and the merge gate runs in the top-level watchdog session"
+    },
+    {
       "id": "dawn-self-audit",
       "name": "Dawn Self-Audit",
       "description": "Wrap-up runs diag-friction over prompted/denied commands and files upstream issues for structural friction"
@@ -83,8 +88,8 @@
       "name": "crew-prompt-completeness",
       "prompt": "/Dev10x:foreman ship the QA-findings milestone while I sleep",
       "description": "Tests that spawned worker prompts carry the full crew contract.",
-      "expected_output": "The Agent prompt includes the background preamble, the anti-stall CI rule (single-shot ci_check_status), exact named test-tool invocations, the heartbeat file protocol, and the scope-cut protocol (Fixes downgrade + commit footer reword).",
-      "dimensions": ["crew-contract"],
+      "expected_output": "The Agent prompt includes the background preamble, the ToolSearch select-query bootstrap, the anti-stall CI rule (ci_check_status with wait=true), exact named test-tool invocations, the heartbeat file protocol, and the scope-cut protocol (Fixes downgrade + commit footer reword).",
+      "dimensions": ["crew-contract", "tool-surface-split"],
       "assertions": [
         {
           "id": "preamble-present",
@@ -103,6 +108,18 @@
           "text": "Worker prompt defines the status-file heartbeat protocol",
           "check": "output_contains",
           "signals": ["status-", "15 min", "Write tool"]
+        },
+        {
+          "id": "toolsearch-bootstrap-present",
+          "text": "Worker prompt opens the MCP surface with a ToolSearch select-query",
+          "check": "output_contains",
+          "signals": ["ToolSearch", "select:mcp__plugin_Dev10x_cli__"]
+        },
+        {
+          "id": "no-skill-calls-in-prompt",
+          "text": "Worker prompt names no Skill(...) invocations — subagents cannot call them",
+          "check": "output_not_contains",
+          "signals": ["Skill(Dev10x:gh-pr-merge)", "Skill(Dev10x:gh-pr-create)", "Skill(Dev10x:git-commit)", "Skill(Dev10x:ticket-branch)"]
         }
       ]
     },
@@ -159,6 +176,56 @@
           "text": "A second heartbeat interval elapses before takeover",
           "check": "output_contains",
           "signals": ["second", "heartbeat interval"]
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "worker-stops-at-pr-open",
+      "prompt": "/Dev10x:foreman ship milestone 171 overnight; the crew worker for chunk C0 just reported its PR is green and review is clear",
+      "description": "Tests that the crew lifecycle stops at PR-open and the merge gate runs in the top-level session, not in the subagent.",
+      "expected_output": "The worker prompt tells the worker to stop after PR-open and forbids merging and issue closure; the watchdog re-reads live PR state and runs Skill(Dev10x:gh-pr-merge) itself before closing issues.",
+      "dimensions": ["tool-surface-split"],
+      "assertions": [
+        {
+          "id": "worker-forbidden-to-merge",
+          "text": "Worker prompt explicitly forbids merging and closing issues",
+          "check": "output_contains",
+          "signals": ["do NOT merge", "do not close issues", "SET DOWN YOUR PEN"]
+        },
+        {
+          "id": "merge-gate-in-top-level",
+          "text": "The merge gate runs via Dev10x:gh-pr-merge in the top-level session",
+          "check": "tool_called",
+          "signals": ["Dev10x:gh-pr-merge"]
+        },
+        {
+          "id": "no-raw-merge-fallback",
+          "text": "No raw CLI merge fallback is used when the skill is unreachable",
+          "check": "output_not_contains",
+          "signals": ["pr merge --squash", "pr merge --rebase"]
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "post-condition-reverification",
+      "prompt": "continue: base moved, crew-C0 rebased and force-pushed its PR, then reported it ready to merge",
+      "description": "Tests that draft state and CI verdict are re-read after a force-push instead of being carried forward from an earlier call.",
+      "expected_output": "pr_get is called after the force-push to re-check isDraft (pr_ready re-run if it reverted to draft), and CI/mergeability are re-read before the merge gate rather than trusted from the worker's report.",
+      "dimensions": ["tool-surface-split"],
+      "assertions": [
+        {
+          "id": "isdraft-rechecked",
+          "text": "isDraft is re-verified via pr_get after the force-push",
+          "check": "tool_called",
+          "signals": ["pr_get", "isDraft"]
+        },
+        {
+          "id": "state-not-assumed",
+          "text": "A prior pr_ready call is not treated as still in effect",
+          "check": "output_not_contains",
+          "signals": ["already marked ready", "still ready from before"]
         }
       ]
     }
