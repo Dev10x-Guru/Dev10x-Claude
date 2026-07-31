@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["slack_sdk"]
+# dependencies = ["slack_sdk>=3.21,<4"]
 # ///
 """
 PR notification helper for Phase 3 of pr:monitor.

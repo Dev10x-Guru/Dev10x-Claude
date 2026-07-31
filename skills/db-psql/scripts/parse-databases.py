@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["pyyaml>=6.0"]
+# dependencies = ["pyyaml>=6.0,<7"]
 # ///
 """Parse databases.yaml files into tab-separated output for db.sh.
 

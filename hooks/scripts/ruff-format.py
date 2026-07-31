@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["pyyaml"]
+# dependencies = ["pyyaml>=6.0,<7"]
 # ///
 """PostToolUse hook for Edit|Write — direct shebang replacement for
 `dev10x hook ruff-format` (GH-959).
