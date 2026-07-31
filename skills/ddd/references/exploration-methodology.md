@@ -93,3 +93,26 @@ Watch for these signals during exploration:
 - **God object** — one type with 10+ fields of mixed semantics → apply archetype
 - **Copy-paste logic** — same calculation in multiple places → extract to shared kernel
 - **"It depends"** — when the answer to "how does X work?" is always "it depends on Y" → Y is a configurable rule, not a hardcoded property
+
+## Design Philosophy
+
+These principles govern all proposals made during exploration:
+
+**"Don't make me think" (Krug)** — Prefer implicit automatic
+behavior (auto-grouping on child add) over manual workflows. But
+never auto-delete or auto-restructure — creation can be magic,
+destruction requires intent.
+
+**Configuration vs. Estimation** — Keep pricing configuration
+cleanly separated from the estimation workspace. Users change
+rules without touching estimates, and vice versa.
+
+**Foundation-ready, not prematurely built** — Bake hooks into the
+foundation (like i18n) so future capabilities are data extensions,
+not refactors. **Rule of thumb:** nullable field or open union now
+at zero runtime cost vs. data migration later → do it now.
+Actual code/abstractions not yet used → defer.
+
+**Plan but defer server dependencies** — Features requiring servers
+(short URLs, cloud accounts) are scoped and designed but not built
+until the client-side foundation is solid.

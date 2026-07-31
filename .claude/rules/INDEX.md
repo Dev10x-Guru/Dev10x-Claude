@@ -187,12 +187,16 @@ cohesive, justified by scope):
   `crew-prompt-template.md`, and `stall-protocol.md`. Split plan if
   it grows: move the crew contract table to
   `references/crew-contract.md`
-- `ddd` (~423 lines) — workshop orchestration hub: 4 session
+- `ddd` (~299 lines) — workshop orchestration hub: 4 session
   modes, 7-layer event storming flow, solo AI-cast facilitation
   (incl. the GH-789 discussion-agent model-tier gate), and
-  quality gates are semantically cohesive; depth already
-  extracted to 12 reference files. Split plan if it grows: move
-  scaffolding + mode task lists to `references/session-modes.md`
+  quality gates are semantically cohesive; depth extracted to 13
+  reference files. GH-783 executed the split plan (was: move
+  scaffolding + mode task lists to `references/session-modes.md`)
+  — New Workshop scaffolding, per-mode `TaskCreate` lists, and the
+  mode-determination table now live in
+  `references/session-modes.md`; back under the 300-line soft
+  target
 
 ## Budget Overrides
 
