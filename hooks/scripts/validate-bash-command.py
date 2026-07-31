@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["click", "msgpack", "pyyaml"]
+# dependencies = ["click>=8.0,<9", "msgpack>=1.0,<2", "pyyaml>=6.0,<7"]
 # ///
 """PreToolUse hook: unified Bash command validator.
 

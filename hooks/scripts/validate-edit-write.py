@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["msgpack", "pyyaml"]
+# dependencies = ["msgpack>=1.0,<2", "pyyaml>=6.0,<7"]
 # ///
 """PreToolUse hook: thin shim delegating to dev10x.hooks.edit_validator.
 

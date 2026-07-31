@@ -18,15 +18,15 @@ classifiers = [
     "Topic :: Software Development :: Build Tools",
 ]
 dependencies = [
-    "click>=8.0",
-    "msgpack>=1.0",
-    "pyjwt[crypto]>=2.8",
-    "pyyaml>=6.0",
+    "click>=8.0,<9",
+    "msgpack>=1.0,<2",
+    "pyjwt[crypto]>=2.8,<3",
+    "pyyaml>=6.0,<7",
     # GH-483: `dev10x skill notify slack-send` imports slack_sdk in-process
     # (src/dev10x/skills/notifications/slack_notify.py). It must be a base
     # dependency so the uvx-distributed env can send Slack notifications —
     # `uvx dev10x` installs base deps only, not optional extras.
-    "slack-sdk>=3.21",
+    "slack-sdk>=3.21,<4",
 ]
 
 [project.urls]
@@ -40,16 +40,16 @@ dev10x = "dev10x.cli:cli"
 
 [project.optional-dependencies]
 dev = [
-    "factory-boy>=3.3",
-    "faker>=33.0",
-    "pytest>=8.0",
-    "pytest-asyncio>=0.24",
-    "pytest-benchmark>=5.0",
-    "pytest-cov>=6.0",
+    "factory-boy>=3.3,<4",
+    "faker>=33.0,<34",
+    "pytest>=8.0,<9",
+    "pytest-asyncio>=0.24,<0.25",
+    "pytest-benchmark>=5.0,<6",
+    "pytest-cov>=6.0,<7",
     "mcp>=1.0,<2",
-    "ruff>=0.9",
-    "mypy>=1.13",
-    "pre-commit>=4.0",
+    "ruff>=0.9,<1",
+    "mypy>=1.13,<2",
+    "pre-commit>=4.0,<5",
 ]
 
 [build-system]

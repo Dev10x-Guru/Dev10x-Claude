@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["slack_sdk", "pyyaml"]
+# dependencies = ["slack_sdk>=3.21,<4", "pyyaml>=6.0,<7"]
 # ///
 """
 Slack notification tool for posting messages and uploading files to channels.
