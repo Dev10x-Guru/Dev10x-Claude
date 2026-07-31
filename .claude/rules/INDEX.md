@@ -179,6 +179,14 @@ cohesive, justified by scope):
 - `fanout` (~737 lines instructions) — native-Agent swarm
   orchestrator with 6-phase execution model, swarm context
   payload, recursive-fanout guard, and conflict-wave management
+- `foreman` (~240 lines instructions) — unattended night-shift
+  harness: Phase 0 pre-flight, the night loop with its stall
+  stand-down handshake, the crew contract, and the red-flag /
+  rationalization tables are execution-gating and must stay
+  inline. Depth already extracted to `references/architecture.md`,
+  `crew-prompt-template.md`, and `stall-protocol.md`. Split plan if
+  it grows: move the crew contract table to
+  `references/crew-contract.md`
 - `ddd` (~423 lines) — workshop orchestration hub: 4 session
   modes, 7-layer event storming flow, solo AI-cast facilitation
   (incl. the GH-789 discussion-agent model-tier gate), and

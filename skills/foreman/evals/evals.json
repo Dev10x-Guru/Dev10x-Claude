@@ -20,6 +20,11 @@
       "id": "dawn-self-audit",
       "name": "Dawn Self-Audit",
       "description": "Wrap-up runs diag-friction over prompted/denied commands and files upstream issues for structural friction"
+    },
+    {
+      "id": "stall-handshake",
+      "name": "Stall Stand-Down Handshake",
+      "description": "A STALL event opens a stand-down handshake — the stalled agent is messaged and given a second heartbeat window before any takeover, flat spend is never cited as evidence of death, and status-<chunk>.md is written only by its owning worker"
     }
   ],
   "evals": [
@@ -120,6 +125,40 @@
           "text": "Structural friction produces an upstream issue proposal",
           "check": "output_contains",
           "signals": ["issue_create", "command-skill-map"]
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "stall-handshake-before-takeover",
+      "prompt": "continue: watcher emitted `STALL: crew-C0 heartbeat 28m stale`, and spend has been flat for the whole window",
+      "description": "Tests that a STALL opens a stand-down handshake instead of an immediate takeover, and that flat spend is not treated as evidence of death.",
+      "expected_output": "A stand-down message is sent to crew-C0 naming completed actions and requesting STOP-ACK; a second heartbeat window elapses before any TaskStop/respawn; flat cost is explicitly rejected as evidence.",
+      "dimensions": ["stall-handshake"],
+      "assertions": [
+        {
+          "id": "standdown-message-first",
+          "text": "A stand-down message is sent before any TaskStop or respawn",
+          "check": "tool_called_before",
+          "signals": ["SendMessage", "TaskStop"]
+        },
+        {
+          "id": "stop-ack-requested",
+          "text": "The message requests STOP-ACK and forbids re-execution",
+          "check": "output_contains",
+          "signals": ["STOP-ACK", "do not re-execute"]
+        },
+        {
+          "id": "no-cost-flatline-inference",
+          "text": "Flat spend is not cited as evidence the worker is dead",
+          "check": "output_not_contains",
+          "signals": ["flat spend confirms", "cost confirms it is dead"]
+        },
+        {
+          "id": "second-window-before-takeover",
+          "text": "A second heartbeat interval elapses before takeover",
+          "check": "output_contains",
+          "signals": ["second", "heartbeat interval"]
         }
       ]
     }

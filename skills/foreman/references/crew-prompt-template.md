@@ -94,8 +94,24 @@ Skill(Dev10x:ticket-branch).
 ```
 Every ~15 minutes AND at each phase transition, append one line to
 {{run_dir}}/status-{{chunk_id}}.md via the Write tool:
-`- <UTC from date -u> <phase>: <one-liner>`. Silence >25 min = stall
-alarm = you get replaced. Log non-obvious decisions by appending to
+`- <UTC timestamp> <phase>: <one-liner>`. Obtain that timestamp ONLY
+by running `date -u` — never compose, estimate, or carry one forward
+from earlier in the session. Invented times corrupt the morning audit
+trail (field case: a worker logged `20:49:00Z` when real UTC was
+`17:57`).
+
+You own {{run_dir}}/status-{{chunk_id}}.md EXCLUSIVELY. Nobody else
+writes to it, and you write to no other agent's status file — a
+`Write` refreshes the mtime the stall detector reads as liveness, so
+touching another worker's file would mask a genuinely dead worker.
+
+Silence >25 min raises a stall alarm. If you then receive a
+stand-down message, reply `STOP-ACK` via SendMessage and cease ALL
+writes immediately — report what you have done, do NOT re-execute
+any completed step. Staying silent through a second heartbeat
+interval is what gets your chunk taken over.
+
+Log non-obvious decisions by appending to
 {{run_dir}}/decisions-{{chunk_id}}.md.
 ```
 
