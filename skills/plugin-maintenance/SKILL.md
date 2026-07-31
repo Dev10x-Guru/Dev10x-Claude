@@ -527,6 +527,15 @@ uvx dev10x permission enumerate-mcp --dry-run
 uvx dev10x permission enumerate-mcp
 ```
 
+**Exit codes (GH-919):** exit 0 with "No MCP wildcards found" is a
+genuine no-op. A non-zero exit means the tool catalog could not be
+built — the wildcards, if any, were left in place. Re-run with an
+explicit root rather than treating the failure as "nothing to do":
+
+```bash
+uvx dev10x permission enumerate-mcp --dry-run --plugin-root ~/.claude/plugins/cache/Dev10x-Guru/dev10x-claude/<version>
+```
+
 ### 6b. Promotion plan — read-only MCP tools + research domains *(full only, GH-470)*
 
 MCP approvals are scoped per tool-name × per project-directory, so a

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from dev10x.domain.common.result import ErrorResult, SuccessResult
 from dev10x.skills.permission import enumerate_mcp
 
 
@@ -179,3 +180,77 @@ class TestExpandSettingsFile:
         enumerate_mcp.expand_settings_file(settings_file, catalog, dry_run=False)
         count, _ = enumerate_mcp.expand_settings_file(settings_file, catalog, dry_run=False)
         assert count == 0
+
+
+class TestBuildCatalog:
+    """A discovery failure is an error Result, never an empty catalog (GH-919)."""
+
+    def test_unresolvable_plugin_root_is_an_error(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(enumerate_mcp, "resolve_plugin_root", lambda **_kw: None)
+        result = enumerate_mcp.build_catalog()
+        assert isinstance(result, ErrorResult)
+        assert "Could not resolve" in result.error
+
+    def test_root_without_tools_is_an_error(self, tmp_path: Path) -> None:
+        result = enumerate_mcp.build_catalog(plugin_root_override=tmp_path)
+        assert isinstance(result, ErrorResult)
+        assert "Could not enumerate" in result.error
+        assert result.details["plugin_root"] == str(tmp_path)
+
+    def test_override_root_yields_catalog(self, tmp_path: Path) -> None:
+        src = tmp_path / "src" / "dev10x" / "mcp"
+        src.mkdir(parents=True)
+        (src / "git_tools.py").write_text("@server.tool()\nasync def beta() -> dict: pass\n")
+        result = enumerate_mcp.build_catalog(plugin_root_override=tmp_path)
+        assert isinstance(result, SuccessResult)
+        assert result.value["Dev10x_cli"] == ["mcp__plugin_Dev10x_cli__beta"]
+
+
+class TestEnumerateSettings:
+    """ "0 wildcards found" and "could not enumerate" are distinct outcomes."""
+
+    @pytest.fixture
+    def clean_settings(self, tmp_path: Path) -> Path:
+        path = tmp_path / "settings.local.json"
+        path.write_text(json.dumps({"permissions": {"allow": ["Bash(ls:*)"]}}))
+        return path
+
+    @pytest.fixture
+    def plugin_dir(self, tmp_path: Path) -> Path:
+        src = tmp_path / "plugin" / "src" / "dev10x" / "mcp"
+        src.mkdir(parents=True)
+        (src / "git_tools.py").write_text("@server.tool()\nasync def beta() -> dict: pass\n")
+        return tmp_path / "plugin"
+
+    def test_no_wildcards_is_success(self, clean_settings: Path, plugin_dir: Path) -> None:
+        result = enumerate_mcp.enumerate_settings(
+            [clean_settings],
+            plugin_root_override=plugin_dir,
+        )
+        assert isinstance(result, SuccessResult)
+        assert result.value["changed"] == 0
+        assert any("No MCP wildcards found" in m for m in result.value["messages"])
+
+    def test_discovery_failure_is_error(
+        self,
+        clean_settings: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(enumerate_mcp, "resolve_plugin_root", lambda **_kw: None)
+        result = enumerate_mcp.enumerate_settings([clean_settings])
+        assert isinstance(result, ErrorResult)
+
+    def test_expansion_is_reported(self, tmp_path: Path, plugin_dir: Path) -> None:
+        path = tmp_path / "settings.local.json"
+        path.write_text(json.dumps({"permissions": {"allow": ["mcp__plugin_Dev10x_*"]}}))
+        result = enumerate_mcp.enumerate_settings(
+            [path],
+            dry_run=True,
+            plugin_root_override=plugin_dir,
+        )
+        assert isinstance(result, SuccessResult)
+        assert result.value["changed"] == 2
+        assert result.value["files_changed"] == 1

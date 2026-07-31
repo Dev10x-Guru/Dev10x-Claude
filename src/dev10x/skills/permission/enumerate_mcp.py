@@ -30,9 +30,12 @@ import json
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.mcp_tool_name import McpToolName
+from dev10x.domain.common.result import Result, SuccessResult, err, ok
+from dev10x.domain.plugin_root import resolve_plugin_root
 
 # MCP server registration file convention.
 # For the cli server, all handlers live in per-domain modules (GH-243/A6).
@@ -97,7 +100,14 @@ class CapabilityGroupEntry:
 
 
 def plugin_root() -> Path:
-    """Return the plugin root containing `src/`, `servers/`, and `skills/`."""
+    """Return the checkout root containing `src/`, `servers/`, and `skills/`.
+
+    Walk-up only — correct when this module is imported from a repo
+    checkout or an editable install, and the historical behaviour tests
+    that scan the repo's own `skills/` depend on. Runtime callers that
+    must also work from an installed wheel use
+    :func:`resolve_plugin_root` (GH-919).
+    """
     return Path(__file__).resolve().parents[4]
 
 
@@ -149,7 +159,7 @@ def discover_mcp_tools(*, root: Path | None = None) -> dict[str, list[str]]:
             ],
         }
     """
-    root = root or plugin_root()
+    root = root or resolve_plugin_root() or plugin_root()
     catalog: dict[str, list[str]] = {}
     for server, rel_paths in _SERVER_FILES.items():
         names: list[str] = []
@@ -411,37 +421,74 @@ def expand_settings_file(
     return len(removed) + len(added), messages
 
 
+def build_catalog(*, plugin_root_override: Path | None = None) -> Result[dict[str, list[str]]]:
+    """Resolve the plugin root and parse its MCP tool catalog (GH-919).
+
+    A failure here is a hard error, never an empty catalog: the caller
+    must be able to tell "the plugin exposes no MCP tools" (impossible in
+    practice, hence an error) from "there were no wildcards to expand"
+    (a genuine no-op reported by :func:`enumerate_settings`).
+    """
+    root = resolve_plugin_root(override=plugin_root_override)
+    if root is None:
+        return err(
+            "Could not resolve the Dev10x plugin root. Set $CLAUDE_PLUGIN_ROOT, "
+            "install the plugin, or pass --plugin-root."
+        )
+    catalog = discover_mcp_tools(root=root)
+    if not catalog:
+        return err(
+            f"Could not enumerate Dev10x MCP tools from plugin root {root} — "
+            "no @server.tool() definitions found under src/dev10x/mcp/. "
+            "MCP wildcards were left in place; pass --plugin-root to point at "
+            "a complete plugin checkout.",
+            plugin_root=str(root),
+        )
+    return ok(catalog)
+
+
 def enumerate_settings(
     settings_files: Iterable[Path],
     *,
     dry_run: bool = False,
     quiet: bool = False,
-) -> int:
+    plugin_root_override: Path | None = None,
+) -> Result[dict[str, Any]]:
     """Expand MCP wildcards across a collection of settings files.
 
-    Returns the total count of rules changed (removed + added).
+    Returns ``ok({"changed": int, "files_changed": int, "messages":
+    list[str], "plugin_root": str})`` — ``changed == 0`` is a successful
+    no-op — or ``err(...)`` when the tool catalog could not be built, so
+    a discovery failure can never be read as "nothing to do" (GH-919).
     """
-    catalog = discover_mcp_tools()
-    if not catalog:
-        print("No Dev10x MCP tools discovered — is the plugin checked out?")
-        return 0
+    catalog_result = build_catalog(plugin_root_override=plugin_root_override)
+    if not isinstance(catalog_result, SuccessResult):
+        return catalog_result
+    catalog = catalog_result.value
 
+    messages: list[str] = []
     total = 0
     changed_files = 0
     for path in sorted(settings_files):
-        count, messages = expand_settings_file(path, catalog, dry_run=dry_run)
+        count, file_messages = expand_settings_file(path, catalog, dry_run=dry_run)
         if count == 0:
             continue
         if not quiet:
-            print(f"\n{path}")
-            for msg in messages:
-                print(msg)
+            messages.append(f"\n{path}")
+            messages.extend(file_messages)
         total += count
         changed_files += 1
 
     if total == 0:
-        print("No MCP wildcards found — all settings files already enumerated.")
+        messages.append("No MCP wildcards found — all settings files already enumerated.")
     else:
         verb = "Would expand" if dry_run else "Expanded"
-        print(f"{verb} {total} rules across {changed_files} files.")
-    return total
+        messages.append(f"{verb} {total} rules across {changed_files} files.")
+
+    return ok(
+        {
+            "changed": total,
+            "files_changed": changed_files,
+            "messages": messages,
+        }
+    )

@@ -8,37 +8,19 @@ are preserved — the diff reports them but never writes.
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
 import click
 import yaml
 
+from dev10x.domain.plugin_root import resolve_plugin_root
 from dev10x.skills.playbook import (
     compare_playbooks,
     find_user_playbooks,
     plugin_default_path,
     render_markdown_report,
 )
-
-
-def _resolve_plugin_root() -> Path | None:
-    """Locate the active plugin root.
-
-    Honors ``$CLAUDE_PLUGIN_ROOT`` first (set by Claude Code when invoking
-    skills) and falls back to walking up from this file. Returns ``None``
-    when no plausible root is found so callers can emit a useful error.
-    """
-    env_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
-    if env_root:
-        root = Path(env_root)
-        if root.is_dir():
-            return root
-    candidate = Path(__file__).resolve().parent.parent.parent.parent
-    if (candidate / "skills").is_dir() and (candidate / ".claude-plugin").is_dir():
-        return candidate
-    return None
 
 
 def _load_yaml(path: Path) -> dict:
@@ -79,10 +61,11 @@ def playbook_diff(*, skill_key: str | None, plugin_root: str | None) -> None:
     may want to pull into their override. User customizations are preserved
     — the diff is read-only.
     """
-    root = Path(plugin_root) if plugin_root else _resolve_plugin_root()
+    root = resolve_plugin_root(override=Path(plugin_root) if plugin_root else None)
     if root is None:
         click.echo(
-            "ERROR: Could not resolve plugin root. Set $CLAUDE_PLUGIN_ROOT or pass --plugin-root.",
+            "ERROR: Could not resolve plugin root. Set $CLAUDE_PLUGIN_ROOT, install "
+            "the plugin, or pass --plugin-root.",
             err=True,
         )
         sys.exit(1)
