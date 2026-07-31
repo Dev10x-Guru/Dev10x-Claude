@@ -443,8 +443,20 @@ def clean(
 @permission.command(name="enumerate-mcp")
 @click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
 @click.option("--quiet", is_flag=True, help="Suppress per-file details")
-def enumerate_mcp(*, dry_run: bool, quiet: bool) -> None:
-    """Expand `mcp__plugin_Dev10x_*` wildcards into enumerated tool names."""
+@click.option(
+    "--plugin-root",
+    "plugin_root",
+    type=click.Path(file_okay=False, exists=True),
+    default=None,
+    help="Override the auto-detected plugin root (checkout or installed cache).",
+)
+def enumerate_mcp(*, dry_run: bool, quiet: bool, plugin_root: str | None) -> None:
+    """Expand `mcp__plugin_Dev10x_*` wildcards into enumerated tool names.
+
+    Exits non-zero when the tool catalog could not be built, so a
+    discovery failure is never mistaken for "no wildcards to expand"
+    (GH-919). A clean run that found nothing to change exits 0.
+    """
     from dev10x.skills.permission import enumerate_mcp as mod
 
     ctx = _require_settings(show_config=True, quiet=quiet)
@@ -454,7 +466,17 @@ def enumerate_mcp(*, dry_run: bool, quiet: bool) -> None:
     if dry_run and not quiet:
         click.echo("(dry run — no files will be modified)\n")
 
-    mod.enumerate_settings(ctx.settings_files, dry_run=dry_run, quiet=quiet)
+    result = mod.enumerate_settings(
+        ctx.settings_files,
+        dry_run=dry_run,
+        quiet=quiet,
+        plugin_root_override=Path(plugin_root) if plugin_root else None,
+    )
+    if isinstance(result, ErrorResult):
+        click.echo(f"ERROR: {result.error}", err=True)
+        sys.exit(1)
+    for message in result.value["messages"]:
+        click.echo(message)
 
 
 @permission.command(name="promote-plan")
