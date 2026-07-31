@@ -1146,14 +1146,15 @@ Instead report: "Skill X invoked `gh pr view` directly 3 times
 **Runs in main agent after Phase 6 (forensic) or directly from
 Phase 0 disposition (lightweight "Select & file now").**
 
-Check whether any findings warrant reporting to the Dev10x
-plugin maintainers.
+Check whether any findings warrant reporting to the maintainers of
+the plugin that owns the offending skill.
 
 **Sub-step A: Collect upstream-relevant findings**
 
 Scan all findings from Phases 2–6 (forensic) or from the inline
 Phase 0 analysis (lightweight) and select those that relate
-to Dev10x plugin skills (under `~/.claude/plugins/`). Include:
+to a skill shipped by **any** installed plugin (under
+`~/.claude/plugins/`) — not only Dev10x. Include:
 - `SKILL_UPDATE`, `GAP`, `SKIPPED_STEP`
 - `DEVIATED` with assessment `regression`
 - `PREFIX_POISONED_*`, `HOOK_BLOCKED_RETRY`, `REDUNDANT_UV_PREFIX`
@@ -1161,7 +1162,36 @@ to Dev10x plugin skills (under `~/.claude/plugins/`). Include:
 Exclude findings about user-local skills (`~/.claude/skills/`),
 memory files, or `settings.local.json` — those are local-only.
 
+Record the **absolute skill path** alongside each finding. Sub-step
+A1 needs it to identify the owning plugin.
+
 If no upstream-relevant findings exist, mark Phase 7 completed.
+
+**Sub-step A1: Detect skill origin (REQUIRED, GH-816)**
+
+Every installed plugin's skills live under `~/.claude/plugins/`, so
+the path alone does not identify the owner. Resolve it explicitly:
+
+```
+mcp__plugin_Dev10x_cli__resolve_plugin_origin(
+    skill_paths=["<abs path per upstream-relevant finding>", ...])
+```
+
+The tool maps each path's `cache/<marketplace>/<plugin>/<version>/`
+(or `marketplaces/<marketplace>/<plugin>/`) segments to the
+marketplace's `source.repo` / `source.url` in
+`known_marketplaces.json`, and returns:
+
+- `targets[]` — one per distinct destination repo, each carrying
+  `repo`, `issue_tracker`, `marketplace`, `plugin`, `version`,
+  `is_dev10x`, and the `skill_paths` that resolved to it
+- `unresolved[]` — paths with no derivable owner, each with a
+  `reason`
+
+**Never default an unresolved or non-Dev10x finding to the Dev10x
+tracker.** Findings can span multiple plugins; carry the per-target
+grouping through to sub-step D so each repo receives only its own
+findings.
 
 **Sub-step B: Ask user whether to report**
 
@@ -1170,6 +1200,30 @@ question) to ask whether to file upstream. Present the count
 of upstream-relevant findings and two options: "File issue
 (Recommended)" to delegate to `Dev10x:audit-file`, or
 "Skip" to keep findings local only.
+
+If the user selects **Skip**, mark Phase 7 completed and end.
+
+**Sub-step B2: Confirm the target tracker (REQUIRED, GH-816)**
+
+Sub-step B confirmed *whether* to file. This gate confirms *where*
+— the destination is verified, never assumed.
+
+**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text, call
+spec: [`tool-calls/ask-target-tracker.md`](tool-calls/ask-target-tracker.md)).
+Build one option per `targets[]` entry from sub-step A1, plus:
+
+- **`<owner>/<repo>` (Recommended)** — a detected target; mark the
+  sole detected target as Recommended
+- **Enter a different repo** — user supplies `owner/repo`
+- **Skip — keep findings local** — file nothing
+
+Set `multiSelect: true` when two or more targets were detected, so
+the user confirms each destination.
+
+**Adaptive friction behavior:** This gate is **ALWAYS_ASK** — it
+fires at every friction level, including `adaptive`. Misfiling
+sends a finding to the wrong maintainer, which no auto-advance
+default can undo.
 
 If the user selects **Skip**, mark Phase 7 completed and end.
 
@@ -1191,24 +1245,31 @@ mark it `[needs-user-decision]` in the findings file and let
 `Dev10x:audit-file` Step 3 raise the `AskUserQuestion` gate.
 Do NOT silently include unscrubbed text.
 
-**Sub-step D: Delegate to Dev10x:audit-file**
+**Sub-step D: Delegate to Dev10x:audit-file (once per target repo)**
 
-Write the **scrubbed** findings summary to a temp file:
+For **each** repo confirmed in sub-step B2, write that repo's
+scrubbed findings to its own temp file:
 
 ```bash
 /tmp/Dev10x/bin/mktmp.sh skill-audit findings .md
 ```
 
-Write the scrubbed upstream-relevant findings table and proposed
-fixes to that file, then invoke:
+Include only the findings whose `skill_paths` resolved to that
+repo, plus a `**Target repo**: <owner>/<repo>` line in the file's
+Session Context block. Then invoke:
 
 ```
-Skill(skill="Dev10x:audit-file", args="<findings-file-path>")
+Skill(skill="Dev10x:audit-file",
+  args="--repo <owner>/<repo> <findings-file-path>")
 ```
+
+The `--repo` argument is **required** — `Dev10x:audit-file` files
+at the repo it is given and never falls back to a default tracker.
 
 The `Dev10x:audit-file` skill handles version detection,
-issue body generation, and `gh issue create`. Mark Phase 7
-completed after delegation returns.
+issue body generation, and issue creation. Mark Phase 7 completed
+after every delegation returns. Report any `unresolved[]` findings
+as unfiled in the final summary rather than filing them anywhere.
 
 ---
 
@@ -1243,10 +1304,18 @@ completed after delegation returns.
   only does JSON/YAML parsing, prefer `jq` or `yq` over inline
   `python3 -c "import json..."`. Flag Python one-liners that could be
   replaced with a single `jq`/`yq` invocation as `PREFER_JQ_YQ`.
-- **Upstream reporting scope**: Phase 7 only considers findings
-  about Dev10x plugin skills (under `~/.claude/plugins/`). User-
-  local skills, memory updates, and permission rule changes are
-  local-only and never filed upstream.
+- **Upstream reporting scope (GH-816)**: Phase 7 considers findings
+  about skills shipped by **any** installed plugin (under
+  `~/.claude/plugins/`), not only Dev10x. Each finding is routed to
+  its own plugin's issue tracker, resolved via sub-step A1 and
+  confirmed at the sub-step B2 gate — a non-Dev10x plugin's finding
+  is neither dropped nor filed at the Dev10x repo. User-local
+  skills (`~/.claude/skills/`), memory updates, and permission rule
+  changes are local-only and never filed upstream.
+- **Never guess a destination**: when origin resolution returns a
+  path under `unresolved[]`, report it as unfiled. Filing a finding
+  at a guessed repo wastes a maintainer's triage and loses the
+  signal for the real owner.
 - **Delegation over embedding**: Phase 7 delegates issue filing to
   `Dev10x:audit-file` rather than implementing it inline. This
   keeps skill-audit focused on analysis and lets users who don't

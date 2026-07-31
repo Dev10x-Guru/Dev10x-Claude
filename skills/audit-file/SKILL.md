@@ -1,8 +1,9 @@
 ---
 name: Dev10x:audit-file
 description: >
-  File skill-audit findings as a GitHub issue at the Dev10x plugin repo.
-  Invoked by skill-audit Phase 7 when the user opts in.
+  File skill-audit findings as a GitHub issue at the plugin repo that
+  owns the offending skill. Invoked by skill-audit Phase 7 with the
+  target repo confirmed at its destination gate.
   TRIGGER when: skill-audit Phase 7 completes and user opts to file upstream.
   DO NOT TRIGGER when: no audit findings exist, or user wants to review
   findings before filing.
@@ -23,18 +24,40 @@ allowed-tools:
 # Audit Report — File Findings Upstream
 
 Generate a structured GitHub issue from skill-audit findings
-and file it at `Dev10x-Guru/dev10x-claude`.
+and file it at the plugin repo that owns the offending skill.
 
 ## When to Use
 
 - Delegated by `Dev10x:skill-audit` Phase 7 after the user
-  approves upstream reporting
+  approves upstream reporting **and** confirms the destination
+  tracker at the Phase 7 sub-step B2 gate
 - Can also be invoked standalone with a findings file
 
 ## Arguments
 
-One required argument: path to a findings markdown file
-produced by `Dev10x:skill-audit`. The file contains:
+Two arguments:
+
+1. `--repo <owner>/<repo>` — the target issue tracker (GH-816).
+   Required when the caller resolved a destination. Skills from
+   every installed plugin live under `~/.claude/plugins/`, so the
+   owner cannot be inferred here — the caller resolves it via
+   `mcp__plugin_Dev10x_cli__resolve_plugin_origin` and confirms it
+   with the user.
+2. Path to a findings markdown file produced by
+   `Dev10x:skill-audit`.
+
+**Target repo resolution:**
+
+| Input | Behavior |
+|-------|----------|
+| `--repo` passed | File there. Never override it. |
+| No `--repo`, findings file has a `**Target repo**:` line | Use that value. |
+| Neither present | **REQUIRED: Call `AskUserQuestion`** asking which repo receives the issue (do NOT use plain text, do NOT silently default to `Dev10x-Guru/dev10x-claude`). Offer the detected plugin repos when the findings name one, plus a free-text override. |
+
+Store the resolved value as `$TARGET_REPO` — every later step
+(version detection, label sync, filing) uses it.
+
+The findings file contains:
 
 ```markdown
 ## Session Context
@@ -42,6 +65,7 @@ produced by `Dev10x:skill-audit`. The file contains:
 - **Repo**: {repo-name}
 - **Branch**: {branch-name}
 - **Date**: {audit-date}
+- **Target repo**: {owner}/{repo}
 
 ## Upstream Findings
 
@@ -68,8 +92,16 @@ If empty or missing, inform the user and exit.
 
 ### Step 2: Determine plugin version
 
+Report the version of the plugin the findings are **about**, not
+the Dev10x version. The caller's origin resolution supplies the
+marketplace, plugin, and version; when the findings file carries a
+`**Plugin**: {marketplace}/{plugin} {version}` line, use it
+directly.
+
+Otherwise list the owning plugin's cache directory:
+
 ```bash
-ls ~/.claude/plugins/cache/Dev10x-Guru/dev10x-claude/
+ls ~/.claude/plugins/cache/{marketplace}/{plugin}/
 ```
 
 Use the version directory name (e.g., `0.19.0.dev0`). If the
@@ -78,7 +110,7 @@ cache directory is not found, use `unknown`.
 ### Step 3: Fictionalize proprietary information (REQUIRED)
 
 **Treat the source session as private by default.** The upstream
-issue is a public artifact at `Dev10x-Guru/Dev10x-Claude` and MUST
+issue is a public artifact at `$TARGET_REPO` and MUST
 NOT disclose any identifier from a non-public repository, project,
 branch, ticket tracker, file path, person, or service that is not
 part of the public Dev10x plugin.
@@ -118,7 +150,7 @@ Build the issue body from the **fictionalized** findings:
 ```markdown
 ## Audit Findings
 
-**Plugin version**: Dev10x {version}
+**Plugin**: {plugin} {version} (marketplace: {marketplace})
 **Session context**: {fictional-org}/{fictional-repo} / {fictional-branch}
 **Audit date**: {date}
 
@@ -192,16 +224,20 @@ filing, fetch the current label set once and create only the
 missing ones:
 
 ```bash
-gh label list --repo Dev10x-Guru/Dev10x-Claude --limit 200 \
+gh label list --repo "$TARGET_REPO" --limit 200 \
     --json name -q '.[].name' > /tmp/Dev10x/skill-audit/existing-labels.txt
 
 for label in $(echo "$LABELS" | tr ',' ' '); do
     grep -qxF "$label" /tmp/Dev10x/skill-audit/existing-labels.txt || \
-        gh label create "$label" --repo Dev10x-Guru/Dev10x-Claude \
+        gh label create "$label" --repo "$TARGET_REPO" \
             --color "$COLOR_FOR_CATEGORY" \
             --description "$DESC_FOR_CATEGORY"
 done
 ```
+
+A third-party repo may reject label creation (no write access). On
+failure, drop the missing labels and file with the labels that do
+exist rather than aborting the report.
 
 Colors and descriptions per category live in
 `references/labels.md`. `gh label create` is idempotent here
@@ -217,7 +253,7 @@ derived in Step 7:
 
 ```
 Skill(skill="Dev10x:ticket-create",
-  args="--repo Dev10x-Guru/dev10x-claude --body-file {temp-file-path} --label {LABELS}")
+  args="--repo {TARGET_REPO} --body-file {temp-file-path} --label {LABELS}")
 ```
 
 The ticket-create skill reads the first line as the title when
@@ -232,9 +268,14 @@ and the temp file path so the user can file manually.
 
 - **Always use `--body-file`**: Never pass the body inline via
   `--body` — markdown tables break shell quoting.
-- **Plugin skills only**: This skill files issues about Dev10x
-  plugin skills. User-local findings should never appear in the
-  issue body.
+- **Plugin skills only**: This skill files issues about skills
+  shipped by an installed plugin. User-local findings should never
+  appear in the issue body.
+- **Destination is supplied, never assumed (GH-816)**: file at
+  `$TARGET_REPO`. A finding about a non-Dev10x plugin's skill
+  belongs at that plugin's tracker. Do NOT fall back to
+  `Dev10x-Guru/dev10x-claude` when `--repo` is absent — raise the
+  `AskUserQuestion` gate documented under Arguments instead.
 - **No transcript dumps**: Evidence sections include 2-3 lines
   of context per finding, not raw transcript blocks.
 - **One issue per audit**: Batch all findings into a single

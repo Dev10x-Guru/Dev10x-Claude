@@ -114,8 +114,20 @@ class ClaudeDir:
         return cls._resolve("skills", "Dev10x:upgrade-cleanup", "projects.yaml")
 
     @classmethod
+    def plugins_dir(cls) -> Path:
+        return cls._resolve("plugins")
+
+    @classmethod
     def plugins_cache_dir(cls) -> Path:
         return cls._resolve("plugins", "cache")
+
+    @classmethod
+    def plugins_marketplaces_dir(cls) -> Path:
+        return cls._resolve("plugins", "marketplaces")
+
+    @classmethod
+    def known_marketplaces_json(cls) -> Path:
+        return cls._resolve("plugins", "known_marketplaces.json")
 
     @classmethod
     def platforms_yaml(cls) -> Path:

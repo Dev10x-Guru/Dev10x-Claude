@@ -123,6 +123,7 @@ one session). Use these shapes verbatim:
 | `resolve_review_thread` | `thread_ids` (list) | singular `thread_id` |
 | `resolve_gate` | `gate` (toggle name); optional `context` dict of gate facts | passing preset/friction values — the tool reads session policy itself (ADR-0016 D-2) |
 | `pr_close` | `pr_number` | `number` (that's `issue_close`'s param name) |
+| `resolve_plugin_origin` | `skill_paths` (list of absolute paths) | singular `skill_path` |
 | `pin_gate_preset` | `preset`; optional `scope` (`repo` default / `repo-only` / `dir`) | passing a `match` or a path — the tool derives the repo stem itself |
 
 Behavioral caveats:
@@ -221,6 +222,7 @@ supporting each tool:
 | `next_worktree_name` | `cli` | PR #126 | v0.25.0+ |
 | `setup_aliases` | `cli` | PR #288 | v0.30.0+ |
 | `mktmp` | `cli` | PR #160 | v0.26.0+ |
+| `resolve_plugin_origin` | `cli` | GH-816 | v0.92.0+ |
 | `audit_hook_log_path` | `cli` | GH-29 | v0.69.0+ |
 | `audit_hook_recent` | `cli` | GH-29 | v0.69.0+ |
 | `record_upgrade` | `cli` | GH-109 | v0.72.0+ |

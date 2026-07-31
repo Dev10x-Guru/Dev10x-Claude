@@ -25,6 +25,11 @@
       "id": "early-insight-gate",
       "name": "Early-Insight Gate",
       "description": "Phase 0 detects narrow, transcript-evident questions, presents inline findings, and routes via AskUserQuestion with three options (select & file, step back, discard) without dispatching wave subagents"
+    },
+    {
+      "id": "target-tracker-gate",
+      "name": "Target Tracker Gate",
+      "description": "Phase 7 resolves each offending skill's owning plugin via resolve_plugin_origin and confirms the destination repo with an AskUserQuestion gate before delegating to Dev10x:audit-file (GH-816)"
     }
   ],
   "evals": [
@@ -205,6 +210,62 @@
           "check": "tool_called",
           "tool": "TaskCreate",
           "signal": "All 10 setup/wave/synthesis tasks are created"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "target-tracker-gate-confirms-destination",
+      "prompt": "/Dev10x:skill-audit the polish skill from the impeccable plugin skipped its documented confirmation step",
+      "description": "Tests that Phase 7 resolves the offending skill's owning plugin and confirms the destination tracker before filing, so a finding about a non-Dev10x plugin does not land at the Dev10x repo (GH-816).",
+      "setup": {
+        "explicit_path": "not provided",
+        "offending_skill_path": "~/.claude/plugins/cache/impeccable/impeccable/1.3.0/skills/polish/SKILL.md",
+        "invocation": "/Dev10x:skill-audit the polish skill from the impeccable plugin skipped its documented confirmation step"
+      },
+      "dimensions": ["target-tracker-gate"],
+      "assertions": [
+        {
+          "id": "origin_resolution_called",
+          "text": "Phase 7 sub-step A1 calls resolve_plugin_origin with the offending skill path",
+          "check": "tool_called",
+          "tool": "mcp__plugin_Dev10x_cli__resolve_plugin_origin",
+          "signal": "Origin is resolved from the path, not assumed from the session's plugin"
+        },
+        {
+          "id": "tracker_gate_uses_tool",
+          "text": "Phase 7 sub-step B2 calls AskUserQuestion (not plain text) to confirm the destination",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion fires after origin detection and before any issue is created"
+        },
+        {
+          "id": "tracker_gate_shows_detected_repo",
+          "text": "Gate presents the detected owner repo as an option",
+          "check": "output_contains",
+          "signals": ["pbakaus/impeccable", "Enter a different repo", "Skip"]
+        },
+        {
+          "id": "no_dev10x_default",
+          "text": "The Dev10x repo is not used as the destination for a non-Dev10x plugin finding",
+          "check": "behavioral",
+          "assertion": "destination_matches_detected_owner",
+          "signal": "audit-file is invoked with --repo pbakaus/impeccable, never Dev10x-Guru/dev10x-claude"
+        },
+        {
+          "id": "audit_file_receives_repo",
+          "text": "Delegation to Dev10x:audit-file carries the confirmed --repo argument",
+          "check": "tool_called",
+          "tool": "Skill",
+          "args_contain": "--repo",
+          "signal": "Phase 7 sub-step D passes the confirmed repo to Dev10x:audit-file"
+        },
+        {
+          "id": "gate_not_auto_advanced",
+          "text": "The destination gate is ALWAYS_ASK and is not auto-advanced at adaptive friction",
+          "check": "behavioral",
+          "assertion": "gate_requires_user_response",
+          "signal": "Execution blocks until the user confirms the tracker, at every friction level"
         }
       ]
     }
