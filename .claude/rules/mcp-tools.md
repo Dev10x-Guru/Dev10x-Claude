@@ -125,8 +125,16 @@ one session). Use these shapes verbatim:
 | `pr_close` | `pr_number` | `number` (that's `issue_close`'s param name) |
 | `resolve_plugin_origin` | `skill_paths` (list of absolute paths) | singular `skill_path` |
 | `pin_gate_preset` | `preset`; optional `scope` (`repo` default / `repo-only` / `dir`) | passing a `match` or a path — the tool derives the repo stem itself |
+| `pr_ready` | `pr_number`; optional `undo` (bool) | assuming it only publishes — `undo=true` returns a PR to draft |
 
 Behavioral caveats:
+
+- `pr_ready` flips a PR in both directions: omit `undo` to publish a
+  draft, pass `undo=true` to convert a published PR back to draft
+  (GH-931). Raw `gh pr ready --undo` is hook-blocked like every other
+  form, so this parameter is the only sanctioned way to un-publish —
+  which is the *safe* direction when a problem surfaces after marking
+  ready. The success payload carries `draft` reflecting the new state.
 
 - `issue_close` called with a pull-request number fails loud with
   `"N is a pull request; use pr_close"` instead of surfacing the raw

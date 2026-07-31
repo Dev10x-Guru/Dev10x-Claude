@@ -1,13 +1,48 @@
 from __future__ import annotations
 
 import re
+import shlex
 from dataclasses import dataclass, field
-from functools import cached_property
+from functools import cached_property, lru_cache
 from typing import Any
 
 _SUBCOMMAND_BOUNDARY = r"(?![-\w])"
 
 _SEARCH_TOOLS = frozenset({"find", "grep", "fgrep", "egrep", "rg", "ag", "ack", "xargs"})
+
+# Executables that accept *global* options before their subcommand, so the
+# subcommand is not necessarily the second token (GH-931 finding 3).
+_SUBCOMMAND_EXECUTABLES = frozenset({"git", "gh"})
+
+# Global options consuming a following value (`git -C /path push`) — either as
+# a separate token or in `--opt=value` form.
+_GLOBAL_VALUE_OPTIONS = frozenset(
+    {
+        "-C",
+        "-c",
+        "--git-dir",
+        "--work-tree",
+        "--namespace",
+        "--exec-path",
+        "--config-env",
+        "--repo",
+        "-R",
+    }
+)
+
+# Global options taking no value (`git --no-pager push`).
+_GLOBAL_FLAG_OPTIONS = frozenset(
+    {
+        "-p",
+        "-P",
+        "--paginate",
+        "--no-pager",
+        "--bare",
+        "--literal-pathspecs",
+        "--no-replace-objects",
+        "--no-optional-locks",
+    }
+)
 
 
 def _resolved_executable(command: str) -> str:
@@ -46,6 +81,60 @@ def _is_search_command(command: str) -> bool:
     if "|" in command or "-exec" in command:
         return False
     return _resolved_executable(command=command) in _SEARCH_TOOLS
+
+
+@lru_cache(maxsize=256)
+def _strip_global_options(*, command: str) -> str:
+    """Return ``command`` with git/gh global options removed.
+
+    Rule patterns are command-name prefixes (``git push``, ``gh pr create``)
+    matched with :meth:`re.Pattern.search`. A global option between the
+    executable and the subcommand breaks that adjacency, so ``git -C /path
+    push`` matched no ``git push`` rule and the guard was evadable by a
+    trivial reformulation (GH-931 finding 3). Normalizing here fixes every
+    ``git <verb>`` / ``gh <verb>`` rule at once instead of hardening 42 YAML
+    patterns individually.
+
+    Generalizes the ``-C``-only rewriting that
+    :data:`~dev10x.domain.common.bash_tokens.GIT_C_DIR_RE` supports for
+    DX007's advisory no-op check — that regex covers one option and only
+    fires when the path equals the CWD, so it cannot close this hole. Extend
+    the option sets above rather than adding a second normalizer (GH-583 N24
+    is the cautionary tale for duplicating git-token knowledge).
+
+    Cached because the result depends only on the command string while
+    :meth:`MatchingRule.matches_command` is called once per rule — ~42 times
+    per Bash call against the shipped catalog. Re-tokenizing per rule would
+    put avoidable work on the PreToolUse hook path, which has a documented
+    latency budget and a CI regression gate.
+
+    Commands whose executable takes no global options are returned unchanged,
+    so a pattern appearing as an *argument* (``mktmp.sh git commit-msg``)
+    keeps its existing non-match behavior.
+    """
+    try:
+        parts = shlex.split(command)
+    except ValueError:
+        parts = command.split()
+    if not parts:
+        return command
+    if parts[0].split("/")[-1] not in _SUBCOMMAND_EXECUTABLES:
+        return command
+
+    idx = 1
+    while idx < len(parts):
+        token = parts[idx]
+        if token in _GLOBAL_VALUE_OPTIONS:
+            idx += 2
+            continue
+        if token in _GLOBAL_FLAG_OPTIONS:
+            idx += 1
+            continue
+        if "=" in token and token.split("=", 1)[0] in _GLOBAL_VALUE_OPTIONS:
+            idx += 1
+            continue
+        break
+    return " ".join([parts[0], *parts[idx:]])
 
 
 def _anchor_subcommand(*, pattern: str) -> str:
@@ -135,7 +224,8 @@ class MatchingRule:
         return msg
 
     def matches_command(self, *, command: str) -> bool:
-        if not any(p.search(command) for p in self.compiled_patterns):
+        candidates = {command, _strip_global_options(command=command)}
+        if not any(p.search(c) for p in self.compiled_patterns for c in candidates):
             return False
         if any(exc in command for exc in self.except_):
             return False
