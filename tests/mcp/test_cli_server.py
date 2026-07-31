@@ -825,6 +825,36 @@ class TestPrReadyMcp:
             "--repo",
             "owner/repo",
         ]
+        assert result["draft"] is False
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_undo_converts_back_to_draft(
+        self,
+        mock_run: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        """GH-931 finding 2: un-publishing had no available path.
+
+        Raw ``gh pr ready --undo`` is hook-blocked like every other form,
+        and the tool that replaced it could only publish — so the *safe*
+        direction (retracting a PR after spotting a problem) was
+        unreachable through any sanctioned surface.
+        """
+        mock_run.return_value = _completed(stdout="")
+
+        result = await cli_server.pr_ready(pr_number=7, undo=True)
+
+        assert mock_run.call_args.kwargs["args"] == [
+            "gh",
+            "pr",
+            "ready",
+            "7",
+            "--repo",
+            "owner/repo",
+            "--undo",
+        ]
+        assert result["draft"] is True
 
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run", new_callable=AsyncMock)

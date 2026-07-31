@@ -1101,8 +1101,9 @@ async def pr_ready(
     *,
     pr_number: int,
     repo: str | None = None,
+    undo: bool = False,
 ) -> Result[dict[str, Any]]:
-    """Mark a draft PR as ready for review via ``gh pr ready`` (GH-779).
+    """Flip a PR between draft and ready-for-review via ``gh pr ready`` (GH-779).
 
     The ``draft`` flag is not PATCHable through the pulls endpoint, so
     :func:`update_pr` cannot un-draft a PR — un-drafting needs the
@@ -1112,28 +1113,36 @@ async def pr_ready(
     not apply. Repos whose CI skips draft PRs must mark ready BEFORE
     monitoring CI, or the monitor polls a PR that never registers checks.
 
+    ``undo=True`` converts a published PR back to draft (GH-931 finding 2).
+    Raw ``gh pr ready --undo`` is hook-blocked like every other form, so
+    without this parameter the un-publish direction had no available path
+    at all — and un-publishing is the *safe* direction, the correct
+    response to spotting a problem after marking ready.
+
     Args:
-        pr_number: PR number to mark ready.
+        pr_number: PR number to flip.
         repo: Repository (owner/repo). Auto-detected if omitted.
+        undo: Convert back to draft instead of marking ready.
 
     Returns:
-        ok({"pr_number", "url", "repo"}) on success, err(...) otherwise.
+        ok({"pr_number", "url", "repo", "draft"}) on success, err(...) otherwise.
     """
     repo_result = await _resolve_repo(repo)
     if isinstance(repo_result, ErrorResult):
         return err(repo_result.error)
     repo_ref = repo_result.value
 
-    result = await async_run(
-        args=["gh", "pr", "ready", str(pr_number), "--repo", str(repo_ref)],
-        timeout=30,
-    )
+    args = ["gh", "pr", "ready", str(pr_number), "--repo", str(repo_ref)]
+    if undo:
+        args.append("--undo")
+
+    result = await async_run(args=args, timeout=30)
 
     if result.returncode != 0:
         return err(result.stderr.strip() or result.stdout.strip())
 
     url = f"https://github.com/{repo_ref}/pull/{pr_number}"
-    return ok({"pr_number": pr_number, "url": url, "repo": str(repo_ref)})
+    return ok({"pr_number": pr_number, "url": url, "repo": str(repo_ref), "draft": undo})
 
 
 async def pr_close(

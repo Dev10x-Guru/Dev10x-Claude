@@ -217,11 +217,11 @@ Collect the result as a comma-separated string (e.g.,
 `enhancement,audit-2026-05-16,skill:work-on,routing-bypass`).
 Store it as `$LABELS` for Step 8.
 
-### Step 8: Ensure labels exist on the repo
+### Step 8: Ensure labels exist on the repo (best-effort)
 
-GitHub fails issue creation if any label is missing. Before
-filing, fetch the current label set once and create only the
-missing ones:
+GitHub fails issue creation if any label is missing, so try to
+reconcile the set first. Fetch the current labels once and create
+only the missing ones:
 
 ```bash
 gh label list --repo "$TARGET_REPO" --limit 200 \
@@ -235,13 +235,33 @@ for label in $(echo "$LABELS" | tr ',' ' '); do
 done
 ```
 
-A third-party repo may reject label creation (no write access). On
-failure, drop the missing labels and file with the labels that do
-exist rather than aborting the report.
-
 Colors and descriptions per category live in
 `references/labels.md`. `gh label create` is idempotent here
 because the loop only runs for missing labels.
+
+**Labels are best-effort — never a filing precondition (GH-931
+finding 6).** Every step above can fail for a reporter who is not
+a maintainer of `$TARGET_REPO`, and filing the findings matters
+more than bundling them:
+
+| Failure | Cause | Response |
+|---------|-------|----------|
+| `unknown command "label" for "gh"` | `gh` build without the subcommand | Skip reconciliation entirely; go to the no-label fallback |
+| `403` / `404` on `label create` | Label creation needs push access | Drop the labels that could not be created |
+| `403` / `404` applying labels at filing | Applying labels needs push (triage) access | Re-file with **no** `--label` flag |
+
+**No-label fallback:** when the label set cannot be reconciled or
+applied, file with no labels and record the intended set in the
+issue body instead, so a maintainer can apply them afterwards:
+
+```markdown
+**Suggested labels** (filed without them — no push access):
+`enhancement`, `audit-2026-07-31`, `skill:git`
+```
+
+Never abort the filing because labels are unavailable. An audit
+finding that never reaches the tracker is a total loss; an
+unlabelled one is merely harder to bundle.
 
 ### Step 9: File the issue
 
@@ -249,12 +269,24 @@ Delegate to `Dev10x:ticket-create` — never use raw `gh issue create`.
 Write the title as the first line of the temp file (followed by a
 blank line and the body) to avoid permission friction from special
 characters in the args string. Pass the comma-separated label set
-derived in Step 7:
+derived in Step 7 **only when Step 8 confirmed every label exists
+and is applicable**:
 
 ```
 Skill(skill="Dev10x:ticket-create",
   args="--repo {TARGET_REPO} --body-file {temp-file-path} --label {LABELS}")
 ```
+
+When Step 8 hit any failure above, omit the `--label` flag and
+rely on the in-body "Suggested labels" line instead:
+
+```
+Skill(skill="Dev10x:ticket-create",
+  args="--repo {TARGET_REPO} --body-file {temp-file-path}")
+```
+
+If a filing attempt *with* labels is rejected for permissions,
+retry once without the flag rather than reporting failure.
 
 The ticket-create skill reads the first line as the title when
 no `--title` flag is provided.

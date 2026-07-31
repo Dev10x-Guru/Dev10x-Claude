@@ -377,23 +377,38 @@ class TestGhPrGetScriptContractLint:
 
     @pytest.fixture(scope="class")
     def gh_pr_view_json_fields(self, script_content: str) -> set[str]:
-        """Extract the field list from the ``gh pr view --json`` line specifically.
+        """Extract the field list requested by ``gh pr view --json``.
 
         The script also uses ``--json nameWithOwner`` for repo detection;
         we only want the ``gh pr view --json`` field list.
 
-        Handles the common shell pattern where ``--json`` is on a continuation
-        line after ``gh pr view "$NUMBER" --repo "$REPO" \\``.
+        Two shapes are supported. An inline list is read directly. Since
+        GH-931 the script instead passes ``--json "$FIELDS"`` so the field
+        set can be narrowed on retry when an older ``gh`` rejects a newer
+        field, so a variable reference is resolved back to its assignment.
+        Handles the common shell pattern where ``--json`` is on a
+        continuation line after ``gh pr view "$NUMBER" --repo "$REPO" \\``.
         """
         # Join continuation lines (backslash-newline) so the whole command
         # is on one logical line, then search for the PR view --json argument.
         logical = script_content.replace("\\\n", " ")
-        match = re.search(r"gh\s+pr\s+view\b[^#\n]*--json\s+([\w,]+)", logical)
+        match = re.search(r"gh\s+pr\s+view\b[^#\n]*--json\s+\"?\$?\{?([\w,]+)\}?\"?", logical)
         assert match is not None, (
             "Could not find 'gh pr view ... --json FIELDS' pattern in gh-pr-get.sh. "
             "Update the regex if the script format changed."
         )
-        return set(match.group(1).split(","))
+        requested = match.group(1)
+
+        if "," not in requested:
+            assignment = re.search(rf"^{re.escape(requested)}=([\w,]+)", script_content, re.M)
+            assert assignment is not None, (
+                f"'gh pr view --json' references ${requested} but no "
+                f"'{requested}=<fields>' assignment was found in gh-pr-get.sh. "
+                "Update the regex if the script format changed."
+            )
+            requested = assignment.group(1)
+
+        return set(requested.split(","))
 
     def test_merged_field_absent(self, script_content: str) -> None:
         """``merged`` is not a valid ``gh pr view`` JSON field (GH-329).

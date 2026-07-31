@@ -319,8 +319,11 @@ rules:
         tool: mcp__plugin_Dev10x_cli__pr_ready
         guardrails: structured responses, no Bash permission friction
         description: >
-          If the MCP server is unavailable, run gh pr ready <pr>
-          --repo <owner/repo> directly.
+          Covers both directions: omit `undo` to publish a draft, pass
+          `undo=true` to convert a published PR back to draft (GH-931
+          finding 2) — the safe response to spotting a problem after
+          marking ready. If the MCP server is unavailable, run
+          gh pr ready <pr> --repo <owner/repo> [--undo] directly.
     reason: >
       The draft flag is not PATCHable via update_pr, so un-drafting
       needs gh pr ready. The pr_ready MCP tool (GH-779) wraps it with

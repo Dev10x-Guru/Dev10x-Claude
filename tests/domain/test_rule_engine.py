@@ -256,3 +256,110 @@ class TestSubcommandBoundary:
         result = engine.evaluate_command(command="echo gh pr create-something")
 
         assert result is None
+
+
+class TestGlobalOptionEvasion:
+    """Regression coverage for GH-931 finding 3.
+
+    Patterns are command-name prefixes (``git push``), matched with
+    ``re.search`` against the raw command. A git/gh *global* option sits
+    between the executable and the subcommand, so ``git -C /path push``
+    contains no ``git push`` substring and every ``git <verb>`` rule was
+    silently evadable. A guardrail that can be bypassed by a trivial
+    reformulation reads as "the check passed" rather than "the check was
+    evaded", which is the worst failure mode for a guard.
+    """
+
+    @pytest.fixture()
+    def engine(self) -> RuleEngine:
+        return RuleEngine(
+            command_rules=[
+                Rule(
+                    name="git-push",
+                    matcher="Bash",
+                    patterns=["git push"],
+                    except_=["--force-with-lease"],
+                    compensations=[Compensation(type="use-skill", skill="Dev10x:git")],
+                ),
+                Rule(
+                    name="git-commit",
+                    matcher="Bash",
+                    patterns=["^git commit"],
+                    compensations=[Compensation(type="use-skill", skill="Dev10x:git-commit")],
+                ),
+            ],
+        )
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git -C /work/repo push --force origin main",
+            "git --git-dir=/work/repo/.git push --force origin main",
+            "git --git-dir /work/repo/.git push --force origin main",
+            "git -c user.name=x push --force origin main",
+            "git --no-pager push --force origin main",
+            "git --work-tree=/work/repo -C /work/repo push origin main",
+        ],
+    )
+    def test_global_options_do_not_evade_the_guard(
+        self,
+        engine: RuleEngine,
+        command: str,
+    ) -> None:
+        result = engine.evaluate_command(command=command)
+
+        assert result is not None
+        assert result.name == "git-push"
+
+    def test_anchored_pattern_still_matches_past_global_options(
+        self,
+        engine: RuleEngine,
+    ) -> None:
+        result = engine.evaluate_command(command="git -C /work/repo commit -m 'msg'")
+
+        assert result is not None
+        assert result.name == "git-commit"
+
+    def test_quoted_path_with_spaces_does_not_evade_the_guard(
+        self,
+        engine: RuleEngine,
+    ) -> None:
+        result = engine.evaluate_command(command='git -C "/work/my repo" push origin main')
+
+        assert result is not None
+        assert result.name == "git-push"
+
+    def test_except_pattern_still_honoured_after_normalization(
+        self,
+        engine: RuleEngine,
+    ) -> None:
+        result = engine.evaluate_command(command="git -C /work/repo push --force-with-lease")
+
+        assert result is None
+
+    def test_unrelated_subcommand_still_passes(self, engine: RuleEngine) -> None:
+        result = engine.evaluate_command(command="git -C /work/repo status --short")
+
+        assert result is None
+
+    def test_normalization_only_applies_to_git_and_gh(self, engine: RuleEngine) -> None:
+        result = engine.evaluate_command(command="/tmp/Dev10x/bin/mktmp.sh git commit-msg .txt")
+
+        assert result is None
+
+    def test_unbalanced_quote_falls_back_to_naive_split(self, engine: RuleEngine) -> None:
+        """An unparseable command must still be normalized, not skipped.
+
+        ``shlex.split`` raises on an unbalanced quote. Treating that as
+        "cannot normalize, therefore allow" would hand back the exact
+        evasion this guard closes, so the fallback keeps matching.
+        """
+        result = engine.evaluate_command(command='git -C "unclosed push --force origin main')
+
+        assert result is not None
+        assert result.name == "git-push"
+
+    def test_empty_command_matches_nothing(self, engine: RuleEngine) -> None:
+        result = engine.evaluate_command(command="")
+
+        assert result is None

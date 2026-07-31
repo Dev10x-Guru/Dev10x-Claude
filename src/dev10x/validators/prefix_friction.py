@@ -153,6 +153,17 @@ REDIRECT_THEN_POSITIONAL_RE = re.compile(
 # into two Bash tool calls. State-changing commands (rm, mv, cp,
 # mkdir, touch, kubectl apply, docker run, etc.) are intentionally
 # absent: forcing a split there would be more disruptive than helpful.
+#
+# GH-931 finding 5 asked for the inverse — allow a ';' chain when every
+# clause is individually read-only (the reported case was
+# `date +%F ; ls -la <dir>`). DECLINED, and deliberately so: firing on
+# read-only pairs is the whole point of the rule, not a false positive.
+# Allow-rule matching keys on the entire command string, so a chain of
+# two individually-allowed probes still matches no rule and still costs
+# a permission round trip — being read-only does not make it cheaper.
+# The rule is what keeps agents emitting one command per call, which is
+# also parallelizable. Do not narrow the head/tail set to "fix" this;
+# re-read this comment first.
 _CHAIN_HEAD_RE = (
     r"(?:find|grep|ls|rg|cat|head|tail|wc|"
     r"git|gh|pwd|which|whoami|env|date|printenv|"

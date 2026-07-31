@@ -354,23 +354,30 @@ async def pr_ready(
     pr_number: int,
     repo: str | None = None,
     cwd: str | None = None,
+    undo: bool = False,
 ) -> Result[dict]:
-    """Mark a draft PR as ready for review (GH-779).
+    """Flip a PR between draft and ready for review (GH-779).
 
     Wraps `gh pr ready`, the only surface that un-drafts a PR — the
     `draft` flag is not PATCHable via `update_pr`. Mark ready BEFORE
     monitoring CI in repos whose CI skips draft PRs, or the monitor
     polls a PR that never registers checks.
 
+    Pass `undo=True` to convert a published PR back to draft (GH-931
+    finding 2) — the safe direction when a problem surfaces after
+    marking ready, and previously unreachable because raw
+    `gh pr ready --undo` is hook-blocked.
+
     Args:
-        pr_number: PR number to mark ready.
+        pr_number: PR number to flip.
         repo: Repository (owner/repo). Auto-detected if omitted.
         cwd: Effective working directory (GH-979).
+        undo: Convert back to draft instead of marking ready.
 
     Returns:
-        Dictionary with keys: pr_number, url, repo.
+        Dictionary with keys: pr_number, url, repo, draft.
     """
-    return await gh.pr_ready(pr_number=pr_number, repo=repo)
+    return await gh.pr_ready(pr_number=pr_number, repo=repo, undo=undo)
 
 
 @github_tool

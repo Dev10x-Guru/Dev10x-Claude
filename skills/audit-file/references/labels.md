@@ -73,9 +73,16 @@ Color: `#D73A4A` (red). Description: tied to the anti-pattern.
    heuristic table; add each matching topical label once
 5. De-duplicate; cap at 8 labels per issue (GitHub UI noise)
 
-## Ensure-exists protocol
+## Ensure-exists protocol (best-effort)
 
-GitHub fails issue creation if a label is missing. Before filing:
+GitHub fails issue creation if a label is missing, so reconcile the
+set before filing. Every call below can fail for a reporter without
+push access to `$TARGET_REPO` — label *creation* needs push access
+and applying labels at filing needs triage access — and some `gh`
+builds ship without the `label` subcommand at all. Treat the whole
+protocol as best-effort: on any failure, file with no labels and
+list the intended set in the issue body instead (GH-931 finding 6).
+Filing beats bundling.
 
 `$TARGET_REPO` is the destination confirmed by the caller (GH-816)
 — a finding about a non-Dev10x plugin syncs labels at that
@@ -102,5 +109,11 @@ on duplicates and `--force` is not idempotent across descriptions.
 - ❌ Adding a label per finding row — labels are issue-level, not row-level
 - ❌ Creating labels with the real (non-fictional) skill name when the
   finding references a private project skill — public Dev10x skills only
-- ❌ Filing the issue without ensuring labels exist — `gh` fails the
-  whole call on the first missing label
+- ❌ Passing `--label` for a label that does not exist — `gh` fails the
+  whole call on the first missing label. Reconcile first, or omit the
+  flag entirely
+- ❌ **Aborting the filing because labels are unavailable** — a
+  non-maintainer can neither create nor apply labels, so a hard
+  precondition makes the issue unfileable for exactly the reporters
+  most likely to have findings (GH-931 finding 6). File unlabelled and
+  put the intended labels in the body
