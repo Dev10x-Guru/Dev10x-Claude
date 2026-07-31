@@ -82,6 +82,28 @@ async def audit_analyze_permissions(
 
 
 @server.tool()
+async def resolve_plugin_origin(skill_paths: list[str]) -> dict:
+    """Resolve which plugin repo owns each skill path (GH-816).
+
+    Used by skill-audit Phase 7 to confirm the issue tracker before
+    filing: skills from every installed plugin live under
+    `~/.claude/plugins/`, so a finding's destination must be derived
+    from its marketplace, never assumed to be Dev10x.
+
+    Args:
+        skill_paths: Absolute paths to skills under ~/.claude/plugins/.
+
+    Returns:
+        Dictionary with keys: targets (one per distinct repo, each with
+        marketplace, plugin, version, repo, issue_tracker, is_dev10x,
+        skill_paths), unresolved, target_count, unresolved_count.
+    """
+    from dev10x.domain.plugin_origin import resolve_skill_origins
+
+    return to_wire(resolve_skill_origins(skill_paths=skill_paths))
+
+
+@server.tool()
 async def audit_hook_log_path() -> dict:
     """Return the active audit-wrap JSONL log directory and today's log file.
 

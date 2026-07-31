@@ -25,6 +25,7 @@ allowed-tools:
   - mcp__plugin_Dev10x_cli__audit_extract_session
   - mcp__plugin_Dev10x_cli__audit_analyze_actions
   - mcp__plugin_Dev10x_cli__audit_analyze_permissions
+  - mcp__plugin_Dev10x_cli__resolve_plugin_origin
   - Bash(ls -t ~/.claude/:*)
   - Bash(wc:*)
   - Bash(git config --list:*)
@@ -32,6 +33,7 @@ allowed-tools:
   - Bash(ls ~/.claude/tools/:*)
   - Bash(find ~/.claude/skills:*)
   - Skill(Dev10x:ticket-create)
+  - Skill(Dev10x:audit-file)
 ---
 
 # Skill Audit
@@ -61,3 +63,23 @@ lives in [`instructions.md`](instructions.md).
 When this skill is invoked, Read `instructions.md` now and
 follow it end-to-end. `TaskCreate` calls, `AskUserQuestion`
 gates, and `Agent` dispatches documented there are REQUIRED.
+
+## Decision Gates
+
+Each gate below blocks execution until the user responds.
+**REQUIRED: Call `AskUserQuestion`** — do NOT use plain text.
+
+1. Phase 0 Step 0c — lightweight disposition (file / escalate /
+   discard). Call spec:
+   [`tool-calls/ask-early-insight.md`](tool-calls/ask-early-insight.md)
+2. Forensic Step 1.1 — confirm the auto-resolved session file.
+   Call spec:
+   [`tool-calls/ask-session-confirm.md`](tool-calls/ask-session-confirm.md)
+3. Phase 7 sub-step B — whether to report upstream
+4. Phase 7 sub-step B2 — **where** to report: confirm the issue
+   tracker(s) detected from each offending skill's owning plugin
+   (GH-816). Call spec:
+   [`tool-calls/ask-target-tracker.md`](tool-calls/ask-target-tracker.md)
+
+Gates 1, 2, and 4 are ALWAYS_ASK — they fire at every friction
+level, including `adaptive`.

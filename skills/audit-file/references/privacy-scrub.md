@@ -1,10 +1,15 @@
 # Privacy Scrubbing for Upstream Issue Bodies
 
 Treat the source session as private by default. The upstream issue
-filed at `Dev10x-Guru/Dev10x-Claude` is a public artifact and MUST
-NOT disclose any identifier from a non-public repository, project,
-branch, ticket tracker, file path, person, or service that is not
-part of the public Dev10x plugin.
+filed at `$TARGET_REPO` is a public artifact and MUST NOT disclose
+any identifier from a non-public repository, project, branch,
+ticket tracker, file path, person, or service that is not part of
+the public plugin being reported on.
+
+A third-party destination raises the bar: when `$TARGET_REPO` is
+another plugin's tracker (GH-816), Dev10x-internal identifiers —
+Dev10x issue numbers, internal skill names, plugin paths — are
+themselves out of scope for that audience. Scrub them the same way.
 
 ## Principle: Fictionalize, Don't Redact
 

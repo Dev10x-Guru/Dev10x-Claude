@@ -77,13 +77,17 @@ Color: `#D73A4A` (red). Description: tied to the anti-pattern.
 
 GitHub fails issue creation if a label is missing. Before filing:
 
+`$TARGET_REPO` is the destination confirmed by the caller (GH-816)
+— a finding about a non-Dev10x plugin syncs labels at that
+plugin's repo, not at the Dev10x one.
+
 ```bash
-gh label list --repo Dev10x-Guru/Dev10x-Claude --limit 200 \
+gh label list --repo "$TARGET_REPO" --limit 200 \
     --json name -q '.[].name' > /tmp/existing-labels.txt
 
 for label in $LABELS; do
     grep -qxF "$label" /tmp/existing-labels.txt || \
-        gh label create "$label" --repo Dev10x-Guru/Dev10x-Claude \
+        gh label create "$label" --repo "$TARGET_REPO" \
             --color "$COLOR" --description "$DESCRIPTION"
 done
 ```
