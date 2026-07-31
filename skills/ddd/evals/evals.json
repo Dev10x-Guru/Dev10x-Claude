@@ -40,6 +40,21 @@
       "id": "model-tier-gate",
       "name": "Discussion-Agent Model Tier Gate",
       "description": "In solo mode the skill asks ONCE per session — via AskUserQuestion batched with the persona-selection confirmation — which model tier to use for discussion agents (frontier recommended, sonnet, haiku with an explicit naive-output warning), persists the choice, and applies it to BOTH persona rounds and the devil's advocate. It never silently hard-codes haiku for personas."
+    },
+    {
+      "id": "assumption-write-guardrail",
+      "name": "[ASSUMPTION] Write Guardrail",
+      "description": "Content tagged [ASSUMPTION] is never persisted into model.md, decisions.md, or glossary.md via Edit(docs/**) until the human has explicitly confirmed it in a batched decision menu. Unconfirmed assumptions stay in the working narrative only."
+    },
+    {
+      "id": "authz-probe",
+      "name": "Authorization Probe Classification",
+      "description": "When actors/roles/visibility enter the language, the guided authorization probe classifies each guarded command's grant sentence into RBAC / ABAC / ReBAC / Capability — including the Capability bearer-invitation case for accountless actors, with forwardability/scope/expiry/redemption-identity probes — and records the model + engine choice as a [D-NNN] decision."
+    },
+    {
+      "id": "integration-probe",
+      "name": "Integration & Topology Probe Per-Edge Coverage",
+      "description": "Once bounded contexts are named and a deployment/interface question arises, the integration probe runs and fills one contract line (style, artifact, pattern) per context-map edge — not a single blanket answer for the whole map — and records the topology choice as a [D-NNN] decision."
     }
   ],
   "evals": [
@@ -174,6 +189,69 @@
           "dimension": "model-tier-gate",
           "check": "behavioral",
           "signal": "Frontier is marked (Recommended); haiku option carries an explicit naive-output warning; the selected tier is applied to persona dispatches AND the devil's advocate with no re-ask"
+        }
+      ]
+    },
+    {
+      "id": "assumption-not-written-before-confirmation",
+      "name": "[ASSUMPTION] content is not persisted before confirmation",
+      "description": "When the skill makes a reasonable assumption instead of interrupting, it tags the narrative [ASSUMPTION] and does not write that content into decisions.md/model.md/glossary.md until a later batched AskUserQuestion confirms it.",
+      "input": "/Dev10x:ddd new workshop, ambiguous aggregate boundary requiring an assumption",
+      "assertions": [
+        {
+          "dimension": "assumption-write-guardrail",
+          "check": "output_contains",
+          "value": "[ASSUMPTION]",
+          "signal": "Unconfirmed choice is tagged [ASSUMPTION] in the working narrative rather than silently decided"
+        },
+        {
+          "dimension": "assumption-write-guardrail",
+          "check": "tool_called_before",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion confirming the assumption occurs before any Edit(docs/**) writes that [ASSUMPTION]-tagged content into model.md, decisions.md, or glossary.md"
+        }
+      ]
+    },
+    {
+      "id": "authz-probe-classifies-capability",
+      "name": "Authorization probe classifies grant sentences including Capability",
+      "description": "Adding a shareable, accountless invitation surface triggers the guided authorization probe, which classifies the grant sentence as Capability and runs the bearer-invitation sub-probes.",
+      "input": "/Dev10x:ddd continue workshop, adding a shareable accountless invitation link for guest actors",
+      "assertions": [
+        {
+          "dimension": "authz-probe",
+          "check": "output_contains",
+          "value": "Capability",
+          "signal": "Grant sentence for the accountless-actor scenario is classified as Capability, not RBAC/ABAC/ReBAC"
+        },
+        {
+          "dimension": "authz-probe",
+          "check": "output_contains",
+          "value": "forwardability",
+          "signal": "Capability classification is followed by forwardability/scope/expiry/redemption-identity probes"
+        },
+        {
+          "dimension": "authz-probe",
+          "check": "behavioral",
+          "signal": "The model + engine choice is recorded as a [D-NNN] decision, and PEP/PDP/PIP/PRP/PAP boxes are placed on the context map"
+        }
+      ]
+    },
+    {
+      "id": "integration-probe-per-edge-contract",
+      "name": "Integration probe fills one contract line per context-map edge",
+      "description": "Once bounded contexts are named and someone asks about splitting into separate services, the integration probe runs and produces a distinct contract line for every context-map edge.",
+      "input": "/Dev10x:ddd continue workshop, three bounded contexts named, asking whether to split into separate services",
+      "assertions": [
+        {
+          "dimension": "integration-probe",
+          "check": "behavioral",
+          "signal": "A distinct contract line (style, artifact, pattern) is produced per context-map edge, not one blanket answer for the whole map"
+        },
+        {
+          "dimension": "integration-probe",
+          "check": "behavioral",
+          "signal": "Modular-monolith-vs-split-per-context topology choice is recorded as a [D-NNN] decision"
         }
       ]
     }

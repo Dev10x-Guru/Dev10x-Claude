@@ -32,19 +32,15 @@ Storming, Software Archetypes, and architecture stress testing.
 
 ## When to Use
 
-**Trigger on:**
-- Starting a new domain modeling session
-- Continuing or refining an existing domain model
-- Exploring a new feature area or extension
-- Stress-testing the architecture against a future scenario
-- Applying or recognizing Software Archetypes in the model
-- Scoping a feature that crosses bounded context boundaries
-- Resolving a contradiction found during implementation
+**Trigger on:** starting or continuing a domain modeling session,
+exploring a new feature area, stress-testing the architecture,
+applying/recognizing a Software Archetype, scoping a feature that
+crosses bounded context boundaries, or resolving an implementation
+contradiction.
 
-**Do NOT use for:**
-- Scoping a single well-defined ticket (use `ticket-scope` instead)
-- Writing an ADR for an already-decided topic (use `write-adr` prompt)
-- Pure implementation tasks with no domain questions
+**Do NOT use for:** scoping a single well-defined ticket (use
+`ticket-scope`), writing an ADR for an already-decided topic (use
+`write-adr`), or pure implementation tasks with no domain questions.
 
 ## Orchestration
 
@@ -53,69 +49,37 @@ This skill follows `references/task-orchestration.md` patterns.
 **Auto-advance:** Complete each step, immediately start the next — no checkpoints under adaptive friction.
 Only pause when batching questions per the process rules.
 
-**REQUIRED: Create tasks before ANY work.** After determining
-the session type, execute `TaskCreate` calls for the applicable
-steps. The task set varies by mode:
-
-**Continue / Stress-Test / Archetype mode:**
-1. `TaskCreate(subject="Load context", activeForm="Loading domain context")`
-2. `TaskCreate(subject="Exploration", activeForm="Exploring domain")`
-3. `TaskCreate(subject="Stress testing", activeForm="Stress testing model")`
-4. `TaskCreate(subject="Decision capture", activeForm="Capturing decisions")`
-5. `TaskCreate(subject="Produce artifacts", activeForm="Producing artifacts")`
-6. `TaskCreate(subject="Quality checklist", activeForm="Verifying quality")`
-
-**New workshop mode:**
-1. `TaskCreate(subject="Scaffold docs structure", activeForm="Scaffolding docs")`
-2. `TaskCreate(subject="Exploration", activeForm="Exploring domain")`
-3. `TaskCreate(subject="Stress testing", activeForm="Stress testing model")`
-4. `TaskCreate(subject="Decision capture", activeForm="Capturing decisions")`
-5. `TaskCreate(subject="Produce artifacts", activeForm="Producing artifacts")`
-6. `TaskCreate(subject="Quality checklist", activeForm="Verifying quality")`
-
-Set sequential dependencies. Mark each step `in_progress` when
-starting and `completed` when done. The quality checklist task
-serves as the final verification gate.
+**REQUIRED: Create tasks before ANY work.** After determining the
+session type (see `references/session-modes.md` § Determine Session
+Type), execute the `TaskCreate` calls for the applicable mode —
+**Continue / Stress-Test / Archetype** or **New workshop**. Both
+share the same 6-step shape (load-or-scaffold, explore, stress-test,
+decide, produce artifacts, quality checklist); full per-mode call
+lists live in `references/session-modes.md` § Per-Mode Task Lists.
+Set sequential dependencies; mark each step `in_progress` on start
+and `completed` when done. Quality checklist is the final gate.
 
 ## Determine Session Type
 
-Before starting, determine which mode applies:
-
-| Mode | Trigger | Read before starting |
-|---|---|---|
-| **New workshop** | No `docs/domain/` exists yet | `references/document-structure.md` |
-| **Continue workshop** | `docs/domain/model.md` exists | All existing domain docs (Step 1) |
-| **Stress test** | "What if we add X?" / "Does Y break?" | `references/stress-test-protocol.md` |
-| **Archetype application** | "This feels bloated" / "Apply archetype" | `../../references/domain/archetypes-catalog.md` |
-
-**Participation default: solo.** Assume ONE human (domain expert +
-decision-maker) facilitated by this skill with an AI cast — persona
-panel for blind event generation, devil's advocate for structural
-challenges. Read `references/solo-facilitation.md` at session start;
-it defines the role-substitution map and the `[ASSUMPTION]`
-guardrail. Multi-participant rooms are the exception: skip the AI
-cast and facilitate the humans instead.
+Before starting, read `references/session-modes.md` § Determine
+Session Type for the full mode-trigger table (new workshop /
+continue / stress test / archetype) and the solo-vs-multi-participant
+default.
 
 ### Discussion-Agent Model Tier (solo mode)
 
 Discussion agents (persona panel + devil's advocate) perform
-judgment work, not mechanical work — their entire output is a
-discussion contribution, so the cost-tiering rationale for
-fetch/prep agents does not apply (GH-789).
+judgment work — their entire output IS the discussion, so the
+cost-tiering rationale for fetch/prep agents does not apply (GH-789).
 
 **REQUIRED: Call `AskUserQuestion`** (do NOT use plain text) ONCE
 per session before the first AI-cast dispatch, batched with the
 persona-selection confirmation (`references/solo-facilitation.md`
-§ Selecting personas — the structured menu presented before
-dispatch; process Rule 1 — never as a standalone interruption).
-Options:
-
-- **Frontier (Recommended)** — omit `model:` on dispatch so agents
-  inherit the session default. Recommended for real workshops.
-- **Sonnet** — budget middle ground.
-- **Haiku** — quick smoke-run only. Warn explicitly: haiku
-  discussion output is naive — generic policies, no
-  interaction-level thinking.
+§ Selecting personas — never as a standalone interruption). Options:
+**Frontier (Recommended)** — omit `model:` so agents inherit the
+session default; **Sonnet** — budget middle ground; **Haiku** —
+quick smoke-run only (warn: naive output, no interaction-level
+thinking).
 
 Persist the choice for the whole session and use it for BOTH
 persona rounds (blind generation + stress-test round) AND the
@@ -126,54 +90,42 @@ devil's advocate. See `references/solo-facilitation.md`
 
 ## Step 1: Load Context (Continue/Stress-Test modes)
 
-Read these files **in this order** before proceeding:
-
-1. `docs/domain/model.md` — current domain model
-2. `docs/domain/decisions.md` — all prior decisions (append-only)
-3. `docs/domain/calculator.md` — calculation formulas (if present)
-4. `docs/domain/stress-tests.md` — validated architectural seams
-5. `docs/domain/glossary.md` — ubiquitous language
-6. `docs/domain/epics.md` — tickets and priorities
-7. Latest file in `docs/domain/workshops/` — previous session
-
-Then read implementation state:
-8. The project's domain source directory (locate via CLAUDE.md or
-   glob for the model types named in `model.md`), if any
-9. `CLAUDE.md` — project conventions
+Read these files **in this order** before proceeding: `model.md`
+(current domain model), `decisions.md` (append-only prior
+decisions), `calculator.md` (calculation formulas, if present),
+`stress-tests.md` (validated architectural seams), `glossary.md`
+(ubiquitous language), `epics.md` (tickets and priorities), and the
+latest file in `workshops/` (previous session). Then read
+implementation state: the project's domain source directory
+(locate via CLAUDE.md or glob for the model types named in
+`model.md`), and `CLAUDE.md` (project conventions).
 
 **Summarize** what you understand in 3-5 sentences before proceeding.
 
-For **new workshops**, skip to Step 2 and read
-`references/document-structure.md` to scaffold the docs directory.
+For **new workshops**, skip to `references/session-modes.md` §
+New Workshop: Scaffolding, then proceed to Step 2.
 
 ---
 
 ## Step 2: Process Rules
 
-Read `references/process-rules.md` for the full set. Summary:
+Read `references/process-rules.md` for the full set.
 
-### Minimize interruptions
-
-**Go as long as possible without asking questions.** Make reasonable
-assumptions, note alternatives, store unresolved choices. Only stop
-when the choice is genuinely arbitrary or high-stakes.
-
-When you DO need input, **batch ALL questions into a single
-structured decision menu** with options. Never one question at a
-time.
-
-### Protect accumulated decisions
-
-**Never re-derive or silently override decisions from decisions.md.**
-If new info contradicts a prior decision, propose a NEW decision
-that explicitly supersedes it — state which, why, and what changes
-downstream. Reference decisions by ID: `[D-NNN]`.
-
-### Genericize proprietary data
-
-Use reference materials (spreadsheets, specs) as behavioral models.
-Replace proprietary specifics with generic examples. The domain
-model must never leak client IP.
+- **Minimize interruptions** — go as long as possible without
+  asking questions. Make reasonable assumptions, note alternatives,
+  store unresolved choices. Only stop when the choice is genuinely
+  arbitrary or high-stakes. When you DO need input, **batch ALL
+  questions into a single structured decision menu** — never one
+  question at a time.
+- **Protect accumulated decisions** — never re-derive or silently
+  override a decision in `decisions.md`. If new info contradicts a
+  prior decision, propose a NEW decision that explicitly supersedes
+  it (state which, why, what changes downstream). Reference
+  decisions by ID: `[D-NNN]`.
+- **Genericize proprietary data** — use reference materials
+  (spreadsheets, specs) as behavioral models. Replace proprietary
+  specifics with generic examples. The domain model must never leak
+  client IP.
 
 ---
 
@@ -196,28 +148,16 @@ overlap analysis as one batched menu.
 6. **Identify bounded contexts** — where are the seams?
 7. **Identify value objects** — what are the typed quantities?
 
-### Software Archetypes Recognition
+### Cross-Reference Checks
 
-Read `../../references/domain/archetypes-catalog.md` for the full pattern table.
+At each exploration layer, cross-check four references:
 
-At every stage, check: **does this problem match a known
-archetype?** Run the 21-signal recognition table in
-`../../references/domain/archetypes-catalog.md` — raw numbers with implied
-units, flat config structs, party-shaped entities, time-bound
-happenings, and bloated mixed-semantics entities all have named
-decompositions there.
-
-**Applying an archetype is NOT premature abstraction.** It's
-recognizing that this problem has been solved before. The archetype
-provides the vocabulary and structure; the domain provides the
-specific rules. See `../../references/domain/archetypes-catalog.md` for the full
-recognition table (21 signals), source landscape, and composition
-guidance.
-
-### Patterns, Anti-Patterns, and Standards
-
-At each exploration layer, cross-check three references:
-
+- `../../references/domain/archetypes-catalog.md` — at every stage,
+  check whether this problem matches a known Software Archetype
+  (21-signal recognition table). **Applying an archetype is NOT
+  premature abstraction** — it's recognizing a solved problem; the
+  archetype provides vocabulary and structure, the domain provides
+  the specific rules.
 - `../../references/domain/design-patterns.md` — tactical/strategic pattern
   selection (aggregate rules, context mapping ladder, when NOT to
   CQRS/ES) and workshop-method guidance
@@ -235,46 +175,30 @@ Once bounded contexts are named (layer 6) and someone asks
 `../../references/domain/integration-patterns.md`: decide modular
 monolith vs split *per context*, check every boundary against the
 leak table ("could the other side change its internals without us
-noticing?"), and fill one contract line per context-map edge
-(style, artifact, pattern). Record topology and per-edge choices
-as `[D-NNN]` decisions.
+noticing?"), and fill one contract line **per context-map edge**
+(style, artifact, pattern). Record topology and per-edge choices as
+`[D-NNN]` decisions.
 
 ### Authorization Probe (guided)
 
 When actors multiply, commands become identity-dependent, or
 "role"/"owner"/"visibility" enter the language, run the guided
-authorization section in `../../references/domain/authz-patterns.md`: classify
-each guarded command's grant sentence into RBAC / ABAC / ReBAC /
-Capability (bearer invitation for accountless actors — ask the
-forwardability, scope, expiry, and redemption-identity probes),
-place the five policy-architecture boxes (PEP, PDP, PIP, PRP,
-PAP) on the context map, and record the model + engine choice as
-a `[D-NNN]` decision. Rule of engagement: invariants ≠
-permissions — permission checks live at the PEP, never inside
-aggregates.
+authorization section in `../../references/domain/authz-patterns.md`:
+classify each guarded command's grant sentence into **RBAC / ABAC /
+ReBAC / Capability** (bearer invitation for accountless actors —
+ask forwardability, scope, expiry, redemption-identity), place the
+five policy-architecture boxes (PEP, PDP, PIP, PRP, PAP) on the
+context map, and record the model + engine choice as a `[D-NNN]`
+decision. Rule: invariants ≠ permissions — permission checks live at
+the PEP, never inside aggregates.
 
 ### Design Philosophy
 
-These principles govern all proposals:
-
-**"Don't make me think" (Krug)** — Prefer implicit automatic
-behavior (auto-grouping on child add) over manual workflows. But
-never auto-delete or auto-restructure — creation can be magic,
-destruction requires intent.
-
-**Configuration vs. Estimation** — Keep pricing configuration
-cleanly separated from the estimation workspace. Users change
-rules without touching estimates, and vice versa.
-
-**Foundation-ready, not prematurely built** — Bake hooks into the
-foundation (like i18n) so future capabilities are data extensions,
-not refactors. **Rule of thumb:** nullable field or open union now
-at zero runtime cost vs. data migration later → do it now.
-Actual code/abstractions not yet used → defer.
-
-**Plan but defer server dependencies** — Features requiring servers
-(short URLs, cloud accounts) are scoped and designed but not built
-until the client-side foundation is solid.
+These principles govern all proposals made during exploration — see
+[`references/exploration-methodology.md`](references/exploration-methodology.md)
+§ Design Philosophy for the full set ("don't make me think",
+configuration vs. estimation, foundation-ready hooks, deferred
+server dependencies).
 
 ---
 
@@ -289,16 +213,15 @@ per persona (`references/solo-facilitation.md`).
 
 ### Quick stress-test checklist
 
-1. **Trace through every pipeline stage** — for each stage, state:
-   ZERO changes / additive / breaking.
-2. **Check the stable core** — verify components in
-   `stress-tests.md` "Stable Core" section remain stable.
-3. **Identify seams** — if the extension needs a hook that doesn't
-   exist, assess: cost now vs. cost if deferred.
+1. **Trace through every pipeline stage** — ZERO changes / additive
+   / breaking, per stage.
+2. **Check the stable core** — verify `stress-tests.md` "Stable
+   Core" components remain stable.
+3. **Identify seams** — hook missing? Assess cost now vs. deferred.
 4. **Check against prior decisions** — conflicts with `decisions.md`?
-5. **Endgame scale test** — does this work at airport scale?
-   (10-year project, 5000 items, 50 departments, mixed product
-   types, multi-currency, hierarchical policy)
+5. **Endgame scale test** — airport scale? (10-year project, 5000
+   items, 50 departments, mixed product types, multi-currency,
+   hierarchical policy)
 
 ---
 
@@ -309,24 +232,10 @@ Every choice gets recorded. Read
 
 ### Decision format
 
-```markdown
-## D-NNN: [Short title]
-
-- **Date:** YYYY-MM-DD
-- **Status:** Active | Superseded by D-MMM
-- **Workshop:** NNN
-
-**Decision:** [What was chosen]
-
-**Alternatives considered:**
-1. [Option A] — [why not]
-2. [Option B] — [why not]
-
-**Rationale:** [Why this choice]
-```
-
-To supersede: add new decision with `supersedes: D-NNN`, update
-old entry's status to `Superseded by D-MMM`.
+See `references/session-deliverables.md` § Decision Log Entries for
+the full `D-NNN` template. To supersede: add a new decision with
+`supersedes: D-NNN`, update the old entry's status to `Superseded by
+D-NNN`.
 
 ---
 
@@ -335,62 +244,27 @@ old entry's status to `Superseded by D-MMM`.
 Read `references/session-deliverables.md` for complete format and
 `references/document-structure.md` for file responsibilities.
 
-### Always produce
+**Always produce:** new entries in `decisions.md` (every choice,
+even "decided not to do X") and a workshop record in
+`workshops/NNN-topic.md` (narrative, decisions, model changes, open
+questions).
 
-1. **New entries in `decisions.md`** — every choice, even "we
-   decided not to do X"
-2. **Workshop record** in `workshops/NNN-topic.md` — narrative,
-   decisions list, model changes, open questions
-
-### When applicable
-
-3. Updated `model.md` (if types/pipeline/aggregates changed)
-4. Updated `calculator.md` (if formulas/golden tests changed)
-5. Updated `epics.md` (if tickets added/refined/completed)
-6. New scenario in `stress-tests.md` (if stress test was run)
-7. Updated `glossary.md` (if new terms introduced)
-8. New Claude CLI prompts in `docs/prompts/` (if feature area
-   is fully scoped and ready for implementation)
-
-### Ticket format
-
-Divide features into **configuration tickets** and **estimation
-tickets**. Each ticket needs: JTBD Job Story, scope, acceptance
-criteria, dependencies. See `epics.md` for established format.
-
----
-
-## New Workshop: Scaffolding
-
-When no `docs/domain/` exists, create the full structure. Read
-`references/document-structure.md` for the complete specification.
-
-```bash
-mkdir -p docs/domain/workshops docs/prompts
-```
-
-Create these files from the templates in
-`references/document-structure.md`:
-- `docs/domain/README.md` — documentation architecture index
-- `docs/domain/model.md` — domain model (initially empty scaffold)
-- `docs/domain/decisions.md` — decision log (empty, with format guide)
-- `docs/domain/calculator.md` — calculator spec (empty scaffold)
-- `docs/domain/glossary.md` — ubiquitous language (empty table)
-- `docs/domain/stress-tests.md` — stress tests (empty, with format)
-- `docs/domain/epics.md` — epics and tickets (empty scaffold)
-- `docs/domain/workshops/TEMPLATE.md` — workshop record template
-
-Then proceed with exploration (Step 3).
+**When applicable:** updated `model.md`, `calculator.md`,
+`epics.md`, `glossary.md`; a new `stress-tests.md` scenario; new
+Claude CLI prompts in `docs/prompts/` when a feature area is fully
+scoped. New tickets divide into **configuration** and **estimation**
+tickets — each needs a JTBD Job Story, scope, acceptance criteria,
+dependencies (see `epics.md`).
 
 ---
 
 ## Reference Files
 
-Read these on demand — SKILL.md contains the workflow; references
-contain the depth.
+Read on demand — SKILL.md is the workflow; references hold the depth.
 
 | File | Read when |
 |---|---|
+| `references/session-modes.md` | Determining session mode; creating tasks; scaffolding a new workshop |
 | `references/process-rules.md` | Starting any session |
 | `references/solo-facilitation.md` | Starting any session (solo default: personas, devil's advocate, [ASSUMPTION] guardrail) |
 | `references/exploration-methodology.md` | Doing event storming or domain modeling |
