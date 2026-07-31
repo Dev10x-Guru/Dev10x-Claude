@@ -5,6 +5,14 @@ session — you), **foreman** (a cheap overseer subagent managing the
 crew), **crew** (delivery workers running the Dev10x:work-on bundle
 lifecycle). The supervisor reads the shift log in the morning.
 
+**The cast is split by tool surface, not just by job.** Only the
+watchdog is a top-level session, so only the watchdog can call
+`Skill(...)`. The foreman and the crew are `Agent`-spawned subagents:
+they reach MCP wrappers only after an explicit `ToolSearch`
+select-query, and they cannot call skills at all. Delivery therefore
+stops at PR-open and the merge gate runs in the watchdog — see
+[`references/tool-surface.md`](references/tool-surface.md) (GH-922).
+
 **Founding principle — the pre-approval window is a one-time
 resource.** Every loop, watcher, long-running command, and per-domain
 tool the night will need must be enumerated and approved in Phase 0,
@@ -71,10 +79,17 @@ while a prompt costs seconds instead of hours:
 2. One representative call per MCP wrapper the crew will need
    (`ci_check_status`, `issue_get`, `pr_get`, …) — proves the MCP
    server is up and the tools resolve.
-3. The per-domain test tools for THIS repo (e.g. `run_node_tests`,
+3. **The subagent tool surface** — spawn a throwaway probe subagent
+   that runs the crew template's `ToolSearch` select-query and then
+   one read-only MCP call. The watchdog's own surface proves nothing
+   about a worker's: subagents get MCP wrappers only as deferred
+   tools and get no `Skill(...)` at all. If the probe comes back
+   empty, narrow the worker contract in the manifest rather than
+   letting workers improvise raw CLI (`references/tool-surface.md`).
+4. The per-domain test tools for THIS repo (e.g. `run_node_tests`,
    `uv run --directory <api> pytest`) — proves the exact invocation
    shape and records it for the crew prompt (§ crew template).
-4. Write access to the run directory and the repo tree.
+5. Write access to the run directory and the repo tree.
 
 Any prompt fired during pre-flight = fix it NOW: prefer switching to
 a wrapper/skill; propose a narrow allow rule only when no wrapper
@@ -103,9 +118,14 @@ directory — one `status-<chunk>.md` each.
    brief: manage the queue per the manifest — spawn one crew worker
    per chunk (prompt built from
    `references/crew-prompt-template.md`), relay `BASE MOVED` rebase
-   instructions, verify per-chunk closure (issues auto-closed,
-   milestone closed), advance the queue, defer cut scope to the queue
-   end, heartbeat to `status-foreman.md` every ~10 min. If the
+   instructions, relay each finished chunk's PR to the watchdog for
+   the merge gate, verify per-chunk closure, advance the queue, defer
+   cut scope to the queue end, heartbeat to `status-foreman.md` every
+   ~10 min. Its prompt opens with the same `ToolSearch` select-query
+   bootstrap as a crew prompt — without it the foreman cannot call
+   `issue_get`/`pr_get`, and any closure it reports is a
+   transcription of a worker's claim rather than an observation
+   (GH-922). It can never call `Skill(Dev10x:gh-pr-merge)`. If the
    platform denies the foreman the Agent tool, it falls back to
    **spawn-by-request**: it sends the watchdog a ready-to-execute
    worker spec via SendMessage, and the watchdog's only job is to run
@@ -140,6 +160,15 @@ turn are the most precious resources on site:
   idle-notification asymmetry: `references/stall-protocol.md`.
 - `BASE MOVED` → relay to the foreman (it instructs the active worker
   to rebase, re-verify, and never merge on stale ancestry).
+- **`MERGE REQUEST <chunk>` from the foreman → run the merge gate.**
+  This is the one piece of real work the watchdog owns, because it is
+  the one piece nobody below it can do: `Skill(Dev10x:gh-pr-merge)`
+  is unreachable from a subagent. Re-read live state first (CI
+  verdict, `isDraft`, mergeability, ancestry) — a worker's report is
+  a memory, not a fact — then merge and close the chunk's issues via
+  `issue_close` / `milestone_close`. Refuse the request if anything
+  is pending, draft, conflicting, or carries `fixup!` commits, and
+  send it back to the foreman with the failing check named.
 - `QUOTA RESET` after a mid-block pause → tell the foreman to resume
   or respawn interrupted crew. An agent idle **by instruction** — a
   foreman holding for a relay like this one — has expected-stale
@@ -185,14 +214,21 @@ cost hours in the field (GH-890):
 | Element | Why it is mandatory |
 |---|---|
 | `background_preamble` (fetch via MCP) prepended verbatim | Background agents never see the session friction briefing; without it they reinvent `cd &&`, pipes, heredocs |
+| `ToolSearch` select-query bootstrap for every MCP wrapper the chunk needs, and ZERO `Skill(...)` calls anywhere in the prompt | Subagents get MCP wrappers only as deferred tools and get no skills at all. A prompt naming `Skill(Dev10x:gh-pr-merge)` does not make its 9 checks run — it makes the worker improvise (`references/tool-surface.md`) |
+| Lifecycle split: implement → test → commit → push → PR open and verified not-draft → CI green → review addressed → **STOP**. Workers never merge, never close issues | The merge gate lives in a skill only the top-level watchdog can call. A worker merging without it has full autonomy and no guardrails — "auto-merge on CI green" executing as "merge, having checked nothing" (field case: PR #901 landed squashed against documented rebase discipline) |
+| Post-condition re-verification: re-check `isDraft` via `pr_get` after `create_pr` AND after every force-push | A state-changing call's effect does not survive later git operations. Field case: PR #926 was `pr_ready`-ed, then silently reset to DRAFT by a force-with-lease push — bots skip drafts, so CI and review went quiet on a PR believed open |
 | Anti-stall rule: no `sleep`/`--watch`/poll loops; CI via single-shot `ci_check_status` | A blocking wait dies on a permission wall and the worker hangs silently |
 | Named per-domain test tools with exact invocation (from Phase 0.4) | Generic "run the tests" prose sends workers to `npm … \| tail` shapes that prompt |
 | Heartbeat protocol: append one line to `status-<chunk>.md` via Write every ~15 min AND at phase transitions | File mtime is the stall detector's ground truth; self-reported timestamps lie, mtimes don't |
 | Scope authority + cut protocol — every cut ends as a tracker issue: defer (original stays OPEN with a structured deferral comment, EXCLUDED from `Fixes:`, commit footer reworded, requeued by issue number) or split (partial PR closes the original; remainder becomes a NEW scoped issue, `Refs:`-linked) | The queue and manifest live in a temp dir — after a catastrophic harness failure, open tracker issues are the ONLY surviving record of cut scope; a cut issue that still auto-closes on merge is a silent lie to the tracker |
-| Merge discipline: rebase-merge on fresh ancestry only; pending CI is not green; zero `fixup!` at merge; address ALL top-level review comments (even INFO); auto-resolve addressed BOT threads only — never human threads | Every one of these is a merge-gate failure mode observed in the field |
+| Review discipline: address ALL top-level review comments (even INFO); auto-resolve addressed BOT threads only — never human threads; zero `fixup!` commits left at hand-off | These are the merge-gate conditions the watchdog will check; a worker that ignores them just hands back a PR the gate refuses |
 | Decision log file per chunk | The supervisor audits choices in the morning, not at 03:00 |
 
 ## Merge guidance when no watcher is armed
+
+Applies to whoever runs the merge gate — the watchdog in the full
+harness, or you directly in the collapsed variant. It is never a
+crew worker.
 
 The merge discipline above assumes the full night-shift harness
 (watcher relaying `BASE MOVED`). In the collapsed / in-session variant
@@ -209,6 +245,12 @@ Only fall back to a local rebase when `pr_get` reports `CONFLICTING`.
   "it passed before" is meaningless; shapes re-match per call. Use
   `dev10x foreman watch`.
 - A worker prompt without the background preamble or named test tools.
+- A worker prompt containing a `Skill(...)` call, or reaching for an
+  MCP wrapper without the `ToolSearch` bootstrap first.
+- A crew worker merging a PR or closing an issue — that is the
+  watchdog's gate, and a worker doing it ran no checks at all.
+- Trusting `isDraft`, CI verdict, or mergeability read before the
+  last force-push. Re-read, then decide.
 - "We'll add the allow rule when it prompts" — the supervisor is
   asleep; there is no *when*.
 - Offering auto-mode / bypassPermissions to silence prompt risk.
@@ -231,6 +273,9 @@ Only fall back to a local rebase when `pr_get` reports `CONFLICTING`.
 |---|---|
 | "This Monitor one-liner is simple, no script needed" | The 7-hour overnight freeze was exactly such a one-liner. Script or nothing. |
 | "The worker knows the repo conventions" | It has a fresh system prompt. It knows nothing you didn't put in it. |
+| "The prompt says `Skill(Dev10x:gh-pr-merge)`, so the 9 checks run" | The worker cannot call it. Naming a skill a subagent cannot reach buys the appearance of a gate and none of the gate. |
+| "The worker reported the PR is ready and green — merge it" | That is a memory of a past state. Force-pushes re-draft PRs and bases move. Re-read `isDraft`, CI, and ancestry at the gate. |
+| "The foreman relayed that the issues are closed" | Only if the foreman actually called `issue_get`. Without its ToolSearch bootstrap it is repeating the worker's claim, and verification has degraded into transcription. |
 | "Pending CI, but everything else is green — merge" | Pending is not green. The field case: a check stuck `in_progress` with `conclusion=success` needed a job re-run, not a merge. |
 | "The idle notification means the worker is stuck" | Idle pings fire between turns and arrive late/out of order — they prove neither liveness nor death. Heartbeat mtime, live PR/CI state, and a REPLY to a direct message are the evidence. |
 | "Heartbeat is 28 min stale — it's dead, take the chunk over" | Silence means *not progressing*, not *dead*. Field case: a worker declared dead woke 22 min later, re-ran its whole mission, and posted duplicate rationale comments on the PR the takeover had already finished. Handshake first. |

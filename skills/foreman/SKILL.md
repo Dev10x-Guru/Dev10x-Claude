@@ -21,8 +21,10 @@ allowed-tools:
   - SendMessage
   - TaskStop
   - Bash(dev10x foreman:*)
+  - ToolSearch
   - Skill(Dev10x:afk)
   - Skill(Dev10x:work-on)
+  - Skill(Dev10x:gh-pr-merge)
   - Skill(Dev10x:fanout)
   - Skill(Dev10x:diag-friction)
   - Skill(Dev10x:skill-audit-queue)
@@ -31,6 +33,7 @@ allowed-tools:
   - mcp__plugin_Dev10x_cli__issue_get
   - mcp__plugin_Dev10x_cli__issue_comment
   - mcp__plugin_Dev10x_cli__issue_create
+  - mcp__plugin_Dev10x_cli__issue_close
   - mcp__plugin_Dev10x_cli__pr_get
   - mcp__plugin_Dev10x_cli__ci_check_status
   - mcp__plugin_Dev10x_cli__milestone_close
@@ -60,3 +63,9 @@ When this skill is invoked, Read `instructions.md` now and follow it
 end-to-end. The Phase 0 `AskUserQuestion` gates (queue plan + model
 mapping, friction level) and the pre-flight enumeration are
 REQUIRED — they are what makes the night survivable.
+
+Before writing any crew or foreman prompt, also Read
+[`references/tool-surface.md`](references/tool-surface.md): subagents
+cannot call `Skill(...)` and reach MCP wrappers only via a
+`ToolSearch` select-query, so crew workers stop at PR-open and the
+merge gate stays with this top-level session.
