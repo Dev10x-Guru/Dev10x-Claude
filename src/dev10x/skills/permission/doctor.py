@@ -5,8 +5,10 @@ Three concerns this module addresses:
 1. **Duplicate-slash path typos** — ``${CLAUDE_PLUGIN_ROOT}`` expands with a
    trailing slash, so an expanded rule can bake a literal ``//`` into
    ``settings`` (e.g. ``.../<ver>//skills/...``); the verbatim matcher treats
-   ``//`` ≠ ``/`` so the rule never matches. The fix collapses ``//`` → ``/``.
-   Version-pinned plugin paths are deliberately NOT rewritten to ``**``
+   ``//`` ≠ ``/`` so the rule never matches. The fix collapses ``//`` → ``/``
+   in path contexts only (GH-918) — a ``//`` inside a quoted interpreter
+   expression such as ``perl -pe 's/…//g'`` is a regex delimiter and is left
+   alone. Version-pinned plugin paths are deliberately NOT rewritten to ``**``
    wildcards (GH-715) — ``**`` matching is unreliable in the permission
    engine; pinned paths are kept current by
    ``dev10x permission update-paths`` on every upgrade instead.
@@ -50,6 +52,43 @@ CATALOG_PATH = Path(__file__).resolve().parent / "baseline-permissions.yaml"
 # The ``(?<!:)`` guard leaves scheme separators like ``mcp://`` untouched.
 _DUP_SLASH_RE = re.compile(r"(?<!:)/{2,}")
 
+# GH-918: a `//` is only a path typo when it sits inside a filesystem path.
+# The token holding the match must start like one — an absolute path, a
+# home/relative prefix, or an unexpanded variable such as
+# ``${CLAUDE_PLUGIN_ROOT}``.
+_PATH_TOKEN_PREFIXES = ("/", "~/", "./", "../", "$")
+
+# Characters that end the shell-ish token a `//` belongs to. Quotes are
+# boundaries so a quoted regex body (``'s/a//g'``) never reads as a path.
+_TOKEN_BOUNDARY_CHARS = frozenset(" \t'\"(),=|;<>&")
+
+# GH-918: `//` inside a quoted interpreter expression is a regex delimiter,
+# not a path separator — collapsing it corrupts the substitution.
+_INTERPRETER_EXPRESSION_RE = re.compile(
+    r"\b(?:perl|sed|awk|ruby)\b(?:\s+-\S+)*\s*(?P<quote>['\"])(?P<body>.*?)(?P=quote)"
+)
+
+
+def _interpreter_expression_spans(rule: str) -> list[tuple[int, int]]:
+    """Spans of quoted interpreter bodies (``perl -pe 's/…/…/g'``)."""
+    return [
+        match.span("body")
+        for match in _INTERPRETER_EXPRESSION_RE.finditer(rule)
+        if match.group("body")
+    ]
+
+
+def _is_inside_span(position: int, spans: Iterable[tuple[int, int]]) -> bool:
+    return any(start <= position < end for start, end in spans)
+
+
+def _is_path_context(rule: str, position: int) -> bool:
+    """Whether the token containing ``position`` looks like a filesystem path."""
+    token_start = position
+    while token_start > 0 and rule[token_start - 1] not in _TOKEN_BOUNDARY_CHARS:
+        token_start -= 1
+    return rule[token_start:].startswith(_PATH_TOKEN_PREFIXES)
+
 
 def canonicalize_rule(rule: str) -> str | None:
     """Normalize a single allow-rule string to canonical form.
@@ -58,14 +97,28 @@ def canonicalize_rule(rule: str) -> str | None:
 
     The only rewrite is collapsing duplicate slashes (``//`` → ``/``)
     outside a ``://`` scheme (GH-704) so ``${CLAUDE_PLUGIN_ROOT}``
-    trailing-slash pollution matches the verbatim engine.
+    trailing-slash pollution matches the verbatim engine. The collapse is
+    scoped to path contexts (GH-918): a ``//`` inside a quoted interpreter
+    expression — ``Bash(perl -pe 's/\\e\\[[0-9;]*m//g')`` — or in a token
+    that does not start like a path is a regex delimiter, and collapsing it
+    would leave a syntactically invalid rule.
 
     Version-pinned plugin paths are deliberately NOT rewritten to ``**``
     wildcards (GH-715): ``**`` matching is unreliable in the permission
     engine, so pinned paths are kept current by
     ``dev10x permission update-paths`` on each upgrade instead.
     """
-    collapsed = _DUP_SLASH_RE.sub("/", rule)
+    interpreter_spans = _interpreter_expression_spans(rule)
+
+    def _collapse(match: re.Match[str]) -> str:
+        position = match.start()
+        if _is_inside_span(position, interpreter_spans):
+            return match.group(0)
+        if not _is_path_context(rule, position):
+            return match.group(0)
+        return "/"
+
+    collapsed = _DUP_SLASH_RE.sub(_collapse, rule)
     if collapsed == rule:
         return None
     return collapsed
