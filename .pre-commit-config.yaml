@@ -53,3 +53,16 @@ repos:
         files: ^src/
         args: [--config-file=mypy.ini]
         additional_dependencies: [types-PyYAML]
+
+  # Local hooks (no external repo — plain scripts run in-tree).
+  - repo: local
+    hooks:
+      # GH-916: every PEP 723 uv-script and pyproject.toml dependency
+      # array must declare an upper bound, so a new major release can't
+      # silently break a hook/skill/server the way `mcp` 2.0 did (GH-914).
+      - id: dependency-pins
+        name: uv-script and pyproject.toml dependencies are upper-bounded
+        entry: bin/check-dependency-pins.py
+        language: script
+        pass_filenames: false
+        always_run: true
