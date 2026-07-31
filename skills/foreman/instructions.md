@@ -118,14 +118,37 @@ turn are the most precious resources on site:
 
 - React ONLY to watcher events and foreman messages. No
   implementation work, no exploratory reads, no polling loops.
-- `STALL` for a crew worker → the foreman handles abort-respawn; a
-  `STALL` while `status-foreman.md` itself is silent → TaskStop the
-  foreman and respawn it from the manifest + newest heartbeats
-  (its state is on disk, not in its head).
+- `STALL` → run the **stand-down handshake** BEFORE any takeover,
+  respawn, or `TaskStop`. Heartbeat silence proves the worker is not
+  progressing; it does NOT prove the process is gone, and a revived
+  worker is a live conflict risk a dead one is not. In order:
+  1. Send the stalled agent a direct message naming every action
+     already completed on its chunk (branch, commits, PR, merges,
+     comments posted) and instructing it to **reply `STOP-ACK` and
+     cease all writes** — report state, do not re-execute anything.
+  2. Wait one more heartbeat interval (~15 min / the next watcher
+     tick). A reply — `STOP-ACK`, a status report, any message at
+     all — is strong evidence of liveness: it is alive, so resume it
+     with a corrective brief instead of replacing it.
+  3. Only if it stays silent through that SECOND window does takeover
+     proceed — `TaskStop` + respawn from `manifest.md` and the newest
+     heartbeats (all state is on disk, not in its head): the foreman
+     does this for a crew worker, the watchdog for a silent foreman.
+
+  Never skip step 1 because spend went flat: a cheap idle agent and a
+  dead agent look identical on a spend graph. Full evidence and the
+  idle-notification asymmetry: `references/stall-protocol.md`.
 - `BASE MOVED` → relay to the foreman (it instructs the active worker
   to rebase, re-verify, and never merge on stale ancestry).
 - `QUOTA RESET` after a mid-block pause → tell the foreman to resume
-  or respawn interrupted crew.
+  or respawn interrupted crew. An agent idle **by instruction** — a
+  foreman holding for a relay like this one — has expected-stale
+  heartbeats; a literal "silent foreman → `TaskStop`" reading would
+  destroy a healthy overseer mid-wait. The handshake tells the cases
+  apart.
+- Never write into a crew worker's `status-<chunk>.md`: those files
+  are worker-owned exclusively, and a `Write` from anyone else
+  refreshes the mtime the stall detector reads as liveness.
 - A decision only the supervisor can make (product call, invariant
   semantics, destructive migration) → do NOT guess and do NOT block
   the queue: have the scope cut per the crew contract — which ALWAYS
@@ -192,6 +215,11 @@ Only fall back to a local rebase when `pr_get` reports `CONFLICTING`.
 - Merging on pending CI, stale ancestry, or with `fixup!` commits.
 - The watchdog "quickly" doing implementation work in the main session.
 - Two open PRs from overlapping file areas.
+- Taking over a stalled chunk without the stand-down handshake, or
+  citing flat spend as corroborating evidence that a worker is dead.
+- `TaskStop`-ing a foreman whose heartbeat is stale because it is
+  waiting on a relay you sent it.
+- Anyone but the owning worker writing to `status-<chunk>.md`.
 - Firing an `AskUserQuestion` the handoff already answered. Under afk
   this freezes the run until the supervisor returns. A mid-run
   clarifying question is NOT authorization to open a gate — answer
@@ -204,6 +232,9 @@ Only fall back to a local rebase when `pr_get` reports `CONFLICTING`.
 | "This Monitor one-liner is simple, no script needed" | The 7-hour overnight freeze was exactly such a one-liner. Script or nothing. |
 | "The worker knows the repo conventions" | It has a fresh system prompt. It knows nothing you didn't put in it. |
 | "Pending CI, but everything else is green — merge" | Pending is not green. The field case: a check stuck `in_progress` with `conclusion=success` needed a job re-run, not a merge. |
-| "The idle notification means the worker is stuck" | Idle pings fire between turns and arrive late/out of order. Only heartbeat-file mtime and live PR/CI state are evidence. |
+| "The idle notification means the worker is stuck" | Idle pings fire between turns and arrive late/out of order — they prove neither liveness nor death. Heartbeat mtime, live PR/CI state, and a REPLY to a direct message are the evidence. |
+| "Heartbeat is 28 min stale — it's dead, take the chunk over" | Silence means *not progressing*, not *dead*. Field case: a worker declared dead woke 22 min later, re-ran its whole mission, and posted duplicate rationale comments on the PR the takeover had already finished. Handshake first. |
+| "Spend has been flat for 30 min, that corroborates it's dead" | A cheap idle agent and a dead agent are indistinguishable on a spend graph. Flat cost is not evidence of death — it is not evidence of anything. |
+| "The foreman hasn't heartbeat since I sent the relay — respawn it" | It is idle by instruction, waiting on you. Killing it destroys a healthy overseer and resets the queue. Ask it to report first. |
 | "Skip the pre-flight, the allowlist looked fine last week" | Allow rules are shape-sensitive and repos drift. Pre-flight is minutes; a missed shape is the night. |
 | "Cheaper models everywhere will stretch the quota" | A failed chunk costs more than the model discount saves. Downgrade the overseer, never the crew. |

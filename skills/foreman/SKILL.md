@@ -18,6 +18,8 @@ invocation-name: Dev10x:foreman
 allowed-tools:
   - AskUserQuestion
   - Agent
+  - SendMessage
+  - TaskStop
   - Bash(dev10x foreman:*)
   - Skill(Dev10x:afk)
   - Skill(Dev10x:work-on)

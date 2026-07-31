@@ -37,8 +37,9 @@ brief stays authored by the foreman; the watchdog stays a dumb relay.
 
 | Failure | Signal | Recovery |
 |---|---|---|
-| Crew worker hangs on a blocking wait / permission wall | `STALL:` while foreman heartbeat is fresh | Foreman: TaskStop worker, respawn with a corrective brief naming the banned shape and the current on-disk state (branch/PR survive — resume, don't redo) |
-| Foreman itself dies or hangs | `STALL:` and `status-foreman.md` is the stale file | Watchdog: TaskStop foreman, respawn from `manifest.md` + newest heartbeats. All durable state is on disk by design. |
+| Crew worker hangs on a blocking wait / permission wall | `STALL:` while foreman heartbeat is fresh | Foreman: run the stand-down handshake (`stall-protocol.md`); on a second silent window, TaskStop worker and respawn with a corrective brief naming the banned shape and the current on-disk state (branch/PR survive — resume, don't redo) |
+| Foreman itself dies or hangs | `STALL:` and `status-foreman.md` is the stale file | Watchdog: handshake first (a foreman waiting on a relay is idle by instruction, not dead), then TaskStop and respawn from `manifest.md` + newest heartbeats. All durable state is on disk by design. |
+| A worker declared dead revives after takeover | Duplicate commits/comments; a second agent acting on the same chunk | Prevented, not recovered: the stand-down handshake positively retires the original before anyone else touches the chunk (`stall-protocol.md`) |
 | Watchdog turn frozen by a prompt | Nothing fires; discovered in the morning | Prevented, not recovered: Phase 0 pre-flight + script-only watcher + minimal action surface. If it still happens, workers keep running — only queue advancement stops. |
 | Quota block exhausts mid-run | Session paused by the platform; `QUOTA RESET:` on the new block | Foreman resumes/respawns interrupted crew; in-flight PRs pick up from their on-disk state |
 | Base branch moves under an open PR | `BASE MOVED:` | Relay chain → active worker: fetch, rebase, re-verify, safe force-push; never merge on stale ancestry. Re-check freshness immediately before every merge gate. |
@@ -51,11 +52,20 @@ brief stays authored by the foreman; the watchdog stays a dumb relay.
 - One `status-<chunk>.md` per crew worker + `status-foreman.md`, all
   in the run directory; appended via the Write tool (never shell
   redirects).
-- Line format: `- <UTC from date -u> <phase>: <one-liner>`.
+- Line format: `- <UTC timestamp> <phase>: <one-liner>`, where the
+  timestamp comes from `date -u` and is never composed by hand.
 - **mtime is truth.** Workers mis-stamp their line text (wrong clock
   math is common); the watcher only trusts `stat` mtimes.
+- **Each status file has exactly one writer — the agent it is named
+  for.** The foreman and watchdog read `status-<chunk>.md`; they never
+  write to it. A `Write` from a third party refreshes the very mtime
+  the detector uses as liveness, so a dead worker would never trip
+  `STALL`. Foreman/watchdog notes about a chunk go in `DECISIONS.md`
+  or `decisions-<chunk>.md`.
 - Stall threshold 25 min (crew writes every ~15), re-alert suppressed
   for one threshold window, grace period until first write.
+- A tripped `STALL` opens the stand-down handshake — it is not an
+  authorization to take over. See `stall-protocol.md`.
 
 ## Quota policy
 
