@@ -22,9 +22,12 @@ newer interpreter that a script only needs a lower bound to support.
 
 from __future__ import annotations
 
+import logging
 import re
 import tomllib
 from pathlib import Path
+
+_logger = logging.getLogger(__name__)
 
 SCANNED_SUFFIXES = frozenset({".py", ".toml", ".sh"})
 SKIPPED_DIRS = frozenset({".git", ".venv", "node_modules", "__pycache__", "dist", "build"})
@@ -32,15 +35,25 @@ SKIPPED_DIRS = frozenset({".git", ".venv", "node_modules", "__pycache__", "dist"
 # A PEP 723 dependency block in this repo is always a single-line TOML
 # array comment: `# dependencies = ["pyyaml>=6.0,<7", ...]`.
 _PEP723_DEPS_LINE = re.compile(r"^#\s*dependencies\s*=\s*(?P<array>\[.*\])\s*$")
-_QUOTED_ITEM = re.compile(r'"(?P<item>[^"]*)"')
+# TOML permits both quote styles for a literal array item; match either
+# so a single-quoted PEP 723 header isn't silently scanned as empty.
+_QUOTED_ITEM = re.compile(r"""(?:"(?P<dq>[^"]*)"|'(?P<sq>[^']*)')""")
 _REQUIREMENT = re.compile(
     r"^(?P<req>[A-Za-z][A-Za-z0-9_.\-]*(?:\[[^\]]*\])?)\s*(?P<specifier>.*)$"
 )
 
 
 def _is_bounded(specifier: str) -> bool:
-    """A requirement is bounded when it pins an upper bound or an exact version."""
-    return "<" in specifier or "==" in specifier
+    """A requirement is bounded when it pins an upper bound or an exact version.
+
+    Only the version part counts — a PEP 508 environment marker (the
+    clause after `;`, e.g. `foo; python_version<'3.12'`) can contain a
+    `<` that has nothing to do with `foo`'s own version constraint, so
+    it must be stripped before checking or an unbounded requirement
+    with a marker would be silently treated as bounded.
+    """
+    version_part = specifier.split(";", 1)[0]
+    return "<" in version_part or "==" in version_part
 
 
 def _offending_requirements(items: list[str]) -> list[str]:
@@ -58,7 +71,12 @@ def _offending_requirements(items: list[str]) -> list[str]:
 def find_unbounded_pep723_requirements(*, path: Path, root: Path) -> list[str]:
     """Return `path:lineno: requirement` offenders in a PEP 723 script header."""
     offenders: list[str] = []
-    for lineno, line in enumerate(path.read_text().splitlines(), start=1):
+    try:
+        text = path.read_text()
+    except (OSError, UnicodeDecodeError):
+        _logger.warning("Skipping unreadable file during dependency-pin scan: %s", path)
+        return offenders
+    for lineno, line in enumerate(text.splitlines(), start=1):
         # Anchored on the raw (unstripped) line: a genuine PEP 723 header
         # comment always starts at column 0. Requiring that excludes
         # indented prose that merely *describes* the syntax (e.g. a
@@ -66,7 +84,10 @@ def find_unbounded_pep723_requirements(*, path: Path, root: Path) -> list[str]:
         deps_match = _PEP723_DEPS_LINE.match(line)
         if deps_match is None:
             continue
-        items = [m.group("item") for m in _QUOTED_ITEM.finditer(deps_match.group("array"))]
+        items = [
+            match.group("dq") if match.group("dq") is not None else match.group("sq")
+            for match in _QUOTED_ITEM.finditer(deps_match.group("array"))
+        ]
         for offender in _offending_requirements(items):
             offenders.append(f"{path.relative_to(root)}:{lineno}: {offender}")
     return offenders
@@ -76,7 +97,11 @@ def find_unbounded_pyproject_requirements(*, path: Path, root: Path) -> list[str
     """Return `path: [section] requirement` offenders in a pyproject.toml."""
     if path.name != "pyproject.toml":
         return []
-    data = tomllib.loads(path.read_text())
+    try:
+        data = tomllib.loads(path.read_text())
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
+        _logger.warning("Skipping unreadable/invalid pyproject.toml during scan: %s", path)
+        return []
     project = data.get("project", {})
     offenders: list[str] = []
     relpath = path.relative_to(root)
@@ -92,11 +117,16 @@ def find_unbounded_pyproject_requirements(*, path: Path, root: Path) -> list[str
 
 
 def scanned_files(root: Path) -> list[Path]:
+    # Excludes symlinks: Path.rglob() follows symlinked directories on this
+    # project's floor Python (3.12 — the recurse_symlinks opt-out landed in
+    # 3.13), so an unguarded scan could read a symlink's target content
+    # (mild info-disclosure into pre-commit stderr) or hang on a cycle.
     return sorted(
         path
         for path in root.rglob("*")
         if path.suffix in SCANNED_SUFFIXES
         and path.is_file()
+        and not path.is_symlink()
         and not SKIPPED_DIRS.intersection(path.relative_to(root).parts)
     )
 

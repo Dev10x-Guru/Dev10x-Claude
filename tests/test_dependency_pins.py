@@ -16,6 +16,7 @@ from dev10x.dependency_pins import (
     find_unbounded_pep723_requirements,
     find_unbounded_pyproject_requirements,
     scan_repository,
+    scanned_files,
 )
 from dev10x.subprocess_utils import get_plugin_root
 
@@ -100,3 +101,53 @@ def test_pyproject_lint_skips_non_pyproject_files(tmp_path: Path) -> None:
     other.write_text('[project]\ndependencies = ["click>=8.0"]\n')
 
     assert find_unbounded_pyproject_requirements(path=other, root=tmp_path) == []
+
+
+def test_pep723_lint_is_not_fooled_by_an_environment_marker(tmp_path: Path) -> None:
+    """A `<` inside a PEP 508 marker must not count as an upper bound (review finding)."""
+    marked = tmp_path / "server.py"
+    marked.write_text("# dependencies = [\"foo; python_version<'3.12'\"]\n")
+
+    offenders = find_unbounded_pep723_requirements(path=marked, root=tmp_path)
+
+    assert offenders == ["server.py:1: foo; python_version<'3.12'"]
+
+
+def test_pep723_lint_accepts_a_bounded_requirement_with_a_marker(tmp_path: Path) -> None:
+    marked = tmp_path / "server.py"
+    marked.write_text("# dependencies = [\"foo>=1.0,<2; python_version<'3.12'\"]\n")
+
+    assert find_unbounded_pep723_requirements(path=marked, root=tmp_path) == []
+
+
+def test_pep723_lint_accepts_single_quoted_items(tmp_path: Path) -> None:
+    """TOML permits single-quoted literal strings (review finding)."""
+    single_quoted = tmp_path / "server.py"
+    single_quoted.write_text("# dependencies = ['mcp>=1.0']\n")
+
+    offenders = find_unbounded_pep723_requirements(path=single_quoted, root=tmp_path)
+
+    assert offenders == ["server.py:1: mcp>=1.0"]
+
+
+def test_scanned_files_excludes_symlinks(tmp_path: Path) -> None:
+    target = tmp_path / "outside.py"
+    target.write_text('# dependencies = ["mcp>=1.0"]\n')
+    link = tmp_path / "linked.py"
+    link.symlink_to(target)
+
+    assert link not in scanned_files(tmp_path)
+
+
+def test_find_unbounded_pep723_requirements_skips_unreadable_file(tmp_path: Path) -> None:
+    binary = tmp_path / "server.py"
+    binary.write_bytes(b"\xff\xfe# dependencies = [\xff]")
+
+    assert find_unbounded_pep723_requirements(path=binary, root=tmp_path) == []
+
+
+def test_find_unbounded_pyproject_requirements_skips_invalid_toml(tmp_path: Path) -> None:
+    broken = tmp_path / "pyproject.toml"
+    broken.write_text("[project\ndependencies = [")
+
+    assert find_unbounded_pyproject_requirements(path=broken, root=tmp_path) == []
