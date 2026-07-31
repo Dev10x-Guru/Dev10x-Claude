@@ -92,6 +92,16 @@ Route subprocess/CWD access through `subprocess_utils` (`run`,
 `subprocess.run` / `os.getcwd()` / module-scope `GitContext()`. Standalone
 uv-scripts are exempt. Full rules: `.claude/rules/cwd-discipline.md`.
 
+### uv-Script Dependency Pins (GH-916)
+
+Every PEP 723 `# dependencies = [...]` entry and every `pyproject.toml`
+dependency array entry needs an upper bound or exact pin (e.g.
+`pyyaml>=6.0,<7`) — an unbounded requirement lets a new major release
+silently change a script's behaviour (GH-914: unbounded `mcp` broke
+both MCP servers). `requires-python` is the one exception (lower-bound
+only, by design). Enforced by `bin/check-dependency-pins.py` via
+`.pre-commit-config.yaml`. Full rules: `.claude/rules/uv-script-dependency-pins.md`.
+
 ## Skill Naming Convention
 
 - **Directory name**: plain feature name — `git-worktree/`, `skill-audit/`
