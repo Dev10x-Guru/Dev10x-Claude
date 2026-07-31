@@ -415,3 +415,82 @@ class TestAutoAdvanceRecordEmission:
         payload = result.to_dict()
         assert payload["effect"] == "auto-advance"
         assert payload["record"].startswith("⚙ gate:merge auto-advance")
+
+
+class TestPresetPinTools:
+    """The GH-855 durable-pin MCP surface behind the Phase-0 gate."""
+
+    @pytest.fixture
+    def zebra_repo(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+        main = tmp_path / "work" / "bl-zebra"
+        (main / ".git").mkdir(parents=True)
+        monkeypatch.setattr(
+            "dev10x.session.preset_pin._common_dir", lambda *, cwd: str(main / ".git")
+        )
+        return main
+
+    @pytest.mark.asyncio
+    async def test_pin_and_status_round_trip_across_worktrees(self, zebra_repo: Path) -> None:
+        """GH-855 AC: pin in `<repo>-3`, and `<repo>-9` sees it — no re-ask."""
+        from dev10x.mcp.gate_tools import pin_gate_preset, preset_pin_status
+
+        before = await preset_pin_status(cwd="/work/bl/.worktrees/bl-zebra-3")
+        assert before["pinned"] is False
+
+        pinned = await pin_gate_preset(preset="adaptive", cwd="/work/bl/.worktrees/bl-zebra-3")
+        assert pinned["match"] == ["*/bl-zebra", "*/bl-zebra-*"]
+
+        after = await preset_pin_status(cwd="/work/bl/.worktrees/bl-zebra-9")
+        assert after["pinned"] is True
+        assert after["prefs"]["gate_preset"] == "adaptive"
+
+    @pytest.mark.asyncio
+    async def test_pin_reports_an_unknown_scope_as_a_wire_error(self, zebra_repo: Path) -> None:
+        from dev10x.mcp.gate_tools import pin_gate_preset
+
+        payload = await pin_gate_preset(preset="adaptive", scope="galaxy")
+
+        assert "unknown pin scope" in payload["error"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("kwargs", "expected"),
+        [
+            ({"preset": "adaptiv"}, "unknown preset"),
+            ({"preset": "guided", "overlays": ["sollo"]}, "unknown overlay"),
+            ({"preset": "guided", "gate_overrides": {"marge": "ask"}}, "unknown gate"),
+        ],
+    )
+    async def test_pin_rejects_invalid_values_at_the_wire(
+        self, zebra_repo: Path, kwargs: dict, expected: str
+    ) -> None:
+        """An agent's hallucinated value must not reach the durable file.
+
+        Writing it would make every later resolve_gate for this repo fail
+        with UnknownPresetError until someone re-pinned by hand.
+        """
+        from dev10x.mcp.gate_tools import pin_gate_preset
+
+        assert expected in (await pin_gate_preset(**kwargs))["error"]
+
+    @pytest.mark.asyncio
+    async def test_pin_forwards_overlays_and_overrides(self, zebra_repo: Path) -> None:
+        from dev10x.mcp.gate_tools import pin_gate_preset
+
+        payload = await pin_gate_preset(
+            preset="guided", overlays=["afk"], gate_overrides={"merge": "ask"}
+        )
+
+        assert payload["prefs"]["gate_overlays"] == ["afk"]
+        assert payload["prefs"]["gate_overrides"] == {"merge": "ask"}
+
+    @pytest.mark.asyncio
+    async def test_status_reports_a_wire_error_outside_a_repo(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from dev10x.mcp.gate_tools import preset_pin_status
+
+        monkeypatch.setattr("dev10x.session.preset_pin._common_dir", lambda *, cwd: None)
+        monkeypatch.setattr("dev10x.session.preset_pin._bounded_toplevel", lambda *, cwd: None)
+
+        assert "Not in a git repository" in (await preset_pin_status())["error"]

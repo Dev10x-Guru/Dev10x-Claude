@@ -123,6 +123,7 @@ one session). Use these shapes verbatim:
 | `resolve_review_thread` | `thread_ids` (list) | singular `thread_id` |
 | `resolve_gate` | `gate` (toggle name); optional `context` dict of gate facts | passing preset/friction values — the tool reads session policy itself (ADR-0016 D-2) |
 | `pr_close` | `pr_number` | `number` (that's `issue_close`'s param name) |
+| `pin_gate_preset` | `preset`; optional `scope` (`repo` default / `repo-only` / `dir`) | passing a `match` or a path — the tool derives the repo stem itself |
 
 Behavioral caveats:
 
@@ -140,6 +141,15 @@ Behavioral caveats:
   up to `limit` merged PRs (slower — one subprocess pair per PR —
   returns `{"prs": [...], "count": N}`). For a single-PR check always
   pass `pr_number` (GH-710).
+- `pin_gate_preset` persists a Phase-0 preset pick into the global
+  `~/.config/Dev10x/friction.yaml`, keyed by the repo stem read from the
+  git **common dir** — so a pick made inside worktree `<repo>-3` also
+  covers `<repo>` and a `<repo>-9` created later (GH-855). It is
+  idempotent: an entry already covering the checkout is replaced, never
+  duplicated. Gate the ask on `preset_pin_status` → `pinned: false`
+  (the first-pick condition); asking on every pick is the friction the
+  pair exists to remove. Nothing is written under a repo's `.claude/`
+  (ADR-0018), so the self-settings gate never fires.
 - `resolve_gate` returns `{gate, effect (ask|auto-advance|skip),
   resolved_option, log_to, reason, floors_applied,
   anchor_recommendations}`; on an `auto-advance` it adds a `record`
@@ -223,6 +233,8 @@ supporting each tool:
 | `request_sampling` | `cli` | GH-343 | v0.80.0+ |
 | `background_preamble` | `cli` | GH-610 | v0.80.0+ |
 | `resolve_gate` | `cli` | GH-742 (ADR-0016 spike) | v0.83.0+ |
+| `preset_pin_status` | `cli` | GH-855 | v0.92.0+ |
+| `pin_gate_preset` | `cli` | GH-855 | v0.92.0+ |
 | `usage_blocks` | `cli` | GH-878 | v0.90.0+ |
 | `query` | `db` | PR #126 | v0.25.0+ |
 

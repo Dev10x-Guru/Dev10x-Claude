@@ -107,14 +107,50 @@ projects:
     active_modes: []         # e.g. [solo-maintainer]
 ```
 
-**Prefer the CLI over a raw Write** so the write stays gate-free and
-the shape stays canonical: `dev10x session seed` (idempotent —
-creates a starter `friction.yaml` with a `defaults:` block when
-absent). For a per-project override, hand-add a `projects[]` entry;
-the resolver reads first-match-wins, falling back to a legacy
-per-repo `config.yaml` and then `defaults:` (ADR-0018 D4). Merge
-`active_modes` from the project playbook file into the chosen
+**Prefer the CLI/MCP writers over a raw Write** so the write stays
+gate-free and the shape stays canonical: `dev10x session seed`
+(idempotent — creates a starter `friction.yaml` with a `defaults:`
+block when absent). The resolver reads first-match-wins, falling back
+to a legacy per-repo `config.yaml` and then `defaults:` (ADR-0018 D4).
+Merge `active_modes` from the project playbook file into the chosen
 project entry.
+
+#### Offer to remember the preset (GH-855)
+
+A preset picked here is session-scoped and evaporates at session end —
+so the same stale session re-asks forever. After the supervisor picks,
+offer to persist it:
+
+1. Call `mcp__plugin_Dev10x_cli__preset_pin_status`. Only when it
+   returns `pinned: false` does the gate below fire — that is the
+   **first-pick** condition. `pinned: true` means a `projects[]` entry
+   already covers this repo; persist nothing and do NOT ask (re-asking
+   on every pick is the friction this feature exists to remove).
+
+2. **REQUIRED: Call `AskUserQuestion`** (do NOT use plain text, call
+   spec: [ask-preset-pin.md](./tool-calls/ask-preset-pin.md)) —
+   "Remember this preset for `<repo_name>`?" using the `repo_name` the
+   status tool returned. Options:
+   - **Yes — this repo and its worktrees (Recommended)** — `scope="repo"`.
+     Writes `match: ["*/<stem>", "*/<stem>-*"]`, so every present and
+     future worktree matches.
+   - **Yes — this repo only** — `scope="repo-only"`. The main checkout
+     alone; sibling worktrees keep asking.
+   - **Yes — this directory only** — `scope="dir"`. Pins the literal path.
+   - **No, just this session** — persist nothing; behavior is unchanged.
+
+3. On any *Yes*, call `mcp__plugin_Dev10x_cli__pin_gate_preset(preset=…,
+   scope=…)` (add `overlays` / `gate_overrides` when the supervisor chose
+   any). It is idempotent — an entry already covering this checkout is
+   replaced, never duplicated.
+
+**The pin is repo-scoped, not worktree-scoped.** The tool derives the
+key from the git common dir, so choosing a preset while sitting in
+`<repo>-3` also covers `<repo>` and a `<repo>-9` created next month.
+Never hand-write a `match` containing the worktree path or a
+single-worktree glob — that re-prompts in every sibling worktree,
+defeating the point. On **No**, write nothing: the choice stays
+session-scoped and the gate simply fires again next time.
 
 **Read-before-write (GH-846):** `resolve_gate` already reads the
 resolved durable prefs; only persist a *changed* friction choice —

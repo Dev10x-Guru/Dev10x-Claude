@@ -24,18 +24,22 @@ from pathlib import Path
 
 import click
 
+from dev10x.domain.common.result import ErrorResult
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.documents.session_yaml import (
+    PIN_SCOPES,
     FrictionYamlDocument,
     set_playbook_modes,
     upsert_project_prefs,
 )
+from dev10x.session.preset_pin import PIN_OVERRIDE_VALUES
 
 _OVERLAY_CHOICES = ("solo-maintainer", "afk")
 
 #: Values a per-gate override may take. Conditional preset values
 #: (``auto-advance-if-*``) are preset-internal and not user-selectable here.
-_GATE_OVERRIDE_VALUES = ("ask", "auto-advance", "skip")
+#: Shared with the MCP pin path so both entry points accept the same set.
+_GATE_OVERRIDE_VALUES = PIN_OVERRIDE_VALUES
 
 
 def _parse_gate_overrides(pairs: tuple[str, ...]) -> dict[str, str]:
@@ -188,6 +192,64 @@ def set_friction(
         prefs["gate_overrides"] = parsed_overrides
     written = upsert_project_prefs(toplevel=str(project_root), prefs=prefs)
     click.echo(f"wrote friction preferences for {project_root} to {written}")
+
+
+@session.command("pin")
+@click.argument(
+    "preset", type=click.Choice(["strict", "guided", "adaptive"], case_sensitive=False)
+)
+@click.option(
+    "--overlay",
+    "overlays",
+    type=click.Choice(_OVERLAY_CHOICES, case_sensitive=False),
+    multiple=True,
+    help="Overlay(s) layered on the preset (repeatable).",
+)
+@click.option(
+    "--gate-override",
+    "gate_overrides",
+    multiple=True,
+    metavar="TOGGLE=VALUE",
+    help="Per-gate override (repeatable), e.g. --gate-override merge=ask.",
+)
+@click.option(
+    "--scope",
+    type=click.Choice(list(PIN_SCOPES), case_sensitive=False),
+    default="repo",
+    show_default=True,
+    help="repo: this repo + all present/future worktrees. "
+    "repo-only: the main checkout. dir: this directory only.",
+)
+@click.option("--cwd", default=None, help="Directory to resolve the repo from (default: CWD).")
+def pin(
+    *,
+    preset: str,
+    overlays: tuple[str, ...],
+    gate_overrides: tuple[str, ...],
+    scope: str,
+    cwd: str | None,
+) -> None:
+    """Pin a Phase-0 preset choice for this REPO into the global friction.yaml.
+
+    Unlike ``set-friction``, the entry is keyed off the repo stem resolved
+    from the git common dir — so a preset chosen inside worktree ``<repo>-3``
+    also covers ``<repo>`` and any ``<repo>-9`` created later (GH-855).
+    Idempotent: an entry already covering this checkout is replaced in place.
+    """
+    from dev10x.session.preset_pin import pin_preset
+
+    result = pin_preset(
+        preset=preset.lower(),
+        overlays=[overlay.lower() for overlay in overlays] or None,
+        gate_overrides=_parse_gate_overrides(gate_overrides) or None,
+        scope=scope.lower(),
+        cwd=cwd,
+    )
+    if isinstance(result, ErrorResult):
+        raise click.ClickException(result.error)
+    payload = result.value
+    click.echo(f"pinned {preset.lower()} for {payload['repo_name']} to {payload['path']}")
+    click.echo(f"match: {payload['match']}")
 
 
 @session.command("set-playbook")
