@@ -58,10 +58,19 @@ class GitContext:
         except (subprocess.CalledProcessError, FileNotFoundError):
             return "unknown"
 
-    def run(self, *args: str) -> str:
+    def run(self, *args: str, timeout: float | None = None) -> str:
+        """Run a git command and return its stripped stdout.
+
+        ``timeout`` bounds the call so a wedged git (a stale index.lock, an
+        unreachable network remote) cannot hang a request served by the
+        long-lived MCP daemon (`.claude/rules/mcp-tools.md` § concurrency
+        conventions). Callers on a request path MUST pass one; it defaults to
+        ``None`` so existing call sites keep their prior behavior.
+        """
         return subprocess.check_output(
             ["git", *args],
             stderr=subprocess.DEVNULL,
             text=True,
             cwd=self._resolved_cwd(),
+            timeout=timeout,
         ).strip()

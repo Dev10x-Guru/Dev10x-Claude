@@ -21,6 +21,7 @@ migration is transparent (ADR-0007 D3 keeps Policy Rules I/O-free).
 from __future__ import annotations
 
 import fnmatch
+import glob
 import os
 import re
 from dataclasses import dataclass
@@ -214,6 +215,12 @@ class FrictionYamlDocument:
         Mirrors the ``projects.yaml`` example shape (a forgiving ``*/repo``
         basename glob plus the canonical absolute path so the entry resolves
         from any worktree/checkout of the repo).
+
+        .. deprecated:: GH-855
+           ``toplevel`` inside a worktree is the *worktree* path, so this
+           emits a worktree-scoped key (``*/bl-zebra-3``) that re-prompts in
+           every sibling worktree. Prefer
+           :func:`match_globs_for_repo`, which keys off the repo stem.
         """
         target = _normalize_toplevel(toplevel)
         base = os.path.basename(target.rstrip("/"))
@@ -228,27 +235,46 @@ class FrictionYamlDocument:
         *,
         match: list[str],
         prefs: dict[str, Any],
+        supersedes: list[str] | None = None,
     ) -> dict[str, Any]:
         """Upsert a ``projects[]`` entry into ``doc``, returning a new mapping.
 
-        The entry is keyed by its ``match`` list: an existing entry with the
-        identical ``match`` is replaced (idempotent re-runs), otherwise the
-        entry is appended. Only known durable keys survive from ``prefs`` so
-        an unrelated key cannot leak into the resolver inputs.
+        An existing entry with the identical ``match`` list is replaced
+        (idempotent re-runs). ``supersedes`` widens that to *repo* identity
+        (GH-855): every path listed there is probed against each existing
+        entry's globs, and a hit replaces that entry in place. Callers pass
+        both the repo root and the worktree the pick was made from, so a
+        re-pin from a sibling worktree AND a legacy worktree-scoped key like
+        ``*/bl-zebra-3`` are both folded into the repo-stem entry. Any
+        *further* entries that also match are dropped: leaving them behind
+        would keep a shadowed duplicate for the same repo, which is exactly
+        the never-duplicate invariant this upsert owes its callers.
+
+        Only known durable keys survive from ``prefs`` so an unrelated key
+        cannot leak into the resolver inputs.
         """
         base = dict(doc) if isinstance(doc, dict) else {}
         raw_projects = base.get("projects")
         projects = list(raw_projects) if isinstance(raw_projects, list) else []
         entry: dict[str, Any] = {"match": list(match)}
         entry.update({key: value for key, value in prefs.items() if key in _DURABLE_KEYS})
+        probes = list(supersedes or [])
+
+        def _supersedes(existing: Any) -> bool:
+            if not isinstance(existing, dict):
+                return False
+            if existing.get("match") == list(match):
+                return True
+            return any(_match_globs(probe, existing.get("match")) for probe in probes)
+
         replaced = False
         merged: list[Any] = []
         for existing in projects:
-            if isinstance(existing, dict) and existing.get("match") == list(match):
+            if not _supersedes(existing):
+                merged.append(existing)
+            elif not replaced:
                 merged.append(entry)
                 replaced = True
-            else:
-                merged.append(existing)
         if not replaced:
             merged.append(entry)
         base["projects"] = merged
@@ -264,6 +290,71 @@ class FrictionYamlDocument:
         """
         body = yaml.safe_dump(doc or {}, sort_keys=False, default_flow_style=False)
         return FrictionYamlDocument._MIGRATION_HEADER + body
+
+
+#: Scope of a durable preset pin (GH-855). ``repo`` — the default — covers
+#: the repo *and every present or future worktree of it*, because a preset
+#: chosen in one worktree is a statement about the repo, not about the
+#: ephemeral directory it was chosen from.
+PIN_SCOPES = ("repo", "repo-only", "dir")
+
+_WORKTREE_SUFFIX = re.compile(r"-\d+$")
+
+
+def repo_stem(name: str) -> str:
+    """Strip a trailing ``-<n>`` worktree suffix from a directory name (GH-855).
+
+    Only used on the **fallback** derivation path, where the sole signal
+    available is the current directory's basename (``bl-zebra-3`` →
+    ``bl-zebra``). The primary path reads the git common dir, whose basename
+    is already the main working tree's name and is used verbatim — stripping
+    there would over-widen a repo legitimately named ``advent-2024`` into
+    ``advent``.
+
+    Returns ``name`` unchanged when stripping would leave nothing.
+    """
+    stripped = _WORKTREE_SUFFIX.sub("", name)
+    return stripped or name
+
+
+def match_globs_for_repo(
+    *,
+    repo_name: str,
+    repo_root: str | None = None,
+    scope: str = "repo",
+) -> list[str]:
+    """Return the ``friction.yaml`` ``match`` globs for a repo pin (GH-855).
+
+    * ``repo`` (default) — ``["*/<name>", "*/<name>-*"]``: the main checkout
+      plus every worktree of it, including ones created next month. This is
+      what makes a preset picked inside ``<name>-3`` stick for ``<name>-9``.
+    * ``repo-only`` — ``["*/<name>"]``: the main checkout alone; sibling
+      worktrees keep falling back to ``defaults:``.
+    * ``dir`` — ``[<resolved repo_root>]``: this one directory, verbatim.
+
+    ``repo_root`` is required for ``dir`` scope and ignored otherwise.
+
+    ``repo_name`` comes from a directory basename, so any ``fnmatch``
+    metacharacter in it (``*``, ``?``, ``[…]``) is escaped before
+    interpolation. A checkout literally named ``foo*`` would otherwise
+    persist a pattern matching *unrelated* repos on the machine, silently
+    widening their gate posture — a durable change with no signal to those
+    repos' owners. Escaping (rather than rejecting, as the sibling
+    ``set_playbook_modes`` does for a path segment) keeps an oddly-named
+    checkout pinnable while making the stored glob literal.
+    """
+    if scope not in PIN_SCOPES:
+        raise ValueError(f"unknown pin scope {scope!r}; expected one of {list(PIN_SCOPES)}")
+    if scope == "dir":
+        if not repo_root:
+            raise ValueError("scope 'dir' requires repo_root")
+        return [_normalize_toplevel(repo_root)]
+    if not repo_name:
+        raise ValueError("repo_name is required for repo-scoped globs")
+    stem = glob.escape(repo_name)
+    if scope == "repo-only":
+        return [f"*/{stem}"]
+    return [f"*/{stem}", f"*/{stem}-*"]
 
 
 def seed_strict_baseline_if_absent(*, path: Path | None = None) -> bool:
@@ -298,23 +389,37 @@ FRICTION_SETUP_SKIP_MODE = "friction-setup-skips"
 
 
 def upsert_project_prefs(
-    *, toplevel: str, prefs: dict[str, Any], path: Path | None = None
+    *,
+    toplevel: str,
+    prefs: dict[str, Any],
+    path: Path | None = None,
+    match: list[str] | None = None,
+    supersedes: list[str] | None = None,
 ) -> Path:
     """Upsert this repo's durable gate prefs into the global ``friction.yaml`` (GH-886).
 
     The gate axis of ``Dev10x:friction-setup``: writes a ``projects[]`` entry
-    (keyed by this repo's dir-path globs) carrying ``gate_preset`` /
-    ``gate_overlays`` / ``gate_overrides``. Only durable keys survive (via
-    :meth:`FrictionYamlDocument.with_project`). Concurrency-safe and idempotent
-    — an exclusive lock guards the read-modify-write and the atomic write leaves
-    no truncated file (GH-827 / ADR-0011); re-running with the same match list
-    replaces the entry rather than appending. Returns the file written.
+    carrying ``gate_preset`` / ``gate_overlays`` / ``gate_overrides``. Only
+    durable keys survive (via :meth:`FrictionYamlDocument.with_project`).
+    Concurrency-safe and idempotent — an exclusive lock guards the
+    read-modify-write and the atomic write leaves no truncated file (GH-827 /
+    ADR-0011). Returns the file written.
+
+    ``match`` supplies the entry key; callers pinning a *repo* pass the
+    repo-stem globs from :func:`match_globs_for_repo` (GH-855). It defaults to
+    the legacy path-derived globs, which are worktree-scoped when ``toplevel``
+    is a worktree. ``supersedes`` lists the paths whose existing entries this
+    write absorbs (defaulting to ``toplevel``), so a repo already covered by an
+    older entry is updated in place instead of gaining a shadowed duplicate.
     """
     target = path or Dev10xConfigDir.friction_yaml()
-    match = FrictionYamlDocument.match_globs_for(toplevel)
+    entry_match = match if match is not None else FrictionYamlDocument.match_globs_for(toplevel)
+    probes = supersedes if supersedes is not None else [toplevel]
     with file_lock(target):
         doc = _load_yaml_mapping(target)
-        updated = FrictionYamlDocument.with_project(doc, match=match, prefs=prefs)
+        updated = FrictionYamlDocument.with_project(
+            doc, match=entry_match, prefs=prefs, supersedes=probes
+        )
         atomic_write_text(target, FrictionYamlDocument.render_document(updated))
     return target
 
@@ -547,10 +652,13 @@ class SessionYamlDocument:
 __all__ = [
     "DURABLE_KEYS",
     "FRICTION_SETUP_SKIP_MODE",
+    "PIN_SCOPES",
     "ConfigYamlDocument",
     "FrictionYamlDocument",
     "SessionYamlDocument",
     "legacy_durable_prefs",
+    "match_globs_for_repo",
+    "repo_stem",
     "seed_strict_baseline_if_absent",
     "set_playbook_modes",
     "upsert_project_prefs",

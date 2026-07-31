@@ -35,6 +35,8 @@ __all__ = [
     "LEGACY_PROJECT_POLICY_RELPATH",
     "PROJECT_POLICY_RELPATH",
     "GateResolutionQuery",
+    "pin_gate_preset",
+    "preset_pin_status",
     "resolve_gate",
     "resolve_gate_for_toplevel",
 ]
@@ -132,5 +134,75 @@ async def resolve_gate(
         return to_wire(
             await resolve_gate_for_toplevel(
                 gate=gate, context=dict(context or {}), toplevel=toplevel
+            )
+        )
+
+
+@server.tool()
+async def preset_pin_status(cwd: str | None = None) -> dict:
+    """Report whether this repo already has a durable friction.yaml preset pin.
+
+    Consult this BEFORE offering to remember a Phase-0 preset choice:
+    `pinned: false` is the "first pick" condition that warrants the
+    "Remember this preset?" gate. Re-asking on every selection turns a
+    one-time convenience into recurring friction.
+
+    Args:
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: pinned (bool), repo_name (the repo stem the
+        pin is keyed by — derived from the git common dir, so it is the
+        same from every worktree), repo_root, source, prefs (the matched
+        entry's durable keys, or {}), suggested_match (the globs a `repo`
+        scoped pin would write). `{"error": ...}` outside a git repo.
+    """
+    from dev10x.session import preset_pin
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return to_wire(preset_pin.preset_pin_status(cwd=cwd))
+
+
+@server.tool()
+async def pin_gate_preset(
+    preset: str,
+    overlays: list[str] | None = None,
+    gate_overrides: dict | None = None,
+    scope: str = "repo",
+    cwd: str | None = None,
+) -> dict:
+    """Persist a Phase-0 preset choice to the global friction.yaml (GH-855).
+
+    Keys the `projects[]` entry off the **repo stem** resolved from the git
+    common dir, not the invocation CWD — so a preset chosen inside worktree
+    `<repo>-3` also covers `<repo>`, `<repo>-1`, and any `<repo>-9` created
+    later. Idempotent: an entry already covering this checkout is replaced
+    in place, never duplicated. Nothing is written under the repo's
+    `.claude/` (ADR-0018), so the self-settings gate never fires.
+
+    Args:
+        preset: Gate preset to pin (strict | guided | adaptive).
+        overlays: Overlay names layered on the preset (e.g. ["solo-maintainer"]).
+        gate_overrides: Per-toggle deviations, e.g. {"merge": "ask"}.
+        scope: "repo" (default — repo + all present/future worktrees),
+            "repo-only" (main checkout only), or "dir" (this directory).
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: path, match, repo_name, repo_root, scope,
+        prefs. `{"error": ...}` on an unknown scope or outside a git repo.
+    """
+    from dev10x.session import preset_pin
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return to_wire(
+            preset_pin.pin_preset(
+                preset=preset,
+                overlays=list(overlays) if overlays else None,
+                gate_overrides=dict(gate_overrides) if gate_overrides else None,
+                scope=scope,
+                cwd=cwd,
             )
         )

@@ -701,6 +701,68 @@
           "signals": ["skip", "nested", "fanout"]
         }
       ]
+    },
+    {
+      "id": 15,
+      "name": "phase0-preset-pin-gate",
+      "prompt": "/Dev10x:work-on https://github.com/example-org/app-pos/issues/300",
+      "description": "Tests the GH-855 'Remember this preset?' gate: it fires via AskUserQuestion only on the first pick (preset_pin_status returns pinned:false), persists via pin_gate_preset with a repo-stem key, and writes nothing on a decline.",
+      "setup": {
+        "cwd_is_worktree": true,
+        "note": "CWD is worktree <repo>-3 with no matching friction.yaml projects[] entry"
+      },
+      "expected_output": "preset_pin_status is called after the friction pick; because pinned is false, AskUserQuestion offers repo / repo-only / dir / no-thanks, and a Yes calls pin_gate_preset with the matching scope.",
+      "dimensions": ["orchestration-guardrails"],
+      "assertions": [
+        {
+          "id": "pin-gate-checks-status-first",
+          "text": "preset_pin_status is called before the remember gate, so the ask is conditioned on pinned:false",
+          "check": "tool_called_before",
+          "signals": ["preset_pin_status", "AskUserQuestion"]
+        },
+        {
+          "id": "pin-gate-uses-askuserquestion",
+          "text": "The remember-this-preset gate uses an AskUserQuestion tool call, not plain text",
+          "check": "tool_called",
+          "signals": ["AskUserQuestion", "Remember", "preset"]
+        },
+        {
+          "id": "pin-gate-offers-documented-scopes",
+          "text": "Gate presents the four documented options: repo + worktrees (recommended), repo only, this directory, and decline",
+          "check": "output_contains",
+          "signals": ["worktrees", "repo only", "directory", "just this session"]
+        },
+        {
+          "id": "pin-gate-persists-via-mcp-tool",
+          "text": "A Yes calls pin_gate_preset with the chosen scope rather than editing friction.yaml with the Write/Edit tool",
+          "check": "tool_called",
+          "signals": ["pin_gate_preset", "scope"]
+        },
+        {
+          "id": "pin-gate-does-not-write-worktree-key",
+          "text": "The persisted match uses the repo stem, never the worktree basename or literal worktree path, so sibling and future worktrees match",
+          "check": "behavioral",
+          "signals": ["repo stem", "no worktree path", "*/<stem>-*"]
+        },
+        {
+          "id": "pin-gate-silent-when-already-pinned",
+          "text": "When preset_pin_status returns pinned:true, no AskUserQuestion fires and nothing is written",
+          "check": "behavioral",
+          "signals": ["pinned true", "no re-ask", "no write"]
+        },
+        {
+          "id": "pin-gate-decline-writes-nothing",
+          "text": "Choosing 'No, just this session' persists nothing and leaves behavior session-scoped",
+          "check": "behavioral",
+          "signals": ["decline", "no write", "session-scoped"]
+        },
+        {
+          "id": "pin-gate-never-writes-under-dot-claude",
+          "text": "Nothing is written under any repo's .claude/ — the pin lands in the global ~/.config/Dev10x/friction.yaml (ADR-0018)",
+          "check": "behavioral",
+          "signals": ["friction.yaml", "no .claude write", "ADR-0018"]
+        }
+      ]
     }
   ],
   "trigger_evals": {

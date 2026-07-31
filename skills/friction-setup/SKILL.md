@@ -16,6 +16,8 @@ user-invocable: true
 invocation-name: Dev10x:friction-setup
 allowed-tools:
   - AskUserQuestion
+  - Bash(uvx dev10x session pin:*)
+  - Bash(dev10x session pin:*)
   - Bash(uvx dev10x session set-friction:*)
   - Bash(dev10x session set-friction:*)
   - Bash(uvx dev10x session set-playbook:*)
@@ -34,7 +36,7 @@ Walks the supervisor through an explicit choice of autonomy posture and
 | Gate | `~/.config/Dev10x/friction.yaml` (`projects[]` entry) | `gate_preset`, `gate_overlays`, `gate_overrides` |
 | Playbook | `~/.config/Dev10x/playbooks/<skill>.yaml` | `active_modes`, per-step `skip` |
 
-Both writes go through `dev10x session set-friction` / `set-playbook`, which
+Both writes go through `dev10x session pin` / `set-playbook`, which
 lock + atomically write (GH-827 / ADR-0011) — this skill never edits the YAML
 with the Write tool. Nothing is written under the repo's `.claude/`, so Claude
 Code's self-settings gate never fires (GH-812).
@@ -111,7 +113,13 @@ to CWD) and are idempotent — a re-run replaces this project's entry rather
 than appending. If any REQUIRED gate was dismissed, do NOT run either write.
 
 1. Gate-axis write (always, once a preset was chosen): `uvx dev10x session
-   set-friction --preset <preset> [--overlay <o>]... [--gate-override <t>=<v>]...`
+   pin <preset> [--overlay <o>]... [--gate-override <t>=<v>]...`. `pin` keys
+   the entry off the **repo stem** resolved from the git common dir, so a walk
+   run inside worktree `<repo>-3` configures `<repo>` and every present or
+   future worktree of it (GH-855) — add `--scope repo-only` / `--scope dir` if
+   the supervisor asked to narrow it. Use `set-friction --path <dir>` instead
+   only when configuring a *different* checkout than the CWD; it keys off that
+   literal path and so does not span worktrees.
 2. Playbook-axis write **only if** Gate 4 selected steps or an overlay mode
    applies: `uvx dev10x session set-playbook --skill work-on [--mode <m>]...
    [--skip-step "<subject>"]...`. Skip this step entirely when no steps were

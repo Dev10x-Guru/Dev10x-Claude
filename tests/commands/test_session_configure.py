@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import pytest
 import yaml
 from click.testing import CliRunner
 
@@ -150,3 +151,55 @@ class TestSetPlaybook:
         assert written.exists()
         # Global config home, never under a repo's .claude/.
         assert os.environ["DEV10X_CONFIG_HOME"] in str(written)
+
+
+class TestPin:
+    """`dev10x session pin` — repo-scoped preset persistence (GH-855)."""
+
+    @pytest.fixture(autouse=True)
+    def zebra_repo(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+        """Resolve every invocation to the `bl-zebra` repo's main checkout."""
+        main = tmp_path / "work" / "bl-zebra"
+        (main / ".git").mkdir(parents=True)
+        monkeypatch.setattr(
+            "dev10x.session.preset_pin._common_dir", lambda *, cwd: str(main / ".git")
+        )
+        return main
+
+    def _projects(self) -> list[dict[str, object]]:
+        doc = yaml.safe_load(Dev10xConfigDir.friction_yaml().read_text())
+        return doc["projects"]
+
+    def test_pins_the_repo_stem_glob_from_a_worktree(self) -> None:
+        result = CliRunner().invoke(
+            session, ["pin", "adaptive", "--cwd", "/work/bl/.worktrees/bl-zebra-3"]
+        )
+        assert result.exit_code == 0
+        assert self._projects() == [
+            {"match": ["*/bl-zebra", "*/bl-zebra-*"], "gate_preset": "adaptive"}
+        ]
+
+    def test_records_overlays_and_gate_overrides(self) -> None:
+        result = CliRunner().invoke(
+            session,
+            ["pin", "guided", "--overlay", "solo-maintainer", "--gate-override", "merge=ask"],
+        )
+        assert result.exit_code == 0
+        entry = self._projects()[0]
+        assert entry["gate_overlays"] == ["solo-maintainer"]
+        assert entry["gate_overrides"] == {"merge": "ask"}
+
+    def test_repo_only_scope_narrows_the_glob(self) -> None:
+        CliRunner().invoke(session, ["pin", "strict", "--scope", "repo-only"])
+        assert self._projects()[0]["match"] == ["*/bl-zebra"]
+
+    def test_rejects_an_invalid_gate_override(self) -> None:
+        result = CliRunner().invoke(session, ["pin", "strict", "--gate-override", "marge=ask"])
+        assert result.exit_code != 0
+
+    def test_surfaces_a_resolution_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("dev10x.session.preset_pin._common_dir", lambda *, cwd: None)
+        monkeypatch.setattr("dev10x.session.preset_pin._bounded_toplevel", lambda *, cwd: None)
+        result = CliRunner().invoke(session, ["pin", "strict"])
+        assert result.exit_code != 0
+        assert "Not in a git repository" in result.output
