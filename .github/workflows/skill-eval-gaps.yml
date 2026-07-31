@@ -40,6 +40,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install uv
         uses: astral-sh/setup-uv@v4
@@ -49,5 +51,29 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
 
-      - name: Scan every skill for eval-coverage gaps
-        run: uv run bin/check-skill-eval-gaps.py --all
+      - name: Collect skill dirs touched by this PR
+        id: changed
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          # Only gate skills THIS PR touches — pre-existing gaps in
+          # unrelated skills are tracked separately (see #940) and
+          # must not block unrelated PRs.
+          BASE_SHA="$(git merge-base "origin/${BASE_REF}" HEAD)"
+          git diff --name-only --diff-filter=AM "${BASE_SHA}" HEAD \
+            | grep -E '^skills/[^/]+/SKILL\.md$' \
+            | sed -E 's#^(skills/[^/]+)/SKILL\.md$#\1#' \
+            | sort -u \
+            > /tmp/changed-skill-dirs.txt || true
+          echo "count=$(wc -l < /tmp/changed-skill-dirs.txt)" >> "$GITHUB_OUTPUT"
+          if [ -s /tmp/changed-skill-dirs.txt ]; then
+            echo "Changed skill dirs:"
+            cat /tmp/changed-skill-dirs.txt
+          else
+            echo "No SKILL.md changed in this PR."
+          fi
+
+      - name: Scan changed skill dirs for eval-coverage gaps
+        if: steps.changed.outputs.count != '0'
+        run: xargs -a /tmp/changed-skill-dirs.txt uv run bin/check-skill-eval-gaps.py

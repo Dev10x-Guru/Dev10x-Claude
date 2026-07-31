@@ -636,10 +636,12 @@ established by `skills/gh-pr-monitor/evals/evals.json` +
 `skills/gh-pr-request-review/evals/evals.json` (GH-831).
 
 **Also enforced in CI:** `.github/workflows/skill-eval-gaps.yml`
-runs `bin/check-skill-eval-gaps.py --all` on every PR touching
-`skills/**/SKILL.md` or `skills/**/evals/evals.json`, so a new
-gate landing without eval coverage fails CI independently of
-whether skill-audit runs that session.
+runs `bin/check-skill-eval-gaps.py` scoped to the `SKILL.md` files
+changed in the PR (mirroring the CLI-friction scanner's
+diff-scoped pattern), so a new gate landing without eval coverage
+fails CI on that PR — independently of whether skill-audit runs
+that session — without blocking unrelated PRs on pre-existing
+gaps tracked separately (see #940).
 
 ---
 
