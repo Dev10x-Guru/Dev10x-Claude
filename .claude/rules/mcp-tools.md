@@ -136,6 +136,12 @@ Behavioral caveats:
   which is the *safe* direction when a problem surfaces after marking
   ready. The success payload carries `draft` reflecting the new state.
 
+- `create_pr` rejects a `job_story` missing any of `**When**` /
+  `**<actor> wants to**` / `**so <beneficiary> can**` with an
+  actionable error before the PR is opened, and `update_pr` moves any
+  content trailing the `Fixes:` line above it (GH-945) — so neither
+  path can emit a body that trips the hygiene bot.
+
 - `issue_close` called with a pull-request number fails loud with
   `"N is a pull request; use pr_close"` instead of surfacing the raw
   `gh issue close` rejection (GH-924) — reach for `pr_close` instead

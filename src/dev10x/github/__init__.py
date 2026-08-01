@@ -29,6 +29,7 @@ from typing import Any
 
 from dev10x.domain.common.repository_ref import RepositoryRef
 from dev10x.domain.common.result import ErrorResult, Result, SuccessResult, err, ok
+from dev10x.domain.pr_body import job_story_error, normalize_pr_body
 from dev10x.github.app_auth import AppConfig, get_bot_token
 from dev10x.subprocess_utils import (
     async_run,
@@ -946,6 +947,10 @@ async def create_pr(
     # wrapper's use_cwd) is honoured here.
     from dev10x.domain.git_context import GitContext
 
+    story_error = job_story_error(job_story=job_story)
+    if story_error:
+        return err(f"create_pr: {story_error}")
+
     current_branch = GitContext().branch
     if current_branch in _BASE_BRANCH_NAMES:
         return err(
@@ -995,7 +1000,7 @@ async def update_pr(
 
     fields: dict[str, str | int | list[str]] = {}
     if body is not None:
-        fields["body"] = body
+        fields["body"] = normalize_pr_body(body=body)
     if title is not None:
         fields["title"] = title
     if base_branch is not None:

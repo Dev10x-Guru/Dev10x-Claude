@@ -532,9 +532,16 @@ async def create_pr(
 ) -> dict:
     """Create a PR with two-pass body generation.
 
+    The `job_story` is validated before the PR is opened (GH-945): a
+    story missing any of `**When**` / `**<actor> wants to**` /
+    `**so <beneficiary> can**` returns an actionable error instead of
+    a body that trips the hygiene bot. The generated body always ends
+    at the `Fixes:` line.
+
     Args:
         title: PR title
-        job_story: JTBD Job Story for the PR body
+        job_story: JTBD Job Story for the PR body — must carry all
+            three markers (see above)
         issue_id: Ticket ID extracted from branch name
         fixes_url: Issue URL for the Fixes: line
         base_branch: Base branch. Auto-detected if omitted.

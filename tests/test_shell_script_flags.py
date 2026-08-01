@@ -62,3 +62,21 @@ def test_aws_wrapper_is_verb_aware_read_only() -> None:
     assert "secretsmanager get-secret-value" in source
     assert "ssm get-parameter" in source
     assert "--with-decryption" in source
+
+
+def test_create_pr_body_ends_at_the_fixes_trailer() -> None:
+    """GH-945: the checklist block may never follow the Fixes line.
+
+    The old format appended `---\\n\\n$CHECKLIST` after $FIXES_LINE, so a
+    repo without `.github/checklist.md` got a bare `---` as the last
+    line and the hygiene bot flagged every generated body.
+    """
+    source = (REPO_ROOT / "skills" / "gh-pr-create" / "scripts" / "create-pr.sh").read_text()
+    format_lines = [
+        line for line in source.splitlines() if "CHECKLIST_BLOCK" in line and "FIXES_LINE" in line
+    ]
+    assert len(format_lines) == 2, "expected both body-assembly passes"
+    for line in format_lines:
+        assert line.index("CHECKLIST_BLOCK") < line.index("FIXES_LINE")
+    # The separator now lives inside the (conditionally empty) block.
+    assert "CHECKLIST_BLOCK=$(printf '\\n---\\n\\n%s\\n'" in source
