@@ -53,8 +53,13 @@ hooks and to stay on the pre-approved tool surface.
 Command shapes to avoid (each trips a hook or breaks allow-rule matching):
 - No `cmd1 && cmd2`, `cmd1; cmd2`, or `a | b` chaining — one command per
   Bash call.
-- No `cd /path && …` and no `git -C /path …` — your CWD is already the
-  correct worktree; run commands directly.
+- No **chained** `cd /path && …` and no `git -C /path …` — chaining
+  shifts the allow-rule prefix. A **standalone** `cd /path` as its own
+  Bash call IS allowed, and CWD persists across calls. Do not assume
+  your CWD is already the right worktree: a spawned subagent inherits
+  its dispatcher's directory. If your brief names a workspace path,
+  `cd` to it as a standalone call and confirm with `pwd` before
+  editing anything (GH-959).
 - No `$(…)` command substitution and no `ENV=value cmd` prefixes.
 - No heredocs or redirects (`cat <<EOF`, `cat > file`, `echo > file`) —
   use the Write tool.
