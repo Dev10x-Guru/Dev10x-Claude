@@ -240,6 +240,13 @@ turn are the most precious resources on site:
   Never skip step 1 because spend went flat: a cheap idle agent and a
   dead agent look identical on a spend graph. Full evidence and the
   idle-notification asymmetry: `references/stall-protocol.md`.
+
+  Two further rules live in that same file and bind here: a respawn
+  gets a FRESH worktree, so uncommitted work in a dead worker's tree
+  is reachable only by the watchdog entering it directly (GH-957);
+  and after two stalls of identical shape on one chunk, the third
+  respawn switches model tier rather than rewriting the brief again
+  (GH-956).
 - `BASE MOVED` → relay to the foreman (it instructs the active worker
   to rebase, re-verify, and never merge on stale ancestry).
 - **`MERGE REQUEST <chunk>` from the foreman → run the merge gate.**
