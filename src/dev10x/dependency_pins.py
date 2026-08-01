@@ -25,6 +25,7 @@ from __future__ import annotations
 import logging
 import re
 import tomllib
+from dataclasses import dataclass
 from pathlib import Path
 
 _logger = logging.getLogger(__name__)
@@ -56,26 +57,63 @@ def _is_bounded(specifier: str) -> bool:
     return "<" in version_part or "==" in version_part
 
 
+@dataclass(frozen=True)
+class PinnedRequirement:
+    """A bounded requirement and where it was declared.
+
+    ``name`` keeps any PEP 508 extras (`pyjwt[crypto]`) so the source
+    reads as written; ``distribution`` is the bare project name a
+    package index can be queried with.
+    """
+
+    name: str
+    specifier: str
+    source: str
+
+    @property
+    def distribution(self) -> str:
+        return self.name.split("[", 1)[0]
+
+
+def _requirement_parts(item: str) -> tuple[str, str] | None:
+    match = _REQUIREMENT.match(item.strip())
+    if match is None:
+        return None
+    return match.group("req").strip(), match.group("specifier").strip()
+
+
 def _offending_requirements(items: list[str]) -> list[str]:
     offenders: list[str] = []
     for item in items:
-        match = _REQUIREMENT.match(item.strip())
-        if match is None:
+        parts = _requirement_parts(item)
+        if parts is None:
             continue
-        specifier = match.group("specifier").strip()
-        if not _is_bounded(specifier):
+        if not _is_bounded(parts[1]):
             offenders.append(item.strip())
     return offenders
 
 
-def find_unbounded_pep723_requirements(*, path: Path, root: Path) -> list[str]:
-    """Return `path:lineno: requirement` offenders in a PEP 723 script header."""
-    offenders: list[str] = []
+def _pinned_requirements(items: list[str], *, source: str) -> list[PinnedRequirement]:
+    """Return only the bounded requirements — unbounded ones are the lint's job."""
+    pinned: list[PinnedRequirement] = []
+    for item in items:
+        parts = _requirement_parts(item)
+        if parts is None:
+            continue
+        name, specifier = parts
+        if _is_bounded(specifier):
+            pinned.append(PinnedRequirement(name=name, specifier=specifier, source=source))
+    return pinned
+
+
+def _pep723_dependency_blocks(*, path: Path) -> list[tuple[int, list[str]]]:
+    """Return `(lineno, requirement items)` for each PEP 723 dependency line."""
     try:
         text = path.read_text()
     except (OSError, UnicodeDecodeError):
         _logger.warning("Skipping unreadable file during dependency-pin scan: %s", path)
-        return offenders
+        return []
+    blocks: list[tuple[int, list[str]]] = []
     for lineno, line in enumerate(text.splitlines(), start=1):
         # Anchored on the raw (unstripped) line: a genuine PEP 723 header
         # comment always starts at column 0. Requiring that excludes
@@ -88,21 +126,67 @@ def find_unbounded_pep723_requirements(*, path: Path, root: Path) -> list[str]:
             match.group("dq") if match.group("dq") is not None else match.group("sq")
             for match in _QUOTED_ITEM.finditer(deps_match.group("array"))
         ]
+        blocks.append((lineno, items))
+    return blocks
+
+
+def find_unbounded_pep723_requirements(*, path: Path, root: Path) -> list[str]:
+    """Return `path:lineno: requirement` offenders in a PEP 723 script header."""
+    offenders: list[str] = []
+    for lineno, items in _pep723_dependency_blocks(path=path):
         for offender in _offending_requirements(items):
             offenders.append(f"{path.relative_to(root)}:{lineno}: {offender}")
     return offenders
 
 
-def find_unbounded_pyproject_requirements(*, path: Path, root: Path) -> list[str]:
-    """Return `path: [section] requirement` offenders in a pyproject.toml."""
+def find_pinned_pep723_requirements(*, path: Path, root: Path) -> list[PinnedRequirement]:
+    """Return every bounded requirement declared in a PEP 723 script header."""
+    pinned: list[PinnedRequirement] = []
+    for lineno, items in _pep723_dependency_blocks(path=path):
+        pinned.extend(
+            _pinned_requirements(items, source=f"{path.relative_to(root)}:{lineno}"),
+        )
+    return pinned
+
+
+def _pyproject_project_table(*, path: Path) -> dict:
+    """Return the `[project]` table, or an empty one for a non/unreadable pyproject."""
     if path.name != "pyproject.toml":
-        return []
+        return {}
     try:
         data = tomllib.loads(path.read_text())
     except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
         _logger.warning("Skipping unreadable/invalid pyproject.toml during scan: %s", path)
+        return {}
+    project: dict = data.get("project", {})
+    return project
+
+
+def find_pinned_pyproject_requirements(*, path: Path, root: Path) -> list[PinnedRequirement]:
+    """Return every bounded requirement declared in a pyproject.toml."""
+    project = _pyproject_project_table(path=path)
+    if not project:
         return []
-    project = data.get("project", {})
+    relpath = path.relative_to(root)
+    pinned = _pinned_requirements(
+        project.get("dependencies", []),
+        source=f"{relpath}: [project.dependencies]",
+    )
+    for extra, items in project.get("optional-dependencies", {}).items():
+        pinned.extend(
+            _pinned_requirements(
+                items,
+                source=f"{relpath}: [project.optional-dependencies.{extra}]",
+            ),
+        )
+    return pinned
+
+
+def find_unbounded_pyproject_requirements(*, path: Path, root: Path) -> list[str]:
+    """Return `path: [section] requirement` offenders in a pyproject.toml."""
+    project = _pyproject_project_table(path=path)
+    if not project:
+        return []
     offenders: list[str] = []
     relpath = path.relative_to(root)
 
@@ -138,3 +222,16 @@ def scan_repository(root: Path) -> list[str]:
         offenders.extend(find_unbounded_pep723_requirements(path=path, root=root))
         offenders.extend(find_unbounded_pyproject_requirements(path=path, root=root))
     return offenders
+
+
+def collect_pinned_requirements(root: Path) -> list[PinnedRequirement]:
+    """Scan the whole tree and return every bounded requirement declaration.
+
+    The staleness sweep (`dev10x deps sweep`, GH-937) consumes this so it
+    never re-parses the files the lint already understands.
+    """
+    pinned: list[PinnedRequirement] = []
+    for path in scanned_files(root):
+        pinned.extend(find_pinned_pep723_requirements(path=path, root=root))
+        pinned.extend(find_pinned_pyproject_requirements(path=path, root=root))
+    return pinned

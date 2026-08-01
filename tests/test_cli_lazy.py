@@ -16,6 +16,7 @@ from dev10x.cli import cli
 
 EXPECTED_SUBCOMMANDS = {
     "config",
+    "deps",
     "foreman",
     "github",
     "github-app",
