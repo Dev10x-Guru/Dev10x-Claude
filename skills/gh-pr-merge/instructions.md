@@ -199,6 +199,14 @@ can never wave a live finding through. The id is read from the raw body,
 so wrapping it in backticks is no longer needed to work around a stale
 finding. A reply still never counts as a finding itself (GH-777).
 
+**Minimizing a comment does NOT address it (GH-920).** This scan reads
+the REST issue-comments array, which carries no `isMinimized` field, so
+a `minimizeComment` mutation is invisible here by design.
+`Dev10x:gh-pr-respond` Gate 6 hiding is cosmetic noise reduction, not a
+disposition. When this check blocks on a finding whose comment is
+already hidden, the fix is a keyed `Re:` reply — not another
+minimization, and not a merge override.
+
 **Reviewer round-summary wrapper excluded (GH-858 F2).** The
 automated reviewer's own `## Review Summary (Round N)` comment
 restates already-fixed findings under `### Addressed since last

@@ -37,7 +37,7 @@ defaults:
           verdicts — VALID comments are handled entirely by
           gh-pr-fixup.
         condition: non-valid-verdict
-      - subject: Hide obsolete comment
+      - subject: Hide obsolete comment (cosmetic)
         type: detailed
         prompt: >
           REQUIRED: Call resolve_gate(gate="comment_hide",
@@ -47,7 +47,10 @@ defaults:
           minimizeComment GraphQL mutation with classifier OUTDATED.
           Options: "Hide" / "Skip". On effect=="auto-advance",
           minimize without prompting. Skip this gate if the thread
-          was left open.
+          was left open. Minimization is NOT a disposition (GH-920)
+          — it is cosmetic noise reduction and never clears
+          gh-pr-merge Check 1b. The keyed "Re:" reply (GH-907) is
+          the disposition; never substitute hiding for it.
         condition: thread-resolved
       - subject: Check remaining comments
         type: detailed
@@ -130,7 +133,7 @@ defaults:
           effect=="auto-advance", resolve all listed threads
           without prompting. Resolve only user-approved (or
           auto-advanced) threads via GraphQL.
-      - subject: Hide obsolete comments
+      - subject: Hide obsolete comments (cosmetic)
         type: detailed
         prompt: >
           After resolving threads, offer to minimize resolved
@@ -142,6 +145,10 @@ defaults:
           without prompting — still invoke minimize_comments
           (GH-208). Uses minimizeComment GraphQL mutation with
           classifier OUTDATED. Skip if no threads were resolved.
+          Minimization is NOT a disposition (GH-920) — it is
+          cosmetic and never clears gh-pr-merge Check 1b. The keyed
+          "Re:" reply (GH-907) plus thread resolution are the
+          disposition and must already have happened.
         condition: has-resolved-threads
       - subject: Summary
         type: detailed

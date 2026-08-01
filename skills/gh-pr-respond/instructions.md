@@ -618,10 +618,19 @@ comments.
 - `effect == "skip"` → leave the thread open, no action.
 - `error` key present → treat as `effect == "ask"`.
 
-### Step 1c: Hide obsolete comment (optional)
+### Step 1c: Hide obsolete comment (cosmetic, optional)
 
 If the thread was resolved in Step 1b, offer to minimize the root
-comment to reduce PR conversation noise:
+comment to reduce PR conversation noise.
+
+**Minimization is NOT a disposition (GH-920).** Hiding a comment is
+purely cosmetic — it never clears `Dev10x:gh-pr-merge` Check 1b.
+`top-level-comments.jq` consumes the REST issue-comments array,
+which carries no `isMinimized` field, so a `minimizeComment`
+mutation is invisible to that scan. The disposition is the keyed
+`Re:` reply from Step 1 (GH-907); Step 1b's thread resolution is
+what closes the thread. Never skip either one on the grounds that
+the comment was hidden.
 
 **REQUIRED: Call `resolve_gate(gate="comment_hide",
 context={"author_type": "<comment author bot|human>"})`** first —
@@ -802,6 +811,14 @@ both issue comments and submitted review bodies and flags bots by
 account type, a known review-bot login, or an embedded HTML marker
 (GH-743 F2), so a third-party reviewer posting under a generic CI
 account no longer slips past the "clean" check.
+
+**A keyed reply is the ONLY disposition for a top-level finding
+(GH-920).** Top-level bot comments have no review thread, so
+neither thread resolution nor comment minimization applies to
+them. Hiding such a comment leaves Check 1b at `blocking_count: 1`
+— the REST surface the check scans has no `isMinimized` field.
+Post the `Re:`-keyed reply above; do not treat a hidden comment as
+handled.
 
 **Fallback** (only when the MCP server is unavailable):
 ```bash
@@ -1056,11 +1073,20 @@ Options: "Resolve" / "Leave open"
 
 **After confirmation**, resolve only the user-approved threads via GraphQL.
 
-### Step 5b: Hide obsolete comments (optional)
+### Step 5b: Hide obsolete comments (cosmetic, optional)
 
 After resolving threads, offer to minimize the resolved comments
 to reduce PR conversation noise. This hides comment bodies on
 GitHub, showing "This comment was marked as outdated" instead.
+
+**Minimization is NOT a disposition (GH-920).** This step is
+cosmetic noise reduction only — it never clears
+`Dev10x:gh-pr-merge` Check 1b or Check 1. The keyed `Re:` reply
+(GH-907) is the disposition and Step 5's thread resolution is what
+closes the thread; both must already have happened before this
+step runs. An agent that minimizes instead of replying still lands
+on `blocking_count: 1`, because `top-level-comments.jq` reads the
+REST issue-comments array, which carries no `isMinimized` field.
 
 **Skip this step** if no threads were resolved in Step 5.
 
