@@ -18,7 +18,8 @@ allowed-tools:
   - Bash(yq:*)
   - Bash(jq:*)
   - AskUserQuestion
-  - Edit(.claude/Dev10x/session.yaml)
+  # The ephemeral review-deferred flag has no post-ADR-0018 home yet — GH-950.
+  - Edit(.claude/Dev10x/session.yaml)  # cli-friction: allow retired-durable-pref-path — GH-950
 ---
 
 ## Orchestration
@@ -221,12 +222,16 @@ the deferral path:
    `.claude/Dev10x/session.yaml`:
    - Read the file, append `review-deferred` to the `active_modes`
      list if not already present, write back via the Edit tool
-   - `review-deferred` is a **one-time, ephemeral** flag, so it belongs
-     in the ephemeral `session.yaml` — NOT the durable
-     `friction.yaml`/`config.yaml` where durable modes like
-     `solo-maintainer` live (ADR-0018 / GH-854 F3). The durable read
-     facade still merges `session.yaml`'s `active_modes`, so
-     `verify-acc-dod` sees this flag.
+   - `review-deferred` is a **one-time, ephemeral** flag, so it does not
+     belong in the durable `friction.yaml`/`config.yaml` where modes
+     like `solo-maintainer` live (ADR-0018 / GH-854 F3).
+   - **Known gap (GH-950):** ADR-0018 deleted `session.yaml`, and the
+     durable read facade falls back to it *only* when no
+     `friction.yaml` entry matches this repo. In a configured repo the
+     flag is therefore written and never read, so `verify-acc-dod`
+     re-runs the checks just deferred. Do not "fix" that here by
+     writing durable prefs — the lifetime is wrong. GH-950 picks the
+     ephemeral home and rewrites this step.
 3. Do NOT mark the PR as draft; leave it ready
 4. Return cleanly so the calling orchestrator's completion gate does
    not treat the missing review request as a failure

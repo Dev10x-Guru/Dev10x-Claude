@@ -447,10 +447,13 @@ This is the session you are auditing.
 
 Locate the skills directory: `~/.claude/skills/`
 
-**Read session friction context (GH-55 F9).** Look for
-`.claude/Dev10x/session.yaml` in the project root and load
-`friction_level` and `active_modes`. If the file is missing,
-default to `friction_level: guided` and `active_modes: []`.
+**Read session friction context (GH-55 F9).** Call
+`mcp__plugin_Dev10x_cli__preset_pin_status` and take
+`gate_preset` (the successor to `friction_level`) plus
+`gate_overlays` / `active_modes` out of its `prefs`. It resolves the
+durable policy from the global `~/.config/Dev10x/friction.yaml`; do
+not read the retired `.claude/Dev10x/session.yaml` (ADR-0018). When
+`pinned` is `false`, default to `guided` with no overlays.
 
 Persist both values for downstream use — pass them into the
 Phase 3 (Compliance Check) subagent prompt in Step 7. Without

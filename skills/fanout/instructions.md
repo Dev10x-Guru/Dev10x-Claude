@@ -46,8 +46,10 @@ the session friction level. This controls how aggressively the
 skill auto-advances vs pauses for confirmation.
 
 **Skip this prompt when:**
-- Session config already exists at `.claude/Dev10x/session.yaml`
-  (loaded after compaction or from a prior invocation)
+- `mcp__plugin_Dev10x_cli__preset_pin_status` reports
+  `pinned: true` — this checkout already has a gate policy in the
+  global `~/.config/Dev10x/friction.yaml` (set by a prior
+  invocation, `Dev10x:afk`, or `Dev10x:friction-setup`)
 
 **REQUIRED: Call `AskUserQuestion`** (ALWAYS_ASK — fires at all
 friction levels, including adaptive).
@@ -61,14 +63,18 @@ Options:
 - Strict — All gates fire, no auto-selection. Every
   decision requires explicit user input.
 
-**Persist the choice** to `.claude/Dev10x/session.yaml`:
+**Persist the choice** to the global
+`~/.config/Dev10x/friction.yaml` with one command — never with the
+Write tool, and never under the repo's `.claude/` tree (ADR-0018):
 
-```yaml
-friction_level: guided  # strict | guided | adaptive
+```bash
+uvx dev10x session set-friction --preset guided
 ```
 
-Write this file using the Write tool. The PreCompact hook
-reads it to inject friction context into recovery summaries.
+`--preset` takes `strict` / `guided` / `adaptive`. The command locks
++ atomically writes (GH-827) and is idempotent, so a re-run replaces
+this checkout's entry. The PreCompact hook reads the resolved policy
+to inject friction context into recovery summaries.
 
 When `adaptive` is selected, propagate to all `Dev10x:work-on`
 delegations — nested work-on invocations skip their own
@@ -551,12 +557,17 @@ Bootstrap (REQUIRED first, before Skill invocation):
    pass explicit cwd= pointing at your worktree — never
    check out branches in the canonical worktree (GH-462 F2,
    stale-CWD class GH-410).
-2. Write .claude/Dev10x/session.yaml inside your isolated
-   worktree with:
-       friction_level: adaptive
-       active_modes: [solo-maintainer, swarm-child]
+2. Persist the inherited gate policy for your isolated
+   worktree by running, inside it:
+       uvx dev10x session set-friction --preset adaptive \
+           --overlay solo-maintainer
    This signals Dev10x:work-on to skip its Phase 0 friction
-   prompt and inherits the fanout session's friction level.
+   prompt and inherits the fanout session's posture. Never
+   write .claude/Dev10x/session.yaml — it is retired
+   (ADR-0018) and writing under .claude/ trips the
+   self-settings consent gate. Your swarm-child identity
+   travels in this prompt's `wave_id` line, not in a file
+   (see the recursive-fanout guard; GH-950).
 
 Task:
 Invoke Skill(Dev10x:work-on) with this input: <issue or PR URL>
@@ -1272,12 +1283,14 @@ swarm-of-swarms. Guards in priority order:
    Skill(Dev10x:fanout) recursively" (see Swarm Dispatch
    template).
 2. **Skill self-check (always).** When `Dev10x:fanout`
-   starts, scan the incoming prompt and
-   `.claude/Dev10x/session.yaml` for swarm-child markers —
-   the dispatch prompt's literal `wave_id` line, or
-   `swarm-child` appearing in `active_modes`. If detected,
-   exit with an explicit error message directing the agent
-   to use `Skill(Dev10x:work-on)` instead.
+   starts, scan the incoming prompt for the swarm-child
+   marker — the dispatch prompt's literal `wave_id` line. If
+   detected, exit with an explicit error message directing
+   the agent to use `Skill(Dev10x:work-on)` instead. The
+   prompt is the authoritative signal: `swarm-child` has no
+   durable home since ADR-0018 retired
+   `.claude/Dev10x/session.yaml`, and GH-950 picks its
+   replacement store.
 3. **Hook (future, v2).** A PreToolUse hook on
    `Skill(Dev10x:fanout)` invocations could check a
    global marker file written by the orchestrator before

@@ -154,6 +154,137 @@ class TestWriteGuardClaude:
         assert "write-guard-claude" not in rule_ids
 
 
+class TestRetiredDurablePrefPath:
+    """GH-948 (ADR-0018): the retired per-repo durable-pref paths stay retired.
+
+    ``write-guard-claude`` already covers a prose ``Write(.claude/…)`` but skips
+    front matter, so an ``allowed-tools:`` grant reintroduced the path silently.
+    This rule names the retired files and scans front matter too.
+    """
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "  - Edit(.claude/Dev10x/config.yaml)",
+            "  - Write(.claude/Dev10x/session.yaml)",
+            "  - MultiEdit(.claude/Dev10x/config.yaml)",
+        ],
+    )
+    def test_flags_retired_path_in_frontmatter_allowed_tools(
+        self, skill_root: Path, line: str
+    ) -> None:
+        skill = _write(
+            skill_root / "demo" / "SKILL.md",
+            "---\nname: Dev10x:demo\nallowed-tools:\n" + line + "\n---\n\nBody.\n",
+        )
+        rule_ids = {v.rule.rule_id for v in mod.scan_file(skill)}
+        assert "retired-durable-pref-path" in rule_ids
+        # The prose-only guard must stay out of front matter.
+        assert "write-guard-claude" not in rule_ids
+
+    def test_flags_retired_path_in_prose(self, skill_root: Path) -> None:
+        skill = _write(
+            skill_root / "demo" / "SKILL.md",
+            "# Demo\n\nWrite the merged config to `Write(.claude/Dev10x/config.yaml)`.\n",
+        )
+        rule_ids = {v.rule.rule_id for v in mod.scan_file(skill)}
+        assert "retired-durable-pref-path" in rule_ids
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            # Read-compat / migration prose naming the path is legitimate.
+            "  - Read(.claude/Dev10x/config.yaml)",
+            "The legacy `.claude/Dev10x/config.yaml` is folded in by migrate-config.",
+            "Do NOT read the retired `.claude/Dev10x/session.yaml`.",
+            # A different file under .claude/Dev10x/ is not a retired pref store.
+            "  - Edit(.claude/Dev10x/playbooks/work-on.yaml)",
+            # The global replacement is the whole point — never flag it.
+            "Run `dev10x session set-friction` to write ~/.config/Dev10x/friction.yaml.",
+        ],
+    )
+    def test_ignores_reads_and_mentions(self, skill_root: Path, line: str) -> None:
+        skill = _write(
+            skill_root / "demo" / "SKILL.md",
+            "---\nname: Dev10x:demo\nallowed-tools:\n" + line + "\n---\n\n" + line + "\n",
+        )
+        rule_ids = {v.rule.rule_id for v in mod.scan_file(skill)}
+        assert "retired-durable-pref-path" not in rule_ids
+
+    def test_inline_allow_silences_the_rule_in_frontmatter(self, skill_root: Path) -> None:
+        skill = _write(
+            skill_root / "demo" / "SKILL.md",
+            "---\nname: Dev10x:demo\nallowed-tools:\n"
+            "  - Edit(.claude/Dev10x/config.yaml)  "
+            "# cli-friction: allow retired-durable-pref-path — legacy fixture\n"
+            "---\n",
+        )
+        rule_ids = {v.rule.rule_id for v in mod.scan_file(skill)}
+        assert "retired-durable-pref-path" not in rule_ids
+
+    def test_meta_doc_skill_is_exempt(self, skill_root: Path) -> None:
+        skill = _write(
+            skill_root / "diag-friction" / "SKILL.md",
+            "# Anti-pattern\n\nNever do `Edit(.claude/Dev10x/config.yaml)`.\n",
+        )
+        rule_ids = {v.rule.rule_id for v in mod.scan_file(skill)}
+        assert "retired-durable-pref-path" not in rule_ids
+
+    def test_afk_skill_no_longer_grants_the_retired_path(self) -> None:
+        """The regression this rule exists to prevent — verified on the real doc."""
+        repo_root = Path(__file__).resolve().parents[3]
+        violations = mod.scan_file(repo_root / "skills" / "afk" / "SKILL.md")
+        assert [v.rule.rule_id for v in violations] == []
+
+
+class TestSharedReferenceScope:
+    """Repo-root ``references/`` docs get only the ADR-0018 path guard (GH-948)."""
+
+    def test_retired_path_is_flagged_in_shared_reference(self, tmp_path: Path) -> None:
+        doc = _write(
+            tmp_path / "references" / "walk-away.md",
+            "# Walk away\n\nPersist with `Write(.claude/Dev10x/config.yaml)`.\n",
+        )
+        rule_ids = {v.rule.rule_id for v in mod.scan_file(doc)}
+        assert rule_ids == {"retired-durable-pref-path"}
+
+    def test_out_of_scope_rules_do_not_fire_in_shared_reference(self, tmp_path: Path) -> None:
+        doc = _write(
+            tmp_path / "references" / "git-commits.md",
+            "# Commits\n\n```bash\ngit commit -m 'msg'\n```\n",
+        )
+        assert mod.scan_file(doc) == []
+
+    def test_find_shared_reference_files_skips_evals(self, tmp_path: Path) -> None:
+        root = tmp_path / "references"
+        _write(root / "git-pr.md", "")
+        _write(root / "orchestration" / "dispatch.md", "")
+        _write(root / "evals" / "evals.json", "")
+        _write(root / "notes.txt", "")
+        names = {p.name for p in mod.find_shared_reference_files(root)}
+        assert names == {"git-pr.md", "dispatch.md"}
+
+    def test_find_shared_reference_files_returns_empty_for_missing_root(
+        self, tmp_path: Path
+    ) -> None:
+        assert mod.find_shared_reference_files(tmp_path / "nonexistent") == []
+
+    @pytest.mark.parametrize(
+        ("relative", "expected"),
+        [
+            ("skills/demo/SKILL.md", True),
+            ("skills/demo/references/playbook.yaml", True),
+            ("references/git-pr.md", True),
+            ("skills/demo/scripts/run.sh", False),
+            ("skills/demo/evals/evals.json", False),
+            ("src/dev10x/cli.py", False),
+            ("README.md", False),
+        ],
+    )
+    def test_is_target_file(self, tmp_path: Path, relative: str, expected: bool) -> None:
+        assert mod.is_target_file(tmp_path / relative) is expected
+
+
 class TestSkillExemptions:
     """Skills that implement the underlying op are exempt from their rules."""
 

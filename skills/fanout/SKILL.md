@@ -27,6 +27,8 @@ allowed-tools:
   - Skill(skill="Dev10x:skill-audit")
   - Skill(skill="Dev10x:git-branch-prune")
   - Edit(~/.claude/Dev10x/**)
+  - Bash(uvx dev10x session set-friction:*)
+  - Bash(dev10x session set-friction:*)
   - mcp__plugin_Dev10x_cli__*
 ---
 
