@@ -20,8 +20,9 @@ CI nudges) lives in the foreman, which is disposable and restartable.
 
 ## Spawn-by-request fallback
 
-Overseer subagents may lack the Agent tool on some platforms. The
-foreman then sends the watchdog a message:
+Overseer subagents may lack the Agent tool on some platforms (a flat
+team roster leaves the `name` parameter unavailable). The foreman then
+sends the watchdog a message:
 
 ```
 SPAWN REQUEST <chunk-id>
@@ -33,12 +34,71 @@ prompt: <complete worker prompt, ready to paste>
 The watchdog executes exactly that Agent call and nothing else. The
 brief stays authored by the foreman; the watchdog stays a dumb relay.
 
+### It inverts the event flow — the overseer goes idle by design
+
+Because the **watchdog** issues the `Agent` call, it — not the foreman
+— becomes the parent of every crew worker. All worker lifecycle events
+(idle notifications, completion reports) are therefore delivered to
+the watchdog, and the foreman has **no event source of its own**. It
+does nothing but wait between relays.
+
+An idle subagent cannot write heartbeats. So under spawn-by-request
+`status-foreman.md` goes stale on a fixed cadence and the watcher
+emits `STALL:` for a perfectly healthy overseer roughly once per stall
+window, all night (GH-972 F1).
+
+**This mode therefore overrides the "silent foreman → `TaskStop` and
+respawn" recovery in the table below.** Read literally, those two
+rules combine into an instruction to kill and respawn a healthy
+overseer every cycle. Under spawn-by-request:
+
+- Treat a `STALL` on `status-foreman.md` as **expected**, not as a
+  fault signal. The foreman is idle by instruction, the same way a
+  foreman holding for a relay is.
+- Run the stand-down handshake anyway — it is cheap — but the default
+  outcome is a **nudge** ("report state and heartbeat"), not a
+  respawn. Escalate to `TaskStop` only when the foreman also fails to
+  answer a direct message through a second window.
+- The watchdog's own view of the crew is the better liveness signal
+  here: it receives the worker events the overseer cannot.
+
+Record the mode in `DECISIONS.md` the moment the fallback engages, so
+a later generation of watchdog does not re-derive the interaction at
+03:00.
+
+### Verify a generated worker spec before running it "verbatim"
+
+Phase 0.2 assigns the overseer to the cheapest tier on the rationale
+that "it only relays, monitors, and spawns; it never writes code."
+Under spawn-by-request that rationale no longer holds: the same cheap
+agent **authors the worker prompts**, and "the watchdog runs it
+verbatim" turns any hallucination into a top-tier worker's entire
+mission (GH-972 F2).
+
+Field case: a generated spec carried a confidently-worded evidence
+trail citing a source module that exists nowhere in the repository —
+the ticket's real subject was a test-harness file in a different tree.
+
+So "verbatim" governs **authorship, not review**. Before executing a
+relayed `Agent(...)` call, the watchdog runs a lightweight sanity
+check — seconds, not a re-write:
+
+1. Every file path the spec cites as evidence exists. `Glob` or a
+   single `Read` per path; a path that does not resolve is the signal.
+2. The chunk's issue numbers match the manifest's queue entry.
+3. The branch name and worktree path follow the run's convention.
+
+On a miss, correct that section **from the issue body** (`issue_get`),
+send the correction back to the foreman so its later specs improve,
+and note it in `DECISIONS.md`. Do not silently rewrite the whole
+brief — the foreman still owns authorship.
+
 ## Failure modes and recoveries (all field-observed, GH-890)
 
 | Failure | Signal | Recovery |
 |---|---|---|
 | Crew worker hangs on a blocking wait / permission wall | `STALL:` while foreman heartbeat is fresh | Foreman: run the stand-down handshake (`stall-protocol.md`); on a second silent window, TaskStop worker and respawn with a corrective brief naming the banned shape and the current on-disk state (branch/PR survive — resume, don't redo) |
-| Foreman itself dies or hangs | `STALL:` and `status-foreman.md` is the stale file | Watchdog: handshake first (a foreman waiting on a relay is idle by instruction, not dead), then TaskStop and respawn from `manifest.md` + newest heartbeats. All durable state is on disk by design. |
+| Foreman itself dies or hangs | `STALL:` and `status-foreman.md` is the stale file | Watchdog: handshake first (a foreman waiting on a relay is idle by instruction, not dead), then TaskStop and respawn from `manifest.md` + newest heartbeats. All durable state is on disk by design. **Under spawn-by-request this signal is expected noise — see § It inverts the event flow; nudge, do not respawn.** |
 | A worker declared dead revives after takeover | Duplicate commits/comments; a second agent acting on the same chunk | Prevented, not recovered: the stand-down handshake positively retires the original before anyone else touches the chunk (`stall-protocol.md`) |
 | Watchdog turn frozen by a prompt | Nothing fires; discovered in the morning | Prevented, not recovered: Phase 0 pre-flight + script-only watcher + minimal action surface. If it still happens, workers keep running — only queue advancement stops. |
 | Quota block exhausts mid-run | Session paused by the platform; `QUOTA RESET:` on the new block | Foreman resumes/respawns interrupted crew; in-flight PRs pick up from their on-disk state |

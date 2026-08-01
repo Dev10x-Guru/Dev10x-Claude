@@ -212,8 +212,20 @@ fetch and never goes stale — GH-964) — never a separate raw git call the all
    (GH-922). It can never call `Skill(Dev10x:gh-pr-merge)`. If the
    platform denies the foreman the Agent tool, it falls back to
    **spawn-by-request**: it sends the watchdog a ready-to-execute
-   worker spec via SendMessage, and the watchdog's only job is to run
-   that one Agent call verbatim (see `references/architecture.md`).
+   worker spec via SendMessage, and the watchdog runs that one Agent
+   call — verbatim in authorship, but never unread. Two consequences
+   bind for the rest of the night (`references/architecture.md`):
+   - **Sanity-check the spec before executing it** (GH-972 F2). The
+     cheap-tier overseer is now authoring prompts, not just relaying
+     them. Confirm every cited file path resolves (`Glob`/`Read`), the
+     issue numbers match the manifest, and the branch/worktree follow
+     the run convention. On a miss, correct that section from
+     `issue_get` and tell the foreman, so its next spec is better.
+   - **The event flow inverts**: the watchdog becomes the workers'
+     parent and receives their lifecycle events, so the foreman is
+     idle by design and its heartbeat WILL go stale on a cadence. Log
+     the mode in `DECISIONS.md` and read every `STALL` on
+     `status-foreman.md` under the carve-out in Phase 2.
 
 ## Phase 2 — The night loop (watchdog discipline)
 
@@ -242,6 +254,25 @@ turn are the most precious resources on site:
   Never skip step 1 because spend went flat: a cheap idle agent and a
   dead agent look identical on a spend graph. Full evidence and the
   idle-notification asymmetry: `references/stall-protocol.md`.
+
+  **Disambiguate the signal before the handshake** (GH-972 F3). The
+  watcher reports the newest heartbeat mtime across the whole run
+  directory, so it also ages when the crew's *composition* changes —
+  an idle-by-design overseer, or the handoff window between one
+  worker finishing and the next's first heartbeat. `stat` the
+  individual `status-<chunk>.md` files to find WHICH one is stale,
+  then check that chunk's branch tip and PR/CI state. A stale file
+  belonging to an agent that is idle by instruction is expected, not
+  a fault. The shapes and their ground-truth checks are tabulated in
+  `references/stall-protocol.md` § Structural false positives.
+
+  **Under spawn-by-request, a `STALL` on `status-foreman.md` is
+  expected noise, not a fault** (GH-972 F1). The foreman has no event
+  source of its own in that mode — worker events arrive at YOU — so
+  it cannot heartbeat on its own schedule. The default response is a
+  nudge ("report state and heartbeat"), never a respawn; escalate to
+  `TaskStop` only if it also ignores a direct message through a
+  second window.
 
   Two further rules live in that same file and bind here: a respawn
   gets a FRESH worktree, so uncommitted work in a dead worker's tree
@@ -369,7 +400,12 @@ Only fall back to a local rebase when `pr_get` reports `CONFLICTING`.
 - Taking over a stalled chunk without the stand-down handshake, or
   citing flat spend as corroborating evidence that a worker is dead.
 - `TaskStop`-ing a foreman whose heartbeat is stale because it is
-  waiting on a relay you sent it.
+  waiting on a relay you sent it — or because spawn-by-request left
+  it with no event source at all.
+- Executing a relayed worker spec without checking that the file
+  paths it cites actually exist.
+- Reading a `STALL` as a verdict instead of a prompt to `stat` the
+  individual status files.
 - Anyone but the owning worker writing to `status-<chunk>.md`.
 - Firing an `AskUserQuestion` the handoff already answered. Under afk
   this freezes the run until the supervisor returns. A mid-run
@@ -390,5 +426,8 @@ Only fall back to a local rebase when `pr_get` reports `CONFLICTING`.
 | "Heartbeat is 28 min stale — it's dead, take the chunk over" | Silence means *not progressing*, not *dead*. Field case: a worker declared dead woke 22 min later, re-ran its whole mission, and posted duplicate rationale comments on the PR the takeover had already finished. Handshake first. |
 | "Spend has been flat for 30 min, that corroborates it's dead" | A cheap idle agent and a dead agent are indistinguishable on a spend graph. Flat cost is not evidence of death — it is not evidence of anything. |
 | "The foreman hasn't heartbeat since I sent the relay — respawn it" | It is idle by instruction, waiting on you. Killing it destroys a healthy overseer and resets the queue. Ask it to report first. |
+| "Spawn-by-request says run the spec verbatim, so I don't read it" | Verbatim governs *authorship*, not review. Under that fallback a cheap-tier agent writes the prompts, and a hallucinated file path becomes a top-tier worker's whole mission. Check the cited paths resolve; it costs seconds. |
+| "The foreman's heartbeat is stale again — it must be wedged this time" | Under spawn-by-request it has no event source, so a stale foreman heartbeat is the *normal* state. Check the crew's per-file mtimes and branch tips before touching the overseer. |
+| "The watcher fired `STALL`, so something is stalled" | The watcher reports the newest mtime in the run dir; it also ages on a crew handoff and on an idle-by-design overseer. `stat` the individual files and read the chunk's git/PR state before concluding. |
 | "Skip the pre-flight, the allowlist looked fine last week" | Allow rules are shape-sensitive and repos drift. Pre-flight is minutes; a missed shape is the night. |
 | "Cheaper models everywhere will stretch the quota" | A failed chunk costs more than the model discount saves. Downgrade the overseer, never the crew. |
