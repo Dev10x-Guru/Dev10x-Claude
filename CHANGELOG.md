@@ -5,6 +5,198 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.92.0 — Night-Shift Discipline & Dependency Bounds
+
+Released 2026-08-01
+
+### Features
+
+- **Require a deliberate commit to adopt a breaking dependency** — the
+  GH-914 trap (an unbounded `mcp` requirement silently taking down both
+  MCP servers) existed in ~30 other uv-scripts. A shared
+  `dependency_pins` detector now scans every PEP 723 header and
+  `pyproject.toml` dependency array for a missing upper bound, wired into
+  the canonical pre-commit suite, with bounds backfilled across every
+  hook, server and skill script
+  ([GH-916](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/916))
+- **Surface pins that have gone stale instead of waiting for breakage** —
+  pinning shifted the failure mode from silent breakage to silent
+  staleness. `dev10x deps sweep` asks PyPI for each distribution's
+  current stable release and reports pins whose upper bound now excludes
+  an available major; a weekly workflow runs the same subcommand and
+  opens an issue when the report is non-empty
+  ([GH-937](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/937))
+- **Fail CI when a REQUIRED gate ships without gate-enforcement evals** —
+  a new eval-gap detector plus CI workflow and a standing skill-audit
+  Wave 1 check closes the hole where a documented `AskUserQuestion` gate
+  could be silently replaced with plain text. The CI scan is diff-scoped
+  so pre-existing gaps do not block unrelated PRs, and coverage was swept
+  onto every gated skill — 0 gaps across 87 skills, was 7
+  ([GH-835](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/835),
+  [GH-940](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/940),
+  [GH-885](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/885),
+  [GH-783](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/783))
+- **Make a Phase-0 preset choice stick for the whole repo** — a preset
+  picked at the session-adoption gate evaporated at session end, so every
+  stale session re-asked and hand-authoring `friction.yaml` was the only
+  way to make it durable. `pin_gate_preset` / `preset_pin_status` derive
+  the key from the git common dir, so a pick made inside worktree
+  `<repo>-3` also covers the main checkout and a `<repo>-9` created
+  later — and nothing is written under any repo's `.claude/`
+  ([GH-855](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/855))
+- **Route an audit finding to the tracker of the plugin that shipped the
+  skill** — skills from every installed plugin live under
+  `~/.claude/plugins/`, so skill-audit Phase 7 could not tell whose skill
+  a finding was about and either dropped it or misfiled it at the Dev10x
+  repo. `resolve_plugin_origin` maps a skill path to its owning
+  marketplace and source repo, with a REQUIRED gate confirming the
+  destination and no guessing when the origin is unresolved
+  ([GH-816](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/816))
+- **Retire a superseded PR through a routed call** — `pr_close` mirrors
+  `issue_close`'s shape so closing a stale PR is one MCP call instead of
+  a raw `gh pr close` fallback, and `issue_close` now fails loud with
+  "N is a pull request; use pr_close"
+  ([GH-924](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/924))
+- **Let an unattended watchdog see only events needing a decision** — the
+  foreman watcher dedupes `BASE MOVED` echoes of the run's own merges and
+  mutes quota/stall spam behind a parked flag, docs name both CLI shapes
+  (`dev10x` vs `uv run dev10x`), and Phase 0.3 defaults to the
+  adaptive+afk auto-advance composition rather than re-asking
+  ([GH-946](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/946),
+  [GH-947](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/947),
+  [GH-944](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/944))
+
+### Fixes
+
+- **Keep a guard firing when the command is reformulated** — rule
+  patterns match command-name prefixes with `re.search`, so a git global
+  option between the executable and the verb broke substring adjacency:
+  `git -C <path> push --force` matched no rule and pushed. That reads as
+  "the check passed" rather than "the check was evaded", and it affected
+  all 42 catalog rules. Global options are now normalized before
+  matching, fixing every rule at once; `pr_ready` also gains `undo` so
+  returning a PR to draft — the safe direction — has a sanctioned path
+  ([GH-931](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/931))
+- **Give the merge gate an exit once a bot finding is answered** — Check
+  1b promised a finding was addressed once a later comment replied to it,
+  but the scan never mapped a reply back to the finding it answered, so
+  `blocking_count` never returned to 0. Replies now dispose of findings
+  by comment id on the `Re:` line, keyed rather than prose-fuzzy, and
+  `gh-pr-respond` emits the id so both skills agree on the contract
+  ([GH-907](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/907))
+- **Stop hiding a comment from reading as a disposition** — Gate 6
+  auto-advanced to minimizing a resolved finding, which looks like it
+  should clear Check 1b. It cannot: the scan consumes the REST
+  issue-comments array, which carries no `isMinimized` field, so an agent
+  following the gate to the letter still landed on `blocking_count: 1`.
+  Minimization is now marked cosmetic everywhere it appears
+  ([GH-920](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/920))
+- **Produce a hygiene-clean PR body on the first try** — generated bodies
+  recurrently tripped the hygiene bot: the Job Story sometimes lacked the
+  `**so … can**` marker, and the checklist separator was emitted *after*
+  the `Fixes` trailer, so every body ended with a bare `---`. `create_pr`
+  now refuses a job story missing a marker and names it, and `update_pr`
+  moves trailing content above the trailer
+  ([GH-945](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/945))
+- **Keep Slack review requests landing without `slack_sdk`** — the send
+  path imported the SDK unconditionally and turned an `ImportError` into
+  a dead end *after* `prepare` had already reported `ready: true`. The MCP
+  server process does not always run where the declared dependency was
+  installed, so every message path now falls back to a stdlib `urllib`
+  POST using the token already resolved — making `ready: true` truthful.
+  The privacy inventory documents the direct `slack.com/api` calls, with
+  a test pinning the exemption to the policy entry that justifies it
+  ([GH-917](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/917))
+- **Discover MCP tools from an installed plugin, not just a checkout** —
+  `permission enumerate-mcp` walked up from `__file__`, which lands in
+  site-packages from an installed wheel, so the catalog came back empty
+  and printed "No Dev10x MCP tools discovered" — indistinguishable from a
+  genuine no-op. Any stale wildcard was left in place and the run still
+  exited 0. A single `resolve_plugin_root()` resolver now covers the
+  installed plugin cache, and a discovery failure exits 1
+  ([GH-919](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/919))
+- **Keep a perl substitution rule valid through canonicalize** — `doctor
+  canonicalize` collapsed every `//` outside a `://` scheme, so an inline
+  `perl -pe 's/…//g'` allow rule lost a delimiter and was rewritten into
+  a syntactically invalid expression. The collapse is now scoped to path
+  contexts and skips quoted interpreter bodies
+  ([GH-918](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/918))
+- **Get the right worktree from the worktree wrappers** — invoked from a
+  session whose CWD is itself a linked worktree, `create_worktree` let
+  optionals land in the repo-root positional slot and
+  `next_worktree_name` computed the parent relative to the current
+  worktree. The parent now resolves via `--git-common-dir`, and
+  `create-worktree.sh` gains a real base-ref positional
+  ([GH-960](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/960))
+
+### Security
+
+- **Keep an App JWT off the process command line** — app-auth calls
+  shelled out to `gh api -H "Authorization: Bearer <jwt>"`, leaving the
+  token readable via `ps` / `/proc/<pid>/cmdline` for the child's
+  lifetime. Both calls now go through an in-process stdlib HTTPS client,
+  so the JWT never reaches a subprocess argv
+  ([GH-499](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/499))
+
+### Refactoring
+
+- **Keep durable gate prefs outside the repo entirely** — `Dev10x:afk`
+  still wrote `.claude/Dev10x/config.yaml`, which ADR-0018 retired and
+  GH-818's migrate-config deletes — a migrate/recreate loop charging a
+  self-settings consent prompt on every invocation. Nothing guarded it,
+  because the cli-friction scanner skipped YAML front matter where the
+  authorizing grant lived. Reads now go through `preset_pin_status`,
+  writes through `dev10x session set-friction`, and a new scanner rule
+  covers front matter so the retired path cannot be smuggled back
+  ([GH-948](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/948))
+
+### Docs & Guidance
+
+- **Give a crew worker the discipline it can actually reach** — the crew
+  contract named `Skill()` calls no Agent-spawned subagent can invoke. A
+  worker told to merge via `gh-pr-merge` could not reach it, fell back to
+  a raw merge, and landed a PR squashed against the documented rebase
+  discipline: the 9-check gate was imaginary at exactly the moment it
+  mattered. The lifecycle now splits at the MCP boundary — workers
+  bootstrap MCP wrappers via ToolSearch and stop at PR-open; merging
+  moves to the watchdog, the one role that can invoke the gate
+  ([GH-922](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/922))
+- **Open a handshake before taking a stalled agent's work** — a tripped
+  `STALL` now messages the agent with every completed action and requires
+  a STOP-ACK plus a second silent heartbeat window before TaskStop; any
+  reply is evidence of liveness and the agent is resumed instead of
+  replaced. Flat spend is explicitly rejected as corroborating evidence
+  of death, and `status-<chunk>.md` is worker-owned so a third-party
+  write cannot forge the mtime the detector reads
+  ([GH-923](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/923))
+- **Admit what a respawn cannot reach** — a respawned worker gets a fresh
+  isolation worktree, so a dead worker's uncommitted work is unreachable
+  to it, and cross-worktree copies fail silently while reporting success.
+  Respawn now recovers a chunk, never a tree, and a chunk that stalls
+  twice with the same shape gets a different model tier on the third
+  attempt rather than a more directive brief
+  ([GH-957](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/957))
+- **Start a crew worker in the right, clean worktree** — a spawned
+  subagent inherits its dispatcher's CWD, so "you are already in your
+  worktree, do not `cd`" was false for every parallel wave: one worker
+  implemented a whole fix on the wrong branch, another never got
+  traction. The template now opens with a cd-and-verify preamble and
+  bakes in the dirty-worktree recipe verbatim — prose guidance failed in
+  the field where the literal five-step recipe worked
+  ([GH-959](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/959))
+- **Prove the shapes a night run needs before arming it** — two Phase 0
+  gaps burned pre-flight window on consecutive runs. The `dev10x` CLI
+  shape now resolves from a table covering the plugin-cache install where
+  bare `uv run` picks the wrong project, and any chunk whose deliverable
+  is an executable artifact must have that artifact dry-run during the
+  window — otherwise a worker meets a permission prompt at 02:00 and
+  improvises a banned-shape workaround
+  ([GH-961](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/961))
+- **Write Job Stories in the project's own language** — localized story
+  guidance for non-English tickets, pointing at Cucumber's Gherkin
+  language reference for derived keywords
+  ([#901](https://github.com/Dev10x-Guru/Dev10x-Claude/pull/901))
+
 ## 0.91.0 — MCP Pin Recovery & Judgment-Tier Discussion
 
 Released 2026-07-30
