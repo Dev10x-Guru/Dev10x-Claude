@@ -194,12 +194,17 @@ directory — one `status-<chunk>.md` each.
 (it is read from the remote via `ls-remote`, so it never needs a
 fetch and never goes stale — GH-964) — never a separate raw git call the allow-list doesn't cover | A `BASE MOVED` whose new tip matches is the run's own echo: rebaselined silently, no relay, no classification turn |
    | `parked` | Touched when the queue is deliberately held (burn gate, supervisor hold); removed on release | While present, `STALL` and `QUOTA MILESTONE` are suppressed; muted milestones roll up into one `QUOTA MILESTONE (parked rollup)` line on release, and the stall clock gets one window of grace so resuming crew is not alarmed on immediately |
+   | `current-generation` | Rewritten by the watchdog every time a foreman is spawned or replaced: one line, `G<n> <agent-name> <UTC timestamp>` | Nothing in the watcher — it is the foremen's own authority token. A foreman re-reads it before every broadcast, spawn, or relay; if the name is not its own, it stands itself down (GH-971 F3) |
 
    Keep `merged-shas` current: a skipped append costs a full relay
    plus a `git log old..origin/<base>` verification turn to conclude
    the run merged it itself.
-2. Spawn the **foreman** overseer (cheap model, named agent). Its
-   brief: manage the queue per the manifest — spawn one crew worker
+2. Spawn the **foreman** overseer (cheap model, named agent), and
+   write `current-generation` naming it before the spawn returns. Its
+   brief: re-read `current-generation` before every broadcast, spawn
+   request, relay or queue advance and stand down if the name is not
+   its own (GH-971 F3 — see Phase 2); manage the queue per the
+   manifest — spawn one crew worker
    per chunk (prompt built from
    `references/crew-prompt-template.md`), relay `BASE MOVED` rebase
    instructions, relay each finished chunk's PR to the watchdog for
@@ -265,6 +270,39 @@ turn are the most precious resources on site:
   belonging to an agent that is idle by instruction is expected, not
   a fault. The shapes and their ground-truth checks are tabulated in
   `references/stall-protocol.md` § Structural false positives.
+
+  **A replaced foreman is not necessarily gone — a session-limit
+  death is a PAUSE for a top-level session and a KILL for its
+  subagents** (GH-971 F3). "The silent foreman is gone" is therefore
+  a false premise: an interrupted foreman can revive well before its
+  stated reset, resume issuing instructions, and leave two live
+  supervisors on one queue — each unaware of the other, the older one
+  acting on stale state and relaying orders to a crew that
+  `SendMessage` reports as having no transcript. Observed twice in
+  one run, across two generations.
+
+  The asymmetry is what makes it invisible: the workers really are
+  dead, so a revived foreman's crew never contradicts it.
+
+  **Carry a durable authority token.** The run dir gets a
+  `current-generation` file — one line, `G<n> <agent-name>
+  <UTC timestamp>` — rewritten by the watchdog on every foreman spawn
+  or replacement. Every foreman prompt must include:
+
+  > Before ANY broadcast, spawn request, relay, or queue advance,
+  > `Read` `<run-dir>/current-generation`. If the agent name on that
+  > line is not yours, you have been replaced: write one final line to
+  > `status-foreman.md` saying so, send no further messages, and stop.
+  > Do not verify this by asking another agent — the file is the
+  > authority.
+
+  This makes replacement idempotent from the predecessor's side, so a
+  revival stands itself down instead of needing the watchdog to
+  notice. `TaskStop` remains the watchdog's tool, not its only
+  defence. Distinct from GH-965, which covers the flat-roster spawn
+  limit and the non-survival of subagent transcripts: that is about
+  what a revived foreman *can reach*; this is about the orchestrator
+  treating a pause as a death and creating the duplicate at all.
 
   **Under spawn-by-request, a `STALL` on `status-foreman.md` is
   expected noise, not a fault** (GH-972 F1). The foreman has no event
@@ -347,7 +385,7 @@ turn are the most precious resources on site:
 ## Crew contract (what every worker prompt must contain)
 
 Build each worker prompt from `references/crew-prompt-template.md`. The
-ten non-negotiable elements and the field failure behind each one live
+twelve non-negotiable elements and the field failure behind each one live
 in [`references/crew-contract.md`](references/crew-contract.md) — read
 it before writing any worker prompt. A prompt missing ANY of them is
 not shippable; in headline form:
@@ -362,6 +400,11 @@ not shippable; in headline form:
 8. Scope authority + cut protocol — every cut ends as a tracker issue
 9. Review discipline — all comments addressed, zero `fixup!` left
 10. Decision log file per chunk
+11. Recoverability claims backed by `git ls-remote` evidence — never
+    assert "work is on branch X" from the edit alone
+12. The durability envelope stated: pushed commits and tracker
+    comments survive; a worker-local scratchpad or uncommitted tree
+    does not
 
 ## Merge guidance when no watcher is armed
 
@@ -406,6 +449,11 @@ Only fall back to a local rebase when `pr_get` reports `CONFLICTING`.
   paths it cites actually exist.
 - Reading a `STALL` as a verdict instead of a prompt to `stat` the
   individual status files.
+- Any record — heartbeat, handover, resumption note, morning report —
+  calling work "recoverable on branch X" without a `git ls-remote`
+  that shows the ref on origin.
+- Relaying orders as a foreman without re-reading `current-generation`
+  first.
 - Anyone but the owning worker writing to `status-<chunk>.md`.
 - Firing an `AskUserQuestion` the handoff already answered. Under afk
   this freezes the run until the supervisor returns. A mid-run
@@ -426,8 +474,10 @@ Only fall back to a local rebase when `pr_get` reports `CONFLICTING`.
 | "Heartbeat is 28 min stale — it's dead, take the chunk over" | Silence means *not progressing*, not *dead*. Field case: a worker declared dead woke 22 min later, re-ran its whole mission, and posted duplicate rationale comments on the PR the takeover had already finished. Handshake first. |
 | "Spend has been flat for 30 min, that corroborates it's dead" | A cheap idle agent and a dead agent are indistinguishable on a spend graph. Flat cost is not evidence of death — it is not evidence of anything. |
 | "The foreman hasn't heartbeat since I sent the relay — respawn it" | It is idle by instruction, waiting on you. Killing it destroys a healthy overseer and resets the queue. Ask it to report first. |
+| "I replaced the foreman, so the old one is gone" | A session-limit death PAUSES a top-level session and KILLS only its subagents. The predecessor can revive and issue orders to a crew that no longer exists. `current-generation` is what makes it stand down. |
 | "Spawn-by-request says run the spec verbatim, so I don't read it" | Verbatim governs *authorship*, not review. Under that fallback a cheap-tier agent writes the prompts, and a hallucinated file path becomes a top-tier worker's whole mission. Check the cited paths resolve; it costs seconds. |
 | "The foreman's heartbeat is stale again — it must be wedged this time" | Under spawn-by-request it has no event source, so a stale foreman heartbeat is the *normal* state. Check the crew's per-file mtimes and branch tips before touching the overseer. |
 | "The watcher fired `STALL`, so something is stalled" | The watcher reports the newest mtime in the run dir; it also ages on a crew handoff and on an idle-by-design overseer. `stat` the individual files and read the chunk's git/PR state before concluding. |
 | "Skip the pre-flight, the allowlist looked fine last week" | Allow rules are shape-sensitive and repos drift. Pre-flight is minutes; a missed shape is the night. |
+| "The worker said it committed the migration on branch X — resume from there" | An edit is not a commit and a commit is not a push. Field case: the branch never existed on origin and the worktree died with four uncommitted files; the chunk was a restart. `git ls-remote --heads origin '<glob>'` before you believe it. |
 | "Cheaper models everywhere will stretch the quota" | A failed chunk costs more than the model discount saves. Downgrade the overseer, never the crew. |

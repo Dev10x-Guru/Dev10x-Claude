@@ -67,11 +67,29 @@ All fields are optional. Defaults:
 
 ## Self-Check Before Pre-Merge Validation
 
-**REQUIRED — call `TaskList` now.** Verify the 9 pre-merge subtasks
-exist under the merge task. If fewer are present, create the missing
-ones before proceeding. Do NOT shortcut to `gh pr merge` based on a
-single `gh pr view` JSON read — that is the regression this check
-exists to catch (GH-112).
+**REQUIRED — call `TaskList` now.** Do NOT shortcut to `gh pr merge`
+based on a single `gh pr view` JSON read — that is the regression this
+check exists to catch (GH-112).
+
+**The nine subtask RECORDS are not load-bearing; running and
+reporting the nine checks is** (GH-971 F2). What the gate is
+defending is that each check was actually *performed against live
+state* before the merge — nine `TaskCreate` round-trips are ceremony
+that costs a call each and proves nothing the report does not. So
+this step is satisfied by BOTH of:
+
+1. The `TaskList` call above, made in THIS invocation.
+2. A reported nine-item checklist in which every check names the
+   **observed value** it was decided on — `isDraft: false`,
+   `mergeable: MERGEABLE`, `verdict: green`, `unresolved threads: 0`,
+   and so on. A bare "✓ passed" per line does not satisfy it: an
+   unverifiable tick is exactly the shortcut GH-112 caught.
+
+Creating the subtasks is still fine — preferred when the merge is one
+step of a longer plan the supervisor is watching — but their absence
+is not a violation, and you must never skip a *check* because its
+task record does not exist. If a check cannot be run, HALT and report
+which one and why; do not merge.
 
 **Unskippable on every invocation (GH-253):** The `TaskList` call
 above runs ONCE per skill invocation, at Step 1, before any check
