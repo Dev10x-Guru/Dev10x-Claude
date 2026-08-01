@@ -1,139 +1,165 @@
 {
   "skill_name": "Dev10x:diag-friction",
   "description": "Evaluation criteria for Dev10x:diag-friction skill (formerly Dev10x:skill-reinforcement)",
+  "eval_dimensions": [
+    {
+      "id": "command-identification",
+      "name": "Offending Command Identification (Step 1/2/3)",
+      "description": "The offending command is correctly identified (from context, an explicit argument, or SKILLS.md fallback) and matched against the canonical command-skill map read fresh from disk, never recalled from training."
+    },
+    {
+      "id": "follow-up-retry-gate",
+      "name": "Step 6 Follow-Up Retry Gate",
+      "description": "When the triggering command was rejected, the reinforcement must block on AskUserQuestion offering to retry via the recommended skill, cancel, or defer — never a plain-text 'Want me to invoke X?' — and must be skipped when the command was informational or already approved."
+    },
+    {
+      "id": "permission-audit",
+      "name": "Step 3b/3d Permission-Friction Audit",
+      "description": "The audit reads live settings files to surface an existing pre-approved alternative when one exists, and proposes only a narrow, generalized allow-rule (never Bash(*) or a destructive-verb wildcard) when none does."
+    }
+  ],
   "evals": [
     {
-      "name": "direct-match-kubectl",
+      "id": "direct-match-kubectl",
+      "name": "Direct command-skill map match (kubectl)",
       "description": "Agent used kubectl, skill identifies k8s match",
-      "setup": "Agent ran 'kubectl get pods -n staging', user invoked /Dev10x:diag-friction",
-      "checks": [
+      "input": "Agent ran 'kubectl get pods -n staging', user invoked /Dev10x:diag-friction",
+      "assertions": [
         {
-          "type": "behavioral",
-          "assertion": "identifies_offending_command",
-          "signal": "Output contains the kubectl command that was detected"
+          "dimension": "command-identification",
+          "check": "behavioral",
+          "signal": "identifies_offending_command — Output contains the kubectl command that was detected"
         },
         {
-          "type": "behavioral",
-          "assertion": "recommends_correct_skill",
-          "signal": "Output recommends Dev10x:k8s as the replacement skill"
+          "dimension": "command-identification",
+          "check": "behavioral",
+          "signal": "recommends_correct_skill — Output recommends Dev10x:k8s as the replacement skill"
         },
         {
-          "type": "behavioral",
-          "assertion": "includes_reason",
-          "signal": "Output includes explanation of why the skill should be used"
+          "dimension": "command-identification",
+          "check": "behavioral",
+          "signal": "includes_reason — Output includes explanation of why the skill should be used"
         }
       ]
     },
     {
-      "name": "no-match-fallback",
+      "id": "no-match-fallback",
+      "name": "No command-skill map match falls back to SKILLS.md scan",
       "description": "Agent used a command with no direct skill mapping",
-      "setup": "Agent ran 'curl https://api.example.com/health', user invoked /Dev10x:diag-friction",
-      "checks": [
+      "input": "Agent ran 'curl https://api.example.com/health', user invoked /Dev10x:diag-friction",
+      "assertions": [
         {
-          "type": "behavioral",
-          "assertion": "acknowledges_no_match",
-          "signal": "Output states no direct skill match was found"
+          "dimension": "command-identification",
+          "check": "behavioral",
+          "signal": "acknowledges_no_match — Output states no direct skill match was found"
         },
         {
-          "type": "behavioral",
-          "assertion": "suggests_related_skills",
-          "signal": "Output lists potentially related skills from SKILLS.md"
+          "dimension": "command-identification",
+          "check": "behavioral",
+          "signal": "suggests_related_skills — Output lists potentially related skills from SKILLS.md"
         }
       ]
     },
     {
-      "name": "user-provides-command-arg",
+      "id": "user-provides-command-arg",
+      "name": "User-supplied command argument is used verbatim",
       "description": "User passes command as argument to the skill",
-      "setup": "User invoked '/Dev10x:diag-friction git push'",
-      "checks": [
+      "input": "User invoked '/Dev10x:diag-friction git push'",
+      "assertions": [
         {
-          "type": "behavioral",
-          "assertion": "uses_provided_command",
-          "signal": "Output identifies 'git push' as the command without scanning conversation"
+          "dimension": "command-identification",
+          "check": "behavioral",
+          "signal": "uses_provided_command — Output identifies 'git push' as the command without scanning conversation"
         },
         {
-          "type": "behavioral",
-          "assertion": "recommends_git_skill",
-          "signal": "Output recommends Dev10x:git as the replacement"
+          "dimension": "command-identification",
+          "check": "behavioral",
+          "signal": "recommends_git_skill — Output recommends Dev10x:git as the replacement"
         }
       ]
     },
     {
-      "name": "follow-up-gate-after-rejection",
+      "id": "follow-up-gate-after-rejection",
+      "name": "Rejected command opens the Step 6 retry gate via AskUserQuestion",
       "description": "After a rejected command, skill offers follow-up via AskUserQuestion (not plain text)",
-      "setup": "Agent ran 'Monitor' for CI polling, user rejected it and invoked /Dev10x:diag-friction",
-      "checks": [
+      "input": "Agent ran 'Monitor' for CI polling, user rejected it and invoked /Dev10x:diag-friction",
+      "assertions": [
         {
-          "type": "tool_called",
+          "dimension": "follow-up-retry-gate",
+          "check": "tool_called",
           "tool": "AskUserQuestion",
-          "assertion": "follow_up_uses_tool",
-          "signal": "AskUserQuestion is called with retry options after the reinforcement message"
+          "signal": "follow_up_uses_tool — AskUserQuestion is called with retry options after the reinforcement message"
         },
         {
-          "type": "behavioral",
-          "assertion": "offers_invoke_recommended_skill",
-          "signal": "Options include invoking the recommended skill (e.g., Dev10x:gh-pr-monitor) as the Recommended choice"
+          "dimension": "follow-up-retry-gate",
+          "check": "tool_parameters",
+          "tool": "AskUserQuestion",
+          "signal": "offers_invoke_recommended_skill — Options include invoking the recommended skill (e.g., Dev10x:gh-pr-monitor) as the Recommended choice"
         },
         {
-          "type": "behavioral",
-          "assertion": "offers_cancel_option",
-          "signal": "Options include cancel/discard to avoid resuming the rejected workflow"
+          "dimension": "follow-up-retry-gate",
+          "check": "tool_parameters",
+          "tool": "AskUserQuestion",
+          "signal": "offers_cancel_option — Options include cancel/discard to avoid resuming the rejected workflow"
         },
         {
-          "type": "behavioral",
-          "assertion": "no_plain_text_followup",
-          "signal": "Output does not use plain-text questions like 'Want me to invoke X?' for the follow-up prompt"
+          "dimension": "follow-up-retry-gate",
+          "check": "plain_text",
+          "signal": "no_plain_text_followup — Output does not use plain-text questions like 'Want me to invoke X?' for the follow-up prompt"
         }
       ]
     },
     {
-      "name": "permission-friction-audit-suggests-simpler-form",
+      "id": "permission-friction-audit-suggests-simpler-form",
+      "name": "Audit surfaces an existing pre-approved alternative",
       "description": "When a rejected command was packed with chaining/prefixes but the unchained form is pre-approved, the audit surfaces the simpler form and cites the allow-rule",
-      "setup": "Agent ran 'git fetch origin && git checkout develop' which was rejected; .claude/settings.local.json contains Bash(git fetch:*) and Bash(git checkout:*) in permissions.allow",
-      "checks": [
+      "input": "Agent ran 'git fetch origin && git checkout develop' which was rejected; .claude/settings.local.json contains Bash(git fetch:*) and Bash(git checkout:*) in permissions.allow",
+      "assertions": [
         {
-          "type": "behavioral",
-          "assertion": "reads_settings_files",
-          "signal": "Output references at least one of: .claude/settings.local.json, .claude/settings.json, or ~/.claude/settings.json as the source of pre-approved rules"
+          "dimension": "permission-audit",
+          "check": "behavioral",
+          "signal": "reads_settings_files — Output references at least one of: .claude/settings.local.json, .claude/settings.json, or ~/.claude/settings.json as the source of pre-approved rules"
         },
         {
-          "type": "behavioral",
-          "assertion": "surfaces_preapproved_alternative",
-          "signal": "Output recommends splitting the command into separate Bash calls and names the matching allow-rule(s) (e.g., Bash(git fetch:*))"
+          "dimension": "permission-audit",
+          "check": "behavioral",
+          "signal": "surfaces_preapproved_alternative — Output recommends splitting the command into separate Bash calls and names the matching allow-rule(s) (e.g., Bash(git fetch:*))"
         },
         {
-          "type": "behavioral",
-          "assertion": "identifies_chaining_as_friction_cause",
-          "signal": "Output explains that && / ; chaining (or env-var prefix / cd prefix) shifts the effective allow-rule prefix"
+          "dimension": "permission-audit",
+          "check": "behavioral",
+          "signal": "identifies_chaining_as_friction_cause — Output explains that && / ; chaining (or env-var prefix / cd prefix) shifts the effective allow-rule prefix"
         }
       ]
     },
     {
-      "name": "permission-friction-audit-proposes-new-rule",
+      "id": "permission-friction-audit-proposes-new-rule",
+      "name": "Audit proposes a narrow, generalized allow-rule when none fits",
       "description": "When no allow-rule covers even the simplified command, the audit proposes a targeted (narrow) allow-rule addition rather than a broad one",
-      "setup": "Agent ran a command whose simplified form still has no matching allow-rule in any settings file",
-      "checks": [
+      "input": "Agent ran a command whose simplified form still has no matching allow-rule in any settings file",
+      "assertions": [
         {
-          "type": "behavioral",
-          "assertion": "proposes_targeted_allow_rule",
-          "signal": "Output suggests a narrow Bash(<prefix>:*) snippet and names the settings file it should be added to (typically .claude/settings.local.json)"
+          "dimension": "permission-audit",
+          "check": "behavioral",
+          "signal": "proposes_targeted_allow_rule — Output suggests a narrow Bash(<prefix>:*) snippet and names the settings file it should be added to (typically .claude/settings.local.json)"
         },
         {
-          "type": "behavioral",
-          "assertion": "avoids_broad_or_destructive_rules",
-          "signal": "Proposed rule does not include Bash(*) or wildcards that span destructive verbs"
+          "dimension": "permission-audit",
+          "check": "behavioral",
+          "signal": "avoids_broad_or_destructive_rules — Proposed rule does not include Bash(*) or wildcards that span destructive verbs"
         }
       ]
     },
     {
-      "name": "no-follow-up-when-informational",
+      "id": "no-follow-up-when-informational",
+      "name": "Informational invocation skips the Step 6 gate",
       "description": "When invoked informationally (not after a rejection), no follow-up gate is fired",
-      "setup": "User invoked '/Dev10x:diag-friction kubectl' to learn the recommended skill, no prior rejection",
-      "checks": [
+      "input": "User invoked '/Dev10x:diag-friction kubectl' to learn the recommended skill, no prior rejection",
+      "assertions": [
         {
-          "type": "behavioral",
-          "assertion": "skips_follow_up_gate",
-          "signal": "AskUserQuestion is not called — the reinforcement message is informational only"
+          "dimension": "follow-up-retry-gate",
+          "check": "behavioral",
+          "signal": "skips_follow_up_gate — AskUserQuestion is not called — the reinforcement message is informational only"
         }
       ]
     }

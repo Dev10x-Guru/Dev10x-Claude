@@ -1,0 +1,95 @@
+{
+  "skill_name": "Dev10x:plugin-doctor",
+  "eval_dimensions": [
+    {
+      "id": "per-finding-gate",
+      "name": "Phase 3 Per-Finding Gate",
+      "description": "Every Finding surfaced in Phase 2 is its own AskUserQuestion gate with Apply/Skip/Defer options — findings are never silently applied or batched away without a decision point, per the 'Never auto-apply across strategies' anti-pattern rule."
+    },
+    {
+      "id": "batch-option-for-clusters",
+      "name": "Batch Option Offered for 5+ Same-Strategy Findings",
+      "description": "When a single strategy produces 5 or more findings, the gate additionally offers 'Apply all in this strategy' so the user isn't forced through 5+ individual gates — but this is an added option, not a replacement for per-finding visibility."
+    },
+    {
+      "id": "no-auto-remediation",
+      "name": "No Remediation Before Gate Confirmation",
+      "description": "Phase 4 remediation (Edit, delegation to plugin-maintenance/memory-maintenance, or issue_create) never executes for a finding until that finding's AskUserQuestion gate has been answered 'Apply'."
+    }
+  ],
+  "evals": [
+    {
+      "id": "single-finding-gate-fires-with-three-options",
+      "name": "A single finding opens AskUserQuestion with Apply/Skip/Defer",
+      "description": "Phase 3 must present each Finding via AskUserQuestion rather than assuming Apply and proceeding.",
+      "input": "Dev10x:plugin-doctor finds 1 mcp-vs-script-drift Finding referencing a stale memory entry",
+      "assertions": [
+        {
+          "dimension": "per-finding-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "gate1_uses_tool — AskUserQuestion is called for the single finding before any remediation"
+        },
+        {
+          "dimension": "per-finding-gate",
+          "check": "tool_parameters",
+          "tool": "AskUserQuestion",
+          "signal": "gate1_correct_options — options include 'Apply (Recommended)', 'Skip', 'Defer'"
+        },
+        {
+          "dimension": "per-finding-gate",
+          "check": "plain_text",
+          "signal": "gate1_no_plain_text — no inline 'Should I fix this memory entry?' substitutes for the widget"
+        }
+      ]
+    },
+    {
+      "id": "five-plus-findings-offers-apply-all-batch-option",
+      "name": "5+ findings in one strategy add an 'Apply all' batch option",
+      "description": "When mcp-vs-script-drift (or any strategy) surfaces 5 or more findings, the presentation adds a batch option without dropping per-finding visibility.",
+      "input": "Dev10x:plugin-doctor finds 6 mcp-vs-script-drift Findings across different memory files",
+      "assertions": [
+        {
+          "dimension": "batch-option-for-clusters",
+          "check": "tool_parameters",
+          "tool": "AskUserQuestion",
+          "signal": "batch_option_present — the AskUserQuestion options include 'Apply all in this strategy' alongside the per-finding options"
+        },
+        {
+          "dimension": "per-finding-gate",
+          "check": "behavioral",
+          "signal": "findings_grouped_by_strategy — the 6 findings are grouped and each individually named in the presentation, not collapsed into a single opaque count"
+        }
+      ]
+    },
+    {
+      "id": "no-remediation-applied-before-gate-answered",
+      "name": "No edit, delegation, or issue_create happens before the gate resolves",
+      "description": "Phase 4 remediation actions must not execute until the corresponding Phase 3 AskUserQuestion gate returns 'Apply' for that specific finding.",
+      "input": "Dev10x:plugin-doctor Phase 3 gate is open and unanswered for a finding recommending an Edit to a memory file",
+      "assertions": [
+        {
+          "dimension": "no-auto-remediation",
+          "check": "behavioral",
+          "signal": "no_edit_before_gate — no Edit tool call targets the memory file until the AskUserQuestion gate for that finding returns 'Apply'"
+        },
+        {
+          "dimension": "no-auto-remediation",
+          "check": "behavioral",
+          "signal": "no_issue_create_before_gate — mcp__plugin_Dev10x_cli__issue_create is not invoked for a 'Defer' remediation until the gate is answered"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "should_trigger": [
+      "User hits repeated permission friction despite prior cleanup",
+      "Agent reaches for shell-script fallbacks instead of MCP tools across multiple memories",
+      "User wants a systemic audit of intent drift"
+    ],
+    "should_not_trigger": [
+      "A single permission rule needs ad-hoc debugging (use Dev10x:permission-investigator)",
+      "The issue is a one-off skill bug (file a ticket instead)"
+    ]
+  }
+}

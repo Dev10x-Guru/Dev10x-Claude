@@ -1,0 +1,96 @@
+{
+  "skill_name": "Dev10x:skill-create",
+  "eval_dimensions": [
+    {
+      "id": "scaffold-pattern-gate",
+      "name": "Step 1 Scaffold Pattern Gate",
+      "description": "Before running scaffold.sh, the skill blocks on AskUserQuestion with the three documented pattern options (Script-based / Orchestration / Reference-based) — it never guesses the pattern from the request wording and skips straight to scaffolding."
+    },
+    {
+      "id": "scaffold-uses-selected-pattern",
+      "name": "Scaffold Invocation Matches the Gate Answer",
+      "description": "The scaffold.sh invocation's <pattern> argument matches whichever option the user selected at the gate — a Script-based answer produces a scripts/ directory, a Reference-based answer produces a references/ directory."
+    },
+    {
+      "id": "motd-regeneration-step",
+      "name": "MOTD Regeneration After Scaffold/Edit",
+      "description": "Step 4 (or the Step 3 validation script) regenerates the MOTD/skill index so the new or modified skill is discoverable at the next session start — a skill is not left un-registered after creation."
+    }
+  ],
+  "evals": [
+    {
+      "id": "pattern-gate-fires-before-scaffold-runs",
+      "name": "Pattern selection gate fires before scaffold.sh executes",
+      "description": "Step 1 must call AskUserQuestion with the three pattern options before invoking scaffold.sh — not assume 'Orchestration' as a silent default.",
+      "input": "/Dev10x:skill-create \"create a skill for rotating API keys\"",
+      "assertions": [
+        {
+          "dimension": "scaffold-pattern-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "gate1_uses_tool — AskUserQuestion is called before any Bash(scaffold.sh) invocation"
+        },
+        {
+          "dimension": "scaffold-pattern-gate",
+          "check": "tool_parameters",
+          "tool": "AskUserQuestion",
+          "signal": "gate1_correct_options — options are exactly 'Script-based', 'Orchestration', 'Reference-based'"
+        },
+        {
+          "dimension": "scaffold-pattern-gate",
+          "check": "plain_text",
+          "signal": "gate1_no_plain_text — no inline 'Should this be script-based or orchestration?' substitutes for the widget"
+        }
+      ]
+    },
+    {
+      "id": "scaffold-invocation-matches-gate-answer",
+      "name": "scaffold.sh receives the pattern chosen at the gate",
+      "description": "When the user selects 'Reference-based' at the gate, the subsequent scaffold.sh call passes that pattern, and the resulting skill directory carries references/ rather than scripts/.",
+      "input": "/Dev10x:skill-create \"create a skill for onboarding checklists\" — user selects 'Reference-based'",
+      "assertions": [
+        {
+          "dimension": "scaffold-uses-selected-pattern",
+          "check": "tool_called",
+          "tool": "Bash",
+          "signal": "scaffold_uses_tool — ${CLAUDE_PLUGIN_ROOT}/skills/skill-create/scripts/scaffold.sh is invoked with the 'reference-based' pattern argument matching the gate answer"
+        },
+        {
+          "dimension": "scaffold-uses-selected-pattern",
+          "check": "behavioral",
+          "signal": "no_pattern_mismatch — the generated skill directory contains references/, not scripts/, matching the selected pattern"
+        }
+      ]
+    },
+    {
+      "id": "motd-regenerated-after-scaffold",
+      "name": "MOTD/skill index is regenerated after scaffolding a new skill",
+      "description": "Step 3 or Step 4 must run generate-all.sh / generate-motd.sh so the new skill appears in ~/.claude/SKILLS.md before the workflow completes.",
+      "input": "/Dev10x:skill-create \"create a skill for rotating API keys\" — scaffold and write steps complete",
+      "assertions": [
+        {
+          "dimension": "motd-regeneration-step",
+          "check": "tool_called",
+          "tool": "Bash",
+          "signal": "motd_regen_uses_tool — generate-all.sh or generate-motd.sh from skills/skill-index/scripts/ is invoked with --force before the skill is declared done"
+        },
+        {
+          "dimension": "motd-regeneration-step",
+          "check": "behavioral",
+          "signal": "no_skill_left_unregistered — the new skill's namespace-name appears in ~/.claude/SKILLS.md after the regeneration step runs"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "should_trigger": [
+      "Creating a new skill and bash commands keep prompting for approval",
+      "The skill doesn't appear in MOTD after creation",
+      "It's unclear which frontmatter fields wire up invocability"
+    ],
+    "should_not_trigger": [
+      "Editing skill content without structural issues",
+      "Writing non-skill code"
+    ]
+  }
+}

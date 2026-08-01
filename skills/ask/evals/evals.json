@@ -1,0 +1,102 @@
+{
+  "skill_name": "Dev10x:ask",
+  "eval_dimensions": [
+    {
+      "id": "reformulate-gate",
+      "name": "Mode 1 Step 3 Reformulate Gate",
+      "description": "Extracted decision questions are presented via AskUserQuestion (up to 4 per call, batched sequentially beyond that), never as plain-text prose repeating the original question."
+    },
+    {
+      "id": "mode-detection",
+      "name": "Mode Detection Table",
+      "description": "The skill selects Reformulate vs Reinforce per the documented signal table (no args + recent plain-text question => Reformulate; 'reinforce' argument => Reinforce; ambiguous => default Reformulate) rather than guessing."
+    },
+    {
+      "id": "skip-non-decision-questions",
+      "name": "Non-Decision Questions Are Skipped",
+      "description": "Purely informational questions (file name, free-text PR title, optional-preference confirmations) are never reformulated into AskUserQuestion widgets — only questions requiring a choice between discrete alternatives qualify."
+    }
+  ],
+  "evals": [
+    {
+      "id": "reformulate-mode-fires-askuserquestion",
+      "name": "Reformulate mode calls AskUserQuestion instead of repeating text",
+      "description": "Given a recent plain-text decision question, Mode 1 Step 3 must call AskUserQuestion with header/options extracted from that question — not restate it as prose.",
+      "input": "/Dev10x:ask (previous turn asked in plain text: 'Should I fix this with a retry wrapper or by increasing the timeout?')",
+      "assertions": [
+        {
+          "dimension": "reformulate-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "gate1_uses_tool — AskUserQuestion is called with the extracted question, header, and 2+ options"
+        },
+        {
+          "dimension": "reformulate-gate",
+          "check": "plain_text",
+          "signal": "gate1_no_plain_text — the original plain-text question is not simply repeated as output"
+        }
+      ]
+    },
+    {
+      "id": "more-than-four-questions-batch-sequentially",
+      "name": "More than 4 extracted questions batch into sequential AskUserQuestion calls",
+      "description": "When Step 1 finds more than 4 qualifying questions in the scanned turns, Step 3 must issue multiple AskUserQuestion calls (max 4 questions each) rather than dropping the overflow or cramming them into one oversized call.",
+      "input": "/Dev10x:ask (6 qualifying plain-text decision questions found in the last 15 turns)",
+      "assertions": [
+        {
+          "dimension": "reformulate-gate",
+          "check": "behavioral",
+          "signal": "batching_sequential_calls — at least 2 separate AskUserQuestion calls are made, each carrying at most 4 questions, together covering all 6"
+        }
+      ]
+    },
+    {
+      "id": "reinforce-mode-outputs-message-with-no-gate",
+      "name": "Reinforce mode outputs the structured message without opening a tool gate",
+      "description": "Mode 2 is a reinforcement nudge, not a decision point — it must output the structured reinforcement message (citing skill-gates.md and essentials.md) without calling AskUserQuestion, since there is no supervisor choice to block on.",
+      "input": "/Dev10x:ask reinforce",
+      "assertions": [
+        {
+          "dimension": "mode-detection",
+          "check": "behavioral",
+          "signal": "reinforce_mode_selected — the 'reinforce' argument selects Mode 2 per the signal table, not Mode 1"
+        },
+        {
+          "dimension": "reformulate-gate",
+          "check": "behavioral",
+          "signal": "no_gate_in_reinforce_mode — AskUserQuestion is NOT called in Mode 2; the output is the reinforcement message text citing skill-gates.md and essentials.md"
+        }
+      ]
+    },
+    {
+      "id": "skip-purely-informational-question",
+      "name": "Informational questions are skipped, not reformulated",
+      "description": "A question asking for a file path or free-text input has no discrete alternatives to choose between, so Step 1 must exclude it from reformulation and Step 4 must report it as skipped with a reason.",
+      "input": "/Dev10x:ask (recent turns contain only 'What's the file path for the new migration?')",
+      "assertions": [
+        {
+          "dimension": "skip-non-decision-questions",
+          "check": "behavioral",
+          "signal": "no_reformulation_of_informational_q — AskUserQuestion is not called for the file-path question"
+        },
+        {
+          "dimension": "skip-non-decision-questions",
+          "check": "output_contains",
+          "value": "skipped",
+          "signal": "Step 4 summary reports the question as skipped with a reason (purely informational, no discrete alternatives)"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "should_trigger": [
+      "Supervisor sees a plain-text decision question that should have been an AskUserQuestion widget",
+      "/Dev10x:ask reinforce after an agent asks a plain-text decision question",
+      "/Dev10x:ask \"Should we use polling or webhooks?\" to convert a specific quoted question"
+    ],
+    "should_not_trigger": [
+      "Agent is already using AskUserQuestion correctly for the decision",
+      "The question is purely informational with no decision to make (e.g., 'what's the file path?')"
+    ]
+  }
+}
