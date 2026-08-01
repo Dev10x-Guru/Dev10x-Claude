@@ -149,16 +149,25 @@ async def create_worktree(
             f"Refusing to create worktree on protected branch {branch!r}. "
             "Use a feature branch (username/TICKET-ID/[worktree/]slug)."
         )
-    wt_args = [branch]
 
-    if base is not None:
-        wt_args.extend(["--base", base])
-    if path is not None:
-        wt_args.extend(["--path", path])
+    # create-worktree.sh takes strictly positional args
+    # (<worktree-path> <branch-name> [base-ref] [repo-root]) — it does
+    # not parse flags. Passing `--base`/`--path` tokens through as
+    # positionals silently misroutes them into the script's repo-root
+    # slot (GH-960). Resolve a concrete worktree-path up front (via the
+    # same default logic as next_worktree_name) and forward `base` as
+    # its own positional so the script's start-point argument sees it.
+    if path is None:
+        name_result = await next_worktree_name()
+        if not isinstance(name_result, SuccessResult):
+            return name_result
+        path = name_result.value["path"]
 
     return await _run_git_script(
         "skills/git-worktree/scripts/create-worktree.sh",
-        *wt_args,
+        path,
+        branch,
+        base or "",
     )
 
 
