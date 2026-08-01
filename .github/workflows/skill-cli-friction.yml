@@ -9,6 +9,9 @@ on:
       - "skills/**/references/**/*.md"
       - "skills/**/references/**/*.yaml"
       - "skills/**/references/**/*.yml"
+      - "references/**/*.md"
+      - "references/**/*.yaml"
+      - "references/**/*.yml"
       - "src/dev10x/skills/audit/cli_friction.py"
       - "tests/skills/audit/test_cli_friction.py"
       - "bin/check-skill-cli-friction.py"
@@ -64,7 +67,7 @@ jobs:
           # we only scan files this PR actually changed.
           BASE_SHA="$(git merge-base "origin/${BASE_REF}" HEAD)"
           git diff --name-only --diff-filter=AM "${BASE_SHA}" HEAD \
-            | grep -E '^skills/[^/]+/.*\.(md|yaml|yml)$' \
+            | grep -E '^(skills/[^/]+/|references/).*\.(md|yaml|yml)$' \
             | grep -v '/scripts/' \
             | grep -v '/evals/' \
             > /tmp/changed-skill-docs.txt || true

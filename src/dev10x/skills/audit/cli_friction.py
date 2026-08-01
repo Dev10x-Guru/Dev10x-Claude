@@ -18,6 +18,17 @@ are left alone.
 
 Skills whose job is to *implement* the underlying operation (e.g.,
 ``git-commit`` implements ``git commit``) are exempt via :data:`SKILL_EXEMPTIONS`.
+
+Two rule families sit outside the shell-fence scope above:
+
+* :data:`PROSE_RULES` scan every doc line, because they target tool-call
+  *instructions* written in prose rather than shell commands.
+* A prose rule with ``scan_frontmatter=True`` additionally scans the YAML
+  front matter, so an ``allowed-tools:`` grant cannot smuggle back a path the
+  prose rule forbids (``retired-durable-pref-path``, GH-948).
+
+Scope is per-rule: docs under ``skills/`` get every rule, while the repo-root
+``references/`` tree gets only :data:`SHARED_DOC_RULE_IDS`.
 """
 
 from __future__ import annotations
@@ -77,6 +88,8 @@ SKILL_EXEMPTIONS: dict[str, frozenset[str]] = {
     # diag-friction quotes the bad `Write(.claude/…)` pattern back at the
     # agent as the thing to avoid, so it is exempt from the write guard.
     "write-guard-claude": META_DOC_SKILLS,
+    # diag-friction quotes the retired path back at the agent as well.
+    "retired-durable-pref-path": META_DOC_SKILLS,
 }
 
 
@@ -88,6 +101,11 @@ class Rule:
     pattern: re.Pattern[str]
     message: str
     suggestion: str
+    #: Scan the doc's YAML front matter too. Off for every rule that targets
+    #: prose or shell commands (front matter holds neither), on for rules that
+    #: police ``allowed-tools:`` grants — an `Edit(<retired path>)` entry there
+    #: is exactly how a retired path silently comes back (GH-948).
+    scan_frontmatter: bool = False
 
 
 # Patterns target the START of a shell command. Anchors: start-of-line,
@@ -200,7 +218,35 @@ PROSE_RULES: tuple[Rule, ...] = (
             "keep the state outside the repo (`~/.config/Dev10x/…`)."
         ),
     ),
+    Rule(
+        rule_id="retired-durable-pref-path",
+        # ADR-0018 retired the per-repo durable-pref store. `write-guard-claude`
+        # already catches a prose `Write(.claude/…)`, but it skips front matter —
+        # so an `allowed-tools: - Edit(.claude/Dev10x/config.yaml)` grant sailed
+        # through and kept the migrate/re-create loop alive (GH-948). This rule
+        # names the retired paths explicitly and scans front matter too. A bare
+        # backticked mention still does not match: describing the retired path
+        # (read-compat notes, migration prose) is fine.
+        pattern=re.compile(
+            r"\b(?:Write|Edit|MultiEdit)\([^)\n]*\.claude/Dev10x/(?:config|session)\.yaml"
+        ),
+        message="Skill doc grants or instructs a write to a retired durable-pref path (ADR-0018)",
+        suggestion=(
+            "The per-repo `.claude/Dev10x/config.yaml` / `session.yaml` are "
+            "retired. Read prefs via `mcp__plugin_Dev10x_cli__preset_pin_status` "
+            "and write them with `dev10x session set-friction` / `pin`, which "
+            "lock + atomically write the global `~/.config/Dev10x/friction.yaml`."
+        ),
+        scan_frontmatter=True,
+    ),
 )
+
+#: Rules applied to shared docs OUTSIDE ``skills/`` (the repo-root
+#: ``references/`` tree). Those docs are not part of the scanner's historical
+#: scope, so widening them to every rule would fail CI on pre-existing raw-CLI
+#: examples that predate it. Only the ADR-0018 path guard — which has zero
+#: current hits there and must never regress — runs on them (GH-948).
+SHARED_DOC_RULE_IDS = frozenset({"retired-durable-pref-path"})
 
 # Per-line opt-out marker. Place ``# cli-friction: allow <rule-id> — reason``
 # at the end of the offending line to silence the scanner.
@@ -266,6 +312,15 @@ def _is_exempt(rule: Rule, skill_name: str | None) -> bool:
     return skill_name in exempt
 
 
+def _is_in_scope(rule: Rule, *, is_skill_doc: bool) -> bool:
+    """Whether ``rule`` runs against this file at all.
+
+    Skill docs get every rule. Shared docs outside ``skills/`` get only
+    :data:`SHARED_DOC_RULE_IDS`.
+    """
+    return is_skill_doc or rule.rule_id in SHARED_DOC_RULE_IDS
+
+
 def _should_scan_line(line: str, state: _ScanState, path: Path) -> bool:
     """Decide whether to scan a single line for rule violations."""
     stripped = line.strip()
@@ -329,6 +384,7 @@ def scan_file(path: Path) -> list[Violation]:
         return []
 
     skill_name = _skill_dir_name(path)
+    is_skill_doc = skill_name is not None
     content = path.read_text()
     state = _ScanState()
     violations: list[Violation] = []
@@ -346,18 +402,24 @@ def scan_file(path: Path) -> list[Violation]:
 
         # Prose rules scan every line outside front matter — the pattern
         # targets tool-call instructions that may be plain prose, not just
-        # shell-fenced commands.
-        if not state.in_frontmatter:
-            for rule in PROSE_RULES:
-                if rule.rule_id in allowed_here or _is_exempt(rule, skill_name):
-                    continue
-                if rule.pattern.search(line):
-                    violations.append(Violation(path=path, line_no=line_no, line=line, rule=rule))
+        # shell-fenced commands. A ``scan_frontmatter`` rule additionally
+        # polices ``allowed-tools:`` grants inside the front matter.
+        for rule in PROSE_RULES:
+            if state.in_frontmatter and not rule.scan_frontmatter:
+                continue
+            if not _is_in_scope(rule, is_skill_doc=is_skill_doc):
+                continue
+            if rule.rule_id in allowed_here or _is_exempt(rule, skill_name):
+                continue
+            if rule.pattern.search(line):
+                violations.append(Violation(path=path, line_no=line_no, line=line, rule=rule))
 
         if not should_scan:
             continue
 
         for rule in RULES:
+            if not _is_in_scope(rule, is_skill_doc=is_skill_doc):
+                continue
             if rule.rule_id in allowed_here:
                 continue
             if _is_exempt(rule, skill_name):
@@ -406,3 +468,36 @@ def find_target_files(root: Path) -> list[Path]:
         if path.name in _TARGET_NAMES or "references" in path.parts:
             results.append(path)
     return results
+
+
+def find_shared_reference_files(root: Path) -> list[Path]:
+    """Return docs under the repo-root ``references/`` tree the scanner targets.
+
+    These are shared guides loaded on demand by skills, so a retired path
+    instructed there reaches an agent exactly like one in a ``SKILL.md``. Only
+    :data:`SHARED_DOC_RULE_IDS` run against them — see that constant for why the
+    full rule set stays scoped to ``skills/``.
+    """
+    if not root.is_dir():
+        return []
+
+    return [
+        path
+        for path in sorted(root.rglob("*"))
+        if path.is_file() and path.suffix in _TARGET_SUFFIXES and path.parent.name != "evals"
+    ]
+
+
+def is_target_file(path: Path) -> bool:
+    """Whether ``path`` is a doc the scanner knows how to scan.
+
+    Used by the CLI entry point to drop unrelated paths (e.g. a PR that touches
+    both ``skills/`` and ``src/``) without silently ignoring shared references.
+    """
+    if path.suffix not in _TARGET_SUFFIXES:
+        return False
+    if "scripts" in path.parts or path.parent.name == "evals":
+        return False
+    if _skill_dir_name(path) is not None:
+        return True
+    return "references" in path.parts

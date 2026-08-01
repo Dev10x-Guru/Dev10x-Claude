@@ -10,7 +10,8 @@ Usage:
 Modes:
     No paths given      → read newline-separated paths from stdin
     Paths given         → scan those files
-    ``--all``           → scan every skill doc under ``skills/``
+    ``--all``           → scan every skill doc under ``skills/`` plus the
+                          repo-root ``references/`` tree
 
 Exits with status 1 if any violation is found.
 """
@@ -45,7 +46,9 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 
 def _resolve_paths(args: argparse.Namespace) -> list[Path]:
     if args.all:
-        return cli_friction.find_target_files(REPO_ROOT / "skills")
+        return cli_friction.find_target_files(
+            REPO_ROOT / "skills"
+        ) + cli_friction.find_shared_reference_files(REPO_ROOT / "references")
     if args.paths:
         return list(args.paths)
     if sys.stdin.isatty():
@@ -58,9 +61,7 @@ def main(argv: list[str] | None = None) -> int:
     paths = _resolve_paths(args)
     # Filter to files the scanner targets — silently drop unrelated paths
     # (e.g., a PR that touches both ``skills/`` and ``src/``).
-    target_paths = [
-        p for p in paths if p.is_file() and cli_friction._skill_dir_name(p) is not None
-    ]
+    target_paths = [p for p in paths if p.is_file() and cli_friction.is_target_file(p)]
     if not target_paths:
         print("No skill docs to scan.", file=sys.stderr)
         return 0

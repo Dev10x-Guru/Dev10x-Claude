@@ -110,11 +110,23 @@ has deferred review threads for the current session.
 Active modes are resolved in this order (see
 `references/execution-modes.md` for full precedence rules):
 
-1. `active_modes:` in `.claude/Dev10x/session.yaml` (session)
-2. `active_modes:` in the project playbook file (merged in)
+1. `active_modes:` in the durable gate policy — the first matching
+   `projects[]` entry in the global `~/.config/Dev10x/friction.yaml`.
+   A match wins outright.
+2. Only when no entry matches: the legacy per-repo
+   `.claude/Dev10x/config.yaml`, with a pre-split
+   `.claude/Dev10x/session.yaml` fallback, so an un-migrated checkout
+   keeps working until `dev10x permission migrate-config` folds it in.
+3. `active_modes:` in the project playbook file (merged in).
 
-The session list is authoritative once written — the playbook
-list extends it but does not overwrite non-empty session values.
+Both per-repo files in step 2 are **retired** (ADR-0018) — they are a
+read-compat fallback, never a write target.
+
+> **Known gap (GH-950).** Ephemeral modes (`review-deferred`,
+> `swarm-child`) have no post-ADR-0018 home. Their writers still target
+> the deleted `session.yaml`, which step 2 reaches only in an
+> unconfigured repo — so in a configured one the mode is written and
+> never read. GH-950 picks the ephemeral store and rewires both ends.
 
 ## Adding a new mode
 
