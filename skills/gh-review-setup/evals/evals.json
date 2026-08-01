@@ -1,59 +1,163 @@
 {
   "skill_name": "Dev10x:gh-review-setup",
   "description": "Guided, discovery-driven setup of Claude code-review GitHub Actions on any repo",
+  "eval_dimensions": [
+    {
+      "id": "module-selection-gate",
+      "name": "Phase 2 Module Selection Gate",
+      "description": "Module selection uses AskUserQuestion (multiSelect, split across two questions per the 4-option GH-713 cap), not plain text, and every module remains independently skippable."
+    },
+    {
+      "id": "strategy-gate",
+      "name": "Phase 3 Strategy Decision Gate",
+      "description": "Each strategy decision presents pros/cons per option and a recommended default before asking via AskUserQuestion, batching related decisions into one call."
+    },
+    {
+      "id": "discovery-driven-output",
+      "name": "Discovery-Driven Roster and Globs",
+      "description": "Path globs and the reviewer roster are derived from Phase 1 discovery findings, never copied from a reference project or hardcoded to a Python-shaped stack."
+    },
+    {
+      "id": "sanitization-guardrail",
+      "name": "Zero Project-Identifying Strings Guardrail",
+      "description": "Generated workflows, prompts, and routing tables contain zero project-identifying strings from any source project; Phase 5 runs a grep gate to confirm before declaring done."
+    },
+    {
+      "id": "lessons-learned-guardrails",
+      "name": "Lessons-Learned Module Hard Guardrails",
+      "description": "When the lessons-learned module is selected, scope-lock, sanitization, size-budget, and single-open-draft-PR-lock are all mandatory, not optional add-ons."
+    },
+    {
+      "id": "secrets-out-of-scope",
+      "name": "Secrets Printed, Never Created",
+      "description": "The skill prints exactly which secrets to add and where, but never creates a secret itself (v1 guardrail)."
+    }
+  ],
   "evals": [
     {
-      "name": "module-selection-gate",
-      "description": "Module selection uses AskUserQuestion (multiSelect), not plain text",
-      "setup": "/Dev10x:gh-review-setup",
-      "checks": [
-        {"type": "tool_called", "tool": "AskUserQuestion", "assertion": "module_gate_uses_tool", "signal": "Phase 2 module menu uses AskUserQuestion with multiSelect"},
-        {"type": "behavioral", "assertion": "modules_skippable", "signal": "Every module is independently skippable; ADR/hygiene skip is first-class"}
+      "id": "module-selection-gate-fires-with-multiselect",
+      "name": "Module selection uses AskUserQuestion with multiSelect, split into two questions",
+      "description": "Phase 2 must present the six modules across two AskUserQuestion questions (core + add-ons) in one call, each pre-checked per discovery defaults, never picking modules automatically.",
+      "input": "/Dev10x:gh-review-setup on a repo with no existing .claude/ review automation",
+      "assertions": [
+        {
+          "dimension": "module-selection-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "module_gate_uses_tool — Phase 2 module menu uses AskUserQuestion with multiSelect across two questions (core + add-ons)"
+        },
+        {
+          "dimension": "module-selection-gate",
+          "check": "behavioral",
+          "signal": "modules_skippable — Every module is independently skippable; ADR/hygiene skip is first-class, not treated as an error"
+        }
       ]
     },
     {
-      "name": "strategy-gate-with-pros-cons",
-      "description": "Each strategy decision presents pros/cons and a recommended default before asking",
-      "setup": "/Dev10x:gh-review-setup",
-      "checks": [
-        {"type": "tool_called", "tool": "AskUserQuestion", "assertion": "strategy_gate_uses_tool", "signal": "Phase 3 strategy decisions use AskUserQuestion"},
-        {"type": "behavioral", "assertion": "options_carry_tradeoffs", "signal": "Each option description carries pros/cons; one option is marked recommended"}
+      "id": "strategy-gate-batches-with-tradeoffs",
+      "name": "Strategy decisions batch into one call with pros/cons and a recommended default",
+      "description": "Phase 3 must call AskUserQuestion for each strategy decision the user hasn't pre-stated, batching 1-4 related decisions per call, with each option's description carrying pros/cons.",
+      "input": "/Dev10x:gh-review-setup — user selected code review + PR hygiene modules in Phase 2",
+      "assertions": [
+        {
+          "dimension": "strategy-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "strategy_gate_uses_tool — Phase 3 strategy decisions (depth, model tiering, action pinning, etc.) use AskUserQuestion"
+        },
+        {
+          "dimension": "strategy-gate",
+          "check": "tool_parameters",
+          "tool": "AskUserQuestion",
+          "signal": "options_carry_tradeoffs — Each option description carries pros/cons; one option is marked recommended"
+        }
       ]
     },
     {
-      "name": "discovery-driven-roster",
-      "description": "Path globs and reviewer roster are derived from discovery, not hardcoded",
-      "setup": "/Dev10x:gh-review-setup (run on a non-Python repo: shell + markdown + workflow-yaml)",
-      "checks": [
-        {"type": "behavioral", "assertion": "globs_from_discovery", "signal": "Generated path globs match the discovered file types, not a fixed Python set"},
-        {"type": "behavioral", "assertion": "roster_from_discovery", "signal": "Only reviewers for present domains are scaffolded; no Python/migration rows on a config repo"}
+      "id": "adaptive-friction-still-emits-gate-call",
+      "name": "Under adaptive friction, gates auto-select but still emit the tool call",
+      "description": "friction_level: adaptive auto-selects the recommended option for each gate, but must still emit the AskUserQuestion tool call so the user retains override capability — it must not silently skip the call.",
+      "input": "/Dev10x:gh-review-setup with session friction_level: adaptive",
+      "assertions": [
+        {
+          "dimension": "strategy-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "adaptive_still_calls_tool — AskUserQuestion is still called for each strategy decision even though the recommended option is pre-selected"
+        }
       ]
     },
     {
-      "name": "zero-project-strings",
-      "description": "Generated workflows contain zero project-identifying strings from any source project",
-      "setup": "/Dev10x:gh-review-setup",
-      "checks": [
-        {"type": "behavioral", "assertion": "sanitization_grep_gate", "signal": "Phase 5 runs a grep gate over rendered files and reports zero hits"},
-        {"type": "behavioral", "assertion": "repo_slug_is_expression", "signal": "Repo slugs render as ${{ github.repository }}, never a literal source slug"}
+      "id": "discovery-driven-roster-on-non-python-repo",
+      "name": "Non-Python repo produces globs and a roster matching discovery, not a Python default",
+      "description": "Running on a repo whose Phase 1 discovery finds only shell + markdown + workflow-yaml must not scaffold Python-specific reviewers or globs.",
+      "input": "/Dev10x:gh-review-setup on a config-only repo (shell + markdown + workflow-yaml, no .py files)",
+      "assertions": [
+        {
+          "dimension": "discovery-driven-output",
+          "check": "behavioral",
+          "signal": "globs_from_discovery — Generated path globs match the discovered file types, not a fixed Python set"
+        },
+        {
+          "dimension": "discovery-driven-output",
+          "check": "behavioral",
+          "signal": "roster_from_discovery — Only reviewers for present domains are scaffolded; no Python/migration reviewer rows on a config repo"
+        }
       ]
     },
     {
-      "name": "lessons-learned-guardrails",
-      "description": "Lessons-learned module ships scope-lock, sanitization, size-budget, and single-PR lock",
-      "setup": "/Dev10x:gh-review-setup (select Lessons-Learned, draft-PR destination)",
-      "checks": [
-        {"type": "behavioral", "assertion": "scope_lock_present", "signal": "Auto-apply allowlist limited to CLAUDE.md + .claude/ + references/; never skills/ or workflows"},
-        {"type": "behavioral", "assertion": "single_pr_lock_present", "signal": "Fixed lessons branch + existing-open-PR check prevents parallel PRs"},
-        {"type": "behavioral", "assertion": "size_budgets_and_sanitization", "signal": "Per-file size budgets and prose+code sanitization embedded in the workflow prompt"}
+      "id": "sanitization-grep-gate-reports-zero-hits",
+      "name": "Phase 5 sanitization grep gate reports zero project-identifying strings",
+      "description": "Before declaring done, Phase 5 must run the grep gate from references/sanitization.md over every rendered file and report zero hits, with repo slugs rendered as the GitHub Actions expression rather than a literal slug.",
+      "input": "/Dev10x:gh-review-setup completes Phase 4 scaffolding and reaches Phase 5",
+      "assertions": [
+        {
+          "dimension": "sanitization-guardrail",
+          "check": "behavioral",
+          "signal": "sanitization_grep_gate — Phase 5 runs a grep gate over rendered files and reports zero hits before hand-off"
+        },
+        {
+          "dimension": "sanitization-guardrail",
+          "check": "output_contains",
+          "value": "${{ github.repository }}",
+          "signal": "repo_slug_is_expression — Repo slugs render as ${{ github.repository }}, never a literal source repo slug"
+        }
       ]
     },
     {
-      "name": "secrets-out-of-scope",
-      "description": "Skill prints required secrets but never creates them",
-      "setup": "/Dev10x:gh-review-setup",
-      "checks": [
-        {"type": "behavioral", "assertion": "secrets_printed_not_created", "signal": "Phase 5 lists required secret names and where to add them; no secret-creation call"}
+      "id": "lessons-learned-guardrails-present-when-selected",
+      "name": "Lessons-learned selection ships all four mandatory guardrails",
+      "description": "Selecting the lessons-learned module must produce a scope-locked, sanitized, size-budgeted workflow with the single-open-draft-PR lock — none of the four is optional.",
+      "input": "/Dev10x:gh-review-setup — user selects Lessons-Learned with draft-PR destination in Phase 2/3",
+      "assertions": [
+        {
+          "dimension": "lessons-learned-guardrails",
+          "check": "behavioral",
+          "signal": "scope_lock_present — Auto-apply allowlist limited to CLAUDE.md + .claude/ + references/; never skills/ or workflow files"
+        },
+        {
+          "dimension": "lessons-learned-guardrails",
+          "check": "behavioral",
+          "signal": "single_pr_lock_present — Fixed lessons branch + existing-open-PR check prevents parallel lessons-learned PRs"
+        },
+        {
+          "dimension": "lessons-learned-guardrails",
+          "check": "behavioral",
+          "signal": "size_budgets_and_sanitization — Per-file size budgets and prose+code domain-name sanitization are embedded in the rendered workflow prompt"
+        }
+      ]
+    },
+    {
+      "id": "secrets-printed-never-created",
+      "name": "Phase 5 prints required secrets without creating any",
+      "description": "The skill must list which secrets to add and where, but never call a secret-creation API or CLI command.",
+      "input": "/Dev10x:gh-review-setup selects a module requiring an API key (e.g., second-opinion)",
+      "assertions": [
+        {
+          "dimension": "secrets-out-of-scope",
+          "check": "behavioral",
+          "signal": "secrets_printed_not_created — Phase 5 lists required secret names and where to add them; no secret-creation call is made"
+        }
       ]
     }
   ],
