@@ -65,7 +65,66 @@ def test_watch_arms_and_stays_quiet_on_calm_rounds(
         ],
     )
     assert result.exit_code == 0
-    assert result.output.splitlines() == ["armed: base=abc1234 block=2026-07-19T07:00:00.000Z"]
+    assert result.output.splitlines() == [
+        "armed: base=abc1234 block=2026-07-19T07:00:00.000Z parked=no"
+    ]
+
+
+def test_probe_reports_parked_and_own_merge_contracts(scratchpad: Path) -> None:
+    (scratchpad / "parked").write_text("hold\n", encoding="utf-8")
+    (scratchpad / "merged-shas").write_text("abc1234\ndef5678\n", encoding="utf-8")
+    result = CliRunner().invoke(foreman, ["probe", "--scratchpad", str(scratchpad)])
+    assert result.exit_code == 0
+    assert "parked: yes own-merge shas: 2" in result.output
+
+
+def test_watch_mutes_own_merge_base_movement(
+    scratchpad: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import dev10x.commands.foreman as commands
+    import dev10x.skills.foreman.watch as watch
+
+    (scratchpad / "merged-shas").write_text("def5678\n", encoding="utf-8")
+    shas = iter(["abc1234", "def5678abc", "def5678abc"])
+    monkeypatch.setattr(watch, "base_branch_sha", lambda *, base_branch, repo=None: next(shas))
+    monkeypatch.setattr(commands.time, "sleep", lambda seconds: None)
+    result = CliRunner().invoke(
+        foreman,
+        [
+            "watch",
+            "--scratchpad",
+            str(scratchpad),
+            "--max-rounds",
+            "2",
+            "--interval-s",
+            "0",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "BASE MOVED" not in result.output
+
+
+def test_watch_arm_line_reports_parked_state(
+    scratchpad: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import dev10x.commands.foreman as commands
+
+    (scratchpad / "parked").write_text("hold\n", encoding="utf-8")
+    monkeypatch.setattr(commands.time, "sleep", lambda seconds: None)
+    result = CliRunner().invoke(
+        foreman,
+        [
+            "watch",
+            "--scratchpad",
+            str(scratchpad),
+            "--max-rounds",
+            "1",
+            "--interval-s",
+            "0",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "parked=yes" in result.output
 
 
 def test_watch_emits_base_movement(scratchpad: Path, monkeypatch: pytest.MonkeyPatch) -> None:

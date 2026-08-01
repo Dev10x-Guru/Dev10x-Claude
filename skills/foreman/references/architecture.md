@@ -43,6 +43,8 @@ brief stays authored by the foreman; the watchdog stays a dumb relay.
 | Watchdog turn frozen by a prompt | Nothing fires; discovered in the morning | Prevented, not recovered: Phase 0 pre-flight + script-only watcher + minimal action surface. If it still happens, workers keep running — only queue advancement stops. |
 | Quota block exhausts mid-run | Session paused by the platform; `QUOTA RESET:` on the new block | Foreman resumes/respawns interrupted crew; in-flight PRs pick up from their on-disk state |
 | Base branch moves under an open PR | `BASE MOVED:` | Relay chain → active worker: fetch, rebase, re-verify, safe force-push; never merge on stale ancestry. Re-check freshness immediately before every merge gate. |
+| The run's own merge echoes back as `BASE MOVED` | `BASE MOVED:` minutes after this run's merge gate landed a PR | Prevented, not recovered: the gate appends the new base tip SHA to `merged-shas` in the run dir, and the watcher rebaselines matching echoes silently (GH-946 — 6 of 7 events in one run were self-echoes, each costing a relay plus a verification turn) |
+| Quota-milestone / STALL noise while the queue is deliberately held | Milestones and stall alarms with no crew to act on them | Prevented, not recovered: touch `parked` in the run dir for the hold, remove it on release; milestones roll up into one line and the stall clock gets a release grace window (GH-946) |
 | Worker "completes" but issues stay open | Foreman closure verification (issue_get per Fixes link) | Foreman closes stragglers with a completion comment, or reopens the chunk as a remainder |
 | Idle-notification noise mistaken for stalls | Idle pings between turns, often delayed | Ignore as evidence; only heartbeat mtimes and live PR/CI state count |
 | Catastrophic harness loss (session killed, host reboot — run dir in /tmp is gone) | Nothing fires; discovered by the supervisor | The tracker is the durable store by contract: every queued chunk maps to open issues and every scope cut left an open issue (crew contract). A fresh foreman run rebuilds the queue from open milestone/label issues alone; nothing is lost but time. |
@@ -69,9 +71,12 @@ brief stays authored by the foreman; the watchdog stays a dumb relay.
 
 ## Quota policy
 
-- `dev10x foreman watch` tracks the active 5h block offline
-  (`dev10x.domain.usage`): cost milestones every `--cost-step` USD
-  and block-identity change = `QUOTA RESET`.
+- `dev10x foreman watch` (or `uv run dev10x foreman watch` when the
+  bare entry point is not tool-installed — GH-947) tracks the active
+  5h block offline (`dev10x.domain.usage`): cost milestones every
+  `--cost-step` USD and block-identity change = `QUOTA RESET`.
+  Milestones are muted while `parked` is present and reported as one
+  rollup line on release.
 - The harness never throttles itself preemptively — the platform
   pause + reset-resume cycle is cheaper than idling capacity on a
   guess. The morning report includes per-block spend.

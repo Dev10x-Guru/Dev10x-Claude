@@ -13,7 +13,10 @@ from dev10x.skills.foreman import (
     base_branch_sha,
     block_identity,
     heartbeat_lines,
+    is_own_merge,
     newest_heartbeat_age_min,
+    own_merge_shas,
+    queue_parked,
 )
 from dev10x.skills.foreman import watch as watch_module
 
@@ -177,6 +180,147 @@ class TestQuotaBlockGateway:
             lambda *, active_only: ok({"blocks": []}),
         )
         assert active_quota_block() == {}
+
+
+class TestOwnMergeAndParkedReaders:
+    def test_parked_flag_absent(self, tmp_path: Path) -> None:
+        assert watch_module.queue_parked(scratchpad=tmp_path) is False
+
+    def test_parked_flag_present(self, tmp_path: Path) -> None:
+        (tmp_path / "parked").write_text("burn gate hold\n", encoding="utf-8")
+        assert watch_module.queue_parked(scratchpad=tmp_path) is True
+
+    def test_merged_shas_missing_file(self, tmp_path: Path) -> None:
+        assert watch_module.own_merge_shas(scratchpad=tmp_path) == set()
+
+    def test_merged_shas_skips_comments_and_blanks(self, tmp_path: Path) -> None:
+        (tmp_path / "merged-shas").write_text(
+            "# chunk 1\nabc1234def\n\n  def5678abc  # chunk 2\n",
+            encoding="utf-8",
+        )
+        assert watch_module.own_merge_shas(scratchpad=tmp_path) == {"abc1234def", "def5678abc"}
+
+    def test_own_merge_matches_abbreviated_either_way(self) -> None:
+        assert watch_module.is_own_merge(sha="abc1234def567", merged_shas={"abc1234"}) is True
+        assert watch_module.is_own_merge(sha="abc1234", merged_shas={"abc1234def567"}) is True
+
+    def test_own_merge_rejects_unknown_sha(self) -> None:
+        assert watch_module.is_own_merge(sha="fff9999", merged_shas={"abc1234"}) is False
+
+    def test_own_merge_ignores_ambiguous_stubs(self) -> None:
+        assert watch_module.is_own_merge(sha="abc", merged_shas={"abc1234def"}) is False
+        assert watch_module.is_own_merge(sha="abc1234def", merged_shas={"abc"}) is False
+
+    def test_package_reexports_new_helpers(self) -> None:
+        assert (queue_parked, own_merge_shas, is_own_merge) == (
+            watch_module.queue_parked,
+            watch_module.own_merge_shas,
+            watch_module.is_own_merge,
+        )
+
+
+class TestParkedAndOwnMergeMuting:
+    def test_own_merge_echo_is_muted_but_rebaselined(
+        self, state: WatchState, quiet_block: dict
+    ) -> None:
+        events = state.observe(
+            now=NOW + 60,
+            sha="bbb2222aaa",
+            block=quiet_block,
+            heartbeat_age_min=1,
+            merged_shas={"bbb2222"},
+        )
+        assert events == []
+        assert state.known_sha == "bbb2222aaa"
+
+    def test_external_landing_still_reported(self, state: WatchState, quiet_block: dict) -> None:
+        events = state.observe(
+            now=NOW + 60,
+            sha="ccc3333aaa",
+            block=quiet_block,
+            heartbeat_age_min=1,
+            merged_shas={"bbb2222"},
+        )
+        assert events == ["BASE MOVED: aaa111 -> ccc3333aaa"]
+
+    def test_parked_mutes_stall_alarm(self, state: WatchState, quiet_block: dict) -> None:
+        events = state.observe(
+            now=NOW + 60,
+            sha="aaa111",
+            block=quiet_block,
+            heartbeat_age_min=90,
+            parked=True,
+        )
+        assert events == []
+
+    def test_parked_mutes_quota_milestones(self, state: WatchState) -> None:
+        block = {"id": "2026-07-19T07:00:00.000Z", "costUSD": 104.0}
+        events = state.observe(
+            now=NOW + 60, sha="aaa111", block=block, heartbeat_age_min=1, parked=True
+        )
+        assert events == []
+        assert state.muted_milestones == 1
+
+    def test_release_rolls_up_muted_milestones(self, state: WatchState) -> None:
+        state.observe(
+            now=NOW + 60,
+            sha="aaa111",
+            block={"id": "2026-07-19T07:00:00.000Z", "costUSD": 104.0},
+            heartbeat_age_min=1,
+            parked=True,
+        )
+        state.observe(
+            now=NOW + 120,
+            sha="aaa111",
+            block={"id": "2026-07-19T07:00:00.000Z", "costUSD": 155.0},
+            heartbeat_age_min=1,
+            parked=True,
+        )
+        released = state.observe(
+            now=NOW + 180,
+            sha="aaa111",
+            block={"id": "2026-07-19T07:00:00.000Z", "costUSD": 155.0},
+            heartbeat_age_min=1,
+        )
+        assert released == [
+            "QUOTA MILESTONE (parked rollup): 2 muted while parked, block cost now $155"
+        ]
+        assert state.muted_milestones == 0
+
+    def test_release_without_muted_milestones_is_silent(
+        self, state: WatchState, quiet_block: dict
+    ) -> None:
+        state.observe(
+            now=NOW + 60, sha="aaa111", block=quiet_block, heartbeat_age_min=1, parked=True
+        )
+        released = state.observe(
+            now=NOW + 120, sha="aaa111", block=quiet_block, heartbeat_age_min=1
+        )
+        assert released == []
+
+    def test_release_grants_one_stall_grace_window(
+        self, state: WatchState, quiet_block: dict
+    ) -> None:
+        state.observe(
+            now=NOW + 60, sha="aaa111", block=quiet_block, heartbeat_age_min=90, parked=True
+        )
+        released = state.observe(
+            now=NOW + 120, sha="aaa111", block=quiet_block, heartbeat_age_min=91
+        )
+        assert released == []
+        later = state.observe(
+            now=NOW + 120 + 25 * 60, sha="aaa111", block=quiet_block, heartbeat_age_min=115
+        )
+        assert later == ["STALL: newest heartbeat silent for 115 min"]
+
+    def test_quota_reset_still_fires_while_parked(self, state: WatchState) -> None:
+        block = {"id": "2026-07-19T12:00:00.000Z", "costUSD": 3.0}
+        events = state.observe(
+            now=NOW + 60, sha="aaa111", block=block, heartbeat_age_min=1, parked=True
+        )
+        assert events == [
+            "QUOTA RESET: new 5h block 2026-07-19T12:00:00.000Z — resume interrupted crew"
+        ]
 
 
 class TestBaseBranchShaGateway:

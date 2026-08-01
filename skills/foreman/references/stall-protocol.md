@@ -96,6 +96,16 @@ reading of "silent foreman → `TaskStop` and respawn" would destroy a
 healthy overseer mid-wait and reset the queue. Message it and wait for
 the reply before concluding anything.
 
+When the WHOLE queue is idle by instruction — a burn-gate hold, waiting
+out a quota block, a supervisor-only decision blocking every chunk —
+say so in the run directory instead of reasoning about it per event:
+touch `parked` while the hold lasts and remove it on release. The
+watcher then suppresses `STALL` (and quota milestones) for the
+duration, and grants one stall window of grace after release so
+resuming crew is not alarmed on before their first heartbeat lands
+(GH-946). A hold that is not flagged produces exactly the false STALL
+alarms this section warns about, one per tick.
+
 ## Status-file ownership
 
 Every `status-<chunk>.md` has exactly ONE writer: the agent named in

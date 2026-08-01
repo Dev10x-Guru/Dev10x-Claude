@@ -4,7 +4,12 @@
     {
       "id": "phase0-gates",
       "name": "Phase 0 Gates",
-      "description": "Queue+model mapping and friction-level AskUserQuestion gates fire before any spawning; pre-flight dry-runs the watcher CLI and per-domain tools while the supervisor is present"
+      "description": "The queue+model AskUserQuestion gate fires before any spawning; the gate-policy gate defaults to adaptive + afk (and is skipped when a durable policy is already on disk); pre-flight dry-runs the watcher CLI — resolving the bare vs `uv run` shape — and per-domain tools while the supervisor is present"
+    },
+    {
+      "id": "decision-only-watch-feed",
+      "name": "Decision-Only Watch Feed",
+      "description": "The run records its own merges in `merged-shas` and flags deliberate holds with `parked`, so BASE MOVED echoes of its own merges and quota-milestone/stall noise while parked never cost a relay turn"
     },
     {
       "id": "script-only-watching",
@@ -38,14 +43,26 @@
       "name": "phase0-gates-before-spawn",
       "prompt": "/Dev10x:foreman deliver milestones 151 152 153 overnight, I am leaving now",
       "description": "Tests that both Phase 0 AskUserQuestion gates and the permission pre-flight run before any Agent is spawned.",
-      "expected_output": "AskUserQuestion fires for queue/model mapping and friction level (guided/strict, no auto-mode option); `dev10x foreman probe` is dry-run; only then is the foreman Agent spawned.",
+      "expected_output": "AskUserQuestion fires for queue/model mapping and for the gate policy with `adaptive + afk` as the Recommended default (no auto-mode option); `dev10x foreman probe` is dry-run and its working shape recorded; only then is the foreman Agent spawned.",
       "dimensions": ["phase0-gates"],
       "assertions": [
         {
           "id": "gates-use-auq",
-          "text": "Model mapping and friction level are asked via AskUserQuestion, not plain text",
+          "text": "Model mapping and gate policy are asked via AskUserQuestion, not plain text",
           "check": "tool_called",
-          "signals": ["AskUserQuestion", "model", "friction"]
+          "signals": ["AskUserQuestion", "model", "gate"]
+        },
+        {
+          "id": "gate-policy-default-adaptive-afk",
+          "text": "The gate-policy option set leads with adaptive + afk as the Recommended default",
+          "check": "output_contains",
+          "signals": ["adaptive", "afk", "Recommended"]
+        },
+        {
+          "id": "probe-shape-resolved",
+          "text": "Pre-flight resolves the watcher CLI shape (bare `dev10x` vs `uv run dev10x`) before arming",
+          "check": "output_contains",
+          "signals": ["uv run dev10x foreman", "127"]
         },
         {
           "id": "gates-before-agent",
@@ -58,6 +75,12 @@
           "text": "No bypassPermissions/auto-mode option is offered",
           "check": "output_not_contains",
           "signals": ["bypassPermissions", "auto mode", "YOLO"]
+        },
+        {
+          "id": "gate-skip-on-durable-policy",
+          "text": "When a durable gate policy already covers the checkout, the gate-policy gate is not re-asked: the on-disk preset+overlays are honored and verified via resolve_gate instead of a second AskUserQuestion",
+          "check": "output_contains",
+          "signals": ["resolve_gate", "already"]
         }
       ]
     },
@@ -226,6 +249,34 @@
           "text": "A prior pr_ready call is not treated as still in effect",
           "check": "output_not_contains",
           "signals": ["already marked ready", "still ready from before"]
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "own-merge-and-parked-muting",
+      "prompt": "continue: the merge gate just rebase-merged chunk C0's PR to develop, and the queue is now held at the burn gate until the next quota block",
+      "description": "Tests that the run records its own merge tip and flags the hold, so the watcher feed stays decision-only.",
+      "expected_output": "The new develop tip SHA is appended to `merged-shas` right after the merge, and `parked` is touched in the run directory for the hold (removed on release) instead of inventing a per-run milestone batching policy.",
+      "dimensions": ["decision-only-watch-feed"],
+      "assertions": [
+        {
+          "id": "merged-shas-appended",
+          "text": "The resulting base-branch tip SHA is appended to merged-shas after the merge, read from the watcher's BASE MOVED echo or the probe's base line — not a raw git call outside the pre-flight surface",
+          "check": "output_contains",
+          "signals": ["merged-shas", "BASE MOVED"]
+        },
+        {
+          "id": "parked-flag-used",
+          "text": "The deliberate hold is expressed as the parked flag file",
+          "check": "output_contains",
+          "signals": ["parked"]
+        },
+        {
+          "id": "no-adhoc-batching-policy",
+          "text": "No ad-hoc per-run quota batching or stall-suppression policy is invented",
+          "check": "output_not_contains",
+          "signals": ["batch the milestones myself", "ignore STALL for now"]
         }
       ]
     }

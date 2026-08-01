@@ -77,6 +77,12 @@ def watch(
     Emits: STALL (heartbeat silence), BASE MOVED (origin base-branch
     advanced), QUOTA MILESTONE (block cost crossed a step), QUOTA
     RESET (new 5h block — resume interrupted crew).
+
+    Two scratchpad files mute events that need no decision (GH-946):
+    ``merged-shas`` (base-branch tips the run merged itself — matching
+    BASE MOVED echoes are dropped) and ``parked`` (while present, STALL
+    and QUOTA MILESTONE are suppressed and milestones roll up into one
+    line on release).
     """
     from dev10x.skills.foreman import watch as watch_skill
 
@@ -87,7 +93,8 @@ def watch(
         repo=repo,
     )
     click.echo(
-        f"armed: base={state.known_sha or 'unknown'} block={state.known_block_id or 'none'}"
+        f"armed: base={state.known_sha or 'unknown'} block={state.known_block_id or 'none'} "
+        f"parked={'yes' if watch_skill.queue_parked(scratchpad=scratchpad) else 'no'}"
     )
     sys.stdout.flush()
 
@@ -101,6 +108,8 @@ def watch(
             sha=watch_skill.base_branch_sha(base_branch=base_branch, repo=repo),
             block=watch_skill.active_quota_block(),
             heartbeat_age_min=watch_skill.newest_heartbeat_age_min(scratchpad=scratchpad, now=now),
+            parked=watch_skill.queue_parked(scratchpad=scratchpad),
+            merged_shas=watch_skill.own_merge_shas(scratchpad=scratchpad),
         )
         for event in events:
             click.echo(event)
