@@ -195,6 +195,12 @@ interval is what gets your chunk taken over.
 
 Log non-obvious decisions by appending to
 {{run_dir}}/decisions-{{chunk_id}}.md.
+
+DURABILITY: the run directory and your own scratchpad die with the
+session; only pushed commits and GitHub issue comments survive it.
+Post anything the next loop would need to avoid redoing your work —
+branch name, what landed, what remains — as an issue_comment WHEN
+YOU PRODUCE IT, not at wrap-up. A death gives no warning.
 ```
 
 ## 9. Final report

@@ -103,6 +103,14 @@ rather than relying on the `"main"` alias. The `BACKGROUND_DELIVERY_TEMPLATE`
 keeps `"main"` as the default; skills whose orchestrator is named
 override the recipient when constructing the prompt.
 
+**A subagent orchestrator has no named roster at all (GH-965).**
+`Agent(..., name=...)` fails from inside an agent — *"teammates
+cannot spawn teammates"* — so a nested orchestrator (e.g.
+`Dev10x:foreman`) addresses its workers only by the raw `agentId`
+from the spawn result. That is the *less* durable handle: names
+survive an agent's completion, an `agentId` does not survive a
+session death (below). Plan to respawn, not to message.
+
 ### `TaskOutput` does not reach `Agent`-tool teammates (GH-848 F3)
 
 Do NOT try to retrieve a background teammate's result with
@@ -170,6 +178,16 @@ in-context state (PR branch, CI results, diff history) and
 typically completes the lifecycle at lower cost. Re-dispatch a
 fresh agent only when the agent is no longer resumable (turn
 expired, session ended, or the original agent returned BLOCKED).
+
+**Resume works within the dispatching session only (GH-965).** An
+agent that merely ended its turn is resumable; a **session death**
+discards every transcript, so `SendMessage` to a prior session's
+`agentId` returns *"No transcript found for agent ID"* even though
+the ID is well-formed and its commits are intact on origin. Both
+cases are called "resume" and behave oppositely — a plan built on
+messaging a previous session's agents is dead on arrival. Full
+durability contract:
+[`../../skills/foreman/references/durability-envelope.md`](../../skills/foreman/references/durability-envelope.md).
 
 **Non-resumable cases — skip the resume attempt (GH-848 F2, GH-873 F2):**
 Resume-first is correct only for agents that are still resumable. Two

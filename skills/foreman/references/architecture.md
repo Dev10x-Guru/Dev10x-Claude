@@ -48,6 +48,7 @@ brief stays authored by the foreman; the watchdog stays a dumb relay.
 | Worker "completes" but issues stay open | Foreman closure verification (issue_get per Fixes link) | Foreman closes stragglers with a completion comment, or reopens the chunk as a remainder |
 | Idle-notification noise mistaken for stalls | Idle pings between turns, often delayed | Ignore as evidence; only heartbeat mtimes and live PR/CI state count |
 | Catastrophic harness loss (session killed, host reboot — run dir in /tmp is gone) | Nothing fires; discovered by the supervisor | The tracker is the durable store by contract: every queued chunk maps to open issues and every scope cut left an open issue (crew contract). A fresh foreman run rebuilds the queue from open milestone/label issues alone; nothing is lost but time. |
+| Session death mid-run (API session limit) — the new session inherits a handover, not a live crew | `SendMessage` to any prior `agentId` returns "No transcript found for agent ID" | Spawn every worker fresh and re-derive each inherited claim (branch, SHA, PR state) from origin before acting on it — the handover's author could not see whether the work landed (`durability-envelope.md`, GH-965) |
 
 ## Heartbeat protocol
 
