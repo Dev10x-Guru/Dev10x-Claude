@@ -136,11 +136,29 @@ Behavioral caveats:
   which is the *safe* direction when a problem surfaces after marking
   ready. The success payload carries `draft` reflecting the new state.
 
+- `pr_ready` must be re-run after ANY force-push (GH-958). A
+  `--force-with-lease` push resets a published PR back to draft, so a
+  ready call that succeeded earlier — including a
+  `create_pr(draft=false)` — does not survive a later rebase, amend, or
+  groom. Call `pr_ready` after the FINAL push and confirm with a fresh
+  `pr_get` that `isDraft` is `false`; otherwise `merge_pr` fails with
+  `GraphQL: Pull Request is still a draft`, and the re-ready costs
+  another bot-CI round.
+
 - `create_pr` rejects a `job_story` missing any of `**When**` /
   `**<actor> wants to**` / `**so <beneficiary> can**` with an
   actionable error before the PR is opened, and `update_pr` moves any
   content trailing the `Fixes:` line above it (GH-945) — so neither
   path can emit a body that trips the hygiene bot.
+
+- `create_pr(closes=[...])` is NON-CLOSING (GH-958). The parameter
+  emits `Closes #N` lines into the PR body *above* the `Fixes:`
+  trailer, and GitHub's auto-close automation never fires on them on a
+  merge to `develop` — only the `Fixes:` trailer auto-closes its issue.
+  Treat `closes=` as informational cross-referencing: for a
+  milestone-bundle PR, close every non-`Fixes:` issue manually with
+  `issue_close` after the merge, and verify each one rather than
+  assuming the bundle self-closed.
 
 - `issue_close` called with a pull-request number fails loud with
   `"N is a pull request; use pr_close"` instead of surfacing the raw
