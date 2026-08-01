@@ -106,6 +106,65 @@ resuming crew is not alarmed on before their first heartbeat lands
 (GH-946). A hold that is not flagged produces exactly the false STALL
 alarms this section warns about, one per tick.
 
+## Takeover cannot reach the dead worker's tree
+
+A respawned `Agent(isolation="worktree")` gets a **fresh** worktree.
+It does not inherit the predecessor's, and there is no sanctioned way
+for it to reach one: its Bash refuses to run outside its own isolation
+directory, `ExitWorktree` is unavailable to isolated subagents, and
+cross-worktree file copies have failed **silently** — five files
+reported copied, none present on recheck, no error surfaced (GH-957).
+
+So respawn recovers a *chunk*, never a *tree*. Work that exists only
+as uncommitted files in a dead worker's worktree is unreachable to
+every agent below the watchdog. Two sanctioned paths:
+
+1. **Watchdog-driven lifecycle completion.** The top-level session
+   enters the parked worktree directly and drives lint → commit →
+   rebase → push → PR → merge itself. This is what actually shipped
+   both stranded chunks on 2026-08-01 (PRs #953, #954).
+2. **Explicit deferral.** Post a comment on the chunk's issue naming
+   the worktree path AND the branch, so the next run resumes instead
+   of reimplementing.
+
+What is NOT a path: respawning a worker and telling it to "pick up
+where the last one left off". It cannot see the tree, and the failure
+is silent, so it will report success on work that does not exist.
+
+The prevention is upstream of all of this — a worker that pushes
+early has nothing stranded. Uncommitted work in an isolation worktree
+is a liability the moment the worker goes quiet.
+
+## Model tier for crew workers
+
+Dispatch crew workers on `model="sonnet"` by default. Reserve a
+stronger tier for a chunk that demonstrably needs it, and expect to
+pay for it in supervision.
+
+Long unattended background workers dispatched on opus have shown a
+silent-stall failure shape: clean status write, clean branch setup,
+then 30–52 min of zero tool calls until killed. On the 2026-08-01 run
+this hit four consecutive opus spawns across two chunks, while the
+same chunks on sonnet ran the full lifecycle without a stall
+(GH-956). Root cause is still open — treat the tier default as risk
+management, not as a settled explanation.
+
+## Repeated stalls on one tier — switch the tier
+
+After **two stalls of identical shape** on the same chunk, the third
+respawn changes the model tier instead of rewriting the brief again.
+
+A progressively more directive brief is the tempting response, and it
+does not work when the failure is not comprehension: on 2026-08-01,
+C6/#920 burned three opus attempts — attempt 3 mandated the heartbeat
+write as a literal Step 0 — and all three stalled identically. The
+same chunk on sonnet completed minutes later (GH-956).
+
+Identical shape means the same failure signature, not merely the same
+outcome: same phase reached, same silence duration band, no
+intervening tool calls. Two stalls at different phases are two
+different problems and each still gets its own corrective brief.
+
 ## Status-file ownership
 
 Every `status-<chunk>.md` has exactly ONE writer: the agent named in

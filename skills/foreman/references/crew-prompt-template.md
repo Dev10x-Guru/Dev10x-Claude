@@ -56,7 +56,14 @@ NEVER use `sleep`, `gh pr checks --watch`, `gh run watch`, or any
 blocking/polling loop. To wait on CI: a single server-side-waiting
 call — ci_check_status(pr_number=<n>, repo="{{repo}}", wait=true).
 Pending is NOT green.
+
+Liveness: made no tool call for 15 minutes? Write a heartbeat line
+before anything else. A worker that cannot heartbeat inside a stall
+window is dead by definition, and loses its chunk to a replacement.
 ```
+
+Dispatch on `model="sonnet"` by default — `stall-protocol.md`
+§ Model tier for crew workers has the evidence (GH-956).
 
 ## 5. Verified tool shapes (from Phase 0.4 pre-flight)
 
