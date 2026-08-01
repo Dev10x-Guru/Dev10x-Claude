@@ -730,7 +730,14 @@ class TestCreatePrMcp:
             stdout="https://github.com/o/r/pull/7\n7",
         )
 
-        result = await cli_server.create_pr(title="t", job_story="js", issue_id="GH-1")
+        result = await cli_server.create_pr(
+            title="t",
+            job_story=(
+                "**When** a PR is opened, **the maintainer wants to** ship "
+                "it, **so the crew can** move on."
+            ),
+            issue_id="GH-1",
+        )
 
         assert result["pr_number"] == 7
         assert "github.com" in result["url"]
@@ -743,9 +750,16 @@ class TestCreatePrMcp:
     ) -> None:
         mock_run.return_value = _completed(returncode=1, stderr="no branch")
 
-        result = await cli_server.create_pr(title="t", job_story="js", issue_id="GH-1")
+        result = await cli_server.create_pr(
+            title="t",
+            job_story=(
+                "**When** a PR is opened, **the maintainer wants to** ship "
+                "it, **so the crew can** move on."
+            ),
+            issue_id="GH-1",
+        )
 
-        assert "error" in result
+        assert "no branch" in result["error"]
 
 
 class TestUpdatePrMcp:

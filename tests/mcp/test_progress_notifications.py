@@ -19,6 +19,11 @@ import pytest
 
 cli_server = pytest.importorskip("dev10x.mcp.server_cli", reason="mcp not installed")
 
+# create_pr refuses a Job Story missing any JTBD marker (GH-945).
+_JOB_STORY = (
+    "**When** a PR is opened, **the maintainer wants to** ship it, **so the crew can** move on."
+)
+
 
 def _completed(
     *,
@@ -215,7 +220,7 @@ class TestCreatePrNotifications:
 
         result = await cli_server.create_pr(
             title="t",
-            job_story="js",
+            job_story=_JOB_STORY,
             issue_id="GH-1",
             ctx=ctx,
         )
@@ -236,7 +241,7 @@ class TestCreatePrNotifications:
 
         result = await cli_server.create_pr(
             title="t",
-            job_story="js",
+            job_story=_JOB_STORY,
             issue_id="GH-1",
             ctx=ctx,
         )
@@ -252,6 +257,6 @@ class TestCreatePrNotifications:
     ) -> None:
         mock_run.return_value = _completed(stdout="https://github.com/o/r/pull/9\n9")
 
-        result = await cli_server.create_pr(title="t", job_story="js", issue_id="GH-1")
+        result = await cli_server.create_pr(title="t", job_story=_JOB_STORY, issue_id="GH-1")
 
         assert result["pr_number"] == 9

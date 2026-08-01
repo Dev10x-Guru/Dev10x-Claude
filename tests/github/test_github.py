@@ -27,6 +27,12 @@ from dev10x.domain.common.result import ErrorResult, SuccessResult, ok
 
 gh = pytest.importorskip("dev10x.github", reason="dev10x not installed")
 
+# create_pr rejects a Job Story missing any JTBD marker (GH-945), so
+# every create_pr test that expects the script to run passes this one.
+_JOB_STORY = (
+    "**When** a PR is opened, **the maintainer wants to** ship it, **so the crew can** move on."
+)
+
 
 @pytest.fixture
 def mock_resolve_repo():
@@ -1741,6 +1747,24 @@ class TestUpdatePr:
 
     @pytest.mark.asyncio
     @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_normalizes_separator_trailing_the_fixes_line(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(stdout="{}")
+
+        await gh.update_pr(
+            pr_number=42,
+            body="Story\n\nFixes: https://github.com/o/r/issues/945\n\n---\n",
+        )
+
+        assert mock_api.call_args.kwargs["fields"] == {
+            "body": "Story\n\nFixes: https://github.com/o/r/issues/945",
+        }
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
     async def test_updates_title_and_base(
         self,
         mock_api: AsyncMock,
@@ -2014,7 +2038,7 @@ class TestCreatePr:
 
         result = await gh.create_pr(
             title="My PR",
-            job_story="When ... I want to ... so ... can ...",
+            job_story=_JOB_STORY,
             issue_id="GH-79",
             fixes_url="https://github.com/owner/repo/issues/79",
         )
@@ -2033,7 +2057,7 @@ class TestCreatePr:
 
         await gh.create_pr(
             title="t",
-            job_story="js",
+            job_story=_JOB_STORY,
             issue_id="GH-1",
         )
 
@@ -2051,7 +2075,7 @@ class TestCreatePr:
 
         await gh.create_pr(
             title="t",
-            job_story="js",
+            job_story=_JOB_STORY,
             issue_id="GH-1",
             closes=[184, 185, 186],
             draft=False,
@@ -2071,7 +2095,7 @@ class TestCreatePr:
 
         await gh.create_pr(
             title="t",
-            job_story="js",
+            job_story=_JOB_STORY,
             issue_id="GH-473",
             head_repo="octocat",
         )
@@ -2088,7 +2112,7 @@ class TestCreatePr:
     ) -> None:
         mock_run.return_value = _completed(stdout="99")
 
-        result = await gh.create_pr(title="t", job_story="js", issue_id="GH-1")
+        result = await gh.create_pr(title="t", job_story=_JOB_STORY, issue_id="GH-1")
 
         assert isinstance(result, SuccessResult)
         assert result.value == {"pr_number": 99, "url": "PR #99"}
@@ -2101,10 +2125,26 @@ class TestCreatePr:
     ) -> None:
         mock_run.return_value = _completed(returncode=1, stderr="branch not pushed")
 
-        result = await gh.create_pr(title="t", job_story="js", issue_id="GH-1")
+        result = await gh.create_pr(title="t", job_story=_JOB_STORY, issue_id="GH-1")
 
         assert isinstance(result, ErrorResult)
         assert "branch not pushed" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_refuses_job_story_missing_jtbd_marker(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        result = await gh.create_pr(
+            title="t",
+            job_story="**When** X, **the maintainer wants to** Y, **so it ships.**",
+            issue_id="GH-945",
+        )
+
+        assert isinstance(result, ErrorResult)
+        assert "**so <beneficiary> can**" in result.error
+        mock_run.assert_not_called()
 
 
 class TestMergePr:
@@ -2994,7 +3034,7 @@ class TestCreatePrBaseBranchGuard:
     ) -> None:
         mock_git_context.return_value.branch = "develop"
 
-        result = await gh.create_pr(title="t", job_story="js", issue_id="GH-1")
+        result = await gh.create_pr(title="t", job_story=_JOB_STORY, issue_id="GH-1")
 
         assert isinstance(result, ErrorResult)
         assert "base branch" in result.error
@@ -3011,7 +3051,7 @@ class TestCreatePrBaseBranchGuard:
         mock_git_context.return_value.branch = "janusz/GH-1/feature"
         mock_run_script.return_value = _completed(stdout="https://github.com/o/r/pull/7\n7")
 
-        result = await gh.create_pr(title="t", job_story="js", issue_id="GH-1")
+        result = await gh.create_pr(title="t", job_story=_JOB_STORY, issue_id="GH-1")
 
         assert isinstance(result, SuccessResult)
         assert result.value["pr_number"] == 7

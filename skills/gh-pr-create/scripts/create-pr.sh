@@ -21,7 +21,9 @@ HEAD_REPO="${8:-}"
 
 FIXES_LINE=""
 if [ -n "$FIXES_URL" ]; then
-    FIXES_LINE=$(printf '\nFixes: %s\n' "$FIXES_URL")
+    # Blank line before the trailer so `Fixes:` renders as its own
+    # paragraph and stays the literal last line (GH-945).
+    FIXES_LINE=$(printf '\n\nFixes: %s\n' "$FIXES_URL")
 fi
 
 CLOSES_BLOCK=""
@@ -48,10 +50,15 @@ if [ -z "$BASE_BRANCH" ]; then
     source "$SCRIPT_DIR/detect-base-branch.sh"
 fi
 
-# Load checklist template (substitute issue ID placeholder)
-CHECKLIST=""
+# Load checklist template (substitute issue ID placeholder). The block
+# carries its own leading separator so an absent template leaves no bare
+# `---` behind — the trailer must end at the Fixes line (GH-945).
+CHECKLIST_BLOCK=""
 if [ -f .github/checklist.md ]; then
     CHECKLIST=$(sed "s/ISSUE-NO/$ISSUE/" .github/checklist.md)
+    if [ -n "$CHECKLIST" ]; then
+        CHECKLIST_BLOCK=$(printf '\n---\n\n%s\n' "$CHECKLIST")
+    fi
 fi
 
 # Push branch. For a cross-fork PR (GH-473), push the head to the fork
@@ -70,8 +77,8 @@ git push --set-upstream "$PUSH_REMOTE" "$BRANCH_NAME"
 
 # First pass: create PR with plain commit list + checklist
 COMMITS=$(git log "origin/$BASE_BRANCH..HEAD" --reverse --format="- %s")
-BODY=$(printf '%s\n\n---\n\n%s%s%s\n\n---\n\n%s' \
-    "$JOB_STORY" "$COMMITS" "$CLOSES_BLOCK" "$FIXES_LINE" "$CHECKLIST")
+BODY=$(printf '%s\n\n---\n\n%s%s%s%s' \
+    "$JOB_STORY" "$COMMITS" "$CLOSES_BLOCK" "$CHECKLIST_BLOCK" "$FIXES_LINE")
 
 CREATE_ARGS=(--base "$BASE_BRANCH" --title "$TITLE" --body "$BODY")
 if [ -n "$HEAD_REPO" ]; then
@@ -87,8 +94,8 @@ PR_NUMBER=$(gh pr view --json number -q .number)
 
 # Second pass: update body with linked commits
 LINKED_COMMITS=$("$SCRIPT_DIR/generate-commit-list.sh" "$PR_NUMBER" "$BASE_BRANCH")
-FINAL_BODY=$(printf '%s\n\n---\n\n%s%s%s\n\n---\n\n%s' \
-    "$JOB_STORY" "$LINKED_COMMITS" "$CLOSES_BLOCK" "$FIXES_LINE" "$CHECKLIST")
+FINAL_BODY=$(printf '%s\n\n---\n\n%s%s%s%s' \
+    "$JOB_STORY" "$LINKED_COMMITS" "$CLOSES_BLOCK" "$CHECKLIST_BLOCK" "$FIXES_LINE")
 
 # Use REST API instead of `gh pr edit` to avoid GraphQL Projects-classic
 # deprecation warnings causing exit 1 even when the body update succeeds.
