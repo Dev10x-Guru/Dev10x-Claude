@@ -233,6 +233,15 @@ needed (e.g., `trunk`), add a parallel set: `trunk-log`, `trunk-diff`,
 
 **Never use `$(git merge-base ...)` inline** — always use the alias.
 
+`{base}-rebase` grooms `fixup!` commits back to the merge-base. It is
+interactive and resolves the merge-base against the **local** `{base}`
+ref, so it is unusable by an unattended agent — it hangs without an
+editor, and a stale local ref makes it report success without moving
+HEAD (GH-964). Groom non-interactively with `rebase_groom`. To catch
+up with a base that moved, no alias applies: run `git fetch origin`,
+then `git rebase origin/<base>`, then assert
+`git merge-base --is-ancestor origin/<base> HEAD` exits 0.
+
 ## settings.local.json wiring
 
 Add to your project's `.claude/settings.local.json`:

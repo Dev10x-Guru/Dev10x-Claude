@@ -75,8 +75,17 @@ Prefer:
 - MCP wrappers and skills over raw CLI: commit → Skill(Dev10x:git-commit),
   PR → Skill(Dev10x:gh-pr-create), push → Skill(Dev10x:git), temp files →
   mcp__plugin_Dev10x_cli__mktmp.
-- Git base aliases for diffs/logs/rebases: `git develop-log`,
-  `git develop-diff`, `git develop-rebase`.
+- Git base aliases for diffs/logs: `git develop-log`, `git develop-diff`.
+- To rebase onto a base that has MOVED, use two separate Bash calls —
+  `git fetch origin`, then `git rebase origin/develop` — and then
+  assert the postcondition, because "Successfully rebased" is not
+  proof: `git merge-base --is-ancestor origin/develop HEAD` must exit
+  0. Do NOT use `git develop-rebase` for this: it is an interactive
+  (`-i`) grooming alias that resolves against a possibly stale LOCAL
+  `develop` ref, so it hangs with no editor attached and can report
+  success while HEAD never left stale ancestry (GH-964).
+- To squash `fixup!` commits, use the non-interactive `rebase_groom`
+  MCP tool.
 
 Your tool surface is pre-seeded — the tools you need are already
 allowed. Use them. Do NOT ask to "switch to auto mode" or disable

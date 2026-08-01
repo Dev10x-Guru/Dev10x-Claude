@@ -32,7 +32,12 @@ def foreman() -> None:
     help="Repository to read origin/<base-branch> from (default: CWD).",
 )
 def probe(*, scratchpad: Path, base_branch: str, repo: Path | None) -> None:
-    """One-shot status: quota block, base-branch SHA, heartbeat ages."""
+    """One-shot status: quota block, remote base SHA, heartbeat ages.
+
+    The base line names ``origin/<branch>`` because that is what it
+    reads — asked of the remote, never of this checkout's possibly
+    stale local ref (GH-964).
+    """
     from dev10x.skills.foreman import watch as watch_skill
 
     for line in watch_skill.probe_lines(scratchpad=scratchpad, base_branch=base_branch, repo=repo):
@@ -93,7 +98,8 @@ def watch(
         repo=repo,
     )
     click.echo(
-        f"armed: base={state.known_sha or 'unknown'} block={state.known_block_id or 'none'} "
+        f"armed: base=origin/{base_branch}@{state.known_sha or 'unknown'} "
+        f"block={state.known_block_id or 'none'} "
         f"parked={'yes' if watch_skill.queue_parked(scratchpad=scratchpad) else 'no'}"
     )
     sys.stdout.flush()

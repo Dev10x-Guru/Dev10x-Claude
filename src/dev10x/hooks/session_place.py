@@ -113,8 +113,12 @@ def session_git_aliases() -> None:
 
     if not missing:
         print(f"Git aliases available: {' '.join(present)}")
-        print("Use `git {base}-log`, `git {base}-diff`, `git {base}-rebase`")
-        print("instead of $(git merge-base ...) to avoid permission prompts.")
+        print("Use `git {base}-log` / `git {base}-diff` instead of")
+        print("$(git merge-base ...) to avoid permission prompts.")
+        print("`git {base}-rebase` grooms (interactive, local ref) — to")
+        print("catch up with a moved base run `git fetch origin` then")
+        print("`git rebase origin/<base>` and assert with")
+        print("`git merge-base --is-ancestor origin/<base> HEAD` (GH-964).")
         return
 
     print(f"Git aliases missing: {' '.join(missing)}")

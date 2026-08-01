@@ -13,6 +13,7 @@ fully-tested shell around it.
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -20,6 +21,8 @@ from pathlib import Path
 from dev10x import subprocess_utils
 from dev10x.domain.common.result import ErrorResult
 from dev10x.domain.usage import blocks_report
+
+log = logging.getLogger(__name__)
 
 HEARTBEAT_GLOB = "status-*.md"
 PARKED_FLAG = "parked"
@@ -88,6 +91,21 @@ def block_identity(block: dict) -> str:
 
 
 def base_branch_sha(*, base_branch: str, repo: Path | None = None) -> str:
+    """Tip SHA of ``origin/<base_branch>`` as the REMOTE reports it (GH-964).
+
+    ``git ls-remote`` asks the remote directly, so the answer never
+    depends on when this checkout last fetched. That is deliberate: a
+    local ``develop`` ref in an agent worktree is whatever it was at
+    creation time, and merge-coordination tooling that reads it answers
+    "what does this worktree think the base is" when the caller asked
+    "what is the base". Callers must not substitute ``rev-parse
+    <base_branch>``, and the rendered line names ``origin/<branch>`` so
+    no reader has to guess which one it got.
+
+    Returns ``""`` when the remote cannot be reached or the branch is
+    absent — never a stale SHA. ``WatchState`` treats an empty SHA as
+    "no observation", so a transient outage cannot fake a BASE MOVED.
+    """
     completed = subprocess_utils.run(
         ["git", "ls-remote", "origin", f"refs/heads/{base_branch}"],
         cwd=str(repo) if repo is not None else None,
@@ -97,7 +115,14 @@ def base_branch_sha(*, base_branch: str, repo: Path | None = None) -> str:
         check=False,
     )
     line = (completed.stdout or "").strip()
-    return line.split("\t")[0] if line else ""
+    if not line:
+        log.warning(
+            "ls-remote returned no tip for origin/%s (rc=%s): base reported as unknown",
+            base_branch,
+            completed.returncode,
+        )
+        return ""
+    return line.split("\t")[0]
 
 
 def newest_heartbeat_age_min(*, scratchpad: Path, now: float) -> int | None:
@@ -130,7 +155,8 @@ def probe_lines(*, scratchpad: Path, base_branch: str, repo: Path | None = None)
     cost = block.get("costUSD", 0.0)
     lines = [
         f"quota: block={identity} cost=${cost:.0f} remaining_min={remaining}",
-        f"base {base_branch}: {base_branch_sha(base_branch=base_branch, repo=repo) or 'unknown'}",
+        f"base origin/{base_branch}: "
+        f"{base_branch_sha(base_branch=base_branch, repo=repo) or 'unknown'}",
     ]
     lines.append(
         f"parked: {'yes' if queue_parked(scratchpad=scratchpad) else 'no'} "

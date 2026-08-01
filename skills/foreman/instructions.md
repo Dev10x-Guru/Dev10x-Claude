@@ -190,7 +190,9 @@ directory — one `status-<chunk>.md` each.
 
    | File | Written when | Watcher effect |
    |---|---|---|
-   | `merged-shas` | After every merge the gate performs — append the resulting base-branch tip SHA, one per line, `#` comments allowed. Read the SHA from a source already in the pre-flight surface: the `BASE MOVED old→new` event the watcher emits for the run's own merge, or the `base <branch>: <sha>` line of `dev10x foreman probe` — never a separate raw git call the allow-list doesn't cover | A `BASE MOVED` whose new tip matches is the run's own echo: rebaselined silently, no relay, no classification turn |
+   | `merged-shas` | After every merge the gate performs — append the resulting base-branch tip SHA, one per line, `#` comments allowed. Read the SHA from a source already in the pre-flight surface: the `BASE MOVED old→new` event the watcher emits for the run's own merge, or the `base origin/<branch>: <sha>` line of `dev10x foreman probe`
+(it is read from the remote via `ls-remote`, so it never needs a
+fetch and never goes stale — GH-964) — never a separate raw git call the allow-list doesn't cover | A `BASE MOVED` whose new tip matches is the run's own echo: rebaselined silently, no relay, no classification turn |
    | `parked` | Touched when the queue is deliberately held (burn gate, supervisor hold); removed on release | While present, `STALL` and `QUOTA MILESTONE` are suppressed; muted milestones roll up into one `QUOTA MILESTONE (parked rollup)` line on release, and the stall clock gets one window of grace so resuming crew is not alarmed on immediately |
 
    Keep `merged-shas` current: a skipped append costs a full relay

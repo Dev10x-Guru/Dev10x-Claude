@@ -36,7 +36,7 @@ def test_probe_reports_quota_base_and_heartbeats(scratchpad: Path) -> None:
     result = CliRunner().invoke(foreman, ["probe", "--scratchpad", str(scratchpad)])
     assert result.exit_code == 0
     assert "quota: block=2026-07-19T07:00:00.000Z cost=$12" in result.output
-    assert "base develop: abc1234" in result.output
+    assert "base origin/develop: abc1234" in result.output
     assert "heartbeat: status-m1.md" in result.output
 
 
@@ -66,7 +66,7 @@ def test_watch_arms_and_stays_quiet_on_calm_rounds(
     )
     assert result.exit_code == 0
     assert result.output.splitlines() == [
-        "armed: base=abc1234 block=2026-07-19T07:00:00.000Z parked=no"
+        "armed: base=origin/develop@abc1234 block=2026-07-19T07:00:00.000Z parked=no"
     ]
 
 
