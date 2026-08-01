@@ -7,7 +7,13 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from dev10x.domain.common.result import ErrorResult, SuccessResult
-from dev10x.git import mass_rewrite, push_safe, rebase_groom
+from dev10x.git import (
+    create_worktree,
+    mass_rewrite,
+    next_worktree_name,
+    push_safe,
+    rebase_groom,
+)
 
 
 def _completed(
@@ -306,3 +312,115 @@ class TestResolveGroomBase:
         assert "base_notice" in result.value
         # The script is invoked with the origin-qualified ref.
         assert mock_script.call_args.args[2] == "origin/develop"
+
+
+class TestCreateWorktreeArgumentMapping:
+    """GH-960: create_worktree must not misroute base/path into the
+    script's positional repo-root slot."""
+
+    @pytest.mark.asyncio
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    async def test_forwards_explicit_path_and_base_positionally(
+        self,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        mock_run_script.return_value = _completed(
+            stdout='{"worktree_path": "/tmp/wt", "branch": "feat", "created": true}'
+        )
+
+        result = await create_worktree(
+            branch="janusz/GH-1/slug",
+            base="origin/develop",
+            path="/tmp/wt",
+        )
+
+        assert isinstance(result, SuccessResult)
+        # No lookup of a default path — async_run_script is called exactly
+        # once, directly for create-worktree.sh (not preceded by a
+        # next-worktree-name.sh call).
+        assert mock_run_script.await_count == 1
+        args = mock_run_script.call_args.args
+        assert args[0] == "skills/git-worktree/scripts/create-worktree.sh"
+        assert args[1] == "/tmp/wt"
+        assert args[2] == "janusz/GH-1/slug"
+        assert args[3] == "origin/develop"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    async def test_defaults_path_via_next_worktree_name_when_omitted(
+        self,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        mock_run_script.side_effect = [
+            _completed(stdout="/work/proj/.worktrees/proj-3"),
+            _completed(stdout='{"worktree_path": "/work/proj/.worktrees/proj-3"}'),
+        ]
+
+        result = await create_worktree(branch="janusz/GH-1/slug")
+
+        assert isinstance(result, SuccessResult)
+        assert mock_run_script.await_count == 2
+
+        first_call_args = mock_run_script.call_args_list[0].args
+        assert first_call_args[0] == "skills/git-worktree/scripts/next-worktree-name.sh"
+
+        second_call_args = mock_run_script.call_args_list[1].args
+        assert second_call_args[0] == "skills/git-worktree/scripts/create-worktree.sh"
+        assert second_call_args[1] == "/work/proj/.worktrees/proj-3"
+        assert second_call_args[2] == "janusz/GH-1/slug"
+        assert second_call_args[3] == ""
+
+    @pytest.mark.asyncio
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    async def test_propagates_next_worktree_name_failure(
+        self,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        mock_run_script.return_value = _completed(returncode=1, stderr="no repo found")
+
+        result = await create_worktree(branch="janusz/GH-1/slug")
+
+        assert isinstance(result, ErrorResult)
+        assert result.error == "no repo found"
+        # Never reaches the create-worktree.sh call.
+        assert mock_run_script.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_rejects_protected_branch(self) -> None:
+        result = await create_worktree(branch="develop")
+
+        assert isinstance(result, ErrorResult)
+        assert "protected" in result.error
+
+
+class TestNextWorktreeName:
+    """GH-960: regression coverage for the wrapper-level tool; the
+    parent-resolution fix itself lives in next-worktree-name.sh and is
+    exercised end-to-end in tests/skills/git-worktree/."""
+
+    @pytest.mark.asyncio
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    async def test_returns_path_from_script_stdout(
+        self,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        mock_run_script.return_value = _completed(stdout="/work/proj/.worktrees/proj-4")
+
+        result = await next_worktree_name()
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["path"] == "/work/proj/.worktrees/proj-4"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    async def test_forwards_base_dir_override(
+        self,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        mock_run_script.return_value = _completed(stdout="/custom/.worktrees/proj-1")
+
+        await next_worktree_name(base_dir="/custom/.worktrees")
+
+        args = mock_run_script.call_args.args
+        assert args[0] == "skills/git-worktree/scripts/next-worktree-name.sh"
+        assert args[1] == "/custom/.worktrees"

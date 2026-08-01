@@ -175,11 +175,15 @@ See **Hook Templates** section below.
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/create-worktree.sh \
-  <worktree-path> <branch-name> [repo-root]
+  <worktree-path> <branch-name> [base-ref] [repo-root]
 ```
 
+- Omit `base-ref` to branch from the repo-root's current HEAD; pass it
+  (e.g. `origin/develop`) to start the new branch from a specific ref.
 - Omit `repo-root` when already inside the target repo.
 - Pass `repo-root` when the CWD differs from the target repo.
+- Both trailing args are positional — pass an empty string (`""`) to
+  skip `base-ref` while still supplying `repo-root` (GH-960).
 
 The `post-checkout` hook fires automatically after this script runs.
 

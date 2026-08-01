@@ -9,7 +9,19 @@
 
 set -euo pipefail
 
-PROJECT_ROOT="$(git rev-parse --show-toplevel)"
+# Resolve the MAIN repo root via the git-common-dir, not --show-toplevel
+# (GH-960): when invoked from a linked worktree's CWD, --show-toplevel
+# returns that worktree's own path, which computes a bogus nested
+# "<worktree>/.worktrees" parent instead of the sibling directory next
+# to the main checkout. --git-common-dir always resolves to the shared
+# .git directory that lives alongside the main repo, regardless of
+# which worktree the command runs from.
+GIT_COMMON_DIR="$(git rev-parse --git-common-dir)"
+case "$GIT_COMMON_DIR" in
+    /*) : ;;
+    *) GIT_COMMON_DIR="$(pwd)/$GIT_COMMON_DIR" ;;
+esac
+PROJECT_ROOT="$(cd "$(dirname "$GIT_COMMON_DIR")" && pwd)"
 PROJECT_NAME="$(basename "$PROJECT_ROOT")"
 BASE_DIR="${1:-$(dirname "$PROJECT_ROOT")/.worktrees}"
 
