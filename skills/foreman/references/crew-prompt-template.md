@@ -74,9 +74,37 @@ Name the EXACT invocations proven unpromptable for this repo, e.g.:
 ## 6. Workspace + branch
 
 ```
-Work in {{worktree_path}} (your CWD). No new worktrees. One command
-per Bash call: `git fetch origin`, then
-`git switch -c {{branch_name}} origin/{{base_branch}}`.
+WORKSPACE CRITICAL — your CWD is NOT your worktree. You are a spawned
+subagent, so you inherit the DISPATCHER's directory, which is very
+likely the wrong tree. Never edit, commit, or push before fixing this.
+
+FIRST ACTION: run `cd {{worktree_path}}` as a STANDALONE Bash call
+(chained `cd X && Y` is banned and would not persist the way you need;
+a bare `cd` is allowed, and CWD persists across Bash calls). Then
+verify with `pwd` and `git rev-parse --abbrev-ref HEAD` before doing
+anything else. Use absolute paths under {{worktree_path}} for every
+Read / Write / Edit / Grep call.
+
+No new worktrees. One command per Bash call.
+```
+
+A fresh isolation worktree normally starts DIRTY — a post-checkout
+hook seeds modified and untracked files under `.claude/`. This is
+expected noise, not a signal. Bake the recipe in verbatim with its
+"do not investigate" preface; prose guidance ("investigate and clear
+the tree") reliably failed in the field, while the literal recipe
+fixed it immediately:
+
+```
+Your worktree will start dirty with modified/untracked files under
+`.claude/` — this is hook-seeded noise. Do NOT investigate it, do NOT
+report it as a finding, and do NOT commit it. Clear it with exactly
+these five steps, one Bash call each:
+  1. `git fetch origin`
+  2. `git stash -u`
+  3. `git checkout -b {{branch_name}} origin/{{base_branch}}`
+  4. `git stash drop`
+  5. write your first heartbeat line
 ```
 
 ## 7. Scope + lifecycle (worker half)
