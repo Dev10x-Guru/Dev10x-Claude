@@ -19,7 +19,7 @@
     {
       "id": "hide-comments",
       "name": "Hide Obsolete Comments",
-      "description": "After resolving threads, offers to minimize resolved comments via minimizeComment GraphQL mutation with classifier OUTDATED. Gate 6 uses AskUserQuestion with options: Hide all resolved / Review one-by-one / Skip"
+      "description": "After resolving threads, offers to minimize resolved comments via minimizeComment GraphQL mutation with classifier OUTDATED. Gate 6 uses AskUserQuestion with options: Hide all resolved / Review one-by-one / Skip. Hiding is cosmetic noise reduction only — it is never a disposition and never clears gh-pr-merge Check 1b (GH-920); the keyed Re: reply is the disposition."
     },
     {
       "id": "post-response-continuation",
