@@ -157,6 +157,12 @@ _NET_IMPORT_EXEMPT_PATHS: tuple[str, ...] = (
     # package is missing. No new destination, no new data — covered by
     # the Slack row in PRIVACY_POLICY.md.
     "src/dev10x/skills/notifications/slack_notify.py",
+    # PyPI version sweep: `dev10x deps sweep` reads pypi.org/pypi/
+    # <name>/json for each pinned distribution when the user (or the
+    # scheduled workflow) runs it. Anonymous, read-only, sends only
+    # distribution names from this repo's own dependency declarations.
+    # Covered by the PyPI JSON API row in PRIVACY_POLICY.md (GH-937).
+    "src/dev10x/dependency_sweep.py",
 )
 
 # Files exempt from service detection. The scanner defines the

@@ -71,6 +71,7 @@ with credentials you supply:
 | Postgres (databases via `Dev10x:db-psql`) | Connection strings from `databases.yaml` (env or keyring) | Read-only SQL queries you submit; results returned locally |
 | Anthropic API (Claude review CI) | Repository `ANTHROPIC_API_KEY` secret | PR diffs, commit metadata, and review comments processed by GitHub-hosted Claude actions |
 | PyPI (release CI only) | Trusted-publisher OIDC | Plugin distribution artifacts |
+| PyPI JSON API (`dev10x deps sweep`) | None (anonymous, read-only) | Names of pinned distributions from this repo's dependency declarations, sent to `pypi.org/pypi/<name>/json` to read the current stable version when you (or the scheduled workflow) run the sweep |
 
 Each integration is governed by the upstream vendor's own
 privacy policy.

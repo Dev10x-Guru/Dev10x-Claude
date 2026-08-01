@@ -1,0 +1,79 @@
+name: Dependency pin sweep
+
+on:
+  schedule:
+    # Mondays 06:00 UTC — a weekly cadence is enough for major bumps and
+    # keeps the issue from becoming background noise.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - id: sweep
+        name: Sweep pinned dependencies for available major bumps
+        run: |
+          set -uo pipefail
+
+          uv run dev10x deps sweep --root . | tee sweep-report.md
+          status=${PIPESTATUS[0]}
+
+          if [ "$status" -eq 0 ]; then
+            echo "stale=false" >> "$GITHUB_OUTPUT"
+          elif [ "$status" -eq 1 ]; then
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Sweep failed with exit code $status"
+            exit "$status"
+          fi
+
+      - name: Open or update the staleness issue
+        if: steps.sweep.outputs.stale == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TITLE: "Dependency pins with a newer major available"
+        run: |
+          set -euo pipefail
+
+          {
+            echo "Reported by [\`dev10x deps sweep\`](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})."
+            echo
+            cat sweep-report.md
+            echo
+            echo "Each entry is a pin whose declared upper bound would refuse the"
+            echo "current release. Bump the bound deliberately (see"
+            echo "\`.claude/rules/uv-script-dependency-pins.md\`) or note why the"
+            echo "older major is intentional."
+          } > issue-body.md
+
+          existing=$(gh issue list \
+            --state open \
+            --search "$TITLE in:title" \
+            --json number,title \
+            --jq ".[] | select(.title == \"$TITLE\") | .number" \
+            | head -n1)
+
+          if [ -n "$existing" ]; then
+            echo "Commenting on existing issue #$existing"
+            gh issue comment "$existing" --body-file issue-body.md
+          else
+            gh issue create --title "$TITLE" --body-file issue-body.md
+          fi
