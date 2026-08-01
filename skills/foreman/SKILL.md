@@ -6,7 +6,8 @@ description: >
   work-on crew) that pre-flights permissions while the supervisor is
   still present, loops the queue, defers questionable scope to the
   end, survives quota-block rollovers, and self-audits its friction
-  at dawn. Guided/strict friction levels — never YOLO auto-mode.
+  at dawn. Defaults to the adaptive auto-advance + afk gate policy
+  (guided/strict on request) — never YOLO auto-mode.
   TRIGGER when: the supervisor is leaving (AFK / overnight / "ship
   these milestones while I sleep") with 1+ milestones or issue
   bundles queued for autonomous delivery.
@@ -17,10 +18,14 @@ user-invocable: true
 invocation-name: Dev10x:foreman
 allowed-tools:
   - AskUserQuestion
+  - Read(~/.config/Dev10x/friction.yaml)
+  - mcp__plugin_Dev10x_cli__preset_pin_status
+  - mcp__plugin_Dev10x_cli__resolve_gate
   - Agent
   - SendMessage
   - TaskStop
   - Bash(dev10x foreman:*)
+  - Bash(uv run dev10x foreman:*)
   - ToolSearch
   - Skill(Dev10x:afk)
   - Skill(Dev10x:work-on)
@@ -60,9 +65,12 @@ recovery, and the dawn self-audit — lives in
 [`instructions.md`](instructions.md).
 
 When this skill is invoked, Read `instructions.md` now and follow it
-end-to-end. The Phase 0 `AskUserQuestion` gates (queue plan + model
-mapping, friction level) and the pre-flight enumeration are
-REQUIRED — they are what makes the night survivable.
+end-to-end. The Phase 0 `AskUserQuestion` gate (queue plan + model
+mapping) and the pre-flight enumeration are REQUIRED — they are what
+makes the night survivable. The Phase 0.3 gate-policy gate is an
+override opportunity, not a question: the default is
+`gate_preset: adaptive` + `gate_overlays: [afk]`, and a durable
+policy already on disk is honored without asking (GH-944).
 
 Before writing any crew or foreman prompt, also Read
 [`references/tool-surface.md`](references/tool-surface.md): subagents

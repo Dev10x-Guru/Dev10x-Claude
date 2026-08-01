@@ -60,14 +60,45 @@ from the classification — the supervisor confirms or overrides:
 Also ask which chunks (if any) the supervisor wants explicitly
 deferred or excluded tonight.
 
-### 0.3 Friction level gate (REQUIRED AskUserQuestion)
+### 0.3 Gate policy — adaptive + afk by default (GH-944)
 
-Offer `guided` or `strict` (see `../../references/friction-levels.md`).
+**The default composition is `gate_preset: adaptive` +
+`gate_overlays: [afk]`** — auto-advancing walk-away. That is not a
+convenience: an unattended run whose gates still fire freezes on the
+first one until morning, so the harness's own posture must be the
+walk-away posture, and the supervisor opts *out*, not in.
+
+1. Check the durable policy source — the global
+   `~/.config/Dev10x/friction.yaml` (ADR-0018; the per-repo
+   `.claude/Dev10x/config.yaml` is retired and holds nothing durable).
+   Read the matching `projects[]` entry, or call
+   `mcp__plugin_Dev10x_cli__preset_pin_status` and verify with a
+   `resolve_gate` probe. **If a policy already covers this checkout**
+   (`gate_preset` / `gate_overlays` resolved), honor it verbatim and
+   **skip the gate** — a persisted choice is the supervisor's answer,
+   and re-asking is exactly the friction this harness exists to
+   remove. Record which policy was adopted in `DECISIONS.md` and
+   continue to 0.4.
+2. Otherwise offer the override once, with the default pre-selected —
+   **REQUIRED: Call `AskUserQuestion`** (do NOT use plain text):
+   - `adaptive + afk` **(Recommended)** — full walk-away, merges
+     included; the default this harness assumes
+   - `guided + afk` — walk-away pipeline, but merge stays a human
+     action (`merge: skip`); pick this on a shared/team repo
+   - `strict` — every gate fires; only sane if the supervisor is in
+     fact staying
+   **No contrary answer means the default**: proceed with
+   `adaptive + afk` rather than blocking the queue.
+3. Invoke `Skill(Dev10x:afk)` to compose the chosen policy (it is
+   read-before-write, so it is a no-op when the durable config already
+   matches). For `guided + afk`, set `gate_preset: guided` and let the
+   `afk` overlay ride on top — see `../../references/friction-levels.md`
+   and the `Dev10x:afk` § Relationship to Presets and Overlays.
+
 This harness is **never YOLO**: do not offer, suggest, or accept
-`bypassPermissions` / auto-mode as the answer to prompt risk — the
-whole design assumes the permission model stays authoritative. Then
-invoke `Skill(Dev10x:afk)` to compose the walk-away gate policy for
-the session (adaptive preset + afk overlay).
+`bypassPermissions` / auto-mode as the answer to prompt risk. Walk-away
+autonomy comes from the gate policy, which keeps the permission model
+authoritative; auto-mode discards it.
 
 ### 0.4 Permission pre-flight (the one-time window)
 
@@ -76,6 +107,13 @@ while a prompt costs seconds instead of hours:
 
 1. `dev10x foreman probe --scratchpad <run-dir>` — proves the watcher
    CLI runs unprompted and the quota/base/heartbeat reads work.
+   **Resolve the CLI shape here and record it in the manifest** — the
+   bare `dev10x` entry point exists only when the CLI is installed as a
+   uv tool; inside a plugin-repo checkout it exits 127 and the working
+   shape is `uv run dev10x foreman probe …` (GH-947). Probe once with
+   the bare shape; on 127 fall back to `uv run dev10x` and use that
+   form for `watch` in Phase 1 too. Discovering this while arming the
+   watcher costs the night; discovering it now costs one command.
 2. One representative call per MCP wrapper the crew will need
    (`ci_check_status`, `issue_get`, `pr_get`, …) — proves the MCP
    server is up and the tools resolve.
@@ -111,9 +149,26 @@ directory — one `status-<chunk>.md` each.
 
    `dev10x foreman watch --scratchpad <run-dir> --base-branch <base>`
 
+   Use the shape Phase 0.4 recorded — `uv run dev10x foreman watch …`
+   when the bare entry point is not on PATH (GH-947). Do not re-derive
+   it here: a 127 at arming time is exactly the failure the manifest
+   entry exists to prevent.
+
    It emits: `STALL:` (heartbeat silence ≥ 25 min), `BASE MOVED:`,
    `QUOTA MILESTONE:`, `QUOTA RESET:` (5h block rollover — resume
    interrupted crew).
+
+   Two run-directory files keep that feed decision-only (GH-946) —
+   both are watchdog-owned, like `manifest.md`:
+
+   | File | Written when | Watcher effect |
+   |---|---|---|
+   | `merged-shas` | After every merge the gate performs — append the resulting base-branch tip SHA, one per line, `#` comments allowed. Read the SHA from a source already in the pre-flight surface: the `BASE MOVED old→new` event the watcher emits for the run's own merge, or the `base <branch>: <sha>` line of `dev10x foreman probe` — never a separate raw git call the allow-list doesn't cover | A `BASE MOVED` whose new tip matches is the run's own echo: rebaselined silently, no relay, no classification turn |
+   | `parked` | Touched when the queue is deliberately held (burn gate, supervisor hold); removed on release | While present, `STALL` and `QUOTA MILESTONE` are suppressed; muted milestones roll up into one `QUOTA MILESTONE (parked rollup)` line on release, and the stall clock gets one window of grace so resuming crew is not alarmed on immediately |
+
+   Keep `merged-shas` current: a skipped append costs a full relay
+   plus a `git log old..origin/<base>` verification turn to conclude
+   the run merged it itself.
 2. Spawn the **foreman** overseer (cheap model, named agent). Its
    brief: manage the queue per the manifest — spawn one crew worker
    per chunk (prompt built from
@@ -166,9 +221,18 @@ turn are the most precious resources on site:
   is unreachable from a subagent. Re-read live state first (CI
   verdict, `isDraft`, mergeability, ancestry) — a worker's report is
   a memory, not a fact — then merge and close the chunk's issues via
-  `issue_close` / `milestone_close`. Refuse the request if anything
-  is pending, draft, conflicting, or carries `fixup!` commits, and
-  send it back to the foreman with the failing check named.
+  `issue_close` / `milestone_close`, then **append the new base-branch
+  tip SHA to `merged-shas`** so the watcher mutes the echo of this very
+  merge instead of relaying it back as external movement. Refuse the
+  request if anything is pending, draft, conflicting, or carries
+  `fixup!` commits, and send it back to the foreman with the failing
+  check named.
+- **Holding the queue** (burn gate, waiting on a quota block, a
+  supervisor-only decision that stalls the whole queue) → touch
+  `parked` in the run directory before going idle and remove it on
+  release. That mutes quota-milestone spam and the stall alarms an
+  instructed-idle crew would otherwise trip, so the hold does not
+  invent an ad-hoc batching policy per run (GH-946).
 - `QUOTA RESET` after a mid-block pause → tell the foreman to resume
   or respawn interrupted crew. An agent idle **by instruction** — a
   foreman holding for a relay like this one — has expected-stale
@@ -207,22 +271,22 @@ turn are the most precious resources on site:
 
 ## Crew contract (what every worker prompt must contain)
 
-Build each worker prompt from `references/crew-prompt-template.md`.
-The non-negotiable elements, each of which exists because its absence
-cost hours in the field (GH-890):
+Build each worker prompt from `references/crew-prompt-template.md`. The
+ten non-negotiable elements and the field failure behind each one live
+in [`references/crew-contract.md`](references/crew-contract.md) — read
+it before writing any worker prompt. A prompt missing ANY of them is
+not shippable; in headline form:
 
-| Element | Why it is mandatory |
-|---|---|
-| `background_preamble` (fetch via MCP) prepended verbatim | Background agents never see the session friction briefing; without it they reinvent `cd &&`, pipes, heredocs |
-| `ToolSearch` select-query bootstrap for every MCP wrapper the chunk needs, and ZERO `Skill(...)` calls anywhere in the prompt | Subagents get MCP wrappers only as deferred tools and get no skills at all. A prompt naming `Skill(Dev10x:gh-pr-merge)` does not make its 9 checks run — it makes the worker improvise (`references/tool-surface.md`) |
-| Lifecycle split: implement → test → commit → push → PR open and verified not-draft → CI green → review addressed → **STOP**. Workers never merge, never close issues | The merge gate lives in a skill only the top-level watchdog can call. A worker merging without it has full autonomy and no guardrails — "auto-merge on CI green" executing as "merge, having checked nothing" (field case: PR #901 landed squashed against documented rebase discipline) |
-| Post-condition re-verification: re-check `isDraft` via `pr_get` after `create_pr` AND after every force-push | A state-changing call's effect does not survive later git operations. Field case: PR #926 was `pr_ready`-ed, then silently reset to DRAFT by a force-with-lease push — bots skip drafts, so CI and review went quiet on a PR believed open |
-| Anti-stall rule: no `sleep`/`--watch`/poll loops; CI via single-shot `ci_check_status` | A blocking wait dies on a permission wall and the worker hangs silently |
-| Named per-domain test tools with exact invocation (from Phase 0.4) | Generic "run the tests" prose sends workers to `npm … \| tail` shapes that prompt |
-| Heartbeat protocol: append one line to `status-<chunk>.md` via Write every ~15 min AND at phase transitions | File mtime is the stall detector's ground truth; self-reported timestamps lie, mtimes don't |
-| Scope authority + cut protocol — every cut ends as a tracker issue: defer (original stays OPEN with a structured deferral comment, EXCLUDED from `Fixes:`, commit footer reworded, requeued by issue number) or split (partial PR closes the original; remainder becomes a NEW scoped issue, `Refs:`-linked) | The queue and manifest live in a temp dir — after a catastrophic harness failure, open tracker issues are the ONLY surviving record of cut scope; a cut issue that still auto-closes on merge is a silent lie to the tracker |
-| Review discipline: address ALL top-level review comments (even INFO); auto-resolve addressed BOT threads only — never human threads; zero `fixup!` commits left at hand-off | These are the merge-gate conditions the watchdog will check; a worker that ignores them just hands back a PR the gate refuses |
-| Decision log file per chunk | The supervisor audits choices in the morning, not at 03:00 |
+1. `background_preamble` prepended verbatim
+2. `ToolSearch` bootstrap, and ZERO `Skill(...)` calls
+3. Lifecycle stops at PR-open — workers never merge, never close issues
+4. Post-condition re-verification of `isDraft` after every push
+5. Anti-stall rule — single-shot `ci_check_status`, no blocking waits
+6. Named per-domain test tools with exact invocation (from Phase 0.4)
+7. Heartbeat protocol into `status-<chunk>.md`
+8. Scope authority + cut protocol — every cut ends as a tracker issue
+9. Review discipline — all comments addressed, zero `fixup!` left
+10. Decision log file per chunk
 
 ## Merge guidance when no watcher is armed
 
@@ -243,7 +307,8 @@ Only fall back to a local rebase when `pr_get` reports `CONFLICTING`.
 
 - An inline `while`/`sleep`/pipeline in a Monitor or Bash call —
   "it passed before" is meaningless; shapes re-match per call. Use
-  `dev10x foreman watch`.
+  `dev10x foreman watch` (or `uv run dev10x foreman watch` when the
+  bare entry point is not installed — GH-947).
 - A worker prompt without the background preamble or named test tools.
 - A worker prompt containing a `Skill(...)` call, or reaching for an
   MCP wrapper without the `ToolSearch` bootstrap first.

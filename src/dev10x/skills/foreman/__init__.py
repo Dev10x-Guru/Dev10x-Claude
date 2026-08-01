@@ -5,8 +5,11 @@ from dev10x.skills.foreman.watch import (
     block_identity,
     heartbeat_lines,
     initial_watch_state,
+    is_own_merge,
     newest_heartbeat_age_min,
+    own_merge_shas,
     probe_lines,
+    queue_parked,
 )
 
 __all__ = [
@@ -16,6 +19,9 @@ __all__ = [
     "block_identity",
     "heartbeat_lines",
     "initial_watch_state",
+    "is_own_merge",
     "newest_heartbeat_age_min",
+    "own_merge_shas",
     "probe_lines",
+    "queue_parked",
 ]

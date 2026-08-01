@@ -22,6 +22,56 @@ from dev10x.domain.common.result import ErrorResult
 from dev10x.domain.usage import blocks_report
 
 HEARTBEAT_GLOB = "status-*.md"
+PARKED_FLAG = "parked"
+MERGED_SHAS_FILE = "merged-shas"
+SHA_PREFIX_MIN = 7
+
+
+def queue_parked(*, scratchpad: Path) -> bool:
+    """True while the run directory carries the ``parked`` flag file.
+
+    The orchestrator touches the flag when it deliberately holds the
+    queue (burn gate, supervisor hold) and removes it on release. A
+    parked run has no decisions to make, so quota milestones and stall
+    alarms are noise while it is present (GH-946).
+    """
+    return (scratchpad / PARKED_FLAG).exists()
+
+
+def own_merge_shas(*, scratchpad: Path) -> set[str]:
+    """SHAs the run itself put on the base branch, from ``merged-shas``.
+
+    Whoever runs the merge gate appends the resulting base-branch tip
+    SHA (one per line; ``#`` comments and blanks ignored). Base
+    movement matching one of these is the run's own echo, not the
+    external landing the watcher exists to report.
+    """
+    path = scratchpad / MERGED_SHAS_FILE
+    if not path.exists():
+        return set()
+    shas: set[str] = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        candidate = line.split("#")[0].strip()
+        if candidate:
+            shas.add(candidate)
+    return shas
+
+
+def is_own_merge(*, sha: str, merged_shas: set[str] | frozenset[str]) -> bool:
+    """Whether ``sha`` matches a recorded own-merge SHA, either abbreviated.
+
+    Both sides may be abbreviated (``git ls-remote`` returns full SHAs,
+    a logged merge SHA is often short), so match by prefix in whichever
+    direction is longer — never on a stub too short to be unambiguous.
+    """
+    if len(sha) < SHA_PREFIX_MIN:
+        return False
+    for known in merged_shas:
+        if len(known) < SHA_PREFIX_MIN:
+            continue
+        if sha.startswith(known) or known.startswith(sha):
+            return True
+    return False
 
 
 def active_quota_block() -> dict:
@@ -82,6 +132,10 @@ def probe_lines(*, scratchpad: Path, base_branch: str, repo: Path | None = None)
         f"quota: block={identity} cost=${cost:.0f} remaining_min={remaining}",
         f"base {base_branch}: {base_branch_sha(base_branch=base_branch, repo=repo) or 'unknown'}",
     ]
+    lines.append(
+        f"parked: {'yes' if queue_parked(scratchpad=scratchpad) else 'no'} "
+        f"own-merge shas: {len(own_merge_shas(scratchpad=scratchpad))}"
+    )
     heartbeats = heartbeat_lines(scratchpad=scratchpad, now=time.time())
     lines.extend(heartbeats if heartbeats else ["heartbeat: no status files yet"])
     return lines
@@ -98,6 +152,8 @@ class WatchState:
     known_cost_bucket: int
     started_at: float
     last_stall_alert: float = field(default=0.0)
+    muted_milestones: int = field(default=0)
+    was_parked: bool = field(default=False)
 
     def observe(
         self,
@@ -106,14 +162,45 @@ class WatchState:
         sha: str,
         block: dict,
         heartbeat_age_min: int | None,
+        parked: bool = False,
+        merged_shas: set[str] | frozenset[str] = frozenset(),
     ) -> list[str]:
         events: list[str] = []
-        events.extend(self._stall_events(now=now, heartbeat_age_min=heartbeat_age_min))
-        events.extend(self._base_events(sha=sha))
-        events.extend(self._quota_events(block=block))
+        events.extend(self._park_events(now=now, block=block, parked=parked))
+        events.extend(
+            self._stall_events(now=now, heartbeat_age_min=heartbeat_age_min, parked=parked)
+        )
+        events.extend(self._base_events(sha=sha, merged_shas=merged_shas))
+        events.extend(self._quota_events(block=block, parked=parked))
         return events
 
-    def _stall_events(self, *, now: float, heartbeat_age_min: int | None) -> list[str]:
+    def _park_events(self, *, now: float, block: dict, parked: bool) -> list[str]:
+        events: list[str] = []
+        if self.was_parked and not parked:
+            # Crew heartbeats resume only after release, so give the
+            # queue one stall window of grace before alarming again.
+            self.last_stall_alert = now
+            if self.muted_milestones:
+                cost = int(block.get("costUSD", 0))
+                events.append(
+                    f"QUOTA MILESTONE (parked rollup): {self.muted_milestones} muted "
+                    f"while parked, block cost now ${cost}"
+                )
+                self.muted_milestones = 0
+        self.was_parked = parked
+        return events
+
+    def _stall_events(
+        self,
+        *,
+        now: float,
+        heartbeat_age_min: int | None,
+        parked: bool,
+    ) -> list[str]:
+        # A parked queue is idle by instruction — its expected-stale
+        # heartbeats are not evidence of a stalled worker (GH-946).
+        if parked:
+            return []
         # Grace period: before the first heartbeat file exists, measure
         # from watch start so a crew that never writes still alarms.
         run_min = int((now - self.started_at) / 60)
@@ -124,14 +211,23 @@ class WatchState:
         self.last_stall_alert = now
         return [f"STALL: newest heartbeat silent for {effective_age} min"]
 
-    def _base_events(self, *, sha: str) -> list[str]:
+    def _base_events(
+        self,
+        *,
+        sha: str,
+        merged_shas: set[str] | frozenset[str],
+    ) -> list[str]:
         if not sha or sha == self.known_sha:
             return []
         event = f"BASE MOVED: {self.known_sha or 'unknown'} -> {sha}"
         self.known_sha = sha
+        # An echo of the run's own merge needs no rebase relay and no
+        # classification turn — rebaseline silently (GH-946).
+        if is_own_merge(sha=sha, merged_shas=merged_shas):
+            return []
         return [event]
 
-    def _quota_events(self, *, block: dict) -> list[str]:
+    def _quota_events(self, *, block: dict, parked: bool) -> list[str]:
         events: list[str] = []
         block_id = block_identity(block)
         if block_id and block_id != self.known_block_id:
@@ -141,8 +237,11 @@ class WatchState:
             self.known_cost_bucket = 0
         bucket = int(block.get("costUSD", 0)) // self.cost_step
         if bucket > self.known_cost_bucket:
-            events.append(f"QUOTA MILESTONE: block cost crossed ${bucket * self.cost_step}")
             self.known_cost_bucket = bucket
+            if parked:
+                self.muted_milestones += 1
+            else:
+                events.append(f"QUOTA MILESTONE: block cost crossed ${bucket * self.cost_step}")
         return events
 
 
