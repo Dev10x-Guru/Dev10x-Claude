@@ -405,6 +405,21 @@ those checks either moot (merged) or racing against the auto-merge
 Read `isDraft` from the `pr_get` response. If `isDraft` is `true`,
 report that the PR must be marked ready before merging.
 
+**Re-verify after every push (GH-958).** A force-push can reset a
+published PR back to draft, so an earlier successful `pr_ready`
+call proves nothing once another push has landed. Never trust a
+prior ready call — and never trust a `create_pr(draft=false)`:
+
+1. `pr_ready` must run AFTER the FINAL push, not only at PR
+   creation. Any `--force-with-lease` (rebase, amend, groom)
+   invalidates the ready state.
+2. Read `isDraft` from a FRESH `pr_get` immediately before the
+   merge gate; if it is `true`, call `pr_ready` and re-read.
+
+Skipping this costs a rejected merge (`GraphQL: Pull Request is
+still a draft`) plus a wasted CI round, because marking ready
+re-registers the bot checks.
+
 ### Check 4: No merge conflicts
 
 Read `mergeable` from the `pr_get` response. The field must be
