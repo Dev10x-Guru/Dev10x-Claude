@@ -109,11 +109,22 @@ while a prompt costs seconds instead of hours:
    CLI runs unprompted and the quota/base/heartbeat reads work.
    **Resolve the CLI shape here and record it in the manifest** — the
    bare `dev10x` entry point exists only when the CLI is installed as a
-   uv tool; inside a plugin-repo checkout it exits 127 and the working
-   shape is `uv run dev10x foreman probe …` (GH-947). Probe once with
-   the bare shape; on 127 fall back to `uv run dev10x` and use that
-   form for `watch` in Phase 1 too. Discovering this while arming the
-   watcher costs the night; discovering it now costs one command.
+   uv tool. Probe once with the bare shape; on 127 fall back in this
+   order and use whichever answers for `watch` in Phase 1 too:
+
+   | Install shape | Working invocation |
+   |---|---|
+   | `dev10x` installed as a uv tool | `dev10x foreman probe …` |
+   | CWD is a plugin-repo checkout | `uv run dev10x foreman probe …` (GH-947) |
+   | Normal plugin-cache install, CWD is the target repo | `uv run --project $CLAUDE_PLUGIN_ROOT dev10x foreman probe …` (GH-961) |
+
+   The third row is the common case for a night run: the plugin lives
+   under `~/.claude/plugins/cache/<owner>/<plugin>/<version>` while the
+   CWD is the repo being worked, so `uv run` alone resolves the wrong
+   project and the bare command exits 127. Two consecutive night runs
+   burned pre-flight window rediscovering this. Discovering it while
+   arming the watcher costs the night; discovering it now costs one
+   command.
 2. One representative call per MCP wrapper the crew will need
    (`ci_check_status`, `issue_get`, `pr_get`, …) — proves the MCP
    server is up and the tools resolve.
@@ -127,7 +138,21 @@ while a prompt costs seconds instead of hours:
 4. The per-domain test tools for THIS repo (e.g. `run_node_tests`,
    `uv run --directory <api> pytest`) — proves the exact invocation
    shape and records it for the crew prompt (§ crew template).
-5. Write access to the run directory and the repo tree.
+5. **Script deliverables, not just test runners** (GH-961). For every
+   queued chunk whose *deliverable* includes an executable artifact —
+   a `bin/*.sh`, a generated compose file, a CLI entry point — dry-run
+   THAT artifact's own invocation shape, or add a narrow allow rule
+   for it, during this window. A worker that modifies a shell script
+   legitimately needs to execute it to verify the change, and a
+   manifest that bans "executing repo shell scripts" wholesale as
+   unproven leaves that worker with no sanctioned path. Field case: a
+   chunk whose deliverable was `bin/render-worktree-config.sh` hit a
+   permission prompt mid-night, then hit a second one from the
+   banned-shape workaround it improvised
+   (`ENV=x docker compose config 2>&1 | grep -A2 …` — env prefix plus
+   redirect plus pipe). Record each proven shape in the manifest so
+   the worker never has to improvise.
+6. Write access to the run directory and the repo tree.
 
 Any prompt fired during pre-flight = fix it NOW: prefer switching to
 a wrapper/skill; propose a narrow allow rule only when no wrapper
@@ -150,9 +175,11 @@ directory — one `status-<chunk>.md` each.
    `dev10x foreman watch --scratchpad <run-dir> --base-branch <base>`
 
    Use the shape Phase 0.4 recorded — `uv run dev10x foreman watch …`
-   when the bare entry point is not on PATH (GH-947). Do not re-derive
-   it here: a 127 at arming time is exactly the failure the manifest
-   entry exists to prevent.
+   inside a plugin-repo checkout (GH-947), or
+   `uv run --project $CLAUDE_PLUGIN_ROOT dev10x foreman watch …` for a
+   normal plugin-cache install (GH-961). Do not re-derive it here: a
+   127 at arming time is exactly the failure the manifest entry exists
+   to prevent.
 
    It emits: `STALL:` (heartbeat silence ≥ 25 min), `BASE MOVED:`,
    `QUOTA MILESTONE:`, `QUOTA RESET:` (5h block rollover — resume
