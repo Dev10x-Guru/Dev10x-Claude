@@ -106,6 +106,39 @@ resuming crew is not alarmed on before their first heartbeat lands
 (GH-946). A hold that is not flagged produces exactly the false STALL
 alarms this section warns about, one per tick.
 
+## Structural false positives — when the crew composition changes
+
+The watcher's signal is the **newest heartbeat mtime across the run
+directory**. That is a property of the run's file set, not of any one
+agent, so it ages whenever the *composition* of the crew changes even
+though nothing is wrong. Two shapes recur (GH-972 F3 — two of three
+`STALL:` events in one run were structural, not real):
+
+| Shape | What is actually happening | Ground truth that disproves the stall |
+|---|---|---|
+| **Idle-by-design overseer** | The foreman has no event source of its own — most sharply under spawn-by-request, where worker events go to the watchdog — so it cannot heartbeat on its own schedule | Crew worktrees are advancing: branch tips move, PR/CI state changes, per-worker `status-<chunk>.md` mtimes are fresh |
+| **Handoff window** | One worker finished its chunk and the next has not yet written its first heartbeat; the newest mtime ages across the gap while the queue advances normally | The finished chunk has an open PR / merged SHA; the new worker was spawned within the window; `parked` grace has not been applied |
+
+Both are cheap to disambiguate and expensive to get wrong. **Before
+treating a `STALL` as "abort and respawn", check ground truth:**
+
+1. Per-file mtimes, not just the newest — `stat` each
+   `status-<chunk>.md` and ask *which* file is stale.
+2. The branch tip and PR/CI state of the chunk the stale file names.
+3. Whether an agent is idle by instruction (relay pending, queue
+   `parked`, spawn-by-request overseer) — that is a documented,
+   expected stale heartbeat, not a fault.
+
+Only a stale file belonging to an agent that should be progressing,
+with no movement in git or on the PR, is a stall worth the handshake.
+Everything else is noise the detector cannot see past on its own.
+
+This is the same lesson as the cost-flatline trap and the
+idle-notification asymmetry, applied to the mtime signal itself: the
+detector reports *a property of the file set*, and only the controller
+can turn that into a claim about an agent. A `STALL:` event is a
+prompt to look, never a verdict.
+
 ## Takeover cannot reach the dead worker's tree
 
 A respawned `Agent(isolation="worktree")` gets a **fresh** worktree.

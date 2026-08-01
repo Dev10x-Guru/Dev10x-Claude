@@ -212,6 +212,21 @@ command came from a background dispatch path. See
 `references/orchestration/subagent-dispatch.md` § Background Friction
 Preamble.
 
+### Step 3f: Approved in-session, denied by a rule (GH-972)
+
+When an `AskUserQuestion` gate returned "yes" and the command was
+STILL refused, the two authorities disagree by design: the gate
+grants intent, a `deny` rule governs the shape. Do NOT search for
+an alternative spelling — the nearest ones (`git restore`,
+`git stash` for a denied `git checkout --`) defeat the rail's whole
+purpose. Hand the exact command to the human to run, and continue
+with what the denial does not block.
+
+See
+[`references/deny-rail-vs-approval-gate.md`](references/deny-rail-vs-approval-gate.md)
+for the full procedure, the substitution anti-patterns, and the
+unattended-run variant.
+
 ### Step 4: Output reinforcement message
 
 Output a firm, concise reinforcement message with seven sections:
