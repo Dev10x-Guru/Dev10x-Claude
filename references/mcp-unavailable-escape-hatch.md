@@ -38,6 +38,56 @@ Do instead:
   I will retry."
 - Wait for the user to reconnect before proceeding.
 
+This "stop and ask" guidance assumes an interactive session with a
+human to ask. It does not hold for unattended agents — background
+workers, swarm children, or overnight automation — that have no
+human channel at all. For the push case specifically, see the
+unattended path below (GH-963); it exists because "abandon the
+finished work" is the only alternative "stop and ask" leaves an
+agent with no one to ask.
+
+## Unattended Push Path (GH-963)
+
+An unattended agent with committed, verified work and no MCP
+server reachable is not stuck for the single most common
+operation — pushing an ordinary feature branch. The `git-push`
+hook rule (`src/dev10x/validators/command-skill-map.yaml`) already
+lets a **non-force push that names an explicit, non-protected
+branch** through directly, with no skill or MCP call required:
+
+```
+git push -u origin janusz/GH-963/my-feature-branch
+```
+
+This is safe without MCP because the guardrail `push_safe` /
+`git-push-safe.sh` exist to enforce — no force-push to
+`main`/`develop`/`master`/`development`/`trunk` — is already
+satisfied by construction: the command names a branch, that
+branch is checked against `PROTECTED_BRANCHES`
+(`src/dev10x/domain/common/branch_name.py`), and any bare
+`--force`/`-f` still blocks. Narrowing the deny here doesn't
+weaken the guardrail; it stops blocking exactly the case
+`push_safe` would have allowed anyway.
+
+This path does NOT cover:
+- A bare `git push` or `git push origin` with no resolvable
+  branch, or a symbolic `HEAD` ref — the hook can't verify safety
+  without inspecting live git state, so it stays conservative and
+  blocks. Always spell out the destination branch explicitly.
+- Any `--force`/`-f` push (with or without `--force-with-lease`,
+  which was already exempt) — still requires the skill/MCP path.
+- Every other MCP-backed operation (PR creation, merge, issue
+  comments, etc.) — those still hit the lose-lease loop above and
+  still require "stop and ask" for an attended session, or a
+  documented deferral (see below) for an unattended one.
+
+For an unattended agent that hits the loop on an operation NOT
+covered by the push exception above: do not retry, do not use
+`DEV10X_SKIP_CMD_VALIDATION`. Leave the work committed on the
+branch, record the blocker (status file, PR comment, or issue
+comment as the run allows), and end the chunk — a human resolves
+the reconnect on the next attended pass.
+
 ## Detection
 
 The MCP server is disconnected when:
@@ -51,7 +101,9 @@ The MCP server is disconnected when:
 Skills that invoke `Dev10x_cli` MCP tools and have wrapper
 fallbacks in their documentation:
 
-- `Dev10x:git` — `git-push-safe.sh`
+- `Dev10x:git` — `git-push-safe.sh` (the unattended push path above
+  is the one sanctioned exception: a non-force push to an explicit,
+  non-protected branch needs neither the wrapper nor MCP)
 - `Dev10x:git-fixup` — raw `gh api`
 - `Dev10x:git-commit` — `mktmp` wrapper
 - `Dev10x:git-groom` — raw git commands

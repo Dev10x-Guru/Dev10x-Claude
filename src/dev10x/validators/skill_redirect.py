@@ -18,11 +18,13 @@ overrides:
 from __future__ import annotations
 
 import re
+import shlex
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 from dev10x.domain import HookInput, HookResult
+from dev10x.domain.common.branch_name import PROTECTED_BRANCHES
 from dev10x.domain.documents.config_document import Config
 from dev10x.domain.friction_level import FrictionLevel
 from dev10x.domain.profile_tier import ProfileTier
@@ -32,6 +34,71 @@ from dev10x.validators.base import ValidatorBase
 if TYPE_CHECKING:
     from dev10x.domain import HookRetry
     from dev10x.domain.rules.rule_engine import RuleEngine
+
+
+# ── GH-963: safe direct push detection ──────────────────────────
+#
+# An unattended agent with no human channel and no MCP server can
+# get permanently stuck: `push_safe` is unreachable, the wrapper
+# script is blocked with "use the MCP tool", and raw `git push` is
+# blocked with "use Skill(Dev10x:git)" — each block names the other
+# as the remedy. This narrows the `git-push` deny (Option 1 from the
+# issue) so the ordinary, safe case — a non-force push that names an
+# explicit, non-protected branch — never needs MCP or the skill at
+# all. Anything else (bare push with no resolvable target, a
+# symbolic `HEAD` ref, or any bare `--force`/`-f`) still requires the
+# skill/MCP path, matching push_safe's own guardrail.
+_BARE_FORCE_TOKENS = frozenset({"--force", "-f"})
+
+
+def _tokenize(command: str) -> list[str]:
+    try:
+        return shlex.split(command)
+    except ValueError:
+        return command.split()
+
+
+def _explicit_push_target(command: str) -> str | None:
+    """Return the branch this push names explicitly, if statically
+    determinable from the command text alone.
+
+    Returns ``None`` when the target can't be resolved without
+    inspecting live git state — bare ``git push``, ``git push
+    origin`` (no refspec), or a symbolic ``HEAD`` ref — so callers
+    stay conservative rather than guessing the current branch.
+    """
+    tokens = _tokenize(command)
+    if "push" not in tokens:
+        return None
+    push_args = tokens[tokens.index("push") + 1 :]
+    positionals = [a for a in push_args if not a.startswith("-")]
+    if len(positionals) < 2:
+        return None
+    ref = positionals[1].split(":")[-1]
+    return None if ref == "HEAD" else ref
+
+
+def _has_bare_force(command: str) -> bool:
+    return any(token in _BARE_FORCE_TOKENS for token in _tokenize(command))
+
+
+def _is_safe_direct_push(command: str) -> bool:
+    """True when ``command`` is safe to allow without MCP/skill involvement.
+
+    Safe means: no bare ``--force``/``-f`` flag, and an explicit,
+    statically-resolvable target branch that is not in
+    ``PROTECTED_BRANCHES``. This is exactly the guardrail
+    ``push_safe``/``git-push-safe.sh`` already enforce for the
+    force+protected combination — narrowing the deny here doesn't
+    weaken it, it just stops blocking the case those tools would
+    have allowed anyway.
+    """
+    if _has_bare_force(command):
+        return False
+    target = _explicit_push_target(command)
+    if target is None:
+        return False
+    return target not in PROTECTED_BRANCHES
 
 
 def _format_correction_msg(
@@ -249,6 +316,8 @@ class SkillRedirectValidator(ValidatorBase):
         config, engine = _get_config_and_engine()
         rule = engine.evaluate_command(command=inp.command)
         if rule is None:
+            return None
+        if rule.name == "git-push" and _is_safe_direct_push(inp.command):
             return None
         comp = rule.compensations[0] if rule.compensations else None
         if not comp:

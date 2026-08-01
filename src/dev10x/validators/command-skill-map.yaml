@@ -137,13 +137,22 @@ rules:
           `protected_branches=[]`. Do NOT use
           DEV10X_SKIP_CMD_VALIDATION=true to bypass — that flag is
           reserved for skill-internal exceptions, not for callers.
-          Manual fallback only when the MCP tool is unavailable:
-          (1) verify branch is not develop/main, (2) use
-          --force-with-lease (never --force) if rebased, (3) push
-          with upstream tracking (-u flag).
+          GH-963: a non-force push that names an explicit,
+          non-protected branch (e.g. `git push -u origin
+          my-feature-branch`) is already allowed straight through —
+          it needs neither the skill nor MCP, so this fallback only
+          applies when the hook still blocked you: a bare `git push`
+          with no resolvable branch, a symbolic `HEAD` ref, or any
+          `--force`/`-f` push. In those cases: (1) verify the branch
+          is not develop/main, (2) use --force-with-lease (never
+          --force) if rebased, (3) push with upstream tracking (-u
+          flag).
     reason: >
       Direct git push bypasses force-push protection on
-      develop/main branches.
+      develop/main branches. GH-963 narrows this so an ordinary,
+      already-safe push (no force, explicit non-protected branch)
+      is never blocked — see
+      references/mcp-unavailable-escape-hatch.md.
     related:
       - Dev10x:git-commit
       - Dev10x:git-groom
