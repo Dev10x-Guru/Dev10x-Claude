@@ -51,6 +51,16 @@ prefix shifts the matched command string, GH-488 S19).
 Each base branch gets three comparison aliases (`{base}-log`, `{base}-diff`,
 `{base}-rebase`) plus a non-interactive autosquash alias (`autosquash-{base}`).
 
+`{base}-rebase` is a **grooming** alias: it squashes `fixup!` commits back
+to the merge-base, interactively (`-i`), against the **local** `{base}` ref.
+It is not a rebase-onto-a-moved-base tool, and it is unusable unattended —
+no editor is attached, and a stale local ref lets it print "Successfully
+rebased" while HEAD never leaves stale ancestry (GH-964). Background agents
+groom with the non-interactive `rebase_groom` MCP tool (or
+`autosquash-{base}`, which resolves against `origin/{base}`), and catch up
+with a moved base using `git fetch origin` then `git rebase origin/{base}`,
+asserting `git merge-base --is-ancestor origin/{base} HEAD` exits 0.
+
 | Alias                | Equivalent                                                  |
 |----------------------|-------------------------------------------------------------|
 | `git nopager <verb>` | `git --no-pager <verb>` (non-paging read; matches `Bash(git nopager:*)`) |

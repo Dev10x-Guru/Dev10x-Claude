@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import time
 from pathlib import Path
@@ -336,6 +337,7 @@ class TestBaseBranchShaGateway:
 
             class _Completed:
                 stdout = "abc123\trefs/heads/develop\n"
+                returncode = 0
 
             return _Completed()
 
@@ -347,6 +349,15 @@ class TestBaseBranchShaGateway:
         assert captured["args"] == ["git", "ls-remote", "origin", "refs/heads/develop"]
         assert captured["kwargs"]["cwd"] == "/repo"
 
+    def test_asks_the_remote_never_the_local_ref(self, fake_run: None, captured: dict) -> None:
+        # GH-964: merge-coordination tooling must report the remote base.
+        # `rev-parse`/`merge-base` against a local ref answers "what does
+        # this worktree think the base is" and goes stale until a fetch.
+        base_branch_sha(base_branch="develop", repo=Path("/repo"))
+        assert captured["args"][1] == "ls-remote"
+        assert "rev-parse" not in captured["args"]
+        assert "merge-base" not in captured["args"]
+
     def test_defaults_cwd_and_handles_empty_output(
         self, monkeypatch: pytest.MonkeyPatch, captured: dict
     ) -> None:
@@ -355,9 +366,27 @@ class TestBaseBranchShaGateway:
 
             class _Completed:
                 stdout = ""
+                returncode = 128
 
             return _Completed()
 
         monkeypatch.setattr(watch_module.subprocess_utils, "run", _fake_run)
         assert base_branch_sha(base_branch="develop") == ""
         assert captured["kwargs"]["cwd"] is None
+
+    def test_logs_a_warning_when_the_remote_tip_is_unreachable(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        def _fake_run(args: list[str], **kwargs: object):
+            class _Completed:
+                stdout = ""
+                returncode = 128
+
+            return _Completed()
+
+        monkeypatch.setattr(watch_module.subprocess_utils, "run", _fake_run)
+        with caplog.at_level(logging.WARNING, logger=watch_module.__name__):
+            assert base_branch_sha(base_branch="develop") == ""
+        assert "origin/develop" in caplog.text

@@ -64,7 +64,9 @@ To regenerate: /Dev10x:skill-index
 Dev10x uses git aliases to avoid permission friction:
   git develop-log   — commits since diverging from develop
   git develop-diff  — diff since diverging from develop
-  git develop-rebase — interactive rebase onto develop
+  git develop-rebase — interactive autosquash grooming (not for
+                       catching up with a moved base — for that use
+                       git fetch origin, then git rebase origin/develop)
 ```
 
 **REQUIRED: Call `AskUserQuestion`** (do NOT use plain text).
