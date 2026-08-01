@@ -114,6 +114,22 @@ these five steps, one Bash call each:
   5. write your first heartbeat line
 ```
 
+### Durability envelope (bake in verbatim)
+
+Workers routinely describe an edit and let the reader infer a push.
+Name what survives, explicitly (GH-971 F4):
+
+```
+WHAT SURVIVES YOUR DEATH: commits pushed to origin, and comments on
+tracker issues. NOTHING ELSE. Your worktree, your scratchpad, your
+plan file and any uncommitted change die with you and are unreachable
+to every agent that follows — a replacement gets a FRESH worktree and
+cannot read yours.
+
+So: push early and push often, and narrate any plan worth keeping
+into your heartbeat file or an issue comment rather than a local note.
+```
+
 ## 7. Scope + lifecycle (worker half)
 
 ```
@@ -126,6 +142,14 @@ these five steps, one Bash call each:
   push_safe(args=["-u","origin","{{branch_name}}"]) — `pushed: true`
   (or a legacy empty `{}`) means SUCCESS; only an `error` key or
   `pushed: false` is a failure. Never fall back to raw `git push`.
+- RECOVERABILITY IS A CLAIM REQUIRING EVIDENCE. Before you state
+  anywhere — heartbeat, handover comment, resumption record, final
+  report — that work "is on branch X" or "is recoverable", run
+  `git ls-remote --heads origin '{{branch_name}}'` and confirm it
+  returns the ref. An edit is not a commit and a commit is not a
+  push. Report what is PUSHED, and say "unpushed" or "uncommitted"
+  in as many words when that is the truth. A false recoverability
+  claim makes the next loop skip a chunk that was never started.
 - Open the PR via create_pr(draft=false) with a JTBD story and
   full-URL `Fixes:` lines ONLY for fully delivered issues, then
   VERIFY with pr_get that `isDraft` is false; if it is still draft,
@@ -201,6 +225,12 @@ session; only pushed commits and GitHub issue comments survive it.
 Post anything the next loop would need to avoid redoing your work —
 branch name, what landed, what remains — as an issue_comment WHEN
 YOU PRODUCE IT, not at wrap-up. A death gives no warning.
+
+A heartbeat that names a branch is a durability claim: verify with
+`git ls-remote --heads origin '{{branch_name}}'` BEFORE writing that
+line. Otherwise write what is literally true ("edited N files,
+nothing committed") — the morning reader treats your heartbeat as
+ground truth for whether the chunk is resumable or a restart.
 ```
 
 ## 9. Final report
@@ -211,4 +241,9 @@ an explicit "fixup! commits: none" statement, an explicit
 "isDraft: false verified" statement, decisions made, anything left
 for the next loop. The orchestrator runs the merge gate on this
 data — do not summarize it away.
+
+If anything is left unfinished, state its recoverability with
+evidence: the output of `git ls-remote --heads origin
+'{{branch_name}}'`, or "no ref on origin — restart, not resumption".
+Never describe an unpushed edit as recoverable work.
 ```

@@ -403,3 +403,48 @@ class TestInterpreterStdinBypass:
         inp = _make_input(command="gosh -c 'unterminated")
         result = validator.validate(inp=inp)
         assert result is None
+
+
+class TestReadOnlyUtilityWithShellScriptArgument:
+    """GH-971 F1: a `.sh` ARGUMENT is a read target, not an interpreter."""
+
+    @pytest.fixture()
+    def validator(self) -> ExecutionSafetyValidator:
+        return ExecutionSafetyValidator()
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # An alternation `|` splits the pipeline mid-quote, shlex then
+            # fails on the unbalanced quote, and the fail-closed fallback
+            # used to match the `sh` in the FILENAME.
+            "grep -n -E 'foo|bar' bin/tachyon-env.sh",
+            "rg -e 'a|b' scripts/deploy.sh",
+            "head -n 20 bin/setup.sh",
+            "wc -l /usr/local/bin/release.sh",
+            "grep -c 'x|y' ~/.local/bin/env.zsh",
+        ],
+    )
+    def test_read_only_utility_reading_a_shell_script_is_allowed(
+        self, validator: ExecutionSafetyValidator, command: str
+    ) -> None:
+        inp = _make_input(command=command)
+        assert validator.validate(inp=inp) is None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # Still fail closed when the interpreter IS the command.
+            "bash -c 'echo a|b",
+            "FOO=1 sh -c 'echo a|b",
+            "/bin/sh -c 'echo a|b",
+            "grep x file.txt | sh -c 'echo a|b",
+        ],
+    )
+    def test_unparseable_command_position_interpreter_still_blocks(
+        self, validator: ExecutionSafetyValidator, command: str
+    ) -> None:
+        inp = _make_input(command=command)
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert result.message == SHELL_INTERP_MSG

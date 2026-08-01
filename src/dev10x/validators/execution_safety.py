@@ -115,9 +115,31 @@ def _heredoc_into_re(interpreter: str) -> re.Pattern[str]:
     )
 
 
+def _command_position_re(interpreter: str) -> re.Pattern[str]:
+    """Match ``interpreter`` in COMMAND position, not as an argument (GH-971).
+
+    Guards the fail-closed path only. A bare ``\\b<interpreter>\\b`` search
+    also matches a *filename* argument — ``bin/tachyon-env.sh`` ends on a
+    word-boundaried ``sh`` — so a read-only ``grep -E 'a|b' bin/x.sh`` was
+    blocked as script execution: the alternation ``|`` splits the pipeline
+    mid-quote, ``shlex`` then fails on the unbalanced quote, and the
+    fail-closed fallback matched the file extension.
+
+    Command position means: start of string or after a ``|``/``;``/``&``/
+    ``(``/newline separator, optionally preceded by ``VAR=value`` env
+    prefixes and optionally carrying a directory prefix (``/bin/sh``).
+    """
+    return re.compile(
+        r"(?:^|[|;&(\n])\s*"
+        r"(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*"
+        r"(?:[\w./~-]*/)?" + re.escape(interpreter) + r"\b"
+    )
+
+
 # python3 plus the shell interpreters that already block inline `-c`.
 _STDIN_GUARDED_INTERPRETERS = ("python3", *SHELL_INTERPRETERS)
 _HEREDOC_INTO = {name: _heredoc_into_re(name) for name in _STDIN_GUARDED_INTERPRETERS}
+_COMMAND_POSITION = {name: _command_position_re(name) for name in _STDIN_GUARDED_INTERPRETERS}
 
 # Shell interpreters may additionally run scripts staged under the Dev10x
 # temp dir (GH-370 pre-approves /tmp/Dev10x/ execution); python3 keeps the
@@ -316,7 +338,9 @@ class ExecutionSafetyValidator(ValidatorBase):
                 # Fail closed (GH-687): an unparseable command naming the
                 # interpreter is suspicious, not safe. The old `return None`
                 # let a quoting trick smuggle execution past the guard.
-                if re.search(rf"\b{re.escape(interpreter)}\b", command):
+                # Command position only (GH-971): an argument that merely
+                # ends in `.sh` is a read target, not an interpreter.
+                if _COMMAND_POSITION[interpreter].search(command):
                     return HookResult(message=message)
                 return None
 
