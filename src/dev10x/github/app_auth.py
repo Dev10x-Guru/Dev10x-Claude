@@ -14,9 +14,8 @@ to the engineer's ``gh auth`` token without raising.
 
 from __future__ import annotations
 
-import json
+import asyncio
 import logging
-import os
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -24,8 +23,12 @@ from pathlib import Path
 
 import yaml
 
+from dev10x.commands.github_app_api import (
+    GitHubAPIError,
+    create_installation_token_full,
+    get_repo_installation,
+)
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.subprocess_utils import async_run
 
 try:  # PyJWT is an optional dependency; its absence surfaces as ImportError
     from jwt.exceptions import PyJWTError as _PyJWTError
@@ -93,41 +96,28 @@ def _parse_expires_at(raw: str | None) -> float:
         return time.time() + 3600
 
 
-def _bearer_env() -> dict[str, str]:
-    # GH_TOKEN/GITHUB_TOKEN must be unset before invoking gh with an App
-    # JWT; otherwise gh sends `Authorization: token <jwt>`, but the App
-    # endpoints (`/repos/{repo}/installation`, `/app/installations/...`)
-    # require the `Bearer` scheme and return 401 for `token`.
-    return {k: v for k, v in os.environ.items() if k not in {"GH_TOKEN", "GITHUB_TOKEN"}}
-
-
 async def _resolve_installation_id(
     *,
     repo: str,
     app_jwt: str,
 ) -> str | None:
-    # NOTE (GH-499): the App JWT is passed via `-H` in argv, which is
-    # world-visible through `ps` / `/proc/<pid>/cmdline` for the gh child's
-    # lifetime. gh offers no argv-free path for a Bearer header (it has no
-    # `-H @file`, and GH_TOKEN forces the `token` scheme the App endpoints
-    # reject), so this exposure is accepted pending a dedicated fix.
-    result = await async_run(
-        args=[
-            "gh",
-            "api",
-            "-H",
-            f"Authorization: Bearer {app_jwt}",
-            "-H",
-            "Accept: application/vnd.github+json",
-            f"/repos/{repo}/installation",
-        ],
-        env=_bearer_env(),
-    )
-    if result.returncode != 0:
+    # GH-499: resolved via an in-process HTTPS call (dev10x.commands.
+    # github_app_api) instead of shelling out to `gh api -H "Authorization:
+    # Bearer <jwt>"` — argv is world-visible via `ps` / `/proc/<pid>/cmdline`
+    # for the life of a child process, so the JWT never touches a
+    # subprocess command line.
+    try:
+        payload = await asyncio.to_thread(
+            get_repo_installation,
+            jwt_token=app_jwt,
+            repo=repo,
+        )
+    except GitHubAPIError as exc:
+        log.warning("GitHub App installation lookup failed for repo=%s: %s", repo, exc)
         return None
     try:
-        return str(json.loads(result.stdout)["id"])
-    except (json.JSONDecodeError, KeyError, TypeError):
+        return str(payload["id"])
+    except (KeyError, TypeError):
         return None
 
 
@@ -136,26 +126,20 @@ async def _exchange_for_installation_token(
     installation_id: str,
     app_jwt: str,
 ) -> tuple[str, float] | None:
-    # NOTE (GH-499): App JWT passed via argv — see _resolve_installation_id.
-    result = await async_run(
-        args=[
-            "gh",
-            "api",
-            "-X",
-            "POST",
-            "-H",
-            f"Authorization: Bearer {app_jwt}",
-            "-H",
-            "Accept: application/vnd.github+json",
-            f"/app/installations/{installation_id}/access_tokens",
-        ],
-        env=_bearer_env(),
-    )
-    if result.returncode != 0:
-        return None
+    # GH-499: exchanged via an in-process HTTPS call — see
+    # _resolve_installation_id. Never log the JWT or the minted token.
     try:
-        data = json.loads(result.stdout)
-    except json.JSONDecodeError:
+        data = await asyncio.to_thread(
+            create_installation_token_full,
+            jwt_token=app_jwt,
+            installation_id=int(installation_id),
+        )
+    except (GitHubAPIError, ValueError) as exc:
+        log.warning(
+            "GitHub App token exchange failed for installation_id=%s: %s",
+            installation_id,
+            exc,
+        )
         return None
     token = data.get("token")
     if not token:

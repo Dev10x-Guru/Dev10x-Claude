@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-import json
 import logging
-import subprocess
 import time
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 
+from dev10x.commands.github_app_api import GitHubAPIError
 from dev10x.github import app_auth as auth
 
 
@@ -17,20 +16,6 @@ def clear_token_cache():
     auth._TOKEN_CACHE.clear()
     yield
     auth._TOKEN_CACHE.clear()
-
-
-def _completed(
-    *,
-    returncode: int = 0,
-    stdout: str = "",
-    stderr: str = "",
-) -> subprocess.CompletedProcess[str]:
-    return subprocess.CompletedProcess(
-        args=[],
-        returncode=returncode,
-        stdout=stdout,
-        stderr=stderr,
-    )
 
 
 class TestAppConfigLoad:
@@ -115,23 +100,20 @@ class TestGetBotToken:
         self,
         app_config: auth.AppConfig,
     ) -> None:
-        token_response = _completed(
-            stdout=json.dumps({"token": "ghs_secret", "expires_at": "2099-01-01T00:00:00Z"})
-        )
         with (
             patch.object(auth, "_create_app_jwt", return_value="jwt-token"),
-            patch(
-                "dev10x.github.app_auth.async_run",
-                new_callable=AsyncMock,
-                return_value=token_response,
-            ) as mock_run,
+            patch.object(
+                auth,
+                "create_installation_token_full",
+                return_value={"token": "ghs_secret", "expires_at": "2099-01-01T00:00:00Z"},
+            ) as mock_exchange,
         ):
             first = await auth.get_bot_token(repo="owner/repo", config=app_config)
             second = await auth.get_bot_token(repo="owner/repo", config=app_config)
 
         assert first == "ghs_secret"
         assert second == "ghs_secret"
-        assert mock_run.call_count == 1
+        assert mock_exchange.call_count == 1
 
     @pytest.mark.asyncio
     async def test_resolves_installation_id_when_absent(
@@ -142,26 +124,20 @@ class TestGetBotToken:
         key_path.write_text("KEY")
         config = auth.AppConfig(app_id="1", private_key_path=key_path)
 
-        responses = [
-            _completed(stdout=json.dumps({"id": 99})),
-            _completed(
-                stdout=json.dumps({"token": "ghs_x", "expires_at": "2099-01-01T00:00:00Z"})
-            ),
-        ]
         with (
             patch.object(auth, "_create_app_jwt", return_value="jwt"),
-            patch(
-                "dev10x.github.app_auth.async_run",
-                new_callable=AsyncMock,
-                side_effect=responses,
-            ) as mock_run,
+            patch.object(auth, "get_repo_installation", return_value={"id": 99}) as mock_resolve,
+            patch.object(
+                auth,
+                "create_installation_token_full",
+                return_value={"token": "ghs_x", "expires_at": "2099-01-01T00:00:00Z"},
+            ) as mock_exchange,
         ):
             token = await auth.get_bot_token(repo="owner/repo", config=config)
 
         assert token == "ghs_x"
-        assert mock_run.call_count == 2
-        assert "/repos/owner/repo/installation" in mock_run.call_args_list[0].kwargs["args"]
-        assert "/app/installations/99/access_tokens" in mock_run.call_args_list[1].kwargs["args"]
+        mock_resolve.assert_called_once_with(jwt_token="jwt", repo="owner/repo")
+        mock_exchange.assert_called_once_with(jwt_token="jwt", installation_id=99)
 
     @pytest.mark.asyncio
     async def test_returns_none_when_token_exchange_fails(
@@ -170,10 +146,10 @@ class TestGetBotToken:
     ) -> None:
         with (
             patch.object(auth, "_create_app_jwt", return_value="jwt"),
-            patch(
-                "dev10x.github.app_auth.async_run",
-                new_callable=AsyncMock,
-                return_value=_completed(returncode=1, stderr="bad"),
+            patch.object(
+                auth,
+                "create_installation_token_full",
+                side_effect=GitHubAPIError("POST .../access_tokens -> 401 Unauthorized"),
             ),
         ):
             result = await auth.get_bot_token(repo="owner/repo", config=app_config)
@@ -187,61 +163,56 @@ class TestGetBotToken:
         auth._TOKEN_CACHE["owner/repo"] = auth._CachedToken(
             token="old", expires_at=time.time() - 10
         )
-        new_response = _completed(
-            stdout=json.dumps({"token": "fresh", "expires_at": "2099-01-01T00:00:00Z"})
-        )
         with (
             patch.object(auth, "_create_app_jwt", return_value="jwt"),
-            patch(
-                "dev10x.github.app_auth.async_run",
-                new_callable=AsyncMock,
-                return_value=new_response,
+            patch.object(
+                auth,
+                "create_installation_token_full",
+                return_value={"token": "fresh", "expires_at": "2099-01-01T00:00:00Z"},
             ),
         ):
             token = await auth.get_bot_token(repo="owner/repo", config=app_config)
         assert token == "fresh"
 
+    def test_module_has_no_subprocess_dependency(self) -> None:
+        """GH-499: the App JWT must never be handed to a subprocess.
+
+        Both App-auth calls now go through the in-process HTTP client
+        (``dev10x.commands.github_app_api``) via ``asyncio.to_thread`` —
+        there is no ``gh`` child process left in this module, so the JWT
+        can never appear in argv / `ps` / `/proc/<pid>/cmdline`.
+        """
+        import inspect
+
+        source = inspect.getsource(auth)
+        assert "async_run" not in source
+        assert "import subprocess" not in source
+        assert '"gh"' not in source
+        assert "'gh'" not in source
+
     @pytest.mark.asyncio
-    async def test_resolve_installation_uses_bearer_header_and_strips_gh_token(
+    async def test_resolve_and_exchange_use_bearer_jwt_via_http_client(
         self,
         tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setenv("GH_TOKEN", "engineer-token")
-        monkeypatch.setenv("GITHUB_TOKEN", "engineer-token")
         key_path = tmp_path / "bot.pem"
         key_path.write_text("KEY")
         config = auth.AppConfig(app_id="1", private_key_path=key_path)
 
-        responses = [
-            _completed(stdout=json.dumps({"id": 99})),
-            _completed(
-                stdout=json.dumps({"token": "ghs_x", "expires_at": "2099-01-01T00:00:00Z"})
-            ),
-        ]
         with (
             patch.object(auth, "_create_app_jwt", return_value="jwt"),
-            patch(
-                "dev10x.github.app_auth.async_run",
-                new_callable=AsyncMock,
-                side_effect=responses,
-            ) as mock_run,
+            patch.object(auth, "get_repo_installation", return_value={"id": 99}) as mock_resolve,
+            patch.object(
+                auth,
+                "create_installation_token_full",
+                return_value={"token": "ghs_x", "expires_at": "2099-01-01T00:00:00Z"},
+            ) as mock_exchange,
         ):
-            await auth.get_bot_token(repo="owner/repo", config=config)
+            token = await auth.get_bot_token(repo="owner/repo", config=config)
 
-        resolve_call = mock_run.call_args_list[0]
-        exchange_call = mock_run.call_args_list[1]
-
-        for call in (resolve_call, exchange_call):
-            args = call.kwargs["args"]
-            assert "Authorization: Bearer jwt" in args, (
-                f"App-auth call must include Bearer header; got args={args}"
-            )
-            env = call.kwargs["env"]
-            assert "GH_TOKEN" not in env, (
-                "GH_TOKEN must be stripped — gh would send 'token' scheme instead of Bearer"
-            )
-            assert "GITHUB_TOKEN" not in env, "GITHUB_TOKEN must be stripped for same reason"
+        assert token == "ghs_x"
+        mock_resolve.assert_called_once_with(jwt_token="jwt", repo="owner/repo")
+        mock_exchange.assert_called_once_with(jwt_token="jwt", installation_id=99)
 
     @pytest.mark.asyncio
     async def test_falls_back_when_response_missing_token(
@@ -250,10 +221,10 @@ class TestGetBotToken:
     ) -> None:
         with (
             patch.object(auth, "_create_app_jwt", return_value="jwt"),
-            patch(
-                "dev10x.github.app_auth.async_run",
-                new_callable=AsyncMock,
-                return_value=_completed(stdout=json.dumps({"expires_at": "x"})),
+            patch.object(
+                auth,
+                "create_installation_token_full",
+                return_value={"expires_at": "x"},
             ),
         ):
             result = await auth.get_bot_token(repo="owner/repo", config=app_config)
@@ -284,13 +255,58 @@ class TestGetBotToken:
         config = auth.AppConfig(app_id="1", private_key_path=key_path)
         with (
             patch.object(auth, "_create_app_jwt", return_value="jwt"),
-            patch(
-                "dev10x.github.app_auth.async_run",
-                new_callable=AsyncMock,
-                return_value=_completed(returncode=1, stderr="nope"),
+            patch.object(
+                auth,
+                "get_repo_installation",
+                side_effect=GitHubAPIError("GET .../installation -> 404 Not Found"),
             ),
             caplog.at_level(logging.WARNING),
         ):
             result = await auth.get_bot_token(repo="owner/repo", config=config)
         assert result is None
-        assert "installation-id resolution failed" in caplog.text
+        assert "installation lookup failed" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_installation_lookup_failure_does_not_leak_jwt(
+        self,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """A GitHubAPIError's message (server-side detail) never contains the JWT."""
+        key_path = tmp_path / "bot.pem"
+        key_path.write_text("KEY")
+        config = auth.AppConfig(app_id="1", private_key_path=key_path)
+        secret_jwt = "super-secret-jwt-value"
+        with (
+            patch.object(auth, "_create_app_jwt", return_value=secret_jwt),
+            patch.object(
+                auth,
+                "get_repo_installation",
+                side_effect=GitHubAPIError("GET .../installation -> 401 Unauthorized: {}"),
+            ),
+            caplog.at_level(logging.WARNING),
+        ):
+            result = await auth.get_bot_token(repo="owner/repo", config=config)
+        assert result is None
+        assert secret_jwt not in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_token_exchange_failure_does_not_leak_jwt_or_token(
+        self,
+        app_config: auth.AppConfig,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        secret_jwt = "super-secret-jwt-value"
+        with (
+            patch.object(auth, "_create_app_jwt", return_value=secret_jwt),
+            patch.object(
+                auth,
+                "create_installation_token_full",
+                side_effect=GitHubAPIError("POST .../access_tokens -> 401 Unauthorized: {}"),
+            ),
+            caplog.at_level(logging.WARNING),
+        ):
+            result = await auth.get_bot_token(repo="owner/repo", config=app_config)
+        assert result is None
+        assert secret_jwt not in caplog.text
+        assert "token exchange failed" in caplog.text.lower()
