@@ -148,8 +148,8 @@ class TestGhPrCreateRedirect:
 
 
 class TestGitPushRedirect:
-    def test_blocks_git_push(self, validator: SkillRedirectValidator) -> None:
-        inp = _make_input(command="git push origin feature-branch")
+    def test_blocks_git_push_to_protected_branch(self, validator: SkillRedirectValidator) -> None:
+        inp = _make_input(command="git push origin main")
         result = validator.validate(inp=inp)
         assert result is not None
         assert "Dev10x:git" in result.message
@@ -159,11 +159,75 @@ class TestGitPushRedirect:
         result = validator.validate(inp=inp)
         assert result is None
 
-    def test_blocks_git_push_u(self, validator: SkillRedirectValidator) -> None:
-        inp = _make_input(command="git push -u origin feature-branch")
+    def test_blocks_git_push_u_to_protected_branch(
+        self, validator: SkillRedirectValidator
+    ) -> None:
+        inp = _make_input(command="git push -u origin develop")
         result = validator.validate(inp=inp)
         assert result is not None
         assert "Dev10x:git" in result.message
+
+
+class TestGitPushUnattendedEscapeHatch:
+    """GH-963: a non-force push naming an explicit, non-protected branch
+    needs neither the skill nor MCP — it is already the safe case
+    push_safe/git-push-safe.sh would have allowed anyway."""
+
+    def test_allows_push_to_explicit_feature_branch(
+        self, validator: SkillRedirectValidator
+    ) -> None:
+        inp = _make_input(command="git push origin feature-branch")
+        result = validator.validate(inp=inp)
+        assert result is None
+
+    def test_allows_push_u_to_explicit_feature_branch(
+        self, validator: SkillRedirectValidator
+    ) -> None:
+        inp = _make_input(command="git push -u origin janusz/GH-963/my-fix")
+        result = validator.validate(inp=inp)
+        assert result is None
+
+    def test_allows_refspec_form(self, validator: SkillRedirectValidator) -> None:
+        inp = _make_input(command="git push origin my-branch:my-branch")
+        result = validator.validate(inp=inp)
+        assert result is None
+
+    def test_blocks_bare_push_no_resolvable_target(
+        self, validator: SkillRedirectValidator
+    ) -> None:
+        inp = _make_input(command="git push")
+        result = validator.validate(inp=inp)
+        assert result is not None
+
+    def test_blocks_push_with_remote_only(self, validator: SkillRedirectValidator) -> None:
+        inp = _make_input(command="git push origin")
+        result = validator.validate(inp=inp)
+        assert result is not None
+
+    def test_blocks_push_symbolic_head_ref(self, validator: SkillRedirectValidator) -> None:
+        inp = _make_input(command="git push origin HEAD")
+        result = validator.validate(inp=inp)
+        assert result is not None
+
+    def test_blocks_bare_force_to_feature_branch(self, validator: SkillRedirectValidator) -> None:
+        inp = _make_input(command="git push --force origin feature-branch")
+        result = validator.validate(inp=inp)
+        assert result is not None
+
+    def test_blocks_short_force_flag_to_feature_branch(
+        self, validator: SkillRedirectValidator
+    ) -> None:
+        inp = _make_input(command="git push -f origin feature-branch")
+        result = validator.validate(inp=inp)
+        assert result is not None
+
+    def test_still_blocks_protected_branch_by_name(
+        self, validator: SkillRedirectValidator
+    ) -> None:
+        for branch in ("main", "develop", "master", "development", "trunk"):
+            inp = _make_input(command=f"git push origin {branch}")
+            result = validator.validate(inp=inp)
+            assert result is not None, f"Expected block for push to {branch}"
 
 
 class TestGitRebaseRedirect:
@@ -870,9 +934,14 @@ class TestBlockedVsAllowed:
         ("command", "should_block"),
         [
             ("git push origin main", True),
-            ("git push -u origin feature", True),
+            ("git push -u origin feature", False),
             ("git push --force-with-lease origin feature", False),
             ("git push --force-with-lease", False),
+            ("git push --force origin feature", True),
+            ("git push -f origin feature", True),
+            ("git push", True),
+            ("git push origin", True),
+            ("git push origin HEAD", True),
             ("git commit -m 'test'", True),
             ("git commit --fixup=abc", False),
             ("git commit --amend", False),
