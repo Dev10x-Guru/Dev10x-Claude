@@ -82,6 +82,15 @@ def get_app(*, jwt_token: str) -> dict[str, Any]:
     return _request("GET", f"{API_ROOT}/app", headers=_bearer_headers(jwt_token))
 
 
+def get_repo_installation(*, jwt_token: str, repo: str) -> dict[str, Any]:
+    """Return the App's installation for ``repo`` (``owner/name``)."""
+    return _request(
+        "GET",
+        f"{API_ROOT}/repos/{repo}/installation",
+        headers=_bearer_headers(jwt_token),
+    )
+
+
 def list_installations(*, jwt_token: str) -> list[dict[str, Any]]:
     """Return all installations of the authenticated App."""
     return _request(
@@ -91,14 +100,19 @@ def list_installations(*, jwt_token: str) -> list[dict[str, Any]]:
     )
 
 
-def create_installation_token(*, jwt_token: str, installation_id: int) -> str:
-    """Exchange the App JWT for a short-lived installation access token."""
-    result = _request(
+def create_installation_token_full(*, jwt_token: str, installation_id: int) -> dict[str, Any]:
+    """Exchange the App JWT for an installation token, keeping ``expires_at``."""
+    return _request(
         "POST",
         f"{API_ROOT}/app/installations/{installation_id}/access_tokens",
         headers=_bearer_headers(jwt_token),
         body={},
     )
+
+
+def create_installation_token(*, jwt_token: str, installation_id: int) -> str:
+    """Exchange the App JWT for a short-lived installation access token."""
+    result = create_installation_token_full(jwt_token=jwt_token, installation_id=installation_id)
     return result["token"]
 
 
