@@ -95,6 +95,18 @@ walk-away posture, and the supervisor opts *out*, not in.
    `afk` overlay ride on top — see `../../references/friction-levels.md`
    and the `Dev10x:afk` § Relationship to Presets and Overlays.
 
+**The composed policy does not reach a spawned worktree** (GH-962 F1).
+A worker dispatched with `isolation="worktree"` gets a fresh checkout
+with no session policy, on an agent-generated path that matches no
+`projects[].match` glob — so `resolve_gate(gate="merge")` falls back
+to defaults and returns `ask` even under `adaptive + afk`. Warn every
+worker at spawn that a phantom merge `ask` is an artifact of its
+checkout and not a supervisor decision, and record the standing
+authorization once in `DECISIONS.md`. Wording and rationale:
+[`references/overseer-discipline.md`](references/overseer-discipline.md)
+§ The merge gate reads `ask` in fresh worktrees. **See GH-978 for the
+code-level fix**; do not hand-write config into a worker's worktree.
+
 This harness is **never YOLO**: do not offer, suggest, or accept
 `bypassPermissions` / auto-mode as the answer to prompt risk. Walk-away
 autonomy comes from the gate policy, which keeps the permission model
@@ -203,7 +215,11 @@ fetch and never goes stale — GH-964) — never a separate raw git call the all
    write `current-generation` naming it before the spawn returns. Its
    brief: re-read `current-generation` before every broadcast, spawn
    request, relay or queue advance and stand down if the name is not
-   its own (GH-971 F3 — see Phase 2); manage the queue per the
+   its own (GH-971 F3 — see Phase 2); follow the wait cycle and the
+   disk-first escalation order in
+   [`references/overseer-discipline.md`](references/overseer-discipline.md),
+   which also carries the standing merge-gate authorization every
+   worker prompt must repeat (GH-962); manage the queue per the
    manifest — spawn one crew worker
    per chunk (prompt built from
    `references/crew-prompt-template.md`), relay `BASE MOVED` rebase
@@ -364,6 +380,22 @@ turn are the most precious resources on site:
   in the run directory for morning review.
 - Every supervisor-grade decision the watchdog does make gets a
   numbered entry (D1, D2, …) in `DECISIONS.md` with rationale.
+- **Escalations go to disk FIRST, then to a message** (GH-962 F2).
+  Agent-to-agent messaging is best-effort notification, not a
+  channel — one time-critical escalation arrived hours late, batched
+  behind unrelated pings, and the run recovered only because the same
+  content was in `DECISIONS.md`. Write the numbered entry, then send
+  the nudge, and never block on the reply. Reading side: when
+  something has gone quiet, read the run directory before concluding
+  nothing was said.
+- **The overseer's own wait discipline** is a documented contract, not
+  a matter of style: heartbeat, ONE bounded blocking wait
+  (`TaskOutput(block=true, timeout≈600s)` or equivalent), heartbeat
+  again, then act — and never end a turn while workers are mid-chunk.
+  "I will go passive and still heartbeat every ~10 min" is not
+  achievable; an idle agent runs no code and writes nothing, so it
+  trips a false STALL every window. Full cycle and rationale:
+  [`references/overseer-discipline.md`](references/overseer-discipline.md).
 
 ## Phase 3 — Morning wrap-up (REQUIRED, in order)
 
@@ -454,6 +486,12 @@ Only fall back to a local rebase when `pr_get` reports `CONFLICTING`.
   that shows the ref on origin.
 - Relaying orders as a foreman without re-reading `current-generation`
   first.
+- An overseer announcing it will "go passive and heartbeat every N
+  minutes" — it cannot; that is a false STALL per window.
+- Sending a time-critical escalation by message without writing it to
+  `DECISIONS.md` first.
+- Answering a worker's phantom merge-gate `ask` one relay at a time
+  instead of authorizing every worker at spawn.
 - Anyone but the owning worker writing to `status-<chunk>.md`.
 - Firing an `AskUserQuestion` the handoff already answered. Under afk
   this freezes the run until the supervisor returns. A mid-run
@@ -480,4 +518,7 @@ Only fall back to a local rebase when `pr_get` reports `CONFLICTING`.
 | "The watcher fired `STALL`, so something is stalled" | The watcher reports the newest mtime in the run dir; it also ages on a crew handoff and on an idle-by-design overseer. `stat` the individual files and read the chunk's git/PR state before concluding. |
 | "Skip the pre-flight, the allowlist looked fine last week" | Allow rules are shape-sensitive and repos drift. Pre-flight is minutes; a missed shape is the night. |
 | "The worker said it committed the migration on branch X — resume from there" | An edit is not a commit and a commit is not a push. Field case: the branch never existed on origin and the worktree died with four uncommitted files; the chunk was a restart. `git ls-remote --heads origin '<glob>'` before you believe it. |
+| "I'll wait passively and heartbeat every 10 minutes" | An idle agent runs no code. There is no timer and nothing wakes it. Heartbeat, make ONE bounded blocking wait, heartbeat again — or accept a false STALL every window. |
+| "I messaged the watchdog about it, so it's escalated" | Messages are best-effort and have arrived hours late, batched behind unrelated pings. `DECISIONS.md` is the authoritative channel; the message is only a nudge that it exists. |
+| "The merge gate returned `ask`, so the supervisor wants to decide" | In a fresh isolation worktree that `ask` is a resolver fallback — no session policy, no matching config glob — not a supervisor decision (GH-978). Workers stop at PR-open regardless. |
 | "Cheaper models everywhere will stretch the quota" | A failed chunk costs more than the model discount saves. Downgrade the overseer, never the crew. |
