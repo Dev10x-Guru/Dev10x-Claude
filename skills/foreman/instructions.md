@@ -273,6 +273,14 @@ turn are the most precious resources on site:
   heartbeats; a literal "silent foreman → `TaskStop`" reading would
   destroy a healthy overseer mid-wait. The handshake tells the cases
   apart.
+
+  A pause is not a death. If the **session itself** died and this is
+  a fresh one, none of the previous crew is reachable — transcripts
+  do not cross a session boundary, so every worker must be freshly
+  spawned and every inherited claim re-derived from origin before it
+  is acted on. Read
+  [`references/durability-envelope.md`](references/durability-envelope.md)
+  before building any resumption plan (GH-965).
 - Never write into a crew worker's `status-<chunk>.md`: those files
   are worker-owned exclusively, and a `Write` from anyone else
   refreshes the mtime the stall detector reads as liveness.

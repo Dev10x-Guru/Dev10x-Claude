@@ -77,3 +77,10 @@ Before writing any crew or foreman prompt, also Read
 cannot call `Skill(...)` and reach MCP wrappers only via a
 `ToolSearch` select-query, so crew workers stop at PR-open and the
 merge gate stays with this top-level session.
+
+When resuming a run whose previous session died — or when writing a
+handover another session will read — Read
+[`references/durability-envelope.md`](references/durability-envelope.md)
+first: only pushed commits and issue comments survive a session
+death, an inherited brief is a hypothesis until re-derived from
+origin, and a foreman cannot spawn named teammates (GH-965).
