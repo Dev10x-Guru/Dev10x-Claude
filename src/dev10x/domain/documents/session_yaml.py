@@ -45,6 +45,7 @@ _DURABLE_KEYS = (
     "gate_preset",
     "gate_overlays",
     "gate_overrides",
+    "human_review",
     "walk_away",
 )
 
@@ -83,6 +84,22 @@ def _coerce_allowed_overlays(value: Any) -> list[str] | None:
     if not isinstance(value, list):
         return None
     return [str(overlay) for overlay in value]
+
+
+def _coerce_human_review(value: Any) -> bool:
+    """Coerce a durable ``human_review`` value to the review posture (ADR-0019).
+
+    ``True`` — the default — means humans (including the session
+    supervisor) are in the review loop: reviewers get requested and the
+    unresolved-threads / review-requested DoD checks run. Only a real
+    boolean ``False`` disables them.
+
+    An absent, ``None``, or non-boolean value (e.g. the string ``"no"``)
+    resolves to ``True`` so a malformed setting fails toward MORE
+    oversight, never less — the same safe direction ``allowed_overlays``
+    takes when it cannot parse a policy.
+    """
+    return value if isinstance(value, bool) else True
 
 
 def _normalize_toplevel(toplevel: str) -> str:
@@ -193,6 +210,7 @@ class FrictionYamlDocument:
             "#     friction_level: adaptive\n"
             "#     gate_preset: adaptive\n"
             "#     allowed_overlays: []   # GH-805 overlay guard (empty = no overlays)\n"
+            "#     human_review: false    # ADR-0019: no humans in the review loop\n"
         )
 
     # --- Migration seam (GH-812 R4) -------------------------------------
@@ -614,6 +632,26 @@ class SessionYamlDocument:
         team repo copied worktree-wide is neutralised without a shared pin.
         """
         return _coerce_allowed_overlays(self._durable().get("allowed_overlays"))
+
+    def read_human_review(self) -> bool:
+        """Return whether humans review PRs on this project (ADR-0019, GH-950).
+
+        One durable, project-wide fact with three consequences:
+        ``Dev10x:gh-pr-request-review`` requests review only when this is
+        ``True``; ``Dev10x:verify-acc-dod`` runs the unresolved-threads and
+        review-requested checks only when this is ``True``; and ``False`` is a
+        **precondition** for the agent merging once automated review findings
+        are resolved.
+
+        ``False`` is a precondition, not a grant — the git-tracked
+        ``merge: ask`` project pin (ADR-0016 D-8) and the ``allowed_overlays``
+        guard (ADR-0017) remain independent vetoes on merge autonomy.
+
+        Defaults to ``True`` when unset or malformed, so an unconfigured repo
+        keeps today's behaviour. Supersedes the ephemeral ``review-deferred``
+        mode, which is still *read* for back-compat but no longer written.
+        """
+        return _coerce_human_review(self._durable().get("human_review"))
 
     def read_gate_policy_inputs(self) -> dict[str, Any]:
         """Return the resolver inputs for ``gate_policy`` (ADR-0016).

@@ -494,3 +494,70 @@ class TestPresetPinTools:
         monkeypatch.setattr("dev10x.session.preset_pin._bounded_toplevel", lambda *, cwd: None)
 
         assert "Not in a git repository" in (await preset_pin_status())["error"]
+
+
+class TestHumanReviewStatusTool:
+    """ADR-0019 / GH-950: the sanctioned MCP read of the review posture.
+
+    Without this tool the three skill call sites named `read_human_review()`
+    — a plain Python method no LLM orchestrator can invoke — which made the
+    documented step unimplementable (PR #999 review finding).
+    """
+
+    @pytest.mark.asyncio
+    async def test_reports_false_from_durable_config(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from dev10x.mcp.gate_tools import human_review_status
+
+        _write_session_yaml(tmp_path, "human_review: false\n")
+        monkeypatch.setattr(
+            "dev10x.domain.git_context.GitContext.toplevel",
+            property(lambda self: str(tmp_path)),
+        )
+
+        payload = await human_review_status()
+
+        assert payload["human_review"] is False
+        assert payload["repo_root"] == str(tmp_path)
+
+    @pytest.mark.asyncio
+    async def test_defaults_to_true_when_unset(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Absent means humans review — the safe direction."""
+        from dev10x.mcp.gate_tools import human_review_status
+
+        monkeypatch.setattr(
+            "dev10x.domain.git_context.GitContext.toplevel",
+            property(lambda self: str(tmp_path)),
+        )
+
+        assert (await human_review_status())["human_review"] is True
+
+    @pytest.mark.asyncio
+    async def test_malformed_value_fails_toward_more_oversight(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from dev10x.mcp.gate_tools import human_review_status
+
+        _write_session_yaml(tmp_path, 'human_review: "no"\n')
+        monkeypatch.setattr(
+            "dev10x.domain.git_context.GitContext.toplevel",
+            property(lambda self: str(tmp_path)),
+        )
+
+        assert (await human_review_status())["human_review"] is True
+
+    @pytest.mark.asyncio
+    async def test_reports_a_wire_error_outside_a_repo(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from dev10x.mcp.gate_tools import human_review_status
+
+        monkeypatch.setattr(
+            "dev10x.domain.git_context.GitContext.toplevel",
+            property(lambda self: None),
+        )
+
+        assert "Not in a git repository" in (await human_review_status())["error"]

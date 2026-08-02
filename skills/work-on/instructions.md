@@ -1773,24 +1773,45 @@ the scope decision explicit so the DoD reflects it:
 1. Detect the defer — a supervisor message scoping the session away
    from review-thread resolution ("defer the threads", "skip the
    review comments", "just the CI fix", "leave the open threads").
-2. Set `review-deferred` in `active_modes` (`.claude/Dev10x/session.yaml`)
-   so `Dev10x:verify-acc-dod` skips the unresolved-threads and
-   re-review checks (see `references/active-modes.md`):
-   - At `friction_level: adaptive`, apply the mode automatically and
-     note it in the next status line.
-   - At `friction_level: strict`/`guided`, **REQUIRED: Call
-     `AskUserQuestion`** — "Open review threads remain. Defer them
-     (set `review-deferred`) or resolve them now?" with options
-     "Defer review threads (set review-deferred)" and "Resolve threads
-     now (Go back)".
-3. Re-run the verify-acc-dod gate. With the deferred checks excluded,
-   a green run resolves honestly to **Work complete** / **Monitor for
-   review** per the table below. The unresolved-threads check is
-   *removed from scope*, not silently passed — `verify-acc-dod`
-   reports it as "skipped (mode: review-deferred)".
+2. **Do NOT write `.claude/Dev10x/session.yaml`** (ADR-0018, ADR-0019).
+   Whether humans review PRs here is a **durable project fact**, not a
+   session flag: it lives as `human_review: true|false` in the matching
+   `projects[]` entry of the global `~/.config/Dev10x/friction.yaml`.
+   Resolve the current value via
+   `mcp__plugin_Dev10x_cli__human_review_status()` (default `true`) —
+   never by reading the durable file directly — and branch:
+   - **`human_review: false`** — the project already says no humans are
+     in the review loop. `Dev10x:verify-acc-dod` skips the
+     unresolved-threads and review-requested checks on its own; nothing
+     to set. Note it in the next status line and go to step 3.
+   - **`human_review: true`** — the project says humans review, so the
+     open thread is genuinely in scope. The check STAYS RED. **REQUIRED:
+     Call `AskUserQuestion`** at every friction level (this is
+     `ALWAYS_ASK` — flipping a project's review posture is not an
+     auto-advance decision): "Open review threads remain and this
+     project is configured for human review. How should the DoD treat
+     them?" with options "Resolve threads now (Recommended)", "Change
+     the project posture — set `human_review: false` in
+     `~/.config/Dev10x/friction.yaml`", and "Hand over with the check
+     red — record the open threads in Verify-AC".
+3. Re-run the verify-acc-dod gate. When the checks are out of scope
+   (`human_review: false`), a green run resolves honestly to **Work
+   complete** / **Monitor for review** per the table below —
+   `verify-acc-dod` reports them as "skipped (human_review: false)",
+   *removed from scope* rather than silently passed.
 
-If the supervisor has NOT deferred the threads, an open thread is a
-failing blocking check → **Go back**; never "Work complete".
+If the project is configured for human review and the supervisor has not
+changed that posture, an open thread is a failing blocking check →
+**Go back**; never "Work complete".
+
+**Why there is no per-session deferral (ADR-0019).** The old flow wrote
+`review-deferred` to a file ADR-0018 retired, which the reader reached
+only in an unconfigured repo — so in any configured repo the deferral
+was written and never read, and the checks it was meant to skip ran
+anyway. The replacement is durable and project-wide because the
+underlying question is: *are humans (including this supervisor) involved
+in review on this project?* The `review-deferred` mode string is still
+**read** for back-compat, but nothing writes it.
 
 **Merge-gated completion (GH-729).** Completion is reserved for the
 **merged** state — "shippable / handed off to review" is NOT

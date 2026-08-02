@@ -34,6 +34,7 @@ projects:
     friction_level: adaptive
     active_modes: [solo-maintainer]
     allowed_overlays: []
+    human_review: false
 ```
 
 ## Schema Definition
@@ -45,6 +46,7 @@ Durable keys (in `defaults:` or a `projects[]` entry):
 | `friction_level` | string (enum) | Yes | `strict` | `adaptive` |
 | `active_modes` | list of strings | Yes | `[]` | `[solo-maintainer, open-source]` |
 | `allowed_overlays` | list of strings | No | *unset = permissive* | `[]` |
+| `human_review` | boolean | No | `true` | `false` |
 
 ### friction_level
 
@@ -95,6 +97,30 @@ This is a separate, local tier from the git-tracked
 pin is shared repo policy for specific toggles; `allowed_overlays` is a
 private, whole-overlay allow-list.
 
+### human_review (ADR-0019, GH-950)
+
+Whether humans — including the session supervisor — are in the review
+loop on this project. One durable fact with three consequences.
+
+| Value | Behavior |
+|-------|----------|
+| *unset* / malformed | Reads as `true`. An unconfigured repo keeps today's behavior, and a bad value (e.g. `"no"`) fails toward MORE oversight. |
+| `true` | `Dev10x:gh-pr-request-review` requests review; `Dev10x:verify-acc-dod` runs the **"No unresolved review threads"** and **"Review requested"** checks. An open thread is a real failing check. |
+| `false` | No review request; both checks are dropped and reported as `skipped (human_review: false)`. Merge autonomy is the *intended* third consequence but is **not wired yet** (GH-1000) — merging is still governed only by `resolve_gate(gate="merge")`, the project pin, and `merge_config.solo_maintainer`. |
+
+Read via `SessionYamlDocument.read_human_review()`.
+
+**`false` is a precondition for merge autonomy, not a grant.** The
+git-tracked `.dev10x/gate-policy.yaml` `merge: ask` pin and the
+`allowed_overlays` guard remain independent vetoes — merge autonomy
+requires this flag *and* those gates to agree, and either can refuse.
+
+This supersedes the ephemeral `review-deferred` mode, which was written
+to the retired per-repo `session.yaml` and therefore never read back in
+a configured repo. There is no per-session deferral: the posture is a
+standing property of the project. `review-deferred` is still *read* for
+back-compat but nothing writes it.
+
 ## Readers (Consumers)
 
 The file read is owned by `SessionYamlDocument`
@@ -103,9 +129,10 @@ The file read is owned by `SessionYamlDocument`
 `src/dev10x/domain/session_rules.py` consume those values and perform no
 I/O (ADR-0007 D3):
 
-1. **`SessionYamlDocument`** — owns the `session.yaml` read.
-   `read_friction_level()`, `read_active_modes()`, and
-   `read_friction_and_modes()` apply the fallbacks below.
+1. **`SessionYamlDocument`** — owns the durable-prefs read.
+   `read_friction_level()`, `read_active_modes()`,
+   `read_friction_and_modes()`, and `read_human_review()` apply the
+   fallbacks below.
 
 2. **`BuildAutonomyReassuranceRule`**
    - Receives `friction_level` and `active_modes` as fields

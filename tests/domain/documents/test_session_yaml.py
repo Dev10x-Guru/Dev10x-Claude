@@ -17,6 +17,7 @@ import yaml
 
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.documents.session_yaml import (
+    DURABLE_KEYS,
     ConfigYamlDocument,
     FrictionYamlDocument,
     SessionYamlDocument,
@@ -225,6 +226,75 @@ class TestReadAllowedOverlays:
     def test_coerces_non_string_entries(self, tmp_path: Path) -> None:
         toplevel = _write_config(tmp_path=tmp_path, content="allowed_overlays: [afk, 3]\n")
         assert SessionYamlDocument(toplevel=toplevel).read_allowed_overlays() == ["afk", "3"]
+
+
+class TestReadHumanReview:
+    """ADR-0019 / GH-950: the durable, project-wide review posture.
+
+    Replaces the ephemeral ``review-deferred`` mode, which was written to
+    the retired per-repo ``session.yaml`` and so was never read back once a
+    ``friction.yaml`` entry matched the repo. Absent/malformed must resolve
+    to ``True`` — a bad value fails toward MORE oversight, never less.
+    """
+
+    def test_reads_false_from_config(self, tmp_path: Path) -> None:
+        toplevel = _write_config(tmp_path=tmp_path, content="human_review: false\n")
+        assert SessionYamlDocument(toplevel=toplevel).read_human_review() is False
+
+    def test_reads_true_from_config(self, tmp_path: Path) -> None:
+        toplevel = _write_config(tmp_path=tmp_path, content="human_review: true\n")
+        assert SessionYamlDocument(toplevel=toplevel).read_human_review() is True
+
+    def test_defaults_to_true_when_unset(self, tmp_path: Path) -> None:
+        toplevel = _write_config(tmp_path=tmp_path, content="friction_level: guided\n")
+        assert SessionYamlDocument(toplevel=toplevel).read_human_review() is True
+
+    def test_defaults_to_true_when_both_missing(self, tmp_path: Path) -> None:
+        assert SessionYamlDocument(toplevel=str(tmp_path)).read_human_review() is True
+
+    def test_non_boolean_string_reads_as_true(self, tmp_path: Path) -> None:
+        toplevel = _write_config(tmp_path=tmp_path, content='human_review: "no"\n')
+        assert SessionYamlDocument(toplevel=toplevel).read_human_review() is True
+
+    def test_explicit_null_reads_as_true(self, tmp_path: Path) -> None:
+        toplevel = _write_config(tmp_path=tmp_path, content="human_review: null\n")
+        assert SessionYamlDocument(toplevel=toplevel).read_human_review() is True
+
+    def test_falls_back_to_pre_split_session(self, tmp_path: Path) -> None:
+        toplevel = _write(tmp_path=tmp_path, content="human_review: false\n")
+        assert SessionYamlDocument(toplevel=toplevel).read_human_review() is False
+
+    def test_matching_friction_project_entry_wins(self, tmp_path: Path) -> None:
+        """A matched projects[] entry wins outright — the GH-950 precedence."""
+        _write_friction(
+            content=yaml.safe_dump(
+                {
+                    "defaults": {"human_review": True},
+                    "projects": [{"match": [str(tmp_path)], "human_review": False}],
+                }
+            )
+        )
+        assert SessionYamlDocument(toplevel=str(tmp_path)).read_human_review() is False
+
+    def test_friction_defaults_apply_without_project_entry(self, tmp_path: Path) -> None:
+        _write_friction(content=yaml.safe_dump({"defaults": {"human_review": False}}))
+        assert SessionYamlDocument(toplevel=str(tmp_path)).read_human_review() is False
+
+    def test_matched_entry_shadows_permissive_default(self, tmp_path: Path) -> None:
+        """A project entry that omits the key inherits the defaults' value."""
+        _write_friction(
+            content=yaml.safe_dump(
+                {
+                    "defaults": {"human_review": False},
+                    "projects": [{"match": [str(tmp_path)], "friction_level": "adaptive"}],
+                }
+            )
+        )
+        assert SessionYamlDocument(toplevel=str(tmp_path)).read_human_review() is False
+
+    def test_is_a_durable_key(self) -> None:
+        """Must be in DURABLE_KEYS or readers filter it out of project entries."""
+        assert "human_review" in DURABLE_KEYS
 
 
 class TestConfigRender:

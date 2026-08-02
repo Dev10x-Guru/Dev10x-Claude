@@ -149,6 +149,40 @@
           "signals": ["deduped by name", "Working copy clean"]
         }
       ]
+    },
+    {
+      "id": 6,
+      "name": "human-review-false-skips-review-checks",
+      "prompt": "/Dev10x:verify-acc-dod bugfix  (session: friction_level adaptive, active_modes [solo-maintainer]; durable human_review: false in the matching ~/.config/Dev10x/friction.yaml projects[] entry; review-deferred NOT set; CI green, working copy clean, PR #42 OPEN; two review threads remain unresolved)",
+      "description": "Tests the ADR-0019 primary path: the durable, project-wide human_review: false pref removes every check declaring requires_human_review from scope, reported as skipped (human_review: false). This is the sanctioned replacement for the deprecated review-deferred mode, which targeted the retired session.yaml and so was never read back in a configured repo (GH-950). Eval 4 keeps covering the deprecated mode for back-compat.",
+      "expected_output": "The 'No unresolved review threads' and 'Re-review requested' checks are reported as 'skipped (human_review: false)' — resolved from the requires_human_review field in defaults.yaml, not from active_modes. Remaining checks pass, PR #42 is open → recommendation is 'Monitor for review' or the merge path. 'Work complete' is NOT papered over on the strength of the skip while the PR is unmerged.",
+      "dimensions": ["scope-deferred-review", "merge-gated-completion"],
+      "assertions": [
+        {
+          "id": "reads-durable-human-review",
+          "text": "Resolves human_review from the durable prefs (friction.yaml projects[] match) rather than reading the retired .claude/Dev10x/session.yaml",
+          "check": "behavioral",
+          "signals": ["human_review", "friction.yaml", "not session.yaml"]
+        },
+        {
+          "id": "skips-requires-human-review-checks",
+          "text": "Removes the checks declaring requires_human_review: true from scope and reports each as skipped (human_review: false)",
+          "check": "behavioral",
+          "signals": ["skipped", "human_review: false", "No unresolved review threads"]
+        },
+        {
+          "id": "skip-is-data-driven",
+          "text": "Derives WHICH checks to skip from the requires_human_review field in defaults.yaml, not from a hardcoded list in SKILL.md",
+          "check": "behavioral",
+          "signals": ["requires_human_review", "defaults.yaml"]
+        },
+        {
+          "id": "no-papered-over-completion",
+          "text": "Does NOT recommend/auto-select 'Work complete' on the strength of the skip while PR #42 is still open and unmerged",
+          "check": "behavioral",
+          "signals": ["no Work complete recommended", "PR open/unmerged"]
+        }
+      ]
     }
   ]
 }
