@@ -14,6 +14,12 @@ allowed-tools:
   - mcp__plugin_Dev10x_cli__mass_rewrite
   - mcp__plugin_Dev10x_cli__rebase_groom
   - mcp__plugin_Dev10x_cli__update_pr
+  # Phase 4 rewrites commit permalinks on both comment surfaces (GH-996):
+  # inline review-thread comments and top-level PR comments each have
+  # their own wrapper.
+  - mcp__plugin_Dev10x_cli__pr_comments
+  - mcp__plugin_Dev10x_cli__pr_review_comment_edit
+  - mcp__plugin_Dev10x_cli__issue_comment_edit
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git-groom/scripts/:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git/scripts/git-rebase-groom.sh:*)
   # Read-only Phase 1 analysis shapes (GH-997). Phase 1 prescribes these,
