@@ -31,16 +31,37 @@ def foreman() -> None:
     default=None,
     help="Repository to read origin/<base-branch> from (default: CWD).",
 )
-def probe(*, scratchpad: Path, base_branch: str, repo: Path | None) -> None:
-    """One-shot status: quota block, remote base SHA, heartbeat ages.
+@click.option("--chunk-min", default=45, show_default=True)
+@click.option(
+    "--token-budget",
+    default=0,
+    show_default=True,
+    help="Per-block token allowance (0 = infer from completed blocks).",
+)
+def probe(
+    *,
+    scratchpad: Path,
+    base_branch: str,
+    repo: Path | None,
+    chunk_min: int,
+    token_budget: int,
+) -> None:
+    """One-shot status: quota block, burn projection, base SHA, heartbeats.
 
     The base line names ``origin/<branch>`` because that is what it
     reads — asked of the remote, never of this checkout's possibly
-    stale local ref (GH-964).
+    stale local ref (GH-964). The burn line reports how many minutes
+    of block budget the current rate leaves (GH-979).
     """
     from dev10x.skills.foreman import watch as watch_skill
 
-    for line in watch_skill.probe_lines(scratchpad=scratchpad, base_branch=base_branch, repo=repo):
+    for line in watch_skill.probe_lines(
+        scratchpad=scratchpad,
+        base_branch=base_branch,
+        repo=repo,
+        chunk_min=chunk_min,
+        token_budget=token_budget,
+    ):
         click.echo(line)
 
 
@@ -62,6 +83,18 @@ def probe(*, scratchpad: Path, base_branch: str, repo: Path | None) -> None:
 @click.option("--interval-s", default=150, show_default=True)
 @click.option("--cost-step", default=50, show_default=True)
 @click.option(
+    "--chunk-min",
+    default=45,
+    show_default=True,
+    help="Expected chunk runtime — QUOTA LOW fires when the budget runs out sooner.",
+)
+@click.option(
+    "--token-budget",
+    default=0,
+    show_default=True,
+    help="Per-block token allowance (0 = infer from completed blocks).",
+)
+@click.option(
     "--max-rounds",
     default=0,
     show_default=True,
@@ -75,13 +108,17 @@ def watch(
     stall_min: int,
     interval_s: int,
     cost_step: int,
+    chunk_min: int,
+    token_budget: int,
     max_rounds: int,
 ) -> None:
     """Event loop for the Monitor tool — one line per actionable event.
 
     Emits: STALL (heartbeat silence), BASE MOVED (origin base-branch
     advanced), QUOTA MILESTONE (block cost crossed a step), QUOTA
-    RESET (new 5h block — resume interrupted crew).
+    RESET (new 5h block — resume interrupted crew), QUOTA LOW (the
+    burn rate spends the block budget before the in-flight chunk can
+    finish — checkpoint and park, GH-979).
 
     Two scratchpad files mute events that need no decision (GH-946):
     ``merged-shas`` (base-branch tips the run merged itself — matching
@@ -96,11 +133,14 @@ def watch(
         cost_step=cost_step,
         base_branch=base_branch,
         repo=repo,
+        chunk_min=chunk_min,
+        token_budget=token_budget,
     )
     click.echo(
         f"armed: base=origin/{base_branch}@{state.known_sha or 'unknown'} "
         f"block={state.known_block_id or 'none'} "
-        f"parked={'yes' if watch_skill.queue_parked(scratchpad=scratchpad) else 'no'}"
+        f"parked={'yes' if watch_skill.queue_parked(scratchpad=scratchpad) else 'no'} "
+        f"quota_ceiling_tokens={state.quota_ceiling_tokens or 'unknown'}"
     )
     sys.stdout.flush()
 
