@@ -30,6 +30,9 @@ def observation_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
         "base_branch_sha",
         lambda *, base_branch, repo=None: "abc1234",
     )
+    # Never read the real transcript history from a unit test — the
+    # inferred ceiling would vary per machine (GH-979).
+    monkeypatch.setattr(watch, "historical_token_ceiling", lambda: 0)
 
 
 def test_probe_reports_quota_base_and_heartbeats(scratchpad: Path) -> None:
@@ -66,7 +69,8 @@ def test_watch_arms_and_stays_quiet_on_calm_rounds(
     )
     assert result.exit_code == 0
     assert result.output.splitlines() == [
-        "armed: base=origin/develop@abc1234 block=2026-07-19T07:00:00.000Z parked=no"
+        "armed: base=origin/develop@abc1234 block=2026-07-19T07:00:00.000Z "
+        "parked=no quota_ceiling_tokens=unknown"
     ]
 
 
@@ -125,6 +129,53 @@ def test_watch_arm_line_reports_parked_state(
     )
     assert result.exit_code == 0
     assert "parked=yes" in result.output
+
+
+def test_probe_reports_the_burn_projection(scratchpad: Path) -> None:
+    result = CliRunner().invoke(foreman, ["probe", "--scratchpad", str(scratchpad)])
+    assert result.exit_code == 0
+    assert "burn: to_budget_min=? ceiling_tokens=unknown chunk_min=45" in result.output
+
+
+def test_watch_emits_quota_low_before_the_wall(
+    scratchpad: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import dev10x.commands.foreman as commands
+    import dev10x.skills.foreman.watch as watch
+
+    monkeypatch.setattr(
+        watch,
+        "active_quota_block",
+        lambda: {
+            "id": "2026-07-19T07:00:00.000Z",
+            "costUSD": 12.0,
+            "totalTokens": 900_000,
+            "remainingMinutes": 90,
+            "burnRate": {"tokensPerMinute": 20_000},
+        },
+    )
+    monkeypatch.setattr(commands.time, "sleep", lambda seconds: None)
+    result = CliRunner().invoke(
+        foreman,
+        [
+            "watch",
+            "--scratchpad",
+            str(scratchpad),
+            "--token-budget",
+            "1000000",
+            "--chunk-min",
+            "45",
+            "--max-rounds",
+            "2",
+            "--interval-s",
+            "0",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "quota_ceiling_tokens=1000000" in result.output
+    assert "QUOTA LOW: ~5 min of block budget left at current burn" in result.output
+    # Once per block, not once per round.
+    assert result.output.count("QUOTA LOW:") == 1
 
 
 def test_watch_emits_base_movement(scratchpad: Path, monkeypatch: pytest.MonkeyPatch) -> None:

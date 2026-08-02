@@ -14,7 +14,9 @@ from dev10x.skills.foreman import (
     base_branch_sha,
     block_identity,
     heartbeat_lines,
+    historical_token_ceiling,
     is_own_merge,
+    minutes_to_quota_exhaustion,
     newest_heartbeat_age_min,
     own_merge_shas,
     queue_parked,
@@ -390,3 +392,223 @@ class TestBaseBranchShaGateway:
         with caplog.at_level(logging.WARNING, logger=watch_module.__name__):
             assert base_branch_sha(base_branch="develop") == ""
         assert "origin/develop" in caplog.text
+
+
+class TestHistoricalTokenCeiling:
+    def test_takes_the_highest_completed_block(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            watch_module,
+            "blocks_report",
+            lambda *, active_only: ok(
+                {
+                    "blocks": [
+                        {"id": "A", "isActive": False, "totalTokens": 400_000},
+                        {"id": "B", "isActive": False, "totalTokens": 950_000},
+                        {"id": "C", "isActive": True, "totalTokens": 5_000_000},
+                    ]
+                }
+            ),
+        )
+        assert historical_token_ceiling() == 950_000
+
+    def test_ignores_gap_blocks(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            watch_module,
+            "blocks_report",
+            lambda *, active_only: ok(
+                {
+                    "blocks": [
+                        {"id": "A", "isActive": False, "totalTokens": 400_000},
+                        {"id": "gap", "isActive": False, "isGap": True, "totalTokens": 9_000_000},
+                    ]
+                }
+            ),
+        )
+        assert historical_token_ceiling() == 400_000
+
+    def test_zero_without_completed_history(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            watch_module,
+            "blocks_report",
+            lambda *, active_only: ok({"blocks": [{"id": "C", "isActive": True}]}),
+        )
+        assert historical_token_ceiling() == 0
+
+    def test_zero_on_error_result(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            watch_module,
+            "blocks_report",
+            lambda *, active_only: err("no usage data"),
+        )
+        assert historical_token_ceiling() == 0
+
+
+class TestMinutesToQuotaExhaustion:
+    def test_divides_remaining_budget_by_burn_rate(self) -> None:
+        block = {"totalTokens": 700_000, "burnRate": {"tokensPerMinute": 10_000}}
+        assert minutes_to_quota_exhaustion(block=block, ceiling_tokens=1_000_000) == 30
+
+    def test_zero_when_ceiling_already_spent(self) -> None:
+        block = {"totalTokens": 1_200_000, "burnRate": {"tokensPerMinute": 10_000}}
+        assert minutes_to_quota_exhaustion(block=block, ceiling_tokens=1_000_000) == 0
+
+    def test_none_without_a_ceiling_estimate(self) -> None:
+        block = {"totalTokens": 10, "burnRate": {"tokensPerMinute": 10_000}}
+        assert minutes_to_quota_exhaustion(block=block, ceiling_tokens=0) is None
+
+    def test_none_without_a_measured_burn_rate(self) -> None:
+        assert minutes_to_quota_exhaustion(block={"totalTokens": 10}, ceiling_tokens=1_000) is None
+        assert (
+            minutes_to_quota_exhaustion(
+                block={"totalTokens": 10, "burnRate": {"tokensPerMinute": 0}},
+                ceiling_tokens=1_000,
+            )
+            is None
+        )
+
+
+class TestQuotaLowProjection:
+    @pytest.fixture
+    def burning(self) -> dict:
+        # 300k of a 1M ceiling left at 20k/min → ~15 min of budget,
+        # well inside both the 45-min chunk and the 120-min block.
+        return {
+            "id": "2026-07-19T07:00:00.000Z",
+            "costUSD": 60.0,
+            "totalTokens": 700_000,
+            "remainingMinutes": 120,
+            "burnRate": {"tokensPerMinute": 20_000},
+        }
+
+    @pytest.fixture
+    def state(self) -> WatchState:
+        return WatchState(
+            stall_min=25,
+            cost_step=50,
+            known_sha="aaa111",
+            known_block_id="2026-07-19T07:00:00.000Z",
+            known_cost_bucket=1,
+            started_at=NOW,
+            chunk_min=45,
+            quota_ceiling_tokens=1_000_000,
+        )
+
+    def test_fires_when_budget_runs_out_inside_the_chunk(
+        self, state: WatchState, burning: dict
+    ) -> None:
+        events = state.observe(now=NOW + 60, sha="aaa111", block=burning, heartbeat_age_min=1)
+        assert events == [
+            "QUOTA LOW: ~15 min of block budget left at current burn "
+            "(120 min to reset, chunk needs ~45) — "
+            "checkpoint the in-flight chunk and park the queue"
+        ]
+
+    def test_fires_once_per_block(self, state: WatchState, burning: dict) -> None:
+        state.observe(now=NOW + 60, sha="aaa111", block=burning, heartbeat_age_min=1)
+        repeat = state.observe(now=NOW + 120, sha="aaa111", block=burning, heartbeat_age_min=1)
+        assert repeat == []
+
+    def test_rearms_after_a_block_rollover(self, state: WatchState, burning: dict) -> None:
+        state.observe(now=NOW + 60, sha="aaa111", block=burning, heartbeat_age_min=1)
+        next_block = dict(burning, id="2026-07-19T12:00:00.000Z")
+        events = state.observe(now=NOW + 120, sha="aaa111", block=next_block, heartbeat_age_min=1)
+        assert events[0].startswith("QUOTA RESET:")
+        assert events[-1].startswith("QUOTA LOW:")
+
+    def test_silent_when_budget_outlasts_the_chunk(self, state: WatchState, burning: dict) -> None:
+        roomy = dict(burning, totalTokens=0)
+        events = state.observe(now=NOW + 60, sha="aaa111", block=roomy, heartbeat_age_min=1)
+        assert events == []
+
+    def test_silent_when_exhaustion_lands_after_the_reset(
+        self, state: WatchState, burning: dict
+    ) -> None:
+        # The reset refills the budget before the burn can spend it, so
+        # there is nothing to park for.
+        rolling_over = dict(burning, remainingMinutes=10)
+        events = state.observe(now=NOW + 60, sha="aaa111", block=rolling_over, heartbeat_age_min=1)
+        assert events == []
+
+    def test_silent_without_a_ceiling_estimate(self, burning: dict) -> None:
+        blind = WatchState(
+            stall_min=25,
+            cost_step=50,
+            known_sha="aaa111",
+            known_block_id="2026-07-19T07:00:00.000Z",
+            known_cost_bucket=1,
+            started_at=NOW,
+            quota_ceiling_tokens=0,
+        )
+        events = blind.observe(now=NOW + 60, sha="aaa111", block=burning, heartbeat_age_min=1)
+        assert events == []
+
+    def test_parked_queue_is_already_holding(self, state: WatchState, burning: dict) -> None:
+        events = state.observe(
+            now=NOW + 60, sha="aaa111", block=burning, heartbeat_age_min=1, parked=True
+        )
+        assert events == []
+        assert state.quota_low_alerted_block == ""
+
+    def test_empty_block_is_not_an_observation(self, state: WatchState) -> None:
+        assert state.observe(now=NOW + 60, sha="aaa111", block={}, heartbeat_age_min=1) == []
+
+
+class TestInitialStateAndProbeProjection:
+    @pytest.fixture(autouse=True)
+    def offline_gateways(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(watch_module, "base_branch_sha", lambda **kwargs: "aaa111")
+        monkeypatch.setattr(
+            watch_module,
+            "blocks_report",
+            lambda *, active_only: ok(
+                {
+                    "blocks": (
+                        [
+                            {
+                                "id": "2026-07-19T07:00:00.000Z",
+                                "isActive": True,
+                                "costUSD": 60.0,
+                                "totalTokens": 700_000,
+                                "remainingMinutes": 120,
+                                "burnRate": {"tokensPerMinute": 20_000},
+                            }
+                        ]
+                        if active_only
+                        else [{"id": "prior", "isActive": False, "totalTokens": 1_000_000}]
+                    )
+                }
+            ),
+        )
+
+    def test_initial_state_infers_the_ceiling_from_history(self) -> None:
+        state = watch_module.initial_watch_state(
+            stall_min=25, cost_step=50, base_branch="develop", started_at=NOW
+        )
+        assert state.quota_ceiling_tokens == 1_000_000
+        assert state.chunk_min == watch_module.DEFAULT_CHUNK_MIN
+
+    def test_explicit_token_budget_overrides_history(self) -> None:
+        state = watch_module.initial_watch_state(
+            stall_min=25,
+            cost_step=50,
+            base_branch="develop",
+            started_at=NOW,
+            chunk_min=20,
+            token_budget=2_000_000,
+        )
+        assert state.quota_ceiling_tokens == 2_000_000
+        assert state.chunk_min == 20
+
+    def test_probe_reports_the_burn_projection(self, tmp_path: Path) -> None:
+        lines = watch_module.probe_lines(scratchpad=tmp_path, base_branch="develop")
+        assert lines[1] == "burn: to_budget_min=15 ceiling_tokens=1000000 chunk_min=45"
+
+    def test_probe_marks_an_unknowable_projection(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            watch_module, "active_quota_block", lambda: {"id": "A", "costUSD": 1.0}
+        )
+        monkeypatch.setattr(watch_module, "historical_token_ceiling", lambda: 0)
+        lines = watch_module.probe_lines(scratchpad=tmp_path, base_branch="develop")
+        assert lines[1] == "burn: to_budget_min=? ceiling_tokens=unknown chunk_min=45"

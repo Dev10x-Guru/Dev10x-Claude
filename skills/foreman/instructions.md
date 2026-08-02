@@ -198,7 +198,17 @@ directory — one `status-<chunk>.md` each.
 
    It emits: `STALL:` (heartbeat silence ≥ 25 min), `BASE MOVED:`,
    `QUOTA MILESTONE:`, `QUOTA RESET:` (5h block rollover — resume
-   interrupted crew).
+   interrupted crew), and `QUOTA LOW:` (GH-979) — the one
+   forward-looking event: the current burn rate spends the block's
+   budget before the in-flight chunk can finish. It fires once per
+   block, and only when exhaustion lands *before* the reset would
+   refill the budget. Its ceiling is inferred from the largest
+   completed block in local usage history; `--token-budget N` pins it
+   explicitly and `--chunk-min N` (default 45) declares how long a
+   chunk is expected to take. With no completed history the projection
+   is unknowable and the watcher stays silent rather than guessing —
+   the `armed:` line reports `quota_ceiling_tokens=unknown` when that
+   is the case, so a run knows up front it has no burn guard.
 
    Two run-directory files keep that feed decision-only (GH-946) —
    both are watchdog-owned, like `manifest.md`:
@@ -208,7 +218,7 @@ directory — one `status-<chunk>.md` each.
    | `merged-shas` | After every merge the gate performs — append the resulting base-branch tip SHA, one per line, `#` comments allowed. Read the SHA from a source already in the pre-flight surface: the `BASE MOVED old→new` event the watcher emits for the run's own merge, or the `base origin/<branch>: <sha>` line of `dev10x foreman probe`
 (it is read from the remote via `ls-remote`, so it never needs a
 fetch and never goes stale — GH-964) — never a separate raw git call the allow-list doesn't cover | A `BASE MOVED` whose new tip matches is the run's own echo: rebaselined silently, no relay, no classification turn |
-   | `parked` | Touched when the queue is deliberately held (burn gate, supervisor hold); removed on release | While present, `STALL` and `QUOTA MILESTONE` are suppressed; muted milestones roll up into one `QUOTA MILESTONE (parked rollup)` line on release, and the stall clock gets one window of grace so resuming crew is not alarmed on immediately |
+   | `parked` | Touched when the queue is deliberately held (burn gate, supervisor hold); removed on release | While present, `STALL`, `QUOTA MILESTONE` and `QUOTA LOW` are suppressed (a parked queue has no in-flight chunk to protect — the warning it would act on is already the action); muted milestones roll up into one `QUOTA MILESTONE (parked rollup)` line on release, and the stall clock gets one window of grace so resuming crew is not alarmed on immediately |
    | `current-generation` | Rewritten by the watchdog every time a foreman is spawned or replaced: one line, `G<n> <agent-name> <UTC timestamp>` | Nothing in the watcher — it is the foremen's own authority token. A foreman re-reads it before every broadcast, spawn, or relay; if the name is not its own, it stands itself down (GH-971 F3) |
 
    Keep `merged-shas` current: a skipped append costs a full relay
@@ -362,10 +372,34 @@ turn are the most precious resources on site:
   request if anything is pending, draft, conflicting, or carries
   `fixup!` commits, and send it back to the foreman with the failing
   check named.
-- **Holding the queue** (burn gate, waiting on a quota block, a
-  supervisor-only decision that stalls the whole queue) → touch
-  `parked` in the run directory before going idle and remove it on
-  release. That mutes quota-milestone spam and the stall alarms an
+- **`QUOTA LOW` → decide within the turn: finish or checkpoint, then
+  park.** This is the only event that expires: every minute spent
+  deliberating is spent out of the budget it is warning about. The
+  event names the minutes left; compare them against the in-flight
+  chunk, not against the queue.
+  - Chunk is **within those minutes of merge** (PR open, CI green or
+    nearly so, no unresolved threads) → let it land, then park. A
+    chunk abandoned one merge away costs more to resume than to
+    finish.
+  - Otherwise → relay to the foreman, which instructs the active
+    worker to **commit and push a WIP checkpoint** on its own branch
+    and post a status comment on its issue saying what is done, what
+    remains, and where the branch is. A worker frozen by exhaustion
+    cannot write that comment afterwards — the transcript is gone and
+    the tree is unreachable from any other agent, so an uncheckpointed
+    chunk is re-done from scratch.
+  - Then **park the queue**: touch `parked` and hold until
+    `QUOTA RESET`. Do not spawn the next chunk into a budget that
+    cannot carry it — that is precisely the 2026-08-01 failure, where
+    two workers burned into the wall, froze mid-task, and were
+    misread as stalls for two hours.
+  - Log the decision (minutes remaining, chunk state, checkpoint SHA
+    or "let it land") in `DECISIONS.md`. On `QUOTA RESET`, resume from
+    the checkpointed branch rather than respawning the chunk cold.
+- **Holding the queue** (burn gate, `QUOTA LOW` park, waiting on a
+  quota block, a supervisor-only decision that stalls the whole queue)
+  → touch `parked` in the run directory before going idle and remove
+  it on release. That mutes quota-milestone spam and the stall alarms an
   instructed-idle crew would otherwise trip, so the hold does not
   invent an ad-hoc batching policy per run (GH-946).
 - `QUOTA RESET` after a mid-block pause → tell the foreman to resume

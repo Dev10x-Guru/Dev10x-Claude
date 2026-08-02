@@ -106,6 +106,39 @@ resuming crew is not alarmed on before their first heartbeat lands
 (GH-946). A hold that is not flagged produces exactly the false STALL
 alarms this section warns about, one per tick.
 
+## The quota-exhaustion signature — everything stops at once
+
+A **cluster** of simultaneous silences is not a cluster of stalls. It
+is the signature of a spent usage block, and it is diagnosed from the
+*shape* of the mtimes rather than their age:
+
+| | Per-worker stall | Quota exhaustion |
+|---|---|---|
+| Mtimes | One file stale, the rest advancing | **Every** file — workers, foreman, watchdog — stops within the same minute or two |
+| Onset | Staggered, as each agent hits its own fault | Simultaneous, mid-turn, with no preceding error |
+| Git/PR state | The stale worker's branch is frozen; others move | Nothing moves anywhere in the run |
+| Ends when | A takeover or respawn is performed | `QUOTA RESET` — the next 5h block opens, unprompted |
+
+The tell is the *simultaneity*, which no per-agent fault can produce:
+independent agents do not fail in lockstep. Read the flat block of
+mtimes as one fact about the harness, not N facts about N agents.
+
+**Do not run the handshake against a quota freeze.** Every takeover,
+respawn, and probe it prescribes costs budget that no longer exists,
+and the messages cannot be delivered anyway — the 2026-08-01 run
+queued four stall events against agents that were merely frozen and
+burned the rest of the block trying to revive them (GH-979). Confirm
+with `dev10x foreman probe`: a spent block shows the burn line's
+`to_budget_min` at or near zero. Then touch `parked`, log it, and
+wait for `QUOTA RESET`.
+
+The forward-looking `QUOTA LOW:` event exists so this state is
+entered deliberately — checkpoint, park, resume — instead of being
+discovered as a mass stall two hours later. If `QUOTA LOW` never
+fired before the freeze, check whether the watcher armed with
+`quota_ceiling_tokens=unknown`: with no completed-block history it has
+no ceiling to project against and stays silent by design.
+
 ## Structural false positives — when the crew composition changes
 
 The watcher's signal is the **newest heartbeat mtime across the run
