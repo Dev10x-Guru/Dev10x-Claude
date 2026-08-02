@@ -104,16 +104,27 @@ loop on this project. One durable fact with three consequences.
 
 | Value | Behavior |
 |-------|----------|
-| *unset* / malformed | Reads as `true`. An unconfigured repo keeps today's behavior, and a bad value (e.g. `"no"`) fails toward MORE oversight. |
-| `true` | `Dev10x:gh-pr-request-review` requests review; `Dev10x:verify-acc-dod` runs the **"No unresolved review threads"** and **"Review requested"** checks. An open thread is a real failing check. |
-| `false` | No review request; both checks are dropped and reported as `skipped (human_review: false)`. Merge autonomy is the *intended* third consequence but is **not wired yet** (GH-1000) — merging is still governed only by `resolve_gate(gate="merge")`, the project pin, and `merge_config.solo_maintainer`. |
+| *unset* / malformed | Reads as `true`. An unconfigured repo keeps today's behavior, and a bad value (e.g. `"no"`) fails toward MORE oversight. Note what that costs: a repo that never set the key does not auto-merge even at `gate_preset: adaptive` with the `solo-maintainer` and `afk` overlays. Add `human_review: false` to its `projects[]` entry to opt in. |
+| `true` | `Dev10x:gh-pr-request-review` requests review; `Dev10x:verify-acc-dod` runs the **"No unresolved review threads"** and **"Review requested"** checks. An open thread is a real failing check. `resolve_gate(gate="merge")` raises a `human_review` floor, so the merge gate resolves to `ask` whatever the preset says. |
+| `false` | No review request; both checks are dropped and reported as `skipped (human_review: false)`. The merge floor lifts, and only then does the preset/pin/overlay stack decide the merge gate. |
 
-Read via `SessionYamlDocument.read_human_review()`.
+Read via `SessionYamlDocument.read_human_review()`, or from a skill via
+`mcp__plugin_Dev10x_cli__human_review_status`. The merge gate reads it
+for you, and does so **unconditionally**: a `human_review` key passed in
+a `resolve_gate` context is ignored and reported back in
+`ignored_context_fields`. Honouring it would let any caller clear the
+floor with one wire key. Both readers resolve through the same GH-978
+repo-root fallback, so a linked worktree cannot report a different
+posture from the merge gate.
 
 **`false` is a precondition for merge autonomy, not a grant.** The
 git-tracked `.dev10x/gate-policy.yaml` `merge: ask` pin and the
 `allowed_overlays` guard remain independent vetoes — merge autonomy
 requires this flag *and* those gates to agree, and either can refuse.
+This is enforced structurally rather than by convention (GH-1000):
+the precondition is a **floor**, and a floor can only force `ask`.
+Clearing `human_review` therefore removes one veto and cannot
+re-admit autonomy that any other layer withheld.
 
 This supersedes the ephemeral `review-deferred` mode, which was written
 to the retired per-repo `session.yaml` and therefore never read back in

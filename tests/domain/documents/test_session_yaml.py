@@ -180,6 +180,8 @@ class TestReadGatePolicyInputs:
             "gate_preset": None,
             "gate_overlays": [],
             "allowed_overlays": None,
+            # Absent reads as True — humans review (ADR-0019).
+            "human_review": True,
         }
 
     def test_reads_allowed_overlays_from_config(self, tmp_path: Path) -> None:

@@ -121,7 +121,7 @@ one session). Use these shapes verbatim:
 | `check_top_level_comments` | `repo` (no CWD default) | omitting `repo` |
 | `push_safe` | `args` list, e.g. `["-u", "origin", "<branch>"]` | bare call |
 | `resolve_review_thread` | `thread_ids` (list) | singular `thread_id` |
-| `resolve_gate` | `gate` (toggle name); optional `context` dict of gate facts | passing preset/friction values — the tool reads session policy itself (ADR-0016 D-2) |
+| `resolve_gate` | `gate` (toggle name); optional `context` dict of gate facts | passing preset/friction values — the tool reads session policy itself (ADR-0016 D-2); passing `human_review` on `gate="merge"` — durable policy, read unconditionally and echoed back in `ignored_context_fields` (GH-1000) |
 | `pr_close` | `pr_number` | `number` (that's `issue_close`'s param name) |
 | `resolve_plugin_origin` | `skill_paths` (list of absolute paths) | singular `skill_path` |
 | `pin_gate_preset` | `preset`; optional `scope` (`repo` default / `repo-only` / `dir`) | passing a `match` or a path — the tool derives the repo stem itself |

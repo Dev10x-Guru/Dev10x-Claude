@@ -247,6 +247,19 @@ class GateResolutionQuery:
         if self.gate == "session_adoption" and "session_stale" not in resolved_context:
             resolved_context["session_stale"] = _computed_session_stale(toplevel=self.toplevel)
 
+        # merge keys on the durable human_review pref (ADR-0019 behaviour 3,
+        # GH-1000). UNCONDITIONAL, unlike the session_stale seam above:
+        # session_stale is a per-instance fact a caller may know better,
+        # human_review is durable project policy, and honouring a supplied
+        # value would let any caller lift the floor with one wire key.
+        if self.gate == "merge":
+            if "human_review" in resolved_context:
+                ignored_context_fields = sorted({*ignored_context_fields, "human_review"})
+            # From `inputs`, not a second `read_human_review()` call:
+            # `_durable()` is not memoised, so re-reading would re-open and
+            # re-parse the same YAML on every merge-gate resolution.
+            resolved_context["human_review"] = inputs["human_review"]
+
         gate_context = GateContext(**resolved_context)
 
         # An empty load (presets/friction/ absent at runtime) falls back to the
