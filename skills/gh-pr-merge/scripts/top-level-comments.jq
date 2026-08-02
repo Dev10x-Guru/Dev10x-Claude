@@ -119,10 +119,20 @@ def active:
 # excluded below so a green final round clears stale earlier "Remaining
 # issues" (GH-873 F3).
 (([ .[] | select(is_round_summary) | round_number ] | max) // 0) as $latest_round
-# Every comment id disposed of by a "Re:" reply anywhere in the array. A reply
+# Every comment id disposed of by a "Re:" reply on EITHER surface. A reply
 # keyed to id X necessarily post-dates X, so no explicit ordering check is
 # needed — the key itself carries the "later comment" semantics (GH-907).
-| ([ .[] | reply_target_ids ] | flatten | unique) as $answered_ids
+#
+# `$extra` carries the OTHER surface's raw rows (GH-1002). The caller scans
+# issue comments and review bodies in two invocations, so scanning only `.`
+# made the disposition surface-local: a review-BODY finding could never be
+# cleared, because `gh-pr-respond` posts body-finding replies as issue
+# comments (GH-907/GH-920) and those land in the other array. That left a
+# blocking review-body finding permanently unaddressable through sanctioned
+# tooling — the only exits were rewriting the reviewer's own body or
+# bypassing the gate. Union both surfaces so a keyed reply disposes of its
+# finding wherever that finding lives.
+| ([ (.[], ($extra[]?)) | reply_target_ids ] | flatten | unique) as $answered_ids
 | [ .[]
   | select(
       ((.body // "") != "")
