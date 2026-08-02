@@ -64,8 +64,8 @@ List of named modes that customize agent behavior. Known modes:
 
 | Mode | Behavior | Set by |
 |------|----------|--------|
-| `solo-maintainer` | Skip reviewer assignment and Slack notifications. Agent assumes single owner and high autonomy. | User (set in session.yaml) |
-| `open-source` | Prefer issue templates and public-safe language. Assume external contribution norms. | User (set in session.yaml) |
+| `solo-maintainer` | Skip reviewer assignment and Slack notifications. Agent assumes single owner and high autonomy. | User (durable `active_modes` in `~/.config/Dev10x/friction.yaml`) |
+| `open-source` | Prefer issue templates and public-safe language. Assume external contribution norms. | User (durable `active_modes` in `~/.config/Dev10x/friction.yaml`) |
 | `swarm-child` | Internal mode for fanout skill (GH-300+). Agent is part of a swarm and reports to orchestrator. | Skill (set by fanout orchestrator) |
 
 Empty list is valid (no modes active).
@@ -158,26 +158,45 @@ All readers handle missing/null fields gracefully — no exceptions are raised.
 
 ## Template
 
-Users can create a minimal session.yaml:
+Durable preferences live in the **global**
+`~/.config/Dev10x/friction.yaml`, keyed by first-match-wins project
+dir-path globs (ADR-0018). There is no per-repo session file to
+create — writing one under a repo's `.claude/` trips Claude Code's
+self-settings consent gate on every session and is never read back
+in a repo that has a `friction.yaml` entry.
 
 ```yaml
-# ~/.claude/Dev10x/session.yaml
-friction_level: adaptive
-active_modes:
-  - solo-maintainer
+# ~/.config/Dev10x/friction.yaml
+defaults:
+  friction_level: guided
+  active_modes: []
+projects:
+  - match: ["*/my-solo-repo", "*/my-solo-repo-*"]
+    gate_preset: adaptive
+    gate_overlays: [afk, solo-maintainer]
+    active_modes: [solo-maintainer]
+    human_review: false
 ```
 
-Or:
+Note that `active_modes` is listed alongside `gate_overlays` rather
+than replaced by it. Overlays feed `resolve_gate`; `active_modes`
+feeds the non-gate consumers (`verify-acc-dod`'s mode filter,
+playbook step `modes:` blocks). `legacy_session_mapping()` maps
+`active_modes` → overlays but never the reverse, so an overlay-only
+entry leaves those consumers seeing `[]`. Set both when a mode needs
+to reach both surfaces.
 
-```yaml
-friction_level: guided
-active_modes:
-  - open-source
-```
+**Do not hand-write this file when it is absent** — run
+`dev10x session seed` (or `Skill(Dev10x:session-config-seed)`), the
+same idempotent writer the `post-checkout` hook uses, so the shape
+stays consistent across entry points. To pin a preset for the repo
+you are sitting in, prefer
+`mcp__plugin_Dev10x_cli__pin_gate_preset`, which derives the glob
+from the git common dir so every present and future worktree matches.
 
 ## Testing
 
-Verify session.yaml parsing in
+Verify durable-pref parsing in
 `tests/domain/documents/test_session_yaml.py` (file reads + fallbacks)
 and rule behaviour in `tests/hooks/test_orchestrators.py` (value-based):
 

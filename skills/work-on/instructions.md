@@ -808,17 +808,19 @@ resolution algorithm needs.
    any `condition` override from the reference to each expanded
    step. Error on missing fragments; detect circular refs
    (max depth 3).
-6. **Apply active modes:** Read `active_modes` from
-   `.claude/Dev10x/session.yaml` (session) and the project
+6. **Apply active modes:** Read the resolved `active_modes` — the
+   matching `projects[]` entry of `~/.config/Dev10x/friction.yaml`,
+   falling back to its `defaults:` block (ADR-0018) — and the project
    playbook file. For each step with a `modes:` mapping:
    - If any active mode says `skip`, remove the step
    - Otherwise merge field overrides from active modes
      (last-listed mode wins on conflicts)
    - Apply `mode_extensions` from project file on top
    See `references/execution-modes.md` for precedence rules.
-7. **Apply friction-level adaptations:** Read `friction_level`
-   from `.claude/Dev10x/session.yaml`. For each step with a
-   `friction:` mapping matching the current level:
+7. **Apply friction-level adaptations:** Read the resolved
+   `friction_level` from the same `~/.config/Dev10x/friction.yaml`
+   entry. For each step with a `friction:` mapping matching the
+   current level:
    - If `skip: true`, remove the step
    - Otherwise merge field overrides (prompt, subject, etc.)
    See `references/friction-levels.md` § Playbook Integration.
@@ -1185,8 +1187,9 @@ autonomous behavior auditable upfront — without it, supervisors
 cannot tell whether the session will auto-merge or pause for
 confirmation, which is the visibility gap GH-189 closes.
 
-Read `friction_level` and `active_modes` from
-`.claude/Dev10x/session.yaml` and print:
+Read the resolved `friction_level` and `active_modes` from the
+matching `projects[]` entry of `~/.config/Dev10x/friction.yaml`
+(falling back to `defaults:`) and print:
 
 ```
 Session mode summary
@@ -1289,14 +1292,16 @@ calls immediately — do NOT defer or skip:
 2. `mcp__plugin_Dev10x_cli__plan_sync_set_context(args=["gathered_summary=<1-3 sentence summary>"])`
 3. **When bundling (GH-196):** `mcp__plugin_Dev10x_cli__plan_sync_set_context(args=["bundling=true", "batches=<JSON array of arrays, e.g. [[\"GH-12\",\"GH-14\"],[\"GH-21\"]]>"])`. Skip this call entirely when `tickets` has fewer than 2 ticket IDs or the user chose Strategy A (fanout). When skipped, downstream consumers treat the absence as `bundling=false`.
 
-**Backfill session identity (GH-755).** Now that the plan's ticket
-list is resolved, write `tickets:` (and confirm `branch:`) into the
-top-level of `.claude/Dev10x/session.yaml` — these are the freshness
-inputs the Phase 0 `session_adoption` gate reads on the next
-same-branch invocation (see Phase 0 § "Write session identity").
-Apply the read-before-write guard: skip when both already match on
-disk. This is the session-identity write, distinct from the
-plan-sync context calls above.
+**Session identity needs no separate write (GH-755, retired by
+ADR-0018).** The `tickets=` and `branch` values persisted by the
+plan-sync calls above ARE the freshness inputs the Phase 0
+`session_adoption` gate reads on the next same-branch invocation —
+`_computed_session_stale()` derives staleness from the plan-sync
+identity, not from any per-repo file. The original GH-755 step wrote
+them a second time into `.claude/Dev10x/session.yaml`; that file is
+retired, the write trips the self-settings consent gate, and nothing
+reads it back in a repo with a `friction.yaml` entry. Do not perform
+it — the plan-sync calls above are the whole of the identity write.
 
 **Attribution keys (GH-152):** The `work_on` key with value
 `"work-on"` is the audit attribution string — skill audits
@@ -1508,8 +1513,8 @@ rebase, force-push, or re-monitor a PR that already merged.
 
 ### Solo-Maintainer Post-Create Monitor Mandate (GH-185)
 
-**Hard rule:** When `.claude/Dev10x/session.yaml` has
-`active_modes` containing `solo-maintainer`, the Phase 4
+**Hard rule:** When the resolved `active_modes` contains
+`solo-maintainer`, the Phase 4
 shipping sequence MUST invoke `Skill(Dev10x:gh-pr-monitor)`
 immediately after `Skill(Dev10x:gh-pr-create)` completes
 (success OR "PR already exists"). This is NOT suppressible by
@@ -1539,8 +1544,9 @@ until `Skill(Dev10x:gh-pr-monitor)` has run end-to-end.
 
 ### Swarm-Child Auto-Advance (GH-368 F2, GH-385 F1)
 
-**Hard rule:** When `.claude/Dev10x/session.yaml` has
-`active_modes` containing `swarm-child`, work-on MUST
+**Hard rule:** When the resolved `active_modes` contains
+`swarm-child` (dispatch-time, set by the fanout orchestrator —
+ADR-0019 keeps it out of the durable file), work-on MUST
 auto-advance past `Skill(Dev10x:ticket-branch)` without a
 continuation prompt. The branch is not a milestone — it is
 setup infrastructure. After the branch is created, immediately
@@ -1935,7 +1941,7 @@ overrides a step's `subject:` or `prompt:` does NOT remove the
 step's `skills:` field. The skill delegation still applies —
 the override changes only the documented behavior the skill
 should adopt. The agent MUST invoke `Skill()` and let the skill
-read the active mode from `session.yaml` and apply the override
+read the active mode from the durable prefs and apply the override
 internally. Taking the prompt override literally and running
 the raw command directly bypasses the skill's setup, validation,
 and side effects.
@@ -2290,8 +2296,8 @@ decides whether that recommendation needs confirmation — see below.
    the `milestone` field from `mcp__plugin_Dev10x_cli__issue_get`
    or the Linear project field. Skip this check if any ticket
    lacks a milestone field.
-2. **Solo-maintainer mode active** — `active_modes` in
-   `.claude/Dev10x/session.yaml` contains `solo-maintainer`.
+2. **Solo-maintainer mode active** — the resolved `active_modes`
+   contains `solo-maintainer`.
    Team reviewers imply separate review cycles, so fanout
    remains correct for team modes.
 3. **Small/medium effort** — no ticket is labeled `effort:L`,
