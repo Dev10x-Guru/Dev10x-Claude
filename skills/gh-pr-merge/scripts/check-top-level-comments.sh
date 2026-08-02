@@ -23,9 +23,17 @@ PR_NUMBER="$3"
 
 FILTER="$(dirname "$0")/top-level-comments.jq"
 
-COMMENTS=$(gh api "repos/${OWNER}/${REPO}/issues/${PR_NUMBER}/comments" \
-  | jq -f "${FILTER}" --arg src comment)
-REVIEWS=$(gh api "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/reviews" \
-  | jq -f "${FILTER}" --arg src review)
+# Fetch both surfaces BEFORE filtering: each invocation needs the other's
+# rows so a "Re:"-keyed reply disposes of its finding across surfaces
+# (GH-1002). gh-pr-respond posts review-BODY replies as issue comments
+# (GH-907/GH-920), so a surface-local scan left those findings permanently
+# unaddressable.
+COMMENTS_RAW=$(gh api "repos/${OWNER}/${REPO}/issues/${PR_NUMBER}/comments")
+REVIEWS_RAW=$(gh api "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/reviews")
+
+COMMENTS=$(printf '%s' "${COMMENTS_RAW}" \
+  | jq -f "${FILTER}" --arg src comment --argjson extra "${REVIEWS_RAW}")
+REVIEWS=$(printf '%s' "${REVIEWS_RAW}" \
+  | jq -f "${FILTER}" --arg src review --argjson extra "${COMMENTS_RAW}")
 
 jq -n --argjson c "${COMMENTS}" --argjson r "${REVIEWS}" '$c + $r'

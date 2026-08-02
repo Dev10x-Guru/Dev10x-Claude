@@ -53,11 +53,33 @@ FIXTURE = [
 pytestmark = pytest.mark.skipif(shutil.which("jq") is None, reason="jq not on PATH")
 
 
-def _run_filter(rows: list[dict], src: str, tmp_path: Path) -> list[dict]:
+def _run_filter(
+    rows: list[dict],
+    src: str,
+    tmp_path: Path,
+    cross_surface: list[dict] | None = None,
+) -> list[dict]:
+    """Run the filter over one surface.
+
+    ``cross_surface`` is the OTHER surface's raw rows, which the real caller
+    always supplies so a ``Re:``-keyed reply disposes of its finding across
+    surfaces (GH-1002). Defaults to empty, matching a single-surface scan.
+    """
     fixture = tmp_path / "rows.json"
     fixture.write_text(json.dumps(rows))
     result = subprocess.run(
-        ["jq", "-f", str(FILTER), "--arg", "src", src, str(fixture)],
+        [
+            "jq",
+            "-f",
+            str(FILTER),
+            "--arg",
+            "src",
+            src,
+            "--argjson",
+            "extra",
+            json.dumps(cross_surface or []),
+            str(fixture),
+        ],
         capture_output=True,
         text=True,
         check=True,
@@ -449,3 +471,73 @@ class TestOnlyLatestRoundIsAuthoritative:
         # Round 1 superseded, Round 2 clean, standalone finding still flagged.
         selected = _run_filter(rows, "comment", tmp_path)
         assert [r["id"] for r in selected] == [48]
+
+
+class TestCrossSurfaceDisposition:
+    """GH-1002: a keyed reply must dispose of its finding on EITHER surface.
+
+    The caller scans issue comments and review bodies in two jq invocations.
+    Scanning replies only within the current array made the disposition
+    surface-local, so a blocking review-BODY finding could never be cleared —
+    `gh-pr-respond` posts body-finding replies as issue comments (GH-907,
+    GH-920), which land in the other array. The only exits were rewriting the
+    reviewer's own body or bypassing the merge gate.
+    """
+
+    REVIEW_FINDING = {
+        "id": 4839278701,
+        "user": {"login": "claude", "type": "Bot"},
+        "state": "COMMENTED",
+        "body": "## Claude Code Review (Round 1)\n\n**CRITICAL** — Step 0 has no backing tool",
+    }
+    ISSUE_COMMENT_REPLY = {
+        "id": 5159664533,
+        "user": {"login": "janusz-10x", "type": "Bot"},
+        "body": "Re: comment 4839278701 — Claude Code Review (Round 1)\n\nBoth findings fixed.",
+    }
+
+    def test_review_body_finding_blocks_without_a_reply(self, tmp_path: Path) -> None:
+        selected = _run_filter([self.REVIEW_FINDING], "review", tmp_path)
+        assert [row["id"] for row in selected] == [4839278701]
+
+    def test_issue_comment_reply_disposes_of_a_review_body_finding(self, tmp_path: Path) -> None:
+        """The regression: reply on `comments`, finding on `reviews`."""
+        selected = _run_filter(
+            [self.REVIEW_FINDING],
+            "review",
+            tmp_path,
+            cross_surface=[self.ISSUE_COMMENT_REPLY],
+        )
+        assert selected == []
+
+    def test_cross_surface_union_does_not_clear_an_unrelated_finding(self, tmp_path: Path) -> None:
+        """Widening the scan must not turn into a blanket clear."""
+        unrelated = {
+            "id": 4839299999,
+            "user": {"login": "claude", "type": "Bot"},
+            "state": "COMMENTED",
+            "body": "**CRITICAL** — a different, still-unanswered finding",
+        }
+        selected = _run_filter(
+            [self.REVIEW_FINDING, unrelated],
+            "review",
+            tmp_path,
+            cross_surface=[self.ISSUE_COMMENT_REPLY],
+        )
+        assert [row["id"] for row in selected] == [4839299999]
+
+    def test_reply_on_reviews_disposes_of_an_issue_comment_finding(self, tmp_path: Path) -> None:
+        """The union is symmetric — it works in both directions."""
+        issue_finding = {
+            "id": 5159183532,
+            "user": {"login": "claude", "type": "Bot"},
+            "body": "- **REQUIRED:** Fixup commits remaining.",
+        }
+        review_reply = {
+            "id": 4839400000,
+            "user": {"login": "janusz-10x", "type": "Bot"},
+            "state": "COMMENTED",
+            "body": "Re: comment 5159183532 — squashed.",
+        }
+        selected = _run_filter([issue_finding], "comment", tmp_path, cross_surface=[review_reply])
+        assert selected == []
