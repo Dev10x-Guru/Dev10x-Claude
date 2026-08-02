@@ -3056,3 +3056,118 @@ class TestCreatePrBaseBranchGuard:
         assert isinstance(result, SuccessResult)
         assert result.value["pr_number"] == 7
         mock_run_script.assert_called_once()
+
+
+class TestIssueComments:
+    """GH-993 — the wrapper must return a Mapping, never a bare array.
+
+    ``gh-issue-comments.sh`` unwrapped its payload with ``-q '.comments'``,
+    so ``_run_and_parse`` handed a ``list`` to ``SuccessResult``. At the MCP
+    boundary ``to_dict()`` then ran ``dict(<list of comment dicts>)`` and
+    died with "dictionary update sequence element #0 has length 11; 2 is
+    required" — while the empty-array case degraded to a silent ``{}``.
+    """
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_returns_comments_under_mapping_key(
+        self,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        mock_run_script.return_value = _completed(
+            stdout=json.dumps({"comments": [{"author": {"login": "wooyek"}, "body": "hi"}]})
+        )
+
+        result = await gh.issue_comments(number=967)
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["comments"][0]["body"] == "hi"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_wire_conversion_survives_a_comment_with_many_keys(
+        self,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        # The crash was triggered by to_dict(), not by the wrapper itself:
+        # an 11-key comment is what produced "element #0 has length 11".
+        comment = {f"field{index}": index for index in range(11)}
+        mock_run_script.return_value = _completed(stdout=json.dumps({"comments": [comment]}))
+
+        result = await gh.issue_comments(number=967)
+
+        assert isinstance(result, SuccessResult)
+        assert result.to_dict() == {"comments": [comment]}
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_empty_comment_list_stays_an_explicit_empty_list(
+        self,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        # The silent-failure half: a bare [] used to become {}, so callers
+        # read "no comments" from what was really a broken payload.
+        mock_run_script.return_value = _completed(stdout=json.dumps({"comments": []}))
+
+        result = await gh.issue_comments(number=993)
+
+        assert isinstance(result, SuccessResult)
+        assert result.value == {"comments": []}
+
+
+class TestRunAndParseMappingContract:
+    """GH-993 — non-object JSON fails loud instead of at the wire boundary."""
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_rejects_a_bare_json_array(
+        self,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        mock_run_script.return_value = _completed(stdout=json.dumps([{"a": 1}]))
+
+        result = await gh.issue_comments(number=967)
+
+        assert isinstance(result, ErrorResult)
+        assert "expected an object" in result.error
+        assert "gh-issue-comments.sh" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_rejects_a_bare_json_scalar(
+        self,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        mock_run_script.return_value = _completed(stdout="42")
+
+        result = await gh.issue_comments(number=967)
+
+        assert isinstance(result, ErrorResult)
+        assert "JSON int" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_non_json_still_reaches_the_fallback(
+        self,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        # The Mapping guard must not intercept the key=value path.
+        mock_run_script.return_value = _completed(stdout="tracker=github\nticket_number=15")
+
+        result = await gh.detect_tracker(ticket_id="GH-15")
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["tracker"] == "github"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_non_json_without_fallback_wraps_raw_output(
+        self,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        mock_run_script.return_value = _completed(stdout="not json at all")
+
+        result = await gh.issue_comments(number=967)
+
+        assert isinstance(result, SuccessResult)
+        assert result.value == {"raw_output": "not json at all"}
