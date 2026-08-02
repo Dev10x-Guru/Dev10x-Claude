@@ -181,6 +181,15 @@ directory, `ExitWorktree` is unavailable to isolated subagents, and
 cross-worktree file copies have failed **silently** — five files
 reported copied, none present on recheck, no error surfaced (GH-957).
 
+Nor can a subagent talk its way in with `EnterWorktree`. That call
+**reports success** and then wedges the agent's Bash permanently —
+every later command, `pwd` included, is refused by the isolation
+guard, and `ExitWorktree` refuses too, so there is no way back
+(GH-977). It is the one failure here that is loud but *too late*:
+the damage is done at the call, not reported at the call. Full
+rules for reaching another worktree's content:
+[`worktree-recovery.md`](worktree-recovery.md).
+
 So respawn recovers a *chunk*, never a *tree*. Work that exists only
 as uncommitted files in a dead worker's worktree is unreachable to
 every agent below the watchdog. Two sanctioned paths:
@@ -196,6 +205,8 @@ every agent below the watchdog. Two sanctioned paths:
 What is NOT a path: respawning a worker and telling it to "pick up
 where the last one left off". It cannot see the tree, and the failure
 is silent, so it will report success on work that does not exist.
+Nor is instructing that worker to `EnterWorktree` into the dead one —
+that trades a silent no-op for a wedged agent (GH-977).
 
 The prevention is upstream of all of this — a worker that pushes
 early has nothing stranded. Uncommitted work in an isolation worktree
