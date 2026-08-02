@@ -256,6 +256,13 @@ scoped. New tickets divide into **configuration** and **estimation**
 tickets — each needs a JTBD Job Story, scope, acceptance criteria,
 dependencies (see `epics.md`).
 
+**Optional presentation:** for a long workshop record, or a decision
+whose alternatives are easier to weigh side by side, consider also
+rendering it as an HTML artifact — see
+[`../../references/html-artifact-reporting.md`](../../references/html-artifact-reporting.md).
+Optional, never a gate: the markdown deliverables above remain the
+durable record and the quality checklist passes without an artifact.
+
 ---
 
 ## Reference Files
@@ -277,6 +284,7 @@ Read on demand — SKILL.md is the workflow; references hold the depth.
 | `references/stress-test-protocol.md` | Validating a model change or extension |
 | `references/session-deliverables.md` | Producing artifacts at end of session |
 | `references/document-structure.md` | Scaffolding docs/ for a new project |
+| `../../references/html-artifact-reporting.md` | Deciding whether a long or comparison-heavy report is worth rendering as an HTML artifact (optional) |
 | `../../references/domain/pricing-pipeline.md` | Working on pricing, rates, or cost calculation (worked archetype example) |
 | `../../references/domain/bibliography.md` | Sourcing citations; pre-workshop facilitator ramp reading |
 
