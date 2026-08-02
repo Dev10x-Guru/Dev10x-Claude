@@ -1455,12 +1455,24 @@ missing, re-read this section before proceeding.
 **Hard rule (GH-505, GH-776, GH-929):** When the plan includes
 a "Groom commit history" step, you MUST invoke
 `Skill(Dev10x:git-groom)` and let the skill run its own
-analysis. Do NOT run `git develop-log`, `git log`, or any
-commit inspection to pre-assess whether grooming is needed —
-not before invoking the skill, and not after invoking the
-skill to override its decision. The groom skill's Phase 2
-strategy gate determines whether grooming is required — that
-decision belongs to the skill, not to the orchestrator.
+analysis. **As the orchestrator, outside the skill,** do NOT run
+`git develop-log`, `git log`, or any commit inspection to
+pre-assess whether grooming is needed — not before invoking the
+skill, and not after invoking the skill to override its
+decision. The groom skill's Phase 2 strategy gate determines
+whether grooming is required — that decision belongs to the
+skill, not to the orchestrator.
+
+**Scope of the prohibition (GH-997).** This rule binds the
+*caller*, not the callee. `Dev10x:git-groom` Phase 1 opens with
+its own `git log` / `git merge-base` analysis — that is the
+skill's first documented step, and running it while executing
+the skill is compliant, not a violation. Read the rule as: do
+not inspect history to **predict** the groom's outcome from
+outside; inspection **inside** `Dev10x:git-groom` Phase 1 is the
+skill doing its job. Without this scoping the two documents read
+as contradictory instructions, which plausibly contributed to
+the three recorded recurrences below.
 
 **Anti-pattern (GH-776, GH-929):** The orchestrator
 pre-assessed "single commit, nothing to groom" and marked
