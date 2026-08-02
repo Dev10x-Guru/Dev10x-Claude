@@ -172,6 +172,47 @@ detector reports *a property of the file set*, and only the controller
 can turn that into a claim about an agent. A `STALL:` event is a
 prompt to look, never a verdict.
 
+## Alive-but-not-heartbeating — the second liveness signal (GH-967)
+
+The heartbeat file is a **cooperative** signal: it moves only when the
+model chooses to call `Write`. So mtime alone cannot separate the two
+states that matter most —
+
+| State | Heartbeat mtime | Own tool-call activity |
+|---|---|---|
+| Dead / wedged | stale | stale |
+| **Alive but not heartbeating** | stale | **recent** |
+| Healthy | fresh | recent |
+
+Every incident in the 2026-08-01 run was the middle row, and the
+ambiguity cost 30–90 minutes per incident before a stand-down
+handshake even began.
+
+**Check the worker's own tool-call activity alongside the heartbeat
+file** — `audit_hook_recent` / the audit log keyed by `agentId`, or any
+harness-level last-tool-call timestamp. The two signals disagreeing
+*is* the diagnosis:
+
+- **Heartbeat stale, tool calls recent** → alive but absorbed. Send a
+  plain nudge at ~10–15 min of heartbeat silence. Do **not** declare a
+  stall, do not start the stand-down handshake, and do not `TaskStop` —
+  killing this worker throws away real in-flight work (the run lost a
+  complete `gate_query.py` fix and a finished reference doc this way,
+  both one edit from done).
+- **Both stale** → genuine inactivity. This is the only shape that
+  earns the full stand-down handshake and the destructive kill
+  decision.
+
+Reserve `TaskStop` for the both-stale case. A nudge is cheap and
+reversible; a kill on a live worker is neither.
+
+**The durable fix is to stop depending on model cooperation.** A
+PostToolUse hook on the worker's own session could append a
+lightweight `last tool: <name> at <T>` line to its status file
+regardless of whether the model remembers to heartbeat — the same
+move `audit-wrap` already makes for hook timing, which captures
+duration without asking the wrapped script to report it.
+
 ## Takeover cannot reach the dead worker's tree
 
 A respawned `Agent(isolation="worktree")` gets a **fresh** worktree.
@@ -180,6 +221,27 @@ for it to reach one: its Bash refuses to run outside its own isolation
 directory, `ExitWorktree` is unavailable to isolated subagents, and
 cross-worktree file copies have failed **silently** — five files
 reported copied, none present on recheck, no error surfaced (GH-957).
+
+**Scope of that silent-copy claim (GH-966).** A controlled retest on
+2026-08-02 did **not** reproduce it through the `Write` tool: a write
+from one isolation worktree into a sibling (dead) worktree succeeded
+and read back correctly. So the silent-copy failure is *not*
+unconditional and is not a property of `Write`; the GH-957 incident
+most likely sits in the rescue path's own copy mechanism, or depends
+on a precondition not captured then (the target's git index state, a
+race with worktree teardown). Treat "cross-worktree copies fail
+silently" as a hazard worth verifying after the fact, not as a
+guaranteed block — and still do not build a recovery path on it.
+
+What the retest **did** reproduce is the same *class* of defect on a
+different surface: a Bash `cd` into a sibling worktree completes with
+no output and no error, but a separate later command shows the CWD
+never moved — the isolation guard silently pins it back. That is not
+the `EnterWorktree` wedge below (Bash keeps working); it is a silent
+no-op. Any relative-path operation written after such a `cd` will
+quietly target the wrong tree. **Always verify with a separate `pwd`
+after crossing worktrees, and never trust a bare `cd` as proof of
+location.**
 
 Nor can a subagent talk its way in with `EnterWorktree`. That call
 **reports success** and then wedges the agent's Bash permanently —
@@ -225,6 +287,23 @@ this hit four consecutive opus spawns across two chunks, while the
 same chunks on sonnet ran the full lifecycle without a stall
 (GH-956). Root cause is still open — treat the tier default as risk
 management, not as a settled explanation.
+
+**Sonnet reduces the risk; it does not eliminate it (GH-967).** The
+tier correlation held at n=3 opus incidents, which is what motivated
+the default. It broke at n=4: a **sonnet** worker on the very next
+run stalled with the identical shape (one early heartbeat, then
+silence through active, productive work). The full 2026-08-01 count
+is 6 clean opus chunks against 3 opus incidents and 1 sonnet
+incident — enough to keep the default on risk-reduction grounds, not
+enough to call sonnet immune. Do not skip the liveness checks in
+§ Alive-but-not-heartbeating on a sonnet worker.
+
+The best-supported mechanism is not a tier effect at all: heartbeats
+are cooperative and nothing preempts a model mid-turn to emit one, so
+any sufficiently absorbing multi-file burst can swallow the cadence
+on any tier. See § Alive-but-not-heartbeating for the detection
+consequence and `crew-prompt-template.md` § 4 for the event-triggered
+heartbeat wording that addresses it.
 
 ## Repeated stalls on one tier — switch the tier
 
