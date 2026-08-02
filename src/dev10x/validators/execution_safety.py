@@ -37,7 +37,7 @@ from typing import ClassVar
 
 from dev10x.domain import HookInput, HookResult
 from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.domain.common.bash_tokens import ENV_VAR_RE
+from dev10x.domain.common.bash_tokens import ENV_VAR_RE, substitution_bodies
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
 
@@ -104,13 +104,17 @@ def _heredoc_into_re(interpreter: str) -> re.Pattern[str]:
     """Match a heredoc/here-string feeding ``interpreter`` via stdin (GH-687).
 
     The interpreter must appear at a command boundary (start, pipe, ``;``,
-    ``&``, or newline), optionally preceded by ``VAR=value`` env prefixes,
-    and be followed on the same line by ``<<`` (heredoc) or ``<<<``
-    (here-string). Matched on the whole command so a ``|`` inside the
-    heredoc body never confuses pipeline splitting.
+    ``&``, ``(``, or newline), optionally preceded by ``VAR=value`` env
+    prefixes, and be followed on the same line by ``<<`` (heredoc) or
+    ``<<<`` (here-string). Matched on the whole command so a ``|`` inside
+    the heredoc body never confuses pipeline splitting.
+
+    Substitutions need no boundary character here (GH-986). Each body is
+    passed in as its own unit by :func:`_command_units`, stripped of its
+    ``$(``/backtick wrapper, so the interpreter lands at ``^``.
     """
     return re.compile(
-        r"(?:^|[|;&\n])\s*"
+        r"(?:^|[|;&(\n])\s*"
         r"(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*" + re.escape(interpreter) + r"\b[^\n]*?<<"
     )
 
@@ -128,12 +132,43 @@ def _command_position_re(interpreter: str) -> re.Pattern[str]:
     Command position means: start of string or after a ``|``/``;``/``&``/
     ``(``/newline separator, optionally preceded by ``VAR=value`` env
     prefixes and optionally carrying a directory prefix (``/bin/sh``).
+
+    Note the scope: this pattern guards the ``shlex``-raised branch only.
+    An interpreter inside a substitution is caught by checking each body
+    as its own unit (:func:`_command_units`), not here.
     """
     return re.compile(
         r"(?:^|[|;&(\n])\s*"
         r"(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*"
         r"(?:[\w./~-]*/)?" + re.escape(interpreter) + r"\b"
     )
+
+
+def _command_units(command: str) -> tuple[str, ...]:
+    """``command`` plus every command it nests in a substitution (GH-986).
+
+    A substitution runs its body as its own command, so each body is a
+    unit the interpreter guard must judge on its own terms.
+
+    Flattened ONCE per check rather than re-derived per interpreter. The
+    guard runs on every Bash tool call under a 2x-baseline CI benchmark,
+    and `_check_one_interpreter`'s substring guard admits ``sh`` for any
+    command merely mentioning ``bash``, ``zsh``, or a ``.sh`` filename —
+    so a per-interpreter scan would repeat this work several times over
+    on very ordinary commands.
+
+    The sweep is breadth-first because ``substitution_bodies`` returns
+    only the outermost bodies: re-scanning each one is what reaches a
+    nested ``$(python3 -c "$(echo x)")``.
+    """
+    units = [command]
+    pending = [command]
+    while pending:
+        for body in substitution_bodies(pending.pop(), include_backticks=True):
+            if body.strip():
+                units.append(body)
+                pending.append(body)
+    return tuple(units)
 
 
 # python3 plus the shell interpreters that already block inline `-c`.
@@ -283,30 +318,36 @@ class ExecutionSafetyValidator(ValidatorBase):
 
         python3 keeps its `-m` carve-out and the narrow approved-prefix
         set; the shell interpreters additionally allow /tmp/Dev10x/.
-        First match wins (python3 checked before the shells).
+        First match wins (python3 checked before the shells), so the
+        interpreter loop stays outermost and each one sweeps every unit
+        before the next interpreter is tried.
         """
-        result = self._check_one_interpreter(
-            command=command,
-            interpreter="python3",
-            approved=APPROVED_ABS_PREFIXES,
-            message=PYTHON3_INLINE_MSG,
-            allow_module=True,
-            dash_s_stdin=False,  # python3 -s is a site-flag, not stdin delivery
-        )
-        if result:
-            return result
+        units = _command_units(command)
 
-        for interpreter in SHELL_INTERPRETERS:
+        for unit in units:
             result = self._check_one_interpreter(
-                command=command,
-                interpreter=interpreter,
-                approved=SHELL_APPROVED_ABS_PREFIXES,
-                message=SHELL_INTERP_MSG,
-                allow_module=False,
-                dash_s_stdin=True,  # bash/sh/zsh -s reads the script from stdin
+                command=unit,
+                interpreter="python3",
+                approved=APPROVED_ABS_PREFIXES,
+                message=PYTHON3_INLINE_MSG,
+                allow_module=True,
+                dash_s_stdin=False,  # python3 -s is a site-flag, not stdin delivery
             )
             if result:
                 return result
+
+        for interpreter in SHELL_INTERPRETERS:
+            for unit in units:
+                result = self._check_one_interpreter(
+                    command=unit,
+                    interpreter=interpreter,
+                    approved=SHELL_APPROVED_ABS_PREFIXES,
+                    message=SHELL_INTERP_MSG,
+                    allow_module=False,
+                    dash_s_stdin=True,  # bash/sh/zsh -s reads the script from stdin
+                )
+                if result:
+                    return result
 
         return None
 
@@ -320,6 +361,9 @@ class ExecutionSafetyValidator(ValidatorBase):
         allow_module: bool,
         dash_s_stdin: bool,
     ) -> HookResult | None:
+        """Judge ONE command unit — the caller supplies substitution bodies
+        as their own units (see `_command_units`), so this never has to
+        look inside `$( … )` itself."""
         if interpreter not in command:
             return None
 
