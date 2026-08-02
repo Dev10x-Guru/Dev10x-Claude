@@ -226,7 +226,15 @@ fetch and never goes stale — GH-964) — never a separate raw git call the all
    instructions, relay each finished chunk's PR to the watchdog for
    the merge gate, verify per-chunk closure, advance the queue, defer
    cut scope to the queue end, heartbeat to `status-foreman.md` every
-   ~10 min. Its prompt opens with the same `ToolSearch` select-query
+   ~10 min, and keep `roster.md` current — the one at-a-glance table of
+   every delegated chunk (`Chunk | Issue(s) | State | PR | Worker |
+   Last update`), rewritten in the same turn as each transition's
+   existing heartbeat or decision line, so the queue reads at a glance
+   instead of being reconstructed from every status file in turn. It is
+   a foreman-owned derived view — `manifest.md` and the decision logs
+   stay authoritative:
+   [`references/roster.md`](references/roster.md) (GH-976). Its prompt
+   opens with the same `ToolSearch` select-query
    bootstrap as a crew prompt — without it the foreman cannot call
    `issue_get`/`pr_get`, and any closure it reports is a
    transcription of a worker's claim rather than an observation
@@ -344,7 +352,10 @@ turn are the most precious resources on site:
   a memory, not a fact — then merge and close the chunk's issues via
   `issue_close` / `milestone_close`, then **append the new base-branch
   tip SHA to `merged-shas`** so the watcher mutes the echo of this very
-  merge instead of relaying it back as external movement. Refuse the
+  merge instead of relaying it back as external movement. That append
+  plus the `DECISIONS.md` entry is also how the merge reaches
+  `roster.md`: the foreman flips the row at its next wake. The watchdog
+  does not edit the roster itself. Refuse the
   request if anything is pending, draft, conflicting, or carries
   `fixup!` commits, and send it back to the foreman with the failing
   check named.
@@ -404,7 +415,10 @@ turn are the most precious resources on site:
    no orphaned open PRs; stop the watcher and retire the foreman.
 2. Consolidate `DECISIONS.md` + per-chunk decision files into the
    morning report (delivered/cut table per chunk, PRs + merge SHAs,
-   open threads needing the supervisor).
+   open threads needing the supervisor). `roster.md` is the skeleton
+   of that table — confirm every row against the tracker before it
+   ships, since the roster is a rendering and a rendering is not
+   evidence.
 3. **Self-audit (the skill improves itself):** collect every
    prompted, denied, or hook-blocked command from the night; run
    `Skill(Dev10x:diag-friction)` on each offender; file upstream
@@ -492,7 +506,11 @@ Only fall back to a local rebase when `pr_get` reports `CONFLICTING`.
   `DECISIONS.md` first.
 - Answering a worker's phantom merge-gate `ask` one relay at a time
   instead of authorizing every worker at spawn.
-- Anyone but the owning worker writing to `status-<chunk>.md`.
+- Anyone but the owning worker writing to `status-<chunk>.md`, or
+  anyone but the foreman writing to `roster.md`.
+- A chunk state recorded ONLY in `roster.md` — it is a derived view,
+  so anything not also in `manifest.md` or a decision log is lost the
+  moment a fresh foreman rebuilds it.
 - Firing an `AskUserQuestion` the handoff already answered. Under afk
   this freezes the run until the supervisor returns. A mid-run
   clarifying question is NOT authorization to open a gate — answer
