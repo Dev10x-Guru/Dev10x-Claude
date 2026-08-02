@@ -22,9 +22,9 @@
       "description": "Reviewers resolve from explicit args, then per-project config (skip / standby / reviewers), then ask. The review request is issued via the request_review MCP tool, never a raw gh api call."
     },
     {
-      "id": "defer-records-mode",
-      "name": "Defer Records review-deferred Mode",
-      "description": "Choosing Stand-by / defer records review-deferred in active_modes so verify-acc-dod skips the 'Review requested' check, and returns cleanly without requesting review (GH-396)."
+      "id": "defer-persists-nothing",
+      "name": "Defer Persists Nothing; standby Offers a Clearance Exit",
+      "description": "Stand-by / defer returns cleanly without requesting review and writes no session state (ADR-0018/ADR-0019 retired the review-deferred write). A standby:true repo still executes the skill and offers the supervisor-cleared exit rather than deferring silently (GH-998)."
     }
   ],
   "evals": [
@@ -134,15 +134,49 @@
       ]
     },
     {
-      "id": "defer-records-review-deferred",
-      "name": "Stand-by / defer records review-deferred",
-      "description": "Choosing Stand-by / defer appends review-deferred to active_modes and returns cleanly without requesting review.",
+      "id": "defer-persists-nothing",
+      "name": "Stand-by / defer persists nothing",
+      "description": "Choosing Stand-by / defer returns cleanly without requesting review and without writing active_modes or .claude/Dev10x/session.yaml (ADR-0018, ADR-0019, GH-950).",
       "input": "/Dev10x:gh-pr-request-review",
       "assertions": [
         {
-          "dimension": "defer-records-mode",
+          "dimension": "defer-persists-nothing",
           "check": "behavioral",
-          "signal": "Stand-by / defer appends review-deferred to active_modes and does not call request_review"
+          "signal": "Stand-by / defer does not call request_review and writes no session state"
+        },
+        {
+          "dimension": "defer-persists-nothing",
+          "check": "behavioral",
+          "signal": "no Write or Edit targets .claude/Dev10x/session.yaml on the defer path"
+        }
+      ]
+    },
+    {
+      "id": "standby-offers-clearance-exit",
+      "name": "standby offers a supervisor-cleared exit",
+      "description": "A repo configured standby:true still executes the skill: it fires the clearance AskUserQuestion rather than deferring silently, so a supervisor who has self-reviewed can clear the PR for merge or escalate to the team without re-arguing the override (GH-998).",
+      "input": "/Dev10x:gh-pr-request-review",
+      "assertions": [
+        {
+          "dimension": "defer-persists-nothing",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "standby:true fires the clearance widget instead of stopping"
+        },
+        {
+          "dimension": "defer-persists-nothing",
+          "check": "behavioral",
+          "signal": "clearance widget offers all three exits: stand by, reviewed-OK-to-merge, reviewed-request-team"
+        },
+        {
+          "dimension": "defer-persists-nothing",
+          "check": "behavioral",
+          "signal": "gate fires at every friction level — adaptive does not auto-select a clearance answer"
+        },
+        {
+          "dimension": "defer-persists-nothing",
+          "check": "behavioral",
+          "signal": "reviewed-request-team falls through to reviewer resolution and calls request_review"
         }
       ]
     }

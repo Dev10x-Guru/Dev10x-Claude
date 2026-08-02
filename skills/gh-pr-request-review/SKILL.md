@@ -68,10 +68,13 @@ projects:
 - `reviewers` list uses GitHub format: `org/team-slug` for teams,
   `username` for individual users
 - `skip: true` suppresses the review request for that project permanently
-- `standby: true` defers the review request for one-time deferral
-  (supervisor self-reviews first); persists nothing — for a standing
-  "no humans review here" posture set durable `human_review: false`
-  instead (ADR-0019)
+- `standby: true` means the supervisor self-reviews before a teammate
+  is pinged. It does NOT stop the skill: the Stand-by / Defer path
+  below still runs and asks whether the supervisor has reviewed yet,
+  so a reviewed PR can be cleared for merge or escalated to the team
+  without re-arguing the override (GH-998). Persists nothing — for a
+  standing "no humans review here" posture set durable
+  `human_review: false` instead (ADR-0019)
 - `default_action: ask` prompts the user for unconfigured projects;
   `skip` silently skips them; `standby` defers without prompting
 
@@ -201,8 +204,9 @@ NOT notify the requested reviewers — the request is lost.
 3. Look up the repo name in `projects`:
    - **Found with `skip: true`** → print "Skipping review request
      for {repo}" and stop
-   - **Found with `standby: true`** → defer (see Stand-by / Defer
-     path below) and stop; persist nothing
+   - **Found with `standby: true`** → run the Stand-by / Defer path
+     below. It asks whether the supervisor has already reviewed; only
+     the "not reviewed yet" answer stops here. Persist nothing.
    - **Found with `reviewers` list** → use those reviewers
    - **Not found, `default_action: ask`** → **REQUIRED: Call
      `AskUserQuestion`** to ask the user who to request review
@@ -216,28 +220,64 @@ NOT notify the requested reviewers — the request is lost.
      - **Skip — no review needed** — suppresses this request only;
        does not modify config
      - **Other** — free-text fallback for one-off team slugs
-   - **Not found, `default_action: standby`** → defer without
-     prompting (see Stand-by / Defer path below)
+   - **Not found, `default_action: standby`** → run the Stand-by /
+     Defer path below (same clearance gate as the configured case)
    - **Not found, `default_action: skip`** → print "No reviewers
      configured for {repo}, skipping" and stop
 4. Call the `request_review` MCP tool with the resolved reviewers
 
-### Stand-by / Defer path (GH-396, ADR-0019)
+### Stand-by / Defer path (GH-396, ADR-0019, GH-998)
 
-When the supervisor wants to self-review before pinging a teammate,
-the deferral path:
+`standby` means "the supervisor reviews before a teammate is pinged"
+— it does **not** mean "never request review". So this path does not
+silently stop: it **still executes** and offers the supervisor the
+exit. Deferring unconditionally was the GH-998 defect — the only way
+out was to argue the override down again on the next PR, and the one
+next PR after that.
 
-1. Print `"Review deferred for {repo} — self-review before requesting
-   teammate review."`
-2. **Persist nothing.** The deferral applies to *this invocation only*.
-   Do NOT write `active_modes`, and in particular do NOT write
-   `.claude/Dev10x/session.yaml` — ADR-0018 retired that file, and the
-   durable read facade reaches it only in a repo with no `friction.yaml`
-   entry, so in any configured repo the flag was written and never read
-   (GH-950). The caller re-enters this gate after self-reviewing.
-3. Do NOT mark the PR as draft; leave it ready
-4. Return cleanly so the calling orchestrator's completion gate does
-   not treat the missing review request as a failure
+**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text). This
+gate is `ALWAYS_ASK` — it fires at every friction level, because
+auto-selecting either branch is exactly the silent deferral the gate
+replaces. Question: `"{repo} is on stand-by: you self-review before a
+teammate is pinged. Where is PR #{pr_number}?"` Options:
+
+- **Stand by — I have not reviewed it yet (Recommended)** — the
+  pre-GH-998 behavior. Print `"Review deferred for {repo} —
+  self-review before requesting teammate review."` and stop.
+- **I reviewed it — OK to merge** — the supervisor's review IS the
+  sign-off. Do not resolve reviewers and do not request review;
+  report the PR as cleared so the caller's completion gate treats
+  the review requirement as satisfied rather than missing.
+- **I reviewed it — request team review now** — clearance plus
+  escalation. Fall through to normal reviewer resolution (step 4 of
+  the resolution workflow) and request review from the configured
+  reviewers, ignoring `standby` for this PR.
+
+Then, on every branch:
+
+1. **Persist nothing about the deferral.** It applies to *this
+   invocation only*. Do NOT write `active_modes`, and in particular
+   do NOT write `.claude/Dev10x/session.yaml` — ADR-0018 retired that
+   file, and the durable read facade reaches it only in a repo with
+   no `friction.yaml` entry, so in any configured repo the flag was
+   written and never read (GH-950).
+2. Do NOT mark the PR as draft; leave it ready.
+3. Return cleanly so the calling orchestrator's completion gate does
+   not treat the missing review request as a failure.
+
+**Clearance is per-PR and currently in-session.** A cleared PR is not
+yet recorded anywhere durable, so a *later session* re-entering this
+gate on the same PR asks again. Recording it as a `review:cleared` PR
+label is the intended durable home, and it needs an MCP label-write
+wrapper that does not exist yet — reaching for a raw label CLI call
+here would plant precisely the stale raw-CLI instruction GH-996
+removed from `Dev10x:git-groom`. Tracked as follow-up.
+
+**When to change the config instead.** Three "I reviewed it — OK to
+merge" answers in a row on one repo means `standby` is describing the
+wrong posture: that repo wants durable `human_review: false`
+(ADR-0019), not a per-PR clearance. Say so rather than letting the
+gate fire forever.
 
 **Standing posture vs one-off deferral (ADR-0019).** Whether humans
 review PRs on a project is a **durable project fact**, not a session
