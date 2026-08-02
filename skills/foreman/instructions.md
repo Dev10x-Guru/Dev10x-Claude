@@ -99,13 +99,16 @@ walk-away posture, and the supervisor opts *out*, not in.
 A worker dispatched with `isolation="worktree"` gets a fresh checkout
 with no session policy, on an agent-generated path that matches no
 `projects[].match` glob — so `resolve_gate(gate="merge")` falls back
-to defaults and returns `ask` even under `adaptive + afk`. Warn every
-worker at spawn that a phantom merge `ask` is an artifact of its
-checkout and not a supervisor decision, and record the standing
-authorization once in `DECISIONS.md`. Wording and rationale:
+to defaults and returns `ask` even under `adaptive + afk`. **GH-978
+has landed the code-level fix** (worktree-first probe with repo-root
+fallback) on branch `janusz/GH-978/worktree-gate-policy`; until it
+merges to `develop`, warn every worker at spawn that a phantom merge
+`ask` is an artifact of its checkout and not a supervisor decision,
+and record the standing authorization once in `DECISIONS.md`. Wording
+and rationale:
 [`references/overseer-discipline.md`](references/overseer-discipline.md)
-§ The merge gate reads `ask` in fresh worktrees. **See GH-978 for the
-code-level fix**; do not hand-write config into a worker's worktree.
+§ The merge gate reads `ask` in fresh worktrees; do not hand-write
+config into a worker's worktree as a substitute.
 
 This harness is **never YOLO**: do not offer, suggest, or accept
 `bypassPermissions` / auto-mode as the answer to prompt risk. Walk-away
@@ -538,5 +541,5 @@ Only fall back to a local rebase when `pr_get` reports `CONFLICTING`.
 | "The worker said it committed the migration on branch X — resume from there" | An edit is not a commit and a commit is not a push. Field case: the branch never existed on origin and the worktree died with four uncommitted files; the chunk was a restart. `git ls-remote --heads origin '<glob>'` before you believe it. |
 | "I'll wait passively and heartbeat every 10 minutes" | An idle agent runs no code. There is no timer and nothing wakes it. Heartbeat, make ONE bounded blocking wait, heartbeat again — or accept a false STALL every window. |
 | "I messaged the watchdog about it, so it's escalated" | Messages are best-effort and have arrived hours late, batched behind unrelated pings. `DECISIONS.md` is the authoritative channel; the message is only a nudge that it exists. |
-| "The merge gate returned `ask`, so the supervisor wants to decide" | In a fresh isolation worktree that `ask` is a resolver fallback — no session policy, no matching config glob — not a supervisor decision (GH-978). Workers stop at PR-open regardless. |
+| "The merge gate returned `ask`, so the supervisor wants to decide" | In a fresh isolation worktree that `ask` is a resolver fallback — no session policy, no matching config glob — not a supervisor decision (GH-978, fix landed on `janusz/GH-978/worktree-gate-policy`, pending merge). Workers stop at PR-open regardless. |
 | "Cheaper models everywhere will stretch the quota" | A failed chunk costs more than the model discount saves. Downgrade the overseer, never the crew. |

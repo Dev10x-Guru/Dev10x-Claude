@@ -91,9 +91,14 @@ defaults and returns `ask` — even when the run's composed policy is
 workers hit this independently in a single night; under an unattended
 run each `ask` would have frozen a chunk until morning.
 
-Until the code-level fix ships, the documented mitigation is a
-**standing authorization issued by the overseer**, stated in every
-worker prompt:
+**Status: the code-level fix has landed** — `gate_query.py` now
+probes the worktree toplevel first and falls back to the git common
+dir that `pin_gate_preset` keyed the pin by, so a pinned repo policy
+reaches a linked agent worktree without a matching glob of its own
+(PR on branch `janusz/GH-978/worktree-gate-policy`). Until that PR
+merges to `develop`, workers spawned against a checkout still running
+the pre-fix `gate_query.py` can still see a phantom `ask`, so the
+standing authorization below stays in force as a safety net:
 
 > The merge gate may report a phantom `ask` even though this run's
 > policy is auto-advance: a fresh isolation worktree carries no
@@ -106,7 +111,7 @@ Warn every worker at spawn rather than answering each report as it
 arrives: the surprise costs a relay round-trip per worker otherwise.
 Record the standing authorization once in `DECISIONS.md`.
 
-**See GH-978 for the code-level fix** — seeding the run's gate policy
-into spawned worktrees, or a run-scoped resolver fallback. Delete
-this mitigation when it lands; do not paper over the gap in the
-worktree by writing config into it by hand.
+**Once GH-978 merges to `develop`**, delete this entire section
+(and the two pointers to it — `instructions.md` § composed-policy
+paragraph and its rationalization-table row) rather than papering
+over the gap in a worktree by hand-writing config into it.
