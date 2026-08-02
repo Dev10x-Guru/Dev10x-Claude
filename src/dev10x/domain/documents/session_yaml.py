@@ -329,7 +329,11 @@ def match_globs_for_repo(
       plus every worktree of it, including ones created next month. This is
       what makes a preset picked inside ``<name>-3`` stick for ``<name>-9``.
     * ``repo-only`` — ``["*/<name>"]``: the main checkout alone; sibling
-      worktrees keep falling back to ``defaults:``.
+      worktrees named ``<name>-<n>`` keep falling back to ``defaults:``.
+      Since GH-978 a *linked* worktree that matches no entry of its own
+      resolves its durable prefs at the repo root, so this scope no longer
+      excludes such worktrees — it only withholds the ``-*`` sibling glob.
+      Use ``dir`` scope to pin a single directory verbatim.
     * ``dir`` — ``[<resolved repo_root>]``: this one directory, verbatim.
 
     ``repo_root`` is required for ``dir`` scope and ignored otherwise.
