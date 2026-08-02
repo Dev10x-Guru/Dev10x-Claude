@@ -181,14 +181,28 @@ cohesive, justified by scope):
 - `fanout` (~737 lines instructions) — native-Agent swarm
   orchestrator with 6-phase execution model, swarm context
   payload, recursive-fanout guard, and conflict-wave management
-- `foreman` (~240 lines instructions) — unattended night-shift
-  harness: Phase 0 pre-flight, the night loop with its stall
-  stand-down handshake, the crew contract, and the red-flag /
-  rationalization tables are execution-gating and must stay
-  inline. Depth already extracted to `references/architecture.md`,
-  `crew-prompt-template.md`, and `stall-protocol.md`. Split plan if
-  it grows: move the crew contract table to
-  `references/crew-contract.md`
+- `foreman` (288 lines instructions, GH-987 — down from 585) —
+  unattended night-shift harness: Phase 0 pre-flight, the full Phase 2
+  night loop (including the stall stand-down handshake), the crew
+  contract headline list, and the red-flag / rationalization tables
+  are execution-gating and must stay inline. Depth extracted to
+  `references/architecture.md`, `crew-prompt-template.md`,
+  `stall-protocol.md`, `overseer-discipline.md`, `crew-contract.md`
+  (the twelve-element table — already split out, so it is no longer a
+  candidate), `roster.md`, `tool-surface.md`, `durability-envelope.md`,
+  `worktree-recovery.md`, and — new in GH-987 —
+  `preflight-checklist.md` (Phase 0.4 command-shape enumeration),
+  `gate-policy-detail.md` (Phase 0.3 durable-policy-check procedure
+  and the GH-978 worktree caveat), `generation-authority.md` (STALL
+  signal disambiguation and the `current-generation` authority-token
+  contract), and `collapsed-merge-guidance.md` (the no-watcher-armed
+  merge fallback). Both `stall-protocol.md` (349 lines) and
+  `crew-prompt-template.md` (278 lines) are already over the 200-line
+  reference budget and must not grow further — route any new depth to
+  a new reference file instead. Split plan if `instructions.md` grows
+  again: the Phase 0.1/0.2 queue-building and model-gate prose is the
+  next extractable candidate (`references/queue-and-model.md`), since
+  the crew contract table is already split out
 - `ddd` (~299 lines) — workshop orchestration hub: 4 session
   modes, 7-layer event storming flow, solo AI-cast facilitation
   (incl. the GH-789 discussion-agent model-tier gate), and
