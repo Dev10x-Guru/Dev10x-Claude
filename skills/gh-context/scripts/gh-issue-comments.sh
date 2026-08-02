@@ -4,11 +4,11 @@
 # Usage:
 #   gh-issue-comments.sh NUMBER [REPO]
 #
-# Output: JSON array of comments with author, body, createdAt
+# Output: JSON object {"comments": [...]} with author, body, createdAt
 
 set -euo pipefail
 
 NUMBER="${1:?Usage: gh-issue-comments.sh NUMBER [REPO]}"
 REPO="${2:-$(gh repo view --json nameWithOwner -q '.nameWithOwner')}"
 
-gh issue view "$NUMBER" --repo "$REPO" --json comments -q '.comments'
+gh issue view "$NUMBER" --repo "$REPO" --json comments

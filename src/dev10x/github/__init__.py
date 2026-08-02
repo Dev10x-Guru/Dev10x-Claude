@@ -171,16 +171,32 @@ async def _run_and_parse(
     ``raw_output``. Scripts that emit key=value rather than JSON pass
     ``fallback=parse_key_value_output`` — the JSON attempt is a harmless
     no-op for them and the fallback carries the parse.
+
+    Valid JSON that is not an *object* is rejected here (GH-993). The
+    ADR-0009 wire contract is a Mapping, and ``SuccessResult.to_dict()``
+    casts blindly — so a script emitting a bare array reached the MCP
+    boundary and died on ``dict(<list of dicts>)`` with the opaque
+    "dictionary update sequence element #0 has length 11; 2 is required".
+    Worse, an *empty* array degraded to a silent ``{}`` success, so
+    callers read "no results" instead of an error. Failing loud here
+    names the offending script instead.
     """
     result = await async_run_script(script, *args)
     if result.returncode != 0:
         return err(result.stderr.strip())
     try:
-        return ok(json.loads(result.stdout))
+        payload = json.loads(result.stdout)
     except json.JSONDecodeError:
         if fallback is not None:
             return ok(fallback(result.stdout))
         return ok({"raw_output": result.stdout})
+    if not isinstance(payload, dict):
+        return err(
+            f"{script} emitted a JSON {type(payload).__name__}, expected an object; "
+            "the wire contract (ADR-0009) requires a mapping — "
+            "drop any jq '-q' unwrapping so the script emits {\"key\": ...}"
+        )
+    return ok(payload)
 
 
 async def detect_tracker(*, ticket_id: str) -> Result[dict[str, Any]]:
