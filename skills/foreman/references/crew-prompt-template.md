@@ -57,13 +57,33 @@ blocking/polling loop. To wait on CI: a single server-side-waiting
 call — ci_check_status(pr_number=<n>, repo="{{repo}}", wait=true).
 Pending is NOT green.
 
-Liveness: made no tool call for 15 minutes? Write a heartbeat line
-before anything else. A worker that cannot heartbeat inside a stall
-window is dead by definition, and loses its chunk to a replacement.
+Liveness: write a heartbeat line immediately after EVERY commit,
+every test run, every push, and every file-count/verification step
+— not on a clock. Nothing interrupts you mid-turn to check one.
+Also write one if 15 minutes of wall-clock have passed, but treat
+that as the backstop, never the primary trigger. A worker that
+cannot heartbeat inside a stall window is dead by definition, and
+loses its chunk to a replacement.
 ```
 
+**Why event-triggered, not time-triggered (GH-967).** The old
+wording ("made no tool call for 15 minutes?") implies a timer, and
+nothing in a single-turn tool-call loop preempts the model to check
+a clock. In the 2026-08-01 run, all five stalled workers were alive
+and productive the whole time — every kill snippet caught them
+mid-flow on a nearly-finished step — they simply never routed back
+to the heartbeat instruction between their own tool calls. A long
+absorbing implementation (code → tests → docs → rebase → push)
+offers no natural pause point. Commits, test runs, and verification
+steps are pause points the model *does* observe, so anchoring the
+heartbeat to those makes it mechanically reachable. Phase-boundary
+heartbeats were already honored (every incident had a clean setup
+heartbeat); the gap was specifically mid-implementation.
+
 Dispatch on `model="sonnet"` by default — `stall-protocol.md`
-§ Model tier for crew workers has the evidence (GH-956).
+§ Model tier for crew workers has the evidence (GH-956), with the
+GH-967 caveat that sonnet **reduces** stall risk rather than
+eliminating it (a sonnet worker stalled with the identical shape).
 
 ## 5. Verified tool shapes (from Phase 0.4 pre-flight)
 
