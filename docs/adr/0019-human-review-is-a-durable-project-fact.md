@@ -82,14 +82,32 @@ Three behaviours follow from the one answer:
 3. **Merge autonomy** — `human_review: false` is a **precondition** for
    the agent merging after automated review findings are resolved. It is
    not a grant: see the composition rule below.
-   **Not yet wired — follow-up work (GH-1000).** Nothing in
-   `Dev10x:gh-pr-merge` or the gate pipeline reads `human_review` today;
-   merge autonomy is still governed solely by `resolve_gate(gate="merge")`,
-   the `.dev10x/gate-policy.yaml` pin, and `merge_config.solo_maintainer`.
-   Behaviours 1 and 2 ship with this ADR; behaviour 3 is the decision
-   recorded here, not an implemented capability. Treat this bullet as the
-   contract a follow-up implements, and do not assume a
-   `human_review: false` repo will self-merge until it lands.
+   **Wired in GH-1000.** `human_review` is a `GateContext` field, and
+   `_floors()` raises a `human_review` floor on the `merge` gate whenever
+   it is true. A floor can only force `ask`, never grant auto-advance —
+   which is precisely what makes this a precondition rather than a grant,
+   structurally, not by convention. `GateResolutionQuery` reads the flag
+   from the durable prefs through `_policy_toplevel`, so a worktree
+   without its own entry cannot silently lose the repo's posture.
+
+   That read is **unconditional** — deliberately unlike the neighbouring
+   `session_stale` fallback, which defers to a caller-supplied fact.
+   `session_stale` is a genuine per-instance fact a caller may know
+   better; `human_review` is durable project policy. Were a caller able to
+   pass `context={"human_review": false}`, the floor would be
+   convention-deep at the exact boundary meant to enforce it, and an
+   unattended agent could self-authorise merge autonomy on a repo that
+   never set the key. A supplied value is dropped into
+   `ignored_context_fields`. `human_review_status` resolves through the
+   same `_policy_toplevel` seam for the same reason: one durable fact must
+   not have two answers.
+
+   Note the blast radius, since the default is `true`: a repo that has
+   not set `human_review: false` no longer auto-advances the merge gate,
+   whatever its preset and overlays say. That is the intended reading of
+   "both must agree" below — the safe pole was always `true`, and
+   behaviour 3 gives it teeth. Opting a solo repo back into auto-merge is
+   one key in its `friction.yaml` entry.
 
 ### Key semantics
 

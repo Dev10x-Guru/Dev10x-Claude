@@ -192,13 +192,20 @@ async def human_review_status(cwd: str | None = None) -> dict:
     """
     from dev10x.domain.documents.session_yaml import SessionYamlDocument
     from dev10x.domain.git_context import GitContext
+    from dev10x.mcp.gate_query import _policy_toplevel
     from dev10x.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
         toplevel = GitContext().toplevel
         if toplevel is None:
             return to_wire(err("Not in a git repository"))
-        document = SessionYamlDocument(toplevel=toplevel)
+        # Resolve through the same GH-978 repo-root fallback the merge gate
+        # uses (GH-1000). One durable fact must not have two answers: in a
+        # linked worktree matching no friction.yaml glob, a raw toplevel
+        # here would report human_review: true — sending the skills off to
+        # request review — while resolve_gate(gate="merge") read the repo's
+        # `false` and lifted its floor.
+        document = SessionYamlDocument(toplevel=_policy_toplevel(toplevel))
         return to_wire(ok({"human_review": document.read_human_review(), "repo_root": toplevel}))
 
 

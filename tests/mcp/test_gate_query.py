@@ -28,10 +28,25 @@ def _write_config(toplevel: Path, body: str) -> None:
 
 
 def _write_friction(projects: list[dict]) -> None:
-    """Write the global friction.yaml (isolated to a tmp home by conftest)."""
+    """Write the global friction.yaml (isolated to a tmp home by conftest).
+
+    ``human_review: false`` sits in ``defaults`` — and so merges into every
+    matched entry — because these tests probe policy INHERITANCE through the
+    merge gate. Left at its safe default the ADR-0019 precondition floor
+    (GH-1000) would resolve every one of them to ``ask``, hiding whatever
+    the preset actually inherited. The floor's own behaviour is covered in
+    ``tests/domain/test_gate_policy.py`` and ``tests/mcp/test_gate_tools.py``.
+    """
     path = Dev10xConfigDir.friction_yaml()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(yaml.safe_dump({"defaults": {"gate_preset": "strict"}, "projects": projects}))
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "defaults": {"gate_preset": "strict", "human_review": False},
+                "projects": projects,
+            }
+        )
+    )
 
 
 async def _merge_effect(toplevel: Path) -> str:

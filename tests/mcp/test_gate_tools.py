@@ -39,12 +39,74 @@ class TestResolveGateForToplevel:
     async def test_adaptive_solo_maintainer_session_auto_merges(self, tmp_path: Path) -> None:
         _write_session_yaml(
             tmp_path,
-            "friction_level: adaptive\nactive_modes: [solo-maintainer]\n",
+            "friction_level: adaptive\nactive_modes: [solo-maintainer]\nhuman_review: false\n",
         )
         result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
         payload = result.to_dict()
         assert payload["effect"] == "auto-advance"
         assert "preset:adaptive" in payload["reason"]
+
+    @pytest.mark.asyncio
+    async def test_durable_human_review_floors_the_merge_gate(self, tmp_path: Path) -> None:
+        # ADR-0019 behaviour 3 (GH-1000): the precondition is read from the
+        # durable prefs by the query itself, so a caller that passes no
+        # context still gets the repo's review posture applied.
+        _write_session_yaml(
+            tmp_path,
+            "friction_level: adaptive\nactive_modes: [solo-maintainer]\nhuman_review: true\n",
+        )
+        result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
+        payload = result.to_dict()
+        assert payload["effect"] == "ask"
+        assert "human_review" in payload["floors_applied"]
+
+    @pytest.mark.asyncio
+    async def test_unset_human_review_floors_the_merge_gate(self, tmp_path: Path) -> None:
+        # Absent key reads as true — an unconfigured repo keeps a human on
+        # the merge rather than inheriting the preset's autonomy.
+        _write_session_yaml(
+            tmp_path, "friction_level: adaptive\nactive_modes: [solo-maintainer]\n"
+        )
+        result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
+        assert result.to_dict()["effect"] == "ask"
+
+    @pytest.mark.asyncio
+    async def test_caller_cannot_lift_the_floor_by_supplying_human_review(
+        self, tmp_path: Path
+    ) -> None:
+        # NOT the session_stale seam: human_review is durable project
+        # policy, not a per-instance fact. Honouring the caller here would
+        # let any resolve_gate caller clear the ADR-0019 floor with one wire
+        # key, leaving the "structural precondition" convention-deep at the
+        # boundary meant to enforce it.
+        _write_session_yaml(
+            tmp_path,
+            "friction_level: adaptive\nactive_modes: [solo-maintainer]\nhuman_review: true\n",
+        )
+        result = await resolve_gate_for_toplevel(
+            gate="merge", context={"human_review": False}, toplevel=str(tmp_path)
+        )
+        payload = result.to_dict()
+        assert payload["effect"] == "ask"
+        assert "human_review" in payload["floors_applied"]
+        assert "human_review" in payload["ignored_context_fields"]
+
+    @pytest.mark.asyncio
+    async def test_caller_supplied_human_review_ignored_on_the_permissive_pole(
+        self, tmp_path: Path
+    ) -> None:
+        # The override is inert in both directions — the durable `false`
+        # decides, and the attempted `true` is reported as ignored.
+        _write_session_yaml(
+            tmp_path,
+            "friction_level: adaptive\nactive_modes: [solo-maintainer]\nhuman_review: false\n",
+        )
+        result = await resolve_gate_for_toplevel(
+            gate="merge", context={"human_review": True}, toplevel=str(tmp_path)
+        )
+        payload = result.to_dict()
+        assert payload["effect"] == "auto-advance"
+        assert "human_review" in payload["ignored_context_fields"]
 
     @pytest.mark.asyncio
     async def test_team_repo_project_pin_stops_adaptive_merge(self, tmp_path: Path) -> None:
@@ -57,7 +119,8 @@ class TestResolveGateForToplevel:
     async def test_session_gate_override_outranks_project_pin(self, tmp_path: Path) -> None:
         _write_session_yaml(
             tmp_path,
-            "friction_level: adaptive\ngate_overrides:\n  merge: auto-advance\n",
+            "friction_level: adaptive\nhuman_review: false\n"
+            "gate_overrides:\n  merge: auto-advance\n",
         )
         _write_project_policy(tmp_path, "overrides:\n  merge: ask\n")
         result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
@@ -238,6 +301,7 @@ class TestSessionYamlGatePolicyInputs:
             "gate_preset": None,
             "gate_overlays": [],
             "allowed_overlays": None,
+            "human_review": True,
         }
 
     def test_missing_file_yields_soft_defaults(self, tmp_path: Path) -> None:
@@ -250,6 +314,7 @@ class TestSessionYamlGatePolicyInputs:
             "gate_preset": None,
             "gate_overlays": [],
             "allowed_overlays": None,
+            "human_review": True,
         }
 
     def test_reads_new_style_gate_keys(self, tmp_path: Path) -> None:
@@ -300,7 +365,9 @@ class TestNewStylePresetResolution:
     @pytest.mark.asyncio
     async def test_new_style_preset_outranks_legacy_keys(self, tmp_path: Path) -> None:
         # Both shapes present — the new-style gate_preset wins (D-4).
-        _write_session_yaml(tmp_path, "friction_level: strict\ngate_preset: adaptive\n")
+        _write_session_yaml(
+            tmp_path, "friction_level: strict\ngate_preset: adaptive\nhuman_review: false\n"
+        )
         result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
         assert result.to_dict()["effect"] == "auto-advance"
 
@@ -373,7 +440,7 @@ class TestAutoAdvanceRecordEmission:
     async def test_auto_advance_payload_carries_record_and_writes_sink(
         self, tmp_path: Path
     ) -> None:
-        _write_session_yaml(tmp_path, "gate_preset: adaptive\n")
+        _write_session_yaml(tmp_path, "gate_preset: adaptive\nhuman_review: false\n")
         result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
         payload = result.to_dict()
         assert payload["effect"] == "auto-advance"
@@ -399,7 +466,7 @@ class TestAutoAdvanceRecordEmission:
 
         monkeypatch.setattr(fp, "load_shipped_presets", lambda: {})
         monkeypatch.setattr(fp, "load_shipped_overlays", lambda: {})
-        _write_session_yaml(tmp_path, "gate_preset: adaptive\n")
+        _write_session_yaml(tmp_path, "gate_preset: adaptive\nhuman_review: false\n")
         result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
         assert result.to_dict()["effect"] == "auto-advance"
 
@@ -407,7 +474,7 @@ class TestAutoAdvanceRecordEmission:
     async def test_sink_write_failure_is_swallowed(self, tmp_path: Path) -> None:
         # The doubt_sink write is best-effort — an OSError must not break
         # the resolution (the record still returns in the payload).
-        _write_session_yaml(tmp_path, "gate_preset: adaptive\n")
+        _write_session_yaml(tmp_path, "gate_preset: adaptive\nhuman_review: false\n")
         sink = tmp_path / DOUBT_SINK_RELPATH
         sink.parent.mkdir(parents=True, exist_ok=True)
         sink.mkdir()  # a directory where the record file goes → append raises
@@ -520,6 +587,46 @@ class TestHumanReviewStatusTool:
 
         assert payload["human_review"] is False
         assert payload["repo_root"] == str(tmp_path)
+
+    @pytest.mark.asyncio
+    async def test_linked_worktree_reports_the_repo_posture(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """GH-1000: this tool and the merge gate must not disagree.
+
+        A linked worktree whose directory name matches no `friction.yaml`
+        glob resolves the repo root (GH-978). Reading from the raw toplevel
+        would report `true` here while `resolve_gate(gate="merge")` read the
+        repo's `false` and lifted its floor — one durable fact, two answers.
+        """
+        import yaml
+
+        from dev10x.domain.dev10x_paths import Dev10xConfigDir
+        from dev10x.mcp.gate_tools import human_review_status
+        from dev10x.session import preset_pin
+
+        repo = tmp_path / "work" / "bl-zebra"
+        (repo / ".git").mkdir(parents=True)
+        worktree = repo / ".claude" / "worktrees" / "agent-a194a6736f7f86b6c"
+        worktree.mkdir(parents=True)
+        monkeypatch.setattr(preset_pin, "_common_dir", lambda *, cwd: str(repo / ".git"))
+
+        friction = Dev10xConfigDir.friction_yaml()
+        friction.parent.mkdir(parents=True, exist_ok=True)
+        friction.write_text(
+            yaml.safe_dump(
+                {
+                    "defaults": {},
+                    "projects": [{"match": ["*/bl-zebra", "*/bl-zebra-*"], "human_review": False}],
+                }
+            )
+        )
+        monkeypatch.setattr(
+            "dev10x.domain.git_context.GitContext.toplevel",
+            property(lambda self: str(worktree)),
+        )
+
+        assert (await human_review_status())["human_review"] is False
 
     @pytest.mark.asyncio
     async def test_defaults_to_true_when_unset(

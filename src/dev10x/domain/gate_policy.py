@@ -197,6 +197,9 @@ class GateContext:
     overlap_signals: int | None = None
     confidence: int | None = None
     valid_fixup_count: int | None = None
+    # merge: humans are in the review loop here (ADR-0019). Defaults to
+    # True so an unconfigured repo keeps human oversight — the safe pole.
+    human_review: bool = True
 
 
 @dataclass(frozen=True)
@@ -236,7 +239,7 @@ class GateResolution:
         return f'⚙ gate:{self.gate} auto-advance → "{self.resolved_option}" ({self.reason})'
 
 
-def _floors(context: GateContext) -> list[str]:
+def _floors(*, gate: str, context: GateContext) -> list[str]:
     """Safety floors — deny-overrides; ``ask`` regardless of any toggle."""
     floors: list[str] = []
     if context.secret_access:
@@ -249,6 +252,12 @@ def _floors(context: GateContext) -> list[str]:
         floors.append("privacy_disclosure")
     if context.blocking:
         floors.append("blocking")
+    # ADR-0019 behaviour 3 (GH-1000). A floor only ever forces `ask`, so
+    # expressing the precondition here is what keeps it a precondition
+    # and not a grant. Merge-only: the flag's other two consequences are
+    # skill concerns, not gate concerns.
+    if gate == "merge" and context.human_review:
+        floors.append("human_review")
     return floors
 
 
@@ -413,7 +422,7 @@ def resolve_gate(
     anchor = bool(toggles["anchor_recommendations"])
     log_to = str(toggles["doubt_sink"])
 
-    floors = _floors(context)
+    floors = _floors(gate=gate, context=context)
     if floors:
         return GateResolution(
             gate=gate,

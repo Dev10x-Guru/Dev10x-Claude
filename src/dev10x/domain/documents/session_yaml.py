@@ -667,6 +667,11 @@ class SessionYamlDocument:
         ``allowed_overlays`` (GH-805) is the repo-character overlay allow-list:
         ``None`` when unset (permissive), else the whitelist the resolver
         filters the computed overlays against before resolving a gate.
+
+        ``human_review`` (ADR-0019, GH-1000) rides along because the merge
+        gate needs it and ``_durable()`` is not memoised — reading it via
+        :meth:`read_human_review` instead would re-open and re-parse the
+        same YAML a second time on every merge-gate resolution.
         """
         data = self._durable()
         modes = data.get("active_modes")
@@ -681,6 +686,7 @@ class SessionYamlDocument:
             "gate_preset": preset if isinstance(preset, str) else None,
             "gate_overlays": overlays if isinstance(overlays, list) else [],
             "allowed_overlays": _coerce_allowed_overlays(data.get("allowed_overlays")),
+            "human_review": _coerce_human_review(data.get("human_review")),
         }
 
     # ADR-0018: session identity (branch/tickets) is no longer persisted
