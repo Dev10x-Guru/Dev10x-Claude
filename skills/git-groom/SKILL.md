@@ -16,6 +16,13 @@ allowed-tools:
   - mcp__plugin_Dev10x_cli__update_pr
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git-groom/scripts/:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git/scripts/git-rebase-groom.sh:*)
+  # Read-only Phase 1 analysis shapes (GH-997). Phase 1 prescribes these,
+  # so they must be declared here or every groom pays per-call approval.
+  - Bash(git log:*)
+  - Bash(git merge-base:*)
+  # Phase 1 resolves the base branch through this tool rather than
+  # assuming `develop`, so it needs declaring for the same reason.
+  - mcp__plugin_Dev10x_cli__detect_base_branch
   - Bash(git reset --soft:*)
   - Bash(git reset --hard groom-backup-*:*)
   - Bash(git reset HEAD:*)

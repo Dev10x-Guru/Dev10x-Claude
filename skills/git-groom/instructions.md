@@ -145,21 +145,24 @@ scoping continue as before.
 
 **Check:**
 
-```python
-from pathlib import Path
-from dev10x.spec import detect_drift
+1. Extract `<TICKET-ID>` from the branch name.
+2. **Presence** — `Read(file_path="docs/specs/<TICKET-ID>.md")`. A
+   "File does not exist" result is the no-op signal: skip this phase
+   silently. Use `Glob(pattern="docs/specs/*.md")` instead when the
+   ticket ID is not yet resolved and you need to see whether the
+   project uses SPDD specs at all.
+3. **Drift** — only when step 2 found the file, call
+   `detect_drift(spec_path=..., project_root=...)` from
+   `dev10x.spec` and branch on `report.has_behavioural`:
+   behavioural drift fails closed (below); structural drift warns.
 
-ticket_id = "<extracted from branch>"
-spec_path = Path(f"docs/specs/{ticket_id}.md")
-if spec_path.exists():
-    report = detect_drift(
-        spec_path=spec_path,
-        project_root=Path("."),
-    )
-    if report.has_behavioural:
-        # FAIL-CLOSE — refuse to groom.
-        ...
-```
+Do NOT probe for the spec with `ls docs/specs/` or `python3 -c
+"...Path.exists()"` (GH-997). Both are steered elsewhere by the
+command-skill map — `ls` into `Read`/`Glob`, `python3 -c` into a
+`~/.claude/tools/` script — so a literal reading of a
+`spec_path.exists()` snippet costs a rejected call before the phase
+even starts. `Read`/`Glob` return the presence answer directly, which
+is the only signal the no-op rule needs.
 
 **Fail-close on behavioural drift.** Print the same `BLOCKED:`
 contract used in Phase 0:
@@ -200,16 +203,42 @@ on what counts as drift.
 
 ### Phase 1: Analyze Current State
 
+Analysis is read-only and belongs to **this skill** — see the note on
+work-on's never-self-assess rule at the end of this phase.
+
+**Primary path — always anchor on `origin/<base>` (GH-486, GH-997):**
+
 ```bash
-# View commits in current branch (relative to base)
-git log --oneline develop..HEAD
+# Identify the base commit for rebasing (fork-point against the remote)
+git merge-base --fork-point origin/develop HEAD
+
+# View commits in current branch (relative to the remote base)
+git log --oneline origin/develop..HEAD
 
 # See what files changed in each commit
-git log --oneline --stat develop..HEAD
-
-# Identify the base commit for rebasing
-git merge-base develop HEAD
+git log --oneline --stat origin/develop..HEAD
 ```
+
+Both shapes are declared in this skill's `allowed-tools`
+(`Bash(git log:*)`, `Bash(git merge-base:*)`), so they run without
+per-call approval. Substitute the detected base for `develop` —
+resolve it via `mcp__plugin_Dev10x_cli__detect_base_branch` rather
+than assuming.
+
+**Why `origin/<base>` and not the bare local ref:** local `develop`
+lags `origin/develop` after rebase-merge, long-lived feature work, or
+worktrees sharing an outdated ref — anchoring on it mis-computes the
+commit range. The bare `git log --oneline develop..HEAD` /
+`git merge-base develop HEAD` forms are a **fallback only** for when
+the remote is unreachable; when you use them, say so and treat the
+range as provisional.
+
+For the rebase itself (Phase 3+), pass the **bare** branch name to
+`mcp__plugin_Dev10x_cli__rebase_groom` — it qualifies the name to the
+`origin/<base>` remote-tracking ref automatically and reports a
+`base_notice` when the local ref lags. `rebase_groom` requires a
+sequence file, so it is the execution wrapper, not a read-only
+analysis tool; the commands above remain the analysis path.
 
 **SHA Staleness Warning:** Record SHAs at analysis time only for planning.
 Before writing any execution scripts (message files, sequence editor),
@@ -217,17 +246,13 @@ always re-run `git log --oneline <base>..HEAD` to get the current SHAs.
 Any commit (rebase, amend, reset) changes all descendant SHAs. Using
 analysis-time SHAs in execution scripts will silently target wrong commits.
 
-**Stale local base (GH-486):** Resolve the range against
-`origin/<base>` (or the fork-point), not a possibly-stale local
-`<base>`. Local `develop` lags `origin/develop` after rebase-merge,
-long-lived feature work, or worktrees sharing an outdated ref —
-anchoring on it mis-computes the commit range. The `rebase_groom`
-MCP tool now qualifies a bare branch name to its `origin/<base>`
-remote-tracking ref automatically and reports a `base_notice` when
-the local ref lags. When analyzing by hand, prefer
-`git merge-base --fork-point origin/develop HEAD` over
-`git merge-base develop HEAD`, and `git log --oneline origin/develop..HEAD`
-for the range.
+**This phase does not violate work-on's never-self-assess rule
+(GH-997).** `Dev10x:work-on` forbids the *orchestrator* from inspecting
+commit history to predict whether grooming is needed — before or after
+delegating. That prohibition is scoped to the caller, outside this
+skill. Phase 1 is the groom's own first step, and the strategy decision
+it feeds belongs to Phase 2's gate. An agent that delegated correctly
+is not breaking the rule by running these commands here.
 
 ### Phase 2: Choose Strategy
 
