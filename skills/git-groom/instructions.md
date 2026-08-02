@@ -633,16 +633,20 @@ the full rewrite lifecycle including reference updates.
 
    For each match, substitute `old_sha → new_sha` in the body
    (full-SHA substring replace — careful not to match a prefix
-   of an unrelated hash) and patch the comment body via the
-   GitHub REST API:
+   of an unrelated hash) and patch the comment body via the MCP
+   tool — never a raw REST PATCH call:
 
-   ```bash
-   gh api -X PATCH "/repos/$OWNER/$REPO/pulls/comments/$comment_id" -f body="$rewritten_body"  # cli-friction: allow raw-gh-api — no MCP edit action exists for PR-review-comment bodies; pr_comments supports list/get/reply/resolve only
+   ```
+   mcp__plugin_Dev10x_cli__pr_review_comment_edit(
+       comment_id=<id>, body=<rewritten_body>, repo="<owner>/<repo>")
    ```
 
    Top-level PR comments live on a different REST endpoint
-   (`/repos/$OWNER/$REPO/issues/comments/$id`); same `body`
-   field. Walk both surfaces.
+   (`/repos/$OWNER/$REPO/issues/comments/$id`) and have their own
+   wrapper — `mcp__plugin_Dev10x_cli__issue_comment_edit`. Walk
+   both surfaces, each through its own tool. This mirrors the
+   guidance already stated in `Dev10x:gh-pr-respond`
+   § Post-Groom SHA Refresh.
 
    If a SHA is referenced but does not appear in the
    `old_sha → new_sha` map, leave it untouched (it predates the
