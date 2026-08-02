@@ -31,7 +31,13 @@ from pathlib import Path
 _logger = logging.getLogger(__name__)
 
 SCANNED_SUFFIXES = frozenset({".py", ".toml", ".sh"})
-SKIPPED_DIRS = frozenset({".git", ".venv", "node_modules", "__pycache__", "dist", "build"})
+# `worktrees` covers `.claude/worktrees/` (agent isolation trees) and a
+# project's `.worktrees/` — each is a full checkout of this same repo, so
+# scanning them re-reports every finding once per tree and lets leftover
+# trees fail the canonical lint suite repo-wide until someone prunes them.
+SKIPPED_DIRS = frozenset(
+    {".git", ".venv", "node_modules", "__pycache__", "dist", "build", "worktrees"}
+)
 
 # A PEP 723 dependency block in this repo is always a single-line TOML
 # array comment: `# dependencies = ["pyyaml>=6.0,<7", ...]`.
