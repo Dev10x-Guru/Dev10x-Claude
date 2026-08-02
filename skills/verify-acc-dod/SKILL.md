@@ -19,6 +19,7 @@ allowed-tools:
   - Bash(git diff:*)
   - mcp__plugin_Dev10x_cli__pr_detect
   - mcp__plugin_Dev10x_cli__verify_pr_state
+  - mcp__plugin_Dev10x_cli__human_review_status
 ---
 
 # Verify Acceptance Criteria / Definition of Done
@@ -174,25 +175,44 @@ plugin defaults:
 Apply in order: remove first, then replace, then add. This
 prevents removing a just-added check or replacing a removed one.
 
-### Step 4: Filter by active modes
+### Step 4: Filter by review posture and active modes
 
-Resolve `active_modes` from the DURABLE gate policy — global
+Resolve both inputs from the DURABLE gate policy — global
 `~/.config/Dev10x/friction.yaml` (first matching `projects[]` entry),
 falling back to legacy `.claude/Dev10x/config.yaml`. Do NOT read the
 retired ephemeral `.claude/Dev10x/session.yaml`, which no longer
-carries durable modes (ADR-0018, GH-854 F3). For each check with a
-`modes:` field, check if any active mode has `skip: true`. If so,
-remove the check from the list and report it as "skipped (mode:
-<mode-name>)".
+carries durable prefs (ADR-0018, GH-854 F3).
 
-Modes encode an explicit scope decision so the DoD stays honest
-rather than red-but-ignored (GH-736). For example, `review-deferred`
-skips both the **"No unresolved review threads"** check and the
-**"Review requested" / "Re-review requested"** check — set it when
-the supervisor has deferred open review threads to a follow-up, so a
-green run honestly recommends Work complete / Monitor instead of
-papering over a failing thread check. `solo-maintainer` skips only
-the review-request check (thread resolution is still expected). See
+**4a. Review posture — `human_review` (ADR-0019, GH-950).** Read it via
+`mcp__plugin_Dev10x_cli__human_review_status()`; absent or malformed
+reads as `true`. Do NOT read the durable file directly — the tool owns
+the precedence. When it is `false`, drop every check declaring
+`requires_human_review: true` and report each as
+`skipped (human_review: false)`.
+
+Which checks those are is declared in the **data**, not here — see the
+`requires_human_review` field in
+[`references/defaults.yaml`](references/defaults.yaml) (today: the
+unresolved-threads and review-requested/re-review pairs), so a project
+override can adjust the set without editing this skill.
+
+With them out of scope, a green run honestly recommends Work complete /
+Monitor instead of papering over a failing thread check (GH-736). When
+`human_review` is `true`, those checks run — an open thread is a real
+failing blocking check and the recommendation is **Go back**.
+
+This replaces the ephemeral `review-deferred` write, which targeted the
+retired `session.yaml` and so was never read back in a configured repo.
+There is no per-session deferral: the posture is a durable project fact.
+
+**4b. Active modes.** Resolve `active_modes` from the same durable
+prefs. For each check with a `modes:` field, if any active mode has
+`skip: true`, remove the check and report it as "skipped (mode:
+<mode-name>)". `solo-maintainer` skips only the review-request check
+(thread resolution is still expected). `review-deferred` is
+**deprecated** in favour of `human_review` — its `skip` clauses are
+still honored for back-compat when a playbook or legacy `active_modes`
+names it, but nothing writes it anymore. See
 [`references/active-modes.md`](../../references/active-modes.md).
 
 ### Resolution order (summary)

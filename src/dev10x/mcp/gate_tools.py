@@ -35,6 +35,7 @@ __all__ = [
     "LEGACY_PROJECT_POLICY_RELPATH",
     "PROJECT_POLICY_RELPATH",
     "GateResolutionQuery",
+    "human_review_status",
     "pin_gate_preset",
     "preset_pin_status",
     "resolve_gate",
@@ -162,6 +163,43 @@ async def preset_pin_status(cwd: str | None = None) -> dict:
 
     with use_cwd(cwd):
         return to_wire(preset_pin.preset_pin_status(cwd=cwd))
+
+
+@server.tool()
+async def human_review_status(cwd: str | None = None) -> dict:
+    """Report whether humans review PRs on this project (ADR-0019, GH-950).
+
+    The sanctioned way for a skill to read the durable `human_review`
+    posture. Skills MUST call this rather than reading
+    `~/.config/Dev10x/friction.yaml` directly or re-deriving the
+    first-match-wins glob precedence in prose — the same rule
+    `resolve_gate` enforces for `friction_level` / `active_modes`.
+
+    Three behaviours key off the returned value: `Dev10x:gh-pr-request-review`
+    requests review only when it is true; `Dev10x:verify-acc-dod` runs the
+    checks marked `requires_human_review` only when it is true; and false is
+    a *precondition* for merge autonomy — never a grant, since the
+    `merge: ask` project pin and `allowed_overlays` remain independent
+    vetoes.
+
+    Args:
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: human_review (bool — true when unset or
+        malformed, so a bad value fails toward MORE oversight), repo_root.
+        `{"error": ...}` outside a git repo.
+    """
+    from dev10x.domain.documents.session_yaml import SessionYamlDocument
+    from dev10x.domain.git_context import GitContext
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        toplevel = GitContext().toplevel
+        if toplevel is None:
+            return to_wire(err("Not in a git repository"))
+        document = SessionYamlDocument(toplevel=toplevel)
+        return to_wire(ok({"human_review": document.read_human_review(), "repo_root": toplevel}))
 
 
 @server.tool()

@@ -451,6 +451,11 @@ def legacy_session_mapping(
     to the solo-maintainer overlay; ``walk_away: true`` maps to the afk
     overlay. Structural modes (``review-deferred``, ``swarm-child``)
     stay in ``active_modes`` and are not gate concerns.
+
+    ``review-deferred`` is deprecated (ADR-0019): the durable
+    ``human_review`` pref supersedes it, and it is retained for
+    read-only back-compat. ``swarm-child`` remains genuinely
+    per-dispatch. Neither is a gate concern either way.
     """
     overlays: list[str] = []
     if "solo-maintainer" in active_modes:

@@ -23,6 +23,17 @@
 #                     match), falling back to legacy .claude/Dev10x/config.yaml.
 #                     NOT the retired ephemeral .claude/Dev10x/session.yaml
 #                     (ADR-0018, GH-854 F3).
+#   requires_human_review:
+#                     Optional boolean (ADR-0019). When true, skip this
+#                     check if the durable `human_review` pref is false —
+#                     the project has no humans in the review loop, so a
+#                     review-shaped check is out of scope. Report it as
+#                     "skipped (human_review: false)". Resolved from the
+#                     same durable prefs as `modes:` above, via
+#                     SessionYamlDocument.read_human_review() (default
+#                     true). This is a separate field, NOT a `modes:`
+#                     entry — `human_review` is a boolean posture, not a
+#                     mode name, and must not be smuggled into that map.
 #
 # Only one expect_* field per check. First match wins.
 
@@ -69,6 +80,7 @@ defaults:
           gh pr view {pr_number} --repo {repo}
           --json reviewThreads -q '[.reviewThreads[] | select(.isResolved == false)] | length'  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect: "0"
+        requires_human_review: true
         modes:
           review-deferred:
             skip: true
@@ -77,6 +89,7 @@ defaults:
           gh pr view {pr_number} --repo {repo}
           --json reviewRequests -q '.reviewRequests | length'  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect_gt: 0
+        requires_human_review: true
         modes:
           solo-maintainer:
             skip: true
@@ -125,6 +138,7 @@ defaults:
           gh pr view {pr_number} --repo {repo}
           --json reviewThreads -q '[.reviewThreads[] | select(.isResolved == false)] | length'  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect: "0"
+        requires_human_review: true
         modes:
           review-deferred:
             skip: true
@@ -133,6 +147,7 @@ defaults:
           gh pr view {pr_number} --repo {repo}
           --json reviewRequests -q '.reviewRequests | length'  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect_gt: 0
+        requires_human_review: true
         modes:
           solo-maintainer:
             skip: true
@@ -177,6 +192,7 @@ defaults:
           gh pr view {pr_number} --repo {repo}
           --json reviewThreads -q '[.reviewThreads[] | select(.isResolved == false)] | length'  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect: "0"
+        requires_human_review: true
         modes:
           review-deferred:
             skip: true
@@ -185,6 +201,7 @@ defaults:
           gh pr view {pr_number} --repo {repo}
           --json reviewRequests -q '.reviewRequests | length'  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect_gt: 0
+        requires_human_review: true
         modes:
           solo-maintainer:
             skip: true

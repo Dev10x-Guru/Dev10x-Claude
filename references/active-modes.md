@@ -1,7 +1,9 @@
 # Active Modes
 
-Behaviors enabled by entries in
-`.claude/Dev10x/session.yaml` → `active_modes:`.
+Behaviors enabled by entries in the durable `active_modes:` list —
+resolved from the global `~/.config/Dev10x/friction.yaml` per
+[§ Resolution order](#resolution-order) below, not from the retired
+per-repo session file (ADR-0018).
 
 Modes layer on top of the `friction_level`. The friction level
 controls how gates fire; modes change *what* skills decide at
@@ -80,7 +82,23 @@ When NOT to use: when you also want downstream gates to auto-resolve
 (use `friction_level: adaptive` instead) or when you want to keep the
 plan gate as a veto point (omit `auto-plan`).
 
-### `review-deferred`
+### `review-deferred` — DEPRECATED (ADR-0019)
+
+> **Superseded by durable `human_review` (GH-950).** Whether humans
+> review PRs is a **standing project property**, not a per-session
+> scope decision, so it lives as `human_review: true|false` in the
+> matching `projects[]` entry of `~/.config/Dev10x/friction.yaml` —
+> read by `SessionYamlDocument.read_human_review()` (default `true`).
+> The same flag also governs whether reviewers get requested and is a
+> precondition for the agent merging after automated findings are
+> resolved. See
+> [ADR-0019](../docs/adr/0019-human-review-is-a-durable-project-fact.md).
+>
+> **Nothing writes `review-deferred` anymore.** The mode string is
+> still *read* — the `skip` clauses below keep working when a playbook
+> or a legacy `active_modes` list names it — so un-migrated repos and
+> hand-edited playbooks are unaffected. There is no per-session
+> deferral: to take review out of scope, set the durable flag.
 
 The supervisor has explicitly scoped the session to **defer** open PR
 review threads — e.g. "land the CI fix only, leave the review comments
@@ -122,11 +140,25 @@ Active modes are resolved in this order (see
 Both per-repo files in step 2 are **retired** (ADR-0018) — they are a
 read-compat fallback, never a write target.
 
-> **Known gap (GH-950).** Ephemeral modes (`review-deferred`,
-> `swarm-child`) have no post-ADR-0018 home. Their writers still target
-> the deleted `session.yaml`, which step 2 reaches only in an
-> unconfigured repo — so in a configured one the mode is written and
-> never read. GH-950 picks the ephemeral store and rewires both ends.
+### Not every posture is a mode (ADR-0019)
+
+`review-deferred` used to be written into `active_modes` on the
+retired `session.yaml`, which step 2 reaches only in an unconfigured
+repo — so in a configured one it was written and never read (GH-950).
+The fix was not a new store but a better model: the review posture is
+one **durable, project-wide** key, `human_review: true|false`, resolved
+by the same first-match-wins precedence as step 1 and read via
+`SessionYamlDocument.read_human_review()`.
+
+`swarm-child` is **not** affected. It is genuinely per-dispatch — a
+worker either is or is not a swarm child, and the dispatcher sets it —
+so it keeps its dispatch-time delivery rather than moving to a durable
+project key.
+
+When adding a mode, ask first whether the thing you are modelling is a
+per-session structural choice (a mode) or a standing property of the
+project (a durable key). A standing property written as a mode is the
+GH-950 failure shape.
 
 ## Adding a new mode
 

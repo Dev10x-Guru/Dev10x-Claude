@@ -125,6 +125,7 @@ one session). Use these shapes verbatim:
 | `pr_close` | `pr_number` | `number` (that's `issue_close`'s param name) |
 | `resolve_plugin_origin` | `skill_paths` (list of absolute paths) | singular `skill_path` |
 | `pin_gate_preset` | `preset`; optional `scope` (`repo` default / `repo-only` / `dir`) | passing a `match` or a path — the tool derives the repo stem itself |
+| `human_review_status` | none (optional `cwd`) | reading `friction.yaml` directly instead — the tool owns the precedence |
 | `pr_ready` | `pr_number`; optional `undo` (bool) | assuming it only publishes — `undo=true` returns a PR to draft |
 
 Behavioral caveats:
@@ -269,6 +270,7 @@ supporting each tool:
 | `resolve_gate` | `cli` | GH-742 (ADR-0016 spike) | v0.83.0+ |
 | `preset_pin_status` | `cli` | GH-855 | v0.92.0+ |
 | `pin_gate_preset` | `cli` | GH-855 | v0.92.0+ |
+| `human_review_status` | `cli` | GH-950 | v0.93.0+ |
 | `usage_blocks` | `cli` | GH-878 | v0.90.0+ |
 | `query` | `db` | PR #126 | v0.25.0+ |
 

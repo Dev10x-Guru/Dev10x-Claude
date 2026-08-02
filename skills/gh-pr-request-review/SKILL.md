@@ -10,6 +10,7 @@ invocation-name: Dev10x:gh-pr-request-review
 allowed-tools:
   - mcp__plugin_Dev10x_cli__request_review
   - mcp__plugin_Dev10x_cli__resolve_gate
+  - mcp__plugin_Dev10x_cli__human_review_status
   - mcp__plugin_Dev10x_cli__pr_detect
   - Bash(gh pr view:*)
   - Bash(gh pr ready:*)
@@ -18,8 +19,6 @@ allowed-tools:
   - Bash(yq:*)
   - Bash(jq:*)
   - AskUserQuestion
-  # The ephemeral review-deferred flag has no post-ADR-0018 home yet — GH-950.
-  - Edit(.claude/Dev10x/session.yaml)  # cli-friction: allow retired-durable-pref-path — GH-950
 ---
 
 ## Orchestration
@@ -70,8 +69,9 @@ projects:
   `username` for individual users
 - `skip: true` suppresses the review request for that project permanently
 - `standby: true` defers the review request for one-time deferral
-  (supervisor self-reviews first); records `review-deferred` in
-  `active_modes` so `verify-acc-dod` skips the "Review requested" check
+  (supervisor self-reviews first); persists nothing — for a standing
+  "no humans review here" posture set durable `human_review: false`
+  instead (ADR-0019)
 - `default_action: ask` prompts the user for unconfigured projects;
   `skip` silently skips them; `standby` defers without prompting
 
@@ -83,6 +83,18 @@ request review at all. Use `resolve_gate` for this — do NOT read
 re-derive preset behavior in prose. The tool reads session policy
 (preset + overlays) itself.
 
+0. **Durable posture pre-check (ADR-0019).** Call
+   `mcp__plugin_Dev10x_cli__human_review_status()` and read
+   `human_review` from the response (default `true`). Do NOT read
+   `~/.config/Dev10x/friction.yaml` directly or re-derive its
+   first-match-wins precedence in prose — same rule this section already
+   applies to `resolve_gate`. When it is `false`, this project has no humans in
+   the review loop: do NOT request review and do NOT resolve reviewers,
+   but STILL run the **Pre-flight: Draft State Check** below (same
+   reasoning as `effect == "skip"` in step 4 — a draft PR whose CI is
+   suppressed would never become mergeable). Print "Skipping review
+   request (human_review: false)" and stop. Otherwise continue to
+   step 1.
 1. Call `mcp__plugin_Dev10x_cli__resolve_gate(gate="request_review",
    context={})`.
 2. `effect == "ask"` → **REQUIRED: Call `AskUserQuestion`** (the
@@ -109,10 +121,9 @@ re-derive preset behavior in prose. The tool reads session policy
   Reviewer Resolution below (the skill's normal action).
 - **Stand-by — self-review first** — hold off requesting review; run
   a self-review pass (e.g. `Dev10x:review`) before requesting. On this
-  choice: record `review-deferred` in `active_modes` per the Stand-by
-  / Defer path below, return without requesting review, and hand
-  control back to the caller to self-review — the caller re-enters
-  this gate afterward.
+  choice: follow the Stand-by / Defer path below (which persists
+  nothing), return without requesting review, and hand control back to
+  the caller to self-review — the caller re-enters this gate afterward.
 - **Skip — no review needed** — suppresses this request only; does
   not modify config.
 
@@ -191,7 +202,7 @@ NOT notify the requested reviewers — the request is lost.
    - **Found with `skip: true`** → print "Skipping review request
      for {repo}" and stop
    - **Found with `standby: true`** → defer (see Stand-by / Defer
-     path below): record `review-deferred` in `active_modes` and stop
+     path below) and stop; persist nothing
    - **Found with `reviewers` list** → use those reviewers
    - **Not found, `default_action: ask`** → **REQUIRED: Call
      `AskUserQuestion`** to ask the user who to request review
@@ -211,34 +222,43 @@ NOT notify the requested reviewers — the request is lost.
      configured for {repo}, skipping" and stop
 4. Call the `request_review` MCP tool with the resolved reviewers
 
-### Stand-by / Defer path (GH-396)
+### Stand-by / Defer path (GH-396, ADR-0019)
 
 When the supervisor wants to self-review before pinging a teammate,
 the deferral path:
 
 1. Print `"Review deferred for {repo} — self-review before requesting
    teammate review."`
-2. Record `review-deferred` in `active_modes` by appending it to
-   `.claude/Dev10x/session.yaml`:
-   - Read the file, append `review-deferred` to the `active_modes`
-     list if not already present, write back via the Edit tool
-   - `review-deferred` is a **one-time, ephemeral** flag, so it does not
-     belong in the durable `friction.yaml`/`config.yaml` where modes
-     like `solo-maintainer` live (ADR-0018 / GH-854 F3).
-   - **Known gap (GH-950):** ADR-0018 deleted `session.yaml`, and the
-     durable read facade falls back to it *only* when no
-     `friction.yaml` entry matches this repo. In a configured repo the
-     flag is therefore written and never read, so `verify-acc-dod`
-     re-runs the checks just deferred. Do not "fix" that here by
-     writing durable prefs — the lifetime is wrong. GH-950 picks the
-     ephemeral home and rewrites this step.
+2. **Persist nothing.** The deferral applies to *this invocation only*.
+   Do NOT write `active_modes`, and in particular do NOT write
+   `.claude/Dev10x/session.yaml` — ADR-0018 retired that file, and the
+   durable read facade reaches it only in a repo with no `friction.yaml`
+   entry, so in any configured repo the flag was written and never read
+   (GH-950). The caller re-enters this gate after self-reviewing.
 3. Do NOT mark the PR as draft; leave it ready
 4. Return cleanly so the calling orchestrator's completion gate does
    not treat the missing review request as a failure
 
-`verify-acc-dod` will skip the "Review requested" / "Re-review
-requested" check when `review-deferred` appears in `active_modes`
-(the check's `modes.review-deferred.skip: true` clause handles this).
+**Standing posture vs one-off deferral (ADR-0019).** Whether humans
+review PRs on a project is a **durable project fact**, not a session
+flag. It lives as `human_review: true|false` in the matching
+`projects[]` entry of the global `~/.config/Dev10x/friction.yaml`,
+read via `mcp__plugin_Dev10x_cli__human_review_status()` (default
+`true`):
+
+- `human_review: false` → skip reviewer resolution and the review
+  request entirely, and `verify-acc-dod` skips the unresolved-threads
+  and review-requested checks. It is also a **precondition** for the
+  agent merging once automated findings are resolved — never a grant:
+  the git-tracked `merge: ask` pin and `allowed_overlays` remain
+  independent vetoes.
+- `human_review: true` (default) → request review normally. A supervisor
+  who wants review permanently off sets the durable flag; a one-off
+  stand-by does not change it.
+
+The legacy `review-deferred` mode string is still **read** for
+back-compat (a playbook `modes.review-deferred.skip` clause or an
+existing `active_modes` entry keeps working), but nothing writes it.
 
 ## Usage
 
