@@ -64,6 +64,48 @@ def _project_overrides(toplevel: str) -> dict[str, Any]:
     return _read_overrides(root / LEGACY_PROJECT_POLICY_RELPATH)
 
 
+def _policy_toplevel(toplevel: str) -> str:
+    """Toplevel whose durable prefs govern this checkout (GH-978).
+
+    ``friction.yaml`` entries are written by ``pin_gate_preset`` keyed off the
+    **git common dir** (GH-855), but read back by matching globs against the
+    *invocation* toplevel. Those two disagree inside a linked worktree whose
+    directory name is not repo-shaped — an agent worktree at
+    ``<repo>/.claude/worktrees/agent-<hash>`` matches neither ``*/<repo>`` nor
+    ``*/<repo>-*``. The repo's pinned policy silently evaporated and every gate
+    fell back to the ``strict`` baseline, so unattended workers hit an ``ask``
+    wall at the merge gate — the exact step the walk-away policy exists to
+    automate (#978, PR #973 field case).
+
+    Resolution order deliberately probes the **worktree first**: an entry that
+    already matches this directory keeps winning, so a ``dir``-scoped pin still
+    means "this one directory" and a ``repo``-scoped pin still covers siblings
+    exactly as before. Only when nothing matches do we fall back to the repo
+    root, which is where ``pin_gate_preset`` keyed the entry.
+
+    Trade-off, recorded rather than hidden: a ``repo-only`` pin ("main checkout
+    alone; sibling worktrees fall back to defaults") no longer excludes a
+    linked worktree that has no entry of its own — it now inherits the repo
+    pin. Sharing one policy source across every worktree is the explicit intent
+    of #978, and a worktree silently running a *different* posture than the
+    repo it belongs to was the defect.
+
+    Degrades to ``toplevel`` whenever the repo root is unknowable (not a git
+    repo, bare repo, wedged git) — never raises.
+    """
+    from dev10x.domain.common.result import ErrorResult
+    from dev10x.domain.documents.session_yaml import FrictionYamlDocument
+    from dev10x.session.preset_pin import resolve_repo_identity
+
+    if FrictionYamlDocument(toplevel=toplevel).matched() is not None:
+        return toplevel
+
+    identity_result = resolve_repo_identity(cwd=toplevel)
+    if isinstance(identity_result, ErrorResult):
+        return toplevel
+    return identity_result.value["root"] or toplevel
+
+
 def _current_branch(toplevel: str) -> str | None:
     """Current git branch at ``toplevel``, or ``None`` when undeterminable."""
     from dev10x.domain.git_context import GitContext
@@ -155,7 +197,12 @@ class GateResolutionQuery:
         # so the caller can spot a typo.
         accepted_context = {k: v for k, v in self.context.items() if k in known_fields}
 
-        session_doc = SessionYamlDocument(toplevel=self.toplevel)
+        # Durable prefs are a property of the REPO, so they resolve against the
+        # repo root when this worktree has no entry of its own (GH-978). The
+        # project overrides and the session_adoption staleness fallback below
+        # stay on ``self.toplevel``: the former is a git-tracked artifact of the
+        # checked-out branch, the latter is per-worktree by definition.
+        session_doc = SessionYamlDocument(toplevel=_policy_toplevel(self.toplevel))
         inputs = session_doc.read_gate_policy_inputs()
 
         # New-style session keys (gate_preset/gate_overlays) win; otherwise map
