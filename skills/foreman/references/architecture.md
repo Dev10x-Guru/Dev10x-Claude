@@ -111,6 +111,23 @@ brief — the foreman still owns authorship.
 | Catastrophic harness loss (session killed, host reboot — run dir in /tmp is gone) | Nothing fires; discovered by the supervisor | The tracker is the durable store by contract: every queued chunk maps to open issues and every scope cut left an open issue (crew contract). A fresh foreman run rebuilds the queue from open milestone/label issues alone; nothing is lost but time. |
 | Session death mid-run (API session limit) — the new session inherits a handover, not a live crew | `SendMessage` to any prior `agentId` returns "No transcript found for agent ID" | Spawn every worker fresh and re-derive each inherited claim (branch, SHA, PR state) from origin before acting on it — the handover's author could not see whether the work landed (`durability-envelope.md`, GH-965) |
 
+## Run-directory files
+
+Everything durable about a run lives here (and only here until it
+reaches the tracker). Each file has exactly one writer.
+
+| File | Writer | Purpose |
+|---|---|---|
+| `manifest.md` | watchdog | Queue order, per-chunk model + scope, gate policy, base branch, verified command shapes. Authoritative for what was queued |
+| `DECISIONS.md` | watchdog | Numbered supervisor-grade decisions (D1, D2, …). Authoritative for why anything changed; the escalation channel |
+| `decisions-<chunk>.md` | that chunk's worker | Per-chunk rationale, scope cuts |
+| `status-<chunk>.md` | that chunk's worker | Heartbeat log; mtime is the stall detector's truth |
+| `status-foreman.md` | foreman | Foreman heartbeat log |
+| `roster.md` | foreman | At-a-glance table of every delegated chunk — `Chunk \| Issue(s) \| State \| PR \| Worker \| Last update`. A **derived rendering** of the manifest + decision logs + live tracker state, rewritten at existing transition write points so the queue is readable without opening every status file (GH-976). Never the sole record of anything — see [`roster.md`](roster.md) |
+| `merged-shas` | watchdog | Base tips this run merged; mutes the watcher's self-echo |
+| `parked` | watchdog | Present while the queue is deliberately held; mutes stall/quota noise |
+| `current-generation` | watchdog | `G<n> <agent-name> <UTC ts>` — the foremen's authority token |
+
 ## Heartbeat protocol
 
 - One `status-<chunk>.md` per crew worker + `status-foreman.md`, all
