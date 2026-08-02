@@ -455,7 +455,13 @@ turn are the most precious resources on site:
    open threads needing the supervisor). `roster.md` is the skeleton
    of that table — confirm every row against the tracker before it
    ships, since the roster is a rendering and a rendering is not
-   evidence.
+   evidence. **Optional presentation:** the report is a wide
+   per-chunk table the supervisor reads cold in the morning, so it
+   is a good candidate for an HTML artifact alongside the markdown —
+   see
+   [`../../references/html-artifact-reporting.md`](../../references/html-artifact-reporting.md).
+   Optional, never a gate; `DECISIONS.md` and the tracker stay the
+   record.
 3. **Self-audit (the skill improves itself):** collect every
    prompted, denied, or hook-blocked command from the night; run
    `Skill(Dev10x:diag-friction)` on each offender; file upstream

@@ -1,5 +1,12 @@
 # Workshop Session Deliverables
 
+Every deliverable below is markdown committed to the repo — that is
+the durable record. When a workshop record runs long, or a decision's
+alternatives are easier to weigh side by side, you may **additionally**
+render it as an HTML artifact for the human reader; see
+[`../../../references/html-artifact-reporting.md`](../../../references/html-artifact-reporting.md).
+Optional, never a substitute for the files below.
+
 ## Required Deliverables (every session)
 
 ### 1. Decision Log Entries (`decisions.md`)
