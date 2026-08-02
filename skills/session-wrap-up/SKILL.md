@@ -220,8 +220,10 @@ where this one left off.
    `insights:` list.
 
 4. **Freshness stamp (GH-782)** — stamp the persisted payload
-   with the session identity and a wrap timestamp so a later
-   session can tell live deferrals from stale carryover:
+   with the wrapping session's branch/tickets and a wrap timestamp
+   so a later session can tell live deferrals from stale carryover
+   (see the scope note below — this is `park-discover`'s input, not
+   the `session_adoption` gate's identity):
    ```yaml
    branch: <current git branch>
    tickets: ["GH-782"]   # ticket IDs this session worked
@@ -235,23 +237,45 @@ where this one left off.
    `tasks:` list / `continuation_prompt:` is silently
    re-surfaced as if current — the GH-782 root cause.
 
-**Ephemeral-only, no durable keys (GH-774).** Durable
+**Ephemeral-only, no durable keys (GH-774, ADR-0018).** Durable
 preferences — `friction_level`, `active_modes`, and the
-`gate_*` keys — now live in the sibling **`config.yaml`**, not
-`session.yaml`. This skill persists **only** ephemeral state:
-do NOT write `friction_level` or `active_modes` into
-`session.yaml`. A leftover `active_modes: [solo-maintainer]`
-carried in session state was the PR #740 auto-merge hazard;
-keeping durable keys out of the file this skill rewrites
-removes that class of stale-mode bug. Read the existing
-`session.yaml` first and preserve any identity keys (`branch`,
-`tickets`) it already holds — merge the new fields, never fold
-durable keys back in.
+`gate_*` keys — live in the global
+`~/.config/Dev10x/friction.yaml`. This skill persists **only**
+ephemeral state: do NOT write `friction_level` or `active_modes`
+anywhere. A leftover `active_modes: [solo-maintainer]` carried in
+session state was the PR #740 auto-merge hazard; keeping durable
+keys out of what this skill rewrites removes that class of
+stale-mode bug.
 
-**Integration with `/clear`:** After writing session.yaml,
-inform the user: "Session state saved. To resume after
-`/clear`, invoke `Dev10x:work-on` — it will detect the
-saved state and offer to continue."
+**The freshness stamp is NOT the gate's session identity
+(GH-1001).** Two things once shared these key names, and only one
+of them still lives here:
+
+- The `branch:` / `tickets:` written in step 4 above stay. Their
+  consumer is `Dev10x:park-discover`, which classifies each carried
+  entry live-or-stale against them. Dropping the stamp reintroduces
+  the GH-782 bug where a months-old `tasks:` list resurfaces as
+  current.
+- The identity the Phase 0 `session_adoption` gate reads is a
+  *different* thing and no longer comes from here. Plan-sync
+  persists it (MCP-written, gate-free) and
+  `_computed_session_stale()` reads it from there — so do not write
+  `.claude/Dev10x/session.yaml` expecting to influence that gate,
+  and do not treat this stamp as a durable pref.
+
+**Integration with `/clear`:** After persisting, inform the user:
+"Session state saved. To resume after `/clear`, invoke
+`Dev10x:work-on` — it will detect the saved state and offer to
+continue."
+
+> **Scope note (GH-1001).** This phase still writes the ephemeral
+> task index to `.claude/Dev10x/session.yaml`, as do the `park`
+> family and `Dev10x:gh-pr-bookmark`. ADR-0018 retired that path for
+> *durable preferences and gate identity*, which the paragraphs
+> above enforce; rehoming the task index needs its own destination
+> decision and is tracked separately. Until then this remains a
+> deliberate, documented exception — not an oversight to "fix" by
+> deleting the write.
 
 ## Phase 4: Summary
 

@@ -74,29 +74,36 @@ template from the **Hook Templates** section below. Present to the user for
 approval before writing. The hook must always ensure `.claude` exists —
 either by copying from the source repo or creating an empty scaffold.
 
-**Session config seeding (GH-705).** `.claude/Dev10x/session.yaml` is
-gitignored (so it never trips the clean-tree gates in `verify_pr_state`
-/ `gh-pr-merge` / `create_pr`), which means `git worktree add` does not
-carry it into a new worktree. Every template in the **Hook Templates**
-section copies it as part of the `.claude/` copy and then seeds a
-default via `dev10x session seed` when the source had none — both inside
-a marker-guarded block:
+**Session config seeding (GH-705, ADR-0018).** Durable preferences
+live in the global `~/.config/Dev10x/friction.yaml`, outside every
+repo and therefore already shared by every worktree — nothing needs
+copying into a new checkout. Templates instead **exclude** `Dev10x/`
+from the `.claude/` copy, so no stale per-repo state (a legacy
+`config.yaml`, an auto-advance doubt-sink) rides across, and then run
+the seed to ensure the global `friction.yaml` and the self-ignoring
+`.claude/Dev10x/.gitignore` exist:
 
 ```sh
-# >>> Dev10x session-seed (GH-705) >>>
-if [ ! -f .claude/Dev10x/session.yaml ]; then
-    if command -v dev10x >/dev/null 2>&1; then
-        dev10x session seed || true
-    elif command -v uvx >/dev/null 2>&1; then
-        uvx dev10x session seed || true
-    fi
+# >>> Dev10x session-seed (ADR-0018) >>>
+if command -v dev10x >/dev/null 2>&1; then
+    dev10x session seed || true
+elif command -v uvx >/dev/null 2>&1; then
+    uvx dev10x session seed || true
 fi
-# <<< Dev10x session-seed (GH-705) <<<
+# <<< Dev10x session-seed (ADR-0018) <<<
 ```
+
+The seed is idempotent — it leaves present files untouched — so it
+needs no existence guard, and a missing `dev10x` CLI is non-fatal.
+This block previously guarded on a per-repo
+`.claude/Dev10x/session.yaml`; ADR-0018 retired that file, so nothing
+creates it and the guard matched on every checkout (GH-1001). The
+shipped `templates/post-checkout-python-uv.sh` is the reference
+implementation.
 
 **When the project already has an adequate post-checkout hook**, do NOT
 overwrite it — **augment it idempotently**: read the hook, and only if
-the `Dev10x session-seed (GH-705)` marker is absent, inject the block
+the `Dev10x session-seed` marker is absent, inject the block
 above just before the hook's final cleanup/exit (inside the all-zeros
 SHA guard if one exists). A hook that already contains the marker is
 left untouched, so re-running this skill never duplicates the block.
