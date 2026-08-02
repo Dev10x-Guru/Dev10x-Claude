@@ -405,6 +405,95 @@ class TestInterpreterStdinBypass:
         assert result is None
 
 
+class TestInterpreterInCommandSubstitution:
+    """GH-986: `$(...)` and backticks open a command position too.
+
+    The separator classes admitted `|`, `;`, `&`, newline (and `(` for
+    the fail-closed path) but not `` ` `` — and `$(` only reached the
+    fail-closed path. Command substitution is a command position: the
+    interpreter that runs inside one executes exactly as it would at the
+    start of the line, so the guard must treat it the same way.
+    """
+
+    @pytest.fixture()
+    def validator(self) -> ExecutionSafetyValidator:
+        return ExecutionSafetyValidator()
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "echo $(python3 << 'PY'\nimport os\nPY\n)",  # heredoc in $( )
+            "echo `python3 << 'PY'\nimport os\nPY`",  # heredoc in backticks
+            "out=$(python3 <<< 'import os')",  # here-string in $( )
+            "out=`python3 <<< 'import os'`",  # here-string in backticks
+            "echo $(FOO=1 python3 <<EOF\nimport os\nEOF\n)",  # env-prefixed
+            "echo $(python3 -c 'import os')",  # inline -c in $( )
+            "echo `python3 -c 'import os'`",  # inline -c in backticks
+        ],
+    )
+    def test_blocks_python3_substitution_forms(
+        self, validator: ExecutionSafetyValidator, command: str
+    ) -> None:
+        inp = _make_input(command=command)
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert result.message == PYTHON3_INLINE_MSG
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "echo $(bash << 'SH'\nrm -rf /tmp/x\nSH\n)",  # heredoc in $( )
+            "echo `bash << 'SH'\nrm -rf /tmp/x\nSH`",  # heredoc in backticks
+            "out=$(zsh <<< 'print hi')",  # here-string in $( )
+            "out=`sh <<< 'rm -rf /'`",  # here-string in backticks
+            "echo `bash -c 'rm -rf /tmp/x'`",  # inline -c in backticks
+            "echo $(bash -c 'rm -rf /tmp/x')",  # inline -c in $( )
+            "out=$(sh -c 'id')",  # inline -c, assignment form
+        ],
+    )
+    def test_blocks_shell_substitution_forms(
+        self, validator: ExecutionSafetyValidator, command: str
+    ) -> None:
+        inp = _make_input(command=command)
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert result.message == SHELL_INTERP_MSG
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # A nested substitution must not truncate its parent: a regex
+            # body pattern stops at the inner `(` and hands back only
+            # `echo x`, letting the outer `python3 -c` through.
+            'echo $(python3 -c "$(echo x)")',
+            "echo $(echo `bash -c 'rm -rf /tmp/x'`)",  # backtick inside $( )
+            "echo `echo $(python3 -c 'import os')`",  # $( ) inside backticks
+        ],
+    )
+    def test_blocks_interpreters_in_nested_substitutions(
+        self, validator: ExecutionSafetyValidator, command: str
+    ) -> None:
+        inp = _make_input(command=command)
+        result = validator.validate(inp=inp)
+        assert result is not None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "echo $(cat notes.txt)",  # read-only utility in $( )
+            "echo `cat notes.txt`",  # read-only utility in backticks
+            "files=$(ls bin/tachyon-env.sh)",  # `.sh` is an argument, not a run
+            "echo `grep -c python3 setup.cfg`",  # interpreter named as a string
+        ],
+    )
+    def test_allows_read_only_utilities_in_substitution(
+        self, validator: ExecutionSafetyValidator, command: str
+    ) -> None:
+        inp = _make_input(command=command)
+        result = validator.validate(inp=inp)
+        assert result is None
+
+
 class TestReadOnlyUtilityWithShellScriptArgument:
     """GH-971 F1: a `.sh` ARGUMENT is a read target, not an interpreter."""
 
