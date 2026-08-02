@@ -92,8 +92,17 @@ verify with `pwd` and `git rev-parse --abbrev-ref HEAD` before doing
 anything else. Use absolute paths under {{worktree_path}} for every
 Read / Write / Edit / Grep call.
 
-No new worktrees. One command per Bash call.
+No new worktrees, and never call `EnterWorktree` — you are pinned to
+{{worktree_path}}. If you ever need another worktree's content, report
+its path and branch and STOP; the watchdog reaches it, not you.
+One command per Bash call.
 ```
+
+Keep the `EnterWorktree` ban verbatim. It is not a style preference:
+the call reports success and then wedges the worker's Bash for the
+rest of its life, with no exit path (GH-977). A worker that "just
+tries it" loses the chunk it was already working on. See
+[`worktree-recovery.md`](worktree-recovery.md).
 
 A fresh isolation worktree normally starts DIRTY — a post-checkout
 hook seeds modified and untracked files under `.claude/`. This is
