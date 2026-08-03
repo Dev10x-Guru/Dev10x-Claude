@@ -12,6 +12,7 @@ allowed-tools:
   - mcp__plugin_Dev10x_cli__resolve_gate
   - mcp__plugin_Dev10x_cli__human_review_status
   - mcp__plugin_Dev10x_cli__pr_detect
+  - mcp__plugin_Dev10x_cli__pr_labels
   - Bash(gh pr view:*)
   - Bash(gh pr ready:*)
   - Bash(gh api orgs/:*)
@@ -235,6 +236,24 @@ exit. Deferring unconditionally was the GH-998 defect — the only way
 out was to argue the override down again on the next PR, and the one
 next PR after that.
 
+**Read the durable clearance first (GH-1008).** Before firing the
+gate, call:
+
+```
+mcp__plugin_Dev10x_cli__pr_labels(pr_number=<n>, action="list")
+```
+
+If `review:cleared` is in the returned `labels`, the supervisor already
+cleared THIS PR in an earlier session. **Skip the gate entirely** —
+print `"PR #{pr_number} already cleared (review:cleared) —
+self-review recorded in a previous session."`, do not resolve
+reviewers, and report the PR as cleared so the caller's completion
+gate treats the review requirement as satisfied. Re-asking a question
+the supervisor already answered is the friction this label exists to
+remove.
+
+Otherwise fire the gate.
+
 **REQUIRED: Call `AskUserQuestion`** (do NOT use plain text). This
 gate is `ALWAYS_ASK` — it fires at every friction level, because
 auto-selecting either branch is exactly the silent deferral the gate
@@ -243,35 +262,52 @@ teammate is pinged. Where is PR #{pr_number}?"` Options:
 
 - **Stand by — I have not reviewed it yet (Recommended)** — the
   pre-GH-998 behavior. Print `"Review deferred for {repo} —
-  self-review before requesting teammate review."` and stop.
+  self-review before requesting teammate review."` and stop. Write
+  **no** label: nothing has been reviewed.
 - **I reviewed it — OK to merge** — the supervisor's review IS the
-  sign-off. Do not resolve reviewers and do not request review;
-  report the PR as cleared so the caller's completion gate treats
-  the review requirement as satisfied rather than missing.
+  sign-off. Record the clearance (below), then do not resolve
+  reviewers and do not request review; report the PR as cleared so
+  the caller's completion gate treats the review requirement as
+  satisfied rather than missing.
 - **I reviewed it — request team review now** — clearance plus
-  escalation. Fall through to normal reviewer resolution (step 4 of
-  the resolution workflow) and request review from the configured
-  reviewers, ignoring `standby` for this PR.
+  escalation. Record the clearance (below), then fall through to
+  normal reviewer resolution (step 4 of the resolution workflow) and
+  request review from the configured reviewers, ignoring `standby`
+  for this PR.
+
+**Record the clearance (GH-1008).** On either "I reviewed it" answer:
+
+```
+mcp__plugin_Dev10x_cli__pr_labels(pr_number=<n>, action="add",
+                                  labels=["review:cleared"])
+```
+
+This is the durable half of the gate — it is what makes the read at
+the top of this path able to skip. The call is idempotent, so a
+re-clearance costs nothing.
 
 Then, on every branch:
 
-1. **Persist nothing about the deferral.** It applies to *this
-   invocation only*. Do NOT write `active_modes`, and in particular
-   do NOT write `.claude/Dev10x/session.yaml` — ADR-0018 retired that
-   file, and the durable read facade reaches it only in a repo with
-   no `friction.yaml` entry, so in any configured repo the flag was
+1. **Persist nothing about the *session*.** The clearance is a fact
+   about the PR, carried by the PR's own label — not a session mode.
+   Do NOT write `active_modes`, and in particular do NOT write
+   `.claude/Dev10x/session.yaml` — ADR-0018 retired that file, and the
+   durable read facade reaches it only in a repo with no
+   `friction.yaml` entry, so in any configured repo the flag was
    written and never read (GH-950).
 2. Do NOT mark the PR as draft; leave it ready.
 3. Return cleanly so the calling orchestrator's completion gate does
    not treat the missing review request as a failure.
 
-**Clearance is per-PR and currently in-session.** A cleared PR is not
-yet recorded anywhere durable, so a *later session* re-entering this
-gate on the same PR asks again. Recording it as a `review:cleared` PR
-label is the intended durable home, and it needs an MCP label-write
-wrapper that does not exist yet — reaching for a raw label CLI call
-here would plant precisely the stale raw-CLI instruction GH-996
-removed from `Dev10x:git-groom`. Tracked as follow-up.
+**Clearance dies when the head moves (GH-1008).** A review the
+supervisor gave applies to the commits they read, so the label is
+scoped to that head — not to the PR forever. Any force-push
+(`Dev10x:git-groom`, a conflict rebase, an amend) rewrites what is
+under review, and the push path removes `review:cleared` so the next
+request-review invocation asks again. That is deliberate: silently
+carrying a clearance across a rewrite would let unreviewed commits
+inherit a sign-off. Ordinary added commits are treated the same way,
+since the reviewed diff is no longer the current one.
 
 **When to change the config instead.** Three "I reviewed it — OK to
 merge" answers in a row on one repo means `standby` is describing the

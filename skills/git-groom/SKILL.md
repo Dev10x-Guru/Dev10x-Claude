@@ -19,6 +19,7 @@ allowed-tools:
   # their own wrapper.
   - mcp__plugin_Dev10x_cli__pr_comments
   - mcp__plugin_Dev10x_cli__pr_review_comment_edit
+  - mcp__plugin_Dev10x_cli__pr_labels
   - mcp__plugin_Dev10x_cli__issue_comment_edit
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git-groom/scripts/:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git/scripts/git-rebase-groom.sh:*)

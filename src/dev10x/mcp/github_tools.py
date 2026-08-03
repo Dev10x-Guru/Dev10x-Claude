@@ -314,6 +314,48 @@ async def pr_review_comment_edit(
 
 
 @github_tool
+async def pr_labels(
+    pr_number: int,
+    action: str = "list",
+    labels: list[str] | None = None,
+    repo: str | None = None,
+    cwd: str | None = None,
+) -> Result[dict]:
+    """List, add, or remove labels on a PR (GH-1008).
+
+    The durable per-PR signal surface. Its first consumer is
+    `Dev10x:gh-pr-request-review`'s stand-by clearance gate, which
+    writes `review:cleared` so the clearance outlives the session that
+    granted it — previously the gate re-asked on every new session.
+    Reach for this instead of `gh pr edit --add-label`, which is the
+    stale raw-CLI shape GH-996 removed from skills.
+
+    Idempotent both ways: `add` skips labels already present, and
+    `remove` intersects against the current set first, so clearing a
+    label that was never set is a no-op rather than a 404.
+
+    Args:
+        pr_number: PR number (its issue number — labels are an issue
+            resource even on a PR).
+        action: One of `list` / `add` / `remove`. Defaults to `list`.
+        labels: Label names. Required for `add` / `remove`.
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: pr_number, action, labels (the set after
+        the call), changed (only what this call actually altered —
+        empty on a no-op).
+    """
+    return await gh.pr_labels(
+        pr_number=pr_number,
+        action=action,
+        labels=labels,
+        repo=repo,
+    )
+
+
+@github_tool
 async def pr_review_edit(
     pr_number: int,
     review_id: int,

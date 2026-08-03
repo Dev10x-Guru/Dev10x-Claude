@@ -588,6 +588,23 @@ the new HEAD. All previous CI results become invalid. The calling
 skill (e.g., `Dev10x:work-on`) MUST re-monitor CI after grooming
 completes — do not declare CI green based on pre-groom results.
 
+**REQUIRED — clear a stale review clearance (GH-1008).** A force-push
+invalidates a human sign-off for the same reason it invalidates CI:
+the commits the supervisor read are no longer the commits under
+review. When an open PR exists, drop the durable clearance label after
+the push:
+
+```
+mcp__plugin_Dev10x_cli__pr_labels(pr_number=<n>, action="remove",
+                                  labels=["review:cleared"])
+```
+
+The call is idempotent — on a PR that was never cleared it is a no-op,
+so run it unconditionally rather than probing first. Leaving the label
+in place would let `Dev10x:gh-pr-request-review` skip its stand-by
+clearance gate on rewritten history, silently inheriting a sign-off
+for commits nobody reviewed.
+
 ### Phase 4: Update PR References (MANDATORY)
 
 **Hard rule:** After force-pushing groomed history, this phase
