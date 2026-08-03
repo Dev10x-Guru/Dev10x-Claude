@@ -784,6 +784,213 @@ class TestUpdatePrMcp:
         assert "error" in result
 
 
+class TestPrLabelsMcp:
+    """Durable per-PR signal surface for the clearance gate (GH-1008)."""
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_lists_current_label_names(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(stdout='[{"name": "review:cleared"}]')
+
+        result = await cli_server.pr_labels(pr_number=1)
+
+        assert result["labels"] == ["review:cleared"]
+        assert result["changed"] == []
+        assert mock_api.call_args.args[0] == "repos/owner/repo/issues/1/labels"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_adds_a_missing_label(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.side_effect = [
+            _completed(stdout="[]"),
+            _completed(stdout='[{"name": "review:cleared"}]'),
+        ]
+
+        result = await cli_server.pr_labels(pr_number=1, action="add", labels=["review:cleared"])
+
+        assert result["changed"] == ["review:cleared"]
+        assert result["labels"] == ["review:cleared"]
+        assert mock_api.call_args.kwargs["method"] == "POST"
+        assert mock_api.call_args.kwargs["fields"] == {"labels": ["review:cleared"]}
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_adding_a_present_label_is_a_no_op(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        """No second call — the gate re-clearing a cleared PR must be free."""
+        mock_api.return_value = _completed(stdout='[{"name": "review:cleared"}]')
+
+        result = await cli_server.pr_labels(pr_number=1, action="add", labels=["review:cleared"])
+
+        assert result["changed"] == []
+        assert mock_api.await_count == 1
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_removes_a_present_label(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.side_effect = [
+            _completed(stdout='[{"name": "review:cleared"}, {"name": "bug"}]'),
+            _completed(stdout='[{"name": "bug"}]'),
+        ]
+
+        result = await cli_server.pr_labels(
+            pr_number=1, action="remove", labels=["review:cleared"]
+        )
+
+        assert result["changed"] == ["review:cleared"]
+        assert result["labels"] == ["bug"]
+        assert mock_api.call_args.kwargs["method"] == "DELETE"
+        assert mock_api.call_args.args[0] == "repos/owner/repo/issues/1/labels/review:cleared"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_removing_an_absent_label_does_not_404(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        """A force-push clearing a label it never set is not a failure."""
+        mock_api.return_value = _completed(stdout='[{"name": "bug"}]')
+
+        result = await cli_server.pr_labels(
+            pr_number=1, action="remove", labels=["review:cleared"]
+        )
+
+        assert result["changed"] == []
+        assert result["labels"] == ["bug"]
+        assert mock_api.await_count == 1
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_write_falls_back_to_the_computed_set_on_garbage(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.side_effect = [
+            _completed(stdout="[]"),
+            _completed(stdout="not json"),
+        ]
+
+        result = await cli_server.pr_labels(pr_number=1, action="add", labels=["review:cleared"])
+
+        assert result["labels"] == ["review:cleared"]
+
+    @pytest.mark.asyncio
+    async def test_rejects_an_unknown_action(self) -> None:
+        result = await cli_server.pr_labels(pr_number=1, action="toggle")
+
+        assert "unknown action" in result["error"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("action", ["add", "remove"])
+    async def test_write_action_requires_labels(self, action: str) -> None:
+        result = await cli_server.pr_labels(pr_number=1, action=action)
+
+        assert "non-empty" in result["error"]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_returns_error_when_the_read_fails(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(returncode=1, stderr="not found")
+
+        result = await cli_server.pr_labels(pr_number=1)
+
+        assert result["error"] == "not found"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_returns_error_on_unparseable_read(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(stdout="not json")
+
+        result = await cli_server.pr_labels(pr_number=1)
+
+        assert "unparseable" in result["error"]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_returns_error_when_the_write_fails(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.side_effect = [
+            _completed(stdout="[]"),
+            _completed(returncode=1, stderr="forbidden"),
+        ]
+
+        result = await cli_server.pr_labels(pr_number=1, action="add", labels=["review:cleared"])
+
+        assert result["error"] == "forbidden"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_treats_a_non_array_body_as_no_labels(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        """A GitHub error object parses as JSON but is not a labels array."""
+        mock_api.return_value = _completed(stdout='{"message": "Not Found"}')
+
+        result = await cli_server.pr_labels(pr_number=1)
+
+        assert result["labels"] == []
+
+    @pytest.mark.asyncio
+    async def test_returns_error_when_the_repo_cannot_be_resolved(self) -> None:
+        with patch.object(
+            gh,
+            "_resolve_repo",
+            new_callable=AsyncMock,
+            return_value=err("no repo detected"),
+        ):
+            result = await cli_server.pr_labels(pr_number=1)
+
+        assert result["error"] == "no repo detected"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_returns_error_when_the_delete_fails(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.side_effect = [
+            _completed(stdout='[{"name": "review:cleared"}]'),
+            _completed(returncode=1, stderr="forbidden"),
+        ]
+
+        result = await cli_server.pr_labels(
+            pr_number=1, action="remove", labels=["review:cleared"]
+        )
+
+        assert result["error"] == "forbidden"
+
+
 class TestPrReviewEditMcp:
     @pytest.mark.asyncio
     @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)

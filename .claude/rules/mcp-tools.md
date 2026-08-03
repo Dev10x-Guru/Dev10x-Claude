@@ -127,6 +127,7 @@ one session). Use these shapes verbatim:
 | `pin_gate_preset` | `preset`; optional `scope` (`repo` default / `repo-only` / `dir`) | passing a `match` or a path — the tool derives the repo stem itself |
 | `human_review_status` | none (optional `cwd`) | reading `friction.yaml` directly instead — the tool owns the precedence |
 | `task_index_append` | `entry` dict with required `subject` + `source` | reading the store and writing it back by hand — the tool owns the locked read-append-write |
+| `pr_labels` | `pr_number`; `action` (`list` default / `add` / `remove`), plus `labels` for the two writes | separate `pr_label_add` / `pr_label_remove` names — it is one tool with an action selector, like `pr_comments` |
 | `task_index_get` | none (optional `cwd`) | `Read`ing `.claude/Dev10x/session.yaml` — retired by ADR-0018 D5; the tool probes it as a fallback |
 | `pr_ready` | `pr_number`; optional `undo` (bool) | assuming it only publishes — `undo=true` returns a PR to draft |
 
@@ -143,6 +144,16 @@ Behavioral caveats:
   worktrees parking at once lose an entry. `task_index_get` reads the
   retired path as a fallback for one release (`legacy_read: true`), and
   the next append folds it forward (`folded_legacy`).
+
+- `pr_labels` carries the durable `review:cleared` signal (GH-1008).
+  `Dev10x:gh-pr-request-review` reads it before the stand-by clearance
+  gate and skips asking when present; the two "I reviewed it" answers
+  write it. Because a sign-off covers the commits that were read,
+  `Dev10x:git-groom` removes it after a force-push — a clearance must
+  not survive the rewrite that invalidated it. Both writes are
+  idempotent (`add` skips present labels, `remove` intersects against
+  the current set first, so clearing an unset label is a no-op rather
+  than a 404), so call them unconditionally instead of probing.
 
 - `pr_ready` flips a PR in both directions: omit `undo` to publish a
   draft, pass `undo=true` to convert a published PR back to draft
@@ -285,6 +296,7 @@ supporting each tool:
 | `preset_pin_status` | `cli` | GH-855 | v0.92.0+ |
 | `pin_gate_preset` | `cli` | GH-855 | v0.92.0+ |
 | `human_review_status` | `cli` | GH-950 | v0.93.0+ |
+| `pr_labels` | `cli` | GH-1008 | v0.94.0+ |
 | `task_index_get` | `cli` | GH-1009 | v0.94.0+ |
 | `task_index_append` | `cli` | GH-1009 | v0.94.0+ |
 | `task_index_set` | `cli` | GH-1009 | v0.94.0+ |
@@ -387,6 +399,7 @@ the MCP server is unavailable.
 | `gh api .../milestones/{n} PATCH` (title/desc/state/due) | `mcp__plugin_Dev10x_cli__milestone_edit` |
 | `gh pr edit` | `mcp__plugin_Dev10x_cli__update_pr` |
 | `gh pr ready` | `mcp__plugin_Dev10x_cli__pr_ready` |
+| `gh pr edit --add-label` / `--remove-label` | `mcp__plugin_Dev10x_cli__pr_labels` (GH-1008) |
 | `gh pr close` | `mcp__plugin_Dev10x_cli__pr_close` (GH-924) |
 | `gh pr create` | `Dev10x:gh-pr-create` (wraps `create_pr`) |
 | `gh pr merge` | `Dev10x:gh-pr-merge` (wraps `merge_pr`) |
