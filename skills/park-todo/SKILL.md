@@ -4,7 +4,7 @@ description: >
   Defer work to code or session-level storage — so items resurface
   when editing nearby code or starting a new session in the same
   project, instead of being forgotten.
-  TRIGGER when: deferring work to code comments or the session.yaml
+  TRIGGER when: deferring work to code comments or the project
   task index.
   DO NOT TRIGGER when: deferring to Slack (use Dev10x:park-remind),
   or routing to the best destination automatically (use Dev10x:park).
@@ -16,11 +16,13 @@ allowed-tools:
   - Write
   - Bash(git branch:*)
   - Bash(git rev-parse:*)
+  - mcp__plugin_Dev10x_cli__task_index_append
+  - mcp__plugin_Dev10x_cli__task_index_get
 ---
 
 # Dev10x:park-todo — Persistent Code/Session Deferrals
 
-**Announce:** "Using Dev10x:park-todo to [add TODO/FIXME to code | append item to session.yaml]."
+**Announce:** "Using Dev10x:park-todo to [add TODO/FIXME to code | append item to the task index]."
 
 ## Orchestration
 
@@ -38,16 +40,25 @@ Mark completed when done: `TaskUpdate(taskId, status="completed")`
 Write deferred items to persistent storage where they will be
 rediscovered by humans or Claude in the right context.
 
-The canonical task index is `.claude/Dev10x/session.yaml` (GH-85).
-Every project deferral appends an entry to its `tasks:` list so
-`Dev10x:park-discover` surfaces it on the next session start.
+The canonical task index is the per-repo store behind
+`mcp__plugin_Dev10x_cli__task_index_append` (GH-85, rehomed in
+GH-1009). Every project deferral appends an entry to its `tasks:`
+list so `Dev10x:park-discover` surfaces it on the next session start.
+
+**Never Write/Edit the index file directly.** It used to live at
+`.claude/Dev10x/session.yaml`; ADR-0018 D5 moved it out of the repo
+because a Write/Edit under a project's `.claude/` trips Claude Code's
+self-settings consent gate on every session, regardless of allow
+rules. The MCP tool writes it from the server process, so no gate
+fires — and it is keyed by the repo's git common dir, so an item
+parked in one worktree resurfaces in every sibling checkout.
 
 ## Modes
 
 ### 1. Inline Code (TODO / FIXME)
 
 When a specific file and location are relevant, insert a comment
-directly in the code AND index it in session.yaml so the
+directly in the code AND index it in the task index so the
 discovery skill can find it without grepping `src/`.
 
 - `# TODO: message` — actionable, expected soon (this PR, next session)
@@ -57,8 +68,8 @@ discovery skill can find it without grepping `src/`.
 
 1. Read the target file
 2. Use Edit to insert the comment at the appropriate line
-3. Append an index entry to session.yaml (see § Session.yaml Append)
-   with `source: code-todo` and `metadata.location: "<path>:<line>"`
+3. Append an index entry (see § Task Index Append) with
+   `source: code-todo` and `metadata.location: "<path>:<line>"`
 4. Report what was added and where
 
 **Example:**
@@ -68,47 +79,53 @@ discovery skill can find it without grepping `src/`.
 WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 ```
 
-### 2. Project Task Index (session.yaml)
+### 2. Project Task Index
 
-When no specific file is relevant, append to the session.yaml
+When no specific file is relevant, append to the task index's
 `tasks:` list with `source: park` so `Dev10x:park-discover`
 finds it.
 
 This replaces the pre-GH-85 `.claude/TODO.md` file. The TODO
 file is still read by `Dev10x:park-discover` for back-compat,
-but new items are written to session.yaml.
+but new items are written to the task index.
 
-## Session.yaml Append
+## Task Index Append
 
-Use the Read tool to load the current
-`.claude/Dev10x/session.yaml` (create if missing), then use
-Write or Edit to add the new task entry. The schema for a
-task entry is:
+Call `mcp__plugin_Dev10x_cli__task_index_append` with one `entry`
+object. `subject` and `source` are required — the tool rejects an
+entry without them, because an unattributed entry cannot be grouped
+in `Dev10x:park-discover`'s per-writer report:
 
-```yaml
-tasks:
-  - subject: <one-line description>
-    status: pending
-    source: <code-todo | park>
-    created_at: <YYYY-MM-DD>
-    metadata:
-      branch: <current-branch>
-      location: <file:line>   # only for source: code-todo
+```
+mcp__plugin_Dev10x_cli__task_index_append(entry={
+    "subject": "<one-line description>",
+    "status": "pending",
+    "source": "<code-todo | park>",
+    "created_at": "<YYYY-MM-DD>",
+    "metadata": {
+        "branch": "<current-branch>",
+        "location": "<file:line>",   # only for source: code-todo
+    },
+})
 ```
 
 **Append rules:**
 
-1. Read existing session.yaml. If absent, write a minimal
-   shell preserving any sibling fields the writer should leave
-   alone (`friction_level`, `active_modes`, `continuation_prompt`,
-   `insights`).
-2. Add the new entry to the END of the `tasks:` list — never
-   replace or reorder existing entries.
-3. Preserve YAML key order: top-level keys stay in their
-   existing positions; only the new task is appended.
+1. One call per deferral. The tool appends to the END of the `tasks:`
+   list under a file lock, so concurrent parks from parallel
+   worktrees cannot lose each other's entry.
+2. Do NOT read-modify-write the store yourself. The tool owns the
+   read-modify-write cycle; doing it by hand reintroduces both the
+   lost-update race and the self-settings gate.
+3. On the first append after the GH-1009 rehome, the tool folds any
+   entries still sitting in the retired `.claude/Dev10x/session.yaml`
+   forward automatically and reports the file in `folded_legacy` —
+   nothing parked before the move is orphaned.
 
-**Never overwrite** `friction_level`, `active_modes`,
-`continuation_prompt`, or `insights` while appending tasks.
+**Retired durable keys are not the index's business.** `friction_level`
+and `active_modes` are durable preferences that live in
+`~/.config/Dev10x/friction.yaml` (ADR-0018 D1); the tool never reads
+or writes them, so there is nothing to preserve while appending.
 
 ## Context Gathering
 
@@ -128,6 +145,6 @@ deferrals; `Dev10x:park-discover` is for *reading them back*.
 ## Used By
 
 - `Dev10x:park` — when user picks "project task index" or "inline code"
-- `Dev10x:session-wrap-up` — Phase 1 reads session.yaml `tasks:`
-  for existing items (and the legacy `.claude/TODO.md` for
-  back-compat)
+- `Dev10x:session-wrap-up` — Phase 1 reads the task index `tasks:`
+  via `mcp__plugin_Dev10x_cli__task_index_get` for existing items
+  (and the legacy `.claude/TODO.md` for back-compat)

@@ -61,6 +61,7 @@ from dev10x.mcp.plan_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.release_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.roots_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.sampling_tools import *  # noqa: E402, F401, F403
+from dev10x.mcp.task_index_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.usage_tools import *  # noqa: E402, F401, F403
 
 

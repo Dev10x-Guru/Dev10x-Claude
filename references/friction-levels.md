@@ -35,13 +35,17 @@ User overrides via:
 ~/.claude/memory/Dev10x/diag-friction.yaml
 ```
 
-Session-level overrides (set by Phase 0 of `Dev10x:work-on`
-and `Dev10x:fanout`):
+Durable per-project prefs (set by Phase 0 of `Dev10x:work-on`
+and `Dev10x:fanout`, ADR-0018 D1):
 ```
-~/.claude/Dev10x/session.yaml
+~/.config/Dev10x/friction.yaml
 ```
 
-Resolution order: session override > project override > default.
+Resolution order: matching `projects[]` entry > project override >
+`defaults:` block > built-in default. The retired
+`.claude/Dev10x/session.yaml` is not a config source (ADR-0018 D2/D5)
+— it is read only as a legacy fallback when no `projects[]` entry
+matches.
 
 ## Skill Decision Gates
 
@@ -176,8 +180,8 @@ A durable project pin (`.dev10x/gate-policy.yaml`) or a session
 `gate_overrides` entry can force `plan_approval: ask` back on when a
 repo or session wants the veto regardless of preset. Legacy
 `friction_level` / `active_modes` sessions are mapped to a preset +
-overlays by the resolver's read-compat seam, so an un-migrated
-`session.yaml` keeps working without change.
+overlays by the resolver's read-compat seam, so an un-migrated legacy
+config keeps working without change.
 
 **Effect semantics** (uniform across every gate): `ask` → fire the
 `AskUserQuestion` widget; `auto-advance` → proceed with the

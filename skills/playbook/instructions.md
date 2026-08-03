@@ -298,11 +298,13 @@ projects:
     active_modes: [solo-maintainer]
 ```
 
-**Session activation (set by work-on Phase 0):**
+**Durable activation (set by work-on Phase 0, ADR-0018 D1):**
 ```yaml
-# .claude/Dev10x/session.yaml
-friction_level: adaptive
-active_modes: [solo-maintainer]
+# ~/.config/Dev10x/friction.yaml
+projects:
+  - match: ["*/<repo>", "*/<repo>-*"]
+    friction_level: adaptive
+    active_modes: [solo-maintainer]
 ```
 
 ### Fragment References

@@ -83,6 +83,43 @@ into `friction.yaml` and delete the stale `.claude/Dev10x/{session,config}.yaml`
 — tracked as follow-up, not required for correctness because of the
 fallback.
 
+**D5 — The park family's ephemeral task index rehomes to
+`~/.config/Dev10x/task-index/<repo-stem>.yaml`, MCP-written (GH-1009).**
+D2 deleted `session.yaml` in its *durable prefs / gate identity* roles, but
+the same path carried a second, unrelated payload: the park family's index of
+deferred work (`tasks`, `continuation_prompt`, `insights`, and the GH-782
+freshness stamp), written by `Dev10x:session-wrap-up`, `Dev10x:park`,
+`park-todo`, `park-remind`, and `gh-pr-bookmark`, and read by
+`park-discover`. GH-1001 repointed only the durable readers and left the
+index in place as a documented exception.
+
+That exception could not hold: every one of those writers reached the file
+with the **Write/Edit tool**, which is precisely the trigger RC-A describes.
+An ephemeral payload does not make the consent prompt any cheaper — a
+supervisor parking a TODO paid the same per-session gate the ADR exists to
+eliminate. So the index moves out of the repo, and
+`dev10x.session.task_index` (surfaced as `task_index_get` /
+`task_index_append` / `task_index_set`) becomes its only writer. Relocation
+alone is not sufficient: the gate is a *tool* phenomenon, so an agent
+hand-editing the new path would still prompt. Routing through MCP is what
+makes it gate-free — the same property D2 credits plan-sync with.
+
+This is **not** the rejected Alternative A. That proposal kept the files
+per-repo under `.claude/` and used MCP purely to sidestep the gate, which is
+why it was judged a bypass needing its own ADR. Here the store leaves every
+repo, so the gate has nothing to fire on; MCP is the write seam, not the
+escape hatch.
+
+Keyed by the repo stem from the git **common dir** (as ADR-0016's preset pin
+already is), so one index serves a repo and all its worktrees — matching
+`park-discover`'s "resurfaces next session in the same project" contract. A
+per-checkout key would strand each deferral in the worktree that created it.
+Retired durable keys (`friction_level`, `active_modes`) are deliberately NOT
+carried forward: folding them in would resurrect the ambiguity GH-1001
+removed. The retired `.claude/Dev10x/session.yaml` is read as a fallback for
+one release and folded forward on the next write; `Dev10x:plugin-doctor`
+deletes it once parity is confirmed (same shape as D4).
+
 **Composition with prior ADRs.** The git-tracked `.dev10x/gate-policy.yaml`
 team pin (ADR-0016 D-8) is unchanged — it remains the shared, disputable
 hard floor. `allowed_overlays` (ADR-0017) keeps its "local, not
@@ -156,6 +193,7 @@ strictly simpler (the maintainer's explicit choice).
 | Existing repos' per-repo `config.yaml` prefs silently ignored after the move | Medium | Medium | D4 legacy read-fallback; doctor migration folds them into `friction.yaml` |
 | Two repos match overlapping globs → wrong prefs | Low | Medium | First-match-wins, most-specific ordering; document like `projects.yaml` |
 | A skill still Write/Edits `.claude/Dev10x/**` after the move | Medium | Medium | Follow-up `check-skill-cli-friction` scanner rule (GH-812 S3c); work-on Phase 0 doc updated in this change |
+| Task-index items parked before D5 are orphaned by the rehome | Medium | Medium | `task_index_append` / `task_index_set` fold the retired file forward on first write and report it as `folded_legacy`; `task_index_get` reads it meanwhile and flags `legacy_read` |
 
 ## References
 

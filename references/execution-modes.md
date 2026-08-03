@@ -74,13 +74,24 @@ preset/overlay data the resolver composes. See
 
 ## Configuration
 
-### Session-level (set by Phase 0 of work-on/fanout)
+### Durable, per-project (set by Phase 0 of work-on/fanout)
 
 ```yaml
-# .claude/Dev10x/session.yaml
-friction_level: adaptive
-active_modes: [solo-maintainer]
+# ~/.config/Dev10x/friction.yaml — ADR-0018 D1
+defaults:
+  friction_level: guided
+  active_modes: []
+projects:
+  - match: ["*/<repo>", "*/<repo>-*"]
+    friction_level: adaptive
+    active_modes: [solo-maintainer]
 ```
+
+The retired `.claude/Dev10x/session.yaml` is **not** a config source
+(ADR-0018 D2; its remaining task-index role moved out of the repo in
+D5). Writing prefs there costs a self-settings consent prompt and is
+read only in a repo with no `friction.yaml` entry — so in any
+configured repo the value was written and never read (GH-950).
 
 ### Project-level (persistent across sessions)
 
@@ -99,9 +110,10 @@ mode_extensions:
 
 ### Resolution order
 
-1. Session override (`.claude/Dev10x/session.yaml`)
+1. Project entry in `~/.config/Dev10x/friction.yaml` (first match wins)
 2. Project override (`~/.config/Dev10x/playbooks/<skill>.yaml`)
-3. Default (no modes active)
+3. `defaults:` block in `friction.yaml`
+4. Default (no modes active)
 
 ## Per-Step Mode Mappings
 
@@ -181,13 +193,11 @@ When multiple active modes conflict on the same step field:
 
 ## Skill Integration
 
-Skills read session config from `.claude/Dev10x/session.yaml`:
-
-```yaml
-# .claude/Dev10x/session.yaml
-friction_level: adaptive
-active_modes: [solo-maintainer]
-```
+Skills read the resolved prefs from the matching `projects[]` entry
+of `~/.config/Dev10x/friction.yaml` (see § Configuration). Prefer
+`mcp__plugin_Dev10x_cli__resolve_gate` over reading the file: it owns
+the preset / overlay / project-pin / safety-floor precedence, and
+re-deriving that from raw keys drifts.
 
 Skills check `active_modes` for structural behavior:
 - `solo-maintainer` in active_modes -> skip reviewer assignment

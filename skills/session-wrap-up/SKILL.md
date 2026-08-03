@@ -11,6 +11,9 @@ user-invocable: true
 invocation-name: Dev10x:session-wrap-up
 allowed-tools:
   - mcp__plugin_Dev10x_cli__pr_detect
+  - mcp__plugin_Dev10x_cli__task_index_append
+  - mcp__plugin_Dev10x_cli__task_index_get
+  - mcp__plugin_Dev10x_cli__task_index_set
 ---
 
 # Dev10x:session-wrap-up — Session End Orchestrator
@@ -191,51 +194,56 @@ PRs for deferred work.
 
 ## Phase 3b: Session State Persistence (GH-917, GH-782)
 
-**After triage, before summary**, persist session state to
-`.claude/Dev10x/session.yaml` so a future session can resume
-where this one left off.
+**After triage, before summary**, persist session state to the
+per-repo task index so a future session can resume where this one
+left off. Write it through the MCP tools — never with Write/Edit
+(ADR-0018 D5, GH-1009).
 
 **What to persist:**
 
-1. **Uncompleted tasks** — serialize the pending/in-progress
-   task list from `TaskList` as a `tasks:` array:
-   ```yaml
-   tasks:
-     - subject: "Implement fix"
-       status: pending
-       metadata: {type: epic}
-     - subject: "Monitor CI"
-       status: in_progress
-       metadata: {skills: [dev10x:gh-pr-monitor]}
+1. **Uncompleted tasks** — append each pending/in-progress entry
+   from `TaskList` with `source: session-wrap-up`, one call per
+   task:
+   ```
+   mcp__plugin_Dev10x_cli__task_index_append(entry={
+       "subject": "Implement fix",
+       "status": "pending",
+       "source": "session-wrap-up",
+       "metadata": {"type": "epic"},
+   })
    ```
 
 2. **Continuation prompt** — generate a one-paragraph summary
-   of what was in progress and what to do next. Store as
-   `continuation_prompt:` in session.yaml. This bootstraps
-   context after `/clear` or a new session.
+   of what was in progress and what to do next. Pass it as
+   `continuation_prompt` to `task_index_set` (below). This
+   bootstraps context after `/clear` or a new session.
 
 3. **Collected insights** — any lessons learned, patterns
    discovered, or decisions made during the session that
-   are not captured in code or commits. Store as
-   `insights:` list.
+   are not captured in code or commits. Pass as `insights`.
 
-4. **Freshness stamp (GH-782)** — stamp the persisted payload
-   with the wrapping session's branch/tickets and a wrap timestamp
-   so a later session can tell live deferrals from stale carryover
-   (see the scope note below — this is `park-discover`'s input, not
-   the `session_adoption` gate's identity):
-   ```yaml
-   branch: <current git branch>
-   tickets: ["GH-782"]   # ticket IDs this session worked
-   wrapped_at: 2026-07-09T10:30:00Z   # ISO8601 UTC
+4. **Freshness stamp (GH-782)** — stamp the index with the wrapping
+   session's branch/tickets and a wrap timestamp so a later session
+   can tell live deferrals from stale carryover (see the scope note
+   below — this is `park-discover`'s input, not the
+   `session_adoption` gate's identity). Steps 2–4 are one call:
    ```
-   `Dev10x:park-discover` reads these keys to classify each
-   carried entry as **live** (branch matches, or a ticket
-   overlaps the resuming session) or **stale** (identity
-   mismatch, or an old `wrapped_at`) — see that skill's
-   *Staleness classification*. Without the stamp a months-old
-   `tasks:` list / `continuation_prompt:` is silently
-   re-surfaced as if current — the GH-782 root cause.
+   mcp__plugin_Dev10x_cli__task_index_set(
+       continuation_prompt="<one paragraph>",
+       insights=["<lesson>"],
+       branch="<current git branch>",
+       tickets=["GH-782"],          # ticket IDs this session worked
+       wrapped_at="2026-07-09T10:30:00Z",   # ISO8601 UTC
+   )
+   ```
+   Only the fields you pass are written, so this cannot blank the
+   `tasks:` appended in step 1. `Dev10x:park-discover` reads these
+   keys to classify each carried entry as **live** (branch matches,
+   or a ticket overlaps the resuming session) or **stale** (identity
+   mismatch, or an old `wrapped_at`) — see that skill's *Staleness
+   classification*. Without the stamp a months-old `tasks:` list /
+   `continuation_prompt` is silently re-surfaced as if current — the
+   GH-782 root cause.
 
 **Ephemeral-only, no durable keys (GH-774, ADR-0018).** Durable
 preferences — `friction_level`, `active_modes`, and the
@@ -257,25 +265,27 @@ of them still lives here:
   the GH-782 bug where a months-old `tasks:` list resurfaces as
   current.
 - The identity the Phase 0 `session_adoption` gate reads is a
-  *different* thing and no longer comes from here. Plan-sync
-  persists it (MCP-written, gate-free) and
-  `_computed_session_stale()` reads it from there — so do not write
-  `.claude/Dev10x/session.yaml` expecting to influence that gate,
-  and do not treat this stamp as a durable pref.
+  *different* thing and does not come from here. Plan-sync persists
+  it (MCP-written, gate-free) and `_computed_session_stale()` reads
+  it from there — so do not expect `task_index_set(branch=…)` to
+  influence that gate, and do not treat this stamp as a durable pref.
 
 **Integration with `/clear`:** After persisting, inform the user:
 "Session state saved. To resume after `/clear`, invoke
 `Dev10x:work-on` — it will detect the saved state and offer to
 continue."
 
-> **Scope note (GH-1001).** This phase still writes the ephemeral
-> task index to `.claude/Dev10x/session.yaml`, as do the `park`
-> family and `Dev10x:gh-pr-bookmark`. ADR-0018 retired that path for
-> *durable preferences and gate identity*, which the paragraphs
-> above enforce; rehoming the task index needs its own destination
-> decision and is tracked separately. Until then this remains a
-> deliberate, documented exception — not an oversight to "fix" by
-> deleting the write.
+> **Rehomed in GH-1009 (ADR-0018 D5).** This phase — and the `park`
+> family and `Dev10x:gh-pr-bookmark` — used to Write/Edit the task
+> index at `.claude/Dev10x/session.yaml`. GH-1001 left that in place
+> as a documented exception pending a destination decision; GH-1009
+> made it, because a Write/Edit under a project's `.claude/` trips
+> Claude Code's self-settings consent gate on every session
+> regardless of allow rules (ADR-0018 RC-A) — so the exception was
+> paying the exact cost the ADR exists to remove. The index now lives
+> outside every repo and only the `task_index_*` MCP tools write it.
+> The retired path is read for one release, then deleted by
+> `Dev10x:plugin-doctor`.
 
 ## Phase 4: Summary
 

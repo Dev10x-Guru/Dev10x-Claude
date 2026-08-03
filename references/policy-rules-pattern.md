@@ -175,14 +175,16 @@ implementations (re-exported from `hooks/session_policy.py`):
    migrations (`hooks/session_policy.py`; delegates file writes to
    `SettingsDocument`).
 
-The `session.yaml` read those rules used to perform is owned by
-`SessionYamlDocument` (`src/dev10x/domain/documents/session_yaml.py`).
+The durable-prefs read those rules used to perform is owned by
+`SessionYamlDocument` (`src/dev10x/domain/documents/session_yaml.py`),
+whose `_durable()` seam resolves `~/.config/Dev10x/friction.yaml`
+(ADR-0018 D1) — not a per-repo file.
 
 ## Related Patterns
 
 - **Hook-patterns.md** § "Direct-Shebang + Orchestrator Pattern"
   — SessionStart orchestrator consolidation
 - **hook-state-schema.md** — Documenting state schemas that rules
-  depend on (e.g., `session.yaml`)
+  depend on (e.g., `friction.yaml`, the plan-sync state)
 - **task-orchestration.md** — Orchestration patterns for multi-step
   skills (similar composition idea)
