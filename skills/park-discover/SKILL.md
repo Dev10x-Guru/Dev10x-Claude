@@ -16,6 +16,7 @@ allowed-tools:
   - Bash(git log:*)
   - mcp__plugin_Dev10x_cli__pr_detect
   - mcp__plugin_Dev10x_cli__pr_comments
+  - mcp__plugin_Dev10x_cli__task_index_get
   - mcp__claude_ai_Slack__slack_search_public_and_private
 ---
 
@@ -47,10 +48,13 @@ Do NOT use for writing new deferrals — use `Dev10x:park-todo` or
 
 ## Substrate
 
-The canonical store for deferred work is
-`.claude/Dev10x/session.yaml` (GH-85). Every writer in the
-park/session family appends a structured entry into its
-`tasks:` list with a `source:` field that names the writer:
+The canonical store for deferred work is the per-repo task index
+behind `mcp__plugin_Dev10x_cli__task_index_get` (GH-85, rehomed out
+of `.claude/Dev10x/session.yaml` by GH-1009 / ADR-0018 D5). It is
+keyed by the repo's git common dir, so one index serves every
+worktree of a repo. Every writer in the park/session family appends a
+structured entry into its `tasks:` list with a `source:` field that
+names the writer:
 
 | `source:` value     | Written by                          |
 |---------------------|-------------------------------------|
@@ -61,24 +65,28 @@ park/session family appends a structured entry into its
 | `session-wrap-up`   | `Dev10x:session-wrap-up` Phase 3b   |
 
 External sources (Slack DMs, PR comments) remain as the
-authoritative content; session.yaml carries a pointer
+authoritative content; the index carries a pointer
 (`metadata.slack_ts`, `metadata.pr_url`) so the discovery
 report can link out.
 
 ## Workflow
 
-### 1. Read session.yaml (primary source)
-
-Read `.claude/Dev10x/session.yaml` directly with the Read
-tool. If the file does not exist, note "No session.yaml — no
-local deferrals indexed" and skip to the external-sources
-step.
+### 1. Read the task index (primary source)
 
 ```
-Read(file_path="<repo-root>/.claude/Dev10x/session.yaml")
+mcp__plugin_Dev10x_cli__task_index_get()
 ```
 
-Parse the YAML and extract three sections:
+If the response has `exists: false` and no `tasks`, note "No task
+index — no local deferrals indexed" and skip to the external-sources
+step. Do NOT fall back to reading a file path by hand: the tool
+already probes the retired `.claude/Dev10x/session.yaml` location for
+one release and reports it as `legacy_read: true` with `legacy_path`.
+When `legacy_read` is true, add one line to the report — "carried from
+the retired `<legacy_path>`; the next park write folds it forward" —
+so a supervisor can see why the items still live in the old place.
+
+Extract three sections from the response:
 
 - `continuation_prompt:` — a paragraph carrying diagnosed
   context from the prior session. Surface this **verbatim** in
@@ -90,7 +98,9 @@ Parse the YAML and extract three sections:
   session carried forward. Surface each item verbatim.
 
 **Staleness classification (GH-782).** `Dev10x:session-wrap-up`
-stamps the payload with `branch:`, `tickets:`, and `wrapped_at:`.
+stamps the index with `branch`, `tickets`, and `wrapped_at` via
+`mcp__plugin_Dev10x_cli__task_index_set`; all three come back in the
+`task_index_get` response.
 Classify the carried `continuation_prompt:` / `tasks:` /
 `insights:` before presenting them, using the same rule as the
 `session_stale` predicate the `session_adoption` gate applies:
@@ -117,7 +127,7 @@ Read(file_path="<repo-root>/.claude/TODO.md")
 If the file does not exist, note "No legacy TODO file" and
 move on. Extract pending items (`- [ ]` lines) and present
 them under a separate **Legacy TODO file** heading so the user
-can migrate them into session.yaml.
+can migrate them into the task index.
 
 ### 3. Scan code TODOs / FIXMEs (Grep tool)
 
@@ -197,11 +207,11 @@ than any single TODO line.
 ```markdown
 ## Deferred Items — <project name>
 
-### Continuation prompt (session.yaml)
+### Continuation prompt (task index)
 
 <continuation_prompt verbatim, or "(none)">
 
-### Open tasks (session.yaml)
+### Open tasks (task index)
 
 #### From session-wrap-up
 - [<status>] <subject> — <metadata summary>
@@ -215,7 +225,7 @@ than any single TODO line.
 #### From park-remind (slack-reminder)
 - [<status>] <subject> — Slack ts `<metadata.slack_ts>`
 
-### Carried insights (session.yaml)
+### Carried insights (task index)
 
 - <insight 1 verbatim>
 - <insight 2 verbatim>
@@ -235,7 +245,7 @@ than any single TODO line.
 
 ### Legacy TODO file (`.claude/TODO.md`)
 
-- [ ] <legacy item> (consider migrating to session.yaml via park)
+- [ ] <legacy item> (consider migrating to the task index via park)
 
 ### Recent code TODOs (current branch)
 
@@ -258,7 +268,7 @@ when at least one source returned items.
 Options:
 - Resume the continuation prompt (Recommended when present)
 - Pick a specific task to work on
-- Migrate legacy TODO.md items into session.yaml
+- Migrate legacy TODO.md items into the task index
 - Just informational — close
 
 ## Commands and permissions

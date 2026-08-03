@@ -153,6 +153,25 @@ class Dev10xConfigDir:
         return cls._resolve("friction.yaml")
 
     @classmethod
+    def task_index_yaml(cls, *, repo_name: str) -> Path:
+        """Per-repo ephemeral task index for the park family (GH-1009).
+
+        ADR-0018 D5 rehomed this store out of ``.claude/Dev10x/session.yaml``:
+        every writer reached it with the Write/Edit tool, which trips Claude
+        Code's self-settings gate on each session regardless of allow rules
+        (RC-A). Here it is outside every repo, so the gate cannot fire, and
+        the MCP tools over :mod:`dev10x.session.task_index` are the only
+        writers.
+
+        Keyed by the repo stem from the git **common dir**, so every worktree
+        of a repo shares one index — matching the park family's "resurfaces
+        next session in the same project" contract. No lazy migration: the
+        retired per-repo file is a read-only fallback for one release, folded
+        forward on first write rather than copied on path resolution.
+        """
+        return cls._resolve("task-index", f"{repo_name}.yaml")
+
+    @classmethod
     def sensitivity_exceptions_yaml(cls) -> Path:
         """User-owned sensitivity-exception catalog (GH-604).
 

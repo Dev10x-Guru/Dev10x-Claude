@@ -141,10 +141,18 @@ matching, then Tier 3 (plugin defaults).
 
 | Tier | Path | Notes |
 |------|------|-------|
-| 1 only | `.claude/Dev10x/session.yaml` | Session-scoped, not shared |
+| 2 only | `~/.config/Dev10x/friction.yaml` | Global, keyed by `projects[].match` dir globs |
 
-Session config is always project-local. It contains runtime state
-(friction level, active modes) that is session-specific.
+Session prefs are **not** project-local (ADR-0018 D1). `friction_level`,
+`active_modes`, `allowed_overlays`, and the `gate_*` keys live in one
+global file keyed by directory-path globs, so a repo's prefs cover
+every worktree by construction. Read them via
+`mcp__plugin_Dev10x_cli__resolve_gate`, which owns the precedence.
+
+The retired `.claude/Dev10x/session.yaml` is not a tier: ADR-0018 D2
+removed it as a config source, and D5 moved its remaining task-index
+role to `~/.config/Dev10x/task-index/<repo-stem>.yaml` (reached via the
+`task_index_*` MCP tools, never Write/Edit).
 
 ### PR Merge Settings
 

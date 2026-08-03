@@ -7,7 +7,7 @@
 > adaptive` + `gate_overlays: [afk]`; the `afk` overlay carries
 > `session_adoption: auto-advance` and `doubt_sink: pr-description`.
 > **`walk_away` is deprecated** — the resolver's `legacy_session_mapping`
-> still reads a `walk_away: true` on an un-migrated `session.yaml` and
+> still reads a `walk_away: true` in an un-migrated legacy config and
 > maps it to the `afk` overlay (read-compat), but `Dev10x:afk` no
 > longer writes it and no skill should hand-roll the classification
 > below. This document is retained for the `doubt_sink` contract
@@ -22,20 +22,22 @@ composes the preset + overlay).
 ## Config Surface
 
 ```yaml
-# .claude/Dev10x/session.yaml — current (ADR-0016)
-gate_preset: adaptive         # walk-away base
-gate_overlays: [afk]          # session_adoption: auto-advance + doubt_sink
+# ~/.config/Dev10x/friction.yaml — current (ADR-0016 + ADR-0018 D1)
+projects:
+  - match: ["*/<repo>", "*/<repo>-*"]
+    gate_preset: adaptive     # walk-away base
+    gate_overlays: [afk]      # session_adoption: auto-advance + doubt_sink
 ```
 
 ```yaml
-# .claude/Dev10x/session.yaml — legacy (read-compat only, deprecated)
+# legacy shape (read-compat only, deprecated)
 friction_level: adaptive
 active_modes: [solo-maintainer]
 walk_away: true
 doubt_sink: pr-description    # pr-description | session-bookmark | commit-footer
 ```
 
-The resolver reads the new-style keys directly; a legacy file is
+The resolver reads the new-style keys directly; a legacy config is
 mapped to `(preset, overlays)` by `legacy_session_mapping` before
 resolution. `doubt_sink` remains a real toggle — it is supplied by
 the `afk` overlay (default `pr-description`) and read from the
@@ -80,7 +82,8 @@ pipeline).
 AskUserQuestion call site
   │
   ▼
-Read .claude/Dev10x/session.yaml
+Read the durable prefs (historically the per-repo session.yaml;
+now ~/.config/Dev10x/friction.yaml)
   │
   ▼
 walk_away == true ?
@@ -137,13 +140,16 @@ Use only when the doubt is commit-scoped, not PR-scoped.
 
 For a skill that emits `AskUserQuestion`:
 
-1. ✓ Read `.claude/Dev10x/session.yaml` before the gate
-2. ✓ Skip the read if `walk_away` is already known in scope
-3. ✓ Classify the question into one of four classes
-4. ✓ When suppressing, call the same code path that handles the
-     Recommended option at `adaptive` friction
-5. ✓ Append a one-line entry to the configured `doubt_sink`
-6. ✓ Log the suppression to the audit hook so `Dev10x:skill-audit`
+1. ✓ Call `mcp__plugin_Dev10x_cli__resolve_gate(gate=…)` before the
+     gate — do NOT read a config file and classify by hand; the
+     resolver owns preset / overlay / project-pin / safety-floor
+     precedence, and re-deriving it drifts (GH-760)
+2. ✓ Branch on the returned `effect` (`ask` / `auto-advance` / `skip`)
+3. ✓ On `auto-advance`, call the same code path that handles the
+     Recommended option, and surface the returned `record` line so a
+     present supervisor can veto
+4. ✓ Append a one-line entry to the resolved `log_to` doubt sink
+5. ✓ Log the suppression to the audit hook so `Dev10x:skill-audit`
      can surface "walk-away suppressions" in the session report
 
 ## Relationship to Friction Levels

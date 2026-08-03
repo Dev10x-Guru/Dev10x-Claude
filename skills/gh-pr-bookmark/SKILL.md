@@ -35,8 +35,11 @@ Mark completed when done: `TaskUpdate(taskId, status="completed")`
 Thin wrapper around `Dev10x:park` that pre-selects the **PR session
 bookmark** target. Use at end-of-session or when pausing work on a PR.
 `Dev10x:park` posts the comment AND appends a `source: pr-bookmark`
-entry to `.claude/Dev10x/session.yaml` so the bookmark is discoverable
-locally by `Dev10x:park-discover` (GH-85).
+entry to the project task index so the bookmark is discoverable
+locally by `Dev10x:park-discover` (GH-85). The index write goes
+through `mcp__plugin_Dev10x_cli__task_index_append`; it used to be a
+Write/Edit of `.claude/Dev10x/session.yaml`, which tripped the
+self-settings consent gate on every bookmark (ADR-0018 D5, GH-1009).
 
 ## Workflow
 

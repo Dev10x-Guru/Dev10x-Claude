@@ -126,9 +126,23 @@ one session). Use these shapes verbatim:
 | `resolve_plugin_origin` | `skill_paths` (list of absolute paths) | singular `skill_path` |
 | `pin_gate_preset` | `preset`; optional `scope` (`repo` default / `repo-only` / `dir`) | passing a `match` or a path — the tool derives the repo stem itself |
 | `human_review_status` | none (optional `cwd`) | reading `friction.yaml` directly instead — the tool owns the precedence |
+| `task_index_append` | `entry` dict with required `subject` + `source` | reading the store and writing it back by hand — the tool owns the locked read-append-write |
+| `task_index_get` | none (optional `cwd`) | `Read`ing `.claude/Dev10x/session.yaml` — retired by ADR-0018 D5; the tool probes it as a fallback |
 | `pr_ready` | `pr_number`; optional `undo` (bool) | assuming it only publishes — `undo=true` returns a PR to draft |
 
 Behavioral caveats:
+
+- The `task_index_*` trio is the park family's only sanctioned write
+  path (GH-1009, ADR-0018 D5). The store lives at
+  `~/.config/Dev10x/task-index/<repo-stem>.yaml`, keyed by the git
+  **common dir**, so one index serves a repo and every worktree of it.
+  Reaching the file with `Write`/`Edit` — at the new path or the retired
+  `.claude/Dev10x/session.yaml` — is a defect twice over: under a repo's
+  `.claude/` it trips the self-settings consent gate that no allow rule
+  suppresses, and anywhere it bypasses the file lock, so two parallel
+  worktrees parking at once lose an entry. `task_index_get` reads the
+  retired path as a fallback for one release (`legacy_read: true`), and
+  the next append folds it forward (`folded_legacy`).
 
 - `pr_ready` flips a PR in both directions: omit `undo` to publish a
   draft, pass `undo=true` to convert a published PR back to draft
@@ -271,6 +285,9 @@ supporting each tool:
 | `preset_pin_status` | `cli` | GH-855 | v0.92.0+ |
 | `pin_gate_preset` | `cli` | GH-855 | v0.92.0+ |
 | `human_review_status` | `cli` | GH-950 | v0.93.0+ |
+| `task_index_get` | `cli` | GH-1009 | v0.94.0+ |
+| `task_index_append` | `cli` | GH-1009 | v0.94.0+ |
+| `task_index_set` | `cli` | GH-1009 | v0.94.0+ |
 | `usage_blocks` | `cli` | GH-878 | v0.90.0+ |
 | `query` | `db` | PR #126 | v0.25.0+ |
 

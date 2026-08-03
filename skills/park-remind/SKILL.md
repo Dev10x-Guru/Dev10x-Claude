@@ -19,6 +19,7 @@ allowed-tools:
   - Bash(git branch:*)
   - Bash(git rev-parse:*)
   - mcp__plugin_Dev10x_cli__mktmp
+  - mcp__plugin_Dev10x_cli__task_index_append
   - Edit(/tmp/Dev10x/slack/**)
 ---
 
@@ -41,7 +42,7 @@ Mark completed when done: `TaskUpdate(taskId, status="completed")`
 
 Send a self-DM via Slack with a deferred item, formatted with session
 context so you know where to pick it up. After the DM is sent, append
-a pointer entry to `.claude/Dev10x/session.yaml` so
+a pointer entry to the project task index so
 `Dev10x:park-discover` can surface it locally without a Slack search
 (GH-85).
 
@@ -100,36 +101,38 @@ Do NOT use heredoc (`cat <<'EOF'`) to build the message inline —
 the bash security hook blocks it. Always use Write tool → temp file
 → `$(cat ...)` for multi-line content.
 
-### 4. Append to session.yaml
+### 4. Append to the task index
 
-After Slack confirms delivery, append a pointer entry to the
-session.yaml `tasks:` list using the schema documented in
-`Dev10x:park-todo` § Session.yaml Append:
+After Slack confirms delivery, append a pointer entry using the
+schema documented in `Dev10x:park-todo` § Task Index Append:
 
-```yaml
-- subject: <item text, single line>
-  status: pending
-  source: slack-reminder
-  created_at: <YYYY-MM-DD>
-  metadata:
-    branch: <current-branch>
-    slack_ts: <timestamp returned by slack-notify>
-    slack_permalink: <permalink returned by slack-notify>
+```
+mcp__plugin_Dev10x_cli__task_index_append(entry={
+    "subject": "<item text, single line>",
+    "status": "pending",
+    "source": "slack-reminder",
+    "created_at": "<YYYY-MM-DD>",
+    "metadata": {
+        "branch": "<current-branch>",
+        "slack_ts": "<timestamp returned by slack-notify>",
+        "slack_permalink": "<permalink returned by slack-notify>",
+    },
+})
 ```
 
-The Slack DM remains the authoritative content; the session.yaml
-entry is the local index that `Dev10x:park-discover` reads
-without a network round-trip.
+The Slack DM remains the authoritative content; the index entry is
+the local pointer that `Dev10x:park-discover` reads without a network
+round-trip.
 
-If session.yaml does not exist, create it with the new entry
-under `tasks:` while preserving any sibling fields. Never
-overwrite `friction_level`, `active_modes`,
-`continuation_prompt`, or `insights`.
+The tool creates the store on first use and appends under a lock, so
+there is nothing to create or preserve by hand. Do NOT Write/Edit the
+store — ADR-0018 D5 rehomed it out of the repo precisely so no
+Write/Edit consent gate fires on a deferral.
 
 ### 5. Confirm
 
-Report to user: "Sent reminder to your Slack DMs and indexed in
-session.yaml."
+Report to user: "Sent reminder to your Slack DMs and indexed in the
+project task index."
 
 ## Standalone Usage
 

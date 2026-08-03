@@ -264,11 +264,23 @@ threshold findings are reported as INFO in the summary but not
 auto-fixed. In attended mode, all findings are presented
 regardless of confidence.
 
-The threshold is configurable via session config:
+**The threshold is currently hardcoded at 70 — not yet
+configurable.** Its intended home is a per-project key in the global
+durable prefs (ADR-0018 D1), alongside the other project-scoped
+settings:
+
 ```yaml
-# .claude/Dev10x/session.yaml
-review_confidence_threshold: 70  # default
+# ~/.config/Dev10x/friction.yaml — INTENDED, no reader yet
+projects:
+  - match: ["*/<repo>", "*/<repo>-*"]
+    review_confidence_threshold: 70
 ```
+
+Setting that key today has no effect: nothing reads it. It is
+documented as the destination so a future reader lands in the right
+place, not as a working knob. (Before ADR-0018 this was documented
+against the retired per-repo `session.yaml`, which had no reader
+either — the location changed, the gap did not.)
 
 Write findings to a temp file for handoff:
 

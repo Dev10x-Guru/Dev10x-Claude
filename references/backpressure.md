@@ -61,8 +61,9 @@ validator registration pattern.
 
 ## Meta-Control: Tunable Backpressure
 
-**`friction_level`** in `session.yaml` controls how aggressively gates
-fire — without changing *which* gates exist.
+**`friction_level`** in `~/.config/Dev10x/friction.yaml` (ADR-0018 D1)
+controls how aggressively gates fire — without changing *which* gates
+exist.
 
 | Level | Effect |
 |-------|--------|
@@ -110,7 +111,7 @@ Full pattern: `.claude/rules/skill-gates.md`.
 Action backpressure (mechanism 8)
   └─ PreToolUse validators DX001–DX014
        └─ Profile tiers: minimal / standard / strict
-       └─ Tunable via friction_level in session.yaml
+       └─ Tunable via friction_level in ~/.config/Dev10x/friction.yaml
 
 Output backpressure (mechanisms 1–7)
   ├─ Lint & test (1): ruff-format hook + py-test skill + CI
