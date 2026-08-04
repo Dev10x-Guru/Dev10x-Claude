@@ -1,0 +1,43 @@
+@startuml component-architecture
+!theme plain
+title Core-plus-satellite plugin split (ADR-0020)
+
+package "Dev10x (core plugin)" {
+  [cli MCP server\n(~90 tools, name-stable)] as CLI
+  [db MCP server] as DB
+  [hooks/ (14 scripts)] as HOOKS
+  [src/dev10x package] as PKG
+  [shared references/] as REFS
+  [shared agents/] as AGENTS
+  [orchestration + session skills] as ORCH
+  [audit / permission / maintenance skills] as AUDIT
+}
+
+package "Satellites (plugins/<area>/)" {
+  [Dev10x-Comms\nslack*, gchat* + comms-expert] as COMMS
+  [Dev10x-Infra\nk8s, aws-vault + infra-expert] as INFRA
+  [Dev10x-Testing\npy-test*, playwright, qa-self] as TEST
+  [Dev10x-Data\ndb, db-psql] as DATA
+  [Dev10x-Tickets\njira, linear, ticket-*, scope*] as TICKETS
+  [Dev10x-Git\ngit, git-*] as GIT
+  [Dev10x-GitHub\ngh-*, review*] as GH
+}
+
+HOOKS --> PKG
+CLI --> PKG
+DB --> PKG
+
+COMMS ..> CLI : mcp__plugin_Dev10x_cli__*\n(implicit dependency:\ncore must be installed)
+INFRA ..> CLI
+TEST ..> CLI
+DATA ..> DB
+TICKETS ..> CLI
+GIT ..> CLI
+GH ..> CLI
+
+note bottom of COMMS
+  Migration order (lowest coupling first):
+  comms -> infra -> testing -> data
+  -> tickets -> git -> github
+end note
+@enduml
