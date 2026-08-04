@@ -4,7 +4,32 @@ Date: 2026-08-04
 
 ## Status
 
-Accepted
+Rejected (2026-08-04)
+
+### Rejection rationale
+
+A full dependency scan of all 87 skills (same day, GH-913) falsified
+the split's premise:
+
+1. **The areas are not separable.** The `work-on` transitive closure
+   spans 32 skills across git, github, tickets, comms, and testing —
+   hard `Skill()` delegation edges (`gh-pr-monitor →
+   slack-review-request`, `gh-pr-fixup → py-test`, `gh-pr-respond →
+   ticket-create`, …) make five of the seven planned satellites one
+   inseparable shipping machine.
+2. **Only 4 skills are cleanly severable** — infra (`k8s`,
+   `aws-vault`) and data (`db`, `db-psql`) have zero kernel edges.
+   Two 2-skill satellites do not justify multi-plugin repo layout,
+   release tooling, and doctor-check overhead.
+3. **A zero-local-code ("web-only") edition of unchanged skills is
+   not viable:** 2/87 skills qualify (`session-tasks`,
+   `skill-audit-queue`).
+
+Light-audience needs (e.g., a business user shipping small UI
+changes as PRs) are served by a playbook + gate preset over the
+existing single plugin — a profile, not a package. The unified
+plugin stands. No implementation phases below were executed beyond
+this ADR itself.
 
 ## Context
 
