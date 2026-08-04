@@ -5,6 +5,207 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.93.0 — Review Posture & Durable Session State
+
+Released 2026-08-04
+
+### Features
+
+- **Let a project's review posture decide reviewer assignment, DoD checks
+  and merge autonomy from one answer** — `review-deferred` was written to
+  the `session.yaml` ADR-0018 retired, so in any configured repo the flag
+  was written and never read: verify-acc-dod re-ran the very checks the
+  supervisor had just deferred, and the write cost a consent prompt for no
+  effect. Whether humans review PRs is now a standing project property
+  (durable `human_review`, ADR-0019), read by reviewer resolution, both DoD
+  review checks, and — as a gate floor rather than a skill-side check — the
+  merge gate, so a repo declaring humans in the loop can never watch the
+  agent merge for itself
+  ([GH-950](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/950),
+  [GH-1000](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1000))
+- **Carry a self-review clearance beyond the session that granted it** — a
+  supervisor answering "I reviewed it, OK to merge" had that answer
+  recorded nowhere, so the next session re-entered the gate on the same PR
+  and asked again. A `pr_labels` MCP tool (`list`/`add`/`remove`, shaped
+  like `pr_comments`, both writes idempotent) carries a durable per-PR
+  `review:cleared` label — and git-groom drops it after a force-push, since
+  a sign-off covers only the commits that were read
+  ([GH-1008](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1008))
+- **Park work without paying a consent prompt** — five skills still wrote
+  the ephemeral task index under a repo's `.claude/`, the exact trigger for
+  Claude Code's self-settings consent gate that no allow rule suppresses.
+  So every park, Slack reminder, PR bookmark and wrap-up paid a prompt. The
+  index moves to `~/.config/Dev10x/task-index/<repo-stem>.yaml` behind
+  `task_index_get`/`_append`/`_set` — keyed off the git common dir, so one
+  index serves a repo and all its worktrees — with the retired path read
+  and folded forward for one release
+  ([GH-1009](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1009))
+- **Warn before the quota wall so the queue parks first** — the watcher
+  reported spend only after the fact, so nothing projected whether the
+  remaining block budget could still carry the active crew; two workers
+  burned into exhaustion and were misread as harness stalls for two hours.
+  A forward-looking `QUOTA LOW` event fires once per block when projected
+  exhaustion lands inside the chunk window, with the documented response
+  (land a chunk one merge away, else WIP-checkpoint and park until
+  `QUOTA RESET`) and the crew-wide-silence signature that distinguishes
+  exhaustion from a per-worker stall
+  ([GH-979](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/979))
+
+### Fixes
+
+- **Restore issue comments to every caller** — `issue_comments` died with
+  "dictionary update sequence element #0 has length 11" because the script
+  emitted a bare JSON array that `to_dict()` then ran `dict()` over. The
+  failure was data-dependent, not unconditional: an issue with no comments
+  yielded `[]`, which became a silent `{}` — callers read "no comments"
+  from an equally broken payload. The unwrap is dropped, and non-object
+  JSON now fails loud at the parse layer naming the offending script
+  ([GH-993](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/993))
+- **Let a pinned gate policy reach an agent worktree** — `friction.yaml`
+  entries are keyed off the git common dir but matched against the
+  invocation toplevel, and a linked agent worktree's directory name matches
+  neither glob. The repo's pinned walk-away policy silently evaporated and
+  the merge gate fell back to an `ask` wall at exactly the step an
+  unattended run needs automated. Policy resolution now probes the worktree
+  first and falls back to the repo root the entry was keyed by
+  ([GH-978](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/978))
+- **Give a stand-by PR an exit that is not an argument** — a repo
+  configured `standby: true` had no way to say "I have now reviewed this",
+  so the only exit was to argue the override down again on every PR. The
+  path now asks, offering stand by / reviewed and OK to merge / reviewed and
+  request the team now, and points a repo answering the same way repeatedly
+  at the durable posture it actually wants
+  ([GH-998](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/998))
+- **Dispose of a review finding on whichever surface it lives** — the
+  merge gate's answered-ids set was computed per-surface, so a keyed reply
+  posted as an issue comment never matched a finding in a review body. A
+  blocking review-body finding was unaddressable through sanctioned tooling
+  — the only exits were rewriting the reviewer's own body or bypassing the
+  gate. Both surfaces are now unioned before filtering
+  ([GH-1002](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1002))
+- **Route permalink rewrites through the sanctioned tool** — git-groom
+  hardcoded a raw REST PATCH for rewriting commit permalinks, carrying a
+  suppression marker that claimed no MCP edit action existed. GH-304
+  shipped `pr_review_comment_edit` and made that stale, but the marker kept
+  the lint quiet, so an agent following the skill literally still issued
+  raw API calls until a supervisor rejected them
+  ([GH-996](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/996))
+- **Rebase a background agent onto the base that actually moved** — the
+  standing guidance prescribed `git develop-rebase` as THE rebase tool for
+  background agents, but `-i` hangs with no editor attached and the
+  merge-base resolves against a possibly stale LOCAL ref, so it printed
+  "Successfully rebased" while HEAD never left stale ancestry. Every
+  prescription now names the explicit `fetch` + `rebase origin/<base>` pair
+  plus a mandatory ancestry postcondition, since the success message is not
+  proof; `foreman probe` also labels its base sha `origin/develop` so a
+  reader can tell which ref they got
+  ([GH-964](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/964))
+- **Read a shell script without the execution guard firing** — a read-only
+  `grep -E 'a|b' bin/x.sh` was denied as script execution: the alternation
+  split the pipeline mid-quote and the fail-closed fallback matched the
+  `sh` in the *filename*, so the guard fired hardest exactly when
+  diagnosing a defect inside a shell script. The fallback now requires the
+  interpreter in command position
+  ([GH-971](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/971))
+- **Keep the canonical lint suite green with worktrees present** — the
+  dependency-pin hook full-repo scans by design, and its skip list omitted
+  worktrees, each a complete checkout of the same repo. Every finding was
+  re-reported once per tree, so leftover agent worktrees failed lint
+  repo-wide: observed with 44 trees, a two-file `pre-commit run --files`
+  emitted thousands of violations from paths the change never touched —
+  blocking unattended crew commits outright
+  ([GH-1004](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1004))
+
+### Security
+
+- **Close the command-substitution hole in the interpreter guard** — only
+  start-of-string, pipe, semicolon, ampersand and newline counted as
+  command boundaries, so `echo $(python3 <<< '...')` and its backtick twin
+  slipped past: the guard saw the leading `echo`, and shlex tokenises
+  `$(python3` as one word so the pipeline scan could not help. Both
+  substitution spellings are now boundaries on the heredoc and fail-closed
+  paths, with read-only utilities inside a substitution asserted still
+  allowed ([GH-986](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/986))
+- **Let an unattended agent push a finished branch when MCP is down** —
+  with the cli server unreachable, `push_safe` was absent, the wrapper was
+  blocked with "use the MCP tool", and raw `git push` was blocked with "use
+  Skill(Dev10x:git)" — each message naming the other as the remedy, and the
+  documented resolution assuming a human is present to ask. A non-force
+  push naming an explicit, non-protected branch is now allowed straight
+  through; the deny stands for anything the hook cannot verify statically
+  ([GH-963](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/963))
+
+### Docs & Guidance
+
+- **Tell a stalled crew worker apart from a dead one** — the 2026-08-01
+  night run killed five live, productive workers, throwing away two
+  complete chunks, because heartbeat mtime cannot separate "wedged" from
+  "absorbed in a long turn" and nothing preempts a model mid-turn to check
+  a clock. The heartbeat is re-anchored to observable events (commit, test
+  run, push, verification) with the clock demoted to a backstop, and
+  `TaskStop` reserved for heartbeat *and* tool-call activity both stale;
+  the sonnet caveat is recorded so the tier default reads as risk
+  reduction, not immunity
+  ([GH-967](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/967),
+  [GH-966](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/966))
+- **Give the night shift the references its harness assumed** — five
+  reference docs close gaps each rediscovered the expensive way:
+  `overseer-discipline.md` (an idle agent cannot heartbeat, so
+  "passive wait + heartbeat" ends as a false STALL — heartbeat, ONE bounded
+  blocking wait, heartbeat, act), `durability-envelope.md` (only pushed
+  commits and issue comments survive a session death; transcripts do not),
+  `worktree-recovery.md` (`EnterWorktree` into a sibling worktree reports
+  success then wedges the subagent's Bash permanently — loud, but too late
+  to be a safe probe), `roster.md` (a single-writer at-a-glance table of
+  every delegated chunk, explicitly a derived rendering), and the
+  spawn-by-request inversion where the watchdog becomes the crew's parent
+  ([GH-962](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/962),
+  [GH-965](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/965),
+  [GH-977](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/977),
+  [GH-976](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/976),
+  [GH-972](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/972))
+- **Find the night loop without scrolling past explanatory depth** —
+  `foreman/instructions.md` had grown to 585 lines with the
+  execution-gating parts buried, and its INDEX.md override entry described
+  neither the real size nor the already-extracted split candidate. Depth
+  moves to four new reference files behind named pointers; the loop,
+  handshake, crew contract and red-flag tables stay inline
+  ([GH-987](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/987))
+- **Trust the docs about where session config lives** — ADR-0018 retired
+  the per-repo `session.yaml`, but the schema reference still taught
+  readers to create one, work-on forbade the write and then instructed it,
+  and git-worktree guarded a seed on a file nothing creates any more. Every
+  read and write site is repointed at the durable prefs
+  ([GH-1001](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1001))
+- **Let a groom's own steps land on pre-approved shapes** — git-groom
+  opened Phase 1 with bare `git log`/`git merge-base` calls it never
+  declared, so both cost a rejected Bash call, and Phase 1 read as a direct
+  contradiction of work-on's never-self-assess rule. The two shapes are
+  declared, `origin/<base>`-qualified forms are primary, and the groom
+  prohibition is scoped to the orchestrator
+  ([GH-997](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/997))
+- **Survive a force-push at the merge gate** — a force-push resets a
+  published PR to draft, so an earlier `pr_ready` (including
+  `create_pr(draft=false)`) proves nothing by the time the gate runs. Check
+  3 now requires `pr_ready` after the FINAL push plus a fresh `isDraft`
+  read, and mid-body `Closes #N` lines are documented as informational
+  only — the `Fixes:` trailer is what closes an issue on merge
+  ([GH-958](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/958))
+- **Author this repo's own `.claude` docs unattended** — the self-settings
+  consent gate fires on the Write/Edit family for any path under
+  `.claude/`, regardless of matching allow rules, and an unattended worker
+  cannot answer a prompt. Since the gate is bound to the tool rather than
+  the path, crew workers stage content outside `.claude/` and move it into
+  place, with `settings*.json` and `.claude/Dev10x/**` hard-excluded.
+  Recorded as a stopgap: the upstream fix is narrowing the gate
+  ([GH-1004](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1004))
+- **Offer an HTML artifact for reports a human actually reads** — long
+  comparison-shaped reports wrap badly as transcript markdown.
+  `references/html-artifact-reporting.md` makes an artifact an option for
+  exactly those cases, with markdown still the default and a hard guard
+  that no completion gate may depend on an artifact existing
+  ([GH-974](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/974))
+
 ## 0.92.0 — Night-Shift Discipline & Dependency Bounds
 
 Released 2026-08-01
