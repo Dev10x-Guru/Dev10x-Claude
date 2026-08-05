@@ -2,14 +2,20 @@
 
 Powers the `dev10x skill notify gchat-send` CLI command and any in-process
 callers. Posts through a private Chat bot authenticated with a service
-account (app auth) against the Chat REST API. The SA-key JSON is read from
-the OS keyring; an access token is minted with pyjwt + stdlib urllib.
+account (app auth) against the Chat REST API. Two auth methods:
+
+- ``sa_key`` (default): the SA-key JSON is read from the OS keyring and a
+  token is minted by signing a JWT with pyjwt.
+- ``impersonate``: keyless — gcloud Application Default Credentials
+  (user identity) impersonate the service account via the IAM Credentials
+  API, for orgs that enforce iam.disableServiceAccountKeyCreation.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import os
 import subprocess
 import sys
 import time
@@ -27,6 +33,7 @@ log = logging.getLogger(__name__)
 GCHAT_SCOPE = "https://www.googleapis.com/auth/chat.bot"
 TOKEN_URI = "https://oauth2.googleapis.com/token"
 CHAT_API_BASE = "https://chat.googleapis.com/v1"
+IAM_CREDENTIALS_BASE = "https://iamcredentials.googleapis.com/v1"
 _JWT_GRANT = "urn:ietf:params:oauth:grant-type:jwt-bearer"
 
 _config: dict | None = None
@@ -150,7 +157,116 @@ def mint_access_token(sa_info: dict, *, now: int | None = None) -> Result[str]:
     return ok(token)
 
 
-def _post_json(url: str, payload: dict[str, str], token: str) -> Result[dict]:
+def _auth_config() -> dict:
+    return _get_config().get("auth", {}) or {}
+
+
+def _adc_path() -> Path:
+    env_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+    if env_path:
+        return Path(env_path)
+    return Path.home() / ".config" / "gcloud" / "application_default_credentials.json"
+
+
+def get_adc_info() -> Result[dict]:
+    """Read and parse gcloud Application Default Credentials."""
+    path = _adc_path()
+    if not path.exists():
+        return err(
+            f"No Application Default Credentials found at {path}. "
+            "Run: gcloud auth application-default login"
+        )
+    try:
+        return ok(json.loads(path.read_text()))
+    except json.JSONDecodeError as ex:
+        return err(f"Application Default Credentials file is not valid JSON: {ex}")
+
+
+def mint_user_token(adc_info: dict) -> Result[str]:
+    """Exchange the ADC refresh token for a user access token."""
+    if adc_info.get("type") != "authorized_user":
+        return err(
+            "Application Default Credentials are not user credentials "
+            f"(type={adc_info.get('type')!r}). Run: gcloud auth application-default login"
+        )
+    try:
+        fields = {
+            "grant_type": "refresh_token",
+            "client_id": adc_info["client_id"],
+            "client_secret": adc_info["client_secret"],
+            "refresh_token": adc_info["refresh_token"],
+        }
+    except KeyError as ex:
+        return err(f"Application Default Credentials are missing {ex}")
+    form_result = _post_form(TOKEN_URI, fields)
+    if isinstance(form_result, ErrorResult):
+        return form_result
+    token = form_result.value.get("access_token")
+    if not token:
+        return err("Token endpoint returned no access_token")
+    return ok(token)
+
+
+def mint_impersonated_token(*, service_account: str, user_token: str) -> Result[str]:
+    """Mint a short-lived chat.bot token for the SA via IAM Credentials impersonation.
+
+    Keyless alternative to a downloaded SA key for orgs that enforce
+    iam.disableServiceAccountKeyCreation. The calling user needs
+    roles/iam.serviceAccountTokenCreator on the service account.
+    """
+    url = (
+        f"{IAM_CREDENTIALS_BASE}/projects/-/serviceAccounts/{service_account}:generateAccessToken"
+    )
+    payload = {"scope": [GCHAT_SCOPE], "lifetime": "3600s"}
+    result = _post_json(
+        url, payload, user_token, error_label="Service-account impersonation failed"
+    )
+    if isinstance(result, ErrorResult):
+        return result
+    token = result.value.get("accessToken")
+    if not token:
+        return err("IAM Credentials returned no accessToken")
+    return ok(token)
+
+
+def mint_chat_token() -> Result[str]:
+    """Mint a chat.bot access token using the auth method configured in gchat-config.yaml."""
+    auth = _auth_config()
+    method = auth.get("method", "sa_key")
+    if method == "impersonate":
+        service_account = auth.get("service_account")
+        if not service_account:
+            return err(
+                "auth.method is 'impersonate' but auth.service_account is not set "
+                f"in {_config_path()}."
+            )
+        adc_result = get_adc_info()
+        if isinstance(adc_result, ErrorResult):
+            return adc_result
+        user_result = mint_user_token(adc_result.value)
+        if isinstance(user_result, ErrorResult):
+            return user_result
+        return mint_impersonated_token(
+            service_account=service_account, user_token=user_result.value
+        )
+    if method != "sa_key":
+        return err(
+            f"Unknown gchat auth.method {method!r} in {_config_path()} "
+            "(expected 'sa_key' or 'impersonate')."
+        )
+    sa_result = get_sa_info()
+    if isinstance(sa_result, ErrorResult):
+        return sa_result
+    return mint_access_token(sa_result.value)
+
+
+def _post_json(
+    url: str,
+    payload: dict,
+    token: str,
+    *,
+    error_label: str = "Google Chat POST failed",
+) -> Result[dict]:
     data = json.dumps(payload).encode()
     req = urllib.request.Request(
         url,
@@ -166,9 +282,9 @@ def _post_json(url: str, payload: dict[str, str], token: str) -> Result[dict]:
             return ok(json.loads(resp.read().decode()))
     except urllib.error.HTTPError as ex:
         detail = ex.read().decode(errors="replace")
-        return err(f"Google Chat POST failed (HTTP {ex.code}): {detail}")
+        return err(f"{error_label} (HTTP {ex.code}): {detail}")
     except urllib.error.URLError as ex:
-        return err(f"Google Chat unreachable: {ex.reason}")
+        return err(f"{urllib.parse.urlsplit(url).netloc} unreachable: {ex.reason}")
 
 
 def post_message(*, space_id: str, text: str, token: str) -> Result[str]:
@@ -186,10 +302,7 @@ def send_gchat_message(*, space: str, message: str) -> Result[str]:
     space_result = resolve_space_id(space)
     if isinstance(space_result, ErrorResult):
         return space_result
-    sa_result = get_sa_info()
-    if isinstance(sa_result, ErrorResult):
-        return sa_result
-    token_result = mint_access_token(sa_result.value)
+    token_result = mint_chat_token()
     if isinstance(token_result, ErrorResult):
         return token_result
     resolved = resolve_mentions(message)

@@ -182,6 +182,195 @@ class TestMintAccessToken:
         assert "unusable for signing" in result.error
 
 
+class TestGetAdcInfo:
+    def test_reads_path_from_env_var(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: object
+    ) -> None:
+        adc_path = tmp_path / "adc.json"  # type: ignore[operator]
+        adc_path.write_text('{"type": "authorized_user"}')
+        monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", str(adc_path))
+        result = mod.get_adc_info()
+        assert isinstance(result, SuccessResult)
+        assert result.value == {"type": "authorized_user"}
+
+    def test_defaults_to_gcloud_well_known_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("GOOGLE_APPLICATION_CREDENTIALS", raising=False)
+        path = mod._adc_path()
+        assert str(path).endswith(".config/gcloud/application_default_credentials.json")
+
+    def test_errors_when_file_missing(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: object
+    ) -> None:
+        monkeypatch.setenv(
+            "GOOGLE_APPLICATION_CREDENTIALS",
+            str(tmp_path / "absent.json"),  # type: ignore[operator]
+        )
+        result = mod.get_adc_info()
+        assert isinstance(result, ErrorResult)
+        assert "gcloud auth application-default login" in result.error
+
+    def test_errors_on_malformed_json(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: object
+    ) -> None:
+        adc_path = tmp_path / "adc.json"  # type: ignore[operator]
+        adc_path.write_text("{not json")
+        monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", str(adc_path))
+        result = mod.get_adc_info()
+        assert isinstance(result, ErrorResult)
+        assert "not valid JSON" in result.error
+
+
+class TestMintUserToken:
+    _ADC = {
+        "type": "authorized_user",
+        "client_id": "cid",
+        "client_secret": "csec",
+        "refresh_token": "rtok",
+    }
+
+    def test_exchanges_refresh_token(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured: dict = {}
+
+        def fake_post_form(url, fields):  # noqa: ANN001, ANN202
+            captured["url"] = url
+            captured["fields"] = fields
+            return ok({"access_token": "ya29.user"})
+
+        monkeypatch.setattr(mod, "_post_form", fake_post_form)
+        result = mod.mint_user_token(self._ADC)
+        assert isinstance(result, SuccessResult)
+        assert result.value == "ya29.user"
+        assert captured["url"] == mod.TOKEN_URI
+        assert captured["fields"]["grant_type"] == "refresh_token"
+        assert captured["fields"]["refresh_token"] == "rtok"
+
+    def test_errors_on_non_user_credentials(self) -> None:
+        result = mod.mint_user_token({"type": "service_account"})
+        assert isinstance(result, ErrorResult)
+        assert "not user credentials" in result.error
+
+    def test_errors_on_missing_field(self) -> None:
+        result = mod.mint_user_token({"type": "authorized_user", "client_id": "cid"})
+        assert isinstance(result, ErrorResult)
+        assert "missing" in result.error
+
+    def test_propagates_token_endpoint_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mod, "_post_form", lambda url, fields: err("HTTP 400: bad"))
+        result = mod.mint_user_token(self._ADC)
+        assert isinstance(result, ErrorResult)
+
+    def test_errors_when_response_lacks_token(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mod, "_post_form", lambda url, fields: ok({"expires_in": 1}))
+        result = mod.mint_user_token(self._ADC)
+        assert isinstance(result, ErrorResult)
+
+
+class TestMintImpersonatedToken:
+    def test_posts_generate_access_token(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured: dict = {}
+
+        def fake_post_json(url, payload, token, *, error_label):  # noqa: ANN001, ANN202
+            captured.update(url=url, payload=payload, token=token, error_label=error_label)
+            return ok({"accessToken": "ya29.sa"})
+
+        monkeypatch.setattr(mod, "_post_json", fake_post_json)
+        result = mod.mint_impersonated_token(
+            service_account="bot@proj.iam.gserviceaccount.com", user_token="ya29.user"
+        )
+        assert isinstance(result, SuccessResult)
+        assert result.value == "ya29.sa"
+        assert captured["url"] == (
+            f"{mod.IAM_CREDENTIALS_BASE}/projects/-/serviceAccounts/"
+            "bot@proj.iam.gserviceaccount.com:generateAccessToken"
+        )
+        assert captured["payload"] == {"scope": [mod.GCHAT_SCOPE], "lifetime": "3600s"}
+        assert captured["token"] == "ya29.user"
+        assert "impersonation" in captured["error_label"]
+
+    def test_propagates_post_json_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            mod, "_post_json", lambda url, payload, token, *, error_label: err("HTTP 403: denied")
+        )
+        result = mod.mint_impersonated_token(service_account="bot@p", user_token="t")
+        assert isinstance(result, ErrorResult)
+        assert "denied" in result.error
+
+    def test_errors_when_response_lacks_token(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mod, "_post_json", lambda url, payload, token, *, error_label: ok({}))
+        result = mod.mint_impersonated_token(service_account="bot@p", user_token="t")
+        assert isinstance(result, ErrorResult)
+        assert "accessToken" in result.error
+
+
+class TestMintChatToken:
+    def test_defaults_to_sa_key_method(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mod, "_load_config", lambda: {})
+        monkeypatch.setattr(
+            mod, "get_sa_info", lambda: ok({"client_email": "x", "private_key": "k"})
+        )
+        monkeypatch.setattr(mod, "mint_access_token", lambda info: ok("tok.sa_key"))
+        result = mod.mint_chat_token()
+        assert isinstance(result, SuccessResult)
+        assert result.value == "tok.sa_key"
+
+    def test_impersonate_method_chains_adc_user_and_sa_tokens(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            mod,
+            "_load_config",
+            lambda: {"auth": {"method": "impersonate", "service_account": "bot@p"}},
+        )
+        monkeypatch.setattr(mod, "get_adc_info", lambda: ok({"type": "authorized_user"}))
+        monkeypatch.setattr(mod, "mint_user_token", lambda adc: ok("ya29.user"))
+        captured: dict = {}
+
+        def fake_impersonate(*, service_account, user_token):  # noqa: ANN001, ANN202
+            captured.update(service_account=service_account, user_token=user_token)
+            return ok("ya29.sa")
+
+        monkeypatch.setattr(mod, "mint_impersonated_token", fake_impersonate)
+        result = mod.mint_chat_token()
+        assert isinstance(result, SuccessResult)
+        assert result.value == "ya29.sa"
+        assert captured == {"service_account": "bot@p", "user_token": "ya29.user"}
+
+    def test_impersonate_requires_service_account(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mod, "_load_config", lambda: {"auth": {"method": "impersonate"}})
+        result = mod.mint_chat_token()
+        assert isinstance(result, ErrorResult)
+        assert "auth.service_account" in result.error
+
+    def test_errors_on_unknown_method(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mod, "_load_config", lambda: {"auth": {"method": "wif"}})
+        result = mod.mint_chat_token()
+        assert isinstance(result, ErrorResult)
+        assert "wif" in result.error
+
+    def test_short_circuits_on_adc_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            mod,
+            "_load_config",
+            lambda: {"auth": {"method": "impersonate", "service_account": "bot@p"}},
+        )
+        monkeypatch.setattr(mod, "get_adc_info", lambda: err("no adc"))
+        result = mod.mint_chat_token()
+        assert isinstance(result, ErrorResult)
+        assert result.error == "no adc"
+
+    def test_short_circuits_on_user_token_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            mod,
+            "_load_config",
+            lambda: {"auth": {"method": "impersonate", "service_account": "bot@p"}},
+        )
+        monkeypatch.setattr(mod, "get_adc_info", lambda: ok({"type": "authorized_user"}))
+        monkeypatch.setattr(mod, "mint_user_token", lambda adc: err("no user token"))
+        result = mod.mint_chat_token()
+        assert isinstance(result, ErrorResult)
+        assert result.error == "no user token"
+
+
 class _FakeResponse:
     """Minimal context-manager stand-in for urllib.request.urlopen()'s return value."""
 
@@ -233,6 +422,24 @@ class TestPostJson:
         result = mod._post_json(f"{mod.CHAT_API_BASE}/spaces/A/messages", {"text": "hi"}, "tok")
         assert isinstance(result, ErrorResult)
         assert "boom" in result.error
+        assert "chat.googleapis.com" in result.error
+
+    def test_errors_use_custom_label(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def fake_urlopen(req, timeout=30):  # noqa: ANN001, ANN202
+            raise urllib.error.HTTPError(
+                f"{mod.IAM_CREDENTIALS_BASE}/x",
+                403,
+                "Forbidden",
+                hdrs=None,
+                fp=io.BytesIO(b"denied"),
+            )
+
+        monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
+        result = mod._post_json(
+            f"{mod.IAM_CREDENTIALS_BASE}/x", {}, "tok", error_label="Impersonation failed"
+        )
+        assert isinstance(result, ErrorResult)
+        assert result.error.startswith("Impersonation failed (HTTP 403)")
 
 
 class TestPostForm:
@@ -333,6 +540,7 @@ class TestNotifyGchat:
         assert result.error == "no space"
 
     def test_short_circuits_on_missing_credentials(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mod, "_load_config", lambda: {})
         monkeypatch.setattr(mod, "resolve_space_id", lambda alias: ok("AAAA123"))
         monkeypatch.setattr(mod, "get_sa_info", lambda: err("no key"))
         result = mod.notify_gchat(space="tt-reviews", message="hi")
@@ -340,6 +548,7 @@ class TestNotifyGchat:
         assert result.error == "no key"
 
     def test_short_circuits_on_mint_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mod, "_load_config", lambda: {})
         monkeypatch.setattr(mod, "resolve_space_id", lambda alias: ok("AAAA123"))
         monkeypatch.setattr(
             mod, "get_sa_info", lambda: ok({"client_email": "x", "private_key": "k"})
