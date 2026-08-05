@@ -46,6 +46,10 @@ If no service-account key is found, walk the user through setup:
    secret-tool store --label="GChat SA key" service gchat key sa_key
    ```
    Paste the full service-account key JSON when prompted.
+   On macOS use the Keychain instead:
+   ```bash
+   security add-generic-password -U -s gchat -a sa_key -l "GChat SA key" -w '<key JSON>'
+   ```
 4. **Record the space ID** in config (below). The space ID is the
    `spaces/AAAA...` segment — not the app link `chat.google.com/.../app/chat/...`.
 
