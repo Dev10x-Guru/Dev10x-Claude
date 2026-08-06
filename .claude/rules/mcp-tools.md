@@ -119,7 +119,7 @@ one session). Use these shapes verbatim:
 | `pr_comments` | `pr_number`, `action` (no default) | omitting `action` |
 | `unresolved_threads` | `repo` (no CWD default); pass `pr_number` for a single PR | omitting `repo`; omitting `pr_number` for a per-PR check |
 | `check_top_level_comments` | `repo` (no CWD default) | omitting `repo` |
-| `push_safe` | `args` list, e.g. `["-u", "origin", "<branch>"]` | bare call |
+| `push_safe` | `args` list, e.g. `["-u", "origin", "<branch>"]` | bare call; passing `protected_branches=[]` expecting protection off — an empty list reads as "no override" (GH-1031) |
 | `resolve_review_thread` | `thread_ids` (list) | singular `thread_id` |
 | `resolve_gate` | `gate` (toggle name); optional `context` dict of gate facts | passing preset/friction values — the tool reads session policy itself (ADR-0016 D-2); passing `human_review` on `gate="merge"` — durable policy, read unconditionally and echoed back in `ignored_context_fields` (GH-1000) |
 | `pr_close` | `pr_number` | `number` (that's `issue_close`'s param name) |
@@ -194,6 +194,20 @@ Behavioral caveats:
   "push_failed"}` with no further diagnostic; a successful push may
   return `{}` — treat any non-`error` payload without
   `"pushed": false` as success.
+
+- `push_safe` protection resolves in three tiers (GH-1031): a
+  non-empty `protected_branches` argument, else the durable
+  `protected_branches` key in the matching `projects[]` entry of
+  `~/.config/Dev10x/friction.yaml`, else the script default
+  `main master develop development staging trunk`. Each tier
+  REPLACES the one below rather than adding to it, and only
+  `--force` is blocked — a plain push and `--force-with-lease` are
+  always allowed. Prefer the durable pref over a per-call list: an
+  unattended agent never passes one, which is when an unprotected
+  force-push costs the most. Three docs previously stated three
+  different defaults ("main, develop", "main master", and the real
+  six) — `tests/git/test_git.py` now pins the documented list to the
+  shell script so that drift cannot recur.
 - `unresolved_threads` runs in two modes: with `pr_number` it issues
   a single per-PR `reviewThreads` GraphQL query (sub-2s, returns
   `{"unresolved_threads": [...], "count": N}`); without it, it sweeps
@@ -425,6 +439,19 @@ no allow-rule can suppress (GH-703).
 `run_node_tests` accepts a `runner` arg (`jest` default, plus
 `vitest`/`yarn`/`npm`/`pnpm`); `jest`/`vitest` get `--coverage` when
 `coverage=true`.
+
+It also takes `script` and `env` (GH-1029). `script` names the
+`package.json` script to run — default `"test"`, which keeps the
+historical `yarn test` / `npm test` shape; any other value becomes
+`<pm> run <script>`, so a `lint:tsc` or `lint` check runs inside the
+wrapper instead of as a raw `tsc`/`node` invocation on the Bash
+layer. Only `yarn`/`npm`/`pnpm` resolve a script name — pairing
+`script` with `jest`/`vitest` returns an error rather than silently
+ignoring it, since those are invoked directly through `npx` and have
+no script table. `env` is overlaid on the inherited environment (not
+substituted for it), for a script whose own definition pins something
+the wrapper would otherwise drop — e.g. a `TZ` that snapshot tests
+depend on.
 
 ## Official GitHub MCP Server
 

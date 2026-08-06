@@ -18,11 +18,17 @@ async def push_safe(
     protected_branches: list[str] | None = None,
     cwd: str | None = None,
 ) -> dict:
-    """Safely push git branches with protection for main/develop.
+    """Safely push git branches, blocking --force to protected branches.
 
     Args:
         args: Arguments to pass to git push (e.g., ["origin", "branch-name"])
-        protected_branches: List of branch names to protect (default: main, develop)
+        protected_branches: Branch names (glob patterns allowed, e.g.
+            ``release/*``) whose force-push is blocked. Omit it: the
+            project's durable ``protected_branches`` pref in
+            ``~/.config/Dev10x/friction.yaml`` applies, and failing that
+            ``git-push-safe.sh``'s own default set — ``main master develop
+            development staging trunk``. A list passed here REPLACES that
+            set rather than adding to it (GH-1031).
         cwd: Effective working directory (GH-979).
 
     Returns:

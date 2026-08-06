@@ -10,6 +10,7 @@ not apply (GH-238, mirrors the GH-232 ``merge_pr`` pattern).
 
 from __future__ import annotations
 
+import os
 import re
 from typing import Any
 
@@ -113,16 +114,42 @@ _NODE_RUNNERS: dict[str, list[str]] = {
 # coverage flag is left to that script rather than injected here.
 _NODE_COVERAGE_FLAG: dict[str, str] = {"jest": "--coverage", "vitest": "--coverage"}
 
+# Runners that resolve a named ``package.json`` script (GH-1029). Only these
+# understand ``script=``; ``jest``/``vitest`` are invoked directly through
+# ``npx`` and have no script table to look a name up in.
+_NODE_SCRIPT_RUNNERS = frozenset({"yarn", "npm", "pnpm"})
+
+# The script name every runner already ran before ``script=`` existed.
+# Keeping it the sentinel default preserves the exact historical command
+# shape (``yarn test``, not ``yarn run test``) for every existing caller.
+_NODE_DEFAULT_SCRIPT = "test"
+
 _NODE_TESTS_RE = re.compile(r"^Tests:\s+(?P<body>.+)$", re.MULTILINE)
 _NODE_COUNT_RE = re.compile(r"(\d+)\s+(passed|failed|skipped|todo|pending)")
 _NODE_TOTAL_RE = re.compile(r"(\d+)\s+total")
 
 
+def _overlay_env(extra: dict[str, str] | None) -> dict[str, str] | None:
+    """Overlay ``extra`` on the inherited environment, or ``None`` when empty.
+
+    ``asyncio.create_subprocess_exec(env=...)`` REPLACES the environment
+    rather than extending it, so handing it a bare ``{"TZ": "UTC"}`` would
+    launch the runner without ``PATH`` — the node binary would not even be
+    found. Returning ``None`` for the empty case keeps the inherit-everything
+    default rather than passing a copied environment for no reason.
+    """
+    if not extra:
+        return None
+    return {**os.environ, **extra}
+
+
 async def run_node_tests(
     *,
     runner: str = "jest",
+    script: str = _NODE_DEFAULT_SCRIPT,
     args: list[str] | None = None,
     coverage: bool = True,
+    env: dict[str, str] | None = None,
     timeout: float = 600,
 ) -> Result[dict[str, Any]]:
     """Run a node/JS test runner and return a structured summary (GH-703).
@@ -135,17 +162,29 @@ async def run_node_tests(
 
     Args:
         runner: One of ``jest``, ``vitest``, ``yarn``, ``npm``, ``pnpm``.
+        script: The ``package.json`` script to run (default ``test``), so a
+            check like ``lint:tsc`` reaches the same structured wrapper
+            instead of falling back to a raw ``node``/``tsc`` invocation
+            (GH-1029). Only the package-manager runners resolve a script
+            name; naming one alongside ``jest``/``vitest`` is an error
+            rather than a silently ignored argument.
         args: Extra arguments appended after the coverage flag.
         coverage: When True and the runner supports it, add ``--coverage``.
+            Never applies to a package-manager runner, so it cannot
+            collide with a non-test ``script``.
+        env: Variables overlaid on the inherited environment — for a script
+            whose own definition pins something the wrapper would otherwise
+            drop (e.g. ``TZ``, which snapshot tests are sensitive to).
         timeout: Subprocess timeout in seconds (default 10 minutes).
 
     Returns:
-        ok({"returncode", "runner", "summary", "passed", "failed",
+        ok({"returncode", "runner", "script", "summary", "passed", "failed",
             "skipped", "todo", "total", "stdout", "stderr"})
 
         err(...) only when the runner binary is missing, the runner name
-        is unknown, or the subprocess times out. A non-zero runner
-        returncode is *not* an MCP-level error.
+        is unknown, ``script`` is unsupported by the runner, or the
+        subprocess times out. A non-zero runner returncode is *not* an
+        MCP-level error.
     """
     base = _NODE_RUNNERS.get(runner)
     if base is None:
@@ -153,13 +192,23 @@ async def run_node_tests(
             f"Unknown node test runner {runner!r}. "
             f"Expected one of: {', '.join(sorted(_NODE_RUNNERS))}."
         )
+    if script != _NODE_DEFAULT_SCRIPT and runner not in _NODE_SCRIPT_RUNNERS:
+        return err(
+            f"Runner {runner!r} cannot run the package.json script {script!r} — "
+            f"it is invoked directly, not through a script table. Use one of: "
+            f"{', '.join(sorted(_NODE_SCRIPT_RUNNERS))}."
+        )
     cmd = list(base)
+    if script != _NODE_DEFAULT_SCRIPT:
+        # ``[pm, "test"]`` is the historical shape for the default script;
+        # anything else goes through the explicit ``run`` verb.
+        cmd = [base[0], "run", script]
     if coverage and runner in _NODE_COVERAGE_FLAG:
         cmd.append(_NODE_COVERAGE_FLAG[runner])
     cmd += list(args) if args else []
 
     try:
-        proc = await async_run(args=cmd, timeout=timeout)
+        proc = await async_run(args=cmd, env=_overlay_env(env), timeout=timeout)
     except FileNotFoundError:
         return err(
             f"{base[0]} not found on PATH — install Node tooling or run the "
@@ -178,6 +227,7 @@ async def run_node_tests(
     payload: dict[str, Any] = {
         "returncode": proc.returncode,
         "runner": runner,
+        "script": script,
         "stdout": proc.stdout,
         "stderr": proc.stderr,
         **parsed,

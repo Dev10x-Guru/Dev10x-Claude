@@ -13,6 +13,8 @@ from typing import Any
 
 from dev10x.domain.common.branch_name import BranchName
 from dev10x.domain.common.result import Result, SuccessResult, err, ok
+from dev10x.domain.documents.session_yaml import SessionYamlDocument
+from dev10x.domain.git_context import GitContext
 from dev10x.subprocess_utils import async_run, async_run_script, parse_key_value_output
 
 
@@ -59,15 +61,35 @@ async def _run_git_script(
     return _ok_json_or_kv(result.stdout)
 
 
+def _resolve_protected_branches(explicit: list[str] | None) -> list[str] | None:
+    """Resolve the protected-branch set for a push (GH-1031).
+
+    An explicit caller list wins. Otherwise the project's durable
+    ``protected_branches`` pref applies, so a repo whose integration branch
+    is not one of the shell script's defaults stays protected without every
+    caller passing the list — an unattended agent never does.
+
+    ``None`` (no caller list, no pref, or no resolvable repo root) leaves the
+    flag off entirely and lets ``git-push-safe.sh`` apply its own default set —
+    which protects MORE branches than an empty list would, so that is the safe
+    direction to degrade in.
+    """
+    if explicit:
+        return list(explicit)
+    toplevel = GitContext().toplevel
+    if toplevel is None:
+        return None
+    return SessionYamlDocument(toplevel=toplevel).read_protected_branches()
+
+
 async def push_safe(
     *,
     args: list[str],
     protected_branches: list[str] | None = None,
 ) -> Result[dict[str, Any]]:
     cmd_args = list(args)
-    if protected_branches:
-        for pb in protected_branches:
-            cmd_args.extend(["--protected", pb])
+    for pb in _resolve_protected_branches(protected_branches) or []:
+        cmd_args.extend(["--protected", pb])
 
     return await _run_git_script("skills/git/scripts/git-push-safe.sh", *cmd_args)
 

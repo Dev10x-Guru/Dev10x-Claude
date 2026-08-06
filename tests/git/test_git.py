@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import re
 import subprocess
 from collections.abc import Iterator
-from unittest.mock import AsyncMock, patch
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -217,6 +219,124 @@ class TestPushSafeStructuredOutput:
 
         assert isinstance(result, ErrorResult)
         assert "BLOCKED" in result.error
+
+
+class TestPushSafeProtectedBranchResolution:
+    """GH-1031: the protected set resolves without the caller supplying it.
+
+    Previously an omitted ``protected_branches`` sent no ``--protected``
+    flags at all, so the only protection was whatever
+    ``git-push-safe.sh`` hardcoded — a project with a differently-named
+    integration branch had to pass the list on every call, which an
+    unattended agent never does.
+    """
+
+    @staticmethod
+    def _protected_flags(mock_run_script: AsyncMock) -> list[str]:
+        args = list(mock_run_script.call_args.args)
+        return [args[i + 1] for i, arg in enumerate(args) if arg == "--protected"]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.git.SessionYamlDocument")
+    @patch("dev10x.git.GitContext")
+    async def test_explicit_list_wins_over_the_durable_pref(
+        self,
+        mock_ctx: MagicMock,
+        mock_doc: MagicMock,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        mock_run_script.return_value = _completed(stdout='{"pushed":true}')
+        mock_doc.return_value.read_protected_branches.return_value = ["trunk"]
+
+        await push_safe(args=["origin", "feature"], protected_branches=["main", "release/*"])
+
+        assert self._protected_flags(mock_run_script) == ["main", "release/*"]
+        # An explicit list short-circuits before the pref is consulted, so
+        # resolving the repo root at all would be wasted work.
+        mock_ctx.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.git.SessionYamlDocument")
+    @patch("dev10x.git.GitContext")
+    async def test_durable_pref_applies_when_caller_passes_nothing(
+        self,
+        mock_ctx: object,
+        mock_doc: object,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        mock_run_script.return_value = _completed(stdout='{"pushed":true}')
+        mock_ctx.return_value.toplevel = "/repo"
+        mock_doc.return_value.read_protected_branches.return_value = ["trunk", "release/*"]
+
+        await push_safe(args=["origin", "feature"])
+
+        assert self._protected_flags(mock_run_script) == ["trunk", "release/*"]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.git.SessionYamlDocument")
+    @patch("dev10x.git.GitContext")
+    async def test_no_pref_sends_no_flags_so_the_script_default_applies(
+        self,
+        mock_ctx: object,
+        mock_doc: object,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        mock_run_script.return_value = _completed(stdout='{"pushed":true}')
+        mock_ctx.return_value.toplevel = "/repo"
+        mock_doc.return_value.read_protected_branches.return_value = None
+
+        await push_safe(args=["origin", "feature"])
+
+        assert self._protected_flags(mock_run_script) == []
+
+    @pytest.mark.asyncio
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.git.GitContext")
+    async def test_unresolvable_repo_root_sends_no_flags(
+        self,
+        mock_ctx: object,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        """Degrade to the script's wider default, never to zero protection."""
+        mock_run_script.return_value = _completed(stdout='{"pushed":true}')
+        mock_ctx.return_value.toplevel = None
+
+        await push_safe(args=["origin", "feature"])
+
+        assert self._protected_flags(mock_run_script) == []
+
+
+class TestProtectedBranchDefaultIsDocumentedAccurately:
+    """GH-1031's root cause: two disagreeing statements of one default.
+
+    ``push_safe``'s docstring claimed "main, develop" while the shell script
+    actually protected six branches. That drift is what produced a bug
+    report asking for a widening that had already shipped — so the docstring
+    is pinned to the script rather than restated by hand.
+    """
+
+    SCRIPT = Path(__file__).parents[2] / "skills" / "git" / "scripts" / "protected-branches.sh"
+
+    def _script_defaults(self) -> list[str]:
+        match = re.search(
+            r"^DEFAULT_PROTECTED_BRANCHES=\((?P<branches>[^)]*)\)",
+            self.SCRIPT.read_text(),
+            re.MULTILINE,
+        )
+        assert match is not None, "DEFAULT_PROTECTED_BRANCHES not found in the shell script"
+        return match.group("branches").split()
+
+    def test_script_default_is_wider_than_main_and_develop(self) -> None:
+        """The premise of the original report — kept as a live assertion."""
+        assert {"master", "development"} <= set(self._script_defaults())
+
+    def test_mcp_docstring_lists_the_script_default_verbatim(self) -> None:
+        source = Path(__file__).parents[2] / "src" / "dev10x" / "mcp" / "git_tools.py"
+        collapsed = " ".join(source.read_text().split())
+        assert " ".join(self._script_defaults()) in collapsed
 
 
 class TestQualifyBaseRef:

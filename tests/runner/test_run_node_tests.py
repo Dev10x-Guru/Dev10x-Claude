@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 from unittest.mock import AsyncMock, patch
 
@@ -123,3 +124,136 @@ class TestRunNodeTests:
 
         assert isinstance(result, SuccessResult)
         assert result.value["returncode"] == 1
+
+
+class TestNamedPackageScript:
+    """GH-1029: ``script=`` brings a non-test check inside the wrapper.
+
+    Without it only the hardcoded ``test`` script was reachable, so a
+    ``lint:tsc`` check had to be run as a raw ``node …/tsc`` invocation on
+    the Bash layer — outside the wrapper's guardrails and into the
+    brace-expansion block no allow-rule can suppress.
+    """
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_named_script_uses_the_run_verb(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(stderr=JEST_PASS_STDERR)
+
+        await runner.run_node_tests(runner="npm", script="lint:tsc")
+
+        assert mock_run.call_args.kwargs["args"] == ["npm", "run", "lint:tsc"]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_default_script_keeps_the_historical_shape(self, mock_run: AsyncMock) -> None:
+        """``yarn test``, not ``yarn run test`` — no existing caller changes."""
+        mock_run.return_value = _completed(stderr=JEST_PASS_STDERR)
+
+        await runner.run_node_tests(runner="yarn")
+
+        assert mock_run.call_args.kwargs["args"] == ["yarn", "test"]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_explicit_default_script_is_also_the_historical_shape(
+        self, mock_run: AsyncMock
+    ) -> None:
+        mock_run.return_value = _completed(stderr=JEST_PASS_STDERR)
+
+        await runner.run_node_tests(runner="pnpm", script="test")
+
+        assert mock_run.call_args.kwargs["args"] == ["pnpm", "test"]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_extra_args_follow_the_named_script(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(stderr=JEST_PASS_STDERR)
+
+        await runner.run_node_tests(runner="yarn", script="lint", args=["--max-warnings=0"])
+
+        assert mock_run.call_args.kwargs["args"] == [
+            "yarn",
+            "run",
+            "lint",
+            "--max-warnings=0",
+        ]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("direct_runner", ["jest", "vitest"])
+    async def test_named_script_rejected_for_a_direct_runner(self, direct_runner: str) -> None:
+        """Fail loud rather than silently dropping the caller's script."""
+        result = await runner.run_node_tests(runner=direct_runner, script="lint:tsc")
+
+        assert isinstance(result, ErrorResult)
+        assert "cannot run the package.json script" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_direct_runner_accepts_the_default_script(self, mock_run: AsyncMock) -> None:
+        """The guard must not reject the default every jest caller relies on."""
+        mock_run.return_value = _completed(stderr=JEST_PASS_STDERR)
+
+        result = await runner.run_node_tests(runner="jest")
+
+        assert isinstance(result, SuccessResult)
+        assert mock_run.call_args.kwargs["args"] == ["npx", "jest", "--coverage"]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_script_is_echoed_in_the_payload(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(stderr=JEST_PASS_STDERR)
+
+        result = await runner.run_node_tests(runner="npm", script="lint:tsc")
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["script"] == "lint:tsc"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_coverage_flag_never_reaches_a_named_script(self, mock_run: AsyncMock) -> None:
+        """Coverage only applies to jest/vitest, which reject ``script``."""
+        mock_run.return_value = _completed(stderr=JEST_PASS_STDERR)
+
+        await runner.run_node_tests(runner="npm", script="lint:tsc", coverage=True)
+
+        assert "--coverage" not in mock_run.call_args.kwargs["args"]
+
+
+class TestEnvOverlay:
+    """GH-1029: ``env=`` pins what a package script's own definition pins.
+
+    ``create_subprocess_exec(env=...)`` REPLACES the environment, so passing
+    the caller's mapping through raw would launch the runner without
+    ``PATH``. The overlay keeps the inherited environment and layers on top.
+    """
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_no_env_inherits_everything(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(stderr=JEST_PASS_STDERR)
+
+        await runner.run_node_tests()
+
+        assert mock_run.call_args.kwargs["env"] is None
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_empty_env_inherits_everything(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(stderr=JEST_PASS_STDERR)
+
+        await runner.run_node_tests(env={})
+
+        assert mock_run.call_args.kwargs["env"] is None
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_env_overlays_rather_than_replaces(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(stderr=JEST_PASS_STDERR)
+
+        with patch.dict(os.environ, {"PATH": "/usr/bin", "TZ": "UTC"}, clear=True):
+            await runner.run_node_tests(env={"TZ": "America/New_York"})
+
+        passed_env = mock_run.call_args.kwargs["env"]
+        assert passed_env["TZ"] == "America/New_York"
+        assert passed_env["PATH"] == "/usr/bin"

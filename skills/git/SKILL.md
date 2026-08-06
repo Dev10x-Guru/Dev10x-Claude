@@ -52,16 +52,44 @@ all push operations.
 
 ### Configuring `protected_branches`
 
-By default `push_safe` blocks pushes to `main` and `develop`.
-The `protected_branches` parameter overrides that list per call —
-this is the solo-maintainer escape valve.
+`push_safe` blocks **`--force`** to a protected branch — an ordinary
+push and a `--force-with-lease` are always allowed, on any branch.
+Protection resolves in three tiers (GH-1031):
+
+1. The `protected_branches` call parameter, when non-empty.
+2. Else the project's durable `protected_branches` key in the
+   matching `projects[]` entry of `~/.config/Dev10x/friction.yaml`.
+3. Else `git-push-safe.sh`'s own default set:
+   `main master develop development staging trunk`.
+
+Each tier REPLACES the one below it rather than adding to it, so a
+list that names `release/*` must re-list the integration branches it
+still wants covered. Glob patterns are supported at every tier.
+
+Prefer tier 2 for anything durable: an unattended agent never passes
+a per-call list, which is exactly when an unprotected force-push
+costs the most.
+
+```yaml
+# ~/.config/Dev10x/friction.yaml
+projects:
+  - match: ["*/my-repo", "*/my-repo-*"]
+    protected_branches: [main, release/*, staging]
+```
 
 | Recipe | Call | When |
 |---|---|---|
-| Default (team workflow) | `push_safe(args=["origin","feature"])` | Feature branches; default protection of `main`/`develop` |
-| Push directly to `develop` | `push_safe(args=["origin","develop"], protected_branches=["main"])` | Solo maintainer flow that uses `develop` as integration |
-| Push directly to `main` (solo) | `push_safe(args=["origin","main"], protected_branches=[])` | Single-developer repo where `main` is the only branch |
-| Add a custom protected branch | `push_safe(args=["origin","feature"], protected_branches=["main","develop","release"])` | Long-lived release branches that must never be force-pushed |
+| Default (any workflow) | `push_safe(args=["origin","feature"])` | Feature branches; the six-branch default set applies |
+| Protect only `main` for this call | `push_safe(args=["origin","develop"], protected_branches=["main"])` | Solo flow that force-pushes `develop` as integration |
+| Add a release branch | `push_safe(args=["origin","feature"], protected_branches=["main","develop","release/*"])` | Long-lived release branches that must never be force-pushed |
+| Protect a non-standard branch everywhere | durable `protected_branches` (above) | The project's integration branch is not in the default set |
+
+**`protected_branches=[]` does NOT disable protection.** An empty
+list reads as "no override" and falls through to the tiers below, so
+the default set still applies. To force-push a branch in the default
+set, pass a list that omits it (`protected_branches=["main"]` to
+force-push `develop`). Turning protection off entirely is
+deliberately not expressible — the shell layer has no such flag.
 
 **Solo-maintainer rule of thumb:** when a hook denial says
 `Skill: Dev10x:git`, the fix is almost always to re-invoke
@@ -147,7 +175,9 @@ agent-facing entry point.
 
 `push_safe` itself always allows `--force-with-lease` (it verifies the
 remote has not diverged before overwriting) and blocks bare `--force` /
-`-f` on protected branches.
+`-f` on protected branches. The resolved protected set is the one
+documented above — the shell script's own default is the last tier, not
+a separate list.
 
 ## Non-Interactive Rebase
 
