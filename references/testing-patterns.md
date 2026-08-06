@@ -187,3 +187,41 @@ driven systems need completeness checks; new entries get verified in review.
 
 **Common gap**: New entries added without schema validation. Reviewers lack
 guidance to request schema tests for data-driven features.
+
+## Catalog and Config Merge Degraded Input Testing
+
+When implementing config or permission catalog merges (e.g., three-way merge
+of shipped, user, and overlay catalogs), test that the merge handles partial
+or malformed inputs gracefully without crashing the whole system.
+
+**Degradation test pattern:**
+
+```python
+class TestDegradedInputs:
+    def test_missing_catalog(self, shipped: dict) -> None:
+        merged = merge_catalogs(shipped=shipped, user=None, overlay=None)
+        assert merged["denies"] == shipped["denies"]
+    
+    def test_malformed_rule_list(self, shipped: dict) -> None:
+        user = {"base_permissions": "not-a-list"}  # Wrong type
+        merged = merge_catalogs(shipped=shipped, user=user)
+        # Graceful degradation: use shipped, skip user
+        assert merged["base_permissions"] == shipped["base_permissions"]
+    
+    def test_non_string_rules_skipped(self, shipped: dict) -> None:
+        user = {"denies": [123, {"bad": "rule"}, "valid-rule"]}
+        merged = merge_catalogs(shipped=shipped, user=user)
+        # Non-string rules ignored, valid ones retained
+        assert "valid-rule" in merged["denies"]
+        assert 123 not in merged["denies"]
+```
+
+**Why this works**: Config systems must never crash on partial or corrupted
+input. Graceful degradation ensures the system stays operational (using
+shipped defaults) when user/overlay catalogs are missing or malformed.
+
+**Common gaps to watch**:
+- No tests for missing optional catalogs
+- No handling for type mismatches (string expected, dict provided)
+- Silent failures (non-string items not logged or skipped)
+- Complete failure (system crashes instead of falling back to defaults)
