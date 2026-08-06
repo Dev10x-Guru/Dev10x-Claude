@@ -29,6 +29,14 @@ LINTER_TOOLS = frozenset({"ruff", "black", "mypy", "isort", "eslint", "prettier"
 # JS package managers whose ``lint`` script is an inline-lint invocation.
 _JS_PACKAGE_MANAGERS = frozenset({"pnpm", "yarn", "npm"})
 
+# ``lint:``-prefixed scripts that run a TYPE CHECKER, not a linter (GH-1025).
+# `lint:tsc` conventionally runs only `tsc`, so there is no inline linter to
+# redirect and no pre-commit hook to defer to — blocking it makes the
+# documented way to typecheck a workspace unreachable. The exemption is
+# script-name-scoped rather than a blanket `lint:*` escape, so siblings like
+# `lint:eslint` keep blocking.
+_TYPECHECK_SCRIPTS = frozenset({"lint:tsc", "lint:types", "lint:typecheck"})
+
 # Leading token sequences that wrap a tool — stripped to find the
 # effective executable (``uv run ruff`` → ``ruff``).
 _RUNNER_SEQUENCES: tuple[tuple[str, ...], ...] = (
@@ -83,8 +91,14 @@ def _effective_tool(parts: list[str]) -> str | None:
 
 
 def _is_pm_lint_script(parts: list[str]) -> bool:
-    """True for ``pnpm lint`` / ``yarn lint`` / ``npm run lint[:x]`` shapes."""
+    """True for ``pnpm lint`` / ``yarn lint`` / ``npm run lint[:x]`` shapes.
+
+    Type-check scripts (``lint:tsc`` and friends) are exempt — see
+    :data:`_TYPECHECK_SCRIPTS`.
+    """
     if not parts or parts[0] not in _JS_PACKAGE_MANAGERS:
+        return False
+    if any(token in _TYPECHECK_SCRIPTS for token in parts[1:]):
         return False
     return any(token == "lint" or token.startswith("lint:") for token in parts[1:])
 

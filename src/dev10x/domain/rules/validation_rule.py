@@ -161,6 +161,11 @@ class Compensation:
     skill: str = ""
     tool: str = ""
     alias: str = ""
+    # Literal replacement command for ``type: use-alternative`` (GH-1025) —
+    # the redirect target when neither a skill nor an MCP tool applies and the
+    # remedy is simply a better CLI verb (``git checkout -- x`` → ``git
+    # restore x``).
+    alternative: str = ""
     guardrails: str = ""
     fallback: str = ""
     description: str = ""

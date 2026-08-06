@@ -101,16 +101,22 @@ Name the EXACT invocations proven unpromptable for this repo, e.g.:
 ## 6. Workspace + branch
 
 ```
-WORKSPACE CRITICAL — your CWD is NOT your worktree. You are a spawned
-subagent, so you inherit the DISPATCHER's directory, which is very
-likely the wrong tree. Never edit, commit, or push before fixing this.
+WORKSPACE CRITICAL — your CWD is NOT your worktree and `cd` cannot fix
+it. You are a spawned subagent: Bash CWD is the DISPATCHER's directory
+and RESETS ON EVERY CALL, so a `cd` in one call does not carry to the
+next. Pin the worktree as an ARGUMENT on every command, never as state:
+  - git   → `git -C {{worktree_path}} <verb> ...`
+  - tests → `uv run --directory {{worktree_path}} ...` (or the MCP
+            test wrapper's `cwd=` argument)
+  - files → absolute paths under {{worktree_path}} for every
+            Read / Write / Edit / Grep call
 
-FIRST ACTION: run `cd {{worktree_path}}` as a STANDALONE Bash call
-(chained `cd X && Y` is banned and would not persist the way you need;
-a bare `cd` is allowed, and CWD persists across Bash calls). Then
-verify with `pwd` and `git rev-parse --abbrev-ref HEAD` before doing
-anything else. Use absolute paths under {{worktree_path}} for every
-Read / Write / Edit / Grep call.
+NEVER use `git --git-dir=... --work-tree=...`. It matches no allow
+rule, and the prompt it raises is one nobody can answer overnight —
+you wedge silently, with no denial recorded anywhere.
+
+FIRST ACTION: `git -C {{worktree_path}} rev-parse --abbrev-ref HEAD`
+to confirm you are pinned to the right tree.
 
 No new worktrees, and never call `EnterWorktree` — you are pinned to
 {{worktree_path}}. If you ever need another worktree's content, report
@@ -118,10 +124,10 @@ its path and branch and STOP; the watchdog reaches it, not you.
 One command per Bash call.
 ```
 
-Keep the `EnterWorktree` ban verbatim. It is not a style preference:
-the call reports success and then wedges the worker's Bash for the
-rest of its life, with no exit path (GH-977). A worker that "just
-tries it" loses the chunk it was already working on. See
+Keep the CWD and `EnterWorktree` rules verbatim. Subagent Bash CWD is
+per-call and `EnterWorktree` wedges Bash for the rest of the worker's
+life — evidence and failure shapes in
+[`tool-surface.md`](tool-surface.md) § Subagent Bash CWD and
 [`worktree-recovery.md`](worktree-recovery.md).
 
 A fresh isolation worktree normally starts DIRTY — a post-checkout
@@ -136,10 +142,10 @@ Your worktree will start dirty with modified/untracked files under
 `.claude/` — this is hook-seeded noise. Do NOT investigate it, do NOT
 report it as a finding, and do NOT commit it. Clear it with exactly
 these five steps, one Bash call each:
-  1. `git fetch origin`
-  2. `git stash -u`
-  3. `git checkout -b {{branch_name}} origin/{{base_branch}}`
-  4. `git stash drop`
+  1. `git -C {{worktree_path}} fetch origin`
+  2. `git -C {{worktree_path}} stash -u`
+  3. `git -C {{worktree_path}} checkout -b {{branch_name}} origin/{{base_branch}}`
+  4. `git -C {{worktree_path}} stash drop`
   5. write your first heartbeat line
 ```
 
@@ -179,9 +185,9 @@ it will hang forever waiting for a consent prompt nobody can answer.
 Instead, two Bash calls:
   1. Write the full file content to a staging path OUTSIDE `.claude/`
      (use mktmp, e.g. /tmp/Dev10x/<ns>/<name>.md) with the Write tool.
-  2. `cp /tmp/Dev10x/<ns>/<name>.md .claude/rules/<name>.md`
+  2. `cp /tmp/Dev10x/<ns>/<name>.md {{worktree_path}}/.claude/rules/<name>.md`
 
-Then `git add` and commit it normally.
+Then `git -C {{worktree_path}} add <path>` and commit it normally.
 
 HARD EXCLUSIONS — never write these by any route, gated or not:
   - `.claude/settings.json`, `.claude/settings.local.json`
@@ -203,8 +209,9 @@ this recipe to other repos or other `.claude/` paths.
 ```
 - Read every issue body (issue_get) and the source memo/spec BEFORE coding.
 - One atomic commit per issue: write the message with the Write tool,
-  then `git commit -F <msgfile>`. Title `<gitmoji> <TICKET> <outcome>`,
-  72 chars/line, no Claude co-author footer. Scan changed files for
+  then `git -C {{worktree_path}} commit -F <msgfile>`. Title
+  `<gitmoji> <TICKET> <outcome>`, 72 chars/line, no Claude co-author
+  footer. Scan changed files for
   `# TODO` — they are instructions. NEVER leave `fixup!` commits.
 - Verify locally fully green BEFORE the PR. Push via
   push_safe(args=["-u","origin","{{branch_name}}"]) — `pushed: true`
@@ -213,8 +220,8 @@ this recipe to other repos or other `.claude/` paths.
 - RECOVERABILITY IS A CLAIM REQUIRING EVIDENCE. Before you state
   anywhere — heartbeat, handover comment, resumption record, final
   report — that work "is on branch X" or "is recoverable", run
-  `git ls-remote --heads origin '{{branch_name}}'` and confirm it
-  returns the ref. An edit is not a commit and a commit is not a
+  `git -C {{worktree_path}} ls-remote --heads origin '{{branch_name}}'`
+  and confirm it returns the ref. An edit is not a commit and a commit is not a
   push. Report what is PUSHED, and say "unpushed" or "uncommitted"
   in as many words when that is the truth. A false recoverability
   claim makes the next loop skip a chunk that was never started.
@@ -230,8 +237,9 @@ this recipe to other repos or other `.claude/` paths.
   pr_comment_reply, or a reasoned pr_comment_reply when no change is
   warranted. Auto-resolve fully-addressed BOT threads via
   resolve_review_thread; NEVER human threads.
-- If origin/{{base_branch}} moves: `git fetch origin`,
-  `git rebase origin/{{base_branch}}`, re-verify, then
+- If origin/{{base_branch}} moves:
+  `git -C {{worktree_path}} fetch origin`, then
+  `git -C {{worktree_path}} rebase origin/{{base_branch}}`, re-verify, then
   push_safe(args=["--force-with-lease","origin","{{branch_name}}"]).
 - POST-CONDITION RE-VERIFICATION: after ANY force-push, re-check
   `isDraft` via pr_get and re-run pr_ready if needed. Never assume a
@@ -295,8 +303,8 @@ branch name, what landed, what remains — as an issue_comment WHEN
 YOU PRODUCE IT, not at wrap-up. A death gives no warning.
 
 A heartbeat that names a branch is a durability claim: verify with
-`git ls-remote --heads origin '{{branch_name}}'` BEFORE writing that
-line. Otherwise write what is literally true ("edited N files,
+`git -C {{worktree_path}} ls-remote --heads origin '{{branch_name}}'`
+BEFORE writing that line. Otherwise write what is literally true ("edited N files,
 nothing committed") — the morning reader treats your heartbeat as
 ground truth for whether the chunk is resumable or a restart.
 ```
@@ -311,7 +319,7 @@ for the next loop. The orchestrator runs the merge gate on this
 data — do not summarize it away.
 
 If anything is left unfinished, state its recoverability with
-evidence: the output of `git ls-remote --heads origin
-'{{branch_name}}'`, or "no ref on origin — restart, not resumption".
-Never describe an unpushed edit as recoverable work.
+evidence: the output of `git -C {{worktree_path}} ls-remote --heads
+origin '{{branch_name}}'`, or "no ref on origin — restart, not
+resumption". Never describe an unpushed edit as recoverable work.
 ```

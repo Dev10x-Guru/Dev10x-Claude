@@ -288,7 +288,13 @@ Both links are intentional:
 ### Fix Causes Test Failure
 
 If the fix breaks tests:
-1. Revert: `git checkout -- {file_path}`
+1. Revert the attempted fix. `git checkout -- {file_path}` is commonly
+   denied by a standing rail against agents discarding uncommitted work
+   (GH-972 F4), and re-spelling it as `git restore` is explicitly the
+   wrong instinct — see
+   `skills/diag-friction/references/deny-rail-vs-approval-gate.md`. If
+   the revert is refused, hand the exact command to the supervisor and
+   continue with step 2; the reply below is the actual deliverable.
 2. Reply asking for clarification:
    ```
    The suggested change causes test failures in `test_xyz`.

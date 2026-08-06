@@ -85,6 +85,29 @@ class TestBlocksWrappedLinters:
         assert result is not None
 
 
+class TestAllowsTypecheckScripts:
+    """GH-1025: `lint:tsc` runs only `tsc` — there is no inline linter to redirect."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "yarn workspace @tt/shared lint:tsc",
+            "yarn lint:tsc",
+            "pnpm lint:types",
+            "npm run lint:typecheck",
+        ],
+    )
+    def test_allows(self, validator: InlineLinterValidator, command: str) -> None:
+        assert validator.validate(inp=_make_input(command=command)) is None
+
+    def test_still_blocks_a_sibling_lint_script(self, validator: InlineLinterValidator) -> None:
+        # The exemption is script-name-scoped, not a blanket `lint:*` escape.
+        result = validator.validate(
+            inp=_make_input(command="yarn workspace @tt/shared lint:eslint")
+        )
+        assert result is not None
+
+
 class TestAllowsNonLinters:
     @pytest.mark.parametrize(
         "command",

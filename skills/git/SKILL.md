@@ -11,7 +11,6 @@ user-invocable: true
 invocation-name: Dev10x:git
 allowed-tools:
   - mcp__plugin_Dev10x_cli__push_safe
-  - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git/scripts/git-push-safe.sh:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git/scripts/git-rebase-groom.sh:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git/scripts/git-seq-editor.sh:*)
   - Bash(git reset --soft:*)
@@ -136,27 +135,19 @@ responsible for the chain, but this skill's success message
 should still surface a "Next: `Skill(Dev10x:gh-pr-monitor)`"
 hint so the next move is unambiguous.
 
-**Fallback: wrapper script** (only when MCP is healthy but the
-tool call errored for another reason):
+**There is no wrapper-script fallback (GH-1025).** Earlier versions of
+this skill documented
+`${CLAUDE_PLUGIN_ROOT}/skills/git/scripts/git-push-safe.sh` as a
+fallback, but the `git-push-safe-script` rule in
+`command-skill-map.yaml` hard-blocks that path with "use the MCP tool
+instead" — so following the instruction produced a guaranteed block.
+A skill must never instruct an action its own guardrail forbids. The
+script still ships (other tooling shells out to it); it is not an
+agent-facing entry point.
 
-```bash
-${CLAUDE_PLUGIN_ROOT}/skills/git/scripts/git-push-safe.sh [flags] [remote] [refspec]
-# Do NOT pass "push" — the script runs `git push` itself.
-# Example: git-push-safe.sh -u origin feature-branch
-```
-
-Default protected branches: `main master`
-
-To extend the list, set `GIT_PROTECTED_BRANCHES` before calling:
-
-```bash
-GIT_PROTECTED_BRANCHES="main master staging" \
-  ${CLAUDE_PLUGIN_ROOT}/skills/git/scripts/git-push-safe.sh --force-with-lease
-```
-
-`--force-with-lease` is always allowed (verifies the remote has not
-diverged before overwriting). `--force` and `-f` are blocked on
-protected branches.
+`push_safe` itself always allows `--force-with-lease` (it verifies the
+remote has not diverged before overwriting) and blocks bare `--force` /
+`-f` on protected branches.
 
 ## Non-Interactive Rebase
 
@@ -250,7 +241,6 @@ Add to your project's `.claude/settings.local.json`:
 {
   "permissions": {
     "allow": [
-      "Bash(${CLAUDE_PLUGIN_ROOT}/skills/git/scripts/git-push-safe.sh:*)",
       "Bash(${CLAUDE_PLUGIN_ROOT}/skills/git/scripts/git-rebase-groom.sh:*)",
       "Bash(${CLAUDE_PLUGIN_ROOT}/skills/git/scripts/git-seq-editor.sh:*)",
       "Bash(git reset --soft:*)",

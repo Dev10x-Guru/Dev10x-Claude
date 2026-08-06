@@ -28,6 +28,7 @@
 #       skill:          skill name (for use-skill)
 #       tool:           tool name (for use-tool)
 #       alias:          alias name (for use-alias)
+#       alternative:    replacement command (for use-alternative)
 #       guardrails:     what the skill enforces (for use-skill)
 #       fallback:       manual fallback instructions (for use-skill)
 #       description:    human-readable guidance
@@ -456,6 +457,35 @@ rules:
       tool provides safe push validation with no permission friction.
 
   # ── Advisory-only Bash rules (hook_block: false) ───────────
+
+  - name: git-dir-worktree-pinning
+    matcher: Bash
+    patterns:
+      - "git\\s+--git-dir"
+      - "git\\s+--work-tree"
+    hook_block: false
+    compensations:
+      - type: use-alternative
+        alternative: "git -C <worktree-path> <verb> ..."
+        guardrails: >
+          one argument instead of two, and a shape common allowlists
+          already cover
+        description: >
+          Pin a worktree by directory, not by plumbing paths. `git -C <path>`
+          is the shape crew prompts mandate and the one allow rules are
+          written against.
+    reason: >
+      GH-1028: `Agent`-spawned subagents reset Bash CWD on every call, so
+      workers that believed CWD persisted improvised
+      `git --git-dir=<repo>/.git/worktrees/<wt> --work-tree=<wt> ...`. That
+      shape matches no allow rule, and an unattended subagent cannot answer
+      the resulting prompt — it wedges silently, leaving no denial trace in
+      hook logs. Advisory rather than blocking: the preventive fixes are the
+      crew template's `git -C` mandate and the Phase 0.4 pre-flight probe
+      (GH-1030); this entry is the `Dev10x:diag-friction` steer for an
+      interactive agent that reaches for the shape anyway.
+    related:
+      - Dev10x:foreman
 
   - name: kubectl
     matcher: Bash
