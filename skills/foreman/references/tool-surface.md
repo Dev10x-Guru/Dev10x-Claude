@@ -28,6 +28,31 @@ So a worker prompt must (a) never name a `Skill(...)` call, and
 (b) open with the select-query bootstrap in
 `crew-prompt-template.md` § 2.
 
+## Subagent Bash CWD is per-call (GH-1028)
+
+A third fact, and the one that costs the most when it is wrong:
+**in an `Agent`-spawned subagent, Bash CWD resets on every call.**
+A `cd` in one call does not carry to the next. Worktree pinning is
+therefore **argument-based, not state-based** — `git -C <worktree>
+<verb>`, `uv run --directory <worktree>`, absolute paths for every
+file tool.
+
+The failure mode is worse than a wrong directory. A worker that
+believes `cd` persisted, finds git operating on the dispatcher's tree,
+and reaches for `git --git-dir=<repo>/.git/worktrees/<wt>
+--work-tree=<wt> …` produces a shape that matches no allow rule. The
+resulting permission prompt is unanswerable overnight AND records
+nothing in the hook logs — a pending prompt is neither a block nor a
+denial — so the worker wedges with no diagnostic trace. Two opus
+workers hit this independently in the 2026-08-04/05 run; detection
+took heartbeat-stall plus file-mtime forensics, ~2h, and two
+stand-down takeovers. Both replacements succeeded on `git -C`.
+
+Prove the shape before the night rather than assuming it:
+`preflight-checklist.md` item 3 runs one representative `git -C
+<worktree>` command inside the probe subagent, while the supervisor
+is still present to answer a prompt (GH-1030).
+
 ## Why the lifecycle is cut at PR-open
 
 The `merge` gate can legitimately be pinned to `auto-advance` (a

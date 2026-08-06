@@ -197,9 +197,13 @@ cohesive, justified by scope):
   signal disambiguation and the `current-generation` authority-token
   contract), and `collapsed-merge-guidance.md` (the no-watcher-armed
   merge fallback). Both `stall-protocol.md` (349 lines) and
-  `crew-prompt-template.md` (278 lines) are already over the 200-line
+  `crew-prompt-template.md` (325 lines) are already over the 200-line
   reference budget and must not grow further — route any new depth to
-  a new reference file instead. Split plan if `instructions.md` grows
+  a new reference file instead. GH-1028 is the worked example: the
+  worktree-pinning *rule* had to grow the template's bake-in block by
+  8 lines because workers receive it verbatim, so all of the
+  supporting evidence went to `tool-surface.md` § Subagent Bash CWD
+  instead. Split plan if `instructions.md` grows
   again: the Phase 0.1/0.2 queue-building and model-gate prose is the
   next extractable candidate (`references/queue-and-model.md`), since
   the crew contract table is already split out
