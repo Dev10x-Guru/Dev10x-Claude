@@ -541,3 +541,149 @@ class TestCrossSurfaceDisposition:
         }
         selected = _run_filter([issue_finding], "comment", tmp_path, cross_surface=[review_reply])
         assert selected == []
+
+
+class TestRemainingIssuesSectionIsBounded:
+    """GH-1011 field case 1: the section scan ran past its own section.
+
+    `scan_body` captured `(?s).*` to end-of-body, so a summary that declared
+    `### Remaining issues` → `None` still blocked the merge on a severity
+    token appearing in an unrelated LATER section — a false-positive-drops
+    list restating the finding it had just dismissed. Observed on PR #2212,
+    where the round summary said "Remaining issues: None" and the gate
+    nonetheless reported a live *CRITICAL*.
+    """
+
+    @staticmethod
+    def _summary(cid: int, remaining: str, trailer: str) -> dict:
+        return {
+            "id": cid,
+            "user": {"login": "claude", "type": "Bot"},
+            "body": (
+                f"## Review Summary (Round 2)\n\n### Remaining issues\n{remaining}\n{trailer}"
+            ),
+        }
+
+    def test_token_after_a_horizontal_rule_does_not_block(self, tmp_path: Path) -> None:
+        row = self._summary(
+            60,
+            "None",
+            "\n---\n\n### False positives dropped\n- *CRITICAL* was a misread of the retry loop\n",
+        )
+        assert _run_filter([row], "comment", tmp_path) == []
+
+    def test_token_under_a_later_h3_heading_does_not_block(self, tmp_path: Path) -> None:
+        row = self._summary(
+            61,
+            "None",
+            "\n### Notes for the author\n- the earlier REQUIRED finding was withdrawn\n",
+        )
+        assert _run_filter([row], "comment", tmp_path) == []
+
+    def test_token_under_a_later_h2_heading_does_not_block(self, tmp_path: Path) -> None:
+        row = self._summary(
+            62,
+            "None",
+            "\n## Appendix\n- BLOCKING appeared only in this quoted changelog\n",
+        )
+        assert _run_filter([row], "comment", tmp_path) == []
+
+    def test_live_finding_inside_the_section_still_blocks(self, tmp_path: Path) -> None:
+        """Bounding the scan must not stop it from seeing real findings."""
+        row = self._summary(
+            63,
+            "- CRITICAL: the timeout is still unbounded",
+            "\n---\n\n### False positives dropped\n- none this round\n",
+        )
+        selected = _run_filter([row], "comment", tmp_path)
+        assert [r["id"] for r in selected] == [63]
+
+    def test_multi_line_section_is_scanned_to_its_boundary(self, tmp_path: Path) -> None:
+        """A finding on a later line of the section is inside the bound."""
+        row = self._summary(
+            64,
+            "- first, harmless observation\n- second line\n- REQUIRED: add the guard",
+            "\n---\n\n### Stats\n- 3 files reviewed\n",
+        )
+        selected = _run_filter([row], "comment", tmp_path)
+        assert [r["id"] for r in selected] == [64]
+
+    def test_section_running_to_end_of_body_still_scanned(self, tmp_path: Path) -> None:
+        """No trailing boundary at all — the `$` alternative must match."""
+        row = self._summary(65, "- REQUIRED: add the guard", "")
+        selected = _run_filter([row], "comment", tmp_path)
+        assert [r["id"] for r in selected] == [65]
+
+
+class TestUnnumberedRoundSummary:
+    """GH-1011 field case 2: a bare `## Review Summary` was not a summary.
+
+    `is_round_summary` required a literal `(Round`, so an unnumbered first
+    summary fell through to the full-body scan and re-triggered the stale
+    severity tokens its own "Addressed since last review" section restates —
+    even after a later round had cleared them. Observed on PR #2219.
+    """
+
+    BARE = {
+        "id": 70,
+        "user": {"login": "claude", "type": "Bot"},
+        "body": (
+            "## Review Summary\n\n"
+            "### Addressed since last review\n- WARNING: fixed the stale import\n\n"
+            "### Remaining issues\nNone\n"
+        ),
+    }
+
+    def test_bare_summary_scans_only_its_remaining_issues(self, tmp_path: Path) -> None:
+        assert _run_filter([self.BARE], "comment", tmp_path) == []
+
+    def test_bare_summary_with_a_live_issue_still_blocks(self, tmp_path: Path) -> None:
+        row = {
+            "id": 71,
+            "user": {"login": "claude", "type": "Bot"},
+            "body": (
+                "## Review Summary\n\n"
+                "### Addressed since last review\n- REQUIRED: fixed the stale import\n\n"
+                "### Remaining issues\n- REQUIRED: the retry loop is still unbounded\n"
+            ),
+        }
+        selected = _run_filter([row], "comment", tmp_path)
+        assert [r["id"] for r in selected] == [71]
+
+    def test_bare_summary_counts_as_round_one_and_is_superseded(self, tmp_path: Path) -> None:
+        """The AC: unnumbered == round 1, so `(Round 2)` supersedes it."""
+        round_two = {
+            "id": 72,
+            "user": {"login": "claude", "type": "Bot"},
+            "body": "## Review Summary (Round 2)\n\n### Remaining issues\nNone\n",
+        }
+        stale = {
+            "id": 73,
+            "user": {"login": "claude", "type": "Bot"},
+            "body": (
+                "## Review Summary\n\n### Remaining issues\n- CRITICAL: unbounded retry loop\n"
+            ),
+        }
+        assert _run_filter([stale, round_two], "comment", tmp_path) == []
+
+    def test_bare_summary_alone_remains_authoritative(self, tmp_path: Path) -> None:
+        """Round 1 >= latest round 1 — nothing supersedes a lone summary."""
+        row = {
+            "id": 74,
+            "user": {"login": "claude", "type": "Bot"},
+            "body": (
+                "## Review Summary\n\n### Remaining issues\n- CRITICAL: unbounded retry loop\n"
+            ),
+        }
+        selected = _run_filter([row], "comment", tmp_path)
+        assert [r["id"] for r in selected] == [74]
+
+    def test_h3_review_summary_is_not_treated_as_the_wrapper(self, tmp_path: Path) -> None:
+        """Broadening the heading match must not swallow a deeper heading."""
+        row = {
+            "id": 75,
+            "user": {"login": "claude", "type": "Bot"},
+            "body": "### Review Summary\n\nREQUIRED: fix the missing null guard\n",
+        }
+        selected = _run_filter([row], "comment", tmp_path)
+        assert [r["id"] for r in selected] == [75]

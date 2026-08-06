@@ -377,6 +377,31 @@ class TestRunNodeTests:
 
     @pytest.mark.asyncio
     @patch("dev10x.runner.run_node_tests", new_callable=AsyncMock)
+    async def test_defaults_to_the_test_script(self, mock_fn: AsyncMock) -> None:
+        mock_fn.return_value = _node_ok()
+
+        await cli_server.run_node_tests()
+
+        assert mock_fn.call_args.kwargs["script"] == "test"
+        assert mock_fn.call_args.kwargs["env"] is None
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.run_node_tests", new_callable=AsyncMock)
+    async def test_forwards_script_and_env(self, mock_fn: AsyncMock) -> None:
+        """GH-1029: a non-test check reaches the wrapper with its pinned env."""
+        mock_fn.return_value = _node_ok(runner="npm")
+
+        await cli_server.run_node_tests(
+            runner="npm",
+            script="lint:tsc",
+            env={"TZ": "America/New_York"},
+        )
+
+        assert mock_fn.call_args.kwargs["script"] == "lint:tsc"
+        assert mock_fn.call_args.kwargs["env"] == {"TZ": "America/New_York"}
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.run_node_tests", new_callable=AsyncMock)
     async def test_returns_error_on_failure(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = err("Unknown node test runner 'mocha'.")
 

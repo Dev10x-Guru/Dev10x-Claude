@@ -61,17 +61,33 @@ def reply_target_ids:
 # were live (GH-858 F2), permanently false-blocking Check 1b. This is the
 # reviewer's own aggregate summary, not an author "Re:" reply, so is_reply
 # does not catch it.
+#
+# The "(Round N)" suffix is OPTIONAL (GH-1011). A first review is commonly
+# posted as a bare "## Review Summary", and requiring the suffix made such a
+# comment fall through to the full-body scan — resurrecting the very
+# severity tokens its "Addressed since last review" section restates, even
+# after a later round confirmed them fixed. The wrapper is identified by its
+# heading, not by whether the reviewer numbered it.
 def is_round_summary:
-  (.body // "") | test("^[[:space:]]*##[[:space:]]*Review Summary[[:space:]]*\\(Round"; "im");
+  (.body // "") | test("^[[:space:]]*##[[:space:]]*Review Summary"; "im");
 
-# The round number N from a "## Review Summary (Round N)" comment, or 0 when
-# absent. Used to supersede earlier rounds (GH-873 F3): once a later round is
-# posted, an earlier round's "Remaining issues" are a historical snapshot, not
-# live blockers — only the highest round number is authoritative.
+# The round number N from a "## Review Summary (Round N)" comment. Used to
+# supersede earlier rounds (GH-873 F3): once a later round is posted, an
+# earlier round's "Remaining issues" are a historical snapshot, not live
+# blockers — only the highest round number is authoritative.
+#
+# An unnumbered summary counts as round 1 (GH-1011): it is somebody's first
+# pass, so a later "(Round 2)" must supersede it, while on its own it stays
+# authoritative (1 >= 1). Non-summary comments stay at 0 so they never
+# participate in supersession.
 def round_number:
-  ((.body // "")
-   | (capture("##[[:space:]]*Review Summary[[:space:]]*\\(Round[[:space:]]*(?<n>[0-9]+)"; "im").n // "0")
-   | tonumber);
+  if is_round_summary then
+    ((.body // "")
+     | (capture("##[[:space:]]*Review Summary[[:space:]]*\\(Round[[:space:]]*(?<n>[0-9]+)"; "im").n // "1")
+     | tonumber)
+  else
+    0
+  end;
 
 # For a round summary, scan ONLY the "### Remaining issues" section — the
 # live, still-unaddressed findings — and ignore the "Addressed since last
@@ -79,10 +95,26 @@ def round_number:
 # unchanged. A summary with no "Remaining issues" heading (or an empty one)
 # yields no scan text and is treated as clean (fail-open) — the same posture
 # a fully-addressed round already warrants.
+#
+# The section ENDS at the next horizontal rule or heading (GH-1011). An
+# unbounded `.*` ran to end-of-body, so a summary that said "Remaining
+# issues: None" still blocked the merge on a *CRITICAL* token appearing in
+# an unrelated later section (a false-positive-drops list). Stopping at the
+# boundary keeps the scan inside the section the heading names.
+#
+# `###` is a terminator as well as `##`, because a sibling `###` section is
+# far likelier than a `###` sub-heading nested INSIDE a remaining-issues
+# list — findings there are list items directly under the heading. Erring
+# this way can only narrow the scan, and a scan that is too narrow
+# under-blocks a merge the author is already driving, whereas one that is
+# too wide blocks it with no sanctioned exit.
 def scan_body:
   if is_round_summary then
     ((.body // "")
-     | (capture("(?s)###[[:space:]]*Remaining issues[[:space:]]*\n(?<rest>.*)"; "i").rest // ""))
+     | (capture(
+          "(?s)###[[:space:]]*Remaining issues[[:space:]]*\n(?<rest>.*?)(\n[[:space:]]*---|\n###?[^#]|$)";
+          "i"
+        ).rest // ""))
   else
     (.body // "")
   end;

@@ -299,6 +299,88 @@ class TestReadHumanReview:
         assert "human_review" in DURABLE_KEYS
 
 
+class TestReadProtectedBranches:
+    """GH-1031: the durable force-push protected-branch override.
+
+    A project whose integration branch is not one of the shell script's
+    defaults had no way to protect it except passing ``protected_branches``
+    on every ``push_safe`` call — which an unattended agent never does,
+    exactly when an unprotected force-push costs the most. ``None`` means
+    "no override", so the script's own wider default still applies.
+    """
+
+    def test_reads_a_list_from_config(self, tmp_path: Path) -> None:
+        toplevel = _write_config(
+            tmp_path=tmp_path,
+            content="protected_branches:\n  - main\n  - release/*\n",
+        )
+        assert SessionYamlDocument(toplevel=toplevel).read_protected_branches() == [
+            "main",
+            "release/*",
+        ]
+
+    def test_unset_reads_as_none(self, tmp_path: Path) -> None:
+        toplevel = _write_config(tmp_path=tmp_path, content="friction_level: guided\n")
+        assert SessionYamlDocument(toplevel=toplevel).read_protected_branches() is None
+
+    def test_both_files_missing_reads_as_none(self, tmp_path: Path) -> None:
+        assert SessionYamlDocument(toplevel=str(tmp_path)).read_protected_branches() is None
+
+    def test_explicit_empty_list_reads_as_none(self, tmp_path: Path) -> None:
+        """An empty override must NOT read as 'protect nothing'."""
+        toplevel = _write_config(tmp_path=tmp_path, content="protected_branches: []\n")
+        assert SessionYamlDocument(toplevel=toplevel).read_protected_branches() is None
+
+    def test_non_list_reads_as_none(self, tmp_path: Path) -> None:
+        toplevel = _write_config(tmp_path=tmp_path, content="protected_branches: main\n")
+        assert SessionYamlDocument(toplevel=toplevel).read_protected_branches() is None
+
+    def test_blank_and_null_entries_are_dropped(self, tmp_path: Path) -> None:
+        """A stray entry must not become a --protected '' flag."""
+        toplevel = _write_config(
+            tmp_path=tmp_path,
+            content='protected_branches:\n  - main\n  - ""\n  - null\n  - "  "\n',
+        )
+        assert SessionYamlDocument(toplevel=toplevel).read_protected_branches() == ["main"]
+
+    def test_all_entries_unusable_reads_as_none(self, tmp_path: Path) -> None:
+        """Degrading to the script default beats protecting nothing."""
+        toplevel = _write_config(tmp_path=tmp_path, content='protected_branches:\n  - ""\n')
+        assert SessionYamlDocument(toplevel=toplevel).read_protected_branches() is None
+
+    def test_entries_are_stringified(self, tmp_path: Path) -> None:
+        toplevel = _write_config(tmp_path=tmp_path, content="protected_branches:\n  - 2\n")
+        assert SessionYamlDocument(toplevel=toplevel).read_protected_branches() == ["2"]
+
+    def test_matching_friction_project_entry_wins(self, tmp_path: Path) -> None:
+        _write_friction(
+            content=yaml.safe_dump(
+                {
+                    "defaults": {"protected_branches": ["main"]},
+                    "projects": [
+                        {"match": [str(tmp_path)], "protected_branches": ["trunk", "release/*"]}
+                    ],
+                }
+            )
+        )
+        assert SessionYamlDocument(toplevel=str(tmp_path)).read_protected_branches() == [
+            "trunk",
+            "release/*",
+        ]
+
+    def test_friction_defaults_apply_without_project_entry(self, tmp_path: Path) -> None:
+        _write_friction(content=yaml.safe_dump({"defaults": {"protected_branches": ["trunk"]}}))
+        assert SessionYamlDocument(toplevel=str(tmp_path)).read_protected_branches() == ["trunk"]
+
+    def test_falls_back_to_pre_split_session(self, tmp_path: Path) -> None:
+        toplevel = _write(tmp_path=tmp_path, content="protected_branches:\n  - trunk\n")
+        assert SessionYamlDocument(toplevel=toplevel).read_protected_branches() == ["trunk"]
+
+    def test_is_a_durable_key(self) -> None:
+        """Must be in DURABLE_KEYS or readers filter it out of project entries."""
+        assert "protected_branches" in DURABLE_KEYS
+
+
 class TestConfigRender:
     """GH-774: ConfigYamlDocument owns the durable-prefs template."""
 

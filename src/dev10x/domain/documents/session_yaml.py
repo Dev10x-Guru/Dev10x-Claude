@@ -46,6 +46,7 @@ _DURABLE_KEYS = (
     "gate_overlays",
     "gate_overrides",
     "human_review",
+    "protected_branches",
     "walk_away",
 )
 
@@ -100,6 +101,30 @@ def _coerce_human_review(value: Any) -> bool:
     takes when it cannot parse a policy.
     """
     return value if isinstance(value, bool) else True
+
+
+def _coerce_protected_branches(value: Any) -> list[str] | None:
+    """Coerce a durable ``protected_branches`` value to the push guard's contract.
+
+    ``None`` — key absent, non-list, or holding nothing usable — means the
+    project declares no override, so ``git-push-safe.sh`` applies its own
+    default set (``main master develop development staging trunk``). A list
+    REPLACES that default, which is why an entry that coerces to empty must
+    read as unset rather than as "protect nothing": a typo'd pref must never
+    silently strip force-push protection from ``main``.
+
+    Entries are stringified and blank-stripped so a stray ``null`` or empty
+    string in the YAML list cannot become a ``--protected ''`` flag that
+    matches no branch. ``None`` is dropped before stringifying — ``str(None)``
+    is the truthy ``"None"``, which would otherwise be pushed as a real
+    branch name.
+    """
+    if not isinstance(value, list):
+        return None
+    branches = [
+        str(branch).strip() for branch in value if branch is not None and str(branch).strip()
+    ]
+    return branches or None
 
 
 def _normalize_toplevel(toplevel: str) -> str:
@@ -652,6 +677,22 @@ class SessionYamlDocument:
         mode, which is still *read* for back-compat but no longer written.
         """
         return _coerce_human_review(self._durable().get("human_review"))
+
+    def read_protected_branches(self) -> list[str] | None:
+        """Return the durable force-push protected-branch override (GH-1031).
+
+        ``None`` means the project declares no override and
+        ``git-push-safe.sh`` applies its own default set
+        (``main master develop development staging trunk``). A list replaces
+        that default wholesale, so a project protecting ``release/*`` must
+        re-list the integration branches it still wants covered.
+
+        This exists so a project with a non-standard integration branch does
+        not have to pass ``protected_branches`` on every ``push_safe`` call —
+        an unattended agent never would, which is precisely when an
+        unprotected force-push does the most damage.
+        """
+        return _coerce_protected_branches(self._durable().get("protected_branches"))
 
     def read_gate_policy_inputs(self) -> dict[str, Any]:
         """Return the resolver inputs for ``gate_policy`` (ADR-0016).

@@ -266,8 +266,10 @@ async def run_tests(
 @server.tool()
 async def run_node_tests(
     runner: str = "jest",
+    script: str = "test",
     args: list[str] | None = None,
     coverage: bool = True,
+    env: dict[str, str] | None = None,
     timeout: int = 600,
     cwd: str | None = None,
     ctx: Context | None = None,
@@ -284,17 +286,26 @@ async def run_node_tests(
     Args:
         runner: One of ``jest`` (default), ``vitest``, ``yarn``, ``npm``,
             ``pnpm``. ``jest``/``vitest`` accept ``--coverage`` directly;
-            the package-manager runners delegate to the project's
-            configured ``test`` script.
+            the package-manager runners delegate to a ``package.json``
+            script.
+        script: The ``package.json`` script to run (default ``test``). Use
+            it to bring a non-test check such as ``lint:tsc`` inside this
+            wrapper instead of invoking ``tsc``/``node`` raw on the Bash
+            layer (GH-1029). Only ``yarn``/``npm``/``pnpm`` resolve a
+            script name — pairing it with ``jest``/``vitest`` returns an
+            error rather than ignoring it.
         args: Extra arguments appended after the coverage flag.
         coverage: When True (default) and the runner supports it, add
             ``--coverage``.
+        env: Variables overlaid on the inherited environment (e.g.
+            ``{"TZ": "America/New_York"}`` to match a CI-pinned timezone
+            that snapshot tests depend on).
         timeout: Subprocess timeout in seconds (default 600).
         cwd: Effective working directory (GH-979).
         ctx: FastMCP context injected automatically — do not pass (GH-342).
 
     Returns:
-        Dictionary with keys: returncode (int), runner (str),
+        Dictionary with keys: returncode (int), runner (str), script (str),
         summary (str), passed (int), failed (int), skipped (int),
         todo (int), total (int | None), stdout (str), stderr (str).
         A non-zero ``returncode`` is *not* an MCP-level error —
@@ -310,7 +321,12 @@ async def run_node_tests(
     with use_cwd(cwd):
         result = to_wire(
             await test_runner.run_node_tests(
-                runner=runner, args=args, coverage=coverage, timeout=timeout
+                runner=runner,
+                script=script,
+                args=args,
+                coverage=coverage,
+                env=env,
+                timeout=timeout,
             )
         )
 
