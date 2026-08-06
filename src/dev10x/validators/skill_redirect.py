@@ -222,10 +222,25 @@ def _get_config_and_engine() -> tuple[Config, RuleEngine]:
 
 # "npm" gates the node-tests-npm-monorepo block (GH-880): without it,
 # should_run() short-circuits before evaluate_command() ever sees an
-# `npm --prefix <dir> test` shape. The fast-path filter is intentionally
-# broad — evaluate_command() still applies the precise per-rule regex.
+# `npm --prefix <dir> test` shape. "psql" does the same for psql-write
+# (GH-1034) — of that rule's verbs only CREATE happened to contain an
+# existing token, so DROP/DELETE/UPDATE/… never reached the engine.
+# The fast-path filter is intentionally broad — evaluate_command() still
+# applies the precise per-rule regex.
 _QUICK_TOKENS = frozenset(
-    ["commit", "create", "push", "rebase", "checks", "issue", "merge", "edit", "api", "npm"]
+    [
+        "commit",
+        "create",
+        "push",
+        "rebase",
+        "checks",
+        "issue",
+        "merge",
+        "edit",
+        "api",
+        "npm",
+        "psql",
+    ]
 )
 
 _COMMIT_HEAL_MSG = (

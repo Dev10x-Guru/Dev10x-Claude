@@ -455,6 +455,39 @@ rules:
       responses and requires Bash permission on every call. The MCP
       tool provides safe push validation with no permission friction.
 
+  - name: psql-write
+    matcher: Bash
+    # `-[a-zA-Z]*c` rather than `-c` so getopt bundles (`psql -tAc "DROP …"`)
+    # and attached values (`psql -cDROP …`) match too — the shapes a
+    # scripted teardown actually uses.
+    patterns:
+      - 'psql.*\s-[a-zA-Z]*c.*\b(DROP|DELETE|UPDATE|INSERT|TRUNCATE|ALTER|GRANT|REVOKE)\b'
+      - 'psql.*--command[= ].*\b(DROP|DELETE|UPDATE|INSERT|TRUNCATE|ALTER|GRANT|REVOKE)\b'
+      - 'psql.*\s-[a-zA-Z]*c.*pg_(terminate|cancel)_backend'
+      - 'psql.*\s-[a-zA-Z]*f\b'
+      - 'psql.*\s--file[= ]'
+    except: []
+    hook_block: true
+    compensations:
+      - type: use-skill
+        skill: Dev10x:db-psql
+        guardrails: SQL validation, SELECT-only enforcement
+        fallback: >
+          Writes are not the agent's to run. Print the SQL and ask the
+          supervisor to execute it manually. This includes test-database
+          teardown documented in project runbooks — a documented
+          procedure authorizes the SQL, not the executor.
+    reason: >
+      GH-1034: raw psql DDL/DML executes unvalidated writes. The generic
+      psql rule below is advisory and therefore cannot enforce the
+      SELECT-only contract that project CLAUDE.md files rely on. CREATE is
+      deliberately absent — `CREATE EXTENSION` in local setup made it noisy.
+      This rule is the Dev10x:diag-friction steer; the enforcing gate is
+      the DX004 sql-safety validator, which runs at every profile tier.
+    related:
+      - Dev10x:db
+      - tt:db
+
   # ── Advisory-only Bash rules (hook_block: false) ───────────
 
   - name: git-dir-worktree-pinning
