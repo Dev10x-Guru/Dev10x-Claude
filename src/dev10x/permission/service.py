@@ -15,11 +15,12 @@ context those operations consume.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from dev10x.domain.common.result import ErrorResult, Result, ok
+from dev10x.skills.permission.catalog_merge import CatalogDrift
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,7 @@ class PermissionContext:
     config_path: Path
     config: dict[str, Any]
     settings_files: list[Path]
+    drift: CatalogDrift = field(default_factory=CatalogDrift)
 
 
 def load_permission_context(*, include_user: bool | None = None) -> Result[PermissionContext]:
@@ -51,7 +53,8 @@ def load_permission_context(*, include_user: bool | None = None) -> Result[Permi
     if isinstance(resolved, ErrorResult):
         return resolved
     config_path = resolved.value
-    config = mod.load_config(config_path)
+    merged = mod.load_effective_config(config_path)
+    config = merged.config
 
     use_user = config.get("include_user_settings", True) if include_user is None else include_user
     settings_files = mod.find_settings_files(
@@ -63,6 +66,7 @@ def load_permission_context(*, include_user: bool | None = None) -> Result[Permi
             config_path=config_path,
             config=config,
             settings_files=settings_files,
+            drift=merged.drift,
         )
     )
 

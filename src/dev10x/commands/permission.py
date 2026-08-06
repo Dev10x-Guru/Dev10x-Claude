@@ -218,6 +218,39 @@ def ensure_base(*, dry_run: bool, quiet: bool) -> None:
     _run_fix(mod.ensure_base, needs_config=True, dry_run=dry_run, quiet=quiet, show_config=True)
 
 
+@permission.command(name="catalog-diff")
+@click.option(
+    "--strict",
+    is_flag=True,
+    help="Exit non-zero when shipped defaults are missing downstream",
+)
+def catalog_diff(*, strict: bool) -> None:
+    """Report drift between the shipped catalog and the userspace copy.
+
+    Before ADR-0021 the userspace catalog shadowed the shipped one, so
+    defaults shipped after `permission init` were invisible and
+    `ensure-base` validated against the stale copy and reported success.
+    They now merge; this command names what differs so relics can be
+    told apart from genuine preference.
+    """
+    from dev10x.skills.permission import update_paths as mod
+    from dev10x.skills.permission.catalog_merge import compute_drift, format_drift_report
+
+    resolved = _require_config(mod)
+    if resolved == mod.PLUGIN_CONFIG:
+        click.echo("No userspace catalog — the shipped catalog is in use directly.")
+        return
+
+    drift = compute_drift(shipped=mod.load_shipped_config(), user=mod.load_config(resolved))
+    click.echo(f"Shipped: {mod.PLUGIN_CONFIG}")
+    click.echo(f"Userspace: {resolved}\n")
+    for line in format_drift_report(drift):
+        click.echo(line)
+
+    if strict and drift.has_missing_defaults:
+        raise SystemExit(1)
+
+
 @permission.command()
 @click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
 @click.option("--quiet", is_flag=True, help="Suppress per-file details")
