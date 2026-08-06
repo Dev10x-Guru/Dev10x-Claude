@@ -28,7 +28,6 @@
 #       skill:          skill name (for use-skill)
 #       tool:           tool name (for use-tool)
 #       alias:          alias name (for use-alias)
-#       alternative:    replacement command (for use-alternative)
 #       guardrails:     what the skill enforces (for use-skill)
 #       fallback:       manual fallback instructions (for use-skill)
 #       description:    human-readable guidance
@@ -466,14 +465,11 @@ rules:
     hook_block: false
     compensations:
       - type: use-alternative
-        alternative: "git -C <worktree-path> <verb> ..."
-        guardrails: >
-          one argument instead of two, and a shape common allowlists
-          already cover
         description: >
-          Pin a worktree by directory, not by plumbing paths. `git -C <path>`
-          is the shape crew prompts mandate and the one allow rules are
-          written against.
+          Pin the worktree by directory, not by plumbing paths:
+          `git -C <worktree-path> <verb> ...`. One argument instead of two,
+          it is the shape crew prompts mandate, and it is what allow rules
+          are written against (e.g. `Bash(git -C <worktrees-root>/*)`).
     reason: >
       GH-1028: `Agent`-spawned subagents reset Bash CWD on every call, so
       workers that believed CWD persisted improvised
