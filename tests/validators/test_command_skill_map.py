@@ -157,6 +157,42 @@ class TestGh609RoutingEntries:
         assert _matches_any_pattern(rule=rule, command=cmd)
 
 
+class TestGh1028GitDirWorktreePinning:
+    """The `git --git-dir` shape workers improvise is recognized (GH-1028)."""
+
+    def test_improvised_worker_shape_recognized(self) -> None:
+        rule = _rule_by_name("git-dir-worktree-pinning")
+        cmd = (
+            "git --git-dir=/repo/.git/worktrees/wt-3 "
+            "--work-tree=/repo/../wt-3 commit -F /tmp/msg.txt"
+        )
+        assert _matches_any_pattern(rule=rule, command=cmd)
+
+    def test_space_separated_form_recognized(self) -> None:
+        rule = _rule_by_name("git-dir-worktree-pinning")
+        assert _matches_any_pattern(rule=rule, command="git --git-dir /repo/.git status")
+
+    def test_work_tree_alone_recognized(self) -> None:
+        rule = _rule_by_name("git-dir-worktree-pinning")
+        assert _matches_any_pattern(rule=rule, command="git --work-tree=/wt-3 status")
+
+    def test_pinned_shape_not_flagged(self) -> None:
+        rule = _rule_by_name("git-dir-worktree-pinning")
+        assert not _matches_any_pattern(rule=rule, command="git -C /wt-3 status --short")
+
+    def test_is_advisory_not_blocking(self) -> None:
+        # Blocking would strand an unattended worker with no reachable
+        # alternative; the preventive fixes are the crew template and the
+        # Phase 0.4 probe. This entry is the diag-friction steer.
+        rule = _rule_by_name("git-dir-worktree-pinning")
+        assert rule["hook_block"] is False
+
+    def test_steers_to_git_c(self) -> None:
+        rule = _rule_by_name("git-dir-worktree-pinning")
+        descriptions = " ".join(str(comp.get("description", "")) for comp in rule["compensations"])
+        assert "git -C <worktree-path>" in descriptions
+
+
 class TestGh879WatchLoopEntry:
     """Inline watch/poll loop shapes (GH-879) are recognized and steered."""
 

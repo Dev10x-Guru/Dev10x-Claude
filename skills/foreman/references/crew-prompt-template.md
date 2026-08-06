@@ -187,7 +187,9 @@ Instead, two Bash calls:
      (use mktmp, e.g. /tmp/Dev10x/<ns>/<name>.md) with the Write tool.
   2. `cp /tmp/Dev10x/<ns>/<name>.md {{worktree_path}}/.claude/rules/<name>.md`
 
-Then `git -C {{worktree_path}} add <path>` and commit it normally.
+Then `git -C {{worktree_path}} add .claude/rules/<name>.md` and commit
+it normally — a path after `-C` resolves against {{worktree_path}}, not
+against your CWD.
 
 HARD EXCLUSIONS — never write these by any route, gated or not:
   - `.claude/settings.json`, `.claude/settings.local.json`
@@ -221,7 +223,8 @@ this recipe to other repos or other `.claude/` paths.
   anywhere — heartbeat, handover comment, resumption record, final
   report — that work "is on branch X" or "is recoverable", run
   `git -C {{worktree_path}} ls-remote --heads origin '{{branch_name}}'`
-  and confirm it returns the ref. An edit is not a commit and a commit is not a
+  and confirm it returns the ref. An edit is not a commit and a
+  commit is not a
   push. Report what is PUSHED, and say "unpushed" or "uncommitted"
   in as many words when that is the truth. A false recoverability
   claim makes the next loop skip a chunk that was never started.
@@ -304,7 +307,8 @@ YOU PRODUCE IT, not at wrap-up. A death gives no warning.
 
 A heartbeat that names a branch is a durability claim: verify with
 `git -C {{worktree_path}} ls-remote --heads origin '{{branch_name}}'`
-BEFORE writing that line. Otherwise write what is literally true ("edited N files,
+BEFORE writing that line. Otherwise write what is literally true
+("edited N files,
 nothing committed") — the morning reader treats your heartbeat as
 ground truth for whether the chunk is resumable or a restart.
 ```
