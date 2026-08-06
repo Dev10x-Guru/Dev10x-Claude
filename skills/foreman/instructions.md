@@ -73,8 +73,11 @@ fresh `isolation="worktree"` checkout can see a phantom merge-gate
 
 Enumerate and dry-run EVERY command shape the night will use: the
 `dev10x foreman probe` CLI shape, one call per MCP wrapper, the
-subagent `ToolSearch` bootstrap, per-domain test tools,
-script-deliverable dry-runs (GH-961), and run-directory write access.
+subagent `ToolSearch` bootstrap **plus one worktree-pinned
+`git -C <worktree> status --short` inside that same probe subagent**
+(GH-1030 — worker-side git is what actually wedges), per-domain test
+tools, script-deliverable dry-runs (GH-961), and run-directory write
+access.
 Any prompt fired during pre-flight = fix it NOW, or that shape is
 BANNED for the night. Full checklist:
 [`references/preflight-checklist.md`](references/preflight-checklist.md).

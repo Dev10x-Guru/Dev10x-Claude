@@ -34,7 +34,7 @@ One call per MCP wrapper the crew will need (`ci_check_status`,
 `issue_get`, `pr_get`, …) proves the MCP server is up and the tools
 resolve before any worker depends on them.
 
-## 3. The subagent tool surface
+## 3. The subagent tool surface — and its git shapes
 
 Spawn a throwaway probe subagent that runs the crew template's
 `ToolSearch` select-query and then one read-only MCP call. The
@@ -43,6 +43,32 @@ MCP wrappers only as deferred tools and get no `Skill(...)` at all. If
 the probe comes back empty, narrow the worker contract in the
 manifest rather than letting workers improvise raw CLI
 (`tool-surface.md`).
+
+**In the same probe, run one representative git command in the exact
+worktree-pinned shape the crew template mandates** (GH-1030):
+
+```
+git -C <one of tonight's worktree paths> status --short
+```
+
+MCP wrappers and test tools were already proven here; worker-side
+*git* was not — and git is what workers run most. In the 2026-08-04/05
+run the probe came back fully green and two workers still wedged
+later, on `git --git-dir=…` permission prompts that were unanswerable
+overnight, invisible in hook logs (a pending prompt records neither a
+block nor a denial), and detectable only via heartbeat stall.
+
+A prompt fired **here** surfaces while the supervisor is still present
+— the entire point of the one-time window — and the remedy is a narrow
+allow rule for the worktree root (e.g. `Bash(git -C <worktrees-root>/*)`)
+rather than a night lost to forensics. Cost: one extra command in an
+already-mandatory probe.
+
+Probe the shape the crew prompt actually mandates, not a convenient
+substitute: a bare `git status` proves nothing about `git -C`, because
+the two match different allow rules. If tonight's chunks will also
+fetch, rebase, or stash, the same reasoning extends to those verbs —
+one read-only `git -C … status --short` is the floor, not the ceiling.
 
 ## 4. Per-domain test tools
 
