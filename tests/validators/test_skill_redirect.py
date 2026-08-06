@@ -59,6 +59,48 @@ class TestShouldRun:
         assert validator.should_run(inp=inp) is False
 
 
+class TestPsqlWriteRedirect:
+    """GH-1034: destructive psql must reach evaluate_command() and block."""
+
+    @pytest.mark.parametrize(
+        "verb",
+        ["DROP", "DELETE", "UPDATE", "INSERT", "TRUNCATE", "ALTER", "GRANT", "REVOKE"],
+    )
+    def test_should_run_for_psql_write(self, validator: SkillRedirectValidator, verb: str) -> None:
+        """Without a quick token for the client, should_run() short-circuits
+        before the rule is ever evaluated."""
+        inp = _make_input(command=f"docker exec c psql -d db -c '{verb} FROM users'")
+        assert validator.should_run(inp=inp) is True
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "docker exec tt-pos-postgis psql -U u -d postgres -c 'DROP DATABASE IF EXISTS t'",
+            "psql -d postgres -c 'TRUNCATE users'",
+            "psql -d mydb -f /tmp/teardown.sql",
+            "psql -d postgres -tAc 'DROP TABLE users'",
+            "psql -d mydb -tAf /tmp/teardown.sql",
+        ],
+    )
+    def test_blocks_psql_write(self, validator: SkillRedirectValidator, command: str) -> None:
+        inp = _make_input(command=command)
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "Dev10x:db-psql" in result.message
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "docker exec c psql -d db -c 'SELECT count(*) FROM users'",
+            "psql -d mydb -c 'SELECT 1'",
+        ],
+    )
+    def test_reads_stay_advisory(self, validator: SkillRedirectValidator, command: str) -> None:
+        """The generic psql rule is hook_block: false — reads must not hard-block."""
+        inp = _make_input(command=command)
+        assert validator.validate(inp=inp) is None
+
+
 class TestGitCommitRedirect:
     def test_blocks_git_commit_with_m_flag(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command='git commit -m "Enable feature X"')

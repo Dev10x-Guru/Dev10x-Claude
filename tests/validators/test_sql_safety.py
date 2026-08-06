@@ -88,6 +88,102 @@ class TestWrappedPsqlExemption:
         result = validator.validate(inp=inp)
         assert result is None
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            'docker exec tt-pos-postgis psql -U u -d postgres -c "DROP DATABASE IF EXISTS t;"',
+            "docker exec c psql -d postgres -c 'TRUNCATE users'",
+            "docker exec c psql -d postgres --command='DELETE FROM users'",
+            "op run --env-file=.env -- psql -d mydb -c 'DROP TABLE users'",
+            "/usr/local/bin/op run -- psql -d mydb -c 'ALTER TABLE t ADD COLUMN c int'",
+        ],
+    )
+    def test_blocks_write_through_wrapper(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        """GH-1034: the wrapper exemption must not cover writes."""
+        inp = _make_input(command=command)
+        result = validator.validate(inp=inp)
+        assert result is not None
+
+    def test_blocks_terminate_backend_through_wrapper(self, validator: SqlSafetyValidator) -> None:
+        """GH-1034: pg_terminate_backend is a SELECT-shaped destructive call."""
+        sql = (
+            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+            "WHERE datname = 'test_db' AND pid <> pg_backend_pid()"
+        )
+        inp = _make_input(command=f'docker exec c psql -U u -d postgres -c "{sql}"')
+        result = validator.validate(inp=inp)
+        assert result is not None
+
+    def test_blocks_script_file_through_wrapper(self, validator: SqlSafetyValidator) -> None:
+        """GH-1034: -f contents are unknowable at match time — treat as a write."""
+        inp = _make_input(command="docker exec c psql -d mydb -f /tmp/teardown.sql")
+        result = validator.validate(inp=inp)
+        assert result is not None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "docker exec c psql -tAc 'DROP TABLE users'",
+            "docker exec c psql -tAc'DROP TABLE users'",
+            "docker exec c psql -cDROP TABLE users",
+            "docker exec c psql -U u -tAf /tmp/teardown.sql",
+        ],
+    )
+    def test_blocks_write_in_short_option_bundle(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        """getopt bundles and attached values are ordinary scripting shapes."""
+        inp = _make_input(command=command)
+        assert validator.validate(inp=inp) is not None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "docker exec c psql --command 'DROP TABLE users'",
+            "docker exec c psql --file=/tmp/teardown.sql",
+            "docker exec c psql --file /tmp/teardown.sql",
+        ],
+    )
+    def test_blocks_write_in_long_option_form(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        inp = _make_input(command=command)
+        assert validator.validate(inp=inp) is not None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "docker exec c psql -tAc 'SELECT 1'",
+            "docker exec c psql -tAc'SELECT 1'",
+            # A bundle of value-less flags must not swallow the next token.
+            "docker exec c psql -tA -c 'SELECT 1'",
+            # -U takes a value; `drop_user` must not be read as a flag.
+            "docker exec c psql -U drop_user -c 'SELECT 1'",
+        ],
+    )
+    def test_allows_read_in_short_option_bundle(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        inp = _make_input(command=command)
+        assert validator.validate(inp=inp) is None
+
+    def test_allows_wrapped_psql_without_arguments(self, validator: SqlSafetyValidator) -> None:
+        """An interactive in-container session carries no SQL to check."""
+        inp = _make_input(command="docker exec c psql")
+        assert validator.validate(inp=inp) is None
+
+    def test_exempt_segment_without_psql_falls_through(
+        self, validator: SqlSafetyValidator
+    ) -> None:
+        """A wrapper segment that runs something else still lets later
+        segments be judged on their own."""
+        inp = _make_input(command="docker exec c ls -l | psql -h prod -d db")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "Direct psql calls" in result.message
+
     def test_still_blocks_bare_psql_after_exempt_segment(
         self, validator: SqlSafetyValidator
     ) -> None:
