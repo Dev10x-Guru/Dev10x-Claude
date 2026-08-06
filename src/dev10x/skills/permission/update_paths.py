@@ -23,8 +23,11 @@ two no longer drift.
 """
 
 import json
+import logging
 import re
 from pathlib import Path
+
+import yaml
 
 from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.allow_rule import AllowRule
@@ -33,6 +36,11 @@ from dev10x.domain.common.plugin_version import SEMVER_PATTERN, PluginVersion
 from dev10x.domain.common.result import Result, err, ok
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.plugin_identity import PLUGIN_NAMES
+from dev10x.skills.permission.catalog_merge import (
+    CatalogDrift,
+    MergedCatalog,
+    merge_catalogs,
+)
 from dev10x.skills.permission.config import parse_config, resolve_config
 from dev10x.skills.permission.policy_catalog_migration import migrate_flat_config
 from dev10x.skills.permission.policy_renderer import render_permissions
@@ -43,6 +51,8 @@ PLUGIN_CONFIG = (
     Path(__file__).resolve().parents[4] / "skills" / "upgrade-cleanup" / "projects.yaml"
 )
 VERSION_PATTERN = re.compile(rf"(plugins/cache/)([^/]+)(/{PLUGIN_NAMES}/)({SEMVER_PATTERN})")
+
+log = logging.getLogger(__name__)
 
 
 def extract_cache_publisher(plugin_cache: str) -> str | None:
@@ -64,6 +74,35 @@ def find_config() -> Result[Path]:
 
 def load_config(config_path: Path) -> dict:
     return parse_config(config_path)
+
+
+def load_shipped_config() -> dict | None:
+    """Parse the plugin's shipped catalog, or ``None`` when unavailable.
+
+    A missing or malformed shipped catalog degrades the merge to the
+    userspace catalog alone rather than failing the command — the same
+    tolerance :func:`load_policy_layers` applies to a partial install.
+    """
+    if not PLUGIN_CONFIG.is_file():
+        return None
+    try:
+        return parse_config(PLUGIN_CONFIG)
+    except (OSError, yaml.YAMLError):
+        log.warning("Shipped catalog unreadable, merging skipped: %s", PLUGIN_CONFIG)
+        return None
+
+
+def load_effective_config(config_path: Path) -> MergedCatalog:
+    """Load ``config_path`` merged with the shipped defaults (ADR-0021).
+
+    When ``config_path`` IS the shipped catalog — the pre-``init`` case
+    where no userspace copy exists — there is nothing to merge and the
+    file is returned as-is.
+    """
+    user_config = load_config(config_path)
+    if config_path == PLUGIN_CONFIG:
+        return MergedCatalog(config=user_config)
+    return merge_catalogs(shipped=load_shipped_config(), user=user_config)
 
 
 def detect_latest_version(cache_dir: Path) -> str | None:
@@ -1112,12 +1151,35 @@ def ensure_workspace(
     )
 
 
+def _catalog_drift_messages(*, drift: CatalogDrift | None, quiet: bool) -> list[str]:
+    """Name shipped defaults the userspace catalog lacked (ADR-0021).
+
+    The drift is computed once at load time and threaded in, so this
+    stays a pure function of its arguments — re-reading the catalog
+    here would make ``ensure_base`` depend on the caller's real home
+    directory even when handed a synthetic config.
+
+    The rules WILL be applied regardless; the message exists because
+    the previous silence is what let five shipped defaults go missing
+    unnoticed for months (GH-925 F1).
+    """
+    if quiet or drift is None or not drift.has_missing_defaults:
+        return []
+    missing = drift.missing_from_user + drift.denies_missing_from_user
+    return [
+        f"Catalog drift: {len(missing)} shipped rule(s) were absent from "
+        f"the userspace catalog — merged in per ADR-0021. "
+        f"Run `dev10x permission catalog-diff` for the full report."
+    ]
+
+
 def ensure_base(
     *,
     config: dict,
     settings_files: list[Path],
     dry_run: bool,
     quiet: bool = False,
+    drift: CatalogDrift | None = None,
 ) -> dict[str, object]:
     """Add missing base permissions to each settings file. Returns result dict."""
     messages: list[str] = []
@@ -1130,6 +1192,8 @@ def ensure_base(
     if not base_permissions and not base_denies:
         messages.append("No base_permissions or base_denies defined in config.")
         return _result(exit_code=0, messages=messages, errors=errors)
+
+    messages.extend(_catalog_drift_messages(drift=drift, quiet=quiet))
 
     global_rules, stale_wildcards = _load_global_allow_rules()
     filtered = [p for p in base_permissions if p not in global_rules]

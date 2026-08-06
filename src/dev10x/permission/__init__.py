@@ -70,6 +70,7 @@ def _run_sub_command(
                 settings_files=settings_files,
                 dry_run=dry_run,
                 quiet=quiet,
+                drift=ctx.value.drift,
             )
         ):
             return _format_failure(combined_messages, combined_errors, exit_code)
