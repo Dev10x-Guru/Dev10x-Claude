@@ -362,6 +362,102 @@ class TestProtectedBranchDefaultIsDocumentedAccurately:
         assert "staging" not in BASE_BRANCH_PRIORITY
 
 
+class TestShellTwinDetectsBundledForceFlags:
+    """GH-1047: the shell twin must agree with the validator on what is force.
+
+    ``skill_redirect._has_bare_force`` and ``git-push-safe.sh`` implement the
+    same flag test in two languages, and `.claude/rules/hook-patterns.md`
+    requires the pair to stay functionally equivalent. Fixing only the
+    validator would leave ``push_safe`` — the very tool force pushes are
+    routed into — waving ``-uf origin main`` straight through.
+
+    These run the script directly, with no positional arguments, so the
+    target resolves through the ``HEAD`` fallback to the checked-out branch.
+    That keeps each case a test of the force check alone — the script's
+    refspec-parsing has its own separate defects, and coupling to them would
+    make these assertions fail for unrelated reasons.
+
+    A force push to a protected branch is refused before any ``git push``
+    runs, so nothing here needs a remote.
+    """
+
+    SCRIPT = Path(__file__).parents[2] / "skills" / "git" / "scripts" / "git-push-safe.sh"
+
+    @pytest.fixture
+    def repo_on_protected_branch(self, tmp_path: Path) -> Path:
+        """A repo whose checked-out branch is protected, with HEAD born.
+
+        The commit is required: on an unborn HEAD the script's
+        ``git rev-parse --abbrev-ref HEAD`` fallback yields an empty branch
+        name, which is not protected, and every case would reach the push.
+        """
+        subprocess.run(
+            ["git", "init", "-q", "-b", "main", str(tmp_path)],
+            check=True,
+            timeout=30,
+        )
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=test",
+                "-c",
+                "user.email=test@example.com",
+                "commit",
+                "-q",
+                "--allow-empty",
+                "-m",
+                "root",
+            ],
+            check=True,
+            cwd=tmp_path,
+            timeout=30,
+        )
+        return tmp_path
+
+    def _blocked_reason(self, *args: str, cwd: Path) -> str | None:
+        result = subprocess.run(
+            [str(self.SCRIPT), *args],
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            timeout=30,
+        )
+        match = re.search(r'"blocked_reason":"(?P<reason>[^"]*)"', result.stdout)
+        return match.group("reason") if match else None
+
+    @pytest.mark.parametrize(
+        "flag",
+        ["-uf", "-fu", "-vuf", "-f", "--force"],
+    )
+    def test_force_on_protected_branch_is_blocked(
+        self,
+        flag: str,
+        repo_on_protected_branch: Path,
+    ) -> None:
+        reason = self._blocked_reason(flag, cwd=repo_on_protected_branch)
+        assert reason == "protected_branch_force_push"
+
+    @pytest.mark.parametrize(
+        "flag",
+        ["-u", "-vu", "--force-with-lease"],
+    )
+    def test_non_force_flags_reach_the_push(
+        self,
+        flag: str,
+        repo_on_protected_branch: Path,
+    ) -> None:
+        """A non-force flag must get PAST the guard even on a protected branch.
+
+        ``push_failed`` is the discriminator: it is only reachable after the
+        force check declined to fire, so it proves the cluster decomposition
+        introduced no false positive. The push itself fails because the repo
+        has no remote, which is why this needs no network.
+        """
+        reason = self._blocked_reason(flag, cwd=repo_on_protected_branch)
+        assert reason == "push_failed"
+
+
 class TestQualifyBaseRef:
     """GH-486: prefer origin/<base> over a possibly-stale local branch."""
 
