@@ -1,10 +1,10 @@
 # Lessons Learned Analysis: PR #644
 
-**PR Title**: ✅ GH-565 Surface full failure matrix in data-driven config tests  
-**PR Number**: 644  
-**Repository**: Dev10x-Guru/Dev10x-Claude  
-**Author**: wooyek  
-**Outcome**: Merged (no review comments)  
+**PR Title**: ✅ GH-565 Surface full failure matrix in data-driven config tests
+**PR Number**: 644
+**Repository**: Dev10x-Guru/Dev10x-Claude
+**Author**: wooyek
+**Outcome**: Merged (no review comments)
 **Analysis Date**: 2026-06-17
 
 ---
@@ -68,8 +68,8 @@ The PR implements two documented patterns from `references/testing-patterns.md`:
 
 ### Pattern 1: Parametrized Test Matrix Completeness (lines 94–105)
 
-**Documentation exists**: ✓ Yes  
-**Pattern in PR**: ✓ Yes  
+**Documentation exists**: ✓ Yes
+**Pattern in PR**: ✓ Yes
 **Enforcement**: ✗ No agent
 
 The testing-patterns.md guidance states:
@@ -85,8 +85,8 @@ The testing-patterns.md guidance states:
 
 ### Pattern 2: Schema Validation for Data-Driven Configuration (lines 169–189)
 
-**Documentation exists**: ✓ Yes  
-**Pattern in PR**: ✓ Yes  
+**Documentation exists**: ✓ Yes
+**Pattern in PR**: ✓ Yes
 **Enforcement**: ✗ No agent
 
 The testing-patterns.md guidance states:
@@ -120,9 +120,9 @@ No agent currently enforces this.
 
 ### High Priority: Create Missing Test Review Agents
 
-**Target**: Create `.claude/agents/reviewer-test-patterns.md`  
-**Current Status**: Referenced in `INDEX.md` line 40 but file does not exist  
-**Concept Already Covered**: Partially in `references/testing-patterns.md`  
+**Target**: Create `.claude/agents/reviewer-test-patterns.md`
+**Current Status**: Referenced in `INDEX.md` line 40 but file does not exist
+**Concept Already Covered**: Partially in `references/testing-patterns.md`
 **Recurrence Evidence**: PR #644 demonstrates need; future test changes will need this
 
 **Scope**:
@@ -137,9 +137,9 @@ No agent currently enforces this.
 
 ### High Priority: Create Missing Flaky Test Detection Agent
 
-**Target**: Create `.claude/agents/reviewer-test-flaky.md`  
-**Current Status**: Referenced in `INDEX.md` line 40 but file does not exist  
-**Concept Already Covered**: No existing guidance  
+**Target**: Create `.claude/agents/reviewer-test-flaky.md`
+**Current Status**: Referenced in `INDEX.md` line 40 but file does not exist
+**Concept Already Covered**: No existing guidance
 **Recurrence Evidence**: Common problem in any test suite with integration tests
 
 **Scope**:
@@ -154,9 +154,9 @@ No agent currently enforces this.
 
 ### Medium Priority: Add Exhaustiveness Check to testing-patterns.md
 
-**Target**: `references/testing-patterns.md`  
-**Current Lines**: 190 (within budget)  
-**Concept Already Covered**: Partially (lines 94–105 mention exhaustiveness, lines 169–189 mention schema validation)  
+**Target**: `references/testing-patterns.md`
+**Current Lines**: 190 (within budget)
+**Concept Already Covered**: Partially (lines 94–105 mention exhaustiveness, lines 169–189 mention schema validation)
 **Suggested Addition**: New subsection "Validating Parametrized Test Exhaustiveness"
 
 **Content**:
@@ -171,18 +171,18 @@ No agent currently enforces this.
 
 ### Medium Priority: Update reviewer-generic.md Checklist
 
-**Target**: `.claude/agents/reviewer-generic.md`  
-**Current Lines**: 85 (within budget at 200-line limit)  
-**Concept Already Covered**: No explicit mention of test patterns  
+**Target**: `.claude/agents/reviewer-generic.md`
+**Current Lines**: 85 (within budget at 200-line limit)
+**Concept Already Covered**: No explicit mention of test patterns
 **Suggested Addition**: Item after #10 (new class without test suite)
 
 **Content**:
 ```
-10a. **Loop-based schema validation tests** — when a test iterates over 
-    configuration entries with `for entry in data[...]: assert ...`, 
-    verify the loop uses parametrize so pytest reports all offenders at once. 
-    A single `for` loop hides failures from entries after the first failure. 
-    See `references/testing-patterns.md` § "Parametrized Test Matrix 
+10a. **Loop-based schema validation tests** — when a test iterates over
+    configuration entries with `for entry in data[...]: assert ...`,
+    verify the loop uses parametrize so pytest reports all offenders at once.
+    A single `for` loop hides failures from entries after the first failure.
+    See `references/testing-patterns.md` § "Parametrized Test Matrix
     Completeness" for the pattern.
 ```
 
@@ -194,16 +194,16 @@ No agent currently enforces this.
 
 ### Medium Priority: Document Helper Function Pattern in testing-patterns.md
 
-**Target**: `references/testing-patterns.md`  
-**Concept Already Covered**: No existing pattern for module-level parametrize helpers  
+**Target**: `references/testing-patterns.md`
+**Concept Already Covered**: No existing pattern for module-level parametrize helpers
 **Suggested Addition**: New subsection after "Schema Validation" (lines 189–200)
 
 **Content**:
 ```markdown
 ## Pre-Filtering Configuration for Parametrized Tests
 
-When YAML/JSON configuration contains conditional entries (e.g., only 
-validate `hook_block` rules, not all rules), pre-filter at module scope 
+When YAML/JSON configuration contains conditional entries (e.g., only
+validate `hook_block` rules, not all rules), pre-filter at module scope
 rather than inside the test.
 
 **Anti-pattern** (silent exclusion):
@@ -237,20 +237,20 @@ def test_hook_block_has_compensations(self, entry: dict) -> None:
 
 ### Low Priority: Add Test Output Diagnostics to reviewer-generic.md
 
-**Target**: `.claude/agents/reviewer-generic.md`  
-**Current Lines**: 85 (within budget)  
-**Concept Already Covered**: Item 9b (docstring accuracy) touches on comprehensiveness  
+**Target**: `.claude/agents/reviewer-generic.md`
+**Current Lines**: 85 (within budget)
+**Concept Already Covered**: Item 9b (docstring accuracy) touches on comprehensiveness
 **Suggested Addition**: Item after 10a (optional enhancement)
 
 **Content**:
 ```
-10b. **Failure diagnostics in assertions** — when a test assertion fails 
-    with a collected set of offenders (e.g., `missing = [...]; assert not 
+10b. **Failure diagnostics in assertions** — when a test assertion fails
+    with a collected set of offenders (e.g., `missing = [...]; assert not
     missing`), verify the assertion message includes the full set. Compare:
-    
+
     ✗ BAD: `assert not missing`  (message omits the list of offenders)
     ✓ GOOD: `assert not missing, f"Missing rule_id: {missing}"`
-    
+
     This pattern helps test authors spot patterns in failures.
 ```
 

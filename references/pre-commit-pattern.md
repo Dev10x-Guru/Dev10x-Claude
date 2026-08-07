@@ -20,7 +20,7 @@ if Path(".pre-commit-config.yaml").is_file():
     result = subprocess.run(["pre-commit", "run", "--files", file])
 else:
     # Emit guidance, skip lint stage
-    emit_finding("setup-guidance", 
+    emit_finding("setup-guidance",
                  "No .pre-commit-config.yaml — run 'pre-commit install'")
     return
 ```
