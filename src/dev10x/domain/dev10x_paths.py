@@ -172,6 +172,19 @@ class Dev10xConfigDir:
         return cls._resolve("task-index", f"{repo_name}.yaml")
 
     @classmethod
+    def playbooks_dir(cls) -> Path:
+        """User playbook overrides, one ``<skill>.yaml`` per skill (GH-1045).
+
+        Tier 2 of the 3-tier playbook resolution. The bulk migration list
+        below already moves the retired ``~/.claude/memory/Dev10x/playbooks``
+        here, but ``migrate_path`` only copies when the destination is absent
+        — so a user with files in both keeps both, and discovery must read the
+        legacy directory as an explicit fallback rather than assume the move
+        happened.
+        """
+        return _with_lazy_migration(cls._resolve("playbooks"), _legacy_playbooks_dir)
+
+    @classmethod
     def sensitivity_exceptions_yaml(cls) -> Path:
         """User-owned sensitivity-exception catalog (GH-604).
 

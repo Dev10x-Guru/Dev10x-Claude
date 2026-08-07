@@ -32,7 +32,7 @@ config:
 
 User overrides via:
 ```
-~/.claude/memory/Dev10x/diag-friction.yaml
+~/.config/Dev10x/diag-friction.yaml
 ```
 
 Durable per-project prefs (set by Phase 0 of `Dev10x:work-on`

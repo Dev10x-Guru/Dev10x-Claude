@@ -344,15 +344,15 @@ immediately.
 
 | Old path | New path |
 |----------|----------|
-| `~/.claude/memory/slack-config.yaml` | `~/.claude/memory/Dev10x/slack-config.yaml` |
-| `~/.claude/memory/slack-config-code-review-requests.yaml` | `~/.claude/memory/Dev10x/slack-config-code-review-requests.yaml` |
-| `~/.claude/memory/github-reviewers-config.yaml` | `~/.claude/memory/Dev10x/github-reviewers-config.yaml` |
-| `~/.claude/memory/databases.yaml` | `~/.claude/memory/Dev10x/databases.yaml` |
+| `~/.claude/memory/slack-config.yaml` | `~/.config/Dev10x/slack-config.yaml` |
+| `~/.claude/memory/slack-config-code-review-requests.yaml` | `~/.config/Dev10x/slack-config-code-review-requests.yaml` |
+| `~/.claude/memory/github-reviewers-config.yaml` | `~/.config/Dev10x/github-reviewers-config.yaml` |
+| `~/.claude/memory/databases.yaml` | `~/.config/Dev10x/databases.yaml` |
 
 For each file:
 1. Check if source exists (skip if not — user may not use it)
 2. Check destination exists (skip + warn if both present)
-3. Ensure `~/.claude/memory/Dev10x/` exists
+3. Ensure `~/.config/Dev10x/` exists
 4. `mv` source to destination
 5. Report what moved
 
@@ -400,8 +400,9 @@ dotted dirs, unlike glob `*`):
 find ~/.claude/skills -name databases.yaml
 ```
 
-Also check `~/.claude/memory/Dev10x/databases.yaml` explicitly
-(already covered by the table above, but include in this report).
+Also check the legacy `~/.claude/memory/Dev10x/databases.yaml`
+path explicitly (already covered by the table above, but include
+in this report).
 
 For each located `databases.yaml` whose resolved path differs from
 `~/.config/Dev10x/databases.yaml`:
@@ -416,7 +417,8 @@ For each located `databases.yaml` whose resolved path differs from
 databases.yaml migration steps:
 1. Run `find ~/.claude/skills -name databases.yaml` to locate all
    candidates (including dotted backup dirs)
-2. Also check `~/.claude/memory/Dev10x/databases.yaml` explicitly
+2. Also check the legacy `~/.claude/memory/Dev10x/databases.yaml`
+   path explicitly
 3. Skip candidates that are already at, or are a symlink to,
    `~/.config/Dev10x/databases.yaml` — migration not needed
 4. Ensure `~/.config/Dev10x/` exists before any write

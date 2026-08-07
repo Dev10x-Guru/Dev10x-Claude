@@ -73,7 +73,7 @@ later steps know whether to persist it.
 
 ### 1b. Read existing config (if any)
 
-Check for `~/.claude/memory/Dev10x/slack-config.yaml`. If present,
+Check for `~/.config/Dev10x/slack-config.yaml`. If present,
 load it — fields already filled there are reused, not re-prompted.
 
 ### 1c. Validate via auth.test
@@ -101,7 +101,7 @@ Before any prompts fire, summarize what is already configured:
 ```
 Token: found (keyring) — auth.test ok
 Bot:   <user> (<user_id>) in team <team_id>
-Config: present at ~/.claude/memory/Dev10x/slack-config.yaml
+Config: present at ~/.config/Dev10x/slack-config.yaml
 Result: setup already complete — nothing to do
 ```
 
@@ -192,7 +192,7 @@ export SLACK_TOKEN="xoxb-your-token-here"
 
 ## Step 4: Generate slack-config.yaml
 
-Generate `~/.claude/memory/Dev10x/slack-config.yaml`. Each field
+Generate `~/.config/Dev10x/slack-config.yaml`. Each field
 is **derived first**, prompted only on derivation failure.
 
 ### 4a. Derive fields

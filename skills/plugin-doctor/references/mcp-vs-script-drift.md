@@ -33,7 +33,7 @@ The strategy detects each channel and proposes a targeted fix.
 
 1. **Memory scan** — walk
    `~/.claude/projects/*/memory/*.md` and
-   `~/.claude/memory/Dev10x/**/*.md`. Match any of the script
+   `~/.config/Dev10x/**/*.md`. Match any of the script
    paths above. Flag if the memory body cites the path literally
    even in a negative context.
 2. **Settings scan** — walk `~/.claude/settings.json`,

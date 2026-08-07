@@ -46,7 +46,7 @@ resources (in order, first match wins per resource type):
 
 ### Schema files
 
-1. `~/.claude/memory/Dev10x/db-*-schema.md` — global schema docs
+1. `~/.config/Dev10x/db-*-schema.md` — global schema docs
    (preferred, see `references/config-resolution.md`)
 
 ### Database configuration
@@ -97,7 +97,7 @@ Always load available context before constructing queries.
 ## Schema Memory File Format
 
 Schema files should follow this template. Place them at
-`~/.claude/memory/Dev10x/db-<name>-schema.md` (preferred global
+`~/.config/Dev10x/db-<name>-schema.md` (preferred global
 path per `references/config-resolution.md`):
 
 ```markdown

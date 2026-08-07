@@ -9,7 +9,7 @@ rule.
 
 - `CLAUDE.md` in project root and `.claude/` directories
 - `~/.claude/CLAUDE.md` (global instructions)
-- `~/.claude/memory/Dev10x/**/*.md` (memory files)
+- `~/.config/Dev10x/**/*.md` (memory files)
 
 ## Patterns to flag
 
