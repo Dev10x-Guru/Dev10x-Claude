@@ -239,16 +239,19 @@ class FrictionYamlDocument:
         )
 
     # --- Migration seam (GH-812 R4) -------------------------------------
-    # Runtime resolvers only *read* friction.yaml; the agent-driven
-    # upgrade-cleanup migration is the sanctioned writer. It folds a repo's
-    # legacy durable prefs into a projects[] entry via these helpers.
+    # Runtime resolvers only *read* friction.yaml. The agent-driven
+    # upgrade-cleanup migration writes it via these helpers, folding a repo's
+    # legacy durable prefs into a projects[] entry — but it is not the only
+    # sanctioned writer: `dev10x session set-friction` / `session pin` write
+    # per-project entries too (GH-1003).
 
     _MIGRATION_HEADER = (
         "# Dev10x global durable session preferences (GH-812, ADR-0018).\n"
         "# One file per machine, keyed by project dir-path globs. Gate policy\n"
-        "# (resolve_gate) reads it here at runtime; only the agent-driven\n"
-        "# upgrade-cleanup migration (GH-812 R4) writes it. First matching\n"
-        "# projects[] entry wins.\n"
+        "# (resolve_gate) reads it here at runtime. Sanctioned writers: the\n"
+        "# agent-driven upgrade-cleanup migration (GH-812 R4), `dev10x session\n"
+        "# set-friction`, and `dev10x session pin`. First matching projects[]\n"
+        "# entry wins.\n"
     )
 
     @staticmethod
@@ -520,6 +523,40 @@ def set_playbook_modes(
     return target
 
 
+# Overlays that also name an execution mode, so mode-filtering consumers see
+# the same posture the gate resolver does (GH-1003). `legacy_session_mapping`
+# maps modes -> overlays; this is the missing reverse leg. `afk` is absent by
+# design: it is overlay-only (its legacy source is the `walk_away` bool, not a
+# mode), it is not documented in references/active-modes.md, and no consumer
+# filters playbook steps or DoD checks on it. Structural modes
+# (`review-deferred`, `swarm-child`) have no overlay and stay active_modes-only.
+_OVERLAY_DERIVED_MODES: dict[str, str] = {"solo-maintainer": "solo-maintainer"}
+
+
+def _modes_with_overlays_folded_in(data: dict[str, Any]) -> list[str]:
+    """Return ``active_modes`` unioned with the modes its overlays imply.
+
+    A repo that migrated to ``gate_preset`` + ``gate_overlays`` names its
+    posture only in overlay vocabulary. Without this fold, ``resolve_gate``
+    saw solo-maintainer while ``Dev10x:verify-acc-dod``'s mode filter and
+    ``Dev10x:work-on``'s playbook ``modes:`` mapping saw nothing — one
+    posture, two answers, so the "Review requested" DoD check fired red on
+    a PR whose ``request_review`` gate had already resolved to ``skip``.
+
+    Declared modes keep their order and position; derived ones append.
+    """
+    modes = data.get("active_modes")
+    resolved = list(modes) if isinstance(modes, list) else []
+    overlays = data.get("gate_overlays")
+    if not isinstance(overlays, list):
+        return resolved
+    for overlay in overlays:
+        mode = _OVERLAY_DERIVED_MODES.get(overlay)
+        if mode is not None and mode not in resolved:
+            resolved.append(mode)
+    return resolved
+
+
 def legacy_durable_prefs(*, toplevel: str) -> dict[str, Any]:
     """Durable keys from the legacy per-repo files ONLY (GH-812 R4).
 
@@ -634,16 +671,18 @@ class SessionYamlDocument:
         return FrictionLevel.from_yaml(self._durable().get("friction_level"))
 
     def read_active_modes(self) -> list[str]:
-        """Return the active-modes list, or an empty list when unset/invalid."""
-        modes = self._durable().get("active_modes")
-        return modes if isinstance(modes, list) else []
+        """Return the active modes, including any derived from overlays.
+
+        See :func:`_modes_with_overlays_folded_in` — an entry that names a
+        posture only in ``gate_overlays`` still reports the equivalent mode.
+        """
+        return _modes_with_overlays_folded_in(self._durable())
 
     def read_friction_and_modes(self) -> tuple[FrictionLevel, list[str]]:
         """Return ``(friction_level, active_modes)`` from the durable prefs."""
         data = self._durable()
         level = FrictionLevel.from_yaml(data.get("friction_level"))
-        modes = data.get("active_modes")
-        return level, (modes if isinstance(modes, list) else [])
+        return level, _modes_with_overlays_folded_in(data)
 
     def read_allowed_overlays(self) -> list[str] | None:
         """Return the durable overlay allow-list, or ``None`` when unset (GH-805).
