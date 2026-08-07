@@ -6,7 +6,9 @@ while preserving user customizations. Two playbook documents are compared:
 - ``default`` — the plugin-shipped ``references/playbook.yaml``
 - ``user``    — the user override at
                 ``.claude/Dev10x/playbooks/<key>.yaml`` or
-                ``~/.claude/memory/Dev10x/playbooks/<key>.yaml``
+                ``~/.config/Dev10x/playbooks/<key>.yaml`` (legacy
+                ``~/.claude/memory/Dev10x/playbooks/<key>.yaml`` is
+                still read as a fallback)
 
 The diff distinguishes:
 

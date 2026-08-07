@@ -41,7 +41,7 @@ Temporary file paths for findings or intermediate data:
   - Declared in source skill's `allowed-tools: [Read(/tmp/Dev10x/skill-audit/**)]`
   - Delegated skill reads from same path: `Skill(args="/tmp/Dev10x/skill-audit/findings.json")`
 
-- **Memory cache**: `~/.claude/memory/Dev10x/`
+- **Memory cache**: `~/.config/Dev10x/`
   - Persists across sessions (global with repo mapping)
   - Use for cross-session state (audit history, patterns learned)
 

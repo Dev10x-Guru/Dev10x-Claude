@@ -8,7 +8,7 @@
 #     formerly Dev10x:skill-reinforcement)
 #
 # Per-project override: place a custom version at:
-#   ~/.claude/memory/Dev10x/diag-friction.yaml
+#   ~/.config/Dev10x/diag-friction.yaml
 # The hook merges override rules (user entries take precedence).
 #
 # Schema:

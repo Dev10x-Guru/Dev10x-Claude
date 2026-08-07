@@ -20,7 +20,7 @@ Everything it writes stays on disk under paths you control:
 |------|----------|---------|
 | Session state (task lists, plan context, session IDs) | `~/.claude/projects/<project>/` | Survive context compaction; resume prior sessions |
 | Auto-memory notes (per project) | `~/.claude/projects/<project>/memory/` | Preferences and feedback you asked Claude to remember |
-| Global Dev10x config (playbook overrides) | `~/.claude/memory/Dev10x/` | Shared workflow customizations |
+| Global Dev10x config (playbook overrides) | `~/.config/Dev10x/` | Shared workflow customizations |
 | Hook timing & outcome audit records | `/tmp/Dev10x/logs/hooks-YYYY-MM-DD.jsonl` | Debug and performance analysis of hook execution |
 | Temporary working files | `/tmp/Dev10x/` | Short-lived scratch files (commit messages, etc.) |
 | Per-project config (playbooks, session settings) | `.claude/Dev10x/` in your repos | Project-scoped workflow overrides |
@@ -91,7 +91,7 @@ rm -rf ~/.claude/projects/<project>/
 rm -rf ~/.claude/projects/<project>/memory/
 
 # Global Dev10x config
-rm -rf ~/.claude/memory/Dev10x/
+rm -rf ~/.config/Dev10x/
 
 # Hook audit logs
 rm -rf /tmp/Dev10x/

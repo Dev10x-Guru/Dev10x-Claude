@@ -1,6 +1,7 @@
 """Tests for slack-notify.py token resolution and workspace config (GH-98)."""
 
 import importlib.util
+import sys
 from pathlib import Path
 
 import pytest
@@ -194,3 +195,63 @@ class TestResolveMentions:
         assert _mod.resolve_mentions("ping @aperture") == "ping <!subteam^S_APE>"
         # default group not active when workspace is set
         assert _mod.resolve_mentions("ping @default") == "ping @default"
+
+
+class TestConfigHomeMatchesThePackageResolver:
+    """GH-1045: pin the restated resolver to the one it claims to mirror.
+
+    A standalone uv-script cannot import ``dev10x``, so ``_config_home``
+    restates ``Dev10xConfigDir``'s root resolution by hand (the sanctioned
+    Pattern 3 in ``references/code-sharing-patterns.md``). Hand-restated logic
+    drifts: this copy had already lost the win32/APPDATA branch, which put
+    ``slack-config.yaml`` in two places on Windows — the same
+    two-statements-of-one-location defect GH-1045 exists to remove, and one
+    the retired-path scanner cannot see because no retired path is named.
+
+    The docstring says the copy "must stay faithful". This makes that a test
+    rather than a promise, mirroring how GH-1041 pinned the protected-branch
+    list to the shell script instead of restating it.
+    """
+
+    @staticmethod
+    def _package_home() -> Path:
+        from dev10x.domain.dev10x_paths import Dev10xConfigDir
+
+        Dev10xConfigDir.reset_cache()
+        return Dev10xConfigDir.home()
+
+    def _assert_agree(self) -> None:
+        assert _mod._config_home() == self._package_home()
+
+    def test_explicit_override_wins(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DEV10X_CONFIG_HOME", "/srv/dev10x-config")
+        self._assert_agree()
+
+    def test_xdg_config_home(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("DEV10X_CONFIG_HOME", raising=False)
+        monkeypatch.setenv("XDG_CONFIG_HOME", "/srv/xdg")
+        self._assert_agree()
+
+    def test_bare_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("DEV10X_CONFIG_HOME", raising=False)
+        monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+        self._assert_agree()
+
+    def test_windows_appdata(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The branch whose absence produced the drift."""
+        monkeypatch.delenv("DEV10X_CONFIG_HOME", raising=False)
+        monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+        monkeypatch.setattr(sys, "platform", "win32")
+        monkeypatch.setenv("APPDATA", r"C:\Users\dev\AppData\Roaming")
+        # Pinned concretely so the parity assertion cannot pass vacuously: if
+        # either side lost the branch it would answer ~/.config/Dev10x here.
+        assert self._package_home() == Path(r"C:\Users\dev\AppData\Roaming") / "Dev10x"
+        self._assert_agree()
+
+    def test_windows_without_appdata_falls_through(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Why the win32 check nests instead of `and`-ing: it must fall through."""
+        monkeypatch.delenv("DEV10X_CONFIG_HOME", raising=False)
+        monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+        monkeypatch.setattr(sys, "platform", "win32")
+        monkeypatch.delenv("APPDATA", raising=False)
+        self._assert_agree()

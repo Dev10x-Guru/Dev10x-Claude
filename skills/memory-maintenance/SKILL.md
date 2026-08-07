@@ -46,7 +46,7 @@ misbehave — particularly patterns that lead to skill bypass.
 Scan all memory locations:
 
 1. Global memory: `~/.claude/memory/*.md`
-2. Dev10x global config: `~/.claude/memory/Dev10x/**`
+2. Dev10x global config: `~/.config/Dev10x/**`
 3. MEMORY.md index file: `~/.claude/memory/MEMORY.md`
 
 Count files per scope and report.

@@ -19,8 +19,10 @@ Token resolution order:
     3. Default keyring at service=slack
 
 Configuration:
-    ~/.claude/memory/Dev10x/slack-config.yaml — user groups, self_user_id,
+    ~/.config/Dev10x/slack-config.yaml — user groups, self_user_id,
     bot_username, and optional `workspaces:` map for multi-workspace setups.
+    Honors DEV10X_CONFIG_HOME / XDG_CONFIG_HOME; the retired
+    ~/.claude/memory/slack-config.yaml is read as a fallback.
 """
 
 from __future__ import annotations
@@ -35,16 +37,51 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from slack_sdk import WebClient
 
-CONFIG_PATH = pathlib.Path.home() / ".claude" / "memory" / "slack-config.yaml"
+
+def _config_home() -> pathlib.Path:
+    """Mirror ``Dev10x.domain.dev10x_paths`` root resolution (GH-1045).
+
+    A standalone uv-script cannot import ``dev10x``, so the precedence is
+    restated here and must stay faithful to it: DEV10X_CONFIG_HOME, else
+    %APPDATA%/Dev10x on Windows, else XDG_CONFIG_HOME/Dev10x, else
+    ~/.config/Dev10x. Dropping a branch would give the same
+    ``slack-config.yaml`` two homes — the exact defect GH-1045 removes.
+    """
+    override = os.environ.get("DEV10X_CONFIG_HOME")
+    if override:
+        return pathlib.Path(override).expanduser()
+    if sys.platform == "win32":
+        appdata = os.environ.get("APPDATA")
+        if appdata:
+            return pathlib.Path(appdata) / "Dev10x"
+    xdg = os.environ.get("XDG_CONFIG_HOME")
+    if xdg:
+        return pathlib.Path(xdg) / "Dev10x"
+    return pathlib.Path.home() / ".config" / "Dev10x"
+
+
+CONFIG_PATH = _config_home() / "slack-config.yaml"
+
+# GH-941 rehomed this file; the reader kept pointing at ~/.claude/memory and
+# had even lost the Dev10x/ segment, so it read a path nothing ever wrote.
+LEGACY_CONFIG_PATH = pathlib.Path.home() / ".claude" / "memory" / "slack-config.yaml"
 
 _active_workspace: str | None = None
 
 
-def _load_config() -> dict:
+def _config_path() -> pathlib.Path:
+    """Canonical config path, falling back to the retired location."""
     if CONFIG_PATH.exists():
+        return CONFIG_PATH
+    return LEGACY_CONFIG_PATH
+
+
+def _load_config() -> dict:
+    config_path = _config_path()
+    if config_path.exists():
         import yaml
 
-        return yaml.safe_load(CONFIG_PATH.read_text()) or {}
+        return yaml.safe_load(config_path.read_text()) or {}
     return {}
 
 

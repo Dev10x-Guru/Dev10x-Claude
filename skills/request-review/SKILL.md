@@ -112,7 +112,7 @@ Delegate to the Slack notification skill:
 Skill("Dev10x:slack-review-request", args="--pr {PR_NUMBER} --repo {REPO}")
 ```
 
-This skill reads `~/.claude/memory/Dev10x/slack-config-code-review-requests.yaml`,
+This skill reads `~/.config/Dev10x/slack-config-code-review-requests.yaml`,
 formats the message, asks for user confirmation, and posts to Slack.
 It may skip if the project is configured with `skip: true`.
 

@@ -20,7 +20,7 @@ Check what's already set up (skip configured items in tour):
 |-------|---------|---------------|
 | Git aliases | `git config alias.develop-log` | Non-empty |
 | SKILLS.md | `test -f ~/.claude/SKILLS.md` | File exists |
-| Global config | `ls ~/.claude/memory/Dev10x/` | Dir exists |
+| Global config | `ls ~/.config/Dev10x/` | Dir exists |
 | Playbook overrides | `ls .claude/Dev10x/playbooks/*.yaml` | Found |
 | Registered platforms | `uvx dev10x platform list` | Non-empty |
 | Worktree | `test -f .git` | `.git` is file |

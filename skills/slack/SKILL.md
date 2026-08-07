@@ -123,7 +123,7 @@ secret-tool store --label="Slack Aperture"  service slack-aperture   key bot_tok
 
 ## Configuration
 
-Create `~/.claude/memory/Dev10x/slack-config.yaml`:
+Create `~/.config/Dev10x/slack-config.yaml`:
 
 ```yaml
 # Your Slack user ID (for --remind self-DMs)

@@ -67,7 +67,7 @@ Scan both the plugin directory and user-space locations.
 | CLAUDE.md (global) | `~/.claude/CLAUDE.md` | No strict budget |
 | SKILLS.md | `~/.claude/SKILLS.md` | 45 lines |
 | MEMORY.md (global) | `~/.claude/memory/MEMORY.md` | 200 lines |
-| Dev10x global config | `~/.claude/memory/Dev10x/**` | No per-file budget |
+| Dev10x global config | `~/.config/Dev10x/**` | No per-file budget |
 
 ### 1.3 Collect Metrics
 
