@@ -236,6 +236,10 @@ def resolve_owners(
     blame produced no branch-range commit (lines owned only by base
     history); the caller decides whether to abort or fall through to a
     legacy target.
+
+    Orphans are deliberately NOT owners: the status a caller branches on
+    counts ``owners`` alone, so a lone owner accompanied by orphan hunks
+    stays ``single`` (GH-1042).
     """
     owners_by_sha: dict[str, Owner] = {}
     orphans: list[Hunk] = []
@@ -355,7 +359,15 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 3
 
-    if len(owners) == 1 and not orphans:
+    # Classify on the number of distinct owning BRANCH commits — orphan
+    # hunks are not owners and never promote `single` to `multi` (GH-1042).
+    # `multi` exists to stop a cross-commit fixup that autosquash cannot
+    # fold; with one owner there is nothing to split across, and the
+    # orphans ride along to that owner (they blame to base history, which
+    # is what `out_of_branch` above already reports when they are ALL that
+    # is staged). Adding an import beside its first usage is the common
+    # shape that produced this: one owner, one orphan hunk.
+    if len(owners) == 1:
         owner = owners[0]
         print(
             json.dumps(
@@ -366,6 +378,9 @@ def main(argv: list[str] | None = None) -> int:
                     "subject": owner.subject,
                     "hunks": [
                         {"path": h.path, "start": h.start, "count": h.count} for h in owner.hunks
+                    ],
+                    "orphan_hunks": [
+                        {"path": h.path, "start": h.start, "count": h.count} for h in orphans
                     ],
                 }
             )
