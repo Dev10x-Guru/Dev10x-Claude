@@ -155,11 +155,16 @@ class TestWriteGuardClaude:
 
 
 class TestRetiredDurablePrefPath:
-    """GH-948 (ADR-0018): the retired per-repo durable-pref paths stay retired.
+    """GH-948 (ADR-0018) + GH-1035 (GH-941): retired config paths stay retired.
 
     ``write-guard-claude`` already covers a prose ``Write(.claude/…)`` but skips
     front matter, so an ``allowed-tools:`` grant reintroduced the path silently.
     This rule names the retired files and scans front matter too.
+
+    GH-1035 added the sibling retirement: GH-941 moved tier-2 config from
+    ``~/.claude/memory/Dev10x/`` to ``~/.config/Dev10x/``, and until this rule
+    covered it a skill doc could keep naming the retired tree as its write
+    target and scan clean.
     """
 
     @pytest.mark.parametrize(
@@ -234,6 +239,64 @@ class TestRetiredDurablePrefPath:
         """The regression this rule exists to prevent — verified on the real doc."""
         repo_root = Path(__file__).resolve().parents[3]
         violations = mod.scan_file(repo_root / "skills" / "afk" / "SKILL.md")
+        assert [v.rule.rule_id for v in violations] == []
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "  - Edit(~/.claude/memory/Dev10x/dod-acceptance-criteria.yaml)",
+            "  - Write(~/.claude/memory/Dev10x/slack-config.yaml)",
+            "  - MultiEdit(~/.claude/memory/Dev10x/playbooks/work-on.yaml)",
+        ],
+    )
+    def test_flags_gh941_memory_path_as_write_target(self, skill_root: Path, line: str) -> None:
+        """GH-941's retirement is enforced the same way ADR-0018's is (GH-1035)."""
+        skill = _write(
+            skill_root / "demo" / "SKILL.md",
+            "---\nname: Dev10x:demo\nallowed-tools:\n" + line + "\n---\n\n" + line + "\n",
+        )
+        rule_ids = {v.rule.rule_id for v in mod.scan_file(skill)}
+        assert "retired-durable-pref-path" in rule_ids
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            # A read-only grant is exactly how the one-release compat window
+            # is declared — it must never be flagged.
+            "  - Read(~/.claude/memory/Dev10x/dod-acceptance-criteria.yaml)",
+            # Bare descriptive prose keeps passing, as it did before GH-1035.
+            "Fall back to `~/.claude/memory/Dev10x/playbooks/work-on.yaml`.",
+            "Legacy config lives under ~/.claude/memory/Dev10x/ until migrated.",
+            # The XDG replacement is the destination, never a violation.
+            "  - Edit(~/.config/Dev10x/dod-acceptance-criteria.yaml)",
+        ],
+    )
+    def test_ignores_gh941_reads_and_mentions(self, skill_root: Path, line: str) -> None:
+        skill = _write(
+            skill_root / "demo" / "SKILL.md",
+            "---\nname: Dev10x:demo\nallowed-tools:\n" + line + "\n---\n\n" + line + "\n",
+        )
+        rule_ids = {v.rule.rule_id for v in mod.scan_file(skill)}
+        assert "retired-durable-pref-path" not in rule_ids
+
+    def test_gh941_memory_path_is_flagged_in_shared_reference(self, tmp_path: Path) -> None:
+        """The rule ships in SHARED_DOC_RULE_IDS, so references/ is covered too."""
+        doc = _write(
+            tmp_path / "references" / "config-resolution.md",
+            "# Config\n\nSave it with `Write(~/.claude/memory/Dev10x/criteria.yaml)`.\n",
+        )
+        rule_ids = {v.rule.rule_id for v in mod.scan_file(doc)}
+        assert rule_ids == {"retired-durable-pref-path"}
+
+    def test_verify_acc_dod_skill_scans_clean(self) -> None:
+        """GH-1035's regression guard — verified on the real doc.
+
+        The skill still *reads* the retired path for one release, so this
+        asserts the compat window is declared without a write grant sneaking
+        back in alongside it.
+        """
+        repo_root = Path(__file__).resolve().parents[3]
+        violations = mod.scan_file(repo_root / "skills" / "verify-acc-dod" / "SKILL.md")
         assert [v.rule.rule_id for v in violations] == []
 
 

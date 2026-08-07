@@ -1,6 +1,8 @@
 # Default acceptance criteria with executable checks
 # Plugin-owned — updates propagate automatically to all projects.
-# Repo overrides: ~/.claude/memory/Dev10x/dod-acceptance-criteria.yaml
+# Repo overrides: ~/.config/Dev10x/dod-acceptance-criteria.yaml
+#   (read-compat fallback for one release:
+#    ~/.claude/memory/Dev10x/dod-acceptance-criteria.yaml, GH-1035)
 #
 # Schema per check:
 #   name:             Human-readable criterion name (required)
