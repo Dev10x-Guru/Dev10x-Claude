@@ -50,6 +50,10 @@ if TYPE_CHECKING:
 # skill/MCP path, matching push_safe's own guardrail.
 _BARE_FORCE_TOKENS = frozenset({"--force", "-f"})
 
+# GH-1047: a single-dash, no-`=` token is a bundle of short flags, so
+# `-uf` carries a force push that whole-token membership never sees.
+_SHORT_FLAG_CLUSTER_RE = re.compile(r"^-[A-Za-z]+$")
+
 
 def _tokenize(command: str) -> list[str]:
     try:
@@ -79,7 +83,18 @@ def _explicit_push_target(command: str) -> str | None:
 
 
 def _has_bare_force(command: str) -> bool:
-    return any(token in _BARE_FORCE_TOKENS for token in _tokenize(command))
+    """True when ``command`` carries a bare force flag.
+
+    Long options are matched exactly so ``--force-with-lease`` — which
+    is deliberately allowed — never matches on a substring. Short-flag
+    clusters are decomposed letter-by-letter instead, because POSIX
+    bundling lets a force push be spelled without a lone ``-f`` token.
+    """
+    return any(
+        token in _BARE_FORCE_TOKENS
+        or (_SHORT_FLAG_CLUSTER_RE.match(token) is not None and "f" in token)
+        for token in _tokenize(command)
+    )
 
 
 def _is_safe_direct_push(command: str) -> bool:

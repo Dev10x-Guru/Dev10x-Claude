@@ -263,6 +263,43 @@ class TestGitPushUnattendedEscapeHatch:
         result = validator.validate(inp=inp)
         assert result is not None
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git push -uf origin feature-branch",
+            "git push -fu origin feature-branch",
+            "git push -vuf origin feature-branch",
+        ],
+    )
+    def test_blocks_bundled_short_force_flag(
+        self,
+        validator: SkillRedirectValidator,
+        command: str,
+    ) -> None:
+        """GH-1047: POSIX short flags bundle, so a force push can be
+        spelled without ever producing a lone ``-f`` token."""
+        result = validator.validate(inp=_make_input(command=command))
+        assert result is not None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git push -u origin feature-branch",
+            "git push -vu origin feature-branch",
+            "git push --force-with-lease origin feature-branch",
+        ],
+    )
+    def test_allows_non_force_flags_without_f(
+        self,
+        validator: SkillRedirectValidator,
+        command: str,
+    ) -> None:
+        """GH-1047: cluster decomposition must not report a force push
+        for clusters that carry no ``f``, nor match ``--force-with-lease``
+        on a substring."""
+        result = validator.validate(inp=_make_input(command=command))
+        assert result is None
+
     def test_still_blocks_protected_branch_by_name(
         self, validator: SkillRedirectValidator
     ) -> None:
@@ -981,6 +1018,7 @@ class TestBlockedVsAllowed:
             ("git push --force-with-lease", False),
             ("git push --force origin feature", True),
             ("git push -f origin feature", True),
+            ("git push -uf origin feature", True),
             ("git push", True),
             ("git push origin", True),
             ("git push origin HEAD", True),
