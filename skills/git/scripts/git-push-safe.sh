@@ -37,9 +37,14 @@ fi
 source "$SCRIPT_DIR/protected-branches.sh"
 
 # Detect force-push flags (--force-with-lease is intentionally allowed)
+# Long options match exactly so --force-with-lease never matches on a
+# substring; single-dash tokens are decomposed letter-by-letter because
+# POSIX bundling spells a force push without a lone -f (GH-1047).
 force=0
 for arg in "${PUSH_ARGS[@]}"; do
     if [[ "$arg" == "--force" || "$arg" == "-f" ]]; then
+        force=1
+    elif [[ "$arg" =~ ^-[A-Za-z]+$ && "$arg" == *f* ]]; then
         force=1
     fi
 done
