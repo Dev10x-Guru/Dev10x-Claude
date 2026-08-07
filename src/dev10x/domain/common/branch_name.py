@@ -14,11 +14,19 @@ from dataclasses import dataclass
 
 from dev10x.domain.common.ticket_id import TicketId
 
-# Base-branch detection priority — first existing branch wins. The
-# protected-branch set is exactly these names (membership, order-free).
+# Base-branch detection priority — first existing branch wins. This is a
+# *PR-target* question ("which branch does a feature PR merge into?"), so
+# `staging` is deliberately absent: nothing opens a PR against staging.
 BASE_BRANCH_PRIORITY: tuple[str, ...] = ("develop", "development", "main", "master", "trunk")
 
-PROTECTED_BRANCHES: frozenset[str] = frozenset(BASE_BRANCH_PRIORITY)
+# Branches nobody force-pushes. This is a *write-protection* question, so it
+# is a superset of BASE_BRANCH_PRIORITY — `staging` is a real deploy target
+# even though it is never a PR base. The set must equal
+# DEFAULT_PROTECTED_BRANCHES in skills/git/scripts/protected-branches.sh; the
+# two are the hook-layer and push-guard statements of one policy, and
+# tests/git/test_git.py pins them together so they cannot drift again
+# (GH-1031 paid for that drift once, GH-1041 found this fourth list).
+PROTECTED_BRANCHES: frozenset[str] = frozenset(BASE_BRANCH_PRIORITY) | {"staging"}
 
 # Slug constraints — lower-case alphanumerics with hyphens/underscores.
 _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")

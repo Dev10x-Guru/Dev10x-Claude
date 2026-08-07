@@ -338,6 +338,29 @@ class TestProtectedBranchDefaultIsDocumentedAccurately:
         collapsed = " ".join(source.read_text().split())
         assert " ".join(self._script_defaults()) in collapsed
 
+    def test_hook_layer_protected_set_matches_the_script_default(self) -> None:
+        """GH-1041: the fourth list — the hook redirect guard — is pinned too.
+
+        ``PROTECTED_BRANCHES`` gates ``skill_redirect``'s direct-push escape
+        hatch, so a name missing here lets a push through that the push guard
+        would have protected. It omitted ``staging`` until GH-1041.
+        """
+        from dev10x.domain.common.branch_name import PROTECTED_BRANCHES
+
+        assert PROTECTED_BRANCHES == frozenset(self._script_defaults())
+
+    def test_base_branch_priority_stays_narrower_than_protection(self) -> None:
+        """The two lists answer different questions and may legitimately differ.
+
+        ``BASE_BRANCH_PRIORITY`` answers "what does a PR target?" — ``staging``
+        is never a PR base. Protection is a superset, not an alias; pinning the
+        relationship keeps a future edit from collapsing them back together.
+        """
+        from dev10x.domain.common.branch_name import BASE_BRANCH_PRIORITY, PROTECTED_BRANCHES
+
+        assert frozenset(BASE_BRANCH_PRIORITY) < PROTECTED_BRANCHES
+        assert "staging" not in BASE_BRANCH_PRIORITY
+
 
 class TestQualifyBaseRef:
     """GH-486: prefer origin/<base> over a possibly-stale local branch."""
