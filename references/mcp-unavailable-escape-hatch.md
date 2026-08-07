@@ -61,10 +61,11 @@ git push -u origin janusz/GH-963/my-feature-branch
 
 This is safe without MCP because the guardrail `push_safe` /
 `git-push-safe.sh` exist to enforce — no force-push to
-`main`/`develop`/`master`/`development`/`trunk` — is already
-satisfied by construction: the command names a branch, that
+`main`/`master`/`develop`/`development`/`staging`/`trunk` — is
+already satisfied by construction: the command names a branch, that
 branch is checked against `PROTECTED_BRANCHES`
-(`src/dev10x/domain/common/branch_name.py`), and any bare
+(`src/dev10x/domain/common/branch_name.py`, pinned by test to the
+same six names the push guard defaults to), and any bare
 `--force`/`-f` still blocks. Narrowing the deny here doesn't
 weaken the guardrail; it stops blocking exactly the case
 `push_safe` would have allowed anyway.
