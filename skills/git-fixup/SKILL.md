@@ -146,11 +146,29 @@ Branch the SKILL on the `status` field:
 
 | `status` | Meaning | Action |
 |----------|---------|--------|
-| `single` | All staged hunks blame to one branch commit | `ORIGINAL_COMMIT=$target`, `ORIGINAL_MESSAGE=$subject` — proceed to Step 4 |
+| `single` | Exactly one owning branch commit (orphan hunks allowed) | `ORIGINAL_COMMIT=$target`, `ORIGINAL_MESSAGE=$subject` — proceed to Step 4 |
 | `multi`  | Hunks span ≥ 2 owning branch commits | **Abort with the multi-owner guidance below** — do NOT create a cross-commit fixup |
 | `out_of_branch` | All hunks blame to commits outside `<base>..HEAD` | Fall back to `fallback_target` (first branch commit) — new file or untouched region |
 | `no_staged` | Nothing staged | Surface the "No staged changes" error from § Error Handling |
 | `error` | Resolver failed | Print the `error` field and stop |
+
+**Orphan-hunk contract (GH-1042).** An orphan hunk blames outside
+`<base>..HEAD` — a pure addition, or a line owned by base history. The
+status counts **owning branch commits only**; orphans never change the
+classification:
+
+- one owner + any orphans → `single`. The orphans ride along into that
+  fixup. They are listed in the payload's `orphan_hunks` for visibility,
+  not as a signal to abort. Adding an import next to its first usage is
+  the everyday shape here.
+- ≥ 2 owners → `multi`, orphans or not.
+- zero owners → `out_of_branch`, which is exactly "every hunk is an
+  orphan".
+
+`multi` exists to prevent a cross-commit fixup that autosquash cannot
+fold. With a single owner there is nothing to split across, so aborting
+would print multi-owner remediation for a one-element list — an
+unactionable dead end.
 
 **Multi-owner handling** (`status == "multi"`):
 

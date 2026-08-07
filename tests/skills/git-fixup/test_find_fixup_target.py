@@ -118,6 +118,46 @@ class TestSingleOwner:
         assert payload["target"] == _sha(repo, "HEAD~")  # C1
 
 
+class TestSingleOwnerWithOrphanHunks:
+    """GH-1042: orphan hunks are not owners and must not force `multi`.
+
+    Adding an import at the top of a file alongside its first usage is the
+    everyday shape: the import hunk has no pre-image context to blame, so
+    it orphans, while the usage hunk blames to a branch commit. Reporting
+    `multi` there printed "restage per owning commit" for a one-element
+    owner list — an abort with no action behind it.
+    """
+
+    def _stage_usage_edit_plus_top_of_file_insert(self, repo: Path) -> None:
+        # Line 3 is C1-owned; the prepended line has no pre-image context.
+        _write(
+            repo / "payments.py",
+            "IMPORT_LINE\nL1\nL2\nFIXUP_L3\nL4\nL5\n",
+        )
+        _git("add", "payments.py", cwd=repo)
+
+    def test_one_owner_plus_orphan_hunk_stays_single(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        self._stage_usage_edit_plus_top_of_file_insert(repo)
+
+        rc, payload = _run_main(repo, capsys)
+
+        assert rc == 0
+        assert payload["status"] == "single"
+        assert payload["target"] == _sha(repo, "HEAD~")  # C1
+
+    def test_orphan_hunks_are_reported_alongside_the_target(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Visibility, not a signal to abort — the caller can still see them."""
+        self._stage_usage_edit_plus_top_of_file_insert(repo)
+
+        _, payload = _run_main(repo, capsys)
+
+        assert payload["orphan_hunks"] == [{"path": "payments.py", "start": 0, "count": 0}]
+
+
 class TestMultiOwner:
     def test_edits_across_two_owning_commits(
         self, repo: Path, capsys: pytest.CaptureFixture[str]
