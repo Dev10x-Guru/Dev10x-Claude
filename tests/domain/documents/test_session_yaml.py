@@ -127,6 +127,76 @@ class TestReadActiveModes:
         assert SessionYamlDocument(toplevel=str(tmp_path)).read_active_modes() == []
 
 
+class TestActiveModesDerivedFromOverlays:
+    """GH-1003: one posture must not produce two answers.
+
+    ``legacy_session_mapping`` maps modes -> overlays but never back, so an
+    entry migrated to ``gate_preset`` + ``gate_overlays`` read as
+    solo-maintainer to ``resolve_gate`` and as nothing at all to every
+    consumer that filters on ``active_modes``.
+    """
+
+    def test_overlay_only_entry_reports_the_mode(self, tmp_path: Path) -> None:
+        toplevel = _write_config(
+            tmp_path=tmp_path,
+            content="gate_preset: adaptive\ngate_overlays: [solo-maintainer, afk]\n",
+        )
+        assert SessionYamlDocument(toplevel=toplevel).read_active_modes() == ["solo-maintainer"]
+
+    def test_afk_overlay_does_not_become_a_mode(self, tmp_path: Path) -> None:
+        """`afk` is overlay-only — no mode filter consumes it."""
+        toplevel = _write_config(
+            tmp_path=tmp_path,
+            content="gate_preset: adaptive\ngate_overlays: [afk]\n",
+        )
+        assert SessionYamlDocument(toplevel=toplevel).read_active_modes() == []
+
+    def test_declared_mode_is_not_duplicated_by_its_overlay(self, tmp_path: Path) -> None:
+        """The hand-written mirror entries in friction.yaml stay idempotent."""
+        toplevel = _write_config(
+            tmp_path=tmp_path,
+            content=("active_modes: [solo-maintainer]\ngate_overlays: [solo-maintainer, afk]\n"),
+        )
+        assert SessionYamlDocument(toplevel=toplevel).read_active_modes() == ["solo-maintainer"]
+
+    def test_structural_modes_survive_the_fold(self, tmp_path: Path) -> None:
+        """Declared modes keep their order; derived ones append."""
+        toplevel = _write_config(
+            tmp_path=tmp_path,
+            content="active_modes: [swarm-child]\ngate_overlays: [solo-maintainer]\n",
+        )
+        assert SessionYamlDocument(toplevel=toplevel).read_active_modes() == [
+            "swarm-child",
+            "solo-maintainer",
+        ]
+
+    def test_malformed_overlays_are_ignored(self, tmp_path: Path) -> None:
+        toplevel = _write_config(
+            tmp_path=tmp_path,
+            content="active_modes: [swarm-child]\ngate_overlays: solo-maintainer\n",
+        )
+        assert SessionYamlDocument(toplevel=toplevel).read_active_modes() == ["swarm-child"]
+
+    def test_friction_and_modes_folds_overlays_too(self, tmp_path: Path) -> None:
+        toplevel = _write_config(
+            tmp_path=tmp_path,
+            content="friction_level: adaptive\ngate_overlays: [solo-maintainer]\n",
+        )
+        level, modes = SessionYamlDocument(toplevel=toplevel).read_friction_and_modes()
+        assert level is FrictionLevel.ADAPTIVE
+        assert modes == ["solo-maintainer"]
+
+    def test_gate_policy_inputs_keep_the_raw_declared_modes(self, tmp_path: Path) -> None:
+        """The resolver derives overlays itself — folding here would double-count."""
+        toplevel = _write_config(
+            tmp_path=tmp_path,
+            content="gate_preset: adaptive\ngate_overlays: [solo-maintainer]\n",
+        )
+        inputs = SessionYamlDocument(toplevel=toplevel).read_gate_policy_inputs()
+        assert inputs["active_modes"] == []
+        assert inputs["gate_overlays"] == ["solo-maintainer"]
+
+
 class TestReadFrictionAndModes:
     def test_reads_both_from_config(self, tmp_path: Path) -> None:
         toplevel = _write_config(
