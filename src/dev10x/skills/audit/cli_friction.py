@@ -220,22 +220,40 @@ PROSE_RULES: tuple[Rule, ...] = (
     ),
     Rule(
         rule_id="retired-durable-pref-path",
-        # ADR-0018 retired the per-repo durable-pref store. `write-guard-claude`
-        # already catches a prose `Write(.claude/…)`, but it skips front matter —
-        # so an `allowed-tools: - Edit(.claude/Dev10x/config.yaml)` grant sailed
-        # through and kept the migrate/re-create loop alive (GH-948). This rule
-        # names the retired paths explicitly and scans front matter too. A bare
-        # backticked mention still does not match: describing the retired path
-        # (read-compat notes, migration prose) is fine.
+        # Two sibling retirements of a durable-config location, one rule:
+        #
+        # * ADR-0018 retired the per-repo `.claude/Dev10x/config.yaml` /
+        #   `session.yaml` store. `write-guard-claude` already catches a prose
+        #   `Write(.claude/…)`, but it skips front matter — so an
+        #   `allowed-tools: - Edit(.claude/Dev10x/config.yaml)` grant sailed
+        #   through and kept the migrate/re-create loop alive (GH-948).
+        # * GH-941 retired the tier-2 `~/.claude/memory/Dev10x/` tree in favour
+        #   of `~/.config/Dev10x/`. That half was unenforced, so a skill doc
+        #   could keep naming the retired tree as its write target and scan
+        #   clean — which is how `verify-acc-dod` came to write its DoD criteria
+        #   to a file `references/config-resolution.md` says lives elsewhere,
+        #   leaving the two copies to diverge silently (GH-1035).
+        #
+        # Both halves are write-target rules and both scan front matter. A bare
+        # backticked mention still does not match: describing a retired path —
+        # read-compat fallbacks, migration prose, `Read(...)` grants — is fine
+        # and is how the one-release compat window is documented.
         pattern=re.compile(
-            r"\b(?:Write|Edit|MultiEdit)\([^)\n]*\.claude/Dev10x/(?:config|session)\.yaml"
+            r"\b(?:Write|Edit|MultiEdit)\([^)\n]*"
+            r"\.claude/(?:Dev10x/(?:config|session)\.yaml|memory/Dev10x/)"
         ),
-        message="Skill doc grants or instructs a write to a retired durable-pref path (ADR-0018)",
+        message=(
+            "Skill doc grants or instructs a write to a retired durable-pref path "
+            "(ADR-0018 / GH-941)"
+        ),
         suggestion=(
             "The per-repo `.claude/Dev10x/config.yaml` / `session.yaml` are "
             "retired. Read prefs via `mcp__plugin_Dev10x_cli__preset_pin_status` "
             "and write them with `dev10x session set-friction` / `pin`, which "
-            "lock + atomically write the global `~/.config/Dev10x/friction.yaml`."
+            "lock + atomically write the global `~/.config/Dev10x/friction.yaml`. "
+            "Tier-2 config moved from `~/.claude/memory/Dev10x/` to "
+            "`~/.config/Dev10x/` (GH-941) — write there, and keep the legacy "
+            "path read-only if you need a compat window."
         ),
         scan_frontmatter=True,
     ),

@@ -183,6 +183,14 @@ projects:
 | 2 | `~/.config/Dev10x/dod-acceptance-criteria.yaml` |
 | 3 | Plugin defaults (hardcoded in skill) |
 
+`Dev10x:verify-acc-dod` falls back to the GH-941-retired
+`~/.claude/memory/Dev10x/dod-acceptance-criteria.yaml` for one release
+when tier 2 is absent, and says so in its output when the fallback
+fires. That fallback is **read-only** — overrides are always written to
+the tier-2 path above. Until GH-1035 the skill named the legacy path as
+its sole location while this table named the tier-2 one, so a
+maintainer's edits landed in a file nothing read.
+
 ### Gitmoji Overrides
 
 

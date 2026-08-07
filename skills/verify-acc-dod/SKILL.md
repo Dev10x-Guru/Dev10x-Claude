@@ -20,6 +20,12 @@ allowed-tools:
   - mcp__plugin_Dev10x_cli__pr_detect
   - mcp__plugin_Dev10x_cli__verify_pr_state
   - mcp__plugin_Dev10x_cli__human_review_status
+  - Read(~/.config/Dev10x/dod-acceptance-criteria.yaml)
+  # Read-only grant on the GH-941-retired path so Step 2's one-release
+  # fallback does not prompt. Deliberately no Edit grant here — writes
+  # go to ~/.config/Dev10x/ only (GH-1035).
+  - Read(~/.claude/memory/Dev10x/dod-acceptance-criteria.yaml)
+  - Edit(~/.config/Dev10x/dod-acceptance-criteria.yaml)
 ---
 
 # Verify Acceptance Criteria / Definition of Done
@@ -130,8 +136,20 @@ checks.
 
 Read overrides from a single global file:
 ```
-~/.claude/memory/Dev10x/dod-acceptance-criteria.yaml
+~/.config/Dev10x/dod-acceptance-criteria.yaml
 ```
+
+**Read-compat fallback (one release).** When that file is absent,
+fall back to the GH-941-retired
+`~/.claude/memory/Dev10x/dod-acceptance-criteria.yaml`. When the
+fallback fires, say so in the run's output — e.g.
+`legacy_read: ~/.claude/memory/Dev10x/dod-acceptance-criteria.yaml`
+— and tell the user to move the file to `~/.config/Dev10x/`
+(`dev10x config migrate` folds it forward). A silent fallback is
+what let the two locations diverge in the first place (GH-1035):
+the user edits the documented copy and sees no effect because the
+skill read the other one. Never *write* to the legacy path — see
+Step 6 below.
 
 This file maps repositories to their override deltas:
 
@@ -406,9 +424,15 @@ Options:
 - **"Just this time"** — Save with `persist: false`
 
 Update the global YAML file at
-`~/.claude/memory/Dev10x/dod-acceptance-criteria.yaml` accordingly.
+`~/.config/Dev10x/dod-acceptance-criteria.yaml` accordingly.
 Create the file if absent. Add the override under the current
 repo's key using add/remove/replace semantics.
+
+**Writes always target `~/.config/Dev10x/`** — never the legacy
+memory path, even when Step 2's read-compat fallback supplied the
+criteria this run. Writing back to the retired location is the
+re-creation loop GH-925 E1 described: `dev10x config migrate` folds
+the legacy file forward, and the next skill run recreates it.
 
 ## Session Close vs Task Completion (GH-681)
 
