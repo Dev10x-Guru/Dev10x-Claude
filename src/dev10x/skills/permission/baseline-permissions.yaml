@@ -58,6 +58,11 @@ groups:
       - Bash(git reset:*)
       - Bash(git reset --soft:*)
       - Bash(git reset --hard:*)
+      # `git restore` and `git checkout --` discard uncommitted work
+      # identically. The baseline allows both; a supervisor who denies one
+      # must deny the other, or the rail has a second spelling wide open
+      # (GH-1039). See skills/diag-friction/references/
+      # deny-rail-vs-approval-gate.md.
       - Bash(git restore:*)
       - Bash(git restore --staged:*)
       - Bash(git stash:*)

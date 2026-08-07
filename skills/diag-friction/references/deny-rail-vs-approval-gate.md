@@ -35,6 +35,43 @@ defeats the rail:
 | `git checkout -- <path>` | `git stash` / `git stash drop` | Discards the same work with an extra step and no audit trail |
 | any denied write | a hand-rolled equivalent (`rm` + re-checkout, editor round-trip) | Launders a denied operation through shapes the rail was never written to catch |
 
+### `git restore` is inside the rail (GH-1039)
+
+The substitution table above is not a list of tricks that happen to be
+frowned upon — it states the scope of the rail. A deny on `git checkout
+-- <path>` covers `git restore <path>` **by intent**, because the rail
+protects the outcome (uncommitted work is discarded) and the two
+commands have exactly that outcome in common. Modern git documents
+`restore` as the successor spelling for precisely this operation.
+
+Two consequences follow, and they pull in opposite directions:
+
+- **For the agent:** if `git checkout --` is denied, treat `git restore`
+  as denied too, whether or not the harness happens to match it. Reaching
+  for it after a refusal is the reflex this page exists to stop, and
+  "the rule did not literally match" is not authorization.
+- **For the supervisor writing the rules:** a deny that names only
+  `git checkout --` leaves the equivalent spelling open. Dev10x's shipped
+  baseline (`src/dev10x/skills/permission/baseline-permissions.yaml`)
+  allows both — the rail is a user-level decision, not a plugin default —
+  so a supervisor who wants it must deny **both** spellings.
+
+**Repairing a corrupted worktree is not an exception to this.** A
+process killed mid-write can truncate tracked files to zero bytes, and
+restoring them is repair rather than discard — but the rail cannot tell
+the two apart, and neither can an agent that has just been surprised by
+its own filesystem. That case has a documented procedure with the
+supervisor in the loop: see
+[`../../foreman/references/corrupted-worktree-repair.md`](../../foreman/references/corrupted-worktree-repair.md).
+
+A narrower discriminator was considered and rejected: allowing a restore
+whose target paths are *currently zero-length*. It fails on both halves.
+A static permission matcher cannot stat the filesystem, so the rule
+would have to move into a hook that inspects live state — and that state
+is exactly what an agent gets wrong under corruption, since a file the
+agent itself just emptied by accident also reads as zero-length. The
+discriminator would license the mistake it was written to prevent.
+
 A deny rule is a **standing decision by the supervisor**, taken while
 awake and applied to a class of actions. An in-session "yes" to one
 instance does not overturn it, and an agent that routes around it has

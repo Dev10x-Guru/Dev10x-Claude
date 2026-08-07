@@ -9,6 +9,10 @@ reach the dead worker's tree, which covers *when* a takeover happens.
 This file covers *who* is allowed to reach across, and why nobody else
 is.
 
+For the other worktree failure — the tree is reachable but **damaged**
+(tracked files truncated to zero bytes after a hard kill) — see
+[`corrupted-worktree-repair.md`](corrupted-worktree-repair.md).
+
 ## The rule
 
 **Only the top-level session enters a worktree. A subagent never does.**
