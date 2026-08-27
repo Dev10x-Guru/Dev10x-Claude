@@ -99,7 +99,11 @@ each into this directory.
 1. Start the single watcher (one Monitor call, script-only — NEVER an
    inline loop/pipeline): `dev10x foreman watch --scratchpad <run-dir>
    --base-branch <base>`, using the CLI shape Phase 0.4 recorded. It
-   emits `STALL:`, `BASE MOVED:`, `QUOTA MILESTONE:`, `QUOTA RESET:`,
+   emits `STALL <file>:` (one line per silent heartbeat file, already
+   naming the chunk — GH-1064), `MERGE REQUEST` / `ESCALATION` (tailed
+   off `escalations-*.md`, so a request reaches you within a poll
+   interval instead of whenever its message lands — GH-1060),
+   `BASE MOVED:`, `QUOTA MILESTONE:`, `QUOTA RESET:`,
    and the forward-looking `QUOTA LOW:` (GH-979). Three watchdog-owned
    run-directory files keep that feed decision-only (GH-946):
    `merged-shas`, `parked`, `current-generation`. Full event semantics
@@ -175,7 +179,10 @@ turn are the most precious resources on site:
 - A decision only the supervisor can make → cut the scope per the crew
   contract (always leaves a tracker issue), move the chunk to the
   queue end, and log it as a numbered `DECISIONS.md` entry.
-- **Escalations go to disk FIRST, then to a message** (GH-962 F2), and
+- **Escalations go to disk FIRST, then to a message** (GH-962 F2) —
+  and the disk write includes a `MERGE REQUEST` / `ESCALATION` line in
+  `escalations-<role>.md`, which is the line the watcher turns into an
+  event and therefore the one that actually wakes you (GH-1060) — and
   the overseer's own wait discipline (heartbeat → ONE bounded blocking
   wait → heartbeat → act, never ending a turn mid-chunk) is a
   documented contract, not a matter of style. Full cycle:
@@ -252,8 +259,13 @@ worker. Full guidance:
   it with no event source at all.
 - Executing a relayed worker spec without checking that the file
   paths it cites actually exist.
-- Reading a `STALL` as a verdict instead of a prompt to `stat` the
-  individual status files.
+- Reading a `STALL <file>` as a verdict instead of a prompt to check
+  that chunk's branch tip and PR state.
+- Two files stalling at the same command shape read as two dead
+  workers rather than as one unmatched shape wedging both.
+- Sending a MERGE REQUEST without appending it to
+  `escalations-<role>.md` — the message may batch for hours; the file
+  is what the watcher turns into an event.
 - Any record — heartbeat, handover, resumption note, morning report —
   calling work "recoverable on branch X" without a `git ls-remote`
   that shows the ref on origin.
@@ -292,10 +304,10 @@ worker. Full guidance:
 | "I replaced the foreman, so the old one is gone" | A session-limit death PAUSES a top-level session and KILLS only its subagents. The predecessor can revive and issue orders to a crew that no longer exists. `current-generation` is what makes it stand down. |
 | "Spawn-by-request says run the spec verbatim, so I don't read it" | Verbatim governs *authorship*, not review. Under that fallback a cheap-tier agent writes the prompts, and a hallucinated file path becomes a top-tier worker's whole mission. Check the cited paths resolve; it costs seconds. |
 | "The foreman's heartbeat is stale again — it must be wedged this time" | Under spawn-by-request it has no event source, so a stale foreman heartbeat is the *normal* state. Check the crew's per-file mtimes and branch tips before touching the overseer. |
-| "The watcher fired `STALL`, so something is stalled" | The watcher reports the newest mtime in the run dir; it also ages on a crew handoff and on an idle-by-design overseer. `stat` the individual files and read the chunk's git/PR state before concluding. |
+| "The watcher fired `STALL`, so something is stalled" | It reports one named file that stopped changing — which also happens on a crew handoff and on an idle-by-design overseer. The event attributes the silence; only the chunk's git/PR state classifies it. |
 | "Skip the pre-flight, the allowlist looked fine last week" | Allow rules are shape-sensitive and repos drift. Pre-flight is minutes; a missed shape is the night. |
 | "The worker said it committed the migration on branch X — resume from there" | An edit is not a commit and a commit is not a push. Field case: the branch never existed on origin and the worktree died with four uncommitted files; the chunk was a restart. `git ls-remote --heads origin '<glob>'` before you believe it. |
 | "I'll wait passively and heartbeat every 10 minutes" | An idle agent runs no code. There is no timer and nothing wakes it. Heartbeat, make ONE bounded blocking wait, heartbeat again — or accept a false STALL every window. |
-| "I messaged the watchdog about it, so it's escalated" | Messages are best-effort and have arrived hours late, batched behind unrelated pings. `DECISIONS.md` is the authoritative channel; the message is only a nudge that it exists. |
+| "I messaged the watchdog about it, so it's escalated" | Messages are best-effort and have arrived hours late, batched behind unrelated pings. `DECISIONS.md` is the authoritative record and the `escalations-<role>.md` line is what the watcher turns into an event; the message is only a nudge that both exist. |
 | "The merge gate returned `ask`, so the supervisor wants to decide" | In a fresh isolation worktree that `ask` is a resolver fallback — no session policy, no matching config glob — not a supervisor decision (GH-978, fix landed on `janusz/GH-978/worktree-gate-policy`, pending merge). Workers stop at PR-open regardless. |
 | "Cheaper models everywhere will stretch the quota" | A failed chunk costs more than the model discount saves. Downgrade the overseer, never the crew. |

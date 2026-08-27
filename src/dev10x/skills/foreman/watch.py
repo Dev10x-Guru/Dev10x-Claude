@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -25,10 +26,12 @@ from dev10x.domain.usage import blocks_report
 log = logging.getLogger(__name__)
 
 HEARTBEAT_GLOB = "status-*.md"
+ESCALATIONS_GLOB = "escalations-*.md"
 PARKED_FLAG = "parked"
 MERGED_SHAS_FILE = "merged-shas"
 SHA_PREFIX_MIN = 7
 DEFAULT_CHUNK_MIN = 45
+ESCALATION_PREFIXES = ("MERGE REQUEST", "ESCALATION")
 
 
 def queue_parked(*, scratchpad: Path) -> bool:
@@ -167,16 +170,80 @@ def base_branch_sha(*, base_branch: str, repo: Path | None = None) -> str:
     return line.split("\t")[0]
 
 
-def newest_heartbeat_age_min(*, scratchpad: Path, now: float) -> int | None:
-    """Minutes since the freshest heartbeat file changed; None when none exist.
+def heartbeat_ages(*, scratchpad: Path, now: float) -> dict[str, int]:
+    """Minutes since each heartbeat file changed, keyed by file name.
 
     File mtime is the source of truth — a worker's self-reported
     timestamp text inside the file can be wrong, its mtime cannot.
+
+    Per-file, not aggregated (GH-1064). The newest mtime across the run
+    directory is not a liveness signal for anyone in particular: a
+    foreman writing its own status every few minutes keeps that maximum
+    fresh and hides every silent worker behind it. Three workers sat
+    silent for 87–92 minutes before the aggregate finally aged past the
+    threshold, and attributing the alarm still needed manual ``stat``
+    forensics. One age per file makes the stall both detectable and
+    already attributed.
     """
-    mtimes = [status.stat().st_mtime for status in scratchpad.glob(HEARTBEAT_GLOB)]
-    if not mtimes:
-        return None
-    return int((now - max(mtimes)) / 60)
+    return {
+        status.name: int((now - status.stat().st_mtime) / 60)
+        for status in scratchpad.glob(HEARTBEAT_GLOB)
+    }
+
+
+def escalation_offsets(*, scratchpad: Path) -> dict[str, int]:
+    """Current byte length of every escalation file, keyed by file name.
+
+    Taken once at arm time so the watcher reports what is appended from
+    then on, rather than replaying a backlog written before it started.
+    """
+    return {path.name: path.stat().st_size for path in scratchpad.glob(ESCALATIONS_GLOB)}
+
+
+def new_escalation_lines(
+    *,
+    scratchpad: Path,
+    offsets: dict[str, int],
+) -> tuple[list[str], dict[str, int]]:
+    """Lines appended to any escalation file since ``offsets`` was taken.
+
+    Returns the new lines and the updated offsets — the caller holds the
+    cursor so ``WatchState.observe`` stays pure.
+
+    Reading the file is what makes the disk-first escalation discipline
+    actually deliver (GH-1060). Agent-to-agent messages are best-effort:
+    three MERGE REQUESTs from one night arrived hours late, batched
+    together, long after the watchdog had recovered them by hand from
+    disk. The file was already the authoritative channel; it simply had
+    no reader, so each escalation cost ~26 minutes of dead time before
+    someone thought to look.
+    """
+    lines: list[str] = []
+    updated = dict(offsets)
+    for path in sorted(scratchpad.glob(ESCALATIONS_GLOB)):
+        size = path.stat().st_size
+        seen = offsets.get(path.name, 0)
+        # A shrunken file was rewritten, not appended to. Re-baseline
+        # instead of replaying it as fresh escalations.
+        if size <= seen:
+            updated[path.name] = size
+            continue
+        with path.open("rb") as handle:
+            handle.seek(seen)
+            raw = handle.read()
+        # Consume only through the last COMPLETE line. A poll that lands
+        # between an append's write and its newline would otherwise emit
+        # half an escalation and advance the cursor past it, so the
+        # finished line never appears — silently losing the one message
+        # this whole reader exists to deliver. Leaving the cursor short
+        # re-reads the partial line next poll, when it is whole.
+        cut = raw.rfind(b"\n") + 1
+        if cut == 0:
+            continue
+        updated[path.name] = seen + cut
+        chunk = raw[:cut].decode("utf-8", errors="replace")
+        lines.extend(line.strip() for line in chunk.splitlines() if line.strip())
+    return lines, updated
 
 
 def heartbeat_lines(*, scratchpad: Path, now: float) -> list[str]:
@@ -231,6 +298,8 @@ class WatchState:
     known_cost_bucket: int
     started_at: float
     last_stall_alert: float = field(default=0.0)
+    stall_alerts: dict[str, float] = field(default_factory=dict)
+    stall_muted_until: float = field(default=0.0)
     muted_milestones: int = field(default=0)
     was_parked: bool = field(default=False)
     chunk_min: int = field(default=DEFAULT_CHUNK_MIN)
@@ -243,15 +312,15 @@ class WatchState:
         now: float,
         sha: str,
         block: dict,
-        heartbeat_age_min: int | None,
+        heartbeat_ages: dict[str, int] | None = None,
         parked: bool = False,
         merged_shas: set[str] | frozenset[str] = frozenset(),
+        escalation_lines: Sequence[str] = (),
     ) -> list[str]:
         events: list[str] = []
         events.extend(self._park_events(now=now, block=block, parked=parked))
-        events.extend(
-            self._stall_events(now=now, heartbeat_age_min=heartbeat_age_min, parked=parked)
-        )
+        events.extend(self._escalation_events(escalation_lines=escalation_lines))
+        events.extend(self._stall_events(now=now, heartbeat_ages=heartbeat_ages, parked=parked))
         events.extend(self._base_events(sha=sha, merged_shas=merged_shas))
         events.extend(self._quota_events(block=block, parked=parked))
         events.extend(self._quota_low_events(block=block, parked=parked))
@@ -262,7 +331,7 @@ class WatchState:
         if self.was_parked and not parked:
             # Crew heartbeats resume only after release, so give the
             # queue one stall window of grace before alarming again.
-            self.last_stall_alert = now
+            self.stall_muted_until = now + self.stall_min * 60
             if self.muted_milestones:
                 cost = int(block.get("costUSD", 0))
                 events.append(
@@ -273,26 +342,55 @@ class WatchState:
         self.was_parked = parked
         return events
 
+    def _escalation_events(self, *, escalation_lines: Sequence[str]) -> list[str]:
+        """Surface MERGE REQUEST / ESCALATION lines appended to disk (GH-1060).
+
+        Emitted verbatim (minus list/heading punctuation) so the
+        watchdog acts on the overseer's own wording within one poll
+        interval instead of waiting on a message that may batch.
+        """
+        events: list[str] = []
+        for line in escalation_lines:
+            entry = line.lstrip("-*#> ").strip()
+            if entry.upper().startswith(ESCALATION_PREFIXES):
+                events.append(entry)
+        return events
+
     def _stall_events(
         self,
         *,
         now: float,
-        heartbeat_age_min: int | None,
+        heartbeat_ages: dict[str, int] | None,
         parked: bool,
     ) -> list[str]:
         # A parked queue is idle by instruction — its expected-stale
         # heartbeats are not evidence of a stalled worker (GH-946).
-        if parked:
+        if parked or now < self.stall_muted_until:
             return []
-        # Grace period: before the first heartbeat file exists, measure
-        # from watch start so a crew that never writes still alarms.
-        run_min = int((now - self.started_at) / 60)
-        effective_age = heartbeat_age_min if heartbeat_age_min is not None else run_min
         stall_window_s = self.stall_min * 60
-        if effective_age < self.stall_min or now - self.last_stall_alert < stall_window_s:
-            return []
-        self.last_stall_alert = now
-        return [f"STALL: newest heartbeat silent for {effective_age} min"]
+        if not heartbeat_ages:
+            # Grace period: before the first heartbeat file exists,
+            # measure from watch start so a crew that never writes
+            # still alarms.
+            run_min = int((now - self.started_at) / 60)
+            if run_min < self.stall_min or now - self.last_stall_alert < stall_window_s:
+                return []
+            self.last_stall_alert = now
+            return [f"STALL: no heartbeat files, silent for {run_min} min"]
+        # One event per silent file, each rate-limited on its own, so a
+        # second worker going quiet is never swallowed by the first
+        # worker's alert window (GH-1064).
+        events: list[str] = []
+        for name in sorted(heartbeat_ages):
+            age = heartbeat_ages[name]
+            if age < self.stall_min:
+                self.stall_alerts.pop(name, None)
+                continue
+            if now - self.stall_alerts.get(name, 0.0) < stall_window_s:
+                continue
+            self.stall_alerts[name] = now
+            events.append(f"STALL {name}: silent {age} min")
+        return events
 
     def _base_events(
         self,

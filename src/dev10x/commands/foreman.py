@@ -114,11 +114,15 @@ def watch(
 ) -> None:
     """Event loop for the Monitor tool — one line per actionable event.
 
-    Emits: STALL (heartbeat silence), BASE MOVED (origin base-branch
-    advanced), QUOTA MILESTONE (block cost crossed a step), QUOTA
-    RESET (new 5h block — resume interrupted crew), QUOTA LOW (the
-    burn rate spends the block budget before the in-flight chunk can
-    finish — checkpoint and park, GH-979).
+    Emits: STALL (heartbeat silence — one line per silent
+    ``status-*.md``, already naming the chunk, GH-1064), MERGE REQUEST
+    / ESCALATION (appended to an ``escalations-*.md`` file, so a
+    time-critical request reaches the watchdog within one poll interval
+    rather than whenever its message is delivered, GH-1060), BASE MOVED
+    (origin base-branch advanced), QUOTA MILESTONE (block cost crossed
+    a step), QUOTA RESET (new 5h block — resume interrupted crew),
+    QUOTA LOW (the burn rate spends the block budget before the
+    in-flight chunk can finish — checkpoint and park, GH-979).
 
     Two scratchpad files mute events that need no decision (GH-946):
     ``merged-shas`` (base-branch tips the run merged itself — matching
@@ -144,18 +148,26 @@ def watch(
     )
     sys.stdout.flush()
 
+    # Baseline the escalation cursor at arm time so the run reports what
+    # is appended from here on, not a backlog written before it started.
+    esc_offsets = watch_skill.escalation_offsets(scratchpad=scratchpad)
+
     rounds = 0
     while max_rounds <= 0 or rounds < max_rounds:
         time.sleep(interval_s)
         rounds += 1
         now = time.time()
+        escalations, esc_offsets = watch_skill.new_escalation_lines(
+            scratchpad=scratchpad, offsets=esc_offsets
+        )
         events = state.observe(
             now=now,
             sha=watch_skill.base_branch_sha(base_branch=base_branch, repo=repo),
             block=watch_skill.active_quota_block(),
-            heartbeat_age_min=watch_skill.newest_heartbeat_age_min(scratchpad=scratchpad, now=now),
+            heartbeat_ages=watch_skill.heartbeat_ages(scratchpad=scratchpad, now=now),
             parked=watch_skill.queue_parked(scratchpad=scratchpad),
             merged_shas=watch_skill.own_merge_shas(scratchpad=scratchpad),
+            escalation_lines=escalations,
         )
         for event in events:
             click.echo(event)
