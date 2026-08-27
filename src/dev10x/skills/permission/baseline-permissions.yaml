@@ -133,8 +133,18 @@ groups:
       "git clean":
         - "-n"
         - "--dry-run"
+      # Local-branch deletion is pre-approved in every spelling (GH-1067).
+      # `-D` removes a ref, not history: the deleted tip stays reachable
+      # via `git log -g` for the reflog retention window, which is the same
+      # recoverability argument already accepted for `git reset --hard` and
+      # `git push --force` (GH-1053). Unattended cleanup after killed
+      # workers must never wedge on a prompt no one is present to answer,
+      # so these must not be seeded into ask/deny — see the shipped
+      # accepted-findings catalog in
+      # src/dev10x/domain/common/accepted_findings.py.
       "git branch":
         - "-d"
+        - "-D"
         - "--delete"
       "git reset":
         - "--dry-run"

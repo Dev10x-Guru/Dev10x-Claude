@@ -229,6 +229,7 @@ base_permissions:
   - "Bash(git fetch:*)"
   - "Bash(git branch:*)"
   - "Bash(git branch -d:*)"
+  - "Bash(git branch -D:*)"
   - "Bash(git branch --delete:*)"
   - "Bash(git checkout:*)"
   - "Bash(git symbolic-ref:*)"
