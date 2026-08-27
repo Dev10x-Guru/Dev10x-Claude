@@ -142,6 +142,27 @@ def seed(*, project_path: Path | None, friction_level: str | None) -> None:
         click.echo(f".gitignore already present at {gitignore}")
 
 
+def _inheritance_probes(*, project_root: Path) -> list[str]:
+    """Paths whose existing entry a ``set-friction`` write should inherit from.
+
+    The worktree comes first (an entry already covering this exact directory
+    stays authoritative), then the repo root — which is where the entry a
+    worktree-scoped write would shadow actually lives, since ``*/<repo>``
+    never matches a worktree directory named ``agent-<id>`` (GH-1068 F3).
+    A non-git or wedged checkout degrades to the worktree probe alone.
+    """
+    from dev10x.session.preset_pin import resolve_repo_identity
+
+    probes = [str(project_root)]
+    identity_result = resolve_repo_identity(cwd=str(project_root))
+    if isinstance(identity_result, ErrorResult):
+        return probes
+    root = identity_result.value["root"]
+    if root and root not in probes:
+        probes.append(root)
+    return probes
+
+
 @session.command("set-friction")
 @click.option(
     "--path",
@@ -190,7 +211,11 @@ def set_friction(
     parsed_overrides = _parse_gate_overrides(gate_overrides)
     if parsed_overrides:
         prefs["gate_overrides"] = parsed_overrides
-    written = upsert_project_prefs(toplevel=str(project_root), prefs=prefs)
+    written = upsert_project_prefs(
+        toplevel=str(project_root),
+        prefs=prefs,
+        inherit_from=_inheritance_probes(project_root=project_root),
+    )
     click.echo(f"wrote friction preferences for {project_root} to {written}")
 
 

@@ -244,6 +244,20 @@ not live blockers. So a green final round (Round 4) clears the stale
 "remaining issues" that Rounds 1/3 listed at the time, instead of
 each historical round independently false-blocking the merge.
 
+**Markup is optional on the wrapper, and sign-offs do not block
+(GH-1054 F2).** A summary headline is recognised without `##`/bold
+when it numbers itself (`Review Summary (Round 3)` as plain text),
+so a bot that skips heading markup still gets latest-round
+supersession instead of a stale round blocking forever. Separately,
+a severity token inside a negation or confirmation on the same line
+— `No CRITICAL issues found`, `All CRITICAL items fully addressed`,
+`✅ Fix verified — CRITICAL resolved` — is the reviewer signing off,
+not a finding, and no longer blocks. The exempt set is deliberately
+narrow: each shape demands an explicit cue (a quantifier, a
+past-tense resolution verb, or a checkmark paired with one) beside
+the token, because a missed blocker is worse than a false positive
+the author can still answer with a keyed `Re:` reply.
+
 ### Check 1c: No unaddressed inline review comments (GH-760)
 
 Inline review comments posted via `pulls/{n}/comments` are

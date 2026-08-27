@@ -407,6 +407,40 @@ def match_globs_for_repo(
     return [f"*/{stem}", f"*/{stem}-*"]
 
 
+# Durable keys the gate-axis writers (`dev10x session set-friction`,
+# `dev10x session pin`) own outright. Omitting an axis on those commands means
+# "back to the preset", so these are replaced wholesale and never carried
+# forward from the entry being superseded. Every OTHER durable key belongs to
+# a different axis (review posture, push protection, overlay guard) that the
+# gate commands never take as input — see :func:`_carried_durable_prefs`.
+_GATE_AXIS_KEYS = ("gate_preset", "gate_overlays", "gate_overrides")
+
+
+def _carried_durable_prefs(*, doc: dict[str, Any], probes: list[str]) -> dict[str, Any]:
+    """Durable prefs the first entry matching any of ``probes`` already holds.
+
+    Resolution is FIRST-MATCH-WINS (GH-1068 F3), so writing a narrower entry —
+    e.g. a worktree-path-scoped ``*/agent-<id>`` from ``set-friction`` — makes
+    that entry the only one the resolver ever sees for the worktree. Written as
+    a bare preset it silently DROPS whatever the repo's own entry carried, and
+    ``human_review`` is the key that hurts: ``_coerce_human_review`` fails
+    toward ``True``, so a repo deliberately configured ``human_review: false``
+    starts demanding human review inside the worktree with no signal that a
+    setting was lost.
+
+    ``probes`` is ordered most-specific-first, so an entry already covering the
+    exact checkout wins over the repo-root entry it would otherwise inherit.
+    """
+    projects = doc.get("projects")
+    if not isinstance(projects, list):
+        return {}
+    for probe in probes:
+        for entry in projects:
+            if isinstance(entry, dict) and _match_globs(probe, entry.get("match")):
+                return {key: value for key, value in entry.items() if key in _DURABLE_KEYS}
+    return {}
+
+
 def seed_strict_baseline_if_absent(*, path: Path | None = None) -> bool:
     """Seed a ``strict`` baseline global ``friction.yaml`` when absent (GH-886).
 
@@ -445,6 +479,7 @@ def upsert_project_prefs(
     path: Path | None = None,
     match: list[str] | None = None,
     supersedes: list[str] | None = None,
+    inherit_from: list[str] | None = None,
 ) -> Path:
     """Upsert this repo's durable gate prefs into the global ``friction.yaml`` (GH-886).
 
@@ -461,14 +496,27 @@ def upsert_project_prefs(
     is a worktree. ``supersedes`` lists the paths whose existing entries this
     write absorbs (defaulting to ``toplevel``), so a repo already covered by an
     older entry is updated in place instead of gaining a shadowed duplicate.
+
+    ``inherit_from`` (most-specific path first, defaulting to ``supersedes``)
+    names the checkouts whose currently-effective entry this write inherits
+    non-gate durable keys from, so a narrower entry cannot silently drop the
+    ``human_review`` / ``protected_branches`` / overlay-guard settings the
+    entry it shadows carried (GH-1068 F3). A worktree caller passes the repo
+    root here as well, since no existing entry matches the worktree path.
     """
     target = path or Dev10xConfigDir.friction_yaml()
     entry_match = match if match is not None else FrictionYamlDocument.match_globs_for(toplevel)
     probes = supersedes if supersedes is not None else [toplevel]
+    inherit_probes = list(inherit_from) if inherit_from is not None else list(probes)
     with file_lock(target):
         doc = _load_yaml_mapping(target)
+        carried = {
+            key: value
+            for key, value in _carried_durable_prefs(doc=doc, probes=inherit_probes).items()
+            if key not in _GATE_AXIS_KEYS and key not in prefs
+        }
         updated = FrictionYamlDocument.with_project(
-            doc, match=entry_match, prefs=prefs, supersedes=probes
+            doc, match=entry_match, prefs={**carried, **prefs}, supersedes=probes
         )
         atomic_write_text(target, FrictionYamlDocument.render_document(updated))
     return target
