@@ -101,6 +101,10 @@ Name the EXACT invocations proven unpromptable for this repo, e.g.:
 - Web tests: run_node_tests(runner="{{js_runner}}", cwd="{{web_dir}}",
   args=["--", "<filter>"], coverage=false) — `returncode` is the sole
   pass/fail truth.
+- Web build/checks: run_node_tests(runner="{{js_runner}}",
+  script="build" | "check:*", cwd="{{web_dir}}") — the wrapper runs ANY
+  package.json script, so bare `vite` / `pnpm run …` / `node <script>`
+  never touch the Bash layer.
 - Backend tests: {{backend_test_shape}} (100% coverage on new code).
 - Path/file discovery: the Glob tool. NEVER Bash `find` — escaped
   parens in `(group)` route paths match no allow rule and wedge you
@@ -111,10 +115,11 @@ Name the EXACT invocations proven unpromptable for this repo, e.g.:
 - Never: `| tail`, `--prefix`, `&&`, redirects, inline interpreters.
 ```
 
-The `find` and `pre-commit` lines are worker deaths, not style — both
-wedged workers silently, with nothing in the hook log. Evidence and the
-generalisable diagnostic:
-[`worker-tool-shapes.md`](worker-tool-shapes.md) (GH-1059, GH-1066).
+The `find`, `pre-commit`, and web-build lines are worker deaths, not
+style — each wedged a worker silently, with nothing in the hook log.
+Evidence and the generalisable diagnostic:
+[`worker-tool-shapes.md`](worker-tool-shapes.md) (GH-1059, GH-1066,
+GH-1052).
 
 ## 6. Workspace + branch
 

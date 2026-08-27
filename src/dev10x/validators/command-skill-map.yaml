@@ -707,6 +707,58 @@ rules:
       Advisory only (hook_block: false) — mirrors the pytest rule; the
       wrapper is the steer, not a hard block.
 
+  - name: node-build-scripts
+    matcher: Bash
+    patterns:
+      - 'pnpm run\b'
+      - 'npm run\b'
+      - 'yarn run\b'
+      - '\bnpx vite\b'
+      - '^\s*vite\b'
+      - '\bsvelte-kit\b'
+      - '\bnode\s+\S+\.(m|c)?[jt]s\b'
+    hook_block: false
+    compensations:
+      - type: use-tool
+        tool: mcp__plugin_Dev10x_cli__run_node_tests
+        guardrails: routes off the Bash layer; script= names the package.json script
+        description: >
+          Run the build/check script through the MCP wrapper instead:
+
+            run_node_tests(runner="pnpm", script="build", cwd="<dir>")
+
+          Translate the CLI shape:
+            • `pnpm run <name>` / `npm run <name>` → `script="<name>"` with
+              the matching `runner=`. Only yarn/npm/pnpm resolve a script
+              name; pairing `script=` with jest/vitest is an error, not a
+              silent no-op.
+            • a bare `vite` / `svelte-kit` / `node <script>` invocation →
+              the package.json script that wraps it (`build`, `check:*`,
+              `preview`), so the project's own flags and env come along.
+            • an env pin the script definition depends on (a `TZ` snapshot
+              tests need, say) → `env={"TZ": "…"}`, which is overlaid on
+              the inherited environment rather than replacing it.
+    reason: >
+      `run_node_tests` grew a `script=` parameter in GH-1029, so the
+      build/check siblings of the test shapes — `pnpm run build`,
+      `pnpm run check:*`, bare `vite`, `node script.mjs` — are already
+      covered by the wrapper, but matched no map entry and so kept
+      running on the Bash layer.
+
+      In an unattended background subagent an unmatched web-tooling shape
+      that prompts is a silent wedge, not a denial. GH-1052 evidence
+      (2026-08-19 foreman night run): crew worker B2 heartbeat "pnpm deps
+      installed; starting SvelteKit UI", then zero tool calls and zero
+      file writes for 80+ minutes. Its replacement, briefed to route ALL
+      web tooling through `run_node_tests(script=…)`, delivered the same
+      chunk cleanly — 1035 vitest tests, the build, and both i18n gates
+      through the wrapper, with zero prompts.
+
+      Listed after `node-tests` so first-match-wins keeps `npm run test`
+      and `pnpm test` on the test rule. Advisory only (hook_block: false)
+      — same posture as `node-tests`; the wrapper is the steer, not a
+      hard block.
+
   - name: gh-pr-comment-reply
     matcher: Bash
     patterns:

@@ -57,6 +57,41 @@ CI-only, at Phase 0.4. Otherwise every run rediscovers it at 02:00 —
 which is what the 2026-08-23 run did, settling on CI-only lint for the
 whole night (run decision D4).
 
+## Web build/check shapes → `run_node_tests(script=…)` (GH-1052)
+
+`run_node_tests` was originally read as a *test* wrapper, so the crew
+template named only test invocations and workers reached for the Bash
+layer for everything else. But GH-1029 gave the tool a `script=`
+parameter: any `package.json` script runs through it, which makes
+`pnpm run build`, `pnpm run check:*`, a bare `vite`, and
+`node <script>` wrapper-reachable too.
+
+2026-08-19 night run: crew worker B2 (opus) posted the heartbeat "pnpm
+deps installed; starting SvelteKit UI" at 10:11Z, then made zero tool
+calls and zero file writes for 80+ minutes. The exact command is
+unrecoverable — a *pending* prompt records nothing, which is the same
+no-trace signature as the `find` and `pre-commit` deaths above — but
+the timing puts it on a web-tooling shape immediately after deps
+install. Its replacement, briefed to route ALL web tooling through
+`run_node_tests(script="build" / "check:i18n" / "check:plurals")`,
+delivered the chunk cleanly: 1035 vitest tests, the build, and both
+i18n gates, with zero prompts.
+
+Two shape rules the wrapper enforces, worth stating in the brief:
+
+- Only `yarn`/`npm`/`pnpm` resolve a script name. `jest`/`vitest` are
+  invoked directly through `npx` and have no script table, so pairing
+  `script=` with them returns an error rather than silently ignoring it.
+- `env=` is overlaid on the inherited environment, not substituted for
+  it — the escape hatch for a script whose definition pins something
+  the wrapper would otherwise drop, such as a `TZ` that snapshot tests
+  depend on.
+
+The `node-build-scripts` entry in `command-skill-map.yaml` carries the
+same steer for sessions outside a foreman run. It is advisory, not
+blocking: hard-blocking a web-tooling shape would strand an unattended
+worker exactly the way the unanswered prompt did.
+
 ## Re-running the `ToolSearch` bootstrap (GH-1063)
 
 The bootstrap does not hold for a worker's whole life. Three

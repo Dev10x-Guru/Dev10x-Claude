@@ -193,6 +193,59 @@ class TestGh1028GitDirWorktreePinning:
         assert "git -C <worktree-path>" in descriptions
 
 
+class TestGh1052NodeBuildScripts:
+    """Build/check web-tooling shapes route to run_node_tests(script=…)."""
+
+    def _first_matching_rule_name(self, command: str) -> str:
+        for rule in _load_rules():
+            if _matches_any_pattern(rule=rule, command=command):
+                return str(rule.get("name"))
+        return ""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "pnpm run build",
+            "npm run check:i18n",
+            "yarn run lint:tsc",
+            "npx vite build",
+            "vite build --mode staging",
+            "svelte-kit sync",
+            "node scripts/generate.mjs",
+            "node tools/seed.ts",
+        ],
+    )
+    def test_build_and_check_shapes_recognized(self, command: str) -> None:
+        rule = _rule_by_name("node-build-scripts")
+        assert _matches_any_pattern(rule=rule, command=command)
+
+    @pytest.mark.parametrize("command", ["pnpm test", "npm run test", "yarn test", "vitest run"])
+    def test_test_shapes_stay_on_the_node_tests_rule(self, command: str) -> None:
+        """First-match-wins: the test rule is listed first and keeps these."""
+        assert self._first_matching_rule_name(command) == "node-tests"
+
+    def test_routes_to_run_node_tests(self) -> None:
+        rule = _rule_by_name("node-build-scripts")
+        tools = {comp.get("tool") for comp in rule["compensations"]}
+        assert "mcp__plugin_Dev10x_cli__run_node_tests" in tools
+
+    def test_compensation_names_the_script_parameter(self) -> None:
+        rule = _rule_by_name("node-build-scripts")
+        descriptions = " ".join(str(comp.get("description", "")) for comp in rule["compensations"])
+        assert "script=" in descriptions
+
+    def test_is_advisory_not_blocking(self) -> None:
+        # Blocking a web-tooling shape strands an unattended worker the same
+        # way the unmatched prompt did (GH-1052); the wrapper is the steer.
+        rule = _rule_by_name("node-build-scripts")
+        assert rule["hook_block"] is False
+
+    def test_patterns_compile(self) -> None:
+        rule = _rule_by_name("node-build-scripts")
+        for pattern in rule["patterns"]:
+            re.compile(pattern)
+
+
 class TestGh879WatchLoopEntry:
     """Inline watch/poll loop shapes (GH-879) are recognized and steered."""
 
