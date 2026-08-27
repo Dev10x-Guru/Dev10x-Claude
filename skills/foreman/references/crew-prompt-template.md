@@ -253,7 +253,10 @@ this recipe to other repos or other `.claude/` paths.
   and no review all night.
 - Wait on CI via ci_check_status(wait=true). Red → fix, amend or add
   a clean commit, re-push, re-check. Two failed attempts on the same
-  failure → cut scope.
+  failure → cut scope. If a check HANGS (never finishes, or the wait
+  returns nothing usable), that is CI infrastructure, not your chunk:
+  report it and stop. You cannot cancel or re-run a CI job and must
+  not try — recovery is the orchestrator's.
 - Address ALL top-level review comments, even INFO, via a fix plus
   pr_comment_reply, or a reasoned pr_comment_reply when no change is
   warranted. Auto-resolve fully-addressed BOT threads via
@@ -272,6 +275,12 @@ this recipe to other repos or other `.claude/` paths.
   catastrophically, an issue is the only record that survives. A
   remainder that exists only in a queue entry, a comment thread on a
   closed issue, or the morning report is a compliance violation.
+  REVERTING WORK YOU ALREADY DELIVERED IS A SCOPE CUT. If you back out
+  an issue's implementation for any reason — including to turn CI
+  green — run the DEFER path below in full: remove that issue from
+  `Fixes:`, reword the commit footer, and issue_comment the structured
+  deferral. A reverted issue left in `Fixes:` auto-closes on merge and
+  marks undelivered work done.
   Two forms:
   (a) DEFER (nothing delivered from the issue): a failure resisting 2
   fix attempts → drop the commit, remove the issue from Fixes AND

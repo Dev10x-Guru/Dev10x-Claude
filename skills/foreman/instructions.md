@@ -220,11 +220,13 @@ discipline (zero `fixup!` left), a per-chunk decision log,
 `git ls-remote`-backed recoverability claims, and the durability
 envelope stated explicitly.
 
-## Merge guidance when no watcher is armed
+## Collapsed mode & merge guidance when no watcher is armed
 
-Applies to whoever runs the merge gate — the watchdog in the full
-harness, or you directly in the collapsed variant; never a crew
-worker. Full guidance:
+Collapsed mode drops the overseer tier — the watchdog dispatches,
+observes and gates the crew itself. It is rung 3 of the overseer
+fallback ladder in `references/overseer-discipline.md`, not a first
+response. When to choose it, what it costs, and the merge rules that
+apply with no `dev10x foreman watch` armed (never a crew worker):
 [`references/collapsed-merge-guidance.md`](references/collapsed-merge-guidance.md).
 
 ## Red flags — STOP, you are about to lose the night
@@ -237,7 +239,15 @@ worker. Full guidance:
 - A worker prompt containing a `Skill(...)` call, or reaching for an
   MCP wrapper without the `ToolSearch` bootstrap first.
 - A crew worker merging a PR or closing an issue — that is the
-  watchdog's gate, and a worker doing it ran no checks at all.
+  watchdog's gate, and a worker doing it ran no checks at all. Nothing
+  stops it in code: `merge_pr` is loadable by any subagent (GH-1061).
+- An OVERSEER merging, closing an issue/milestone, `TaskStop`-ing
+  before the second stand-down window, or skipping a queue chunk with
+  no `DECISIONS.md` entry.
+- A MERGE REQUEST whose decision log carries no `ci_check_status`
+  output the sender ran itself.
+- A worker reverting delivered work while that issue stays in
+  `Fixes:` — a revert is a scope cut, and the merge auto-closes it.
 - Trusting `isDraft`, CI verdict, or mergeability read before the
   last force-push. Re-read, then decide.
 - "We'll add the allow rule when it prompts" — the supervisor is
@@ -295,6 +305,8 @@ worker. Full guidance:
 | "The worker knows the repo conventions" | It has a fresh system prompt. It knows nothing you didn't put in it. |
 | "The prompt says `Skill(Dev10x:gh-pr-merge)`, so the 9 checks run" | The worker cannot call it. Naming a skill a subagent cannot reach buys the appearance of a gate and none of the gate. |
 | "The worker reported the PR is ready and green — merge it" | That is a memory of a past state. Force-pushes re-draft PRs and bases move. Re-read `isDraft`, CI, and ancestry at the gate. |
+| "A worker can't merge — it has no `gh-pr-merge` skill" | The skill, no; `merge_pr` yes — it is a deferred MCP tool any subagent can `ToolSearch` for, and one did exactly that and merged. The stop is prompt-deep only (GH-1061). |
+| "The third overseer just died too — spawn a fourth" | Three identical failures is evidence about the tier, not the agent. Raise the model tier or collapse to watchdog-direct (`references/overseer-discipline.md`). |
 | "The foreman relayed that the issues are closed" | Only if the foreman actually called `issue_get`. Without its ToolSearch bootstrap it is repeating the worker's claim, and verification has degraded into transcription. |
 | "Pending CI, but everything else is green — merge" | Pending is not green. The field case: a check stuck `in_progress` with `conclusion=success` needed a job re-run, not a merge. |
 | "The idle notification means the worker is stuck" | Idle pings fire between turns and arrive late/out of order — they prove neither liveness nor death. Heartbeat mtime, live PR/CI state, and a REPLY to a direct message are the evidence. |

@@ -55,6 +55,51 @@ night on one run regardless of elapsed time. Worktree git state
 (branch tips, PR/CI) was the only reliable liveness evidence — see
 `stall-protocol.md` § Structural false positives.
 
+## No claim without an artifact (GH-1061)
+
+A haiku overseer reported a chunk "all gates green" while a live
+`ci_check_status` on the same PR showed failing checks. It had
+observed nothing — it was relaying the worker's claim verbatim.
+
+The rule is mechanical so it cannot degrade quietly: **before sending
+a MERGE REQUEST, paste your OWN `ci_check_status` output — verdict
+plus the check names — into `DECISIONS.md`.** No artifact, no
+request. A verification step that produces no artifact is not a
+verification; it is a transcription of someone else's assertion, and
+in a heartbeat line it reads exactly like the real thing.
+
+`tool-surface.md` § The foreman overseer is also a subagent makes the
+same point for `issue_get`-backed closure claims. Same failure, two
+tools — neither covers the other.
+
+## What the overseer must never do (GH-1068)
+
+One haiku overseer committed five breaches in a single run. Each is a
+role-boundary crossing that `tool-surface.md` § Why the lifecycle is
+cut at PR-open and `architecture.md` already assign elsewhere:
+
+- **Never merge a PR.** The merge gate belongs to the watchdog, the
+  only role that can invoke `Dev10x:gh-pr-merge`. An overseer that
+  loads `merge_pr` has the crew's gap one tier up — full autonomy,
+  zero checks.
+- **Never close an issue or a milestone.** Closure is the watchdog's
+  post-merge step; the overseer's job on closure is to *verify* it
+  with `issue_get` and report, per the rule above.
+- **Never `TaskStop` before the stand-down window has actually
+  elapsed** — two windows, not one: send the stand-down message, wait
+  one further heartbeat interval, stop only on continued silence
+  (`stall-protocol.md` § The handshake). A premature `TaskStop`
+  destroys a live worker's uncommitted tree.
+- **Never skip or reorder a queue chunk unilaterally.** Deferring or
+  resequencing is allowed — only with a numbered `DECISIONS.md` entry
+  naming the chunk and the reason. A skip that exists only in the
+  overseer's head is invisible to the morning report and to any
+  replacement overseer rebuilding `roster.md`.
+
+The overseer's whole authority is dispatch, observe, record, relay.
+Anything that changes the tracker or the default branch is above its
+tier.
+
 ## Escalation is disk-first
 
 Agent-to-agent messaging is **best-effort notification, not a
@@ -91,6 +136,32 @@ The reader's side mirrors it: when something seems to have gone quiet,
 read the run directory before concluding nothing was said. A message
 that never arrived and a decision that was never made look identical
 from the outside, and only the disk tells them apart.
+
+## Overseer-tier fallback ladder (GH-1054)
+
+Overseers fail the way the crew does — by abandoning the turn (§ An
+idle agent cannot heartbeat). Three failed sequentially in one run
+before recovery came from dropping the tier entirely, now a named mode
+(`collapsed-merge-guidance.md`). Climb on a *repeat* of the same
+failure, not on the first instance:
+
+| Rung | When | Action |
+|---|---|---|
+| 1. Nudge | First stale overseer heartbeat while crew branch tips and PR state still move | Direct message naming the missing step ("heartbeat, ONE bounded blocking wait, heartbeat"). Cheap; keeps its accumulated context. |
+| 2. Respawn | Same overseer goes silent again after a nudge, or ends its turn twice | Stand-down handshake, `TaskStop`, respawn from `manifest.md` + `roster.md` + newest heartbeats. Context lost, queue intact. |
+| 3. Collapse | Two or more overseers fail the same way, or a respawn fails inside one chunk | Drop the tier — watchdog-direct dispatch, observation and gating. |
+
+**Repeated turn-abandonment on a cheap tier is a tier problem, not an
+instruction problem.** `stall-protocol.md` § Repeated stalls on one
+tier says this for crew workers (GH-956); it applies unchanged to the
+overseer. Before rung 2, prefer respawning at a *higher model tier*
+over respawning the same one — three haiku overseers failing
+identically is evidence about haiku, not about the third agent.
+
+In the run that produced this ladder the remaining chunks ran at
+roughly twice the prior throughput after collapsing. That is one run,
+not a benchmark: a reason not to fear rung 3, not a reason to start
+there. What rung 3 costs is in `collapsed-merge-guidance.md`.
 
 ## The merge gate reads `ask` in fresh worktrees (GH-978)
 
