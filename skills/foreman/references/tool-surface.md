@@ -146,3 +146,13 @@ Add to the permission pre-flight, while the supervisor is present:
    worker contract — workers implement and commit, the orchestrator
    pushes and opens PRs — and that reduction goes in the manifest.
    Do not silently substitute raw CLI for a gated operation.
+3. **Enumerate the watchdog's own shapes as well** (GH-1058). The
+   table above cuts the surface by role in both directions: a probe
+   subagent proves the crew's surface and says nothing about the
+   top-level session's. The merge gate's CI and draft reads and the
+   stall-triage forensics are watchdog commands, and they prompted
+   mid-night in the 2026-08-21/22 run while their MCP replacements sat
+   loaded and unused. Prefer `ci_check_status(wait=false)` for the CI
+   verdict, `pr_get` for draft/mergeability, and `dev10x foreman probe`
+   for run-dir state, over `gh pr checks` / `gh pr view --json` /
+   `ls -lt` + `stat`.
