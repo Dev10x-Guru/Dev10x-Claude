@@ -482,6 +482,16 @@ tool uses** so they run concurrently and share the
 parent's prompt-cache prefix. Wait for completion
 notifications before dispatching the next wave; do NOT poll.
 
+**Host memory bounds wave size too (GH-1068).** `max_concurrency`
+caps CPU/API concurrency, but each isolated agent also carries
+its own worktree checkout and process footprint. An overnight run
+sized purely to `max_concurrency` drove the host into memory
+pressure. Size the wave to available RAM as well as the
+concurrency cap, and apply the same rule when resuming parked
+agents — **a mass-resume is a dispatch**: reviving N parked
+agents at once reproduces the same memory pressure as launching N
+fresh ones, so resume in waves too, not all at once.
+
 **Sibling pub/sub bus (GH-133, GH-385 F3).** Before
 dispatching a wave, create the per-wave JSONL bus that lets
 children coordinate file ownership without serialising through
