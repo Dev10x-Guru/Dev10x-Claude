@@ -133,6 +133,34 @@ Options:
   above and run the fast bootstrap
 - Skip — I'll run `/Dev10x:upgrade-cleanup` later
 
+**Tracker choice — ask BEFORE the bootstrap runs (GH-768).**
+`ensure-base` seeds only the chosen tracker's MCP rules, so this
+answer has to exist before the bootstrap pass, not after. Skip the
+gate entirely when
+`mcp__plugin_Dev10x_cli__tracker_status` returns `pinned: true` —
+the choice is a settled workspace fact, and re-asking it on every
+bootstrap is the friction this gate exists to remove.
+
+**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text) when
+`pinned` is `false`. Question: "Which issue tracker does this
+project use?" Options:
+
+- **Linear (Recommended)** — seeds the `mcp__claude_ai_Linear__*`
+  and `mcp__linear-server__*` read/write tools, plus the
+  `delete_*` denies. The default when nothing is chosen.
+- **Jira** — seeds the `mcp__claude_ai_Atlassian_Rovo__*` read and
+  write tools the ticket skills call.
+- **GitHub Issues** — seeds the `issue_*` MCP wrappers on top of
+  the unconditional `github-cli` group.
+
+Persist the answer with
+`mcp__plugin_Dev10x_cli__pin_tracker(tracker="<choice>")`. It keys
+off the repo stem, so one answer covers the repo and every worktree
+of it. GitLab and ClickUp are not offered — ClickUp has no native
+skill or MCP path, and the `glab` surface is not curated yet; a user
+on either should pick the tracker whose rules they actually want and
+file an issue for theirs.
+
 If user chooses setup:
 `Skill(skill="Dev10x:plugin-maintenance", args="bootstrap")`
 
