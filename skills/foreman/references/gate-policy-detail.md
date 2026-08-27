@@ -31,6 +31,43 @@ matches. For `guided + afk`, set `gate_preset: guided` and let the
 `afk` overlay ride on top — see `../../references/friction-levels.md`
 and the `Dev10x:afk` § Relationship to Presets and Overlays.
 
+## `human_review` outranks the preset on the merge gate (GH-1056)
+
+A composed `adaptive + [solo-maintainer, afk]` does **not** buy
+auto-advancing merges on its own. `resolve_gate(gate="merge")` applies
+a `human_review` floor, and floors are deny-overrides — no preset,
+overlay, or session override lifts one. The flag defaults to `true`, so
+an unconfigured repo asks:
+
+```
+effect: "ask"
+reason: floor:human_review overrides preset:adaptive — humans review
+        this repo — set human_review: false in the matching projects[]
+        entry of ~/.config/Dev10x/friction.yaml if none do
+```
+
+**This is by design, not a bug.** `human_review` is a durable *project*
+fact — whether humans are in the review loop on this repo — while
+presets and overlays describe how *this session* was launched
+(ADR-0019). A session flag lifting a project safety fact would let any
+run declare its own oversight away.
+
+The consequence for a night shift is sharp: Phase 0.3's copy promises
+"full walk-away, merges included", and that promise holds only once
+`human_review: false` sits in the matching `projects[]` entry. Without
+it the run's first MERGE REQUEST freezes on an `AskUserQuestion` nobody
+is awake to answer. Field case: a run configured `gate_preset: adaptive`
+with both overlays and no `gate_overrides` did exactly that.
+
+So resolve it here, in Phase 0.3, while the supervisor is present —
+and prove it in Phase 0.4 with the merge-gate dry-run
+([`preflight-checklist.md`](preflight-checklist.md) item 8). Setting
+`human_review: false` is a real decision about the repo, not a
+formality: it also makes `Dev10x:verify-acc-dod` skip its
+unresolved-threads and review-requested checks. If humans genuinely do
+review this repo, the honest composition is `guided + afk` with merges
+held for morning.
+
 ## The composed policy does not always reach a spawned worktree (GH-962 F1)
 
 A worker dispatched with `isolation="worktree"` gets a fresh checkout

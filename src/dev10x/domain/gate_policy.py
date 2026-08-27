@@ -239,6 +239,26 @@ class GateResolution:
         return f'⚙ gate:{self.gate} auto-advance → "{self.resolved_option}" ({self.reason})'
 
 
+# Every other floor fires on something about the ACTION — a secret, an
+# irreversible write, a cross-author push — so its `ask` is self-explanatory
+# and has no config escape by design. `human_review` is the exception: it
+# fires on a durable CONFIGURATION fact, and the operator who trips it has
+# usually just composed `adaptive + [solo-maintainer, afk]` and been promised
+# "full walk-away, merges included". They get an `ask` naming a floor, with
+# nothing to say that a project key rather than the preset is holding it
+# (GH-1056) — so an unattended run freezes on its first merge with no
+# actionable diagnosis. Name the remedy in the reason. The floor does NOT
+# move: a session overlay must never lift a durable project fact (ADR-0019),
+# because "no human reviews this repo" is a property of the repo, not of how
+# this session was launched.
+_FLOOR_REMEDIES = {
+    "human_review": (
+        "humans review this repo — set human_review: false in the matching "
+        "projects[] entry of ~/.config/Dev10x/friction.yaml if none do"
+    ),
+}
+
+
 def _floors(*, gate: str, context: GateContext) -> list[str]:
     """Safety floors — deny-overrides; ``ask`` regardless of any toggle."""
     floors: list[str] = []
@@ -424,12 +444,14 @@ def resolve_gate(
 
     floors = _floors(gate=gate, context=context)
     if floors:
+        reason = f"floor:{'+'.join(floors)} overrides preset:{preset}"
+        remedies = [_FLOOR_REMEDIES[name] for name in floors if name in _FLOOR_REMEDIES]
         return GateResolution(
             gate=gate,
             effect=GateEffect.ASK,
             resolved_option=None,
             log_to=log_to,
-            reason=f"floor:{'+'.join(floors)} overrides preset:{preset}",
+            reason=f"{reason} — {'; '.join(remedies)}" if remedies else reason,
             floors_applied=floors,
             anchor_recommendations=anchor,
         )
