@@ -92,6 +92,52 @@ same steer for sessions outside a foreman run. It is advisory, not
 blocking: hard-blocking a web-tooling shape would strand an unattended
 worker exactly the way the unanswered prompt did.
 
+## CWD mode → test it, do not assume it (GH-1050)
+
+Three plugin artifacts each asserted a different absolute rule, and
+each was wrong at some spawn depth:
+
+| Artifact | Asserted |
+|----------|----------|
+| crew template § 6 + `tool-surface.md` (GH-1028) | CWD resets every call — pin with `git -C` always |
+| `background_preamble` (GH-959) | a standalone `cd` is allowed and CWD persists — no `git -C` |
+| `validate-bash-command.py` | DENIES `git -C <path>` when CWD already equals `<path>` |
+
+The third denies exactly what the first mandates, in exactly the
+situation the second describes. 2026-08-19 night run:
+
+- The Phase 0.4 probe subagent (spawned by the top-level session,
+  depth 1): `cd` **persisted**; `git -C <own-cwd> status` ran clean.
+- Crew worker B1 (spawned by the foreman subagent, depth 2): `cd` did
+  **not** persist. Its own kill snippet: "The `cd` doesn't persist in
+  agent threads, so I'll use the `cd X; cmd` form." That chained shape
+  is hook-blocked, the prompt was unanswerable overnight, and the
+  worker wedged at fetch/rebase. Cost: ~2h and two takeovers — the
+  worker plus the foreman that was waiting on it.
+- The watchdog itself was hook-denied
+  `git -C /work/…/wt-10 status --short` after a standalone `cd` to
+  that path.
+
+So the mode is not a property of "being a subagent"; it varies, and
+possibly nondeterministically. The recipe below was hot-patched into
+the template mid-night, and the respawned worker — which landed in
+Mode C — delivered its chunk cleanly:
+
+1. `cd <worktree>` then `pwd`, as two separate Bash calls.
+2. `pwd` == worktree → **Mode P**: plain git thereafter, never
+   `git -C` (the redundancy denial fires).
+3. `pwd` != worktree → **Mode C**: `git -C <worktree>` on every call.
+4. Both modes: chaining (`;`, `&&`, pipes) and
+   `--git-dir`/`--work-tree` stay banned.
+5. The worker states its mode in its first heartbeat, so the overseer
+   can read its later commands correctly.
+
+The alternative fix — exempting worktree paths from the redundant-`-C`
+denial so the GH-1028 mandate is always safe verbatim — was not taken:
+the denial is correct guidance for a main session, and a self-test
+that reports its own answer beats a rule that has to be right
+everywhere.
+
 ## Re-running the `ToolSearch` bootstrap (GH-1063)
 
 The bootstrap does not hold for a worker's whole life. Three

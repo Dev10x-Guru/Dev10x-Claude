@@ -124,33 +124,55 @@ GH-1052).
 ## 6. Workspace + branch
 
 ```
-WORKSPACE CRITICAL — your CWD is NOT your worktree and `cd` cannot fix
-it. You are a spawned subagent: Bash CWD is the DISPATCHER's directory
-and RESETS ON EVERY CALL, so a `cd` in one call does not carry to the
-next. Pin the worktree as an ARGUMENT on every command, never as state:
-  - git   → `git -C {{worktree_path}} <verb> ...`
-  - tests → `uv run --directory {{worktree_path}} ...` (or the MCP
-            test wrapper's `cwd=` argument)
+WORKSPACE CRITICAL — do NOT assume how Bash CWD behaves for you. It is
+spawn-depth-dependent: a depth-1 subagent usually keeps CWD across
+calls, a depth-2 crew worker usually does not. Test it; never guess.
+
+MODE SELF-TEST — two separate Bash calls, before any other work:
+  1. `cd {{worktree_path}}`
+  2. `pwd`
+
+  pwd == {{worktree_path}} → MODE P. Run plain git from here on, and
+        NEVER `git -C {{worktree_path}}` — the hook denies a `-C` whose
+        path already equals CWD as redundant.
+  pwd != {{worktree_path}} → MODE C. CWD reset; pin the worktree as an
+        ARGUMENT on every command, never as state:
+          git   → `git -C {{worktree_path}} <verb> ...`
+          tests → `uv run --directory {{worktree_path}} ...` (or the
+                  MCP test wrapper's `cwd=` argument)
+
+State your mode in your FIRST heartbeat ("Mode C") so the overseer can
+read your later commands correctly.
+
+BOTH MODES:
+  - Everywhere else this brief writes `git -C {{worktree_path}} …`,
+    read it as the Mode C spelling: in MODE P drop the `-C` and its
+    path, keeping the rest of the command exactly as written.
   - files → absolute paths under {{worktree_path}} for every
             Read / Write / Edit / Grep call
+  - NEVER `git --git-dir=... --work-tree=...`. It matches no allow
+    rule, and the prompt it raises is one nobody can answer overnight —
+    you wedge silently, with no denial recorded anywhere.
+  - NEVER chain (`;`, `&&`, pipes) — `cd X; cmd` is hook-blocked and
+    its prompt is equally unanswerable. One command per Bash call.
 
-NEVER use `git --git-dir=... --work-tree=...`. It matches no allow
-rule, and the prompt it raises is one nobody can answer overnight —
-you wedge silently, with no denial recorded anywhere.
-
-FIRST ACTION: `git -C {{worktree_path}} rev-parse --abbrev-ref HEAD`
-to confirm you are pinned to the right tree.
+FIRST ACTION after the self-test: confirm the branch with
+`git rev-parse --abbrev-ref HEAD` (Mode P) or
+`git -C {{worktree_path}} rev-parse --abbrev-ref HEAD` (Mode C).
 
 No new worktrees, and never call `EnterWorktree` — you are pinned to
 {{worktree_path}}. If you ever need another worktree's content, report
 its path and branch and STOP; the watchdog reaches it, not you.
-One command per Bash call.
 ```
 
-Keep the CWD and `EnterWorktree` rules verbatim. Subagent Bash CWD is
-per-call and `EnterWorktree` wedges Bash for the rest of the worker's
+Keep the self-test and `EnterWorktree` rules verbatim. The self-test
+replaced an unconditional `git -C` mandate that the validate-bash hook
+denies whenever CWD already matches — the template was ordering the one
+shape the hook rejects, in exactly the case where `cd` had persisted
+(GH-1050). `EnterWorktree` wedges Bash for the rest of the worker's
 life — evidence and failure shapes in
-[`tool-surface.md`](tool-surface.md) § Subagent Bash CWD and
+[`tool-surface.md`](tool-surface.md) § Subagent Bash CWD,
+[`worker-tool-shapes.md`](worker-tool-shapes.md) § CWD mode, and
 [`worktree-recovery.md`](worktree-recovery.md).
 
 A fresh isolation worktree normally starts DIRTY — a post-checkout
@@ -164,11 +186,13 @@ fixed it immediately:
 Your worktree will start dirty with modified/untracked files under
 `.claude/` — this is hook-seeded noise. Do NOT investigate it, do NOT
 report it as a finding, and do NOT commit it. Clear it with exactly
-these five steps, one Bash call each:
-  1. `git -C {{worktree_path}} fetch origin`
-  2. `git -C {{worktree_path}} stash -u`
-  3. `git -C {{worktree_path}} checkout -b {{branch_name}} origin/{{base_branch}}`
-  4. `git -C {{worktree_path}} stash drop`
+these five steps, one Bash call each. `<git>` is `git` in MODE P and
+`git -C {{worktree_path}}` in MODE C — use the one your self-test
+proved, never the other:
+  1. `<git> fetch origin`
+  2. `<git> stash -u`
+  3. `<git> checkout -b {{branch_name}} origin/{{base_branch}}`
+  4. `<git> stash drop`
   5. write your first heartbeat line
 ```
 

@@ -192,6 +192,13 @@ class TestGh1028GitDirWorktreePinning:
         descriptions = " ".join(str(comp.get("description", "")) for comp in rule["compensations"])
         assert "git -C <worktree-path>" in descriptions
 
+    def test_steers_to_the_mode_self_test_not_an_unconditional_pin(self) -> None:
+        """GH-1050: `git -C` is denied as redundant when CWD already matches."""
+        rule = _rule_by_name("git-dir-worktree-pinning")
+        descriptions = " ".join(str(comp.get("description", "")) for comp in rule["compensations"])
+        assert "pwd" in descriptions
+        assert "redundant" in descriptions
+
 
 class TestGh1052NodeBuildScripts:
     """Build/check web-tooling shapes route to run_node_tests(script=…)."""

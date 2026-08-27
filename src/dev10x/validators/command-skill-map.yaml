@@ -508,20 +508,35 @@ rules:
     compensations:
       - type: use-alternative
         description: >
-          Pin the worktree by directory, not by plumbing paths:
-          `git -C <worktree-path> <verb> ...`. One argument instead of two,
-          it is the shape crew prompts mandate, and it is what allow rules
-          are written against (e.g. `Bash(git -C <worktrees-root>/*)`).
+          Pin the worktree by directory, not by plumbing paths — but first
+          settle which CWD mode you are in, with two separate Bash calls:
+          `cd <worktree-path>`, then `pwd` (GH-1050).
+
+            • pwd == the path → run plain `git <verb> ...`. Do NOT add
+              `-C`: a `-C` whose path already equals CWD is denied as
+              redundant, so the "always pin" habit backfires here.
+            • pwd != the path → `git -C <worktree-path> <verb> ...`. One
+              argument instead of two, and it is what allow rules are
+              written against (e.g. `Bash(git -C <worktrees-root>/*)`).
+
+          Never `cd <path>; <cmd>` as a recovery — chaining is blocked, and
+          for an unattended agent that prompt is another silent wedge.
     reason: >
-      GH-1028: `Agent`-spawned subagents reset Bash CWD on every call, so
-      workers that believed CWD persisted improvised
+      GH-1028: `Agent`-spawned subagents may reset Bash CWD on every call,
+      so workers that believed CWD persisted improvised
       `git --git-dir=<repo>/.git/worktrees/<wt> --work-tree=<wt> ...`. That
       shape matches no allow rule, and an unattended subagent cannot answer
       the resulting prompt — it wedges silently, leaving no denial trace in
-      hook logs. Advisory rather than blocking: the preventive fixes are the
-      crew template's `git -C` mandate and the Phase 0.4 pre-flight probe
-      (GH-1030); this entry is the `Dev10x:diag-friction` steer for an
-      interactive agent that reaches for the shape anyway.
+      hook logs.
+
+      GH-1050 corrected the remedy: whether CWD persists is
+      spawn-depth-dependent (a depth-1 probe kept it; a depth-2 crew worker
+      did not), so an unconditional `git -C` mandate is denied as redundant
+      at the depths where `cd` did stick. The steer is the mode self-test,
+      not a fixed spelling. Advisory rather than blocking: the preventive
+      fixes are the crew template's self-test and the Phase 0.4 pre-flight
+      probe (GH-1030); this entry is the `Dev10x:diag-friction` steer for an
+      interactive agent that reaches for the plumbing shape anyway.
     related:
       - Dev10x:foreman
 

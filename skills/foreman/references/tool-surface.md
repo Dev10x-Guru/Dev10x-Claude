@@ -47,29 +47,31 @@ if it is still gone. A worker that reads "tool not found" as "this
 operation is impossible" improvises raw CLI for a gated operation —
 the failure the surface split exists to prevent.
 
-## Subagent Bash CWD is per-call (GH-1028)
+## Subagent Bash CWD is spawn-depth-dependent (GH-1028, GH-1050)
 
 A fourth fact, and the one that costs the most when it is wrong:
-**in an `Agent`-spawned subagent, Bash CWD resets on every call.**
-A `cd` in one call does not carry to the next. Worktree pinning is
-therefore **argument-based, not state-based** — `git -C <worktree>
-<verb>`, `uv run --directory <worktree>`, absolute paths for every
-file tool.
+**an `Agent`-spawned subagent cannot assume how Bash CWD behaves.**
+Sometimes `cd` carries to the next call, sometimes it resets to the
+dispatcher's directory — it varies with spawn depth. So a worker runs
+the two-call **mode self-test** (`cd <worktree>`, then `pwd`) and picks
+its spelling from the result: plain `git` in Mode P, argument-pinned
+`git -C <worktree>` / `uv run --directory <worktree>` in Mode C.
+Absolute paths for file tools in both.
 
-The failure mode is worse than a wrong directory. A worker that
-believes `cd` persisted, finds git operating on the dispatcher's tree,
-and reaches for `git --git-dir=<repo>/.git/worktrees/<wt>
---work-tree=<wt> …` produces a shape that matches no allow rule — and
-the resulting prompt is unanswerable overnight AND records nothing in
-the hook logs (a pending prompt is neither a block nor a denial), so
-the worker wedges with no diagnostic trace. Two opus workers hit this
-independently in the 2026-08-04/05 run; detection took ~2h of
-heartbeat-stall plus file-mtime forensics and two stand-down
-takeovers. Both replacements succeeded on `git -C`.
+Getting the mode wrong is worse than a wrong directory, both ways. A
+worker that wrongly believes `cd` persisted reaches for
+`git --git-dir=<repo>/.git/worktrees/<wt> --work-tree=<wt> …`, a shape
+matching no allow rule — the prompt is unanswerable overnight AND
+records nothing in the hook logs (a pending prompt is neither a block
+nor a denial), so it wedges with no trace. Two opus workers hit this
+independently in the 2026-08-04/05 run: ~2h of stall plus mtime
+forensics, two takeovers. Conversely, a Mode-P worker following an
+unconditional `git -C` mandate is *denied* the `-C` as redundant.
 
-Prove the shape before the night: `preflight-checklist.md` item 3 runs
-one representative `git -C <worktree>` command inside the probe
-subagent, while the supervisor can still answer a prompt (GH-1030).
+Prove the mode before the night: `preflight-checklist.md` item 3 runs
+the self-test and the git shape it implies inside the probe subagent,
+while the supervisor can still answer a prompt (GH-1030). Evidence:
+[`worker-tool-shapes.md`](worker-tool-shapes.md) § CWD mode.
 
 ## Why the lifecycle is cut at PR-open
 

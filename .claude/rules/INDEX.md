@@ -200,7 +200,7 @@ cohesive, justified by scope):
   (why the crew template pins Glob over Bash `find`, what
   `{{lint_shape}}` resolves against, and why the `ToolSearch`
   bootstrap is re-run). Both `stall-protocol.md` (371 lines) and
-  `crew-prompt-template.md` (361 lines) are already over the 200-line
+  `crew-prompt-template.md` (385 lines) are already over the 200-line
   reference budget and must not grow further — route any new depth to
   a new reference file instead. GH-1028 is the worked example: the
   worktree-pinning *rule* had to grow the template's bake-in block by
@@ -212,7 +212,14 @@ cohesive, justified by scope):
   GH-1052 is the same trade a third time: the
   `run_node_tests(script=…)` steer is worker-verbatim (4 lines in § 5)
   while the night-run evidence and the wrapper's two shape rules went
-  to `worker-tool-shapes.md`.
+  to `worker-tool-shapes.md`. GH-1050 is the largest such exception so
+  far — the § 6 CWD **mode self-test** replaced an unconditional
+  `git -C` mandate the validate-bash hook actually denies, and a worker
+  cannot run a test it was not handed, so the whole recipe is inline
+  (+24 lines); the three-artifact contradiction table and the
+  depth-1-vs-depth-2 evidence went to `worker-tool-shapes.md` § CWD
+  mode, and `tool-surface.md` § Subagent Bash CWD was rewritten in
+  place at net-zero lines rather than appended to.
   `tool-surface.md` and `overseer-discipline.md` are now both AT the
   200-line cap — the next addition to either needs an extraction, not
   an append. Split plan if `instructions.md` grows
