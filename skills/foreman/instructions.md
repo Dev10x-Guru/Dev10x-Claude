@@ -77,7 +77,11 @@ subagent `ToolSearch` bootstrap **plus one worktree-pinned
 `git -C <worktree> status --short` inside that same probe subagent**
 (GH-1030 — worker-side git is what actually wedges), per-domain test
 tools, script-deliverable dry-runs (GH-961), and run-directory write
-access.
+access. Enumerate the **watchdog's own** gate and triage shapes too,
+not just the crew's (GH-1058), and dry-run
+`resolve_gate(gate="merge", context={})` — a non-`auto-advance` effect
+means tonight's first merge request freezes the run, and Phase 0.3 is
+the last moment anyone can fix that (GH-1051).
 Any prompt fired during pre-flight = fix it NOW, or that shape is
 BANNED for the night. Full checklist:
 [`references/preflight-checklist.md`](references/preflight-checklist.md).
@@ -231,6 +235,12 @@ worker. Full guidance:
   last force-push. Re-read, then decide.
 - "We'll add the allow rule when it prompts" — the supervisor is
   asleep; there is no *when*.
+- A watchdog gate or stall-triage command whose shape was never
+  pre-flighted — the crew's probe proves nothing about yours.
+- Arming the night without a dry-run `resolve_gate(gate="merge")`
+  showing `auto-advance`.
+- Handing a worker a way to see a check went red without a proven
+  shape for reading *why*.
 - Offering auto-mode / bypassPermissions to silence prompt risk.
 - Merging on pending CI, stale ancestry, or with `fixup!` commits.
 - The watchdog "quickly" doing implementation work in the main session.

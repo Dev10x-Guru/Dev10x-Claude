@@ -305,6 +305,16 @@ that are not required by branch protection. No checks may be
 `PENDING` or `IN_PROGRESS`. Report any failing or pending
 checks by name.
 
+**Unattended contexts: prefer the wrapper (GH-1058).** When this
+skill runs the merge gate for an unattended harness (the
+`Dev10x:foreman` watchdog, an afk session), reach for
+`mcp__plugin_Dev10x_cli__ci_check_status(wait=false)` instead of
+the raw `gh pr checks` above. It returns the same verdict off the
+Bash layer, so it cannot raise a permission prompt that nobody is
+awake to answer — the failure mode that froze a watchdog mid-night
+because a pending prompt records neither a block nor a denial in
+the hook logs. Attended sessions may keep the raw form.
+
 `gh-pr-merge` MUST NOT proceed silently past any `PENDING`,
 `IN_PROGRESS`, or `bucket: fail` state. The default response
 is to stay in the fix-and-monitor loop — not to ask the user.
