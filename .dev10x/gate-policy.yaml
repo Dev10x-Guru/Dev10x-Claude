@@ -1,12 +1,40 @@
 # Durable, git-tracked project gate-policy pin (ADR-0016 D-8, #752).
 #
-# Dev10x-Claude is a TEAM repo: PRs require human review and a human
-# merge through the PR UI. This pin forces `merge: ask` regardless of
-# the session preset, so an adaptive session — or a plain `/Dev10x:afk`,
-# which defaults to `gate_preset: adaptive` (merges included) — cannot
-# auto-merge here. The project tier outranks the session preset, so this
-# keeps the GH-742-class auto-merge hazard closed by construction rather
-# than relying on every session to remember not to enable auto-merge.
-# GH-764 F4.
-overrides:
-  merge: ask
+# INTENTIONALLY EMPTY — the `merge: ask` pin was removed on 2026-08-27
+# by maintainer decision. This file is kept, rather than deleted, so the
+# removal is visible in place: a bare repo with no gate-policy file looks
+# identical to one that never had a pin, and the next maintainer would
+# have no way to tell that the absence is deliberate.
+#
+# What was here, and why it is gone:
+#
+#   overrides:
+#     merge: ask
+#
+# Added under GH-764 F4 on the premise that Dev10x-Claude is a TEAM repo
+# whose PRs need a human merge through the PR UI, closing the GH-742
+# auto-merge hazard by construction. That premise no longer matches how
+# the repo is run: `settings-pr-merge.yaml` marks `Dev10x-Guru/*` as
+# `solo_maintainer: true`, and the maintainer merges their own PRs. The
+# pin was forcing a prompt on every merge for a review step that no
+# second person performs.
+#
+# What still guards a merge with the pin gone:
+#
+#   - `Dev10x:gh-pr-merge` runs all 9 pre-merge checks on every merge
+#     regardless of gate policy — unresolved threads, top-level and
+#     inline review comments, Fixes-linked scope delivery, CI buckets,
+#     draft state, mergeability, working copy, fixup commits. Gate
+#     policy governs only whether the FINAL step pauses to ask.
+#   - Branch protection on `develop`.
+#   - `push_safe` rails force-pushes to protected branches (GH-1031).
+#
+# Re-adding the pin is a one-line change; restore the `overrides:` block
+# above. Prefer that over a session-level override if the repo ever
+# takes on a second regular contributor — the project tier outranks the
+# session preset, which is the whole point of pinning it here.
+#
+# NOTE for readers of gate_query._project_overrides: an empty/comment-only
+# file parses to no overrides and falls through to the legacy
+# `.claude/Dev10x/gate-policy.yaml` path. That legacy file does not exist
+# in this repo, so the fall-through is a no-op — confirmed before removal.
