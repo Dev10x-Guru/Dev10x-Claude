@@ -73,9 +73,13 @@ fresh `isolation="worktree"` checkout can see a phantom merge-gate
 
 Enumerate and dry-run EVERY command shape the night will use: the
 `dev10x foreman probe` CLI shape, one call per MCP wrapper, the
-subagent `ToolSearch` bootstrap **plus one worktree-pinned
-`git -C <worktree> status --short` inside that same probe subagent**
-(GH-1030 — worker-side git is what actually wedges), per-domain test
+subagent `ToolSearch` bootstrap **plus the CWD mode self-test
+(`cd <worktree>` then `pwd`, separate calls) and the git shape that
+mode implies — plain `git status --short` in Mode P, `git -C <worktree>
+status --short` in Mode C — inside that same probe subagent** (GH-1030
+— worker-side git is what actually wedges; GH-1050 — probing the wrong
+mode's shape proves nothing, and `git -C` is *denied* as redundant when
+CWD already matches), per-domain test
 tools, script-deliverable dry-runs (GH-961), and run-directory write
 access. Enumerate the **watchdog's own** gate and triage shapes too,
 not just the crew's (GH-1058), and dry-run

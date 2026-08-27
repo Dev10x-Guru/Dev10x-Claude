@@ -53,13 +53,20 @@ hooks and to stay on the pre-approved tool surface.
 Command shapes to avoid (each trips a hook or breaks allow-rule matching):
 - No `cmd1 && cmd2`, `cmd1; cmd2`, or `a | b` chaining — one command per
   Bash call.
-- No **chained** `cd /path && …` and no `git -C /path …` — chaining
-  shifts the allow-rule prefix. A **standalone** `cd /path` as its own
-  Bash call IS allowed, and CWD persists across calls. Do not assume
-  your CWD is already the right worktree: a spawned subagent inherits
-  its dispatcher's directory. If your brief names a workspace path,
-  `cd` to it as a standalone call and confirm with `pwd` before
-  editing anything (GH-959).
+- No **chained** `cd /path && …` — chaining shifts the allow-rule
+  prefix. A **standalone** `cd /path` as its own Bash call IS allowed.
+- Do not assume your CWD is already the right worktree, and do not
+  assume `cd` sticks: a spawned subagent inherits its dispatcher's
+  directory, and whether CWD survives to the next call is
+  spawn-depth-dependent (GH-1050). When your brief names a workspace
+  path, **test which mode you are in** with two separate Bash calls —
+  `cd /path`, then `pwd` — before editing anything (GH-959):
+  - `pwd` == the path → **Mode P**: run plain `git` from here on, and
+    never `git -C /path …`; the hook denies a `-C` whose path already
+    equals CWD as redundant.
+  - `pwd` != the path → **Mode C**: CWD reset, so pin the path as an
+    argument on every call (`git -C /path …`, `uv run --directory
+    /path …`, absolute paths for Read/Write/Edit).
 - No `$(…)` command substitution and no `ENV=value cmd` prefixes.
 - No heredocs or redirects (`cat <<EOF`, `cat > file`, `echo > file`) —
   use the Write tool.

@@ -61,12 +61,22 @@ the probe comes back empty, narrow the worker contract in the
 manifest rather than letting workers improvise raw CLI
 (`tool-surface.md`).
 
-**In the same probe, run one representative git command in the exact
-worktree-pinned shape the crew template mandates** (GH-1030):
+**In the same probe, run the crew template's CWD mode self-test and
+the git shape that mode implies** (GH-1030, GH-1050):
 
 ```
-git -C <one of tonight's worktree paths> status --short
+cd <one of tonight's worktree paths>      # separate Bash call
+pwd                                       # separate Bash call
+git status --short                        # Mode P: pwd matched
+git -C <that worktree path> status --short  # Mode C: pwd did not
 ```
+
+Probe the shape the mode actually calls for — the *other* one proves
+nothing, and in Mode P a `git -C` whose path equals CWD is denied as
+redundant, so a green `-C` probe can even mean the reverse of what it
+looks like. Record the probe's mode in the manifest; a crew worker may
+land in a different one (depth differs), which is why the worker runs
+the self-test itself rather than inheriting this answer.
 
 MCP wrappers and test tools were already proven here; worker-side
 *git* was not — and git is what workers run most. In the 2026-08-04/05
@@ -81,11 +91,11 @@ allow rule for the worktree root (e.g. `Bash(git -C <worktrees-root>/*)`)
 rather than a night lost to forensics. Cost: one extra command in an
 already-mandatory probe.
 
-Probe the shape the crew prompt actually mandates, not a convenient
-substitute: a bare `git status` proves nothing about `git -C`, because
-the two match different allow rules. If tonight's chunks will also
-fetch, rebase, or stash, the same reasoning extends to those verbs —
-one read-only `git -C … status --short` is the floor, not the ceiling.
+Probe the shape the mode calls for, not a convenient substitute: a
+bare `git status` proves nothing about `git -C`, because the two match
+different allow rules. If tonight's chunks will also fetch, rebase, or
+stash, the same reasoning extends to those verbs — one read-only
+`status --short` in the proven spelling is the floor, not the ceiling.
 
 **Include the worktree-cleanup verbs (GH-1068 F2).** `git -C <wt>
 restore` and `git -C <wt> clean` are not chunk work, so they are easy
