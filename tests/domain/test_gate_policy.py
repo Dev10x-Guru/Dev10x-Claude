@@ -257,6 +257,30 @@ class TestGatePolicyResolver:
         assert resolution.effect is GateEffect.ASK
         assert "human_review" in resolution.floors_applied
 
+    def test_human_review_floor_names_its_remedy(self) -> None:
+        # GH-1056: the floor is correct, but an unattended run that trips it
+        # froze on an `ask` whose reason named only the floor — leaving the
+        # operator to guess that a durable key, not the preset, held it.
+        resolution = resolve_gate(
+            gate="merge",
+            context=GateContext(human_review=True),
+            preset="adaptive",
+            overlays=["solo-maintainer", "afk"],
+        )
+        assert "human_review: false" in resolution.reason
+        assert "friction.yaml" in resolution.reason
+
+    def test_action_floors_carry_no_remedy(self) -> None:
+        # An action floor has no config escape by design, so its reason must
+        # not imply one.
+        resolution = resolve_gate(
+            gate="merge",
+            context=GateContext(human_review=False, secret_access=True),
+            preset="adaptive",
+        )
+        assert resolution.effect is GateEffect.ASK
+        assert "friction.yaml" not in resolution.reason
+
     def test_human_review_defaults_to_flooring_when_unset(self) -> None:
         # An omitted fact must resolve toward oversight: an unconfigured
         # repo keeps a human on the merge.
