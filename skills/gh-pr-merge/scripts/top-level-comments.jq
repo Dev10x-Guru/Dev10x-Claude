@@ -29,8 +29,21 @@ def is_bot:
   or ((.user.login // "") | test("claude|github-actions|coderabbit|sourcery|openai|codex|copilot"))
   or ((.body // "") | test("<!--"));
 
+# The "Re:" lines in a body, matched PER LINE (GH-1057). Testing the whole
+# body against "^[[:space:]]*Re:" anchors at the start of the STRING in jq, so
+# the documented gh-pr-respond shape — a
+# "Merge-gate dispositions (keyed):" preamble line above the "Re:" lines —
+# matched nothing. Both halves of the reply contract broke from that one
+# cause: the disposition self-triggered as a new finding, and
+# `reply_target_ids` (gated on `is_reply`) never collected its keys, so every
+# disposition posted to satisfy Check 1b raised the count by one instead of
+# lowering it. Splitting first makes each line its own string, so a key is
+# found wherever in the body it sits.
+def reply_lines:
+  (.body // "") | split("\n") | map(select(test("^[[:space:]]*Re:"; "i")));
+
 def is_reply:
-  (.body // "") | test("^[[:space:]]*Re:"; "i");
+  (reply_lines | length) > 0;
 
 # The comment ids a reply DISPOSES OF (GH-907, GH-884). `is_reply` alone only
 # stops the reply from self-triggering (GH-777) — nothing mapped it back to the
@@ -43,16 +56,12 @@ def is_reply:
 # accidentally clear a live finding. The key is scanned from the RAW body, not
 # `unquoted`, so backticking the id (the old manual code-span workaround) is no
 # longer load-bearing.
+#
+# Only "Re:" lines carry keys. Widening WHERE such a line may sit (GH-1057)
+# deliberately does not widen WHAT counts as a key: a bare id in prose is
+# still not a disposition signal.
 def reply_target_ids:
-  if is_reply then
-    ((.body // "")
-     | split("\n")
-     | map(select(test("^[[:space:]]*Re:"; "i")))
-     | join(" ")
-     | [ scan("[0-9]{6,}") ])
-  else
-    []
-  end;
+  reply_lines | join(" ") | [ scan("[0-9]{6,}") ];
 
 # The reviewer's own re-review wrapper (references/review-guidelines.md):
 # a "## Review Summary (Round N)" comment whose "### Addressed since last
@@ -159,17 +168,27 @@ def unquoted:
 # paired with one — rather than any general "sounds positive" heuristic.
 # Prose like "CRITICAL: this was previously fine" carries no cue and keeps
 # blocking, which is the intended bias.
+# The token set spans BOTH severity families (GH-1057). Exoneration cues were
+# recognised only around REQUIRED/CRITICAL/BLOCKING, so a reviewer's own
+# "all INFO items addressed" wrap-up kept registering as a live INFO finding
+# that still demanded a disposition. Widening the token set — while leaving the
+# cue shapes untouched — is the safe direction here: an INFO-family finding
+# does not hard-block a merge, it only needs a disposition, so a false
+# negative costs a missed nit rather than a missed blocker.
+def severity_token:
+  "(REQUIRED|CRITICAL|BLOCKING|INFO|NOTE|SUGGESTION)";
+
 def exonerated_line:
   test(
        "(?i:\\b(no|none|zero)\\b)([[:space:]]+of[[:space:]]+the)?"
-       + "[[:space:]]+[*_]{0,2}(REQUIRED|CRITICAL|BLOCKING)\\b"
+       + "[[:space:]]+[*_]{0,2}" + severity_token + "\\b"
      )
   or test(
-       "(REQUIRED|CRITICAL|BLOCKING)[*_]{0,2}[[:space:]]*:?[[:space:]]*"
+       severity_token + "[*_]{0,2}[[:space:]]*:?[[:space:]]*"
        + "(?i:\\b(none|not found|n/a)\\b)[[:space:]]*[.!]?[[:space:]]*$"
      )
   or test(
-       "(?i:\\b(all|every|both)\\b)[[:space:]]+[*_]{0,2}(REQUIRED|CRITICAL|BLOCKING)\\b"
+       "(?i:\\b(all|every|both)\\b)[[:space:]]+[*_]{0,2}" + severity_token + "\\b"
        + "[^.]{0,60}(?i:\\b(addressed|resolved|fixed|cleared|completed|done)\\b)"
      )
   or (test("^[[:space:]]*(✅|✔|☑|\\[x\\])")
@@ -188,8 +207,13 @@ def blocking:
 # The set is kept narrow on purpose — matching arbitrary bot prose (a plain
 # LGTM) would flood the gate with noise. These findings do not hard-block;
 # they need an explicit disposition (a "Re:" reply satisfies it).
+#
+# Scans `unexonerated`, not `unquoted` (GH-1057): the exoneration filter was
+# wired into the blocking scan only, so a reviewer's own "all INFO items
+# addressed" wrap-up stayed a live INFO finding no matter how plainly it said
+# it was handled. Both severity scans now start from the same filtered text.
 def info_marker:
-  unquoted | test("\\bINFO\\b|\\bNOTE\\b|\\bSUGGESTION\\b");
+  unexonerated | test("\\bINFO\\b|\\bNOTE\\b|\\bSUGGESTION\\b");
 
 def severity:
   if blocking then "blocking" else "info" end;
