@@ -85,6 +85,18 @@ CD_GIT_CHAIN_RE = re.compile(r'^cd\s+("(?:[^"]+)"|\'(?:[^\']+)\'|\S+)\s*&&\s*git
 # Route to the bare `pre-commit` invocation (GH-717 follow-up).
 _UV_PRECOMMIT_RE = re.compile(r"^\s*(?:uvx|uv\s+run\b)[^|&;]*?\s+pre-commit\b(?P<rest>[^|&;]*)")
 
+# `uv run --directory <path> pre-commit …` is the one exception (GH-1066).
+# Everywhere else the wrapper only shifts the matched prefix, but here it
+# pins CWD — and an `Agent`-spawned subagent's Bash CWD resets to the
+# dispatcher's on every call (GH-1028), so a bare `pre-commit` lints the
+# wrong worktree. Steering that caller to "run pre-commit directly" is
+# advice to lint the wrong tree; `_check_uv_run_inner_allow` then matches
+# the inner `pre-commit` against its allow rule and lets the pinned form
+# through.
+_UV_PRECOMMIT_CWD_PIN_RE = re.compile(
+    r"^\s*uv\s+run\b[^|&;]*?\s+--directory(?:=|\s+)\S+[^|&;]*?\s+pre-commit\b"
+)
+
 _UV_RUN_RE = re.compile(r"^\s*uv\s+run\b(?P<rest>.*)$", re.DOTALL)
 _UV_ENV_VALUE_FLAGS = frozenset({"--directory", "--project", "--python", "--extra"})
 _UV_ENV_BOOL_FLAGS = frozenset({"--frozen", "--no-project", "--locked", "--no-sync"})
@@ -423,6 +435,10 @@ UV_PRECOMMIT_MSG = (
     "never fires and you get an approval prompt every time.\n\n"
     "Run it directly:\n"
     "    {bare_command}\n\n"
+    "Exception — linting ANOTHER worktree (e.g. from a subagent, whose\n"
+    "Bash CWD is the dispatcher's and resets every call): pin it with\n"
+    "`uv run --directory <worktree> pre-commit …`, which is allowed.\n"
+    "A bare pre-commit there lints the wrong tree (GH-1066).\n\n"
     "If pre-commit is missing, install it once:\n"
     "    pipx install pre-commit       (preferred — isolated)\n"
     "    pip install --user pre-commit"
@@ -548,6 +564,8 @@ class PrefixFrictionValidator(ValidatorBase):
         return None
 
     def _check_uv_run_precommit(self, *, inp: HookInput) -> HookResult | None:
+        if _UV_PRECOMMIT_CWD_PIN_RE.match(inp.command):
+            return None
         match = _UV_PRECOMMIT_RE.match(inp.command)
         if not match:
             return None

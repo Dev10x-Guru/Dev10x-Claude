@@ -196,14 +196,22 @@ cohesive, justified by scope):
   and the GH-978 worktree caveat), `generation-authority.md` (STALL
   signal disambiguation and the `current-generation` authority-token
   contract), and `collapsed-merge-guidance.md` (the no-watcher-armed
-  merge fallback). Both `stall-protocol.md` (349 lines) and
-  `crew-prompt-template.md` (325 lines) are already over the 200-line
+  merge fallback), plus — new in GH-1059 — `worker-tool-shapes.md`
+  (why the crew template pins Glob over Bash `find`, what
+  `{{lint_shape}}` resolves against, and why the `ToolSearch`
+  bootstrap is re-run). Both `stall-protocol.md` (371 lines) and
+  `crew-prompt-template.md` (356 lines) are already over the 200-line
   reference budget and must not grow further — route any new depth to
   a new reference file instead. GH-1028 is the worked example: the
   worktree-pinning *rule* had to grow the template's bake-in block by
   8 lines because workers receive it verbatim, so all of the
   supporting evidence went to `tool-surface.md` § Subagent Bash CWD
-  instead. Split plan if `instructions.md` grows
+  instead. GH-1059/GH-1066/GH-1063 repeated the pattern: the three new
+  tool-shape mandates are worker-verbatim and stayed inline, while
+  every line of evidence behind them went to `worker-tool-shapes.md`.
+  `tool-surface.md` and `overseer-discipline.md` are now both AT the
+  200-line cap — the next addition to either needs an extraction, not
+  an append. Split plan if `instructions.md` grows
   again: the Phase 0.1/0.2 queue-building and model-gate prose is the
   next extractable candidate (`references/queue-and-model.md`), since
   the crew contract table is already split out

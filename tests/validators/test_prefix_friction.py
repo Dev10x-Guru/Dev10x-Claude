@@ -254,6 +254,30 @@ class TestUvRunPrecommit:
         inp = _make_input(command="uv run pytest -q")
         assert validator._check_uv_run_precommit(inp=inp) is None
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "uv run --directory /work/wt pre-commit run --files a.py",
+            "uv run --directory=/work/wt pre-commit run --all-files",
+            "uv run --directory /work/wt --extra dev pre-commit run --files a.py",
+        ],
+    )
+    def test_worktree_pinned_precommit_not_blocked(
+        self,
+        validator: PrefixFrictionValidator,
+        command: str,
+    ) -> None:
+        assert validator._check_uv_run_precommit(inp=_make_input(command=command)) is None
+
+    def test_block_message_names_the_worktree_pinned_escape(
+        self,
+        validator: PrefixFrictionValidator,
+    ) -> None:
+        inp = _make_input(command="uv run pre-commit run --all-files")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "--directory" in result.message
+
 
 class TestCdNoopChain:
     @pytest.fixture()
