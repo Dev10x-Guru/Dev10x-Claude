@@ -54,6 +54,35 @@ _BARE_FORCE_TOKENS = frozenset({"--force", "-f"})
 # `-uf` carries a force push that whole-token membership never sees.
 _SHORT_FLAG_CLUSTER_RE = re.compile(r"^-[A-Za-z]+$")
 
+# Flags whose value is a SEPARATE token (GH-1049 gap 2). Filtering only
+# `-`-prefixed tokens left the value behind as a positional, shifting
+# every index after it — `git push -o ci.skip origin main` resolved its
+# target to `origin`, so `main` never reached the protected-branch check.
+#
+# Optional-value flags are deliberately absent: `--force-with-lease` is
+# commonly spelled bare, and consuming the token after it would swallow
+# the remote. Attached `--flag=value` spellings are single tokens and
+# need no entry here.
+_VALUE_TAKING_FLAGS = frozenset(
+    {
+        "-o",
+        "--push-option",
+        "--receive-pack",
+        "--exec",
+        "--repo",
+    }
+)
+
+# Shell constructs whose value is unknown until execution (GH-1049 gap 6).
+# A substitution can produce a force flag or a protected target with no
+# matching token in the parsed text, so what this guard cannot read, it
+# must not clear.
+_EXPANSION_RE = re.compile(r"\$\(|\$\{|\$[A-Za-z_]|`")
+
+# A ref may arrive fully qualified (GH-1049 gap 4). `PROTECTED_BRANCHES`
+# holds short names, so `refs/heads/main` compared as unprotected.
+_REF_PREFIX = "refs/heads/"
+
 
 def _tokenize(command: str) -> list[str]:
     try:
@@ -62,24 +91,67 @@ def _tokenize(command: str) -> list[str]:
         return command.split()
 
 
-def _explicit_push_target(command: str) -> str | None:
-    """Return the branch this push names explicitly, if statically
-    determinable from the command text alone.
+def _push_args(command: str) -> list[str] | None:
+    """Tokens following the ``git push`` subcommand, or ``None``.
 
-    Returns ``None`` when the target can't be resolved without
-    inspecting live git state — bare ``git push``, ``git push
-    origin`` (no refspec), or a symbolic ``HEAD`` ref — so callers
-    stay conservative rather than guessing the current branch.
+    The subcommand is located as the first ``push`` token that has a
+    ``git`` token somewhere before it, rather than the first bare
+    ``push`` anywhere in the string (GH-1049 gap 5) — otherwise a decoy
+    in `echo push && git push …` shifted every positional offset.
     """
     tokens = _tokenize(command)
-    if "push" not in tokens:
+    for index, token in enumerate(tokens):
+        if token == "push" and "git" in tokens[:index]:
+            return tokens[index + 1 :]
+    return None
+
+
+def _push_positionals(push_args: list[str]) -> list[str]:
+    """The remote and refspecs, with flag values excluded (gap 2)."""
+    positionals: list[str] = []
+    skip_value = False
+    for arg in push_args:
+        if skip_value:
+            skip_value = False
+            continue
+        if arg.startswith("-"):
+            skip_value = arg in _VALUE_TAKING_FLAGS
+            continue
+        positionals.append(arg)
+    return positionals
+
+
+def _normalize_ref(refspec: str) -> str:
+    """The short branch name a refspec targets.
+
+    Takes the destination half of `src:dst`, drops a leading `+` (the
+    force marker on a colon-less refspec), and unqualifies
+    `refs/heads/<x>` so it compares against `PROTECTED_BRANCHES`.
+    """
+    ref = refspec.split(":")[-1].removeprefix("+")
+    return ref.removeprefix(_REF_PREFIX)
+
+
+def _explicit_push_targets(command: str) -> list[str] | None:
+    """Every branch this push names explicitly, if statically determinable.
+
+    Returns ``None`` when no target can be resolved without inspecting
+    live git state — bare ``git push``, ``git push origin`` (no
+    refspec), or a symbolic ``HEAD`` ref — so callers stay conservative
+    rather than guessing the current branch.
+
+    ALL refspecs are returned, not just the first (GH-1049 gap 3): a
+    push may carry several, and inspecting one let
+    `git push origin feature +evil:develop` read as safe.
+    """
+    push_args = _push_args(command)
+    if push_args is None:
         return None
-    push_args = tokens[tokens.index("push") + 1 :]
-    positionals = [a for a in push_args if not a.startswith("-")]
+    positionals = _push_positionals(push_args)
     if len(positionals) < 2:
         return None
-    ref = positionals[1].split(":")[-1]
-    return None if ref == "HEAD" else ref
+    targets = [_normalize_ref(refspec) for refspec in positionals[1:]]
+    return None if "HEAD" in targets else targets
 
 
 def _has_bare_force(command: str) -> bool:
@@ -97,23 +169,45 @@ def _has_bare_force(command: str) -> bool:
     )
 
 
+def _has_refspec_force(command: str) -> bool:
+    """True when a refspec force-pushes via its ``+`` prefix (gap 3).
+
+    `git push origin +evil:main` carries no force *flag* at all, so a
+    flag-only test reported it as an ordinary push.
+    """
+    push_args = _push_args(command)
+    if push_args is None:
+        return False
+    return any(refspec.startswith("+") for refspec in _push_positionals(push_args)[1:])
+
+
+def _has_force(command: str) -> bool:
+    return _has_bare_force(command) or _has_refspec_force(command)
+
+
 def _is_safe_direct_push(command: str) -> bool:
     """True when ``command`` is safe to allow without MCP/skill involvement.
 
-    Safe means: no bare ``--force``/``-f`` flag, and an explicit,
-    statically-resolvable target branch that is not in
+    Safe means: no force in any spelling, and explicit,
+    statically-resolvable target branches, none of which is in
     ``PROTECTED_BRANCHES``. This is exactly the guardrail
     ``push_safe``/``git-push-safe.sh`` already enforce for the
     force+protected combination — narrowing the deny here doesn't
     weaken it, it just stops blocking the case those tools would
     have allowed anyway.
+
+    A command carrying shell expansion is never safe (gap 6): its real
+    arguments are decided after this check runs, so the only sound
+    verdict is to fail closed onto the skill/MCP rail.
     """
-    if _has_bare_force(command):
+    if _EXPANSION_RE.search(command):
         return False
-    target = _explicit_push_target(command)
-    if target is None:
+    if _has_force(command):
         return False
-    return target not in PROTECTED_BRANCHES
+    targets = _explicit_push_targets(command)
+    if not targets:
+        return False
+    return all(target not in PROTECTED_BRANCHES for target in targets)
 
 
 def _format_correction_msg(

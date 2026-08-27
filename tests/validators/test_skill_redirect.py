@@ -309,6 +309,169 @@ class TestGitPushUnattendedEscapeHatch:
             assert result is not None, f"Expected block for push to {branch}"
 
 
+class TestGitPushForceSpellingsThatEvadedTheGuard:
+    """GH-1049: six spellings that read as a safe push but force-push a
+    protected branch.
+
+    GH-1047 closed the bundled-short-flag hole; these are the remaining
+    ones, all sharing a root cause — the guard decides "is this a force
+    push, and what does it target?" by statically matching the command
+    text, and each case below is a spelling that static matching missed.
+
+    Every case must produce a block, i.e. route to ``Skill(Dev10x:git)``
+    rather than being waved through as the safe direct-push case.
+    """
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git push -o ci.skip origin main",
+            "git push --push-option ci.skip origin develop",
+            "git push --receive-pack /usr/bin/git-receive-pack origin master",
+        ],
+    )
+    def test_value_taking_flag_value_is_not_read_as_a_positional(
+        self,
+        validator: SkillRedirectValidator,
+        command: str,
+    ) -> None:
+        """Gap 2: dropping only ``-``-prefixed tokens leaves the flag's
+        value in the positional list, shifting every index after it — so
+        the remote was read as the branch and the real branch never
+        reached the protected-branch check."""
+        assert validator.validate(inp=_make_input(command=command)) is not None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git push origin +evil:main",
+            "git push origin +main",
+            "git push origin feature +evil:develop",
+        ],
+    )
+    def test_plus_prefixed_refspec_counts_as_force(
+        self,
+        validator: SkillRedirectValidator,
+        command: str,
+    ) -> None:
+        """Gap 3: refspec syntax force-pushes with no force *flag* at all,
+        and only the first refspec was ever inspected."""
+        assert validator.validate(inp=_make_input(command=command)) is not None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git push origin +feature:refs/heads/main",
+            "git push --force origin refs/heads/develop",
+        ],
+    )
+    def test_fully_qualified_ref_is_recognised_as_protected(
+        self,
+        validator: SkillRedirectValidator,
+        command: str,
+    ) -> None:
+        """Gap 4: ``PROTECTED_BRANCHES`` holds short names, so a
+        ``refs/heads/``-qualified target compared as unprotected."""
+        assert validator.validate(inp=_make_input(command=command)) is not None
+
+    def test_decoy_push_token_cannot_shift_target_resolution(
+        self,
+        validator: SkillRedirectValidator,
+    ) -> None:
+        """Gap 5: the subcommand was located by the first bare ``push``
+        anywhere in the string, so an earlier decoy shifted every offset."""
+        command = "echo push && git push origin +evil:main"
+        assert validator.validate(inp=_make_input(command=command)) is not None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git push origin $BRANCH",
+            "git push origin ${TARGET}",
+            "git push $(cat /tmp/flags) origin feature",
+            "git push origin feature-`date +%s`",
+        ],
+    )
+    def test_shell_expansion_fails_closed(
+        self,
+        validator: SkillRedirectValidator,
+        command: str,
+    ) -> None:
+        """Gap 6: an expansion can produce a force flag or a protected
+        target at execution time with no matching token in the parsed
+        text. What the guard cannot read, it must not clear."""
+        assert validator.validate(inp=_make_input(command=command)) is not None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git push -o ci.skip origin feature-branch",
+            "git push origin feature:refs/heads/feature",
+            "git push origin feature other-feature",
+        ],
+    )
+    def test_ordinary_safe_pushes_still_pass(
+        self,
+        validator: SkillRedirectValidator,
+        command: str,
+    ) -> None:
+        """The escape hatch must survive the tightening: these name
+        explicit, non-protected targets and carry no force in any
+        spelling."""
+        assert validator.validate(inp=_make_input(command=command)) is None
+
+
+class TestPushHelpersOnNonPushCommands:
+    """GH-1049: the helpers must answer safely for a command with no
+    ``git push`` in it at all.
+
+    The validator only reaches them behind the ``git-push`` rule, so these
+    branches are unreachable through ``validate``. They are still the
+    contract every helper leans on — ``_has_refspec_force`` must not report
+    force, and target resolution must not invent a target, when there is no
+    push to read. Exercised directly rather than left to a future caller to
+    discover.
+    """
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "echo push",
+            "git status",
+            "npm run push",
+            "",
+        ],
+    )
+    def test_no_git_push_yields_no_args(self, command: str) -> None:
+        from dev10x.validators.skill_redirect import _push_args
+
+        assert _push_args(command) is None
+
+    @pytest.mark.parametrize("command", ["echo push", "git status"])
+    def test_no_git_push_yields_no_targets(self, command: str) -> None:
+        from dev10x.validators.skill_redirect import _explicit_push_targets
+
+        assert _explicit_push_targets(command) is None
+
+    @pytest.mark.parametrize("command", ["echo push +evil:main", "git status"])
+    def test_no_git_push_is_not_refspec_force(self, command: str) -> None:
+        from dev10x.validators.skill_redirect import _has_refspec_force
+
+        assert _has_refspec_force(command) is False
+
+    def test_unbalanced_quotes_fall_back_to_whitespace_split(self) -> None:
+        """``shlex`` raises on an unterminated quote; the fallback keeps the
+        guard reading the command instead of throwing inside a hook."""
+        from dev10x.validators.skill_redirect import _tokenize
+
+        assert _tokenize("git push origin 'unterminated") == [
+            "git",
+            "push",
+            "origin",
+            "'unterminated",
+        ]
+
+
 class TestGitRebaseRedirect:
     def test_blocks_git_rebase_i(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="git rebase -i HEAD~3")
