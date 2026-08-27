@@ -926,6 +926,12 @@ rules:
       # archetypal un-allowable find shape (GH-726 F2/F3).
       - "find .*-exec\\s+(grep|egrep|fgrep|rg|cat|wc|head|tail|sort|sed|awk)"
       - "find .*-(name|iname|path|regex)\\b"
+      # Parens/brackets in a path argument — shell-escaped or quoted.
+      # A plain `find <path> -type f` over a SvelteKit route group
+      # (`routes/(app)/[id]/`) carries no -name/-path/-exec, so the two
+      # patterns above miss it entirely (GH-1059).
+      - "find [^|&;]*\\\\[()\\[\\]]"
+      - "find [^|&;]*['\"][^'\"]*[()\\[\\]]"
     hook_block: false
     compensations:
       - type: use-tool
@@ -948,7 +954,11 @@ rules:
       blocked because -exec wraps an arbitrary command (defeating the inner
       tool's allow-rule). The fix is tool substitution, not a new allow-rule
       — steer searches to ripgrep / the Grep + Glob tools (GH-726 F2/F3,
-      themes T1 + T3).
+      themes T1 + T3). Parenthesised path segments make this acute: two
+      unattended workers wedged simultaneously on the same
+      `find …/routes/\(app\)/…` shape, silent for 25–35 min with nothing
+      recorded in the hook log, because a pending permission prompt is
+      neither a block nor a denial (GH-1059).
 
   - name: fish-interactive-abbr
     matcher: Bash

@@ -28,6 +28,28 @@ So a worker prompt must (a) never name a `Skill(...)` call, and
 (b) open with the select-query bootstrap in
 `crew-prompt-template.md` § 2.
 
+## MCP connectivity is not permanent (GH-1063)
+
+A fourth fact, and the one that bites latest: **the bootstrap does not
+hold for the worker's whole life.** Three independent crew workers in
+the 2026-08-23 run lost their Dev10x MCP surface after 60–90+ minutes —
+`create_pr` and `push_safe` became unreachable on tools they had
+already loaded and already used. The suspected mechanism is an idle
+timeout on a connection held across a long blocking call, which
+`ci_check_status(wait=true)` produces by design.
+
+The cost is asymmetric and lands at the worst moment: two of the three
+had already pushed their work and lost only the final PR/verify step;
+the third wedged pre-PR with a branch on origin and no PR, and needed a
+fresh-spawn takeover to finish a chunk that was substantively done.
+
+Until the wrapper layer reconnects on demand, the mitigation is
+worker-side and cheap: re-run the exact `ToolSearch` select-query once
+when a previously-loaded tool reports unreachable, then report and stop
+if it is still gone. A worker that reads "tool not found" as "this
+operation is impossible" improvises raw CLI for a gated operation —
+which is the failure the surface split exists to prevent.
+
 ## Subagent Bash CWD is per-call (GH-1028)
 
 A third fact, and the one that costs the most when it is wrong:

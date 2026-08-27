@@ -269,6 +269,26 @@ class TestGh879WatchLoopEntry:
         rule = _rule_by_name("find-search")
         assert _matches_any_pattern(rule=rule, command="find /hooks -type f -name '*.sh'")
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            r"find apps/web/src/routes/\(app\)/class-health/\[classId\]/print -type f",
+            "find 'apps/web/src/routes/(app)/class-health' -type f",
+            r'find "apps/web/src/routes/(app)" -type d',
+        ],
+    )
+    def test_find_over_route_group_path_recognized(self, command: str) -> None:
+        # GH-1059: no -name/-path/-exec, so the older patterns miss it —
+        # yet this exact shape wedged two unattended workers silently.
+        assert _matches_any_pattern(rule=_rule_by_name("find-search"), command=command)
+
+    def test_plain_find_without_parens_not_matched(self) -> None:
+        # Guard the widened patterns against over-reach: an ordinary
+        # `find <path> -type f` stays out of scope.
+        assert not _matches_any_pattern(
+            rule=_rule_by_name("find-search"), command="find apps/web/src -type f"
+        )
+
     def test_find_search_routes_to_grep_and_glob(self) -> None:
         targets = _compensation_targets(_rule_by_name("find-search"))
         assert "Grep" in targets

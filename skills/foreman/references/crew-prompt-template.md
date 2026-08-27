@@ -35,7 +35,15 @@ mcp__plugin_Dev10x_cli__resolve_review_thread,mcp__plugin_Dev10x_cli__mktmp")
 If that call returns no matching tools, STOP and report the empty
 surface to the foreman — do not improvise a raw-CLI equivalent for a
 gated operation.
+
+If a tool you already loaded later reports as unreachable, re-run that
+exact ToolSearch call ONCE before concluding it is gone — a worker
+past ~60 minutes can lose the MCP connection. Still unreachable after
+the retry: report it and STOP; never substitute raw CLI.
 ```
+
+The retry line is not optional politeness — evidence in
+[`worker-tool-shapes.md`](worker-tool-shapes.md) (GH-1063).
 
 ## 3. Mission (lifecycle-split — workers stop at PR-open)
 
@@ -94,9 +102,19 @@ Name the EXACT invocations proven unpromptable for this repo, e.g.:
   args=["--", "<filter>"], coverage=false) — `returncode` is the sole
   pass/fail truth.
 - Backend tests: {{backend_test_shape}} (100% coverage on new code).
-- Lint: `pre-commit run --files <changed files...>`.
+- Path/file discovery: the Glob tool. NEVER Bash `find` — escaped
+  parens in `(group)` route paths match no allow rule and wedge you
+  silently, with nothing recorded in the hook log.
+- Lint: {{lint_shape}}. A bare `pre-commit` lints the DISPATCHER's
+  tree, not yours; if Phase 0.4 proved no worktree-pinned shape, this
+  reads "CI only" and you do not improvise one.
 - Never: `| tail`, `--prefix`, `&&`, redirects, inline interpreters.
 ```
+
+The `find` and `pre-commit` lines are worker deaths, not style — both
+wedged workers silently, with nothing in the hook log. Evidence and the
+generalisable diagnostic:
+[`worker-tool-shapes.md`](worker-tool-shapes.md) (GH-1059, GH-1066).
 
 ## 6. Workspace + branch
 
