@@ -24,11 +24,14 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
 
+from dev10x.domain.common.accepted_findings import AcceptedFinding, find_acceptance
 from dev10x.domain.common.allow_rule import AllowRule, AllowRuleLoader
 from dev10x.domain.common.policy import Policy, PolicyAssessment, PolicySource
 from dev10x.domain.common.policy_resolution import attach_assessments
+from dev10x.skills.permission.accepted_findings import load_accepted_findings
 from dev10x.skills.permission.clean_project_files import HOOK_ENABLED_INNER_PREFIXES
 from dev10x.skills.permission_investigator.policy_report import (
     auditor_assessment,
@@ -58,15 +61,6 @@ def _bash_prefix(rule: AllowRule) -> str:
     return ""
 
 
-def _representative_value(rule: AllowRule) -> str:
-    """A concrete-ish value a rule governs, for subsumption comparison."""
-    if rule.tool == "Bash" and rule.pattern.endswith(":*"):
-        return rule.pattern[:-2]
-    if rule.pattern.endswith("**"):
-        return rule.pattern[:-2]
-    return rule.pattern
-
-
 def _is_overly_broad(rule: AllowRule) -> bool:
     if rule.pattern in _BARE_WILDCARDS:
         return True
@@ -91,11 +85,11 @@ def _is_redundant(rule: AllowRule, *, rules: list[AllowRule]) -> bool:
     duplicates = sum(1 for other in rules if other.raw == rule.raw)
     if duplicates > 1:
         return True
-    value = _representative_value(rule)
+    value = rule.representative_value
     for other in rules:
         if other.raw == rule.raw or other.tool != rule.tool:
             continue
-        if other.matches_prefix(value) and not rule.matches_prefix(_representative_value(other)):
+        if other.matches_prefix(value) and not rule.matches_prefix(other.representative_value):
             return True
     return False
 
@@ -119,12 +113,30 @@ def classify_allow_rule(rule: AllowRule, *, rules: list[AllowRule]) -> str | Non
     return None
 
 
-def audit_policies(
+@dataclass(frozen=True)
+class SuppressedFinding:
+    """A real finding the maintainer has already ruled on (GH-1053)."""
+
+    rule: str
+    classification: str
+    acceptance: AcceptedFinding
+
+
+@dataclass(frozen=True)
+class AuditOutcome:
+    """Findings split into what to propose and what was already answered."""
+
+    reported: list[Policy]
+    suppressed: tuple[SuppressedFinding, ...]
+
+
+def audit_findings(
     *,
     rules: list[AllowRule],
     catalog_policies: dict[str, Policy] | None = None,
-) -> list[Policy]:
-    """Classify ``rules`` and return the assessed Policies (finding order).
+    accepted: tuple[AcceptedFinding, ...] | None = None,
+) -> AuditOutcome:
+    """Classify ``rules``, splitting off findings accepted by design.
 
     Each classified rule becomes an :func:`auditor_assessment` keyed by its
     signature; identical (signature, classification) pairs collapse so a
@@ -132,15 +144,35 @@ def audit_policies(
     entry is rendered against that typed entry (its real tier/source/
     effect); an off-catalog settings rule falls back to an unscoped tier-0
     project-local Policy. Rules with no finding are omitted.
+
+    ``accepted`` defaults to the merged shipped+user catalog. A covered
+    finding moves to ``suppressed`` rather than disappearing, so the report
+    can show it without proposing a change (GH-1053). Pass ``()`` to audit
+    with no acceptances at all.
     """
     catalog_policies = catalog_policies or {}
+    catalog = load_accepted_findings() if accepted is None else accepted
     records: dict[str, list[PolicyAssessment]] = {}
     ordered: list[str] = []
+    suppressed: list[SuppressedFinding] = []
+    seen_suppressions: set[tuple[str, str]] = set()
     for rule in rules:
         token = classify_allow_rule(rule, rules=rules)
         if token is None:
             continue
         signature = rule.raw
+        acceptance = find_acceptance(rule=signature, classification=token, catalog=catalog)
+        if acceptance is not None:
+            if (signature, token) not in seen_suppressions:
+                seen_suppressions.add((signature, token))
+                suppressed.append(
+                    SuppressedFinding(
+                        rule=signature,
+                        classification=token,
+                        acceptance=acceptance,
+                    )
+                )
+            continue
         if signature not in records:
             records[signature] = []
             ordered.append(signature)
@@ -152,23 +184,66 @@ def audit_policies(
         or Policy.from_rule_str(signature, tier=0, source=PolicySource.PROJECT_LOCAL)
         for signature in ordered
     ]
-    return attach_assessments(
-        policies=policies,
-        records={signature: tuple(items) for signature, items in records.items()},
+    return AuditOutcome(
+        reported=attach_assessments(
+            policies=policies,
+            records={signature: tuple(items) for signature, items in records.items()},
+        ),
+        suppressed=tuple(suppressed),
     )
+
+
+def audit_policies(
+    *,
+    rules: list[AllowRule],
+    catalog_policies: dict[str, Policy] | None = None,
+) -> list[Policy]:
+    """Assessed Policies for every finding, acceptances included.
+
+    The raw classification surface — :func:`audit_findings` is what
+    callers who report to a human want.
+    """
+    return audit_findings(
+        rules=rules,
+        catalog_policies=catalog_policies,
+        accepted=(),
+    ).reported
+
+
+def _suppressed_lines(suppressed: tuple[SuppressedFinding, ...]) -> list[str]:
+    lines = [
+        "",
+        f"## Suppressed by accepted-findings ({len(suppressed)})",
+        "",
+        "Real findings the maintainer has already ruled on. Listed, not proposed.",
+        "",
+    ]
+    for item in suppressed:
+        lines.append(f"- `{item.rule}` — {item.classification}: {item.acceptance.rationale}")
+    return lines
 
 
 def audit_report(
     *,
     rules: list[AllowRule],
     catalog_policies: dict[str, Policy] | None = None,
+    accepted: tuple[AcceptedFinding, ...] | None = None,
 ) -> list[str]:
     """Render the auditor findings as report lines (empty-input tolerant)."""
-    policies = audit_policies(rules=rules, catalog_policies=catalog_policies)
-    lines = render_policy_report(policies=policies)
-    if not lines:
+    outcome = audit_findings(
+        rules=rules,
+        catalog_policies=catalog_policies,
+        accepted=accepted,
+    )
+    lines = render_policy_report(policies=outcome.reported)
+    if not lines and not outcome.suppressed:
         return ["No auditor findings — every allow rule is SAFE by shape."]
-    return ["# Permission Audit (PAP-6 auditor assessments)", "", *lines]
+    if not lines:
+        lines = ["No auditor findings to propose — every finding is accepted by design."]
+    report = ["# Permission Audit (PAP-6 auditor assessments)", "", *lines]
+    if outcome.suppressed:
+        report.extend(_suppressed_lines(outcome.suppressed))
+    return report
 
 
 def rules_from_settings(settings_files: Iterable[str | Path]) -> list[AllowRule]:
@@ -184,6 +259,9 @@ __all__ = [
     "OVERLY_BROAD",
     "REDUNDANT",
     "WILDCARD_ESCAPE",
+    "AuditOutcome",
+    "SuppressedFinding",
+    "audit_findings",
     "audit_policies",
     "audit_report",
     "classify_allow_rule",

@@ -71,6 +71,25 @@ class TestMatchesPrefix:
         assert not AllowRule.parse("Bash(ls)").matches_prefix("ls -la")
 
 
+class TestRepresentativeValue:
+    """The inverse of matches_prefix — the narrowest thing a rule covers."""
+
+    def test_bash_wildcard_suffix_is_stripped(self) -> None:
+        assert AllowRule.parse("Bash(git branch -D:*)").representative_value == "git branch -D"
+
+    def test_path_glob_suffix_is_stripped(self) -> None:
+        assert AllowRule.parse("Read(/a/b/**)").representative_value == "/a/b/"
+
+    def test_exact_pattern_is_returned_verbatim(self) -> None:
+        assert AllowRule.parse("Bash(ls)").representative_value == "ls"
+
+    def test_round_trips_through_matches_prefix(self) -> None:
+        broad = AllowRule.parse("Bash(git branch:*)")
+        narrow = AllowRule.parse("Bash(git branch -D:*)")
+        assert broad.matches_prefix(narrow.representative_value)
+        assert not narrow.matches_prefix(broad.representative_value)
+
+
 class TestFactories:
     @pytest.mark.parametrize(
         ("factory", "arg", "expected"),

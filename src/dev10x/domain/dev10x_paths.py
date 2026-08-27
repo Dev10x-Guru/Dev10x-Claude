@@ -194,6 +194,18 @@ class Dev10xConfigDir:
         return cls._resolve("sensitivity-exceptions.yaml")
 
     @classmethod
+    def accepted_findings_yaml(cls) -> Path:
+        """User-owned accepted-by-design auditor findings (GH-1053).
+
+        The counterpart to ``sensitivity-exceptions.yaml`` for the
+        permission auditor: it records answers the maintainer has already
+        given, so a rejected recommendation stays rejected across upgrades
+        instead of being re-litigated on every maintenance run. Introduced
+        after the ``~/.config/Dev10x`` move, so there is no legacy path.
+        """
+        return cls._resolve("accepted-findings.yaml")
+
+    @classmethod
     def github_bot_dir(cls) -> Path:
         return _with_lazy_migration(cls._resolve("github-bot"), _legacy_github_bot_dir)
 

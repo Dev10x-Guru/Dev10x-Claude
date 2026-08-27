@@ -77,7 +77,48 @@ DESTRUCTIVE, OVERLY_BROAD, or CONTRADICTS_POLICY:
 | `Bash(git reset:*)` | SKILL_REQUIRED | Worktree rebase recovery needs `--hard`; skills gate destructive usage |
 | `Bash(git reset --hard:*)` | SKILL_REQUIRED | Explicit variant of above — same rationale |
 | `Bash(git reset --soft:*)` | SAFE | Non-destructive; moves HEAD only |
+| `Bash(git push --force:*)` / `Bash(git push -f:*)` | SKILL_REQUIRED | Protected branches are railed by `push_safe` (GH-1031) at the wrapper layer; a permission gate duplicates that guard and prompts on every routine groom |
+| `Bash(git branch -D:*)` / `-d` / `--delete` | SKILL_REQUIRED | Deletes a ref, not history — the tip stays reachable via `git log -g`. Unattended cleanup must not wedge on a prompt (GH-1067) |
 | `Bash(git -C:*)` | SKILL_REQUIRED | Cross-repo targeting when CWD is a different worktree; CLAUDE.md forbids redundant `-C` (when CWD matches), not all `-C` usage |
 
 When encountering these patterns during Phase 3, classify them
 per the table above — do not escalate to HIGH/CRITICAL.
+
+## Accepted-Findings Catalog (GH-1053)
+
+The skip list above says which shapes must not be *escalated*. The
+accepted-findings catalog says which findings must not be *re-proposed*
+after the maintainer has already rejected the proposal once.
+
+The distinction matters because several of these rules do raise a real,
+shape-decidable finding. The baseline catalog ships both
+`Bash(git reset:*)` and `Bash(git reset --hard:*)`, so the explicit
+variant is genuinely REDUNDANT by subsumption — and proposing its removal
+makes `ensure-base` (plugin-maintenance step 4) and the auditor (step 10)
+undo each other on every run. Accepting the finding keeps the analysis
+honest while ending the loop.
+
+- Shipped defaults live in
+  `src/dev10x/domain/common/accepted_findings.py` and cover the
+  `git reset --hard`, `git push --force` / `-f`, and
+  `git branch -D` / `-d` / `--delete` families.
+- Users add their own — or re-open a shipped one — via
+  `~/.config/Dev10x/accepted-findings.yaml`, the auditor counterpart to
+  `sensitivity-exceptions.yaml`:
+
+  ```yaml
+  accepted:
+    - rule: "Bash(git clean -fd:*)"
+      classifications: [REDUNDANT]   # omit for "any finding on this rule"
+      rationale: "scratch worktrees only"
+  rejected:
+    - "Bash(git push -f:*)"          # re-open a shipped acceptance
+  ```
+
+- An acceptance is scoped to the named classification tokens, so
+  accepting REDUNDANT on a rule does not silence a future
+  WILDCARD_ESCAPE verdict on the same rule.
+- Suppression is never silent: `dev10x permission audit` renders every
+  suppressed finding under a `## Suppressed by accepted-findings`
+  heading. Report them there — do not carry them into the Phase 7
+  "Proposed changes" groups.

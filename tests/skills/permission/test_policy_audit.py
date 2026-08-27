@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from dev10x.domain.common.accepted_findings import AcceptedFinding
 from dev10x.domain.common.allow_rule import AllowRule
 from dev10x.domain.common.policy import Policy, PolicySource
 from dev10x.skills.permission import policy_audit
@@ -101,6 +102,52 @@ class TestAuditReport:
         lines = policy_audit.audit_report(rules=_rules("Bash(:*)"))
         assert lines[0] == "# Permission Audit (PAP-6 auditor assessments)"
         assert any("auditor:OVERLY_BROAD" in line for line in lines)
+
+
+class TestAcceptedFindingSuppression:
+    """GH-1053: a ruling the maintainer already made is not re-proposed."""
+
+    BASELINE_PAIR = ("Bash(git reset:*)", "Bash(git reset --hard:*)")
+
+    def test_subsumed_baseline_rule_is_a_finding_without_acceptances(self) -> None:
+        outcome = policy_audit.audit_findings(rules=_rules(*self.BASELINE_PAIR), accepted=())
+        assert [policy.signature for policy in outcome.reported] == ["Bash(git reset --hard:*)"]
+        assert outcome.suppressed == ()
+
+    def test_shipped_acceptance_moves_the_finding_out_of_proposals(self) -> None:
+        outcome = policy_audit.audit_findings(rules=_rules(*self.BASELINE_PAIR))
+        assert outcome.reported == []
+        assert [item.rule for item in outcome.suppressed] == ["Bash(git reset --hard:*)"]
+        assert outcome.suppressed[0].classification == policy_audit.REDUNDANT
+
+    def test_branch_deletion_family_is_accepted(self) -> None:
+        outcome = policy_audit.audit_findings(
+            rules=_rules("Bash(git branch:*)", "Bash(git branch -D:*)")
+        )
+        assert outcome.reported == []
+        assert [item.rule for item in outcome.suppressed] == ["Bash(git branch -D:*)"]
+
+    def test_acceptance_is_scoped_to_its_classification(self) -> None:
+        accepted = (
+            AcceptedFinding(
+                rule="Bash(git reset --hard:*)",
+                rationale="only the redundancy verdict",
+                classifications=frozenset({"OVERLY_BROAD"}),
+            ),
+        )
+        outcome = policy_audit.audit_findings(rules=_rules(*self.BASELINE_PAIR), accepted=accepted)
+        assert [policy.signature for policy in outcome.reported] == ["Bash(git reset --hard:*)"]
+        assert outcome.suppressed == ()
+
+    def test_report_lists_suppressions_under_their_own_heading(self) -> None:
+        lines = policy_audit.audit_report(rules=_rules(*self.BASELINE_PAIR))
+        assert "## Suppressed by accepted-findings (1)" in lines
+        assert any("Bash(git reset --hard:*)" in line for line in lines)
+        assert any("GH-1053" in line for line in lines)
+
+    def test_report_says_nothing_to_propose_when_all_findings_are_accepted(self) -> None:
+        lines = policy_audit.audit_report(rules=_rules(*self.BASELINE_PAIR))
+        assert "No auditor findings to propose — every finding is accepted by design." in lines
 
 
 class TestRulesFromSettings:
