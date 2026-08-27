@@ -13,11 +13,13 @@ from dev10x.skills.foreman import (
     active_quota_block,
     base_branch_sha,
     block_identity,
+    escalation_offsets,
+    heartbeat_ages,
     heartbeat_lines,
     historical_token_ceiling,
     is_own_merge,
     minutes_to_quota_exhaustion,
-    newest_heartbeat_age_min,
+    new_escalation_lines,
     own_merge_shas,
     queue_parked,
 )
@@ -51,62 +53,133 @@ def _touch(path: Path, *, age_min: float, content: str = "- t phase: line") -> N
 
 class TestWatchStateObserve:
     def test_quiet_round_emits_nothing(self, state: WatchState, quiet_block: dict) -> None:
-        events = state.observe(now=NOW + 60, sha="aaa111", block=quiet_block, heartbeat_age_min=1)
+        events = state.observe(
+            now=NOW + 60, sha="aaa111", block=quiet_block, heartbeat_ages={"status-a.md": 1}
+        )
         assert events == []
 
     def test_stall_fires_after_threshold(self, state: WatchState, quiet_block: dict) -> None:
-        events = state.observe(now=NOW + 60, sha="aaa111", block=quiet_block, heartbeat_age_min=26)
-        assert events == ["STALL: newest heartbeat silent for 26 min"]
+        events = state.observe(
+            now=NOW + 60, sha="aaa111", block=quiet_block, heartbeat_ages={"status-a.md": 26}
+        )
+        assert events == ["STALL status-a.md: silent 26 min"]
 
     def test_stall_alert_is_rate_limited(self, state: WatchState, quiet_block: dict) -> None:
-        state.observe(now=NOW + 60, sha="aaa111", block=quiet_block, heartbeat_age_min=26)
+        state.observe(
+            now=NOW + 60, sha="aaa111", block=quiet_block, heartbeat_ages={"status-a.md": 26}
+        )
         repeat = state.observe(
-            now=NOW + 120, sha="aaa111", block=quiet_block, heartbeat_age_min=27
+            now=NOW + 120, sha="aaa111", block=quiet_block, heartbeat_ages={"status-a.md": 27}
         )
         assert repeat == []
 
     def test_stall_realerts_after_window(self, state: WatchState, quiet_block: dict) -> None:
-        state.observe(now=NOW + 60, sha="aaa111", block=quiet_block, heartbeat_age_min=26)
-        later = state.observe(
-            now=NOW + 60 + 25 * 60, sha="aaa111", block=quiet_block, heartbeat_age_min=51
+        state.observe(
+            now=NOW + 60, sha="aaa111", block=quiet_block, heartbeat_ages={"status-a.md": 26}
         )
-        assert later == ["STALL: newest heartbeat silent for 51 min"]
+        later = state.observe(
+            now=NOW + 60 + 25 * 60,
+            sha="aaa111",
+            block=quiet_block,
+            heartbeat_ages={"status-a.md": 51},
+        )
+        assert later == ["STALL status-a.md: silent 51 min"]
 
     def test_missing_heartbeats_grace_until_run_age(
         self, state: WatchState, quiet_block: dict
     ) -> None:
-        early = state.observe(
-            now=NOW + 60, sha="aaa111", block=quiet_block, heartbeat_age_min=None
-        )
+        early = state.observe(now=NOW + 60, sha="aaa111", block=quiet_block, heartbeat_ages={})
         assert early == []
-        late = state.observe(
-            now=NOW + 26 * 60, sha="aaa111", block=quiet_block, heartbeat_age_min=None
+        late = state.observe(now=NOW + 26 * 60, sha="aaa111", block=quiet_block, heartbeat_ages={})
+        assert late == ["STALL: no heartbeat files, silent for 26 min"]
+
+    def test_missing_heartbeats_defaults_to_no_files_when_omitted(
+        self, state: WatchState, quiet_block: dict
+    ) -> None:
+        late = state.observe(now=NOW + 26 * 60, sha="aaa111", block=quiet_block)
+        assert late == ["STALL: no heartbeat files, silent for 26 min"]
+
+    def test_two_silent_files_each_produce_their_own_stall_event(
+        self, state: WatchState, quiet_block: dict
+    ) -> None:
+        events = state.observe(
+            now=NOW + 60,
+            sha="aaa111",
+            block=quiet_block,
+            heartbeat_ages={"status-a.md": 30, "status-b.md": 40},
         )
-        assert late == ["STALL: newest heartbeat silent for 26 min"]
+        assert events == [
+            "STALL status-a.md: silent 30 min",
+            "STALL status-b.md: silent 40 min",
+        ]
+
+    def test_second_file_going_silent_later_is_not_swallowed_by_first_window(
+        self, state: WatchState, quiet_block: dict
+    ) -> None:
+        # GH-1064: the aggregate "newest heartbeat" signal hid a silent
+        # worker behind a fresher one; per-file rate-limiting must let
+        # each file alert on its own schedule.
+        first = state.observe(
+            now=NOW + 60, sha="aaa111", block=quiet_block, heartbeat_ages={"status-a.md": 25}
+        )
+        assert first == ["STALL status-a.md: silent 25 min"]
+        second = state.observe(
+            now=NOW + 60 + 5 * 60,
+            sha="aaa111",
+            block=quiet_block,
+            heartbeat_ages={"status-a.md": 30, "status-b.md": 25},
+        )
+        assert second == ["STALL status-b.md: silent 25 min"]
+
+    def test_recovered_file_realerts_on_a_later_stall(
+        self, state: WatchState, quiet_block: dict
+    ) -> None:
+        first = state.observe(
+            now=NOW + 60, sha="aaa111", block=quiet_block, heartbeat_ages={"status-a.md": 30}
+        )
+        assert first == ["STALL status-a.md: silent 30 min"]
+        recovered = state.observe(
+            now=NOW + 120, sha="aaa111", block=quiet_block, heartbeat_ages={"status-a.md": 2}
+        )
+        assert recovered == []
+        silent_again = state.observe(
+            now=NOW + 180, sha="aaa111", block=quiet_block, heartbeat_ages={"status-a.md": 28}
+        )
+        assert silent_again == ["STALL status-a.md: silent 28 min"]
 
     def test_base_movement_emits_and_rebaselines(
         self, state: WatchState, quiet_block: dict
     ) -> None:
-        events = state.observe(now=NOW + 60, sha="bbb222", block=quiet_block, heartbeat_age_min=1)
+        events = state.observe(
+            now=NOW + 60, sha="bbb222", block=quiet_block, heartbeat_ages={"status-a.md": 1}
+        )
         assert events == ["BASE MOVED: aaa111 -> bbb222"]
-        again = state.observe(now=NOW + 120, sha="bbb222", block=quiet_block, heartbeat_age_min=1)
+        again = state.observe(
+            now=NOW + 120, sha="bbb222", block=quiet_block, heartbeat_ages={"status-a.md": 1}
+        )
         assert again == []
 
     def test_empty_sha_is_transient_not_movement(
         self, state: WatchState, quiet_block: dict
     ) -> None:
-        events = state.observe(now=NOW + 60, sha="", block=quiet_block, heartbeat_age_min=1)
+        events = state.observe(
+            now=NOW + 60, sha="", block=quiet_block, heartbeat_ages={"status-a.md": 1}
+        )
         assert events == []
         assert state.known_sha == "aaa111"
 
     def test_cost_milestone_fires_per_step(self, state: WatchState) -> None:
         block = {"id": "2026-07-19T07:00:00.000Z", "costUSD": 104.0}
-        events = state.observe(now=NOW + 60, sha="aaa111", block=block, heartbeat_age_min=1)
+        events = state.observe(
+            now=NOW + 60, sha="aaa111", block=block, heartbeat_ages={"status-a.md": 1}
+        )
         assert events == ["QUOTA MILESTONE: block cost crossed $100"]
 
     def test_block_rollover_emits_reset_and_zeroes_bucket(self, state: WatchState) -> None:
         block = {"id": "2026-07-19T12:00:00.000Z", "costUSD": 3.0}
-        events = state.observe(now=NOW + 60, sha="aaa111", block=block, heartbeat_age_min=1)
+        events = state.observe(
+            now=NOW + 60, sha="aaa111", block=block, heartbeat_ages={"status-a.md": 1}
+        )
         assert events == [
             "QUOTA RESET: new 5h block 2026-07-19T12:00:00.000Z — resume interrupted crew"
         ]
@@ -121,19 +194,76 @@ class TestWatchStateObserve:
             known_cost_bucket=0,
             started_at=NOW,
         )
-        events = fresh.observe(now=NOW + 60, sha="aaa111", block=quiet_block, heartbeat_age_min=1)
+        events = fresh.observe(
+            now=NOW + 60, sha="aaa111", block=quiet_block, heartbeat_ages={"status-a.md": 1}
+        )
         assert events == ["QUOTA MILESTONE: block cost crossed $50"]
         assert fresh.known_block_id == "2026-07-19T07:00:00.000Z"
 
 
+class TestEscalationEvents:
+    def test_merge_request_line_emitted_verbatim_without_bullet(
+        self, state: WatchState, quiet_block: dict
+    ) -> None:
+        events = state.observe(
+            now=NOW + 60,
+            sha="aaa111",
+            block=quiet_block,
+            heartbeat_ages={"status-a.md": 1},
+            escalation_lines=["- MERGE REQUEST chunk-3: PR #12 ready"],
+        )
+        assert events == ["MERGE REQUEST chunk-3: PR #12 ready"]
+
+    def test_unrelated_line_is_ignored(self, state: WatchState, quiet_block: dict) -> None:
+        events = state.observe(
+            now=NOW + 60,
+            sha="aaa111",
+            block=quiet_block,
+            heartbeat_ages={"status-a.md": 1},
+            escalation_lines=["- just a status note, nothing urgent"],
+        )
+        assert events == []
+
+    def test_escalations_still_emit_while_parked(
+        self, state: WatchState, quiet_block: dict
+    ) -> None:
+        events = state.observe(
+            now=NOW + 60,
+            sha="aaa111",
+            block=quiet_block,
+            heartbeat_ages={"status-a.md": 90},
+            parked=True,
+            escalation_lines=["ESCALATION: chunk-1 blocked on missing secret"],
+        )
+        assert events == ["ESCALATION: chunk-1 blocked on missing secret"]
+
+    def test_escalation_events_emit_before_stall_events(
+        self, state: WatchState, quiet_block: dict
+    ) -> None:
+        events = state.observe(
+            now=NOW + 60,
+            sha="aaa111",
+            block=quiet_block,
+            heartbeat_ages={"status-a.md": 30},
+            escalation_lines=["# MERGE REQUEST chunk-2: PR #7 ready"],
+        )
+        assert events == [
+            "MERGE REQUEST chunk-2: PR #7 ready",
+            "STALL status-a.md: silent 30 min",
+        ]
+
+
 class TestHeartbeatReaders:
-    def test_age_uses_freshest_file_mtime(self, tmp_path: Path) -> None:
+    def test_ages_returns_one_entry_per_status_file(self, tmp_path: Path) -> None:
         _touch(tmp_path / "status-m1.md", age_min=40)
         _touch(tmp_path / "status-m2.md", age_min=3)
-        assert newest_heartbeat_age_min(scratchpad=tmp_path, now=NOW) == 3
+        assert heartbeat_ages(scratchpad=tmp_path, now=NOW) == {
+            "status-m1.md": 40,
+            "status-m2.md": 3,
+        }
 
-    def test_age_is_none_without_files(self, tmp_path: Path) -> None:
-        assert newest_heartbeat_age_min(scratchpad=tmp_path, now=NOW) is None
+    def test_ages_is_empty_without_files(self, tmp_path: Path) -> None:
+        assert heartbeat_ages(scratchpad=tmp_path, now=NOW) == {}
 
     def test_lines_report_age_and_last_line(self, tmp_path: Path) -> None:
         _touch(tmp_path / "status-m1.md", age_min=2, content="- one\n- two")
@@ -146,6 +276,61 @@ class TestHeartbeatReaders:
         _touch(tmp_path / "status-m1.md", age_min=2, content="")
         lines = heartbeat_lines(scratchpad=tmp_path, now=time.time())
         assert lines[0].endswith("last=(empty)")
+
+
+class TestEscalationReaders:
+    def test_offsets_report_current_byte_size_per_file(self, tmp_path: Path) -> None:
+        (tmp_path / "escalations-crew.md").write_text("- first line\n", encoding="utf-8")
+        offsets = escalation_offsets(scratchpad=tmp_path)
+        assert offsets == {"escalations-crew.md": len("- first line\n")}
+
+    def test_offsets_empty_without_files(self, tmp_path: Path) -> None:
+        assert escalation_offsets(scratchpad=tmp_path) == {}
+
+    def test_new_lines_returns_appended_content_once(self, tmp_path: Path) -> None:
+        path = tmp_path / "escalations-crew.md"
+        path.write_text("- first line\n", encoding="utf-8")
+        offsets = escalation_offsets(scratchpad=tmp_path)
+        path.write_text("- first line\n- second line\n", encoding="utf-8")
+        lines, updated = new_escalation_lines(scratchpad=tmp_path, offsets=offsets)
+        assert lines == ["- second line"]
+        repeat, _ = new_escalation_lines(scratchpad=tmp_path, offsets=updated)
+        assert repeat == []
+
+    def test_partial_trailing_line_is_withheld_until_complete(self, tmp_path: Path) -> None:
+        # A poll landing between an append's write and its newline must not
+        # emit half an escalation, nor advance past it — that loses the
+        # finished line entirely, which is the delivery this reader exists
+        # to guarantee.
+        path = tmp_path / "escalations-foreman.md"
+        path.write_text("- first line\n", encoding="utf-8")
+        offsets = escalation_offsets(scratchpad=tmp_path)
+        path.write_text("- first line\n- MERGE REQUEST chunk-7", encoding="utf-8")
+        lines, updated = new_escalation_lines(scratchpad=tmp_path, offsets=offsets)
+        assert lines == []
+        path.write_text("- first line\n- MERGE REQUEST chunk-7: PR #12\n", encoding="utf-8")
+        completed, _ = new_escalation_lines(scratchpad=tmp_path, offsets=updated)
+        assert completed == ["- MERGE REQUEST chunk-7: PR #12"]
+
+    def test_complete_lines_emit_even_when_a_partial_trails(self, tmp_path: Path) -> None:
+        path = tmp_path / "escalations-foreman.md"
+        path.write_text("- first line\n", encoding="utf-8")
+        offsets = escalation_offsets(scratchpad=tmp_path)
+        path.write_text("- first line\n- ESCALATION one\n- partial", encoding="utf-8")
+        lines, updated = new_escalation_lines(scratchpad=tmp_path, offsets=offsets)
+        assert lines == ["- ESCALATION one"]
+        path.write_text("- first line\n- ESCALATION one\n- partial done\n", encoding="utf-8")
+        rest, _ = new_escalation_lines(scratchpad=tmp_path, offsets=updated)
+        assert rest == ["- partial done"]
+
+    def test_shrunken_file_is_rebaselined_not_replayed(self, tmp_path: Path) -> None:
+        path = tmp_path / "escalations-crew.md"
+        path.write_text("- first line\n- second line\n", encoding="utf-8")
+        offsets = escalation_offsets(scratchpad=tmp_path)
+        path.write_text("- new content\n", encoding="utf-8")
+        lines, updated = new_escalation_lines(scratchpad=tmp_path, offsets=offsets)
+        assert lines == []
+        assert updated["escalations-crew.md"] == len("- new content\n")
 
 
 class TestBlockIdentity:
@@ -230,7 +415,7 @@ class TestParkedAndOwnMergeMuting:
             now=NOW + 60,
             sha="bbb2222aaa",
             block=quiet_block,
-            heartbeat_age_min=1,
+            heartbeat_ages={"status-a.md": 1},
             merged_shas={"bbb2222"},
         )
         assert events == []
@@ -241,7 +426,7 @@ class TestParkedAndOwnMergeMuting:
             now=NOW + 60,
             sha="ccc3333aaa",
             block=quiet_block,
-            heartbeat_age_min=1,
+            heartbeat_ages={"status-a.md": 1},
             merged_shas={"bbb2222"},
         )
         assert events == ["BASE MOVED: aaa111 -> ccc3333aaa"]
@@ -251,7 +436,7 @@ class TestParkedAndOwnMergeMuting:
             now=NOW + 60,
             sha="aaa111",
             block=quiet_block,
-            heartbeat_age_min=90,
+            heartbeat_ages={"status-a.md": 90},
             parked=True,
         )
         assert events == []
@@ -259,7 +444,11 @@ class TestParkedAndOwnMergeMuting:
     def test_parked_mutes_quota_milestones(self, state: WatchState) -> None:
         block = {"id": "2026-07-19T07:00:00.000Z", "costUSD": 104.0}
         events = state.observe(
-            now=NOW + 60, sha="aaa111", block=block, heartbeat_age_min=1, parked=True
+            now=NOW + 60,
+            sha="aaa111",
+            block=block,
+            heartbeat_ages={"status-a.md": 1},
+            parked=True,
         )
         assert events == []
         assert state.muted_milestones == 1
@@ -269,21 +458,21 @@ class TestParkedAndOwnMergeMuting:
             now=NOW + 60,
             sha="aaa111",
             block={"id": "2026-07-19T07:00:00.000Z", "costUSD": 104.0},
-            heartbeat_age_min=1,
+            heartbeat_ages={"status-a.md": 1},
             parked=True,
         )
         state.observe(
             now=NOW + 120,
             sha="aaa111",
             block={"id": "2026-07-19T07:00:00.000Z", "costUSD": 155.0},
-            heartbeat_age_min=1,
+            heartbeat_ages={"status-a.md": 1},
             parked=True,
         )
         released = state.observe(
             now=NOW + 180,
             sha="aaa111",
             block={"id": "2026-07-19T07:00:00.000Z", "costUSD": 155.0},
-            heartbeat_age_min=1,
+            heartbeat_ages={"status-a.md": 1},
         )
         assert released == [
             "QUOTA MILESTONE (parked rollup): 2 muted while parked, block cost now $155"
@@ -294,10 +483,14 @@ class TestParkedAndOwnMergeMuting:
         self, state: WatchState, quiet_block: dict
     ) -> None:
         state.observe(
-            now=NOW + 60, sha="aaa111", block=quiet_block, heartbeat_age_min=1, parked=True
+            now=NOW + 60,
+            sha="aaa111",
+            block=quiet_block,
+            heartbeat_ages={"status-a.md": 1},
+            parked=True,
         )
         released = state.observe(
-            now=NOW + 120, sha="aaa111", block=quiet_block, heartbeat_age_min=1
+            now=NOW + 120, sha="aaa111", block=quiet_block, heartbeat_ages={"status-a.md": 1}
         )
         assert released == []
 
@@ -305,21 +498,32 @@ class TestParkedAndOwnMergeMuting:
         self, state: WatchState, quiet_block: dict
     ) -> None:
         state.observe(
-            now=NOW + 60, sha="aaa111", block=quiet_block, heartbeat_age_min=90, parked=True
+            now=NOW + 60,
+            sha="aaa111",
+            block=quiet_block,
+            heartbeat_ages={"status-a.md": 90},
+            parked=True,
         )
         released = state.observe(
-            now=NOW + 120, sha="aaa111", block=quiet_block, heartbeat_age_min=91
+            now=NOW + 120, sha="aaa111", block=quiet_block, heartbeat_ages={"status-a.md": 91}
         )
         assert released == []
         later = state.observe(
-            now=NOW + 120 + 25 * 60, sha="aaa111", block=quiet_block, heartbeat_age_min=115
+            now=NOW + 120 + 25 * 60,
+            sha="aaa111",
+            block=quiet_block,
+            heartbeat_ages={"status-a.md": 115},
         )
-        assert later == ["STALL: newest heartbeat silent for 115 min"]
+        assert later == ["STALL status-a.md: silent 115 min"]
 
     def test_quota_reset_still_fires_while_parked(self, state: WatchState) -> None:
         block = {"id": "2026-07-19T12:00:00.000Z", "costUSD": 3.0}
         events = state.observe(
-            now=NOW + 60, sha="aaa111", block=block, heartbeat_age_min=1, parked=True
+            now=NOW + 60,
+            sha="aaa111",
+            block=block,
+            heartbeat_ages={"status-a.md": 1},
+            parked=True,
         )
         assert events == [
             "QUOTA RESET: new 5h block 2026-07-19T12:00:00.000Z — resume interrupted crew"
@@ -496,7 +700,9 @@ class TestQuotaLowProjection:
     def test_fires_when_budget_runs_out_inside_the_chunk(
         self, state: WatchState, burning: dict
     ) -> None:
-        events = state.observe(now=NOW + 60, sha="aaa111", block=burning, heartbeat_age_min=1)
+        events = state.observe(
+            now=NOW + 60, sha="aaa111", block=burning, heartbeat_ages={"status-a.md": 1}
+        )
         assert events == [
             "QUOTA LOW: ~15 min of block budget left at current burn "
             "(120 min to reset, chunk needs ~45) — "
@@ -504,20 +710,26 @@ class TestQuotaLowProjection:
         ]
 
     def test_fires_once_per_block(self, state: WatchState, burning: dict) -> None:
-        state.observe(now=NOW + 60, sha="aaa111", block=burning, heartbeat_age_min=1)
-        repeat = state.observe(now=NOW + 120, sha="aaa111", block=burning, heartbeat_age_min=1)
+        state.observe(now=NOW + 60, sha="aaa111", block=burning, heartbeat_ages={"status-a.md": 1})
+        repeat = state.observe(
+            now=NOW + 120, sha="aaa111", block=burning, heartbeat_ages={"status-a.md": 1}
+        )
         assert repeat == []
 
     def test_rearms_after_a_block_rollover(self, state: WatchState, burning: dict) -> None:
-        state.observe(now=NOW + 60, sha="aaa111", block=burning, heartbeat_age_min=1)
+        state.observe(now=NOW + 60, sha="aaa111", block=burning, heartbeat_ages={"status-a.md": 1})
         next_block = dict(burning, id="2026-07-19T12:00:00.000Z")
-        events = state.observe(now=NOW + 120, sha="aaa111", block=next_block, heartbeat_age_min=1)
+        events = state.observe(
+            now=NOW + 120, sha="aaa111", block=next_block, heartbeat_ages={"status-a.md": 1}
+        )
         assert events[0].startswith("QUOTA RESET:")
         assert events[-1].startswith("QUOTA LOW:")
 
     def test_silent_when_budget_outlasts_the_chunk(self, state: WatchState, burning: dict) -> None:
         roomy = dict(burning, totalTokens=0)
-        events = state.observe(now=NOW + 60, sha="aaa111", block=roomy, heartbeat_age_min=1)
+        events = state.observe(
+            now=NOW + 60, sha="aaa111", block=roomy, heartbeat_ages={"status-a.md": 1}
+        )
         assert events == []
 
     def test_silent_when_exhaustion_lands_after_the_reset(
@@ -526,7 +738,9 @@ class TestQuotaLowProjection:
         # The reset refills the budget before the burn can spend it, so
         # there is nothing to park for.
         rolling_over = dict(burning, remainingMinutes=10)
-        events = state.observe(now=NOW + 60, sha="aaa111", block=rolling_over, heartbeat_age_min=1)
+        events = state.observe(
+            now=NOW + 60, sha="aaa111", block=rolling_over, heartbeat_ages={"status-a.md": 1}
+        )
         assert events == []
 
     def test_silent_without_a_ceiling_estimate(self, burning: dict) -> None:
@@ -539,18 +753,27 @@ class TestQuotaLowProjection:
             started_at=NOW,
             quota_ceiling_tokens=0,
         )
-        events = blind.observe(now=NOW + 60, sha="aaa111", block=burning, heartbeat_age_min=1)
+        events = blind.observe(
+            now=NOW + 60, sha="aaa111", block=burning, heartbeat_ages={"status-a.md": 1}
+        )
         assert events == []
 
     def test_parked_queue_is_already_holding(self, state: WatchState, burning: dict) -> None:
         events = state.observe(
-            now=NOW + 60, sha="aaa111", block=burning, heartbeat_age_min=1, parked=True
+            now=NOW + 60,
+            sha="aaa111",
+            block=burning,
+            heartbeat_ages={"status-a.md": 1},
+            parked=True,
         )
         assert events == []
         assert state.quota_low_alerted_block == ""
 
     def test_empty_block_is_not_an_observation(self, state: WatchState) -> None:
-        assert state.observe(now=NOW + 60, sha="aaa111", block={}, heartbeat_age_min=1) == []
+        events = state.observe(
+            now=NOW + 60, sha="aaa111", block={}, heartbeat_ages={"status-a.md": 1}
+        )
+        assert events == []
 
 
 class TestInitialStateAndProbeProjection:

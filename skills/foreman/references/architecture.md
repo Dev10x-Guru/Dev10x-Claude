@@ -120,6 +120,7 @@ reaches the tracker). Each file has exactly one writer.
 |---|---|---|
 | `manifest.md` | watchdog | Queue order, per-chunk model + scope, gate policy, base branch, verified command shapes. Authoritative for what was queued |
 | `DECISIONS.md` | watchdog | Numbered supervisor-grade decisions (D1, D2, …). Authoritative for why anything changed; the escalation channel |
+| `escalations-<role>.md` | that role | Append-only. The watcher tails it and re-emits any line starting `MERGE REQUEST` or `ESCALATION` as an event, so a time-critical request reaches the watchdog within one poll interval instead of whenever its message is delivered (GH-1060) |
 | `decisions-<chunk>.md` | that chunk's worker | Per-chunk rationale, scope cuts |
 | `status-<chunk>.md` | that chunk's worker | Heartbeat log; mtime is the stall detector's truth |
 | `status-foreman.md` | foreman | Foreman heartbeat log |
@@ -144,7 +145,12 @@ reaches the tracker). Each file has exactly one writer.
   `STALL`. Foreman/watchdog notes about a chunk go in `DECISIONS.md`
   or `decisions-<chunk>.md`.
 - Stall threshold 25 min (crew writes every ~15), re-alert suppressed
-  for one threshold window, grace period until first write.
+  for one threshold window **per file**, grace period until first write.
+- **One event per silent file** — `STALL status-<chunk>.md: silent N
+  min` (GH-1064). Timing each file separately is what keeps a busy
+  writer (typically the foreman's own status) from holding a run-wide
+  maximum fresh and masking silent workers behind it, and it means a
+  second worker going quiet mid-window still alarms immediately.
 - A tripped `STALL` opens the stand-down handshake — it is not an
   authorization to take over. See `stall-protocol.md`.
 

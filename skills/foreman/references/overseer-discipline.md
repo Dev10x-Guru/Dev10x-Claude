@@ -70,10 +70,22 @@ negotiable:
    (and a heartbeat line pointing at it). This is the authoritative
    record: it is what `dev10x foreman probe` surfaces, what the
    watchdog reads, and what survives a session death.
-2. **Then** send the message, as a nudge that the disk record exists.
-3. **Never block on the reply.** Continue with anything the
+2. **Append one summary line to `escalations-<your-role>.md`**, opening
+   with `MERGE REQUEST` or `ESCALATION` — e.g.
+   `- MERGE REQUEST chunk-7: PR #2342, CI green, 0 unresolved`. The
+   watcher tails that file and re-emits any such line as an event, so
+   this is what actually wakes the watchdog, within one poll interval
+   (GH-1060).
+3. **Then** send the message, as a nudge that the disk record exists.
+4. **Never block on the reply.** Continue with anything the
    escalation does not gate, and re-check the decision log rather
    than re-sending.
+
+Step 2 exists because step 1 alone had no reader. Three MERGE REQUESTs
+in one night were delivered hours late in a single batch, after the
+watchdog had already dug each one out of the decision log by hand —
+about 26 minutes of dead time apiece before anyone thought to look.
+The disk was already authoritative; it just needed a doorbell.
 
 The reader's side mirrors it: when something seems to have gone quiet,
 read the run directory before concluding nothing was said. A message
