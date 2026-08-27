@@ -37,9 +37,11 @@ __all__ = [
     "GateResolutionQuery",
     "human_review_status",
     "pin_gate_preset",
+    "pin_tracker",
     "preset_pin_status",
     "resolve_gate",
     "resolve_gate_for_toplevel",
+    "tracker_status",
 ]
 
 # Session-local sink where auto-advance records accumulate (ADR-0016 #754,
@@ -251,3 +253,64 @@ async def pin_gate_preset(
                 cwd=cwd,
             )
         )
+
+
+@server.tool()
+async def tracker_status(cwd: str | None = None) -> dict:
+    """Report this repo's issue tracker, and whether it was chosen (GH-768).
+
+    Consult this BEFORE asking the onboarding tracker-choice question:
+    `pinned: false` is the "never answered" condition that warrants the
+    gate. Re-asking a settled workspace fact on every bootstrap is the
+    friction the gate exists to remove.
+
+    Args:
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: pinned (bool — a `projects[]` entry names a
+        tracker), tracker (the resolved value, defaulting to "linear"),
+        source ("project" | "defaults" | "default"), repo_name, repo_root,
+        choices. `{"error": ...}` outside a git repository.
+    """
+    from dev10x.session import tracker_pin
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return to_wire(tracker_pin.tracker_status(cwd=cwd))
+
+
+@server.tool()
+async def pin_tracker(
+    tracker: str,
+    scope: str = "repo",
+    cwd: str | None = None,
+) -> dict:
+    """Persist the project's issue tracker to the global friction.yaml (GH-768).
+
+    `ensure-base` / `seed_worktree` then seed only that tracker's MCP
+    rules — a Jira user stops collecting ~35 inert Linear allows while
+    their own Atlassian tools prompt on first use.
+
+    Keyed off the **repo stem** from the git common dir like
+    `pin_gate_preset`, so a choice made inside worktree `<repo>-3` also
+    covers `<repo>` and any `<repo>-9` created later. Idempotent: an
+    entry already covering this checkout is replaced, never duplicated.
+
+    Args:
+        tracker: One of "linear", "jira", "github". An unrecognised value
+            is an error, not a silent fallback to the default.
+        scope: "repo" (default — repo + all present/future worktrees),
+            "repo-only" (main checkout only), or "dir" (this directory).
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: path, match, repo_name, repo_root, scope,
+        prefs. `{"error": ...}` on an unknown tracker or scope, or
+        outside a git repository.
+    """
+    from dev10x.session import tracker_pin
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return to_wire(tracker_pin.pin_tracker(tracker=tracker, scope=scope, cwd=cwd))

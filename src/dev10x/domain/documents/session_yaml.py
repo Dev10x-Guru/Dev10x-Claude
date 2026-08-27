@@ -47,6 +47,12 @@ _DURABLE_KEYS = (
     "gate_overrides",
     "human_review",
     "protected_branches",
+    # Which issue tracker this project uses, so `ensure-base` seeds that
+    # tracker's MCP rules and not the other two (GH-768). A workspace fact
+    # rather than a pacing preference — same shape as `protected_branches`
+    # (GH-1031), and it belongs here for the same reason: the repo-stem
+    # `match` globs make one answer cover every worktree of the project.
+    "tracker",
     "walk_away",
 )
 

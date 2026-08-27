@@ -464,16 +464,35 @@ base_permissions:
   # --- Dev10x skills ---
   - "Skill(Dev10x:*)"
 
+  # NOTE (GH-768): issue-tracker MCP rules are NOT listed here. They live
+  # under `tracker_permissions:` / `tracker_denies:` at the bottom of this
+  # file, keyed by tracker, and only the project's chosen tracker's block
+  # is folded in at seeding time. Listing Linear unconditionally gave a
+  # Jira user ~35 inert allows while their own tracker still prompted.
+
+# --- Tracker-keyed permissions (GH-768) ---
+# `ensure-base` / `seed_worktree` fold in exactly ONE of these blocks —
+# the tracker resolved from the `tracker:` key in the matching
+# `projects[]` entry of ~/.config/Dev10x/friction.yaml, defaulting to
+# `linear` (the pre-GH-768 behaviour, so upgrades lose nothing).
+#
+# v1 covers linear / jira / github. GitLab and ClickUp are deliberately
+# absent: ClickUp has no native skill or MCP path, and the `glab` surface
+# has not been curated — an empty block would read as "supported".
+#
+# When PAP-2 lands the structured Policy catalog, these become a
+# `tracker:` key on catalog groups and this block goes away.
+tracker_permissions:
+
   # --- Linear MCP tools (GH-204) ---
-  # Linear is the primary issue tracker for many Dev10x users.
   # Group A: read-only operations — always safe.
   # Group B: write operations — frequently used by Dev10x skills
   # (ticket-create, ticket-scope, ticket-jtbd, investigate, qa-scope).
-  # Group C delete tools are listed under `base_denies:` below.
+  # Group C delete tools are listed under `tracker_denies.linear` below.
   # Both server name variants are covered:
   #   - `mcp__claude_ai_Linear__*` (claude.ai-hosted Linear connector)
   #   - `mcp__linear-server__*`    (self-installed linear-server MCP)
-
+  linear:
   # Group A — read-only (claude.ai-hosted variant)
   - "mcp__claude_ai_Linear__get_issue"
   - "mcp__claude_ai_Linear__get_project"
@@ -524,18 +543,67 @@ base_permissions:
   - "mcp__linear-server__save_issue"
   - "mcp__linear-server__save_project"
 
-# --- Base deny rules (GH-204) ---
-# Destructive operations that must NEVER be auto-approved, even when
-# a project broadens its `permissions.allow` via wildcards. The
-# Linear `delete_*` tools have shown up in 14× projects under blanket
-# `mcp__claude_ai_Linear__*` allow rules — these belong in deny.
-base_denies:
+  # --- Jira / Atlassian MCP tools (GH-768) ---
+  # The claude.ai-hosted Atlassian Rovo connector. `baseline-permissions.yaml`
+  # already carries the same surface as the tier-2 `mcp-atlassian-readonly` /
+  # `mcp-atlassian-write` groups; this block is what the FLAT catalog
+  # (`ensure-base` / `seed_worktree`) actually deploys, which is where the
+  # Jira user's gap was.
+  jira:
+  # Read-only
+  - "mcp__claude_ai_Atlassian_Rovo__atlassianUserInfo"
+  - "mcp__claude_ai_Atlassian_Rovo__getAccessibleAtlassianResources"
+  - "mcp__claude_ai_Atlassian_Rovo__getVisibleJiraProjects"
+  - "mcp__claude_ai_Atlassian_Rovo__getJiraIssue"
+  - "mcp__claude_ai_Atlassian_Rovo__getJiraIssueRemoteIssueLinks"
+  - "mcp__claude_ai_Atlassian_Rovo__getJiraIssueTypeMetaWithFields"
+  - "mcp__claude_ai_Atlassian_Rovo__getJiraProjectIssueTypesMetadata"
+  - "mcp__claude_ai_Atlassian_Rovo__getTransitionsForJiraIssue"
+  - "mcp__claude_ai_Atlassian_Rovo__getIssueLinkTypes"
+  - "mcp__claude_ai_Atlassian_Rovo__lookupJiraAccountId"
+  - "mcp__claude_ai_Atlassian_Rovo__searchJiraIssuesUsingJql"
+  # Write — the counterparts of the Linear Group B tools the same
+  # Dev10x skills call (ticket-create, ticket-scope, investigate).
+  - "mcp__claude_ai_Atlassian_Rovo__createJiraIssue"
+  - "mcp__claude_ai_Atlassian_Rovo__editJiraIssue"
+  - "mcp__claude_ai_Atlassian_Rovo__addCommentToJiraIssue"
+  - "mcp__claude_ai_Atlassian_Rovo__addWorklogToJiraIssue"
+  - "mcp__claude_ai_Atlassian_Rovo__createIssueLink"
+  - "mcp__claude_ai_Atlassian_Rovo__transitionJiraIssue"
+
+  # --- GitHub Issues (GH-768) ---
+  # Mostly already covered by the unconditional `github-cli` group above;
+  # this block adds only what a GitHub-tracker user additionally needs and
+  # keeps the tracker map symmetrical (a `github` selection must not fall
+  # through to Linear's block).
+  github:
+  - "mcp__plugin_Dev10x_cli__issue_get"
+  - "mcp__plugin_Dev10x_cli__issue_list"
+  - "mcp__plugin_Dev10x_cli__issue_create"
+  - "mcp__plugin_Dev10x_cli__issue_edit"
+  - "mcp__plugin_Dev10x_cli__issue_close"
+  - "mcp__plugin_Dev10x_cli__issue_reopen"
+  - "mcp__plugin_Dev10x_cli__issue_comment"
+  - "mcp__plugin_Dev10x_cli__issue_comments"
+
+# --- Tracker-keyed deny rules (GH-768) ---
+# Destructive operations that must NEVER be auto-approved, even when a
+# project broadens its `permissions.allow` via wildcards. Seeded only
+# alongside their own tracker's allows — a Jira user has no use for the
+# Linear deletes, and vice versa.
+tracker_denies:
+  # The Linear `delete_*` tools have shown up in 14× projects under blanket
+  # `mcp__claude_ai_Linear__*` allow rules — these belong in deny (GH-204).
+  linear:
   - "mcp__claude_ai_Linear__delete_customer"
   - "mcp__claude_ai_Linear__delete_customer_need"
   - "mcp__claude_ai_Linear__delete_comment"
   - "mcp__claude_ai_Linear__delete_attachment"
   - "mcp__claude_ai_Linear__delete_status_update"
 
+# --- Base deny rules (GH-204) ---
+# Tracker-independent denies. Tracker-specific ones live above.
+base_denies:
   # --- Privilege-escalation tier (GH-326) ---
   # `sudo` and friends are denied for ANY shape, not just the option-2
   # catch-all. Unlike the GH-310 `<verb> *` footguns (which merely widen a

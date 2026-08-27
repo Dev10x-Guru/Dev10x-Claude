@@ -7,6 +7,7 @@ import pytest
 import yaml
 
 from dev10x.domain.common.accepted_findings import DEFAULT_ACCEPTED_FINDINGS, find_acceptance
+from dev10x.domain.common.tracker_choice import Tracker
 from dev10x.skills.permission import update_paths
 from dev10x.skills.permission.update_paths import (
     _is_nonfunctional_mcp_wildcard,
@@ -571,6 +572,101 @@ class TestEnsureBaseDenies:
         assert "Bash(git log:*)" in allow  # pre-existing user rule preserved
         assert "Read(~/.claude/tools/**)" in allow
         assert f"Read({tmp_path}/home/.claude/tools/**)" in allow
+
+
+class TestEnsureBaseSeedsOneTracker:
+    """GH-768: only the project's tracker block reaches the settings file."""
+
+    TRACKER_CONFIG: dict = {
+        "base_permissions": ["Bash(git status:*)"],
+        "base_denies": [],
+        "tracker_permissions": {
+            "linear": ["mcp__claude_ai_Linear__get_issue"],
+            "jira": ["mcp__claude_ai_Atlassian_Rovo__getJiraIssue"],
+            "github": ["mcp__plugin_Dev10x_cli__issue_get"],
+        },
+        "tracker_denies": {"linear": ["mcp__claude_ai_Linear__delete_comment"]},
+    }
+
+    @pytest.fixture()
+    def settings(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+        monkeypatch.setattr(
+            "dev10x.skills.permission.update_paths.Path.home",
+            lambda: tmp_path / "home",
+        )
+        (tmp_path / "home" / ".claude").mkdir(parents=True)
+        path = tmp_path / "settings.local.json"
+        path.write_text(json.dumps({"permissions": {"allow": [], "deny": []}}))
+        return path
+
+    def _run(self, settings: Path, monkeypatch: pytest.MonkeyPatch, tracker: str) -> dict:
+        monkeypatch.setattr(
+            "dev10x.skills.permission.tracker_resolve.resolve_tracker",
+            lambda *, toplevel: Tracker(tracker),
+        )
+        monkeypatch.setattr(
+            "dev10x.skills.permission.tracker_resolve.tracker_source",
+            lambda *, toplevel: "project",
+        )
+        return update_paths.ensure_base(
+            config=self.TRACKER_CONFIG,
+            settings_files=[settings],
+            dry_run=False,
+            toplevel="/work/x/repo",
+        )
+
+    def test_jira_project_gets_no_linear_rules(
+        self,
+        settings: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The defect: a Jira user collected ~35 inert Linear allows."""
+        self._run(settings, monkeypatch, "jira")
+        data = json.loads(settings.read_text())
+        seeded = data["permissions"]["allow"] + data["permissions"]["deny"]
+        assert "mcp__claude_ai_Atlassian_Rovo__getJiraIssue" in data["permissions"]["allow"]
+        assert not any("Linear" in rule for rule in seeded)
+
+    def test_linear_project_still_gets_its_allows_and_denies(
+        self,
+        settings: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        self._run(settings, monkeypatch, "linear")
+        data = json.loads(settings.read_text())
+        assert "mcp__claude_ai_Linear__get_issue" in data["permissions"]["allow"]
+        assert "mcp__claude_ai_Linear__delete_comment" in data["permissions"]["deny"]
+
+    def test_tracker_independent_rules_seed_regardless(
+        self,
+        settings: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        self._run(settings, monkeypatch, "github")
+        assert "Bash(git status:*)" in json.loads(settings.read_text())["permissions"]["allow"]
+
+    def test_run_reports_which_tracker_it_seeded(
+        self,
+        settings: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Silently omitting a tracker's rules is indistinguishable from a bug."""
+        result = self._run(settings, monkeypatch, "jira")
+        assert any("Issue tracker: jira" in message for message in result["messages"])
+
+    def test_legacy_catalog_without_tracker_blocks_is_untouched(
+        self,
+        settings: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        result = update_paths.ensure_base(
+            config={"base_permissions": ["Bash(git status:*)"], "base_denies": []},
+            settings_files=[settings],
+            dry_run=False,
+            toplevel="/work/x/repo",
+        )
+        assert not any("Issue tracker:" in message for message in result["messages"])
+        assert "Bash(git status:*)" in json.loads(settings.read_text())["permissions"]["allow"]
 
 
 class TestPrivilegeEscalationDenies:

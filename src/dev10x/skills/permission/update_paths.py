@@ -1173,6 +1173,52 @@ def _catalog_drift_messages(*, drift: CatalogDrift | None, quiet: bool) -> list[
     ]
 
 
+def _apply_tracker_block(
+    *,
+    config: dict,
+    toplevel: str | None,
+    quiet: bool,
+) -> tuple[dict, list[str]]:
+    """Fold in only the project's tracker block, and say which (GH-768).
+
+    Seeding is otherwise silent about omitting the other trackers' rules,
+    and "my Jira tools still prompt" is indistinguishable from a bug
+    unless the run states which tracker it seeded and where that came
+    from. A catalog with no ``tracker_permissions:`` block at all is
+    pre-GH-768 and passes through untouched.
+    """
+    from dev10x.domain.common.tracker_choice import (
+        TRACKER_ALLOW_KEY,
+        TRACKER_DENY_KEY,
+        apply_tracker_selection,
+    )
+    from dev10x.domain.git_context import GitContext
+    from dev10x.skills.permission.tracker_resolve import resolve_tracker, tracker_source
+
+    if not isinstance(config.get(TRACKER_ALLOW_KEY), dict) and not isinstance(
+        config.get(TRACKER_DENY_KEY), dict
+    ):
+        return config, []
+
+    resolved = toplevel if toplevel is not None else GitContext().toplevel
+    tracker = resolve_tracker(toplevel=resolved)
+    merged = apply_tracker_selection(config=config, tracker=tracker)
+    if quiet:
+        return merged, []
+    source = tracker_source(toplevel=resolved)
+    origin = {
+        "project": "from this project's friction.yaml entry",
+        "defaults": "from the friction.yaml defaults block",
+        "default": "no tracker configured — using the default",
+    }[source]
+    return merged, [
+        f"Issue tracker: {tracker.value} ({origin}). "
+        f"Only {tracker.value} tracker rules are seeded; other trackers' "
+        f"rules are left out. Change it with the `tracker:` key in "
+        f"~/.config/Dev10x/friction.yaml."
+    ]
+
+
 def ensure_base(
     *,
     config: dict,
@@ -1180,10 +1226,18 @@ def ensure_base(
     dry_run: bool,
     quiet: bool = False,
     drift: CatalogDrift | None = None,
+    toplevel: str | None = None,
 ) -> dict[str, object]:
     """Add missing base permissions to each settings file. Returns result dict."""
     messages: list[str] = []
     errors: list[str] = []
+
+    config, tracker_messages = _apply_tracker_block(
+        config=config,
+        toplevel=toplevel,
+        quiet=quiet,
+    )
+    messages.extend(tracker_messages)
 
     policies = migrate_flat_config(config=config)
     rendered = render_permissions(policies=policies, home=str(Path.home()))

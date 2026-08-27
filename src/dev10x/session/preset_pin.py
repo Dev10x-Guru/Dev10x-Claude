@@ -48,7 +48,9 @@ __all__ = [
     "PIN_OVERRIDE_VALUES",
     "RepoIdentity",
     "pin_preset",
+    "pin_project_prefs",
     "preset_pin_status",
+    "probe_path",
     "resolve_repo_identity",
     "validate_pin_values",
 ]
@@ -152,18 +154,22 @@ def resolve_repo_identity(*, cwd: str | None = None) -> Result[RepoIdentity]:
     )
 
 
-def _probe_path(identity: RepoIdentity) -> str:
+def probe_path(identity: RepoIdentity) -> str:
     """Absolute path used to test an identity against an entry's globs.
 
     A bare repo has no working tree, so the name is lifted to ``/<name>``
-    rather than left relative. Both the status read and the pin write go
+    rather than left relative. Every status read and pin write goes
     through this one construction: a relative probe would still *happen* to
     match — ``os.path.realpath`` resolves it against the process CWD and
     ``fnmatch``'s ``*`` is not path-aware — but only accidentally, and a
     later change to either helper would silently break re-pin detection for
-    bare repos. Keep both callers on this helper rather than re-deriving.
+    bare repos. Keep all callers on this helper rather than re-deriving.
     """
     return identity["root"] or f"/{identity['name']}"
+
+
+# Public since GH-768: the tracker pin resolves identities the same way.
+_probe_path = probe_path
 
 
 def preset_pin_status(*, cwd: str | None = None) -> Result[dict[str, Any]]:
@@ -262,6 +268,33 @@ def pin_preset(
     if invalid:
         return err(invalid)
 
+    prefs: dict[str, Any] = {"gate_preset": preset}
+    if overlays:
+        prefs["gate_overlays"] = list(overlays)
+    if gate_overrides:
+        prefs["gate_overrides"] = dict(gate_overrides)
+
+    return pin_project_prefs(prefs=prefs, scope=scope, cwd=cwd)
+
+
+def pin_project_prefs(
+    *,
+    prefs: dict[str, Any],
+    scope: str = "repo",
+    cwd: str | None = None,
+) -> Result[dict[str, Any]]:
+    """Upsert durable prefs for this repo into the global ``friction.yaml``.
+
+    The repo-keyed write shared by every durable pin — the Phase-0 gate
+    preset (GH-855) and the tracker choice (GH-768). Callers validate
+    their own values first; this owns identity resolution, the `match`
+    globs, and superseding the stale entries a rename or worktree left
+    behind. Nothing is ever written under a repo's ``.claude/``
+    (ADR-0018).
+    """
+    if scope not in PIN_SCOPES:
+        return err(f"unknown pin scope {scope!r}; expected one of {list(PIN_SCOPES)}")
+
     identity_result = resolve_repo_identity(cwd=cwd)
     if isinstance(identity_result, ErrorResult):
         return err(identity_result.error)
@@ -273,11 +306,6 @@ def pin_preset(
     match = match_globs_for_repo(
         repo_name=identity["name"], repo_root=identity["root"], scope=scope
     )
-    prefs: dict[str, Any] = {"gate_preset": preset}
-    if overlays:
-        prefs["gate_overlays"] = list(overlays)
-    if gate_overrides:
-        prefs["gate_overrides"] = dict(gate_overrides)
 
     # Probe BOTH the repo root and the worktree the pick was made from: the
     # root absorbs an older repo-level entry, the worktree absorbs a legacy

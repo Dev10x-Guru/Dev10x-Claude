@@ -21,6 +21,7 @@ from dev10x.domain.common.policy import (
     PolicySource,
 )
 from dev10x.domain.common.policy_resolution import resolve_effect
+from dev10x.domain.common.tracker_choice import Tracker, apply_tracker_selection
 from dev10x.skills.permission.policy_catalog_migration import (
     CLAUDE_AI_MCP_GROUP,
     DEFAULT_TIER,
@@ -36,7 +37,16 @@ _PROJECTS_YAML = _REPO_ROOT / "skills" / "upgrade-cleanup" / "projects.yaml"
 
 
 def _shipped_config() -> dict:
-    return yaml.safe_load(_PROJECTS_YAML.read_text(encoding="utf-8"))
+    """The shipped catalog as a default-configured project would seed it.
+
+    Since GH-768 the tracker MCP rules are no longer unconditional, so the
+    raw YAML alone is not what `ensure_base` migrates — it applies the
+    project's tracker block first. Mirror that here with the default
+    tracker (`linear`), which reproduces the pre-GH-768 flat catalog and
+    keeps the corpus cases that assert on Linear rules meaningful.
+    """
+    raw = yaml.safe_load(_PROJECTS_YAML.read_text(encoding="utf-8"))
+    return apply_tracker_selection(config=raw, tracker=Tracker.default())
 
 
 _CONFIG = _shipped_config()

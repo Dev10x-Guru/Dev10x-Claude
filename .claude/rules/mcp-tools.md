@@ -126,6 +126,8 @@ one session). Use these shapes verbatim:
 | `resolve_plugin_origin` | `skill_paths` (list of absolute paths) | singular `skill_path` |
 | `pin_gate_preset` | `preset`; optional `scope` (`repo` default / `repo-only` / `dir`) | passing a `match` or a path — the tool derives the repo stem itself |
 | `human_review_status` | none (optional `cwd`) | reading `friction.yaml` directly instead — the tool owns the precedence |
+| `tracker_status` | none (optional `cwd`) | treating `pinned: false` as "no tracker" — it still reports a resolved `tracker` (the default) |
+| `pin_tracker` | `tracker` (`linear`/`jira`/`github`); optional `scope` | passing `gitlab`/`clickup` — not in v1 scope, and an unknown value errors rather than defaulting |
 | `task_index_append` | `entry` dict with required `subject` + `source` | reading the store and writing it back by hand — the tool owns the locked read-append-write |
 | `pr_labels` | `pr_number`; `action` (`list` default / `add` / `remove`), plus `labels` for the two writes | separate `pr_label_add` / `pr_label_remove` names — it is one tool with an action selector, like `pr_comments` |
 | `task_index_get` | none (optional `cwd`) | `Read`ing `.claude/Dev10x/session.yaml` — retired by ADR-0018 D5; the tool probes it as a fallback |
@@ -214,6 +216,21 @@ Behavioral caveats:
   up to `limit` merged PRs (slower — one subprocess pair per PR —
   returns `{"prs": [...], "count": N}`). For a single-PR check always
   pass `pr_number` (GH-710).
+- `pin_tracker` / `tracker_status` carry the project's issue-tracker
+  choice (GH-768). `ensure-base` and `seed_worktree` seed only that
+  tracker's MCP rules, so a Jira user stops collecting ~35 inert
+  `mcp__claude_ai_Linear__*` allows while their own Atlassian tools
+  prompt on first use. The choice is a durable `tracker:` key in the
+  matching `projects[]` entry of `~/.config/Dev10x/friction.yaml` —
+  same repo-stem keying as `pin_gate_preset`, so one answer covers a
+  repo and every worktree of it. Gate the onboarding ask on
+  `tracker_status` → `pinned: false`; note that `pinned` reports
+  whether a *project entry* names one, while `tracker` always reports a
+  resolved value (defaulting to `linear`, the pre-GH-768 behaviour, so
+  upgrades lose nothing). v1 covers Linear / Jira / GitHub Issues;
+  GitLab and ClickUp are deliberately unsupported rather than shipped
+  as empty blocks.
+
 - `pin_gate_preset` persists a Phase-0 preset pick into the global
   `~/.config/Dev10x/friction.yaml`, keyed by the repo stem read from the
   git **common dir** — so a pick made inside worktree `<repo>-3` also
@@ -310,6 +327,8 @@ supporting each tool:
 | `preset_pin_status` | `cli` | GH-855 | v0.92.0+ |
 | `pin_gate_preset` | `cli` | GH-855 | v0.92.0+ |
 | `human_review_status` | `cli` | GH-950 | v0.93.0+ |
+| `tracker_status` | `cli` | GH-768 | v0.95.0+ |
+| `pin_tracker` | `cli` | GH-768 | v0.95.0+ |
 | `pr_labels` | `cli` | GH-1008 | v0.94.0+ |
 | `task_index_get` | `cli` | GH-1009 | v0.94.0+ |
 | `task_index_append` | `cli` | GH-1009 | v0.94.0+ |
