@@ -9,6 +9,7 @@ fixture), never under a repo's ``.claude/`` — so no self-settings gate fires.
 from __future__ import annotations
 
 import os
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -21,6 +22,22 @@ from dev10x.domain.documents.session_yaml import (
     FRICTION_SETUP_SKIP_MODE,
     FrictionYamlDocument,
 )
+
+
+def _git(*args: str, cwd: Path) -> None:
+    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True)
+
+
+def _git_repo(root: Path) -> Path:
+    root.mkdir(parents=True)
+    _git("init", "-q", "-b", "main", cwd=root)
+    _git("config", "user.email", "t@example.com", cwd=root)
+    _git("config", "user.name", "Test", cwd=root)
+    _git("config", "commit.gpgsign", "false", cwd=root)
+    (root / "f.txt").write_text("a\n")
+    _git("add", ".", cwd=root)
+    _git("commit", "-q", "-m", "base", cwd=root)
+    return root
 
 
 class TestSetFriction:
@@ -67,6 +84,79 @@ class TestSetFriction:
         doc = yaml.safe_load(Dev10xConfigDir.friction_yaml().read_text())
         assert len(doc["projects"]) == 1
         assert doc["projects"][0]["gate_preset"] == "adaptive"
+
+    def test_carries_forward_human_review_from_the_shadowed_entry(self, tmp_path: Path) -> None:
+        # GH-1068 F3: re-running set-friction must not drop the non-gate
+        # durable keys the existing entry carried — `human_review` coerces
+        # toward True, so losing `false` silently re-enables human review.
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        runner = CliRunner()
+        runner.invoke(session, ["set-friction", "--path", str(repo), "--preset", "strict"])
+        friction = Dev10xConfigDir.friction_yaml()
+        doc = yaml.safe_load(friction.read_text())
+        doc["projects"][0]["human_review"] = False
+        doc["projects"][0]["protected_branches"] = ["main"]
+        friction.write_text(yaml.safe_dump(doc))
+
+        runner.invoke(session, ["set-friction", "--path", str(repo), "--preset", "adaptive"])
+        matched = FrictionYamlDocument(toplevel=str(repo.resolve())).matched()
+        assert matched == {
+            "gate_preset": "adaptive",
+            "human_review": False,
+            "protected_branches": ["main"],
+        }
+
+    def test_gate_axis_is_still_replaced_wholesale(self, tmp_path: Path) -> None:
+        # Carrying non-gate keys forward must not turn an omitted overlay into
+        # "keep the old overlays" — omitting an axis means back to the preset.
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        runner = CliRunner()
+        runner.invoke(
+            session,
+            [
+                "set-friction",
+                "--path",
+                str(repo),
+                "--preset",
+                "strict",
+                "--overlay",
+                "afk",
+            ],
+        )
+        runner.invoke(session, ["set-friction", "--path", str(repo), "--preset", "adaptive"])
+        matched = FrictionYamlDocument(toplevel=str(repo.resolve())).matched()
+        assert matched == {"gate_preset": "adaptive"}
+
+    def test_worktree_write_inherits_the_repo_entry(self, tmp_path: Path) -> None:
+        # The GH-1068 F3 field case: `*/<repo>` never matches a worktree
+        # directory named `agent-<id>`, so the narrow entry set-friction
+        # writes there becomes the ONLY entry the resolver sees for it.
+        repo = _git_repo(tmp_path / "myrepo")
+        worktree = tmp_path / "agent-abc"
+        _git("worktree", "add", "-q", "-b", "wt", str(worktree), cwd=repo)
+        friction = Dev10xConfigDir.friction_yaml()
+        friction.parent.mkdir(parents=True, exist_ok=True)
+        friction.write_text(
+            yaml.safe_dump(
+                {
+                    "projects": [
+                        {
+                            "match": [str(repo.resolve())],
+                            "gate_preset": "guided",
+                            "human_review": False,
+                        }
+                    ]
+                }
+            )
+        )
+
+        CliRunner().invoke(
+            session, ["set-friction", "--path", str(worktree), "--preset", "adaptive"]
+        )
+        matched = FrictionYamlDocument(toplevel=str(worktree.resolve())).matched()
+        assert matched == {"gate_preset": "adaptive", "human_review": False}
 
     def test_rejects_malformed_gate_override(self, tmp_path: Path) -> None:
         repo = tmp_path / "repo"

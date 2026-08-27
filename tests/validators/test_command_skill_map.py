@@ -289,6 +289,18 @@ class TestGh879WatchLoopEntry:
             rule=_rule_by_name("find-search"), command="find apps/web/src -type f"
         )
 
+    def test_gh_issue_comment_fallback_is_not_self_blocked(self) -> None:
+        # GH-1068 F6: the hint used to name `gh issue comment --body-file`,
+        # a shape this same rule denies — steering a blocked caller straight
+        # back into the block.
+        rule = _rule_by_name("gh-issue-comment")
+        hint = " ".join(comp.get("description", "") for comp in rule["compensations"])
+        assert "-F body=@" in hint
+        assert not _matches_any_pattern(
+            rule=rule,
+            command="gh api repos/o/r/issues/1/comments -F body=@/tmp/b.txt",
+        )
+
     def test_find_search_routes_to_grep_and_glob(self) -> None:
         targets = _compensation_targets(_rule_by_name("find-search"))
         assert "Grep" in targets

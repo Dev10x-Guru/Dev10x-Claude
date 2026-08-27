@@ -22,6 +22,7 @@ from dev10x.domain.documents.session_yaml import (
     FrictionYamlDocument,
     SessionYamlDocument,
     legacy_durable_prefs,
+    upsert_project_prefs,
 )
 from dev10x.domain.friction_level import FrictionLevel
 
@@ -657,6 +658,113 @@ class TestWithProject:
     def test_tolerates_non_list_projects(self) -> None:
         doc = FrictionYamlDocument.with_project({"projects": "oops"}, match=["*/repo"], prefs={})
         assert doc["projects"] == [{"match": ["*/repo"]}]
+
+
+class TestUpsertCarriesForwardDurableKeys:
+    """GH-1068 F3: a narrower entry must not silently drop `human_review`.
+
+    Resolution is first-match-wins, so a worktree-path-scoped entry written by
+    `set-friction` becomes the only entry the resolver sees for that worktree.
+    Written as a bare preset it dropped the repo entry's durable keys, and
+    `human_review` coerces toward `True` — a repo configured `human_review:
+    false` started demanding human review inside the worktree.
+    """
+
+    @staticmethod
+    def _write_repo_entry(target: Path, match: list[str]) -> None:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            yaml.safe_dump(
+                {
+                    "projects": [
+                        {
+                            "match": match,
+                            "gate_preset": "guided",
+                            "gate_overlays": ["afk"],
+                            "human_review": False,
+                            "protected_branches": ["main"],
+                            "allowed_overlays": [],
+                        }
+                    ]
+                }
+            )
+        )
+
+    def test_narrower_entry_inherits_non_gate_keys_from_repo_entry(self, tmp_path: Path) -> None:
+        target = tmp_path / "friction.yaml"
+        self._write_repo_entry(target, ["*/myrepo"])
+        upsert_project_prefs(
+            toplevel=str(tmp_path / "agent-abc"),
+            prefs={"gate_preset": "adaptive"},
+            path=target,
+            match=["*/agent-abc"],
+            inherit_from=[str(tmp_path / "agent-abc"), "/work/myrepo"],
+        )
+        written = yaml.safe_load(target.read_text())["projects"][-1]
+        assert written["match"] == ["*/agent-abc"]
+        assert written["human_review"] is False
+        assert written["protected_branches"] == ["main"]
+        assert written["allowed_overlays"] == []
+
+    def test_gate_axis_keys_are_replaced_not_inherited(self, tmp_path: Path) -> None:
+        target = tmp_path / "friction.yaml"
+        self._write_repo_entry(target, ["*/myrepo"])
+        upsert_project_prefs(
+            toplevel=str(tmp_path / "agent-abc"),
+            prefs={"gate_preset": "adaptive"},
+            path=target,
+            match=["*/agent-abc"],
+            inherit_from=[str(tmp_path / "agent-abc"), "/work/myrepo"],
+        )
+        written = yaml.safe_load(target.read_text())["projects"][-1]
+        assert written["gate_preset"] == "adaptive"
+        assert "gate_overlays" not in written
+
+    def test_explicit_prefs_win_over_inherited(self, tmp_path: Path) -> None:
+        target = tmp_path / "friction.yaml"
+        self._write_repo_entry(target, ["*/myrepo"])
+        upsert_project_prefs(
+            toplevel="/work/myrepo",
+            prefs={"gate_preset": "strict", "human_review": True},
+            path=target,
+            match=["*/myrepo"],
+        )
+        written = yaml.safe_load(target.read_text())["projects"][0]
+        assert written["human_review"] is True
+
+    def test_more_specific_probe_wins_over_repo_entry(self, tmp_path: Path) -> None:
+        target = tmp_path / "friction.yaml"
+        target.write_text(
+            yaml.safe_dump(
+                {
+                    "projects": [
+                        {"match": ["*/agent-abc"], "human_review": True},
+                        {"match": ["*/myrepo"], "human_review": False},
+                    ]
+                }
+            )
+        )
+        upsert_project_prefs(
+            toplevel=str(tmp_path / "agent-abc"),
+            prefs={"gate_preset": "adaptive"},
+            path=target,
+            match=["*/agent-abc"],
+            inherit_from=[str(tmp_path / "agent-abc"), "/work/myrepo"],
+        )
+        entries = yaml.safe_load(target.read_text())["projects"]
+        assert entries[0]["human_review"] is True
+
+    def test_no_matching_entry_writes_a_bare_preset(self, tmp_path: Path) -> None:
+        target = tmp_path / "friction.yaml"
+        upsert_project_prefs(
+            toplevel=str(tmp_path / "fresh"),
+            prefs={"gate_preset": "adaptive"},
+            path=target,
+        )
+        assert yaml.safe_load(target.read_text())["projects"][0] == {
+            "match": FrictionYamlDocument.match_globs_for(str(tmp_path / "fresh")),
+            "gate_preset": "adaptive",
+        }
 
 
 class TestRenderDocument:

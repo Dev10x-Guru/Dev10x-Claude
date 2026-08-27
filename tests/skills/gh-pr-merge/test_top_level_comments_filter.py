@@ -687,3 +687,117 @@ class TestUnnumberedRoundSummary:
         }
         selected = _run_filter([row], "comment", tmp_path)
         assert [r["id"] for r in selected] == [75]
+
+
+class TestMarkupFreeRoundSummary:
+    """GH-1054 F2 (1): a numbered summary without heading markup.
+
+    `is_round_summary` required a literal `##`, so a bot opening with a bare
+    `Review Summary (Round 3)` line was not recognised as the wrapper — the
+    supersedes logic never engaged and an earlier round kept blocking.
+    """
+
+    @staticmethod
+    def _summary(cid: int, headline: str, remaining: str) -> dict:
+        return {
+            "id": cid,
+            "user": {"login": "claude", "type": "Bot"},
+            "body": (
+                f"{headline}\n\n"
+                "Addressed since last review\n- CRITICAL: fixed the null check\n\n"
+                f"Remaining issues:\n{remaining}\n"
+            ),
+        }
+
+    @pytest.mark.parametrize(
+        "headline",
+        [
+            "Review Summary (Round 3)",
+            "**Review Summary (Round 3)**",
+            "_Review Summary (Round 3)_",
+        ],
+    )
+    def test_markup_free_summary_scans_only_remaining_issues(
+        self, headline: str, tmp_path: Path
+    ) -> None:
+        row = self._summary(80, headline, "None")
+        assert _run_filter([row], "comment", tmp_path) == []
+
+    def test_markup_free_summary_with_a_live_issue_still_blocks(self, tmp_path: Path) -> None:
+        row = self._summary(81, "Review Summary (Round 3)", "- CRITICAL: retry loop unbounded")
+        selected = _run_filter([row], "comment", tmp_path)
+        assert [r["id"] for r in selected] == [81]
+
+    def test_markup_free_round_number_is_read_not_defaulted(self, tmp_path: Path) -> None:
+        """Round 3 must supersede Round 2 — not collapse to the round-1 default."""
+        stale = {
+            "id": 82,
+            "user": {"login": "claude", "type": "Bot"},
+            "body": "## Review Summary (Round 2)\n\n### Remaining issues\n- CRITICAL: old issue\n",
+        }
+        latest = self._summary(83, "Review Summary (Round 3)", "None")
+        assert _run_filter([stale, latest], "comment", tmp_path) == []
+
+    def test_unnumbered_markup_free_line_is_not_a_wrapper(self, tmp_path: Path) -> None:
+        """Without `(Round N)` and without markup, it is prose — scan the body."""
+        row = {
+            "id": 84,
+            "user": {"login": "claude", "type": "Bot"},
+            "body": "Review Summary\n\nREQUIRED: fix the missing null guard\n",
+        }
+        selected = _run_filter([row], "comment", tmp_path)
+        assert [r["id"] for r in selected] == [84]
+
+
+class TestNegatedAndConfirmedSeverityTokens:
+    """GH-1054 F2 (2): a severity token stating the OPPOSITE of a finding.
+
+    "No CRITICAL issues found" / "All CRITICAL items fully addressed" /
+    "✅ Fix verified — CRITICAL resolved" are the bot signing off, not
+    blocking. The exemption set stays narrow on purpose: a false negative
+    merges a real blocker, which is worse than a false positive the author
+    can still answer with a keyed `Re:` reply.
+    """
+
+    @staticmethod
+    def _row(cid: int, body: str) -> dict:
+        return {"id": cid, "user": {"login": "claude", "type": "Bot"}, "body": body}
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "No CRITICAL issues found in this round",
+            "None of the REQUIRED items remain",
+            "Zero BLOCKING findings",
+            "CRITICAL: none",
+            "**CRITICAL**: None",
+            "BLOCKING: not found",
+            "All CRITICAL items fully addressed",
+            "Every REQUIRED change has been resolved",
+            "All **BLOCKING** findings fixed",
+            "✅ Fix verified — CRITICAL resolved",
+            "✔ CRITICAL addressed in fixup abc123",
+        ],
+    )
+    def test_exonerating_line_is_not_a_blocking_finding(self, body: str, tmp_path: Path) -> None:
+        assert _run_filter([self._row(90, body)], "comment", tmp_path) == []
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "CRITICAL: there is no timeout on the subprocess call",
+            "REQUIRED: fix all the missing null guards",
+            "BLOCKING: none of the handlers validate input, so add a guard",
+            "✅ Tests pass\nCRITICAL: the retry loop is still unbounded",
+            "CRITICAL: this was previously fine",
+        ],
+    )
+    def test_genuine_finding_is_not_exonerated(self, body: str, tmp_path: Path) -> None:
+        selected = _run_filter([self._row(91, body)], "comment", tmp_path)
+        assert [r["id"] for r in selected] == [91]
+
+    def test_exoneration_is_line_scoped(self, tmp_path: Path) -> None:
+        """A sign-off line must not clear a live finding on another line."""
+        body = "No CRITICAL issues found\n\nREQUIRED: add the missing timeout"
+        selected = _run_filter([self._row(92, body)], "comment", tmp_path)
+        assert [r["id"] for r in selected] == [92]

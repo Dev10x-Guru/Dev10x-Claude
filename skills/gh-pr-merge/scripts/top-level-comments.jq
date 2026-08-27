@@ -68,8 +68,20 @@ def reply_target_ids:
 # severity tokens its "Addressed since last review" section restates, even
 # after a later round confirmed them fixed. The wrapper is identified by its
 # heading, not by whether the reviewer numbered it.
+#
+# Heading markup is OPTIONAL when the wrapper numbers itself (GH-1054 F2).
+# Requiring a leading "##" made a bot that opens with a bare, plain-text
+# "Review Summary (Round 3)" line invisible as a wrapper, so the
+# latest-round-supersedes logic below never engaged and an earlier round
+# kept blocking forever. The markup-free alternative demands the explicit
+# "(Round N)" suffix: that suffix is what makes the line a review-round
+# wrapper rather than prose that happens to say "review summary", and the
+# match is anchored to the start of a line so a mid-sentence mention
+# cannot silently narrow the scan.
 def is_round_summary:
-  (.body // "") | test("^[[:space:]]*##[[:space:]]*Review Summary"; "im");
+  (.body // "")
+  | (test("^[[:space:]]*##[[:space:]]*Review Summary"; "im")
+     or test("^[[:space:]]*[*_]{0,2}Review Summary[*_]{0,2}[[:space:]]*\\(Round[[:space:]]*[0-9]+"; "im"));
 
 # The round number N from a "## Review Summary (Round N)" comment. Used to
 # supersede earlier rounds (GH-873 F3): once a later round is posted, an
@@ -83,7 +95,7 @@ def is_round_summary:
 def round_number:
   if is_round_summary then
     ((.body // "")
-     | (capture("##[[:space:]]*Review Summary[[:space:]]*\\(Round[[:space:]]*(?<n>[0-9]+)"; "im").n // "1")
+     | (capture("Review Summary[*_[:space:]]*\\(Round[[:space:]]*(?<n>[0-9]+)"; "im").n // "1")
      | tonumber)
   else
     0
@@ -108,11 +120,17 @@ def round_number:
 # this way can only narrow the scan, and a scan that is too narrow
 # under-blocks a merge the author is already driving, whereas one that is
 # too wide blocks it with no sanctioned exit.
+#
+# The section heading's own markup is optional for the same reason
+# `is_round_summary` no longer demands it (GH-1054 F2): a plain-text wrapper
+# writes "Remaining issues:" without `###`, and failing to find the section
+# yields an empty scan — a false NEGATIVE, the one direction this gate must
+# not err in.
 def scan_body:
   if is_round_summary then
     ((.body // "")
      | (capture(
-          "(?s)###[[:space:]]*Remaining issues[[:space:]]*\n(?<rest>.*?)(\n[[:space:]]*---|\n###?[^#]|$)";
+          "(?s)#{0,6}[[:space:]]*[*_]{0,2}Remaining issues[*_]{0,2}[[:space:]]*:?[[:space:]]*(?<rest>.*?)(\n[[:space:]]*---|\n###?[^#]|$)";
           "i"
         ).rest // ""))
   else
@@ -127,8 +145,41 @@ def unquoted:
   | gsub("`[^`]*`"; "")
   | gsub("\"[^\"]*\""; "");
 
+# A severity token can appear in a line that says the OPPOSITE of a live
+# blocker — "No CRITICAL issues found", "All CRITICAL items fully addressed",
+# "✅ Fix verified — CRITICAL resolved" (GH-1054 F2). Scanning those as
+# findings false-blocked merges the reviewer had already signed off.
+#
+# The pattern set is deliberately NARROW, and stays that way: a false
+# negative here lets a genuinely-blocking finding merge, which is strictly
+# worse than a false positive the author can still answer with a keyed "Re:"
+# reply. So each shape below demands an explicit exoneration cue on the SAME
+# line as the token — a quantifier ("no"/"none"/"all"/"every"), a resolution
+# verb ("addressed"/"resolved"/"fixed"/"cleared"/"verified"), or a checkmark
+# paired with one — rather than any general "sounds positive" heuristic.
+# Prose like "CRITICAL: this was previously fine" carries no cue and keeps
+# blocking, which is the intended bias.
+def exonerated_line:
+  test(
+       "(?i:\\b(no|none|zero)\\b)([[:space:]]+of[[:space:]]+the)?"
+       + "[[:space:]]+[*_]{0,2}(REQUIRED|CRITICAL|BLOCKING)\\b"
+     )
+  or test(
+       "(REQUIRED|CRITICAL|BLOCKING)[*_]{0,2}[[:space:]]*:?[[:space:]]*"
+       + "(?i:\\b(none|not found|n/a)\\b)[[:space:]]*[.!]?[[:space:]]*$"
+     )
+  or test(
+       "(?i:\\b(all|every|both)\\b)[[:space:]]+[*_]{0,2}(REQUIRED|CRITICAL|BLOCKING)\\b"
+       + "[^.]{0,60}(?i:\\b(addressed|resolved|fixed|cleared|completed|done)\\b)"
+     )
+  or (test("^[[:space:]]*(✅|✔|☑|\\[x\\])")
+      and test("(?i:\\b(addressed|resolved|fixed|cleared|verified|completed|done)\\b)"));
+
+def unexonerated:
+  unquoted | split("\n") | map(select(exonerated_line | not)) | join("\n");
+
 def blocking:
-  unquoted
+  unexonerated
   | test("REQUIRED|CRITICAL|BLOCKING|\\*\\*\\[BLOCKING\\]\\*\\*|\\*\\*\\[CRITICAL\\]\\*\\*");
 
 # SIGNAL: a non-blocking recommendation token (GH-808 F1). A bot finding

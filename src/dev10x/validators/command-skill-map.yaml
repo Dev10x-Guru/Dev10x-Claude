@@ -368,12 +368,21 @@ rules:
         tool: mcp__plugin_Dev10x_cli__issue_comment
         guardrails: structured responses, body written to temp file safely
         description: >
-          If the MCP server is unavailable, use gh issue comment N
-          --body-file <tmp> so quoting/heredocs don't bite.
+          Use the MCP tool. If the MCP server is unavailable, the
+          sanctioned fallback is
+          `gh api repos/<owner>/<repo>/issues/<n>/comments -F body=@<file>`
+          — NOT `gh issue comment --body-file`, which this same rule
+          blocks (GH-1068 F6).
     reason: >
       Direct gh issue comment requires Bash permission per call and
       forces callers to manage heredoc/quoting. The MCP tool writes
       the body to a temp file and returns the comment permalink.
+      The fallback names `gh api … -F body=@<file>` because the
+      previous hint pointed at `gh issue comment --body-file`, a shape
+      this rule denies — so a caller that hit the block was steered
+      into the block a second time, with no working path out. A hint
+      that is itself denied is worse than no hint: it reads as
+      sanctioned and costs another round trip to disprove.
 
   - name: gh-issue-list
     matcher: Bash
