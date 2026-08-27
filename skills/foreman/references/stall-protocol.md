@@ -46,6 +46,14 @@ does answer.
      `TaskStop` the agent, then respawn from `manifest.md` plus the
      newest heartbeats and the live PR/CI state.
 
+   The takeover brief MUST open with a preface carrying, verbatim:
+   the **manifest branch name**, the **worktree slot**, the **current
+   origin state** (`git ls-remote` output for that branch, PR number
+   and draft/CI status), and an explicit **do-not-re-execute list** of
+   actions already completed. A takeover worker given none of this
+   invents its own convention — one coined an off-convention branch
+   name because its brief never carried the manifest's (GH-1061).
+
 ## Evidence — why this exists (2026-07-30, plugin 0.91.0)
 
 Two stalls in one run, handled differently, with opposite outcomes:
