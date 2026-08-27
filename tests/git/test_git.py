@@ -362,23 +362,12 @@ class TestProtectedBranchDefaultIsDocumentedAccurately:
         assert "staging" not in BASE_BRANCH_PRIORITY
 
 
-class TestShellTwinDetectsBundledForceFlags:
-    """GH-1047: the shell twin must agree with the validator on what is force.
+class ShellTwinHarness:
+    """Fixture and runner shared by the ``git-push-safe.sh`` suites.
 
-    ``skill_redirect._has_bare_force`` and ``git-push-safe.sh`` implement the
-    same flag test in two languages, and `.claude/rules/hook-patterns.md`
-    requires the pair to stay functionally equivalent. Fixing only the
-    validator would leave ``push_safe`` — the very tool force pushes are
-    routed into — waving ``-uf origin main`` straight through.
-
-    These run the script directly, with no positional arguments, so the
-    target resolves through the ``HEAD`` fallback to the checked-out branch.
-    That keeps each case a test of the force check alone — the script's
-    refspec-parsing has its own separate defects, and coupling to them would
-    make these assertions fail for unrelated reasons.
-
-    A force push to a protected branch is refused before any ``git push``
-    runs, so nothing here needs a remote.
+    Deliberately not named ``Test*`` so pytest collects it as a base only —
+    inheriting one suite from the other would re-run its cases under the
+    subclass's name.
     """
 
     SCRIPT = Path(__file__).parents[2] / "skills" / "git" / "scripts" / "git-push-safe.sh"
@@ -426,6 +415,25 @@ class TestShellTwinDetectsBundledForceFlags:
         match = re.search(r'"blocked_reason":"(?P<reason>[^"]*)"', result.stdout)
         return match.group("reason") if match else None
 
+
+class TestShellTwinDetectsBundledForceFlags(ShellTwinHarness):
+    """GH-1047: the shell twin must agree with the validator on what is force.
+
+    ``skill_redirect._has_bare_force`` and ``git-push-safe.sh`` implement the
+    same flag test in two languages, and `.claude/rules/hook-patterns.md`
+    requires the pair to stay functionally equivalent. Fixing only the
+    validator would leave ``push_safe`` — the very tool force pushes are
+    routed into — waving ``-uf origin main`` straight through.
+
+    These run the script directly, with no positional arguments, so the
+    target resolves through the ``HEAD`` fallback to the checked-out branch.
+    That keeps each case a test of the force check alone; the refspec-parsing
+    cases live in the sibling suite below.
+
+    A force push to a protected branch is refused before any ``git push``
+    runs, so nothing here needs a remote.
+    """
+
     @pytest.mark.parametrize(
         "flag",
         ["-uf", "-fu", "-vuf", "-f", "--force"],
@@ -437,6 +445,116 @@ class TestShellTwinDetectsBundledForceFlags:
     ) -> None:
         reason = self._blocked_reason(flag, cwd=repo_on_protected_branch)
         assert reason == "protected_branch_force_push"
+
+
+class TestShellTwinResolvesExplicitRefspecTargets(ShellTwinHarness):
+    """GH-1049: the shell twin must resolve the target it is GIVEN.
+
+    These cases pass positionals rather than relying on the HEAD fallback —
+    the fallback is exactly what the gap-1 misparse silently reached.
+
+    The fixture repo is checked out on ``main``, so a case that asserts a
+    block must name a protected branch that the HEAD fallback would ALSO
+    have produced to be meaningful. `feature_repo` therefore puts HEAD on
+    an unprotected branch: with HEAD unprotected, a block can only come
+    from the guard actually reading the refspec.
+    """
+
+    @pytest.fixture
+    def feature_repo(self, repo_on_protected_branch: Path) -> Path:
+        """The same repo, moved onto an unprotected branch."""
+        subprocess.run(
+            ["git", "checkout", "-q", "-b", "feature"],
+            check=True,
+            cwd=repo_on_protected_branch,
+            timeout=30,
+        )
+        return repo_on_protected_branch
+
+    @pytest.mark.parametrize(
+        "args",
+        [
+            ("--force", "origin", "main"),
+            ("-f", "origin", "develop"),
+            ("-uf", "origin", "master"),
+        ],
+    )
+    def test_explicit_protected_target_is_blocked_from_any_branch(
+        self,
+        args: tuple[str, ...],
+        feature_repo: Path,
+    ) -> None:
+        """Gap 1: the loop overwrote ``remote`` with BOTH positionals when
+        the remote was actually named ``origin``, so ``target_branch`` was
+        never set and fell back to the current branch. A force push to
+        ``main`` was not blocked on its canonical spelling."""
+        assert self._blocked_reason(*args, cwd=feature_repo) == "protected_branch_force_push"
+
+    def test_reported_ref_is_the_branch_not_the_remote(self, feature_repo: Path) -> None:
+        """The same misparse was visible in the payload, which reported the
+        branch name under ``remote``."""
+        result = subprocess.run(
+            [str(self.SCRIPT), "--force", "origin", "main"],
+            capture_output=True,
+            text=True,
+            cwd=feature_repo,
+            timeout=30,
+        )
+        assert '"ref":"main"' in result.stdout
+        assert '"remote":"origin"' in result.stdout
+
+    def test_value_taking_flag_value_is_not_read_as_a_positional(
+        self,
+        feature_repo: Path,
+    ) -> None:
+        """Gap 2: ``ci.skip`` is not a ``-``-prefixed token, so it entered
+        the positional stream and shifted the refspec out of reach."""
+        reason = self._blocked_reason(
+            "-o", "ci.skip", "--force", "origin", "main", cwd=feature_repo
+        )
+        assert reason == "protected_branch_force_push"
+
+    @pytest.mark.parametrize(
+        "args",
+        [
+            ("origin", "+evil:main"),
+            ("origin", "+main"),
+            ("origin", "feature", "+evil:develop"),
+        ],
+    )
+    def test_plus_prefixed_refspec_counts_as_force(
+        self,
+        args: tuple[str, ...],
+        feature_repo: Path,
+    ) -> None:
+        """Gap 3: refspec syntax force-pushes with no force flag, and only
+        the first refspec was inspected."""
+        assert self._blocked_reason(*args, cwd=feature_repo) == "protected_branch_force_push"
+
+    def test_fully_qualified_ref_is_recognised_as_protected(self, feature_repo: Path) -> None:
+        """Gap 4: ``PROTECTED_BRANCHES`` holds short names."""
+        reason = self._blocked_reason("origin", "+feature:refs/heads/main", cwd=feature_repo)
+        assert reason == "protected_branch_force_push"
+
+    @pytest.mark.parametrize(
+        "args",
+        [
+            ("--force", "origin", "feature"),
+            ("--force-with-lease", "origin", "main"),
+            ("-o", "ci.skip", "--force", "origin", "feature"),
+        ],
+    )
+    def test_permitted_pushes_are_not_blocked_as_protected(
+        self,
+        args: tuple[str, ...],
+        feature_repo: Path,
+    ) -> None:
+        """The tightening must not over-block: a force push to an
+        unprotected branch is allowed, and ``--force-with-lease`` is
+        allowed even against a protected branch. Neither has a remote to
+        reach, so each fails at the push itself — ``push_failed`` proves
+        the guard let it through."""
+        assert self._blocked_reason(*args, cwd=feature_repo) == "push_failed"
 
     @pytest.mark.parametrize(
         "flag",

@@ -36,47 +36,95 @@ fi
 # shellcheck source=protected-branches.sh
 source "$SCRIPT_DIR/protected-branches.sh"
 
-# Detect force-push flags (--force-with-lease is intentionally allowed)
-# Long options match exactly so --force-with-lease never matches on a
-# substring; single-dash tokens are decomposed letter-by-letter because
-# POSIX bundling spells a force push without a lone -f (GH-1047).
+# Resolve force-ness, the remote, and every target branch in ONE pass over
+# PUSH_ARGS, so flags and positionals are classified against the same view
+# of the argument list (GH-1049).
+#
+# Force spellings recognised:
+#   --force / -f            long options match exactly, so the deliberately
+#                           allowed --force-with-lease never matches on a
+#                           substring
+#   -uf / -fu / -vuf        single-dash tokens are decomposed letter-by-letter
+#                           because POSIX bundling spells a force push without
+#                           a lone -f (GH-1047)
+#   origin +evil:main       a leading + on a refspec IS the force marker, and
+#                           carries no force flag at all (GH-1049 gap 3)
+#
+# Positionals are counted rather than inferred from `remote`'s value: the old
+# loop treated the second positional as the refspec only while `remote` still
+# held its initial "origin", so pushing to a remote actually NAMED origin
+# re-entered the first branch and overwrote `remote` with the branch. The
+# target then fell back to HEAD, and a force push to `main` was never seen as
+# targeting main at all (GH-1049 gap 1).
+#
+# A value-taking flag's value is skipped, otherwise it lands in the positional
+# stream and shifts every index after it (GH-1049 gap 2). Optional-value flags
+# (--force-with-lease) are absent by design — they are commonly spelled bare
+# and consuming the next token would swallow the remote.
 force=0
-for arg in "${PUSH_ARGS[@]}"; do
-    if [[ "$arg" == "--force" || "$arg" == "-f" ]]; then
-        force=1
-    elif [[ "$arg" =~ ^-[A-Za-z]+$ && "$arg" == *f* ]]; then
-        force=1
-    fi
-done
-
-# Resolve the target branch and remote from the parsed PUSH_ARGS.
-# Defaults match `git push` behavior: remote=origin, branch=HEAD.
-target_branch=""
 remote="origin"
+target_branches=()
+positional_index=0
+skip_value=0
 for arg in "${PUSH_ARGS[@]}"; do
-    if [[ "$arg" != -* ]]; then
-        if [[ "$remote" == "origin" && -z "$target_branch" ]]; then
-            # First positional is remote, second is refspec — but a single
-            # positional is the remote when no refspec is given.
-            remote="$arg"
-        else
-            target_branch="${arg##*:}"
-        fi
+    if [[ $skip_value -eq 1 ]]; then
+        skip_value=0
+        continue
     fi
+    if [[ "$arg" == -* ]]; then
+        case "$arg" in
+            --force|-f)
+                force=1
+                ;;
+            -o|--push-option|--receive-pack|--exec|--repo)
+                skip_value=1
+                ;;
+            *)
+                if [[ "$arg" =~ ^-[A-Za-z]+$ && "$arg" == *f* ]]; then
+                    force=1
+                fi
+                ;;
+        esac
+        continue
+    fi
+    positional_index=$((positional_index + 1))
+    if [[ $positional_index -eq 1 ]]; then
+        remote="$arg"
+        continue
+    fi
+    [[ "$arg" == +* ]] && force=1
+    # Destination half of src:dst, minus the + force marker and minus a
+    # refs/heads/ qualification — PROTECTED_BRANCHES holds short names, so a
+    # fully-qualified ref compared as unprotected (GH-1049 gap 4).
+    ref="${arg##*:}"
+    ref="${ref#+}"
+    ref="${ref#refs/heads/}"
+    target_branches+=("$ref")
 done
 
-if [[ -z "$target_branch" ]]; then
-    target_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+if [[ ${#target_branches[@]} -eq 0 ]]; then
+    target_branches=("$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")")
 fi
 
-if [[ $force -eq 1 ]] && is_protected_branch "$target_branch"; then
-    # JSON blocked result on stdout (success exit code so callers can parse
-    # the structured payload), plus a human-readable warning on stderr.
-    echo "BLOCKED: --force push to protected branch '$target_branch' is not allowed." >&2
-    echo "Use --force-with-lease on a feature branch instead." >&2
-    printf '{"pushed":false,"ref":"%s","remote":"%s","blocked_reason":"protected_branch_force_push"}\n' \
-        "$target_branch" "$remote"
-    exit 2
+# The ref reported in every JSON payload: the first target, matching the
+# single-refspec shape callers already parse.
+target_branch="${target_branches[0]}"
+
+# EVERY target is checked, not just the first — a push may carry several
+# refspecs, and inspecting one let `origin feature +evil:develop` through.
+if [[ $force -eq 1 ]]; then
+    for branch in "${target_branches[@]}"; do
+        if is_protected_branch "$branch"; then
+            # JSON blocked result on stdout (success exit code so callers can
+            # parse the structured payload), plus a human-readable warning on
+            # stderr.
+            echo "BLOCKED: --force push to protected branch '$branch' is not allowed." >&2
+            echo "Use --force-with-lease on a feature branch instead." >&2
+            printf '{"pushed":false,"ref":"%s","remote":"%s","blocked_reason":"protected_branch_force_push"}\n' \
+                "$branch" "$remote"
+            exit 2
+        fi
+    done
 fi
 
 # Run the push; capture stderr so we can re-emit it after the JSON payload.
