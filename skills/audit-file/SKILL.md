@@ -203,18 +203,20 @@ Apply the resolution algorithm in
 [`references/labels.md`](references/labels.md):
 
 1. Start with `enhancement`
-2. Add the audit-session bundle: `audit-YYYY-MM-DD` (parse from the
-   findings file's "Audit date" line)
-3. Add one `skill:<name>` per unique skill referenced in the
+2. Add one `skill:<name>` per unique skill referenced in the
    findings table (strip the `Dev10x:` prefix; fictionalized names
    only — see Step 3)
-4. Scan finding descriptions + proposed fixes against the topical
-   heuristic table in `references/labels.md` § 4; add each matching
+3. Scan finding descriptions + proposed fixes against the topical
+   heuristic table in `references/labels.md` § 3; add each matching
    topical label once
-5. De-duplicate and cap at 8 labels per issue
+4. De-duplicate and cap at 8 labels per issue
+
+Do NOT mint a per-session `audit-YYYY-MM-DD` label — the session
+date already lives in the issue body's `## Session Context`
+section, and dated labels accumulate without bundling value.
 
 Collect the result as a comma-separated string (e.g.,
-`enhancement,audit-2026-05-16,skill:work-on,routing-bypass`).
+`enhancement,skill:work-on,routing-bypass`).
 Store it as `$LABELS` for Step 8.
 
 ### Step 8: Ensure labels exist on the repo (best-effort)
@@ -256,7 +258,7 @@ issue body instead, so a maintainer can apply them afterwards:
 
 ```markdown
 **Suggested labels** (filed without them — no push access):
-`enhancement`, `audit-2026-07-31`, `skill:git`
+`enhancement`, `skill:git`, `routing-bypass`
 ```
 
 Never abort the filing because labels are unavailable. An audit
