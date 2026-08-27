@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from dev10x.domain.common.accepted_findings import DEFAULT_ACCEPTED_FINDINGS, find_acceptance
 from dev10x.skills.permission import update_paths
 from dev10x.skills.permission.update_paths import (
     _is_nonfunctional_mcp_wildcard,
@@ -673,14 +674,22 @@ class TestNoRuntimeClaudeWriteSeeds:
         assert "Read(~/.claude/memory/Dev10x/**)" in shipped_base_permissions
 
 
-class TestGitSafeDeleteAllowed:
-    """GH-864: `git branch -d` (safe merge-checked delete) ships as a
+class TestGitBranchDeleteAllowed:
+    """GH-864 + GH-1067: the whole local-branch-deletion family ships as a
     pre-approved base permission so AFK/fanout worktree teardown does not
-    prompt. It is stratified from the destructive `-D`/`--force` form —
-    git itself refuses `-d` on an unmerged branch, so the safe delete
-    cannot destroy work. Mirrors the `git-safe-flags` group already
-    declared in baseline-permissions.yaml (which was never synced to the
-    flat catalog `ensure-base`/`seed_worktree` actually deploy)."""
+    prompt.
+
+    GH-864 originally shipped only `-d` (git refuses it on an unmerged
+    branch) and held `-D` behind a prompt as "destructive". The 2026-08-25
+    ruling on GH-1067 supersedes that stratification: `-D` removes a ref,
+    not history — the deleted tip stays reachable via `git log -g` — which
+    is the same recoverability argument already accepted for
+    `git reset --hard` and `git push --force` (GH-1053). An overnight crew
+    cleaning up after killed workers cannot answer a prompt, so holding
+    `-D` back bought no safety and cost a wedged run.
+
+    `--force` stays out: it is not a spelling of the delete verb, so
+    admitting it would widen the rule past what was actually ruled on."""
 
     @pytest.fixture()
     def shipped_base_permissions(self) -> list[str]:
@@ -692,23 +701,40 @@ class TestGitSafeDeleteAllowed:
 
     @pytest.mark.parametrize(
         "rule",
-        ["Bash(git branch -d:*)", "Bash(git branch --delete:*)"],
+        [
+            "Bash(git branch -d:*)",
+            "Bash(git branch --delete:*)",
+            "Bash(git branch -D:*)",
+        ],
     )
-    def test_catalog_ships_safe_delete(
+    def test_catalog_ships_the_deletion_family(
         self,
         rule: str,
         shipped_base_permissions: list[str],
     ) -> None:
         assert rule in shipped_base_permissions
 
-    @pytest.mark.parametrize(
-        "rule",
-        ["Bash(git branch -D:*)", "Bash(git branch --force:*)"],
-    )
-    def test_catalog_never_ships_force_delete(
+    def test_catalog_does_not_widen_to_branch_force(
         self,
-        rule: str,
         shipped_base_permissions: list[str],
     ) -> None:
-        # The destructive force-delete must stay behind the prompt.
-        assert rule not in shipped_base_permissions
+        assert "Bash(git branch --force:*)" not in shipped_base_permissions
+
+    @pytest.mark.parametrize(
+        "rule",
+        [
+            "Bash(git branch -d:*)",
+            "Bash(git branch --delete:*)",
+            "Bash(git branch -D:*)",
+        ],
+    )
+    def test_deletion_family_is_accepted_by_design(self, rule: str) -> None:
+        """GH-1067 AC2: never re-proposed for ask/deny by the auditor."""
+        assert (
+            find_acceptance(
+                rule=rule,
+                classification="REDUNDANT",
+                catalog=DEFAULT_ACCEPTED_FINDINGS,
+            )
+            is not None
+        )

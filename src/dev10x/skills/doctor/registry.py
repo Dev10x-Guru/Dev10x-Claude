@@ -24,6 +24,7 @@ DEFAULT_STRATEGY_MODULES: tuple[str, ...] = (
     "dev10x.skills.doctor.strategies.missing_linear_mcp_allow",
     "dev10x.skills.doctor.strategies.forbidden_token_priming",
     "dev10x.skills.doctor.strategies.mcp_horizontal_duplicates",
+    "dev10x.skills.doctor.strategies.ask_shadows_allow",
 )
 
 _STRATEGY_MARKER = "STRATEGY"

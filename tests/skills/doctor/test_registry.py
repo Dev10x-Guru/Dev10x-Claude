@@ -24,6 +24,12 @@ class TestLoadStrategies:
         ids = [s.id for s in strategies]
         assert "mcp-horizontal-duplicates" in ids
 
+    def test_default_set_includes_ask_shadows_allow(self) -> None:
+        strategies = registry.load_strategies()
+
+        ids = [s.id for s in strategies]
+        assert "ask-shadows-allow" in ids
+
     def test_returns_strategy_instances(self) -> None:
         strategies = registry.load_strategies()
 
