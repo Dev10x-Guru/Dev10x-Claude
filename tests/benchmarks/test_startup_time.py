@@ -3,6 +3,19 @@
 Measures cold-start latency for key CLI entry points to catch
 import-chain regressions. Primary gate: validate-bash median < 150 ms.
 
+**The timing gates are enforced in CI and advisory locally (GH-1080).**
+The committed baselines were recorded on the CI runner; developer
+hardware varies enough that they are unreachable on some machines —
+observed 135 ms against a 37 ms baseline on a machine where a clean
+`origin/develop` checkout failed identically. Three permanently-red
+tests train everyone to read a red `bench` as "the baselines again",
+which is precisely the state a real regression slips through. So a
+local breach warns and CI fails, per `.claude/rules/performance.md`
+§ CI Gate — the CI runner is the only consistent measuring stick.
+
+Set ``DEV10X_BENCH_STRICT=1`` to enforce locally anyway (e.g. when
+deliberately profiling an import-chain change).
+
 Run benchmarks:
     pytest tests/benchmarks/test_startup_time.py --benchmark-only
 
@@ -13,11 +26,13 @@ Run gate tests only:
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import statistics
 import subprocess
 import sys
 import time
+import warnings
 from pathlib import Path
 
 import pytest
@@ -27,6 +42,37 @@ BASELINE_FILE = FIXTURES_DIR / "startup_baseline.json"
 MAX_MEDIAN_MS = 150
 GATE_RUNS = 10
 REGRESSION_FACTOR = 2.0
+STRICT_ENV = "DEV10X_BENCH_STRICT"
+_FALSEY = frozenset({"", "0", "false", "no"})
+
+
+def _enabled(name: str) -> bool:
+    """Whether an env flag is set to anything other than a falsey token."""
+    return os.environ.get(name, "").strip().lower() not in _FALSEY
+
+
+def timing_gate_is_enforced() -> bool:
+    """Whether a timing breach should fail rather than warn.
+
+    ``CI`` is set by GitHub Actions (and every other mainstream runner),
+    which is where the baselines were recorded and where the hardware is
+    consistent. ``DEV10X_BENCH_STRICT`` is the local opt-in.
+    """
+    return _enabled("CI") or _enabled(STRICT_ENV)
+
+
+def _report_timing(*, within_budget: bool, message: str) -> None:
+    """Fail on a breach under enforcement; warn otherwise (GH-1080)."""
+    if within_budget:
+        return
+    if timing_gate_is_enforced():
+        pytest.fail(message)
+    warnings.warn(
+        f"{message} — advisory only: local hardware differs from the CI "
+        f"runner the baselines were recorded on. CI enforces this gate; "
+        f"set {STRICT_ENV}=1 to enforce it here too.",
+        stacklevel=2,
+    )
 
 
 def _find_dev10x() -> str:
@@ -108,8 +154,9 @@ class TestCLIStartupBenchmark:
 class TestStartupTimeGate:
     def test_validate_bash_under_threshold(self, dev10x: str) -> None:
         median = _measure_median_ms(cmd=[dev10x, "hook", "validate-bash"])
-        assert median < MAX_MEDIAN_MS, (
-            f"validate-bash median {median:.1f}ms exceeds {MAX_MEDIAN_MS}ms"
+        _report_timing(
+            within_budget=median < MAX_MEDIAN_MS,
+            message=f"validate-bash median {median:.1f}ms exceeds {MAX_MEDIAN_MS}ms",
         )
 
     @pytest.mark.parametrize(
@@ -139,7 +186,10 @@ class TestStartupTimeGate:
         }
         median = _measure_median_ms(cmd=cmd_map[name])
         threshold = baseline[name] * REGRESSION_FACTOR
-        assert median < threshold, (
-            f"{name}: {median:.1f}ms exceeds "
-            f"{REGRESSION_FACTOR}x baseline ({baseline[name]:.1f}ms)"
+        _report_timing(
+            within_budget=median < threshold,
+            message=(
+                f"{name}: {median:.1f}ms exceeds "
+                f"{REGRESSION_FACTOR}x baseline ({baseline[name]:.1f}ms)"
+            ),
         )
