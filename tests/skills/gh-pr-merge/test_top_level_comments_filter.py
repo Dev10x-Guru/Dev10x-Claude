@@ -314,6 +314,153 @@ class TestKeyedReplyDisposesFinding:
         assert _run_filter(rows, "review", tmp_path) == []
 
 
+class TestKeyedReplyIsFoundBelowAPreamble:
+    """GH-1057: a keyed disposition with a preamble line was invisible.
+
+    ``is_reply`` tested the WHOLE body against ``^[[:space:]]*Re:``, and jq
+    anchors that at the start of the string — so the documented
+    ``gh-pr-respond`` shape, which opens with a
+    ``Merge-gate dispositions (keyed):`` line before its ``Re:`` lines,
+    matched nothing. Two failures followed from the one cause: the
+    disposition self-triggered as a NEW finding, and ``reply_target_ids``
+    (gated on ``is_reply``) never collected its keys, so none of the
+    findings it answered dropped out.
+
+    Net effect in the field: every disposition posted to satisfy Check 1b
+    raised ``needs_disposition_count`` by one — a feedback loop with no
+    mechanical exit.
+    """
+
+    FINDINGS = [
+        {
+            "id": 5371568079,
+            "user": {"login": "claude", "type": "Bot"},
+            "body": "INFO: consider renaming the helper",
+        },
+        {
+            "id": 5371852962,
+            "user": {"login": "claude", "type": "Bot"},
+            "body": "NOTE: the docstring drifted",
+        },
+    ]
+    KEYED_DISPOSITION = {
+        "id": 5372056101,
+        "user": {"login": "claude", "type": "Bot"},
+        "body": (
+            "Merge-gate dispositions (keyed):\n"
+            "\n"
+            "Re: comment 5371568079 — addressed in abc1234.\n"
+            "Re: comment 5371852962 — declined with evidence: INFO is out of scope.\n"
+        ),
+    }
+
+    def test_findings_block_before_the_disposition_is_posted(self, tmp_path: Path) -> None:
+        """The premise — kept as a live assertion so a fix that clears these
+        unconditionally is caught."""
+        selected = _run_filter(self.FINDINGS, "comment", tmp_path)
+        assert {row["id"] for row in selected} == {5371568079, 5371852962}
+
+    def test_preamble_keyed_disposition_clears_every_keyed_finding(self, tmp_path: Path) -> None:
+        rows = [*self.FINDINGS, self.KEYED_DISPOSITION]
+        assert _run_filter(rows, "comment", tmp_path) == []
+
+    def test_the_disposition_itself_is_not_a_finding(self, tmp_path: Path) -> None:
+        """It carries the word INFO in its declined-with-evidence line, which
+        is exactly how it became a fourth finding."""
+        assert _run_filter([self.KEYED_DISPOSITION], "comment", tmp_path) == []
+
+    def test_keys_are_collected_across_surfaces(self, tmp_path: Path) -> None:
+        """gh-pr-respond posts review-body replies as issue comments, so the
+        preamble shape has to work through the cross-surface union too."""
+        selected = _run_filter(
+            self.FINDINGS,
+            "review",
+            tmp_path,
+            cross_surface=[self.KEYED_DISPOSITION],
+        )
+        assert selected == []
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "Dispositions:\n\nRe: comment 5371568079 — done.",
+            "Round 3 follow-up\n\n  Re: #5371568079 — fixed.",
+            "Header\n\nRe: 5371568079 — declined.",
+        ],
+    )
+    def test_key_position_within_the_body_does_not_matter(self, body: str, tmp_path: Path) -> None:
+        reply = {"id": 5372056102, "user": {"login": "janusz", "type": "User"}, "body": body}
+        assert _run_filter([self.FINDINGS[0], reply], "comment", tmp_path) == []
+
+    def test_a_bare_id_on_a_non_re_line_still_does_not_dispose(self, tmp_path: Path) -> None:
+        """Widening WHERE a ``Re:`` line may sit must not widen WHAT counts as
+        a key — only ``Re:`` lines carry them."""
+        row = {
+            "id": 5372056103,
+            "user": {"login": "claude", "type": "Bot"},
+            "body": "Preamble\n\nREQUIRED: see comment 5371568079 for context",
+        }
+        selected = _run_filter([self.FINDINGS[0], row], "comment", tmp_path)
+        assert {r["id"] for r in selected} == {5371568079, 5372056103}
+
+
+class TestInfoFamilyExoneration:
+    """GH-1057: an INFO token on a line that says it is already handled.
+
+    ``exonerated_line`` recognised exoneration cues only around
+    REQUIRED/CRITICAL/BLOCKING, so a reviewer's own "all INFO items
+    addressed" wrap-up kept registering as a live INFO finding. The cue
+    shapes are unchanged — only the token set widens — and the direction is
+    safe: an INFO finding does not hard-block, it only needs a disposition.
+    """
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "No INFO items remain.",
+            "All INFO items addressed in the latest round.",
+            "Every SUGGESTION resolved.",
+            "NOTE: none",
+            "✅ INFO items verified",
+        ],
+    )
+    def test_exonerated_info_line_is_not_a_finding(self, body: str, tmp_path: Path) -> None:
+        row = {"id": 5372056104, "user": {"login": "claude", "type": "Bot"}, "body": body}
+        assert _run_filter([row], "comment", tmp_path) == []
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "INFO: the retry helper duplicates logic in client.py",
+            "SUGGESTION: extract the parser",
+            "NOTE: this was previously addressed elsewhere, but regressed",
+        ],
+    )
+    def test_live_info_findings_still_need_disposition(self, body: str, tmp_path: Path) -> None:
+        """The cue must be on the same line and must actually exonerate —
+        prose merely mentioning a resolution verb keeps blocking, which is
+        the intended bias."""
+        row = {"id": 5372056105, "user": {"login": "claude", "type": "Bot"}, "body": body}
+        selected = _run_filter([row], "comment", tmp_path)
+        assert [r["id"] for r in selected] == [5372056105]
+
+    def test_blocking_exoneration_is_unchanged(self, tmp_path: Path) -> None:
+        rows = [
+            {
+                "id": 5372056106,
+                "user": {"login": "claude", "type": "Bot"},
+                "body": "CRITICAL: this was previously fine",
+            },
+            {
+                "id": 5372056107,
+                "user": {"login": "claude", "type": "Bot"},
+                "body": "No CRITICAL issues found.",
+            },
+        ]
+        selected = _run_filter(rows, "comment", tmp_path)
+        assert [r["id"] for r in selected] == [5372056106]
+
+
 class TestInfoSeverityDisposition:
     """GH-808 F1: non-blocking INFO/NOTE/SUGGESTION bot findings surface with
     severity=info so they require a disposition; blocking findings keep
