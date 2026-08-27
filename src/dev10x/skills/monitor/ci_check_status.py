@@ -19,6 +19,14 @@ reached (green, failing, or conflicting). This removes polling
 logic from the agent — haiku agents no longer need to loop and
 can call the script once with --wait to get a definitive answer.
 
+Under --wait, a failed NON-required check does not end the wait
+while other legs are still pending (GH-1065): the caller cannot
+act on "failing, 3 pending", so returning it just hands the
+polling back. The loop settles the remaining legs first and then
+returns the full verdict with the failed leg named. A failed
+REQUIRED check still returns immediately — it blocks the merge
+regardless. --no-wait-out-pending restores the old early return.
+
 Output (JSON):
     {
         "verdict": "failing",          # "green", "pending", "failing",
@@ -245,6 +253,36 @@ def compute_verdict(
     }
 
 
+def is_terminal(
+    *,
+    result: dict,
+    wait_out_pending: bool = True,
+) -> bool:
+    """Whether a poll result ends the wait.
+
+    ``green`` and ``conflicting`` always do. ``failing`` is where GH-1065
+    lives: the blended verdict flips the moment ANY check fails, required or
+    not, so one red advisory check ended the wait while every other leg was
+    still pending. Pending is not green, so that early return gave the caller
+    nothing to act on — only a reason to poll again by hand, which is exactly
+    the work ``wait=true`` exists to absorb.
+
+    With ``wait_out_pending`` (the default) a blended failure is terminal only
+    once nothing is outstanding. A REQUIRED failure stays terminal on sight:
+    it blocks the merge no matter how the remaining legs land.
+    """
+    verdict = result["verdict"]
+    if verdict in ("green", "conflicting"):
+        return True
+    if verdict != "failing":
+        return False
+    if not wait_out_pending:
+        return True
+    if result["required_verdict"] == "failing":
+        return True
+    return result["pending"] == 0 and result["cancel"] == 0
+
+
 def poll_until_terminal(
     *,
     pr_number: int,
@@ -253,6 +291,7 @@ def poll_until_terminal(
     poll_interval: int = 30,
     initial_wait: int = 60,
     max_polls: int = 40,
+    wait_out_pending: bool = True,
 ) -> dict:
     """Poll CI until a terminal verdict (green, failing, conflicting).
 
@@ -260,6 +299,13 @@ def poll_until_terminal(
     then polls every `poll_interval` seconds. Returns the final verdict
     dict. This removes polling logic from the agent — the script handles
     all waiting internally.
+
+    `wait_out_pending` (default True, GH-1065) keeps polling through a
+    failed NON-required check until no leg is pending, then returns the
+    full verdict with the failed leg named in `checks`. Pass False for the
+    pre-GH-1065 behaviour of returning on the first blended failure. Either
+    way the poll budget still bounds the loop, so a leg that never settles
+    ends the wait rather than hanging it.
 
     The default budget (`initial_wait 60 + poll_interval 30 * max_polls 40`
     = 1320s) is kept below the ~1800s MCP idle-timeout so a `wait=true`
@@ -292,7 +338,7 @@ def poll_until_terminal(
             flush=True,
         )
 
-        if verdict in ("green", "failing", "conflicting"):
+        if is_terminal(result=result, wait_out_pending=wait_out_pending):
             return result
 
         if attempt < max_polls:
@@ -344,6 +390,13 @@ def main() -> None:
         help="Max poll attempts before giving up (default: 40, keeping the "
         "total wait under the ~1800s MCP idle-timeout)",
     )
+    parser.add_argument(
+        "--no-wait-out-pending",
+        dest="wait_out_pending",
+        action="store_false",
+        help="End the wait on the first failing check even while other legs "
+        "are pending (pre-GH-1065 behaviour)",
+    )
     args = parser.parse_args()
 
     try:
@@ -359,6 +412,7 @@ def main() -> None:
             poll_interval=args.poll_interval,
             initial_wait=args.initial_wait,
             max_polls=args.max_polls,
+            wait_out_pending=args.wait_out_pending,
         )
     else:
         checks = get_annotated_checks(
