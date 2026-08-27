@@ -91,6 +91,22 @@ class AllowRule:
         value = signature[sig_paren + 1 :].rstrip(")")
         return self.matches_prefix(value)
 
+    @property
+    def representative_value(self) -> str:
+        """A concrete-ish value this rule governs, for subsumption checks.
+
+        The inverse of :meth:`matches_prefix`: it yields the narrowest
+        thing the rule covers, so ``other.matches_prefix(rule.
+        representative_value)`` answers "does ``other`` also cover
+        everything this rule does?" — the shared primitive behind
+        redundancy classification and ask/allow shadow detection.
+        """
+        if self.tool == "Bash" and self.pattern.endswith(":*"):
+            return self.pattern[:-2]
+        if self.pattern.endswith("**"):
+            return self.pattern[:-2]
+        return self.pattern
+
     def matches_prefix(self, value: str) -> bool:
         """Match ``value`` against this rule's Bash ``:*`` / path ``**`` suffix.
 

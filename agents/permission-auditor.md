@@ -77,24 +77,13 @@ that must NOT be flagged.
 
 ### Phase 4b: MCP Horizontal-Duplicate Detection (GH-371)
 
-After classifying allow rules, check whether the same logical capability
-is provided by multiple MCP server installations under different prefixes.
-The three source types are:
+Run the `mcp-horizontal-duplicates` doctor strategy to find one logical
+capability served by several MCP installations under different prefixes
+— a catalog rule targeting one prefix does NOT cover the others.
+Severity: **LOW** (informational); offer consolidation, never force it.
 
-- `mcp__claude_ai_<Service>__*`      — claude.ai-hosted
-- `mcp__<service>__*`                — user-installed via `claude mcp add`
-- `mcp__plugin_<plugin>_<srv>__*`    — plugin-distributed
-
-Run the `mcp-horizontal-duplicates` doctor strategy (registered in
-`src/dev10x/skills/doctor/registry.py`). For each finding:
-
-1. Report the capability name and how many servers expose it
-2. List each (prefix, example tool) pair
-3. Note that catalog rules targeting one prefix do NOT cover the others
-4. Surface consolidation as an option — do NOT force it
-
-Severity: **LOW** (informational). The duplication may be intentional
-(e.g., keeping a backup server). Surface it for user awareness only.
+See [`references/agents/permission-auditor/mcp-duplicates.md`](../references/agents/permission-auditor/mcp-duplicates.md)
+for the source-type table and the per-finding report steps.
 
 ### Phase 4c: Worktree-Root Anchoring Audit (GH-376)
 
@@ -105,12 +94,24 @@ all CWD-keyed permission scopes. Three failure modes apply: workspace
 skill-script allow rules that silently target the wrong directory per
 worktree (RELATIVE_SKILL_SCRIPT), and the per-leaf skill-consent scope
 gap (upstream CC defect, GH-312 — informational only, not rule-fixable).
-
 Automated fix: `uvx dev10x permission doctor anchor-worktree-roots`.
 
 See [`references/agents/permission-auditor/worktree-anchoring.md`](../references/agents/permission-auditor/worktree-anchoring.md)
-for the full failure-mode descriptions, detection steps, and severity
-table.
+for the failure-mode descriptions, detection steps, and severity table.
+
+### Phase 4d: Accepted-Findings Suppression (GH-1053)
+
+A proposal the maintainer already rejected must never be re-proposed.
+`dev10x permission audit` applies the accepted-findings catalog
+(shipped defaults + `~/.config/Dev10x/accepted-findings.yaml`) and
+renders each match under `## Suppressed by accepted-findings`. Carry
+those into Phase 7 **listed, not proposed** — never in the "Proposed
+changes" groups. The shipped set covers `git reset --hard`,
+`git push --force` / `-f`, and `git branch -D` / `-d` / `--delete`;
+proposing their removal fights `ensure-base`, which re-adds them from
+the baseline catalog in the same run. Catalog shape and accept/re-open
+semantics: the Accepted-Findings section of
+[`classification.md`](../references/agents/permission-auditor/classification.md).
 
 ### Phase 5: Deny Rule Gap Analysis
 

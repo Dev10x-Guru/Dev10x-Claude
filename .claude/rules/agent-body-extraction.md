@@ -120,7 +120,7 @@ When reviewing an agent refactor that extracts content:
 
 | Agent | Original lines | Current spec | Reference files |
 |-------|---------------:|-------------:|-----------------|
-| permission-auditor | 226 | <200 | `classification.md`, `destructive-ops.md`, `instruction-paths.md` |
+| permission-auditor | 226 | <200 | `classification.md`, `destructive-ops.md`, `instruction-paths.md`, `worktree-anchoring.md`, `mcp-duplicates.md` |
 
 Pending work (follow-up tickets): pytest-test-writer (156),
 issue-investigator (121). These are within the 200-line budget

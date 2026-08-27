@@ -20,8 +20,9 @@ force-push, `update-config` needs settings writes,
 | `git reset --hard` | **skip** | Skills use for rebase recovery in worktrees (SKILL_REQUIRED) |
 | `git checkout .` / `git restore .` | **ask** | Dangerous but not never-legitimate |
 | `git clean` | **ask** | Rarely legitimate, but not never |
-| `git push --force` (bare) | **ask** | `Dev10x:git` handles with branch checks |
+| `git push --force` (bare) | **skip** | `push_safe` (GH-1031) rails protected branches at the wrapper layer; an ask rule duplicates that guard and prompts on every routine groom (GH-1053) |
 | `git push --force-with-lease` | **skip** | Legitimately used by skills |
+| `git branch -D` / `-d` / `--delete` | **skip** | Removes a ref, not history — reflog restores the tip. Unattended cleanup must never wedge on a prompt (GH-1067) |
 | Settings file writes | **skip** | `update-config`/`upgrade-cleanup` need this |
 | Hook/plugin file writes | **skip** | `update-config` needs this |
 | `rm -rf` on non-temp paths | **deny** | No legitimate skill usage |
