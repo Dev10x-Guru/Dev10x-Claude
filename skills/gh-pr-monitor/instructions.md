@@ -459,6 +459,20 @@ mcp__plugin_Dev10x_cli__ci_check_status(
 This returns the same verdict JSON the `haiku-ci-poll` micro-agent
 emits, so the **Interpret verdict** table below applies unchanged.
 
+**A red advisory check no longer cuts the wait short (GH-1065).**
+The wait used to end the moment ANY check failed, so with a
+non-required bot check environmentally red — `claude-review` during
+an org-wide API cap, say — every call returned `failing` instantly
+while `test` / `axe` / `check` were still pending. That verdict is
+unactionable: pending is not green, so the only response was to
+poll again by hand, precisely the work this call exists to absorb.
+The wait now settles the remaining legs first and returns the full
+verdict with the failed leg named in `checks` and `pending: 0`. A
+failed **required** check still returns immediately — it blocks the
+merge regardless of the other legs. Pass
+`wait_out_pending=False` for the old return-on-first-failure
+behaviour; the poll budget still bounds the loop either way.
+
 **Why this is preferred over the haiku-ci-poll micro-agent:** the
 micro-agent's `sleep 30` loop hits a permission boundary in some
 environments and returns after a **single** poll with a

@@ -346,6 +346,121 @@ class TestPollUntilTerminal:
         assert result["verdict"] == "green"
 
 
+class TestWaitOutsPendingLegs:
+    """GH-1065: a red ADVISORY check ended the wait while legs were pending.
+
+    The loop returned on the blended ``verdict``, which flips to "failing" the
+    moment any check fails — required or not. With ``claude-review`` red
+    org-wide, every ``wait=true`` call returned immediately while ``test`` /
+    ``axe`` / ``check`` were still pending, forcing manual re-poll rounds
+    exactly where the tool exists to absorb them. Pending is not green, so the
+    caller could not act on the early return; it could only poll again.
+
+    A REQUIRED failure stays terminal on sight — it blocks the merge no matter
+    what the remaining legs do.
+    """
+
+    def _no_sleep(self, monkeypatch):
+        monkeypatch.setattr(_impl.time, "sleep", lambda *_a, **_k: None)
+
+    def _polls(self, monkeypatch, rounds):
+        """Serve one check-list per poll, repeating the last one forever."""
+        calls = {"n": 0}
+
+        def _next(**_kwargs):
+            index = min(calls["n"], len(rounds) - 1)
+            calls["n"] += 1
+            return rounds[index]
+
+        self._no_sleep(monkeypatch)
+        monkeypatch.setattr(_impl, "get_annotated_checks", _next)
+        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "MERGEABLE")
+        return calls
+
+    ADVISORY_RED_OTHERS_PENDING = [
+        {"name": "claude-review", "bucket": "fail", "required": False},
+        {"name": "test", "bucket": "pending", "required": True},
+    ]
+    ADVISORY_RED_OTHERS_DONE = [
+        {"name": "claude-review", "bucket": "fail", "required": False},
+        {"name": "test", "bucket": "pass", "required": True},
+    ]
+
+    def test_keeps_polling_while_a_leg_is_pending(self, monkeypatch):
+        calls = self._polls(
+            monkeypatch,
+            [self.ADVISORY_RED_OTHERS_PENDING, self.ADVISORY_RED_OTHERS_DONE],
+        )
+        result = _impl.poll_until_terminal(
+            pr_number=1, repo="o/r", initial_wait=0, poll_interval=0, max_polls=5
+        )
+        assert calls["n"] == 2
+        assert result["verdict"] == "failing"
+        assert result["pending"] == 0
+
+    def test_names_the_failed_leg_in_the_returned_verdict(self, monkeypatch):
+        self._polls(monkeypatch, [self.ADVISORY_RED_OTHERS_DONE])
+        result = _impl.poll_until_terminal(
+            pr_number=1, repo="o/r", initial_wait=0, poll_interval=0, max_polls=5
+        )
+        failed = [c["name"] for c in result["checks"] if c["bucket"] == "fail"]
+        assert failed == ["claude-review"]
+
+    def test_required_failure_is_still_terminal_on_sight(self, monkeypatch):
+        """The pre-existing early return stays correct for a merge blocker."""
+        calls = self._polls(
+            monkeypatch,
+            [
+                [
+                    {"name": "test", "bucket": "fail", "required": True},
+                    {"name": "axe", "bucket": "pending", "required": False},
+                ]
+            ],
+        )
+        result = _impl.poll_until_terminal(
+            pr_number=1, repo="o/r", initial_wait=0, poll_interval=0, max_polls=5
+        )
+        assert calls["n"] == 1
+        assert result["required_verdict"] == "failing"
+
+    def test_opting_out_restores_the_old_early_return(self, monkeypatch):
+        calls = self._polls(monkeypatch, [self.ADVISORY_RED_OTHERS_PENDING])
+        result = _impl.poll_until_terminal(
+            pr_number=1,
+            repo="o/r",
+            initial_wait=0,
+            poll_interval=0,
+            max_polls=5,
+            wait_out_pending=False,
+        )
+        assert calls["n"] == 1
+        assert result["verdict"] == "failing"
+        assert result["pending"] == 1
+
+    def test_budget_exhaustion_returns_the_advisory_failure(self, monkeypatch):
+        """Waiting out pending must not turn a red advisory into a hang: when
+        the leg never settles, the budget still ends the loop."""
+        calls = self._polls(monkeypatch, [self.ADVISORY_RED_OTHERS_PENDING])
+        result = _impl.poll_until_terminal(
+            pr_number=1, repo="o/r", initial_wait=0, poll_interval=0, max_polls=3
+        )
+        assert calls["n"] == 3
+        assert result["verdict"] == "failing"
+
+    def test_conflicting_is_terminal_regardless(self, monkeypatch):
+        self._no_sleep(monkeypatch)
+        monkeypatch.setattr(
+            _impl,
+            "get_annotated_checks",
+            lambda **k: [{"name": "test", "bucket": "pending", "required": True}],
+        )
+        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "CONFLICTING")
+        result = _impl.poll_until_terminal(
+            pr_number=1, repo="o/r", initial_wait=0, poll_interval=0, max_polls=5
+        )
+        assert result["verdict"] == "conflicting"
+
+
 class TestDefaultBudgetUnderIdleTimeout:
     """GH-808 F2: the default wait budget must return before the ~1800s MCP
     idle-timeout, so a future default bump that regresses past it fails CI."""

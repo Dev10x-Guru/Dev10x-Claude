@@ -132,6 +132,7 @@ one session). Use these shapes verbatim:
 | `pr_labels` | `pr_number`; `action` (`list` default / `add` / `remove`), plus `labels` for the two writes | separate `pr_label_add` / `pr_label_remove` names — it is one tool with an action selector, like `pr_comments` |
 | `task_index_get` | none (optional `cwd`) | `Read`ing `.claude/Dev10x/session.yaml` — retired by ADR-0018 D5; the tool probes it as a fallback |
 | `pr_ready` | `pr_number`; optional `undo` (bool) | assuming it only publishes — `undo=true` returns a PR to draft |
+| `ci_check_status` | `pr_number`, `repo`; optional `wait`, `wait_out_pending` (default `true`) | reading a `wait=true` `failing` as "every leg finished" — check `pending` (GH-1065) |
 
 Behavioral caveats:
 
@@ -216,6 +217,19 @@ Behavioral caveats:
   up to `limit` merged PRs (slower — one subprocess pair per PR —
   returns `{"prs": [...], "count": N}`). For a single-PR check always
   pass `pr_number` (GH-710).
+- `ci_check_status(wait=true)` no longer ends its wait on a failed
+  NON-required check while other legs are pending (GH-1065). The
+  blended `verdict` flips to `failing` the moment ANY check fails, so
+  one environmentally-red advisory bot — `claude-review` during an
+  org-wide API cap — returned `failing` instantly with three legs still
+  pending, and the caller could only re-poll by hand. `wait_out_pending`
+  (default `true`) settles the remaining legs first, then returns the
+  full verdict with the failed leg named in `checks` and `pending: 0`. A
+  failed **required** check still returns immediately — it blocks the
+  merge however the other legs land — and the poll budget still bounds
+  the loop, so a leg that never settles ends the wait rather than
+  hanging it. Pass `wait_out_pending=false` for the old
+  return-on-first-failure behaviour.
 - `pin_tracker` / `tracker_status` carry the project's issue-tracker
   choice (GH-768). `ensure-base` and `seed_worktree` seed only that
   tracker's MCP rules, so a Jira user stops collecting ~35 inert

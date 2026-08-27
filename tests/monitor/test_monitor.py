@@ -107,3 +107,51 @@ class TestCiCheckStatus:
         call_args = mock_run.call_args
         args_list = call_args.kwargs["args"]
         assert "--required-only" in args_list
+
+    @pytest.mark.asyncio
+    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
+    async def test_wait_out_pending_is_the_default_and_sends_no_flag(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        """GH-1065: waiting out pending legs is the default, so the common
+        call stays flag-free."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout='{"verdict": "green"}', stderr=""
+        )
+        await monitor_mod.ci_check_status(pr_number=42, repo="owner/repo", wait=True)
+        assert "--no-wait-out-pending" not in mock_run.call_args.kwargs["args"]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
+    async def test_opting_out_forwards_the_flag(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout='{"verdict": "failing"}', stderr=""
+        )
+        await monitor_mod.ci_check_status(
+            pr_number=42,
+            repo="owner/repo",
+            wait=True,
+            wait_out_pending=False,
+        )
+        assert "--no-wait-out-pending" in mock_run.call_args.kwargs["args"]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
+    async def test_opting_out_without_wait_sends_nothing(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        """The flag only means something inside the poll loop."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout='{"verdict": "green"}', stderr=""
+        )
+        await monitor_mod.ci_check_status(
+            pr_number=42,
+            repo="owner/repo",
+            wait_out_pending=False,
+        )
+        assert "--no-wait-out-pending" not in mock_run.call_args.kwargs["args"]
