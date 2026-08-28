@@ -5,6 +5,328 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.95.0 — Unattended-Run Hardening & Tracker-Aware Seeding
+
+Released 2026-08-28
+
+### Features
+
+- **Seed the tracker a project actually uses** — `ensure-base` seeded the
+  Linear MCP rules unconditionally, so a Jira or GitHub-Issues user
+  collected ~35 inert `mcp__claude_ai_Linear__*` allows and 5 inert denies
+  while their own tracker's tools still prompted on first use. The
+  tracker→rules mapping now lives in the shipped catalog keyed by tracker,
+  resolved from a durable `tracker:` key persisted by `pin_tracker` (repo-stem
+  keyed, so one answer covers every worktree) and reported back rather than
+  silently applied. GitLab and ClickUp stay out — an empty block would read
+  as support that is not there
+  ([GH-768](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/768))
+- **Prove QA evidence shows what the test cases claim** — a green capture run
+  proved only that the code ran: a step guarded by a silent
+  `if locator.count() > 0:` no-opped without failing, so blank screenshots and
+  content-free videos published straight to an append-only ticket trail.
+  Every artifact is now verified before publishing (size floor, uniform-frame
+  check, three frames sampled per video), the upload is gated on a local
+  approve / re-capture / abort review, and the recording overlay moved out of
+  prose into an importable, tested module installed via `add_init_script` so
+  it survives navigation
+  ([GH-1086](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1086))
+- **Attribute a stall to its worker and wake the merge gate** — stall detection
+  read the newest mtime across the whole run directory, so a foreman writing
+  its own status hid every silent worker behind it; three sat quiet 87–92 min
+  before the alarm fired. Escalations had the mirror problem — the disk record
+  was authoritative but had no reader, so three MERGE REQUESTs waited hours.
+  Each `status-*.md` is now timed and rate-limited separately, and
+  `escalations-*.md` is tailed from an arm-time byte cursor with every MERGE
+  REQUEST / ESCALATION line re-emitted verbatim
+  ([GH-1064](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1064),
+  [GH-1060](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1060))
+- **Let read-only project queries run unprompted** — listing an org project's
+  items to build a work queue stopped on an approval prompt whose "don't ask
+  again" suggestion offered `gh project *`, a rule that also admits the delete
+  verbs. The four read verbs ship pre-approved; every board-mutating verb keeps
+  prompting, the way `gh run` and `gh workflow` are already stratified
+  ([GH-1078](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1078))
+- **Let unattended cleanup delete local branches unprompted** — an overnight
+  crew tidying up after killed workers hit a confirmation prompt on
+  `git branch -D`: an ask-bucket entry was shadowing three existing allow
+  rules, and ask outranks allow. At 3 a.m. that is a silent wedge, not a
+  safeguard, and deleting a local branch removes a ref rather than history. The
+  family is pre-approved, and a new `ask-shadows-allow` doctor strategy reports
+  any ask/deny rule outranking a same-family allow
+  ([GH-1067](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1067))
+
+### Fixes
+
+- **Let the CI wait absorb the polling it promises to absorb** —
+  `ci_check_status(wait=true)` ended its wait on the blended verdict, which
+  flips to `failing` the moment ANY check fails, required or not. With
+  `claude-review` red org-wide during a night run, every call returned
+  instantly with three legs still pending — an unactionable verdict the caller
+  could only answer by hand-polling, the exact work the wait exists to remove.
+  Remaining legs now settle first (`wait_out_pending`, default true), while a
+  failed REQUIRED check stays terminal on sight
+  ([GH-1065](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1065))
+- **Let a posted disposition actually clear the merge gate** — Check 1b
+  promised a keyed `Re: comment <id>` reply disposes of the finding it
+  answers, but `is_reply` tested the whole body against `^[[:space:]]*Re:` and
+  jq anchors that at the start of the STRING. The documented gh-pr-respond
+  shape opens with a preamble line, so every disposition posted to satisfy the
+  gate RAISED the blocking count by one. `Re:` now matches per line
+  ([GH-1057](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1057))
+- **Ensure a force push to a protected branch is refused** — GH-1047 closed one
+  evading spelling; six more remained, including a force push to `main` on its
+  canonical spelling, because the shell loop overwrote `remote` with both
+  positionals whenever the remote was actually named `origin`. Both guards now
+  count positionals, skip value-taking flags, treat a leading `+` as force,
+  unqualify `refs/heads/<x>`, locate `push` relative to a `git` token, and fail
+  closed on shell expansion — what the guard cannot read, it must not clear
+  ([GH-1049](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1049))
+- **Stop a script guard from blocking talk about the script** — the DX006
+  `git-push-safe-script` rule guards a script path, but patterns are searched
+  against the whole command string, so every command that merely NAMED the
+  script was denied — and the block named `push_safe` as the remedy, which can
+  neither lint nor move a file. An opt-in `match_position: invocation` matches
+  only tokens naming a program being run, with env prefixes stripped in both
+  spellings and the choice carried through the msgpack cache
+  ([GH-1084](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1084))
+- **Stop steering a file search into a dead end** — the shell-write validator
+  read `find … -printf '%p\t%s\n' 2>/dev/null` as a `printf` redirect and
+  steered to Write/Edit, which cannot enumerate files; diag-friction then routed
+  the rejected `find` to `Glob`, which answered "No such tool available". A
+  leading `-` now reads as a flag, every use-tool compensation carries a
+  `fallback:`, and Step 3g verifies the recommended tool exists in this session
+  ([GH-1087](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1087))
+- **Let crew workers test their CWD mode instead of guessing** — three artifacts
+  told a worker three different absolute rules about Bash CWD, and each was
+  wrong at some spawn depth: the crew template mandated `git -C <worktree>`,
+  the background preamble forbade it, and validate-bash DENIES `git -C <path>`
+  when CWD already equals that path. Worker B1 wedged at fetch/rebase for ~2h
+  and two takeovers. Persistence is not a property of being a subagent, so the
+  fixed spelling is replaced by a self-test — `cd` then `pwd` as separate calls
+  — with the mode declared in heartbeat 1
+  ([GH-1050](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1050))
+- **Prevent crew workers wedging on unsanctioned tool shapes** — Bash `find`
+  over parenthesised route-group paths, a lost MCP connection after ~60 minutes
+  read as "operation impossible", and a bare `pre-commit` linting the
+  dispatcher's tree each wedged unattended workers with no hook-log trace. The
+  crew template mandates Glob over Bash `find`, retries the ToolSearch
+  bootstrap once, and carries a `{{lint_shape}}` placeholder;
+  `uv run --directory <wt> pre-commit` is allowed as the only shape that
+  reaches the intended worktree
+  ([GH-1059](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1059),
+  [GH-1066](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1066))
+- **Stop three gates from blocking on their own false readings** — the merge
+  gate refused PRs over severity words in comments that said the opposite ("No
+  CRITICAL issues found") and missed an unmarked Review Summary wrapper, so
+  supersedes never engaged; `set-friction` wrote a worktree entry shadowing the
+  repo's, silently dropping `human_review`, which fails toward true; and the
+  gh-issue-comment rule answered its own block with a hint naming a shape the
+  same rule blocks
+  ([GH-1054](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1054))
+- **Tell the operator which key is holding the merge gate** — a night run
+  composed adaptive + [solo-maintainer, afk] froze on its first merge with
+  `floor:human_review overrides preset:adaptive`. The floor is right — no
+  session overlay may lift a durable project fact (ADR-0019) — but the operator
+  had no way to learn that a project key, not the preset, was holding it, at
+  02:00 with nobody to ask. Floors with a remedy now name it and the file it
+  lives in; action floors stay remedy-free
+  ([GH-1056](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1056))
+- **Stop re-litigating allows the maintainer accepted** — the shape-only auditor
+  reported `Bash(git reset --hard:*)` as REDUNDANT beside `Bash(git reset:*)`
+  and proposed removing the very rule `ensure-base` re-adds, so
+  plugin-maintenance steps 4 and 10 undid each other every run. Accepted
+  findings are now recorded (shipped defaults plus a user
+  `~/.config/Dev10x/accepted-findings.yaml`), still computed and shown under
+  "Suppressed by accepted-findings" but no longer proposed, scoped to named
+  classification tokens so one acceptance cannot silence a different finding
+  ([GH-1053](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1053))
+- **Keep web build shapes off the Bash layer** — `run_node_tests` reads as a
+  test wrapper, so its build/check siblings kept running on the Bash layer even
+  though GH-1029 gave the tool a `script=` parameter covering them. In an
+  unattended subagent an unmatched shape that prompts is a silent wedge: worker
+  B2 posted "starting SvelteKit UI" and made zero tool calls for 80+ minutes.
+  A `node-build-scripts` map entry steers those shapes, listed after
+  `node-tests` so first-match-wins keeps `npm run test` on the test rule
+  ([GH-1052](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1052))
+- **Let a local test run stay readable on any hardware** — the startup baselines
+  were recorded on the CI runner, and developer hardware varies enough to make
+  them unreachable (~135 ms against a 37 ms baseline, failing identically on a
+  clean `origin/develop`). Three permanently-red tests teach every reader that
+  a red `bench` means "the baselines again" — the exact state in which a real
+  regression goes unnoticed. A breach now fails in CI and warns locally, with
+  `DEV10X_BENCH_STRICT=1` to opt in
+  ([GH-1080](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1080))
+
+### Refactoring
+
+- **Prevent per-session audit label accumulation** — every audit-file run minted
+  a fresh `audit-YYYY-MM-DD` label; 26 had piled up. The date duplicates the
+  session date already in each issue body, and milestone bundling supersedes
+  their grouping value, so the category is retired while `skill:<name>` and
+  topical labels stay
+  ([GH-1070](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1070))
+- **Let the maintainer merge their own PRs without a prompt** — the git-tracked
+  `merge: ask` pin assumed a team repo needing a human merge through the PR UI,
+  a premise `settings-pr-merge.yaml` (`solo_maintainer: true`) no longer
+  matches. The pin is removed and the file kept with the rationale rewritten,
+  since an absent file is indistinguishable from one that never existed
+  (self-motivated)
+
+### Docs & Guidance
+
+- **Ensure pre-flight proves the gates the watchdog needs** — Phase 0.4
+  enumerated only the crew's command shapes, so the merge gate's own policy was
+  never resolved, the watchdog's CI and triage commands were never proven, and a
+  worker could learn a check went red with no sanctioned way to read why. Each
+  froze a night run. Pre-flight now dry-runs `resolve_gate(gate="merge")` with
+  three honest remedies, routes watchdog reads to wrappers, and proves the
+  failing-check log, dependency-install, and worktree-cleanup shapes
+  ([GH-1051](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1051),
+  [GH-1058](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1058),
+  [GH-1062](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1062))
+- **Stop crediting a lock the foreman harness does not have** — the tool-surface
+  doc argued the merge gate holds because workers cannot reach it. Only half
+  true: `merge_pr` is an ordinary deferred tool a worker can load itself, and in
+  the audited run one did, and merged. What actually holds the line — the prompt
+  contract plus the omission of `merge_pr` from the crew select-query — is now
+  named, with the unenforced path recorded as a known gap. The merge gate must
+  read each `Fixes:` line against the diff, the overseer must paste its own
+  `ci_check_status` output before any MERGE REQUEST, reverting delivered work
+  counts as a scope cut, and a takeover brief carries a mandatory manifest
+  preface
+  ([GH-1061](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1061))
+- **Size fanout waves to the host, not just the concurrency cap** —
+  `max_concurrency` caps CPU and API concurrency, but each isolated agent also
+  carries its own worktree checkout and process footprint; a wave sized purely
+  to that cap drove the host into memory pressure, and the mass-resume that
+  followed recreated it. Host memory is named as a wave-sizing input, and a
+  mass-resume is stated to be a dispatch that waves like any other
+  ([GH-1068](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1068))
+
+## 0.94.0 — Force-Push Rails & Config-Path Convergence
+
+Released 2026-08-25
+
+### Features
+
+- **Enable shipped defaults to reach every install** — the userspace catalog
+  shadowed the shipped one: `resolve_config` returned the first existing
+  candidate, so a `projects.yaml` created once by `permission init` hid every
+  safe default shipped after it, while `ensure-base` validated against the
+  stale copy and reported success. The only signal a user got was a permission
+  prompt at point of use. Rules now merge as shipped + additions − suppressions
+  at load time, a suppression naming a shipped deny is refused, and
+  `permission catalog-diff` reports drift
+  ([GH-912](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/912))
+- **Enable non-test package scripts inside the wrapper** — `run_node_tests`
+  hardcoded the test script, so a `lint:tsc` check fell back to a raw `tsc`
+  invocation on the Bash layer, outside the wrapper's guardrails and into the
+  brace-expansion block no allow-rule can suppress. `script=` and `env=` are now
+  accepted; only the package managers resolve a script name, and jest/vitest
+  fail loud rather than ignoring it. Bundled with a durable
+  `protected_branches` pref for `push_safe` and a bounded merge-gate
+  Remaining-issues scan
+  ([GH-1029](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1029),
+  [GH-1031](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1031),
+  [GH-1011](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1011))
+- **Enable keyless Google Chat auth via SA impersonation** — orgs enforcing
+  `iam.disableServiceAccountKeyCreation` cannot download service-account keys,
+  which blocked `gchat-send` setup entirely; even where keys are allowed they
+  are long-lived credentials that never expire. gcloud ADC can now impersonate
+  the Chat bot's service account through the IAM Credentials API, minting
+  short-lived `chat.bot` tokens with no key ever created. The `sa_key` keyring
+  flow remains the implicit default
+  ([GH-1032](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1032))
+
+### Fixes
+
+- **Prevent agents executing unvalidated database writes** — the read-only SQL
+  gate exempted psql wrapped by `docker exec` or `op run` unconditionally, so a
+  wrapped `-c "DROP DATABASE"` cleared every check; three destructive writes ran
+  against tt-pos despite a SELECT-only contract. The documented last line of
+  defence was inert too, because `should_run()` gates on `_QUICK_TOKENS` and of
+  the write verbs only CREATE contains one. The wrapped invocation's SQL is now
+  checked, getopt bundles and attached values are parsed, `-f`/`--file` counts
+  as a write, and `pg_terminate_backend`/`pg_cancel_backend` are blocked
+  ([GH-1034](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1034))
+- **Let foreman workers reach their own worktree** — crew workers were told
+  their CWD persists across Bash calls; in Agent-spawned subagents it resets
+  every call. Workers found git operating on the dispatcher's tree, improvised
+  `git --git-dir=…`, and wedged on a prompt nobody could answer overnight — and
+  a pending prompt records neither a block nor a denial, so the only symptom was
+  a heartbeat stall: ~2h and two takeovers to detect
+  ([GH-1028](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1028),
+  [GH-1025](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1025))
+- **Surface worker git prompts while the supervisor is there** — Phase 0.4
+  proved the CLI shape, MCP wrappers, the subagent ToolSearch surface, and
+  per-domain test tools, but never a git command in the worktree-pinned shape a
+  worker actually runs. The probe came back fully green and two workers still
+  died later on git permission prompts, at an hour when a prompt is
+  unanswerable and leaves no denial trace
+  ([GH-1030](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1030))
+- **Prevent a bundled force flag skipping the push rail** — the skill-redirect
+  hook lets a push bypass the rail when it names a non-protected branch and
+  carries no force flag, but the force half tested whole tokens only: POSIX
+  short-flag bundling meant `git push -uf origin feature-branch` sailed through
+  as an ordinary push. Short-flag clusters are decomposed letter-by-letter in
+  both the validator and `git-push-safe.sh`, while long options stay on the
+  exact-match path so `--force-with-lease` never matches on a substring
+  ([GH-1047](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1047))
+- **Protect staging from the hook-layer push escape hatch** — GH-1031
+  reconciled three statements of the protected-branch default, but a fourth
+  lived in `branch_name.py` as `frozenset(BASE_BRANCH_PRIORITY)`, which omits
+  `staging` — so a push naming `staging` slipped through a guard the
+  shell-level default does protect. The two lists answer different questions
+  ("what does a PR target?" vs "what does nobody force-push?"), which is why
+  they drifted; both are now commented and pinned by test
+  ([GH-1041](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1041))
+- **Let XDG config be the one place Dev10x prefs live** — GH-941 rehomed tier-2
+  user config to `~/.config/Dev10x`, but playbook discovery still resolved
+  overrides exclusively from the retired memory tree and `slack-notify`'s
+  `CONFIG_PATH` had drifted to a path nothing has ever written. Docs kept
+  naming the retired tree, sending users to write config where nothing reads it
+  ([GH-1045](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1045))
+- **Ensure one DoD criteria file governs every checkout** — `verify-acc-dod`
+  read its override criteria from the retired `~/.claude/memory/Dev10x/` path
+  while the documented home was `~/.config/Dev10x/`, so a maintainer editing
+  the documented copy saw no effect. The guard rule shipped for GH-948 covered
+  only the ADR-0018 retirement, so both stale lines scanned clean
+  ([GH-1035](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1035))
+- **Give one posture one answer across gates and modes** —
+  `legacy_session_mapping` maps `active_modes` to gate overlays and never back,
+  so a repo migrated to `gate_preset` + `gate_overlays` read as solo-maintainer
+  to `resolve_gate` and as nothing at all to every `active_modes` consumer: on
+  the same PR, `request_review` resolved to skip while `verify-acc-dod` reported
+  "Review requested — 0" as a failing check
+  ([GH-1003](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1003))
+- **Allow a fixup when one commit owns every branch hunk** — the resolver
+  classified `single` only with zero orphan hunks, so any orphan promoted the
+  result to `multi` and callers aborted, printing "restage per owning commit"
+  against an owner list holding exactly one commit. Adding an import beside its
+  first usage produces that shape every time. Classification now counts
+  distinct owning commits alone, reporting `orphan_hunks` for visibility
+  ([GH-1042](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1042))
+
+### Docs & Guidance
+
+- **Settle whether git restore sits inside the checkout rail** — a truncated
+  worktree was repaired with `git restore` after `git checkout HEAD --` was
+  denied, and doctrine had no clear answer: the substitution table forbade the
+  swap, nothing said the rail covered the successor spelling, and the shipped
+  baseline allows both. The rail covers the outcome, so it covers
+  `git restore`; corrupted-tree recovery stays a supervisor-run procedure, with
+  an unattended route that abandons the tree rather than repairing it
+  ([GH-1039](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1039))
+- **Record rejection of the plugin split** — a full dependency scan of all 87
+  skills falsified ADR-0020's premise: the work-on closure spans 32 skills
+  across five of the seven planned areas, so the satellites are not
+  independently installable and only infra and data (4 skills) were severable.
+  ADR-0020 is marked Rejected with the measured rationale, the SPLIT initiative
+  prefix retired, and light-audience needs routed to a playbook profile
+  ([GH-913](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/913),
+  [GH-1013](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1013))
+
 ## 0.93.0 — Review Posture & Durable Session State
 
 Released 2026-08-04
