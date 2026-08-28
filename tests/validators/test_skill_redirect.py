@@ -672,11 +672,11 @@ class TestSearchToolFalsePositive:
     def test_bash_wrapped_find_allowed(self, validator: SkillRedirectValidator) -> None:
         cmd = "bash -c 'find . -name git-push-safe.sh'"
         result = validator.validate(inp=_make_input(command=cmd))
-        # bash wrapper resolves to the script content but command tokens
-        # don't expose `find` as the executable through naive splitting;
-        # validator falls through to the original block — acceptable.
-        # Real-world fix targets the direct `find/grep/rg/xargs` cases.
-        assert result is None or result is not None
+        # GH-1084 made this assertable: the script name sits inside the
+        # `-c` payload, never in an invocation position, so the rule no
+        # longer fires. Previously the tokenizer could not see past the
+        # wrapper and the test asserted a tautology.
+        assert result is None
 
     def test_direct_script_invocation_still_blocked(
         self, validator: SkillRedirectValidator
@@ -696,6 +696,79 @@ class TestSearchToolFalsePositive:
         cmd = "find . -name '*.sh' -exec git-push-safe.sh {} ;"
         result = validator.validate(inp=_make_input(command=cmd))
         assert result is not None
+
+
+class TestScriptMentionVsInvocation:
+    """GH-1084: `match_position: invocation` guards running a guarded
+    script, not naming it.
+
+    The rule's pattern is a bare filename, and patterns are searched
+    against the whole command string, so every command that merely
+    CONTAINED `git-push-safe.sh` was denied — including the two the
+    supervisor hit while shipping the force-push guard itself: linting
+    the script through pre-commit, and renaming it. Neither executes
+    anything, and `push_safe` — the compensation the block names — can
+    neither lint nor move a file, so the steer had no valid target."""
+
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "pre-commit run --files skills/git/scripts/git-push-safe.sh",
+            "pre-commit run --all-files --files skills/git/scripts/git-push-safe.sh",
+            "mv /tmp/Dev10x/git-push-safe.sh /tmp/Dev10x/oldguard.sh",
+            "cp skills/git/scripts/git-push-safe.sh /tmp/Dev10x/backup.sh",
+            "shellcheck skills/git/scripts/git-push-safe.sh",
+            "wc -l skills/git/scripts/git-push-safe.sh",
+        ],
+    )
+    def test_mentioning_the_script_is_allowed(
+        self,
+        cmd: str,
+        validator: SkillRedirectValidator,
+    ) -> None:
+        assert validator.validate(inp=_make_input(command=cmd)) is None
+
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "skills/git/scripts/git-push-safe.sh --force origin main",
+            "./git-push-safe.sh --force origin main",
+            "/work/skills/git/scripts/git-push-safe.sh origin develop",
+            "bash skills/git/scripts/git-push-safe.sh --force origin main",
+        ],
+    )
+    def test_running_the_script_is_still_denied(
+        self,
+        cmd: str,
+        validator: SkillRedirectValidator,
+    ) -> None:
+        result = validator.validate(inp=_make_input(command=cmd))
+        assert result is not None
+        assert "mcp__plugin_Dev10x_cli__push_safe" in result.message
+
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "GIT_TRACE=1 skills/git/scripts/git-push-safe.sh --force origin main",
+            "FOO=bar BAZ=qux ./git-push-safe.sh --force origin main",
+            "env GIT_TRACE=1 skills/git/scripts/git-push-safe.sh --force origin main",
+        ],
+    )
+    def test_env_assignment_prefix_does_not_evade_the_deny(
+        self,
+        cmd: str,
+        validator: SkillRedirectValidator,
+    ) -> None:
+        """An assignment prefix changes the environment, not the program."""
+        assert validator.validate(inp=_make_input(command=cmd)) is not None
+
+    def test_script_after_a_chain_operator_is_still_denied(
+        self,
+        validator: SkillRedirectValidator,
+    ) -> None:
+        """Each shell segment carries its own invocation position."""
+        cmd = "echo starting && skills/git/scripts/git-push-safe.sh --force origin main"
+        assert validator.validate(inp=_make_input(command=cmd)) is not None
 
 
 class TestGhPrEditRedirect:

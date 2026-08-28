@@ -11,10 +11,42 @@ semantics shared a single name in separate modules (GH-583, N24).
 from __future__ import annotations
 
 import re
+import shlex
 
 # A single leading environment-variable assignment token, e.g. ``FOO=bar``.
 # Matched against one already-split argv token — anchored at both ends.
+# Uppercase-only by design, and pinned by test_bash_tokens.py: callers use
+# it to recognise the conventional exported-variable spelling.
 ENV_VAR_RE = re.compile(r"^[A-Z_][A-Z0-9_]*=\S*$")
+
+# The same token shape, but case-insensitive (GH-1084). Deliberately a
+# SEPARATE name rather than a widened ENV_VAR_RE, because the two have
+# genuinely different jobs and GH-583/N24 is this module's cautionary tale
+# about one name carrying two semantics:
+#
+#   ENV_VAR_RE           — "does this look like an env assignment?"
+#   ANY_CASE_ENV_VAR_RE  — "is this token something OTHER than the program
+#                           being run?", used to skip past prefixes while
+#                           resolving a command's executable.
+#
+# For the second job, under-matching is the dangerous direction: POSIX
+# permits lowercase names, so `foo=bar ./guarded.sh` would otherwise
+# resolve its executable to `foo=bar` and let the guarded script through.
+ANY_CASE_ENV_VAR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=\S*$")
+
+
+def split_tokens(*, command: str) -> list[str]:
+    """Shell-split ``command``, falling back to whitespace on bad quoting.
+
+    ``shlex.split`` raises on an unbalanced quote. Treating that as
+    "cannot tokenize, therefore skip the check" would hand back an
+    evasion, so callers get a best-effort token list instead.
+    """
+    try:
+        return shlex.split(command)
+    except ValueError:
+        return command.split()
+
 
 # ``git -C <dir>`` at the start of a command — a boolean prefix probe.
 # Used by the permission-audit model to classify a poisoned prefix.

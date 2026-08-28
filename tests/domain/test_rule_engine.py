@@ -363,3 +363,88 @@ class TestGlobalOptionEvasion:
         result = engine.evaluate_command(command="")
 
         assert result is None
+
+
+class TestMatchPosition:
+    """GH-1084: `match_position` decides where a pattern may match.
+
+    The default stays `anywhere` so every existing rule keeps its
+    behaviour; `invocation` is opt-in for rules whose pattern is a
+    script path, where matching a mention is always a false positive.
+    """
+
+    @pytest.fixture()
+    def engine(self) -> RuleEngine:
+        return RuleEngine(
+            command_rules=[
+                Rule(
+                    name="guarded-script",
+                    matcher="Bash",
+                    patterns=["guarded-tool.sh"],
+                    match_position="invocation",
+                    compensations=[Compensation(type="use-tool", tool="mcp__x__guarded")],
+                ),
+            ],
+        )
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "/opt/bin/guarded-tool.sh --force",
+            "./guarded-tool.sh",
+            "bash /opt/bin/guarded-tool.sh",
+            "TRACE=1 /opt/bin/guarded-tool.sh",
+            "env TRACE=1 /opt/bin/guarded-tool.sh",
+            "echo hi && /opt/bin/guarded-tool.sh",
+            "true; /opt/bin/guarded-tool.sh",
+            "find . -type f -exec guarded-tool.sh {} ;",
+        ],
+    )
+    def test_invocation_positions_match(self, command: str, engine: RuleEngine) -> None:
+        result = engine.evaluate_command(command=command)
+
+        assert result is not None
+        assert result.name == "guarded-script"
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "pre-commit run --files /opt/bin/guarded-tool.sh",
+            "mv /opt/bin/guarded-tool.sh /opt/bin/old.sh",
+            "shellcheck /opt/bin/guarded-tool.sh",
+            "chmod +x /opt/bin/guarded-tool.sh",
+        ],
+    )
+    def test_mentions_do_not_match(self, command: str, engine: RuleEngine) -> None:
+        assert engine.evaluate_command(command=command) is None
+
+    def test_anywhere_is_the_default_and_still_matches_mentions(self) -> None:
+        """The opt-in must not quietly change rules that never set it."""
+        engine = RuleEngine(
+            command_rules=[
+                Rule(name="path-rot", matcher="Bash", patterns=["guarded-tool.sh"]),
+            ],
+        )
+
+        result = engine.evaluate_command(command="mv /opt/bin/guarded-tool.sh /tmp/old.sh")
+
+        assert result is not None
+
+    def test_unknown_match_position_fails_loud(self) -> None:
+        """A typo must not silently degrade to `anywhere` and un-anchor the rule."""
+        with pytest.raises(ValueError, match="not a valid MatchPosition"):
+            Rule(name="typo", matcher="Bash", patterns=["x"], match_position="invokation")
+
+    def test_search_tool_guard_still_covers_anywhere_rules(self) -> None:
+        """The GH-210 guard is complementary, not superseded.
+
+        `invocation` subsumes it for script-path rules, but a subcommand
+        rule cannot use `invocation` — its pattern spans two tokens and
+        never equals an executable — so searching for `git push` as a
+        literal still needs the search-tool suppression.
+        """
+        engine = RuleEngine(
+            command_rules=[Rule(name="git-push", matcher="Bash", patterns=["git push"])],
+        )
+
+        assert engine.evaluate_command(command='grep -rl "git push" src/') is None

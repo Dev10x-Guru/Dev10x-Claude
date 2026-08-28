@@ -18,12 +18,12 @@ overrides:
 from __future__ import annotations
 
 import re
-import shlex
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 from dev10x.domain import HookInput, HookResult
+from dev10x.domain.common.bash_tokens import split_tokens
 from dev10x.domain.common.branch_name import PROTECTED_BRANCHES
 from dev10x.domain.documents.config_document import Config
 from dev10x.domain.friction_level import FrictionLevel
@@ -85,10 +85,7 @@ _REF_PREFIX = "refs/heads/"
 
 
 def _tokenize(command: str) -> list[str]:
-    try:
-        return shlex.split(command)
-    except ValueError:
-        return command.split()
+    return split_tokens(command=command)
 
 
 def _push_args(command: str) -> list[str] | None:
