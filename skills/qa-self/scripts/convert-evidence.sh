@@ -7,7 +7,7 @@
 #
 # Commands:
 #   screenshots  Convert PNGs to JPGs (quality 70, max 1200px wide)
-#   video        Convert webm to mp4 (h264, crf 28, faststart)
+#   video        Convert webm to mp4 (h264, crf 18, yuv420p, faststart)
 #
 # Output:
 #   Prints converted file paths to stdout, one per line.
@@ -51,7 +51,17 @@ cmd_video() {
         dst="${src}.mp4"
     fi
 
-    ffmpeg -i "$src" -c:v libx264 -preset fast -crf 28 -movflags +faststart "$dst" -y \
+    # CRF 18, not 28: CRF is tuned against camera footage, where sensor
+    # noise masks compression artifacts. A screen recording is large flat
+    # areas plus fine high-contrast glyphs — exactly what CRF punishes,
+    # producing mosquito noise around text and smeared thin strokes, baked
+    # in before upload so any later re-encode compounds them. For a 1–2
+    # minute evidence clip the file-size saving is irrelevant.
+    #
+    # -pix_fmt yuv420p is explicit: inheriting a non-4:2:0 source format
+    # yields an mp4 that some players and web pipelines mishandle.
+    ffmpeg -i "$src" -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p \
+        -movflags +faststart "$dst" -y \
         </dev/null
 
     echo "$dst"

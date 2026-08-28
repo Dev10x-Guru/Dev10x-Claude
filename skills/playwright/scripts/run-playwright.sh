@@ -12,8 +12,14 @@
 #
 # Scripts must read credentials via os.environ:
 #   CF_CLIENT_ID, CF_SECRET, CRM_USERNAME, CRM_PASSWORD, STAGING_URL
+#
+# Scripts import the shared annotation module via os.environ:
+#   DEV10X_PLAYWRIGHT_LIB  (skills/playwright/lib)
 
 set -euo pipefail
+
+SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIB_DIR="$(cd "${SCRIPTS_DIR}/../lib" && pwd)"
 
 SECRETS_FILE="${PLAYWRIGHT_SECRETS_FILE:-/work/example/app-e2e/settings.secrets.env}"
 STAGING_URL="https://staging-app.example.com"
@@ -107,5 +113,6 @@ export CF_SECRET
 export CRM_USERNAME="$CRM_USERNAME"
 export CRM_PASSWORD="$CRM_PASSWORD_RESOLVED"
 export STAGING_URL
+export DEV10X_PLAYWRIGHT_LIB="$LIB_DIR"
 
 VIRTUAL_ENV="" uv run --with playwright python3 "$SCRIPT"

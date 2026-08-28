@@ -26,10 +26,22 @@ Never pause between phases to ask "should I continue?".
 1. `TaskCreate(subject="Verify staging deployment", activeForm="Verifying deployment")`
 2. `TaskCreate(subject="Write Playwright test script", activeForm="Writing test script")`
 3. `TaskCreate(subject="Execute tests on staging", activeForm="Executing tests")`
-4. `TaskCreate(subject="Prepare evidence (screenshots + video)", activeForm="Preparing evidence")`
-5. `TaskCreate(subject="Post results to Linear", activeForm="Posting results")`
+4. `TaskCreate(subject="Verify captured artifacts", activeForm="Verifying artifacts")`
+5. `TaskCreate(subject="Prepare evidence (screenshots + video)", activeForm="Preparing evidence")`
+6. `TaskCreate(subject="Review evidence locally before upload", activeForm="Reviewing evidence")`
+7. `TaskCreate(subject="Post results to Linear", activeForm="Posting results")`
 
 Set sequential dependencies: each phase blocked by the previous.
+
+**Evidence review gate (Phase 4.4):** the local review is a blocking
+gate, not a courtesy. Uploads are append-only on the ticket, so a bad
+take published first can only be superseded, never withdrawn.
+
+**REQUIRED: Call `AskUserQuestion`** before any upload (do NOT use plain
+text). Options:
+- Approve — upload to Linear (Recommended)
+- Re-capture — artifacts do not show what the test cases claim
+- Abort — stop without publishing
 
 **Error recovery gate (Phase 3):** When tests fail, queue the
 decision in task metadata. If no other tasks can advance, present
@@ -111,9 +123,19 @@ CF_SECRET    = os.environ["CF_SECRET"]
 STAGING_URL  = os.environ.get("STAGING_URL", "https://staging-app.example.com")
 CRM_USERNAME = os.environ.get("CRM_USERNAME", "e2e_test_user")
 CRM_PASSWORD = os.environ["CRM_PASSWORD"]
-SCREENSHOT_DIR = "/tmp"
-VIDEO_DIR = "/tmp/Dev10x/self-qa/qa-<ticket>-video"
+
+# Run-scoped artifact directory — NEVER a bare /tmp or a pytest default
+# basetemp. pytest rotates `pytest-N` basetemps (keeping the last 3), so
+# parallel sessions running tests concurrently can destroy this run's
+# captures mid-session.
+RUN_ID = time.strftime("%Y%m%d-%H%M%S")
+RUN_DIR = f"/tmp/Dev10x/self-qa/qa-<ticket>-{RUN_ID}"
+SCREENSHOT_DIR = f"{RUN_DIR}/screenshots"
+VIDEO_DIR = f"{RUN_DIR}/video"
 ```
+
+For a pytest-driven capture, pass the same run-scoped directory
+explicitly: `--basetemp=<RUN_DIR>`.
 
 #### 2.2 Required Patterns
 
@@ -126,10 +148,15 @@ below for where this fits):
 os.makedirs(VIDEO_DIR, exist_ok=True)
 context = browser.new_context(
     viewport={"width": 1680, "height": 1050},
+    device_scale_factor=2,
     record_video_dir=VIDEO_DIR,
-    record_video_size={"width": 1680, "height": 1050},
+    record_video_size={"width": 1920, "height": 1080},
 )
 ```
+
+Never resize the viewport for sharpness — it silently changes the app's
+layout. The reasoning, and the rest of the recording guidance, is in
+[`recording-for-humans.md`](../playwright/references/recording-for-humans.md).
 
 **Video pacing**: Add `time.sleep(1)` pauses after filling forms and
 `time.sleep(2)` after results appear so the video is reviewable.
@@ -231,112 +258,53 @@ def setup_response_capture(page):
     page.on("response", on_response)
 ```
 
-**Cursor + click overlay** (visual tracking for video reviewers):
+**Annotation overlay** (pointer, captions, click ordering):
 
-Inject a red cursor dot and click ripple animation after navigating to the
-target page. Playwright headless doesn't render a system cursor in video,
-so this JS overlay makes actions visible. Call `inject_overlay(page)` once
-after `page.goto()`, then use `move_cursor_to(page, locator)` before
-interactions to guide the viewer's eye.
-
-```python
-OVERLAY_JS = """
-(() => {
-    if (document.getElementById('qa-cursor')) return;
-    const cursor = document.createElement('div');
-    cursor.id = 'qa-cursor';
-    cursor.style.cssText = `
-        position: fixed; z-index: 999999; pointer-events: none;
-        width: 20px; height: 20px; border-radius: 50%;
-        background: rgba(255, 50, 50, 0.7);
-        border: 2px solid rgba(255, 255, 255, 0.9);
-        box-shadow: 0 0 8px rgba(255, 50, 50, 0.5);
-        transform: translate(-50%, -50%);
-        transition: left 0.05s linear, top 0.05s linear;
-        left: -100px; top: -100px;
-    `;
-    document.body.appendChild(cursor);
-    const style = document.createElement('style');
-    style.textContent = `
-        @keyframes qa-ripple {
-            0%   { transform: translate(-50%,-50%) scale(0.5); opacity: 1; }
-            100% { transform: translate(-50%,-50%) scale(3);   opacity: 0; }
-        }
-        .qa-click-ripple {
-            position: fixed; z-index: 999998; pointer-events: none;
-            width: 20px; height: 20px; border-radius: 50%;
-            border: 3px solid rgba(255, 50, 50, 0.8);
-            animation: qa-ripple 0.6s ease-out forwards;
-        }
-    `;
-    document.head.appendChild(style);
-    document.addEventListener('mousemove', e => {
-        cursor.style.left = e.clientX + 'px';
-        cursor.style.top  = e.clientY + 'px';
-    }, true);
-    document.addEventListener('click', e => {
-        const ripple = document.createElement('div');
-        ripple.className = 'qa-click-ripple';
-        ripple.style.left = e.clientX + 'px';
-        ripple.style.top  = e.clientY + 'px';
-        document.body.appendChild(ripple);
-        setTimeout(() => ripple.remove(), 700);
-    }, true);
-})();
-"""
-
-def inject_overlay(page: Page):
-    page.evaluate(OVERLAY_JS)
-
-def move_cursor_to(page: Page, locator, pause: float = 0.3):
-    box = locator.bounding_box()
-    if box:
-        cx = box["x"] + box["width"] / 2
-        cy = box["y"] + box["height"] / 2
-        page.mouse.move(cx, cy, steps=15)
-        time.sleep(pause)
-```
-
-**Subtitle overlay** (announce each TC and results on video):
-
-The `OVERLAY_JS` above also creates a `#qa-subtitle` bar. Add it inside
-the same `OVERLAY_JS` block, after the cursor element:
+Playwright headless renders no system cursor, so an unannotated
+recording shows things happening with nothing indicating where or why.
+**Import the shared module — never paste an overlay into the generated
+script.** An inline overlay cannot be linted, imported or unit-tested,
+which is exactly how its navigation bug, its JS-injection bug and its
+unusable pointer all survived unnoticed (GH-1087).
 
 ```python
-# Inside OVERLAY_JS, after cursor setup:
-const bar = document.createElement('div');
-bar.id = 'qa-subtitle';
-bar.style.cssText = `
-    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
-    z-index: 999999; pointer-events: none;
-    background: rgba(0, 0, 0, 0.8); color: #fff;
-    font-size: 22px; font-family: Arial, sans-serif; font-weight: 600;
-    padding: 12px 32px; border-radius: 8px;
-    max-width: 80%; text-align: center;
-    opacity: 0; transition: opacity 0.4s ease;
-`;
-document.body.appendChild(bar);
+import os
+import sys
+
+sys.path.insert(0, os.environ["DEV10X_PLAYWRIGHT_LIB"])
+from annotate import Annotator
+
+anno = Annotator(page)
+anno.install()          # installs for THIS document and every later one
+
+anno.say("Pick a customer — one click assigns them, no Save needed")
+anno.click(customer_row, announce="Choosing Hulk Smash from the list")
+anno.say("Done — assigned instantly, no extra clicks")
 ```
 
-Then call `subtitle()` before each TC and after results:
+`run-playwright.sh` exports `DEV10X_PLAYWRIGHT_LIB`, so the import path
+is never hard-coded in the generated script.
 
-```python
-def subtitle(page: Page, text: str, duration: float = 3.0):
-    safe = text.replace("\\", "\\\\").replace("'", "\\'")
-    page.evaluate(f"""(() => {{
-        const bar = document.getElementById('qa-subtitle');
-        if (!bar) return;
-        bar.textContent = '{safe}';
-        bar.style.opacity = '1';
-        setTimeout(() => {{ bar.style.opacity = '0'; }}, {int(duration * 1000)});
-    }})();""")
-    time.sleep(0.5)
+What the module guarantees, and why each one matters:
 
-# Usage — describe the USER BENEFIT, not implementation details:
-subtitle(page, "TC1: Pick a customer — one click assigns them, no Save needed", 4)
-# ... run TC1 ...
-subtitle(page, "Done! 'Hulk Smash' assigned instantly — no extra clicks", 3)
-```
+| Guarantee | Failure it prevents |
+|---|---|
+| `install()` uses `add_init_script` | `page.evaluate` applies to the current document only — the pointer and captions vanish after the first `goto` while the run still passes |
+| Caption text passed as an evaluate **argument** | f-string interpolation broke on a newline, backtick or `</script>`; one unescaped backtick uninstalled the whole overlay |
+| Arrow tip is the path origin | A symmetrical dot indicates "somewhere around here" — useless for a grid cell, table row or checkbox |
+| Dwell computed from caption length | One fixed duration truncates long captions and drags short ones |
+| `click()` does point → narrate → act | Narrating first describes a target the viewer has not been shown yet |
+| `point_at` raises on a `None` bounding box | A silent `if box:` guard no-ops the step and publishes empty evidence |
+
+**Set captions only AFTER a navigation completes.** The overlay is
+re-created per document, so a caption set before `goto` is wiped by the
+page load and the step plays silently.
+
+Captions describe the **user benefit** ("One click assigns them, no Save
+needed"), not the assertion ("TC1: should auto-save on onChange").
+
+Full guidance — pointer anatomy, palette, pacing, resolution — lives in
+[`skills/playwright/references/recording-for-humans.md`](../playwright/references/recording-for-humans.md).
 
 #### 2.3 Test Data Strategy
 
@@ -359,14 +327,31 @@ Take screenshots **immediately** after the expected UI state appears:
 - After error message renders on the form
 - Before closing dialogs
 
+**Assert the subject is on screen at shoot time.** A screenshot
+taken while the target is absent or scrolled out of the viewport is
+indistinguishable from a working feature — it is just a picture of
+something else. Route the shot through `Annotator.point_at()`, which
+raises on a `None` bounding box (and puts the pointer on the subject,
+which a "look here" screenshot wants anyway), rather than a silent
+`if box:` guard:
+
 ```python
-# Wait for success indicator THEN screenshot immediately
+def shoot(page, locator, name: str) -> None:
+    """Screenshot with the subject proven to be in the viewport."""
+    anno.point_at(locator)   # raises if the target is absent/off-screen
+    page.screenshot(path=f"{SCREENSHOT_DIR}/{name}")
+
+# Wait for the success indicator THEN shoot immediately
 try:
     page.wait_for_selector("text=Successfully updated", timeout=10000)
 except Exception:
     time.sleep(3)  # fallback wait
-screenshot(page, "test1-success.png")
+shoot(page, page.get_by_text("Successfully updated"), "test1-success.png")
 ```
+
+Phase 4.1 verification catches a blank artifact after the fact; this
+assertion catches the *cause* at the moment of capture, while the run
+can still be fixed.
 
 ### Phase 3: Execute Tests
 
@@ -414,7 +399,40 @@ If tests fail, fix the script and re-run. Common issues:
 
 ### Phase 4: Prepare Evidence
 
-#### 4.1 Convert screenshots
+#### 4.1 Verify the captured artifacts (REQUIRED before anything else)
+
+A green capture run proves the code ran — not that the artifacts show
+anything. Run the verifier on every screenshot and video before
+converting, reviewing or uploading:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/skills/qa-self/scripts/verify-evidence.py \
+  <RUN_DIR>/screenshots/*.png <RUN_DIR>/video/*.webm
+```
+
+It applies a file-size floor and a non-uniform-frame check per
+screenshot, and the same checks to three frames extracted through each
+video. Output is a JSON report; a non-zero exit means at least one
+artifact is empty, blank or truncated.
+
+**On any failure, re-capture — do NOT convert or upload.** A failing
+artifact is a capture bug (a step that no-opped, a context that was
+never flushed), not a cosmetic problem.
+
+**Anti-pattern — silent conditional capture guards.** A step written as
+
+```python
+if locator.count() > 0:      # ❌ no-ops without failing
+    screenshot(page, "test1-success.png")
+```
+
+passes whether or not the target ever existed, so a missing feature
+looks identical to a working one. Assert instead: the expected selector
+must be present AND in-viewport (`bounding_box()` non-null) at shoot
+time. `Annotator.point_at()` raises on a `None` bounding box for exactly
+this reason.
+
+#### 4.2 Convert screenshots
 
 Use the bundled conversion script:
 ```bash
@@ -425,7 +443,7 @@ ${CLAUDE_PLUGIN_ROOT}/skills/qa-self/scripts/convert-evidence.sh \
 Converts PNGs to JPGs (quality 70, max 1200px wide). Prints converted
 file paths to stdout.
 
-#### 4.2 Convert video
+#### 4.3 Convert video
 
 Playwright records video as `.webm`. Convert to `.mp4` for Linear:
 ```bash
@@ -433,10 +451,36 @@ ${CLAUDE_PLUGIN_ROOT}/skills/qa-self/scripts/convert-evidence.sh \
   video /tmp/Dev10x/self-qa/qa-<ticket>-video/*.webm
 ```
 
-Uses ffmpeg (`h264, crf 28, faststart`). Prints the `.mp4` path to
-stdout.
+Uses ffmpeg (`h264, crf 18, yuv420p, faststart`). Prints the `.mp4` path
+to stdout.
 
-#### 4.3 Upload to Linear
+#### 4.4 Local review gate (REQUIRED before any upload)
+
+Linear evidence trails are append-only: a problem spotted after upload
+costs a superseded re-upload on the ticket, and the supervisor sees the
+bad take either way. Review locally first.
+
+1. Report what will be published — each artifact's path, size, duration
+   (for video), and the verifier's verdict from 4.1.
+2. Keep the sampled frames so the footage can be inspected without
+   playing it, then **Read the saved frames** — the report's paths are
+   only useful if someone actually looks at them:
+   ```bash
+   ${CLAUDE_PLUGIN_ROOT}/skills/qa-self/scripts/verify-evidence.py \
+     --save-frames <RUN_DIR>/review-frames \
+     <RUN_DIR>/video/qa-<ticket>.mp4
+   ```
+3. **REQUIRED: Call `AskUserQuestion`** (do NOT use plain text). This
+   blocks until the supervisor responds. Options:
+   - **Approve — upload to Linear (Recommended)** — artifacts show what
+     the test cases claim
+   - **Re-capture** — something is missing, blank or unfollowable;
+     return to Phase 2/3 and shoot again
+   - **Abort** — stop without publishing anything
+
+Only on *Approve* proceed to 4.5. Never upload first and ask after.
+
+#### 4.5 Upload to Linear
 
 Use the upload script bundled with this skill (supports images and
 video):
@@ -508,7 +552,11 @@ If tests are blocked, leave in current status and note the blocker.
 | Feature "not deployed" on first check | Local argocd clone may be stale. Always `git -C /work/example/app-argocd fetch origin` before reading the image tag. |
 | New WO page renders as skeleton | After "New Work Order" click, capture `page.url` then hard-navigate with `page.goto(new_wo_url)` to force a fresh render. |
 | Dialog closes but status unchanged | `onClose` may be wired unconditionally (not to mutation success). Check DB or use `page.expect_response()` to confirm the mutation actually fired. A dialog can close via Escape, backdrop click, or explicit close handler without any mutation being called. |
-| Video not finalized (0 bytes) | Must `context.close()` before `browser.close()` to flush video |
+| Video not finalized (0 bytes) | Must `context.close()` before `browser.close()` to flush video — `verify-evidence.py` catches this before upload |
+| Captures vanish mid-session | Artifacts written under a pytest default basetemp are rotated away (last 3 kept) by a parallel session. Use the run-scoped `RUN_DIR`, and pass `--basetemp=<RUN_DIR>` for pytest-driven runs |
+| Screenshot published blank | A silent `if locator.count() > 0:` guard no-opped the step. Assert presence AND `bounding_box()` non-null at shoot time; run Phase 4.1 verification before upload |
+| Overlay disappears after navigation | `page.evaluate` binds to one document. Use `Annotator.install()` (`add_init_script`), and set captions only after navigation completes |
+| Text looks smeared in the mp4 | CRF too high for screen content. `convert-evidence.sh` now encodes at CRF 18 with explicit `-pix_fmt yuv420p` |
 | Video is `.webm`, Linear can't play inline | Convert to `.mp4` with `convert-evidence.sh video` |
 | Video too fast to follow | Add `time.sleep(1)` after form fills, `time.sleep(2)` after results |
 | Apollo GraphQL bypasses `window.fetch`/XHR patches; JS intercept captures nothing | Use `page.on("response", ...)` or `setup_response_capture()` — Apollo uses its own transport, not the browser's fetch/XHR prototypes |
@@ -527,7 +575,9 @@ Dev10x:qa-self
 ├── Uses: Linear MCP (read ticket, post results)
 ├── Scripts:
 │   ├── upload-screenshots.py (upload images & video to Linear)
-│   └── convert-evidence.sh (PNG→JPG, webm→mp4 conversion)
+│   ├── convert-evidence.sh (PNG→JPG, webm→mp4 conversion)
+│   └── verify-evidence.py (size floor, uniform-frame, video frames)
+├── Imports: skills/playwright/lib/annotate.py (pointer, captions)
 ├── Reads: /work/example/app-argocd/ (verify deployment)
 ├── Reads: /work/example/app-admin/ (understand UI selectors)
 └── Reads: /work/example/app-pos/ (understand backend behavior)

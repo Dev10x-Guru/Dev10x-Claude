@@ -31,3 +31,16 @@ evidence capture, Linear upload, result formatting — lives in
 When this skill is invoked, Read `instructions.md` now and
 follow it end-to-end. `TaskCreate` calls documented there are
 REQUIRED.
+
+## Gates
+
+Two blocking gates in `instructions.md` are enforced with
+`AskUserQuestion` — never a plain-text question:
+
+1. **Test-failure recovery** (Phase 3) — fix and retry / skip the
+   failing case / abort.
+2. **Evidence review** (Phase 4.4) — approve the upload / re-capture /
+   abort. Artifacts are verified by
+   `scripts/verify-evidence.py` (Phase 4.1) and reviewed **locally**
+   before anything reaches Linear: evidence trails on a ticket are
+   append-only, so a bad take can only be superseded, never withdrawn.

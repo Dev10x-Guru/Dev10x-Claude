@@ -131,6 +131,11 @@ time.sleep(0.5)
 btn.click()
 ```
 
+For a **recorded** run, use `Annotator.click(btn, announce=...)` from
+`lib/annotate.py` instead — it does the scroll, asserts the target is
+in the viewport, points at it and narrates, in the order a viewer needs.
+See [`references/recording-for-humans.md`](references/recording-for-humans.md).
+
 **Video pacing** — add sleeps for reviewable playback:
 ```python
 time.sleep(1)  # after form fills
