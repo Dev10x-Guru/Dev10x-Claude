@@ -718,6 +718,16 @@ class TestPrivilegeEscalationDenies:
         assert "Bash(sudo:*)" in deny
 
 
+@pytest.fixture()
+def shipped_base_permissions() -> list[str]:
+    """The flat allow catalog `ensure-base` actually ships."""
+    projects_yaml = (
+        Path(__file__).resolve().parents[3] / "skills" / "upgrade-cleanup" / "projects.yaml"
+    )
+    config = yaml.safe_load(projects_yaml.read_text())
+    return config.get("base_permissions", [])
+
+
 class TestNoRuntimeClaudeWriteSeeds:
     """GH-862/ADR-0018: no runtime Write/Edit seed under .claude/.
 
@@ -730,14 +740,6 @@ class TestNoRuntimeClaudeWriteSeeds:
     base_permissions must not seed any Write/Edit rule targeting a
     .claude/ path.
     """
-
-    @pytest.fixture()
-    def shipped_base_permissions(self) -> list[str]:
-        projects_yaml = (
-            Path(__file__).resolve().parents[3] / "skills" / "upgrade-cleanup" / "projects.yaml"
-        )
-        config = yaml.safe_load(projects_yaml.read_text())
-        return config.get("base_permissions", [])
 
     def test_no_write_or_edit_seed_targets_claude_path(
         self,
@@ -787,14 +789,6 @@ class TestGitBranchDeleteAllowed:
     `--force` stays out: it is not a spelling of the delete verb, so
     admitting it would widen the rule past what was actually ruled on."""
 
-    @pytest.fixture()
-    def shipped_base_permissions(self) -> list[str]:
-        projects_yaml = (
-            Path(__file__).resolve().parents[3] / "skills" / "upgrade-cleanup" / "projects.yaml"
-        )
-        config = yaml.safe_load(projects_yaml.read_text())
-        return config.get("base_permissions", [])
-
     @pytest.mark.parametrize(
         "rule",
         [
@@ -834,3 +828,91 @@ class TestGitBranchDeleteAllowed:
             )
             is not None
         )
+
+
+GH_PROJECT_READ_RULES = [
+    "Bash(gh project list:*)",
+    "Bash(gh project view:*)",
+    "Bash(gh project item-list:*)",
+    "Bash(gh project field-list:*)",
+]
+
+# Both shipped catalogs must agree; each case runs against every one.
+GH_PROJECT_CATALOGS = ["shipped_baseline_rules", "shipped_base_permissions"]
+
+GH_PROJECT_WRITE_VERBS = [
+    "create",
+    "edit",
+    "delete",
+    "link",
+    "unlink",
+    "mark-template",
+    "item-add",
+    "item-edit",
+    "item-delete",
+    "item-archive",
+]
+
+
+class TestGhProjectReadsAllowed:
+    """GH-1078: the read-only `gh project` verbs ship pre-approved, the way
+    every other `gh` read surface already does.
+
+    Before this, `baseline-permissions.yaml` carried no `gh project` entry at
+    all, so a read-only `gh project item-list` prompted while `gh api:*` —
+    which can issue arbitrary writes — was tier-1 allowed. The prompt's
+    "don't ask again" suggestion offers `gh project *`, which would admit the
+    delete verbs, so leaving the gap open actively pushed the user toward the
+    over-broad rule.
+
+    The write verbs stay out deliberately: stratified exactly like `gh run`
+    and `gh workflow`, where the cost-bearing or state-flipping forms keep
+    prompting. A project item-delete removes rows no reflog can recover, so
+    the recoverability argument that admitted `git branch -D` (GH-1067) does
+    not carry over here."""
+
+    @pytest.fixture()
+    def shipped_baseline_rules(self) -> list[str]:
+        baseline_yaml = (
+            Path(__file__).resolve().parents[3]
+            / "src"
+            / "dev10x"
+            / "skills"
+            / "permission"
+            / "baseline-permissions.yaml"
+        )
+        config = yaml.safe_load(baseline_yaml.read_text())
+        return [
+            rule for group in config.get("groups", {}).values() for rule in group.get("rules", [])
+        ]
+
+    @pytest.mark.parametrize("shipped", GH_PROJECT_CATALOGS)
+    @pytest.mark.parametrize("rule", GH_PROJECT_READ_RULES)
+    def test_every_catalog_ships_the_read_verbs(
+        self,
+        rule: str,
+        shipped: str,
+        request: pytest.FixtureRequest,
+    ) -> None:
+        assert rule in request.getfixturevalue(shipped)
+
+    @pytest.mark.parametrize("shipped", GH_PROJECT_CATALOGS)
+    @pytest.mark.parametrize("verb", GH_PROJECT_WRITE_VERBS)
+    def test_no_catalog_ships_a_write_verb(
+        self,
+        verb: str,
+        shipped: str,
+        request: pytest.FixtureRequest,
+    ) -> None:
+        assert f"Bash(gh project {verb}:*)" not in request.getfixturevalue(shipped)
+
+    @pytest.mark.parametrize("shipped", GH_PROJECT_CATALOGS)
+    def test_no_catalog_widens_to_bare_gh_project(
+        self,
+        shipped: str,
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """The over-broad shape the permission prompt itself suggests."""
+        rules = request.getfixturevalue(shipped)
+        assert "Bash(gh project:*)" not in rules
+        assert "Bash(gh project *)" not in rules

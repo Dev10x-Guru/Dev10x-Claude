@@ -209,6 +209,13 @@ base_permissions:
   - "Bash(gh repo view:*)"
   - "Bash(gh repo clone:*)"
   - "Bash(gh repo set-default:*)"
+  # gh project read verbs (GH-1078). Write verbs (create/edit/delete/
+  # link/unlink/mark-template/item-add/item-edit/item-delete/
+  # item-archive) are deliberately absent so they keep prompting.
+  - "Bash(gh project list:*)"
+  - "Bash(gh project view:*)"
+  - "Bash(gh project item-list:*)"
+  - "Bash(gh project field-list:*)"
 
   # --- Read-only discovery in plugin cache (GH-122) ---
   # `Bash(find:*)` does not reliably match `find <path> ... | head`
