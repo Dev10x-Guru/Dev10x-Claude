@@ -41,6 +41,13 @@ from dev10x.domain.common.bash_tokens import ENV_VAR_RE, substitution_bodies
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
 
+# Verbs that write a file when paired with a redirect. Judged in
+# COMMAND position only (GH-1087) — see `_check_shell_writes`.
+SHELL_WRITE_CMDS = frozenset({"cat", "echo", "printf"})
+
+# Fallback matcher for a segment `shlex` cannot parse. Word-occurrence
+# based, so it over-matches; it runs only on the fail-closed path where
+# over-matching is the safe direction.
 SHELL_WRITE_RE = re.compile(
     r"\bcat\b\s*(>|<<|>\s*\S)"
     r"|\becho\b\s+.*\s*(>|>>)\s*\S"
@@ -273,8 +280,50 @@ class ExecutionSafetyValidator(ValidatorBase):
         return self._check_interpreter(command=inp.command)
 
     def _check_shell_writes(self, *, command: str) -> HookResult | None:
-        if SHELL_WRITE_RE.search(command):
-            return HookResult(message=SHELL_WRITE_MSG)
+        """Block `cat`/`echo`/`printf` writing a file through a redirect.
+
+        Judged in COMMAND position, per pipeline segment, the same way
+        `_check_inplace_edit` and `_check_one_interpreter` judge theirs.
+        A word-occurrence match cannot tell a command from an argument
+        or a flag: `find … -printf '%p\\n' 2>/dev/null` was blocked as a
+        shell write because the `2>` supplied the redirect and
+        `\\bprintf\\b` matched find's `-printf` primary — a
+        format-string action writing to stdout, sibling of the `-print`
+        beside it. The steer was doubly wrong, since Write/Edit cannot
+        enumerate files (GH-1087). `ls cat > out.txt` was the same bug
+        wearing an argument instead of a flag.
+
+        Substitution bodies are judged as their own units, so
+        `$(printf x > /tmp/f)` is still caught.
+        """
+        for unit in _command_units(command):
+            for segment in unit.split("|"):
+                try:
+                    parts = shlex.split(segment)
+                except ValueError:
+                    # Fail closed (mirroring the interpreter guard): an
+                    # unparseable segment is judged by the looser regex,
+                    # where over-matching is the safe direction.
+                    if SHELL_WRITE_RE.search(segment):
+                        return HookResult(message=SHELL_WRITE_MSG)
+                    continue
+
+                parts = _strip_env_prefix(parts)
+                if not parts:
+                    continue
+                verb = Path(parts[0]).name
+                if verb not in SHELL_WRITE_CMDS:
+                    continue
+
+                # A heredoc counts only for `cat` — `cat <<EOF` is itself a
+                # write shape. A heredoc after `echo` belongs to whatever
+                # the substitution runs (`echo $(python3 <<PY …)`), which
+                # the interpreter guard judges on its own terms.
+                if any(">" in arg for arg in parts[1:]) or (
+                    verb == "cat" and any(arg.startswith("<<") for arg in parts[1:])
+                ):
+                    return HookResult(message=SHELL_WRITE_MSG)
+
         return None
 
     def _check_inplace_edit(self, *, command: str) -> HookResult | None:

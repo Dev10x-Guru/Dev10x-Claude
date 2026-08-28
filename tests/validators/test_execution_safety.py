@@ -47,6 +47,63 @@ class TestShellWrites:
         result = validator.validate(inp=inp)
         assert result is None
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # `-printf` is a find primary writing to stdout, not a shell
+            # write — with or without a stderr redirect beside it (GH-1087).
+            r"find /tmp/evidence -name '*.webm' -printf '%p\t%s bytes\n'",
+            r"find /tmp/evidence -name '*.webm' -printf '%p\t%s\n' 2>/dev/null",
+            r"find . -type f -fprintf /dev/stdout '%p\n'",
+        ],
+    )
+    def test_allows_find_printf_primary(
+        self, validator: ExecutionSafetyValidator, command: str
+    ) -> None:
+        inp = _make_input(command=command)
+        assert validator.validate(inp=inp) is None
+
+    def test_still_blocks_a_real_printf_redirect_after_find(
+        self, validator: ExecutionSafetyValidator
+    ) -> None:
+        inp = _make_input(command="find . -name '*.py' | printf '%s' > /tmp/out.txt")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "Write/Edit tool" in result.message
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # A write verb appearing as an ARGUMENT is not a shell write:
+            # only command position counts (GH-1087).
+            "ls cat > /tmp/out.txt",
+            "wc -l echo > /tmp/out.txt",
+            "grep -r printf src > /tmp/out.txt",
+        ],
+    )
+    def test_allows_a_write_verb_used_as_an_argument(
+        self, validator: ExecutionSafetyValidator, command: str
+    ) -> None:
+        # Note these DO redirect — but the redirect belongs to ls/wc/grep,
+        # which are read-only commands, not to cat/echo/printf.
+        assert validator.validate(inp=_make_input(command=command)) is None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "/bin/echo hello > /tmp/file.txt",
+            "cat /tmp/a | cat > /tmp/b",
+            "FOO=bar printf '%s' hi > /tmp/file.txt",
+            "echo hello>/tmp/file.txt",
+            "cat <<EOF",
+            "sh -c 'true' $(printf '%s' x > /tmp/f)",
+        ],
+    )
+    def test_blocks_shell_writes_in_command_position(
+        self, validator: ExecutionSafetyValidator, command: str
+    ) -> None:
+        assert validator.validate(inp=_make_input(command=command)) is not None
+
 
 class TestPython3Inline:
     @pytest.fixture()

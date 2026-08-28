@@ -29,7 +29,11 @@
 #       tool:           tool name (for use-tool)
 #       alias:          alias name (for use-alias)
 #       guardrails:     what the skill enforces (for use-skill)
-#       fallback:       manual fallback instructions (for use-skill)
+#       fallback:       what to do when the compensation cannot be
+#                       applied — the skill is unavailable (use-skill),
+#                       or the tool is absent from this session's tool
+#                       surface (use-tool). A tool named here is NOT
+#                       guaranteed to exist in every session (GH-1087).
 #       description:    human-readable guidance
 #     reason:           why this rule exists
 #     related:          list of related skill names
@@ -1017,6 +1021,10 @@ rules:
           Use the Grep tool (wraps ripgrep) to search file contents — set
           glob/type and output_mode (files_with_matches / count) instead of
           `find … -exec grep`.
+        fallback: >
+          Only when the Grep tool is absent from this session's tool
+          surface: `rg -l <pattern> -g '<glob>'`, already covered by
+          Bash(rg:*).
       - type: use-tool
         tool: Glob
         guardrails: name-glob file discovery, no Bash allow-rule
@@ -1024,6 +1032,19 @@ rules:
           Use the Glob tool to find files by name pattern instead of
           `find -name`. For a one-shot Bash search, `rg -l <pat> -g '<glob>'`
           is already covered by Bash(rg:*).
+        fallback: >
+          Only when the Glob tool is absent from this session's tool
+          surface: `rg --files -g '<glob>'`, already covered by
+          Bash(rg:*). Do NOT fall back to `find` — recommending it
+          reinstates the friction this rule exists to remove.
+      - type: use-alternative
+        guardrails: single pre-approved Bash prefix, no tool-surface dependency
+        description: >
+          `rg --files -g '<glob>'` (name discovery) or
+          `rg -l <pattern> -g '<glob>'` (content search). Always
+          available under Bash(rg:*), so this is the recommendation to
+          give when the session's tool surface is unknown or lacks
+          Glob/Grep (GH-1087).
     reason: >
       `find` is structurally un-allowable: `Bash(find:*)` does not reliably
       match embedded paths/pipes, and `find … -exec <cmd>` is independently
@@ -1035,6 +1056,15 @@ rules:
       `find …/routes/\(app\)/…` shape, silent for 25–35 min with nothing
       recorded in the hook log, because a pending permission prompt is
       neither a block nor a denial (GH-1059).
+
+      Tool substitution is conditional on tool availability, which this
+      rule cannot check: a session whose surface lacks Glob answered the
+      recommended `Glob` call with "No such tool available: Glob … find
+      files with `find` via the Bash tool instead" — the harness and the
+      map contradicting each other, leaving a friction diagnosis that
+      could not be executed. Each use-tool compensation therefore
+      carries a `fallback:`, and the `rg` alternative below is
+      unconditional (GH-1087).
 
   - name: fish-interactive-abbr
     matcher: Bash

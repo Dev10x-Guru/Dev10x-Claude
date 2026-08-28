@@ -366,6 +366,31 @@ class TestGh879WatchLoopEntry:
         assert "Grep" in targets
         assert "Glob" in targets
 
+    def test_find_search_tool_compensations_carry_a_fallback(self) -> None:
+        # GH-1087: a recommended tool is not guaranteed to exist in every
+        # session — `Glob` answered "No such tool available". Every
+        # use-tool compensation must name what to do when it is absent.
+        for comp in _rule_by_name("find-search")["compensations"]:
+            if comp["type"] == "use-tool":
+                assert comp.get("fallback"), f"{comp['tool']} compensation has no fallback"
+
+    def test_find_search_fallbacks_never_steer_back_to_find(self) -> None:
+        # The harness's own suggestion ("use `find` via the Bash tool")
+        # reinstates the friction this rule removes.
+        for comp in _rule_by_name("find-search")["compensations"]:
+            fallback = comp.get("fallback", "")
+            assert "rg " in fallback or not fallback
+            assert not _matches_any_pattern(rule=_rule_by_name("find-search"), command=fallback)
+
+    def test_find_search_offers_a_tool_surface_independent_alternative(self) -> None:
+        alternatives = [
+            comp
+            for comp in _rule_by_name("find-search")["compensations"]
+            if comp["type"] == "use-alternative"
+        ]
+        assert alternatives, "find-search needs an rg shape usable without Glob/Grep"
+        assert "rg --files" in alternatives[0]["description"]
+
     def test_find_search_is_advisory(self) -> None:
         # find is structurally un-allowable — a hook block would dead-end;
         # this is a diag-friction steer, not an enforced block.
