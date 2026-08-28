@@ -200,6 +200,19 @@ groups:
       # they trigger CI spend or flip workflow state.
       - Bash(gh workflow list:*)
       - Bash(gh workflow view:*)
+      # gh project (GH-1078): read-only forms pre-approved, stratified
+      # the same way as `gh run` / `gh workflow`. The board-mutating
+      # forms `gh project create|edit|delete|link|unlink|
+      # mark-template|item-add|item-edit|item-delete|item-archive` are
+      # deliberately omitted so they keep prompting (ask-tier) — a
+      # delete verb removes items no reflog can recover. Following the
+      # GH-310 doctrine there is intentionally NO blanket
+      # `Bash(gh project *)` deny: deny-first precedence would also
+      # block the safe read surface below.
+      - Bash(gh project list:*)
+      - Bash(gh project view:*)
+      - Bash(gh project item-list:*)
+      - Bash(gh project field-list:*)
 
   dev10x-scaffolding:
     tier: 1
