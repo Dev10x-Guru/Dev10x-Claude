@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from dataclasses import replace
 from pathlib import Path
 
 import msgpack
@@ -120,6 +121,30 @@ class TestWriteAndReadCache:
         assert result.friction_level == config.friction_level
         assert len(result.rules) == len(config.rules)
         assert result.rules[0].name == config.rules[0].name
+
+    def test_roundtrip_preserves_match_position(
+        self,
+        yaml_file: Path,
+        cache_path: Path,
+    ) -> None:
+        """GH-1084: a field the cache drops silently un-anchors the rule.
+
+        The msgpack path rebuilds rules field-by-field, so an addition
+        that reaches `from_yaml_entry` but not `_dict_to_config` works on
+        a cold start and reverts on every cached load afterwards.
+        """
+        config = _parse_yaml(yaml_path=yaml_file)
+        config.rules[0] = replace(config.rules[0], match_position="invocation")
+
+        _write_cache(cache_path=cache_path, config=config)
+        result = _read_cache(
+            cache_path=cache_path,
+            yaml_path=yaml_file,
+            ttl_seconds=3600,
+        )
+
+        assert result is not None
+        assert result.rules[0].match_position == "invocation"
 
     def test_returns_none_when_no_cache(
         self,

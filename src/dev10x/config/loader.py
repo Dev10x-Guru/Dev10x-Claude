@@ -12,7 +12,11 @@ from dev10x.domain.config_loader import ConfigLoader
 from dev10x.domain.documents.config_document import Config
 from dev10x.domain.file_locks import atomic_write_bytes
 from dev10x.domain.friction_level import FrictionLevel
-from dev10x.domain.rules.validation_rule import Compensation, MatchingRule
+from dev10x.domain.rules.validation_rule import (
+    Compensation,
+    MatchingRule,
+    MatchPosition,
+)
 
 DEFAULT_TTL_SECONDS = 1800
 
@@ -104,6 +108,7 @@ def _dict_to_config(*, raw: dict[str, Any]) -> Config:
             file_prefixes=r.get("file_prefixes", []),
             file_substrings=r.get("file_substrings", []),
             content_pattern=r.get("content_pattern", ""),
+            match_position=r.get("match_position", MatchPosition.ANYWHERE),
         )
         for r in raw.get("rules", [])
     ]

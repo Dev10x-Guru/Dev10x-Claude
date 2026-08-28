@@ -3,12 +3,104 @@ from __future__ import annotations
 import re
 import shlex
 from dataclasses import dataclass, field
+from enum import StrEnum
 from functools import cached_property, lru_cache
 from typing import Any
+
+from dev10x.domain.common.bash_tokens import ANY_CASE_ENV_VAR_RE, split_tokens
 
 _SUBCOMMAND_BOUNDARY = r"(?![-\w])"
 
 _SEARCH_TOOLS = frozenset({"find", "grep", "fgrep", "egrep", "rg", "ag", "ack", "xargs"})
+
+
+class MatchPosition(StrEnum):
+    """Which parts of a command a rule's patterns are searched against (GH-1084).
+
+    Members preserve their lowercase string value so the YAML
+    ``match_position:`` key round-trips unchanged, matching the
+    ``FrictionLevel`` convention.
+    """
+
+    # The whole command string — the historical behaviour, and right for a
+    # rule about a token's mere presence (a rotting version-pinned path is
+    # a defect as a `cat` argument too).
+    ANYWHERE = "anywhere"
+
+    # Only the tokens naming a program being RUN. This is what a rule
+    # guarding a script path actually means: `git-push-safe.sh` as a
+    # pattern was blocking `pre-commit run --files <path>/git-push-safe.sh`
+    # and `mv <path>/git-push-safe.sh <path>/oldguard.sh`, neither of which
+    # executes anything.
+    INVOCATION = "invocation"
+
+
+# Operators that end one command and begin another, so each side carries
+# its own invocation position. `echo hi && <path>/git-push-safe.sh` runs
+# the script even though it is not the first token of the string.
+_SEGMENT_SEPARATOR_RE = re.compile(r"\|\||&&|[;|&\n]")
+
+# `find … -exec <cmd> …` runs `<cmd>`, so the token after the flag is an
+# invocation position even though it is not the segment's executable.
+_EXEC_FLAGS = frozenset({"-exec", "-execdir", "-ok", "-okdir"})
+
+# Wrappers that pass execution through to a following program.
+_SHELL_WRAPPERS = frozenset({"bash", "sh"})
+
+
+def _executable_token(*, tokens: list[str]) -> str:
+    """The token naming the program a command segment runs, or ``""``.
+
+    Strips shell wrappers (``bash``, ``sh``) and environment prefixes in
+    both spellings — ``env VAR=x cmd`` and the bare ``VAR=x cmd`` — so a
+    guarded script cannot be reached by prefixing an assignment.
+
+    A wrapper's inline payload (``sh -c '<script> …'``) resolves to the
+    ``-c`` flag rather than to the script, so this never looks inside it.
+    That is deliberate and matches GH-210, which wants
+    ``bash -c 'find … -name <script>'`` allowed; inline shell execution
+    is the execution-safety validator's charge (DX003 runs earlier in
+    the chain and denies ``-c`` outright), not this rule's.
+    """
+    idx = 0
+    while idx < len(tokens):
+        head = tokens[idx]
+        if head in _SHELL_WRAPPERS or ANY_CASE_ENV_VAR_RE.match(head):
+            idx += 1
+            continue
+        if head == "env":
+            idx += 1
+            while idx < len(tokens) and "=" in tokens[idx]:
+                idx += 1
+            continue
+        return head
+    return ""
+
+
+def _invocation_tokens(*, command: str) -> list[str]:
+    """Every token in ``command`` that names a program being executed.
+
+    One per shell segment, plus the argument of any ``find -exec``-style
+    flag — the shape that keeps ``find . -name '*.sh' -exec
+    <script> {} ;`` blocked (GH-210) even though ``find`` is the
+    segment's own executable.
+
+    Segments are split on raw operator characters, before tokenizing, so
+    a separator inside a quoted string splits too. That errs toward
+    reporting an extra invocation token rather than missing one, which is
+    the safe direction for a guard (GH-1049 gap 6).
+    """
+    invoked: list[str] = []
+    for segment in _SEGMENT_SEPARATOR_RE.split(command):
+        tokens = split_tokens(command=segment)
+        executable = _executable_token(tokens=tokens)
+        if executable:
+            invoked.append(executable)
+        invoked.extend(
+            tokens[index + 1] for index, token in enumerate(tokens[:-1]) if token in _EXEC_FLAGS
+        )
+    return invoked
+
 
 # Executables that accept *global* options before their subcommand, so the
 # subcommand is not necessarily the second token (GH-931 finding 3).
@@ -52,20 +144,7 @@ def _resolved_executable(command: str) -> str:
     tool invoked via ``bash`` is still recognized. Returns an empty
     string when the command is malformed.
     """
-    parts = command.strip().split()
-    idx = 0
-    while idx < len(parts):
-        head = parts[idx]
-        if head in ("bash", "sh"):
-            idx += 1
-            continue
-        if head == "env":
-            idx += 1
-            while idx < len(parts) and "=" in parts[idx]:
-                idx += 1
-            continue
-        return head.split("/")[-1]
-    return ""
+    return _executable_token(tokens=split_tokens(command=command)).split("/")[-1]
 
 
 def _is_search_command(command: str) -> bool:
@@ -186,6 +265,12 @@ class MatchingRule:
     file_prefixes: list[str] = field(default_factory=list)
     file_substrings: list[str] = field(default_factory=list)
     content_pattern: str = ""
+    match_position: str = MatchPosition.ANYWHERE
+
+    def __post_init__(self) -> None:
+        # Fail loud on a typo rather than silently degrading to ANYWHERE,
+        # which would un-anchor the rule with no diagnostic.
+        MatchPosition(self.match_position)
 
     @cached_property
     def compiled_patterns(self) -> list[re.Pattern[str]]:
@@ -223,8 +308,20 @@ class MatchingRule:
                 msg += f"\n\n{desc.strip()}"
         return msg
 
+    def match_candidates(self, *, command: str) -> list[str]:
+        """The strings this rule's patterns are searched against.
+
+        The single seam for "what may a pattern match" — extended once for
+        global-option evasion (GH-931) and once for ``match_position``
+        (GH-1084). A further position variant belongs here as another case,
+        not as a second search loop bolted onto ``matches_command``.
+        """
+        if self.match_position == MatchPosition.INVOCATION:
+            return _invocation_tokens(command=command)
+        return [command, _strip_global_options(command=command)]
+
     def matches_command(self, *, command: str) -> bool:
-        candidates = {command, _strip_global_options(command=command)}
+        candidates = self.match_candidates(command=command)
         if not any(p.search(c) for p in self.compiled_patterns for c in candidates):
             return False
         if any(exc in command for exc in self.except_):
@@ -253,6 +350,7 @@ class MatchingRule:
             file_prefixes=entry.get("file_prefixes", []),
             file_substrings=entry.get("file_substrings", []),
             content_pattern=entry.get("content_pattern", ""),
+            match_position=entry.get("match_position", MatchPosition.ANYWHERE),
         )
 
 

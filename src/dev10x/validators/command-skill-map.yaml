@@ -20,6 +20,17 @@
 #     name:             unique identifier
 #     matcher:          tool matcher (Bash | Edit|Write)
 #     patterns:         list of regex patterns to match commands
+#     match_position:   anywhere (default) | invocation — where a pattern
+#                       is allowed to match. `invocation` restricts it to
+#                       the tokens naming a program being RUN (each shell
+#                       segment's executable, plus any `find -exec`
+#                       argument), so a rule guarding a script path stops
+#                       firing on commands that merely NAME the script —
+#                       `pre-commit run --files <path>/git-push-safe.sh`,
+#                       `mv <path>/git-push-safe.sh <path>/old.sh`
+#                       (GH-1084). Set it on any rule whose patterns are
+#                       script paths; leave it unset for rules that
+#                       deliberately match a path as an argument.
 #     except:           list of strings — if any present, rule is skipped
 #     hook_block:       true to enforce via hook (exit 2), false for advisory only
 #     compensations[]:  list of remediation options (first = recommended)
@@ -453,6 +464,12 @@ rules:
     matcher: Bash
     patterns:
       - git-push-safe.sh
+    # GH-1084: guard the script's EXECUTION, not every mention of its
+    # name. Without this the rule denied `pre-commit run --files
+    # <path>/git-push-safe.sh` and `mv <path>/git-push-safe.sh …` — a
+    # hard block with no compensation that fits, since `push_safe`
+    # cannot lint or move a file.
+    match_position: invocation
     except: []
     hook_block: true
     compensations:
@@ -889,6 +906,11 @@ rules:
     patterns:
       - /tmp/Dev10x/bin/mktmp\.sh
       - bin/mktmp\.sh
+    # GH-1084: the sibling script-path rule gets the same anchoring —
+    # advisory rather than blocking, so a mention only cost a misleading
+    # nudge, but steering someone linting the script toward the MCP tool
+    # is noise either way.
+    match_position: invocation
     hook_block: false
     compensations:
       - type: use-tool
@@ -1089,6 +1111,11 @@ rules:
     patterns:
       - "plugins/cache/.*/[0-9]+\\.[0-9]+\\.[0-9]+/"
       - "/cache/.*/[0-9]+\\.[0-9]+\\.[0-9]+/.*\\.py"
+    # GH-1084: deliberately NOT match_position: invocation. The rotting
+    # path is the defect wherever it appears — reading, copying, or
+    # passing one as an argument all break on the next upgrade — so this
+    # rule is about the path itself, not about executing it. Advisory,
+    # so a mention costs a nudge rather than a block.
     hook_block: false
     compensations:
       - type: use-alternative
