@@ -1,0 +1,162 @@
+{
+  "skill_name": "Dev10x:qa-self",
+  "description": "Evaluation criteria for Dev10x:qa-self — artifact verification before publishing, the local evidence-review gate, run-scoped capture paths, and annotated recordings",
+  "eval_dimensions": [
+    {
+      "id": "artifact-verification",
+      "name": "Phase 4.1 Artifact Verification",
+      "description": "Every captured screenshot and video is run through verify-evidence.py before conversion, review or upload; a failing verdict sends the run back to re-capture instead of publishing. A green capture run is never treated as proof the artifacts show anything."
+    },
+    {
+      "id": "review-gate",
+      "name": "Phase 4.4 Local Evidence Review Gate",
+      "description": "The supervisor approves the evidence locally via a blocking AskUserQuestion (approve / re-capture / abort) before any upload to Linear. Plain-text confirmation, or uploading first and asking after, is a violation — evidence trails are append-only."
+    },
+    {
+      "id": "capture-durability",
+      "name": "Run-Scoped Capture Paths",
+      "description": "Artifacts are written to a run-scoped directory (and --basetemp for pytest-driven runs) so a parallel session's basetemp rotation cannot destroy them mid-session."
+    },
+    {
+      "id": "test-failure-recovery",
+      "name": "Phase 3 Test-Failure Recovery Gate",
+      "description": "When a test case fails during execution, the recovery choice (fix and retry / skip the case / abort) is put to the supervisor through a blocking AskUserQuestion — never decided silently, and never as a plain-text question."
+    },
+    {
+      "id": "annotated-recording",
+      "name": "Annotated Recording via the Shared Module",
+      "description": "Walkthrough recordings import skills/playwright/lib/annotate.py rather than pasting an overlay inline; the overlay is installed with add_init_script so it survives navigation, and captions are set only after navigation completes."
+    }
+  ],
+  "evals": [
+    {
+      "id": "blank-screenshot-blocks-upload",
+      "name": "A blank screenshot fails verification and is not uploaded",
+      "description": "A capture step no-opped behind a silent conditional, leaving a uniform screenshot",
+      "input": "QA run completed; one captured PNG is a single flat colour below the size floor",
+      "assertions": [
+        {
+          "dimension": "artifact-verification",
+          "check": "behavioral",
+          "signal": "runs_verifier — verify-evidence.py is invoked on every captured artifact before conversion or upload"
+        },
+        {
+          "dimension": "artifact-verification",
+          "check": "behavioral",
+          "signal": "halts_on_failure — the failing artifact is reported and the run returns to capture; no upload is attempted"
+        },
+        {
+          "dimension": "artifact-verification",
+          "check": "behavioral",
+          "signal": "names_silent_guard — the diagnosis identifies the silent conditional capture guard as the cause, not a cosmetic issue"
+        },
+        {
+          "dimension": "artifact-verification",
+          "check": "behavioral",
+          "signal": "asserts_in_viewport — the re-captured script proves the subject is in the viewport at shoot time (target_center on a non-null bounding box), not just present in the DOM"
+        }
+      ]
+    },
+    {
+      "id": "review-gate-uses-tool",
+      "name": "Evidence review blocks on AskUserQuestion before upload",
+      "description": "All artifacts pass verification and are ready to publish",
+      "input": "QA run completed; screenshots and video converted and verified clean",
+      "assertions": [
+        {
+          "dimension": "review-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "assertion": "review_gate_uses_tool",
+          "signal": "AskUserQuestion is called at the pre-upload review point"
+        },
+        {
+          "dimension": "review-gate",
+          "check": "behavioral",
+          "signal": "offers_documented_options — options are approve / re-capture / abort, with approve marked Recommended"
+        },
+        {
+          "dimension": "review-gate",
+          "check": "behavioral",
+          "signal": "no_upload_before_approval — upload-screenshots.py runs only after the approve option is selected"
+        },
+        {
+          "dimension": "review-gate",
+          "check": "behavioral",
+          "signal": "surfaces_artifact_facts — the gate reports each artifact's path, size and verifier verdict so the choice is informed"
+        }
+      ]
+    },
+    {
+      "id": "failing-test-case-blocks-on-recovery-gate",
+      "name": "A failing test case blocks on the recovery gate",
+      "description": "One test case fails mid-execution while others still pass",
+      "input": "Phase 3 run: TC2 fails on a missing selector; TC1 and TC3 pass",
+      "assertions": [
+        {
+          "dimension": "test-failure-recovery",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "assertion": "recovery_gate_uses_tool",
+          "signal": "AskUserQuestion is called when a test case fails, per tool-calls/ask-test-failure-recovery.md"
+        },
+        {
+          "dimension": "test-failure-recovery",
+          "check": "behavioral",
+          "signal": "offers_documented_options — options are fix and retry (Recommended) / skip the failing case / abort"
+        },
+        {
+          "dimension": "test-failure-recovery",
+          "check": "behavioral",
+          "signal": "no_silent_skip — the failing case is never dropped from the results table without the supervisor choosing to skip it"
+        }
+      ]
+    },
+    {
+      "id": "run-scoped-capture-paths",
+      "name": "Capture artifacts land in a run-scoped directory",
+      "description": "Generated test script writes screenshots and video",
+      "input": "Phase 2 generates the Playwright script for a QA ticket",
+      "assertions": [
+        {
+          "dimension": "capture-durability",
+          "check": "behavioral",
+          "signal": "run_scoped_dir — SCREENSHOT_DIR and VIDEO_DIR are nested under a per-run directory, never a bare /tmp or pytest default basetemp"
+        },
+        {
+          "dimension": "capture-durability",
+          "check": "behavioral",
+          "signal": "pytest_basetemp — a pytest-driven capture passes --basetemp pointing at the same run-scoped directory"
+        }
+      ]
+    },
+    {
+      "id": "annotated-multi-page-walkthrough",
+      "name": "Annotation survives navigation across a multi-page flow",
+      "description": "A walkthrough recording spans several pages",
+      "input": "QA flow navigates from the work order list to a detail page and back",
+      "assertions": [
+        {
+          "dimension": "annotated-recording",
+          "check": "behavioral",
+          "signal": "imports_shared_module — the script imports annotate.Annotator via DEV10X_PLAYWRIGHT_LIB instead of pasting overlay JS inline"
+        },
+        {
+          "dimension": "annotated-recording",
+          "check": "behavioral",
+          "signal": "install_before_navigation — Annotator.install() is called once; the overlay is not re-injected after each goto"
+        },
+        {
+          "dimension": "annotated-recording",
+          "check": "behavioral",
+          "signal": "captions_after_navigation — say() calls follow the navigation they describe, never precede a goto"
+        },
+        {
+          "dimension": "annotated-recording",
+          "check": "behavioral",
+          "signal": "click_wrapper_ordering — interactions go through Annotator.click(announce=...) so pointing precedes narration precedes the action"
+        }
+      ]
+    }
+  ]
+}
