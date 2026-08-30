@@ -13,6 +13,7 @@ exit code.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sys
 from typing import NoReturn
@@ -37,6 +38,31 @@ def read_hook_input() -> HookInput:
     return HookInput.from_dict(data=data, cwd=effective_cwd() or os.getcwd())
 
 
+def _record_attribution(*, rule_id: str, reason: str) -> None:
+    """Hand a deny/ask decision to the audit layer before exiting (GH-1095).
+
+    Never let telemetry break the hook: a failure here would turn a
+    clean deny into a crash, so the catch stays broad and the audit
+    record falls back to its pre-GH-1095 shape.
+
+    It is logged rather than silently dropped (GH-494's "always
+    surface" precedent): a future signature change in
+    ``set_decision_attribution`` would otherwise fail here invisibly
+    and defeat attribution with no trail.
+    """
+    if not rule_id and not reason:
+        return
+    try:
+        from dev10x.hooks.audit_emit import set_decision_attribution
+
+        set_decision_attribution(rule_id=rule_id, reason=reason)
+    except Exception:  # pragma: no cover - telemetry must never block a hook
+        logging.getLogger(__name__).debug(
+            "attribution recording failed; audit record falls back to its pre-GH-1095 shape",
+            exc_info=True,
+        )
+
+
 def emit(result: HookResult | HookAllow | HookAsk | HookRetry) -> NoReturn:
     """Write the Claude Code hook envelope for ``result`` and exit.
 
@@ -48,6 +74,7 @@ def emit(result: HookResult | HookAllow | HookAsk | HookRetry) -> NoReturn:
     carried in the JSON rather than the exit code.
     """
     if isinstance(result, HookResult):
+        _record_attribution(rule_id=result.rule_id, reason=result.message)
         payload: dict[str, object] = {
             "hookSpecificOutput": {"permissionDecision": "deny"},
             "systemMessage": result.message,
@@ -63,6 +90,7 @@ def emit(result: HookResult | HookAllow | HookAsk | HookRetry) -> NoReturn:
         sys.exit(0)
 
     if isinstance(result, HookAsk):
+        _record_attribution(rule_id=result.rule_id, reason=result.reason or result.message)
         payload = {
             "hookSpecificOutput": {
                 "hookEventName": HookEventName.PRE_TOOL_USE,

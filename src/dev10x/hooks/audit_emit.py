@@ -28,6 +28,45 @@ F = TypeVar("F", bound=Callable[..., Any])
 
 _writer: AuditWriter | None = None
 
+_REASON_MAX_CHARS = 200
+
+_decision_attribution: dict[str, str] | None = None
+
+
+def set_decision_attribution(*, rule_id: str, reason: str) -> None:
+    """Record which rule produced a deny/ask, for the audit record (GH-1095).
+
+    The hook body signals its decision by calling ``sys.exit`` from
+    ``hook_transport.emit``, so the exit code is all
+    :func:`audit_hook` would otherwise see — every block landed in the
+    log as a bare ``outcome: block`` with no way to tell DX003 from
+    DX010. ``emit`` calls this immediately before exiting; the
+    decorator's ``finally`` folds it into the record it already writes.
+
+    The slot is module-level state consumed by the **next** record
+    written, and must not outlive it. The SessionStart and Stop
+    orchestrators run many ``audit_hook``-wrapped features in one
+    process, catching each feature's ``SystemExit`` and continuing, so
+    a slot left set by one feature would be misattributed to the next
+    feature's record. :func:`audit_hook` therefore clears it after
+    every write, not only after a block.
+    """
+    global _decision_attribution
+    reason = " ".join(reason.split())
+    if len(reason) > _REASON_MAX_CHARS:
+        reason = reason[: _REASON_MAX_CHARS - 1].rstrip() + "…"
+    _decision_attribution = {"rule_id": rule_id, "reason": reason}
+
+
+def clear_decision_attribution() -> None:
+    """Reset the slot.
+
+    Called by :func:`audit_hook` once a record has consumed the
+    attribution, and by tests, which reuse one process.
+    """
+    global _decision_attribution
+    _decision_attribution = None
+
 
 def _get_writer() -> AuditWriter:
     """Resolve the audit writer — the single seam touching the ``audit``
@@ -99,9 +138,12 @@ def audit_hook(name: str, *, event: HookEventName | str = "") -> Callable[[F], F
                     "body_ms": body_ms,
                     "outcome": writer.classify_outcome(exit_code=exit_code),
                 }
+                if _decision_attribution is not None:
+                    record.update(_decision_attribution)
                 if error is not None and not isinstance(error, SystemExit):
                     record["error_type"] = type(error).__name__
                 writer.append_record(record=record)
+                clear_decision_attribution()
 
         return wrapper  # type: ignore[return-value]
 
