@@ -26,6 +26,28 @@ These are click framework and Python stdlib — not optimizable
 without replacing the framework. Current lazy loading covers
 all dev10x subcommands.
 
+## Config Cache Is Not Committed (GH-1075)
+
+`dev10x.config.loader.load_config` caches the parsed
+`command-skill-map.yaml` as a sibling `.msgpack`. That cache is
+**git-ignored**, so the first load in a fresh checkout pays a cold
+YAML parse — `test_cold_start_yaml_plus_compile` measures ~15.7ms
+against ~46µs warm — and every load after it is warm until the
+YAML changes or the TTL expires.
+
+Committing a warm cache would erase that one-time 15ms, and it is
+not worth what it costs: the loader rewrites the file as a side
+effect of *any* config load, so a tracked cache dirties the working
+tree on every test run, rides into unrelated commits (`git add -A`),
+and produces a binary rebase conflict with no meaningful
+resolution — the YAML is authoritative and the cache self-heals.
+
+`tests/test_regenerable_caches_untracked.py` pins the invariant for
+every cache path the loader can derive. If the cold parse ever does
+become load-bearing for hook latency, the fix is deterministic
+regeneration at a defined point (a pre-commit hook), **not**
+re-tracking a file that is rewritten incidentally.
+
 ## CI Gate (GH-432)
 
 The benchmark suite is wired into CI as a backpressure gate.
