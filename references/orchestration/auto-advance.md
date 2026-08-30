@@ -60,6 +60,15 @@ separate interruptions spaced minutes apart.
 than 4 decisions are queued, prioritize by dependency order —
 ask decisions that unblock the most downstream work first.
 
+**A queued decision that is never presented is an open loop.**
+Step 3 only fires when every task is blocked, so a decision
+queued in metadata can sit there indefinitely if work keeps
+finding somewhere else to advance. `Dev10x:ask --loops` sweeps
+for exactly that shape — along with un-actioned commitments,
+unanswered supervisor questions, and unaddressed findings — and
+syncs each one to the task list. Run it before a session wraps
+up, or before the terminal Verify-AC gate.
+
 **Always queue, never ask inline.** Even single-task skills
 must queue their decisions rather than asking immediately. The
 skill does not know whether other skills or agents are running
