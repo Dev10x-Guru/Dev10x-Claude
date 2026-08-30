@@ -959,8 +959,16 @@ invariants:
 # ─── DOCTOR CONSUMPTION ───────────────────────────────────────────────
 # How `Dev10x:plugin-maintenance` consumes this catalog:
 #
-# 1. Tier 1 + Tier 2 groups: merged into the active base_permissions
-#    set during `ensure-base`. Missing rules are added.
+# 1. Tier 1 + Tier 2 groups: record the INTENDED plugin-default set.
+#    They are NOT merged into base_permissions by `ensure-base`
+#    (GH-1095 — the previous claim here was false). `ensure-base`
+#    renders only from the flat catalog in
+#    `skills/upgrade-cleanup/projects.yaml`; `migrate_flat_config`
+#    reads this file solely to attach tier/group/sensitivity metadata
+#    to rules already present there, and adds no rules of its own.
+#    A group defined only here reaches no settings file. Naming one
+#    authoritative catalog is tracked on GH-1090 (needs an ADR
+#    amending ADR-0021).
 # 2. Tier 3 groups: opt-in via `dev10x permission doctor
 #    --enable-group=<name>`. Not added by default.
 # 3. Deprecations:
