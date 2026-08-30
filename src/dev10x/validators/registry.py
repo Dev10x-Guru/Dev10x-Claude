@@ -19,7 +19,7 @@ the registry verifies the two agree at registration time.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Protocol
 
 from dev10x.domain.common.plugin_loader import PluginLoader
@@ -260,7 +260,7 @@ class ValidatorChain:
                     results.append(blocked)
                 continue
             if result is not None:
-                results.append(result)
+                results.append(_stamp_rule_id(result=result, validator=validator))
         return results
 
     def correct(self, inp: HookInput) -> HookRetry | None:
@@ -280,6 +280,35 @@ class ValidatorChain:
             if result is not None:
                 return result
         return None
+
+
+def _stamp_rule_id(
+    *,
+    result: HookResult | HookAllow | HookAsk,
+    validator: Validator,
+) -> HookResult | HookAllow | HookAsk:
+    """Attribute a decision to the validator that produced it (GH-1095).
+
+    Only the chain knows which validator spoke, so it stamps ``rule_id``
+    here. A validator that already set one keeps it — the stamp never
+    overwrites a deliberate value. ``HookAllow`` carries no ``rule_id``
+    field and passes through untouched; attribution matters for the
+    decisions that cost the user something (deny, ask).
+
+    The domain types are imported inside the function — the same
+    deferred-import pattern :func:`_safety_fail_closed` uses — so the
+    module keeps its ``TYPE_CHECKING``-only import boundary.
+    """
+    from dev10x.domain import HookAsk, HookResult
+
+    if not isinstance(result, HookResult | HookAsk):
+        return result
+    if result.rule_id:
+        return result
+    rule_id = getattr(validator, "rule_id", "")
+    if not rule_id:
+        return result
+    return replace(result, rule_id=rule_id)
 
 
 def _log_validator_error(*, validator: Validator, method: str) -> None:
@@ -319,7 +348,8 @@ def _safety_fail_closed(*, validator: Validator) -> HookResult | None:
             "could not evaluate this command. Blocking as a precaution "
             "(fail-closed). Re-run with HOOK_DEBUG=1 for the traceback, or set "
             f"DEV10X_HOOK_DISABLE={rule_id} if this validator is misbehaving."
-        )
+        ),
+        rule_id=rule_id,
     )
 
 

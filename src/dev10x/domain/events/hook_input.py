@@ -31,10 +31,24 @@ class HookInput:
 
 @dataclass(frozen=True)
 class HookResult:
+    """Deny the tool call.
+
+    ``rule_id`` names the validator that produced the denial (e.g.
+    ``DX010``). Validators may set it themselves; otherwise
+    :meth:`ValidatorChain.run` stamps it from the emitting validator, so
+    the audit log can attribute a block without re-reading the
+    transcript (GH-1095). It defaults to empty for back-compat — every
+    existing construction site keeps working unchanged.
+    """
+
     message: str
+    rule_id: str = ""
 
     def to_dict(self) -> dict[str, str]:
-        return {"message": self.message, "decision": "deny"}
+        payload = {"message": self.message, "decision": "deny"}
+        if self.rule_id:
+            payload["rule_id"] = self.rule_id
+        return payload
 
 
 @dataclass(frozen=True)
@@ -58,9 +72,13 @@ class HookAsk:
 
     message: str = ""
     reason: str = ""
+    rule_id: str = ""
 
     def to_dict(self) -> dict[str, str]:
-        return {"message": self.message, "decision": "ask", "reason": self.reason}
+        payload = {"message": self.message, "decision": "ask", "reason": self.reason}
+        if self.rule_id:
+            payload["rule_id"] = self.rule_id
+        return payload
 
 
 @dataclass(frozen=True)
