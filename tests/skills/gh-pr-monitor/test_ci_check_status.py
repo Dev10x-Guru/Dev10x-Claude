@@ -346,6 +346,115 @@ class TestPollUntilTerminal:
         assert result["verdict"] == "green"
 
 
+class TestTerminalAtCallTimeFastPath:
+    """GH-1088: a call made after CI finished must not pay ``initial_wait``.
+
+    The loop slept ``initial_wait`` unconditionally before its first poll, so a
+    worker that called ``wait=true`` once delivery was done blocked 60s for a
+    verdict GitHub had already decided. That sleep also lengthens the single
+    longest blocking MCP call a subagent makes, which is the suspected trigger
+    for the connection death in GH-1072.
+
+    An unregistered check set summarizes as "empty", which ``is_terminal``
+    rejects — so a genuine post-push call still falls through to the wait.
+    """
+
+    def _record_sleeps(self, monkeypatch):
+        slept: list[float] = []
+        monkeypatch.setattr(_impl.time, "sleep", lambda seconds: slept.append(seconds))
+        return slept
+
+    def _serve(self, monkeypatch, rounds):
+        """Serve one check-list per probe, repeating the last one forever."""
+        calls = {"n": 0}
+
+        def _next(**_kwargs):
+            index = min(calls["n"], len(rounds) - 1)
+            calls["n"] += 1
+            return rounds[index]
+
+        monkeypatch.setattr(_impl, "get_annotated_checks", _next)
+        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "MERGEABLE")
+        return calls
+
+    def test_green_at_call_time_returns_without_sleeping(self, monkeypatch):
+        slept = self._record_sleeps(monkeypatch)
+        calls = self._serve(monkeypatch, [[{"name": "build", "bucket": "pass"}]])
+        result = _impl.poll_until_terminal(
+            pr_number=1, repo="o/r", initial_wait=60, poll_interval=30, max_polls=40
+        )
+        assert result["verdict"] == "green"
+        assert slept == []
+        assert calls["n"] == 1
+
+    def test_required_failure_at_call_time_returns_without_sleeping(self, monkeypatch):
+        slept = self._record_sleeps(monkeypatch)
+        self._serve(
+            monkeypatch,
+            [
+                [
+                    {"name": "test", "bucket": "fail", "required": True},
+                    {"name": "axe", "bucket": "pending", "required": False},
+                ]
+            ],
+        )
+        result = _impl.poll_until_terminal(
+            pr_number=1, repo="o/r", initial_wait=60, poll_interval=30, max_polls=40
+        )
+        assert result["verdict"] == "failing"
+        assert slept == []
+
+    def test_conflicting_at_call_time_returns_without_sleeping(self, monkeypatch):
+        slept = self._record_sleeps(monkeypatch)
+        monkeypatch.setattr(
+            _impl,
+            "get_annotated_checks",
+            lambda **k: [{"name": "build", "bucket": "pass"}],
+        )
+        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "CONFLICTING")
+        result = _impl.poll_until_terminal(
+            pr_number=1, repo="o/r", initial_wait=60, poll_interval=30, max_polls=40
+        )
+        assert result["verdict"] == "conflicting"
+        assert slept == []
+
+    def test_unregistered_checks_still_pay_the_initial_wait(self, monkeypatch):
+        slept = self._record_sleeps(monkeypatch)
+        self._serve(monkeypatch, [[], [{"name": "build", "bucket": "pass"}]])
+        result = _impl.poll_until_terminal(
+            pr_number=1, repo="o/r", initial_wait=60, poll_interval=30, max_polls=40
+        )
+        assert result["verdict"] == "green"
+        assert slept and slept[0] == 60
+
+    def test_pending_at_call_time_still_pays_the_initial_wait(self, monkeypatch):
+        slept = self._record_sleeps(monkeypatch)
+        self._serve(
+            monkeypatch,
+            [
+                [{"name": "build", "bucket": "pending"}],
+                [{"name": "build", "bucket": "pass"}],
+            ],
+        )
+        result = _impl.poll_until_terminal(
+            pr_number=1, repo="o/r", initial_wait=60, poll_interval=30, max_polls=40
+        )
+        assert result["verdict"] == "green"
+        assert slept[0] == 60
+
+    def test_probe_once_composes_checks_and_mergeability(self, monkeypatch):
+        monkeypatch.setattr(
+            _impl,
+            "get_annotated_checks",
+            lambda **k: [{"name": "build", "bucket": "pass", "required": True}],
+        )
+        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "MERGEABLE")
+        result = _impl.probe_once(pr_number=1, repo="o/r")
+        assert result["verdict"] == "green"
+        assert result["mergeable"] == "MERGEABLE"
+        assert result["total"] == 1
+
+
 class TestWaitOutsPendingLegs:
     """GH-1065: a red ADVISORY check ended the wait while legs were pending.
 
@@ -444,7 +553,9 @@ class TestWaitOutsPendingLegs:
         result = _impl.poll_until_terminal(
             pr_number=1, repo="o/r", initial_wait=0, poll_interval=0, max_polls=3
         )
-        assert calls["n"] == 3
+        # 1 fast-path probe (GH-1088, non-terminal here) + max_polls loop
+        # iterations. The budget itself is unchanged at 3.
+        assert calls["n"] == 4
         assert result["verdict"] == "failing"
 
     def test_conflicting_is_terminal_regardless(self, monkeypatch):

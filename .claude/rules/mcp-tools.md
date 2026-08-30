@@ -230,6 +230,14 @@ Behavioral caveats:
   the loop, so a leg that never settles ends the wait rather than
   hanging it. Pass `wait_out_pending=false` for the old
   return-on-first-failure behaviour.
+- `ci_check_status(wait=true)` probes once before sleeping and returns
+  straight away when the verdict is already terminal (GH-1088). A call
+  that lands after CI finished costs one API round trip instead of the
+  60s `initial_wait` it used to pay unconditionally, so a worker that
+  reaches the check late is no longer parked behind a wait for a
+  verdict GitHub had already decided. Checks that have not registered
+  yet summarize as `empty`, which is not terminal — a genuine
+  post-push call still waits normally.
 - `pin_tracker` / `tracker_status` carry the project's issue-tracker
   choice (GH-768). `ensure-base` and `seed_worktree` seed only that
   tracker's MCP rules, so a Jira user stops collecting ~35 inert

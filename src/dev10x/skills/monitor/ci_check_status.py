@@ -283,6 +283,22 @@ def is_terminal(
     return result["pending"] == 0 and result["cancel"] == 0
 
 
+def probe_once(
+    *,
+    pr_number: int,
+    repo: str,
+    required_only: bool = False,
+) -> dict:
+    """Fetch checks and mergeability once and derive the verdict."""
+    checks = get_annotated_checks(
+        pr_number=pr_number,
+        repo=repo,
+        required_only=required_only,
+    )
+    mergeable = fetch_mergeable(pr_number=pr_number, repo=repo)
+    return compute_verdict(checks=checks, mergeable=mergeable)
+
+
 def poll_until_terminal(
     *,
     pr_number: int,
@@ -295,10 +311,13 @@ def poll_until_terminal(
 ) -> dict:
     """Poll CI until a terminal verdict (green, failing, conflicting).
 
-    Waits `initial_wait` seconds for checks to register after a push,
-    then polls every `poll_interval` seconds. Returns the final verdict
-    dict. This removes polling logic from the agent — the script handles
-    all waiting internally.
+    Probes once up front and returns immediately when the verdict is
+    already terminal (GH-1088) — a call made after CI finished costs one
+    API round trip, not `initial_wait`. Otherwise waits `initial_wait`
+    seconds for checks to register after a push, then polls every
+    `poll_interval` seconds. Returns the final verdict dict. This removes
+    polling logic from the agent — the script handles all waiting
+    internally.
 
     `wait_out_pending` (default True, GH-1065) keeps polling through a
     failed NON-required check until no leg is pending, then returns the
@@ -313,6 +332,20 @@ def poll_until_terminal(
     A caller needing longer coverage re-invokes rather than raising the
     budget past that ceiling.
     """
+    # Fast path (GH-1088): a caller that reaches this after CI already
+    # finished should not pay `initial_wait` for a verdict that is already
+    # decided. Probe before sleeping. An unregistered check set summarizes
+    # as "empty", which `is_terminal` rejects, so a genuine post-push call
+    # still falls through to the wait below.
+    result = probe_once(pr_number=pr_number, repo=repo, required_only=required_only)
+    if is_terminal(result=result, wait_out_pending=wait_out_pending):
+        print(
+            f"[fast-path] verdict={result['verdict']} already terminal — not waiting",
+            file=sys.stderr,
+            flush=True,
+        )
+        return result
+
     print(
         f"Waiting {initial_wait}s for checks to register...",
         file=sys.stderr,
@@ -321,13 +354,7 @@ def poll_until_terminal(
     time.sleep(initial_wait)
 
     for attempt in range(1, max_polls + 1):
-        checks = get_annotated_checks(
-            pr_number=pr_number,
-            repo=repo,
-            required_only=required_only,
-        )
-        mergeable = fetch_mergeable(pr_number=pr_number, repo=repo)
-        result = compute_verdict(checks=checks, mergeable=mergeable)
+        result = probe_once(pr_number=pr_number, repo=repo, required_only=required_only)
         verdict = result["verdict"]
 
         print(
