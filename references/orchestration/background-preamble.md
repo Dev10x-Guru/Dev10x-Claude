@@ -67,6 +67,11 @@ Command shapes to avoid (each trips a hook or breaks allow-rule matching):
   - `pwd` != the path → **Mode C**: CWD reset, so pin the path as an
     argument on every call (`git -C /path …`, `uv run --directory
     /path …`, absolute paths for Read/Write/Edit).
+- The `-C` rule generalises, so do not read Mode P as "never `-C`"
+  (GH-1089): the hook denies `git -C <path>` only when `<path>` is
+  already your CWD — that one case is redundant, nothing more.
+  Pinning a *different* worktree with `-C` is allowed in both modes,
+  and is the correct shape for reaching a sibling worktree.
 - No `$(…)` command substitution and no `ENV=value cmd` prefixes.
 - No heredocs or redirects (`cat <<EOF`, `cat > file`, `echo > file`) —
   use the Write tool.
