@@ -15,6 +15,16 @@
       "id": "skip-non-decision-questions",
       "name": "Non-Decision Questions Are Skipped",
       "description": "Purely informational questions (file name, free-text PR title, optional-preference confirmations) are never reformulated into AskUserQuestion widgets — only questions requiring a choice between discrete alternatives qualify."
+    },
+    {
+      "id": "open-loop-detection",
+      "name": "Mode 3 Open-Loop Detection",
+      "description": "Mode 3 detects open loops across all four documented shapes (unanswered supervisor question, un-actioned agent commitment, deferred/batched decision, surfaced-but-unaddressed finding) and reports the shape of each — not only the decision-shaped subset Mode 1 can see."
+    },
+    {
+      "id": "task-list-sync",
+      "name": "Mode 3 Task-List Sync",
+      "description": "Every detected loop lands on the session task list: TaskList is called first to reconcile, loops without coverage get TaskCreate, loops with an existing task get TaskUpdate annotation instead of a duplicate, and new tasks are inserted before any terminal Verify-AC task."
     }
   ],
   "evals": [
@@ -86,17 +96,102 @@
           "signal": "Step 4 summary reports the question as skipped with a reason (purely informational, no discrete alternatives)"
         }
       ]
+    },
+    {
+      "id": "open-loops-mode-detects-all-four-shapes",
+      "name": "Open-loops mode detects non-question loop shapes",
+      "description": "Mode 3 Step 1 must surface loops that were never question-shaped — an un-actioned agent commitment and a surfaced-but-unaddressed finding — not just the decision questions Mode 1 scans for.",
+      "input": "/Dev10x:ask --loops (session contains an unanswered supervisor question, an 'I'll add a regression test once the fix lands' commitment whose fix already landed, a decision queued in task metadata, and a review finding that was reported and scrolled past)",
+      "assertions": [
+        {
+          "dimension": "open-loop-detection",
+          "check": "behavioral",
+          "signal": "all_four_shapes_reported — the Step 4 summary names a loop of each documented shape, including the commitment and the finding"
+        },
+        {
+          "dimension": "open-loop-detection",
+          "check": "output_contains",
+          "value": "shape",
+          "signal": "each reported loop is labelled with its shape so a false positive is spottable without re-reading the session"
+        }
+      ]
+    },
+    {
+      "id": "detected-loops-reach-the-task-list",
+      "name": "Detected loops are persisted as tasks, reconciled against existing ones",
+      "description": "Mode 3 Step 2 must call TaskList before writing, then TaskCreate for loops with no coverage and TaskUpdate for loops that already have a task — persistence is what makes a loop survive the exchange.",
+      "input": "/Dev10x:ask --loops (two loops have no corresponding task; one loop already has a related open task)",
+      "assertions": [
+        {
+          "dimension": "task-list-sync",
+          "check": "tool_called",
+          "tool": "TaskList",
+          "signal": "reconcile_before_write — TaskList is called before any TaskCreate/TaskUpdate"
+        },
+        {
+          "dimension": "task-list-sync",
+          "check": "tool_called",
+          "tool": "TaskCreate",
+          "signal": "uncovered_loops_become_tasks — a task is created for each loop with no existing coverage"
+        },
+        {
+          "dimension": "task-list-sync",
+          "check": "behavioral",
+          "signal": "no_duplicate_task — the loop that already has a task is annotated via TaskUpdate metadata.open_loop, not duplicated by a second TaskCreate"
+        }
+      ]
+    },
+    {
+      "id": "non-decision-loops-do-not-open-a-gate",
+      "name": "Commitment and finding loops become tasks without a widget",
+      "description": "Mode 3 Step 3 batches only decision-shaped loops into AskUserQuestion. A commitment or finding has no discrete alternatives, so presenting it as a widget would manufacture a decision that does not exist.",
+      "input": "/Dev10x:ask --loops (session contains only an un-actioned commitment and an unaddressed review finding — no deferred decisions, no unanswered choice questions)",
+      "assertions": [
+        {
+          "dimension": "task-list-sync",
+          "check": "tool_called",
+          "tool": "TaskCreate",
+          "signal": "loops_still_persisted — both loops land on the task list"
+        },
+        {
+          "dimension": "open-loop-detection",
+          "check": "behavioral",
+          "signal": "no_gate_for_non_decision_loops — AskUserQuestion is NOT called, because neither loop is decision-shaped"
+        }
+      ]
+    },
+    {
+      "id": "no-loops-found-writes-nothing",
+      "name": "A clean session produces no tasks and no widget",
+      "description": "When every question was answered and every commitment executed, Mode 3 must report 'no open loops detected' and stop — inventing a loop to justify the invocation is the failure mode.",
+      "input": "/Dev10x:ask --loops (session has no open loops of any shape)",
+      "assertions": [
+        {
+          "dimension": "open-loop-detection",
+          "check": "behavioral",
+          "signal": "no_write_on_clean_session — neither TaskCreate nor AskUserQuestion is called"
+        },
+        {
+          "dimension": "open-loop-detection",
+          "check": "output_contains",
+          "value": "no open loops",
+          "signal": "the report states that no open loops were detected"
+        }
+      ]
     }
   ],
   "trigger_evals": {
     "should_trigger": [
       "Supervisor sees a plain-text decision question that should have been an AskUserQuestion widget",
       "/Dev10x:ask reinforce after an agent asks a plain-text decision question",
-      "/Dev10x:ask \"Should we use polling or webhooks?\" to convert a specific quoted question"
+      "/Dev10x:ask \"Should we use polling or webhooks?\" to convert a specific quoted question",
+      "/Dev10x:ask --loops to sweep the session for open loops before wrapping up",
+      "Supervisor asks what is still open, unanswered, or outstanding in the session"
     ],
     "should_not_trigger": [
       "Agent is already using AskUserQuestion correctly for the decision",
-      "The question is purely informational with no decision to make (e.g., 'what's the file path?')"
+      "The question is purely informational with no decision to make (e.g., 'what's the file path?')",
+      "Every open item is already tracked on the session task list"
     ]
   }
 }
