@@ -404,8 +404,11 @@ same repository root. Instead, use this recovery sequence:
 3. In the main session, `git checkout <pr-branch>` and apply
    the missing change, then push and continue the merge
    lifecycle.
-If `git worktree remove` fails (uncommitted changes), pass
-`--force` — the agent's ephemeral worktree is disposable.
+If `git worktree remove` fails, read the reason before escalating
+(GH-1094): `cannot remove a locked working tree` needs `git
+worktree unlock <agent-worktree-path>` and a retry, not more
+force; only an uncommitted-changes failure calls for `--force` —
+this agent's ephemeral worktree is disposable.
 
 **Cross-repo salvage (GH-427).** When `worktree_orchestrator`
 is true (see Worktree-Orchestrator Precheck), steps 2–3 above do
@@ -961,6 +964,19 @@ path is embedded in the agent's dispatch context as the
 `isolation="worktree"` working directory — it follows the
 pattern `.claude/worktrees/agent-<id>/`.
 
+**Harness lock (GH-1094).** An Agent-tool worktree may still
+carry the harness's lock when teardown starts — the lock's
+lifetime races the completion notification, so arriving after the
+notification is not proof it is gone. Every `remove` below then
+fails with `fatal: cannot remove a locked working tree, lock
+reason: claude agent <id>`. Run `git worktree unlock
+<worktree-path>` first — safe once the agent has finished — then
+the `remove` the decision tree prescribes. A single `--force`
+does NOT clear a lock; it only covers dirt. Do not reach for
+`remove -f -f` either: the second `-f` overrides the lock, but it
+also bypasses the dirty-tree checks steps 3–5 depend on, so it
+can discard unmerged work the tree exists to keep.
+
 **Teardown decision tree (per worktree):**
 
 1. Run `git -C <worktree-path> status --porcelain` to check
@@ -1148,8 +1164,11 @@ For each worktree whose path matches `.claude/worktrees/agent-*`
 and whose branch is a `worktree-agent-*` branch:
 
 Apply the same decision tree as Phase 4's Post-Agent Worktree
-Teardown — including the **merged check** and the
-**replicated-artifact check** (GH-476):
+Teardown — including the **harness-lock unlock** (GH-1094), the
+**merged check**, and the **replicated-artifact check** (GH-476).
+Surviving worktrees reach this sweep precisely because an earlier
+removal did not complete, so a stale lock is likelier here than in
+Phase 4 — `git worktree unlock <path>` before each removal below:
 - Clean → `git worktree remove`
 - Branch merged AND all dirty files discardable (stale duplicate
   and/or replicated artifact whose diff hashes identically across
