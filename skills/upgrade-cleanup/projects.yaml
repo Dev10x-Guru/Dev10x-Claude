@@ -168,6 +168,12 @@ base_permissions:
   # --- Temp file namespaces (GH-878) ---
   # Each /tmp/Dev10x/<namespace>/ is created by mktmp and used by
   # skills for intermediate files. Enumerate all namespaces here.
+  #
+  # MAINTENANCE (GH-1095): this list is hand-maintained and is what
+  # actually ships — a skill that calls mktmp with a namespace absent
+  # here prompts on every run. `foreman` was missing for exactly this
+  # reason. When adding a skill that uses mktmp, add its namespace
+  # below in the same commit.
   - "Read(/tmp/Dev10x/git/**)"
   - "Edit(/tmp/Dev10x/git/**)"
   - "Read(/tmp/Dev10x/review/**)"
@@ -186,6 +192,8 @@ base_permissions:
   - "Edit(/tmp/Dev10x/pr-monitor/**)"
   - "Read(/tmp/Dev10x/gh/**)"
   - "Edit(/tmp/Dev10x/gh/**)"
+  - "Read(/tmp/Dev10x/foreman/**)"
+  - "Edit(/tmp/Dev10x/foreman/**)"
 
   # --- gh CLI patterns (GH-98) ---
   - "Bash(gh pr view:*)"
