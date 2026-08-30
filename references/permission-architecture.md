@@ -12,14 +12,31 @@ Claude Code processes it in this order:
 Agent requests tool call
   │
   ├─ 1. Deny rules  → if matched, BLOCKED (hooks never run)
-  ├─ 2. Allow rules  → if matched, ALLOWED silently
-  ├─ 3. Ask rules    → if matched, user prompted
+  ├─ 2. Ask rules    → if matched, user prompted
+  ├─ 3. Allow rules  → if matched, ALLOWED silently
   ├─ 4. No rule match → generic permission prompt
   │
   └─ 5. PreToolUse hooks run (only if steps 1-4 allowed)
          └─ Hook can BLOCK with systemMessage
          └─ Hook can ALLOW (or not respond)
 ```
+
+Rules are evaluated `deny → ask → allow` and the **first match
+wins** — so a broad `ask` rule cannot be narrowed by a more
+specific `allow`. Source: [Claude Code permissions
+docs](https://code.claude.com/docs/en/permissions.md). The
+§ "Why deny rules cannot fix the footgun" section below depends
+on this ordering; keep the two consistent.
+
+**Not to be confused with `resolve_effect()`** — the Dev10x
+resolver in `src/dev10x/domain/common/policy_resolution.py`
+models a *different* axis: precedence **between config tiers**
+(project-local / user-private / plugin-default), where any deny
+wins outright, then the highest tier with a match decides, and
+`ask` beats `allow` only within a single tier. It does not model
+the deny/ask/allow ordering above, and it is CLI-only (PAP-6 /
+GH-868 deferred live hook integration). Do not cite it as
+evidence for engine rule-category ordering.
 
 **Key insight:** Hooks only execute after the permission layer
 passes. A deny rule prevents both the tool call AND the hook.
@@ -170,14 +187,26 @@ Scope rules for the catalog:
 
 ## Permission Group Tier Assignment
 
-Each group in `baseline-permissions.yaml` is assigned a tier that determines
-whether it ships as a plugin default or requires user opt-in.
+Each group in `baseline-permissions.yaml` is assigned a tier that records
+the *intended* scope — whether it should ship as a plugin default or
+require user opt-in.
 
-| Tier | Scope | Shipped By | Examples |
-|------|-------|-----------|----------|
-| 1 | Universal dev tools | Plugin (always) | git, gh, uv, ls, cat, grep |
-| 2 | Routine doc/ref fetches, plugin infrastructure | Plugin (always) | webfetch-public-docs, dev10x-cli, mktmp |
-| 3 | Project-specific or cost-bearing | User projects (projects.yaml) | railway-cli, obsidian-cli |
+| Tier | Scope | Intended shipping | Examples |
+|------|-------|-------------------|----------|
+| 1 | Universal dev tools | Plugin default | git, gh, uv, ls, cat, grep |
+| 2 | Routine doc/ref fetches, plugin infrastructure | Plugin default | webfetch-public-docs, dev10x-cli, mktmp |
+| 3 | Project-specific or cost-bearing | User opt-in | railway-cli, obsidian-cli |
+
+> **Tier is intent, not delivery (GH-1095).** These tiers do **not**
+> currently determine what reaches a project's `settings.local.json`.
+> `ensure-base` renders exclusively from the flat catalog in
+> `skills/upgrade-cleanup/projects.yaml`; `migrate_flat_config` loads
+> `baseline-permissions.yaml` only to attach `tier`/`group`/
+> `sensitivity` metadata to rules **already present** in the flat
+> catalog, and never contributes a rule of its own. A tier-1 group
+> that exists solely in `baseline-permissions.yaml` therefore ships
+> to nobody. Naming a single authoritative catalog is tracked on
+> GH-1090 and needs an ADR amending ADR-0021.
 
 **Tier 1 criteria**: Commands present in every development workflow, safe to
 auto-approve unconditionally. Examples: `git show`, `gh issue view`,
