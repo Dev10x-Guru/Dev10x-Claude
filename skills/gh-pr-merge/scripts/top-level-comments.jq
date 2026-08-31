@@ -101,6 +101,30 @@ def is_round_summary:
 # pass, so a later "(Round 2)" must supersede it, while on its own it stays
 # authoritative (1 >= 1). Non-summary comments stay at 0 so they never
 # participate in supersession.
+# The round the PR BODY declares, 0 when it declares none (GH-1085).
+#
+# "Only the latest round is authoritative" (GH-873 F3) was keyed on round
+# summary COMMENTS alone. A reviewer whose final round is a checklist
+# refresh in the PR body plus an empty-body review posts no new summary
+# comment, so the previous round's "Remaining issues" stayed live and its
+# INFO findings kept demanding a disposition after the reviewer had
+# effectively signed off (observed on Brave-Labs/zebra#2289). The filter
+# never saw the body, so the fix was not expressible here at all — the
+# caller now passes it as $pr_body.
+#
+# What counts as a body round marker is deliberately narrow: a line that
+# names BOTH a review and a round number. A body that merely mentions
+# "round 2" of something else, or reviews without numbering a round,
+# declares nothing. Erring narrow keeps a genuinely-live finding blocking,
+# which is the direction this gate must fail in.
+def body_round:
+  [ ($pr_body // "")
+    | split("\n")[]
+    | select(test("(?i)review"))
+    | capture("(?i)\\bround[[:space:]]*#?(?<n>[0-9]+)").n
+    | tonumber
+  ] | max // 0;
+
 def round_number:
   if is_round_summary then
     ((.body // "")
@@ -222,10 +246,12 @@ def active:
   (.state // "") | (. != "PENDING" and . != "DISMISSED");
 
 # Latest authoritative round: the highest "Round N" across all round-summary
-# rows (0 when there are none). Earlier round summaries are superseded and
-# excluded below so a green final round clears stale earlier "Remaining
-# issues" (GH-873 F3).
-(([ .[] | select(is_round_summary) | round_number ] | max) // 0) as $latest_round
+# rows AND the PR body (0 when there are none). Earlier round summaries are
+# superseded and excluded below so a green final round clears stale earlier
+# "Remaining issues" (GH-873 F3) — including a round that exists only as a
+# PR-body checklist refresh (GH-1085).
+((([ .[] | select(is_round_summary) | round_number ] | max) // 0) as $comment_round
+ | [$comment_round, body_round] | max) as $latest_round
 # Every comment id disposed of by a "Re:" reply on EITHER surface. A reply
 # keyed to id X necessarily post-dates X, so no explicit ordering check is
 # needed — the key itself carries the "later comment" semantics (GH-907).
