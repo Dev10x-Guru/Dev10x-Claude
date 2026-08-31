@@ -562,8 +562,11 @@ async def pre_pr_checks(base_branch: str | None = None, cwd: str | None = None) 
 @server.tool()
 async def create_pr(
     title: str,
-    job_story: str,
     issue_id: str,
+    job_story: str = "",
+    body: str | None = None,
+    head: str | None = None,
+    milestone: str | None = None,
     fixes_url: str | None = None,
     base_branch: str | None = None,
     closes: list[int] | None = None,
@@ -582,9 +585,22 @@ async def create_pr(
 
     Args:
         title: PR title
-        job_story: JTBD Job Story for the PR body — must carry all
-            three markers (see above)
         issue_id: Ticket ID extracted from branch name
+        job_story: JTBD Job Story for the PR body — must carry all
+            three markers (see above). Omit when passing `body`.
+        body: Full PR body, used verbatim (GH-1073). Overrides the
+            generated job-story + commit-list template entirely, so
+            the created PR carries exactly what you supply — nothing
+            is appended and no second pass rewrites it. The JTBD
+            marker check runs against this text instead of
+            `job_story`, and `Fixes:` is normalized to the last line.
+        head: Branch to open the PR from (GH-1073). Defaults to the
+            effective checkout's current HEAD. Pass it to open a PR
+            for a branch you are not sitting on — a watchdog acting
+            for a worker, or any cross-worktree orchestrator.
+        milestone: Milestone title or number to assign to the new PR
+            (GH-1098). Needed for `gh-pr-monitor` Phase 3.5, which
+            closes a milestone by reading the PR's own milestone.
         fixes_url: Issue URL for the Fixes: line
         base_branch: Base branch. Auto-detected if omitted.
         closes: Issue numbers to close on merge — emitted as
@@ -617,6 +633,9 @@ async def create_pr(
                 title=title,
                 job_story=job_story,
                 issue_id=issue_id,
+                body=body,
+                head=head,
+                milestone=milestone,
                 fixes_url=fixes_url,
                 base_branch=base_branch,
                 closes=closes,
@@ -645,10 +664,11 @@ async def update_pr(
     body: str | None = None,
     title: str | None = None,
     base_branch: str | None = None,
+    milestone: str | None = None,
     repo: str | None = None,
     cwd: str | None = None,
 ) -> Result[dict]:
-    """Update an existing PR's body, title, or base branch.
+    """Update an existing PR's body, title, base branch, or milestone.
 
     Mirrors create_pr for in-place updates after force-push or scope
     changes. Wraps `gh api -X PATCH repos/{repo}/pulls/{N}`.
@@ -658,9 +678,14 @@ async def update_pr(
         body: New PR body (markdown). Omit to leave unchanged.
         title: New PR title. Omit to leave unchanged.
         base_branch: New base branch (re-target). Omit to leave unchanged.
+        milestone: Milestone title or number to assign (GH-1098). This
+            is the sanctioned destination for `gh pr edit --milestone`;
+            the write goes through the issues endpoint, since the pulls
+            endpoint has no milestone field. Clearing a milestone is not
+            supported — omit to leave unchanged.
         repo: Repository (owner/repo). Auto-detected if omitted.
 
-    At least one of body, title, or base_branch is required.
+    At least one of body, title, base_branch, or milestone is required.
 
     `cwd` selects the effective working directory (GH-979).
 
@@ -672,6 +697,7 @@ async def update_pr(
         body=body,
         title=title,
         base_branch=base_branch,
+        milestone=milestone,
         repo=repo,
     )
 

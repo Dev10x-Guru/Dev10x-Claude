@@ -1086,16 +1086,81 @@ async def pre_pr_checks(*, base_branch: str | None = None) -> Result[dict[str, A
     return ok({"success": True, "output": result.stdout.strip()})
 
 
+async def _resolve_milestone_number(
+    *,
+    milestone: str,
+    repo_ref: str,
+) -> Result[int]:
+    """Resolve a milestone title (or numeric string) to its number.
+
+    The REST endpoint that assigns a milestone takes a number, but
+    callers know the title (GH-1098). A numeric string is passed
+    through so a caller holding the number does not pay a lookup.
+    """
+    if milestone.isdigit():
+        return ok(int(milestone))
+
+    result = await _gh_api_raw(f"repos/{repo_ref}/milestones?state=all&per_page=100")
+    if result.returncode != 0:
+        return err(result.stderr.strip())
+    try:
+        entries = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return err(f"Could not parse milestones for {repo_ref}.")
+
+    for entry in entries:
+        if entry.get("title") == milestone:
+            return ok(int(entry["number"]))
+    return err(
+        f"No milestone titled {milestone!r} in {repo_ref}. "
+        "Pass the milestone number, or create it with milestone_create."
+    )
+
+
+async def _set_pr_milestone(
+    *,
+    pr_number: int,
+    milestone: str,
+    repo_ref: str,
+) -> Result[int]:
+    """Assign a milestone to a PR (GH-1098).
+
+    A PR is an issue as far as milestones are concerned: the
+    ``pulls/{n}`` endpoint has no ``milestone`` field, so the write
+    goes through ``issues/{n}``. ``gh pr edit --milestone`` is avoided
+    for the same reason ``create_pr``'s second pass avoids it — the
+    GraphQL Projects-classic deprecation warning exits non-zero even
+    on success (GH-41).
+    """
+    number_result = await _resolve_milestone_number(milestone=milestone, repo_ref=repo_ref)
+    if isinstance(number_result, ErrorResult):
+        return err(number_result.error)
+    number = number_result.value
+
+    result = await _gh_api_raw(
+        f"repos/{repo_ref}/issues/{pr_number}",
+        method="PATCH",
+        fields={"milestone": number},
+    )
+    if result.returncode != 0:
+        return err(result.stderr.strip())
+    return ok(number)
+
+
 async def create_pr(
     *,
     title: str,
-    job_story: str,
     issue_id: str,
+    job_story: str = "",
+    body: str | None = None,
+    head: str | None = None,
+    milestone: str | None = None,
     fixes_url: str | None = None,
     base_branch: str | None = None,
     closes: list[int] | None = None,
     draft: bool = True,
     head_repo: str | None = None,
+    repo: str | None = None,
 ) -> Result[dict[str, Any]]:
     # Assert-or-refuse against a wrong/unbound CWD (GH-873 F1). A
     # worktree-isolated swarm child that omits `cwd=` resolves to the
@@ -1108,12 +1173,38 @@ async def create_pr(
     # wrapper's use_cwd) is honoured here.
     from dev10x.domain.git_context import GitContext
 
-    story_error = job_story_error(job_story=job_story)
+    # The Job Story markers are checked on whatever text actually
+    # becomes the PR body (GH-1073): with `body=` the caller supplies
+    # the whole body, so validating `job_story` would police a string
+    # that never reaches GitHub.
+    story_error = job_story_error(job_story=body if body is not None else job_story)
     if story_error:
         return err(f"create_pr: {story_error}")
 
-    current_branch = GitContext().branch
+    # A body override skips the template assembly, so the arguments that
+    # only feed that template would be dropped in silence — the same
+    # silent-drop this parameter exists to fix. Refuse the combination.
+    if body is not None:
+        ignored = [name for name, value in (("fixes_url", fixes_url), ("closes", closes)) if value]
+        if ignored:
+            return err(
+                "create_pr: body= supplies the whole PR body, so "
+                f"{' and '.join(ignored)} would be dropped. Put the "
+                "Fixes: / Closes: lines in body= itself, or drop body= "
+                "and pass job_story= instead."
+            )
+
+    # Assert-or-refuse against a wrong/unbound CWD (GH-873 F1) — see the
+    # note above. An explicit `head=` names the branch outright, so the
+    # check applies to that instead of the resolved CWD (GH-1073).
+    current_branch = head or GitContext().branch
     if current_branch in _BASE_BRANCH_NAMES:
+        if head:
+            return err(
+                f"Refusing to create a PR from base branch '{current_branch}' "
+                "(GH-873 F1): head= names a base branch. Pass the feature "
+                "branch you want the PR opened from."
+            )
         return err(
             f"Refusing to create a PR from base branch '{current_branch}' "
             "(GH-873 F1): HEAD is on a base branch, which usually means the "
@@ -1128,6 +1219,8 @@ async def create_pr(
     args.append(",".join(str(n) for n in closes) if closes else "")
     args.append("true" if draft else "false")
     args.append(head_repo or "")
+    args.append(normalize_pr_body(body=body) if body is not None else "")
+    args.append(head or "")
 
     result = await async_run_script(
         "skills/gh-pr-create/scripts/create-pr.sh",
@@ -1140,7 +1233,29 @@ async def create_pr(
     lines = result.stdout.strip().split("\n")
     pr_number = lines[-1]
     url = next((line for line in lines if line.startswith("http")), f"PR #{pr_number}")
-    return ok({"pr_number": int(pr_number), "url": url})
+    payload: dict[str, Any] = {"pr_number": int(pr_number), "url": url}
+
+    if milestone is not None:
+        repo_result = await _resolve_repo(repo)
+        if isinstance(repo_result, ErrorResult):
+            return err(repo_result.error)
+        milestone_result = await _set_pr_milestone(
+            pr_number=payload["pr_number"],
+            milestone=milestone,
+            repo_ref=str(repo_result.value),
+        )
+        if isinstance(milestone_result, ErrorResult):
+            # The PR is already open at this point, so an error naming
+            # only the milestone failure strands it — name the PR too so
+            # the caller can retry, comment on, or close it.
+            return err(
+                f"PR #{payload['pr_number']} ({payload['url']}) was created, "
+                f"but assigning milestone {milestone!r} failed: "
+                f"{milestone_result.error}"
+            )
+        payload["milestone"] = milestone_result.value
+
+    return ok(payload)
 
 
 async def update_pr(
@@ -1149,10 +1264,11 @@ async def update_pr(
     body: str | None = None,
     title: str | None = None,
     base_branch: str | None = None,
+    milestone: str | None = None,
     repo: str | None = None,
 ) -> Result[dict[str, Any]]:
-    if body is None and title is None and base_branch is None:
-        return err("update_pr requires at least one of: body, title, base_branch")
+    if body is None and title is None and base_branch is None and milestone is None:
+        return err("update_pr requires at least one of: body, title, base_branch, milestone")
 
     repo_result = await _resolve_repo(repo)
     if isinstance(repo_result, ErrorResult):
@@ -1167,17 +1283,30 @@ async def update_pr(
     if base_branch is not None:
         fields["base"] = base_branch
 
-    result = await _gh_api_raw(
-        f"repos/{repo_ref}/pulls/{pr_number}",
-        method="PATCH",
-        fields=fields,
-    )
+    if fields:
+        result = await _gh_api_raw(
+            f"repos/{repo_ref}/pulls/{pr_number}",
+            method="PATCH",
+            fields=fields,
+        )
 
-    if result.returncode != 0:
-        return err(result.stderr.strip())
+        if result.returncode != 0:
+            return err(result.stderr.strip())
 
     url = f"https://github.com/{repo_ref}/pull/{pr_number}"
-    return ok({"pr_number": pr_number, "url": url})
+    payload: dict[str, Any] = {"pr_number": pr_number, "url": url}
+
+    if milestone is not None:
+        milestone_result = await _set_pr_milestone(
+            pr_number=pr_number,
+            milestone=milestone,
+            repo_ref=str(repo_ref),
+        )
+        if isinstance(milestone_result, ErrorResult):
+            return err(milestone_result.error)
+        payload["milestone"] = milestone_result.value
+
+    return ok(payload)
 
 
 async def merge_pr(

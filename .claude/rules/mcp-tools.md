@@ -133,6 +133,8 @@ one session). Use these shapes verbatim:
 | `task_index_get` | none (optional `cwd`) | `Read`ing `.claude/Dev10x/session.yaml` — retired by ADR-0018 D5; the tool probes it as a fallback |
 | `pr_ready` | `pr_number`; optional `undo` (bool) | assuming it only publishes — `undo=true` returns a PR to draft |
 | `ci_check_status` | `pr_number`, `repo`; optional `wait`, `wait_out_pending` (default `true`) | reading a `wait=true` `failing` as "every leg finished" — check `pending` (GH-1065) |
+| `create_pr` | `title`, `issue_id`, plus either `job_story` or `body`; optional `head`, `milestone` | passing a long `job_story` and expecting the extra paragraphs to survive — only `body` is used verbatim (GH-1073) |
+| `update_pr` | `pr_number`, plus at least one of `body` / `title` / `base_branch` / `milestone` | `gh pr edit --milestone` — routed here (GH-1098) |
 
 Behavioral caveats:
 
@@ -179,6 +181,33 @@ Behavioral caveats:
   actionable error before the PR is opened, and `update_pr` moves any
   content trailing the `Fixes:` line above it (GH-945) — so neither
   path can emit a body that trips the hygiene bot.
+
+- `create_pr` assembles the body from `job_story` plus a generated
+  commit list — anything else the caller wanted in the body has
+  nowhere to go, so it was silently dropped (GH-1073). Pass `body=`
+  to supply the whole body instead: it is used verbatim, the
+  two-pass commit-list rewrite is skipped, and the JTBD marker check
+  runs against your text rather than `job_story`. `Fixes:` is still
+  normalized to the last line. Keep using `job_story=` for an
+  ordinary PR — `body=` is for callers that own the full body.
+
+- `create_pr(head=…)` names the branch to open the PR from (GH-1073).
+  Without it the branch comes from the invoking process's CWD, so a
+  caller acting for another checkout — the foreman watchdog opening a
+  PR for a worker, any cross-worktree orchestrator — had no way to
+  say which branch it meant. `head=` is honoured regardless of CWD,
+  and the base-branch refusal (GH-873 F1) applies to it. Omitting it
+  keeps the CWD-derived behaviour.
+
+- `create_pr(milestone=…)` / `update_pr(milestone=…)` assign a
+  milestone by title or number (GH-1098). Nothing on the MCP surface
+  could write that field before, so a PR opened through the
+  sanctioned path always had `milestone: null` and
+  `Dev10x:gh-pr-monitor` Phase 3.5 (post-merge milestone cleanup)
+  silently took its skip branch on every milestone-bundle PR. The
+  write goes through the `issues/{n}` endpoint — the `pulls/{n}`
+  endpoint has no milestone field — so `gh pr edit --milestone` stays
+  routed to `update_pr`. Clearing a milestone is not supported.
 
 - `create_pr(closes=[...])` is NON-CLOSING (GH-958). The parameter
   emits `Closes #N` lines into the PR body *above* the `Fixes:`
