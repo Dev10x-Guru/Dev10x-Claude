@@ -109,6 +109,39 @@ same skill are NOT reusable. CI state, review comments, draft
 toggles, and force-push state can drift between invocations — the
 9 checks exist precisely to detect that drift.
 
+### Subagent handoff exception (GH-1093)
+
+The re-invocation contract has ONE bounded exception. A worker
+subagent that ran the 9 checks and could not fire an `ALWAYS_ASK`
+gate — `AskUserQuestion` is not exposed to background subagents —
+hands its report to the orchestrator holding the standing
+authorization. Re-running all 9 there validated every merge twice
+for ~3–4× duplicated tool traffic per PR.
+
+The exception applies ONLY when ALL of these hold:
+
+1. The report carries `head_sha`, `measured_at`, the
+   `blocked_gate` and its evidence, and an **observed value** per
+   check (a bare "✓ passed" does not count).
+2. A fresh `pr_get` shows the PR still open with a head SHA
+   identical to the reported one.
+3. The orchestrator re-runs the time-sensitive checks itself:
+   Check 2 (CI) and Checks 1 / 1b / 1c (comments — the GH-462 F3
+   late-comment race). Checks 2b / 3 / 4 / 7 ride along on the
+   same fresh `pr_get` from step 2, so they are never inherited.
+
+Only Checks 1d, 5 and 6 may then be accepted from the report:
+each is a function of the commit graph or of worker-local state
+the orchestrator cannot observe, and the unchanged head SHA pins
+all three.
+
+**Any HEAD mismatch, any missing field, or a report older than 30
+minutes → full re-run, as today.** When in doubt, re-run. The
+exception removes duplicated traffic; it never licenses a merge
+on a stale reading. Report schema, per-check reasoning, and the
+bl-zebra evidence:
+[`references/subagent-handoff.md`](references/subagent-handoff.md).
+
 **"Re-run the skill" expansion:** When the supervisor says
 "execute the whole skill again", "re-run the skill", "run it once
 more", or any equivalent phrasing, treat that as a fresh invocation
