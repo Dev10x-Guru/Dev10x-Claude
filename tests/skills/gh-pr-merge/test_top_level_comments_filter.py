@@ -58,12 +58,18 @@ def _run_filter(
     src: str,
     tmp_path: Path,
     cross_surface: list[dict] | None = None,
+    pr_body: str = "",
 ) -> list[dict]:
     """Run the filter over one surface.
 
     ``cross_surface`` is the OTHER surface's raw rows, which the real caller
     always supplies so a ``Re:``-keyed reply disposes of its finding across
     surfaces (GH-1002). Defaults to empty, matching a single-surface scan.
+
+    ``pr_body`` is the PR description, which the real caller also always
+    supplies so a round that exists only as a body checklist refresh
+    supersedes earlier rounds (GH-1085). Defaults to empty — a body that
+    declares no round.
     """
     fixture = tmp_path / "rows.json"
     fixture.write_text(json.dumps(rows))
@@ -75,6 +81,9 @@ def _run_filter(
             "--arg",
             "src",
             src,
+            "--arg",
+            "pr_body",
+            pr_body,
             "--argjson",
             "extra",
             json.dumps(cross_surface or []),
@@ -618,6 +627,118 @@ class TestOnlyLatestRoundIsAuthoritative:
         # Round 1 superseded, Round 2 clean, standalone finding still flagged.
         selected = _run_filter(rows, "comment", tmp_path)
         assert [r["id"] for r in selected] == [48]
+
+
+class TestBodyOnlyRoundRefresh:
+    """GH-1085: a round whose only refresh is a PR-body checklist supersedes
+    the previous round's 'Remaining issues'.
+
+    Observed on Brave-Labs/zebra#2289: a Round 3 that posted no
+    '## Review Summary (Round 3)' comment left Round 2's INFO blocking
+    Check 1b, with no sanctioned exit."""
+
+    @staticmethod
+    def _round(cid: int, n: int, remaining: str) -> dict:
+        return {
+            "id": cid,
+            "user": {"login": "claude", "type": "Bot"},
+            "body": (
+                f"## Review Summary (Round {n})\n\n"
+                "### Addressed since last review\n- REQUIRED: earlier fix\n\n"
+                f"### Remaining issues\n- {remaining}"
+            ),
+        }
+
+    def test_body_round_supersedes_the_previous_round_summary(self, tmp_path: Path) -> None:
+        rows = [self._round(60, 2, "INFO: consider extracting a helper")]
+        selected = _run_filter(
+            rows,
+            "comment",
+            tmp_path,
+            pr_body="## Review checklist\n\n- [x] Round 3 review complete\n",
+        )
+        assert selected == []
+
+    def test_body_round_does_not_clear_the_latest_round(self, tmp_path: Path) -> None:
+        """A live remaining issue from the LATEST round still blocks."""
+        rows = [self._round(61, 3, "REQUIRED: still missing the null guard")]
+        selected = _run_filter(
+            rows,
+            "comment",
+            tmp_path,
+            pr_body="## Review checklist\n\n- [x] Round 3 review complete\n",
+        )
+        assert [r["id"] for r in selected] == [61]
+
+    def test_body_without_a_round_marker_changes_nothing(self, tmp_path: Path) -> None:
+        rows = [self._round(62, 2, "REQUIRED: still missing the null guard")]
+        selected = _run_filter(
+            rows,
+            "comment",
+            tmp_path,
+            pr_body="**When** X, **the maintainer wants to** Y, **so the team can** Z.",
+        )
+        assert [r["id"] for r in selected] == [62]
+
+    def test_review_mention_without_a_round_is_not_a_marker(self, tmp_path: Path) -> None:
+        """The round capture must yield nothing, not raise, on such a line."""
+        rows = [self._round(68, 2, "REQUIRED: still missing the null guard")]
+        selected = _run_filter(
+            rows,
+            "comment",
+            tmp_path,
+            pr_body="Review complete, no blockers remain.",
+        )
+        assert [r["id"] for r in selected] == [68]
+
+    def test_round_mention_without_review_is_not_a_marker(self, tmp_path: Path) -> None:
+        """The marker demands both cues — a bare 'round' is not a round."""
+        rows = [self._round(63, 2, "REQUIRED: still missing the null guard")]
+        selected = _run_filter(
+            rows,
+            "comment",
+            tmp_path,
+            pr_body="Third round of load testing is scheduled for Friday.",
+        )
+        assert [r["id"] for r in selected] == [63]
+
+    def test_body_round_below_the_latest_comment_round_is_ignored(self, tmp_path: Path) -> None:
+        rows = [self._round(64, 4, "REQUIRED: still missing the null guard")]
+        selected = _run_filter(
+            rows,
+            "comment",
+            tmp_path,
+            pr_body="- [x] Round 2 review complete\n",
+        )
+        assert [r["id"] for r in selected] == [64]
+
+    def test_highest_body_round_wins_across_lines(self, tmp_path: Path) -> None:
+        rows = [self._round(65, 2, "INFO: consider extracting a helper")]
+        selected = _run_filter(
+            rows,
+            "comment",
+            tmp_path,
+            pr_body="- [x] Review round 1 done\n- [x] Review round 3 done\n",
+        )
+        assert selected == []
+
+    def test_standalone_finding_survives_a_body_round(self, tmp_path: Path) -> None:
+        """Supersession touches round summaries only, never plain findings."""
+        rows = [
+            self._round(66, 2, "INFO: nit"),
+            {
+                "id": 67,
+                "user": {"login": "claude", "type": "Bot"},
+                "body": "REQUIRED: fix the missing null guard in handler",
+            },
+        ]
+        selected = _run_filter(
+            rows,
+            "comment",
+            tmp_path,
+            pr_body="- [x] Round 3 review complete\n",
+        )
+        assert [r["id"] for r in selected] == [67]
 
 
 class TestCrossSurfaceDisposition:

@@ -31,9 +31,18 @@ FILTER="$(dirname "$0")/top-level-comments.jq"
 COMMENTS_RAW=$(gh api "repos/${OWNER}/${REPO}/issues/${PR_NUMBER}/comments")
 REVIEWS_RAW=$(gh api "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/reviews")
 
+# The PR body is a review surface too (GH-1085). When a reviewer's final
+# round is a checklist refresh in the body plus an empty-body review, no
+# new "Review Summary (Round N)" comment exists — so without the body the
+# filter cannot see that round and the PREVIOUS round's remaining issues
+# stay live forever. One extra API call buys the round marker.
+PR_BODY=$(gh api "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}" --jq '.body // ""')
+
 COMMENTS=$(printf '%s' "${COMMENTS_RAW}" \
-  | jq -f "${FILTER}" --arg src comment --argjson extra "${REVIEWS_RAW}")
+  | jq -f "${FILTER}" --arg src comment --arg pr_body "${PR_BODY}" \
+        --argjson extra "${REVIEWS_RAW}")
 REVIEWS=$(printf '%s' "${REVIEWS_RAW}" \
-  | jq -f "${FILTER}" --arg src review --argjson extra "${COMMENTS_RAW}")
+  | jq -f "${FILTER}" --arg src review --arg pr_body "${PR_BODY}" \
+        --argjson extra "${COMMENTS_RAW}")
 
 jq -n --argjson c "${COMMENTS}" --argjson r "${REVIEWS}" '$c + $r'
