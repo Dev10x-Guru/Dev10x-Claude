@@ -158,3 +158,37 @@ for a gated operation, which is exactly what the tool-surface split
 exists to prevent. Full evidence:
 [`tool-surface.md`](tool-surface.md) § MCP connectivity is not
 permanent.
+
+## Bounding the CI wait (GH-1088)
+
+The § 4 anti-stall block pins `max_polls=10` and names a two-step
+fallback — re-invoke once on an empty verdict, then read
+`pr_get(...).statusCheckRollup`. Both halves are there because the
+unbounded shape failed in the field.
+
+A worker on the bravelabs-cms night run (2026-08-27) called
+`ci_check_status(pr_number=27, wait=true)` after finishing delivery.
+GitHub recorded both checks SUCCESS at 20:35:51Z. The worker never
+returned from the call: heartbeat silent from 20:31Z, the stand-down
+message never picked up, and the kill snippet at 21:25Z still read
+"Now waiting on CI." Roughly 50 minutes past a verdict that had
+already been decided.
+
+That duration is the tell. The default poll budget is
+`initial_wait 60 + poll_interval 30 × 39` = 1230s (~20.5 min), and
+`dev10x.monitor` caps the subprocess at 1320s (22 min). A 50-minute
+hang exceeds both ceilings, so it did not come from the poll loop —
+it points at the subagent MCP connection death tracked in GH-1072.
+Bounding the call cannot fix that, but it shortens the single
+longest blocking MCP call a worker makes, which is the suspected
+trigger.
+
+The second worker in that same run avoided the hang only because its
+brief happened to specify `max_polls=10` plus the fallback by hand.
+Putting it in the template is what stops the next run rediscovering
+it after a takeover.
+
+GH-1088's other half — a fast path that returns immediately when the
+verdict is already terminal at call time, so a late call costs one
+API round trip instead of the 60s `initial_wait` — shipped
+separately in `ci_check_status` itself.

@@ -62,8 +62,11 @@ decisions; never wait on a human, never fire AskUserQuestion.
 ```
 NEVER use `sleep`, `gh pr checks --watch`, `gh run watch`, or any
 blocking/polling loop. To wait on CI: a single server-side-waiting
-call — ci_check_status(pr_number=<n>, repo="{{repo}}", wait=true).
-Pending is NOT green.
+call — ci_check_status(pr_number=<n>, repo="{{repo}}", wait=true,
+max_polls=10). Pending is NOT green. If that call returns an empty
+or unusable verdict, re-invoke it ONCE; if it is still empty, read
+pr_get(...).statusCheckRollup and proceed on that rather than
+waiting a third time.
 
 Liveness: write a heartbeat line immediately after EVERY commit,
 every test run, every push, and every file-count/verification step
