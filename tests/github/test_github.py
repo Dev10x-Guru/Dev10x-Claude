@@ -1836,6 +1836,117 @@ class TestUpdatePr:
         assert mock_api.call_args.args[0] == "repos/other/proj/pulls/99"
 
 
+class TestUpdatePrMilestone:
+    """GH-1098 — assigning a milestone through the MCP surface."""
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_resolves_milestone_title_and_patches_issues_endpoint(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.side_effect = [
+            _completed(stdout=json.dumps([{"number": 56, "title": "PRW-M1"}])),
+            _completed(stdout="{}"),
+        ]
+
+        result = await gh.update_pr(pr_number=42, milestone="PRW-M1")
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["milestone"] == 56
+        lookup, patch_call = mock_api.call_args_list
+        assert lookup.args[0].startswith("repos/owner/repo/milestones")
+        assert patch_call.args[0] == "repos/owner/repo/issues/42"
+        assert patch_call.kwargs["fields"] == {"milestone": 56}
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_numeric_milestone_skips_the_lookup(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(stdout="{}")
+
+        result = await gh.update_pr(pr_number=42, milestone="56")
+
+        assert isinstance(result, SuccessResult)
+        mock_api.assert_awaited_once()
+        assert mock_api.call_args.args[0] == "repos/owner/repo/issues/42"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_milestone_alone_skips_the_pulls_patch(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(stdout="{}")
+
+        await gh.update_pr(pr_number=42, milestone="56")
+
+        patched = [call.args[0] for call in mock_api.call_args_list]
+        assert "repos/owner/repo/pulls/42" not in patched
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_body_and_milestone_patch_both_endpoints(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(stdout="{}")
+
+        result = await gh.update_pr(pr_number=42, body="x", milestone="56")
+
+        assert isinstance(result, SuccessResult)
+        patched = [call.args[0] for call in mock_api.call_args_list]
+        assert patched == ["repos/owner/repo/pulls/42", "repos/owner/repo/issues/42"]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_unknown_milestone_title_fails_loud(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(stdout=json.dumps([{"number": 1, "title": "Other"}]))
+
+        result = await gh.update_pr(pr_number=42, milestone="PRW-M1")
+
+        assert isinstance(result, ErrorResult)
+        assert "PRW-M1" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_milestone_lookup_failure_surfaces(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(returncode=1, stderr="HTTP 403: Forbidden")
+
+        result = await gh.update_pr(pr_number=42, milestone="PRW-M1")
+
+        assert isinstance(result, ErrorResult)
+        assert "403" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_unparseable_milestone_listing_fails_loud(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(stdout="not json")
+
+        result = await gh.update_pr(pr_number=42, milestone="PRW-M1")
+
+        assert isinstance(result, ErrorResult)
+        assert "parse" in result.error.lower()
+
+
 class TestGhApiBotIdentity:
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run", new_callable=AsyncMock)
@@ -2062,8 +2173,9 @@ class TestCreatePr:
         )
 
         called_args = mock_run.call_args.args
-        # Trailing args: fixes_url, base_branch, closes_csv, draft, head_repo
-        assert called_args[-5:] == ("", "", "", "true", "")
+        # Trailing args: fixes_url, base_branch, closes_csv, draft,
+        # head_repo, body, head
+        assert called_args[-7:] == ("", "", "", "true", "", "", "")
 
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
@@ -2082,8 +2194,8 @@ class TestCreatePr:
         )
 
         called_args = mock_run.call_args.args
-        # Trailing args: closes_csv, draft, head_repo
-        assert called_args[-3:] == ("184,185,186", "false", "")
+        # Trailing args: closes_csv, draft, head_repo, body, head
+        assert called_args[-5:] == ("184,185,186", "false", "", "", "")
 
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
@@ -2101,8 +2213,8 @@ class TestCreatePr:
         )
 
         called_args = mock_run.call_args.args
-        # head_repo is the final positional arg passed to create-pr.sh
-        assert called_args[-1] == "octocat"
+        # head_repo precedes the body/head args passed to create-pr.sh
+        assert called_args[-3] == "octocat"
 
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
@@ -2145,6 +2257,247 @@ class TestCreatePr:
         assert isinstance(result, ErrorResult)
         assert "**so <beneficiary> can**" in result.error
         mock_run.assert_not_called()
+
+
+_LONG_BODY = (
+    f"{_JOB_STORY}\n\n"
+    "## Background\n\n"
+    "Paragraph one carries the reasoning a reviewer needs, and it is\n"
+    "long enough that the old stub-plus-commit-list assembly had\n"
+    "nowhere to put it.\n\n"
+    "## Batches\n\n"
+    "- Batch 1: GH-1073, GH-1098\n"
+    "- Batch 2: GH-1085\n\n"
+    "Fixes: https://github.com/o/r/issues/1073\n"
+    "Fixes: https://github.com/o/r/issues/1098"
+)
+
+
+class TestCreatePrBodyOverride:
+    """GH-1073 — a caller-supplied body reaches GitHub intact."""
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_multi_paragraph_body_is_passed_through_verbatim(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="https://github.com/o/r/pull/5\n5")
+
+        result = await gh.create_pr(title="t", issue_id="GH-1073", body=_LONG_BODY)
+
+        assert isinstance(result, SuccessResult)
+        # body is the second-to-last positional arg; head is last.
+        passed = mock_run.call_args.args[-2]
+        assert "## Background" in passed
+        assert "nowhere to put it." in passed
+        assert "- Batch 1: GH-1073, GH-1098" in passed
+        assert "- Batch 2: GH-1085" in passed
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_body_keeps_every_fixes_line(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="https://github.com/o/r/pull/5\n5")
+
+        await gh.create_pr(title="t", issue_id="GH-1073", body=_LONG_BODY)
+
+        passed = mock_run.call_args.args[-2]
+        assert passed.count("Fixes: ") == 2
+        assert passed.endswith("Fixes: https://github.com/o/r/issues/1098")
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_body_trailing_content_is_relocated_above_fixes(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="https://github.com/o/r/pull/5\n5")
+
+        await gh.create_pr(
+            title="t",
+            issue_id="GH-1073",
+            body=f"{_JOB_STORY}\n\nFixes: https://github.com/o/r/issues/1\n\nTrailing note",
+        )
+
+        assert mock_run.call_args.args[-2] == (
+            f"{_JOB_STORY}\n\nTrailing note\n\nFixes: https://github.com/o/r/issues/1"
+        )
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_body_is_validated_for_jtbd_markers_instead_of_job_story(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        result = await gh.create_pr(
+            title="t",
+            issue_id="GH-1073",
+            job_story=_JOB_STORY,
+            body="Just some prose with no Job Story.",
+        )
+
+        assert isinstance(result, ErrorResult)
+        assert "**When**" in result.error
+        mock_run.assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("kwargs", "expected"),
+        [
+            ({"fixes_url": "https://github.com/o/r/issues/1"}, "fixes_url"),
+            ({"closes": [12, 14]}, "closes"),
+        ],
+    )
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_refuses_body_combined_with_template_only_arguments(
+        self,
+        mock_run: AsyncMock,
+        kwargs: dict,
+        expected: str,
+    ) -> None:
+        """Those arguments only feed the template body= replaces."""
+        result = await gh.create_pr(
+            title="t",
+            issue_id="GH-1073",
+            body=_LONG_BODY,
+            **kwargs,
+        )
+
+        assert isinstance(result, ErrorResult)
+        assert expected in result.error
+        mock_run.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_empty_template_arguments_do_not_block_a_body(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="https://github.com/o/r/pull/5\n5")
+
+        result = await gh.create_pr(
+            title="t",
+            issue_id="GH-1073",
+            body=_LONG_BODY,
+            fixes_url="",
+            closes=[],
+        )
+
+        assert isinstance(result, SuccessResult)
+
+
+class TestCreatePrHead:
+    """GH-1073 — naming the head branch instead of deriving it from CWD."""
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_emits_explicit_head_branch(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="https://github.com/o/r/pull/3\n3")
+
+        await gh.create_pr(
+            title="t",
+            job_story=_JOB_STORY,
+            issue_id="GH-1073",
+            head="janusz/GH-1073/worker/fix",
+        )
+
+        assert mock_run.call_args.args[-1] == "janusz/GH-1073/worker/fix"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_refuses_a_head_naming_a_base_branch(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        result = await gh.create_pr(
+            title="t",
+            job_story=_JOB_STORY,
+            issue_id="GH-1073",
+            head="develop",
+        )
+
+        assert isinstance(result, ErrorResult)
+        assert "head=" in result.error
+        mock_run.assert_not_called()
+
+
+class TestCreatePrMilestone:
+    """GH-1098 — the created PR carries a milestone."""
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_assigns_milestone_to_the_new_pr(
+        self,
+        mock_run: AsyncMock,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="https://github.com/o/r/pull/8\n8")
+        mock_api.return_value = _completed(stdout="{}")
+
+        result = await gh.create_pr(
+            title="t",
+            job_story=_JOB_STORY,
+            issue_id="GH-1098",
+            milestone="56",
+        )
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["milestone"] == 56
+        assert mock_api.call_args.args[0] == "repos/owner/repo/issues/8"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_milestone_failure_surfaces_after_the_pr_is_open(
+        self,
+        mock_run: AsyncMock,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="https://github.com/o/r/pull/8\n8")
+        mock_api.return_value = _completed(returncode=1, stderr="HTTP 404: Not Found")
+
+        result = await gh.create_pr(
+            title="t",
+            job_story=_JOB_STORY,
+            issue_id="GH-1098",
+            milestone="56",
+        )
+
+        assert isinstance(result, ErrorResult)
+        assert "404" in result.error
+        # The PR is open — the error must name it so the caller can recover.
+        assert "#8" in result.error
+        assert "https://github.com/o/r/pull/8" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_unresolvable_repo_stops_before_the_milestone_write(
+        self,
+        mock_run: AsyncMock,
+        mock_api: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="https://github.com/o/r/pull/8\n8")
+
+        with patch.object(gh, "_detect_repo", new_callable=AsyncMock, return_value=None):
+            result = await gh.create_pr(
+                title="t",
+                job_story=_JOB_STORY,
+                issue_id="GH-1098",
+                milestone="56",
+            )
+
+        assert isinstance(result, ErrorResult)
+        mock_api.assert_not_awaited()
 
 
 class TestMergePr:
