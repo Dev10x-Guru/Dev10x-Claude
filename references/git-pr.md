@@ -84,6 +84,25 @@ The body should be **compact** to avoid cluttering Slack previews.
      (Note: The `create-pr.sh` template automatically adds separators as
      part of standard formatting. Do not remove them.)
 
+### ⚠️ Auto-Close Caveat
+
+**The GitHub auto-close mechanism is unreliable.** Well-formed `Fixes:` trailers
+have historically failed across this repository:
+
+- PR #1006 (six trailers) — zero closed
+- PR #1097 (full-URL trailer) — zero closed
+- PR #921 (full-URL trailer) — all closed ✓
+- PR #995 (three trailers) — only first closed
+
+**Operating rule**:
+1. Write properly-formatted `Fixes: https://...` trailer (required for release notes)
+2. After merge, verify issue state manually via the GitHub UI
+3. Close any unresolved issues by hand (`gh issue close ...`)
+4. Do NOT treat a green `close-issues` CI check as evidence of actual closure
+
+The `close-issues` check reports SUCCESS while closing zero issues (see PR #1097).
+It is not a reliable indicator.
+
 **Optional elements** (keep brief):
 - Compact commit list with links (one line per commit)
 - Critical context that reviewers need immediately

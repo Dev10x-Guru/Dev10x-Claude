@@ -121,7 +121,13 @@ Before raising any of these, **verify actual code**:
     risk (users copy stale alias → command fails) → CRITICAL/REQUIRED. Pure
     cosmetic drift (table describes intent, example text outdated) →
     RECOMMENDED. Confirm intent via commit message when unclear.
-24. **MCP tool enumeration consistency** — when a PR adds MCP tool support via
+24. **Fixes trailer confidence** — when reviewing PR body Fixes trailers, verify
+    the trailer format (full URL required), but note in feedback that GitHub's
+    auto-close mechanism is unreliable even with proper format (see
+    `references/git-pr.md` § Auto-Close Caveat for details). Reviewers should
+    NOT claim "this will auto-close the issue" — only "this is the correct
+    format for auto-close to attempt." Authors must verify post-merge.
+25. **MCP tool enumeration consistency** — when a PR adds MCP tool support via
     new `mcp__plugin_*` declarations in `allowed-tools:`: (a) verify all MCP
     tools are declared in `.claude-plugin/plugin.json`, (b) verify the tool
     naming follows `mcp__plugin_Dev10x_<server>__<function>`, (c) when a tool
