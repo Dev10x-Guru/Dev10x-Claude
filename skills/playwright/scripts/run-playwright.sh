@@ -8,7 +8,7 @@
 #   1. Reads CF Access + CRM credentials from settings.secrets.env
 #   2. Validates the Python script syntax (py_compile) before launching a browser
 #   3. Exports credentials as env vars (never hardcoded in scripts)
-#   4. Runs: VIRTUAL_ENV="" uv run --with playwright python3 <script.py>
+#   4. Runs: VIRTUAL_ENV="" uv run --with "$PLAYWRIGHT_SPEC" python3 <script.py>
 #
 # Scripts must read credentials via os.environ:
 #   CF_CLIENT_ID, CF_SECRET, CRM_USERNAME, CRM_PASSWORD, STAGING_URL
@@ -25,6 +25,14 @@ SKILLS_DIR="$(cd "${SCRIPTS_DIR}/../.." && pwd)"
 
 SECRETS_FILE="${PLAYWRIGHT_SECRETS_FILE:-/work/example/app-e2e/settings.secrets.env}"
 STAGING_URL="https://staging-app.example.com"
+
+# Bounded, like every other dependency pin in this repo (GH-916). An
+# unbounded `--with playwright` resolves to whatever is newest on each
+# run: one release refused to install a browser at all on a current
+# Linux distro, and reported it as "does not support chromium on
+# <distro>" — an error that points at the OS rather than the resolver
+# (GH-1129).
+PLAYWRIGHT_SPEC="${PLAYWRIGHT_SPEC:-playwright>=1.47,<2}"
 
 # ── Parse arguments ────────────────────────────────────────────────────────────
 SCRIPT=""
@@ -132,4 +140,4 @@ else
     unset DEV10X_TTS_SCRIPT
 fi
 
-VIRTUAL_ENV="" uv run --with playwright python3 "$SCRIPT"
+VIRTUAL_ENV="" uv run --with "$PLAYWRIGHT_SPEC" python3 "$SCRIPT"

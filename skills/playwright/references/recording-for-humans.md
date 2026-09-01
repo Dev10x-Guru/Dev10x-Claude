@@ -56,6 +56,33 @@ the step plays silently.
 - Never an emoji glyph: it has no defined point and cannot be aligned to
   a coordinate.
 
+## Pointing proves the target is on screen
+
+`point_at()` scrolls the target into view, waits for the scroll to
+settle, and then asserts the box is inside the viewport — not merely
+that `bounding_box()` returned something.
+
+The distinction is the whole point. `bounding_box()` returns
+coordinates for **anything attached and laid out**, so `None` comes back
+only for a detached or `display:none` element. An element 200px below
+the fold has a perfectly good box, and below-the-fold is the normal
+state of most of a long page. A screenshot pointed at one is a real
+picture of a real UI that does not show the thing being asserted — and
+`verify-evidence.py` cannot catch it either, because its size floor and
+non-uniform-frame checks are structurally incapable of catching *a
+picture of the wrong thing* (GH-1129).
+
+When a target genuinely will not fit, scroll it deliberately before
+pointing. `block: "center"` matters: `start` parks it under a sticky app
+header, and centre lands it where a viewer is already looking.
+
+```python
+locator.evaluate(
+    "el => el.scrollIntoView({behavior: 'smooth', block: 'center'})"
+)
+time.sleep(1.8)   # let the smooth scroll finish before measuring
+```
+
 ## Pacing
 
 - Caption dwell is computed **inside** `say()` from the caption's length
@@ -65,6 +92,18 @@ the step plays silently.
   that reintroduces the fixed-dwell problem one site at a time.
 - Pointer settle is 0.6s. Below roughly half a second the movement reads
   as a teleport and the viewer never sees where the pointer went.
+- **One knob, not four constants.** `Annotator(page, pace=1.6)` scales
+  every derived duration together. The caption constants are read inside
+  `caption_dwell_ms()` so patching the module global works, but
+  `POINT_SETTLE_SECONDS` used to be bound as a *default argument* of
+  `point_at()`, so patching it silently did nothing — two override
+  mechanisms for one concept. `pace` replaces both.
+- A narrated dwell is **not** scaled by `pace`: it is the measured length
+  of the audio, and stretching it desyncs the caption from the voice.
+- **Budget ~2.5 minutes of footage per four test cases** when every step
+  is annotated. One measured run went 68s → 155s for four cases and was
+  accepted first try. That is the cost of a followable recording, not
+  overhead to trim.
 
 ## Ordering
 
@@ -72,6 +111,64 @@ the step plays silently.
 in that order, and the ordering lives in the wrapper so no call site can
 get it wrong. Narrating first describes a target that has not been
 indicated yet, so the caption and the action refer to different moments.
+
+**Every click on the recorded path goes through the wrapper.** This is a
+rule, not an illustration for the interesting steps. A bare
+`locator.click()` cuts between two states with nothing on screen saying
+what was pressed, and lengthening the sleeps is the wrong fix — it holds
+a still frame of an unexplained change for longer.
+
+`Annotator.tap()` is the whole beat, so no script re-derives it:
+
+```python
+anno.tap(decline_btn,
+         announce="Declining the tyre the customer didn't want",
+         then="It's gone from the bill — the total dropped")
+```
+
+scroll → point → narrate → act → **beat** → outcome caption. Use
+`click()` only when the following step supplies its own beat.
+
+## Screenshot manifest
+
+`shoot()` records what each artifact was pointed at, so Phase 4.4 review
+reads as a specific comparison:
+
+```python
+anno.shoot(total, f"{SCREENSHOT_DIR}/tc3-total.png",
+           claim="Declining the tyre removed it from the bill")
+
+for row in anno.manifest_rows():
+    print(row)     # tc3-total.png → Locator@... → Declining the tyre …
+```
+
+`target` is `repr(locator)` — Playwright's own selector description.
+There is deliberately **no** author-written label parameter: a hand-typed
+description drifts from the locator it claims to describe, and then the
+manifest reassures the reviewer about the wrong thing.
+
+"Does this look OK?" is a question people answer *yes* to while
+skimming. "Does this image show **that** element?" is checkable in
+seconds and fails visibly.
+
+## Setup failures leave an artifact
+
+The un-recorded setup phase has no video, so a locator timeout there
+yields a stack trace and nothing else — and the next run is a guess.
+Wrap each setup step:
+
+```python
+try:
+    open_work_order(setup_page)
+except Exception:
+    print(json.dumps(debug_dump(setup_page, "open-work-order"), indent=2))
+    raise
+```
+
+`debug_dump` writes a full-page screenshot and returns the sorted
+accessible names of every button on the page. That found a drifted label
+— the same control capitalised differently on two pages — on the very
+next run.
 
 ## Resolution
 
