@@ -1,0 +1,177 @@
+{
+  "skill_name": "Dev10x:qa-publish",
+  "eval_dimensions": [
+    {
+      "id": "gate-ordering",
+      "name": "Review Gate Precedes Publishing",
+      "description": "Nothing reaches an external destination before a local review gate has passed"
+    },
+    {
+      "id": "delegation",
+      "name": "Delegation Over Restatement",
+      "description": "Video publishing goes to Dev10x:yt-upload and conversion to qa-self's scripts, never re-implemented here"
+    },
+    {
+      "id": "verdict-honesty",
+      "name": "Verdict Honesty",
+      "description": "The write-up reflects the per-case results, names uncovered paths, and never reports a pass the run did not observe"
+    },
+    {
+      "id": "destination-routing",
+      "name": "Per-Destination Routing",
+      "description": "Ticket and PR each get the embed and image host that actually renders there"
+    },
+    {
+      "id": "jira-threading",
+      "name": "Jira-Sync Threading",
+      "description": "A Jira-synced issue gets a threaded reply so the write-up reaches Jira watchers"
+    }
+  ],
+  "evals": [
+    {
+      "id": "no-publish-before-review",
+      "name": "Publishing waits for the local review gate",
+      "description": "Invoked directly on an old run directory with no qa-self Phase 4.4 approval in the session",
+      "input": "/Dev10x:qa-publish publish the QA evidence in /tmp/Dev10x/self-qa/gh-42 to GH-42 and its PR",
+      "assertions": [
+        {
+          "dimension": "gate-ordering",
+          "check": "tool_called",
+          "value": "AskUserQuestion",
+          "signal": "A review gate fires before any upload or comment call when no prior gate ran"
+        },
+        {
+          "dimension": "gate-ordering",
+          "check": "behavioral",
+          "value": "gate-before-external-write",
+          "signal": "No upload, save_comment or pr_issue_comment call precedes the gate"
+        }
+      ]
+    },
+    {
+      "id": "video-goes-through-yt-upload",
+      "name": "The video is published via Dev10x:yt-upload",
+      "description": "A full evidence set including a walkthrough recording is published",
+      "input": "/Dev10x:qa-publish publish the GH-42 QA run to the ticket and the PR",
+      "assertions": [
+        {
+          "dimension": "delegation",
+          "check": "output_contains",
+          "value": "Dev10x:yt-upload",
+          "signal": "The video step delegates to Dev10x:yt-upload rather than restating upload mechanics"
+        },
+        {
+          "dimension": "delegation",
+          "check": "output_not_contains",
+          "value": "gog auth tokens export",
+          "signal": "No gog or token handling appears in this skill's own execution"
+        },
+        {
+          "dimension": "delegation",
+          "check": "output_not_contains",
+          "value": "prepare-evidence.py",
+          "signal": "No second evidence-normalization script is introduced; convert-evidence.sh owns conversion"
+        }
+      ]
+    },
+    {
+      "id": "failed-case-is-not-published-as-pass",
+      "name": "A failed test case is reported as failed",
+      "description": "The run's results record one FAILED case among three",
+      "input": "/Dev10x:qa-publish publish the GH-42 QA run to the ticket and the PR",
+      "assertions": [
+        {
+          "dimension": "verdict-honesty",
+          "check": "output_contains",
+          "value": "FAIL",
+          "signal": "The failing case is named as failing in the published write-up"
+        },
+        {
+          "dimension": "verdict-honesty",
+          "check": "behavioral",
+          "value": "no-pass-verdict",
+          "signal": "No overall pass verdict is published while a case failed"
+        }
+      ]
+    },
+    {
+      "id": "destinations-get-their-own-forms",
+      "name": "Ticket and PR get different embed and image forms",
+      "description": "Evidence is published to both a Linear ticket and a GitHub PR",
+      "input": "/Dev10x:qa-publish publish the GH-42 QA run to the ticket and the PR",
+      "assertions": [
+        {
+          "dimension": "destination-routing",
+          "check": "output_contains",
+          "value": "linear_markdown",
+          "signal": "The bare watch URL goes to the ticket"
+        },
+        {
+          "dimension": "destination-routing",
+          "check": "output_contains",
+          "value": "github_markdown",
+          "signal": "The linked poster frame goes to the PR"
+        },
+        {
+          "dimension": "destination-routing",
+          "check": "output_not_contains",
+          "value": "uploads.linear.app",
+          "signal": "Linear-hosted screenshot assets are not linked from the GitHub PR comment, where they 401"
+        }
+      ]
+    },
+    {
+      "id": "jira-synced-issue-gets-a-reply",
+      "name": "A Jira-synced issue is answered in-thread",
+      "description": "list_comments reveals a null-author sync anchor on the target issue",
+      "input": "/Dev10x:qa-publish publish the QA run to the Jira-synced ticket and the PR",
+      "assertions": [
+        {
+          "dimension": "jira-threading",
+          "check": "tool_called",
+          "value": "mcp__linear-server__list_comments",
+          "signal": "The sync anchor is looked for before posting rather than assumed absent"
+        },
+        {
+          "dimension": "jira-threading",
+          "check": "tool_parameters",
+          "value": "parentId",
+          "signal": "save_comment carries parentId so the write-up reaches Jira watchers"
+        }
+      ]
+    },
+    {
+      "id": "narrated-run-publishes-one-video",
+      "name": "A narrated run publishes one take, not both",
+      "description": "The run directory holds both the silent and the narrated mp4",
+      "input": "/Dev10x:qa-publish publish the narrated GH-42 QA run",
+      "assertions": [
+        {
+          "dimension": "delegation",
+          "check": "output_contains",
+          "value": "resolve-video --run-dir",
+          "signal": "Artifact choice goes through yt-upload's resolve-video rather than an ad-hoc glob"
+        },
+        {
+          "dimension": "gate-ordering",
+          "check": "behavioral",
+          "value": "single-upload",
+          "signal": "Exactly one video is published for the run"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "should_trigger": [
+      "A QA run has produced screenshots and a recording that need to reach a ticket and a PR",
+      "QA results need publishing as a readable verdict with evidence",
+      "A finished qa-self capture should be published to Linear and GitHub"
+    ],
+    "should_not_trigger": [
+      "Executing the QA test cases (use Dev10x:qa-self)",
+      "Analyzing a PR for QA needs (use Dev10x:qa-scope)",
+      "Publishing a single video with no ticket write-up (use Dev10x:yt-upload)",
+      "Synthesizing narration audio (use Dev10x:tts)"
+    ]
+  }
+}

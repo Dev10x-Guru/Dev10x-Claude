@@ -504,6 +504,60 @@ groups:
       # which is why no download form is allowed here.
       - Bash(piper:*)
 
+  gog-readonly:
+    tier: 3
+    description: >
+      Read-only surface of the gog Google CLI (https://gogcli.sh), used by
+      Dev10x:yt-upload's preflight and post-upload read-back (GH-1119).
+      Opt-in — gog is a personal tool, not a Dev10x dependency, so most
+      users have nothing to grant here. Scoped to the exact subcommands the
+      wrapper runs: a blanket `Bash(gog youtube:*)` would also pre-approve
+      the delete verbs, and `Bash(gog drive:*)` would pre-approve
+      `gog drive delete`.
+
+      Note these rules are NOT required for the skill itself. The gog calls
+      live inside `skills/yt-upload/scripts/upload-video.py`, and the
+      permission layer only sees Bash tool invocations — not subprocess
+      calls made from within a script — so the scripts glob already covers
+      them. This group is for direct gog use at the Bash layer.
+    rules:
+      - Bash(gog --version)
+      - Bash(gog auth list:*)
+      - Bash(gog youtube channels list:*)
+      - Bash(gog youtube videos list:*)
+
+  gog-credentialed:
+    tier: 3
+    sensitivity: secret
+    description: >
+      gog's credential-export and Drive-write surface (GH-1119). NOT shipped
+      by default, and deliberately separated from `gog-readonly` so enabling
+      the read surface cannot silently enable a token export.
+
+      `sensitivity: secret` matches `secrets-listing-readonly`, which is
+      tagged that way even though a bare list never prints values. This rule
+      does more than enumerate: it materializes a LIVE, usable OAuth access
+      token on disk.
+
+      **What enabling this actually grants.** A bare
+      `Bash(gog auth tokens export:*)` allow-rule approves ANY shape of that
+      command at the shell — including an operator- or injection-supplied
+      `--out` pointing anywhere writable, with no `chmod`, no shred, and no
+      cleanup. Dev10x:yt-upload's wrapper does all of that carefully, but
+      the wrapper's protections are properties of `upload-video.py`, NOT of
+      this permission grant: as `gog-readonly` notes, subprocess calls made
+      from inside a script are never seen by the permission layer, so the
+      skill needs no gog rule at all. Enable this group only for DIRECT gog
+      use at the Bash layer, and only if you actually do that — pre-approving
+      a credential export you never invoke is pure downside.
+
+      `gog drive upload` writes to Drive. `mkdir`, `share` and every delete
+      verb are deliberately absent — add them per-command if a workflow
+      needs them, rather than widening to `Bash(gog drive:*)`.
+    rules:
+      - Bash(gog auth tokens export:*)
+      - Bash(gog drive upload:*)
+
   aws-readonly:
     tier: 3
     description: >
