@@ -26,26 +26,22 @@ Two distinct facts, often conflated:
 So a worker prompt must never name a `Skill(...)` call, and must open
 with the select-query bootstrap in `crew-prompt-template.md` § 2.
 
-## MCP connectivity is not permanent (GH-1063)
+## MCP connectivity is not permanent (GH-1063, GH-1072, GH-1099)
 
 A third fact, and the one that bites latest: **the bootstrap does not
-hold for the worker's whole life.** Three independent crew workers in
-the 2026-08-23 run lost their Dev10x MCP surface after 60–90+ minutes —
-`create_pr` and `push_safe` became unreachable on tools they had
-already loaded and already used. The suspected mechanism is an idle
-timeout on a connection held across a long blocking call, which
-`ci_check_status(wait=true)` produces by design. The cost lands at the
-worst moment: two of the three had pushed and lost only the final
-PR/verify step; the third wedged pre-PR with a branch on origin and no
-PR, needing a fresh-spawn takeover to finish a chunk that was
-substantively done.
+hold for any role's whole life** — and it strands each role
+differently, so this is three failures, not one:
 
-Until the wrapper layer reconnects on demand, the mitigation is
-worker-side and cheap: re-run the exact `ToolSearch` select-query once
-when a previously-loaded tool reports unreachable, then report and stop
-if it is still gone. A worker that reads "tool not found" as "this
-operation is impossible" improvises raw CLI for a gated operation —
-the failure the surface split exists to prevent.
+| Surface | Containment |
+|---|---|
+| Worker loses loaded tools after ~60–90min | re-run the exact `ToolSearch` select-query ONCE, then report-and-stop; never improvise raw CLI for a gated operation |
+| **Top-level session** loses the whole surface | **no self-recovery** — the select-query retry does not transfer (nothing was deferred). Gate READS fall back to sanctioned `gh api`, merges queue, ask the supervisor to run `/mcp` |
+| A write drops mid-call and reports nothing | assume it did NOT land; re-read the field you set |
+
+Reconnect-on-demand in the wrapper layer is **not implementable here**
+— the dying hop is harness-client ↔ our stdio server, which we do not
+own. Full evidence and upstream status:
+[`mcp-connectivity.md`](mcp-connectivity.md).
 
 ## Subagent Bash CWD is spawn-depth-dependent (GH-1028, GH-1050)
 
@@ -170,7 +166,7 @@ State-changing calls do not stay true. Re-read the state you depend
 on immediately before you depend on it. Field case (GH-922): PR #926
 was created, marked ready via `pr_ready`, then force-pushed after a
 rebase — and silently reverted to DRAFT. Bots skip drafts, so CI and
-review both went quiet on a PR everyone believed open for business.
+review went quiet on a PR everyone believed open for business.
 
 - After ANY force-push (`--force-with-lease` included), re-check
   `isDraft` via `pr_get` and re-run `pr_ready` if needed.
@@ -178,6 +174,8 @@ review both went quiet on a PR everyone believed open for business.
   flag is a request, not a guarantee.
 - Before the merge gate, re-read CI verdict, mergeability, and
   ancestry freshness. A verdict from ten minutes ago is a memory.
+- A write whose transport dropped mid-call reports nothing at all —
+  same re-read, one more reason (GH-1099, `mcp-connectivity.md`).
 
 ## Pre-flight obligation (Phase 0.4)
 

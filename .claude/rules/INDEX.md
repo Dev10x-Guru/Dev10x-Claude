@@ -190,7 +190,7 @@ cohesive, justified by scope):
   `stall-protocol.md`, `overseer-discipline.md`, `crew-contract.md`
   (the twelve-element table — already split out, so it is no longer a
   candidate), `roster.md`, `tool-surface.md`, `durability-envelope.md`,
-  `worktree-recovery.md`, and — new in GH-987 —
+  `worktree-recovery.md`, `mcp-connectivity.md`, and — new in GH-987 —
   `preflight-checklist.md` (Phase 0.4 command-shape enumeration),
   `gate-policy-detail.md` (Phase 0.3 durable-policy-check procedure
   and the GH-978 worktree caveat), `generation-authority.md` (STALL
@@ -220,6 +220,17 @@ cohesive, justified by scope):
   depth-1-vs-depth-2 evidence went to `worker-tool-shapes.md` § CWD
   mode, and `tool-surface.md` § Subagent Bash CWD was rewritten in
   place at net-zero lines rather than appended to.
+  GH-1099/GH-1072 is the pattern applied to `tool-surface.md` itself:
+  its § "MCP connectivity is not permanent" grew a second and third
+  failure surface (watchdog-wide loss, silently-dropped writes), so the
+  section was rewritten in place as a three-row containment table
+  *pointing at* the new `references/mcp-connectivity.md`, leaving the
+  file at 200 rather than over it. The evidence, the per-surface
+  containment, and the finding that reconnect-on-demand is not
+  implementable in-repo (the dying hop is harness-owned) all live in
+  the new file. The caller-side half of the rule — a write is a
+  request, not a receipt — went to `.claude/rules/mcp-tools.md`
+  instead, since it binds every MCP caller and not only foreman crews.
   `tool-surface.md` and `overseer-discipline.md` are now both AT the
   200-line cap — the next addition to either needs an extraction, not
   an append. Split plan if `instructions.md` grows
