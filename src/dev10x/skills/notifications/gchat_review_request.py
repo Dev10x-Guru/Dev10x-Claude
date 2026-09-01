@@ -34,12 +34,15 @@ def _resolution(
     ask: bool = False,
     space: str | None = None,
     mentions: list[str] | None = None,
-    card: bool = False,
+    card: bool = True,
 ) -> dict[str, Any]:
     """Every branch of ``resolve_project_config`` returns this one shape.
 
     Built through a single constructor so a key added for one branch — as
-    ``card`` was — cannot be missed on the others.
+    ``card`` was — cannot be missed on the others. ``card`` defaults on
+    (GH-1115): a repo that says nothing about cards gets a panel, and both
+    opt-out levers (per-repo ``card: false``, global ``default_card:
+    false``) still win.
     """
     return {
         "skip": skip,
@@ -61,7 +64,7 @@ def resolve_project_config(config: dict, repo_name: str) -> dict[str, Any]:
         return _resolution(
             space=entry.get("space"),
             mentions=entry.get("mentions", []),
-            card=entry.get("card", config.get("default_card", False)),
+            card=entry.get("card", config.get("default_card", True)),
         )
 
     if default_action == "skip":

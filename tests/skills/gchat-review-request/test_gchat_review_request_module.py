@@ -33,20 +33,25 @@ class TestResolveProjectConfig:
             "ask": False,
             "space": "tt-reviews",
             "mentions": ["@team"],
-            "card": False,
+            "card": True,
         }
 
-    def test_repo_opts_into_card_mode(self) -> None:
-        config = {"projects": {"my-app": {"space": "s", "card": True}}}
+    def test_card_mode_is_on_when_config_is_silent(self) -> None:
+        # GH-1115: a repo that says nothing about cards gets a panel.
+        config = {"projects": {"my-app": {"space": "s"}}}
         assert mod.resolve_project_config(config=config, repo_name="my-app")["card"] is True
 
-    def test_default_card_applies_to_configured_repo(self) -> None:
-        config = {"default_card": True, "projects": {"my-app": {"space": "s"}}}
-        assert mod.resolve_project_config(config=config, repo_name="my-app")["card"] is True
-
-    def test_repo_can_opt_out_of_default_card(self) -> None:
-        config = {"default_card": True, "projects": {"my-app": {"space": "s", "card": False}}}
+    def test_repo_can_opt_out_of_cards(self) -> None:
+        config = {"projects": {"my-app": {"space": "s", "card": False}}}
         assert mod.resolve_project_config(config=config, repo_name="my-app")["card"] is False
+
+    def test_global_default_card_false_opts_the_whole_config_out(self) -> None:
+        config = {"default_card": False, "projects": {"my-app": {"space": "s"}}}
+        assert mod.resolve_project_config(config=config, repo_name="my-app")["card"] is False
+
+    def test_repo_card_true_beats_a_global_opt_out(self) -> None:
+        config = {"default_card": False, "projects": {"my-app": {"space": "s", "card": True}}}
+        assert mod.resolve_project_config(config=config, repo_name="my-app")["card"] is True
 
     def test_skip_repo(self) -> None:
         config = {"projects": {"my-app": {"skip": True}}}
