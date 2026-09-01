@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -43,6 +44,29 @@ class TestCiCheckStatusMcp:
         result = await cli_server.ci_check_status(pr_number=42, repo="o/r")
 
         assert "error" in result
+
+    @pytest.mark.asyncio
+    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
+    async def test_subprocess_cap_is_1320s_distinct_from_poll_budget(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        """GH-1104: 1320s is the SUBPROCESS cap, not the poll budget.
+
+        `poll_until_terminal`'s in-loop budget is 1230s (it skips the sleep
+        after the final poll). This wrapper adds a 60s grace on top of the
+        ×40 upper bound, which is where 1320 comes from. Pinning it here
+        keeps the two ceilings from being conflated again.
+        """
+        import dev10x.monitor as monitor
+
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="{}", stderr=""
+        )
+
+        await monitor.ci_check_status(pr_number=1, repo="o/r", wait=True)
+
+        assert mock_run.call_args.kwargs["timeout"] == 1320.0
 
     @pytest.mark.asyncio
     async def test_use_cwd_activates_when_cwd_passed(self, tmp_path) -> None:

@@ -584,3 +584,26 @@ class TestDefaultBudgetUnderIdleTimeout:
         poll_interval = params["poll_interval"].default
         max_polls = params["max_polls"].default
         assert initial_wait + poll_interval * max_polls < 1800
+
+    def test_in_loop_budget_is_1230s_not_the_subprocess_cap(self, monkeypatch):
+        """GH-1104: the poll budget and the subprocess cap are two numbers.
+
+        The loop skips the sleep after its final poll, so the real in-loop
+        maximum is `60 + 30 * 39` = 1230s — NOT the 1320s that
+        `dev10x.monitor` caps the subprocess at. The docstring conflated
+        them, and the wrong figure then propagated into a hang analysis.
+        Observing the actual sleeps pins the figure to behaviour.
+        """
+        slept: list[float] = []
+        monkeypatch.setattr(_impl.time, "sleep", lambda seconds: slept.append(seconds))
+        monkeypatch.setattr(
+            _impl,
+            "get_annotated_checks",
+            lambda **k: [{"name": "build", "bucket": "pending"}],
+        )
+        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "UNKNOWN")
+
+        _impl.poll_until_terminal(pr_number=1, repo="o/r")
+
+        assert sum(slept) == 1230
+        assert len(slept) == 40  # one initial_wait + 39 inter-poll sleeps
