@@ -186,6 +186,14 @@ context = browser.new_context(
 )
 ```
 
+## Beyond the pointer and one caption line
+
+[`overlay-shapes.md`](overlay-shapes.md) — card, two-tier and absence
+captions, step chip with measured chapters, before/after compare,
+highlight, zoom, theme tokens. Each composes with the pointer; none
+replaces it. Covering PII: [`redaction.md`](redaction.md). Print flows
+that deadlock the run: [`print-capture.md`](print-capture.md).
+
 ## Captions describe the benefit
 
 Write what the user gets ("One click assigns them — no Save needed"),

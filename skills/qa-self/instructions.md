@@ -367,6 +367,30 @@ is commercial use — catching that after the take wastes the recording.
 Full recipe, timing model and the licence gate:
 [`skills/tts/references/qa-self-narration.md`](../tts/references/qa-self-narration.md).
 
+**Redact anything that must not reach the recording.** The
+`Dev10x:yt-upload` provenance gate asks the operator to *state* that no
+production data is on screen — it cannot verify it, and "I recognised
+the fixture from sampled frames" does not generalise. Declare the list
+once, at the top:
+
+```python
+anno = Annotator(page, redact=[
+    "[data-test='customer-name']",
+    "[data-test='customer-phone']",
+])
+```
+
+Masks re-apply through `add_init_script` like the overlay itself, and
+are opaque rather than blurred. Full argument and the two non-obvious
+properties: [`redaction.md`](../playwright/references/redaction.md).
+
+**Further shapes** — full-screen card for framing the whole recording,
+two-tier caption, a distinct treatment for *absence* ("we did NOT verify
+X"), step chip with measured chapter timestamps, before/after compare
+for a changing value, highlight, zoom, and the theme tokens that replace
+every hardcoded colour:
+[`overlay-shapes.md`](../playwright/references/overlay-shapes.md).
+
 Full guidance — pointer anatomy, palette, pacing, resolution — lives in
 [`skills/playwright/references/recording-for-humans.md`](../playwright/references/recording-for-humans.md).
 
@@ -768,7 +792,10 @@ If tests are blocked, leave in current status and note the blocker.
 | Recorded clicks have no pointer or caption | The script used bare `locator.click()`. Every click on the recorded path goes through `anno.tap()` / `anno.click()` — a rule, not an example |
 | Setup step fails with only a stack trace | The setup phase is un-recorded. Wrap each step: `except Exception: print(json.dumps(debug_dump(page, tag))); raise` |
 | `playwright install chromium` says the OS is unsupported | `--with playwright` resolved to a newer release than the wrapper was tested against. Pin it: `--with 'playwright>=1.47,<2'` |
-| Clicking Print hangs the run — no error, execution just stops | `window.print()` opens a browser modal that blocks Playwright with nothing raised. Neutralise `print` in **both** realms (top window via `add_init_script`, plus the iframe's own `contentWindow`), then reveal the iframe and `emulateMedia({media: "print"})`. Alternative: film a second surface that renders the same component without a dialog — **but only where such a surface exists**; a share-link page rendering the same document is luck, not a general property |
+| Clicking Print hangs the run — no error, execution just stops | `window.print()` opens a browser modal that blocks Playwright with nothing raised. Neutralise `print` in **both** realms, then reveal the iframe and `emulate_media(media="print")`. Full recipe, and why the alternative (film a second dialog-free surface) only works where such a surface exists: [`print-capture.md`](../playwright/references/print-capture.md) |
+| A disclaimer reads as a demonstration | A caption saying "we did NOT verify X" renders identically to a positive claim. Use `anno.say(..., kind="absence")` — hollow and italic |
+| Chapter timestamps in a video description are guesses | Inferring them from the pacing constants presents estimates with the authority of measurements. `anno.mark_video_start()` + `anno.step(...)` measure them; `chapter_lines()` emits them, and `chapters()` raises if the anchor was never set |
+| A caption claims a value changed, showing only the after | Circular — the viewer takes the delta on trust from the automation the video exists to demonstrate. `anno.capture_region()` then `anno.compare()` shows it |
 | Every script gets the placeholder host | `run-playwright.sh` used to assign `STAGING_URL` unconditionally, so a script's own `os.environ.get("STAGING_URL", …)` default could never apply. Now `${STAGING_URL:-…}`; drop the dead default from the script (GH-1130) |
 | A third test account is unreachable | The wrapper's user map is config now: add `CRM_USERNAME<suffix>` + `CRM_PASSWORD<suffix>` to the secrets file and pass `--user <name>` or `--profile <suffix>`. Never fork the wrapper — a fork loses the syntax validation and no-hardcoded-credentials guarantees |
 | Evidence names no specific record | Each capture iteration leaves fixture residue — three takes, three records. Name exactly which record the published evidence shows |
