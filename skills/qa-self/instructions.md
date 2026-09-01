@@ -295,6 +295,25 @@ cases**; one measured run went 68s → 155s and was accepted first try.
 `run-playwright.sh` exports `DEV10X_PLAYWRIGHT_LIB`, so the import path
 is never hard-coded in the generated script.
 
+**When the target repo already ships its own narrated-capture harness,
+do not replace it.** Run the Annotator as a separate script and raise
+the overlap with that repo's owners separately. Three reasons, from a
+session that faced the choice:
+
+- The Annotator's failure modes are documented and fixed; a bespoke
+  overlay would need auditing to know it is free of them.
+- The artifacts have different audiences. A CI regression net narrated
+  with step names is not the reviewer-facing walkthrough narrated with
+  user outcomes.
+- Swapping a shared repo's capture mechanism touches the file every
+  scenario runs through, for the sake of one recording.
+
+**Keep the caveat rather than papering over it:** this leaves two
+overlay implementations coexisting, which is the duplication the shared
+module was created to end. It is the right trade for a single task and
+the wrong one permanently — so the follow-up conversation with that
+repo's owners is part of the job, not optional.
+
 What the module guarantees, and why each one matters:
 
 | Guarantee | Failure it prevents |
@@ -749,6 +768,9 @@ If tests are blocked, leave in current status and note the blocker.
 | Recorded clicks have no pointer or caption | The script used bare `locator.click()`. Every click on the recorded path goes through `anno.tap()` / `anno.click()` — a rule, not an example |
 | Setup step fails with only a stack trace | The setup phase is un-recorded. Wrap each step: `except Exception: print(json.dumps(debug_dump(page, tag))); raise` |
 | `playwright install chromium` says the OS is unsupported | `--with playwright` resolved to a newer release than the wrapper was tested against. Pin it: `--with 'playwright>=1.47,<2'` |
+| Clicking Print hangs the run — no error, execution just stops | `window.print()` opens a browser modal that blocks Playwright with nothing raised. Neutralise `print` in **both** realms (top window via `add_init_script`, plus the iframe's own `contentWindow`), then reveal the iframe and `emulateMedia({media: "print"})`. Alternative: film a second surface that renders the same component without a dialog — **but only where such a surface exists**; a share-link page rendering the same document is luck, not a general property |
+| Every script gets the placeholder host | `run-playwright.sh` used to assign `STAGING_URL` unconditionally, so a script's own `os.environ.get("STAGING_URL", …)` default could never apply. Now `${STAGING_URL:-…}`; drop the dead default from the script (GH-1130) |
+| A third test account is unreachable | The wrapper's user map is config now: add `CRM_USERNAME<suffix>` + `CRM_PASSWORD<suffix>` to the secrets file and pass `--user <name>` or `--profile <suffix>`. Never fork the wrapper — a fork loses the syntax validation and no-hardcoded-credentials guarantees |
 | Evidence names no specific record | Each capture iteration leaves fixture residue — three takes, three records. Name exactly which record the published evidence shows |
 | Overlay disappears after navigation | `page.evaluate` binds to one document. Use `Annotator.install()` (`add_init_script`), and set captions only after navigation completes |
 | Text looks smeared in the mp4 | CRF too high for screen content. `convert-evidence.sh` now encodes at CRF 18 with explicit `-pix_fmt yuv420p` |

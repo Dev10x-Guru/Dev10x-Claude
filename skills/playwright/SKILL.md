@@ -48,10 +48,20 @@ import os
 
 CF_CLIENT_ID = os.environ["CF_CLIENT_ID"]
 CF_SECRET    = os.environ["CF_SECRET"]
-STAGING_URL  = os.environ.get("STAGING_URL", "https://staging-app.example.com")
-CRM_USERNAME = os.environ.get("CRM_USERNAME", "e2e_test_user")
+STAGING_URL  = os.environ["STAGING_URL"]
+CRM_USERNAME = os.environ["CRM_USERNAME"]
 CRM_PASSWORD = os.environ["CRM_PASSWORD"]
 ```
+
+All five are set by the wrapper, so read them with `os.environ[...]` and
+let a missing one fail loudly at import. A
+`os.environ.get("STAGING_URL", "<host>")` default here is **dead code**
+that reads as a working fallback — and while the wrapper's own
+assignment was unconditional, that dead default was exactly what made
+the resulting `ERR_NAME_NOT_RESOLVED` confusing to diagnose (GH-1130).
+
+To point a run at a different deployment, set `STAGING_URL` in the
+wrapper's environment; it now defers to a caller's value.
 
 ### Required Patterns
 
@@ -147,18 +157,40 @@ time.sleep(2)  # after result appears
 
 ### User Accounts
 
-| Account | Level | Dealer | Use for |
-|---|---|---|---|
-| `e2e_test_user` | 1 (USER) | 382 | Standard flows |
-| `janusz_ai` | 2 (ADMIN) | 585 | Admin-gated features (reopen/void WO) |
+**The account map lives in the secrets file, not in this script**
+(GH-1130). Accounts are keyed by an optional suffix shared between a
+username and a password key:
 
-`CRM_PASSWORD` -> `e2e_test_user`, `CRM_PASSWORD2` -> `janusz_ai`
+```sh
+CRM_USERNAME=e2e_test_user    CRM_PASSWORD=…      # the default profile
+CRM_USERNAME2=janusz_ai       CRM_PASSWORD2=…     # --profile 2
+CRM_USERNAME_QA=qa_bot        CRM_PASSWORD_QA=…   # --profile _QA
+```
 
-To use `janusz_ai`, pass `--user janusz_ai` to the wrapper:
+A third credential pair is two lines of config — no edit to the wrapper,
+and no fork (a fork loses the syntax validation and the
+no-hardcoded-credentials guarantee the wrapper exists to provide).
+
+Select one either by name, which is resolved against the file:
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/skills/playwright/scripts/run-playwright.sh \
   /tmp/Dev10x/playwright/qa-xxx.py --user janusz_ai
 ```
+
+or by suffix, which skips the lookup:
+```bash
+${CLAUDE_PLUGIN_ROOT}/skills/playwright/scripts/run-playwright.sh \
+  /tmp/Dev10x/playwright/qa-xxx.py --profile 2
+```
+
+`--user` with an unknown name lists what the secrets file does offer and
+names the two keys to add. A secrets file carrying only `CRM_PASSWORD`
+keeps working unsuffixed: the username falls back to `$CRM_USERNAME`,
+then `$PLAYWRIGHT_DEFAULT_USER`, then `e2e_test_user`.
+
+Which account a given feature needs — permission level, dealer scoping —
+is a property of the deployment, not of this plugin. Record it in the
+project's own notes alongside the secrets file.
 
 ## Running Scripts
 
@@ -196,6 +228,9 @@ uv run --with 'playwright>=1.47,<2' python3 -m playwright install chromium
 | Symptom | Fix |
 |---|---|
 | `KeyError: CF_CLIENT_ID` | Script uses hardcoded creds — replace with `os.environ[...]` |
+| `net::ERR_NAME_NOT_RESOLVED` on the first `goto` | The run is pointed at the placeholder host. Set `STAGING_URL` in the wrapper's environment — it defers to a caller's value (GH-1130) |
+| `--user` rejects an account that exists | Its `CRM_USERNAME<suffix>` / `CRM_PASSWORD<suffix>` pair is missing from the secrets file. The error names the two keys to add |
+| Clicking Print hangs the run with no error | `window.print()` opens a browser modal that stops Playwright dead. Patch `print` in **both** realms (top window via `add_init_script`, and the iframe's own) — see `references/recording-for-humans.md` |
 | Phone shows +61 | Prepend `1` for US country code |
 | Button click doesn't register | `scroll_into_view_if_needed()` + `time.sleep(0.5)` |
 | Screenshot misses snackbar | Screenshot immediately after `wait_for_selector`, not after sleep |
