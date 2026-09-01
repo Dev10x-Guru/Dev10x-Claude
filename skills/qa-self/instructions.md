@@ -303,6 +303,39 @@ page load and the step plays silently.
 Captions describe the **user benefit** ("One click assigns them, no Save
 needed"), not the assertion ("TC1: should auto-save on onChange").
 
+**Optional narration (voice-over).** Because captions are already
+user-benefit prose, they double as narration copy. Attaching a `Narration`
+speaks them and switches caption dwell from a character-count estimate to
+the actual audio duration, so the two tracks cannot drift:
+
+```python
+from narration import Narration
+
+NARRATION = [
+    "Pick a customer — one click assigns them, no Save needed",
+    "Done — assigned instantly, no extra clicks",
+]
+
+narration = Narration(f"{RUN_DIR}/narration", script=NARRATION)
+narration.mark_video_start()      # right after the recorded context opens
+anno = Annotator(page, narration=narration)
+anno.install()                    # pre-renders all lines in ONE piper process
+...
+narration.write_manifest()        # after context.close()
+```
+
+Narration is **opt-in** — omit it and every behaviour above is unchanged.
+
+**Before capturing a narrated run**, resolve the voice-licence gate: run
+`${CLAUDE_PLUGIN_ROOT}/skills/tts/scripts/synthesize.py check` and, when it
+returns a non-null `warning`, **REQUIRED: Call `AskUserQuestion`** per
+`skills/tts/SKILL.md` § *Voice licensing is the supervisor's call*. Most
+English Piper voices forbid commercial use, and QA evidence for client work
+is commercial use — catching that after the take wastes the recording.
+
+Full recipe, timing model and the licence gate:
+[`skills/tts/references/qa-self-narration.md`](../tts/references/qa-self-narration.md).
+
 Full guidance — pointer anatomy, palette, pacing, resolution — lives in
 [`skills/playwright/references/recording-for-humans.md`](../playwright/references/recording-for-humans.md).
 
@@ -454,6 +487,23 @@ ${CLAUDE_PLUGIN_ROOT}/skills/qa-self/scripts/convert-evidence.sh \
 Uses ffmpeg (`h264, crf 18, yuv420p, faststart`). Prints the `.mp4` path
 to stdout.
 
+**If the capture was narrated**, build the voice-over track and mux it on.
+Skip this step entirely when no `narration.json` was written:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/skills/tts/scripts/synthesize.py \
+  track --segments-file <RUN_DIR>/narration/narration.json \
+        --out <RUN_DIR>/narration/track.wav
+
+${CLAUDE_PLUGIN_ROOT}/skills/qa-self/scripts/convert-evidence.sh \
+  narrate <RUN_DIR>/video/qa-<ticket>.mp4 <RUN_DIR>/narration/track.wav
+```
+
+The narrated `-narrated.mp4` replaces the silent take for review and
+upload — publish one or the other, never both. Check the manifest's
+`unrendered` list: a non-empty list means some caption played with no
+audio because it was missing from the script's `NARRATION`.
+
 #### 4.4 Local review gate (REQUIRED before any upload)
 
 Linear evidence trails are append-only: a problem spotted after upload
@@ -462,6 +512,17 @@ bad take either way. Review locally first.
 
 1. Report what will be published — each artifact's path, size, duration
    (for video), and the verifier's verdict from 4.1.
+   **When the capture was narrated, this report MUST also carry, from
+   `narration.json`:**
+   - `unrendered` — the count and the actual lines. A non-empty list means
+     captions played silently because they were missing from `NARRATION`.
+   - `warning` — the voice's licence caveat, if non-null.
+   - `anchor` — `video-start` or `install`; the latter means every cue is
+     offset by however long setup took, so the audio may lag the captions.
+
+   These three are computed precisely so a human sees them. Leaving them in
+   the JSON and reporting only paths and sizes reintroduces the silent
+   failure the manifest exists to prevent.
 2. Keep the sampled frames so the footage can be inspected without
    playing it, then **Read the saved frames** — the report's paths are
    only useful if someone actually looks at them:
@@ -477,6 +538,14 @@ bad take either way. Review locally first.
    - **Re-capture** — something is missing, blank or unfollowable;
      return to Phase 2/3 and shoot again
    - **Abort** — stop without publishing anything
+
+   **Narration shifts the recommendation.** When `unrendered` is non-empty
+   or `anchor` is `install`, **Re-capture** becomes the recommended option
+   and Approve is offered without the marker — a walkthrough whose
+   narration is partly missing or systematically offset is exactly the
+   "looks fine, is wrong" artifact this gate exists to catch. A non-null
+   licence `warning` does NOT change the recommendation; it is stated in
+   the question text so the supervisor publishes knowing the terms.
 
 Only on *Approve* proceed to 4.5. Never upload first and ask after.
 

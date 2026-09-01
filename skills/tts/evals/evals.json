@@ -1,0 +1,139 @@
+{
+  "skill_name": "Dev10x:tts",
+  "eval_dimensions": [
+    {
+      "id": "licence-gate",
+      "name": "Licence Decision Gate",
+      "description": "A non-commercial or unknown voice fires AskUserQuestion before the first synthesis, and is never used silently"
+    },
+    {
+      "id": "preference-persistence",
+      "name": "Preference Persistence",
+      "description": "An accepted voice choice is pinned to ~/.config/Dev10x/tts.yaml so the gate fires once, not per run"
+    },
+    {
+      "id": "wrapper-delegation",
+      "name": "Wrapper Delegation",
+      "description": "Piper is invoked through scripts/synthesize.py, never as a raw binary call"
+    },
+    {
+      "id": "failure-visibility",
+      "name": "Failure Visibility",
+      "description": "A missing binary or voice produces an actionable error naming the fix, never silent or empty audio"
+    }
+  ],
+  "evals": [
+    {
+      "id": "gate-fires-for-non-commercial-voice",
+      "name": "Licence gate fires for a non-commercial voice",
+      "description": "check reports a non-null warning and licence_accepted false, so the gate must block before any synthesis",
+      "input": "/Dev10x:tts synthesize narration with en_US-ryan-medium",
+      "assertions": [
+        {
+          "dimension": "licence-gate",
+          "check": "tool_called",
+          "value": "AskUserQuestion",
+          "signal": "AskUserQuestion is called before the first batch when check returns a non-null warning"
+        },
+        {
+          "dimension": "licence-gate",
+          "check": "output_contains",
+          "value": "CC BY-NC-SA",
+          "signal": "The gate names the actual licence, not a generic caution"
+        },
+        {
+          "dimension": "licence-gate",
+          "check": "plain_text",
+          "value": "",
+          "signal": "No inline 'is that ok?' question appears before the AskUserQuestion call"
+        }
+      ]
+    },
+    {
+      "id": "gate-skipped-when-accepted",
+      "name": "No re-ask once the voice is pinned and accepted",
+      "description": "check reports warning null because the resolved voice carries a recorded acceptance",
+      "input": "/Dev10x:tts synthesize narration with the pinned voice",
+      "assertions": [
+        {
+          "dimension": "licence-gate",
+          "check": "behavioral",
+          "value": "no-gate",
+          "signal": "No licence AskUserQuestion fires when the resolved voice carries a recorded acceptance"
+        }
+      ]
+    },
+    {
+      "id": "acceptance-is-persisted",
+      "name": "Keeping a non-commercial voice persists the acceptance",
+      "description": "Supervisor picks Keep at the licence gate; the choice must survive the session",
+      "input": "/Dev10x:tts synthesize narration with en_US-ryan-medium",
+      "assertions": [
+        {
+          "dimension": "preference-persistence",
+          "check": "output_contains",
+          "value": "pin --voice",
+          "signal": "synthesize.py pin --voice <voice> --accept-licence is run after the supervisor accepts"
+        },
+        {
+          "dimension": "preference-persistence",
+          "check": "output_contains",
+          "value": "tts.yaml",
+          "signal": "The pin targets ~/.config/Dev10x/tts.yaml, not a file under the repo's .claude/"
+        }
+      ]
+    },
+    {
+      "id": "no-raw-piper-invocation",
+      "name": "Synthesis always routes through the wrapper",
+      "description": "Narration is synthesized for a walkthrough recording",
+      "input": "/Dev10x:tts synthesize narration for a qa-self capture",
+      "assertions": [
+        {
+          "dimension": "wrapper-delegation",
+          "check": "output_contains",
+          "value": "skills/tts/scripts/synthesize.py",
+          "signal": "Every synthesis goes through the wrapper script path"
+        },
+        {
+          "dimension": "wrapper-delegation",
+          "check": "output_not_contains",
+          "value": "piper -m",
+          "signal": "No bare piper invocation appears in the transcript"
+        }
+      ]
+    },
+    {
+      "id": "missing-voice-is-actionable",
+      "name": "A missing voice names the download command",
+      "description": "The configured voice is not installed in the resolved voices directory",
+      "input": "/Dev10x:tts synthesize narration with an uninstalled voice",
+      "assertions": [
+        {
+          "dimension": "failure-visibility",
+          "check": "output_contains",
+          "value": "download_voices",
+          "signal": "The error names the download command with the resolved voices directory"
+        },
+        {
+          "dimension": "failure-visibility",
+          "check": "behavioral",
+          "value": "stop-on-error",
+          "signal": "The run stops rather than producing a silent video or an empty track"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "should_trigger": [
+      "Narration or voice-over audio is needed for a walkthrough recording",
+      "A Dev10x:qa-self capture should be narrated",
+      "Text needs to be synthesized to speech with a local Piper voice"
+    ],
+    "should_not_trigger": [
+      "Capturing the walkthrough recording itself (use Dev10x:qa-self)",
+      "Converting or verifying evidence files (use qa-self's own scripts)",
+      "Analyzing a PR for QA needs (use Dev10x:qa-scope)"
+    ]
+  }
+}

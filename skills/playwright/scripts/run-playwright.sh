@@ -15,11 +15,13 @@
 #
 # Scripts import the shared annotation module via os.environ:
 #   DEV10X_PLAYWRIGHT_LIB  (skills/playwright/lib)
+#   DEV10X_TTS_SCRIPT      (skills/tts/scripts/synthesize.py, for narration)
 
 set -euo pipefail
 
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="$(cd "${SCRIPTS_DIR}/../lib" && pwd)"
+SKILLS_DIR="$(cd "${SCRIPTS_DIR}/../.." && pwd)"
 
 SECRETS_FILE="${PLAYWRIGHT_SECRETS_FILE:-/work/example/app-e2e/settings.secrets.env}"
 STAGING_URL="https://staging-app.example.com"
@@ -114,5 +116,20 @@ export CRM_USERNAME="$CRM_USERNAME"
 export CRM_PASSWORD="$CRM_PASSWORD_RESOLVED"
 export STAGING_URL
 export DEV10X_PLAYWRIGHT_LIB="$LIB_DIR"
+# narration.py shells out to this wrapper rather than to piper, so the
+# generated script never hard-codes a path to either.
+#
+# A missing wrapper is warned about but NOT fatal: narration is opt-in and
+# most captures are silent, so exiting here would break runs that never
+# wanted audio. Leaving the variable unset makes narration.py raise its own
+# actionable error, which only a narrated run will ever reach.
+DEV10X_TTS_SCRIPT="${SKILLS_DIR}/tts/scripts/synthesize.py"
+if [[ -f "$DEV10X_TTS_SCRIPT" ]]; then
+    export DEV10X_TTS_SCRIPT
+else
+    echo "Warning: TTS wrapper not found at $DEV10X_TTS_SCRIPT" >&2
+    echo "  Narration will be unavailable; silent capture is unaffected." >&2
+    unset DEV10X_TTS_SCRIPT
+fi
 
 VIRTUAL_ENV="" uv run --with playwright python3 "$SCRIPT"
