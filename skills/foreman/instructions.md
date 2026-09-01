@@ -143,9 +143,13 @@ turn are the most precious resources on site:
      tick). Any reply is strong evidence of liveness: resume it with a
      corrective brief instead of replacing it.
   3. Only if it stays silent through that SECOND window does takeover
-     proceed — `TaskStop` + respawn from `manifest.md` and the newest
-     heartbeats: the foreman does this for a crew worker, the watchdog
-     for a silent foreman.
+     proceed — the foreman handles a crew worker, the watchdog a
+     silent foreman. `TaskStop`, then pick the path by what the corpse
+     left behind: nothing committed → respawn from `manifest.md` and
+     the newest heartbeats; **complete but UNCOMMITTED work →
+     watchdog-driven lifecycle completion in the ORIGINAL worktree,
+     never a respawn**, because a fresh `Agent(isolation="worktree")`
+     gets a new worktree and reports success on a tree it cannot see.
 
   Never skip step 1 because spend went flat, and disambiguate the
   signal first (GH-972 F1/F3, GH-971 F3) — the watcher's mtime also
@@ -155,6 +159,9 @@ turn are the most precious resources on site:
   authority-token wording every foreman prompt must include:
   `references/stall-protocol.md` and
   [`references/generation-authority.md`](references/generation-authority.md).
+  Who may enter a dead worker's tree, and the two sanctioned recovery
+  paths when it holds uncommitted work:
+  [`references/worktree-recovery.md`](references/worktree-recovery.md).
 - `BASE MOVED` → relay to the foreman (it instructs the active worker
   to rebase, re-verify, and never merge on stale ancestry).
 - **`MERGE REQUEST <chunk>` from the foreman → run the merge gate.**
