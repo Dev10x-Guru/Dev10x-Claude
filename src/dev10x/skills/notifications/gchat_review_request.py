@@ -13,6 +13,7 @@ from typing import Any
 
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.skills.common.jtbd import extract_jtbd, md_to_slack_bold
+from dev10x.skills.notifications import gchat_cards
 from dev10x.skills.notifications._gh import (  # noqa: F401  (GhCommandError re-exported for the CLI except)
     GhCommandError,
     gh_json,
@@ -27,6 +28,28 @@ def load_yaml(path: Path) -> dict:
     return yaml.safe_load(path.read_text()) or {}
 
 
+def _resolution(
+    *,
+    skip: bool = False,
+    ask: bool = False,
+    space: str | None = None,
+    mentions: list[str] | None = None,
+    card: bool = False,
+) -> dict[str, Any]:
+    """Every branch of ``resolve_project_config`` returns this one shape.
+
+    Built through a single constructor so a key added for one branch — as
+    ``card`` was — cannot be missed on the others.
+    """
+    return {
+        "skip": skip,
+        "ask": ask,
+        "space": space,
+        "mentions": mentions if mentions is not None else [],
+        "card": card,
+    }
+
+
 def resolve_project_config(config: dict, repo_name: str) -> dict[str, Any]:
     projects = config.get("projects", {})
     default_action = config.get("default_action", "ask")
@@ -34,18 +57,17 @@ def resolve_project_config(config: dict, repo_name: str) -> dict[str, Any]:
     if repo_name in projects:
         entry = projects[repo_name]
         if entry.get("skip", False):
-            return {"skip": True, "ask": False, "space": None, "mentions": []}
-        return {
-            "skip": False,
-            "ask": False,
-            "space": entry.get("space"),
-            "mentions": entry.get("mentions", []),
-        }
+            return _resolution(skip=True)
+        return _resolution(
+            space=entry.get("space"),
+            mentions=entry.get("mentions", []),
+            card=entry.get("card", config.get("default_card", False)),
+        )
 
     if default_action == "skip":
-        return {"skip": True, "ask": False, "space": None, "mentions": []}
+        return _resolution(skip=True)
 
-    return {"skip": False, "ask": True, "space": None, "mentions": []}
+    return _resolution(ask=True)
 
 
 def resolve_mention(mention: str, gchat_config: dict) -> str:
@@ -80,6 +102,37 @@ def format_review_message(
     if jtbd:
         lines.append(f"> {md_to_slack_bold(jtbd)}")
     return "\n".join(lines)
+
+
+def format_review_card(
+    pr_number: int,
+    repo: str,
+    pr_url: str,
+    pr_title: str,
+    jtbd: str | None,
+) -> dict[str, Any]:
+    """Render the review request as a cardsV2 panel (GH-1113).
+
+    Mentions are deliberately absent — a card does not resolve
+    ``<users/ID>`` tokens, so they ride in the message's ``text`` field
+    that accompanies this card.
+    """
+    widgets: list[dict[str, Any]] = []
+    if jtbd:
+        widgets.append(gchat_cards.text_paragraph(jtbd))
+    widgets.append(gchat_cards.button_list([gchat_cards.link_button(text="Open PR", url=pr_url)]))
+    return gchat_cards.card(
+        card_id=f"review-{_repo_name(repo)}-{pr_number}",
+        title=pr_title,
+        subtitle=f"{_repo_name(repo)}#{pr_number}",
+        sections=[gchat_cards.section(widgets=widgets)],
+    )
+
+
+def format_card_notice(resolved_mentions: list[str]) -> str:
+    """The plain-text half of a card message — carries the mentions."""
+    mentions_prefix = f"{' '.join(resolved_mentions)} " if resolved_mentions else ""
+    return f"{mentions_prefix}Please review"
 
 
 def cmd_prepare(args: argparse.Namespace) -> None:
@@ -139,18 +192,28 @@ def cmd_prepare(args: argparse.Namespace) -> None:
         resolved_mentions=resolved_mentions,
     )
 
-    print(
-        json.dumps(
-            {
-                "skip": False,
-                "ask": False,
-                "space": project["space"],
-                "mentions": project["mentions"],
-                "resolved_mentions": resolved_mentions,
-                "message": message,
-                "pr_url": pr["url"],
-                "pr_title": pr["title"],
-            },
-            indent=2,
+    envelope: dict[str, Any] = {
+        "skip": False,
+        "ask": False,
+        "space": project["space"],
+        "mentions": project["mentions"],
+        "resolved_mentions": resolved_mentions,
+        "message": message,
+        "pr_url": pr["url"],
+        "pr_title": pr["title"],
+        "card": None,
+        "fallback_text": None,
+    }
+    if project["card"]:
+        envelope["card"] = format_review_card(
+            pr_number=args.pr,
+            repo=args.repo,
+            pr_url=pr["url"],
+            pr_title=pr["title"],
+            jtbd=jtbd,
         )
-    )
+        envelope["fallback_text"] = gchat_cards.plain_text_fallback(message)
+        # Mentions cannot notify from inside a card, so the text half keeps them.
+        envelope["message"] = format_card_notice(resolved_mentions=resolved_mentions)
+
+    print(json.dumps(envelope, indent=2))

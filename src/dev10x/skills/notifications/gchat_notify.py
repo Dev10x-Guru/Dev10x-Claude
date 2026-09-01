@@ -27,6 +27,7 @@ from pathlib import Path
 from dev10x import subprocess_utils
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.skills.notifications import gchat_cards
 
 log = logging.getLogger(__name__)
 
@@ -287,9 +288,48 @@ def _post_json(
         return err(f"{urllib.parse.urlsplit(url).netloc} unreachable: {ex.reason}")
 
 
-def post_message(*, space_id: str, text: str, token: str) -> Result[str]:
+def build_message_payload(
+    *,
+    text: str | None = None,
+    cards: list[dict] | None = None,
+    fallback_text: str | None = None,
+) -> Result[dict]:
+    """Assemble the Chat ``messages.create`` body (GH-1113).
+
+    ``text`` and ``cards`` are independent: a message may carry either or
+    both. Sending both is the norm for a notification, because a card
+    renders rich formatting but does NOT resolve ``<users/ID>`` mentions —
+    only ``text`` notifies the people named in it.
+    """
+    if not text and not cards:
+        return err("A Google Chat message needs text, cards, or both.")
+    payload: dict = {}
+    if text:
+        payload["text"] = text
+    if cards:
+        payload["cardsV2"] = cards
+        # Without fallbackText a card reads as blank in mobile notifications,
+        # so derive one from the text half. An empty string would be no
+        # better than the omission it replaces — leave the key out instead.
+        fallback = fallback_text or gchat_cards.plain_text_fallback(text or "")
+        if fallback:
+            payload["fallbackText"] = fallback
+    return ok(payload)
+
+
+def post_message(
+    *,
+    space_id: str,
+    token: str,
+    text: str | None = None,
+    cards: list[dict] | None = None,
+    fallback_text: str | None = None,
+) -> Result[str]:
+    payload_result = build_message_payload(text=text, cards=cards, fallback_text=fallback_text)
+    if isinstance(payload_result, ErrorResult):
+        return payload_result
     url = f"{CHAT_API_BASE}/spaces/{space_id}/messages"
-    result = _post_json(url, {"text": text}, token)
+    result = _post_json(url, payload_result.value, token)
     if isinstance(result, ErrorResult):
         return result
     name = result.value.get("name")
@@ -298,21 +338,42 @@ def post_message(*, space_id: str, text: str, token: str) -> Result[str]:
     return ok(name)
 
 
-def send_gchat_message(*, space: str, message: str) -> Result[str]:
+def send_gchat_message(
+    *,
+    space: str,
+    message: str | None = None,
+    cards: list[dict] | None = None,
+    fallback_text: str | None = None,
+) -> Result[str]:
     space_result = resolve_space_id(space)
     if isinstance(space_result, ErrorResult):
         return space_result
     token_result = mint_chat_token()
     if isinstance(token_result, ErrorResult):
         return token_result
-    resolved = resolve_mentions(message)
-    return post_message(space_id=space_result.value, text=resolved, token=token_result.value)
+    return post_message(
+        space_id=space_result.value,
+        token=token_result.value,
+        text=resolve_mentions(message) if message else None,
+        cards=cards,
+        fallback_text=resolve_mentions(fallback_text) if fallback_text else None,
+    )
 
 
-def notify_gchat(*, space: str, message: str) -> Result[str]:
+def notify_gchat(
+    *,
+    space: str,
+    message: str | None = None,
+    cards: list[dict] | None = None,
+    fallback_text: str | None = None,
+) -> Result[str]:
     """Single service entry for sending a Google Chat message.
 
     Returns ``ok(message_name)`` or ``err(reason)``; callers own their own
     user-facing output formatting (mirrors ``slack_notify.notify_slack``).
+    Pass ``cards`` (built with ``gchat_cards``) for a formatted cardsV2
+    panel, optionally alongside ``message`` so mentions still notify.
     """
-    return send_gchat_message(space=space, message=message)
+    return send_gchat_message(
+        space=space, message=message, cards=cards, fallback_text=fallback_text
+    )

@@ -33,7 +33,20 @@ class TestResolveProjectConfig:
             "ask": False,
             "space": "tt-reviews",
             "mentions": ["@team"],
+            "card": False,
         }
+
+    def test_repo_opts_into_card_mode(self) -> None:
+        config = {"projects": {"my-app": {"space": "s", "card": True}}}
+        assert mod.resolve_project_config(config=config, repo_name="my-app")["card"] is True
+
+    def test_default_card_applies_to_configured_repo(self) -> None:
+        config = {"default_card": True, "projects": {"my-app": {"space": "s"}}}
+        assert mod.resolve_project_config(config=config, repo_name="my-app")["card"] is True
+
+    def test_repo_can_opt_out_of_default_card(self) -> None:
+        config = {"default_card": True, "projects": {"my-app": {"space": "s", "card": False}}}
+        assert mod.resolve_project_config(config=config, repo_name="my-app")["card"] is False
 
     def test_skip_repo(self) -> None:
         config = {"projects": {"my-app": {"skip": True}}}
@@ -78,6 +91,57 @@ class TestFormatReviewMessage:
         assert "> When a customer pays" in msg
 
 
+class TestFormatReviewCard:
+    def _card(self, *, jtbd: str | None) -> dict:
+        return mod.format_review_card(
+            pr_number=42,
+            repo="org/my-app",
+            pr_url="https://github.com/org/my-app/pull/42",
+            pr_title="Fix payment routing",
+            jtbd=jtbd,
+        )
+
+    def test_header_carries_title_and_repo_reference(self) -> None:
+        header = self._card(jtbd=None)["card"]["header"]
+        assert header["title"] == "Fix payment routing"
+        assert header["subtitle"] == "my-app#42"
+
+    def test_card_id_is_stable_per_pr(self) -> None:
+        assert self._card(jtbd=None)["cardId"] == "review-my-app-42"
+
+    def test_renders_jtbd_as_formatted_paragraph(self) -> None:
+        widgets = self._card(jtbd="**When** x, **they want to** y.")["card"]["sections"][0][
+            "widgets"
+        ]
+        assert widgets[0]["textParagraph"]["text"] == "<b>When</b> x, <b>they want to</b> y."
+
+    def test_omits_paragraph_when_no_jtbd(self) -> None:
+        widgets = self._card(jtbd=None)["card"]["sections"][0]["widgets"]
+        assert len(widgets) == 1
+        assert "buttonList" in widgets[0]
+
+    def test_always_offers_an_open_pr_button(self) -> None:
+        widgets = self._card(jtbd=None)["card"]["sections"][0]["widgets"]
+        assert widgets[-1]["buttonList"]["buttons"] == [
+            {
+                "text": "Open PR",
+                "onClick": {"openLink": {"url": "https://github.com/org/my-app/pull/42"}},
+            }
+        ]
+
+    def test_card_carries_no_mentions(self) -> None:
+        # Mentions only notify from a message's text field, never from a card.
+        assert "GROUP" not in str(self._card(jtbd=None))
+
+
+class TestFormatCardNotice:
+    def test_prefixes_resolved_mentions(self) -> None:
+        assert mod.format_card_notice(resolved_mentions=["<GROUP>"]) == "<GROUP> Please review"
+
+    def test_omits_prefix_when_no_mentions(self) -> None:
+        assert mod.format_card_notice(resolved_mentions=[]) == "Please review"
+
+
 class TestCmdPrepare:
     def test_skip_emits_skip_json(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -117,6 +181,51 @@ class TestCmdPrepare:
         assert out["space"] == "tt-reviews"
         assert "<GROUP> Please review" in out["message"]
         assert out["resolved_mentions"] == ["<GROUP>"]
+
+    def test_text_mode_emits_no_card(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        self._wire_configured(monkeypatch, card=False)
+        mod.cmd_prepare(SimpleNamespace(pr=42, repo="org/my-app"))
+        import json
+
+        out = json.loads(capsys.readouterr().out)
+        assert out["card"] is None
+        assert out["fallback_text"] is None
+
+    def test_card_mode_emits_card_and_moves_body_out_of_message(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        self._wire_configured(monkeypatch, card=True)
+        mod.cmd_prepare(SimpleNamespace(pr=42, repo="org/my-app"))
+        import json
+
+        out = json.loads(capsys.readouterr().out)
+        assert out["card"]["card"]["header"]["title"] == "Fix routing"
+        assert out["message"] == "<GROUP> Please review"
+        assert "Fix routing" in out["fallback_text"]
+
+    def _wire_configured(self, monkeypatch: pytest.MonkeyPatch, *, card: bool) -> None:
+        def fake_load(path):  # noqa: ANN001, ANN202
+            if path == mod.Dev10xConfigDir.gchat_review_config_yaml():
+                return {
+                    "projects": {
+                        "my-app": {"space": "tt-reviews", "mentions": ["@team"], "card": card}
+                    }
+                }
+            return {"user_groups": {"@team": "<GROUP>"}}
+
+        monkeypatch.setattr(mod, "load_yaml", fake_load)
+        monkeypatch.setattr(
+            mod,
+            "gh_json",
+            lambda args: {
+                "number": 42,
+                "title": "Fix routing",
+                "body": "When x, I want y, so I can z.",
+                "url": "https://github.com/org/my-app/pull/42",
+            },
+        )
 
     def test_unconfigured_emits_ask_json(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]

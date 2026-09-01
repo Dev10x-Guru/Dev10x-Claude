@@ -137,11 +137,41 @@ For multi-line messages, use the Write tool to create a temp file and pass
 | `--space` | Space alias from `gchat-config.yaml` (required) |
 | `--message` | Message text |
 | `--message-file` | Read message body from a file |
+| `--card-title` | Render the body as a cardsV2 panel with this header |
+| `--card-subtitle` | Subtitle under `--card-title` |
+| `--card-file` | Post hand-authored card JSON from a file |
+| `--fallback-text` | Notification text when a card cannot render |
 
 ## Formatting
 
-Google Chat markup: `*bold*`, `_italic_`, `<url|text>`, `>quote`.
-Mentions: `<users/USER_ID>`, `<users/all>`, or the configured group token.
+**Plain text** (default). Google Chat markup: `*bold*`, `_italic_`,
+`<url|text>`, `>quote`. Mentions: `<users/USER_ID>`, `<users/all>`, or
+the configured group token.
+
+**Cards (v2 panels).** `--card-title` moves the body into a `cardsV2`
+panel, translating the same markup into the HTML subset a card renders —
+`<b> <i> <u> <s> <a href> <br> <code> <pre> <ul> <ol> <li>` — buying
+headers, bullet lists and link buttons that plain text cannot express:
+
+```bash
+uvx dev10x skill notify gchat-send \
+  --space tt-reviews --card-title "Nightly run" --message-file summary.md
+```
+
+**Mentions do not work inside a card.** Only a message's `text` field
+resolves `<users/ID>` tokens. Since `--card-title` leaves nothing in
+`text`, a mention in that body stops notifying — to mention someone and
+still get a panel, pass `--message` for the mention line and
+`--card-file` for the panel (in-process: `message=` plus `cards=`).
+
+For a panel beyond one body of text, build the JSON with
+`dev10x.skills.notifications.gchat_cards` (`text_paragraph`, `divider`,
+`link_button`, `button_list`, `section`, `card`). `--card-file` accepts a
+`cardsV2` array, a single `{cardId, card}`, or a bare card object.
+
+`fallbackText` is what Chat shows in a mobile notification when the card
+cannot render; it is derived from the message body unless you pass
+`--fallback-text`, so a card is never silently unnotifiable.
 
 ## Error Handling
 
@@ -156,7 +186,12 @@ Mentions: `<users/USER_ID>`, `<users/all>`, or the configured group token.
 | `auth.method is 'impersonate' but auth.service_account is not set` | Incomplete auth block | Add `service_account:` under `auth:` in `gchat-config.yaml` |
 | App not findable under *Add apps* in the space | Interactive features off, missing Visibility entry, or propagation lag | Enable interactive features + *Join spaces*, add the user to Visibility, then allow a few minutes after saving |
 
-## Non-goals (v1)
+## Non-goals
 
-File upload, message update/delete, reactions, threading, rich cards.
-These exist for Slack but are intentionally out of scope for Google Chat v1.
+File upload, message update/delete, reactions, threading. These exist
+for Slack but remain out of scope for Google Chat.
+
+Rich cards **were** a v1 non-goal; GH-1113 lifted that — see § Formatting.
+Interactive card widgets (`textInput`, `selectionInput`, `dateTimePicker`)
+stay out of scope: they only pay off with an endpoint that handles the
+interaction callback, and this is a post-only bot.

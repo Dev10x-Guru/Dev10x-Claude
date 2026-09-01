@@ -215,7 +215,24 @@ class TestGchatSend:
         )
 
         assert result.exit_code != 0
-        assert "Provide --message or --message-file" in result.output
+        assert "Provide --message, --message-file, or --card-file" in result.output
+
+    def _capture_notify(
+        self, monkeypatch: pytest.MonkeyPatch, captured: dict[str, object]
+    ) -> None:
+        def fake_notify(
+            *,
+            space: str,
+            message: str | None = None,
+            cards: list[dict] | None = None,
+            fallback_text: str | None = None,
+        ) -> Result[str]:
+            captured.update(space=space, message=message, cards=cards, fallback_text=fallback_text)
+            return ok("spaces/A/messages/X")
+
+        from dev10x.skills.notifications import gchat_notify
+
+        monkeypatch.setattr(gchat_notify, "notify_gchat", fake_notify)
 
     def test_calls_notify_gchat(
         self,
@@ -223,15 +240,7 @@ class TestGchatSend:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         captured: dict[str, object] = {}
-
-        def fake_notify(*, space: str, message: str) -> Result[str]:
-            captured["space"] = space
-            captured["message"] = message
-            return ok("spaces/A/messages/X")
-
-        from dev10x.skills.notifications import gchat_notify
-
-        monkeypatch.setattr(gchat_notify, "notify_gchat", fake_notify)
+        self._capture_notify(monkeypatch, captured)
 
         result = runner.invoke(
             cli,
@@ -241,7 +250,120 @@ class TestGchatSend:
         assert result.exit_code == 0, result.output
         assert captured["space"] == "tt-reviews"
         assert captured["message"] == "hi"
+        assert captured["cards"] is None
         assert "spaces/A/messages/X" in result.output
+
+    def test_card_title_wraps_body_in_a_panel(
+        self,
+        runner: CliRunner,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        captured: dict[str, object] = {}
+        self._capture_notify(monkeypatch, captured)
+
+        result = runner.invoke(
+            cli,
+            [
+                "skill",
+                "notify",
+                "gchat-send",
+                "--space",
+                "tt-reviews",
+                "--message",
+                "*hi*",
+                "--card-title",
+                "Nightly",
+                "--card-subtitle",
+                "run 4",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        cards = captured["cards"]
+        assert isinstance(cards, list)
+        assert cards[0]["card"]["header"] == {"title": "Nightly", "subtitle": "run 4"}
+        assert cards[0]["card"]["sections"][0]["widgets"][0]["textParagraph"]["text"] == (
+            "<b>hi</b>"
+        )
+        # The body moved into the panel; duplicating it as text would double-post.
+        assert captured["message"] is None
+
+    def test_card_title_and_card_file_are_mutually_exclusive(
+        self, runner: CliRunner, tmp_path: Path
+    ) -> None:
+        card_file = tmp_path / "card.json"
+        card_file.write_text("[]")
+
+        result = runner.invoke(
+            cli,
+            [
+                "skill",
+                "notify",
+                "gchat-send",
+                "--space",
+                "s",
+                "--message",
+                "hi",
+                "--card-title",
+                "T",
+                "--card-file",
+                str(card_file),
+            ],
+        )
+        assert result.exit_code != 0
+        assert "not both" in result.output
+
+    def test_card_subtitle_requires_card_title(self, runner: CliRunner) -> None:
+        result = runner.invoke(
+            cli,
+            [
+                "skill",
+                "notify",
+                "gchat-send",
+                "--space",
+                "s",
+                "--message",
+                "hi",
+                "--card-subtitle",
+                "sub",
+            ],
+        )
+        assert result.exit_code != 0
+        assert "--card-subtitle requires --card-title" in result.output
+
+    def test_card_file_posts_raw_json_alongside_the_message(
+        self,
+        runner: CliRunner,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        captured: dict[str, object] = {}
+        self._capture_notify(monkeypatch, captured)
+
+        card_file = tmp_path / "card.json"
+        card_file.write_text('[{"cardId": "c1", "card": {"sections": []}}]')
+
+        result = runner.invoke(
+            cli,
+            [
+                "skill",
+                "notify",
+                "gchat-send",
+                "--space",
+                "s",
+                "--message",
+                "@team",
+                "--card-file",
+                str(card_file),
+                "--fallback-text",
+                "ping",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert captured["cards"] == [{"cardId": "c1", "card": {"sections": []}}]
+        assert captured["message"] == "@team"
+        assert captured["fallback_text"] == "ping"
 
     def test_reads_message_from_file(
         self,
@@ -250,14 +372,7 @@ class TestGchatSend:
         tmp_path: Path,
     ) -> None:
         captured: dict[str, object] = {}
-
-        def fake_notify(*, space: str, message: str) -> Result[str]:
-            captured["message"] = message
-            return ok("spaces/A/messages/X")
-
-        from dev10x.skills.notifications import gchat_notify
-
-        monkeypatch.setattr(gchat_notify, "notify_gchat", fake_notify)
+        self._capture_notify(monkeypatch, captured)
 
         msg_file = tmp_path / "msg.txt"
         msg_file.write_text("hello from file")
@@ -298,6 +413,49 @@ class TestGchatSend:
 
         assert result.exit_code == 1
         assert "no space" in result.output
+
+
+class TestLoadCards:
+    def _write(self, tmp_path: Path, content: str) -> Path:
+        card_file = tmp_path / "card.json"
+        card_file.write_text(content)
+        return card_file
+
+    def test_passes_through_a_cards_array(self, tmp_path: Path) -> None:
+        from dev10x.commands.skill import _load_cards
+
+        path = self._write(tmp_path, '[{"cardId": "c1", "card": {}}]')
+        assert _load_cards(path) == [{"cardId": "c1", "card": {}}]
+
+    def test_wraps_a_single_card_with_id(self, tmp_path: Path) -> None:
+        from dev10x.commands.skill import _load_cards
+
+        path = self._write(tmp_path, '{"cardId": "c1", "card": {"sections": []}}')
+        assert _load_cards(path) == [{"cardId": "c1", "card": {"sections": []}}]
+
+    def test_wraps_a_bare_card_object(self, tmp_path: Path) -> None:
+        from dev10x.commands.skill import _load_cards
+
+        path = self._write(tmp_path, '{"sections": []}')
+        assert _load_cards(path) == [{"cardId": "dev10x-message", "card": {"sections": []}}]
+
+    def test_rejects_malformed_json(self, tmp_path: Path) -> None:
+        import click
+
+        from dev10x.commands.skill import _load_cards
+
+        path = self._write(tmp_path, "{not json")
+        with pytest.raises(click.UsageError, match="not valid JSON"):
+            _load_cards(path)
+
+    def test_rejects_a_non_object_payload(self, tmp_path: Path) -> None:
+        import click
+
+        from dev10x.commands.skill import _load_cards
+
+        path = self._write(tmp_path, '"just a string"')
+        with pytest.raises(click.UsageError, match="cardsV2 array or a single card"):
+            _load_cards(path)
 
 
 def test_gchat_review_prepare_invokes_cmd_prepare(monkeypatch: pytest.MonkeyPatch) -> None:

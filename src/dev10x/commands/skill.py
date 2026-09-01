@@ -105,33 +105,100 @@ def slack_send(
     default=None,
     help="Read message body from this file",
 )
+@click.option(
+    "--card-title",
+    default=None,
+    help="Render the message as a cardsV2 panel with this header title",
+)
+@click.option("--card-subtitle", default=None, help="Subtitle for the --card-title header")
+@click.option(
+    "--card-file",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=None,
+    help="Read a raw cardsV2 array (or a single card) from this JSON file",
+)
+@click.option(
+    "--fallback-text",
+    default=None,
+    help="Plain-text shown in mobile notifications when the card cannot render",
+)
 def gchat_send(
     *,
     space: str,
     message: str | None,
     message_file: Path | None,
+    card_title: str | None,
+    card_subtitle: str | None,
+    card_file: Path | None,
+    fallback_text: str | None,
 ) -> None:
     """Send a Google Chat message via the importable gchat_notify module.
 
     Posts through the private Chat bot (service-account app auth). Mirrors
     `slack-send`; works under `uvx` because the logic lives in the package.
+
+    Plain text by default. `--card-title` moves the message body into a
+    cardsV2 panel so its markup renders as formatted text; `--card-file`
+    supplies hand-authored card JSON alongside the message instead.
+
+    A card cannot resolve mentions, and `--card-title` leaves no text
+    behind, so pair `--message` with `--card-file` when the notification
+    has to reach a person.
     """
-    if not message and not message_file:
-        raise click.UsageError("Provide --message or --message-file.")
+    if not message and not message_file and not card_file:
+        raise click.UsageError("Provide --message, --message-file, or --card-file.")
+    if card_title and card_file:
+        raise click.UsageError("Use --card-title or --card-file, not both.")
+    if card_subtitle and not card_title:
+        raise click.UsageError("--card-subtitle requires --card-title.")
 
-    from dev10x.skills.notifications import gchat_notify
+    from dev10x.skills.notifications import gchat_cards, gchat_notify
 
-    msg: str
+    msg: str | None = None
     if message_file is not None:
         msg = message_file.read_text()
-    else:
-        msg = message  # type: ignore[assignment]  # validated above
+    elif message is not None:
+        msg = message
 
-    result = gchat_notify.notify_gchat(space=space, message=msg)
+    cards: list[dict] | None = None
+    if card_file is not None:
+        cards = _load_cards(card_file)
+    elif card_title is not None:
+        # --card-title excludes --card-file, and the first guard already
+        # rejected a call with no body, so a body is guaranteed here.
+        assert msg is not None
+        cards = [
+            gchat_cards.simple_card(
+                card_id="dev10x-message", body=msg, title=card_title, subtitle=card_subtitle
+            )
+        ]
+        # The body now lives in the panel; leaving it in `text` duplicates it.
+        msg = None
+
+    result = gchat_notify.notify_gchat(
+        space=space, message=msg, cards=cards, fallback_text=fallback_text
+    )
     if isinstance(result, ErrorResult):
         click.echo(f"❌ {result.error}", err=True)
         sys.exit(1)
     click.echo(f"✅ Google Chat message sent! name={result.value}")
+
+
+def _load_cards(card_file: Path) -> list[dict]:
+    """Accept a cardsV2 array, one CardWithId, or a bare Card object."""
+    import json
+
+    try:
+        parsed = json.loads(card_file.read_text())
+    except json.JSONDecodeError as ex:
+        raise click.UsageError(f"{card_file} is not valid JSON: {ex}") from ex
+    if isinstance(parsed, list):
+        return parsed
+    if not isinstance(parsed, dict):
+        raise click.UsageError(f"{card_file} must hold a cardsV2 array or a single card object.")
+    if "card" in parsed:
+        return [parsed]
+    return [{"cardId": "dev10x-message", "card": parsed}]
 
 
 @notify.command(name="gchat-review-prepare")

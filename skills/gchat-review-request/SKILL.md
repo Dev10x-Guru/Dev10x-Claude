@@ -32,16 +32,24 @@ shared Dev10x config home):
 
 ```yaml
 default_action: ask  # "skip" or "ask" for unconfigured repos
+default_card: false  # opt in to cardsV2 panels for every repo
 projects:
   my-app:
     space: tt-reviews      # alias from gchat-config.yaml
     mentions:
       - "@dev-team-fe"     # user group -> native group mention token
+    card: true             # render as a cardsV2 panel (per-repo override)
   internal-tools:
     skip: true
 ```
 
 Mentions resolve against `gchat-config.yaml` `user_groups` and `users`.
+
+`card` (per-repo, falling back to `default_card`, default `false`) picks
+the notification shape. Plain text keeps the current single-message form;
+`card: true` renders a panel — PR title as the card header, the Job Story
+as formatted text, and an *Open PR* button — accompanied by a short text
+line that carries the mentions, because a card cannot resolve them.
 
 ## Flow
 
@@ -76,7 +84,11 @@ uvx dev10x skill notify gchat-review-prepare --pr {pr_number} --repo {repo}
 ```
 
 Output JSON keys: `skip`, `ask`, `space`, `message`, `reason`,
-`resolved_mentions`, `pr_url`, `pr_title`.
+`resolved_mentions`, `pr_url`, `pr_title`, `card`, `fallback_text`.
+
+`card` is `null` unless the repo opted into card mode; when it is set,
+`message` shrinks to the mentions line and the formatted body lives in
+the card.
 
 ### Step 2: Handle result
 
@@ -95,6 +107,11 @@ Output JSON keys: `skip`, `ask`, `space`, `message`, `reason`,
 Delegate to `Skill(Dev10x:gchat)` — write the message to a temp file and pass it:
 
 `Skill(skill="Dev10x:gchat", args="--space {space} --message-file {temp_file}")`
+
+When `card` is non-null, write that JSON to a second temp file and pass
+both halves so the mentions still notify:
+
+`Skill(skill="Dev10x:gchat", args="--space {space} --message-file {temp_file} --card-file {card_file} --fallback-text {fallback_text}")`
 
 **NEVER** call the CLI `gchat-send` directly from here — delegate to the
 `Dev10x:gchat` skill so transport rules stay centralized.
