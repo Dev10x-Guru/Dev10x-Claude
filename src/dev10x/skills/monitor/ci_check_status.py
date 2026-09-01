@@ -326,11 +326,15 @@ def poll_until_terminal(
     way the poll budget still bounds the loop, so a leg that never settles
     ends the wait rather than hanging it.
 
-    The default budget (`initial_wait 60 + poll_interval 30 * max_polls 40`
-    = 1320s) is kept below the ~1800s MCP idle-timeout so a `wait=true`
-    call returns a verdict rather than being torn down mid-poll (GH-808 F2).
-    A caller needing longer coverage re-invokes rather than raising the
-    budget past that ceiling.
+    The default poll budget (`initial_wait 60 + poll_interval 30 * 39`
+    = 1230s — ×39, not ×40, because the loop skips the sleep after the
+    final poll) is kept below the ~1800s MCP idle-timeout so a
+    `wait=true` call returns a verdict rather than being torn down
+    mid-poll (GH-808 F2). So is the distinct 1320s subprocess cap
+    (`initial_wait + poll_interval * max_polls + 60`) that
+    `dev10x.monitor` puts on this script — do not read 1320s as the
+    poll budget (GH-1104). A caller needing longer coverage re-invokes
+    rather than raising the budget past that ceiling.
     """
     # Fast path (GH-1088): a caller that reaches this after CI already
     # finished should not pay `initial_wait` for a verdict that is already

@@ -27,8 +27,10 @@ async def ci_check_status(
         wait: Poll until terminal verdict (green/failing/conflicting)
         poll_interval: Seconds between polls (default 30)
         initial_wait: Initial wait before first poll (default 60)
-        max_polls: Maximum number of polls (default 40, keeping the total
-            wait ~1320s under the ~1800s MCP idle-timeout, GH-808 F2)
+        max_polls: Maximum number of polls (default 40, keeping the
+            in-loop poll budget at 1230s and this call's subprocess cap
+            at 1320s, both under the ~1800s MCP idle-timeout — they are
+            two different ceilings, GH-808 F2, GH-1104)
         wait_out_pending: Under ``wait``, keep polling through a failed
             NON-required check until no leg is pending (default True,
             GH-1065). A failed REQUIRED check still returns immediately.
