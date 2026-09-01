@@ -497,6 +497,12 @@ groups:
       - Bash(ffprobe:*)
       - Bash(convert:*)
       - Bash(java -jar ~/.local/bin/plantuml.jar:*)
+      # Piper reads a text file and writes a WAV — it never reaches the
+      # network and never mutates anything but its own output path, so it
+      # sits at the same tier as ffmpeg rather than behind a prompt. Voice
+      # models are fetched separately (see Dev10x:tts § Installing a voice),
+      # which is why no download form is allowed here.
+      - Bash(piper:*)
 
   aws-readonly:
     tier: 3

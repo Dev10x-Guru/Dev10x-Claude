@@ -5,6 +5,10 @@ headless recording followable: a pointer that indicates one exact
 coordinate, captions whose dwell is derived from their own length, and a
 ``click`` wrapper that fixes the point -> narrate -> act ordering.
 
+An optional ``Narration`` (``narration.py``) speaks the captions as well
+as showing them; without one this module behaves exactly as it did before
+narration existed.
+
 Three properties are load-bearing and were each a defect before this
 module existed (GH-1087, GH-1086):
 
@@ -202,10 +206,16 @@ def target_center(box: dict[str, float] | None) -> tuple[float, float]:
 
 
 class Annotator:
-    """Pointer + caption overlay bound to one Playwright page."""
+    """Pointer + caption overlay bound to one Playwright page.
 
-    def __init__(self, page: Any) -> None:
+    Pass a ``Narration`` (see ``narration.py``) to speak the captions as
+    well as show them. Narration is opt-in: without one, every behaviour
+    below is exactly what it was before narration existed.
+    """
+
+    def __init__(self, page: Any, narration: Any | None = None) -> None:
         self._page = page
+        self._narration = narration
 
     def install(self) -> None:
         """Install the overlay for this document and every later one.
@@ -213,19 +223,41 @@ class Annotator:
         ``add_init_script`` is registered on the browser *context*, so
         the overlay is rebuilt after each navigation; the immediate
         ``evaluate`` covers the document already loaded when this runs.
+
+        With narration attached this also pre-renders every declared line
+        in one piper process, so no ``say()`` pays a model load mid-take.
         """
         script = overlay_script()
         self._page.context.add_init_script(script)
         self._page.evaluate(script)
+        if self._narration is not None:
+            self._narration.prerender()
 
     def say(self, text: str, *, settle: bool = True) -> None:
-        """Show a caption and hold for its length-derived dwell.
+        """Show a caption and hold for as long as it takes to read or hear.
+
+        Dwell comes from the narration audio when this line was
+        pre-rendered, and from the caption's own length otherwise. Deriving
+        it from the audio is what keeps the caption and the voice-over on
+        the same beat — two independent estimates drift.
 
         Call this only AFTER a navigation completes — the overlay is
         re-created per document, so a caption set before ``goto`` is
         wiped by the page load and the step plays silently.
         """
-        dwell = caption_dwell_ms(text)
+        dwell = None
+        if self._narration is not None:
+            dwell = self._narration.dwell_ms(text)
+        if dwell is None:
+            dwell = caption_dwell_ms(text)
+
+        # Record BEFORE the caption is shown: the offset must mark when the
+        # viewer first sees the line, which is also when the audio must
+        # start. Recording after the settle sleep would cue every clip one
+        # dwell late.
+        if self._narration is not None:
+            self._narration.record(text, dwell)
+
         self._page.evaluate(
             "([text, dwell]) => window.__dxAnnotate.caption(text, dwell)",
             [text, dwell],
