@@ -2136,6 +2136,7 @@ class TestPostSummaryComment:
         assert "rate limit" in result.error
 
 
+@pytest.mark.usefixtures("stub_feature_branch")
 class TestCreatePr:
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
@@ -2273,6 +2274,7 @@ _LONG_BODY = (
 )
 
 
+@pytest.mark.usefixtures("stub_feature_branch")
 class TestCreatePrBodyOverride:
     """GH-1073 — a caller-supplied body reaches GitHub intact."""
 
@@ -2427,6 +2429,7 @@ class TestCreatePrHead:
         mock_run.assert_not_called()
 
 
+@pytest.mark.usefixtures("stub_feature_branch")
 class TestCreatePrMilestone:
     """GH-1098 — the created PR carries a milestone."""
 

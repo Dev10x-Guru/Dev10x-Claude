@@ -1,6 +1,7 @@
 import subprocess
 from collections.abc import Generator
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 from factory.random import reseed_random
@@ -113,6 +114,23 @@ def _isolate_dev10x_config_home(
     Dev10xConfigDir.reset_cache()
     yield
     Dev10xConfigDir.reset_cache()
+
+
+@pytest.fixture
+def stub_feature_branch() -> Generator[MagicMock, None, None]:
+    """Pin ``create_pr``'s branch-detection seam to a feature branch (GH-1124).
+
+    The GH-873 F1 guard refuses to open a PR when HEAD is on a base branch.
+    Left unstubbed, every ``create_pr`` test's verdict depends on which branch
+    CI happened to check out — green on a feature branch, red on a ``develop``
+    push, which left the base branch permanently red. Tests exercising
+    ``create_pr``'s *other* behaviour request this fixture so the guard is
+    never the thing under test; the guard keeps its own ambient-independent
+    coverage in ``TestCreatePrBaseBranchGuard``.
+    """
+    with patch("dev10x.domain.git_context.GitContext") as mock_git_context:
+        mock_git_context.return_value.branch = "janusz/GH-1124/test-isolation"
+        yield mock_git_context
 
 
 @pytest.fixture(autouse=True)
