@@ -1,0 +1,222 @@
+{
+  "skill_name": "Dev10x:yt-upload",
+  "eval_dimensions": [
+    {
+      "id": "provenance-gate",
+      "name": "Production-Recording Gate",
+      "description": "The operator states the recording's provenance via AskUserQuestion before the first upload, and a production recording is never published"
+    },
+    {
+      "id": "artifact-selection",
+      "name": "Single-Artifact Selection",
+      "description": "Exactly one video per run is published, preferring the narrated take when a sibling -narrated.mp4 exists"
+    },
+    {
+      "id": "narration-visibility",
+      "name": "Narration Defect Visibility",
+      "description": "Unrendered captions and an install anchor are surfaced before publishing, never silently uploaded"
+    },
+    {
+      "id": "destination-forms",
+      "name": "Per-Destination Embed Forms",
+      "description": "linear_markdown and github_markdown are used verbatim for their own destination and never interchanged or hand-rebuilt"
+    },
+    {
+      "id": "wrapper-delegation",
+      "name": "Wrapper Delegation",
+      "description": "gog and the YouTube API are reached only through scripts/upload-video.py, never as raw calls"
+    },
+    {
+      "id": "failure-visibility",
+      "name": "Failure Visibility",
+      "description": "A missing scope, wrong channel, or unconfigured account produces an actionable error on stdout naming the fix"
+    }
+  ],
+  "evals": [
+    {
+      "id": "provenance-gate-fires-before-upload",
+      "name": "Provenance gate fires before the first upload",
+      "description": "A recording is handed over for publishing with no prior provenance statement in the session",
+      "input": "/Dev10x:yt-upload publish the walkthrough at /tmp/Dev10x/self-qa/gh-42/video/qa-gh-42.mp4",
+      "assertions": [
+        {
+          "dimension": "provenance-gate",
+          "check": "tool_called",
+          "value": "AskUserQuestion",
+          "signal": "AskUserQuestion is called before any upload subcommand runs"
+        },
+        {
+          "dimension": "provenance-gate",
+          "check": "output_contains",
+          "value": "Unlisted is not private",
+          "signal": "The gate states why provenance matters rather than asking a bare yes/no"
+        },
+        {
+          "dimension": "provenance-gate",
+          "check": "output_not_contains",
+          "value": "upload --video",
+          "signal": "No upload invocation appears before the gate is answered"
+        }
+      ]
+    },
+    {
+      "id": "prior-approval-does-not-satisfy-gate",
+      "name": "A caller's review approval does not satisfy the provenance gate",
+      "description": "Invoked from Dev10x:qa-self after its Phase 4.4 Approve, which covers footage quality but not world-readability",
+      "input": "/Dev10x:yt-upload publish the approved qa-self walkthrough for GH-42",
+      "assertions": [
+        {
+          "dimension": "provenance-gate",
+          "check": "tool_called",
+          "value": "AskUserQuestion",
+          "signal": "The provenance gate still fires even though the caller already gated on footage quality"
+        }
+      ]
+    },
+    {
+      "id": "narrated-take-wins",
+      "name": "The narrated take is published, not the silent sibling",
+      "description": "The run directory holds both qa-gh-42.mp4 and qa-gh-42-narrated.mp4",
+      "input": "/Dev10x:yt-upload publish the walkthrough from /tmp/Dev10x/self-qa/gh-42",
+      "assertions": [
+        {
+          "dimension": "artifact-selection",
+          "check": "output_contains",
+          "value": "resolve-video --run-dir",
+          "signal": "Artifact choice goes through resolve-video rather than an ad-hoc glob or a guess"
+        },
+        {
+          "dimension": "artifact-selection",
+          "check": "output_contains",
+          "value": "-narrated.mp4",
+          "signal": "The narrated variant is the one passed to upload"
+        },
+        {
+          "dimension": "artifact-selection",
+          "check": "behavioral",
+          "value": "single-upload",
+          "signal": "Exactly one upload invocation runs — the silent sibling is not also published"
+        }
+      ]
+    },
+    {
+      "id": "narration-defects-block-silent-publish",
+      "name": "Unrendered captions are surfaced before publishing",
+      "description": "narration.json reports a non-empty unrendered list for the resolved take",
+      "input": "/Dev10x:yt-upload publish the narrated walkthrough from /tmp/Dev10x/self-qa/gh-42",
+      "assertions": [
+        {
+          "dimension": "narration-visibility",
+          "check": "output_contains",
+          "value": "unrendered",
+          "signal": "The unrendered captions are reported to the operator with their actual lines"
+        },
+        {
+          "dimension": "narration-visibility",
+          "check": "behavioral",
+          "value": "surface-before-publish",
+          "signal": "The defect is stated before any upload runs, not after the URL is returned"
+        }
+      ]
+    },
+    {
+      "id": "destination-forms-used-verbatim",
+      "name": "Each destination gets its own returned form",
+      "description": "The returned URLs are posted to both a Linear ticket and a GitHub PR",
+      "input": "/Dev10x:yt-upload publish the walkthrough and give me the ticket and PR markdown",
+      "assertions": [
+        {
+          "dimension": "destination-forms",
+          "check": "output_contains",
+          "value": "linear_markdown",
+          "signal": "The bare watch URL from linear_markdown is what goes to Linear"
+        },
+        {
+          "dimension": "destination-forms",
+          "check": "output_contains",
+          "value": "github_markdown",
+          "signal": "The linked poster frame from github_markdown is what goes to GitHub"
+        },
+        {
+          "dimension": "destination-forms",
+          "check": "output_not_contains",
+          "value": "img.youtube.com](https://linear.app",
+          "signal": "A YouTube poster is never used inside Linear, where it does not render"
+        }
+      ]
+    },
+    {
+      "id": "no-raw-gog-invocation",
+      "name": "Publishing always routes through the wrapper",
+      "description": "A video is uploaded end to end",
+      "input": "/Dev10x:yt-upload publish a staging walkthrough recording",
+      "assertions": [
+        {
+          "dimension": "wrapper-delegation",
+          "check": "output_contains",
+          "value": "skills/yt-upload/scripts/upload-video.py",
+          "signal": "Every gog and API interaction goes through the wrapper script path"
+        },
+        {
+          "dimension": "wrapper-delegation",
+          "check": "output_not_contains",
+          "value": "gog auth tokens export",
+          "signal": "No bare gog token export appears in the transcript"
+        }
+      ]
+    },
+    {
+      "id": "missing-scope-is-actionable",
+      "name": "A grant without youtube.upload names the re-auth command",
+      "description": "The stored gog grant can read YouTube but not publish to it",
+      "input": "/Dev10x:yt-upload check",
+      "assertions": [
+        {
+          "dimension": "failure-visibility",
+          "check": "output_contains",
+          "value": "youtube.upload",
+          "signal": "The error names the missing scope and the --extra-scopes re-auth form"
+        },
+        {
+          "dimension": "failure-visibility",
+          "check": "output_contains",
+          "value": "gog auth list",
+          "signal": "The fix tells the operator to copy the existing service list first, so other grants are not dropped"
+        },
+        {
+          "dimension": "failure-visibility",
+          "check": "behavioral",
+          "value": "stop-on-error",
+          "signal": "The run stops rather than attempting an upload that cannot succeed"
+        }
+      ]
+    },
+    {
+      "id": "unconfigured-account-does-not-guess",
+      "name": "No account resolves to an actionable error, not a default",
+      "description": "No --account flag, no env var, and no yt-upload.yaml entry covers this checkout",
+      "input": "/Dev10x:yt-upload check",
+      "assertions": [
+        {
+          "dimension": "failure-visibility",
+          "check": "output_contains",
+          "value": "pin --account",
+          "signal": "The error names the pin command instead of inventing an account default"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "should_trigger": [
+      "A video file needs to become a shareable link",
+      "A QA walkthrough recording should be posted to a ticket and a PR",
+      "A bug repro recording needs an embeddable URL"
+    ],
+    "should_not_trigger": [
+      "Capturing the walkthrough recording itself (use Dev10x:qa-self)",
+      "Converting or verifying evidence files (use qa-self's own scripts)",
+      "Synthesizing narration audio (use Dev10x:tts)",
+      "Publishing a full QA evidence set to a ticket and PR (use Dev10x:qa-publish)"
+    ]
+  }
+}

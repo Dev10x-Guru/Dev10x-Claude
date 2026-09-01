@@ -549,10 +549,12 @@ bad take either way. Review locally first.
 
 Only on *Approve* proceed to 4.5. Never upload first and ask after.
 
-#### 4.5 Upload to Linear
+#### 4.5 Upload the evidence
 
-Use the upload script bundled with this skill (supports images and
-video):
+Only reachable on *Approve* from 4.4.
+
+**Linear** — use the upload script bundled with this skill (supports
+images and video):
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/skills/qa-self/scripts/upload-screenshots.py \
   upload /tmp/Dev10x/self-qa/qa-test1.jpg /tmp/Dev10x/self-qa/qa-test2.jpg /tmp/Dev10x/self-qa/qa-video.mp4
@@ -564,6 +566,34 @@ for the comment.
 **Key**: The script includes signed headers from the `fileUpload`
 mutation response. Without these headers, uploads appear to succeed but
 files fail to load.
+
+**When the walkthrough also has to reach a PR**, Linear-hosted assets
+are not enough: `uploads.linear.app` 401s for anyone on GitHub, and
+GitHub strips the iframe a player would need. Delegate to
+`Dev10x:yt-upload` for a shareable link rather than restating upload
+mechanics here — it owns the production-recording gate, the token
+handling, and the per-destination embed forms:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/skills/yt-upload/scripts/upload-video.py \
+  resolve-video --run-dir <RUN_DIR>
+```
+
+`resolve-video` picks the single artifact to publish — the narrated take
+when a sibling `-narrated.mp4` exists — and re-reports the same
+`unrendered` / `warning` / `anchor` fields 4.4 surfaced, so a direct
+invocation cannot skip them.
+
+**The 4.4 gate does not carry over to YouTube.** Approving *that the
+footage is good* is a different decision from approving *that it may
+become world-readable to any link-holder*, so `Dev10x:yt-upload` fires
+its own provenance gate. That is by design — do not try to satisfy it
+with 4.4's answer.
+
+For a full write-up to both a ticket and a PR — verdict, threaded
+Jira-synced comment, per-destination screenshots — use
+`Dev10x:qa-publish`, which composes this skill's scripts with
+`Dev10x:yt-upload`.
 
 ### Phase 5: Post Results to Linear
 
