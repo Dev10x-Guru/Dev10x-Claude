@@ -230,7 +230,8 @@ uv run --with 'playwright>=1.47,<2' python3 -m playwright install chromium
 | `KeyError: CF_CLIENT_ID` | Script uses hardcoded creds — replace with `os.environ[...]` |
 | `net::ERR_NAME_NOT_RESOLVED` on the first `goto` | The run is pointed at the placeholder host. Set `STAGING_URL` in the wrapper's environment — it defers to a caller's value (GH-1130) |
 | `--user` rejects an account that exists | Its `CRM_USERNAME<suffix>` / `CRM_PASSWORD<suffix>` pair is missing from the secrets file. The error names the two keys to add |
-| Clicking Print hangs the run with no error | `window.print()` opens a browser modal that stops Playwright dead. Patch `print` in **both** realms (top window via `add_init_script`, and the iframe's own) — see `references/recording-for-humans.md` |
+| Clicking Print hangs the run with no error | `window.print()` opens a browser modal that stops Playwright dead. Patch `print` in **both** realms — see [`references/print-capture.md`](references/print-capture.md) |
+| PII wandered into frame | `Annotator(page, redact=[...])` — opaque masks that survive navigation. See [`references/redaction.md`](references/redaction.md) |
 | Phone shows +61 | Prepend `1` for US country code |
 | Button click doesn't register | `scroll_into_view_if_needed()` + `time.sleep(0.5)` |
 | Screenshot misses snackbar | Screenshot immediately after `wait_for_selector`, not after sleep |

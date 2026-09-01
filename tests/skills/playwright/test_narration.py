@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -27,6 +28,10 @@ def _load(name: str):
     )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
+    # Registered before exec because `@dataclass` resolves annotations
+    # through `sys.modules[cls.__module__]`, which is how a generated
+    # script importing this off `DEV10X_PLAYWRIGHT_LIB` loads it anyway.
+    sys.modules[name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -195,7 +200,7 @@ class TestAnnotatorIntegration:
         anno.say("alpha")
 
         _, argument = page.evaluated[-1]
-        assert argument == ["alpha", 2400 + _narration.CAPTION_TAIL_MS]
+        assert argument == ["alpha", 2400 + _narration.CAPTION_TAIL_MS, None, "claim"]
 
     def test_say_without_narration_keeps_the_length_derived_dwell(self):
         page = FakePage()
@@ -204,7 +209,7 @@ class TestAnnotatorIntegration:
         anno.say("alpha")
 
         _, argument = page.evaluated[-1]
-        assert argument == ["alpha", _annotate.caption_dwell_ms("alpha")]
+        assert argument == ["alpha", _annotate.caption_dwell_ms("alpha"), None, "claim"]
 
     def test_undeclared_line_falls_back_rather_than_failing(self, tmp_path):
         narration = _narration.Narration(
@@ -216,7 +221,12 @@ class TestAnnotatorIntegration:
         anno.say("undeclared line")
 
         _, argument = page.evaluated[-1]
-        assert argument == ["undeclared line", _annotate.caption_dwell_ms("undeclared line")]
+        assert argument == [
+            "undeclared line",
+            _annotate.caption_dwell_ms("undeclared line"),
+            None,
+            "claim",
+        ]
         assert narration.unrendered == ["undeclared line"]
 
     def test_install_prerenders_before_the_first_caption(self, tmp_path):
