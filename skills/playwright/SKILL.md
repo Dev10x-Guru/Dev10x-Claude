@@ -131,9 +131,12 @@ time.sleep(0.5)
 btn.click()
 ```
 
-For a **recorded** run, use `Annotator.click(btn, announce=...)` from
-`lib/annotate.py` instead — it does the scroll, asserts the target is
-in the viewport, points at it and narrates, in the order a viewer needs.
+For a **recorded** run, use `Annotator.tap(btn, announce=..., then=...)`
+from `lib/annotate.py` instead — it scrolls, asserts the target is
+actually inside the viewport, points at it, narrates, acts, and holds a
+beat, in the order a viewer needs. Every click on the recorded path goes
+through it; a bare `locator.click()` cuts between two states with
+nothing showing what was pressed.
 See [`references/recording-for-humans.md`](references/recording-for-humans.md).
 
 **Video pacing** — add sleeps for reviewable playback:
@@ -177,9 +180,16 @@ The wrapper:
 4. Runs `VIRTUAL_ENV="" uv run --with playwright python3 <script>`
 
 ### Install browsers (first time)
+
+Pin the version — an unbounded resolve picked up a release that refused
+to install a browser on a current Linux distro, reporting it as an OS
+problem rather than a resolver one (GH-1129):
+
 ```bash
-uv run --with playwright python3 -m playwright install chromium
+uv run --with 'playwright>=1.47,<2' python3 -m playwright install chromium
 ```
+
+`PLAYWRIGHT_SPEC` overrides the pin the wrapper runs scripts with.
 
 ## Common Failures
 

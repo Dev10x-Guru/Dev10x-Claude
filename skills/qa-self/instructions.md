@@ -274,13 +274,23 @@ import sys
 sys.path.insert(0, os.environ["DEV10X_PLAYWRIGHT_LIB"])
 from annotate import Annotator
 
-anno = Annotator(page)
+anno = Annotator(page, pace=1.0)   # one knob scales every derived dwell
 anno.install()          # installs for THIS document and every later one
 
 anno.say("Pick a customer — one click assigns them, no Save needed")
-anno.click(customer_row, announce="Choosing Hulk Smash from the list")
-anno.say("Done — assigned instantly, no extra clicks")
+anno.tap(customer_row,
+         announce="Choosing Hulk Smash from the list",
+         then="Done — assigned instantly, no extra clicks")
 ```
+
+**Every click on the recorded path goes through `anno.tap()` (or
+`anno.click()`) — this is a rule, not an example for the interesting
+steps.** A bare `locator.click()` cuts between two states with nothing
+on screen saying what was pressed, and longer sleeps are the wrong fix:
+they hold a still frame of an unexplained change. `tap()` ships the
+whole ordering — scroll → point → narrate → act → beat → outcome — so no
+script re-derives it. Budget **~2.5 minutes of footage per four test
+cases**; one measured run went 68s → 155s and was accepted first try.
 
 `run-playwright.sh` exports `DEV10X_PLAYWRIGHT_LIB`, so the import path
 is never hard-coded in the generated script.
@@ -294,7 +304,9 @@ What the module guarantees, and why each one matters:
 | Arrow tip is the path origin | A symmetrical dot indicates "somewhere around here" — useless for a grid cell, table row or checkbox |
 | Dwell computed from caption length | One fixed duration truncates long captions and drags short ones |
 | `click()` does point → narrate → act | Narrating first describes a target the viewer has not been shown yet |
-| `point_at` raises on a `None` bounding box | A silent `if box:` guard no-ops the step and publishes empty evidence |
+| `point_at` scrolls, then asserts the box is **inside the viewport** | `bounding_box()` answers for anything laid out, so a below-the-fold element passed the old `None` check and shipped as evidence for a claim it did not show (GH-1129) |
+| The caption flips to the top when the pointer is in the lower third | A caption at `bottom: 32px` lands on the evidence itself; caught only by extracting frames, and it cost a re-record |
+| `pace=` is the only pacing knob | `POINT_SETTLE_SECONDS` was a *default argument*, so patching it silently did nothing while patching the caption constants worked |
 
 **Set captions only AFTER a navigation completes.** The overlay is
 re-created per document, so a caption set before `goto` is wiped by the
@@ -341,6 +353,14 @@ Full guidance — pointer anatomy, palette, pacing, resolution — lives in
 
 #### 2.3 Test Data Strategy
 
+- **Build the fixture; do not hunt for one.** Creating the record in the
+  un-recorded setup phase is the default, not a preference. Querying for
+  a clean pre-existing fixture burns real time and usually finds none —
+  existing records are consumed by earlier runs or malformed. A built
+  fixture is deterministic and the run is re-runnable.
+- **Corollary: each capture iteration leaves fixture residue.** Three
+  takes leave three records behind, so published results must name
+  **exactly which record** the evidence shows.
 - **Self-contained tests**: Create test data within the test, don't
   depend on pre-existing records
 - **Unique identifiers**: Use `uuid.uuid4().hex[:6]` for names,
@@ -361,37 +381,67 @@ Take screenshots **immediately** after the expected UI state appears:
 - Before closing dialogs
 
 **Assert the subject is on screen at shoot time.** A screenshot
-taken while the target is absent or scrolled out of the viewport is
+taken while the target is scrolled out of the viewport is
 indistinguishable from a working feature — it is just a picture of
-something else. Route the shot through `Annotator.point_at()`, which
-raises on a `None` bounding box (and puts the pointer on the subject,
-which a "look here" screenshot wants anyway), rather than a silent
-`if box:` guard:
+something else. Route every shot through `Annotator.shoot()`, which
+scrolls, asserts the box is **inside the viewport**, points at the
+subject, captures, and records a manifest row:
 
 ```python
-def shoot(page, locator, name: str) -> None:
-    """Screenshot with the subject proven to be in the viewport."""
-    anno.point_at(locator)   # raises if the target is absent/off-screen
-    page.screenshot(path=f"{SCREENSHOT_DIR}/{name}")
-
 # Wait for the success indicator THEN shoot immediately
 try:
     page.wait_for_selector("text=Successfully updated", timeout=10000)
 except Exception:
     time.sleep(3)  # fallback wait
-shoot(page, page.get_by_text("Successfully updated"), "test1-success.png")
+
+anno.shoot(page.get_by_text("Successfully updated"),
+           f"{SCREENSHOT_DIR}/test1-success.png",
+           claim="The customer's details saved without a second click")
 ```
 
-Phase 4.1 verification catches a blank artifact after the fact; this
-assertion catches the *cause* at the moment of capture, while the run
-can still be fixed.
+**A non-`None` bounding box is not proof the element is visible**
+(GH-1129). `bounding_box()` returns coordinates for anything attached
+and laid out; `None` comes back only for detached or `display:none`
+elements. Off-screen is far more common than detached, because
+below-the-fold is the normal state of most of a long page — so the old
+`None`-only check passed screenshots pointed at figures nobody could
+see, and Phase 4.1 verification passed them too.
+
+Phase 4.1 catches a *blank* or *truncated* artifact after the fact. It
+is structurally incapable of catching **a picture of the wrong thing**:
+the image has a real file size and real stddev. Only the capture-time
+viewport assertion catches that, and it catches it while the run can
+still be fixed.
+
+**Wrap every un-recorded setup step so a failure leaves an artifact.** A
+locator timeout during setup otherwise yields a stack trace and nothing
+else:
+
+```python
+try:
+    wo_url = create_new_wo(setup_page)
+except Exception:
+    print(json.dumps(debug_dump(setup_page, "create-wo"), indent=2))
+    raise
+```
+
+`debug_dump` writes a full-page screenshot and returns every button's
+accessible name, sorted. That found a drifted label — the same control
+capitalised differently on two pages — on the very next run.
 
 ### Phase 3: Execute Tests
 
 #### 3.1 Install Playwright browsers (first time only)
 
+**Pin the version.** A bare `--with playwright` resolves to whatever is
+newest, and one recent release refused to install a browser at all on a
+current Linux distro — reporting the failure as *"does not support
+chromium on \<distro\>"*, which points at the OS rather than at the
+resolver and sends you the wrong way. `run-playwright.sh` pins the same
+range it runs scripts with; use it here too:
+
 ```bash
-uv run --with playwright python3 -m playwright install chromium
+uv run --with 'playwright>=1.47,<2' python3 -m playwright install chromium
 ```
 
 #### 3.2 Validate and run the test script
@@ -430,6 +480,18 @@ If tests fail, fix the script and re-run. Common issues:
 - Element not found = add `wait_for` or increase sleep
 - Wrong dealer data = e2e_test_user is dealer 382
 
+#### 3.4 Confirm the mechanism, not just the pixels (optional)
+
+Where the fix has an observable data signature, read it back and include
+it alongside the UI evidence. A UI can look correct for the wrong reason
+— a cached read, an unrelated code path, coincidence.
+
+*UI evidence shows the symptom is gone; data evidence shows that **this
+change** is why.* A GraphQL response captured by
+`setup_response_capture()`, or a read-only query on the record the
+fixture created, is usually enough. Skip it when the change has no data
+signature — an alignment fix has nothing to read back.
+
 ### Phase 4: Prepare Evidence
 
 #### 4.1 Verify the captured artifacts (REQUIRED before anything else)
@@ -460,10 +522,20 @@ if locator.count() > 0:      # ❌ no-ops without failing
 ```
 
 passes whether or not the target ever existed, so a missing feature
-looks identical to a working one. Assert instead: the expected selector
-must be present AND in-viewport (`bounding_box()` non-null) at shoot
-time. `Annotator.point_at()` raises on a `None` bounding box for exactly
-this reason.
+looks identical to a working one. Assert instead, by routing the shot
+through `Annotator.shoot()`.
+
+**"In-viewport" is not "`bounding_box()` non-null."** That check catches
+only detached and `display:none` elements; anything laid out below the
+fold returns a perfectly good box and sails through. `point_at()`
+scrolls first and then compares the box against `page.viewport_size`,
+which is the check that actually holds (GH-1129).
+
+And note the ceiling on this phase: the verifier catches *blank* and
+*truncated*. It cannot catch *a picture of the wrong thing* — that image
+has a real file size and real stddev. The capture-time assertion in 2.4
+is the only gate for that failure, and the 4.4 manifest is how a human
+double-checks it.
 
 #### 4.2 Convert screenshots
 
@@ -523,6 +595,23 @@ bad take either way. Review locally first.
    These three are computed precisely so a human sees them. Leaving them in
    the JSON and reporting only paths and sizes reintroduces the silent
    failure the manifest exists to prevent.
+
+   **Print the screenshot manifest — one `file → target → claim` row per
+   artifact**, from `anno.manifest_rows()`:
+
+   ```
+   tc3-total.png → Locator@get_by_text('Amount due') → Declining the tyre removed it from the bill
+   ```
+
+   This is the counter-measure to the capture-time defect in 2.4. It
+   turns review from *"does this look OK?"* — a question people answer
+   *yes* to while skimming — into *"does this image show **that**
+   element?"*, which is checkable in seconds and fails visibly.
+
+   `target` is `repr(locator)`, Playwright's own selector description.
+   Never substitute an author-written label: it drifts from the locator
+   it claims to describe, and then reassures the reviewer about the
+   wrong thing.
 2. Keep the sampled frames so the footage can be inspected without
    playing it, then **Read the saved frames** — the report's paths are
    only useful if someone actually looks at them:
@@ -653,7 +742,14 @@ If tests are blocked, leave in current status and note the blocker.
 | Dialog closes but status unchanged | `onClose` may be wired unconditionally (not to mutation success). Check DB or use `page.expect_response()` to confirm the mutation actually fired. A dialog can close via Escape, backdrop click, or explicit close handler without any mutation being called. |
 | Video not finalized (0 bytes) | Must `context.close()` before `browser.close()` to flush video — `verify-evidence.py` catches this before upload |
 | Captures vanish mid-session | Artifacts written under a pytest default basetemp are rotated away (last 3 kept) by a parallel session. Use the run-scoped `RUN_DIR`, and pass `--basetemp=<RUN_DIR>` for pytest-driven runs |
-| Screenshot published blank | A silent `if locator.count() > 0:` guard no-opped the step. Assert presence AND `bounding_box()` non-null at shoot time; run Phase 4.1 verification before upload |
+| Screenshot published blank | A silent `if locator.count() > 0:` guard no-opped the step. Route the shot through `Annotator.shoot()`; run Phase 4.1 verification before upload |
+| Screenshot shows the right page but not the asserted element | The target was below the fold. `bounding_box()` returns coordinates for anything laid out, so a `None`-only check passes it and so does `verify-evidence.py`. `point_at()` now scrolls and asserts against `page.viewport_size` (GH-1129) |
+| Caption sits on top of the element being pointed at | Captions live at `bottom: 32px`. The overlay now flips them to the top when the pointer is in the lower third — no call-site change needed |
+| Patching `POINT_SETTLE_SECONDS` changes nothing | It was bound as a default argument at import time. Use `Annotator(page, pace=…)`, the single knob for every derived duration |
+| Recorded clicks have no pointer or caption | The script used bare `locator.click()`. Every click on the recorded path goes through `anno.tap()` / `anno.click()` — a rule, not an example |
+| Setup step fails with only a stack trace | The setup phase is un-recorded. Wrap each step: `except Exception: print(json.dumps(debug_dump(page, tag))); raise` |
+| `playwright install chromium` says the OS is unsupported | `--with playwright` resolved to a newer release than the wrapper was tested against. Pin it: `--with 'playwright>=1.47,<2'` |
+| Evidence names no specific record | Each capture iteration leaves fixture residue — three takes, three records. Name exactly which record the published evidence shows |
 | Overlay disappears after navigation | `page.evaluate` binds to one document. Use `Annotator.install()` (`add_init_script`), and set captions only after navigation completes |
 | Text looks smeared in the mp4 | CRF too high for screen content. `convert-evidence.sh` now encodes at CRF 18 with explicit `-pix_fmt yuv420p` |
 | Video is `.webm`, Linear can't play inline | Convert to `.mp4` with `convert-evidence.sh video` |
