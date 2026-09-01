@@ -479,6 +479,47 @@ class TestPostForm:
         assert "down" in result.error
 
 
+class TestBuildMessagePayload:
+    def test_text_only_payload_is_unchanged(self) -> None:
+        result = mod.build_message_payload(text="hi")
+        assert isinstance(result, SuccessResult)
+        assert result.value == {"text": "hi"}
+
+    def test_cards_only_payload_omits_an_empty_fallback(self) -> None:
+        # An empty fallbackText is no better than none — leave the key out.
+        cards = [{"cardId": "c1", "card": {"sections": []}}]
+        result = mod.build_message_payload(cards=cards)
+        assert isinstance(result, SuccessResult)
+        assert result.value == {"cardsV2": cards}
+
+    def test_carries_text_and_cards_together(self) -> None:
+        cards = [{"cardId": "c1", "card": {"sections": []}}]
+        result = mod.build_message_payload(text="@team review", cards=cards)
+        assert isinstance(result, SuccessResult)
+        assert result.value["text"] == "@team review"
+        assert result.value["cardsV2"] == cards
+
+    def test_derives_fallback_text_from_message_markup(self) -> None:
+        result = mod.build_message_payload(
+            text="*Please review* [PR](https://example.com)",
+            cards=[{"cardId": "c1", "card": {}}],
+        )
+        assert isinstance(result, SuccessResult)
+        assert result.value["fallbackText"] == "Please review PR"
+
+    def test_explicit_fallback_text_wins(self) -> None:
+        result = mod.build_message_payload(
+            text="hi", cards=[{"cardId": "c1", "card": {}}], fallback_text="override"
+        )
+        assert isinstance(result, SuccessResult)
+        assert result.value["fallbackText"] == "override"
+
+    def test_errors_when_neither_text_nor_cards_given(self) -> None:
+        result = mod.build_message_payload()
+        assert isinstance(result, ErrorResult)
+        assert "text, cards, or both" in result.error
+
+
 class TestPostMessage:
     def test_posts_json_and_returns_message_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured: dict = {}
@@ -496,6 +537,30 @@ class TestPostMessage:
         assert captured["url"] == f"{mod.CHAT_API_BASE}/spaces/AAAA123/messages"
         assert captured["payload"] == {"text": "hi"}
         assert captured["token"] == "tok"
+
+    def test_posts_cards_payload(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured: dict = {}
+        cards = [{"cardId": "c1", "card": {"sections": []}}]
+
+        def fake_post_json(url, payload, token):  # noqa: ANN001, ANN202
+            captured["payload"] = payload
+            return ok({"name": "spaces/AAAA123/messages/XYZ"})
+
+        monkeypatch.setattr(mod, "_post_json", fake_post_json)
+        result = mod.post_message(space_id="AAAA123", cards=cards, token="tok")
+        assert isinstance(result, SuccessResult)
+        assert captured["payload"]["cardsV2"] == cards
+
+    def test_errors_before_posting_when_payload_is_empty(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            mod,
+            "_post_json",
+            lambda *a, **k: pytest.fail("_post_json must not be reached"),
+        )
+        result = mod.post_message(space_id="AAAA123", token="tok")
+        assert isinstance(result, ErrorResult)
 
     def test_errors_when_response_lacks_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(mod, "_post_json", lambda url, payload, token: ok({}))
@@ -518,8 +583,21 @@ class TestNotifyGchat:
         )
         monkeypatch.setattr(mod, "mint_access_token", lambda info: ok("tok"))
 
-        def fake_post_message(*, space_id, text, token):  # noqa: ANN001, ANN202
-            captured.update(space_id=space_id, text=text, token=token)
+        def fake_post_message(  # noqa: ANN202
+            *,
+            space_id,  # noqa: ANN001
+            token,  # noqa: ANN001
+            text=None,  # noqa: ANN001
+            cards=None,  # noqa: ANN001
+            fallback_text=None,  # noqa: ANN001
+        ):
+            captured.update(
+                space_id=space_id,
+                text=text,
+                token=token,
+                cards=cards,
+                fallback_text=fallback_text,
+            )
             return ok("spaces/AAAA123/messages/XYZ")
 
         monkeypatch.setattr(mod, "post_message", fake_post_message)
@@ -532,6 +610,29 @@ class TestNotifyGchat:
         assert result.value == "spaces/AAAA123/messages/XYZ"
         assert captured["text"] == "<GROUP> please review"
         assert captured["space_id"] == "AAAA123"
+        assert captured["cards"] is None
+
+    def test_forwards_cards_and_resolves_mentions_in_fallback(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        captured: dict = {}
+        self._wire(monkeypatch, captured)
+        cards = [{"cardId": "c1", "card": {"sections": []}}]
+        result = mod.notify_gchat(
+            space="tt-reviews", message="@team", cards=cards, fallback_text="@team review"
+        )
+        assert isinstance(result, SuccessResult)
+        assert captured["cards"] == cards
+        assert captured["fallback_text"] == "<GROUP> review"
+
+    def test_cards_only_send_passes_no_text(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured: dict = {}
+        self._wire(monkeypatch, captured)
+        cards = [{"cardId": "c1", "card": {"sections": []}}]
+        result = mod.notify_gchat(space="tt-reviews", cards=cards)
+        assert isinstance(result, SuccessResult)
+        assert captured["text"] is None
+        assert captured["fallback_text"] is None
 
     def test_short_circuits_on_missing_space(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(mod, "resolve_space_id", lambda alias: err("no space"))
