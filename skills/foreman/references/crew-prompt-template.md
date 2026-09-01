@@ -40,10 +40,17 @@ If a tool you already loaded later reports as unreachable, re-run that
 exact ToolSearch call ONCE before concluding it is gone — a worker
 past ~60 minutes can lose the MCP connection. Still unreachable after
 the retry: report it and STOP; never substitute raw CLI.
+
+A dropped connection can also swallow a WRITE with no error payload.
+So a state-changing call is a request, not a receipt: after every
+update_pr / create_pr / pr_ready / push_safe, re-read the field you
+set (pr_get body or isDraft; the remote SHA) and re-issue if it did
+not land. Never report a write as done on the call's return alone.
 ```
 
-The retry line is not optional politeness — evidence in
-[`worker-tool-shapes.md`](worker-tool-shapes.md) (GH-1063).
+Neither the retry nor the write-receipt line is optional politeness —
+evidence in [`worker-tool-shapes.md`](worker-tool-shapes.md) (GH-1063)
+and [`mcp-connectivity.md`](mcp-connectivity.md) (GH-1099).
 
 ## 3. Mission (lifecycle-split — workers stop at PR-open)
 

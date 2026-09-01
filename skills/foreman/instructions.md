@@ -173,6 +173,12 @@ turn are the most precious resources on site:
   watcher mutes the echo. Refuse the request if anything is pending,
   draft, conflicting, or carries `fixup!` commits, and send it back to
   the foreman with the failing check named.
+  **If the watchdog's OWN MCP surface has died, it cannot recover it —
+  `ToolSearch` does not re-resolve never-deferred top-level tools
+  (GH-1099).** Fall back to sanctioned `gh api` for the gate READS,
+  queue the merges rather than hand-rolling `gh pr merge`, and ask the
+  supervisor to run `/mcp`:
+  [`references/mcp-connectivity.md`](references/mcp-connectivity.md).
 - **`QUOTA LOW` → decide within the turn: finish or checkpoint, then
   park.** Within merge distance (PR open, CI green, no unresolved
   threads) → let it land, then park. Otherwise → relay a WIP

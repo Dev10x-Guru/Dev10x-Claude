@@ -104,6 +104,24 @@ behind it) touches shared state, it MUST follow the write-safety model:
   local `_SUBPROCESS_TIMEOUT_SECONDS` constant since they cannot import
   `dev10x`).
 
+### A write is a request, not a receipt (GH-1099)
+
+The MCP transport can drop mid-call and lose a **state-changing** call
+with no error payload — a field-observed `update_pr` never landed and
+returned nothing to say so. No `ErrorResult` is possible in that case,
+and the caller cannot tell it apart from a call that returned nothing;
+`skills/foreman/references/mcp-connectivity.md` has the full argument.
+
+So callers must not treat a write wrapper's return as proof of effect.
+After `update_pr`, `create_pr`, `pr_ready`, `push_safe`, `pr_labels`,
+`issue_*`, or `merge_pr`, re-read the specific field that was set —
+`pr_get` for a body or `isDraft`, the remote SHA for a push, `state`
+for an issue close — rather than checking only that the object exists.
+The branch-on-`"error"` rule above still holds; it just does not cover
+the case where nothing comes back at all. Dev10x owns no keepalive on
+that hop and cannot add one, so reconnect-on-demand is not
+implementable in this repo (GH-1072).
+
 The `reviewer-generic` checklist enforces both on `**/*.py` changes.
 
 ## Canonical Parameter Shapes
