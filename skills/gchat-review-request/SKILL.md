@@ -32,24 +32,29 @@ shared Dev10x config home):
 
 ```yaml
 default_action: ask  # "skip" or "ask" for unconfigured repos
-default_card: false  # opt in to cardsV2 panels for every repo
+default_card: true   # cardsV2 panels for every repo (the default)
 projects:
   my-app:
     space: tt-reviews      # alias from gchat-config.yaml
     mentions:
       - "@dev-team-fe"     # user group -> native group mention token
-    card: true             # render as a cardsV2 panel (per-repo override)
+  plain-text-repo:
+    space: tt-reviews
+    card: false            # opt this repo out, back to plain text
   internal-tools:
     skip: true
 ```
 
 Mentions resolve against `gchat-config.yaml` `user_groups` and `users`.
 
-`card` (per-repo, falling back to `default_card`, default `false`) picks
-the notification shape. Plain text keeps the current single-message form;
-`card: true` renders a panel — PR title as the card header, the Job Story
-as formatted text, and an *Open PR* button — accompanied by a short text
-line that carries the mentions, because a card cannot resolve them.
+**Cards are the default.** A review request renders as a panel — PR title
+as the card header, the Job Story as formatted text, and an *Open PR*
+button — accompanied by a short text line carrying the mentions, because
+a card cannot resolve them.
+
+Two opt-outs remain, narrowest first: a per-repo `card: false`, and a
+global `default_card: false`. Either restores the single plain-text
+message; the per-repo key wins over the global one.
 
 ## Flow
 
@@ -86,9 +91,9 @@ uvx dev10x skill notify gchat-review-prepare --pr {pr_number} --repo {repo}
 Output JSON keys: `skip`, `ask`, `space`, `message`, `reason`,
 `resolved_mentions`, `pr_url`, `pr_title`, `card`, `fallback_text`.
 
-`card` is `null` unless the repo opted into card mode; when it is set,
-`message` shrinks to the mentions line and the formatted body lives in
-the card.
+`card` holds the panel unless the repo opted out, in which case it is
+`null`. When set, `message` shrinks to the mentions line and the
+formatted body lives in the card.
 
 ### Step 2: Handle result
 
