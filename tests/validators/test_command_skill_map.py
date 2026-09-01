@@ -456,3 +456,59 @@ class TestNpmMonorepoBlock:
         rule = _rule_by_name("node-tests-npm-monorepo")
         desc = " ".join(c.get("description", "") for c in rule["compensations"])
         assert 'cwd="' in desc
+
+
+class TestGh1117ForLoopEntry:
+    """GH-1117: a plain loop batching individually allow-listed commands is
+    recognized and steered to parallel single-shot calls."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "for b in a b c\n  git rev-list --count origin/develop..$b\nend",
+            "for f in *.py; do git log --oneline $f; done",
+            "git ls-files | xargs wc -l",
+        ],
+    )
+    def test_loop_shapes_recognized(self, command: str) -> None:
+        rule = _rule_by_name("for-loop-handrolled")
+        assert _matches_any_pattern(rule=rule, command=command)
+
+    @pytest.mark.parametrize(
+        "command",
+        ["git rev-list --count origin/develop..HEAD", "git diff --shortstat"],
+    )
+    def test_single_shot_commands_not_matched(self, command: str) -> None:
+        rule = _rule_by_name("for-loop-handrolled")
+        assert not _matches_any_pattern(rule=rule, command=command)
+
+    def test_ci_shaped_loop_left_to_ci_rule(self) -> None:
+        rule = _rule_by_name("for-loop-handrolled")
+        cmd = "for i in 1 2 3; do gh pr checks 42; done"
+        assert any(exc in cmd for exc in rule["except"])
+
+    def test_routes_to_split_commands_first(self) -> None:
+        rule = _rule_by_name("for-loop-handrolled")
+        assert rule["compensations"][0]["type"] == "split-commands"
+
+    def test_offers_grep_for_search_shapes(self) -> None:
+        assert "Grep" in _compensation_targets(_rule_by_name("for-loop-handrolled"))
+
+    def test_is_advisory_not_blocking(self) -> None:
+        # Genuine shell orchestration over an unknown-at-authoring-time list
+        # is legitimate; a hard block would misfire on it (GH-1117).
+        assert _rule_by_name("for-loop-handrolled")["hook_block"] is False
+
+    def test_patterns_compile(self) -> None:
+        for pattern in _rule_by_name("for-loop-handrolled")["patterns"]:
+            re.compile(pattern)
+
+    @pytest.mark.parametrize("specific", ["ci-loop-handrolled", "watch-loop-handrolled"])
+    def test_follows_the_specific_loop_rules(self, specific: str) -> None:
+        # `;\s*do\b` also matches the CI/watch shapes — first-match-wins must
+        # keep those on the rule carrying the richer compensation.
+        names = [r.get("name") for r in _load_rules()]
+        assert names.index(specific) < names.index("for-loop-handrolled")
+
+    def test_names_diag_friction_as_related(self) -> None:
+        assert "Dev10x:diag-friction" in _rule_by_name("for-loop-handrolled")["related"]

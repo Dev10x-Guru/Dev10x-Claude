@@ -1000,6 +1000,47 @@ rules:
       - Dev10x:foreman
       - Dev10x:gh-pr-monitor
 
+  # Placed AFTER ci-loop-handrolled and watch-loop-handrolled: this is the
+  # general loop case, and `;\s*do\b` also matches their shapes. First-match-
+  # wins keeps a CI or watch loop on the rule carrying the richer
+  # ci_check_status / `dev10x foreman watch` compensation (GH-1117).
+  - name: for-loop-handrolled
+    matcher: Bash
+    patterns:
+      - "^\\s*for\\s+\\w+\\s+in\\s"
+      - ";\\s*do\\b"
+      - "\\bxargs\\b"
+    except:
+      - "gh pr checks"
+      - "gh pr view"
+    hook_block: false
+    compensations:
+      - type: split-commands
+        description: >
+          Issue one Bash call per item, all in the SAME assistant message —
+          the harness fans them out in parallel. Each call then matches the
+          inner command's own allow-rule, which a loop wrapper defeats:
+          the effective prefix becomes the loop construct, matching nothing.
+          A loop over 8 branches is 8 parallel calls, not one prompt.
+      - type: use-tool
+        tool: Grep
+        guardrails: internalizes iteration for count/search shapes
+        description: >
+          When the loop body is a search or per-file count, Grep with
+          output_mode="count" / "files_with_matches" replaces it entirely.
+    reason: >
+      A `for`/`xargs` loop over a known list defeats allow-rule matching for
+      commands that are individually pre-approved, converting N approved
+      calls into one unmatchable command. Unlike the CI and watch loop rules,
+      this needs no sleep and no gh payload — it is the general case, and
+      currently produces a raw permission prompt with no steer (GH-1117).
+
+      Parallel single-shot calls are strictly better here: same wall-clock
+      (the harness fans them out), and the supervisor sees one approval
+      scope per command rather than one opaque approval for the loop.
+    related:
+      - Dev10x:diag-friction
+
   - name: cat-grep-pipeline
     matcher: Bash
     patterns:
