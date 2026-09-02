@@ -61,13 +61,21 @@ settings and config files in shape."
 
 | Mode | Steps | When to use |
 |------|-------|-------------|
-| `bootstrap` | version-check, 2, 3, 5 | First-time setup; eliminate prompts on the demoed skill set without doing a full sweep |
-| `full` (default) | version-check, 1–8 | Post-upgrade; suspected permission friction; long-term maintenance |
+| `bootstrap` | version-check, 2, 3, 4, 7, 8 | First-time setup; eliminate prompts on the demoed skill set without doing a full sweep |
+| `full` (default) | version-check, 1–13 | Post-upgrade; suspected permission friction; long-term maintenance |
 
 `bootstrap` is intentionally fast and idempotent: ensure base
 permissions, migrate any leftover legacy config files, and confirm
 script coverage. It skips destructive cleanup (generalize, clean
 project files) and the heavier `permission-auditor` sweep.
+
+The **Steps** column names the numbered `##` headings below; the
+per-mode `TaskCreate` lists in § Orchestration are the executable
+contract. Keep the two in sync. GH-1127 traced its doubt about whether
+`upgrade-cleanup` reaches `ensure-base` to this table drifting out of
+step with them — it omitted step 4 from `bootstrap` (the `ensure-base`
+step, tagged `[bootstrap]` in its own heading) and stopped `full` at 8,
+dropping five steps each marked *(full only)*.
 
 ## Argument Parsing
 
