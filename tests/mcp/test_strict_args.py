@@ -88,6 +88,18 @@ class TestEnforceStrictArguments:
 
         assert enforce_strict_arguments(server_with_tool) == []
 
+    def test_field_alias_is_an_accepted_inbound_name(self) -> None:
+        # A pydantic alias is the wire name the client actually sends, so
+        # rejecting it would break a legitimate call rather than a typo'd one.
+        from pydantic import BaseModel, Field
+
+        from dev10x.mcp.strict_args import _accepted_names
+
+        class Aliased(BaseModel):
+            pr_number: int = Field(alias="prNumber")
+
+        assert _accepted_names(Aliased) == {"pr_number", "prNumber"}
+
     def test_missing_tool_manager_raises_rather_than_silently_doing_nothing(
         self,
     ) -> None:

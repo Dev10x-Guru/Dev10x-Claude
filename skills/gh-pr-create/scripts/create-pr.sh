@@ -37,13 +37,29 @@ if [ -n "$FIXES_URL" ]; then
     #
     # Blank line before the trailer so the block renders as its own
     # paragraph and stays last in the body (GH-945).
-    FIXES_LINES=""
+    # Split ONLY when every token is a real reference. A trailer like
+    # `none — self-motivated` is prose, not a list, and splitting it
+    # would emit three bogus Fixes lines.
     _fixes_normalized="${FIXES_URL//,/ }"
+    _fixes_splittable=1
     for ref in $_fixes_normalized; do
-        [ -z "$ref" ] && continue
-        FIXES_LINES+=$(printf 'Fixes: %s\n' "$ref")
-        FIXES_LINES+=$'\n'
+        case "$ref" in
+            http://*|https://*|\#[0-9]*|[A-Z]*-[0-9]*) ;;
+            *) _fixes_splittable=0 ;;
+        esac
     done
+
+    FIXES_LINES=""
+    if [ "$_fixes_splittable" -eq 1 ]; then
+        for ref in $_fixes_normalized; do
+            [ -z "$ref" ] && continue
+            FIXES_LINES+=$(printf 'Fixes: %s\n' "$ref")
+            FIXES_LINES+=$'\n'
+        done
+    else
+        FIXES_LINES=$(printf 'Fixes: %s\n' "$FIXES_URL")
+    fi
+
     if [ -n "$FIXES_LINES" ]; then
         FIXES_LINE=$(printf '\n\n%s' "$FIXES_LINES")
     fi
