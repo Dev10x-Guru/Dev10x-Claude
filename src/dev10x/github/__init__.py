@@ -2099,6 +2099,71 @@ async def issue_list(
     return ok({"issues": issues})
 
 
+async def triage_roster(*, repo: str | None = None) -> Result[dict[str, Any]]:
+    """Return the open milestones and label roster for filing triage (GH-1102).
+
+    The filing tools already accept ``milestone`` and ``labels``, but no
+    filing flow ever populated them: a 2026-08-30 sweep found 11 of 16 open
+    issues unmilestoned and 10 of 13 unlabeled, all filed through those
+    wrappers. A flow cannot choose from a taxonomy it cannot see, so this
+    is the read that makes ``Dev10x:ticket-create``'s triage step possible.
+
+    One composite call rather than separate milestone/label tools — a
+    caller triaging a new ticket always wants both, and ADR-0006 shapes
+    this server's surface to Dev10x workflows rather than to REST
+    endpoints.
+
+    Args:
+        repo: Repository (owner/repo). Auto-detected if omitted.
+
+    Returns:
+        ``{"milestones": [{number, title, description}, ...],
+           "labels": [{name, description}, ...]}``.
+    """
+    milestone_args = ["gh", "api", "--paginate"]
+    label_args = ["gh", "label", "list", "--limit", "100", "--json", "name,description"]
+    if repo:
+        milestone_path = f"repos/{repo}/milestones?state=open&per_page=100"
+        label_args.extend(["--repo", repo])
+    else:
+        # gh expands the {owner}/{repo} placeholders from the CWD's remote.
+        milestone_path = "repos/{owner}/{repo}/milestones?state=open&per_page=100"
+    milestone_args.append(milestone_path)
+
+    milestone_result = await async_run(args=milestone_args, timeout=30)
+    if milestone_result.returncode != 0:
+        return err(milestone_result.stderr.strip())
+
+    label_result = await async_run(args=label_args, timeout=30)
+    if label_result.returncode != 0:
+        return err(label_result.stderr.strip())
+
+    try:
+        raw_milestones = (
+            json.loads(milestone_result.stdout) if milestone_result.stdout.strip() else []
+        )
+        raw_labels = json.loads(label_result.stdout) if label_result.stdout.strip() else []
+    except json.JSONDecodeError:
+        return err("Invalid JSON output from milestone or label lookup")
+
+    return ok(
+        {
+            "milestones": [
+                {
+                    "number": m.get("number"),
+                    "title": m.get("title"),
+                    "description": m.get("description") or "",
+                }
+                for m in raw_milestones
+            ],
+            "labels": [
+                {"name": label.get("name"), "description": label.get("description") or ""}
+                for label in raw_labels
+            ],
+        }
+    )
+
+
 async def _bulk_execute(
     *,
     entries: list[dict[str, Any]],

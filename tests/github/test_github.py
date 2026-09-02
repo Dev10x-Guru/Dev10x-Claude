@@ -1722,6 +1722,90 @@ class TestIssueList:
         assert isinstance(result, ErrorResult)
 
 
+class TestTriageRoster:
+    """GH-1102: filing cannot propose a taxonomy it cannot read."""
+
+    @staticmethod
+    def _roster_responses() -> list[subprocess.CompletedProcess[str]]:
+        milestones = json.dumps(
+            [
+                {"number": 57, "title": "DX-M1", "description": "Session UX"},
+                {"number": 54, "title": "PLAT-M1", "description": None},
+            ]
+        )
+        labels = json.dumps(
+            [
+                {"name": "skill:fanout", "description": "Findings about fanout"},
+                {"name": "silent-failure", "description": None},
+            ]
+        )
+        return [_completed(stdout=milestones), _completed(stdout=labels)]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_returns_open_milestones_and_labels(self, mock_run: AsyncMock) -> None:
+        mock_run.side_effect = self._roster_responses()
+
+        result = await gh.triage_roster()
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["milestones"][0] == {
+            "number": 57,
+            "title": "DX-M1",
+            "description": "Session UX",
+        }
+        assert result.value["labels"][0]["name"] == "skill:fanout"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_null_descriptions_become_empty_strings(self, mock_run: AsyncMock) -> None:
+        # GitHub returns null, not "", for an unset description; a caller
+        # matching a ticket's theme against descriptions should not have to
+        # None-guard every entry.
+        mock_run.side_effect = self._roster_responses()
+
+        result = await gh.triage_roster()
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["milestones"][1]["description"] == ""
+        assert result.value["labels"][1]["description"] == ""
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_requests_only_open_milestones(self, mock_run: AsyncMock) -> None:
+        mock_run.side_effect = self._roster_responses()
+
+        await gh.triage_roster()
+
+        milestone_args = mock_run.call_args_list[0].kwargs["args"]
+        assert any("state=open" in arg for arg in milestone_args)
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_explicit_repo_scopes_both_lookups(self, mock_run: AsyncMock) -> None:
+        mock_run.side_effect = self._roster_responses()
+
+        await gh.triage_roster(repo="owner/name")
+
+        milestone_args = mock_run.call_args_list[0].kwargs["args"]
+        label_args = mock_run.call_args_list[1].kwargs["args"]
+        assert any("repos/owner/name/milestones" in arg for arg in milestone_args)
+        assert "--repo" in label_args and "owner/name" in label_args
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_label_lookup_failure_surfaces_as_error(self, mock_run: AsyncMock) -> None:
+        mock_run.side_effect = [
+            _completed(stdout="[]"),
+            _completed(returncode=1, stderr="rate limit"),
+        ]
+
+        result = await gh.triage_roster()
+
+        assert isinstance(result, ErrorResult)
+        assert "rate limit" in result.error
+
+
 class TestUpdatePr:
     @pytest.mark.asyncio
     @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
