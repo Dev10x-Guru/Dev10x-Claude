@@ -255,6 +255,31 @@ not always inherited. Practical consequences:
   are the authoritative sources for per-project rule coverage; trust
   their output over the upstream documentation.
 
+### The write path no longer assumes inheritance (GH-1136)
+
+`clean --aggressive` was made opt-in on the evidence above, but both
+*write* paths — `ensure_base()` and `seed_worktree()` — still encoded
+the opposite assumption: each filtered the rendered catalog against
+`~/.claude/settings.json` before writing. Because `include_user_settings`
+puts the global file in the settings-file list, the first run seeded
+global with the whole catalog and every later run found everything
+"already in global" and wrote nothing to any project file. Every catalog
+addition made after global was first seeded was a no-op for every project
+— measured at 137 of 285 rules missing, including `ls`, `rg`, `git show`,
+all 16 `git <base>-*` aliases and 38 MCP tools.
+
+Both functions now write the full catalog by default. `dedupe_global=True`
+(CLI: `--dedupe-global`) restores the old behaviour behind an explicit
+opt-in, mirroring the `clean --aggressive` posture. Two further
+guarantees ride along: a git-tracked `settings.json` is never written
+(only `settings.local.json`), and a residual gap after a real write is an
+error rather than silence.
+
+`dev10x permission catalog-gap` reports the gap read-only, grouped by
+rule family, and exits non-zero when any file is short — so "does this
+file carry the catalog?" is a command, not an inference from a
+maintenance log.
+
 **Rule of thumb:** do not cite the "permissions merge" docs as a
 reason to remove a project rule. Run `dev10x permission investigate`
 or check `permission-auditor` findings instead.

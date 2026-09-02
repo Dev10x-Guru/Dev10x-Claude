@@ -25,6 +25,7 @@ two no longer drift.
 import json
 import logging
 import re
+import subprocess
 from pathlib import Path
 
 import yaml
@@ -1008,6 +1009,43 @@ def _is_nonfunctional_mcp_wildcard(rule: str) -> bool:
     return bool(MCP_WILDCARD_PATTERN.match(rule))
 
 
+def _is_git_tracked(path: Path) -> bool:
+    """True when `path` is tracked by git (GH-1136).
+
+    A maintenance run must never write a git-tracked
+    `.claude/settings.json`: doing so dirtied 16 working trees at once
+    and rode into unrelated commits. Only `settings.local.json` — which
+    projects gitignore — is a safe write target. An untracked file, a
+    path outside any repo, and a missing `git` binary all answer False,
+    so the check never blocks a legitimate write.
+    """
+    from dev10x import subprocess_utils
+
+    try:
+        completed = subprocess_utils.run(
+            ["git", "ls-files", "--error-unmatch", path.name],
+            cwd=str(path.parent),
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return completed.returncode == 0
+
+
+def _partition_writable(settings_files: list[Path]) -> tuple[list[Path], list[str]]:
+    """Split settings files into writable ones and skip messages (GH-1136)."""
+    writable: list[Path] = []
+    messages: list[str] = []
+    for path in settings_files:
+        if path.name == "settings.json" and _is_git_tracked(path):
+            messages.append(f"  SKIP (git-tracked): {path}")
+            continue
+        writable.append(path)
+    return writable, messages
+
+
 def _load_global_allow_rules() -> tuple[set[str], list[str]]:
     global_settings = ClaudeDir.settings_json()
     if not global_settings.is_file():
@@ -1227,8 +1265,18 @@ def ensure_base(
     quiet: bool = False,
     drift: CatalogDrift | None = None,
     toplevel: str | None = None,
+    dedupe_global: bool = False,
 ) -> dict[str, object]:
-    """Add missing base permissions to each settings file. Returns result dict."""
+    """Add missing base permissions to each settings file. Returns result dict.
+
+    ``dedupe_global`` opts back into the pre-GH-1136 behaviour of skipping
+    rules already present in ``~/.claude/settings.json``. It defaults off
+    because the permission engine consults the *project* file when one
+    exists (GH-47): a rule that lives only in global does not cover the
+    project, so treating global as coverage wrote nothing to any project
+    file for months while reporting success. Same opt-in posture as
+    ``clean --aggressive``.
+    """
     messages: list[str] = []
     errors: list[str] = []
 
@@ -1250,8 +1298,14 @@ def ensure_base(
     messages.extend(_catalog_drift_messages(drift=drift, quiet=quiet))
 
     global_rules, stale_wildcards = _load_global_allow_rules()
-    filtered = [p for p in base_permissions if p not in global_rules]
-    skipped = len(base_permissions) - len(filtered)
+    if dedupe_global:
+        filtered = [p for p in base_permissions if p not in global_rules]
+        skipped = len(base_permissions) - len(filtered)
+    else:
+        filtered = list(base_permissions)
+        skipped = 0
+
+    writable_files, skip_messages = _partition_writable(sorted(settings_files))
 
     if not quiet:
         messages.append(f"Base permissions: {len(base_permissions)} rules")
@@ -1263,7 +1317,10 @@ def ensure_base(
             for wc in stale_wildcards:
                 messages.append(f"    - {wc}  (Claude Code ignores MCP wildcards)")
         if skipped > 0:
-            messages.append(f"  Skipping {skipped} already in global settings.json")
+            messages.append(
+                f"  Skipping {skipped} already in global settings.json (--dedupe-global)"
+            )
+        messages.extend(skip_messages)
         if dry_run:
             messages.append("(dry run — no files will be modified)\n")
 
@@ -1278,8 +1335,9 @@ def ensure_base(
 
     total_added = 0
     changed_files: set[Path] = set()
+    per_file_added: dict[Path, int] = {}
 
-    for path in sorted(settings_files):
+    for path in writable_files:
         count, file_messages = ensure_base_permissions(
             path,
             filtered,
@@ -1292,11 +1350,12 @@ def ensure_base(
                 messages.extend(file_messages)
             total_added += count
             changed_files.add(path)
+            per_file_added[path] = per_file_added.get(path, 0) + count
 
     if base_denies:
         if not quiet:
             messages.append(f"\nBase denies: {len(base_denies)} rules")
-        for path in sorted(settings_files):
+        for path in writable_files:
             count, file_messages = ensure_base_denies(
                 path,
                 base_denies,
@@ -1308,6 +1367,7 @@ def ensure_base(
                     messages.extend(file_messages)
                 total_added += count
                 changed_files.add(path)
+                per_file_added[path] = per_file_added.get(path, 0) + count
 
     files_changed = len(changed_files)
 
@@ -1317,12 +1377,113 @@ def ensure_base(
         verb = "Would add" if dry_run else "Added"
         messages.append(f"{verb} {total_added} permissions across {files_changed} files.")
 
+    messages.append("\nPer-file added counts:")
+    for path in writable_files:
+        messages.append(f"  {per_file_added.get(path, 0):>4}  {path}")
+
+    residual = _residual_gap_errors(
+        settings_files=writable_files,
+        base_permissions=filtered,
+        base_denies=base_denies,
+        dry_run=dry_run,
+    )
+    errors.extend(residual)
+
     return _result(
-        exit_code=0,
+        exit_code=1 if residual else 0,
         messages=messages,
         errors=errors,
         total_added=total_added,
         files_changed=files_changed,
+    )
+
+
+def _residual_gap_errors(
+    *,
+    settings_files: list[Path],
+    base_permissions: list[str],
+    base_denies: list[str],
+    dry_run: bool,
+) -> list[str]:
+    """Name every file that still lacks catalog rules after a write (GH-1136).
+
+    Silence was the original defect: the run reported success while
+    leaving 137 of 285 rules out of every project file. A residual gap
+    after a real write is a failure, so it exits non-zero and names the
+    files. A dry run asserts nothing — it wrote nothing by design.
+    """
+    if dry_run:
+        return []
+
+    from dev10x.skills.permission.catalog_gap import compute_gap
+
+    errors: list[str] = []
+    for path in settings_files:
+        gap = compute_gap(
+            path=path,
+            base_permissions=base_permissions,
+            base_denies=base_denies,
+        )
+        if not gap.is_empty:
+            errors.append(
+                f"ERROR: {path} still missing {len(gap.missing_allow)} allow / "
+                f"{len(gap.missing_deny)} deny catalog rules after ensure-base."
+            )
+    return errors
+
+
+def catalog_gap(
+    *,
+    config: dict,
+    settings_files: list[Path],
+    quiet: bool = False,
+    verbose: bool = False,
+    toplevel: str | None = None,
+) -> dict[str, object]:
+    """Report which catalog rules each settings file is missing (GH-1136).
+
+    Read-only counterpart to ``ensure_base``: it answers "does this file
+    carry the catalog?" without writing anything, so post-upgrade
+    verification is a command rather than a reading of a maintenance log.
+    Exits non-zero when any file has a gap.
+    """
+    from dev10x.skills.permission.catalog_gap import compute_gap, format_gap_report
+
+    messages: list[str] = []
+    config, tracker_messages = _apply_tracker_block(
+        config=config,
+        toplevel=toplevel,
+        quiet=quiet,
+    )
+    messages.extend(tracker_messages)
+
+    policies = migrate_flat_config(config=config)
+    rendered = render_permissions(policies=policies, home=str(Path.home()))
+    base_permissions = rendered.get("allow", [])
+    base_denies = rendered.get("deny", [])
+
+    if not quiet:
+        messages.append(
+            f"Catalog: {len(base_permissions)} allow / {len(base_denies)} deny rules\n"
+        )
+
+    total_missing = 0
+    for path in sorted(settings_files):
+        gap = compute_gap(
+            path=path,
+            base_permissions=base_permissions,
+            base_denies=base_denies,
+        )
+        total_missing += gap.total_missing
+        messages.extend(format_gap_report(gap, verbose=verbose))
+        messages.append("")
+
+    return _result(
+        exit_code=1 if total_missing else 0,
+        messages=messages,
+        errors=[],
+        total_added=total_missing,
+        files_changed=len(settings_files),
     )
 
 
@@ -1331,14 +1492,20 @@ def seed_worktree(
     worktree_root: Path,
     config: dict,
     dry_run: bool = False,
+    dedupe_global: bool = False,
 ) -> Result[dict[str, object]]:
     """Pre-seed a single worktree's settings.local.json with base defaults (GH-602).
 
     A read-only surface curated once should be honored in a freshly created
     worktree without a first prompt. This seeds the worktree's
     ``.claude/settings.local.json`` (creating it when absent) with the base
-    catalog, deduped against the user-global allow list. Returns the count
-    added so the worktree-creation caller can report it.
+    catalog. Returns the count added so the worktree-creation caller can
+    report it.
+
+    ``dedupe_global`` defaults off for the reason given on ``ensure_base``:
+    a rule present only in ``~/.claude/settings.json`` does not cover a
+    worktree whose own settings file the engine reads instead, so skipping
+    it left every freshly created worktree short of the catalog (GH-1136).
     """
     policies = migrate_flat_config(config=config)
     rendered = render_permissions(policies=policies, home=str(Path.home()))
@@ -1364,8 +1531,11 @@ def seed_worktree(
         except OSError as error:
             return err(f"cannot create worktree settings: {error}", path=str(settings))
 
-    global_rules, _ = _load_global_allow_rules()
-    filtered = [rule for rule in base_permissions if rule not in global_rules]
+    if dedupe_global:
+        global_rules, _ = _load_global_allow_rules()
+        filtered = [rule for rule in base_permissions if rule not in global_rules]
+    else:
+        filtered = list(base_permissions)
 
     from dev10x.skills.permission.enumerate_mcp import discover_mcp_tools
 
