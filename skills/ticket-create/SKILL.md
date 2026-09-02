@@ -22,6 +22,7 @@ allowed-tools:
   - Bash(secret-tool lookup:*)
   - Bash(curl:*atlassian.net*)
   - mcp__plugin_Dev10x_cli__detect_tracker
+  - mcp__plugin_Dev10x_cli__triage_roster
 ---
 
 # Create Issue Tracker Ticket
@@ -86,9 +87,17 @@ that this skill enforces.
 
 The raw MCP tool is a low-level primitive — this skill is the
 project wrapper that adds structured description formatting,
-label inference, and tracker-detection. Always reach for
+milestone/label triage, and tracker-detection. Always reach for
 `Skill(Dev10x:ticket-create)` first; the skill's Step 5 will
 dispatch the appropriate MCP tool internally.
+
+**This binds every filing path (GH-1102).** `Dev10x:audit-file`,
+`Dev10x:work-on` follow-up filing, `Dev10x:diag-friction` upstream
+filing, and `Dev10x:foreman` crew filing all route here rather than
+calling `issue_create` bare — otherwise each one re-invents (or
+skips) Step 4 and the backlog goes back to needing sweeps. A caller
+that already knows the milestone and labels still routes through
+this skill and passes them; it does not become its own filing path.
 
 ## Input Requirements
 
@@ -166,21 +175,56 @@ Create a comprehensive description using this structure:
 - <file path 3> - <what changed>
 ```
 
-### Step 4: Determine Labels
+### Step 4: Triage Milestone and Labels (GH-1102)
 
-Select appropriate labels based on the context:
+**REQUIRED — never file bare.** The filing tools accept `milestone`
+and `labels`, but until GH-1102 no filing flow populated them: a
+2026-08-30 sweep found 11 of 16 open issues unmilestoned and 10 of 13
+unlabeled, every one filed through these wrappers. The taxonomy and
+the milestone convention both exist; filing simply ignored them, and
+the cost landed on periodic manual restructure sweeps.
 
-**Available Labels:**
+**Step 4a — read the live roster.** Call
+`mcp__plugin_Dev10x_cli__triage_roster(repo="$REPO")`. It returns
+`milestones` (open only, with descriptions) and `labels` (name +
+description). Do NOT work from a hardcoded list — a stale table is
+how the taxonomy drifted out of use in the first place.
 
-| Label | When to Use |
-|-------|-------------|
-| `tech-debt` | Technical improvements, refactoring, code quality issues |
-| `bug` | Production bugs, incorrect behavior, errors |
-| `testing` | Test improvements, test infrastructure, test coverage |
-| `flaky-tests` | Tests that fail intermittently. **Always use for flaky test tickets** alongside `Bug` |
-| `performance` | Performance optimizations, slow queries |
-| `documentation` | Documentation updates, missing docs |
-| `security` | Security vulnerabilities, auth issues |
+**Step 4b — propose labels.** Match the ticket's title and body
+against the returned roster:
+
+| Signal in the ticket | Label to propose |
+|----------------------|------------------|
+| Names a skill (`Dev10x:fanout`, `gh-pr-create`, …) | the matching `skill:*` label |
+| Permission prompt / allow-rule gap | `permission-friction` |
+| Error swallowed or surfaced without diagnostics | `silent-failure` |
+| Raw git/gh used where a wrapper is required | `routing-bypass` |
+| Umbrella issue spanning milestones | `tracker` |
+| New capability | `enhancement` |
+| Incorrect behavior | `bug` |
+
+Propose every label whose signal is present — labels are not
+exclusive. When the roster contains a label this table does not
+mention, prefer the roster: its description states its purpose.
+
+**Step 4c — propose a milestone.** Match the ticket's theme against
+the open milestones' titles and descriptions, respecting the
+initiative prefixes and close-at-zero lifecycle in
+[`references/milestone-naming.md`](../../references/milestone-naming.md).
+A milestone whose description already names this ticket's theme is a
+direct hit.
+
+**Step 4d — when nothing fits, say so explicitly.** If no open
+milestone is a confident match, file with the `needs-triage` label
+rather than silently unmilestoned, so a later sweep can find strays
+with one query instead of reading every bare issue. Never leave BOTH
+milestone and labels empty — that is the state this step exists to
+prevent.
+
+**Attended mode:** present the proposal at the Step 5 confirmation
+so the user can adjust it. **Unattended mode:** apply the best match
+and proceed — filing bare is not the safe default here, it is the
+defect.
 
 ### Step 5: Create the Ticket
 
@@ -201,7 +245,12 @@ Tracker: {tracker_type}
 Title: {title}
 Description: {description}
 Labels: {labels}
+Milestone: {milestone}
 {tracker-specific config: team UUID, project UUID, repo}
+
+The Labels and Milestone above come from the Step 4 triage and are
+part of the creation call — do NOT file without them and leave
+triage to a later sweep (GH-1102).
 
 {include the tracker-specific instructions below}
 
@@ -254,8 +303,11 @@ break shell quoting on markdown tables and long descriptions):
 # Generate temp path via mktmp.sh, then write body via Write tool
 BODY_FILE=$(/tmp/Dev10x/bin/mktmp.sh gh-issue body .md)
 # Write description content to $BODY_FILE via the Write tool
-gh issue create --repo "$REPO" --title "$TITLE" --body-file "$BODY_FILE" --label "$LABELS"
+gh issue create --repo "$REPO" --title "$TITLE" --body-file "$BODY_FILE" --label "$LABELS" --milestone "$MILESTONE"
 ```
+
+Omit `--milestone` only when Step 4d found no confident match — in
+which case `$LABELS` carries `needs-triage`.
 
 **Title-in-file convention:** When the caller provides
 `--body-file` without `--title`, use the wrapper script that

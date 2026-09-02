@@ -236,6 +236,17 @@ Behavioral caveats:
   `issue_close` after the merge, and verify each one rather than
   assuming the bundle self-closed.
 
+- `issue_create` / `issues_bulk_create` accept `milestone` and
+  `labels`, and filing is expected to POPULATE them (GH-1102). Reach
+  them through `Dev10x:ticket-create`, whose Step 4 reads the live
+  roster via `triage_roster` and proposes a milestone plus label set;
+  calling `issue_create` bare is what left 11 of 16 open issues
+  unmilestoned and 10 of 13 unlabeled in the 2026-08-30 sweep. When no
+  milestone fits confidently, the skill files `needs-triage` rather
+  than nothing, so strays stay findable with one query. `triage_roster`
+  is read-only and returns `{"milestones": [...], "labels": [...]}` —
+  open milestones only.
+
 - `issue_close` called with a pull-request number fails loud with
   `"N is a pull request; use pr_close"` instead of surfacing the raw
   `gh issue close` rejection (GH-924) — reach for `pr_close` instead
@@ -365,6 +376,7 @@ supporting each tool:
 | `issue_comment_edit` | `cli` | GH-283 | v0.75.0+ |
 | `issue_comment_delete` | `cli` | GH-283 | v0.75.0+ |
 | `issue_list` | `cli` | GH-220 | v0.73.0+ |
+| `triage_roster` | `cli` | GH-1102 | v0.96.0+ |
 | `slack_thread_is_forward` | `cli` | GH-218 | v0.73.0+ |
 | `milestones_bulk_create` | `cli` | GH-222 | v0.73.0+ |
 | `issues_bulk_create` | `cli` | GH-222 | v0.73.0+ |

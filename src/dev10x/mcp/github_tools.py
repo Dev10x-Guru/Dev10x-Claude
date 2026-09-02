@@ -989,6 +989,27 @@ async def issue_list(
 
 
 @github_tool
+async def triage_roster(
+    repo: str | None = None,
+    cwd: str | None = None,
+) -> Result[dict]:
+    """List open milestones and available labels for filing triage (GH-1102).
+
+    The read behind `Dev10x:ticket-create`'s triage step: a filing flow
+    cannot propose a milestone or label set it cannot see, which is why
+    tickets filed through the wrappers arrived bare.
+
+    Args:
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: milestones (list), labels (list).
+    """
+    return await gh.triage_roster(repo=repo)
+
+
+@github_tool
 async def milestone_create(
     title: str,
     description: str | None = None,
