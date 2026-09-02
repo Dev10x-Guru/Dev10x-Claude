@@ -39,6 +39,14 @@ CONFLICT_STDOUT = (
     "hint=Resolve conflicts, git add, then git rebase --continue"
 )
 
+PAUSED_STDOUT = (
+    "REBASE_PAUSED\n"
+    "conflicted_files=\n"
+    "rebase_head=abc1234\n"
+    "hint=Rebase stopped with no unmerged paths — inspect git status, "
+    "then git rebase --continue (or --abort)"
+)
+
 
 class TestRebaseGroomConflictDetection:
     @pytest.fixture(autouse=True)
@@ -106,6 +114,31 @@ class TestRebaseGroomConflictDetection:
 
         assert isinstance(result, SuccessResult)
         assert result.value["commits_rewritten"] == "3"
+
+    @pytest.fixture()
+    def paused_result(self) -> subprocess.CompletedProcess[str]:
+        return _completed(returncode=1, stdout=PAUSED_STDOUT)
+
+    @pytest.mark.asyncio
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    async def test_paused_rebase_is_not_reported_as_a_conflict(
+        self,
+        mock_run_script: AsyncMock,
+        paused_result: subprocess.CompletedProcess[str],
+    ) -> None:
+        # GH-1103: a rebase that stopped with no unmerged paths used to
+        # surface as conflict=True with an empty file list, sending the
+        # caller to resolve conflicts git never reported.
+        mock_run_script.return_value = paused_result
+
+        result = await rebase_groom(seq_path="/tmp/seq.txt", base_ref="develop")
+
+        assert isinstance(result, ErrorResult)
+        assert result.details["conflict"] is False
+        assert result.details["paused"] is True
+        assert result.details["conflicted_files"] == []
+        assert result.details["rebase_head"] == "abc1234"
+        assert "no unmerged paths" in result.error
 
 
 class TestMassRewriteConflictDetection:
