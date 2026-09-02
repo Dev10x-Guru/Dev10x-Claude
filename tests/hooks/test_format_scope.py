@@ -64,6 +64,21 @@ class TestFormatPolicy:
     def test_file_outside_any_project_is_formatted(self, tmp_path: Path):
         assert resolve_format_policy(tmp_path / "loose.py").should_format is True
 
+    def test_non_numeric_max_line_length_is_ignored(self, tmp_path: Path):
+        (tmp_path / "setup.cfg").write_text("[flake8]\nmax-line-length = wide\n")
+        assert resolve_format_policy(tmp_path / "mod.py").line_length is None
+
+    def test_unreadable_flake8_config_is_skipped(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        (tmp_path / "setup.cfg").write_text("[flake8]\nmax-line-length = 120\n")
+
+        def boom(*_args, **_kwargs):
+            raise OSError("permission denied")
+
+        monkeypatch.setattr(Path, "read_text", boom)
+        assert resolve_format_policy(tmp_path / "mod.py").line_length is None
+
 
 class TestEditedRange:
     def test_single_edit_locates_its_new_string(self):
@@ -91,6 +106,13 @@ class TestEditedRange:
             content=_REVERT_SUBJECT,
         )
         assert span == LineRange(start=2, end=8)
+
+    def test_multi_edit_with_no_locatable_span_falls_back(self):
+        span = edited_range(
+            tool_input={"edits": [{"new_string": "absent"}, {"other": "shape"}]},
+            content=_REVERT_SUBJECT,
+        )
+        assert span is None
 
     def test_write_has_no_narrower_scope(self):
         assert edited_range(tool_input={"content": "x = 1"}, content="x = 1") is None

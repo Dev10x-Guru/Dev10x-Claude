@@ -23,6 +23,10 @@ class TestCiCheckStatusMcp:
         result = await cli_server.ci_check_status(pr_number=42, repo="o/r")
 
         assert result == {"verdict": "green", "mergeable": True}
+        # wait_out_pending and wait_for MUST appear here: the boundary
+        # previously declared wait_out_pending and dropped it before the
+        # domain call, so passing False did nothing. This assertion had
+        # pinned that omission, which is why it went unnoticed (GH-1138).
         assert mock_fn.call_args.kwargs == {
             "pr_number": 42,
             "repo": "o/r",
@@ -31,7 +35,28 @@ class TestCiCheckStatusMcp:
             "poll_interval": 30,
             "initial_wait": 60,
             "max_polls": 40,
+            "wait_out_pending": True,
+            "wait_for": None,
         }
+
+    @pytest.mark.asyncio
+    @patch("dev10x.monitor.ci_check_status", new_callable=AsyncMock)
+    async def test_forwards_wait_for_and_wait_out_pending(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = ok({"verdict": "failing"})
+
+        await cli_server.ci_check_status(
+            pr_number=42,
+            repo="o/r",
+            wait=True,
+            wait_out_pending=False,
+            wait_for=["claude-review"],
+        )
+
+        assert mock_fn.call_args.kwargs["wait_out_pending"] is False
+        assert mock_fn.call_args.kwargs["wait_for"] == ["claude-review"]
 
     @pytest.mark.asyncio
     @patch("dev10x.monitor.ci_check_status", new_callable=AsyncMock)

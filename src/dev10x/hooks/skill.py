@@ -33,7 +33,11 @@ from dev10x.hooks.format_scope import (
     resolve_format_policy,
 )
 
-_FORMAT_TIMEOUT_SECONDS = 10
+# Two sequential ruff calls are possible (a `--range` attempt, then a
+# whole-file retry), and `hooks.json` gives this hook 15s total. 6s each
+# keeps the worst case at 12s, inside that budget — a hook killed
+# mid-format is how a file ends up half-rewritten.
+_FORMAT_TIMEOUT_SECONDS = 6
 
 
 def _emit_hook_message(message: str) -> None:
