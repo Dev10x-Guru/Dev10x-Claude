@@ -79,6 +79,7 @@ def _run_fix(
     dry_run: bool,
     quiet: bool,
     show_config: bool = False,
+    extra: dict[str, object] | None = None,
 ) -> None:
     """Run one ``ensure_*``/``generalize`` fix behind the shared preamble.
 
@@ -102,6 +103,8 @@ def _run_fix(
     }
     if needs_config:
         kwargs["config"] = ctx.config
+    if extra:
+        kwargs.update(extra)
     sys.exit(_emit_result(fn(**kwargs)))  # type: ignore[operator]
 
 
@@ -211,11 +214,54 @@ def update_paths(
 @permission.command(name="ensure-base")
 @click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
 @click.option("--quiet", is_flag=True, help="Suppress per-file details")
-def ensure_base(*, dry_run: bool, quiet: bool) -> None:
-    """Add missing base permissions from projects.yaml."""
+@click.option(
+    "--dedupe-global",
+    is_flag=True,
+    help="Skip rules already in ~/.claude/settings.json (pre-GH-1136 behaviour)",
+)
+def ensure_base(*, dry_run: bool, quiet: bool, dedupe_global: bool) -> None:
+    """Add missing base permissions from projects.yaml.
+
+    Exits non-zero when any settings file still lacks catalog rules after
+    the run — the defect in GH-1136 was that silence read as success.
+    """
     from dev10x.skills.permission import update_paths as mod
 
-    _run_fix(mod.ensure_base, needs_config=True, dry_run=dry_run, quiet=quiet, show_config=True)
+    _run_fix(
+        mod.ensure_base,
+        needs_config=True,
+        dry_run=dry_run,
+        quiet=quiet,
+        show_config=True,
+        extra={"dedupe_global": dedupe_global},
+    )
+
+
+@permission.command(name="catalog-gap")
+@click.option("--quiet", is_flag=True, help="Suppress the catalog header")
+@click.option("--verbose", is_flag=True, help="List every missing rule, not just counts")
+def catalog_gap(*, quiet: bool, verbose: bool) -> None:
+    """Report catalog rules missing from each settings file (GH-1136).
+
+    Read-only. Prints missing allow/deny counts grouped by rule family
+    and exits non-zero when any file has a gap, so post-upgrade
+    verification is a command rather than a reading of a maintenance log.
+    """
+    from dev10x.skills.permission import update_paths as mod
+
+    ctx = _require_settings(show_config=True, quiet=quiet)
+    if ctx is None:
+        return
+    sys.exit(
+        _emit_result(
+            mod.catalog_gap(
+                config=ctx.config,
+                settings_files=ctx.settings_files,
+                quiet=quiet,
+                verbose=verbose,
+            )
+        )
+    )
 
 
 @permission.command(name="catalog-diff")

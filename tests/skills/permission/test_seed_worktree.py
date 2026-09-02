@@ -56,9 +56,12 @@ def test_idempotent(tmp_path: Path, config: dict):
     assert second.value["created_fresh"] is False
 
 
-def test_dedupes_against_global(tmp_path: Path, config: dict, monkeypatch: pytest.MonkeyPatch):
+def test_dedupes_against_global_when_opted_in(
+    tmp_path: Path, config: dict, monkeypatch: pytest.MonkeyPatch
+):
+    """Opt-in only since GH-1136 — see test_catalog_gap.py for the default."""
     monkeypatch.setattr(mod, "_load_global_allow_rules", lambda: ({"Bash(ls:*)"}, []))
-    mod.seed_worktree(worktree_root=tmp_path, config=config)
+    mod.seed_worktree(worktree_root=tmp_path, config=config, dedupe_global=True)
     allow = _allow(tmp_path)
     assert "Bash(ls:*)" not in allow  # already global — skipped
     assert "Skill(Dev10x:foo)" in allow

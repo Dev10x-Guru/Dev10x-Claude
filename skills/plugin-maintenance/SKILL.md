@@ -489,6 +489,33 @@ uvx dev10x permission ensure-base --dry-run
 uvx dev10x permission ensure-base
 ```
 
+The run prints **per-file added counts** and exits **non-zero when any
+settings file still lacks catalog rules afterwards** (GH-1136). Read a
+zero count per file as "already carried the catalog", never as "nothing
+needed writing" — before GH-1136 the command deduped the catalog against
+`~/.claude/settings.json` and reported "All base permissions already
+covered by global settings" while 137 of 285 rules were absent from every
+project file. Global coverage is not project coverage: the engine reads
+the project file when one exists (GH-47).
+
+`--dedupe-global` restores the old skip-if-in-global behaviour. It is
+opt-in for the same reason `clean --aggressive` is, and should only be
+used when inheritance has actually been verified for that machine.
+
+A git-tracked `.claude/settings.json` is skipped — the run writes only
+`settings.local.json`, so a maintenance pass never dirties a working tree.
+
+3. Verify:
+
+```bash
+uvx dev10x permission catalog-gap
+```
+
+Read-only. Reports missing allow/deny counts per file grouped by rule
+family (`git`, `mcp`, `skill`, …) and exits non-zero on any gap. This is
+the deterministic answer to "does this checkout carry the catalog?" —
+run it after an upgrade and in any freshly created worktree.
+
 ### 5. Generalize session-specific permissions *(full only)*
 
 Replace permission rules containing session-specific arguments
