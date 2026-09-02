@@ -40,6 +40,25 @@ def _conflict_error(stdout: str, *, extra: dict[str, Any] | None = None) -> Resu
     return err("Rebase conflict detected", **fields)
 
 
+def _paused_error(stdout: str) -> Result[dict[str, Any]]:
+    """Build the payload for a rebase that stopped with no unmerged paths.
+
+    Distinct from ``_conflict_error`` on purpose: reporting this state as
+    ``conflict: true`` with an empty ``conflicted_files`` list told callers
+    to resolve conflicts git never reported, and following that hint is
+    what completed the damage in GH-1103.
+    """
+    parsed = parse_key_value_output(stdout)
+    return err(
+        "Rebase paused with no unmerged paths",
+        conflict=False,
+        paused=True,
+        conflicted_files=[],
+        rebase_head=parsed.get("rebase_head", "unknown"),
+        hint=parsed.get("hint", ""),
+    )
+
+
 async def _run_git_script(
     script: str,
     *args: str,
@@ -49,13 +68,16 @@ async def _run_git_script(
 
     Centralizes the repeated returncode-check → JSON-or-KEY=VALUE success
     parsing. When ``conflict_aware`` is set, a non-zero exit carrying a
-    ``CONFLICT_DETECTED`` marker yields the shared conflict error payload.
+    ``CONFLICT_DETECTED`` marker yields the shared conflict error payload,
+    and a ``REBASE_PAUSED`` marker the distinct paused payload (GH-1103).
     """
     result = await async_run_script(script, *args)
 
     if result.returncode != 0:
         if conflict_aware and "CONFLICT_DETECTED" in result.stdout:
             return _conflict_error(result.stdout.strip())
+        if conflict_aware and "REBASE_PAUSED" in result.stdout:
+            return _paused_error(result.stdout.strip())
         return err(result.stderr.strip())
 
     return _ok_json_or_kv(result.stdout)
