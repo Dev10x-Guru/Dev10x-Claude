@@ -475,6 +475,30 @@ This check runs BEFORE Checks 3/4/7 because a merged/armed PR makes
 those checks either moot (merged) or racing against the auto-merge
 (armed).
 
+**Where armed auto-merge comes from (GH-1107 finding 3).** No Dev10x
+path arms it on a created PR: `--auto` is reachable only through
+`merge_pr(auto=True)`, which defaults to `False` and is gated by the
+Step 5 admin/auto prompt below. `create_pr`, `create-pr.sh`, and
+`Dev10x:gh-pr-monitor` never pass it. An armed PR therefore came from
+outside the plugin — a repo-level setting or a manual `gh pr merge
+--auto`.
+
+**That still leaves the gate skippable by timing on a repo with no
+required status checks.** With no required checks, GitHub merges the
+instant CI settles, which can land between "mark ready" and this
+gate — in the run behind this finding, a PR merged before the child
+invoked the skill at all, so none of the 9 validations ran for it.
+Check 2b then correctly short-circuits to post-merge verification,
+but the merge is already done.
+
+Read this as a **repo-configuration** finding, not a skill bug: on a
+repo where these validations are meant to gate merges, require at
+least one status check in branch protection, so an armed auto-merge
+waits for something this skill can also see. Until then, treat a
+`state == "MERGED"` at Check 2b on such a repo as a signal that the
+gate was bypassed by timing, and say so in the post-merge report
+rather than reporting a clean merge.
+
 ### Check 3: PR is not in draft
 
 Read `isDraft` from the `pr_get` response. If `isDraft` is `true`,
