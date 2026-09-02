@@ -254,6 +254,47 @@ base_permissions:
   - "Bash(git stash:*)"
   - "Bash(git remote:*)"
 
+  # --- Read-only git plumbing spelling (GH-1135) ---
+  # An agent in a worktree that needs the MAIN checkout's state emits
+  # `git --git-dir=<repo>/.git --work-tree=<repo> <verb>`. The
+  # pre-approved prefixes are `git status`, `git -C` and
+  # `git -C <repo>`; `git --git-dir` matches none of them, so the
+  # supervisor is prompted — and offered `git *`, the GH-310
+  # catch-all footgun, as the "don't ask again" rule.
+  #
+  # `git -C <path> <verb>` remains the preferred spelling and the
+  # command-skill-map steer (`git-dir-worktree-pinning`) still points
+  # there. These rules exist so the plumbing spelling an agent already
+  # emitted resolves deterministically instead of prompting. Read-only
+  # verbs ONLY — mutating verbs stay routed to Dev10x:git /
+  # Dev10x:git-groom.
+  #
+  # Both orderings are covered because agents emit both. Whether a
+  # mid-path `*` matches at all is the open question these rules
+  # depend on (ADR-0021, GH-925 F2); the permission-investigator
+  # matrix now carries a `mid_path_star` cell to settle it. If the
+  # cell reports PROMPTED, the shape is un-allow-listable and
+  # `git-dir-worktree-pinning` flips to `hook_block: true` with its
+  # existing `-C` compensation.
+  - "Bash(git --git-dir=* --work-tree=* status:*)"
+  - "Bash(git --git-dir=* --work-tree=* log:*)"
+  - "Bash(git --git-dir=* --work-tree=* rev-parse:*)"
+  - "Bash(git --git-dir=* --work-tree=* diff:*)"
+  - "Bash(git --git-dir=* --work-tree=* branch:*)"
+  - "Bash(git --git-dir=* --work-tree=* worktree list:*)"
+  - "Bash(git --git-dir=* --work-tree=* ls-files:*)"
+  - "Bash(git --git-dir=* --work-tree=* show:*)"
+  - "Bash(git --git-dir=* --work-tree=* merge-base:*)"
+  - "Bash(git --git-dir * --work-tree * status:*)"
+  - "Bash(git --git-dir * --work-tree * log:*)"
+  - "Bash(git --git-dir * --work-tree * rev-parse:*)"
+  - "Bash(git --git-dir * --work-tree * diff:*)"
+  - "Bash(git --git-dir * --work-tree * branch:*)"
+  - "Bash(git --git-dir * --work-tree * worktree list:*)"
+  - "Bash(git --git-dir * --work-tree * ls-files:*)"
+  - "Bash(git --git-dir * --work-tree * show:*)"
+  - "Bash(git --git-dir * --work-tree * merge-base:*)"
+
   # --- Python project tooling (GH-20) ---
   # PEP 723 shebangs (#!/usr/bin/env -S uv run --script) execute
   # via direct script paths already enumerated under "Plugin
