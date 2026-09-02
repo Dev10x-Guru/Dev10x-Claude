@@ -1127,10 +1127,15 @@ rules:
         guardrails: single pre-approved Bash prefix, no tool-surface dependency
         description: >
           `rg --files -g '<glob>'` (name discovery) or
-          `rg -l <pattern> -g '<glob>'` (content search). Always
-          available under Bash(rg:*), so this is the recommendation to
-          give when the session's tool surface is unknown or lacks
-          Glob/Grep (GH-1087).
+          `rg -l <pattern> -g '<glob>'` (content search). Available
+          under Bash(rg:*) for any path inside the project or its
+          registered additionalDirectories, so this is the
+          recommendation to give when the session's tool surface is
+          unknown or lacks Glob/Grep (GH-1087). It does NOT hold for
+          paths outside those directories — a read of
+          `~/.claude/settings*.json` trips the harness's path-scope
+          gate no matter which verb is used; see `settings-file-read`
+          (GH-1140).
     reason: >
       `find` is structurally un-allowable: `Bash(find:*)` does not reliably
       match embedded paths/pipes, and `find … -exec <cmd>` is independently
@@ -1151,6 +1156,52 @@ rules:
       could not be executed. Each use-tool compensation therefore
       carries a `fallback:`, and the `rg` alternative below is
       unconditional (GH-1087).
+
+  - name: settings-file-read
+    matcher: Bash
+    patterns:
+      - "(rg|grep|egrep|fgrep|cat|jq|head|tail|less|awk|sed)\\b[^|&;]*\\.claude/settings(\\.local)?\\.json"
+    except: []
+    hook_block: true
+    compensations:
+      - type: use-tool
+        tool: mcp__plugin_Dev10x_cli__audit_analyze_permissions
+        guardrails: structured read of permission rules, no path-scope gate
+        description: >
+          Use audit_analyze_permissions to inspect allow/deny/ask rules
+          across every settings layer. This is the default — it answers
+          rule-coverage questions directly instead of grepping JSON.
+      - type: use-tool
+        tool: Read
+        guardrails: raw file contents, declared in diag-friction allowed-tools
+        description: >
+          Use the Read tool for the raw file, e.g.
+          Read(~/.claude/settings.json). Read is not subject to the
+          Bash path-scope gate.
+    reason: >
+      `Bash(rg:*)` is present and matching — the differentiator is the
+      target. `~/.claude` is deliberately NOT a registered working
+      directory (the catalog lists `~/.claude/memory`,
+      `~/.claude/plugins` and `~/.config/Dev10x`, not `~/.claude`
+      itself), so the harness's additionalDirectories path-scope gate
+      fires and no allow rule can suppress it (GH-99). The shape is
+      therefore un-allow-listable and must be denied deterministically
+      with a steer rather than advised after the supervisor has already
+      been interrupted (GH-1140).
+
+      Denying it also removes the prompt's option 2 — registering
+      `~/.claude` as a working directory — from the supervisor's
+      screen. Accepting that option under `defaultMode: acceptEdits`
+      with an empty project `ask` floor would let an agent edit
+      `~/.claude/settings.json` unprompted, which is a far larger grant
+      than the read that triggered it.
+
+      Two sanctioned surfaces already exist and were never named at the
+      point of friction; both compensations above are unconditional.
+      Reads of `~/.config/Dev10x/*.yaml` and of repo paths are
+      unaffected — that directory IS registered.
+    related:
+      - Dev10x:diag-friction
 
   - name: fish-interactive-abbr
     matcher: Bash
