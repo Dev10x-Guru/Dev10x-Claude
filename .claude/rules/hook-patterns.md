@@ -136,6 +136,45 @@ This captures total wall-clock timing (including `uv run`
 startup) and injects `DEV10X_HOOK_SPAN_ID` so body-phase records
 from `@audit_hook` correlate with wrap-phase records.
 
+## A PostToolUse Formatter Stays Inside the Edit (GH-1143)
+
+The `Edit|Write` formatter hook may reformat **only the lines the tool
+call touched**, and may never apply lint fixes.
+
+**Why.** The hook ran `ruff format` plus `ruff check --fix` over the
+whole file after every edit. Each `Edit`+hook pair is evaluated in
+isolation, with no memory of the sequence it belongs to — so a revert
+that removed an import in one edit and restored its call site in another
+had an *intermediate* state where the import genuinely was unused. F401
+stripped it; nothing restored it; the file was left with a `NameError`
+at a line nobody had edited. No individual step was wrong. The same pass
+also collapsed `if/elif` into an unparenthesised mixed `and`/`or` in a
+class the session never touched, and reflowed at 88 columns in a project
+that configures 99 and passes its own pre-commit on the original forms.
+
+**Rules for any new PostToolUse formatter:**
+
+1. **Scope to the hunk.** Derive the edited line range from
+   `tool_input` and pass it to the formatter (`ruff format --range`).
+   Fall back to whole-file only when the range cannot be located, and
+   retry whole-file when the tool rejects the range flag (older
+   versions).
+2. **Never prune imports or apply lint fixes.** Unused-import removal
+   needs whole-file intent; a post-`Edit` pass sees one step of a
+   possibly multi-step change. Leave it to the project's pre-commit.
+3. **Honour the project's configuration.** Read `[tool.ruff]`, then
+   `[tool.black] line-length`, then `max-line-length`. A project that
+   runs its own pre-commit and configures no ruff formatter is left
+   alone entirely — anything the hook rewrites there is net-new
+   unreviewed change attributed to whoever commits next.
+4. **Say what changed.** "PostToolUse hook modified `<file>` (likely a
+   formatter)" does not distinguish reformatted whitespace from a
+   deleted name the file still references. Emit a `systemMessage`
+   naming the changed lines.
+
+The decision logic lives in `dev10x.hooks.format_scope`, kept separate
+from the hook so it is testable without a subprocess.
+
 ## Profile Tiers (GH-413)
 
 Bash command validators declare a profile tier so users can dial

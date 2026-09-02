@@ -25,6 +25,25 @@ from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.skill_name import SkillName
 from dev10x.domain.git_context import GitContext
 from dev10x.hooks.base import AbstractHook
+from dev10x.hooks.format_scope import (
+    FormatPlan,
+    LineRange,
+    describe_changes,
+    edited_range,
+    resolve_format_policy,
+)
+
+_FORMAT_TIMEOUT_SECONDS = 10
+
+
+def _emit_hook_message(message: str) -> None:
+    """Surface what the formatter did as a hook systemMessage (GH-1143).
+
+    "PostToolUse hook modified <file> (likely a formatter)" was the only
+    notice when the hook deleted an import the file still referenced. A
+    silent rewrite is the part that makes the breakage hard to attribute.
+    """
+    print(json.dumps({"systemMessage": message}))
 
 
 def _get_toplevel() -> str:
@@ -95,10 +114,19 @@ class SkillMetricsHook(AbstractHook):
 
 
 class RuffFormatHook(AbstractHook):
-    """Auto-format Python files with ruff after Edit/Write (PostToolUse hook)."""
+    """Auto-format Python files with ruff after Edit/Write (PostToolUse hook).
+
+    Scoped to the edited hunk and to projects that want ruff formatting
+    (GH-1143). It deliberately does NOT run `ruff check --fix`: that pass
+    is what deleted a still-referenced import mid-revert and collapsed
+    branch logic in methods the session never touched. Lint fixes need
+    whole-file intent and a review; a post-`Edit` pass has neither.
+    See `dev10x.hooks.format_scope` for the full argument.
+    """
 
     def handle(self, *, data: dict) -> None:
-        file_path = data.get("tool_input", {}).get("file_path") or ""
+        tool_input = data.get("tool_input", {})
+        file_path = tool_input.get("file_path") or ""
         if not file_path:
             return
 
@@ -106,8 +134,62 @@ class RuffFormatHook(AbstractHook):
         if path.suffix != ".py" or not path.is_file():
             sys.exit(0)
 
-        subprocess_utils.run(["ruff", "format", file_path], check=False)
-        subprocess_utils.run(["ruff", "check", "--fix", file_path], check=False)
+        plan = resolve_format_policy(path)
+        if not plan.should_format:
+            _emit_hook_message(f"ruff-format skipped: {plan.skip_reason}")
+            return
+
+        try:
+            before = path.read_text(encoding="utf-8")
+        except OSError:
+            return
+
+        line_range = edited_range(tool_input=tool_input, content=before)
+        self._format(path=path, plan=plan, line_range=line_range)
+
+        try:
+            after = path.read_text(encoding="utf-8")
+        except OSError:
+            return
+
+        if summary := describe_changes(before=before, after=after):
+            _emit_hook_message(f"ruff-format {path.name}: {summary}")
+
+    def _format(
+        self,
+        *,
+        path: Path,
+        plan: FormatPlan,
+        line_range: LineRange | None,
+    ) -> None:
+        """Run `ruff format`, narrowing to the edited hunk when possible.
+
+        `--range` needs ruff >= 0.9. A caller's project may pin an older
+        one, so an invocation rejected for an unknown argument retries
+        whole-file rather than silently formatting nothing.
+        """
+        base = ["ruff", "format"]
+        if plan.line_length is not None:
+            base += ["--line-length", str(plan.line_length)]
+
+        if line_range is not None:
+            scoped = subprocess_utils.run(
+                [*base, "--range", line_range.as_ruff_arg(), str(path)],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=_FORMAT_TIMEOUT_SECONDS,
+            )
+            if scoped.returncode == 0:
+                return
+
+        subprocess_utils.run(
+            [*base, str(path)],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=_FORMAT_TIMEOUT_SECONDS,
+        )
 
 
 def skill_tmpdir(data: dict | None = None) -> None:
