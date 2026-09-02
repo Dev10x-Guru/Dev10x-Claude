@@ -136,6 +136,11 @@ def resolve_format_policy(path: Path) -> FormatPlan:
 
 
 def _span_of(*, content: str, needle: str) -> LineRange | None:
+    # An empty needle must not match: `str.find("")` returns 0, which
+    # would report line 1 as edited for any tool call whose payload
+    # lacks a `new_string` — the widest possible wrong answer.
+    if not needle:
+        return None
     index = content.find(needle)
     if index == -1:
         return None

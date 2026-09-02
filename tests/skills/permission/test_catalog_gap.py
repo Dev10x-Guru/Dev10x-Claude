@@ -88,6 +88,18 @@ def test_unreadable_file_is_a_gap_not_a_pass(tmp_path: Path):
     assert gap.missing_allow == ["Bash(ls:*)"]
 
 
+def test_malformed_json_is_a_gap_not_a_pass(settings_file: Path):
+    settings_file.write_text("{not json")
+    gap = compute_gap(
+        path=settings_file,
+        base_permissions=["Bash(ls:*)"],
+        base_denies=[],
+    )
+    assert gap.unreadable is not None
+    assert "invalid JSON" in gap.unreadable
+    assert "WARNING" in "\n".join(format_gap_report(gap))
+
+
 def test_report_groups_counts_by_family(settings_file: Path):
     gap = compute_gap(
         path=settings_file,

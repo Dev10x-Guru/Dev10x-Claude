@@ -59,6 +59,23 @@ def test_missing_or_malformed_file_yields_no_finding(tmp_path: Path):
     assert strategy.detect(context) == []
 
 
+@pytest.mark.parametrize(
+    "payload",
+    ['{"permissions": []}', '{"permissions": {"additionalDirectories": "~/.claude"}}'],
+)
+def test_unexpected_shapes_yield_no_finding(settings: Path, payload: str):
+    settings.write_text(payload)
+    assert strategy.detect(Context(settings_paths=(settings,))) == []
+
+
+def test_empty_context_falls_back_to_the_user_settings_pair(monkeypatch: pytest.MonkeyPatch):
+    """A caller with no explicit paths still gets the global files checked."""
+    seen: list[Path] = []
+    monkeypatch.setattr(strategy, "_additional_directories", lambda path: seen.append(path) or [])
+    strategy.detect(Context())
+    assert [p.name for p in seen] == ["settings.json", "settings.local.json"]
+
+
 def test_remediation_proposes_removal(settings: Path):
     _write(settings, ["~/.claude"])
     finding = strategy.detect(Context(settings_paths=(settings,)))[0]
