@@ -51,21 +51,27 @@ def has_fixes_trailer(*, body: str) -> bool:
 
 
 def normalize_pr_body(*, body: str) -> str:
-    """Move any content trailing the ``Fixes:`` line above it.
+    """Move any content trailing the ``Fixes:`` trailer above it.
 
     A separator-only trailer (the bare ``---`` left behind when the
     checklist template is absent) is dropped; substantive trailing
-    content is relocated so ``Fixes:`` ends the body. Returns the body
-    without a trailing newline.
+    content is relocated so the ``Fixes:`` block ends the body. Returns
+    the body without a trailing newline.
+
+    A bundle PR closes several issues and needs one ``Fixes:`` line per
+    issue (GH-1107 finding 2), so a contiguous run of them is treated as
+    a single trailer — splitting the run with a blank line would leave
+    the earlier entries stranded in the body.
     """
     lines = body.rstrip().split("\n")
-    fixes_index = _last_fixes_index(lines=lines)
-    if fixes_index is None:
+    fixes_start = _fixes_block_start(lines=lines)
+    if fixes_start is None:
         return "\n".join(lines)
 
-    head = lines[:fixes_index]
-    fixes_line = lines[fixes_index].rstrip()
-    relocated = _relocatable_trailer(lines=lines[fixes_index + 1 :])
+    fixes_end = _fixes_block_end(lines=lines, start=fixes_start)
+    head = lines[:fixes_start]
+    fixes_block = [line.rstrip() for line in lines[fixes_start : fixes_end + 1]]
+    relocated = _relocatable_trailer(lines=lines[fixes_end + 1 :])
 
     if relocated:
         head = _trim_blank_edges(lines=head)
@@ -73,8 +79,8 @@ def normalize_pr_body(*, body: str) -> str:
 
     head = _trim_blank_edges(lines=head)
     if not head:
-        return fixes_line
-    return "\n".join([*head, "", fixes_line])
+        return "\n".join(fixes_block)
+    return "\n".join([*head, "", *fixes_block])
 
 
 def _last_fixes_index(*, lines: list[str]) -> int | None:
@@ -82,6 +88,24 @@ def _last_fixes_index(*, lines: list[str]) -> int | None:
         if _FIXES_PATTERN.match(lines[index]):
             return index
     return None
+
+
+def _fixes_block_start(*, lines: list[str]) -> int | None:
+    """Index of the first line in the trailing run of ``Fixes:`` lines."""
+    last = _last_fixes_index(lines=lines)
+    if last is None:
+        return None
+    start = last
+    while start > 0 and _FIXES_PATTERN.match(lines[start - 1]):
+        start -= 1
+    return start
+
+
+def _fixes_block_end(*, lines: list[str], start: int) -> int:
+    end = start
+    while end + 1 < len(lines) and _FIXES_PATTERN.match(lines[end + 1]):
+        end += 1
+    return end
 
 
 def _relocatable_trailer(*, lines: list[str]) -> list[str]:

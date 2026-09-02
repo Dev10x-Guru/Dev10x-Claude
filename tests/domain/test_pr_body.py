@@ -97,6 +97,24 @@ def test_fixes_only_body_normalizes_to_the_single_line():
     assert normalize_pr_body(body=f"\n\nFixes: {FIXES_URL}\n---\n") == f"Fixes: {FIXES_URL}"
 
 
+def test_contiguous_fixes_block_is_kept_together():
+    # GH-1107 F2: a bundle PR needs one Fixes line per issue, and only
+    # a Fixes trailer auto-closes on a develop merge — splitting the run
+    # would strand the earlier entries mid-body and leave those issues
+    # open with nothing explaining why.
+    body = f"Story\n\nFixes: {FIXES_URL}\nFixes: {FIXES_URL}2\n\n---"
+
+    assert normalize_pr_body(body=body) == (f"Story\n\nFixes: {FIXES_URL}\nFixes: {FIXES_URL}2")
+
+
+def test_trailing_content_moves_above_a_multi_line_fixes_block():
+    body = f"Story\n\nFixes: {FIXES_URL}\nFixes: {FIXES_URL}2\n\nstray note"
+
+    assert normalize_pr_body(body=body) == (
+        f"Story\n\nstray note\n\nFixes: {FIXES_URL}\nFixes: {FIXES_URL}2"
+    )
+
+
 def test_self_motivated_fixes_trailer_is_detected():
     assert has_fixes_trailer(body="Story\n\nFixes: none — self-motivated")
 

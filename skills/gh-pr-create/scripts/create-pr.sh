@@ -29,9 +29,24 @@ HEAD_BRANCH="${10:-}"
 
 FIXES_LINE=""
 if [ -n "$FIXES_URL" ]; then
-    # Blank line before the trailer so `Fixes:` renders as its own
-    # paragraph and stays the literal last line (GH-945).
-    FIXES_LINE=$(printf '\n\nFixes: %s\n' "$FIXES_URL")
+    # One `Fixes:` line per referenced issue (GH-1107 finding 2). A
+    # bundle PR passing two references used to fuse them onto a single
+    # line, and only the first auto-closed — the second issue stayed
+    # open with nothing saying why. Accepts comma- or whitespace-
+    # separated references; a lone reference is unchanged.
+    #
+    # Blank line before the trailer so the block renders as its own
+    # paragraph and stays last in the body (GH-945).
+    FIXES_LINES=""
+    _fixes_normalized="${FIXES_URL//,/ }"
+    for ref in $_fixes_normalized; do
+        [ -z "$ref" ] && continue
+        FIXES_LINES+=$(printf 'Fixes: %s\n' "$ref")
+        FIXES_LINES+=$'\n'
+    done
+    if [ -n "$FIXES_LINES" ]; then
+        FIXES_LINE=$(printf '\n\n%s' "$FIXES_LINES")
+    fi
 fi
 
 CLOSES_BLOCK=""

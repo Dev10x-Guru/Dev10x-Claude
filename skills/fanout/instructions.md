@@ -652,6 +652,24 @@ Etiquette (REQUIRED):
   opens a stray PR. `create_pr` now refuses when HEAD resolves to a
   base branch — that refusal means your `cwd=` was missing or wrong.
 
+When a Dev10x MCP wrapper is unreachable (GH-1107 finding 1):
+- Re-run the `ToolSearch` bootstrap once. The connection can drop
+  mid-run, and a re-resolve is cheap.
+- If the wrapper is still unreachable, do NOT substitute raw `gh` /
+  `gh api` for it. This is not a permission question — the wrappers
+  carry validation the raw call does not, and `merge_pr` /
+  `Dev10x:gh-pr-merge` in particular gate a merge on checks that
+  cannot be re-run afterwards.
+- Do the work you CAN do without wrappers: implement, run the full
+  test suite, commit, and push your branch.
+- Then stop and return `NEEDS_CONTEXT: MCP wrappers unreachable —
+  <what remains>`, naming the PR URL if one exists. Your branch is
+  pushed, so nothing is lost and the orchestrator can finish it.
+- Holding here is the correct outcome, not a failure. In the GH-1107
+  run three children hit this: two held and returned NEEDS_CONTEXT,
+  one raw-CLI'd its way through PR creation, body patching, AND the
+  merge — bypassing every pre-merge validation for that PR.
+
 Return on completion:
 - PR URL (or "no PR produced — <reason>")
 - Merge state: MERGED | OPEN | DRAFT (if open, explain why)
@@ -675,6 +693,31 @@ Status line rules (GH-368, GH-385):
   orchestrator as NEEDS_CONTEXT → re-dispatch.
 - NEVER end with a plain text summary and no status token.
 ```
+
+**MCP-outage recovery — dispatch a finisher (GH-1107 finding 1).**
+When a child returns `NEEDS_CONTEXT: MCP wrappers unreachable` with
+its branch pushed, do NOT re-dispatch the same work and do NOT
+finish it with raw `gh` yourself. Spawn a fresh short-lived agent
+for the remaining shipping steps:
+
+```
+Agent(subagent_type="general-purpose", model="haiku",
+    description="Finish PR <n> for <item>",
+    prompt="The branch is pushed and the PR is open at <url>. Run
+        Skill(Dev10x:gh-pr-merge) to gate and merge it. If the MCP
+        wrappers are unreachable for you too, return BLOCKED — do
+        not fall back to raw gh.",
+    run_in_background=true)
+```
+
+A fresh spawn gets a new MCP connection attempt, which is why this
+recovers where re-prompting the stalled child does not — it
+succeeded 4/4 times in the run that produced this finding. If the
+finisher also reports BLOCKED, the outage is session-wide: surface
+it to the supervisor (a `/mcp` reconnect is user-side) rather than
+routing around the wrappers. See
+`skills/foreman/references/mcp-connectivity.md` for why this hop
+cannot be reconnected from inside the plugin.
 
 **Subtask tracking.** Before dispatching the wave, create one
 subtask per item under the Phase 3 parent and mark it
