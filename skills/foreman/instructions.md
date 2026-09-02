@@ -113,7 +113,18 @@ each into this directory.
    `merged-shas`, `parked`, `current-generation`. Full event semantics
    and the file table:
    [`references/architecture.md`](references/architecture.md).
-2. Spawn the **foreman** overseer (cheap model, named agent), and
+2. **Arm the external wake timer (GH-1109).** The watcher above runs
+   inside this session, so a platform quota pause takes it down with
+   everything else — `QUOTA RESET` then fires into a queue nobody is
+   reading. Install a cron/systemd timer calling
+   `dev10x watchdog wake --run-root <runs-parent> --wake-command
+   '<resume-command>'` every few minutes; it is idempotent per block
+   boundary, so a live session ignores it. Verify with
+   `dev10x watchdog probe` and a `--dry-run` wake, per Phase 0.4.
+   Without this the run cannot resume itself: the 2026-08-31 run lost
+   five hours of available capacity between a 01:00Z reset and a 06:28Z
+   human nudge.
+3. Spawn the **foreman** overseer (cheap model, named agent), and
    write `current-generation` naming it before the spawn returns. It
    manages the queue per the manifest — one crew worker per chunk,
    relays `BASE MOVED` and merge requests, verifies per-chunk closure
@@ -191,6 +202,11 @@ turn are the most precious resources on site:
   crew. A pause is not a death — but a fresh **session** cannot reach
   prior crew at all; re-derive every inherited claim from origin
   (`references/durability-envelope.md`, GH-965).
+  **You will only see this event if the session is awake to receive it
+  (GH-1109).** A platform pause silences the session's own event queue,
+  so a reset that lands while paused arrives nowhere. The external
+  `dev10x watchdog` timer armed in Phase 1 is what re-enters the
+  session; without it the run sleeps until a human nudges it.
 - Never write into a crew worker's `status-<chunk>.md` — it refreshes
   the mtime the stall detector reads as liveness.
 - A decision only the supervisor can make → cut the scope per the crew
@@ -209,7 +225,9 @@ turn are the most precious resources on site:
 
 1. Verify: every queued chunk's issues closed or carrying a
    cut-rationale comment; milestones closed; no orphaned open PRs;
-   stop the watcher and retire the foreman.
+   stop the watcher and retire the foreman. **Remove the Phase 1 wake
+   timer** — it outlives the session that armed it, so a timer left
+   installed keeps nudging runs that no longer exist.
 2. Consolidate `DECISIONS.md` + per-chunk decision files into the
    morning report — confirm every `roster.md` row against the tracker
    first, since a rendering is not evidence. Optional HTML artifact

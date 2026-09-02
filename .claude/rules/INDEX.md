@@ -181,7 +181,7 @@ cohesive, justified by scope):
 - `fanout` (~737 lines instructions) — native-Agent swarm
   orchestrator with 6-phase execution model, swarm context
   payload, recursive-fanout guard, and conflict-wave management
-- `foreman` (288 lines instructions, GH-987 — down from 585) —
+- `foreman` (360 lines instructions, GH-987 — down from 585) —
   unattended night-shift harness: Phase 0 pre-flight, the full Phase 2
   night loop (including the stall stand-down handshake), the crew
   contract headline list, and the red-flag / rationalization tables
@@ -233,10 +233,14 @@ cohesive, justified by scope):
   instead, since it binds every MCP caller and not only foreman crews.
   `tool-surface.md` and `overseer-discipline.md` are now both AT the
   200-line cap — the next addition to either needs an extraction, not
-  an append. Split plan if `instructions.md` grows
-  again: the Phase 0.1/0.2 queue-building and model-gate prose is the
-  next extractable candidate (`references/queue-and-model.md`), since
-  the crew contract table is already split out
+  an append. GH-1109 applied the same trade once more: arming and
+  tearing down the external wake timer is execution-gating (Phase 1
+  step 2 and Phase 3 step 1, ~14 lines inline), while the evidence for why a
+  paused session cannot observe its own quota reset went to
+  `durability-envelope.md` § Rule 3b. Split plan if `instructions.md`
+  grows again: the Phase 0.1/0.2 queue-building and model-gate prose is
+  the next extractable candidate (`references/queue-and-model.md`),
+  since the crew contract table is already split out
 - `ddd` (~299 lines) — workshop orchestration hub: 4 session
   modes, 7-layer event storming flow, solo AI-cast facilitation
   (incl. the GH-789 discussion-agent model-tier gate), and
