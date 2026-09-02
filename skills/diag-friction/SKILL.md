@@ -30,6 +30,13 @@ allowed-tools:
   - Read(.claude/settings.local.json)
   - Read(${CLAUDE_PLUGIN_ROOT}/skills/diag-friction/references/*)
   - Read(${CLAUDE_PLUGIN_ROOT}/src/dev10x/validators/command-skill-map.yaml)
+  - Bash(uvx dev10x permission catalog-gap:*)
+  - Bash(dev10x permission catalog-gap:*)
+  - Bash(uvx dev10x permission ensure-base:*)
+  - Bash(dev10x permission ensure-base:*)
+  - Bash(uvx dev10x permission seed-worktree:*)
+  - Bash(dev10x permission seed-worktree:*)
+  - mcp__plugin_Dev10x_cli__audit_analyze_permissions
 ---
 
 # Dev10x:diag-friction
@@ -118,6 +125,54 @@ output the reinforcement pointing to the correct sub-skill.
 If no direct mapping exists, read `~/.claude/SKILLS.md` and scan
 skill descriptions from the system-reminder context to find the
 best match based on the command's purpose.
+
+### Step 3a: Effective-file coverage (GH-1139)
+
+**Run this BEFORE the shape audit.** The most common cause of a
+prompt on a seeded machine is not a missing rule — it is a rule
+that exists in the catalog and in global but not in the file the
+engine actually reads (GH-1136). Diagnosing the individual command
+first hides that layer, which is how a worktree stayed "constantly
+stuck on basic actions" while every diag-friction run answered a
+different question.
+
+1. Resolve the effective settings file for the CWD: the worktree's
+   `.claude/settings.local.json`, else the project's, else global.
+2. Run the catalog-gap check and read the counts by family:
+
+```bash
+uvx dev10x permission catalog-gap
+```
+
+3. If the offending command's generalized rule (Step 3d) is in the
+   catalog but absent from the effective file, say so **first**:
+   the diagnosis is a **propagation gap**, not a missing rule.
+
+**Backfill proposal gate — REQUIRED: Call `AskUserQuestion`** (do
+NOT use plain text) whenever the gap is non-empty. Options:
+
+- **Backfill this checkout (Recommended)** — run `ensure-base` /
+  `seed-worktree` for this checkout only
+- **Backfill every checkout under roots** — the full maintenance run
+- **Report only** — write nothing
+
+Never write without this gate, never write a git-tracked
+`settings.json`, and always write through the backup + atomic path
+(`ensure_base` already does both).
+
+**Three-outcome routing for Step 4.** Distinguish these — they have
+different fixes, and conflating (a) with (b) patches per-repo while
+hiding the propagation defect:
+
+| Outcome | Condition | Fix |
+|---------|-----------|-----|
+| (a) propagation gap | rule in catalog, missing from effective file | backfill (gate above) |
+| (b) missing default | rule absent from catalog, generally safe | propose a plugin-default addition (upstream issue, Step 3c) |
+| (c) project-specific | safe only for this project | user-private synced catalog entry |
+
+See [`references/audit-procedure.md`](references/audit-procedure.md)
+§ Effective-file coverage for the resolution order and the two
+sanctioned settings-read surfaces.
 
 ### Step 3b: Permission friction audit
 
