@@ -938,7 +938,7 @@ rules:
       - "for .*gh pr checks"
       - "sleep.*gh pr (checks|view)"
       - "gh pr (checks|view).*sleep"
-    hook_block: false
+    hook_block: true
     compensations:
       - type: use-tool
         tool: mcp__plugin_Dev10x_cli__ci_check_status
@@ -955,6 +955,14 @@ rules:
       ci_check_status(wait=true) and the gh-pr-monitor skill. The loop
       exits on the first tick, skips bot-review checks, and does no
       fixup/re-monitor — route to the wrapper/skill instead (GH-488 #22).
+
+      Blocking, not advising (GH-1138): the shape is structurally
+      un-allow-listable, so an advisory entry only speaks after the
+      supervisor has already been interrupted — or, unattended, after
+      the loop has already wedged on a prompt. A dispatcher that read
+      ci_check_status as unable to wait out its bot legs hand-rolled
+      exactly this loop and stalled on a Yes/No; the wrapper now takes
+      `wait_for`, so the compensation is executable in that case too.
     related:
       - Dev10x:gh-pr-monitor
 
@@ -968,7 +976,7 @@ rules:
     except:
       - "gh pr checks"
       - "gh pr view"
-    hook_block: false
+    hook_block: true
     compensations:
       - type: use-alternative
         description: >
@@ -1019,6 +1027,12 @@ rules:
       interactively and risks the GH-879 wedge unattended. The
       compensations above are ordered so the non-prompting shapes come
       first; prefer them over the hint.
+
+      Blocking, not advising (GH-1138): an advisory setting on a shape
+      that can never be approved deterministically is the worst of both
+      — it neither prevents the prompt nor answers it. The Monitor tool
+      is now on the same PreToolUse validator chain as Bash, so a loop
+      routed through Monitor to dodge the Bash hook is seen too.
     related:
       - Dev10x:foreman
       - Dev10x:gh-pr-monitor

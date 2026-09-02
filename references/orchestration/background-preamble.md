@@ -98,6 +98,15 @@ Prefer:
   success while HEAD never left stale ancestry (GH-964).
 - To squash `fixup!` commits, use the non-interactive `rebase_groom`
   MCP tool.
+- To wait for CI, call `mcp__plugin_Dev10x_cli__ci_check_status(
+  wait=true)` — ONE call that polls server-side on a bounded budget.
+  Never hand-roll `while … gh pr checks … sleep`, through Bash or
+  through the `Monitor` tool: both are permission-matched, and an
+  unattended prompt on that shape wedges the whole run (GH-1138,
+  GH-879). To wait out specific bot legs while a required check is
+  already red — the normal state of a branch carrying `fixup!`
+  commits — pass `wait_for=["<check>", …]` rather than polling
+  yourself.
 
 Your tool surface is pre-seeded — the tools you need are already
 allowed. Use them. Do NOT ask to "switch to auto mode" or disable

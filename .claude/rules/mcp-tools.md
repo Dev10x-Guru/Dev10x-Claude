@@ -150,7 +150,7 @@ one session). Use these shapes verbatim:
 | `pr_labels` | `pr_number`; `action` (`list` default / `add` / `remove`), plus `labels` for the two writes | separate `pr_label_add` / `pr_label_remove` names — it is one tool with an action selector, like `pr_comments` |
 | `task_index_get` | none (optional `cwd`) | `Read`ing `.claude/Dev10x/session.yaml` — retired by ADR-0018 D5; the tool probes it as a fallback |
 | `pr_ready` | `pr_number`; optional `undo` (bool) | assuming it only publishes — `undo=true` returns a PR to draft |
-| `ci_check_status` | `pr_number`, `repo`; optional `wait`, `wait_out_pending` (default `true`) | reading a `wait=true` `failing` as "every leg finished" — check `pending` (GH-1065) |
+| `ci_check_status` | `pr_number`, `repo`; optional `wait`, `wait_out_pending` (default `true`), `wait_for` (list of check names) | reading a `wait=true` `failing` as "every leg finished" — check `pending` (GH-1065); expecting `wait_out_pending` to cover a failed REQUIRED leg — it does not, use `wait_for` (GH-1138) |
 | `create_pr` | `title`, `issue_id`, plus either `job_story` or `body`; optional `head`, `milestone` | passing a long `job_story` and expecting the extra paragraphs to survive — only `body` is used verbatim (GH-1073) |
 | `update_pr` | `pr_number`, plus at least one of `body` / `title` / `base_branch` / `milestone` | `gh pr edit --milestone` — routed here (GH-1098) |
 
@@ -288,6 +288,25 @@ Behavioral caveats:
   the loop, so a leg that never settles ends the wait rather than
   hanging it. Pass `wait_out_pending=false` for the old
   return-on-first-failure behaviour.
+- `ci_check_status(wait=true)` takes `wait_for`, a list of check names
+  that must settle before the wait ends **even when a REQUIRED check
+  has already failed** (GH-1138). `wait_out_pending` does not cover
+  that case by design — a failed required leg blocks the merge however
+  the rest land, so returning at once is right for a caller deciding
+  whether to merge. It is wrong for a caller that must not rewrite
+  history until the review bots have anchored their comments: on any
+  branch carrying `fixup!` commits the required `git-history-linting`
+  leg fails **by design** until squash, so "required red + advisory
+  legs pending" is a routine mid-review state, not an edge case. A
+  Phase 4.6 dispatcher hit exactly that, read the contract correctly as
+  "this will not wait", and hand-rolled a `while … gh pr checks …
+  sleep 30` loop through the `Monitor` tool — which no Dev10x hook
+  validated — then stalled on a prompt. Pass
+  `wait_for=["claude-review", "hygiene-review"]` instead. The poll
+  budget still bounds the wait, and `conflicting` still returns
+  immediately. `Monitor` is now on the same PreToolUse validator chain
+  as `Bash`, and both `ci-loop-handrolled` and `watch-loop-handrolled`
+  are `hook_block: true`.
 - `ci_check_status(wait=true)` probes once before sleeping and returns
   straight away when the verdict is already terminal (GH-1088). A call
   that lands after CI finished costs one API round trip instead of the

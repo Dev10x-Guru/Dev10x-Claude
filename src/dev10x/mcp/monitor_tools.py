@@ -16,6 +16,7 @@ async def ci_check_status(
     initial_wait: int = 60,
     max_polls: int = 40,
     wait_out_pending: bool = True,
+    wait_for: list[str] | None = None,
     cwd: str | None = None,
 ) -> dict:
     """Check CI status for a PR and return a structured verdict.
@@ -35,6 +36,16 @@ async def ci_check_status(
             NON-required check until no leg is pending (default True,
             GH-1065). A failed REQUIRED check still returns immediately.
             Set False for the old return-on-first-failure behaviour.
+        wait_for: Check names that must settle before the wait ends, even
+            when a REQUIRED check has already failed (GH-1138). On any
+            branch carrying ``fixup!`` commits the required
+            ``git-history-linting`` leg fails by design until squash, so
+            "required red + advisory legs pending" is routine — and
+            ``wait_out_pending`` does not cover it. Pass the bot legs
+            (e.g. ``["claude-review", "hygiene-review"]``) when the next
+            step would invalidate what they anchor to, such as a groom
+            that force-pushes the SHAs their comments reference. The poll
+            budget still bounds the wait.
         cwd: Effective working directory (GH-979).
 
     Returns:
@@ -60,5 +71,7 @@ async def ci_check_status(
                 poll_interval=poll_interval,
                 initial_wait=initial_wait,
                 max_polls=max_polls,
+                wait_out_pending=wait_out_pending,
+                wait_for=wait_for,
             )
         )

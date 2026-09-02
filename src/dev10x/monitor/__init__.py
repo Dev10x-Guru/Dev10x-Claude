@@ -23,6 +23,7 @@ async def ci_check_status(
     initial_wait: int = 60,
     max_polls: int = 40,
     wait_out_pending: bool = True,
+    wait_for: list[str] | None = None,
 ) -> Result[dict[str, Any]]:
     script = get_plugin_root() / "skills/gh-pr-monitor/scripts/ci-check-status.py"
     args: list[str] = [
@@ -40,6 +41,8 @@ async def ci_check_status(
         args.extend(["--max-polls", str(max_polls)])
         if not wait_out_pending:
             args.append("--no-wait-out-pending")
+        for check_name in wait_for or []:
+            args.extend(["--wait-for", check_name])
 
     timeout = float((initial_wait + poll_interval * max_polls + 60) if wait else 60)
     result = await async_run(args=args, timeout=timeout)

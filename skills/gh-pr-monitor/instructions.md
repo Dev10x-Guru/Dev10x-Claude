@@ -176,8 +176,18 @@ auto-mode). See `references/orchestration/background-preamble.md`.
 
 #### Micro-agent A: haiku-ci-poll
 
-Polls CI until the verdict changes from `pending`, then returns
-the verdict JSON. No decision-making.
+Makes ONE `ci_check_status(wait=true)` call and returns the verdict
+JSON. No decision-making, and no loop of its own — the wrapper does
+the waiting server-side.
+
+**No poll loop here (GH-1138).** This spec used to be written as a
+loop ("if verdict is pending, sleep 30s", plus a "do not continue
+past 50 turns" guard), which taught every reader that bespoke
+polling is the normal shape. A dispatcher copied it, pointed it at
+`gh pr checks` through the `Monitor` tool — which no Dev10x hook
+validated at the time — and stalled on a Yes/No prompt. One wrapper
+call carries its own poll budget, bounded under the MCP
+idle-timeout, so the loop was never needed.
 
 ```
 subagent_type: "general-purpose"
@@ -187,8 +197,6 @@ max_turns: 50                  # not 200 — bounded work
 description: "Poll CI for PR #{pr_number}"
 allowed_tools:
   - mcp__plugin_Dev10x_cli__ci_check_status
-  - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-monitor/scripts/ci-check-status.py:*)
-  - Bash(sleep:*)
   - SendMessage                # deliver the verdict (GH-776)
 disallowed_tools:
   - Edit, Write, NotebookEdit
@@ -198,33 +206,41 @@ disallowed_tools:
   - mcp__plugin_Dev10x_cli__push_safe
   - mcp__plugin_Dev10x_cli__update_pr
 prompt: |
-  You are a CI-polling micro-agent. Your ONLY job is to loop
-  ci-check-status.py until verdict changes from "pending", then
-  output the final JSON verdict and exit.
+  You are a CI-polling micro-agent. Your ONLY job is ONE tool call,
+  then delivering its JSON verdict.
 
-  Loop:
-    1. Run: ci-check-status.py --pr {pr_number} --repo {repo}
-    2. Parse the JSON. If verdict == "pending" or "empty", sleep 30s.
-       (A single `ci_check_status(wait=true)` call self-polls with a
-       budget kept under the ~1800s MCP idle-timeout, GH-808 F2 — it
-       returns `infra_unavailable` rather than hanging if checks never
-       register.)
-    3. If verdict in ["green", "failing", "conflicting",
-       "infra_unavailable"], deliver
-       the verdict JSON and exit. Because you run in the background,
-       plain stdout is NOT read — you MUST call
-       SendMessage(to="main", summary="ci <verdict>",
-       message=<the verdict JSON>) to deliver it. The JSON must be
-       the LAST line of the SendMessage payload (GH-776).
+  1. Call:
+       mcp__plugin_Dev10x_cli__ci_check_status(
+         pr_number={pr_number}, repo="{repo}", wait=true)
+
+     The wrapper polls server-side on its own budget, kept under the
+     ~1800s MCP idle-timeout (GH-808 F2). It returns
+     `infra_unavailable` rather than hanging when checks never
+     register, and it probes once before sleeping, so a call made
+     after CI already finished returns immediately (GH-1088).
+
+     When the supervisor named specific checks to wait out — bot
+     legs whose comments the next step would invalidate — pass them
+     as `wait_for=["claude-review", "hygiene-review"]`. That keeps
+     the wait alive even while a REQUIRED check is red, which is the
+     normal state of any branch carrying `fixup!` commits (GH-1138).
+
+  2. Deliver the verdict JSON via
+     SendMessage(to="main", summary="ci <verdict>",
+     message=<the verdict JSON>). It must be the LAST line of that
+     payload — a background agent's bare stdout never reaches the
+     supervisor (GH-776).
 
   You MUST NOT:
+    - Write your own poll loop. No `while`, no `until`, no `sleep`,
+      through Bash or the Monitor tool. If one call is not enough,
+      say so in your report and let the supervisor re-dispatch —
+      a hand-rolled loop wedges on a permission prompt that, in an
+      unattended run, nobody answers (GH-1138, GH-879).
     - Decide what to do about the verdict — that is the supervisor's
       job.
     - Mark the PR ready, edit anything, comment, or push.
     - Invoke any Skill or further Agent.
-    - Continue looping past 50 turns. If you reach turn 45 with the
-      verdict still pending, SendMessage
-      {"verdict": "timeout", "polled_turns": <N>} to main and exit.
 
   Deliver the verdict JSON via SendMessage(to="main", …) — it must be
   the LAST line of that payload. Do NOT rely on bare stdout; a

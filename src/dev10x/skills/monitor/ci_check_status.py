@@ -253,10 +253,26 @@ def compute_verdict(
     }
 
 
+SETTLED_BUCKETS = frozenset({"pass", "fail", "skipping", "cancel"})
+
+
+def unsettled_named_checks(*, result: dict, wait_for: list[str]) -> list[str]:
+    """Names from ``wait_for`` that have not reached a terminal bucket.
+
+    A named check that has not registered yet counts as unsettled — that
+    is the state a caller waiting for a bot leg most needs to sit
+    through. The poll budget, not this function, bounds a leg that never
+    appears at all.
+    """
+    buckets = {check["name"]: check["bucket"] for check in result["checks"]}
+    return [name for name in wait_for if buckets.get(name) not in SETTLED_BUCKETS]
+
+
 def is_terminal(
     *,
     result: dict,
     wait_out_pending: bool = True,
+    wait_for: list[str] | None = None,
 ) -> bool:
     """Whether a poll result ends the wait.
 
@@ -270,9 +286,26 @@ def is_terminal(
     With ``wait_out_pending`` (the default) a blended failure is terminal only
     once nothing is outstanding. A REQUIRED failure stays terminal on sight:
     it blocks the merge no matter how the remaining legs land.
+
+    ``wait_for`` (GH-1138) names checks that must settle before the wait
+    ends, and it OUTRANKS the required-failure early return. That early
+    return is correct for a caller deciding whether to merge, and wrong
+    for the one this parameter serves: on any branch carrying ``fixup!``
+    commits the required ``git-history-linting`` leg fails *by design*
+    until squash, so "required red + advisory legs pending" is a routine
+    mid-review state. A caller that must not groom until the review bots
+    have anchored their comments got an instant ``failing`` there and no
+    way to keep waiting — which is how a 20-line hand-rolled
+    ``while … gh pr checks … sleep 30`` loop ended up dispatched through
+    a tool no Dev10x hook validates. ``conflicting`` still returns
+    immediately: nothing further will run.
     """
     verdict = result["verdict"]
-    if verdict in ("green", "conflicting"):
+    if verdict == "conflicting":
+        return True
+    if wait_for:
+        return not unsettled_named_checks(result=result, wait_for=wait_for)
+    if verdict == "green":
         return True
     if verdict != "failing":
         return False
@@ -308,6 +341,7 @@ def poll_until_terminal(
     initial_wait: int = 60,
     max_polls: int = 40,
     wait_out_pending: bool = True,
+    wait_for: list[str] | None = None,
 ) -> dict:
     """Poll CI until a terminal verdict (green, failing, conflicting).
 
@@ -325,6 +359,14 @@ def poll_until_terminal(
     pre-GH-1065 behaviour of returning on the first blended failure. Either
     way the poll budget still bounds the loop, so a leg that never settles
     ends the wait rather than hanging it.
+
+    `wait_for` (GH-1138) names checks that must settle before the wait
+    ends, even when a REQUIRED check has already failed — the state every
+    branch carrying `fixup!` commits is in, since `git-history-linting`
+    fails by design until squash. Use it when the next step would
+    invalidate what the pending legs anchor to (grooming force-pushes the
+    SHAs review-bot comments reference). The poll budget bounds it like
+    every other wait.
 
     The default poll budget (`initial_wait 60 + poll_interval 30 * 39`
     = 1230s — ×39, not ×40, because the loop skips the sleep after the
@@ -369,7 +411,7 @@ def poll_until_terminal(
             flush=True,
         )
 
-        if is_terminal(result=result, wait_out_pending=wait_out_pending):
+        if is_terminal(result=result, wait_out_pending=wait_out_pending, wait_for=wait_for):
             return result
 
         if attempt < max_polls:
@@ -428,6 +470,15 @@ def main() -> None:
         help="End the wait on the first failing check even while other legs "
         "are pending (pre-GH-1065 behaviour)",
     )
+    parser.add_argument(
+        "--wait-for",
+        action="append",
+        default=None,
+        metavar="CHECK",
+        help="Keep polling until this check settles, even if a REQUIRED "
+        "check has already failed (repeatable, GH-1138). Use when the "
+        "next step invalidates what the pending legs anchor to.",
+    )
     args = parser.parse_args()
 
     try:
@@ -444,6 +495,7 @@ def main() -> None:
             initial_wait=args.initial_wait,
             max_polls=args.max_polls,
             wait_out_pending=args.wait_out_pending,
+            wait_for=args.wait_for,
         )
     else:
         checks = get_annotated_checks(
