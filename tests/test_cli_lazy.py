@@ -30,6 +30,7 @@ EXPECTED_SUBCOMMANDS = {
     "skill",
     "spec",
     "usage",
+    "watchdog",
 }
 
 

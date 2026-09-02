@@ -89,6 +89,36 @@ the plan has already committed to it. Rebuild the queue from open
 tracker issues and pushed branches instead (the same path
 `architecture.md` prescribes for catastrophic harness loss).
 
+## Rule 3b — a pause silences the session's own event queue (GH-1109)
+
+Rule 3 covers a session that *dies*. A quota **pause** is the milder
+boundary and has its own trap: the session survives, and so does
+everything queued for it, but nothing is read while it is paused —
+including the events that would tell it the pause is over.
+
+| Signal | Delivered to a paused session? |
+|---|---|
+| `QUOTA RESET:` from the in-session watcher | no — the watcher is paused too |
+| Queued `Monitor` notifications | no — they wait, unread |
+| A due `ScheduleWakeup` | no — it does not revive the session |
+| An inbound cross-session message / `--resume` | **yes** — this is the only re-entry |
+
+So a paused run cannot observe its own reset. The consequence is
+measured, not theoretical: in the 2026-08-31 run the block reset at
+01:00Z, 15 minutes after the freeze, and the session slept until a
+human nudged it at 06:28Z — five hours of paid, available capacity
+unused, which is exactly the outcome the harness exists to prevent.
+
+**Consequence: the actor that notices a reset must live outside every
+session.** `dev10x watchdog wake`, armed as a cron/systemd timer in
+Phase 1 step 2 and removed in Phase 3, is that actor. It probes the quota
+block offline, finds run directories whose heartbeats have all gone
+silent, and fires an operator-supplied resume command at most once per
+block boundary. It deliberately does not speak the harness's
+cross-session protocol — that transport is not ours, the same finding
+`mcp-connectivity.md` records — so the operator supplies the command
+that works for their setup.
+
 ## Rule 4 — a foreman cannot spawn NAMED teammates
 
 `Agent(..., name=...)` fails from inside an agent with **"teammates

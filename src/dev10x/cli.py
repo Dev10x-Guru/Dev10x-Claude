@@ -55,6 +55,7 @@ class LazyGroup(click.Group):
         "skill": "dev10x.commands.skill.skill",
         "spec": "dev10x.commands.spec.spec",
         "usage": "dev10x.commands.usage.usage",
+        "watchdog": "dev10x.commands.watchdog.watchdog",
     },
     invoke_without_command=True,
 )
