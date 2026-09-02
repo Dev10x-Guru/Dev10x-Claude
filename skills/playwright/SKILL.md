@@ -142,9 +142,9 @@ btn.click()
 ```
 
 For a **recorded** run, use `Annotator.tap(btn, announce=..., then=...)`
-from `lib/annotate.py` instead — it scrolls, asserts the target is
-actually inside the viewport, points at it, narrates, acts, and holds a
-beat, in the order a viewer needs. Every click on the recorded path goes
+from `lib/annotate.py` instead — it scrolls the target to the centre of
+the frame, asserts it is actually inside the viewport, points at it,
+narrates, acts, and holds a beat, in the order a viewer needs. Every click on the recorded path goes
 through it; a bare `locator.click()` cuts between two states with
 nothing showing what was pressed.
 See [`references/recording-for-humans.md`](references/recording-for-humans.md).
