@@ -16,6 +16,11 @@
       "id": "permission-audit",
       "name": "Step 3b/3d Permission-Friction Audit",
       "description": "The audit reads live settings files to surface an existing pre-approved alternative when one exists, and proposes only a narrow, generalized allow-rule (never Bash(*) or a destructive-verb wildcard) when none does."
+    },
+    {
+      "id": "effective-file-coverage",
+      "name": "Step 3a Effective-File Coverage and Backfill Gate",
+      "description": "Before auditing rule shapes, the skill checks whether the effective settings file carries the shipped catalog, names a propagation gap as such rather than diagnosing the individual command, and blocks on AskUserQuestion before any backfill write."
     }
   ],
   "evals": [
@@ -160,6 +165,57 @@
           "dimension": "follow-up-retry-gate",
           "check": "behavioral",
           "signal": "skips_follow_up_gate — AskUserQuestion is not called — the reinforcement message is informational only"
+        }
+      ]
+    },
+    {
+      "id": "propagation-gap-diagnosed-first",
+      "name": "Catalog rule missing from the effective file is named as a propagation gap",
+      "description": "The offending command's rule is in the shipped catalog and in global settings but absent from the worktree's settings.local.json",
+      "input": "Agent ran 'pre-commit run --files foo.py' in a worktree and was prompted; Bash(pre-commit run:*) is in the catalog and in ~/.claude/settings.json but not in the worktree file",
+      "assertions": [
+        {
+          "dimension": "effective-file-coverage",
+          "check": "behavioral",
+          "signal": "runs_catalog_gap — Output reports missing allow/deny counts from the catalog-gap check for the effective settings file"
+        },
+        {
+          "dimension": "effective-file-coverage",
+          "check": "behavioral",
+          "signal": "names_propagation_gap — Output states the rule is in the catalog but missing from the effective file, rather than proposing it as a new rule"
+        },
+        {
+          "dimension": "effective-file-coverage",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "assertion": "backfill_gate_uses_tool",
+          "signal": "AskUserQuestion is called to offer the backfill before any write"
+        }
+      ]
+    },
+    {
+      "id": "report-only-writes-nothing",
+      "name": "Report-only choice performs no write",
+      "description": "A non-empty gap is reported and the user selects Report only",
+      "input": "Effective settings file lacks 137 catalog rules; user answers 'Report only' at the backfill gate",
+      "assertions": [
+        {
+          "dimension": "effective-file-coverage",
+          "check": "behavioral",
+          "signal": "no_write_on_report_only — No ensure-base or seed-worktree invocation follows the gate; the settings file is unchanged"
+        }
+      ]
+    },
+    {
+      "id": "settings-read-uses-sanctioned-surface",
+      "name": "Settings files are read via Read or audit_analyze_permissions",
+      "description": "The coverage step must not shell out to rg/grep/cat against ~/.claude/settings*.json",
+      "input": "Skill runs Step 3a and needs the contents of ~/.claude/settings.json",
+      "assertions": [
+        {
+          "dimension": "effective-file-coverage",
+          "check": "behavioral",
+          "signal": "avoids_shell_settings_read — No Bash rg/grep/cat/jq call targets ~/.claude/settings.json; the Read tool or audit_analyze_permissions is used instead"
         }
       ]
     }
