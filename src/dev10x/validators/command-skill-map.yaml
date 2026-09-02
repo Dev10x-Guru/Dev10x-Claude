@@ -972,6 +972,18 @@ rules:
     compensations:
       - type: use-alternative
         description: >
+          Waiting on work already dispatched to subagents? Do not wait
+          at all — the Agent tool delivers completion notifications on
+          its own, so a poll adds permission prompts without adding
+          information (GH-1132).
+      - type: use-alternative
+        description: >
+          Waiting for a one-off condition ("tell me when X is ready")?
+          Use Bash with `run_in_background: true` and a command that
+          EXITS once the condition holds. One notification, no Monitor,
+          no prompt.
+      - type: use-alternative
+        description: >
           For orchestration/heartbeat watching, arm the pre-approved
           watcher CLI instead: `dev10x foreman watch --scratchpad
           <run-dir>` (heartbeat stalls, base-branch movement, quota
@@ -989,6 +1001,11 @@ rules:
           When the loop is CI-shaped, ci_check_status(wait=true)
           replaces it (the gh-specific shapes are matched by
           ci-loop-handrolled above).
+      - type: use-alternative
+        description: >
+          A Monitor until-loop is the LAST resort here, and only for
+          genuine per-occurrence watching (one event per match, over
+          time) — not for waiting out a single condition.
     reason: >
       Inline while/until/sleep and `watch -n` shapes are structurally
       un-allow-listable — small variations (adding a pipeline stage)
@@ -996,6 +1013,12 @@ rules:
       permission-matched exactly like Bash, and in an unattended
       session a prompted watch command freezes the orchestrator turn
       until a human returns (GH-879: a 7-hour overnight stall).
+      NOTE (GH-1132): the harness's own standalone-`sleep` block
+      recommends "Monitor with an until-loop", which lands on exactly
+      the shape this rule flags — obeying that hint costs a rejection
+      interactively and risks the GH-879 wedge unattended. The
+      compensations above are ordered so the non-prompting shapes come
+      first; prefer them over the hint.
     related:
       - Dev10x:foreman
       - Dev10x:gh-pr-monitor
