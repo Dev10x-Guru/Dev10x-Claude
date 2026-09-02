@@ -58,9 +58,9 @@ the step plays silently.
 
 ## Pointing proves the target is on screen
 
-`point_at()` scrolls the target into view, waits for the scroll to
-settle, and then asserts the box is inside the viewport — not merely
-that `bounding_box()` returned something.
+`point_at()` scrolls the target to the middle of the frame, waits for the
+scroll to settle, and then asserts the box is inside the viewport — not
+merely that `bounding_box()` returned something.
 
 The distinction is the whole point. `bounding_box()` returns
 coordinates for **anything attached and laid out**, so `None` comes back
@@ -72,16 +72,23 @@ picture of a real UI that does not show the thing being asserted — and
 non-uniform-frame checks are structurally incapable of catching *a
 picture of the wrong thing* (GH-1129).
 
-When a target genuinely will not fit, scroll it deliberately before
-pointing. `block: "center"` matters: `start` parks it under a sticky app
-header, and centre lands it where a viewer is already looking.
+Merely on screen is not enough either. `scroll_into_view_if_needed()`
+stops as soon as the element is *anywhere* in the viewport, so a target
+one pixel under the fold lands flush against the bottom edge — which
+passes the assertion and is still the worst place to point at: the caption
+flips to the top to avoid the cursor, a sticky header can cover a top-edge
+landing, and the viewer's eye leaves the middle of the frame to find the
+target. `Annotator.center_on()` — which `point_at()`, `highlight()` and
+`capture_region()` all go through, and which a step may call directly to
+move the page without pointing — follows the minimum scroll with
+`scrollIntoView({block: "center", inline: "center"})`, and the browser
+clamps at the ends of the scroll range so the first and last screenful
+centre as far as they can and no further.
 
-```python
-locator.evaluate(
-    "el => el.scrollIntoView({behavior: 'smooth', block: 'center'})"
-)
-time.sleep(1.8)   # let the smooth scroll finish before measuring
-```
+That scroll is smooth — a viewer follows a page that moves and loses one
+that cuts — and is waited out by **measuring** the box until it stops
+moving, never by a fixed sleep: a box read mid-animation is a stale
+coordinate, and the pointer lands where the target used to be.
 
 ## Pacing
 

@@ -69,16 +69,32 @@ class FakePage:
 
 
 class FakeLocator:
-    def __init__(self, box: dict[str, float] | None) -> None:
+    def __init__(self, box: dict[str, float] | None, *, tops: list[float] | None = None) -> None:
         self._box = box
         self.scrolled = False
         self.clicked = False
+        # "scroll" / "center" / "measure", in the order they were called.
+        self.calls: list[str] = []
+        # Successive rect tops the settle wait reads; the last one repeats,
+        # which is what a finished scroll looks like.
+        self._tops = list(tops) if tops else None
 
     def bounding_box(self) -> dict[str, float] | None:
         return self._box
 
     def scroll_into_view_if_needed(self) -> None:
         self.scrolled = True
+        self.calls.append("scroll")
+
+    def evaluate(self, expression: str) -> float | None:
+        if expression == _mod.CENTER_SCROLL_JS:
+            self.calls.append("center")
+            return None
+        assert expression == _mod.TARGET_TOP_JS, expression
+        self.calls.append("measure")
+        if self._tops is None:
+            return 0.0
+        return self._tops.pop(0) if len(self._tops) > 1 else self._tops[0]
 
     def click(self) -> None:
         self.clicked = True
@@ -267,6 +283,64 @@ class TestPointAt:
         monkeypatch.setattr(_mod, "POINT_SETTLE_SECONDS", 9.0)
         _mod.Annotator(page).point_at(on_screen())
         assert 9.0 in slept
+
+
+class DriftingLocator(FakeLocator):
+    """A page whose own animation never lets the box settle."""
+
+    def __init__(self) -> None:
+        super().__init__({"x": 0, "y": 0, "width": 10, "height": 10})
+        self._top = 0.0
+
+    def evaluate(self, expression: str) -> float | None:
+        result = super().evaluate(expression)
+        if expression == _mod.TARGET_TOP_JS:
+            self._top += 50
+            return self._top
+        return result
+
+
+class TestCenterOn:
+    def test_centres_the_target_instead_of_leaving_it_on_an_edge(self, anno):
+        locator = on_screen()
+        anno.center_on(locator)
+        assert "block: 'center'" in _mod.CENTER_SCROLL_JS
+        assert locator.calls[:2] == ["scroll", "center"]
+
+    def test_minimum_scroll_runs_first_so_a_lazy_target_exists(self, anno):
+        """``scrollIntoView`` alone would centre a not-yet-mounted box."""
+        locator = on_screen()
+        anno.center_on(locator)
+        assert locator.calls.index("scroll") < locator.calls.index("center")
+
+    def test_waits_until_the_box_stops_moving(self, anno):
+        locator = FakeLocator({"x": 0, "y": 400, "width": 10, "height": 10}, tops=[900, 600, 400])
+        anno.center_on(locator)
+        # Three moving reads, then the fourth repeats 400 — a scroll is only
+        # known to be finished once two consecutive reads agree.
+        assert locator.calls.count("measure") == 4
+
+    def test_a_target_that_never_settles_gives_up_at_the_cap(self, page, monkeypatch):
+        clock = iter([0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0])
+        monkeypatch.setattr(_mod.time, "monotonic", lambda: next(clock))
+        locator = DriftingLocator()
+        _mod.Annotator(page).center_on(locator)
+        assert locator.calls.count("measure") >= 2
+
+    def test_pointing_centres(self, anno):
+        locator = on_screen()
+        anno.point_at(locator)
+        assert "center" in locator.calls
+
+    def test_highlighting_centres(self, anno):
+        locator = on_screen()
+        anno.highlight(locator)
+        assert "center" in locator.calls
+
+    def test_capturing_a_before_crop_centres(self, anno):
+        locator = on_screen()
+        anno.capture_region(locator)
+        assert "center" in locator.calls
 
 
 class TestPace:

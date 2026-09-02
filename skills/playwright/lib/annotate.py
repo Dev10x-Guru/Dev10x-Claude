@@ -29,7 +29,11 @@ module existed (GH-1087, GH-1086, GH-1129):
    element below the fold has a perfectly good box. Checking only for
    ``None`` caught detached elements — which are rare — and let
    below-the-fold elements, which are the normal state of a long page,
-   ship as evidence for a claim they do not show (GH-1129).
+   ship as evidence for a claim they do not show (GH-1129). The scroll
+   *centres* the target rather than merely revealing it: a minimum scroll
+   parks it against an edge, which passes the assertion and is still the
+   worst place in the frame to put the thing being demonstrated
+   (GH-1144).
 5. **The caption never lands on the evidence.** It sits at the bottom
    until the pointer enters the lower third of the frame, then flips to
    the top. Overlapping the pointed-at target is caught only by
@@ -60,10 +64,30 @@ from typing import Any
 # so patching it silently did nothing (GH-1129).
 POINT_SETTLE_SECONDS = 0.6
 
-# Held after a scroll so the app's own smooth-scroll animation finishes
-# before the bounding box is measured. A box read mid-animation is a
-# stale coordinate, and the pointer lands where the target used to be.
-SCROLL_SETTLE_SECONDS = 0.4
+# Where a pointed-at target belongs in the frame.
+# ``scroll_into_view_if_needed()`` stops as soon as the element is
+# *anywhere* in the viewport, so a target one pixel under the fold ends up
+# flush against the bottom edge — legal for ``assert_in_viewport`` and the
+# worst place to point at: the caption flips to the top to avoid the
+# cursor, a sticky app header can cover a top-edge landing, and the
+# viewer's eye has to leave the middle of the frame to find the target.
+# ``block: 'center'`` puts it where the viewer is already looking, and the
+# browser clamps at the ends of the scroll range on its own — which is what
+# "centred if possible" means on the first and last screenful.
+CENTER_SCROLL_JS = (
+    "el => el.scrollIntoView({behavior: 'smooth', block: 'center', inline: 'center'})"
+)
+
+# The scroll is smooth because a viewer follows a page that moves and loses
+# a page that cuts. It is then waited out by *measuring* the target instead
+# of holding a fixed sleep: one fixed duration is simultaneously too short
+# for a long smooth scroll — a box read mid-animation is a stale
+# coordinate, and the pointer lands where the target used to be — and pure
+# overhead on the common case where nothing had to move at all.
+TARGET_TOP_JS = "el => el.getBoundingClientRect().top"
+SCROLL_POLL_SECONDS = 0.1
+SCROLL_STABLE_PX = 0.5
+SCROLL_SETTLE_MAX_SECONDS = 2.0
 
 # Held after an action so the viewer sees the result as a state, not as
 # a frame the recording cuts away from.
@@ -876,6 +900,45 @@ class Annotator:
         """
         return [f"{chapter['timestamp']} {chapter['label']}" for chapter in self.chapters()]
 
+    def center_on(self, locator: Any) -> None:
+        """Scroll ``locator`` to the middle of the frame, and wait it out.
+
+        Every pointing entry point goes through here — the pointer, the
+        read-highlight and the before-crop — so all three agree on where a
+        point of interest belongs. ``scroll_into_view_if_needed()`` runs
+        first because it realises a virtualised or lazily-mounted element
+        that ``scrollIntoView`` alone would centre an empty box on; the
+        centring scroll then moves it off whichever edge the minimum scroll
+        left it against.
+
+        The reference guidance used to be a ``block: 'center'`` snippet each
+        script re-pasted at the call sites its author remembered — which is
+        how the overlay's own bugs survived as documentation rather than
+        code (GH-1087).
+        """
+        locator.scroll_into_view_if_needed()
+        locator.evaluate(CENTER_SCROLL_JS)
+        self._wait_for_scroll(locator)
+
+    def _wait_for_scroll(self, locator: Any) -> None:
+        """Hold until the target stops moving, or until the cap expires.
+
+        Expiring returns rather than raises: a page with its own perpetual
+        animation is still recordable, the measurement is then no worse than
+        the fixed sleep this replaced, and ``assert_in_viewport`` still
+        refuses a target that ended up off screen.
+        """
+        deadline = time.monotonic() + SCROLL_SETTLE_MAX_SECONDS * self._pace
+        previous: float | None = None
+        while True:
+            current = locator.evaluate(TARGET_TOP_JS)
+            if previous is not None and abs(current - previous) < SCROLL_STABLE_PX:
+                return
+            previous = current
+            if time.monotonic() >= deadline:
+                return
+            time.sleep(SCROLL_POLL_SECONDS)
+
     def highlight(self, locator: Any) -> None:
         """Outline the element being *read*, and leave it outlined.
 
@@ -885,8 +948,7 @@ class Annotator:
         state has no action primitive to reach for, and naming the row in
         prose is strictly worse (GH-1126).
         """
-        locator.scroll_into_view_if_needed()
-        time.sleep(SCROLL_SETTLE_SECONDS * self._pace)
+        self.center_on(locator)
         box = locator.bounding_box()
         assert_in_viewport(box, self._page.viewport_size)
         self._page.evaluate("(box) => window.__dxAnnotate.highlight(box)", box)
@@ -896,8 +958,7 @@ class Annotator:
 
     def capture_region(self, locator: Any) -> bytes:
         """Snapshot the pixels of ``locator`` — the "before" of a compare."""
-        locator.scroll_into_view_if_needed()
-        time.sleep(SCROLL_SETTLE_SECONDS * self._pace)
+        self.center_on(locator)
         return locator.screenshot()
 
     def compare(
@@ -1021,12 +1082,15 @@ class Annotator:
         ``bounding_box()`` answers for anything laid out, nothing
         downstream notices (GH-1129).
 
+        The scroll centres the target rather than merely revealing it (see
+        ``center_on``), so the point of interest is in the middle of the
+        frame where the viewer is already looking.
+
         ``settle`` defaults to ``POINT_SETTLE_SECONDS * pace``; the module
         constant is read here rather than bound as a default argument, so
         patching it in a test actually takes effect.
         """
-        locator.scroll_into_view_if_needed()
-        time.sleep(SCROLL_SETTLE_SECONDS * self._pace)
+        self.center_on(locator)
 
         box = locator.bounding_box()
         assert_in_viewport(box, self._page.viewport_size)
