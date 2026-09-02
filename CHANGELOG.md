@@ -5,6 +5,277 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.96.0 — Catalog Propagation, Narrated Evidence & Outside-Session Recovery
+
+Released 2026-09-02
+
+### Features
+
+- **Wake a quota-paused night run from outside every session** — a platform
+  pause takes the session and its event queue down together, so a run cannot
+  observe its own quota reset: `foreman watch` emitted QUOTA RESET 15 minutes
+  after the 2026-08-31 freeze and nothing delivered it, leaving five hours of
+  paid capacity unused until the supervisor returned. `dev10x watchdog` now
+  runs from cron or a systemd timer and owns the three parts that are ours —
+  reading the 5h block offline, finding runs whose heartbeats have all gone
+  silent, and firing at most once per block boundary. It deliberately does not
+  speak the harness cross-session protocol; the operator supplies the resume
+  command their setup supports
+  ([GH-1109](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1109))
+- **Let a filed ticket arrive already triaged** — the filing tools always
+  accepted `milestone` and `labels`, but no flow populated them, so the backlog
+  depended on manual restructure sweeps: on 2026-08-30, 11 of 16 open issues
+  were unmilestoned and 10 of 13 unlabeled, every one filed through these
+  wrappers. A read-only `triage_roster` exposes open milestones and the live
+  label roster in one call, `Dev10x:ticket-create` proposes both from it, and
+  `needs-triage` is filed when nothing fits so strays stay findable
+  ([GH-1102](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1102))
+- **Let a walkthrough recording speak and frame its own story** — `qa-self`
+  captions were already narration copy, but nothing spoke them and nothing
+  persisted them, so a reviewer read a caption bar that had often already timed
+  out. `Dev10x:tts` wraps piper (one batched process, licence reported never
+  enforced), caption dwell derives from the spoken audio so the two cannot
+  drift, and nine annotation shapes returned by five real capture runs —
+  redaction that survives navigation, before/after compare, steps and measured
+  chapters, absence captions, interstitial cards, highlight/zoom/hold — compose
+  with the pointer halo rather than replacing it
+  ([GH-1112](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1112),
+  [GH-1126](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1126))
+- **Let QA evidence reach a shareable link and assemble without a prompt** —
+  `qa-self`'s publish step only knew Linear, so a walkthrough that would carry
+  the argument on a PR had nowhere to go. `Dev10x:yt-upload` and
+  `Dev10x:qa-publish` return the embed form each destination can use, resolve
+  account and channel from userspace config with no built-in default, and
+  namespace the borrowed token per uid and pid. Stitching an evidence sheet no
+  longer prompts either — the composing verbs ship as a catalog group in both
+  the IM6 and IM7 spellings
+  ([GH-1119](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1119),
+  [GH-1141](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1141))
+- **Let the PR surface carry the caller's body, branch and milestone** —
+  `create_pr` assembled every body from `job_story` plus a generated commit
+  list, so anything else the caller supplied was dropped silently; it derived
+  the head branch from the invoking process's CWD, leaving a cross-worktree
+  orchestrator no way to name the branch it meant; and nothing on the MCP
+  surface could write a milestone, so `gh-pr-monitor` Phase 3.5 always took its
+  silent skip branch on a bundle PR
+  ([GH-1073](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1073),
+  [GH-1098](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1098))
+- **Let a waiter sit out bot legs while a required check is red** — a Phase 4.6
+  dispatcher needed the review legs to anchor before grooming force-pushed
+  their SHAs, but on any branch carrying `fixup!` commits the required
+  `git-history-linting` leg fails by design, and `wait_out_pending` covers a
+  failed ADVISORY leg only. The dispatcher read the contract correctly,
+  hand-rolled a `while`/`sleep` loop through `Monitor` — which no hook
+  validated — and stalled on a prompt. `wait_for` names checks that must settle
+  regardless, `Monitor` joins the same validator chain as `Bash`, and both
+  hand-rolled loop shapes are now hard blocks
+  ([GH-1138](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1138))
+- **Let diag-friction see a missing permission layer** — the skill a supervisor
+  reaches for at the moment of friction audited rule shapes but never asked
+  whether the effective settings file carried the catalog at all, so a worktree
+  short by 137 of 285 rules stayed "constantly stuck on basic actions" while
+  every run diagnosed the individual command. A new Step 3a resolves the file
+  the engine actually reads, runs `catalog-gap`, and gates any backfill behind
+  a required question
+  ([GH-1139](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1139))
+- **Let a blocked command name the rule that stopped it** — audit records for a
+  denied command carried only `outcome=block` and a timing, so a day's log
+  could say seventeen blocks happened but never which rules fired, making
+  friction impossible to prioritise by frequency or to prove fixed. `rule_id`
+  now rides from the emitting validator through to the audit record
+  ([GH-1095](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1095))
+- **Let open loops outlive the exchange that raised them** — `Dev10x:ask` saw
+  only decision-shaped questions in the last 10-15 turns; a promised follow-up,
+  a finding scrolled past, an unanswered supervisor question had no detector
+  and left no trace. Mode 3 detects four loop shapes with closed-by criteria,
+  reconciles against the task list, and routes only decisions into the widget
+  batch ([GH-1081](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1081))
+- **Enable formatted Google Chat review panels by default** — notifications
+  could only carry one plain-text body, so a review request arrived as an
+  undifferentiated run of text. `cardsV2` panels ship with a
+  markup-to-card-HTML translator, mentions kept in the text half where they
+  still notify, and default-on with both per-repo and global opt-outs intact
+  ([GH-1113](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1113),
+  [GH-1115](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1115))
+- **Let a batched shell loop and a plumbing git read steer instead of prompt** —
+  a `for`/`xargs` loop over a known list collapses N individually-approved
+  calls into one unmatchable command, and `git --git-dir=… status` from a
+  worktree matched none of the pre-approved prefixes while offering `git *` as
+  the "don't ask again" rule. The loop shape now carries an advisory steer to
+  parallel Bash calls; the plumbing spelling is pre-approved for read-only
+  verbs in both argument orderings, with mutating verbs still routed to the git
+  skills ([GH-1117](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1117),
+  [GH-1135](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1135))
+- **Let the capture path serve any deployment or checkout layout** — two
+  hardcoded values made `run-playwright.sh` unusable as documented outside one
+  deployment and one pair of accounts, so users forked it and lost the
+  syntax-validation and no-hardcoded-credentials guarantees it exists to
+  provide. `STAGING_URL` gets the `${VAR:-default}` treatment, and a credential
+  map read from the secrets file makes a third account two lines of config.
+  `qa-self` Phase 1.2 had the same defect one layer up — absolute clone paths
+  and the argocd manifest path were baked into the deploy check, so the one
+  step the skill calls critical could not run outside a single layout and was
+  the first to get skipped, with a teammate falling back to a local script.
+  Every remaining deployment path is now the fallback half of a documented
+  override, pinned so it cannot drift back
+  ([GH-1130](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1130),
+  [GH-1147](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1147))
+
+### Fixes
+
+- **Let the catalog reach every project settings file** — once a machine's
+  global `~/.claude/settings.json` had been seeded, no catalog rule ever
+  reached a project file again: both write paths filtered the rendered catalog
+  against global before writing, and `include_user_settings` puts global in the
+  same list. Every addition after that first seeding was a no-op for every
+  project — 137 of 285 shipped rules absent — while the run printed "All base
+  permissions already covered by global settings." Writes are now unfiltered
+  (`--dedupe-global` restores the old behaviour as opt-in), per-file counts are
+  reported, a real write that leaves a gap exits non-zero, and `catalog-gap`
+  makes verification a command rather than an inference
+  ([GH-1136](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1136))
+- **Let an edit keep the code it did not touch** — the PostToolUse formatter ran
+  `ruff format` plus `ruff check --fix` over the whole file after every edit.
+  Each Edit+hook pair is evaluated in isolation, so a three-edit revert had an
+  intermediate state where an import genuinely was unused: F401 stripped it,
+  edit 3 restored the call site, nothing restored the import, and the file was
+  left raising `NameError` at a line nobody edited. No individual step was
+  wrong. Formatting is now scoped to the edited hunk, lint fixes are gone
+  entirely, the project's own line-length configuration is honoured, and the
+  notice names the changed lines instead of saying "likely a formatter"
+  ([GH-1143](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1143))
+- **Stop a groom from fusing a fix into a foreign commit** — when a branch's PR
+  is merged by rebase the base gains the same patch under a different SHA, so
+  `git rebase -i <base>` drops the todo's `pick` as already-applied and replays
+  the trailing `fixup` onto whatever sits at the base tip, fusing a 267-line
+  fix into an unrelated commit and losing the feature commit. The tool reported
+  `conflict: true` with an empty file list while git saw no conflict, and
+  following its hint completed the damage. The groom now refuses on an obsolete
+  branch, disables rerere, and reports a stop with no unmerged paths as
+  `REBASE_PAUSED` ([GH-1103](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1103))
+- **Let an unknown tool parameter name itself** — FastMCP's generated arg model
+  neither forbids extra keys nor carries them into the handler, so a parameter
+  a release does not have is dropped twice over and the tool returns success
+  having changed nothing: `update_pr(milestone=55)` against a pre-GH-1098
+  install reported success and left the field null. Every wrapper gains that
+  hazard the moment its documented surface runs ahead of the released one, so
+  unknown arguments are now rejected at the boundary, naming each one and the
+  running plugin version
+  ([GH-1122](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1122))
+- **Let a search name a linter without being blocked** — the DX016 guard split
+  commands on `|` with a raw string split that ignores shell quoting, so
+  `rg -n "pre-commit|ruff|mypy" settings.json` cut into three fragments whose
+  middle was the bare token `ruff` — denied, with a suggested remedy that
+  cannot apply to a search. Segmentation is now quote-aware and also covers
+  `&&`, `;` and `||`
+  ([GH-1133](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1133))
+- **Let a bundle PR close every issue it names** — a bundle PR passing two issue
+  references got one `Fixes` line, so only the first auto-closed and the second
+  stayed open with nothing saying why. From the same 14-lane run: a swarm child
+  that lost the MCP server fell back to raw `gh` for the merge itself, bypassing
+  every pre-merge validation, because the template mandated wrappers but never
+  said what to do when they are unreachable
+  ([GH-1107](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1107))
+- **Let a crew worker bound its own CI wait** — the crew template told workers to
+  wait with an unbounded `ci_check_status(wait=true)` and named no fallback: on
+  one night run CI recorded SUCCESS at 20:35Z and the worker was still "waiting
+  on CI" when it was killed at 21:25Z. The wait is now pinned and falls back to
+  the check rollup; separately `poll_until_terminal` probes before sleeping, so
+  a call landing after CI finished no longer pays 60s for a verdict GitHub had
+  already decided ([GH-1088](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1088))
+- **Let fanout tear down locked agent worktrees** — an Agent-tool worktree can
+  still hold the harness lock when teardown starts, so every
+  `git worktree remove` failed with "cannot remove a locked working tree" and
+  five of nine teardowns in one evening stalled — while the error text steers
+  the reader to `remove -f -f`, which bypasses the dirty-tree checks that keep
+  unmerged work ([GH-1094](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1094))
+- **Let a body-only review round retire the earlier round** — "only the latest
+  round is authoritative" was keyed on review summary comments alone, so a
+  reviewer whose final round was a body checklist refresh plus an empty-body
+  review left the previous round's INFO findings demanding a disposition after
+  they had effectively signed off
+  ([GH-1085](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1085))
+- **Stop point_at from passing an off-screen element, and land it mid-frame** —
+  `point_at` was documented as the capture-time assertion that catches a wrong
+  screenshot, but `bounding_box()` returns coordinates for anything laid out,
+  so below-the-fold targets — the normal state of most of a long page — sailed
+  through. It now scrolls, settles and asserts against the viewport, and
+  centring replaces "anywhere in view", since a target flush against the bottom
+  edge passes the assertion and is still the worst place to point
+  ([GH-1129](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1129),
+  [GH-1144](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1144))
+- **Let a settings-file read reach a surface that works** — `rg` against
+  `~/.claude/settings.json` prompts while the same verb elsewhere runs clean:
+  `~/.claude` is deliberately not a registered working directory, so the
+  harness's path-scope gate fires and no allow rule can suppress it — and the
+  prompt's second option grants unprompted edits to the file governing every
+  other permission decision. The shape is now hook-blocked with the two
+  sanctioned surfaces named, and a doctor strategy catches an option 2 accepted
+  in an earlier session
+  ([GH-1140](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1140))
+- **Keep the working tree clean after a test run** — `command-skill-map.msgpack`
+  was tracked in git but is a cache the loader rewrites whenever it is stale, so
+  any test run, hook invocation or MCP call dirtied the tree; on one PR it rode
+  into an unrelated fixup commit and produced a binary rebase conflict with no
+  meaningful resolution. Untracked, alongside `.coverage.*` fragments, at the
+  cost of a one-time ~15ms cold parse
+  ([GH-1075](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1075))
+- **Let the base branch report a real CI verdict** — the `create_pr` tests never
+  stubbed the branch-detection seam, so their verdict depended on which branch
+  CI checked out: green on a feature branch, 16 failures on every push to
+  develop. That made develop's Actions signal worthless — the state in which a
+  genuine regression goes unnoticed
+  ([GH-1124](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1124))
+
+### Documentation
+
+- **Contain an MCP surface loss without a human** — an overnight run lost MCP
+  three ways and the docs described one: the top-level case ended the run's
+  merge queue until a human ran `/mcp`, and a dropped `update_pr` was silently
+  lost, so a worker believed a PR body it had never written.
+  `references/mcp-connectivity.md` is now the one home for all three surfaces,
+  the watchdog gets its own recovery path at the merge gate, and the
+  caller-side rule — a write is a request, not a receipt — is stated where
+  every caller sees it. Reconnect-on-demand is closed as unbuildable here: the
+  dying hop is harness-owned
+  ([GH-1099](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1099),
+  [GH-1072](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1072),
+  [GH-1121](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1121))
+- **Stop a takeover from discarding the work it saves** — the watchdog's STALL
+  step 3 named respawn unconditionally, while a respawned isolation worker gets
+  a fresh worktree, so a chunk that died holding uncommitted work lost all of
+  it silently — the replacement reporting success on a tree it cannot see
+  ([GH-1110](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1110))
+- **Stop one gate from steering into the next** — the harness blocks a
+  standalone `sleep` and recommends a Monitor until-loop, the exact shape the
+  watch-loop rule flags as un-allow-listable, so an agent obeying the first
+  hint lands on the second gate. The compensations now lead with the shapes
+  that do not prompt
+  ([GH-1132](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1132))
+- **Spare an orchestrator from re-proving a worker's merge** — a worker that
+  cannot fire an ALWAYS_ASK gate hands its nine-check report up, and the
+  re-invocation contract made the orchestrator re-run all nine, validating every
+  swarm merge twice for 3-4x duplicated tool traffic. A bounded handoff
+  exception accepts the commit-graph and worker-local checks against a head SHA,
+  while CI and all three comment checks stay fresh
+  ([GH-1093](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1093))
+- **State what the permission layer and the poll budget actually do** — the
+  execution-order diagram gave precedence as deny/allow/ask while the cited
+  section gave deny/ask/allow, and two places claimed catalog tiers are merged
+  by `ensure-base`, which never happens. Separately `poll_until_terminal`'s
+  docstring gave a poll budget that was neither its own formula's product nor
+  the real ceiling, and had already misled one investigation. Also corrected:
+  the upgrade-cleanup Modes table, which omitted the `ensure-base` step from
+  bootstrap and dropped five "full only" steps
+  ([GH-1095](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1095),
+  [GH-1104](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1104),
+  [GH-1127](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1127))
+- **Let workers pin a sibling worktree with `git -C`** — the redundancy rule
+  lived inside two mode branches and was never stated as a rule, so a worker
+  carried "never `git -C /path`" as a blanket ban and hesitated to use the one
+  shape that reliably works when CWD has reset
+  ([GH-1089](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1089))
+
 ## 0.95.0 — Unattended-Run Hardening & Tracker-Aware Seeding
 
 Released 2026-08-28
