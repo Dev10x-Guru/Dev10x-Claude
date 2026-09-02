@@ -109,6 +109,37 @@ Source: [Claude Code permissions docs](https://code.claude.com/docs/en/permissio
 — "Rules are evaluated `deny → ask → allow`; the first matching rule
 wins" and "`Bash(git *)` matches `git log --oneline --all`".
 
+### Mid-path wildcards are unverified (GH-1135)
+
+Whether a `*` in the **middle** of a `Bash(...)` rule matches at all
+is an open empirical question — ADR-0021 records it as "not
+addressed" and GH-925 F2 restates it. It is not academic: the only
+allow-list shape that can cover the read-only git plumbing spelling
+an agent emits from a worktree is a mid-path one:
+
+```
+Bash(git --git-dir=* --work-tree=* status:*)
+```
+
+Those rules ship in `base_permissions`, restricted to read-only verbs
+and in both argument orderings agents emit. The
+`permission-investigator` matrix now carries a `mid_path_star`
+wildcard cell in `DEFAULT_WILDCARDS` so the shape is measured rather
+than assumed.
+
+**Record the result here when the cell runs.** If it reports
+`PROMPTED`, the shape is un-allow-listable: drop these rules and flip
+`git-dir-worktree-pinning` in `command-skill-map.yaml` to
+`hook_block: true`, so the agent gets a deterministic steer to
+`git -C <repo> <verb>` and the supervisor never sees the prompt — or
+its `git *` option 2. Either outcome satisfies the standing rule that
+a structurally unmatchable shape gets a deterministic answer, never a
+prompt carrying a dangerous default.
+
+| Cell | Result | Recorded |
+|------|--------|----------|
+| `Bash.*.mid_path_star.*` | not yet run | — |
+
 ### Interpreter footguns are hook-enforced (GH-469)
 
 The most dangerous `Bash(<verb> *)` catch-all is the interpreter one

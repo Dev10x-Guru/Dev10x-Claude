@@ -232,6 +232,14 @@ DEFAULT_WILDCARDS: tuple[WildcardShape, ...] = (
     "single_star",
     "double_star",
     "star_double_star",
+    # Whether a `*` in the MIDDLE of a rule path matches at all is still
+    # an open empirical question (ADR-0021 "not addressed", GH-925 F2),
+    # and the answer decides real rules: `Bash(git --git-dir=*
+    # --work-tree=* status:*)` is the only allow-list shape that could
+    # cover the read-only git plumbing spelling (GH-1135). Without a
+    # cell, that rule would ship unverified — so the default matrix
+    # covers the shape rather than leaving the question open.
+    "mid_path_star",
 )
 DEFAULT_LOCATIONS: tuple[RuleLocation, ...] = ("global", "project", "both")
 
