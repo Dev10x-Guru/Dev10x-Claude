@@ -127,6 +127,86 @@ class TestAllowsNonLinters:
         assert validator.validate(inp=_make_input(command=command)) is None
 
 
+class TestAllowsSearchPatterns:
+    """GH-1133: a linter name inside a quoted *argument* is not an invocation.
+
+    The command is segmented with a quote-aware tokenizer, so a `|` inside a
+    search pattern no longer manufactures a bare-linter segment.
+    """
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            'rg -n "pre-commit|ruff|mypy" ~/.claude/settings.json',
+            'rg "ruff" pyproject.toml',
+            "git log --grep ruff",
+            'rg -n "black|prettier" .',
+            "grep -r 'eslint|prettier' src/",
+        ],
+    )
+    def test_allows(self, validator: InlineLinterValidator, command: str) -> None:
+        assert validator.validate(inp=_make_input(command=command)) is None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "python src/tools/mypy_plugin.py",
+            "cat src/tools/ruff_helpers.py",
+        ],
+    )
+    def test_allows_paths_containing_a_linter_name(
+        self, validator: InlineLinterValidator, command: str
+    ) -> None:
+        assert validator.validate(inp=_make_input(command=command)) is None
+
+    def test_still_blocks_a_real_invocation_after_a_quoted_pipe(
+        self, validator: InlineLinterValidator
+    ) -> None:
+        # The quoted pipe must not swallow a genuine downstream invocation.
+        result = validator.validate(inp=_make_input(command='rg -n "a|b" . | ruff check -'))
+        assert result is not None
+
+
+class TestSegmentsOnEveryCommandSeparator:
+    """A separator the old raw `|` split missed still yields an invocation."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "cd src && ruff check .",
+            "echo hi; mypy src",
+            "make build || black --check .",
+        ],
+    )
+    def test_blocks(self, validator: InlineLinterValidator, command: str) -> None:
+        result = validator.validate(inp=_make_input(command=command))
+        assert result is not None
+        assert result.message == INLINE_LINTER_MSG
+
+
+class TestSeesPastShellKeywords:
+    """Segmenting on `;` puts a keyword first — the linter must still show.
+
+    Without keyword stripping the loop body reads as a `do` invocation,
+    turning the GH-1133 false-positive fix into a false negative.
+    """
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "for f in *.py; do ruff check $f; done",
+            "if true; then mypy src; fi",
+            "{ ruff check .; }",
+            "time ruff format src",
+            "command eslint .",
+        ],
+    )
+    def test_blocks(self, validator: InlineLinterValidator, command: str) -> None:
+        result = validator.validate(inp=_make_input(command=command))
+        assert result is not None
+        assert result.message == INLINE_LINTER_MSG
+
+
 class TestEdgeCases:
     def test_env_prefix_stripped_before_match(self, validator: InlineLinterValidator) -> None:
         # An `ENV=val` prefix must be stripped so the linter is still caught.
