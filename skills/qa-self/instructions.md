@@ -73,17 +73,38 @@ Use Linear MCP to get the QA ticket. Extract:
 
 **Critical — do this before writing any test code.**
 
+Nothing deployment-specific is baked in (GH-1147). Every path below is an
+environment override with a documented default, the same convention
+`run-playwright.sh` uses for its own knobs (GH-1130) — so a different
+checkout layout needs no edit to this skill, and nobody has to skip the
+one step this phase calls critical:
+
+```bash
+QA_ARGOCD_REPO="${QA_ARGOCD_REPO:-/work/example/app-argocd}"
+QA_APP_REPO="${QA_APP_REPO:-/work/example/app-pos}"
+QA_STAGING_MANIFEST="${QA_STAGING_MANIFEST:-apps/staging/app-pos/generated.yaml}"
+```
+
+`QA_STAGING_MANIFEST` is a knob in its own right, not a detail of
+`QA_ARGOCD_REPO`: pointing at your own argocd clone still reads the wrong
+file if the manifest path inside it stays fixed, and the resulting "not
+deployed" verdict looks like a stale clone rather than a wrong path.
+
 Check that the feature commit is included in the staging image:
 
 ```bash
 # Always fetch first — local argocd clone may be days stale
-git -C /work/example/app-argocd fetch origin --quiet
+git -C "$QA_ARGOCD_REPO" fetch origin --quiet
 # Commit message contains the deployed SHA: "🚀 [STAGING] app-pos deploy develop-fcd3ea5-..."
-git -C /work/example/app-argocd log --oneline -1 origin/main -- apps/staging/app-pos/generated.yaml
+git -C "$QA_ARGOCD_REPO" log --oneline -1 origin/main -- "$QA_STAGING_MANIFEST"
 
 # Check if feature commit is an ancestor of the deployed SHA
-git -C /work/example/app-pos merge-base --is-ancestor <feature-sha> <staging-sha>
+git -C "$QA_APP_REPO" merge-base --is-ancestor <feature-sha> <staging-sha>
 ```
+
+`git -C` is correct here — these are *other* clones, not the session's own
+worktree, so the usual objection to `-C` (it shifts the allow-rule prefix
+for a path that is already the CWD) does not apply.
 
 If the feature is NOT deployed, post a "BLOCKED — not deployed" comment
 on the QA ticket and stop. Include:
@@ -93,7 +114,8 @@ on the QA ticket and stop. Include:
 
 #### 1.3 Understand the UI Flow
 
-Read the relevant frontend code to understand:
+Read the relevant frontend code — `${QA_FRONTEND_REPO:-/work/example/app-admin}`,
+with the backend at `$QA_APP_REPO` from 1.2 — to understand:
 - Which page/dialog to interact with
 - Form field IDs and selectors
 - Success/error indicators (snackbars, form helper text)
@@ -413,7 +435,8 @@ Full guidance — pointer anatomy, palette, pacing, resolution — lives in
 - **e2e_test_user is USER-level only (level=1)**: Has USER permissions for
   dealer 382. Cannot test features gated on dealer admin (level≥2) — e.g.
   reopen/void work orders. For admin-level tests use `janusz_ai` (level=2,
-  dealer 585, password in `/work/example/app-e2e/settings.secrets.env` as
+  dealer 585, password in the secrets file — `$PLAYWRIGHT_SECRETS_FILE`,
+  defaulting to `/work/example/app-e2e/settings.secrets.env` — as
   `CRM_PASSWORD2`). Per-dealer constraints only fire within the same dealer.
 
 #### 2.4 Screenshot Timing
@@ -780,7 +803,7 @@ If tests are blocked, leave in current status and note the blocker.
 | Screenshot misses snackbar | Screenshot immediately after `wait_for_selector`, before sleep |
 | Linear images "Failed to load" | Must include signed headers from `fileUpload` response in PUT |
 | Personal API key can't comment on QA issues | Use Linear MCP `create_comment` instead |
-| Feature "not deployed" on first check | Local argocd clone may be stale. Always `git -C /work/example/app-argocd fetch origin` before reading the image tag. |
+| Feature "not deployed" on first check | Local argocd clone may be stale. Always `git -C "$QA_ARGOCD_REPO" fetch origin` before reading the image tag. |
 | New WO page renders as skeleton | After "New Work Order" click, capture `page.url` then hard-navigate with `page.goto(new_wo_url)` to force a fresh render. |
 | Dialog closes but status unchanged | `onClose` may be wired unconditionally (not to mutation success). Check DB or use `page.expect_response()` to confirm the mutation actually fired. A dialog can close via Escape, backdrop click, or explicit close handler without any mutation being called. |
 | Video not finalized (0 bytes) | Must `context.close()` before `browser.close()` to flush video — `verify-evidence.py` catches this before upload |
@@ -796,6 +819,7 @@ If tests are blocked, leave in current status and note the blocker.
 | A disclaimer reads as a demonstration | A caption saying "we did NOT verify X" renders identically to a positive claim. Use `anno.say(..., kind="absence")` — hollow and italic |
 | Chapter timestamps in a video description are guesses | Inferring them from the pacing constants presents estimates with the authority of measurements. `anno.mark_video_start()` + `anno.step(...)` measure them; `chapter_lines()` emits them, and `chapters()` raises if the anchor was never set |
 | A caption claims a value changed, showing only the after | Circular — the viewer takes the delta on trust from the automation the video exists to demonstrate. `anno.capture_region()` then `anno.compare()` shows it |
+| The deploy check can't run outside one deployment | Phase 1.2 baked in absolute clone paths and the argocd manifest path, so the step it calls critical was the first one skipped. Now `$QA_ARGOCD_REPO`, `$QA_APP_REPO`, `$QA_STAGING_MANIFEST`, `$QA_FRONTEND_REPO`, each with a documented default (GH-1147) |
 | Every script gets the placeholder host | `run-playwright.sh` used to assign `STAGING_URL` unconditionally, so a script's own `os.environ.get("STAGING_URL", …)` default could never apply. Now `${STAGING_URL:-…}`; drop the dead default from the script (GH-1130) |
 | A third test account is unreachable | The wrapper's user map is config now: add `CRM_USERNAME<suffix>` + `CRM_PASSWORD<suffix>` to the secrets file and pass `--user <name>` or `--profile <suffix>`. Never fork the wrapper — a fork loses the syntax validation and no-hardcoded-credentials guarantees |
 | Evidence names no specific record | Each capture iteration leaves fixture residue — three takes, three records. Name exactly which record the published evidence shows |
@@ -822,7 +846,8 @@ Dev10x:qa-self
 │   ├── convert-evidence.sh (PNG→JPG, webm→mp4 conversion)
 │   └── verify-evidence.py (size floor, uniform-frame, video frames)
 ├── Imports: skills/playwright/lib/annotate.py (pointer, captions)
-├── Reads: /work/example/app-argocd/ (verify deployment)
-├── Reads: /work/example/app-admin/ (understand UI selectors)
-└── Reads: /work/example/app-pos/ (understand backend behavior)
+├── Reads: $QA_ARGOCD_REPO (verify deployment)
+├── Reads: $QA_FRONTEND_REPO (understand UI selectors)
+└── Reads: $QA_APP_REPO (understand backend behavior)
+    Defaults for all three are documented in Phase 1.2 / 1.3.
 ```
