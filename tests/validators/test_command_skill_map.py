@@ -280,9 +280,12 @@ class TestGh879WatchLoopEntry:
         cmd = "while true; do gh pr checks 42; sleep 30; done"
         assert any(exc in cmd for exc in rule.get("except", []))
 
-    def test_is_advisory_not_blocking(self) -> None:
+    def test_is_blocking_since_gh_1138(self) -> None:
+        # Was advisory. An advisory setting on a shape that can never be
+        # approved deterministically neither prevents the prompt nor
+        # answers it — and unattended, the prompt is a silent wedge.
         rule = _rule_by_name("watch-loop-handrolled")
-        assert rule["hook_block"] is False
+        assert rule["hook_block"] is True
 
     def test_routes_to_ci_check_status_for_ci_shapes(self) -> None:
         rule = _rule_by_name("watch-loop-handrolled")
@@ -296,7 +299,6 @@ class TestGh879WatchLoopEntry:
     @pytest.mark.parametrize(
         "name",
         [
-            "ci-loop-handrolled",
             "cat-grep-pipeline",
             "fish-interactive-abbr",
             "version-pinned-plugin-script",
@@ -304,6 +306,8 @@ class TestGh879WatchLoopEntry:
     )
     def test_new_entries_are_advisory(self, name: str) -> None:
         # These are diag-friction routing hints, not enforced hook blocks.
+        # `ci-loop-handrolled` left this list in GH-1138 — see
+        # test_loop_shapes_are_denied_not_advised.
         assert _rule_by_name(name)["hook_block"] is False
 
     @pytest.mark.parametrize(
