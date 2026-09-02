@@ -15,6 +15,13 @@ allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/qa-self/scripts/:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/tts/scripts/:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/yt-upload/scripts/upload-video.py:*)
+  # ImageMagick verbs this skill's own scripts shell out to (GH-1141).
+  # verify-evidence.py calls `identify`; convert-evidence.sh calls
+  # `magick` (IM7) or `convert` (IM6) — both spellings, since a rule
+  # for one does not cover the other.
+  - Bash(identify:*)
+  - Bash(magick:*)
+  - Bash(convert:*)
   - AskUserQuestion
 ---
 

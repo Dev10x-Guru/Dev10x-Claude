@@ -364,6 +364,31 @@ groups:
       - Bash(python -m pytest *)
       - Bash(pytest:*)
 
+  imagemagick-evidence:
+    tier: 2
+    description: >
+      ImageMagick composition for QA evidence sheets (GH-1141). The
+      plugin already depends on ImageMagick — qa-self's
+      verify-evidence.py shells out to `identify` — but shipped no rule
+      for it, so stacking screenshots prompted and offered `magick *`
+      as the "don't ask again" answer.
+
+      Both entry-point spellings are listed: IM7 renamed `convert` to
+      `magick`, and a rule for one does not cover the other (the same
+      spelling-alias class as `uvx dev10x` vs `dev10x`). `identify` is
+      read-only. The composing verbs can overwrite an existing output
+      file and nothing else — none of the GH-310 exclusions (arbitrary
+      code, network exec, destructive filesystem ops) applies — but
+      they are grouped at tier 2 rather than default-seeded because
+      the sanctioned path is the fixed-shape
+      `convert-evidence.sh stitch`, which the versioned per-file script
+      rule already covers.
+    rules:
+      - Bash(identify:*)
+      - Bash(magick:*)
+      - Bash(montage:*)
+      - Bash(convert:*)
+
   node-toolchain:
     tier: 2
     description: JavaScript / TypeScript runtime + package managers.

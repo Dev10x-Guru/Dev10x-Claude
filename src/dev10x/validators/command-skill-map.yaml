@@ -1157,6 +1157,31 @@ rules:
       carries a `fallback:`, and the `rg` alternative below is
       unconditional (GH-1087).
 
+  - name: qa-evidence-stitch
+    matcher: Bash
+    patterns:
+      - "(magick|montage|convert)\\b[^|&;]*/tmp/Dev10x/playwright"
+    except:
+      - "convert-evidence.sh"
+    hook_block: false
+    compensations:
+      - type: use-alternative
+        guardrails: fixed shape, output path bounded by the run directory
+        description: >
+          `${CLAUDE_PLUGIN_ROOT}/skills/qa-self/scripts/convert-evidence.sh
+          stitch <run-dir> [out.png]` — stacks the run's PNGs with a
+          separator and resolves the IM6/IM7 spelling itself. Covered by
+          the versioned per-file script rule, so it never prompts.
+    reason: >
+      An ad-hoc `magick <files> -append` over a QA run prompts, and the
+      prompt offers `magick *` — a catch-all over an arbitrary output
+      path — as the "don't ask again" rule (GH-1141). Routing to the
+      script keeps the composition shape fixed and the output path
+      bounded by the run directory, which is what makes the narrow
+      script rule sufficient.
+    related:
+      - Dev10x:qa-self
+
   - name: settings-file-read
     matcher: Bash
     patterns:

@@ -254,6 +254,16 @@ base_permissions:
   - "Bash(git stash:*)"
   - "Bash(git remote:*)"
 
+  # --- QA evidence inspection (GH-1141) ---
+  # `identify` is read-only and already required by qa-self's
+  # verify-evidence.py, which shells out to
+  # `identify -format '%[fx:standard_deviation]'` to reject blank
+  # screenshots. The composing verbs (magick/montage/convert) live in
+  # the tier-2 `imagemagick-evidence` group instead — the sanctioned
+  # path for those is `convert-evidence.sh stitch`, whose fixed shape
+  # the versioned per-file script rule already covers.
+  - "Bash(identify:*)"
+
   # --- Read-only git plumbing spelling (GH-1135) ---
   # An agent in a worktree that needs the MAIN checkout's state emits
   # `git --git-dir=<repo>/.git --work-tree=<repo> <verb>`. The
