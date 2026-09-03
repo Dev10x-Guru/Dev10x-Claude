@@ -5,9 +5,30 @@ resolved from the global `~/.config/Dev10x/friction.yaml` per
 [§ Resolution order](#resolution-order) below, not from the retired
 per-repo session file (ADR-0018).
 
-Modes layer on top of the `friction_level`. The friction level
-controls how gates fire; modes change *what* skills decide at
-those gates and which steps execute unattended.
+## `active_modes` does not decide gates
+
+**`active_modes` has no gate-resolution role.** Whether an
+`AskUserQuestion` fires is decided by `resolve_gate` alone, from the
+baseline preset, the composed overlays, the project pin, and the
+safety floors (ADR-0016 D-4, ADR-0022 D-1). A skill that reads
+`active_modes` to derive a gate effect is re-deriving policy the
+resolver owns, and it will drift.
+
+What `active_modes` still feeds — its only remaining consumers:
+
+1. **Structural skill behaviour** — the non-gate steps in the mode
+   catalog below (draft state, reviewer assignment, Slack
+   notification, milestone cleanup).
+2. **`Dev10x:verify-acc-dod`'s check filter** — the
+   `modes.<name>.skip` clauses in
+   `skills/verify-acc-dod/references/defaults.yaml`.
+3. **Playbook step `modes:` blocks** — which steps exist in a play
+   (`references/execution-modes.md`).
+
+Overlays and modes are separate lists with separate readers.
+`legacy_session_mapping()` maps `active_modes` → overlays but never
+the reverse, so an overlay-only entry leaves the three consumers
+above seeing `[]`. Set both when a mode must reach both surfaces.
 
 ## Mode catalog
 
@@ -23,7 +44,7 @@ Documented behaviors:
   skipped
 - No Slack review notification — `Dev10x:slack-review-request`
   is skipped
-- `Dev10x:gh-pr-create` finishes with `gh pr ready` instead of
+- `Dev10x:gh-pr-create` finishes with `pr_ready` instead of
   `gh pr create --draft`
 - Auto-dispatch `Dev10x:gh-pr-monitor` after PR creation
 - `Dev10x:gh-pr-merge` accepts solo-maintainer approval override
@@ -32,79 +53,52 @@ Documented behaviors:
   review threads exist
 - Auto-close milestone after PR merge if all milestone issues
   are resolved
-- Plan-approval and merge gate behavior is resolved by
-  `resolve_gate` (ADR-0016), not by re-deriving it from
-  `active_modes`. The gate effects are encoded in the
-  `solo-maintainer` overlay
-  (`presets/friction/overlays/solo-maintainer.yaml`:
-  `request_review`/`external_notify: skip`, `merge: auto-advance`),
-  which the resolver composes onto the session's base preset. The
-  former `adaptive+solo-maintainer` plan-gate bypass (GH-252) is
-  subsumed by that composition — `solo-maintainer` remains a
-  session mode for the *structural* behaviors above, and its gate
-  effect travels through the overlay
+
+Its **gate** effects travel through the `solo-maintainer` *overlay*
+(`presets/friction/overlays/solo-maintainer.yaml`:
+`request_review`/`external_notify: skip`, `merge: auto-advance`),
+which the resolver composes onto the baseline — not through this
+list. The overlay is also what declares the repo solo-shaped, which
+is how `supervisor_review` knows to park before `merge` rather than
+before `request_review` (ADR-0022 D-3).
 
 When NOT to use: team repositories where PRs require external
 review. The mode short-circuits the review cycle entirely.
 
-### `auto-plan`
+### `auto-plan` — no longer adds anything
 
-"Trust the plan" pacing for the plan-approval gate only (GH-678).
-The supervisor wants execution to start on the agent's plan without
-an approval click, but keeps the *downstream* judgment calls
-attended.
+"Trust the plan" pacing for the plan-approval gate only (GH-678,
+[ADR-0014](../docs/adr/0014-auto-plan-mode-for-plan-approval-gate.md)).
 
-Documented behaviors:
+Auto-advance is now the baseline (ADR-0022 D-1), so `plan_approval`
+already resolves to `auto-advance` without this mode. `auto-plan` is
+retained as a read-compat name — naming it changes nothing and
+breaks nothing — but it is not a way to express anything.
 
-- `Dev10x:work-on` Phase 3 plan-approval gate is **auto-approved** —
-  execution starts immediately on the agent's plan, no
-  `AskUserQuestion` widget for plan sign-off
-- Downstream decision gates (design forks, A/B choices, strategy
-  selection, batch layout) **still fire per `friction_level`** —
-  `auto-plan` does NOT auto-resolve them. Pair with
-  `friction_level: guided` for the canonical "attend the judgment
-  calls" behavior
-- `ALWAYS_ASK` gates fire unchanged
-- The Plan Completion Gate still fires for end-state sign-off
-- Composes with other modes without re-enabling reviewers, Slack, or
-  self-merge — `auto-plan` touches only the plan gate. Under
-  `solo-maintainer`, the existing `adaptive+solo-maintainer` bypass
-  (GH-252) already covers the plan gate, so adding `auto-plan` there
-  is a no-op
+To keep the plan gate as a veto point, pin it: a
+`plan_approval: ask` entry in the git-tracked
+`.dev10x/gate-policy.yaml`, or a session `gate_overrides` entry.
+That is the supported way to make a gate fire that the baseline
+would auto-advance.
 
-Scope nuance: this is a mode that flips a gate's resolution, which
-mildly bends the "modes are purely structural" taxonomy in
-`references/execution-modes.md`. The precedent is `solo-maintainer`,
-which already flips the same gate under adaptive. See
-[ADR-0014](../docs/adr/0014-auto-plan-mode-for-plan-approval-gate.md).
+### `review-deferred` — DEPRECATED (ADR-0022)
 
-When NOT to use: when you also want downstream gates to auto-resolve
-(use `friction_level: adaptive` instead) or when you want to keep the
-plan gate as a veto point (omit `auto-plan`).
-
-### `review-deferred` — DEPRECATED (ADR-0019)
-
-> **Superseded by durable `human_review` (GH-950).** Whether humans
-> review PRs is a **standing project property**, not a per-session
-> scope decision, so it lives as `human_review: true|false` in the
-> matching `projects[]` entry of `~/.config/Dev10x/friction.yaml` —
-> read by `SessionYamlDocument.read_human_review()` (default `true`).
-> The same flag also governs whether reviewers get requested and is a
-> precondition for the agent merging after automated findings are
-> resolved. See
-> [ADR-0019](../docs/adr/0019-human-review-is-a-durable-project-fact.md).
+> **Superseded by durable `supervisor_review` (GH-950, GH-1161).**
+> Whether the supervisor reads the PR is a **standing project
+> property**, not a per-session scope decision, so it lives as
+> `supervisor_review: required | none` in the matching `projects[]`
+> entry of `~/.config/Dev10x/friction.yaml` — read via
+> `mcp__plugin_Dev10x_cli__supervisor_review_status`. See
+> [ADR-0022](../docs/adr/0022-single-baseline-gate-model-with-supervisor-review.md)
+> D-2, which renamed and generalised ADR-0019's `human_review`
+> boolean.
 >
 > **Nothing writes `review-deferred` anymore.** The mode string is
 > still *read* — the `skip` clauses below keep working when a playbook
 > or a legacy `active_modes` list names it — so un-migrated repos and
 > hand-edited playbooks are unaffected. There is no per-session
-> deferral: to take review out of scope, set the durable flag.
-
-The supervisor has explicitly scoped the session to **defer** open PR
-review threads — e.g. "land the CI fix only, leave the review comments
-for a follow-up". The review workflow is out of scope for *this*
-session, so the definition-of-done must not stay red on review-thread
-criteria the supervisor agreed to skip.
+> deferral: to take the supervisor pass out of scope, set the durable
+> key.
 
 Documented behaviors:
 
@@ -120,8 +114,7 @@ Documented behaviors:
 
 When NOT to use: when open review threads must be resolved before the
 work is shippable. This mode records an explicit scope decision — it is
-not a blanket "ignore reviews" switch. Set it only when the supervisor
-has deferred review threads for the current session.
+not a blanket "ignore reviews" switch.
 
 ## Resolution order
 
@@ -134,21 +127,20 @@ Active modes are resolved in this order (see
 2. Only when no entry matches: the legacy per-repo
    `.claude/Dev10x/config.yaml`, with a pre-split
    `.claude/Dev10x/session.yaml` fallback, so an un-migrated checkout
-   keeps working until `dev10x permission migrate-config` folds it in.
+   keeps working until `dev10x config migrate-schema` folds it in.
 3. `active_modes:` in the project playbook file (merged in).
 
 Both per-repo files in step 2 are **retired** (ADR-0018) — they are a
 read-compat fallback, never a write target.
 
-### Not every posture is a mode (ADR-0019)
+### Not every posture is a mode (ADR-0022)
 
 `review-deferred` used to be written into `active_modes` on the
 retired `session.yaml`, which step 2 reaches only in an unconfigured
 repo — so in a configured one it was written and never read (GH-950).
 The fix was not a new store but a better model: the review posture is
-one **durable, project-wide** key, `human_review: true|false`, resolved
-by the same first-match-wins precedence as step 1 and read via
-`SessionYamlDocument.read_human_review()`.
+one **durable, project-wide** key, `supervisor_review`, resolved by the
+same first-match-wins precedence as step 1.
 
 `swarm-child` is **not** affected. It is genuinely per-dispatch — a
 worker either is or is not a swarm child, and the dispatcher sets it —
@@ -158,7 +150,9 @@ project key.
 When adding a mode, ask first whether the thing you are modelling is a
 per-session structural choice (a mode) or a standing property of the
 project (a durable key). A standing property written as a mode is the
-GH-950 failure shape.
+GH-950 failure shape. And if what you are modelling is *when the agent
+stops and asks*, it is neither — it is a gate toggle, and it belongs in
+`gate_overrides` or a project pin.
 
 ## Adding a new mode
 
@@ -168,8 +162,9 @@ GH-950 failure shape.
    `modes:` mapping pattern
 3. Update `references/execution-modes.md` with any new
    precedence rules
-4. Cross-link from `references/friction-levels.md` if the mode
-   changes gate behavior beyond the friction level alone
+4. If the mode needs a gate to resolve differently, add an **overlay**
+   under `presets/friction/overlays/` and name it in `gate_overlays`
+   — do not teach a skill to branch on `active_modes` at a gate
 
 See `skills/work-on/instructions.md` § Session Mode Summary
 (GH-189) for the supervisor-facing display contract.
