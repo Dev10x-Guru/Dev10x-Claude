@@ -19,6 +19,7 @@ allowed-tools:
   - Read(${CLAUDE_PLUGIN_ROOT}/skills/playbook/references/playbook.yaml)
   - Edit(.claude/Dev10x/**)
   - Skill(skill="Dev10x:verify-acc-dod")
+  - Skill(skill="Dev10x:friction-setup")
   - mcp__plugin_Dev10x_cli__plan_sync_set_context
   - mcp__plugin_Dev10x_cli__plan_sync_json_summary
   - AskUserQuestion
