@@ -37,6 +37,7 @@ __all__ = [
     "GateResolutionQuery",
     "human_review_status",
     "pin_gate_preset",
+    "pin_supervisor_review",
     "pin_tracker",
     "preset_pin_status",
     "resolve_gate",
@@ -173,7 +174,7 @@ def _read_supervisor_review() -> Result[dict[str, Any]]:
 
     Callers bind the effective CWD (GH-979) before invoking this.
     """
-    from dev10x.domain.documents.session_yaml import SessionYamlDocument
+    from dev10x.domain.documents.session_yaml import FrictionYamlDocument, SessionYamlDocument
     from dev10x.domain.gate_policy import SUPERVISOR_REVIEW_REQUIRED
     from dev10x.domain.git_context import GitContext
     from dev10x.mcp.gate_query import _policy_toplevel
@@ -186,14 +187,23 @@ def _read_supervisor_review() -> Result[dict[str, Any]]:
     # worktree matching no friction.yaml glob, a raw toplevel here would
     # report `required` — sending the skills off to park — while
     # resolve_gate read the repo's `none` and lifted its floor.
-    document = SessionYamlDocument(toplevel=_policy_toplevel(toplevel))
+    policy_toplevel = _policy_toplevel(toplevel)
+    document = SessionYamlDocument(toplevel=policy_toplevel)
     supervisor_review = document.read_supervisor_review()
+    # A `friction.yaml` entry (either key — the deprecated `human_review`
+    # alias still counts, GH-1165) is "pinned"; falling back to `defaults:`
+    # or the safe unset default is not. This is the "first pick" signal an
+    # onboarding gate consults before offering to remember the answer —
+    # same contract as `preset_pin_status` / `tracker_status`.
+    matched = FrictionYamlDocument(toplevel=policy_toplevel).matched() or {}
+    pinned = "supervisor_review" in matched or "human_review" in matched
     return ok(
         {
             "supervisor_review": supervisor_review,
             # Deprecated alias, emitted for one release so callers that
             # still branch on the boolean keep working (ADR-0022 D-2).
             "human_review": supervisor_review == SUPERVISOR_REVIEW_REQUIRED,
+            "pinned": pinned,
             "repo_root": toplevel,
         }
     )
@@ -223,7 +233,11 @@ async def supervisor_review_status(cwd: str | None = None) -> dict:
         Dictionary with keys: supervisor_review ("required" | "none" —
         "required" when unset or malformed, so a bad value fails toward
         MORE oversight), human_review (the deprecated boolean alias),
-        repo_root. `{"error": ...}` outside a git repo.
+        pinned (bool — a `friction.yaml` entry names `supervisor_review`
+        or the deprecated `human_review` alias; consult this BEFORE
+        offering to remember an onboarding pick, same "first pick"
+        contract as `preset_pin_status` / `tracker_status`), repo_root.
+        `{"error": ...}` outside a git repo.
     """
     from dev10x.subprocess_utils import use_cwd
 
@@ -354,3 +368,49 @@ async def pin_tracker(
 
     with use_cwd(cwd):
         return to_wire(tracker_pin.pin_tracker(tracker=tracker, scope=scope, cwd=cwd))
+
+
+@server.tool()
+async def pin_supervisor_review(
+    supervisor_review: str,
+    scope: str = "repo",
+    cwd: str | None = None,
+) -> dict:
+    """Persist the project's supervisor-review posture to friction.yaml (ADR-0022 D-2, GH-1165).
+
+    The write half of `supervisor_review_status`: `Dev10x:friction-setup` /
+    `Dev10x:onboarding` call this once the supervisor answers whether they
+    read this repo's PRs, and every later gate resolution reads the answer
+    back via `supervisor_review_status`. `supervisor_review` is a
+    project-wide fact rather than a per-gate toggle, so it cannot be set
+    through `pin_gate_preset`'s `gate_overrides` — it needs this dedicated
+    writer, mirroring `pin_tracker` rather than the preset/overlay pin.
+
+    Keyed off the **repo stem** from the git common dir like
+    `pin_gate_preset` and `pin_tracker`, so a choice made inside worktree
+    `<repo>-3` also covers `<repo>` and any `<repo>-9` created later.
+    Idempotent: an entry already covering this checkout is replaced, never
+    duplicated. Nothing is written under the repo's `.claude/` (ADR-0018),
+    so the self-settings gate never fires.
+
+    Args:
+        supervisor_review: "required" or "none". An unrecognised value is
+            an error, not a silent fallback to "required".
+        scope: "repo" (default — repo + all present/future worktrees),
+            "repo-only" (main checkout only), or "dir" (this directory).
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: path, match, repo_name, repo_root, scope,
+        prefs. `{"error": ...}` on an unknown value or scope, or outside a
+        git repository.
+    """
+    from dev10x.session import supervisor_review_pin
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return to_wire(
+            supervisor_review_pin.pin_supervisor_review(
+                supervisor_review=supervisor_review, scope=scope, cwd=cwd
+            )
+        )

@@ -761,3 +761,87 @@ class TestHumanReviewStatusTool:
         )
 
         assert "Not in a git repository" in (await human_review_status())["error"]
+
+
+class TestSupervisorReviewPinTool:
+    """GH-1165: the write half of the ADR-0022 D-2 review-boundary fact."""
+
+    @pytest.fixture
+    def zebra_repo(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+        main = tmp_path / "work" / "bl-zebra"
+        (main / ".git").mkdir(parents=True)
+        monkeypatch.setattr(
+            "dev10x.session.preset_pin._common_dir", lambda *, cwd: str(main / ".git")
+        )
+        return main
+
+    @pytest.mark.asyncio
+    async def test_pin_and_status_round_trip_across_worktrees(self, zebra_repo: Path) -> None:
+        """Pin in `<repo>-3`, and `<repo>-9` sees it — no re-ask."""
+        from dev10x.mcp.gate_tools import pin_supervisor_review, supervisor_review_status
+
+        before = await supervisor_review_status(cwd="/work/bl/.worktrees/bl-zebra-3")
+        assert before["pinned"] is False
+
+        pinned = await pin_supervisor_review(
+            supervisor_review="none", cwd="/work/bl/.worktrees/bl-zebra-3"
+        )
+        assert pinned["match"] == ["*/bl-zebra", "*/bl-zebra-*"]
+
+        after = await supervisor_review_status(cwd="/work/bl/.worktrees/bl-zebra-9")
+        assert after["pinned"] is True
+        assert after["supervisor_review"] == "none"
+
+    @pytest.mark.asyncio
+    async def test_deprecated_human_review_key_also_counts_as_pinned(
+        self, zebra_repo: Path
+    ) -> None:
+        """A repo migrated before this tool existed must not report unset."""
+        from dev10x.mcp.gate_tools import supervisor_review_status
+        from dev10x.session.preset_pin import pin_project_prefs
+
+        pin_project_prefs(prefs={"human_review": False}, cwd=str(zebra_repo))
+
+        payload = await supervisor_review_status(cwd=str(zebra_repo))
+
+        assert payload["pinned"] is True
+        assert payload["supervisor_review"] == "none"
+
+    @pytest.mark.asyncio
+    async def test_pin_rejects_an_unknown_value_at_the_wire(self, zebra_repo: Path) -> None:
+        from dev10x.mcp.gate_tools import pin_supervisor_review
+
+        payload = await pin_supervisor_review(supervisor_review="maybe")
+
+        assert "unknown supervisor_review" in payload["error"]
+
+    @pytest.mark.asyncio
+    async def test_pin_reports_an_unknown_scope_as_a_wire_error(self, zebra_repo: Path) -> None:
+        from dev10x.mcp.gate_tools import pin_supervisor_review
+
+        payload = await pin_supervisor_review(supervisor_review="none", scope="galaxy")
+
+        assert "unknown pin scope" in payload["error"]
+
+    @pytest.mark.asyncio
+    async def test_pin_is_idempotent(self, zebra_repo: Path) -> None:
+        from dev10x.mcp.gate_tools import pin_supervisor_review
+
+        await pin_supervisor_review(supervisor_review="none", cwd=str(zebra_repo))
+        second = await pin_supervisor_review(supervisor_review="required", cwd=str(zebra_repo))
+
+        assert second["prefs"] == {"supervisor_review": "required"}
+
+    @pytest.mark.asyncio
+    async def test_pin_reports_a_wire_error_outside_a_repo(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from dev10x.mcp.gate_tools import pin_supervisor_review
+
+        monkeypatch.setattr("dev10x.session.preset_pin._common_dir", lambda *, cwd: None)
+        monkeypatch.setattr("dev10x.session.preset_pin._bounded_toplevel", lambda *, cwd: None)
+
+        assert (
+            "Not in a git repository"
+            in (await pin_supervisor_review(supervisor_review="none"))["error"]
+        )
