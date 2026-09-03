@@ -206,14 +206,14 @@
       "id": 8,
       "name": "branch-drift-detection",
       "prompt": "Skill(Dev10x:git-commit)",
-      "description": "GH-147: plan-sync context expects ticket GH-147 but HEAD has drifted to a different feature branch with no GH-147 segment. Step 1.5 must detect the mismatch and fire AskUserQuestion regardless of friction level (ALWAYS_ASK).",
+      "description": "GH-147: plan-sync context expects ticket GH-147 but HEAD has drifted to a different feature branch with no GH-147 segment. Step 1.5 must detect the mismatch and fire AskUserQuestion regardless of session policy (ALWAYS_ASK).",
       "setup": {
         "branch": "janusz/GH-200/unrelated-work",
         "staged_changes": true,
         "plan_sync_context": {
           "tickets": ["GH-147"]
         },
-        "friction_level": "adaptive",
+        "gate_effect": "auto-advance",
         "orchestrator": "Dev10x:work-on",
         "active_task_list": true
       },
@@ -227,7 +227,7 @@
         },
         {
           "id": "fires-drift-gate",
-          "text": "Fires AskUserQuestion when branch name does not contain any expected ticket — even at adaptive friction (ALWAYS_ASK)",
+          "text": "Fires AskUserQuestion when branch name does not contain any expected ticket — even when other gates auto-advance (ALWAYS_ASK)",
           "check": "tool_called",
           "signals": ["AskUserQuestion", "Branch drift", "drift"]
         },
