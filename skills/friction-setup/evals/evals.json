@@ -4,7 +4,12 @@
     {
       "id": "gate-enforcement",
       "name": "Decision Gate Enforcement",
-      "description": "Each preference choice (preset, overlays, per-gate deviations, skippable steps) is presented via AskUserQuestion, never plain text"
+      "description": "Each preference choice (review policy, overlays, per-gate deviations, skippable steps) is presented via AskUserQuestion, never plain text"
+    },
+    {
+      "id": "review-policy-gated",
+      "name": "Review Policy Gated On pinned:false",
+      "description": "Calls supervisor_review_status first and only fires the review-policy AskUserQuestion when it returns pinned: false; adopts the resolved value silently and skips the ask when pinned: true"
     },
     {
       "id": "write-on-completion",
@@ -12,9 +17,14 @@
       "description": "Persists preferences only after a genuine choice completes the walk; dismissing a required gate aborts with no write"
     },
     {
+      "id": "review-policy-persist",
+      "name": "Review Policy Persistence",
+      "description": "Writes the review-policy answer via mcp__plugin_Dev10x_cli__pin_supervisor_review (never a bare Write, never dev10x session pin)"
+    },
+    {
       "id": "gate-axis-persist",
       "name": "Gate Axis Persistence",
-      "description": "Writes preset/overlays/gate-overrides to the global friction.yaml via dev10x session set-friction (never a bare Write)"
+      "description": "Writes overlays/gate-overrides to the global friction.yaml via dev10x session pin adaptive (never a bare Write)"
     },
     {
       "id": "playbook-axis-persist",
@@ -24,7 +34,12 @@
     {
       "id": "deviations-only",
       "name": "Deviations Only",
-      "description": "Records only gates that deviate from the chosen preset in gate_overrides"
+      "description": "Records only gates that deviate from the adaptive baseline in gate_overrides"
+    },
+    {
+      "id": "no-preset-choice",
+      "name": "No Preset Choice Offered",
+      "description": "Never presents a strict/guided/adaptive picker — adaptive is the sole shipped baseline (ADR-0022 D-1)"
     },
     {
       "id": "task-tracking",
@@ -34,10 +49,13 @@
   ],
   "evals": [
     {
-      "id": "guided-preset-no-deviations",
-      "name": "Configure a project with the guided preset and no deviations",
-      "description": "Supervisor picks guided, no overlays, keeps preset gate defaults, skips no steps. Skill writes only gate_preset via set-friction.",
+      "id": "review-policy-required-no-deviations",
+      "name": "Configure a project with supervisor_review=required and no deviations",
+      "description": "Supervisor answers Yes to the review-policy question, no overlays, keeps preset gate defaults, skips no steps. Skill writes only supervisor_review via pin_supervisor_review.",
       "input": "/Dev10x:friction-setup",
+      "setup": {
+        "supervisor_review_status": { "pinned": false }
+      },
       "assertions": [
         {
           "dimension": "task-tracking",
@@ -46,10 +64,22 @@
           "signal": "TaskCreate called at invocation (self-tracking task)"
         },
         {
+          "dimension": "review-policy-gated",
+          "check": "tool_called",
+          "tool": "mcp__plugin_Dev10x_cli__supervisor_review_status",
+          "signal": "Status checked before any AskUserQuestion fires"
+        },
+        {
           "dimension": "gate-enforcement",
           "check": "tool_called",
           "tool": "AskUserQuestion",
-          "signal": "Preset choice presented via AskUserQuestion, not plain text"
+          "signal": "Review-policy question presented via AskUserQuestion, not plain text"
+        },
+        {
+          "dimension": "no-preset-choice",
+          "check": "behavioral",
+          "value": "no-strict-guided-adaptive-picker",
+          "signal": "No AskUserQuestion offers strict/guided/adaptive as choices"
         },
         {
           "dimension": "gate-enforcement",
@@ -57,10 +87,10 @@
           "signal": "Overlays, per-gate-deviation, and skippable-step gates are each AskUserQuestion calls"
         },
         {
-          "dimension": "gate-axis-persist",
-          "check": "command_run",
-          "value": "dev10x session set-friction",
-          "signal": "Persists via `dev10x session set-friction --preset guided`"
+          "dimension": "review-policy-persist",
+          "check": "tool_called",
+          "tool": "mcp__plugin_Dev10x_cli__pin_supervisor_review",
+          "signal": "Persists the answer via pin_supervisor_review(value=\"required\")"
         },
         {
           "dimension": "deviations-only",
@@ -83,16 +113,25 @@
       ]
     },
     {
-      "id": "adaptive-with-overlay-and-skip",
-      "name": "Configure adaptive + solo-maintainer overlay and skip Draft Job Story",
-      "description": "Supervisor picks adaptive, solo-maintainer overlay, one gate deviation (merge=ask), and skips the JTBD step. Both axes are written.",
+      "id": "review-policy-none-with-overlay-and-skip",
+      "name": "Configure supervisor_review=none + solo-maintainer overlay and skip Draft Job Story",
+      "description": "Supervisor answers No to the review-policy question, picks the solo-maintainer overlay, one gate deviation (merge=ask), and skips the JTBD step. Both axes are written.",
       "input": "/Dev10x:friction-setup",
+      "setup": {
+        "supervisor_review_status": { "pinned": false }
+      },
       "assertions": [
+        {
+          "dimension": "review-policy-persist",
+          "check": "tool_called",
+          "tool": "mcp__plugin_Dev10x_cli__pin_supervisor_review",
+          "signal": "pin_supervisor_review(value=\"none\") called"
+        },
         {
           "dimension": "gate-axis-persist",
           "check": "command_run",
-          "value": "set-friction --preset adaptive --overlay solo-maintainer --gate-override merge=ask",
-          "signal": "set-friction carries preset, overlay, and the one deviating gate"
+          "value": "session pin adaptive --overlay solo-maintainer --gate-override merge=ask",
+          "signal": "session pin carries the sole baseline, the overlay, and the one deviating gate"
         },
         {
           "dimension": "deviations-only",
@@ -108,20 +147,56 @@
       ]
     },
     {
-      "id": "dismiss-no-write",
-      "name": "Dismissing the preset gate aborts with no write",
-      "description": "Supervisor dismisses the required preset AskUserQuestion. Skill writes nothing and leaves the project unconfigured so the nudge fires again next session.",
+      "id": "review-policy-already-pinned-skips-ask",
+      "name": "Review policy already pinned — Gate 1 does not fire",
+      "description": "supervisor_review_status returns pinned: true. The skill adopts the resolved value silently, does not call AskUserQuestion for the review-policy question, and does not call pin_supervisor_review again.",
       "input": "/Dev10x:friction-setup",
       "setup": {
-        "preset_gate_dismissed": true,
+        "supervisor_review_status": { "pinned": true, "supervisor_review": "required" }
+      },
+      "assertions": [
+        {
+          "dimension": "review-policy-gated",
+          "check": "tool_called",
+          "tool": "mcp__plugin_Dev10x_cli__supervisor_review_status",
+          "signal": "Status is still checked"
+        },
+        {
+          "dimension": "review-policy-gated",
+          "check": "behavioral",
+          "value": "no-review-policy-ask",
+          "signal": "No AskUserQuestion is issued for the review-policy question"
+        },
+        {
+          "dimension": "review-policy-persist",
+          "check": "behavioral",
+          "value": "no-pin-supervisor-review-call",
+          "signal": "pin_supervisor_review is NOT called since nothing changed"
+        }
+      ]
+    },
+    {
+      "id": "dismiss-no-write",
+      "name": "Dismissing the review-policy gate aborts with no write",
+      "description": "Supervisor dismisses the required review-policy AskUserQuestion. Skill writes nothing and leaves the project unconfigured so the nudge fires again next session.",
+      "input": "/Dev10x:friction-setup",
+      "setup": {
+        "supervisor_review_status": { "pinned": false },
+        "review_policy_gate_dismissed": true,
         "note": "Supervisor cancels the first required AskUserQuestion"
       },
       "assertions": [
         {
           "dimension": "write-on-completion",
           "check": "behavioral",
+          "value": "no-pin-supervisor-review",
+          "signal": "pin_supervisor_review is NOT called when the walk is dismissed"
+        },
+        {
+          "dimension": "write-on-completion",
+          "check": "behavioral",
           "value": "no-set-friction",
-          "signal": "dev10x session set-friction is NOT run when the walk is dismissed"
+          "signal": "dev10x session pin is NOT run when the walk is dismissed"
         },
         {
           "dimension": "write-on-completion",
@@ -152,8 +227,8 @@
         "rationale": "Responding to the SessionStart unconfigured nudge — core use case"
       },
       {
-        "query": "configure the autonomy posture for this repo",
-        "rationale": "Deliberate per-project gate configuration"
+        "query": "configure the review policy for this repo",
+        "rationale": "Deliberate per-project review-policy configuration"
       },
       {
         "query": "friction setup",
