@@ -1,391 +1,235 @@
-# Friction Levels — Universal Enforcement Model
+# Gate Behaviour — One Baseline, One Review Fact
 
-Three-tier enforcement model for all Dev10x skills, hooks, and
-acceptance criteria. Originally defined in ADR-0002 for command
-redirection; this document extends the model to cover decision
-gates, acceptance criteria, and loop enforcement.
+How Dev10x decides whether an `AskUserQuestion` fires. Two things
+answer that: the **baseline**, which auto-advances, and
+**`supervisor_review`**, which says whether the supervisor reads the
+PR before the next step is allowed. `friction_level` does not — it
+names the separate ADR-0002 dial (§ The other `friction_level`).
 
-## Levels
+## The model
 
-| Level | Hook behavior | Skill gate behavior | ACC behavior |
-|-------|--------------|-------------------|-------------|
-| **strict** | Hard deny (exit 2) | Always block for user input | All checks run, manual gates block |
-| **guided** | Hard deny + fallback | Block with recommendation, user overrides | All checks run, failures shown with guidance |
-| **adaptive** | Allow + warning | Auto-select recommended option, no interruption | Auto-decide pass/fail, no AskUserQuestion |
+There is **one shipped base preset, `adaptive`**, and no session-time
+posture choice
+([ADR-0022](../docs/adr/0022-single-baseline-gate-model-with-supervisor-review.md)
+D-1). `strict` and `guided` are retired — artefacts of the
+pre-ADR-0016 ladder, not a choice anyone made.
 
-Default: `guided` (balances enforcement with practical flexibility).
+**Auto-advance is the baseline.** Every gate resolves to its
+recommended option unless a floor, a project pin, or a per-toggle
+override says otherwise. The preset *mechanism* survives: user-defined
+presets in `~/.config/Dev10x/friction-presets.yaml` and per-toggle
+overrides (ADR-0016 D-4) keep working. What is gone is the shipped
+*choice* between three postures.
 
-`adaptive` = the supervisor is AFK. The agent should auto-advance
-through all non-ALWAYS_ASK gates without interruption, making
-best-effort decisions autonomously. This replaces the former
-`--unattended`, `afk`, and `auto-advance` concepts — they are
-all expressed as `friction_level: adaptive`.
+Three layers decide one gate, in order:
 
-## Configuration
+1. **Safety floors** — deny-overrides. Always `ask`.
+2. **`supervisor_review`** — the durable project fact, expressed as a
+   floor so it can force `ask` and never grant autonomy.
+3. **The resolved toggle** — baseline + overlays + project pin +
+   session `gate_overrides`.
 
-Friction level is set in `command-skill-map.yaml`:
+## Resolving a gate
 
-```yaml
-config:
-  friction_level: guided  # strict | guided | adaptive
+> Skills do **not** read config to derive whether a gate fires. Call
+> `mcp__plugin_Dev10x_cli__resolve_gate(gate=…, context=…)` and honour
+> the returned `effect`. The resolver owns floor/preset/overlay/pin
+> precedence; re-deriving it drifts (GH-760). Pass the concrete facts
+> about the instance — author type, destructiveness, blocking,
+> reversibility — as `context`; do not hand-classify.
+
+| `effect` | What the skill does |
+|---|---|
+| `ask` | Fire the `AskUserQuestion` widget; block on the answer |
+| `auto-advance` | Execute the recommended option AND surface `record` |
+| `skip` | Do not present the gate at all |
+
+### Auto-advance means execute, not skip (GH-808)
+
+**Auto-advance means the agent proceeds as if the supervisor chose the
+recommended option.** It does NOT mean skip the gate and do nothing.
+The gate still resolves and the decision is still recorded; only the
+`AskUserQuestion` interruption is removed.
+
+Agents get this wrong in one specific way: they read "auto-select" as
+"skip", so the plan is never approved and execution never starts.
+Auto-advance on `plan_approval` means *approve the plan and begin*.
+
+### The visible record is mandatory (ADR-0016 D-7)
+
+Every `auto-advance` returns a `record` line:
+
+```
+⚙ gate:plan_approval auto-advance → "Approve" (baseline auto-advance)
 ```
 
-User overrides via:
-```
-~/.config/Dev10x/diag-friction.yaml
-```
+Surface it in the transcript and append it to the audit log and the
+resolved `doubt_sink`. **Silent auto-advance is a compliance bug** — a
+present supervisor must be able to notice a decision mid-flight and
+veto it, and a suppressed gate with no log entry is indistinguishable
+from a bug. `ask` and `skip` produce no record.
 
-Durable per-project prefs (set by Phase 0 of `Dev10x:work-on`
-and `Dev10x:fanout`, ADR-0018 D1):
-```
-~/.config/Dev10x/friction.yaml
-```
+### The baseline does not waive skill bodies (GH-112)
 
-Resolution order: matching `projects[]` entry > project override >
-`defaults:` block > built-in default. The retired
-`.claude/Dev10x/session.yaml` is not a config source (ADR-0018 D2/D5)
-— it is read only as a legacy fallback when no `projects[]` entry
-matches.
+**The baseline suppresses `AskUserQuestion` gates. It suppresses
+nothing else.** When a skill's invocation prompt says _"Read
+`instructions.md` and follow it end-to-end; the `TaskCreate` and
+`AskUserQuestion` calls documented there are REQUIRED"_, that is
+**not waivable by gate policy**. The skill's `TaskCreate` /
+`TaskUpdate` / checklist work runs unchanged.
 
-## Skill Decision Gates
+**Anti-pattern:** the agent invokes `Skill(Dev10x:gh-pr-merge)`, reads
+the first part of `instructions.md`, and decides its autonomy licenses
+a shortcut to one `gh pr view --json mergeable,isDraft` plus a direct
+merge. The skill's pre-merge checks — unresolved threads, CI, draft
+state, mergeability, working copy, fixup commits, approval, branch
+protection — never execute. No gate policy authorizes that.
 
-Skills with `AskUserQuestion` gates adapt behavior based on level:
-
-### strict
-
-- All gates fire as documented
-- No auto-selection
-- User must respond to every decision point
-
-### guided (default)
-
-- All gates fire
-- Recommended option is highlighted
-- User can override or accept recommendation
-
-### adaptive
-
-- Gates with a `(Recommended)` option auto-select it
-- Auto-select means the agent **proceeds as if the user chose the
-  recommended option** — it does NOT mean skip the gate entirely.
-  The gate still resolves (the decision is recorded), but no
-  `AskUserQuestion` call interrupts execution.
-- Exceptions: gates marked `ALWAYS_ASK` still fire (e.g., destructive
-  operations like branch deletion, data loss scenarios)
-
-**Common mistake (GH-808):** Agents interpret "auto-select" as
-"skip the gate and do nothing." This is wrong. Auto-select means
-execute the recommended option's action (e.g., approve the plan,
-start execution). Skipping the gate entirely means the plan is
-never approved and execution never starts.
-
-### Adaptive does not waive skill bodies (GH-112)
-
-**Adaptive friction only suppresses `AskUserQuestion` gates marked
-`(Recommended)`.** When a skill's invocation prompt says _"Read
-`instructions.md` and follow it end-to-end. `TaskCreate` and
-`AskUserQuestion` calls documented there are REQUIRED"_, that
-instruction is **not waivable by friction level**. The skill's
-`TaskCreate`/`TaskUpdate`/checklist work still runs at every level,
-including adaptive.
-
-**Anti-pattern (GH-112):** Agent invokes `Skill(Dev10x:gh-pr-merge)`,
-reads the first part of `instructions.md`, decides adaptive mode
-licenses a "shortcut" to a one-line `gh pr view --json
-mergeable,isDraft,reviewDecision` followed by `gh pr merge` directly.
-The skill's 8 pre-merge checks (unresolved threads, CI, draft state,
-mergeability, working copy, fixup commits, approval, branch
-protection) never execute. Adaptive friction does not authorize this
-substitution — it only auto-selects `(Recommended)` options at
-`AskUserQuestion` gates.
-
-**Detection signal:** If you are reasoning _"I'm in adaptive mode,
+**Detection signal:** if you are reasoning _"gates auto-advance here,
 so I can skip the skill body and just run the CLI"_, STOP. That
-reasoning is the violation. Adaptive changes the **pace** at gates,
-not the **rules** of the skill body.
+reasoning is the violation. Auto-advance changes the **pace** at
+gates, not the **rules** of the skill body.
 
-**How to mark a gate as ALWAYS_ASK:**
+### The "no checkpoints" rule
 
-```markdown
-**REQUIRED: Call `AskUserQuestion`** (ALWAYS_ASK — fires at all
-friction levels, including adaptive).
-```
+A checkpoint is any pause where the agent waits for an implicit "ok,
+continue". **There are no checkpoints.** The approved plan is the
+authorization to proceed through every remaining step until the plan
+completion gate.
 
-Gates without `ALWAYS_ASK` auto-resolve at adaptive level.
-
-### "No checkpoints" rule
-
-Adaptive friction means **no checkpoints** between steps. A
-checkpoint is any pause where the agent waits for an implicit
-"ok, continue" from the user. Under adaptive friction, the
-approved plan is the authorization to proceed through every
-remaining step until the plan completion gate.
-
-**What counts as a checkpoint (forbidden under adaptive):**
+**Forbidden — these are checkpoints:**
 
 - Trailing "Ready to proceed?" / "Should I continue?" prompts
-- Summarising progress and stopping when the next step is
-  unambiguous
+- Summarising progress and stopping when the next step is unambiguous
 - Pausing after a commit, push, or skill completion to await
   acknowledgement
-- Inserting an `AskUserQuestion` gate that is not marked
-  `ALWAYS_ASK` and is not in the documented gate list for the
-  current skill
+- Inserting an `AskUserQuestion` that is not `ALWAYS_ASK` and is not
+  in the current skill's documented gate list
 
-**What is NOT a checkpoint (allowed at every friction level):**
+**Allowed — these are NOT checkpoints:**
 
 - `ALWAYS_ASK` gates — destructive operations, true ambiguity,
   irreversible state changes
 - Batched A/B decisions per the queue pattern in
-  `references/task-orchestration.md` (collect, advance, ask
-  once when ALL tasks are blocked)
+  `references/task-orchestration.md` (collect, advance, ask once when
+  ALL tasks are blocked)
 - Hard blockers — unrecoverable CI, missing credentials, merge
   conflicts requiring human judgment
 - The single Plan Completion Gate at end of plan
-- Documented gates in a skill's instructions that fire at every
-  friction level (e.g., merge-anyway overrides in
-  `Dev10x:gh-pr-merge`)
+- Documented gates that fire unconditionally (e.g. the merge-anyway
+  override in `Dev10x:gh-pr-merge`)
 
-**Detection signal:** If you are about to output "Ready to
-proceed to the next step?" or "Continue with the shipping
-pipeline?" under `friction_level: adaptive`, STOP. That is a
-checkpoint. Skip the question and execute the next step.
+**Detection signal:** if you are about to output "Ready to proceed to
+the next step?", STOP. Skip the question and execute the step.
 
-**Cross-cutting reinforcement:** Every skill's `**Auto-advance:**`
-line ends with "— no checkpoints under adaptive friction." so
-the rule travels with the orchestration contract regardless of
-which skill is in flight.
+## Safety floors are deny-overrides
 
-## Plan-Approval Gate (work-on Phase 3)
+Floors force `ask` regardless of preset, overlay, or pin — the
+resolver's `ALWAYS_ASK` equivalent, and why one auto-advancing
+baseline is safe: `secret_access`, `destructive_irreversible`,
+`cross_author_push`, `privacy_disclosure`, `blocking`, and
+`supervisor_review` (below).
 
-The `Dev10x:work-on` Phase 3 plan-approval gate resolves through the
-gate-policy resolver (ADR-0016 Phase 2 / GH-755). Work-on calls
-`resolve_gate(gate="plan_approval")` (the `resolve_gate` MCP tool) and
-honours the returned `effect` instead of re-deriving the decision from
-`friction_level` / `active_modes`. The resolver is the single source
-of truth; the former
-`dev10x.domain.session_rules.plan_gate_auto_approves()` predicate is
-superseded — its `auto-plan` and `adaptive`+`solo-maintainer` shapes
-now live in the shipped presets and the `solo-maintainer` overlay.
+A floor can only ever force `ask`; nothing lifts one by asking for
+more autonomy. That is what keeps `supervisor_review` a
+**precondition** for merge autonomy and never a grant of it.
 
-**How the shipped presets resolve `plan_approval`:**
+To mark a skill's own gate unconditional:
 
-| preset | `plan_approval` | Plan gate |
-|--------|-----------------|-----------|
-| `strict` | `ask` | **Fires** — supervisor approves before any branch checkout |
-| `guided` | `auto-advance` | **Auto-approved** — light-AFK: the mechanical pipeline (plan included) auto-advances; team interactions + merge stay gated (GH-748 / D-9) |
-| `adaptive` | `auto-advance` | **Auto-approved** — walk-away |
+```markdown
+**REQUIRED: Call `AskUserQuestion`** (ALWAYS_ASK — fires
+unconditionally, never auto-advances).
+```
 
-A durable project pin (`.dev10x/gate-policy.yaml`) or a session
-`gate_overrides` entry can force `plan_approval: ask` back on when a
-repo or session wants the veto regardless of preset. Legacy
-`friction_level` / `active_modes` sessions are mapped to a preset +
-overlays by the resolver's read-compat seam, so an un-migrated legacy
-config keeps working without change.
+## `supervisor_review`
 
-**Effect semantics** (uniform across every gate): `ask` → fire the
-`AskUserQuestion` widget; `auto-advance` → proceed with the
-recommended option and surface the resolver's `record` line (the D-7
-`⚙ gate:…` transcript record) so a present supervisor can still veto;
-`skip` → do not present the gate at all. Safety floors
-(destructive/irreversible, blocking, secret access, cross-author,
-privacy disclosure) always resolve to `ask` regardless of preset —
-they are deny-overrides, the resolver's ALWAYS_ASK equivalent.
+One durable per-project key answering one question: *must the
+supervisor read this PR before the next step is allowed?* It lives in
+the matching `projects[]` entry of `~/.config/Dev10x/friction.yaml`.
+Absent, unrecognised, or malformed values read as `required`, so every
+unconfigured repo and every typo fails toward more oversight.
 
-## Acceptance Criteria (verify-acc-dod)
+Which gate it floors follows repo shape (ADR-0022 D-3):
 
-| Level | Automated checks | Manual checks | Decision gate |
-|-------|-----------------|---------------|---------------|
-| strict | Run, must all pass | AskUserQuestion per item | AskUserQuestion required |
-| guided | Run, failures shown | AskUserQuestion per item | AskUserQuestion with recommendation |
-| adaptive | Run, auto-pass/fail | Converted to `prompt` (Claude evaluates) | Merge-gated (GH-729) — see § Completion Gate below |
+| repo | value | Behaviour |
+|---|---|---|
+| solo | `none` | AI self-review → CI → agent merges |
+| solo | `required` | AI self-review → CI → **park** → merge |
+| team | `none` | AI self-review → CI → agent requests team review |
+| team | `required` | AI self-review → CI → **park** → request review |
 
-At adaptive level, the ACC skill runs fully unattended:
-1. Execute all automated checks
-2. Convert `manual` checks to `prompt` checks (Claude evaluates
-   from session context)
-3. Resolve the completion recommendation (see § Completion Gate)
-4. If recommendation is **Work complete** → auto-complete, no
-   user interruption
-5. If **Monitor for review** → dispatch `Dev10x:gh-pr-monitor` in
-   the background and keep the session open (residual task:
-   "Monitor PR #<N> for review / merge")
-6. If **Go back** → queue failure report, continue with next task
+- **AI self-review and CI always come first**, in all four cells, and
+  neither is gateable (ADR-0022 D-4). The supervisor is never handed a
+  PR the agent has not already reviewed and greened.
+- **`required` inserts a park; it never removes a step.** In the team
+  rows it precedes the team request rather than replacing it.
+- **The `review:cleared` PR label lifts the floor** (GH-1008,
+  GH-1163). `Dev10x:gh-pr-request-review` writes it once the
+  supervisor has read the commits; `Dev10x:git-groom` removes it after
+  a force-push, since a clearance cannot survive the rewrite that
+  invalidated it.
+- Read it with `mcp__plugin_Dev10x_cli__supervisor_review_status`,
+  write it with `pin_supervisor_review`. The gate reads it
+  **unconditionally** — a `supervisor_review` key passed in a
+  `resolve_gate` context lands in `ignored_context_fields` (GH-1000),
+  so no caller can self-authorise past the supervisor.
 
-### Completion Gate (verify-acc-dod) — merge-gated (GH-729)
+## Configuration
 
-Completion is reserved for the **merged** state — "shippable /
-handed off" is not terminal. The gate's recommended (and, at
-`adaptive`, auto-selected) option is driven by PR merge state, not
-just "all checks pass":
-
-| PR state | Blocking checks | Recommended | Auto (adaptive) |
-|----------|-----------------|-------------|-----------------|
-| Merged / no PR | pass | **Work complete** | auto-complete |
-| Open, awaiting review | pass | **Monitor for review** (→ `Dev10x:gh-pr-monitor`, ~5 min) | auto-start monitor (background) |
-| Any | fail / pending | **Go back** | Go back |
-
-The PR-merge signal is a **gate input, not a pass/fail check** — an
-unmerged-but-green PR is the normal awaiting-review state, so a
-failing "PR merged" check would loop on "Go back" forever. The
-three-way recommendation is encoded once in
-`dev10x.domain.session_rules.completion_gate_recommendation()` —
-verify-acc-dod's markdown and work-on's Plan Completion Gate defer to
-it rather than re-deriving the matrix. Whether that gate *fires* is
-resolved by `resolve_gate(gate="completion_signoff")`; this function
-only chooses which option it recommends (§ Plan-Approval Gate).
-
-**Boundary with verify-acc-dod's internal checks (GH-755).** The
-resolver decides only whether work-on's `completion_signoff` gate
-fires. The delegated `Dev10x:verify-acc-dod` skill keeps its own
-`friction_level`-keyed tables (above) for its *internal*
-automated/manual check behavior — that layer is intentionally left
-on the friction-level model until the Phase 3 long-tail migration
-(GATE-M3). The two systems meet at one gate by design: the resolver
-gates the completion prompt, verify-acc-dod's friction table gates
-its per-check evaluation. Neither overrides the other.
-
-## Loop Enforcement
-
-Skills that operate in iterative loops (e.g., fix → test → fix)
-must maintain skill routing on every iteration, not just the first.
-
-| Level | Loop behavior |
-|-------|--------------|
-| strict | Hook blocks raw commands on every iteration |
-| guided | Hook blocks + shows fallback on every iteration |
-| adaptive | First iteration: skill routing enforced. Subsequent: allowed with warning logged |
-
-The `adaptive` relaxation for loops exists because iterative
-debugging sometimes requires raw commands for speed. The warning
-log ensures skill-audit can detect and report deviations.
-
-## Playbook Integration
-
-Friction levels and execution modes are **orthogonal dimensions**.
-Friction controls *how gates behave*; modes control *what steps
-exist*. See `references/execution-modes.md` for the mode system.
-
-### Per-step friction overrides
-
-Playbook steps can declare per-friction-level behavior:
+Durable prefs live in the global `~/.config/Dev10x/friction.yaml`,
+first-match-wins by project glob (ADR-0018). Schema v2 carries no
+`gate_preset` and no `friction_level`; see
+`references/session-config-schema.md` for the key reference and the
+`dev10x config migrate-schema` conversion.
 
 ```yaml
-- subject: Draft Job Story
-  type: detailed
-  friction:
-    adaptive:
-      skip: true    # JTBD not needed in auto mode
-    strict:
-      prompt: >
-        Present draft for approval. Block until confirmed.
+projects:
+  - match: ["*/my-solo-repo", "*/my-solo-repo-*"]
+    supervisor_review: none
+    gate_overlays: [solo-maintainer]
+    gate_overrides: {merge: ask}   # per-toggle pins still work
 ```
 
-### Resolution order with modes
+Toggle pins every teammate shares live in the git-tracked
+`.dev10x/gate-policy.yaml` (ADR-0016 D-8). A `plan_approval: ask` or
+`merge: ask` pin there is the supported way to make a gate fire that
+the baseline would auto-advance.
 
-1. Load defaults and resolve fragments
-2. Apply active modes (skip/override per step)
-3. Apply friction-level adaptations (skip/override per step)
-4. Apply full overrides (escape hatch)
+## Completion is merge-gated (GH-729)
 
-Modes run before friction so mode-added steps can have their
-own `friction:` mappings.
+Completion is reserved for the **merged** state; "shippable" is not
+terminal. The recommended — and, absent a floor, auto-selected —
+option follows PR merge state: **Work complete** when merged or
+PR-less, **Monitor for review** (→ `Dev10x:gh-pr-monitor`) when the PR
+is open and green, **Go back** on any failing or pending check. The
+merge signal is a **gate input, not a pass/fail check** — an
+unmerged-but-green PR is the normal awaiting-review state, so a
+failing "PR merged" check would loop on "Go back" forever. The matrix
+is encoded once in
+`dev10x.domain.session_rules.completion_gate_recommendation()`, which
+`Dev10x:verify-acc-dod` and work-on's Plan Completion Gate defer to;
+whether the gate *fires* is `resolve_gate(gate="completion_signoff")`.
 
-## Reading Friction Level in Skills
+## The other `friction_level`
 
-> **ADR-0016 (GH-760):** Skills do **not** read `friction_level` /
-> `active_modes` / `walk_away` to derive whether a gate fires. They
-> call `mcp__plugin_Dev10x_cli__resolve_gate(gate=..., context=...)`
-> and honor the returned `effect` (`ask` / `auto-advance` / `skip`).
-> The resolver reads session policy itself — `gate_preset`,
-> `gate_overlays`, the project pin, and `gate_overrides`, with a
-> read-compat mapping for legacy `friction_level` / `active_modes` /
-> `walk_away` files. The guidance below is retained for the two
-> layers that legitimately still read the session file directly.
-
-The remaining direct readers:
-
-1. **Hook-based enforcement** (preferred): The PreToolUse hook
-   reads `friction_level` for command-redirect strictness
-   (strict/guided/adaptive per ADR-0002). This is the
-   command-redirect axis, not the decision-gate axis.
-
-2. **Session Mode Summary display**: `Dev10x:work-on` reads the
-   session file to *print* the resolved posture (GH-189). This is
-   display-only — it does not drive gate behavior.
-
-3. **Playbook-level override**: Playbook steps can include
-   `friction:` mappings to skip/override steps at a given level.
-   This shapes *which steps exist*, not how a gate resolves.
-
-For anything that decides whether an `AskUserQuestion` fires, call
-`resolve_gate` — do not re-derive it from the session file.
-
-## Examples
-
-### Git-groom strategy gate at adaptive level
-
-```
-Phase 2: Choose Strategy
-- Friction level: adaptive
-- Only fixup commits detected → auto-select "Fixup (Recommended)"
-- Mixed commits detected → auto-select "Fixup (Recommended)"
-- No fixups, only rewording needed → auto-select "Mass rewrite"
-- Gate skipped, execution continues to Phase 3
-```
-
-### ACC at adaptive level (AFK mode)
-
-```
-Acceptance criteria (feature):
-
-Checks:
-  ✅ Working copy clean
-  ✅ CI passing
-  ✅ PR not draft
-  ✅ No fixup commits
-  ✅ Loop compliance (auto-evaluated: all test runs via skill)
-  ✅ PR ready (solo maintainer)
-
-6/6 checks passed. Auto-completing — adaptive mode.
-```
-
-## Migration Path
-
-Skills adopting friction-level awareness should:
-
-1. Document adaptive behavior in SKILL.md (what auto-selects)
-2. Mark destructive gates as `ALWAYS_ASK`
-3. Add tests for adaptive auto-selection logic
-4. Update playbook steps if level-specific behavior differs
-
-## Walk-Away Layer (ADR-0016: the `afk` overlay)
-
-`Dev10x:afk` composes the walk-away posture as `gate_preset:
-adaptive` + `gate_overlays: [afk]`. The `afk` overlay
-(`presets/friction/overlays/afk.yaml`) sets `session_adoption:
-auto-advance` (trust a stale session) and `doubt_sink:
-pr-description` (route deferred decisions to the PR body). Gate
-suppression itself is just the `adaptive` base auto-advancing every
-non-floored toggle — there is no separate suppression layer.
-
-The legacy `walk_away: true` flag is **deprecated**: the resolver's
-`legacy_session_mapping` still maps it to the `afk` overlay for
-un-migrated sessions, but `Dev10x:afk` no longer writes it and
-skills must not branch on it. See `references/walk-away.md` for the
-deprecation note and the `doubt_sink` contract.
-
-Resolution at a single gate is the resolver pipeline (§ Plan-Approval
-Gate): safety floors → resolved toggle from preset + overlays +
-project pin + session overrides. Destructive/blocking are floors
-(always `ask`); everything else follows the composed preset.
+`config.friction_level` in
+`src/dev10x/validators/command-skill-map.yaml`, consumed by
+`skill_redirect.py`, is the **ADR-0002 command-redirect axis**: how
+hard the PreToolUse Bash hook pushes an agent from a raw CLI command
+toward its skill wrapper. It constrains the *agent's tool choice*, not
+the *supervisor's involvement*, and ADR-0022 does not touch it. It is
+what enforces skill routing, on **every** iteration of a loop — no
+gate posture relaxes it after the first pass.
 
 ## References
 
-- ADR-0002: Data-driven skill redirect with friction levels
-- `references/execution-modes.md`: Structural modes (orthogonal)
-- `references/walk-away.md`: Walk-away layer contract
-- `src/dev10x/validators/command-skill-map.yaml`: Config source
-- `src/dev10x/validators/skill_redirect.py`: Hook implementation
-- `skills/verify-acc-dod/SKILL.md`: First skill-level adopter
-- `skills/afk/SKILL.md`: Walk-away mode skill
+- [ADR-0022](../docs/adr/0022-single-baseline-gate-model-with-supervisor-review.md)
+  — one baseline, `supervisor_review`, the D-3 effect table
+- [ADR-0016](../docs/adr/0016-friction-gate-policy-presets-over-toggles.md)
+  — resolver, toggle taxonomy, safety floors, D-7 visible record
+- `references/session-config-schema.md` — schema v2 key reference
+- `references/walk-away.md` — the `afk` overlay and `doubt_sink`
+- `references/active-modes.md` — the non-gate `active_modes` consumers
+- `references/execution-modes.md` — structural modes (orthogonal:
+  gate policy decides *how a gate resolves*, modes *what steps exist*)
+- `src/dev10x/domain/gate_policy.py` — `SHIPPED_PRESETS`, `_floors()`
