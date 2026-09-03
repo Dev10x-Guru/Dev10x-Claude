@@ -46,29 +46,31 @@ because the parent cannot predict which grooming strategy is
 appropriate. The parent's "Full shipping pipeline" selection
 establishes *intent to groom*, not *which strategy to use*.
 
-**NEVER auto-select a grooming strategy at strict/guided
-friction.** Even when invoked from a parent orchestrator that
-has chosen "Full shipping pipeline", you MUST present the
-`AskUserQuestion` gate for strategy selection. Auto-selecting
-autosquash because it is "Recommended" is a gate bypass — the
-recommendation is a default hint for the user, not permission to
-skip the gate. Anti-pattern (GH-458): agent ran
-`git autosquash-develop` without presenting the strategy gate in
-nested mode.
+**NEVER auto-select a grooming strategy on your own judgement.**
+Call `mcp__plugin_Dev10x_cli__resolve_gate(gate="history_rewrite",
+context={"destructive": <true when the only viable path is a Full
+restructure or an interactive reorder>})` and branch on `effect`.
+On `ask` you MUST present the `AskUserQuestion` gate for strategy
+selection — even when invoked from a parent orchestrator that has
+chosen "Full shipping pipeline". Auto-selecting autosquash because
+it is "Recommended" is a gate bypass: the recommendation is a
+default hint for the user, not permission to skip the gate.
+Anti-pattern (GH-458): agent ran `git autosquash-develop` without
+presenting the strategy gate in nested mode.
 
-**Friction level wins over nested mode (GH-591).** GH-458 (never
-auto-select, even nested) and GH-530 (adaptive auto-selects
-silently) only conflict if read as peers — they are not. The
-friction level is the deciding axis. At `strict`/`guided` the
-gate always fires (the rule above), nested or not. At `adaptive`
-the deterministic auto-select in Phase 2 governs — nesting does
-NOT re-impose the gate, because `adaptive` is the supervisor's
-standing pre-authorization to proceed without prompts. The one
-carve-out: `adaptive` may auto-select only deterministic,
-non-destructive strategies (fast-exit, autosquash of `fixup!`
-commits, message-only mass rewrite); when the only viable path is
-a destructive Full restructure or interactive reorder, fire the
-gate even at `adaptive`. See Phase 2 for the auto-select rules.
+**The resolver wins over nested mode (GH-591).** GH-458 (never
+auto-select, even nested) and GH-530 (an autonomous posture
+auto-selects silently) only conflict if read as peers — they are
+not. The resolved `effect` is the deciding axis, and nesting never
+re-imposes a gate the resolver auto-advanced. Do NOT read
+`friction_level`, `active_modes`, or any session file to second-
+guess it. The `history_rewrite` floor does the carve-out for you:
+an `auto-advance` covers only deterministic, non-destructive
+strategies (fast-exit, autosquash of `fixup!` commits, message-only
+mass rewrite), and passing `destructive: true` returns `ask` — a
+history-destroying operation with no deterministic answer is the
+one case the supervisor confirms however autonomous the session is.
+See Phase 2 for the auto-select rules.
 
 ## Workflow
 
@@ -302,8 +304,8 @@ fixups, a full restructure is the probable request:
   (except the destructive Full-restructure case above)
 
 **Applies even when nested (GH-591).** The nested-mode rule does
-not re-impose the gate at adaptive — friction level wins (see the
-Friction-level note near the top of this file). Every bullet above
+not re-impose a gate the resolver auto-advanced (see the
+gate-resolution note near the top of this file). Every bullet above
 is deterministic and non-destructive, so auto-selecting them
 honors both GH-458 (no silent destructive rewrites) and GH-530
 (no AFK prompts).
@@ -311,10 +313,12 @@ honors both GH-458 (no silent destructive rewrites) and GH-530
 **Carve-out — destructive ambiguity still gates (GH-591).** If
 commit analysis cannot resolve to one of the deterministic options
 above and the only viable path is a destructive Full restructure
-(soft reset + rebuild) or an interactive reorder, fire the
-strategy `AskUserQuestion` gate even at `adaptive`. A
+(soft reset + rebuild) or an interactive reorder, pass
+`destructive: true` to `resolve_gate` and fire the strategy
+`AskUserQuestion` gate on the `ask` it returns. A
 history-destroying operation with no deterministic answer is the
-one case the supervisor must confirm regardless of friction.
+one case the supervisor must confirm however autonomous the
+session is.
 
 See `references/friction-levels.md` for the universal model.
 

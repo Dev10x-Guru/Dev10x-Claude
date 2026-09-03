@@ -361,9 +361,9 @@ directory) AND no such affirmative is present, extract the
 session ID from the filename and the file's modification time,
 then confirm with the user before proceeding.
 
-**REQUIRED: Call `AskUserQuestion`** (ALWAYS_ASK — fires at
-strict/guided friction levels, and at adaptive when no
-affirmative is present; do NOT use plain text).
+**REQUIRED: Call `AskUserQuestion`** (ALWAYS_ASK — fires whenever
+the two skip conditions above do not both hold; do NOT use plain
+text).
 
 Display the resolved path, session ID, and mtime in the question
 so the user can verify it's the correct session:

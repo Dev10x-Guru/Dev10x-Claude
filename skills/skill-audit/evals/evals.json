@@ -262,10 +262,10 @@
         },
         {
           "id": "gate_not_auto_advanced",
-          "text": "The destination gate is ALWAYS_ASK and is not auto-advanced at adaptive friction",
+          "text": "The destination gate is ALWAYS_ASK and is never auto-advanced, however autonomous the session policy is",
           "check": "behavioral",
           "assertion": "gate_requires_user_response",
-          "signal": "Execution blocks until the user confirms the tracker, at every friction level"
+          "signal": "Execution blocks until the user confirms the tracker, under every posture"
         }
       ]
     }

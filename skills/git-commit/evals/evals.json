@@ -233,7 +233,7 @@
         },
         {
           "id": "no-auto-select-on-drift",
-          "text": "Does NOT auto-select 'Continue on current branch' or 'Switch back' at adaptive friction — drift gate must block",
+          "text": "Does NOT auto-select 'Continue on current branch' or 'Switch back' when other gates auto-advance — the drift gate must block",
           "check": "behavioral",
           "signals": ["ALWAYS_ASK", "drift"]
         },
