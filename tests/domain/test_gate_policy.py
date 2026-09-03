@@ -13,6 +13,7 @@ from dev10x.domain.gate_policy import (
     AUTO_ADVANCE,
     BASELINE_PRESET,
     KNOWN_TOGGLES,
+    MIGRATOR_COMMAND,
     SHIPPED_PRESETS,
     SUPERVISOR_REVIEW_NONE,
     SUPERVISOR_REVIEW_REQUIRED,
@@ -22,6 +23,8 @@ from dev10x.domain.gate_policy import (
     UnknownPresetError,
     UnknownToggleError,
     coerce_supervisor_review,
+    legacy_config_message,
+    legacy_policy_keys,
     legacy_session_mapping,
     resolve_gate,
     supervisor_review_gate,
@@ -360,6 +363,65 @@ class TestGatePolicyResolver:
             user_presets={"team-afk": team_preset},
         )
         assert resolution.effect is GateEffect.ASK
+
+
+class TestLegacyPolicyKeys:
+    """GH-1162: naming the v1 keys is what makes the refusal actionable."""
+
+    V2 = {
+        "friction_level": None,
+        "walk_away": False,
+        "active_modes": [],
+        "gate_preset": None,
+        "gate_overlays": [],
+    }
+
+    @pytest.mark.parametrize(
+        ("overrides", "expected"),
+        [
+            ({}, []),
+            # Structural modes were never gate concerns — not v1 markers.
+            ({"active_modes": ["review-deferred", "swarm-child"]}, []),
+            # A v2 config naming its overlays explicitly is clean.
+            ({"gate_overlays": ["solo-maintainer", "afk"]}, []),
+            ({"friction_level": "strict"}, ["friction_level"]),
+            # Any value counts: the three-way choice is gone, so declaring
+            # a posture at all is v1 vocabulary.
+            ({"friction_level": "adaptive"}, ["friction_level"]),
+            ({"walk_away": True}, ["walk_away"]),
+            ({"active_modes": ["solo-maintainer"]}, ["active_modes: solo-maintainer"]),
+            # The migrator materialises the overlay and leaves the mode in
+            # place, so a migrated config states it twice and is clean.
+            (
+                {"active_modes": ["solo-maintainer"], "gate_overlays": ["solo-maintainer"]},
+                [],
+            ),
+            ({"gate_preset": "guided"}, ["gate_preset: guided"]),
+            ({"gate_preset": "adaptive"}, []),
+            (
+                {"friction_level": "strict", "walk_away": True},
+                ["friction_level", "walk_away"],
+            ),
+        ],
+    )
+    def test_detects_only_the_seam_s_own_inputs(
+        self, overrides: dict[str, object], expected: list[str]
+    ) -> None:
+        assert legacy_policy_keys(**{**self.V2, **overrides}) == expected  # type: ignore[arg-type]
+
+    def test_message_names_the_migrator_command(self) -> None:
+        message = legacy_config_message(keys=["friction_level"])
+        assert MIGRATOR_COMMAND in message
+        assert "friction_level" in message
+
+    def test_retired_preset_name_points_at_the_migrator(self) -> None:
+        with pytest.raises(UnknownPresetError, match=MIGRATOR_COMMAND):
+            resolve_gate(gate="merge", context=GateContext(), preset="strict")
+
+    def test_plain_typo_gets_no_migrator_hint(self) -> None:
+        with pytest.raises(UnknownPresetError) as excinfo:
+            resolve_gate(gate="merge", context=GateContext(), preset="adpative")
+        assert MIGRATOR_COMMAND not in str(excinfo.value)
 
 
 class TestLegacySessionMapping:

@@ -128,6 +128,17 @@ def coerce_supervisor_review(value: object) -> str:
 #: which posture "the baseline" is.
 BASELINE_PRESET = "adaptive"
 
+#: The one-shot migrator that rewrites a pre-ADR-0022 durable config into
+#: schema v2 (GH-1166). A constant, so the resolver's refusal below, the
+#: CLI, and the docs cannot drift on the command an operator must run.
+MIGRATOR_COMMAND = "dev10x config migrate-schema"
+
+#: Base-preset names ADR-0022 D-1 retired. ``adaptive`` is deliberately
+#: absent: it still resolves, it is simply no longer a *choice*. A name
+#: outside this set that is not shipped is a user-defined preset from
+#: ``friction-presets.yaml`` and reaches :class:`UnknownPresetError`.
+RETIRED_PRESET_NAMES = ("strict", "guided")
+
 SHIPPED_PRESETS: dict[str, dict[str, str | int | bool]] = {
     # ADR-0022 D-1: the sole shipped baseline. Its toggle values are
     # unchanged from the ADR-0016 D-10 table's right-hand column, including
@@ -331,7 +342,17 @@ def _merge_layers(
     base_overlays = SHIPPED_OVERLAYS if shipped_overlays is None else shipped_overlays
     presets = {**base_presets, **(user_presets or {})}
     if preset not in presets:
-        raise UnknownPresetError(f"Unknown preset {preset!r}; shipped: {sorted(base_presets)}")
+        # A retired name is not a typo — it is a v1 config that never ran
+        # the migrator, so name the migrator rather than only the shipped
+        # set (GH-1162). Every other unknown name stays a plain typo.
+        hint = (
+            f" — {preset!r} was retired by ADR-0022; run `{MIGRATOR_COMMAND}`"
+            if preset in RETIRED_PRESET_NAMES
+            else ""
+        )
+        raise UnknownPresetError(
+            f"Unknown preset {preset!r}; shipped: {sorted(base_presets)}{hint}"
+        )
     resolved = dict(presets[preset])
     for overlay in overlays:
         if overlay not in base_overlays:
@@ -506,6 +527,77 @@ def resolve_gate(
     )
 
 
+def legacy_policy_keys(
+    *,
+    friction_level: str | None,
+    walk_away: bool,
+    active_modes: list[str],
+    gate_preset: str | None,
+    gate_overlays: list[str],
+) -> list[str]:
+    """Name the pre-ADR-0022 keys still declaring this config's posture.
+
+    Empty means the config speaks v2 and resolves normally. Non-empty
+    means the retired read-compat seam (GH-1162) would have been the only
+    thing translating it, so the caller must refuse rather than resolve —
+    see :func:`legacy_config_message` for why refusing is the safe half.
+
+    Each detected key is one the seam actually consumed:
+
+    * ``friction_level`` — the seam's preset leg. Any value counts,
+      including a value the parser could not recognise: the shipped
+      three-way choice is gone, so *naming a posture at all* is v1.
+    * ``walk_away`` — the seam's afk-overlay leg.
+    * ``active_modes: solo-maintainer`` — the seam's solo-overlay leg, and
+      only when ``gate_overlays`` does not already carry that overlay. A
+      migrated config states it in both places (the migrator materialises
+      the overlay and leaves ``active_modes`` alone, since modes are a
+      playbook/DoD axis), so this fires exactly when the overlay would
+      otherwise be silently dropped.
+    * ``gate_preset`` naming a retired posture — caught here so the refusal
+      names the migrator before ``_merge_layers`` reports a bare unknown
+      preset.
+
+    Structural modes (``review-deferred``, ``swarm-child``) were never gate
+    concerns and are not v1 markers; a config carrying only those, or
+    nothing at all, resolves at the baseline exactly as before.
+    """
+    keys: list[str] = []
+    if friction_level is not None:
+        keys.append("friction_level")
+    if walk_away:
+        keys.append("walk_away")
+    if SOLO_OVERLAY in active_modes and SOLO_OVERLAY not in gate_overlays:
+        keys.append(f"active_modes: {SOLO_OVERLAY}")
+    if gate_preset in RETIRED_PRESET_NAMES:
+        keys.append(f"gate_preset: {gate_preset}")
+    return keys
+
+
+def legacy_config_message(*, keys: list[str]) -> str:
+    """The actionable refusal for a config :func:`legacy_policy_keys` flagged.
+
+    Refusing is the SAFE half of retiring the seam, and the half that is
+    easy to lose. The tempting alternative — resolve at the sole remaining
+    baseline — silently WIDENS autonomy on exactly the repos that had
+    asked for less: a repo pinned to ``friction_level: strict`` would come
+    up auto-merging. CI cannot catch that, because CI has no pre-ADR-0022
+    config to resolve.
+
+    So the message names the migrator command rather than the offending
+    key alone: the operator needs the remedy, not the diagnosis.
+    """
+    return (
+        f"Durable gate policy still uses pre-ADR-0022 keys ({', '.join(keys)}); "
+        "the read-compat seam that translated them was retired in GH-1162. "
+        f"Run `{MIGRATOR_COMMAND}` to convert ~/.config/Dev10x/friction.yaml "
+        "(and any legacy .claude/Dev10x/config.yaml) to schema v2 — "
+        "Dev10x:upgrade-cleanup Step 1b and Dev10x:plugin-doctor Step 0 run it "
+        "for you. Refusing to resolve at the baseline preset instead: a repo "
+        "that pinned a stricter posture would silently gain autonomy."
+    )
+
+
 def legacy_session_mapping(
     *,
     friction_level: str,
@@ -536,6 +628,8 @@ def legacy_session_mapping(
 __all__ = [
     "AUTO_ADVANCE",
     "BASELINE_PRESET",
+    "MIGRATOR_COMMAND",
+    "RETIRED_PRESET_NAMES",
     "SOLO_OVERLAY",
     "SUPERVISOR_REVIEW_NONE",
     "SUPERVISOR_REVIEW_REQUIRED",
@@ -548,6 +642,8 @@ __all__ = [
     "UnknownPresetError",
     "UnknownToggleError",
     "coerce_supervisor_review",
+    "legacy_config_message",
+    "legacy_policy_keys",
     "legacy_session_mapping",
     "resolve_gate",
     "supervisor_review_gate",
