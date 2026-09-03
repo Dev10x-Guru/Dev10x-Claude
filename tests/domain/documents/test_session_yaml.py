@@ -132,10 +132,12 @@ class TestReadActiveModes:
 class TestActiveModesDerivedFromOverlays:
     """GH-1003: one posture must not produce two answers.
 
-    ``legacy_session_mapping`` maps modes -> overlays but never back, so an
-    entry migrated to ``gate_preset`` + ``gate_overlays`` read as
+    The retired read-compat seam mapped modes -> overlays but never back,
+    so an entry migrated to ``gate_preset`` + ``gate_overlays`` read as
     solo-maintainer to ``resolve_gate`` and as nothing at all to every
-    consumer that filters on ``active_modes``.
+    consumer that filters on ``active_modes``. GH-1162 removed the seam;
+    this overlays -> modes fold is the only translation left, and it is
+    now the sole reason a v2 entry still answers ``active_modes``.
     """
 
     def test_overlay_only_entry_reports_the_mode(self, tmp_path: Path) -> None:

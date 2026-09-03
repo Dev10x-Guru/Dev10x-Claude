@@ -99,7 +99,8 @@ class TestMappingTable:
         assert "gate_overlays" not in migrated
 
     def test_solo_maintainer_mode_materialises_as_an_overlay(self) -> None:
-        """``legacy_session_mapping`` derived this; GH-1162 removes that seam."""
+        """The read-compat seam derived this; GH-1162 removed it, so the
+        migrator is now the only thing that can put the overlay there."""
         migrated, _ = migrate_prefs({"active_modes": ["solo-maintainer"]}, scope="t")
 
         assert migrated["gate_overlays"] == ["solo-maintainer"]
