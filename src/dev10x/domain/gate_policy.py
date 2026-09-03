@@ -11,13 +11,20 @@ Resolution pipeline (ADR-0016 D-4, lowest to highest precedence):
     plugin preset < project override < session preset choice
                   < per-toggle session override < safety floors
 
-Preset postures (ADR-0016 D-9): ``strict`` fires every gate;
-``guided`` is light-AFK — the agent auto-advances the mechanical
-pipeline through self-review, team interactions stay supervised
-(request-review widget with a stand-by option), and the merge is a
-strictly human action through the PR UI (``merge: skip`` — the agent
-hands off or monitors for teammate approval); ``adaptive`` is the
-walk-away posture, merges included.
+Baseline posture (ADR-0022 D-1): ``adaptive`` is the **sole shipped
+base preset** — auto-advance is the baseline, and every gate resolves
+to its recommended option unless a floor, a project pin, or a
+per-toggle override says otherwise. The ADR-0016 D-9 ``strict`` /
+``guided`` columns are retired; the postures they reached for are now
+expressed by ``supervisor_review`` (ADR-0022 D-2/D-3) and the existing
+project-tier ``.dev10x/gate-policy.yaml`` pins.
+
+The preset *mechanism* survives: user-defined presets in
+``~/.config/Dev10x/friction-presets.yaml`` and per-toggle overrides
+(ADR-0016 D-4) are untouched. Only the shipped three-way *choice* is
+gone, so a config naming ``strict`` or ``guided`` now raises
+:class:`UnknownPresetError` — loudly, rather than silently resolving at
+a more autonomous baseline (the FRIC-M3 migrator rewrites such configs).
 
 All functions are free of file I/O (ADR-0007 D3): the caller reads
 session/project configuration and passes parsed values in. Shipped
@@ -86,56 +93,21 @@ _SETTING_TOGGLES: frozenset[str] = frozenset({"doubt_sink"})
 
 KNOWN_TOGGLES: frozenset[str] = _ENUM_TOGGLES | _WEIGHT_TOGGLES | _BOOL_TOGGLES | _SETTING_TOGGLES
 
-# ADR-0016 "Shipped presets" table. A weight of NEVER_THRESHOLD means the
-# weight-conditioned auto-advance can never trigger; ALWAYS_ASK_SIGNALS
-# likewise.
-NEVER_THRESHOLD = 101
-ALWAYS_ASK_SIGNALS = 10_000
+#: The single shipped base preset (ADR-0022 D-1). Named rather than
+#: inlined so the resolver, the config seam, and the docs cannot drift on
+#: which posture "the baseline" is.
+BASELINE_PRESET = "adaptive"
 
 SHIPPED_PRESETS: dict[str, dict[str, str | int | bool]] = {
-    "strict": {
-        **{toggle: "ask" for toggle in _ENUM_TOGGLES},
-        "zero_valid_autoflow": False,
-        "autofix_confidence": NEVER_THRESHOLD,
-        "batch_ambiguity_floor": ALWAYS_ASK_SIGNALS,
-        "anchor_recommendations": False,
-        "doubt_sink": "pr-description",
-    },
-    # D-9: light-AFK guided — auto-advance the mechanical pipeline through
-    # self-review; team interactions supervised. request_review fires its
-    # widget (supervisor decides, with a stand-by option for a self-review
-    # pass first); merge is a strictly human action through the PR UI, so
-    # the agent's merge step does not exist (skip) — the session hands off
-    # after request-review or monitors for teammate approval.
-    # The batch gates (triage_response / thread_resolution / comment_hide,
-    # GH-745 F4) key on the comment author: bot-authored threads
-    # auto-advance, human-authored threads always gate — replying to or
-    # hiding a teammate's comment is a social act, not a mechanical step.
-    "guided": {
-        "plan_approval": AUTO_ADVANCE,
-        "batch_layout": AUTO_ADVANCE,
-        "strategy_choice": AUTO_ADVANCE,
-        "artifact_preview": AUTO_ADVANCE,
-        "triage_response": AUTO_ADVANCE_IF_BOT,
-        "thread_resolution": AUTO_ADVANCE_IF_BOT,
-        "comment_hide": AUTO_ADVANCE_IF_BOT,
-        "yagni_routing": AUTO_ADVANCE,
-        "shipping_continuation": AUTO_ADVANCE,
-        "request_review": "ask",
-        "external_notify": "ask",
-        "merge": "skip",
-        "completion_signoff": "ask",
-        "history_rewrite": AUTO_ADVANCE_IF_SAFE,
-        "workspace_choice": AUTO_ADVANCE,
-        "branch_cleanup": AUTO_ADVANCE_IF_MERGED,
-        "session_adoption": AUTO_ADVANCE_IF_STALE_FREE,
-        "zero_valid_autoflow": True,
-        "autofix_confidence": 70,
-        "batch_ambiguity_floor": 3,
-        "anchor_recommendations": True,
-        "doubt_sink": "pr-description",
-    },
-    "adaptive": {
+    # ADR-0022 D-1: the sole shipped baseline. Its toggle values are
+    # unchanged from the ADR-0016 D-10 table's right-hand column, including
+    # the author-keyed `auto-advance-if-bot` values for the batch gates
+    # (triage_response / thread_resolution / comment_hide, GH-745 F4):
+    # bot-authored threads auto-advance, human-authored threads gate —
+    # replying to or hiding a teammate's comment is a social act, not a
+    # mechanical step. Retiring `strict`/`guided` retires no behaviour
+    # `adaptive` had.
+    BASELINE_PRESET: {
         "plan_approval": AUTO_ADVANCE,
         "batch_layout": AUTO_ADVANCE,
         "strategy_choice": AUTO_ADVANCE,
@@ -498,6 +470,7 @@ def legacy_session_mapping(
 
 __all__ = [
     "AUTO_ADVANCE",
+    "BASELINE_PRESET",
     "GateContext",
     "GateEffect",
     "GateResolution",

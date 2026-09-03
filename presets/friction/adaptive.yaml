@@ -1,10 +1,14 @@
-# Friction preset: adaptive (ADR-0016 D-8, walk-away autonomy).
-# Auto-select recommended at every gate, merges included. The team-repo
-# human boundary is a project-tier concern: a reviewed repo pins
-# `merge: ask` (and typically `external_notify: ask`) in its project
-# gate-policy so adaptive sessions still stop for a human merge.
+# Friction preset: adaptive — the SOLE shipped base preset (ADR-0022 D-1).
+# Auto-advance is the baseline: every gate resolves to its recommended
+# option unless a safety floor, a project pin, or a per-toggle override
+# says otherwise. The `strict` and `guided` columns are retired; the
+# supervisor boundary they reached for now lives in `supervisor_review`
+# (ADR-0022 D-2/D-3) and in the project-tier `.dev10x/gate-policy.yaml`
+# pins (`merge: ask`, `external_notify: ask`).
 #
-# Shipped source of truth for the resolver — see strict.yaml header.
+# This file is the shipped source of truth the infra tier hydrates into
+# `dev10x.domain.gate_policy.SHIPPED_PRESETS` (ADR-0016 D-1). A
+# drift-guard test asserts the two stay identical — edit both together.
 plan_approval: auto-advance
 batch_layout: auto-advance
 strategy_choice: auto-advance
