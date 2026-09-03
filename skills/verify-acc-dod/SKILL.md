@@ -20,6 +20,8 @@ allowed-tools:
   - mcp__plugin_Dev10x_cli__pr_detect
   - mcp__plugin_Dev10x_cli__verify_pr_state
   - mcp__plugin_Dev10x_cli__supervisor_review_status
+  - mcp__plugin_Dev10x_cli__resolve_gate
+  - mcp__plugin_Dev10x_cli__detect_base_branch
   - Read(~/.config/Dev10x/dod-acceptance-criteria.yaml)
   # Read-only grant on the GH-941-retired path so Step 2's one-release
   # fallback does not prompt. Deliberately no Edit grant here — writes
@@ -50,21 +52,38 @@ This skill follows `references/task-orchestration.md` patterns
 
 Mark completed when done.
 
-## Friction Level Awareness
+## One Baseline (GH-1172)
 
-This skill adapts behavior based on the project's friction level
-(see `references/friction-levels.md`):
+There is a single verification behaviour, on every project:
 
-| Level | Automated checks | Manual checks | Decision gate |
-|-------|-----------------|---------------|---------------|
-| strict | Run, must all pass | AskUserQuestion per item | AskUserQuestion required |
-| guided | Run, failures shown | AskUserQuestion per item | AskUserQuestion with recommendation |
-| adaptive | Run, auto-pass/fail | Converted to `prompt` (Claude evaluates) | Merge-gated (GH-729): auto-complete only when merged / PR-less; open PR → auto-start background monitor; any failure → Go back |
+| Automated checks | Manual checks | Completion gate |
+|------------------|---------------|-----------------|
+| Run, auto-pass/fail | Converted to `prompt` (Claude evaluates) | Merge-gated (GH-729) |
 
-**Resolving friction level:** Read from session context or
-playbook step metadata. If not available, default to `guided`.
-Playbook steps may override with `friction_level: adaptive`
-for unattended shipping pipelines.
+This skill takes no friction-level input and keeps no per-level
+table — the key was retired for this layer by GH-1172. Which
+checks run, how a `manual` item is decided, and which completion
+option is recommended are the same everywhere. A playbook step cannot
+dial this layer up or down.
+
+### Boundary with `resolve_gate` (ADR-0016)
+
+Two separate decisions. Neither overrides the other, and collapsing
+them is a defect:
+
+- **The resolver decides whether the gate FIRES.** Call
+  `mcp__plugin_Dev10x_cli__resolve_gate(gate="completion_signoff")` and
+  read `effect` — `ask` presents the widget, `auto-advance` takes the
+  recommendation without interrupting, `skip` records it silently.
+- **This skill decides what the gate RECOMMENDS.** The three-way
+  Merged / Open-awaiting-review / failing recommendation comes from PR
+  merge state plus blocking-check results (see PR Merge State below),
+  whatever the resolver chose.
+
+So an `auto-advance` still advances to the recommendation computed
+here, and a **Go back** recommendation stays **Go back** whether it is
+shown as a widget or taken automatically. The resolver never turns a
+failing run into a passing one.
 
 ## Input
 
@@ -93,105 +112,23 @@ ${CLAUDE_PLUGIN_ROOT}/skills/verify-acc-dod/references/defaults.yaml
 
 Extract `defaults[work_type].checks` — an array of check objects.
 
-### Step 1b: Re-infer from live session state (GH-780)
+### Steps 1b–3: Re-inference, repo overrides, delta merge
 
-The caller passes the `work_type` detected at **plan** time
-(work-on Phase 1). Some plays legitimately change shape
-mid-execution — the `local-only` play's "Decide: create ticket,
-create PR, or done" step can resolve to "create PR", so the
-session is feature-shaped by the time verification runs. Trusting
-the plan-time `work_type` then loads the thin `local-only`
-checklist (working copy + "changes verified") and silently skips
-the checks that now apply.
+See [`references/criteria-resolution.md`](references/criteria-resolution.md)
+for the full procedure:
 
-After loading Step 1's checks, probe live state and **union** the
-richer check set in when a PR exists:
-
-1. Resolve the associated PR via
-   `mcp__plugin_Dev10x_cli__pr_detect(arg="")`. (This is the same
-   probe the PR-Merge-State section runs — resolve it once and
-   reuse the result; an `error` / no-PR response means PR-less.)
-2. If an **open** PR exists **and** the caller's `work_type` is a
-   PR-less type whose default check set lacks PR checks
-   (`local-only`, `investigation`), load `defaults.feature.checks`
-   and **union** them into the list from Step 1, de-duplicated by
-   `name` (a caller check with the same `name` wins — never
-   duplicate or overwrite it).
-3. This is a **union, not a replacement** — every check the
-   caller's `work_type` contributed is preserved; re-inference only
-   *adds* the missing PR checks (CI passing, PR not draft, no fixup
-   commits, no unresolved review threads, review requested).
-4. **Never downgrade.** When the caller's `work_type` already
-   carries PR checks (`feature`, `bugfix`, `pr-continuation`), or
-   no open PR exists, make no change.
-
-Record which checks re-inference added so the presentation can
-surface them (see Presentation → "added by live-state
-re-inference"). The subsequent override/merge (Step 2–3) and
-active-mode filter (Step 4) apply to the unioned list, so repo
-`remove`/`replace` deltas and mode skips still govern the added
-checks.
-
-### Step 2: Load repo overrides (if present)
-
-Read overrides from a single global file:
-```
-~/.config/Dev10x/dod-acceptance-criteria.yaml
-```
-
-**Read-compat fallback (one release).** When that file is absent,
-fall back to the GH-941-retired
-`~/.claude/memory/Dev10x/dod-acceptance-criteria.yaml`. When the
-fallback fires, say so in the run's output — e.g.
-`legacy_read: ~/.claude/memory/Dev10x/dod-acceptance-criteria.yaml`
-— and tell the user to move the file to `~/.config/Dev10x/`
-(`dev10x config migrate` folds it forward). A silent fallback is
-what let the two locations diverge in the first place (GH-1035):
-the user edits the documented copy and sees no effect because the
-skill read the other one. Never *write* to the legacy path — see
-Step 6 below.
-
-This file maps repositories to their override deltas:
-
-```yaml
-repos:
-  example-org/app-pos:
-    bugfix:
-      add:
-        - name: Sentry issue linked
-          check: >
-            gh pr view {pr_number} --repo {repo}
-            --json body -q .body  # cli-friction: allow raw-gh-pr
-          expect_contains: "sentry.io"
-      remove:
-        - Slack notification posted
-  Dev10x-Guru/dev10x-claude:
-    feature:
-      remove:
-        - Review requested
-      add:
-        - name: PR ready (solo maintainer)
-          check: >
-            gh pr view {pr_number} --repo {repo}
-            --json isDraft -q .isDraft  # cli-friction: allow raw-gh-pr
-          expect: "false"
-```
-
-**Repo detection:** Resolve the current repo via `gh repo view
---json nameWithOwner -q .nameWithOwner` or session context.
-Look up `repos[nameWithOwner][work_type]` for deltas.
-
-### Step 3: Merge with delta semantics
-
-Apply the repo-scoped deltas from the global file to the
-plugin defaults:
-
-**`add`** — append checks to the defaults list.
-**`remove`** — remove checks by `name` (exact match).
-**`replace`** — replace a check by `name` with the new definition.
-
-Apply in order: remove first, then replace, then add. This
-prevents removing a just-added check or replacing a removed one.
+- **Step 1b — live-state re-inference (GH-780).** When an open PR
+  exists but the caller passed a PR-less `work_type`
+  (`local-only` / `investigation`), union `defaults.feature.checks`
+  into the list, deduped by `name`. Union, never replacement; never
+  downgrade a `work_type` that already carries PR checks.
+- **Step 2 — repo overrides.** Read
+  `~/.config/Dev10x/dod-acceptance-criteria.yaml` (with a one-release
+  read-compat fallback to the retired memory path, announced when it
+  fires). Never *write* to the legacy path.
+- **Step 3 — delta merge.** Apply the repo's deltas in the order
+  remove → replace → add, so a just-added check cannot be removed and
+  a removed one cannot be replaced.
 
 ### Step 4: Filter by review posture and active modes
 
@@ -217,8 +154,8 @@ override can adjust the set without editing this skill.
 
 With them out of scope, a green run honestly recommends Work complete /
 Monitor instead of papering over a failing thread check (GH-736). When
-`human_review` is `true`, those checks run — an open thread is a real
-failing blocking check and the recommendation is **Go back**.
+`supervisor_review` is `required`, those checks run — an open thread is
+a real failing blocking check and the recommendation is **Go back**.
 
 This replaces the ephemeral `review-deferred` write, which targeted the
 retired `session.yaml` and so was never read back in a configured repo.
@@ -229,9 +166,9 @@ prefs. For each check with a `modes:` field, if any active mode has
 `skip: true`, remove the check and report it as "skipped (mode:
 <mode-name>)". `solo-maintainer` skips only the review-request check
 (thread resolution is still expected). `review-deferred` is
-**deprecated** in favour of `human_review` — its `skip` clauses are
-still honored for back-compat when a playbook or legacy `active_modes`
-names it, but nothing writes it anymore. See
+**deprecated** in favour of `supervisor_review` — its `skip` clauses
+are still honored for back-compat when a playbook or legacy
+`active_modes` names it, but nothing writes it anymore. See
 [`references/active-modes.md`](../../references/active-modes.md).
 
 ### Resolution order (summary)
@@ -246,7 +183,8 @@ names it, but nothing writes it anymore. See
 4. If global file is absent: use plugin defaults as-is
 5. If `work_type` has no entry in defaults: use empty checks list
    and warn
-6. Filter by active modes (skip checks marked for active modes)
+6. Filter by review posture (`supervisor_review: none` drops every
+   `requires_human_review` check) and then by active modes
 
 ## Executing Checks
 
@@ -267,8 +205,8 @@ If no PR exists (e.g., `local-only`), skip checks that reference
 
 For each check in the merged list:
 
-1. **If `check: manual`** — queue for user confirmation (see
-   Manual Checks below)
+1. **If `check: manual`** — treat it as a `prompt` check and evaluate
+   its `prompt` contextually (see Manual Checks below)
 2. **If `check: prompt`** — evaluate the `prompt` contextually
    from the current session (code state, conversation history,
    tool outputs). Report pass/fail with a brief rationale.
@@ -289,24 +227,17 @@ Capture the actual output for the failure report.
 
 ### Manual checks
 
-**At strict/guided level:**
+Every `check: manual` item is converted to a `prompt` check. Claude
+evaluates it from session context (code state, conversation history,
+tool outputs) and reports pass/fail with a brief rationale. There is
+no per-item `AskUserQuestion`: a manual item is a judgement call, and
+the judgement is made the same way on every project.
 
-Collect all `check: manual` items and present them in a single
-`AskUserQuestion` call after all automated checks complete:
-
-**REQUIRED: Call `AskUserQuestion`** for manual checks (do NOT
-assume pass/fail).
-
-Present each manual check as a yes/no confirmation using its
-`prompt` field.
-
-**At adaptive level:**
-
-Convert `manual` checks to `prompt` checks — Claude evaluates
-each from session context (code state, conversation history,
-tool outputs). Report pass/fail with a brief rationale. No
-`AskUserQuestion` call. This enables fully unattended ACC
-verification in AFK/solo-maintainer workflows.
+`manual` stays in the schema as the **authoring** form for a
+judgement-shaped criterion — project overrides written against it keep
+working, and the conversion happens at run time. A converted check
+that Claude cannot decide from context **fails**; it does not pass by
+default, and it does not escalate to a prompt.
 
 ## Presentation
 
@@ -322,10 +253,14 @@ Checks:
   ✅ No fixup commits
   ❌ Review requested — actual: "0" (expected > 0)
   ⏭️  Slack posted (skipped — no PR)
-  ✋ Findings documented — awaiting confirmation
+  ✅ Findings documented — release notes list both fixes (judged)
 
-4/5 automated checks passed. 1 manual check pending.
+5/6 checks passed.
 ```
+
+Mark a judged (`prompt`, or `manual` converted to `prompt`) check with
+its rationale so the reader can tell a judgement from a command
+result.
 
 Show the actual command output on failure so the user can
 diagnose without re-running.
@@ -363,7 +298,7 @@ The three-way recommendation is encoded once in
 skill's prose and `work-on`'s Plan Completion Gate defer to it rather
 than re-deriving the matrix:
 
-| PR state | Blocking checks | Recommended | Auto (adaptive) |
+| PR state | Blocking checks | Recommended | On auto-advance |
 |----------|-----------------|-------------|-----------------|
 | Merged / no PR | pass | **Work complete** | auto-complete |
 | Open, awaiting review | pass | **Monitor for review** (→ `Dev10x:gh-pr-monitor`, ~5 min) | auto-start monitor (background) |
@@ -378,10 +313,15 @@ Resolve the recommendation from PR merge state + blocking-check
 results (see the table above). **Never** offer or auto-select "Work
 complete" while an associated PR is open/unmerged.
 
-**At strict/guided level:**
+Then ask the resolver how to PRESENT it — this skill never decides
+that for itself. Call
+`mcp__plugin_Dev10x_cli__resolve_gate(gate="completion_signoff")` and
+branch on `effect`.
+
+### `effect: ask`
 
 **REQUIRED: Call `AskUserQuestion`** (do NOT use plain text). The
-options depend on the resolved recommendation:
+resolved recommendation is always the first, Recommended option:
 
 *Recommendation **Work complete*** (merged or PR-less, all checks pass):
 - **"Work complete" (Recommended)** — All criteria met, close the
@@ -401,9 +341,11 @@ options depend on the resolved recommendation:
 - **"Override — complete anyway"** — Accept despite failures (ask
   whether to persist)
 
-**At adaptive level (GH-851 F4, GH-729):**
+### `effect: auto-advance` (GH-851 F4, GH-729)
 
-Skip `AskUserQuestion`. Auto-select on the same recommendation:
+Skip `AskUserQuestion` and take the **same** recommendation without
+interruption. Print the resolver's `record` line so the choice stays
+visible:
 - **Work complete** (merged / PR-less, all checks pass) →
   auto-complete
 - **Monitor for review** (open PR, otherwise green) → dispatch
@@ -412,12 +354,20 @@ Skip `AskUserQuestion`. Auto-select on the same recommendation:
   #<N> for review / merge"** — do NOT auto-complete.
 - **Go back** (any check fails/pending) → report failures to the
   parent orchestrator for resolution
-- No user interruption in any case
-- **No "non-blocking" exception category exists.** Every check in
-  pending or fail state triggers "Go back". An open PR is **not** a
-  failed check — it routes to monitor, never to auto-complete.
 
-If the user picks "Override", ask whether to persist:
+### `effect: skip`
+
+Record the recommendation and continue without prompting. A **Go
+back** recommendation is still reported to the parent orchestrator —
+`skip` suppresses the *prompt*, never the verdict.
+
+**No "non-blocking" exception category exists**, under any effect.
+Every check in pending or fail state resolves to "Go back". An open PR
+is **not** a failed check — it routes to monitor, never to
+auto-complete.
+
+If the user picks "Override" (reachable only under `ask`), ask whether
+to persist:
 
 **REQUIRED: Call `AskUserQuestion`** (do NOT use plain text).
 Options:
@@ -459,7 +409,7 @@ TaskUpdate(taskId=<verify-ac-id>, status="completed",
            metadata={"supervisor_confirmed": true})
 ```
 
-At adaptive level, "all checks pass → auto-complete" still routes
+Under `auto-advance`, "all checks pass → auto-complete" still routes
 through this marker — auto-completion is not a licence to empty the
 list without the explicit sign-off step.
 

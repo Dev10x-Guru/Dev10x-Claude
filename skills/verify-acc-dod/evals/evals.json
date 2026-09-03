@@ -25,16 +25,26 @@
       "id": "live-state-reinference",
       "name": "Live-State work_type Re-Inference (GH-780)",
       "description": "When the caller passes a PR-less work_type (local-only/investigation) but an open PR exists, unions the feature check set (CI, draft, fixup, threads, review) into the loaded checks rather than trusting the thin plan-time checklist"
+    },
+    {
+      "id": "single-baseline",
+      "name": "Single Verification Baseline (GH-1172)",
+      "description": "Runs one baseline on every project: all automated checks run, every `manual` check is converted to a `prompt` Claude evaluates, and no friction level is read or honoured. A playbook step cannot dial this layer up or down."
+    },
+    {
+      "id": "resolver-recommendation-boundary",
+      "name": "Resolver / Recommendation Boundary (ADR-0016)",
+      "description": "resolve_gate decides whether the completion_signoff gate FIRES (ask / auto-advance / skip); this skill decides which option it RECOMMENDS. Neither overrides the other — an auto-advance still takes the recommendation computed here, and a Go back stays Go back under every effect."
     }
   ],
   "evals": [
     {
       "id": 1,
       "name": "open-pr-recommends-monitor-not-complete",
-      "prompt": "/Dev10x:verify-acc-dod feature  (session: friction_level guided; all automated checks pass; PR #42 is OPEN and awaiting review)",
+      "prompt": "/Dev10x:verify-acc-dod feature  (session: resolve_gate returns effect 'ask' for completion_signoff; all automated checks pass; PR #42 is OPEN and awaiting review)",
       "description": "Tests that when every acceptance criterion passes but the associated PR is open/unmerged, the gate recommends 'Monitor for review' (routing to Dev10x:gh-pr-monitor) and NOT 'Work complete'.",
       "expected_output": "AskUserQuestion fires with 'Monitor for review (Recommended)' as the first option, routing to Dev10x:gh-pr-monitor. 'Work complete' is NOT offered as the recommended option while PR #42 is unmerged.",
-      "dimensions": ["merge-gated-completion"],
+      "dimensions": ["merge-gated-completion", "resolver-recommendation-boundary"],
       "assertions": [
         {
           "id": "resolves-pr-merge-state",
@@ -58,11 +68,11 @@
     },
     {
       "id": 2,
-      "name": "adaptive-open-pr-auto-starts-monitor",
-      "prompt": "/Dev10x:verify-acc-dod feature  (session: friction_level adaptive, active_modes [solo-maintainer]; all checks pass; PR #42 OPEN, unmerged)",
-      "description": "Tests that at adaptive level with an open/unmerged PR, the skill auto-starts the background monitor instead of auto-completing, and the residual terminal task becomes 'Monitor PR #N for review / merge'.",
+      "name": "auto-advance-open-pr-auto-starts-monitor",
+      "prompt": "/Dev10x:verify-acc-dod feature  (session: resolve_gate returns effect 'auto-advance' for completion_signoff, active_modes [solo-maintainer]; all checks pass; PR #42 OPEN, unmerged)",
+      "description": "Tests that when the resolver auto-advances the completion gate with an open/unmerged PR, the skill takes the SAME recommendation the boundary computed — auto-starting the background monitor instead of auto-completing — and the residual terminal task becomes 'Monitor PR #N for review / merge'.",
       "expected_output": "No 'Work complete' auto-completion. Skill(Dev10x:gh-pr-monitor) is dispatched in the background; the residual task is 'Monitor PR #42 for review / merge'. No AskUserQuestion interruption.",
-      "dimensions": ["merge-gated-completion"],
+      "dimensions": ["merge-gated-completion", "resolver-recommendation-boundary"],
       "assertions": [
         {
           "id": "no-auto-complete-while-unmerged",
@@ -81,7 +91,7 @@
     {
       "id": 3,
       "name": "merged-pr-allows-work-complete",
-      "prompt": "/Dev10x:verify-acc-dod feature  (session: friction_level guided; all checks pass; PR #42 is MERGED)",
+      "prompt": "/Dev10x:verify-acc-dod feature  (session: resolve_gate returns effect 'ask' for completion_signoff; all checks pass; PR #42 is MERGED)",
       "description": "Tests that once the PR is merged (or the work is PR-less), the gate offers/auto-selects 'Work complete' as before.",
       "expected_output": "AskUserQuestion offers 'Work complete (Recommended)' because PR #42 is merged.",
       "dimensions": ["merge-gated-completion"],
@@ -97,7 +107,7 @@
     {
       "id": 4,
       "name": "review-deferred-skips-thread-check",
-      "prompt": "/Dev10x:verify-acc-dod bugfix  (session: friction_level adaptive, active_modes [solo-maintainer, review-deferred]; CI green, working copy clean, PR #42 OPEN; two review threads remain unresolved)",
+      "prompt": "/Dev10x:verify-acc-dod bugfix  (session: resolve_gate returns effect 'auto-advance' for completion_signoff, active_modes [solo-maintainer, review-deferred]; CI green, working copy clean, PR #42 OPEN; two review threads remain unresolved)",
       "description": "Tests that with review-deferred active, the unresolved-threads and review-request checks are removed from scope (reported as skipped), so the gate resolves honestly to Monitor for review instead of staying red — and is NOT papered over as 'Work complete'.",
       "expected_output": "The 'No unresolved review threads' and 'Re-review requested' checks are reported as 'skipped (mode: review-deferred)'. Remaining checks pass, PR #42 is open → recommendation is 'Monitor for review' (background gh-pr-monitor). 'Work complete' is NOT recommended.",
       "dimensions": ["scope-deferred-review", "merge-gated-completion"],
@@ -119,7 +129,7 @@
     {
       "id": 5,
       "name": "local-only-open-pr-unions-feature-checks",
-      "prompt": "/Dev10x:verify-acc-dod local-only  (session: friction_level guided; a local-only plan resolved 'create PR' mid-execution, so PR #42 is now OPEN and unmerged)",
+      "prompt": "/Dev10x:verify-acc-dod local-only  (session: a local-only plan resolved 'create PR' mid-execution, so PR #42 is now OPEN and unmerged)",
       "description": "Tests that a local-only invocation with an open PR present re-infers from live state and executes the feature PR checks (CI passing, PR not draft, no unresolved review threads) instead of only the thin local-only checklist.",
       "expected_output": "pr_detect resolves the open PR #42; the feature check set is unioned into the local-only checks (deduped by name). The run executes 'CI passing', 'PR not draft', and 'No unresolved review threads', and reports the added checks as 'added by live-state re-inference'. The caller's 'Working copy clean' check is preserved, not duplicated.",
       "dimensions": ["live-state-reinference", "criteria-resolution"],
@@ -152,23 +162,23 @@
     },
     {
       "id": 6,
-      "name": "human-review-false-skips-review-checks",
-      "prompt": "/Dev10x:verify-acc-dod bugfix  (session: friction_level adaptive, active_modes [solo-maintainer]; durable human_review: false in the matching ~/.config/Dev10x/friction.yaml projects[] entry; review-deferred NOT set; CI green, working copy clean, PR #42 OPEN; two review threads remain unresolved)",
-      "description": "Tests the ADR-0019 primary path: the durable, project-wide human_review: false pref removes every check declaring requires_human_review from scope, reported as skipped (human_review: false). This is the sanctioned replacement for the deprecated review-deferred mode, which targeted the retired session.yaml and so was never read back in a configured repo (GH-950). Eval 4 keeps covering the deprecated mode for back-compat.",
-      "expected_output": "The 'No unresolved review threads' and 'Re-review requested' checks are reported as 'skipped (human_review: false)' — resolved from the requires_human_review field in defaults.yaml, not from active_modes. Remaining checks pass, PR #42 is open → recommendation is 'Monitor for review' or the merge path. 'Work complete' is NOT papered over on the strength of the skip while the PR is unmerged.",
+      "name": "supervisor-review-none-skips-review-checks",
+      "prompt": "/Dev10x:verify-acc-dod bugfix  (session: resolve_gate returns effect 'auto-advance' for completion_signoff, active_modes [solo-maintainer]; supervisor_review_status reports supervisor_review 'none'; review-deferred NOT set; CI green, working copy clean, PR #42 OPEN; two review threads remain unresolved)",
+      "description": "Tests the ADR-0019 path as renamed by ADR-0022 D-2: the durable, project-wide supervisor_review: none posture removes every check declaring requires_human_review from scope, reported as skipped (supervisor_review: none). This is the sanctioned replacement for the deprecated review-deferred mode, which targeted the retired session.yaml and so was never read back in a configured repo (GH-950). Eval 4 keeps covering the deprecated mode for back-compat.",
+      "expected_output": "The 'No unresolved review threads' and 'Re-review requested' checks are reported as 'skipped (supervisor_review: none)' — resolved from the requires_human_review field in defaults.yaml, not from active_modes. Remaining checks pass, PR #42 is open → recommendation is 'Monitor for review' or the merge path. 'Work complete' is NOT papered over on the strength of the skip while the PR is unmerged.",
       "dimensions": ["scope-deferred-review", "merge-gated-completion"],
       "assertions": [
         {
-          "id": "reads-durable-human-review",
-          "text": "Resolves human_review from the durable prefs (friction.yaml projects[] match) rather than reading the retired .claude/Dev10x/session.yaml",
-          "check": "behavioral",
-          "signals": ["human_review", "friction.yaml", "not session.yaml"]
+          "id": "reads-durable-supervisor-review",
+          "text": "Resolves the posture via supervisor_review_status rather than reading friction.yaml directly or the retired .claude/Dev10x/session.yaml",
+          "check": "tool_called",
+          "signals": ["supervisor_review_status", "not session.yaml"]
         },
         {
           "id": "skips-requires-human-review-checks",
-          "text": "Removes the checks declaring requires_human_review: true from scope and reports each as skipped (human_review: false)",
+          "text": "Removes the checks declaring requires_human_review: true from scope and reports each as skipped (supervisor_review: none)",
           "check": "behavioral",
-          "signals": ["skipped", "human_review: false", "No unresolved review threads"]
+          "signals": ["skipped", "supervisor_review: none", "No unresolved review threads"]
         },
         {
           "id": "skip-is-data-driven",
@@ -181,6 +191,62 @@
           "text": "Does NOT recommend/auto-select 'Work complete' on the strength of the skip while PR #42 is still open and unmerged",
           "check": "behavioral",
           "signals": ["no Work complete recommended", "PR open/unmerged"]
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "manual-checks-are-judged-not-asked",
+      "prompt": "/Dev10x:verify-acc-dod investigation  (no PR; the only default check is 'Findings documented', declared check: manual)",
+      "description": "Tests the GH-1172 single baseline: a `manual` check is converted to a `prompt` Claude evaluates from session context, on every project. There is no per-item AskUserQuestion and no friction level that would restore one.",
+      "expected_output": "'Findings documented' is evaluated from session context and reported pass/fail with a brief rationale. No AskUserQuestion is fired for the manual item. No friction level is read, asked for, or defaulted.",
+      "dimensions": ["single-baseline", "check-execution"],
+      "assertions": [
+        {
+          "id": "converts-manual-to-prompt",
+          "text": "Evaluates the manual check contextually and reports a rationale rather than queueing it for user confirmation",
+          "check": "behavioral",
+          "signals": ["Findings documented", "rationale", "converted to prompt"]
+        },
+        {
+          "id": "no-askuserquestion-for-manual-item",
+          "text": "Does NOT fire AskUserQuestion to confirm the manual check",
+          "check": "behavioral",
+          "signals": ["no AskUserQuestion", "manual check"]
+        },
+        {
+          "id": "no-friction-level-read",
+          "text": "Does not read, request, or default a friction level anywhere in the run",
+          "check": "behavioral",
+          "signals": ["no friction level", "single baseline"]
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "resolver-cannot-turn-go-back-into-complete",
+      "prompt": "/Dev10x:verify-acc-dod feature  (session: resolve_gate returns effect 'auto-advance' for completion_signoff; PR #42 is MERGED but 'Working copy clean' FAILS — the tree is dirty)",
+      "description": "Tests the resolver/recommendation boundary from the failing side: the resolver decides only whether the gate fires, never which option wins. With a blocking check red, the recommendation is 'Go back' even though the PR is merged and the gate auto-advances.",
+      "expected_output": "The recommendation is 'Go back' (a blocking check failed), and auto-advance takes THAT option — reporting the failing 'Working copy clean' check to the parent orchestrator. 'Work complete' is not auto-selected on the strength of the merged PR.",
+      "dimensions": ["resolver-recommendation-boundary", "merge-gated-completion"],
+      "assertions": [
+        {
+          "id": "recommendation-is-go-back",
+          "text": "Resolves the recommendation to 'Go back' because a blocking check failed, independent of the resolver's effect",
+          "check": "behavioral",
+          "signals": ["Go back", "Working copy clean", "blocking check failed"]
+        },
+        {
+          "id": "auto-advance-takes-the-recommendation",
+          "text": "Auto-advance takes the computed recommendation rather than substituting 'Work complete'",
+          "check": "behavioral",
+          "signals": ["auto-advance", "no Work complete", "reported to parent orchestrator"]
+        },
+        {
+          "id": "resolver-does-not-decide-the-option",
+          "text": "Treats resolve_gate as deciding only whether the gate fires, not which option it recommends",
+          "check": "tool_called",
+          "signals": ["resolve_gate", "completion_signoff"]
         }
       ]
     }

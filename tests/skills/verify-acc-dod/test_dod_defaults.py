@@ -9,6 +9,13 @@ check with gate framing.
 
 These tests pin the ``modes`` mapping on the relevant checks so the
 ``review-deferred`` contract cannot silently regress.
+
+GH-1172 adds a second concern: the skill collapsed its
+``friction_level``-keyed behaviour table to a single baseline. The
+tests below pin what MUST survive that collapse — the merge-gated
+completion matrix stays sourced from
+``completion_gate_recommendation()``, and the resolver /
+recommendation boundary stays documented rather than merged away.
 """
 
 from __future__ import annotations
@@ -18,13 +25,14 @@ from pathlib import Path
 import pytest
 import yaml
 
-DEFAULTS = (
-    Path(__file__).resolve().parents[3]
-    / "skills"
-    / "verify-acc-dod"
-    / "references"
-    / "defaults.yaml"
+from dev10x.domain.session_rules import (
+    CompletionRecommendation,
+    completion_gate_recommendation,
 )
+
+SKILL_DIR = Path(__file__).resolve().parents[3] / "skills" / "verify-acc-dod"
+DEFAULTS = SKILL_DIR / "references" / "defaults.yaml"
+SKILL_MD = SKILL_DIR / "SKILL.md"
 
 # Work types whose DoD includes a review-thread / review-request workflow.
 REVIEW_WORK_TYPES = ("feature", "bugfix", "pr-continuation")
@@ -70,6 +78,75 @@ def test_fixes_scope_delivery_check_present(defaults: dict, work_type: str) -> N
     check = _check_by_name(defaults[work_type]["checks"], "Fixes-linked issue scope delivered")
     assert check["check"] == "prompt"
     assert "Fixes" in check["prompt"]
+
+
+@pytest.fixture(scope="module")
+def skill_body() -> str:
+    return SKILL_MD.read_text()
+
+
+@pytest.mark.parametrize("source", [DEFAULTS, SKILL_MD], ids=["defaults", "skill"])
+def test_no_friction_level_key_remains(source: Path) -> None:
+    # GH-1172 acceptance: this layer reads no friction level at all. A
+    # `friction_level:` key anywhere in the skill or its defaults would
+    # reintroduce the per-level behaviour table the ticket collapsed.
+    assert "friction_level" not in source.read_text()
+
+
+def test_manual_checks_are_converted_not_asked(skill_body: str) -> None:
+    # The single baseline is the old `adaptive` row: a `manual` item is a
+    # judgement Claude makes from session context, never a per-item
+    # AskUserQuestion that only fired at strict/guided.
+    assert "converted to a `prompt` check" in skill_body
+    assert "no per-item `AskUserQuestion`" in skill_body
+
+
+def test_merge_gated_matrix_defers_to_domain_function(skill_body: str) -> None:
+    # GH-729 must survive the collapse, and it must survive it in ONE
+    # place: the skill documents the matrix but sources it from the
+    # domain function rather than re-deriving it.
+    assert "completion_gate_recommendation()" in skill_body
+    for recommendation in ("Work complete", "Monitor for review", "Go back"):
+        assert recommendation in skill_body
+
+
+@pytest.mark.parametrize(
+    "has_associated_pr,pr_merged,blocking_checks_pass,expected",
+    [
+        (True, True, True, CompletionRecommendation.WORK_COMPLETE),
+        (False, False, True, CompletionRecommendation.WORK_COMPLETE),
+        (True, False, True, CompletionRecommendation.MONITOR_REVIEW),
+        (True, True, False, CompletionRecommendation.GO_BACK),
+    ],
+)
+def test_merge_gated_recommendation_unchanged_by_collapse(
+    has_associated_pr: bool,
+    pr_merged: bool,
+    blocking_checks_pass: bool,
+    expected: CompletionRecommendation,
+) -> None:
+    # The friction table is gone; the recommendation it used to sit
+    # beside is not. A merged PR with a red blocking check still routes
+    # to Go back — the collapse must not have widened "done".
+    assert (
+        completion_gate_recommendation(
+            has_associated_pr=has_associated_pr,
+            pr_merged=pr_merged,
+            blocking_checks_pass=blocking_checks_pass,
+        )
+        is expected
+    )
+
+
+def test_resolver_recommendation_boundary_documented(skill_body: str) -> None:
+    # ADR-0016: resolve_gate decides whether the gate FIRES; this skill
+    # decides what it RECOMMENDS. Collapsing the friction table must not
+    # collapse these two into one decision.
+    assert "resolver decides whether the gate FIRES" in skill_body
+    assert "skill decides what the gate RECOMMENDS" in skill_body
+    assert "mcp__plugin_Dev10x_cli__resolve_gate" in skill_body
+    for effect in ("`effect: ask`", "`effect: auto-advance`", "`effect: skip`"):
+        assert effect in skill_body
 
 
 @pytest.mark.parametrize("work_type", REVIEW_WORK_TYPES)
