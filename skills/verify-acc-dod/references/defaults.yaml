@@ -26,16 +26,18 @@
 #                     NOT the retired ephemeral .claude/Dev10x/session.yaml
 #                     (ADR-0018, GH-854 F3).
 #   requires_human_review:
-#                     Optional boolean (ADR-0019). When true, skip this
-#                     check if the durable `human_review` pref is false —
-#                     the project has no humans in the review loop, so a
-#                     review-shaped check is out of scope. Report it as
-#                     "skipped (human_review: false)". Resolved from the
-#                     same durable prefs as `modes:` above, via
-#                     SessionYamlDocument.read_human_review() (default
-#                     true). This is a separate field, NOT a `modes:`
-#                     entry — `human_review` is a boolean posture, not a
-#                     mode name, and must not be smuggled into that map.
+#                     Optional boolean (ADR-0019, carried forward by
+#                     ADR-0022 D-2). When true, skip this check if the
+#                     durable review posture is `none` — no supervisor
+#                     reads this project's PRs, so a review-shaped check
+#                     is out of scope. Report it as
+#                     "skipped (supervisor_review: none)". Resolve the
+#                     posture via mcp__plugin_Dev10x_cli__supervisor_review_status
+#                     (absent or malformed reads as `required`), never by
+#                     reading the durable YAML directly. This is a
+#                     separate field, NOT a `modes:` entry — the posture
+#                     is a project fact, not a mode name, and must not be
+#                     smuggled into that map.
 #
 # Only one expect_* field per check. First match wins.
 
