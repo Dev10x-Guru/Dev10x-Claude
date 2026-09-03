@@ -54,7 +54,6 @@ COMPARED_FIELDS: tuple[str, ...] = (
     "model",
     "condition",
     "modes",
-    "friction",
     "optional",
 )
 
