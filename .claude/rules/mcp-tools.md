@@ -142,8 +142,9 @@ one session). Use these shapes verbatim:
 | `resolve_gate` | `gate` (toggle name); optional `context` dict of gate facts | passing preset/friction values — the tool reads session policy itself (ADR-0016 D-2); passing `human_review` on `gate="merge"` — durable policy, read unconditionally and echoed back in `ignored_context_fields` (GH-1000) |
 | `pr_close` | `pr_number` | `number` (that's `issue_close`'s param name) |
 | `resolve_plugin_origin` | `skill_paths` (list of absolute paths) | singular `skill_path` |
-| `pin_gate_preset` | `preset`; optional `scope` (`repo` default / `repo-only` / `dir`) | passing a `match` or a path — the tool derives the repo stem itself |
-| `human_review_status` | none (optional `cwd`) | reading `friction.yaml` directly instead — the tool owns the precedence |
+| `pin_gate_preset` | `preset`; optional `scope` (`repo` default / `repo-only` / `dir`) | passing a `match` or a path — the tool derives the repo stem itself; passing `gate_overrides={"supervisor_review": ...}` — it is not a per-gate toggle (absent from `_ENUM_TOGGLES`), use `pin_supervisor_review` instead (GH-1165) |
+| `supervisor_review_status` | none (optional `cwd`) | reading `friction.yaml` directly instead — the tool owns the precedence; the deprecated `human_review_status` name still answers for one release (ADR-0022 D-2) |
+| `pin_supervisor_review` | `supervisor_review` (`required`/`none`); optional `scope` (`repo` default / `repo-only` / `dir`) | reaching for `pin_gate_preset`'s `gate_overrides` — `supervisor_review` is a project-wide fact, not a gate toggle (GH-1165) |
 | `tracker_status` | none (optional `cwd`) | treating `pinned: false` as "no tracker" — it still reports a resolved `tracker` (the default) |
 | `pin_tracker` | `tracker` (`linear`/`jira`/`github`); optional `scope` | passing `gitlab`/`clickup` — not in v1 scope, and an unknown value errors rather than defaulting |
 | `task_index_append` | `entry` dict with required `subject` + `source` | reading the store and writing it back by hand — the tool owns the locked read-append-write |
@@ -339,6 +340,22 @@ Behavioral caveats:
   (the first-pick condition); asking on every pick is the friction the
   pair exists to remove. Nothing is written under a repo's `.claude/`
   (ADR-0018), so the self-settings gate never fires.
+
+- `pin_supervisor_review` / `supervisor_review_status` carry the
+  ADR-0022 D-2 review-boundary fact — does the supervisor read this
+  repo's PRs before the next step is allowed (`required` | `none`)
+  (GH-1165). `pin_gate_preset` is **not** superseded: it still owns the
+  Phase-0 preset/overlay/per-gate-override triad (`_ENUM_TOGGLES`), and
+  `supervisor_review` is deliberately not one of those toggles — it is a
+  project-wide fact, not a gate-instance decision, so it needed its own
+  writer rather than a `gate_overrides` entry. Both pins share the same
+  repo-stem keying and the same `pin_project_prefs` writer, and both are
+  idempotent: an entry already covering the checkout is replaced, never
+  duplicated. Gate the onboarding ask on `supervisor_review_status` →
+  `pinned: false` — the deprecated `human_review` boolean alias (ADR-0019)
+  still counts as pinned for one release, so a repo migrated before this
+  tool existed is not reported as unset. Nothing is written under a
+  repo's `.claude/` (ADR-0018).
 - `resolve_gate` returns `{gate, effect (ask|auto-advance|skip),
   resolved_option, log_to, reason, floors_applied,
   anchor_recommendations}`; on an `auto-advance` it adds a `record`
@@ -426,7 +443,9 @@ supporting each tool:
 | `resolve_gate` | `cli` | GH-742 (ADR-0016 spike) | v0.83.0+ |
 | `preset_pin_status` | `cli` | GH-855 | v0.92.0+ |
 | `pin_gate_preset` | `cli` | GH-855 | v0.92.0+ |
-| `human_review_status` | `cli` | GH-950 | v0.93.0+ |
+| `human_review_status` | `cli` | GH-950 | v0.93.0+ (deprecated alias for `supervisor_review_status`, GH-1161) |
+| `supervisor_review_status` | `cli` | GH-1161 | v0.97.0+ |
+| `pin_supervisor_review` | `cli` | GH-1165 | v0.97.0+ |
 | `tracker_status` | `cli` | GH-768 | v0.95.0+ |
 | `pin_tracker` | `cli` | GH-768 | v0.95.0+ |
 | `pr_labels` | `cli` | GH-1008 | v0.94.0+ |
