@@ -241,9 +241,7 @@ class TestAllowedOverlaysGuard:
         # solo-maintainer explicitly permitted → overlay applies (skip), no drop.
         self._write_config(
             tmp_path,
-            ""
-            "active_modes: [solo-maintainer]\n"
-            "allowed_overlays: [solo-maintainer]\n",
+            "active_modes: [solo-maintainer]\nallowed_overlays: [solo-maintainer]\n",
         )
         result = await resolve_gate_for_toplevel(
             gate="request_review", context={}, toplevel=str(tmp_path)

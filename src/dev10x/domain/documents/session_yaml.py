@@ -227,14 +227,19 @@ class FrictionYamlDocument:
     @staticmethod
     def render_starter(
         *,
-        friction_level: str = "guided",
+        supervisor_review: str = SUPERVISOR_REVIEW_REQUIRED,
         active_modes: list[str] | None = None,
     ) -> str:
-        """Render a fresh global ``friction.yaml`` (defaults + commented example).
+        """Render a fresh global ``friction.yaml`` (schema v2, ADR-0022 D-1/D-2).
 
         Written once when absent; hand-authored thereafter (add a ``projects:``
         entry per repo). Machines only *read* this file (ADR-0018), so the
         comments survive — no upsert rewrites it.
+
+        v2 carries no ``gate_preset``: there is one shipped baseline, so there
+        is nothing to select. ``friction_level`` is likewise absent — the gate
+        layer ignores it, and the separate ADR-0002 command-redirect dial of
+        the same name lives in the plugin's own config, not here.
         """
         return (
             "# Dev10x global durable session preferences (GH-812, ADR-0018).\n"
@@ -242,15 +247,22 @@ class FrictionYamlDocument:
             "# (resolve_gate) reads it here; nothing under a repo's .claude/ is\n"
             "# written, so Claude Code's self-settings gate never fires on Dev10x\n"
             "# session state. First matching projects[] entry wins.\n"
+            "#\n"
+            "# Schema v2 (ADR-0022): auto-advance is the baseline, and the one\n"
+            "# question left to answer is whether the supervisor reads the PR\n"
+            "# before the next step is allowed. Where that park lands follows\n"
+            "# repo shape: before `merge` in a solo repo, before `request_review`\n"
+            "# in a team one, where it PRECEDES the team request rather than\n"
+            "# replacing it. The `review:cleared` PR label lifts it.\n"
             "defaults:\n"
-            f"  friction_level: {friction_level}  # strict | guided | adaptive\n"
+            f"  supervisor_review: {supervisor_review}  # required | none\n"
             f"  active_modes: {active_modes or []!r}\n"
             "# projects:\n"
             '#   - match: ["*/my-repo", "/abs/path/**"]\n'
-            "#     friction_level: adaptive\n"
-            "#     gate_preset: adaptive\n"
+            "#     supervisor_review: none  # ADR-0022: no supervisor pass needed\n"
+            "#     gate_overlays: [solo-maintainer]\n"
+            "#     gate_overrides: {merge: ask}   # per-toggle pins still work\n"
             "#     allowed_overlays: []   # GH-805 overlay guard (empty = no overlays)\n"
-            "#     human_review: false    # ADR-0019: no humans in the review loop\n"
         )
 
     # --- Migration seam (GH-812 R4) -------------------------------------
@@ -456,14 +468,19 @@ def _carried_durable_prefs(*, doc: dict[str, Any], probes: list[str]) -> dict[st
     return {}
 
 
-def seed_strict_baseline_if_absent(*, path: Path | None = None) -> bool:
-    """Seed a ``strict`` baseline global ``friction.yaml`` when absent (GH-886).
+def seed_safe_baseline_if_absent(*, path: Path | None = None) -> bool:
+    """Seed the safe-baseline global ``friction.yaml`` when absent (GH-886).
 
     The SessionStart detector calls this the first time it sees no global
-    ``friction.yaml``: a ``strict`` scaffold makes every gate fire until the
-    supervisor explicitly chooses a posture via ``Dev10x:friction-setup``,
-    replacing the silent guided-preset fallback (the failure mode that once
-    auto-merged a PR).
+    ``friction.yaml``. Before ADR-0022 the scaffold was ``friction_level:
+    strict``, which made every gate fire until the supervisor chose a posture
+    via ``Dev10x:friction-setup`` — replacing the silent guided-preset
+    fallback that once auto-merged a PR. With ``strict`` retired (D-1), the
+    equivalent safe scaffold is the single baseline plus
+    ``supervisor_review: required``: the review boundary holds, the
+    preset-independent safety floors are unchanged, and the mechanical steps
+    an unconfigured repo has no opinion about stop firing widgets nobody
+    asked for.
 
     Race-safe and idempotent: an exclusive lock guards a re-check so two
     worktrees hitting SessionStart concurrently cannot both write, and the
@@ -476,8 +493,16 @@ def seed_strict_baseline_if_absent(*, path: Path | None = None) -> bool:
     with file_lock(target):
         if target.exists():
             return False
-        atomic_write_text(target, FrictionYamlDocument.render_starter(friction_level="strict"))
+        atomic_write_text(
+            target,
+            FrictionYamlDocument.render_starter(supervisor_review=SUPERVISOR_REVIEW_REQUIRED),
+        )
     return True
+
+
+#: Deprecated alias retained for one release (GH-1164). The scaffold is no
+#: longer ``strict``-shaped, so the old name misdescribes what it writes.
+seed_strict_baseline_if_absent = seed_safe_baseline_if_absent
 
 
 #: Synthetic active-mode name under which ``Dev10x:friction-setup`` records
@@ -896,6 +921,7 @@ __all__ = [
     "legacy_durable_prefs",
     "match_globs_for_repo",
     "repo_stem",
+    "seed_safe_baseline_if_absent",
     "seed_strict_baseline_if_absent",
     "set_playbook_modes",
     "upsert_project_prefs",

@@ -642,9 +642,19 @@ class TestFrictionYaml:
 
 class TestFrictionStarterRender:
     def test_starter_has_defaults_block(self) -> None:
-        body = FrictionYamlDocument.render_starter(friction_level="adaptive")
+        body = FrictionYamlDocument.render_starter(supervisor_review="none")
         assert "defaults:" in body
-        assert "friction_level: adaptive" in body
+        assert "supervisor_review: none" in body
+
+    def test_starter_defaults_to_the_safe_pole(self) -> None:
+        assert "supervisor_review: required" in FrictionYamlDocument.render_starter()
+
+    def test_starter_carries_no_retired_gate_keys(self) -> None:
+        # Schema v2 (ADR-0022 D-1/GH-1164): one baseline, so `gate_preset` has
+        # nothing to select; `friction_level` no longer reaches the gate layer.
+        body = FrictionYamlDocument.render_starter()
+        assert "friction_level:" not in body
+        assert "gate_preset:" not in body
 
     def test_starter_projects_are_commented(self) -> None:
         # A fresh file must have no active projects entry — the example is

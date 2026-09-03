@@ -101,13 +101,14 @@ def session() -> None:
     help="Project root (defaults to the current directory).",
 )
 @click.option(
-    "--friction-level",
-    type=click.Choice(["strict", "guided", "adaptive"], case_sensitive=False),
+    "--supervisor-review",
+    type=click.Choice(["required", "none"], case_sensitive=False),
     default=None,
-    help="Friction level for a fresh global friction.yaml (defaults to "
-    "guided). Ignored when friction.yaml already exists.",
+    help="Review posture for a fresh global friction.yaml (defaults to "
+    "required — the supervisor reads the PR). Ignored when friction.yaml "
+    "already exists.",
 )
-def seed(*, project_path: Path | None, friction_level: str | None) -> None:
+def seed(*, project_path: Path | None, supervisor_review: str | None) -> None:
     """Ensure the global friction.yaml + the .claude/Dev10x/ .gitignore exist.
 
     Idempotent (``O_EXCL``): present files are preserved, so a post-checkout
@@ -123,7 +124,7 @@ def seed(*, project_path: Path | None, friction_level: str | None) -> None:
     if _create_if_absent(
         target=friction_path,
         content=FrictionYamlDocument.render_starter(
-            friction_level=(friction_level or "guided").lower(),
+            supervisor_review=(supervisor_review or "required").lower(),
         ),
     ):
         click.echo(f"seeded {friction_path}")
@@ -173,9 +174,18 @@ def _inheritance_probes(*, project_root: Path) -> list[str]:
 )
 @click.option(
     "--preset",
-    type=click.Choice(["strict", "guided", "adaptive"], case_sensitive=False),
-    required=True,
-    help="Gate preset for this project.",
+    default=None,
+    metavar="NAME",
+    help="Gate preset for this project. Defaults to the single shipped "
+    "baseline (ADR-0022 D-1), which is not written to the file — name one "
+    "only to select a user preset from friction-presets.yaml.",
+)
+@click.option(
+    "--supervisor-review",
+    type=click.Choice(["required", "none"], case_sensitive=False),
+    default=None,
+    help="Does the supervisor read this project's PRs before the next step? "
+    "Omit to leave the current value untouched.",
 )
 @click.option(
     "--overlay",
@@ -194,7 +204,8 @@ def _inheritance_probes(*, project_root: Path) -> list[str]:
 def set_friction(
     *,
     project_path: Path | None,
-    preset: str,
+    preset: str | None,
+    supervisor_review: str | None,
     overlays: tuple[str, ...],
     gate_overrides: tuple[str, ...],
 ) -> None:
@@ -202,10 +213,27 @@ def set_friction(
 
     The gate axis of ``Dev10x:friction-setup``: upserts a ``projects[]`` entry
     keyed by the repo's dir-path globs. Only deviations are written — omit an
-    axis to leave it on the preset. Idempotent: re-running replaces the entry.
+    axis to leave it on the baseline. Idempotent: re-running replaces the entry.
+
+    Schema v2 (ADR-0022 D-1) writes no ``gate_preset`` for the shipped
+    baseline: there is one, so naming it in every entry says nothing. A
+    user-defined preset IS recorded, since that is a real selection.
     """
+    from dev10x.domain.gate_policy import BASELINE_PRESET
+    from dev10x.session.preset_pin import validate_pin_values
+
     project_root = (project_path or Path.cwd()).resolve()
-    prefs: dict[str, object] = {"gate_preset": preset.lower()}
+    prefs: dict[str, object] = {}
+    if preset and preset.lower() != BASELINE_PRESET:
+        # Validated against the same sources resolve_gate reads, so a user
+        # preset stays writable while a retired or hallucinated name is
+        # rejected here rather than poisoning every later gate resolution.
+        invalid = validate_pin_values(preset=preset.lower(), overlays=None, gate_overrides=None)
+        if invalid:
+            raise click.ClickException(invalid)
+        prefs["gate_preset"] = preset.lower()
+    if supervisor_review:
+        prefs["supervisor_review"] = supervisor_review.lower()
     if overlays:
         prefs["gate_overlays"] = [overlay.lower() for overlay in overlays]
     parsed_overrides = _parse_gate_overrides(gate_overrides)
@@ -220,9 +248,7 @@ def set_friction(
 
 
 @session.command("pin")
-@click.argument(
-    "preset", type=click.Choice(["strict", "guided", "adaptive"], case_sensitive=False)
-)
+@click.argument("preset")
 @click.option(
     "--overlay",
     "overlays",

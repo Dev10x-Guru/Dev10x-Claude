@@ -52,8 +52,8 @@ class TestInitNonInteractive:
     def test_creates_global_friction_yaml(self, result: object) -> None:
         assert Dev10xConfigDir.friction_yaml().exists()
 
-    def test_friction_defaults_to_guided(self, result: object) -> None:
-        assert "friction_level: guided" in Dev10xConfigDir.friction_yaml().read_text()
+    def test_review_posture_defaults_to_required(self, result: object) -> None:
+        assert "supervisor_review: required" in Dev10xConfigDir.friction_yaml().read_text()
 
     def test_writes_nothing_durable_under_repo_claude(self, result: object, project: Path) -> None:
         dev10x_dir = project / ".claude" / "Dev10x"
@@ -93,18 +93,18 @@ class TestInitIdempotent:
 
 
 class TestInitInteractive:
-    """Interactive mode collects friction level + solo-maintainer choice and
-    writes them into the global friction.yaml."""
+    """Interactive mode collects the review posture + solo-maintainer choice
+    and writes them into the global friction.yaml."""
 
     def test_writes_user_choices(self, tmp_path: Path) -> None:
         result = CliRunner().invoke(
             init,
             ["--path", str(tmp_path), "--setup"],
-            input="adaptive\ny\n",
+            input="none\ny\n",
         )
         assert result.exit_code == 0
         friction = Dev10xConfigDir.friction_yaml().read_text()
-        assert "friction_level: adaptive" in friction
+        assert "supervisor_review: none" in friction
         assert "solo-maintainer" in friction
 
 

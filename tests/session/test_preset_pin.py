@@ -366,7 +366,7 @@ def test_pin_preset_records_overlays_and_overrides(
     zebra_repo: Path, friction_path: Path, pinned_doc: Any
 ) -> None:
     preset_pin.pin_preset(
-        preset="guided",
+        preset="adaptive",
         overlays=["solo-maintainer"],
         gate_overrides={"merge": "ask"},
     )
@@ -380,7 +380,7 @@ def test_pin_preset_is_idempotent_across_worktrees(
     zebra_repo: Path, friction_path: Path, pinned_doc: Any
 ) -> None:
     """AC: never duplicate — a second pick from a sibling worktree updates."""
-    preset_pin.pin_preset(preset="guided", cwd="/work/bl/.worktrees/bl-zebra-1")
+    preset_pin.pin_preset(preset="adaptive", cwd="/work/bl/.worktrees/bl-zebra-1")
     preset_pin.pin_preset(preset="adaptive", cwd="/work/bl/.worktrees/bl-zebra-7")
 
     projects = pinned_doc()["projects"]
@@ -413,7 +413,7 @@ def test_pin_preset_absorbs_a_legacy_worktree_scoped_entry(
 def test_pin_preset_repo_only_scope_omits_the_worktree_glob(
     zebra_repo: Path, friction_path: Path
 ) -> None:
-    result = preset_pin.pin_preset(preset="strict", scope="repo-only")
+    result = preset_pin.pin_preset(preset="adaptive", scope="repo-only")
 
     assert result.value["match"] == ["*/bl-zebra"]
 
@@ -421,7 +421,7 @@ def test_pin_preset_repo_only_scope_omits_the_worktree_glob(
 def test_pin_preset_dir_scope_uses_the_literal_repo_root(
     zebra_repo: Path, friction_path: Path
 ) -> None:
-    result = preset_pin.pin_preset(preset="strict", scope="dir")
+    result = preset_pin.pin_preset(preset="adaptive", scope="dir")
 
     assert result.value["match"] == [os.path.realpath(str(zebra_repo))]
 
@@ -430,9 +430,9 @@ def test_pin_preset_dir_scope_uses_the_literal_repo_root(
     ("kwargs", "expected"),
     [
         ({"preset": "adaptiv"}, "unknown preset"),
-        ({"preset": "guided", "overlays": ["sollo-maintainer"]}, "unknown overlay"),
-        ({"preset": "guided", "gate_overrides": {"marge": "ask"}}, "unknown gate"),
-        ({"preset": "guided", "gate_overrides": {"merge": "atuo-advance"}}, "invalid value"),
+        ({"preset": "adaptive", "overlays": ["sollo-maintainer"]}, "unknown overlay"),
+        ({"preset": "adaptive", "gate_overrides": {"marge": "ask"}}, "unknown gate"),
+        ({"preset": "adaptive", "gate_overrides": {"merge": "atuo-advance"}}, "invalid value"),
     ],
 )
 def test_pin_preset_rejects_values_that_would_poison_resolve_gate(
@@ -464,7 +464,7 @@ def test_pin_preset_accepts_a_user_defined_preset(
 
 
 def test_pin_preset_rejects_an_unknown_scope(zebra_repo: Path, friction_path: Path) -> None:
-    result = preset_pin.pin_preset(preset="strict", scope="galaxy")
+    result = preset_pin.pin_preset(preset="adaptive", scope="galaxy")
 
     assert isinstance(result, ErrorResult)
     assert "unknown pin scope" in result.error
@@ -475,7 +475,7 @@ def test_pin_preset_dir_scope_errors_on_a_bare_repo(
 ) -> None:
     monkeypatch.setattr(preset_pin, "_common_dir", lambda *, cwd: "/srv/git/bl-zebra.git")
 
-    result = preset_pin.pin_preset(preset="strict", scope="dir")
+    result = preset_pin.pin_preset(preset="adaptive", scope="dir")
 
     assert isinstance(result, ErrorResult)
     assert "bare" in result.error
@@ -488,7 +488,7 @@ def test_pin_preset_re_pins_a_bare_repo_without_duplicating(
     monkeypatch.setattr(preset_pin, "_common_dir", lambda *, cwd: "/srv/git/bl-zebra.git")
     monkeypatch.setattr(preset_pin, "_bounded_toplevel", lambda *, cwd: None)
 
-    preset_pin.pin_preset(preset="guided")
+    preset_pin.pin_preset(preset="adaptive")
     preset_pin.pin_preset(preset="adaptive")
 
     assert pinned_doc()["projects"] == [
@@ -513,7 +513,7 @@ def test_pin_preset_propagates_an_identity_error(
     monkeypatch.setattr(preset_pin, "_common_dir", lambda *, cwd: None)
     monkeypatch.setattr(preset_pin, "_bounded_toplevel", lambda *, cwd: None)
 
-    result = preset_pin.pin_preset(preset="strict")
+    result = preset_pin.pin_preset(preset="adaptive")
 
     assert isinstance(result, ErrorResult)
 

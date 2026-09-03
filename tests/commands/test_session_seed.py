@@ -58,8 +58,15 @@ class TestSeedFrictionYaml:
     def test_creates_global_friction_yaml(self, result: object) -> None:
         assert Dev10xConfigDir.friction_yaml().exists()
 
-    def test_defaults_to_guided(self, result: object) -> None:
-        assert "friction_level: guided" in Dev10xConfigDir.friction_yaml().read_text()
+    def test_defaults_to_supervisor_review_required(self, result: object) -> None:
+        assert "supervisor_review: required" in Dev10xConfigDir.friction_yaml().read_text()
+
+    def test_v2_starter_carries_no_retired_gate_keys(self, result: object) -> None:
+        # ADR-0022 D-1: one baseline, so `gate_preset` has nothing to select;
+        # `friction_level` no longer reaches the gate layer at all.
+        body = Dev10xConfigDir.friction_yaml().read_text()
+        assert "friction_level:" not in body
+        assert "gate_preset:" not in body
 
     def test_writes_nothing_durable_under_repo_claude(
         self, result: object, tmp_path: Path
@@ -71,22 +78,22 @@ class TestSeedFrictionYaml:
         assert "seeded" in result.output
 
 
-class TestSeedFrictionLevel:
-    def test_seeds_requested_level(self, tmp_path: Path) -> None:
+class TestSeedSupervisorReview:
+    def test_seeds_the_requested_posture(self, tmp_path: Path) -> None:
         CliRunner().invoke(
-            session, ["seed", "--path", str(tmp_path), "--friction-level", "adaptive"]
+            session, ["seed", "--path", str(tmp_path), "--supervisor-review", "none"]
         )
-        assert "friction_level: adaptive" in Dev10xConfigDir.friction_yaml().read_text()
+        assert "supervisor_review: none" in Dev10xConfigDir.friction_yaml().read_text()
 
 
 class TestSeedIsIdempotent:
     def test_preserves_existing_friction_yaml(self, tmp_path: Path) -> None:
         friction = Dev10xConfigDir.friction_yaml()
         friction.parent.mkdir(parents=True, exist_ok=True)
-        friction.write_text("defaults:\n  friction_level: strict\n")
+        friction.write_text("defaults:\n  supervisor_review: required\n")
         result = CliRunner().invoke(
-            session, ["seed", "--path", str(tmp_path), "--friction-level", "adaptive"]
+            session, ["seed", "--path", str(tmp_path), "--supervisor-review", "none"]
         )
-        # A present global file is preserved; the requested level is ignored.
-        assert friction.read_text() == "defaults:\n  friction_level: strict\n"
+        # A present global file is preserved; the requested posture is ignored.
+        assert friction.read_text() == "defaults:\n  supervisor_review: required\n"
         assert "already present" in result.output
