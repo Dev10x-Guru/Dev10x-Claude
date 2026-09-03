@@ -26,7 +26,7 @@ dependency or conflict is detected.
 This skill follows `references/task-orchestration.md` patterns.
 
 **Auto-advance:** Complete each item, immediately start the
-next — no checkpoints under adaptive friction. Never pause
+next — no checkpoints the resolver did not ask for. Never pause
 between items to ask "should I continue?"
 
 **REQUIRED: Create tasks before ANY work.** Execute
@@ -39,46 +39,32 @@ between items to ask "should I continue?"
 5. `TaskCreate(subject="Verify: confirm all items resolved", activeForm="Verifying")`
 6. `TaskCreate(subject="Audit: review session skill usage", activeForm="Auditing")`
 
-## Phase 0: Session Friction Level (GH-689)
+## Phase 0: Session Posture (GH-689, ADR-0022)
 
-**At the very start** — before Phase 1 — prompt the user to set
-the session friction level. This controls how aggressively the
-skill auto-advances vs pauses for confirmation.
+**At the very start** — before Phase 1 — make sure this project has
+a review posture, so every gate the swarm reaches has a policy to
+resolve against. There is no friction-level question: `adaptive` is
+the sole shipped baseline (ADR-0022 D-1), so this skill must not
+offer a `strict` / `guided` / `adaptive` picker.
 
-**Skip this prompt when:**
-- `mcp__plugin_Dev10x_cli__preset_pin_status` reports
-  `pinned: true` — this checkout already has a gate policy in the
-  global `~/.config/Dev10x/friction.yaml` (set by a prior
-  invocation, `Dev10x:afk`, or `Dev10x:friction-setup`)
+1. Call `mcp__plugin_Dev10x_cli__supervisor_review_status()`.
+2. `pinned: true` — this checkout already has a posture in the
+   global `~/.config/Dev10x/friction.yaml` (set by a prior
+   invocation, `Dev10x:afk`, or `Dev10x:friction-setup`). Adopt it
+   silently and continue to Phase 1.
+3. `pinned: false` — delegate to `Skill(Dev10x:friction-setup)`,
+   which owns both the blocking review-policy question and the
+   locked write. Continue to Phase 1 when it returns, whatever the
+   answer — a dismissal leaves the safe default
+   (`supervisor_review: required`) in place.
 
-**REQUIRED: Call `AskUserQuestion`** (ALWAYS_ASK — fires at all
-friction levels, including adaptive).
+**Never write `friction.yaml` from this skill** — not with the Write
+tool, not under the repo's `.claude/` tree (ADR-0018). The pin tools
+lock and atomically write (GH-827); the PreCompact hook reads the
+resolved policy to inject posture context into recovery summaries.
 
-Options:
-- Guided (Recommended) — Gates fire with recommendations,
-  user can override. Default for attended sessions.
-- Adaptive (AFK) — Auto-select recommended options at all
-  gates. No `AskUserQuestion` interruptions except
-  `ALWAYS_ASK` gates. Best for walk-away sessions.
-- Strict — All gates fire, no auto-selection. Every
-  decision requires explicit user input.
-
-**Persist the choice** to the global
-`~/.config/Dev10x/friction.yaml` with one command — never with the
-Write tool, and never under the repo's `.claude/` tree (ADR-0018):
-
-```bash
-uvx dev10x session set-friction --preset guided
-```
-
-`--preset` takes `strict` / `guided` / `adaptive`. The command locks
-+ atomically writes (GH-827) and is idempotent, so a re-run replaces
-this checkout's entry. The PreCompact hook reads the resolved policy
-to inject friction context into recovery summaries.
-
-When `adaptive` is selected, propagate to all `Dev10x:work-on`
-delegations — nested work-on invocations skip their own
-Phase 0 prompt and inherit the fanout session level.
+Posture is settled once per swarm. Nested `Dev10x:work-on`
+delegations skip their own Phase 0 and inherit it.
 
 ## Phase 1: Scan
 
@@ -574,8 +560,11 @@ Bootstrap (REQUIRED first, before Skill invocation):
    worktree by running, inside it:
        uvx dev10x session set-friction --preset adaptive \
            --overlay solo-maintainer
-   This signals Dev10x:work-on to skip its Phase 0 friction
-   prompt and inherits the fanout session's posture. Never
+   `adaptive` is the sole shipped baseline (ADR-0022 D-1), so
+   this call carries the overlay, not a preset choice. It makes
+   the fanout session's posture resolvable inside your
+   worktree, so Dev10x:work-on's Phase 0 finds it already
+   settled and asks nothing. Never
    write .claude/Dev10x/session.yaml — it is retired
    (ADR-0018) and writing under .claude/ trips the
    self-settings consent gate. Your swarm-child identity
@@ -793,8 +782,8 @@ in-wave merges affected them.
 
 **Note on work-on inside spawned agents.** A spawned agent
 inherits no SessionStart context (memory, plan-sync, MOTD),
-so `Dev10x:work-on`'s Phase 0 friction-level prompt would
-fire fresh each time. The skill recognises fanout-nested
+so `Dev10x:work-on`'s Phase 0 posture check would run fresh
+each time. The skill recognises fanout-nested
 invocations via the swarm-context marker in the dispatch
 prompt and skips Phase 0 accordingly. If work-on later
 adds context dependencies that the spawned agent cannot
@@ -821,8 +810,8 @@ same sequential chain are affected:
 **Why not `Dev10x:git-groom` here (GH-658).** Post-merge rebasing
 needs to *advance the branch onto the new `origin/<base>` tip* —
 a base-advance, not a history cleanup. `Dev10x:git-groom` is the
-wrong primitive for it on two counts: at adaptive friction it
-fast-exits "Nothing to groom" for a clean single-commit branch
+wrong primitive for it on two counts: it fast-exits
+"Nothing to groom" for a clean single-commit branch
 (GH-776), and where it does rebase it anchors on the merge-base,
 not the advanced `origin/<base>`. Either way the dependent branch
 never picks up the just-merged base commit. Route base-advancing
@@ -842,8 +831,9 @@ Controls whether PRs are merged autonomously after CI passes.
 | `cascade` | Autonomous + auto-rebase downstream PRs in the same fanout chain |
 
 **Resolution order** (first match wins):
-1. **Session friction level:** If `adaptive` (AFK mode from
-   Phase 0), default to `cascade`
+1. **Merge gate:** call `mcp__plugin_Dev10x_cli__resolve_gate(
+   gate="merge", context={})`. `effect: "auto-advance"` → default
+   to `cascade`; any other effect → `manual`.
 2. **Playbook override:** `merge_mode` in the user's
    `work-on.yaml` playbook
 3. **Default:** `manual`
@@ -858,18 +848,17 @@ Controls whether PRs are merged autonomously after CI passes.
 5. Merge PR N+1
 6. Repeat for all PRs in the sequential chain
 
-**Autonomous and cascade modes** skip the Phase 4 monitor's
-`AskUserQuestion` gate — merges proceed without confirmation.
-The `ALWAYS_ASK` marker on Phase 5's verification gate still
-fires to confirm final session state.
+**Autonomous and cascade modes** reach the Phase 4 monitor's merge
+step with the `merge` gate already resolved to `auto-advance`, so
+merges proceed without a further confirmation. Phase 5's
+verification gate still fires to confirm final session state.
 
-**Cascade/AFK and review thread auto-resolution (GH-399 F3):**
-Under `merge_mode: cascade` (or `friction_level: adaptive`
-defaulting to cascade), the orchestrator MAY auto-resolve a
-review thread when ALL of the following hold:
-- The user explicitly approved cascade or AFK mode at Phase 0
-  (the `AskUserQuestion` gate at session start counts as
-  explicit approval).
+**Review thread auto-resolution (GH-399 F3):** The orchestrator MAY
+auto-resolve a review thread when ALL of the following hold:
+- `mcp__plugin_Dev10x_cli__resolve_gate(gate="thread_resolution",
+  context={"author_type": "bot"})` returns `effect: "auto-advance"`.
+  The resolver owns this decision — never infer it from a merge
+  mode, a preset, or a Phase 0 answer.
 - The thread's concern has been addressed in a pushed commit
   (the fix is live on the PR branch, not just described).
 - The thread was opened by an automated bot (e.g.
@@ -1121,8 +1110,8 @@ still running), do NOT proceed — wait for all agents to complete.
 The completion gate must not fire while monitors are still
 tracking CI or merges.
 
-**This wait is NOT a checkpoint.** Under adaptive friction, "no
-checkpoints" means no implicit pauses for the user to acknowledge
+**This wait is NOT a checkpoint.** "No checkpoints" means no
+implicit pauses for the user to acknowledge
 progress between steps. It does not mean "skip waiting for
 genuine async work to finish". Background agents finishing CI
 monitoring and merge confirmation are hard dependencies of the

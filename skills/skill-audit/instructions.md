@@ -345,17 +345,19 @@ completely different project's session (GH-805).
 **Skip this gate when the user provided an explicit JSONL path.**
 An explicit path means the user deliberately chose the session.
 
-**Skip this gate when the invocation turn contains a clear
-adaptive-friction affirmative (GH-127 #7).** When `friction_level
-== adaptive` AND the same user message that invoked the skill
-contains an unambiguous affirmative like `go`, `proceed`, `yes`,
-`run it`, `audit it`, treat that as the confirmation and skip
-the `AskUserQuestion`. Affirmatives must be in the **same turn**
-as the invocation and unambiguous (mere "ok" or "k" does not
-qualify).
+**Skip this gate when the invocation turn already answered it
+(GH-127 #7).** Call `mcp__plugin_Dev10x_cli__resolve_gate(gate=
+"session_adoption", context={})`. When it returns `effect:
+"auto-advance"` or `effect: "skip"` AND the same user message that
+invoked the skill contains an unambiguous affirmative like `go`,
+`proceed`, `yes`, `run it`, `audit it`, treat that as the
+confirmation and skip the `AskUserQuestion`. Affirmatives must be
+in the **same turn** as the invocation and unambiguous (mere "ok"
+or "k" does not qualify). Do NOT read a session-file value to make
+this call — the resolver owns the policy.
 
 **When the path was auto-resolved** (no arg, or arg is a
-directory) AND no adaptive affirmative is present, extract the
+directory) AND no such affirmative is present, extract the
 session ID from the filename and the file's modification time,
 then confirm with the user before proceeding.
 
@@ -447,18 +449,22 @@ This is the session you are auditing.
 
 Locate the skills directory: `~/.claude/skills/`
 
-**Read session friction context (GH-55 F9).** Call
-`mcp__plugin_Dev10x_cli__preset_pin_status` and take
-`gate_preset` (the successor to `friction_level`) plus
-`gate_overlays` / `active_modes` out of its `prefs`. It resolves the
-durable policy from the global `~/.config/Dev10x/friction.yaml`; do
-not read the retired `.claude/Dev10x/session.yaml` (ADR-0018). When
-`pinned` is `false`, default to `guided` with no overlays.
+**Read the session's posture (GH-55 F9).** Call
+`mcp__plugin_Dev10x_cli__preset_pin_status` for `gate_overlays` and
+`gate_overrides` out of its `prefs`, and
+`mcp__plugin_Dev10x_cli__supervisor_review_status` for
+`supervisor_review`. Both resolve the durable policy from the global
+`~/.config/Dev10x/friction.yaml`; do not read that file, or the
+retired `.claude/Dev10x/session.yaml` (ADR-0018), yourself. When
+`pinned` is `false`, the posture is the shipped default: the
+`adaptive` baseline (ADR-0022 D-1), no overlays, `supervisor_review:
+required`.
 
-Persist both values for downstream use — pass them into the
-Phase 3 (Compliance Check) subagent prompt in Step 7. Without
-this, the Phase 3 subagent cannot tell which gates auto-select
-at the active level and will produce false-positive
+This is **audit evidence, not a gate decision** — nothing here
+chooses whether a gate fires. Persist the values for downstream use
+and pass them into the Phase 3 (Compliance Check) subagent prompt in
+Step 7. Without them, the Phase 3 subagent cannot tell which gates
+were entitled to auto-advance and will produce false-positive
 `SKIPPED_STEP` regressions for documented auto-advance behavior.
 
 ### Step 5: Create output files
@@ -545,7 +551,7 @@ file.
 
 1. `Agent(subagent_type="general-purpose", model="sonnet", description="Phase 2: Skill coverage", prompt="You are running Phase 2 (Skill Coverage Analysis). Return your complete findings as your response. Also attempt to write them to <PHASE2_OUTPUT> — if the write fails, the main agent will capture your findings from the returned result. Phase 1 action inventory: <PHASE1_OUTPUT>. Skills directory: <SKILLS_DIR>. Read the Phase 1 output, then [include full Phase 2: Skill Coverage Analysis instructions from the Phase Reference section]. Report your final status as the LAST line of your output, with exactly one of these prefixes: DONE / DONE_WITH_CONCERNS: <text> / NEEDS_CONTEXT: <what> / BLOCKED: <reason>. Do not write anything after the status line.")`
 
-2. `Agent(subagent_type="general-purpose", model="sonnet", description="Phase 3: Compliance check", prompt="You are running Phase 3 (Compliance Check). Return your complete findings as your response. Also attempt to write them to <PHASE3_OUTPUT> — if the write fails, the main agent will capture your findings from the returned result. Phase 1 action inventory: <PHASE1_OUTPUT>. Session transcript: <TRANSCRIPT_PATH>. Skills directory: <SKILLS_DIR>. Session friction context: friction_level=<FRICTION_LEVEL>, active_modes=<ACTIVE_MODES>. When evaluating compliance, treat documented auto-select gates (e.g., `work-on` Phase 3 plan-approval at adaptive — GH-808) as COMPLIANT when the agent auto-selected the recommended option, NOT as SKIPPED_STEP. Read the Phase 1 output, then [include full Phase 3: Compliance Check instructions from the Phase Reference section]. Report your final status as the LAST line of your output, with exactly one of these prefixes: DONE / DONE_WITH_CONCERNS: <text> / NEEDS_CONTEXT: <what> / BLOCKED: <reason>. Do not write anything after the status line.")`
+2. `Agent(subagent_type="general-purpose", model="sonnet", description="Phase 3: Compliance check", prompt="You are running Phase 3 (Compliance Check). Return your complete findings as your response. Also attempt to write them to <PHASE3_OUTPUT> — if the write fails, the main agent will capture your findings from the returned result. Phase 1 action inventory: <PHASE1_OUTPUT>. Session transcript: <TRANSCRIPT_PATH>. Skills directory: <SKILLS_DIR>. Session posture: supervisor_review=<SUPERVISOR_REVIEW>, overlays=<GATE_OVERLAYS>, gate overrides=<GATE_OVERRIDES>, baseline=adaptive. When evaluating compliance, treat a gate whose `resolve_gate` effect was `auto-advance` (e.g., `work-on` Phase 3 plan-approval — GH-808) as COMPLIANT when the agent auto-selected the recommended option, NOT as SKIPPED_STEP. Read the Phase 1 output, then [include full Phase 3: Compliance Check instructions from the Phase Reference section]. Report your final status as the LAST line of your output, with exactly one of these prefixes: DONE / DONE_WITH_CONCERNS: <text> / NEEDS_CONTEXT: <what> / BLOCKED: <reason>. Do not write anything after the status line.")`
 
 3. `Agent(subagent_type="general-purpose", model="sonnet", description="Phase 5: Lessons learned", prompt="You are running Phase 5 (Lessons Learned Extraction). Return your complete findings as your response. Also attempt to write them to <PHASE5_OUTPUT> — if the write fails, the main agent will capture your findings from the returned result. Phase 1 action inventory: <PHASE1_OUTPUT>. Session transcript: <TRANSCRIPT_PATH>. Memory directory: <MEMORY_DIR>. Read the Phase 1 output, then [include full Phase 5: Lessons Learned Extraction instructions from the Phase Reference section]. Report your final status as the LAST line of your output, with exactly one of these prefixes: DONE / DONE_WITH_CONCERNS: <text> / NEEDS_CONTEXT: <what> / BLOCKED: <reason>. Do not write anything after the status line.")`
 
