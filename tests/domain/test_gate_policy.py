@@ -11,22 +11,27 @@ import pytest
 
 from dev10x.domain.gate_policy import (
     AUTO_ADVANCE,
+    BASELINE_PRESET,
     KNOWN_TOGGLES,
     SHIPPED_PRESETS,
+    SUPERVISOR_REVIEW_NONE,
+    SUPERVISOR_REVIEW_REQUIRED,
     GateContext,
     GateEffect,
     GateResolution,
     UnknownPresetError,
     UnknownToggleError,
+    coerce_supervisor_review,
     legacy_session_mapping,
     resolve_gate,
+    supervisor_review_gate,
 )
 
 
 class TestGatePolicyResolver:
     # --- Audit scenario 1: GH-742 F1 — stale session.yaml auto-merge ---
 
-    @pytest.mark.parametrize("preset", ["guided", "adaptive"])
+    @pytest.mark.parametrize("preset", ["adaptive"])
     def test_stale_session_adoption_asks(self, preset: str) -> None:
         resolution = resolve_gate(
             gate="session_adoption",
@@ -55,7 +60,7 @@ class TestGatePolicyResolver:
 
     # --- Audit scenario 2: GH-745 F4 — bot vs human thread keying ---
 
-    @pytest.mark.parametrize("preset", ["guided", "adaptive"])
+    @pytest.mark.parametrize("preset", ["adaptive"])
     @pytest.mark.parametrize(
         "gate",
         ["triage_response", "thread_resolution", "comment_hide"],
@@ -114,30 +119,27 @@ class TestGatePolicyResolver:
         )
         assert resolution.effect is GateEffect.AUTO_ADVANCE
 
-    def test_merge_asks_at_strict(self) -> None:
-        resolution = resolve_gate(gate="merge", context=GateContext(), preset="strict")
-        assert resolution.effect is GateEffect.ASK
-
-    def test_merge_is_skipped_at_guided(self) -> None:
-        # D-9 (GH-748): merge is a strictly human action through the PR
-        # UI at guided — the agent's merge step does not exist. The
-        # session hands off after request-review or monitors approval.
-        resolution = resolve_gate(
-            gate="merge", context=GateContext(human_review=False), preset="guided"
-        )
-        assert resolution.effect is GateEffect.SKIP
-        assert resolution.resolved_option is None
-
     def test_solo_maintainer_overlay_skips_review_request(self) -> None:
         resolution = resolve_gate(
             gate="request_review",
             context=GateContext(),
-            preset="guided",
+            preset="adaptive",
             overlays=["solo-maintainer"],
         )
         assert resolution.effect is GateEffect.SKIP
 
-    # --- D-9 (GH-748): light-AFK guided posture ---
+    # --- ADR-0022 D-1: adaptive is the sole shipped base preset ---
+
+    def test_adaptive_is_the_only_shipped_preset(self) -> None:
+        assert set(SHIPPED_PRESETS) == {BASELINE_PRESET}
+
+    @pytest.mark.parametrize("preset", ["strict", "guided"])
+    def test_retired_presets_fail_loudly(self, preset: str) -> None:
+        # A retired name must NOT resolve at the more autonomous baseline —
+        # a repo that asked for `strict` silently gaining walk-away merge
+        # autonomy is the one outcome the collapse must never produce.
+        with pytest.raises(UnknownPresetError):
+            resolve_gate(gate="merge", context=GateContext(), preset=preset)
 
     @pytest.mark.parametrize(
         "gate",
@@ -151,33 +153,13 @@ class TestGatePolicyResolver:
             "workspace_choice",
         ],
     )
-    def test_guided_auto_advances_mechanical_gates(self, gate: str) -> None:
-        resolution = resolve_gate(gate=gate, context=GateContext(), preset="guided")
+    def test_baseline_auto_advances_mechanical_gates(self, gate: str) -> None:
+        resolution = resolve_gate(gate=gate, context=GateContext(), preset=BASELINE_PRESET)
         assert resolution.effect is GateEffect.AUTO_ADVANCE
-
-    @pytest.mark.parametrize("gate", ["request_review", "external_notify", "completion_signoff"])
-    def test_guided_supervises_team_interactions(self, gate: str) -> None:
-        resolution = resolve_gate(gate=gate, context=GateContext(), preset="guided")
-        assert resolution.effect is GateEffect.ASK
-
-    def test_guided_differs_from_adaptive_only_at_the_human_boundary(self) -> None:
-        guided = SHIPPED_PRESETS["guided"]
-        adaptive = SHIPPED_PRESETS["adaptive"]
-        differing = {key for key in guided if guided[key] != adaptive[key]}
-        assert differing == {"request_review", "merge", "completion_signoff"}
-
-    def test_strict_fires_every_enum_gate(self) -> None:
-        strict = SHIPPED_PRESETS["strict"]
-        enum_values = {
-            key: value
-            for key, value in strict.items()
-            if isinstance(value, str) and key not in {"doubt_sink"}
-        }
-        assert all(value == "ask" for value in enum_values.values())
 
     # --- Audit scenario 4: GH-745 F1 — zero-VALID batch auto-flow ---
 
-    @pytest.mark.parametrize("preset", ["guided", "adaptive"])
+    @pytest.mark.parametrize("preset", ["adaptive"])
     @pytest.mark.parametrize("gate", ["triage_response", "thread_resolution", "comment_hide"])
     def test_zero_valid_bot_batch_auto_flows(self, preset: str, gate: str) -> None:
         # GH-745 F1: the audit scenario was a batch of automated-reviewer
@@ -190,7 +172,7 @@ class TestGatePolicyResolver:
         )
         assert resolution.effect is GateEffect.AUTO_ADVANCE
 
-    @pytest.mark.parametrize("preset", ["guided", "adaptive"])
+    @pytest.mark.parametrize("preset", ["adaptive"])
     @pytest.mark.parametrize("gate", ["triage_response", "thread_resolution", "comment_hide"])
     def test_zero_valid_human_batch_still_gates(self, preset: str, gate: str) -> None:
         # GH-745 F4 outranks F1 for human authors: hiding or dismissing a
@@ -298,7 +280,7 @@ class TestGatePolicyResolver:
         # the preset get to decide.
         resolution = resolve_gate(
             gate="merge",
-            context=GateContext(human_review=False),
+            context=GateContext(human_review=False, supervisor_review=SUPERVISOR_REVIEW_NONE),
             preset="adaptive",
             overlays=["solo-maintainer", "afk"],
         )
@@ -330,16 +312,18 @@ class TestGatePolicyResolver:
 
     def test_no_human_review_cannot_re_admit_a_dropped_overlay(self) -> None:
         # allowed_overlays drops solo-maintainer upstream of resolution, so
-        # the merge toggle falls back to the bare preset — `skip` at guided,
-        # i.e. the agent has no merge step at all. human_review is not an
-        # overlay and cannot put the dropped one back to reach auto-advance.
+        # the repo reads as team-shaped and the supervisor_review floor lands
+        # on request_review — while a `merge: ask` project pin still governs
+        # the merge itself. human_review is not an overlay and cannot put the
+        # dropped one back to reach auto-advance.
         resolution = resolve_gate(
             gate="merge",
             context=GateContext(human_review=False),
-            preset="guided",
+            preset=BASELINE_PRESET,
             overlays=[],
+            project_overrides={"merge": "ask"},
         )
-        assert resolution.effect is GateEffect.SKIP
+        assert resolution.effect is GateEffect.ASK
         assert resolution.effect is not GateEffect.AUTO_ADVANCE
 
     def test_a_safety_floor_still_outranks_cleared_human_review(self) -> None:
@@ -482,6 +466,9 @@ class TestLegacySessionMapping:
                 True,
                 ("adaptive", ["solo-maintainer", "afk"]),
             ),
+            # The seam is a pure read-compat mapping and stays 1:1 even for a
+            # retired preset name — resolve_gate is where that now fails loud
+            # (GH-1162 retires the seam once the migrator ships).
             ("guided", [], False, ("guided", [])),
         ],
     )
@@ -509,11 +496,140 @@ class TestLegacySessionMapping:
         )
         resolution: GateResolution = resolve_gate(
             gate="merge",
-            context=GateContext(human_review=False),
+            context=GateContext(human_review=False, supervisor_review=SUPERVISOR_REVIEW_NONE),
             preset=preset,
             overlays=overlays,
         )
         assert resolution.effect is GateEffect.AUTO_ADVANCE
+
+
+class TestSupervisorReviewFloor:
+    # ADR-0022 D-3/D-5. `human_review=False` throughout so the ADR-0019
+    # floor does not short-circuit the merge rows before this floor is
+    # reached — GH-1161 collapses the two into one key.
+
+    SOLO = ["solo-maintainer"]
+    TEAM: list[str] = []
+
+    @pytest.mark.parametrize(
+        ("overlays", "supervisor_review", "gate", "expected"),
+        [
+            # The four cells of the ADR-0022 D-3 table.
+            (SOLO, SUPERVISOR_REVIEW_NONE, "merge", GateEffect.AUTO_ADVANCE),
+            (SOLO, SUPERVISOR_REVIEW_REQUIRED, "merge", GateEffect.ASK),
+            (TEAM, SUPERVISOR_REVIEW_NONE, "request_review", GateEffect.AUTO_ADVANCE),
+            (TEAM, SUPERVISOR_REVIEW_REQUIRED, "request_review", GateEffect.ASK),
+        ],
+    )
+    def test_effect_point_moves_with_repo_shape(
+        self,
+        overlays: list[str],
+        supervisor_review: str,
+        gate: str,
+        expected: GateEffect,
+    ) -> None:
+        resolution = resolve_gate(
+            gate=gate,
+            context=GateContext(human_review=False, supervisor_review=supervisor_review),
+            preset=BASELINE_PRESET,
+            overlays=overlays,
+        )
+        assert resolution.effect is expected
+
+    def test_required_does_not_floor_the_other_shape_s_gate(self) -> None:
+        # In a solo repo the park sits at merge, so request_review is not
+        # floored — it is skipped by the overlay, as before.
+        resolution = resolve_gate(
+            gate="request_review",
+            context=GateContext(human_review=False, supervisor_review=SUPERVISOR_REVIEW_REQUIRED),
+            preset=BASELINE_PRESET,
+            overlays=self.SOLO,
+        )
+        assert "supervisor_review" not in resolution.floors_applied
+
+    def test_required_precedes_rather_than_replaces_the_team_request(self) -> None:
+        # Team row: `required` inserts a park BEFORE the team request; it
+        # never removes the request step itself, which stays auto-advance
+        # once the supervisor has cleared.
+        resolution = resolve_gate(
+            gate="request_review",
+            context=GateContext(
+                human_review=False,
+                supervisor_review=SUPERVISOR_REVIEW_REQUIRED,
+                supervisor_cleared=True,
+            ),
+            preset=BASELINE_PRESET,
+            overlays=self.TEAM,
+        )
+        assert resolution.effect is GateEffect.AUTO_ADVANCE
+
+    def test_floor_defaults_to_required_when_unset(self) -> None:
+        resolution = resolve_gate(
+            gate="request_review",
+            context=GateContext(human_review=False),
+            preset=BASELINE_PRESET,
+        )
+        assert resolution.effect is GateEffect.ASK
+        assert "supervisor_review" in resolution.floors_applied
+
+    def test_floor_names_its_remedy(self) -> None:
+        resolution = resolve_gate(
+            gate="request_review",
+            context=GateContext(human_review=False),
+            preset=BASELINE_PRESET,
+        )
+        assert "review:cleared" in resolution.reason
+        assert "supervisor_review: none" in resolution.reason
+
+    def test_none_cannot_re_admit_a_withheld_gate(self) -> None:
+        # `none` is a PRECONDITION, never a grant: a project pin still wins.
+        resolution = resolve_gate(
+            gate="merge",
+            context=GateContext(human_review=False, supervisor_review=SUPERVISOR_REVIEW_NONE),
+            preset=BASELINE_PRESET,
+            overlays=self.SOLO,
+            project_overrides={"merge": "ask"},
+        )
+        assert resolution.effect is GateEffect.ASK
+
+    def test_a_safety_floor_still_outranks_a_cleared_supervisor(self) -> None:
+        resolution = resolve_gate(
+            gate="merge",
+            context=GateContext(
+                human_review=False,
+                supervisor_review=SUPERVISOR_REVIEW_NONE,
+                secret_access=True,
+            ),
+            preset=BASELINE_PRESET,
+            overlays=self.SOLO,
+        )
+        assert resolution.effect is GateEffect.ASK
+        assert "secret_access" in resolution.floors_applied
+
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            ("none", SUPERVISOR_REVIEW_NONE),
+            ("  None  ", SUPERVISOR_REVIEW_NONE),
+            ("required", SUPERVISOR_REVIEW_REQUIRED),
+            # Everything malformed fails toward MORE oversight.
+            ("no", SUPERVISOR_REVIEW_REQUIRED),
+            (False, SUPERVISOR_REVIEW_REQUIRED),
+            (None, SUPERVISOR_REVIEW_REQUIRED),
+            ([], SUPERVISOR_REVIEW_REQUIRED),
+        ],
+    )
+    def test_coercion_only_honours_the_exact_none_literal(
+        self, raw: object, expected: str
+    ) -> None:
+        assert coerce_supervisor_review(raw) == expected
+
+    @pytest.mark.parametrize(
+        ("solo_repo", "expected"),
+        [(True, "merge"), (False, "request_review")],
+    )
+    def test_effect_point_is_named_by_repo_shape(self, solo_repo: bool, expected: str) -> None:
+        assert supervisor_review_gate(solo_repo=solo_repo) == expected
 
 
 class TestInjectedShippedPresets:
@@ -548,7 +664,7 @@ class TestInjectedShippedPresets:
                 gate="merge",
                 context=GateContext(),
                 preset="missing",
-                shipped_presets={"only-one": SHIPPED_PRESETS["strict"]},
+                shipped_presets={"only-one": SHIPPED_PRESETS[BASELINE_PRESET]},
             )
 
 
@@ -564,13 +680,21 @@ class TestVisibleRecord:
         assert record.endswith(")")
 
     def test_ask_has_no_record(self) -> None:
+        # human_review defaults to True, so the ADR-0019 floor asks.
         assert (
-            resolve_gate(gate="merge", context=GateContext(), preset="strict").visible_record()
+            resolve_gate(
+                gate="merge", context=GateContext(), preset=BASELINE_PRESET
+            ).visible_record()
             is None
         )
 
     def test_skip_has_no_record(self) -> None:
         assert (
-            resolve_gate(gate="merge", context=GateContext(), preset="guided").visible_record()
+            resolve_gate(
+                gate="request_review",
+                context=GateContext(),
+                preset=BASELINE_PRESET,
+                overlays=["solo-maintainer"],
+            ).visible_record()
             is None
         )
