@@ -287,7 +287,7 @@ class TestFrictionSetupNudge:
         monkeypatch.setattr(session_dispatch, "_get_toplevel", lambda: None)
         assert session_dispatch.build_friction_setup_context() == ""
 
-    def test_seeds_strict_baseline_when_absent(
+    def test_seeds_safe_baseline_when_absent(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         from dev10x.domain.dev10x_paths import Dev10xConfigDir
@@ -300,7 +300,7 @@ class TestFrictionSetupNudge:
             text = SessionService().build_friction_setup_context(toplevel=str(repo))
             friction = Dev10xConfigDir.friction_yaml()
             assert friction.exists()
-            assert "friction_level: strict" in friction.read_text()
+            assert "supervisor_review: required" in friction.read_text()
             assert "/Dev10x:friction-setup" in text
         finally:
             Dev10xConfigDir.reset_cache()

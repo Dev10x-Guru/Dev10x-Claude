@@ -223,6 +223,44 @@ class TestSupervisorSignOffSignal:
         assert await self._request_review_effect(team_repo) == "ask"
 
     @pytest.mark.asyncio
+    async def test_unparseable_pr_number_keeps_the_floor_standing(
+        self, team_repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        async def odd_pr_detect(*, arg: str) -> object:
+            return ok({"PR_NUMBER": "not-a-number", "REPO": "acme/widgets"})
+
+        monkeypatch.setattr(github_module, "pr_detect", odd_pr_detect)
+        assert await self._request_review_effect(team_repo) == "ask"
+
+    @pytest.mark.asyncio
+    async def test_unreadable_labels_keep_the_floor_standing(
+        self, team_repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        async def ok_pr_detect(*, arg: str) -> object:
+            return ok({"PR_NUMBER": "7", "REPO": "acme/widgets"})
+
+        async def failing_pr_labels(*, pr_number: int, action: str, **_: object) -> object:
+            return err("gh: could not reach api.github.com")
+
+        monkeypatch.setattr(github_module, "pr_detect", ok_pr_detect)
+        monkeypatch.setattr(github_module, "pr_labels", failing_pr_labels)
+        assert await self._request_review_effect(team_repo) == "ask"
+
+    @pytest.mark.asyncio
+    async def test_malformed_label_payload_keeps_the_floor_standing(
+        self, team_repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        async def ok_pr_detect(*, arg: str) -> object:
+            return ok({"PR_NUMBER": "7", "REPO": "acme/widgets"})
+
+        async def odd_pr_labels(*, pr_number: int, action: str, **_: object) -> object:
+            return ok({"labels": "review:cleared"})  # a string, not a list
+
+        monkeypatch.setattr(github_module, "pr_detect", ok_pr_detect)
+        monkeypatch.setattr(github_module, "pr_labels", odd_pr_labels)
+        assert await self._request_review_effect(team_repo) == "ask"
+
+    @pytest.mark.asyncio
     async def test_caller_cannot_assert_its_own_clearance(
         self, team_repo: Path, labels: list[str]
     ) -> None:

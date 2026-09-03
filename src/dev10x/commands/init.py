@@ -95,7 +95,7 @@ def _project_playbook_path(project_root: Path) -> Path:
 def _seed_project(
     project_root: Path,
     *,
-    friction_level: str = "guided",
+    supervisor_review: str = "required",
     active_modes: list[str] | None = None,
 ) -> list[Path]:
     """Create starter config files. Returns list of paths written.
@@ -108,7 +108,7 @@ def _seed_project(
         (
             Dev10xConfigDir.friction_yaml(),
             FrictionYamlDocument.render_starter(
-                friction_level=friction_level, active_modes=active_modes
+                supervisor_review=supervisor_review, active_modes=active_modes
             ),
         ),
         (_project_playbook_path(project_root), STARTER_WORK_ON_PLAYBOOK),
@@ -179,10 +179,12 @@ def init(*, setup: bool, non_interactive: bool, project_path: Path | None) -> No
     click.echo(f"Setting up Dev10x in {project_root}")
     click.echo("")
 
-    friction_level = click.prompt(
-        "Friction level",
-        type=click.Choice(["strict", "guided", "adaptive"], case_sensitive=False),
-        default="guided",
+    # ADR-0022 D-1 retired the three-way posture pick: auto-advance is the
+    # baseline, and the one question worth asking is who reads the PR.
+    supervisor_review = click.prompt(
+        "Does the supervisor read each PR before the next step?",
+        type=click.Choice(["required", "none"], case_sensitive=False),
+        default="required",
     )
     solo = click.confirm(
         "Solo maintainer mode? (skips reviewer assignment and Slack notifications)",
@@ -194,7 +196,7 @@ def init(*, setup: bool, non_interactive: bool, project_path: Path | None) -> No
     # is written only when absent so re-running init never clobbers a
     # hand-authored global file. The per-project playbook is always ensured.
     for path in _seed_project(
-        project_root, friction_level=friction_level.lower(), active_modes=modes
+        project_root, supervisor_review=supervisor_review.lower(), active_modes=modes
     ):
         click.echo(f"  + {_display_path(path, project_root=project_root)}")
 

@@ -63,7 +63,8 @@ class TestSetFriction:
         assert result.exit_code == 0
         matched = FrictionYamlDocument(toplevel=str(repo.resolve())).matched()
         assert matched == {
-            "gate_preset": "adaptive",
+            # No `gate_preset`: the baseline is the only shipped one, so
+            # naming it records no decision (ADR-0022 D-1).
             "gate_overlays": ["solo-maintainer"],
             "gate_overrides": {"merge": "ask"},
         }
@@ -71,63 +72,105 @@ class TestSetFriction:
     def test_omits_empty_axes(self, tmp_path: Path) -> None:
         repo = tmp_path / "repo"
         repo.mkdir()
-        CliRunner().invoke(session, ["set-friction", "--path", str(repo), "--preset", "strict"])
+        CliRunner().invoke(
+            session,
+            ["set-friction", "--path", str(repo), "--supervisor-review", "required"],
+        )
         matched = FrictionYamlDocument(toplevel=str(repo.resolve())).matched()
-        assert matched == {"gate_preset": "strict"}
+        assert matched == {"supervisor_review": "required"}
+
+    def test_baseline_preset_is_not_written(self, tmp_path: Path) -> None:
+        # ADR-0022 D-1: there is one shipped preset, so naming it in every
+        # entry says nothing. Only a user-defined preset is a real selection.
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        CliRunner().invoke(
+            session,
+            ["set-friction", "--path", str(repo), "--preset", "adaptive"],
+        )
+        assert FrictionYamlDocument(toplevel=str(repo.resolve())).matched() == {}
+
+    def test_records_a_user_defined_preset(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The preset MECHANISM survives (ADR-0022 D-1) — a user preset from
+        # friction-presets.yaml is a real selection and IS written.
+        monkeypatch.setattr(
+            "dev10x.config.friction_presets.load_user_presets",
+            lambda **_: {"nightly": {"merge": "ask"}},
+        )
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        result = CliRunner().invoke(
+            session, ["set-friction", "--path", str(repo), "--preset", "nightly"]
+        )
+        assert result.exit_code == 0
+        assert FrictionYamlDocument(toplevel=str(repo.resolve())).matched() == {
+            "gate_preset": "nightly"
+        }
+
+    def test_rejects_a_retired_preset_name(self, tmp_path: Path) -> None:
+        # A retired name must not be written into durable config, where it
+        # would make every later resolve_gate fail until someone re-pins.
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        result = CliRunner().invoke(
+            session, ["set-friction", "--path", str(repo), "--preset", "strict"]
+        )
+        assert result.exit_code != 0
+        assert "unknown preset 'strict'" in result.output
 
     def test_idempotent_replaces_entry(self, tmp_path: Path) -> None:
         repo = tmp_path / "repo"
         repo.mkdir()
         runner = CliRunner()
-        runner.invoke(session, ["set-friction", "--path", str(repo), "--preset", "strict"])
-        runner.invoke(session, ["set-friction", "--path", str(repo), "--preset", "adaptive"])
+        runner.invoke(
+            session,
+            ["set-friction", "--path", str(repo), "--supervisor-review", "required"],
+        )
+        runner.invoke(
+            session, ["set-friction", "--path", str(repo), "--supervisor-review", "none"]
+        )
         doc = yaml.safe_load(Dev10xConfigDir.friction_yaml().read_text())
         assert len(doc["projects"]) == 1
-        assert doc["projects"][0]["gate_preset"] == "adaptive"
+        assert doc["projects"][0]["supervisor_review"] == "none"
 
-    def test_carries_forward_human_review_from_the_shadowed_entry(self, tmp_path: Path) -> None:
+    def test_carries_forward_non_gate_keys_from_the_shadowed_entry(self, tmp_path: Path) -> None:
         # GH-1068 F3: re-running set-friction must not drop the non-gate
-        # durable keys the existing entry carried — `human_review` coerces
-        # toward True, so losing `false` silently re-enables human review.
+        # durable keys the existing entry carried.
         repo = tmp_path / "repo"
         repo.mkdir()
         runner = CliRunner()
-        runner.invoke(session, ["set-friction", "--path", str(repo), "--preset", "strict"])
+        runner.invoke(session, ["set-friction", "--path", str(repo), "--overlay", "afk"])
         friction = Dev10xConfigDir.friction_yaml()
         doc = yaml.safe_load(friction.read_text())
-        doc["projects"][0]["human_review"] = False
         doc["projects"][0]["protected_branches"] = ["main"]
         friction.write_text(yaml.safe_dump(doc))
 
-        runner.invoke(session, ["set-friction", "--path", str(repo), "--preset", "adaptive"])
+        runner.invoke(
+            session, ["set-friction", "--path", str(repo), "--overlay", "solo-maintainer"]
+        )
         matched = FrictionYamlDocument(toplevel=str(repo.resolve())).matched()
         assert matched == {
-            "gate_preset": "adaptive",
-            "human_review": False,
+            "gate_overlays": ["solo-maintainer"],
             "protected_branches": ["main"],
         }
 
     def test_gate_axis_is_still_replaced_wholesale(self, tmp_path: Path) -> None:
         # Carrying non-gate keys forward must not turn an omitted overlay into
-        # "keep the old overlays" — omitting an axis means back to the preset.
+        # "keep the old overlays" — omitting an axis means back to the baseline.
         repo = tmp_path / "repo"
         repo.mkdir()
         runner = CliRunner()
         runner.invoke(
             session,
-            [
-                "set-friction",
-                "--path",
-                str(repo),
-                "--preset",
-                "strict",
-                "--overlay",
-                "afk",
-            ],
+            ["set-friction", "--path", str(repo), "--overlay", "afk"],
         )
-        runner.invoke(session, ["set-friction", "--path", str(repo), "--preset", "adaptive"])
+        runner.invoke(
+            session, ["set-friction", "--path", str(repo), "--supervisor-review", "none"]
+        )
         matched = FrictionYamlDocument(toplevel=str(repo.resolve())).matched()
-        assert matched == {"gate_preset": "adaptive"}
+        assert matched == {"supervisor_review": "none"}
 
     def test_worktree_write_inherits_the_repo_entry(self, tmp_path: Path) -> None:
         # The GH-1068 F3 field case: `*/<repo>` never matches a worktree
@@ -144,8 +187,8 @@ class TestSetFriction:
                     "projects": [
                         {
                             "match": [str(repo.resolve())],
-                            "gate_preset": "guided",
-                            "human_review": False,
+                            "gate_overlays": ["afk"],
+                            "protected_branches": ["main"],
                         }
                     ]
                 }
@@ -153,17 +196,17 @@ class TestSetFriction:
         )
 
         CliRunner().invoke(
-            session, ["set-friction", "--path", str(worktree), "--preset", "adaptive"]
+            session, ["set-friction", "--path", str(worktree), "--supervisor-review", "none"]
         )
         matched = FrictionYamlDocument(toplevel=str(worktree.resolve())).matched()
-        assert matched == {"gate_preset": "adaptive", "human_review": False}
+        assert matched == {"supervisor_review": "none", "protected_branches": ["main"]}
 
     def test_rejects_malformed_gate_override(self, tmp_path: Path) -> None:
         repo = tmp_path / "repo"
         repo.mkdir()
         result = CliRunner().invoke(
             session,
-            ["set-friction", "--path", str(repo), "--preset", "strict", "--gate-override", "oops"],
+            ["set-friction", "--path", str(repo), "--gate-override", "oops"],
         )
         assert result.exit_code != 0
 
@@ -176,8 +219,6 @@ class TestSetFriction:
                 "set-friction",
                 "--path",
                 str(repo),
-                "--preset",
-                "strict",
                 "--gate-override",
                 "marge=ask",
             ],
@@ -194,8 +235,6 @@ class TestSetFriction:
                 "set-friction",
                 "--path",
                 str(repo),
-                "--preset",
-                "strict",
                 "--gate-override",
                 "merge=nope",
             ],
@@ -272,7 +311,7 @@ class TestPin:
     def test_records_overlays_and_gate_overrides(self) -> None:
         result = CliRunner().invoke(
             session,
-            ["pin", "guided", "--overlay", "solo-maintainer", "--gate-override", "merge=ask"],
+            ["pin", "adaptive", "--overlay", "solo-maintainer", "--gate-override", "merge=ask"],
         )
         assert result.exit_code == 0
         entry = self._projects()[0]
@@ -280,16 +319,16 @@ class TestPin:
         assert entry["gate_overrides"] == {"merge": "ask"}
 
     def test_repo_only_scope_narrows_the_glob(self) -> None:
-        CliRunner().invoke(session, ["pin", "strict", "--scope", "repo-only"])
+        CliRunner().invoke(session, ["pin", "adaptive", "--scope", "repo-only"])
         assert self._projects()[0]["match"] == ["*/bl-zebra"]
 
     def test_rejects_an_invalid_gate_override(self) -> None:
-        result = CliRunner().invoke(session, ["pin", "strict", "--gate-override", "marge=ask"])
+        result = CliRunner().invoke(session, ["pin", "adaptive", "--gate-override", "marge=ask"])
         assert result.exit_code != 0
 
     def test_surfaces_a_resolution_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("dev10x.session.preset_pin._common_dir", lambda *, cwd: None)
         monkeypatch.setattr("dev10x.session.preset_pin._bounded_toplevel", lambda *, cwd: None)
-        result = CliRunner().invoke(session, ["pin", "strict"])
+        result = CliRunner().invoke(session, ["pin", "adaptive"])
         assert result.exit_code != 0
         assert "Not in a git repository" in result.output

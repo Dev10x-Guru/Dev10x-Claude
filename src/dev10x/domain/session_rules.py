@@ -273,9 +273,10 @@ class FrictionSetupState(enum.Enum):
 
     Computed by the service after it probes the global ``friction.yaml``:
 
-    * :attr:`SEEDED` — the file was absent, so a ``strict`` baseline scaffold
-      was just written; every gate fires until the supervisor chooses a
-      posture.
+    * :attr:`SEEDED` — the file was absent, so the safe baseline scaffold was
+      just written (ADR-0022: the single preset plus
+      ``supervisor_review: required``); the supervisor still reads every PR
+      until they say otherwise.
     * :attr:`UNMATCHED` — the file exists but no ``projects[]`` entry matches
       this repo, so gate policy falls back to ``defaults:`` (no write happens).
     * :attr:`MATCHED` — a project entry matches; the project is configured and

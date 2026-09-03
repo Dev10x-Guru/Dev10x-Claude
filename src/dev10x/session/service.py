@@ -166,11 +166,12 @@ class SessionService:
     def build_friction_setup_context(self, *, toplevel: str | None = _UNSET) -> str:  # type: ignore[assignment]
         """Return a nudge to run ``Dev10x:friction-setup`` for unconfigured repos (GH-886).
 
-        Probes the global ``friction.yaml``: absent → seed a ``strict`` baseline
+        Probes the global ``friction.yaml``: absent → seed the safe baseline
         and nudge; present but this repo unmatched → nudge (no write); matched →
-        empty string (configured, silent). Seeding a ``strict`` scaffold makes
-        the resolver fail safe (every gate fires) instead of silently adopting a
-        preset the supervisor never chose.
+        empty string (configured, silent). Seeding the safe baseline scaffold
+        (the single preset plus ``supervisor_review: required``, ADR-0022) keeps
+        the review boundary standing instead of silently adopting a posture the
+        supervisor never chose.
 
         Pass ``toplevel`` as a pre-resolved string to skip git discovery. Pass
         ``None`` explicitly to return early without git discovery. Omit the
@@ -182,7 +183,7 @@ class SessionService:
         from dev10x.domain.documents.session_yaml import (
             ConfigYamlDocument,
             FrictionYamlDocument,
-            seed_strict_baseline_if_absent,
+            seed_safe_baseline_if_absent,
         )
         from dev10x.domain.git_context import GitContext
         from dev10x.domain.session_rules import FrictionSetupNudgeRule, FrictionSetupState
@@ -193,14 +194,14 @@ class SessionService:
         repo_name = os.path.basename(resolved.rstrip("/")) or None
         if not Dev10xConfigDir.friction_yaml().exists():
             try:
-                seed_strict_baseline_if_absent()
+                seed_safe_baseline_if_absent()
             except OSError:
                 # A failed seed must still surface the nudge — never degrade to a
                 # silent "" (the GH-886 failure mode, one layer down). The
                 # SessionStart build_feature wrapper swallows exceptions and
                 # drops the segment, so catch here and return the unconfigured
                 # nudge rather than relying on that silent-discard path.
-                log.warning("friction-setup: strict baseline seed failed", exc_info=True)
+                log.warning("friction-setup: safe baseline seed failed", exc_info=True)
                 return FrictionSetupNudgeRule(
                     state=FrictionSetupState.UNMATCHED, repo_name=repo_name
                 ).apply()
