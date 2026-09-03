@@ -1,216 +1,140 @@
-# Walk-Away Mode — Contract for Downstream Skills
+# Walk-Away — the `afk` overlay and the doubt sink
 
-> **ADR-0016 convergence (GH-760).** Gate behavior is now resolved
-> by the `resolve_gate` tool (`dev10x.domain.gate_policy`), not by
-> skills reading `walk_away` and hand-classifying each question.
-> `Dev10x:afk` composes the walk-away posture as `gate_preset:
-> adaptive` + `gate_overlays: [afk]`; the `afk` overlay carries
-> `session_adoption: auto-advance` and `doubt_sink: pr-description`.
-> **`walk_away` is deprecated** — the resolver's `legacy_session_mapping`
-> still reads a `walk_away: true` in an un-migrated legacy config and
-> maps it to the `afk` overlay (read-compat), but `Dev10x:afk` no
-> longer writes it and no skill should hand-roll the classification
-> below. This document is retained for the `doubt_sink` contract
-> (still a live overlay toggle) and as background on the pre-resolver
-> model. For current gate behavior, see
-> `references/friction-levels.md` § Plan-Approval Gate.
+Contract for skills running while nobody is at the keyboard.
+`Dev10x:afk` composes the walk-away posture as the baseline preset
+plus `gate_overlays: [afk]`; the overlay carries
+`session_adoption: auto-advance` (trust a stale session) and
+`doubt_sink: pr-description` (route deferred decisions to the PR
+body).
 
-Companion to `references/friction-levels.md` (which controls
-gate behavior universally) and `skills/afk/SKILL.md` (which
-composes the preset + overlay).
+Companion to `references/friction-levels.md`, which owns how a gate
+resolves. This document owns the `doubt_sink` contract.
 
-## Config Surface
+**There is no separate suppression layer and no `walk_away` flag.**
+Gate suppression is just the baseline auto-advancing every non-floored
+toggle ([ADR-0022](../docs/adr/0022-single-baseline-gate-model-with-supervisor-review.md)
+D-1); `afk` adds only the two toggles above (D-6 leaves the overlay
+otherwise untouched). Nothing writes `walk_away`, and no skill may
+branch on it — `dev10x config migrate-schema` converts an old
+`walk_away: true` into the `afk` overlay it always meant.
+
+## Config surface
 
 ```yaml
-# ~/.config/Dev10x/friction.yaml — current (ADR-0016 + ADR-0018 D1)
+# ~/.config/Dev10x/friction.yaml
 projects:
   - match: ["*/<repo>", "*/<repo>-*"]
-    gate_preset: adaptive     # walk-away base
-    gate_overlays: [afk]      # session_adoption: auto-advance + doubt_sink
+    gate_overlays: [afk]      # session_adoption + doubt_sink
+    supervisor_review: none   # only if the supervisor really is out
 ```
 
-```yaml
-# legacy shape (read-compat only, deprecated)
-friction_level: adaptive
-active_modes: [solo-maintainer]
-walk_away: true
-doubt_sink: pr-description    # pr-description | session-bookmark | commit-footer
-```
+`doubt_sink` is a real toggle supplied by the overlay (default
+`pr-description`). Read it from the resolver's resolved policy — it
+comes back as `log_to` on every `resolve_gate` answer — rather than
+parsing the config in each skill.
 
-The resolver reads the new-style keys directly; a legacy config is
-mapped to `(preset, overlays)` by `legacy_session_mapping` before
-resolution. `doubt_sink` remains a real toggle — it is supplied by
-the `afk` overlay (default `pr-description`) and read from the
-resolver's resolved policy, not hand-parsed by each skill.
+Note what `afk` does **not** buy: it is a statement that no human is
+present to answer a widget, which is orthogonal to *who reads the PR*.
+`supervisor_review: required` still floors the review gate, and an
+unattended run will park there. That is the intended behaviour — see
+`references/friction-levels.md` § `supervisor_review` for the remedy
+(the `review:cleared` label, or the durable key).
 
-## Question Classification (superseded by resolver floors)
+## Which questions still fire
 
-> The four-class manual classification below is **superseded**: the
-> `resolve_gate` resolver now performs the equivalent decision. The
-> `destructive` and `blocking` classes map to the resolver's **safety
-> floors** (`destructive_irreversible`, `secret_access`,
-> `cross_author_push`, `privacy_disclosure`, `blocking`), which force
-> `ask` regardless of preset. The `strategy` / `informational` classes
-> map to preset auto-advance under the `adaptive` base + `afk` overlay.
-> Skills pass the concrete facts (author type, destructiveness,
-> blocking) as `context` to `resolve_gate` and honor the returned
-> `effect` — they do not hand-classify. The table is retained to show
-> how the historical classes correspond to resolver behavior.
+Skills do not classify their own questions. They pass the concrete
+facts about the instance as `resolve_gate` `context` and honour the
+returned `effect`. The two classes that used to be hand-labelled map
+onto the resolver as follows:
 
-Historical four-category model (pre-resolver):
+| Historical class | Today |
+|---|---|
+| `destructive`, `blocking` | Safety floors (`destructive_irreversible`, `secret_access`, `cross_author_push`, `privacy_disclosure`, `blocking`) — `ask` regardless of overlay |
+| `strategy`, `informational` | Auto-advance, logged to `doubt_sink` |
 
-| Class | Examples | Walk-away behavior |
-|-------|----------|---------------------|
-| `destructive` | Force-push to protected branch, mass file delete, `aws-vault` secret retrieval, `git reset --hard origin/main` | **Fire normally** (ALWAYS_ASK) |
-| `blocking` | No auth credentials, conflicting upstream merge, missing required ADR, MCP server unreachable | **Fire normally** — the supervisor must intervene |
-| `strategy` | "Bundle or split PRs?", "Fixup or full restructure?", "Which milestone?" | **Suppress, pick Recommended, log to doubt_sink** |
-| `informational` | "Which slug?", "Add this nit to PR?", "Confirm title?" | **Suppress, pick best-guess, log to doubt_sink** |
+Re-asking a strategy already chosen is never a floor: the first prompt
+may have fired before the supervisor left, and the second must
+auto-advance.
 
-Re-strategy questions (asking the same strategy a second time
-mid-execution) are always `strategy`-class. The first prompt may
-have fired before walk-away was enabled; the second MUST be
-suppressed.
+## `doubt_sink` targets
 
-## Decision Flowchart (legacy — pre-resolver)
-
-The flowchart below is the pre-ADR-0016 model, kept for context.
-Today a skill calls `resolve_gate` and branches on the returned
-`effect` (see § Relationship to Friction Levels for the current
-pipeline).
-
-```
-AskUserQuestion call site
-  │
-  ▼
-Read the durable prefs (historically the per-repo session.yaml;
-now ~/.config/Dev10x/friction.yaml)
-  │
-  ▼
-walk_away == true ?
-  ├── no → fire AskUserQuestion (existing adaptive/guided/strict rules apply)
-  └── yes
-        │
-        ▼
-   Classify question
-        ├── destructive → fire AskUserQuestion (ALWAYS_ASK)
-        ├── blocking    → fire AskUserQuestion (cannot proceed)
-        ├── strategy    → pick Recommended, log to doubt_sink
-        └── informational → pick best-guess, log to doubt_sink
-```
-
-## doubt_sink Targets
-
-The `doubt_sink` field controls where suppressed-doubt entries
-land. Skills append, never overwrite.
+Where suppressed-doubt entries land. Skills append, never overwrite.
 
 ### `pr-description` (default)
 
-Append to the active PR body under a dedicated header. If no
-PR exists yet, buffer the entries in session state and flush
-them when `Dev10x:gh-pr-create` runs.
+Append to the active PR body under a dedicated header. If no PR exists
+yet, buffer the entries and flush them when `Dev10x:gh-pr-create`
+runs.
 
 ```markdown
 ## Concerns surfaced during implementation
 
 - [walk-away] Considered splitting commit 4 (auth refactor) into a
-  separate PR; proceeded with bundle to match approved strategy.
-  Recommended option: "keep in bundle".
-- [walk-away] Test coverage on `RetryHandler.backoff` is 0%; added
+  separate PR; proceeded with the bundle to match the approved
+  strategy. Recommended option: "keep in bundle".
+- [walk-away] Test coverage on `RetryHandler.backoff` is 0%; added a
   TODO instead of writing tests this PR. Followup: GH-???.
 ```
 
-Each entry includes:
-- A `[walk-away]` tag so reviewers can grep
-- The doubt in one sentence
-- What the agent did instead (the Recommended option taken)
-- Optional pointer to a followup ticket
+Each entry carries a `[walk-away]` tag so reviewers can grep, the
+doubt in one sentence, what the agent did instead, and optionally a
+pointer to a followup ticket.
 
 ### `session-bookmark`
 
-Append to the PR bookmark comment created by
-`Dev10x:gh-pr-bookmark`. Use for doubts that should survive
-session boundaries but do not belong in the merged PR body.
+Append to the PR bookmark comment created by `Dev10x:gh-pr-bookmark`.
+Use for doubts that should survive session boundaries but do not
+belong in the merged PR body.
 
 ### `commit-footer`
 
-Append to the most recent commit message as a `Concerns:` footer.
-Use only when the doubt is commit-scoped, not PR-scoped.
+Append to the most recent commit message as a `Concerns:` footer. Use
+only when the doubt is commit-scoped, not PR-scoped.
 
-## Skill Integration Checklist
+## Skill integration checklist
 
 For a skill that emits `AskUserQuestion`:
 
 1. ✓ Call `mcp__plugin_Dev10x_cli__resolve_gate(gate=…)` before the
      gate — do NOT read a config file and classify by hand; the
-     resolver owns preset / overlay / project-pin / safety-floor
-     precedence, and re-deriving it drifts (GH-760)
+     resolver owns floor / overlay / project-pin precedence, and
+     re-deriving it drifts (GH-760)
 2. ✓ Branch on the returned `effect` (`ask` / `auto-advance` / `skip`)
 3. ✓ On `auto-advance`, call the same code path that handles the
-     Recommended option, and surface the returned `record` line so a
-     present supervisor can veto
+     recommended option, and surface the returned `record` line so a
+     present supervisor can still veto
 4. ✓ Append a one-line entry to the resolved `log_to` doubt sink
 5. ✓ Log the suppression to the audit hook so `Dev10x:skill-audit`
-     can surface "walk-away suppressions" in the session report
+     can surface walk-away suppressions in the session report
 
-## Relationship to Friction Levels
+## Anti-patterns
 
-| Layer | Controls | Source of truth |
-|-------|----------|----------------|
-| `gate_preset` | How each gate resolves (base preset the resolver composes) | `references/friction-levels.md` |
-| `gate_overlays: [afk]` | Trusts a stale session + sets `doubt_sink` | `presets/friction/overlays/afk.yaml` |
-| `doubt_sink` | Where suppressed doubts are logged | the `afk` overlay (this document documents the sinks) |
-| `friction_level` (legacy) | Command-redirect strictness + Session Mode Summary display only — no longer resolves gates (GH-760) | `references/friction-levels.md` |
-| `active_modes` | Which playbook steps exist (structural) | `references/execution-modes.md` |
+- **Claiming a gate is `blocking` to keep the prompt** — that defeats
+  walk-away. Reserve `blocking` for upstream/auth/credential failures
+  the supervisor cannot fix later.
+- **Logging to `commit-footer` when the doubt is PR-wide** — commit
+  footers are commit-scoped; cross-commit concerns belong in the PR
+  body.
+- **Silent suppression** — every auto-advanced gate MUST log its
+  `record` line to `doubt_sink`. A gate suppressed without a log entry
+  is indistinguishable from a bug (ADR-0016 D-7).
 
-Precedence at a single gate is the **resolver pipeline** (ADR-0016
-D-4), not the legacy walk-away branch — see
-`references/friction-levels.md` § Plan-Approval Gate:
+## Known failure modes this addresses
 
-1. Safety floors (destructive+irreversible, blocking, secret access,
-   cross-author, privacy disclosure) → `ask` (deny-overrides)
-2. Else the resolved toggle from `gate_preset` + `gate_overlays` +
-   project pin + session `gate_overrides` decides
-   `ask` / `auto-advance` / `skip`
-3. On `auto-advance`, the resolver's `record` line is logged to
-   `doubt_sink` so a present supervisor can still veto
+Recurring failures documented from supervisor feedback:
 
-## Anti-Patterns
+- The agent stops at a gate that has no recommended option
+- The agent treats ambient chatter (a pasted Slack snippet) as a
+  reason to pause
+- A solo-maintainer PR loop spins waiting for a reviewer assignment
+  that is never coming
+- The agent re-prompts for a strategy the supervisor already chose
 
-- **Classifying every gate as `blocking` to keep the prompt** —
-  defeats walk-away. Reserve `blocking` for upstream/auth/credential
-  failures the supervisor cannot fix later.
-- **Logging to `commit-footer` when the doubt is PR-wide** —
-  commit footers should be commit-scoped; cross-commit concerns
-  belong in the PR body.
-- **Silent suppression** — every suppressed gate MUST log to
-  `doubt_sink`. A gate that was suppressed without a log entry
-  is indistinguishable from a bug.
+## Out of scope
 
-## Known Failure Modes (Pre-Walk-Away)
+Deliberate gaps the `Dev10x:afk` skill does not close:
 
-These are the recurring failures walk-away mode addresses,
-documented from user feedback memory:
-
-- `feedback_adaptive_no_pre_approval_gates` — adaptive still
-  fires gates that have no Recommended option
-- `feedback_ambient_chatter_not_pause_signal` — agent treats
-  the user's `[USER PASTED A SLACK SNIPPET]` chatter as a
-  reason to pause; walk-away forces push-through
-- `feedback_solo_maintainer_pr_loop` — solo-maintainer mode
-  loops waiting for reviewer assignment; walk-away short-circuits
-- `feedback_no_restrategy_after_user_chose` — agent re-prompts
-  for a strategy already chosen in Phase 3; walk-away suppresses
-  the duplicate prompt and logs the doubt to the PR body
-
-## Out of Scope (Followups)
-
-These are deliberate gaps the MVP `Dev10x:afk` skill does not close:
-
-- **Automatic classification of arbitrary `AskUserQuestion` calls**
-  by static analysis — each emitting skill must classify its own
-  questions
 - **Retroactive cancellation** of an `AskUserQuestion` already in
-  flight — walk-away takes effect on the next gate
-- **doubt_sink: slack** — Slack-routed doubts are a candidate
-  followup; today the three sinks (pr-description, session-bookmark,
-  commit-footer) cover the documented use cases
+  flight — the overlay takes effect at the next gate
+- **`doubt_sink: slack`** — a candidate followup; the three sinks
+  above cover the documented use cases
