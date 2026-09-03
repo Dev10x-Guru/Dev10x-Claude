@@ -180,8 +180,8 @@
         {
           "dimension": "failure-visibility",
           "check": "output_contains",
-          "value": "gog auth list",
-          "signal": "The fix tells the operator to copy the existing service list first, so other grants are not dropped"
+          "value": "--services youtube",
+          "signal": "The fix tells the operator to authorize YouTube as its own grant, since Google refuses drive and youtube scopes in one consent"
         },
         {
           "dimension": "failure-visibility",

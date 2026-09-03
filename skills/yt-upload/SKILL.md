@@ -139,43 +139,46 @@ This skill borrows a live token from [`gog`](https://gogcli.sh) rather than
 holding a credential of its own, so there is no client secret to distribute
 and nothing secret in the repo or the config file.
 
-```bash
-gog auth list          # copy the current service list FIRST
-gog auth add <email> --services <that list> \
-    --extra-scopes https://www.googleapis.com/auth/youtube.upload \
-    --force-consent
-```
+Run `check` after each setup step rather than working the list top to bottom
+blind — it names the next thing to fix.
 
-Repeat the **existing** service list when re-authorizing. Omitting it silently
-drops the Drive and Gmail grants that other skills depend on.
+**Full setup:
+[`Dev10x:gog` § YouTube](../gog/references/youtube.md)**, with the shared
+OAuth traps in
+[`references/auth-setup.md`](../gog/references/auth-setup.md). The four
+that decide whether a first-time setup succeeds:
 
-`check` reports what is missing. The YouTube Data API v3 must also be enabled
-on the Cloud project behind the OAuth client; `check` names the console URL
-when it is not.
+1. **The OAuth client must be a *Desktop app*.** gog binds a random
+   loopback port and only desktop clients get the any-port exemption; a web
+   client fails with `redirect_uri_mismatch` naming a port that differs
+   next run.
+2. **Authorize YouTube as its own grant** — `--services youtube`. Google
+   refuses Drive and YouTube scopes in one consent, so appending
+   `--extra-scopes …/youtube.upload` to a list containing `drive` cannot
+   succeed. A separate grant leaves Drive and Gmail untouched.
+3. **Use `--remote --step 1` / `--step 2 --auth-url`.** Claude Code
+   backgrounds anything past 120s, so the loopback browser flow dies with
+   `context deadline exceeded` every time.
+4. **If consent is still refused with "scopes that cannot be requested
+   together", set `include_granted_scopes=false` in the printed URL.** gog
+   hardcodes it on, so a consent screen already carrying Drive scopes gets
+   them folded back in and rejected.
+
+The YouTube Data API v3 must also be enabled on that client's Cloud
+project; `check` names the console URL when it is not.
 
 ### Why the script transfers the bytes itself
 
-gog owns auth but **cannot carry the media body**, so the resumable
-`videos.insert` is done here with gog's exported token. Verified against
-`gog v0.34.1 (4747fb05, 2026-07-16)`:
+gog owns auth but **cannot carry a media body** — there is no
+`youtube videos insert`, and `api call` takes JSON only — so the resumable
+`videos.insert` is hand-rolled here with gog's exported token. Everything
+gog *can* do stays with gog: warming the token, minting the credential, and
+confirming the upload landed. See
+[`Dev10x:gog` § There is no upload command](../gog/references/youtube.md).
 
-- `gog youtube videos --help` — the only subcommand is `list`; there is no
-  `insert`.
-- `gog api call --help` — `--params` and `--body` take JSON only; there is no
-  `--media` / `--upload-file`.
-
-`videos.insert` needs a media body and `--body` is JSON, so no gog invocation
-can move the file. Everything gog *can* do stays with gog: warming the token
-(`youtube channels list --mine`), minting the credential (`auth tokens
-export`), and confirming the upload landed (`youtube videos list --id`).
-
-**Re-check this on a gog upgrade.** If a media flag appears, move the transfer
-to gog and delete the hand-rolled `open_session`/`upload` pair — it exists
-only because gog cannot do it.
-
-Note `gog youtube videos list` without `-a <account>` falls back to the
-API-key path and fails with "YouTube API key required" — the account flag is
-what selects OAuth. The script always passes it.
+**Re-check on a gog upgrade.** If a media flag appears, move the transfer to
+gog and delete the hand-rolled `open_session`/`upload` pair — it exists only
+because gog cannot do it.
 
 ## Account and channel preference
 
@@ -206,27 +209,27 @@ self-settings consent gate fires.
 
 ## How the token is handled
 
-`gog auth tokens export` writes a live access token to a file. The script
-creates that file's directory with `mkdtemp` — atomically, mode `0700`, owned
-by the calling user — rather than building a path by hand: `mkdir(exist_ok=True)`
-in a world-writable `/tmp` would silently reuse a directory another local user
-pre-created and owns. Directory ownership is the control here, not path
-secrecy. It also tightens the umask before invoking gog, so the file is
-owner-only from creation rather than from the `chmod` that follows.
+`gog auth tokens export` writes a **live access token** to a file. The
+script creates its directory with `mkdtemp` (atomic, mode `0700`, owned by
+the caller) rather than building a path in world-writable `/tmp` where
+`mkdir(exist_ok=True)` would silently reuse a directory another local user
+owns — directory ownership is the control here, not path secrecy. It
+tightens the umask before invoking gog so the file is owner-only from
+creation rather than from the `chmod` that follows.
 
 The token is used as a Bearer header, never logged, never passed in a gog
-argv, and never included in the returned JSON. The OAuth client secret is
-never read and the refresh token is never exchanged.
+argv, never returned in the JSON. The client secret is never read and the
+refresh token is never exchanged.
 
-Cleanup shreds the file and removes its directory in a `finally`, so an
-exception mid-upload still zeroes it, and a `SIGTERM` handler routes an
-external `kill` through the same path — Python's default SIGTERM disposition
-would otherwise kill the process without unwinding and leave the export
-behind. `SIGKILL` and a host crash cannot be covered by any design. If
-shredding fails, the script says so on stderr: a surviving export is a live
-credential.
+Cleanup shreds the file and removes its directory in a `finally`, and a
+`SIGTERM` handler routes an external `kill` through the same path — Python's
+default disposition would otherwise exit without unwinding and leave the
+export behind. `SIGKILL` and a host crash cannot be covered by any design;
+if shredding fails the script says so on stderr, because a surviving export
+is a live credential.
 
-Shredding is best-effort, not a secure erase — on copy-on-write filesystems,
-SSDs with wear levelling, or an encrypted volume the original blocks may
-survive. That is an accepted trade-off for a token that lives for seconds and
-that gog can revoke and reissue.
+Shredding is best-effort, not a secure erase — on CoW filesystems, SSDs with
+wear levelling, or an encrypted volume the original blocks may survive. That
+is an accepted trade-off for a token that lives for seconds and that gog can
+revoke and reissue. This is the worked reference for the token-handling rule
+in [`Dev10x:gog` § Tokens](../gog/references/auth-setup.md).
