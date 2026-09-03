@@ -569,14 +569,38 @@ def test_warm_token_names_the_console_url_when_api_disabled(
         _mod.warm_token("you@example.com")
 
 
-def test_warm_token_tells_you_to_keep_existing_services(
+def test_warm_token_tells_you_to_authorize_youtube_separately(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Re-authorizing without repeating the service list silently drops the
-    Drive grant other skills depend on — the fix has to say so."""
+    """Google refuses drive and youtube scopes in one consent, so remediation
+    that says 'repeat your existing service list' cannot succeed (GH-1156)."""
     fake_gog(monkeypatch, FakeProc(returncode=1, stderr="insufficient permissions"))
 
-    with pytest.raises(_mod.UploadError, match="gog auth list"):
+    with pytest.raises(_mod.UploadError, match="--services youtube"):
+        _mod.warm_token("you@example.com")
+
+
+def test_warm_token_does_not_send_you_back_to_the_refused_command(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The old remediation told the operator to copy the existing service list,
+    which is exactly the request Google rejects (GH-1156)."""
+    fake_gog(monkeypatch, FakeProc(returncode=1, stderr="insufficient permissions"))
+
+    with pytest.raises(_mod.UploadError) as excinfo:
+        _mod.warm_token("you@example.com")
+
+    assert "gog auth list" not in str(excinfo.value)
+
+
+def test_warm_token_names_the_remote_flow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The loopback browser flow cannot finish under Claude Code's 120s
+    backgrounding, so remediation has to name the two-step remote flow."""
+    fake_gog(monkeypatch, FakeProc(returncode=1, stderr="insufficient permissions"))
+
+    with pytest.raises(_mod.UploadError, match="--remote --step 1"):
         _mod.warm_token("you@example.com")
 
 
@@ -688,6 +712,25 @@ def test_missing_upload_scope_names_the_extra_scopes_flag(
     )
 
     with pytest.raises(_mod.UploadError, match="--extra-scopes"):
+        _mod.get_access_token("you@example.com", export)
+
+
+def test_missing_upload_scope_asks_for_a_separate_youtube_grant(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Appending the scope to a list that holds drive is refused by Google, so
+    the remediation must ask for youtube on its own (GH-1156)."""
+    export = tmp_path / "token.json"
+    monkeypatch.setattr(
+        _mod,
+        "_run_gog",
+        _export_writer(
+            export,
+            _token_payload(scopes=["https://www.googleapis.com/auth/drive"]),
+        ),
+    )
+
+    with pytest.raises(_mod.UploadError, match="--services youtube"):
         _mod.get_access_token("you@example.com", export)
 
 

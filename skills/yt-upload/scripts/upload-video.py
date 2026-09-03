@@ -284,12 +284,14 @@ def warm_token(account: str) -> None:
     lowered = error.lower()
     if "insufficient" in lowered or "forbidden" in lowered:
         raise UploadError(
-            "the stored grant cannot call the YouTube API. Re-authorize including "
-            "youtube.upload, and keep every service you already have or you will "
-            "drop the Drive grant evidence uploads rely on: run `gog auth list` to "
-            "copy the current service list, then `gog auth add <email> --services "
-            "<that list> --extra-scopes "
-            "https://www.googleapis.com/auth/youtube.upload --force-consent`"
+            "the stored grant cannot call the YouTube API. Authorize YouTube as its "
+            "OWN grant — appending youtube.upload to a service list that includes "
+            "drive is refused as 'scopes that cannot be requested together', and a "
+            "separate grant leaves your Drive and Gmail grants untouched: run `gog "
+            "auth add <email> --services youtube --extra-scopes "
+            "https://www.googleapis.com/auth/youtube.upload --force-consent --remote "
+            "--step 1`, then `gog auth add <email> --remote --step 2 --auth-url "
+            "<redirect URL>`"
         )
     raise UploadError(f"gog could not reach YouTube: {error}")
 
@@ -337,8 +339,11 @@ def get_access_token(account: str, export_path: Path) -> str:
     if not any("youtube.upload" in scope for scope in scopes):
         raise UploadError(
             "this grant lacks the youtube.upload scope, so it can read YouTube but "
-            "not publish to it. Re-authorize keeping your existing services and add "
-            "--extra-scopes https://www.googleapis.com/auth/youtube.upload"
+            "not publish to it. Authorize YouTube as its OWN grant — `gog auth add "
+            "<email> --services youtube --extra-scopes "
+            "https://www.googleapis.com/auth/youtube.upload --force-consent --remote "
+            "--step 1` — rather than adding the scope to a service list that already "
+            "includes drive, which Google refuses"
         )
 
     expires_raw = data.get("access_token_expires_at")
