@@ -773,22 +773,27 @@ class TestSupervisorReviewPinTool:
         monkeypatch.setattr(
             "dev10x.session.preset_pin._common_dir", lambda *, cwd: str(main / ".git")
         )
+        # `supervisor_review_status` resolves its toplevel via `GitContext`
+        # directly (unlike the `_common_dir`-keyed pin tools), so it needs
+        # its own patch — same pattern `TestHumanReviewStatusTool` uses.
+        monkeypatch.setattr(
+            "dev10x.domain.git_context.GitContext.toplevel",
+            property(lambda self: str(main)),
+        )
         return main
 
     @pytest.mark.asyncio
-    async def test_pin_and_status_round_trip_across_worktrees(self, zebra_repo: Path) -> None:
-        """Pin in `<repo>-3`, and `<repo>-9` sees it — no re-ask."""
+    async def test_pin_and_status_round_trip(self, zebra_repo: Path) -> None:
+        """Pin persists, and `supervisor_review_status` sees it — no re-ask."""
         from dev10x.mcp.gate_tools import pin_supervisor_review, supervisor_review_status
 
-        before = await supervisor_review_status(cwd="/work/bl/.worktrees/bl-zebra-3")
+        before = await supervisor_review_status()
         assert before["pinned"] is False
 
-        pinned = await pin_supervisor_review(
-            supervisor_review="none", cwd="/work/bl/.worktrees/bl-zebra-3"
-        )
+        pinned = await pin_supervisor_review(supervisor_review="none", cwd=str(zebra_repo))
         assert pinned["match"] == ["*/bl-zebra", "*/bl-zebra-*"]
 
-        after = await supervisor_review_status(cwd="/work/bl/.worktrees/bl-zebra-9")
+        after = await supervisor_review_status()
         assert after["pinned"] is True
         assert after["supervisor_review"] == "none"
 
