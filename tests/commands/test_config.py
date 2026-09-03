@@ -110,3 +110,98 @@ class TestConfigDoctor:
         with patch("dev10x.commands.config.stale_legacy_paths", return_value=stale):
             result = runner.invoke(config, ["doctor"])
         assert "dev10x config migrate" in result.output
+
+    def test_reports_schema_v1_residue_separately(self) -> None:
+        """File *location* and schema *version* are independent axes (GH-1166)."""
+        _write_v1_friction()
+        runner = CliRunner()
+        with patch("dev10x.commands.config.stale_legacy_paths", return_value=[]):
+            result = runner.invoke(config, ["doctor"])
+        assert "canonical XDG location" in result.output
+        assert "durable config entry on v1" in result.output
+        assert "migrate-schema" in result.output
+
+    def test_reports_a_clean_schema(self) -> None:
+        runner = CliRunner()
+        with patch("dev10x.commands.config.stale_legacy_paths", return_value=[]):
+            result = runner.invoke(config, ["doctor"])
+        assert "schema v2" in result.output
+
+
+def _write_v1_friction() -> Path:
+    """Seed the isolated config home with a v1-shaped friction.yaml."""
+    from dev10x.domain.dev10x_paths import Dev10xConfigDir
+
+    path = Dev10xConfigDir.friction_yaml()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("defaults:\n  friction_level: strict\n")
+    return path
+
+
+class TestConfigMigrateSchema:
+    def test_reports_nothing_to_do_on_a_clean_machine(self, tmp_path: Path) -> None:
+        runner = CliRunner()
+        result = runner.invoke(config, ["migrate-schema", "--cwd", str(tmp_path)])
+        assert result.exit_code == 0
+        assert "already at schema v2" in result.output
+
+    def test_converts_and_names_each_entry(self, tmp_path: Path) -> None:
+        path = _write_v1_friction()
+        runner = CliRunner()
+        result = runner.invoke(config, ["migrate-schema", "--cwd", str(tmp_path)])
+        assert result.exit_code == 0
+        assert "Converted 1 durable config entry" in result.output
+        assert "supervisor_review: required" in result.output
+        assert "keys dropped: friction_level" in result.output
+        assert "friction_level" not in path.read_text()
+
+    def test_dry_run_previews_without_writing(self, tmp_path: Path) -> None:
+        path = _write_v1_friction()
+        before = path.read_text()
+        runner = CliRunner()
+        result = runner.invoke(config, ["migrate-schema", "--cwd", str(tmp_path), "--dry-run"])
+        assert "Would convert 1 durable config entry" in result.output
+        assert "dev10x config migrate-schema" in result.output
+        assert path.read_text() == before
+
+    def test_reports_dropped_preset_and_added_overlays(self, tmp_path: Path) -> None:
+        from dev10x.domain.dev10x_paths import Dev10xConfigDir
+
+        path = Dev10xConfigDir.friction_yaml()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            'projects:\n  - match: ["*/r"]\n    gate_preset: guided\n    walk_away: true\n'
+        )
+        runner = CliRunner()
+        result = runner.invoke(config, ["migrate-schema", "--cwd", str(tmp_path)])
+        assert "retired preset dropped: guided" in result.output
+        assert "overlays added: afk" in result.output
+
+    def test_a_domain_failure_becomes_a_cli_error(self, tmp_path: Path) -> None:
+        """The script layer owns the exit code, not the domain (GH-246 H7)."""
+        from dev10x.domain.common.result import err
+
+        runner = CliRunner()
+        with patch(
+            "dev10x.domain.config_migration.migrate_configs",
+            return_value=err("friction.yaml is not writable"),
+        ):
+            result = runner.invoke(config, ["migrate-schema", "--cwd", str(tmp_path)])
+        assert result.exit_code != 0
+        assert "friction.yaml is not writable" in result.output
+
+    def test_plural_wording_for_multiple_entries(self, tmp_path: Path) -> None:
+        from dev10x.domain.dev10x_paths import Dev10xConfigDir
+
+        path = Dev10xConfigDir.friction_yaml()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "defaults:\n"
+            "  friction_level: guided\n"
+            "projects:\n"
+            '  - match: ["*/r"]\n'
+            "    human_review: true\n"
+        )
+        runner = CliRunner()
+        result = runner.invoke(config, ["migrate-schema", "--cwd", str(tmp_path)])
+        assert "Converted 2 durable config entries" in result.output

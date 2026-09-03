@@ -107,10 +107,6 @@ class EntryMigration:
     dropped_keys: list[str] = field(default_factory=list)
     dropped_preset: str | None = None
 
-    @property
-    def changed(self) -> bool:
-        return bool(self.added_overlays or self.dropped_keys or self.dropped_preset)
-
     def to_dict(self) -> dict[str, Any]:
         return {
             "scope": self.scope,
