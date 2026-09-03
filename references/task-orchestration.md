@@ -39,6 +39,22 @@ on a specific pattern should link the pattern file directly:
 > See `references/orchestration/subagent-dispatch.md` for the
 > full dispatch pattern.
 
+## State-Mutation Re-Verification Pattern
+
+When a skill call modifies shared state (PR draft status, issue
+open/closed, etc.), verify the state change **immediately** via a
+fresh tool call. If later operations might invalidate the state
+(force-push resets draft status), re-verify after each such operation.
+
+**Example**: `create_pr(draft=false)` publishes a PR. Immediately call
+`pr_get` to verify `isDraft=false`. If a force-push follows, call
+`pr_ready` again to re-publish, then re-verify with `pr_get`.
+
+This pattern prevents tools from appearing to succeed while the actual
+state silently reverts (e.g., GitHub force-push behavior, GitHub
+issue closure scope). See `references/github-api-quirks.md` for
+concrete GitHub API quirks that require re-verification.
+
 ## When to skip pattern docs
 
 Minimal-tier skills (1-2 steps, no decisions) only need
