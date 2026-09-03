@@ -455,22 +455,23 @@ Next steps:
   protected branch checks and body formatting. Audit sessions
   GH-448 and GH-446 confirmed this regression pattern.
 - Create PRs as drafts initially — **exception:** when
-  `solo-maintainer` is in the DURABLE `active_modes` (global
-  `~/.config/Dev10x/friction.yaml` for this repo, falling back to
-  legacy `.claude/Dev10x/config.yaml` — NOT the retired ephemeral
-  `.claude/Dev10x/session.yaml`, ADR-0018 / GH-854 F3), pass
-  `draft=False` to `create_pr` so the PR is immediately
-  ready-for-review. There is no reviewer in solo-maintainer mode, so
-  leaving the PR draft just adds a manual flip step (GH-184).
-- **Auto-merge warning at creation (GH-848 F4).** When the session
-  posture will auto-advance to merge on green — `solo-maintainer` +
-  `adaptive` (the GH-883 AUTO_MERGE terminal), or auto-merge is armed
-  on the PR — say so plainly in the creation summary: "This PR is on
-  an auto-merge path: it will merge itself once CI passes, without a
-  further checkpoint." This makes the autonomous shipping visible to a
-  supervisor who may still want to review. On a team repo (where
-  `allowed_overlays` drops the solo-maintainer overlay), no such path
-  exists and the warning is omitted.
+  `mcp__plugin_Dev10x_cli__supervisor_review_status()` reports
+  `supervisor_review: "none"`, pass `draft=False` to `create_pr` so the
+  PR is immediately ready-for-review. Nobody reads this project's PRs
+  before merge, so leaving the PR draft just adds a manual flip step
+  (GH-184). Do NOT read `friction.yaml`, `active_modes`, or any session
+  file to answer this — that tool owns the precedence, exactly as
+  `resolve_gate` owns the rest of the gate policy (ADR-0022 D-2).
+- **Auto-merge warning at creation (GH-848 F4).** Call
+  `mcp__plugin_Dev10x_cli__resolve_gate(gate="merge", context={})`.
+  When it returns `effect: "auto-advance"` — or auto-merge is already
+  armed on the PR — the PR will merge itself on green, so say so
+  plainly in the creation summary: "This PR is on an auto-merge path:
+  it will merge itself once CI passes, without a further checkpoint."
+  This makes the autonomous shipping visible to a supervisor who may
+  still want to review. Any other effect means a checkpoint remains and
+  the warning is omitted. Do NOT re-derive this from preset, overlay,
+  or `active_modes` values — the resolver already applied them.
 - **Milestone-bundle PRs:** when a single PR ships multiple
   issues (e.g., closing several sub-tickets of a milestone),
   pass the issue numbers as `closes=[N, M, ...]` to `create_pr`.
