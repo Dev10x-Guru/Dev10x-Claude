@@ -533,21 +533,47 @@ groups:
     tier: 3
     description: >
       Read-only surface of the gog Google CLI (https://gogcli.sh), used by
-      Dev10x:yt-upload's preflight and post-upload read-back (GH-1119).
+      Dev10x:yt-upload's preflight and post-upload read-back (GH-1119) and
+      by Dev10x:gog, which runs gog directly at the Bash layer (GH-1156).
       Opt-in — gog is a personal tool, not a Dev10x dependency, so most
-      users have nothing to grant here. Scoped to the exact subcommands the
-      wrapper runs: a blanket `Bash(gog youtube:*)` would also pre-approve
-      the delete verbs, and `Bash(gog drive:*)` would pre-approve
-      `gog drive delete`.
+      users have nothing to grant here. Scoped to the exact subcommands
+      those skills run: a blanket `Bash(gog youtube:*)` would also
+      pre-approve the delete verbs, and `Bash(gog drive:*)` would
+      pre-approve `gog drive delete`.
 
-      Note these rules are NOT required for the skill itself. The gog calls
+      Note these rules are NOT required for Dev10x:yt-upload. Its gog calls
       live inside `skills/yt-upload/scripts/upload-video.py`, and the
       permission layer only sees Bash tool invocations — not subprocess
       calls made from within a script — so the scripts glob already covers
-      them. This group is for direct gog use at the Bash layer.
+      them. This group is for direct gog use at the Bash layer, which is
+      Dev10x:gog's entire surface.
+
+      Every verb here is non-mutating. `drive audit` is the sharing-audit
+      command that exists precisely to answer "who has access?" without
+      changing anything; `drive raw` is a lossless Files.Get. Read verbs
+      that write a local artifact (`drive download`, `drive inventory`) are
+      deliberately absent, as is `chat dm space`, which CREATES a DM space
+      when one does not exist — its `find`-like name is the trap.
     rules:
       - Bash(gog --version)
+      - Bash(gog schema:*)
       - Bash(gog auth list:*)
+      - Bash(gog auth status:*)
+      - Bash(gog auth doctor:*)
+      - Bash(gog auth services:*)
+      - Bash(gog chat spaces list:*)
+      - Bash(gog chat spaces find:*)
+      - Bash(gog chat messages list:*)
+      - Bash(gog chat threads list:*)
+      - Bash(gog drive ls:*)
+      - Bash(gog drive search:*)
+      - Bash(gog drive tree:*)
+      - Bash(gog drive du:*)
+      - Bash(gog drive get:*)
+      - Bash(gog drive raw:*)
+      - Bash(gog drive permissions:*)
+      - Bash(gog drive drives:*)
+      - Bash(gog drive audit:*)
       - Bash(gog youtube channels list:*)
       - Bash(gog youtube videos list:*)
 

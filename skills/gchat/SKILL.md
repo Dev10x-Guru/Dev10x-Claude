@@ -191,6 +191,13 @@ cannot render; it is derived from the message body unless you pass
 File upload, message update/delete, reactions, threading. These exist
 for Slack but remain out of scope for Google Chat.
 
+**Reading is not just out of scope, it is impossible here.** The bot has
+app auth and is only a member of spaces it was explicitly added to, so it
+cannot see a DM or an arbitrary space at all. To *read* Chat — a thread a
+colleague linked, a DM, a space you are in — use
+[`Dev10x:gog` § Google Chat](../gog/references/chat.md), which goes
+through your own OAuth grant.
+
 Rich cards **were** a v1 non-goal; GH-1113 lifted that — see § Formatting.
 Interactive card widgets (`textInput`, `selectionInput`, `dateTimePicker`)
 stay out of scope: they only pay off with an endpoint that handles the
