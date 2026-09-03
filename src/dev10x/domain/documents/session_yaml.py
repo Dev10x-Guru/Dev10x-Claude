@@ -812,8 +812,19 @@ class SessionYamlDocument:
         overrides = data.get("gate_overrides")
         preset = data.get("gate_preset")
         overlays = data.get("gate_overlays")
+        raw_level = data.get("friction_level")
         return {
-            "friction_level": FrictionLevel.from_yaml(data.get("friction_level")).value,
+            # ``None`` when the key is absent — the gate layer needs to tell
+            # "no legacy posture declared" (resolve at the ADR-0022 D-1
+            # baseline) from "explicitly strict" (a retired preset name that
+            # must fail loudly rather than resolve at a MORE autonomous
+            # baseline). Defaulting to ``FrictionLevel.default()`` here, as
+            # this reader used to, collapsed those two cases into "strict".
+            "friction_level": (
+                FrictionLevel.from_yaml(raw_level).value
+                if isinstance(raw_level, str) and raw_level.strip()
+                else None
+            ),
             "active_modes": modes if isinstance(modes, list) else [],
             "walk_away": bool(data.get("walk_away", False)),
             "gate_overrides": overrides if isinstance(overrides, dict) else {},

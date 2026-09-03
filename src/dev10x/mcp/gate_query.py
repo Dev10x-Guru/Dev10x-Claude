@@ -181,6 +181,7 @@ class GateResolutionQuery:
         )
         from dev10x.domain.documents.session_yaml import SessionYamlDocument
         from dev10x.domain.gate_policy import (
+            BASELINE_PRESET,
             GateContext,
             UnknownPresetError,
             UnknownToggleError,
@@ -218,11 +219,29 @@ class GateResolutionQuery:
                 overlays = inputs["gate_overlays"]
             else:
                 _, overlays = legacy_session_mapping(
-                    friction_level=inputs["friction_level"],
+                    friction_level=BASELINE_PRESET,
                     active_modes=inputs["active_modes"],
                     walk_away=inputs["walk_away"],
                 )
+        elif inputs["friction_level"] is None:
+            # ADR-0022 D-1: nothing declares a posture, so the single shipped
+            # baseline applies. `legacy_session_mapping` still derives the
+            # overlays from active_modes/walk_away — only its preset leg is
+            # retired here, and only for configs that name no posture at all.
+            preset = BASELINE_PRESET
+            _, overlays = legacy_session_mapping(
+                friction_level=BASELINE_PRESET,
+                active_modes=inputs["active_modes"],
+                walk_away=inputs["walk_away"],
+            )
         else:
+            # A config that DOES declare `friction_level` keeps the legacy
+            # read-compat seam. A retired name (`strict`/`guided`) surfaces as
+            # an UnknownPresetError below rather than resolving at the more
+            # autonomous baseline — a silent autonomy escalation on a repo that
+            # asked for less is the one outcome this branch must not produce.
+            # The FRIC-M3 migrator rewrites such configs; until then the error
+            # is the signal. (GH-1162 retires this branch.)
             preset, overlays = legacy_session_mapping(
                 friction_level=inputs["friction_level"],
                 active_modes=inputs["active_modes"],
