@@ -255,9 +255,6 @@ defaults:
         condition: hint (optional)
         modes:            # per-mode overrides (optional)
           <mode-name>: skip | {subject, prompt, skills, ...}
-        friction:         # per-friction-level overrides (optional)
-          adaptive: skip: true | {prompt, subject, skills, ...}
-          strict: {prompt, ...}
       - fragment: <fragment-name> (optional — inline reference)
         condition: hint (optional — applied to all expanded steps)
         prompt: ... (optional — overrides prompt on all expanded steps)
@@ -276,19 +273,16 @@ overrides: []  # populated by this skill when user customizes
 # These shadow default fragments with the same name.
 ```
 
-### Modes and Friction
+### Modes
 
 **Modes** are structural — they change *what* steps exist and
 *who* is involved (e.g., solo-maintainer removes reviewer steps).
-**Friction levels** are behavioral — they change *how* gates fire
-(strict/guided/adaptive). These are orthogonal dimensions.
 
-Steps declare `modes:` and `friction:` inline. The resolver
-applies modes first, then friction, so mode-added steps can
-have their own friction mappings.
+Steps declare `modes:` inline; the resolver applies the active
+modes at resolution time. Gate pacing is not a per-step field —
+a step states its behaviour once, in its own `prompt`.
 
-See `references/execution-modes.md` for the full mode taxonomy
-and `references/friction-levels.md` for friction behavior.
+See `references/execution-modes.md` for the full mode taxonomy.
 
 **Project activation** (global playbook with repo mapping):
 ```yaml
@@ -303,7 +297,6 @@ projects:
 # ~/.config/Dev10x/friction.yaml
 projects:
   - match: ["*/<repo>", "*/<repo>-*"]
-    friction_level: adaptive
     active_modes: [solo-maintainer]
 ```
 
