@@ -612,12 +612,13 @@ def set_playbook_modes(
 
 
 # Overlays that also name an execution mode, so mode-filtering consumers see
-# the same posture the gate resolver does (GH-1003). `legacy_session_mapping`
-# maps modes -> overlays; this is the missing reverse leg. `afk` is absent by
-# design: it is overlay-only (its legacy source is the `walk_away` bool, not a
-# mode), it is not documented in references/active-modes.md, and no consumer
-# filters playbook steps or DoD checks on it. Structural modes
-# (`review-deferred`, `swarm-child`) have no overlay and stay active_modes-only.
+# the same posture the gate resolver does (GH-1003). Since GH-1162 this is the
+# ONLY direction that survives: overlays -> modes. The reverse leg was the
+# retired read-compat seam, and a config that still needs it is refused rather
+# than translated. `afk` is absent by design: it is overlay-only, it is not
+# documented in references/active-modes.md, and no consumer filters playbook
+# steps or DoD checks on it. Structural modes (`review-deferred`,
+# `swarm-child`) have no overlay and stay active_modes-only.
 _OVERLAY_DERIVED_MODES: dict[str, str] = {"solo-maintainer": "solo-maintainer"}
 
 
@@ -855,12 +856,17 @@ class SessionYamlDocument:
         """Return the resolver inputs for ``gate_policy`` (ADR-0016).
 
         All of these are **durable** — read from ``config.yaml`` with the
-        pre-split ``session.yaml`` fallback. Two input styles coexist
-        (ADR-0016 D-4): new-style ``gate_preset`` / ``gate_overlays`` name a
-        preset + overlays directly; when absent, the legacy keys
-        (``friction_level``, ``active_modes``, ``walk_away``) feed
-        :func:`dev10x.domain.gate_policy.legacy_session_mapping`. Either way
+        pre-split ``session.yaml`` fallback. ``gate_preset`` /
+        ``gate_overlays`` name the preset and overlays directly, and
         ``gate_overrides`` carries per-toggle session overrides.
+
+        The v1 keys (``friction_level``, ``walk_away``, and
+        ``active_modes``) still ride along, but nothing translates them
+        into a posture any more (GH-1162). They are reported so
+        :func:`dev10x.domain.gate_policy.legacy_policy_keys` can *detect*
+        an un-migrated config and refuse it by name — resolving one at the
+        sole remaining baseline would widen autonomy on a repo that had
+        pinned a stricter posture.
 
         ``allowed_overlays`` (GH-805) is the repo-character overlay allow-list:
         ``None`` when unset (permissive), else the whitelist the resolver

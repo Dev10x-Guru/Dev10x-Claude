@@ -15,7 +15,7 @@ import yaml
 from dev10x import github as github_module
 from dev10x.domain.common.result import ErrorResult, err, ok
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.gate_policy import GateContext
+from dev10x.domain.gate_policy import MIGRATOR_COMMAND, GateContext
 from dev10x.mcp.gate_query import (
     REVIEW_CLEARED_LABEL,
     GateResolutionOutcome,
@@ -129,11 +129,79 @@ class TestGateResolutionQuery:
         # so the durable-mode guard drops it before resolution (GH-805).
         _write_config(
             tmp_path,
-            "friction_level: adaptive\nactive_modes: [solo-maintainer]\nallowed_overlays: [afk]\n",
+            "gate_overlays: [solo-maintainer]\nallowed_overlays: [afk]\n",
         )
         result = await GateResolutionQuery(gate="merge", context={}, toplevel=str(tmp_path)).run()
         assert not isinstance(result, ErrorResult)
         assert "solo-maintainer" in result.value.dropped_overlays
+
+
+class TestLegacyConfigIsRefused:
+    """GH-1162: an un-migrated config must fail loud, not resolve wider.
+
+    This is the half of the retirement CI cannot otherwise catch — CI has
+    no pre-ADR-0022 config, so nothing would notice the resolver quietly
+    treating one as "no posture declared" and handing it the baseline.
+    For a repo that had pinned ``friction_level: strict`` that fallback is
+    an autonomy escalation: it comes up auto-merging.
+    """
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "friction_level: strict\nactive_modes: []\n",
+            "friction_level: adaptive\nactive_modes: []\n",
+            "walk_away: true\n",
+            "active_modes: [solo-maintainer]\n",
+            "gate_preset: guided\n",
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_legacy_only_config_errors_naming_the_migrator(
+        self, tmp_path: Path, body: str
+    ) -> None:
+        _write_config(tmp_path, body)
+        result = await GateResolutionQuery(gate="merge", context={}, toplevel=str(tmp_path)).run()
+        assert isinstance(result, ErrorResult)
+        assert MIGRATOR_COMMAND in result.to_dict()["error"]
+
+    @pytest.mark.asyncio
+    async def test_migrated_config_resolves_normally(self, tmp_path: Path) -> None:
+        """The migrator's own output — overlays materialised, v1 keys gone."""
+        _write_config(
+            tmp_path,
+            "gate_overlays: [solo-maintainer, afk]\n"
+            "active_modes: [solo-maintainer]\n"
+            "supervisor_review: none\n",
+        )
+        result = await GateResolutionQuery(gate="merge", context={}, toplevel=str(tmp_path)).run()
+        assert not isinstance(result, ErrorResult)
+        assert result.value.resolution.effect.value == "auto-advance"
+
+    @pytest.mark.asyncio
+    async def test_preset_without_overlays_inherits_nothing(self, tmp_path: Path) -> None:
+        """The retired transition branch: omitted gate_overlays means NONE.
+
+        It used to fall back to the active_modes/walk_away-derived list.
+        A structural mode is not an overlay, so this config resolves with
+        an empty overlay list rather than inheriting one.
+        """
+        _write_config(
+            tmp_path,
+            "gate_preset: adaptive\nactive_modes: [review-deferred]\nsupervisor_review: none\n",
+        )
+        result = await GateResolutionQuery(
+            gate="request_review", context={}, toplevel=str(tmp_path)
+        ).run()
+        assert not isinstance(result, ErrorResult)
+        # The solo-maintainer overlay would have made this `skip`.
+        assert result.value.resolution.effect.value == "auto-advance"
+
+    @pytest.mark.asyncio
+    async def test_empty_config_still_resolves_at_the_baseline(self, tmp_path: Path) -> None:
+        """A repo that never declared a posture is not an un-migrated one."""
+        result = await GateResolutionQuery(gate="merge", context={}, toplevel=str(tmp_path)).run()
+        assert not isinstance(result, ErrorResult)
 
 
 class TestSupervisorSignOffSignal:

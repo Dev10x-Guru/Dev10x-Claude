@@ -1,7 +1,9 @@
 """Tests for the resolve_gate MCP glue (ADR-0016 spike).
 
-Covers the session.yaml → legacy mapping → resolver pipeline and the
-project-tier override file, using tmp_path as the repo toplevel.
+Covers the session.yaml → resolver pipeline and the project-tier override
+file, using tmp_path as the repo toplevel. The legacy-mapping leg of that
+pipeline was retired by GH-1162: a config still speaking v1 vocabulary is
+refused with the migrator's name, never resolved at the baseline.
 """
 
 from __future__ import annotations
@@ -11,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from dev10x.domain.documents.session_yaml import SessionYamlDocument
+from dev10x.domain.gate_policy import MIGRATOR_COMMAND
 from dev10x.mcp.gate_query import (
     LEGACY_PROJECT_POLICY_RELPATH,
     PROJECT_POLICY_RELPATH,
@@ -39,7 +42,7 @@ class TestResolveGateForToplevel:
     async def test_adaptive_solo_maintainer_session_auto_merges(self, tmp_path: Path) -> None:
         _write_session_yaml(
             tmp_path,
-            "friction_level: adaptive\nactive_modes: [solo-maintainer]\nhuman_review: false\n",
+            "gate_overlays: [solo-maintainer]\nhuman_review: false\n",
         )
         result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
         payload = result.to_dict()
@@ -57,7 +60,7 @@ class TestResolveGateForToplevel:
         # still resolves to `supervisor_review: required` (GH-1161).
         _write_session_yaml(
             tmp_path,
-            "friction_level: adaptive\nactive_modes: [solo-maintainer]\nhuman_review: true\n",
+            "gate_overlays: [solo-maintainer]\nhuman_review: true\n",
         )
         result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
         payload = result.to_dict()
@@ -68,8 +71,7 @@ class TestResolveGateForToplevel:
     async def test_explicit_supervisor_review_floors_the_merge_gate(self, tmp_path: Path) -> None:
         _write_session_yaml(
             tmp_path,
-            "friction_level: adaptive\nactive_modes: [solo-maintainer]\n"
-            "supervisor_review: required\n",
+            "gate_overlays: [solo-maintainer]\nsupervisor_review: required\n",
         )
         result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
         assert result.to_dict()["effect"] == "ask"
@@ -80,8 +82,7 @@ class TestResolveGateForToplevel:
         # does not silently keep the old answer.
         _write_session_yaml(
             tmp_path,
-            "friction_level: adaptive\nactive_modes: [solo-maintainer]\n"
-            "human_review: true\nsupervisor_review: none\n",
+            "gate_overlays: [solo-maintainer]\nhuman_review: true\nsupervisor_review: none\n",
         )
         result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
         assert result.to_dict()["effect"] == "auto-advance"
@@ -90,9 +91,7 @@ class TestResolveGateForToplevel:
     async def test_unset_review_posture_floors_the_merge_gate(self, tmp_path: Path) -> None:
         # Absent key reads as `required` — an unconfigured repo keeps a human
         # on the merge rather than inheriting the preset's autonomy.
-        _write_session_yaml(
-            tmp_path, "friction_level: adaptive\nactive_modes: [solo-maintainer]\n"
-        )
+        _write_session_yaml(tmp_path, "gate_overlays: [solo-maintainer]\n")
         result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
         assert result.to_dict()["effect"] == "ask"
 
@@ -108,8 +107,7 @@ class TestResolveGateForToplevel:
         # alias are inert on the wire.
         _write_session_yaml(
             tmp_path,
-            "friction_level: adaptive\nactive_modes: [solo-maintainer]\n"
-            "supervisor_review: required\n",
+            "gate_overlays: [solo-maintainer]\nsupervisor_review: required\n",
         )
         result = await resolve_gate_for_toplevel(
             gate="merge",
@@ -129,7 +127,7 @@ class TestResolveGateForToplevel:
         # decides, and the attempted `true` is reported as ignored.
         _write_session_yaml(
             tmp_path,
-            "friction_level: adaptive\nactive_modes: [solo-maintainer]\nhuman_review: false\n",
+            "gate_overlays: [solo-maintainer]\nhuman_review: false\n",
         )
         result = await resolve_gate_for_toplevel(
             gate="merge", context={"human_review": True}, toplevel=str(tmp_path)
@@ -140,7 +138,7 @@ class TestResolveGateForToplevel:
 
     @pytest.mark.asyncio
     async def test_team_repo_project_pin_stops_adaptive_merge(self, tmp_path: Path) -> None:
-        _write_session_yaml(tmp_path, "friction_level: adaptive\n")
+        _write_session_yaml(tmp_path, "gate_preset: adaptive\n")
         _write_project_policy(tmp_path, "overrides:\n  merge: ask\n")
         result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
         assert result.to_dict()["effect"] == "ask"
@@ -149,8 +147,7 @@ class TestResolveGateForToplevel:
     async def test_session_gate_override_outranks_project_pin(self, tmp_path: Path) -> None:
         _write_session_yaml(
             tmp_path,
-            "friction_level: adaptive\nhuman_review: false\n"
-            "gate_overrides:\n  merge: auto-advance\n",
+            "human_review: false\ngate_overrides:\n  merge: auto-advance\n",
         )
         _write_project_policy(tmp_path, "overrides:\n  merge: ask\n")
         result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
@@ -171,11 +168,10 @@ class TestResolveGateForToplevel:
         assert "preset:adaptive" in payload["reason"]
 
     @pytest.mark.asyncio
-    async def test_walk_away_maps_to_afk_overlay(self, tmp_path: Path) -> None:
-        _write_session_yaml(
-            tmp_path,
-            "friction_level: adaptive\nwalk_away: true\n",
-        )
+    async def test_afk_overlay_auto_advances_session_adoption(self, tmp_path: Path) -> None:
+        # GH-1162: the overlay is now DECLARED. `walk_away: true` used to be
+        # translated into it; a config still carrying that key is refused.
+        _write_session_yaml(tmp_path, "gate_overlays: [afk]\n")
         result = await resolve_gate_for_toplevel(
             gate="session_adoption",
             context={"session_stale": True},
@@ -185,7 +181,7 @@ class TestResolveGateForToplevel:
 
     @pytest.mark.asyncio
     async def test_bot_author_context_reaches_resolver(self, tmp_path: Path) -> None:
-        _write_session_yaml(tmp_path, "friction_level: adaptive\n")
+        _write_session_yaml(tmp_path, "gate_preset: adaptive\n")
         result = await resolve_gate_for_toplevel(
             gate="thread_resolution",
             context={"author_type": "bot", "valid_fixup_count": 1},
@@ -227,7 +223,7 @@ class TestAllowedOverlaysGuard:
         # drops it so the base guided preset's "ask" stands.
         self._write_config(
             tmp_path,
-            "active_modes: [solo-maintainer]\nallowed_overlays: []\n",
+            "gate_overlays: [solo-maintainer]\nallowed_overlays: []\n",
         )
         result = await resolve_gate_for_toplevel(
             gate="request_review", context={}, toplevel=str(tmp_path)
@@ -241,7 +237,7 @@ class TestAllowedOverlaysGuard:
         # solo-maintainer explicitly permitted → overlay applies (skip), no drop.
         self._write_config(
             tmp_path,
-            "active_modes: [solo-maintainer]\nallowed_overlays: [solo-maintainer]\n",
+            "gate_overlays: [solo-maintainer]\nallowed_overlays: [solo-maintainer]\n",
         )
         result = await resolve_gate_for_toplevel(
             gate="request_review", context={}, toplevel=str(tmp_path)
@@ -255,7 +251,7 @@ class TestAllowedOverlaysGuard:
         # No allowed_overlays key → back-compat: overlay honored, no drop.
         self._write_config(
             tmp_path,
-            "active_modes: [solo-maintainer]\n",
+            "gate_overlays: [solo-maintainer]\n",
         )
         result = await resolve_gate_for_toplevel(
             gate="request_review", context={}, toplevel=str(tmp_path)
@@ -265,11 +261,11 @@ class TestAllowedOverlaysGuard:
         assert "dropped_overlays" not in payload
 
     @pytest.mark.asyncio
-    async def test_drops_afk_overlay_from_walk_away(self, tmp_path: Path) -> None:
-        # afk overlay (from walk_away) also filtered by an empty allow-list.
+    async def test_drops_afk_overlay(self, tmp_path: Path) -> None:
+        # The guard filters every overlay, not just solo-maintainer.
         self._write_config(
             tmp_path,
-            "walk_away: true\nallowed_overlays: []\n",
+            "gate_overlays: [afk]\nallowed_overlays: []\n",
         )
         result = await resolve_gate_for_toplevel(
             gate="session_adoption", context={"session_stale": True}, toplevel=str(tmp_path)
@@ -393,9 +389,12 @@ class TestNewStylePresetResolution:
     async def test_retired_gate_preset_errors_rather_than_escalating(self, tmp_path: Path) -> None:
         # GH-1159: a config still naming a retired preset must fail loudly,
         # not silently resolve at the more autonomous single baseline.
+        # GH-1162 makes that error actionable by naming the migrator.
         _write_session_yaml(tmp_path, "gate_preset: strict\n")
         result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
-        assert "Unknown preset 'strict'" in result.to_dict()["error"]
+        error = result.to_dict()["error"]
+        assert "gate_preset: strict" in error
+        assert MIGRATOR_COMMAND in error
 
     @pytest.mark.asyncio
     async def test_gate_overlays_apply_over_new_preset(self, tmp_path: Path) -> None:
@@ -409,22 +408,38 @@ class TestNewStylePresetResolution:
         assert result.to_dict()["effect"] == "skip"
 
     @pytest.mark.asyncio
-    async def test_new_style_preset_outranks_legacy_keys(self, tmp_path: Path) -> None:
-        # Both shapes present — the new-style gate_preset wins (D-4).
+    async def test_half_migrated_file_is_refused_not_reconciled(self, tmp_path: Path) -> None:
+        # A `gate_preset` beside a leftover `friction_level` used to resolve
+        # by letting the new key win (ADR-0016 D-4). GH-1162 refuses instead:
+        # a half-migrated file is not evidence of which half the operator
+        # meant, and guessing the wider one is the escalation this ticket
+        # exists to prevent.
         _write_session_yaml(
             tmp_path,
             "friction_level: strict\ngate_preset: adaptive\nsupervisor_review: none\n",
         )
         result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
+        assert MIGRATOR_COMMAND in result.to_dict()["error"]
+
+    @pytest.mark.asyncio
+    async def test_gate_preset_without_overlays_inherits_none(self, tmp_path: Path) -> None:
+        # The retired transition branch (Round 1 review C3) used to derive
+        # overlays from `active_modes` when `gate_overlays` was omitted.
+        # With only structural modes present there is nothing to derive, and
+        # nothing is inherited — request_review resolves at the baseline.
+        _write_session_yaml(
+            tmp_path,
+            "gate_preset: adaptive\nactive_modes: [review-deferred]\nsupervisor_review: none\n",
+        )
+        result = await resolve_gate_for_toplevel(
+            gate="request_review", context={}, toplevel=str(tmp_path)
+        )
         assert result.to_dict()["effect"] == "auto-advance"
 
     @pytest.mark.asyncio
-    async def test_gate_preset_inherits_legacy_overlays_when_gate_overlays_absent(
-        self, tmp_path: Path
-    ) -> None:
-        # Round 1 review C3: a transition file (gate_preset + legacy
-        # active_modes, no gate_overlays) must NOT silently drop the
-        # solo-maintainer overlay — request_review stays skipped.
+    async def test_solo_maintainer_mode_without_overlay_is_refused(self, tmp_path: Path) -> None:
+        # The same file with a REAL overlay-bearing mode is refused rather
+        # than silently resolving without the overlay it used to derive.
         _write_session_yaml(
             tmp_path,
             "gate_preset: adaptive\nactive_modes: [solo-maintainer]\n",
@@ -432,7 +447,9 @@ class TestNewStylePresetResolution:
         result = await resolve_gate_for_toplevel(
             gate="request_review", context={}, toplevel=str(tmp_path)
         )
-        assert result.to_dict()["effect"] == "skip"
+        error = result.to_dict()["error"]
+        assert "active_modes: solo-maintainer" in error
+        assert MIGRATOR_COMMAND in error
 
 
 class TestDurableProjectPin:

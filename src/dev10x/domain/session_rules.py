@@ -23,7 +23,6 @@ from dataclasses import dataclass
 
 from dev10x.domain.documents.session_state import PlanSummary
 from dev10x.domain.friction_level import FrictionLevel
-from dev10x.domain.gate_policy import legacy_session_mapping
 from dev10x.domain.rules.policy_rule import PolicyRule
 
 
@@ -234,27 +233,25 @@ class ModeGuardRule(PolicyRule[str]):
     Returns ``""`` when no allow-list is declared (``allowed_overlays is
     None``) or nothing would be dropped, so the SessionStart orchestrator
     drops the segment silently. I/O-free (ADR-0007 D3): the caller reads
-    ``active_modes`` / ``walk_away`` / ``allowed_overlays`` from
+    ``gate_overlays`` / ``allowed_overlays`` from
     :class:`dev10x.domain.documents.session_yaml.SessionYamlDocument` and
     passes them in as frozen fields.
+
+    Takes the overlays *as declared* since GH-1162. It used to take
+    ``active_modes`` / ``walk_away`` and re-derive the overlays through
+    ``legacy_session_mapping`` — the seam that ticket retires. Deriving
+    them here under another name would have re-grown exactly the
+    translation layer the resolver stopped doing, and would have warned
+    about overlays the resolver no longer produces.
     """
 
-    active_modes: list[str]
-    walk_away: bool
+    overlays: list[str]
     allowed_overlays: list[str] | None
 
     def apply(self) -> str:
         if self.allowed_overlays is None:
             return ""
-        # friction_level is irrelevant to overlay derivation — reuse the
-        # resolver's own mapping so the warning names exactly the overlays the
-        # boundary drops (no second, drifting derivation of the mode→overlay map).
-        _, overlays = legacy_session_mapping(
-            friction_level="guided",
-            active_modes=self.active_modes,
-            walk_away=self.walk_away,
-        )
-        dropped = [overlay for overlay in overlays if overlay not in self.allowed_overlays]
+        dropped = [overlay for overlay in self.overlays if overlay not in self.allowed_overlays]
         if not dropped:
             return ""
         names = ", ".join(dropped)
@@ -263,8 +260,9 @@ class ModeGuardRule(PolicyRule[str]):
             f"policy does not permit: {names}. That high-autonomy overlay is being "
             "dropped before every gate resolution this session — request-review, "
             "external-notify, and merge stay human-driven regardless of the durable "
-            "`active_modes` in config.yaml. If this is intentional, edit "
-            "`.claude/Dev10x/config.yaml` (`active_modes` or `allowed_overlays`)."
+            "`gate_overlays`. If this is intentional, edit the matching `projects[]` "
+            "entry in `~/.config/Dev10x/friction.yaml` (`gate_overlays`), or the "
+            "repo's `allowed_overlays` in `.claude/Dev10x/config.yaml`."
         )
 
 

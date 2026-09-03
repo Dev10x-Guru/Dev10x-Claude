@@ -217,44 +217,32 @@ class TestBuildAutoPlanGuidanceRule:
 
 class TestModeGuardRule:
     def test_no_allow_list_returns_empty(self) -> None:
-        rule = ModeGuardRule(
-            active_modes=["solo-maintainer"], walk_away=True, allowed_overlays=None
-        )
+        rule = ModeGuardRule(overlays=["solo-maintainer", "afk"], allowed_overlays=None)
         assert rule.apply() == ""
 
     def test_forbidden_solo_maintainer_overlay_warns(self) -> None:
-        rule = ModeGuardRule(
-            active_modes=["solo-maintainer"], walk_away=False, allowed_overlays=[]
-        )
+        rule = ModeGuardRule(overlays=["solo-maintainer"], allowed_overlays=[])
         result = rule.apply()
         assert "Durable-mode guard" in result
         assert "solo-maintainer" in result
 
     def test_forbidden_afk_overlay_warns(self) -> None:
-        rule = ModeGuardRule(active_modes=[], walk_away=True, allowed_overlays=["solo-maintainer"])
+        rule = ModeGuardRule(overlays=["afk"], allowed_overlays=["solo-maintainer"])
         result = rule.apply()
         assert "afk" in result
 
     def test_permitted_overlay_returns_empty(self) -> None:
-        rule = ModeGuardRule(
-            active_modes=["solo-maintainer"],
-            walk_away=False,
-            allowed_overlays=["solo-maintainer"],
-        )
+        rule = ModeGuardRule(overlays=["solo-maintainer"], allowed_overlays=["solo-maintainer"])
         assert rule.apply() == ""
 
-    def test_no_derived_overlays_returns_empty(self) -> None:
-        rule = ModeGuardRule(
-            active_modes=["review-deferred"],
-            walk_away=False,
-            allowed_overlays=["solo-maintainer", "afk"],
-        )
+    def test_no_declared_overlays_returns_empty(self) -> None:
+        # GH-1162: a config naming only structural modes declares no overlay,
+        # and nothing derives one from `active_modes` any more.
+        rule = ModeGuardRule(overlays=[], allowed_overlays=["solo-maintainer", "afk"])
         assert rule.apply() == ""
 
     def test_names_only_the_dropped_overlay(self) -> None:
-        # solo-maintainer derived but not allowed; afk derived and allowed.
-        rule = ModeGuardRule(
-            active_modes=["solo-maintainer"], walk_away=True, allowed_overlays=["afk"]
-        )
+        rule = ModeGuardRule(overlays=["solo-maintainer", "afk"], allowed_overlays=["afk"])
         result = rule.apply()
         assert "solo-maintainer" in result
+        assert result.count("afk") == 0

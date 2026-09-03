@@ -158,8 +158,7 @@ class SessionService:
             return ""
         inputs = SessionYamlDocument(toplevel=resolved).read_gate_policy_inputs()
         return ModeGuardRule(
-            active_modes=inputs["active_modes"],
-            walk_away=inputs["walk_away"],
+            overlays=inputs["gate_overlays"],
             allowed_overlays=inputs["allowed_overlays"],
         ).apply()
 
