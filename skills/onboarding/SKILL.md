@@ -19,6 +19,8 @@ allowed-tools:
   - TaskCreate
   - TaskUpdate
   - Skill
+  - mcp__plugin_Dev10x_cli__supervisor_review_status
+  - mcp__plugin_Dev10x_cli__pin_supervisor_review
 ---
 
 # Dev10x:onboarding — Guided Discovery
