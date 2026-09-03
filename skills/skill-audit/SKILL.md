@@ -28,6 +28,8 @@ allowed-tools:
   - mcp__plugin_Dev10x_cli__audit_analyze_permissions
   - mcp__plugin_Dev10x_cli__resolve_plugin_origin
   - mcp__plugin_Dev10x_cli__preset_pin_status
+  - mcp__plugin_Dev10x_cli__supervisor_review_status
+  - mcp__plugin_Dev10x_cli__resolve_gate
   - Bash(ls -t ~/.claude/:*)
   - Bash(wc:*)
   - Bash(git config --list:*)

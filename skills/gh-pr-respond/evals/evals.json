@@ -213,11 +213,11 @@
           ]
         },
         {
-          "id": "gate6-fires-at-adaptive-friction",
-          "text": "Gate 6 fires (AskUserQuestion called) even at adaptive friction — adaptive only auto-selects the recommended option, it does not skip the gate",
+          "id": "gate6-honours-resolver-effect",
+          "text": "Gate 6 is decided by resolve_gate alone: an ask effect fires AskUserQuestion and an auto-advance effect takes the recommended option — the skill never skips the gate on its own reading of session policy",
           "check": "behavioral",
           "signals": [
-            "AskUserQuestion called regardless of friction_level=adaptive",
+            "resolve_gate(gate=\"comment_hide\") consulted; AskUserQuestion called on effect ask",
             "minimize_comments invoked after resolve"
           ]
         },

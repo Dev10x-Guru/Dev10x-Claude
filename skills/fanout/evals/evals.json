@@ -3,8 +3,8 @@
   "eval_dimensions": [
     {
       "id": "phase0-gate",
-      "name": "Phase 0 Friction Gate",
-      "description": "Phase 0 friction level prompt fires via AskUserQuestion before any work begins, and persists the choice for nested work-on invocations"
+      "name": "Phase 0 Posture Check",
+      "description": "Phase 0 reads the durable review posture through supervisor_review_status and delegates the ask to Dev10x:friction-setup before any work begins, so nested work-on invocations inherit a settled posture"
     },
     {
       "id": "parallel-dispatch",
@@ -15,35 +15,41 @@
   "evals": [
     {
       "id": 1,
-      "name": "phase0-friction-gate",
+      "name": "phase0-posture-check",
       "prompt": "/Dev10x:fanout GH-100 GH-101 GH-102",
-      "description": "Tests that Phase 0 friction level gate fires via AskUserQuestion before dispatching any work items.",
-      "expected_output": "AskUserQuestion is called with friction level options (Guided, Adaptive, Strict) before any issue processing begins. Choice is persisted to ~/.claude/Dev10x/session.yaml.",
+      "description": "Tests that Phase 0 settles the review posture through supervisor_review_status before dispatching any work items, delegating the ask rather than offering a friction-level picker (ADR-0022).",
+      "expected_output": "supervisor_review_status is called before any issue processing begins; an unpinned project delegates to Dev10x:friction-setup, a pinned one proceeds silently. No friction-level options are offered and no session file is written.",
       "dimensions": ["phase0-gate"],
       "assertions": [
         {
-          "id": "phase0-uses-askuserquestion",
-          "text": "Phase 0 friction level prompt uses AskUserQuestion tool call, not plain text",
-          "check": "tool_called",
-          "signals": ["AskUserQuestion", "friction", "Guided"]
-        },
-        {
-          "id": "phase0-fires-before-dispatch",
-          "text": "AskUserQuestion for friction level fires before any work item dispatch",
+          "id": "phase0-reads-posture-via-tool",
+          "text": "supervisor_review_status is called before any work item dispatch, rather than reading friction.yaml directly",
           "check": "tool_called_before",
-          "signals": ["AskUserQuestion", "Agent"]
+          "signals": ["supervisor_review_status", "Agent"]
         },
         {
-          "id": "phase0-offers-three-levels",
-          "text": "Gate presents all three friction levels: Guided, Adaptive, Strict",
-          "check": "output_contains",
-          "signals": ["Guided", "Adaptive", "Strict"]
-        },
-        {
-          "id": "phase0-persists-choice",
-          "text": "After user selects a level, the choice is persisted to ~/.claude/Dev10x/session.yaml via Write tool",
+          "id": "phase0-delegates-when-unpinned",
+          "text": "When pinned is false, the ask is delegated to Dev10x:friction-setup instead of being asked inline",
           "check": "tool_called",
-          "signals": ["Write", "session.yaml", "friction_level"]
+          "signals": ["Skill", "Dev10x:friction-setup"]
+        },
+        {
+          "id": "phase0-silent-when-already-pinned",
+          "text": "When pinned is true, the posture is adopted silently — no AskUserQuestion and no delegation",
+          "check": "behavioral",
+          "signals": ["pinned true", "no re-ask", "no delegation"]
+        },
+        {
+          "id": "phase0-offers-no-preset-picker",
+          "text": "No strict/guided/adaptive friction-level picker is offered — adaptive is the sole shipped baseline (ADR-0022 D-1)",
+          "check": "behavioral",
+          "signals": ["no preset picker", "adaptive baseline", "ADR-0022"]
+        },
+        {
+          "id": "phase0-writes-no-config",
+          "text": "fanout writes no friction.yaml or session file with the Write tool; persistence goes through the pin/set-friction writers",
+          "check": "behavioral",
+          "signals": ["no Write", "set-friction", "no .claude write"]
         }
       ]
     }
