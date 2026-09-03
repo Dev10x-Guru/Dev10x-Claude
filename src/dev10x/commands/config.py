@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from typing import Any
 
 import click
 
@@ -50,6 +51,21 @@ def migrate(*, dry_run: bool) -> None:
         click.echo(f"  - {path}")
 
 
+def _schema_report(*, cwd: str | None, dry_run: bool) -> dict[str, Any]:
+    """Run the v1 → v2 walk, surfacing a domain failure as a CLI error.
+
+    The domain layer returns ``Result`` so the same call is reusable from
+    an MCP boundary; the script layer owns the exit code (GH-246 H7).
+    """
+    from dev10x.domain.common.result import SuccessResult
+    from dev10x.domain.config_migration import migrate_configs
+
+    result = migrate_configs(toplevel=cwd or os.getcwd(), dry_run=dry_run)
+    if not isinstance(result, SuccessResult):
+        raise click.ClickException(result.error)
+    return result.value
+
+
 @config.command(name="migrate-schema")
 @click.option(
     "--cwd",
@@ -69,9 +85,7 @@ def migrate_schema(*, cwd: str | None, dry_run: bool) -> None:
     `walk_away` into `supervisor_review` + `gate_overlays`. Idempotent —
     a run with nothing left to convert writes nothing.
     """
-    from dev10x.domain.config_migration import migrate_configs
-
-    report = migrate_configs(toplevel=cwd or os.getcwd(), dry_run=dry_run).value
+    report = _schema_report(cwd=cwd, dry_run=dry_run)
     if not report["pending"]:
         click.echo("Dev10x config: already at schema v2 (ADR-0022).")
         return
@@ -97,8 +111,6 @@ def migrate_schema(*, cwd: str | None, dry_run: bool) -> None:
 @config.command(name="doctor")
 def doctor() -> None:
     """Report legacy Dev10x config files and v1 schema entries needing migration."""
-    from dev10x.domain.config_migration import migrate_configs
-
     stale = stale_legacy_paths()
     if stale:
         found = len(stale)
@@ -112,7 +124,7 @@ def doctor() -> None:
     # Schema-v1 residue is a separate axis from file *location* (GH-1166):
     # a config already at the XDG path can still name a retired preset,
     # which post-GH-1162 resolution cannot honour.
-    pending = migrate_configs(toplevel=os.getcwd(), dry_run=True).value["pending"]
+    pending = _schema_report(cwd=None, dry_run=True)["pending"]
     if not pending:
         click.echo("Dev10x config: durable prefs are at schema v2 (ADR-0022).")
         return

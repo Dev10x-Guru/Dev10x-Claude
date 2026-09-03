@@ -29,6 +29,7 @@ allowed-tools:
   - mcp__plugin_Dev10x_cli__issue_create
   - Bash(dev10x config doctor:*)
   - Bash(dev10x config migrate:*)
+  - Bash(dev10x config migrate-schema:*)
 ---
 
 # Dev10x:plugin-doctor — Intent Drift Diagnostic (GH-87)
@@ -72,8 +73,15 @@ delegate to `Dev10x:upgrade-cleanup` which migrates as Step 1).
 Bash("dev10x config doctor")
 ```
 
-Treat any "Found N legacy ..." output as a finding to surface
-in Phase 3, alongside the strategy detections.
+`dev10x config doctor` reports two independent axes: legacy file
+*location* (GH-215) and durable-pref *schema version* (GH-1166).
+Treat both a "Found N legacy ..." and a "Found N durable config
+entr… on v1" line as findings to surface in Phase 3, alongside
+the strategy detections. The remediation for the second is
+`dev10x config migrate-schema` (preview it with `--dry-run`),
+which converts v1 presets and `human_review` / `walk_away` to
+`supervisor_review` + `gate_overlays` and can only add oversight,
+never remove it.
 4. `TaskCreate(subject="Phase 4: Apply approved fixes", activeForm="Applying fixes")`
 
 Set sequential dependencies. Mark each completed when done.

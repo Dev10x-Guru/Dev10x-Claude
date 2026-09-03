@@ -24,6 +24,7 @@ allowed-tools:
   - Skill
   - mcp__plugin_Dev10x_cli__record_upgrade
   - Bash(dev10x config migrate:*)
+  - Bash(dev10x config migrate-schema:*)
 ---
 
 # Dev10x:upgrade-cleanup
@@ -56,6 +57,24 @@ on Windows). Idempotent — skips paths already migrated. See GH-215.
 ```
 Bash("dev10x config migrate")
 ```
+
+Step 1b — convert durable prefs from schema v1 to v2 (GH-1166,
+ADR-0022). Independent of Step 1: a config already at the XDG path
+can still name a retired preset (`strict` / `guided`) or the
+retired `human_review` / `walk_away` keys, which the gate resolver
+stops honouring once the legacy translation seam is retired.
+Idempotent — a machine already on v2 writes nothing. Every
+ambiguous value converts to `supervisor_review: required`, so the
+run can only ever add oversight, never remove it.
+
+```
+Bash("dev10x config migrate-schema --dry-run")
+Bash("dev10x config migrate-schema")
+```
+
+Show the dry-run report first — it names each entry's resulting
+`supervisor_review`, dropped preset, and added overlays — then
+apply.
 
 Step 2 — delegate to the maintenance skill in `full` mode:
 
