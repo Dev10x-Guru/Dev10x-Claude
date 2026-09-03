@@ -25,7 +25,6 @@ from dev10x.domain.gate_policy import (
     coerce_supervisor_review,
     legacy_config_message,
     legacy_policy_keys,
-    legacy_session_mapping,
     resolve_gate,
     supervisor_review_gate,
 )
@@ -365,7 +364,7 @@ class TestGatePolicyResolver:
         assert resolution.effect is GateEffect.ASK
 
 
-class TestLegacyPolicyKeys:
+class TestLegacyConfigRefusal:
     """GH-1162: naming the v1 keys is what makes the refusal actionable."""
 
     V2 = {
@@ -423,52 +422,19 @@ class TestLegacyPolicyKeys:
             resolve_gate(gate="merge", context=GateContext(), preset="adpative")
         assert MIGRATOR_COMMAND not in str(excinfo.value)
 
+    def test_the_seam_itself_is_gone(self) -> None:
+        """GH-1162 AC: the mapping function no longer exists to be called."""
+        import dev10x.domain.gate_policy as module
 
-class TestLegacySessionMapping:
-    @pytest.mark.parametrize(
-        ("friction_level", "active_modes", "walk_away", "expected"),
-        [
-            ("adaptive", ["solo-maintainer"], False, ("adaptive", ["solo-maintainer"])),
-            ("adaptive", [], True, ("adaptive", ["afk"])),
-            (
-                "adaptive",
-                ["solo-maintainer", "review-deferred"],
-                True,
-                ("adaptive", ["solo-maintainer", "afk"]),
-            ),
-            # The seam is a pure read-compat mapping and stays 1:1 even for a
-            # retired preset name — resolve_gate is where that now fails loud
-            # (GH-1162 retires the seam once the migrator ships).
-            ("guided", [], False, ("guided", [])),
-        ],
-    )
-    def test_legacy_shapes_map_to_preset_and_overlays(
-        self,
-        friction_level: str,
-        active_modes: list[str],
-        walk_away: bool,
-        expected: tuple[str, list[str]],
-    ) -> None:
-        assert (
-            legacy_session_mapping(
-                friction_level=friction_level,
-                active_modes=active_modes,
-                walk_away=walk_away,
-            )
-            == expected
-        )
+        assert not hasattr(module, "legacy_session_mapping")
 
-    def test_legacy_mapping_resolves_end_to_end(self) -> None:
-        preset, overlays = legacy_session_mapping(
-            friction_level="adaptive",
-            active_modes=["solo-maintainer"],
-            walk_away=False,
-        )
+    def test_v2_overlays_still_resolve_end_to_end(self) -> None:
+        """What the seam used to derive is now stated, and resolves the same."""
         resolution: GateResolution = resolve_gate(
             gate="merge",
             context=GateContext(supervisor_review=SUPERVISOR_REVIEW_NONE),
-            preset=preset,
-            overlays=overlays,
+            preset=BASELINE_PRESET,
+            overlays=["solo-maintainer"],
         )
         assert resolution.effect is GateEffect.AUTO_ADVANCE
 

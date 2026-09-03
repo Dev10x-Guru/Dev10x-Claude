@@ -3,10 +3,12 @@
 Every durable config written before ADR-0022 names its posture in v1
 vocabulary — ``gate_preset`` / ``friction_level`` selecting one of three
 shipped postures, ``human_review`` as a boolean, ``walk_away`` as a
-separate flag. Those shapes resolve today only because
-``legacy_session_mapping`` and the ``GateResolutionQuery.run`` fallback
-translate them. GH-1162 retires that seam; this module converts the
-stores first, so the retirement cannot silently change a repo's posture.
+separate flag. Those shapes used to resolve only because a read-compat
+seam in ``gate_policy`` and the ``GateResolutionQuery.run`` fallback
+translated them. GH-1162 retired that seam — an un-migrated config is now
+refused by name rather than resolved — so this module is the ONLY thing
+that still reads v1 vocabulary, and the only way forward for a store that
+still carries it.
 
 The **safety direction is one-way**: no config may resolve to MORE
 autonomy after migration than before. ``supervisor_review`` is written
@@ -53,6 +55,7 @@ from dev10x.domain.documents.session_yaml import (
 from dev10x.domain.file_locks import atomic_write_text, file_lock
 from dev10x.domain.gate_policy import (
     BASELINE_PRESET,
+    RETIRED_PRESET_NAMES,
     SOLO_OVERLAY,
     SUPERVISOR_REVIEW_NONE,
     SUPERVISOR_REVIEW_REQUIRED,
@@ -70,7 +73,7 @@ AFK_OVERLAY = "afk"
 #: into a v2 entry either — naming the only posture says nothing — so all
 #: three are dropped. A name outside this set is a *user-defined* preset
 #: from ``friction-presets.yaml``: a real selection, preserved verbatim.
-RETIRED_PRESETS = ("strict", "guided", BASELINE_PRESET)
+RETIRED_PRESETS = (*RETIRED_PRESET_NAMES, BASELINE_PRESET)
 
 #: v1 keys a migrated entry no longer carries. ``friction_level`` is the
 #: one that must go: left behind as ``strict`` it names a retired preset
@@ -163,10 +166,9 @@ def resolve_supervisor_review(prefs: dict[str, Any]) -> str:
 def _overlays_for(prefs: dict[str, Any]) -> tuple[list[str], list[str]]:
     """Return ``(overlays, added)`` — the v2 overlay list and what this added.
 
-    Mirrors :func:`dev10x.domain.gate_policy.legacy_session_mapping`, the
-    seam GH-1162 removes: ``solo-maintainer`` in ``active_modes`` and
-    ``walk_away: true`` both named overlays that only the legacy
-    translation produced. Materialising them keeps the posture the repo
+    Replays what the read-compat seam GH-1162 removed: ``solo-maintainer``
+    in ``active_modes`` and ``walk_away: true`` both named overlays that
+    only the legacy translation produced. Materialising them keeps the posture the repo
     already resolved to; ``active_modes`` itself is left in place, since
     it is a playbook/DoD axis this migration does not own.
     """

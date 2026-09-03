@@ -241,7 +241,8 @@ class GateResolutionQuery:
             GateContext,
             UnknownPresetError,
             UnknownToggleError,
-            legacy_session_mapping,
+            legacy_config_message,
+            legacy_policy_keys,
             resolve_gate,
         )
 
@@ -262,47 +263,30 @@ class GateResolutionQuery:
         session_doc = SessionYamlDocument(toplevel=_policy_toplevel(self.toplevel))
         inputs = session_doc.read_gate_policy_inputs()
 
-        # New-style session keys (gate_preset/gate_overlays) win; otherwise map
-        # the legacy friction_level/active_modes/walk_away shape (ADR-0016 D-4).
-        if inputs["gate_preset"] is not None:
-            preset = inputs["gate_preset"]
-            # A transition-period file may set gate_preset while still carrying
-            # legacy active_modes. When gate_overlays is omitted, inherit the
-            # legacy active_modes/walk_away-derived overlays so a solo-maintainer
-            # or afk overlay is not silently dropped (Round 1 review C3). An
-            # explicit gate_overlays list wins wholesale.
-            if inputs["gate_overlays"]:
-                overlays = inputs["gate_overlays"]
-            else:
-                _, overlays = legacy_session_mapping(
-                    friction_level=BASELINE_PRESET,
-                    active_modes=inputs["active_modes"],
-                    walk_away=inputs["walk_away"],
-                )
-        elif inputs["friction_level"] is None:
-            # ADR-0022 D-1: nothing declares a posture, so the single shipped
-            # baseline applies. `legacy_session_mapping` still derives the
-            # overlays from active_modes/walk_away — only its preset leg is
-            # retired here, and only for configs that name no posture at all.
-            preset = BASELINE_PRESET
-            _, overlays = legacy_session_mapping(
-                friction_level=BASELINE_PRESET,
-                active_modes=inputs["active_modes"],
-                walk_away=inputs["walk_away"],
-            )
-        else:
-            # A config that DOES declare `friction_level` keeps the legacy
-            # read-compat seam. A retired name (`strict`/`guided`) surfaces as
-            # an UnknownPresetError below rather than resolving at the more
-            # autonomous baseline — a silent autonomy escalation on a repo that
-            # asked for less is the one outcome this branch must not produce.
-            # The FRIC-M3 migrator rewrites such configs; until then the error
-            # is the signal. (GH-1162 retires this branch.)
-            preset, overlays = legacy_session_mapping(
-                friction_level=inputs["friction_level"],
-                active_modes=inputs["active_modes"],
-                walk_away=inputs["walk_away"],
-            )
+        # GH-1162: v2 vocabulary only. `gate_preset` / `gate_overlays` are read
+        # verbatim — nothing translates `friction_level` / `walk_away` /
+        # `active_modes: solo-maintainer` into them any more, and nothing
+        # inherits legacy overlays when `gate_overlays` is merely omitted.
+        #
+        # A config still speaking v1 is REFUSED rather than resolved. Falling
+        # back to the sole remaining baseline would read as harmless and is
+        # not: a repo that pinned `friction_level: strict` would come up
+        # auto-merging, so the failure mode of the tempting branch is an
+        # autonomy ESCALATION on exactly the repos that asked for less. The
+        # migrator (GH-1166) converts such configs; the error names it.
+        legacy_keys = legacy_policy_keys(
+            friction_level=inputs["friction_level"],
+            walk_away=inputs["walk_away"],
+            active_modes=inputs["active_modes"],
+            gate_preset=inputs["gate_preset"],
+            gate_overlays=inputs["gate_overlays"],
+        )
+        if legacy_keys:
+            return err(legacy_config_message(keys=legacy_keys))
+
+        # ADR-0022 D-1: naming no posture selects the single shipped baseline.
+        preset = inputs["gate_preset"] or BASELINE_PRESET
+        overlays = list(inputs["gate_overlays"])
 
         # GH-805 durable-mode guard: a repo may declare a local, gitignored
         # ``allowed_overlays`` allow-list in config.yaml. Any overlay not on it —

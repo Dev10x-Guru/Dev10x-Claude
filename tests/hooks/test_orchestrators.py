@@ -219,9 +219,7 @@ class TestModeGuardWiring:
 
         toplevel = self._write_config(
             tmp_path=tmp_path,
-            content=(
-                "friction_level: guided\nactive_modes: [solo-maintainer]\nallowed_overlays: []\n"
-            ),
+            content="gate_overlays: [solo-maintainer]\nallowed_overlays: []\n",
         )
         monkeypatch.setattr(session_dispatch, "_get_toplevel", lambda: str(toplevel))
         assert "Durable-mode guard (GH-805)" in session_dispatch.build_mode_guard_context()
@@ -233,7 +231,7 @@ class TestModeGuardWiring:
 
         toplevel = self._write_config(
             tmp_path=tmp_path,
-            content="friction_level: guided\nactive_modes: [solo-maintainer]\n",
+            content="gate_overlays: [solo-maintainer]\n",
         )
         monkeypatch.setattr(session_dispatch, "_get_toplevel", lambda: str(toplevel))
         assert session_dispatch.build_mode_guard_context() == ""

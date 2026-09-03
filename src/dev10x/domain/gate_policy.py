@@ -26,6 +26,14 @@ gone, so a config naming ``strict`` or ``guided`` now raises
 :class:`UnknownPresetError` — loudly, rather than silently resolving at
 a more autonomous baseline (the FRIC-M3 migrator rewrites such configs).
 
+GH-1162 retired the read-compat seam that used to translate the v1
+vocabulary (``friction_level`` / ``walk_away`` / ``active_modes:
+solo-maintainer``) into presets and overlays. A config still speaking it
+is now REFUSED — see :func:`legacy_policy_keys` and
+:func:`legacy_config_message` — because the alternative is not a neutral
+fallback: resolving a ``friction_level: strict`` repo at the sole
+remaining baseline would hand it auto-merge.
+
 All functions are free of file I/O (ADR-0007 D3): the caller reads
 session/project configuration and passes parsed values in. Shipped
 preset value-maps live here as data; the planned
@@ -598,33 +606,6 @@ def legacy_config_message(*, keys: list[str]) -> str:
     )
 
 
-def legacy_session_mapping(
-    *,
-    friction_level: str,
-    active_modes: list[str],
-    walk_away: bool,
-) -> tuple[str, list[str]]:
-    """Map a pre-ADR-0016 session.yaml shape to (preset, overlays).
-
-    Read-compatibility seam: ``friction_level`` maps 1:1 to the shipped
-    preset of the same name; ``solo-maintainer`` in ``active_modes`` maps
-    to the solo-maintainer overlay; ``walk_away: true`` maps to the afk
-    overlay. Structural modes (``review-deferred``, ``swarm-child``)
-    stay in ``active_modes`` and are not gate concerns.
-
-    ``review-deferred`` is deprecated (ADR-0019): the durable
-    ``human_review`` pref supersedes it, and it is retained for
-    read-only back-compat. ``swarm-child`` remains genuinely
-    per-dispatch. Neither is a gate concern either way.
-    """
-    overlays: list[str] = []
-    if "solo-maintainer" in active_modes:
-        overlays.append("solo-maintainer")
-    if walk_away:
-        overlays.append("afk")
-    return friction_level, overlays
-
-
 __all__ = [
     "AUTO_ADVANCE",
     "BASELINE_PRESET",
@@ -644,7 +625,6 @@ __all__ = [
     "coerce_supervisor_review",
     "legacy_config_message",
     "legacy_policy_keys",
-    "legacy_session_mapping",
     "resolve_gate",
     "supervisor_review_gate",
 ]
