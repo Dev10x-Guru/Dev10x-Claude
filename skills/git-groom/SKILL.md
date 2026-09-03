@@ -43,6 +43,7 @@ allowed-tools:
   - mcp__plugin_Dev10x_cli__mktmp
   - Edit(/tmp/Dev10x/git/**)
   - AskUserQuestion
+  - mcp__plugin_Dev10x_cli__resolve_gate
 ---
 
 # Git Branch History Grooming

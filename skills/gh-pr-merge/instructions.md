@@ -154,7 +154,7 @@ Session policy does NOT waive this skill body. Whatever
 final ask/auto-advance/skip decision immediately before
 executing the merge; the 9 checks below still run
 unconditionally on every invocation. See
-`references/friction-levels.md` § "Adaptive does not waive
+`references/friction-levels.md` § "The baseline does not waive
 skill bodies".
 
 ## Pre-Merge Validation Checks
@@ -431,10 +431,9 @@ prematurely).
     can surface override patterns later.
   - **Abort** — cancel merge.
 
-The gate fires regardless of `friction_level` or
-`active_modes` — `solo-maintainer adaptive` governs pacing
-between skills, it does NOT authorize silent merges past
-unresolved CI signal. The narrow scope (only after auto-fix
+The gate fires regardless of session policy — an autonomous
+posture governs pacing between skills, it does NOT authorize
+silent merges past unresolved CI signal. The narrow scope (only after auto-fix
 is exhausted or the failure is clearly infra) keeps the
 user out of the loop for routine code fixes while still
 requiring human judgement for cases where the agent cannot
@@ -771,10 +770,10 @@ once, at Step 5, by `resolve_gate(gate="merge")` — see Step 5
 for the branch pattern. This section covers what happens
 **after** a successful merge: the calling skill proceeds
 immediately to the next step (typically acceptance criteria
-verification), with **no checkpoints under adaptive friction**.
-There is NO confirmation gate after merge: a trailing "PR
-merged — ready to verify acceptance?" is a checkpoint and is
-forbidden under adaptive friction. The merge is a step in the
+verification), with **no checkpoints the resolver did not ask
+for**. There is NO confirmation gate after merge: a trailing "PR
+merged — ready to verify acceptance?" is a checkpoint nobody
+asked for, and is forbidden. The merge is a step in the
 no-checkpoints shipping sequence, not a natural stopping point.
 
 If merge fails (e.g., branch protection rules), report the

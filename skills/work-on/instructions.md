@@ -767,7 +767,8 @@ resolution algorithm needs.
    current level:
    - If `skip: true`, remove the step
    - Otherwise merge field overrides (prompt, subject, etc.)
-   See `references/friction-levels.md` § Playbook Integration.
+   See `references/friction-levels.md` for the gate-behaviour model
+   these per-step blocks sit alongside.
 8. For each remaining step, create a `TaskCreate` with the
    step's `subject`, `type` in metadata, and `agent`/`skills`
    in metadata if present
@@ -1603,8 +1604,8 @@ See `references/task-orchestration.md` for the full pattern.
 **Complete a task → immediately start the next.** Do not pause
 between tasks to ask "should I continue?" or wait for the user
 to say "go" / "next" / "continue". The approved plan is the
-authorization to proceed — **no checkpoints under adaptive
-friction**. See `references/friction-levels.md` § "No checkpoints"
+authorization to proceed — **no checkpoints the resolver did not
+ask for**. See `references/friction-levels.md` § "No checkpoints"
 rule for the canonical definition of what counts as a checkpoint.
 
 **Auto-advance on commits:** After creating a commit, immediately
@@ -1870,8 +1871,8 @@ skill's logic breaks these guarantees.
 either:** Auto-advance pressure in unattended mode makes it
 tempting to perform operations directly (e.g., `git checkout -b`
 instead of `Dev10x:ticket-branch`, inline review instead of
-`Dev10x:review`). This is still a violation — "no checkpoints
-under adaptive friction" eliminates implicit pauses between steps;
+`Dev10x:review`). This is still a violation — "no checkpoints"
+eliminates implicit pauses between steps;
 it does NOT license raw-CLI substitutions for skill wrappers.
 Unattended mode changes the *pace*, not the *rules*. If you catch
 yourself about to skip a `Skill()` call, stop and invoke the
