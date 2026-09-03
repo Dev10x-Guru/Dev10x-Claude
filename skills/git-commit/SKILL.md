@@ -16,6 +16,7 @@ allowed-tools:
   - mcp__plugin_Dev10x_cli__plan_sync_json_summary
   - mcp__plugin_Dev10x_cli__plan_sync_archive
   - mcp__plugin_Dev10x_cli__resolve_gate
+  - mcp__plugin_Dev10x_cli__supervisor_review_status
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
   - Edit(/tmp/Dev10x/git/**)
 ---

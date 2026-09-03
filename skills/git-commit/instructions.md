@@ -157,8 +157,8 @@ overrides live in the hook layer, not at the skill caller — see
 1. Check if we're in a git repository
 2. Check if there are staged or unstaged changes
 3. Check current branch (should not be develop/main/master,
-   unless `solo_maintainer: true` is set in
-   `.claude/Dev10x/session.yaml`)
+   unless `supervisor_review_status()` reports a pinned
+   `supervisor_review: "none"` — see the escape below)
 4. Verify branch follows naming convention (username/TICKET-ID/[worktree/]description)
 
 ## When to Use This Skill
@@ -218,22 +218,23 @@ BRANCH=$(git symbolic-ref --short HEAD)
 git status --porcelain
 ```
 
-**Solo-maintainer escape (GH-57):** Before applying the
-base-branch block, read `.claude/Dev10x/session.yaml`. If it
-contains `solo_maintainer: true`, skip the develop/main/master
-block — single-author projects with no PR workflow legitimately
-commit to the base branch. The `solo-maintainer` mode entry in
-`active_modes:` does NOT enable this escape on its own; the
-explicit `solo_maintainer: true` flag is required so the
-configuration choice is auditable.
+**No-PR-workflow escape (GH-57):** Before applying the base-branch
+block, call `mcp__plugin_Dev10x_cli__supervisor_review_status()`.
+Skip the develop/main/master block only when it reports BOTH
+`supervisor_review: "none"` and `pinned: true` — a single-author
+project with no PR workflow, deliberately recorded in the durable
+`~/.config/Dev10x/friction.yaml`. Requiring `pinned` keeps the
+escape auditable: the safe unset default (`required`) never opens
+it. Never read `.claude/Dev10x/session.yaml` for this — it is
+retired (ADR-0018) and the tool owns the precedence (ADR-0022 D-2).
 
 **Validations:**
 - ❌ If not in git repo → Error: "Not in a git repository"
-- ❌ If on develop/main/master AND `solo_maintainer` flag is
-  not set → Error: "Cannot commit directly to develop/main/master.
-  Create a feature branch first, or set `solo_maintainer: true`
-  in `.claude/Dev10x/session.yaml` if this is a single-author
-  repo with no PR workflow."
+- ❌ If on develop/main/master AND the escape does not apply →
+  Error: "Cannot commit directly to develop/main/master.
+  Create a feature branch first, or record this repo as having no
+  PR workflow with `Dev10x:friction-setup` (supervisor_review:
+  none) if it is single-author."
 - ❌ If no changes → Error: "No changes to commit"
 - ✅ If staged changes exist → Continue
 - ⚠️ If only unstaged changes → Ask: "Stage all changes? (y/n)"
@@ -241,11 +242,11 @@ configuration choice is auditable.
 ### Step 1.5: Detect Branch Drift (GH-147)
 
 **Why this step exists.** Step 1's base-branch block catches HEAD
-on `develop`/`main`/`master`, but `solo_maintainer: true` disables
-that block, and any *other* non-base branch passes silently. In
-long sessions a `rebase --continue`, a forgotten `git checkout`,
-or a script can move HEAD to a different feature branch (or back
-to develop in solo-maintainer mode) without the user noticing.
+on `develop`/`main`/`master`, but the no-PR-workflow escape
+disables that block, and any *other* non-base branch passes
+silently. In long sessions a `rebase --continue`, a forgotten
+`git checkout`, or a script can move HEAD to a different feature
+branch (or back to develop where the escape applies) unnoticed.
 The commit then lands on the wrong branch and recovery requires
 reflog archaeology.
 
@@ -1024,9 +1025,9 @@ Dev10x:git-commit
 
 **"Cannot commit to develop/main/master":**
 - Error and stop
-- Suggest: Create feature branch first, or set
-  `solo_maintainer: true` in `.claude/Dev10x/session.yaml`
-  for single-author repos with no PR workflow (GH-57)
+- Suggest: Create feature branch first, or record the repo as
+  having no PR workflow via `Dev10x:friction-setup`
+  (`supervisor_review: none`) for single-author repos (GH-57)
 
 **"Title too long":**
 - Show character count

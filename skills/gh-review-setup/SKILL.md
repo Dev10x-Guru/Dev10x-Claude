@@ -28,6 +28,7 @@ allowed-tools:
   - mcp__plugin_Dev10x_cli__mktmp
   - mcp__plugin_Dev10x_cli__detect_tracker
   - mcp__plugin_Dev10x_cli__detect_base_branch
+  - mcp__plugin_Dev10x_cli__resolve_gate
 ---
 
 # Dev10x:gh-review-setup — Guided Code-Review Provisioning
@@ -106,9 +107,12 @@ pros/cons live in [`references/modules.md`](references/modules.md) and
    Batch related decisions into one call (1–4 questions). Each option
    carries its pros/cons in the `description`.
 
-Under `friction_level: adaptive`, auto-select the recommended option for
-each gate and proceed — but still emit the tool call so the user retains
-override capability (per `essentials.md` § Decision Gates).
+Resolve each strategy decision with
+`mcp__plugin_Dev10x_cli__resolve_gate(gate="strategy_choice",
+context={})` rather than reading session policy yourself. On
+`auto-advance`, take the recommended option and proceed — but still emit
+the tool call so the user retains override capability (per
+`essentials.md` § Decision Gates).
 
 ## Guardrails (Hard Rules)
 

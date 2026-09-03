@@ -21,6 +21,7 @@ allowed-tools:
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
   - Edit(/tmp/Dev10x/review/**)
   - AskUserQuestion
+  - mcp__plugin_Dev10x_cli__resolve_gate
 ---
 
 # Self-Review Branch
@@ -44,23 +45,26 @@ can consume to create fixup commits.
 **Not for remote PR review** — use `Dev10x:gh-pr-review` to post
 findings to GitHub.
 
-## Solo-Maintainer Auto-Skip Threshold (GH-161)
+## No-Reviewer Auto-Skip Threshold (GH-161)
 
 Audit GH-161 caught a session where `Dev10x:review` and
 `simplify` were auto-completed with the marker
 `Auto-skipped: solo-maintainer` despite the diff touching 8+
 files including domain restructuring and a platform Registry
-split. Blanket auto-skip in `solo-maintainer` mode defeats the
+split. Blanket auto-skip when nobody else reviews defeats the
 purpose of the review gate.
 
-**Threshold rule:** When `active_modes` contains
-`solo-maintainer`, auto-skip applies ONLY to small-surface
-changes. Compute the touched-files count from
+**Threshold rule:** Call `mcp__plugin_Dev10x_cli__resolve_gate(
+gate="request_review", context={})`. Only when it returns
+`effect: "skip"` — nobody else is being asked to look — may
+auto-skip apply at all, and then ONLY to small-surface changes.
+Never read `active_modes` or any session file to make this call.
+Compute the touched-files count from
 `git develop-diff --name-only | wc -l`:
 
-| Files touched | Solo-maintainer behavior |
+| Files touched | Behavior when `request_review` resolves to skip |
 |---|---|
-| ≤ 3 files | Auto-skip allowed (Auto-skipped: solo-maintainer) |
+| ≤ 3 files | Auto-skip allowed (Auto-skipped: no reviewer) |
 | 4–7 files | Run review in `--unattended` mode (no gate) |
 | ≥ 8 files | Run review in `--unattended` mode; if findings
 exist, emit `AskUserQuestion` so the user retains override |
@@ -75,7 +79,7 @@ applies to the `simplify` step that follows review.
 This skill follows `references/task-orchestration.md` patterns
 (Tier: Standard).
 
-**Auto-advance:** Complete each step and immediately start the next — no checkpoints under adaptive friction.
+**Auto-advance:** Complete each step and immediately start the next — no checkpoints the resolver did not ask for.
 Never pause between steps to ask "should I continue?".
 
 **REQUIRED: Create tasks before ANY work.** Execute these

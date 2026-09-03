@@ -74,10 +74,10 @@
       ]
     },
     {
-      "id": "adaptive-friction-still-emits-gate-call",
-      "name": "Under adaptive friction, gates auto-select but still emit the tool call",
-      "description": "friction_level: adaptive auto-selects the recommended option for each gate, but must still emit the AskUserQuestion tool call so the user retains override capability — it must not silently skip the call.",
-      "input": "/Dev10x:gh-review-setup with session friction_level: adaptive",
+      "id": "auto-advance-still-emits-gate-call",
+      "name": "On an auto-advance effect, gates auto-select but still emit the tool call",
+      "description": "A resolve_gate(gate=\"strategy_choice\") effect of auto-advance pre-selects the recommended option for each gate, but the skill must still emit the AskUserQuestion tool call so the user retains override capability — it must not silently skip the call, and it must not read session policy itself.",
+      "input": "/Dev10x:gh-review-setup where resolve_gate(gate=\"strategy_choice\") returns effect auto-advance",
       "assertions": [
         {
           "dimension": "strategy-gate",

@@ -5,8 +5,9 @@ Batch related decisions into a single `AskUserQuestion` call (1–4
 questions per call). Each option's `description` carries its trade-offs so
 the user chooses with the pros/cons in view.
 
-Under `friction_level: adaptive`, auto-select the recommended option for
-each decision but still emit the gate so the user retains override.
+When `resolve_gate(gate="strategy_choice", context={})` returns
+`auto-advance`, take the recommended option for each decision but still
+emit the gate so the user retains override.
 
 ## 1. Review depth
 
