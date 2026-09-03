@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import yaml
 
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
@@ -244,15 +245,19 @@ class TestReadGatePolicyInputs:
     def test_soft_fallbacks_when_absent(self, tmp_path: Path) -> None:
         inputs = SessionYamlDocument(toplevel=str(tmp_path)).read_gate_policy_inputs()
         assert inputs == {
-            "friction_level": FrictionLevel.default().value,
+            # ``None``, not the FrictionLevel default: the gate layer must be
+            # able to tell "no legacy posture declared" (resolve at the
+            # ADR-0022 D-1 baseline) from "explicitly strict" (a retired name
+            # that must fail loudly rather than escalate autonomy, GH-1159).
+            "friction_level": None,
             "active_modes": [],
             "walk_away": False,
             "gate_overrides": {},
             "gate_preset": None,
             "gate_overlays": [],
             "allowed_overlays": None,
-            # Absent reads as True — humans review (ADR-0019).
-            "human_review": True,
+            # Absent reads as `required` — the supervisor reads it (ADR-0022).
+            "supervisor_review": "required",
         }
 
     def test_reads_allowed_overlays_from_config(self, tmp_path: Path) -> None:
@@ -299,6 +304,51 @@ class TestReadAllowedOverlays:
     def test_coerces_non_string_entries(self, tmp_path: Path) -> None:
         toplevel = _write_config(tmp_path=tmp_path, content="allowed_overlays: [afk, 3]\n")
         assert SessionYamlDocument(toplevel=toplevel).read_allowed_overlays() == ["afk", "3"]
+
+
+class TestReadSupervisorReview:
+    """ADR-0022 D-2 / GH-1161: the renamed durable review posture.
+
+    ``human_review``'s name conflated the session supervisor with the wider
+    team, which is why it could only ever gate ``merge``. The enum splits
+    them, keeps the boolean readable as a deprecated alias for one release,
+    and preserves the unset → safe-pole direction exactly.
+    """
+
+    def test_reads_the_declared_value(self, tmp_path: Path) -> None:
+        toplevel = _write_config(tmp_path=tmp_path, content="supervisor_review: none\n")
+        assert SessionYamlDocument(toplevel=toplevel).read_supervisor_review() == "none"
+
+    def test_defaults_to_required_when_missing(self, tmp_path: Path) -> None:
+        assert SessionYamlDocument(toplevel=str(tmp_path)).read_supervisor_review() == "required"
+
+    @pytest.mark.parametrize("raw", ['"no"', "false", "null", "[]", '"None "'])
+    def test_malformed_reads_as_required(self, tmp_path: Path, raw: str) -> None:
+        # Only the exact `none` literal disables the park; everything else
+        # fails toward MORE oversight.
+        toplevel = _write_config(tmp_path=tmp_path, content=f"supervisor_review: {raw}\n")
+        assert SessionYamlDocument(toplevel=toplevel).read_supervisor_review() == "required"
+
+    @pytest.mark.parametrize(("legacy", "expected"), [("true", "required"), ("false", "none")])
+    def test_legacy_human_review_alias_is_honoured(
+        self, tmp_path: Path, legacy: str, expected: str
+    ) -> None:
+        toplevel = _write_config(tmp_path=tmp_path, content=f"human_review: {legacy}\n")
+        assert SessionYamlDocument(toplevel=toplevel).read_supervisor_review() == expected
+
+    def test_explicit_key_outranks_the_legacy_alias(self, tmp_path: Path) -> None:
+        # A half-migrated file must not silently keep the old answer.
+        toplevel = _write_config(
+            tmp_path=tmp_path, content="human_review: true\nsupervisor_review: none\n"
+        )
+        assert SessionYamlDocument(toplevel=toplevel).read_supervisor_review() == "none"
+
+    @pytest.mark.parametrize(("declared", "expected"), [("required", True), ("none", False)])
+    def test_deprecated_boolean_reader_preserves_polarity(
+        self, tmp_path: Path, declared: str, expected: bool
+    ) -> None:
+        toplevel = _write_config(tmp_path=tmp_path, content=f"supervisor_review: {declared}\n")
+        assert SessionYamlDocument(toplevel=toplevel).read_human_review() is expected
 
 
 class TestReadHumanReview:

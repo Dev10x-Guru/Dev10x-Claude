@@ -761,24 +761,18 @@ class SessionYamlDocument:
         return _coerce_allowed_overlays(self._durable().get("allowed_overlays"))
 
     def read_human_review(self) -> bool:
-        """Return whether humans review PRs on this project (ADR-0019, GH-950).
+        """Deprecated alias for :meth:`read_supervisor_review` (ADR-0022 D-2).
 
-        One durable, project-wide fact with three consequences:
-        ``Dev10x:gh-pr-request-review`` requests review only when this is
-        ``True``; ``Dev10x:verify-acc-dod`` runs the unresolved-threads and
-        review-requested checks only when this is ``True``; and ``False`` is a
-        **precondition** for the agent merging once automated review findings
-        are resolved.
+        ``human_review``'s name conflates two different readers — the session
+        supervisor and the wider team — which is why it could only ever gate
+        ``merge``: it had no way to express "the supervisor reads it first,
+        *then* we ask the team". ``supervisor_review`` splits them.
 
-        ``False`` is a precondition, not a grant — the git-tracked
-        ``merge: ask`` project pin (ADR-0016 D-8) and the ``allowed_overlays``
-        guard (ADR-0017) remain independent vetoes on merge autonomy.
-
-        Defaults to ``True`` when unset or malformed, so an unconfigured repo
-        keeps today's behaviour. Supersedes the ephemeral ``review-deferred``
-        mode, which is still *read* for back-compat but no longer written.
+        Retained for one release so un-migrated callers keep working.
+        ``required`` maps to ``True``, ``none`` to ``False``, preserving the
+        boolean's polarity and its unset → ``True`` safe direction.
         """
-        return _coerce_human_review(self._durable().get("human_review"))
+        return self.read_supervisor_review() == SUPERVISOR_REVIEW_REQUIRED
 
     def read_supervisor_review(self, *, data: dict[str, Any] | None = None) -> str:
         """Return whether the supervisor reads this PR first (ADR-0022 D-2).
@@ -847,10 +841,11 @@ class SessionYamlDocument:
         ``None`` when unset (permissive), else the whitelist the resolver
         filters the computed overlays against before resolving a gate.
 
-        ``human_review`` (ADR-0019, GH-1000) rides along because the merge
-        gate needs it and ``_durable()`` is not memoised — reading it via
-        :meth:`read_human_review` instead would re-open and re-parse the
-        same YAML a second time on every merge-gate resolution.
+        ``supervisor_review`` (ADR-0022 D-2, superseding ADR-0019's
+        ``human_review``) rides along because the review-boundary gate needs
+        it and ``_durable()`` is not memoised — reading it via
+        :meth:`read_supervisor_review` instead would re-open and re-parse the
+        same YAML a second time on every gate resolution.
         """
         data = self._durable()
         modes = data.get("active_modes")
@@ -876,11 +871,10 @@ class SessionYamlDocument:
             "gate_preset": preset if isinstance(preset, str) else None,
             "gate_overlays": overlays if isinstance(overlays, list) else [],
             "allowed_overlays": _coerce_allowed_overlays(data.get("allowed_overlays")),
-            "human_review": _coerce_human_review(data.get("human_review")),
-            # ADR-0022 D-2/D-5. Rides along for the same reason
-            # ``human_review`` does: ``_durable()`` is not memoised, so a
-            # second typed read would re-open and re-parse the same YAML on
-            # every gate resolution.
+            # ADR-0022 D-2/D-5. Rides along rather than being re-read via
+            # :meth:`read_supervisor_review`: ``_durable()`` is not memoised,
+            # so a second typed read would re-open and re-parse the same YAML
+            # on every gate resolution.
             "supervisor_review": self.read_supervisor_review(data=data),
         }
 

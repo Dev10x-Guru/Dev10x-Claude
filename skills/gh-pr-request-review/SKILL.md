@@ -10,7 +10,7 @@ invocation-name: Dev10x:gh-pr-request-review
 allowed-tools:
   - mcp__plugin_Dev10x_cli__request_review
   - mcp__plugin_Dev10x_cli__resolve_gate
-  - mcp__plugin_Dev10x_cli__human_review_status
+  - mcp__plugin_Dev10x_cli__supervisor_review_status
   - mcp__plugin_Dev10x_cli__pr_detect
   - mcp__plugin_Dev10x_cli__pr_labels
   - Bash(gh pr view:*)
@@ -87,9 +87,11 @@ request review at all. Use `resolve_gate` for this — do NOT read
 re-derive preset behavior in prose. The tool reads session policy
 (preset + overlays) itself.
 
-0. **Durable posture pre-check (ADR-0019).** Call
-   `mcp__plugin_Dev10x_cli__human_review_status()` and read
-   `human_review` from the response (default `true`). Do NOT read
+0. **Durable posture pre-check (ADR-0019, renamed by ADR-0022 D-2).** Call
+   `mcp__plugin_Dev10x_cli__supervisor_review_status()` and read
+   `supervisor_review` from the response (default `required`; the
+   deprecated boolean `human_review` rides along for one release, where
+   `required` is `true`). Do NOT read
    `~/.config/Dev10x/friction.yaml` directly or re-derive its
    first-match-wins precedence in prose — same rule this section already
    applies to `resolve_gate`. When it is `false`, this project has no humans in
@@ -311,26 +313,35 @@ since the reviewed diff is no longer the current one.
 
 **When to change the config instead.** Three "I reviewed it — OK to
 merge" answers in a row on one repo means `standby` is describing the
-wrong posture: that repo wants durable `human_review: false`
-(ADR-0019), not a per-PR clearance. Say so rather than letting the
+wrong posture: that repo wants durable `supervisor_review: none`
+(ADR-0022 D-2), not a per-PR clearance. Say so rather than letting the
 gate fire forever.
 
-**Standing posture vs one-off deferral (ADR-0019).** Whether humans
-review PRs on a project is a **durable project fact**, not a session
-flag. It lives as `human_review: true|false` in the matching
-`projects[]` entry of the global `~/.config/Dev10x/friction.yaml`,
-read via `mcp__plugin_Dev10x_cli__human_review_status()` (default
-`true`):
+**Standing posture vs one-off deferral (ADR-0022 D-2, superseding
+ADR-0019).** Whether the supervisor reads a project's PRs is a
+**durable project fact**, not a session flag. It lives as
+`supervisor_review: required|none` in the matching `projects[]` entry
+of the global `~/.config/Dev10x/friction.yaml`, read via
+`mcp__plugin_Dev10x_cli__supervisor_review_status()` (default
+`required`):
 
-- `human_review: false` → skip reviewer resolution and the review
+- `supervisor_review: none` → skip reviewer resolution and the review
   request entirely, and `verify-acc-dod` skips the unresolved-threads
   and review-requested checks. It is also a **precondition** for the
   agent merging once automated findings are resolved — never a grant:
   the git-tracked `merge: ask` pin and `allowed_overlays` remain
   independent vetoes.
-- `human_review: true` (default) → request review normally. A supervisor
-  who wants review permanently off sets the durable flag; a one-off
-  stand-by does not change it.
+- `supervisor_review: required` (default) → the supervisor reads the PR
+  first. Where that park lands follows repo shape (ADR-0022 D-3):
+  before `merge` in a solo repo, before `request_review` in a team one
+  — where it **precedes** the team request rather than replacing it.
+  The `review:cleared` label the two "I reviewed it" answers write is
+  what lifts the park; `Dev10x:git-groom` removes it after a
+  force-push, so the park comes back on rewritten history.
+
+The deprecated `human_review: true|false` spelling is still read for
+one release (`true` → `required`, `false` → `none`); an explicit
+`supervisor_review` always wins over it.
 
 The legacy `review-deferred` mode string is still **read** for
 back-compat (a playbook `modes.review-deferred.skip` clause or an
