@@ -93,6 +93,32 @@ _SETTING_TOGGLES: frozenset[str] = frozenset({"doubt_sink"})
 
 KNOWN_TOGGLES: frozenset[str] = _ENUM_TOGGLES | _WEIGHT_TOGGLES | _BOOL_TOGGLES | _SETTING_TOGGLES
 
+#: ``supervisor_review`` poles (ADR-0022 D-2). An enum rather than a
+#: boolean because the two are *states of the project*, not a negation of
+#: one another, and because a future third value has somewhere to go.
+SUPERVISOR_REVIEW_REQUIRED = "required"
+SUPERVISOR_REVIEW_NONE = "none"
+
+#: The overlay that declares a repo solo-shaped (ADR-0022 D-3). Repo shape
+#: is *read*, never declared afresh — adding a fourth way to say "solo"
+#: would re-grow the stack ADR-0022 collapses.
+SOLO_OVERLAY = "solo-maintainer"
+
+
+def coerce_supervisor_review(value: object) -> str:
+    """Coerce a durable ``supervisor_review`` value to one of the two poles.
+
+    Only the exact literal ``"none"`` (case- and whitespace-insensitive)
+    disables the supervisor park. Absent, unrecognised, or malformed
+    values — ``"no"``, ``False``, ``"None"`` — read as ``required``, so
+    every typo fails toward MORE oversight (ADR-0022 D-2, mirroring the
+    direction ``human_review`` took under ADR-0019).
+    """
+    if isinstance(value, str) and value.strip().lower() == SUPERVISOR_REVIEW_NONE:
+        return SUPERVISOR_REVIEW_NONE
+    return SUPERVISOR_REVIEW_REQUIRED
+
+
 #: The single shipped base preset (ADR-0022 D-1). Named rather than
 #: inlined so the resolver, the config seam, and the docs cannot drift on
 #: which posture "the baseline" is.
@@ -172,6 +198,15 @@ class GateContext:
     # merge: humans are in the review loop here (ADR-0019). Defaults to
     # True so an unconfigured repo keeps human oversight — the safe pole.
     human_review: bool = True
+    # Must the supervisor read this PR before the next step is allowed
+    # (ADR-0022 D-2)? ``required`` | ``none``. Defaults to ``required`` so
+    # an unconfigured repo — and every typo — fails toward MORE oversight.
+    supervisor_review: str = SUPERVISOR_REVIEW_REQUIRED
+    # Has the supervisor already signed off on the commits under review?
+    # Carried by the durable ``review:cleared`` PR label (GH-1008, ADR-0022
+    # D-5) and read by the infra tier; ``False`` — the safe pole — keeps the
+    # floor standing when the label cannot be read at all.
+    supervisor_cleared: bool = False
 
 
 @dataclass(frozen=True)
@@ -228,10 +263,28 @@ _FLOOR_REMEDIES = {
         "humans review this repo — set human_review: false in the matching "
         "projects[] entry of ~/.config/Dev10x/friction.yaml if none do"
     ),
+    "supervisor_review": (
+        "the supervisor reads this PR before the next step — add the "
+        "review:cleared label once they have (Dev10x:gh-pr-request-review "
+        "writes it), or set supervisor_review: none in the matching "
+        "projects[] entry of ~/.config/Dev10x/friction.yaml if they do not"
+    ),
 }
 
 
-def _floors(*, gate: str, context: GateContext) -> list[str]:
+def supervisor_review_gate(*, solo_repo: bool) -> str:
+    """The gate ``supervisor_review`` floors, given the repo's shape.
+
+    ADR-0022 D-3: the same setting gates a *different* toggle depending on
+    repo shape. In a solo repo the supervisor is the last reader before
+    merge; in a team repo they are the *first* reader, before teammates are
+    asked to spend time — so ``required`` precedes the team request rather
+    than replacing it.
+    """
+    return "merge" if solo_repo else "request_review"
+
+
+def _floors(*, gate: str, context: GateContext, solo_repo: bool = False) -> list[str]:
     """Safety floors — deny-overrides; ``ask`` regardless of any toggle."""
     floors: list[str] = []
     if context.secret_access:
@@ -250,6 +303,18 @@ def _floors(*, gate: str, context: GateContext) -> list[str]:
     # skill concerns, not gate concerns.
     if gate == "merge" and context.human_review:
         floors.append("human_review")
+    # ADR-0022 D-5. Expressed as a floor precisely because a floor can only
+    # ever force `ask` — that is what keeps `supervisor_review` a
+    # PRECONDITION for autonomy and never a grant of it. The floor lifts
+    # only on a positive sign-off signal (the `review:cleared` label,
+    # GH-1163); it is not lifted by `supervisor_review` being read from a
+    # caller-supplied context, which the infra tier drops unconditionally.
+    if (
+        gate == supervisor_review_gate(solo_repo=solo_repo)
+        and context.supervisor_review == SUPERVISOR_REVIEW_REQUIRED
+        and not context.supervisor_cleared
+    ):
+        floors.append("supervisor_review")
     return floors
 
 
@@ -414,7 +479,12 @@ def resolve_gate(
     anchor = bool(toggles["anchor_recommendations"])
     log_to = str(toggles["doubt_sink"])
 
-    floors = _floors(gate=gate, context=context)
+    # Repo shape is READ from the overlays already in play (ADR-0022 D-3),
+    # not declared afresh. These are the post-guard overlays: an
+    # `allowed_overlays` guard that dropped `solo-maintainer` leaves the repo
+    # reading as team-shaped, which floors `request_review` instead of
+    # `merge` — strictly the safer of the two effect points.
+    floors = _floors(gate=gate, context=context, solo_repo=SOLO_OVERLAY in list(overlays or []))
     if floors:
         reason = f"floor:{'+'.join(floors)} overrides preset:{preset}"
         remedies = [_FLOOR_REMEDIES[name] for name in floors if name in _FLOOR_REMEDIES]
@@ -471,6 +541,9 @@ def legacy_session_mapping(
 __all__ = [
     "AUTO_ADVANCE",
     "BASELINE_PRESET",
+    "SOLO_OVERLAY",
+    "SUPERVISOR_REVIEW_NONE",
+    "SUPERVISOR_REVIEW_REQUIRED",
     "GateContext",
     "GateEffect",
     "GateResolution",
@@ -479,6 +552,8 @@ __all__ = [
     "SHIPPED_PRESETS",
     "UnknownPresetError",
     "UnknownToggleError",
+    "coerce_supervisor_review",
     "legacy_session_mapping",
     "resolve_gate",
+    "supervisor_review_gate",
 ]

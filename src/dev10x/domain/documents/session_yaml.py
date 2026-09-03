@@ -33,6 +33,11 @@ import yaml
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.file_locks import atomic_write_text, file_lock
 from dev10x.domain.friction_level import FrictionLevel
+from dev10x.domain.gate_policy import (
+    SUPERVISOR_REVIEW_NONE,
+    SUPERVISOR_REVIEW_REQUIRED,
+    coerce_supervisor_review,
+)
 
 # Durable preference keys (ADR-0018). The global ``friction.yaml`` and the
 # legacy per-repo ``config.yaml`` both carry a subset of these; readers
@@ -46,6 +51,10 @@ _DURABLE_KEYS = (
     "gate_overlays",
     "gate_overrides",
     "human_review",
+    # ADR-0022 D-2: does the supervisor read this PR before the next step is
+    # allowed? `required` | `none`. Supersedes `human_review`, which is kept
+    # above as a deprecated alias for one release.
+    "supervisor_review",
     "protected_branches",
     # Which issue tracker this project uses, so `ensure-base` seeds that
     # tracker's MCP rules and not the other two (GH-768). A workspace fact
@@ -771,6 +780,42 @@ class SessionYamlDocument:
         """
         return _coerce_human_review(self._durable().get("human_review"))
 
+    def read_supervisor_review(self, *, data: dict[str, Any] | None = None) -> str:
+        """Return whether the supervisor reads this PR first (ADR-0022 D-2).
+
+        One durable, project-wide fact answering exactly one question: *must
+        the supervisor read this PR before the next step is allowed?*
+        ``required`` inserts a park; ``none`` removes it. Where the park sits
+        follows repo shape (ADR-0022 D-3) — before ``merge`` in a solo repo,
+        before ``request_review`` in a team one — which the gate resolver
+        decides, not this reader.
+
+        ``required`` is a floor and therefore a PRECONDITION for autonomy,
+        never a grant: the ``merge: ask`` project pin (ADR-0016 D-8), the
+        ``allowed_overlays`` guard (ADR-0017), and
+        ``merge_config.solo_maintainer`` all remain independent vetoes.
+
+        Absent, unrecognised, or malformed values read as ``required``, so an
+        unconfigured repo keeps oversight and every typo fails toward more of
+        it. The deprecated ``human_review`` boolean is honoured as an alias
+        for one release: ``true`` → ``required``, ``false`` → ``none``. An
+        explicit ``supervisor_review`` always wins over it.
+
+        ``data`` lets a caller that has already loaded ``_durable()`` reuse
+        it — the reader is not memoised, and the gate path resolves this on
+        every call.
+        """
+        prefs = self._durable() if data is None else data
+        if "supervisor_review" in prefs:
+            return coerce_supervisor_review(prefs["supervisor_review"])
+        if "human_review" in prefs:
+            return (
+                SUPERVISOR_REVIEW_REQUIRED
+                if _coerce_human_review(prefs["human_review"])
+                else SUPERVISOR_REVIEW_NONE
+            )
+        return SUPERVISOR_REVIEW_REQUIRED
+
     def read_protected_branches(self) -> list[str] | None:
         """Return the durable force-push protected-branch override (GH-1031).
 
@@ -832,6 +877,11 @@ class SessionYamlDocument:
             "gate_overlays": overlays if isinstance(overlays, list) else [],
             "allowed_overlays": _coerce_allowed_overlays(data.get("allowed_overlays")),
             "human_review": _coerce_human_review(data.get("human_review")),
+            # ADR-0022 D-2/D-5. Rides along for the same reason
+            # ``human_review`` does: ``_durable()`` is not memoised, so a
+            # second typed read would re-open and re-parse the same YAML on
+            # every gate resolution.
+            "supervisor_review": self.read_supervisor_review(data=data),
         }
 
     # ADR-0018: session identity (branch/tickets) is no longer persisted

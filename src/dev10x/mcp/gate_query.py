@@ -279,6 +279,21 @@ class GateResolutionQuery:
             # re-parse the same YAML on every merge-gate resolution.
             resolved_context["human_review"] = inputs["human_review"]
 
+        # supervisor_review is durable project policy (ADR-0022 D-2), so it is
+        # read UNCONDITIONALLY from the prefs and a caller-supplied value is
+        # dropped — exactly the GH-1000 invariant human_review carries above.
+        # An unattended agent must not be able to self-authorise past the
+        # supervisor with one wire key, and durable policy must not have two
+        # answers. `supervisor_cleared` is dropped for the same reason: the
+        # sign-off signal is the PR's own `review:cleared` label, read here,
+        # never a fact the gate's caller gets to assert about itself.
+        supplied_policy = [
+            key for key in ("supervisor_review", "supervisor_cleared") if key in resolved_context
+        ]
+        if supplied_policy:
+            ignored_context_fields = sorted({*ignored_context_fields, *supplied_policy})
+        resolved_context["supervisor_review"] = inputs["supervisor_review"]
+
         gate_context = GateContext(**resolved_context)
 
         # An empty load (presets/friction/ absent at runtime) falls back to the
