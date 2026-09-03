@@ -55,10 +55,10 @@ everything else). `auto-plan` flips
 `solo-maintainer` effect lives in the `solo-maintainer` overlay
 (`presets/friction/overlays/solo-maintainer.yaml`:
 `request_review`/`external_notify: skip`, `merge: auto-advance`) and
-the `plan_approval` posture lives in the shipped presets. These modes
-still describe *intent* here; their gate effect is encoded as
+the `plan_approval` posture lives in the shipped baseline. These
+modes still describe *intent* here; their gate effect is encoded as
 preset/overlay data the resolver composes. See
-[`friction-levels.md`](friction-levels.md) § Plan-Approval Gate and
+[`friction-levels.md`](friction-levels.md) § The model and
 [ADR-0014](../docs/adr/0014-auto-plan-mode-for-plan-approval-gate.md).
 
 **Not modes** (composed as a preset or overlay instead):

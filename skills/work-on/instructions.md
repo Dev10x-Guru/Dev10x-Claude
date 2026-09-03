@@ -761,22 +761,19 @@ resolution algorithm needs.
      (last-listed mode wins on conflicts)
    - Apply `mode_extensions` from project file on top
    See `references/execution-modes.md` for precedence rules.
-7. **Apply friction-level adaptations:** Read the resolved
-   `friction_level` from the same `~/.config/Dev10x/friction.yaml`
-   entry. For each step with a `friction:` mapping matching the
-   current level:
-   - If `skip: true`, remove the step
-   - Otherwise merge field overrides (prompt, subject, etc.)
-   See `references/friction-levels.md` for the gate-behaviour model
-   these per-step blocks sit alongside.
+7. There is no friction pass. A step states its behaviour in its
+   own `prompt`; the one baseline answers gate pacing for every
+   step alike (ADR-0022, GH-1171). A `friction:` mapping on a
+   step is a leftover from the three-preset world — ignore it and
+   report it, rather than resolving it.
 8. For each remaining step, create a `TaskCreate` with the
    step's `subject`, `type` in metadata, and `agent`/`skills`
    in metadata if present
 9. If a step has child `steps`, store them in metadata for
    expansion when the epic is reached (Phase 4)
 10. **VERIFY: Call `TaskList` and count Phase 4 subtasks.** The
-    count must match the number of steps after mode/friction
-    resolution (not the raw play step count). If fewer tasks
+    count must match the number of steps after mode resolution
+    (not the raw play step count). If fewer tasks
     exist than resolved steps, go back and create the missing
     ones. **DO NOT mark Phase 3 complete until this count
     matches.** The VERIFY is not optional — skipping it is a
