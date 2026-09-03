@@ -322,27 +322,24 @@ class GateResolutionQuery:
         if self.gate == "session_adoption" and "session_stale" not in resolved_context:
             resolved_context["session_stale"] = _computed_session_stale(toplevel=self.toplevel)
 
-        # merge keys on the durable human_review pref (ADR-0019 behaviour 3,
-        # GH-1000). UNCONDITIONAL, unlike the session_stale seam above:
-        # session_stale is a per-instance fact a caller may know better,
-        # human_review is durable project policy, and honouring a supplied
-        # value would let any caller lift the floor with one wire key.
-        if self.gate == "merge":
-            if "human_review" in resolved_context:
-                ignored_context_fields = sorted({*ignored_context_fields, "human_review"})
-            # From `inputs`, not a second `read_human_review()` call:
-            # `_durable()` is not memoised, so re-reading would re-open and
-            # re-parse the same YAML on every merge-gate resolution.
-            resolved_context["human_review"] = inputs["human_review"]
-
         # supervisor_review is durable project policy (ADR-0022 D-2), so it is
         # read UNCONDITIONALLY from the prefs and a caller-supplied value is
-        # dropped — exactly the GH-1000 invariant human_review carries above.
-        # An unattended agent must not be able to self-authorise past the
-        # supervisor with one wire key, and durable policy must not have two
-        # answers. `supervisor_cleared` is dropped for the same reason: the
-        # sign-off signal is the PR's own `review:cleared` label, read here,
-        # never a fact the gate's caller gets to assert about itself.
+        # dropped — the GH-1000 invariant, carried over from `human_review`
+        # which this key renames. UNCONDITIONAL unlike the session_stale seam
+        # above: session_stale is a per-instance fact a caller may know
+        # better, this is durable project policy, and honouring a supplied
+        # value would let an unattended agent self-authorise past the
+        # supervisor with one wire key. `supervisor_cleared` is dropped for
+        # the same reason: the sign-off signal is the PR's own
+        # `review:cleared` label, read here, never a fact the gate's caller
+        # gets to assert about itself.
+        #
+        # Read from `inputs`, not a second `read_supervisor_review()` call:
+        # `_durable()` is not memoised, so re-reading would re-open and
+        # re-parse the same YAML on every gate resolution.
+        # (A caller passing the retired `human_review` key lands in
+        # `ignored_context_fields` via the unknown-field partition above —
+        # it is no longer a GateContext field at all.)
         supplied_policy = [
             key for key in ("supervisor_review", "supervisor_cleared") if key in resolved_context
         ]

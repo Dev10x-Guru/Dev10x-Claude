@@ -1780,17 +1780,19 @@ the scope decision explicit so the DoD reflects it:
    from review-thread resolution ("defer the threads", "skip the
    review comments", "just the CI fix", "leave the open threads").
 2. **Do NOT write `.claude/Dev10x/session.yaml`** (ADR-0018, ADR-0019).
-   Whether humans review PRs here is a **durable project fact**, not a
-   session flag: it lives as `human_review: true|false` in the matching
-   `projects[]` entry of the global `~/.config/Dev10x/friction.yaml`.
+   Whether the supervisor reads PRs here is a **durable project fact**,
+   not a session flag: it lives as `supervisor_review: required|none` in
+   the matching `projects[]` entry of the global
+   `~/.config/Dev10x/friction.yaml` (ADR-0022 D-2; the deprecated
+   `human_review: true|false` spelling is still read for one release).
    Resolve the current value via
-   `mcp__plugin_Dev10x_cli__human_review_status()` (default `true`) —
-   never by reading the durable file directly — and branch:
-   - **`human_review: false`** — the project already says no humans are
-     in the review loop. `Dev10x:verify-acc-dod` skips the
+   `mcp__plugin_Dev10x_cli__supervisor_review_status()` (default
+   `required`) — never by reading the durable file directly — and branch:
+   - **`supervisor_review: none`** — the project already says no
+     supervisor pass is needed. `Dev10x:verify-acc-dod` skips the
      unresolved-threads and review-requested checks on its own; nothing
      to set. Note it in the next status line and go to step 3.
-   - **`human_review: true`** — the project says humans review, so the
+   - **`supervisor_review: required`** — the project says humans review, so the
      open thread is genuinely in scope. The check STAYS RED. **REQUIRED:
      Call `AskUserQuestion`** at every friction level (this is
      `ALWAYS_ASK` — flipping a project's review posture is not an

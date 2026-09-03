@@ -19,7 +19,7 @@ allowed-tools:
   - Bash(git diff:*)
   - mcp__plugin_Dev10x_cli__pr_detect
   - mcp__plugin_Dev10x_cli__verify_pr_state
-  - mcp__plugin_Dev10x_cli__human_review_status
+  - mcp__plugin_Dev10x_cli__supervisor_review_status
   - Read(~/.config/Dev10x/dod-acceptance-criteria.yaml)
   # Read-only grant on the GH-941-retired path so Step 2's one-release
   # fallback does not prompt. Deliberately no Edit grant here — writes
@@ -201,12 +201,13 @@ falling back to legacy `.claude/Dev10x/config.yaml`. Do NOT read the
 retired ephemeral `.claude/Dev10x/session.yaml`, which no longer
 carries durable prefs (ADR-0018, GH-854 F3).
 
-**4a. Review posture — `human_review` (ADR-0019, GH-950).** Read it via
-`mcp__plugin_Dev10x_cli__human_review_status()`; absent or malformed
-reads as `true`. Do NOT read the durable file directly — the tool owns
-the precedence. When it is `false`, drop every check declaring
-`requires_human_review: true` and report each as
-`skipped (human_review: false)`.
+**4a. Review posture — `supervisor_review` (ADR-0022 D-2, superseding
+ADR-0019's `human_review`).** Read it via
+`mcp__plugin_Dev10x_cli__supervisor_review_status()`; absent or
+malformed reads as `required`. Do NOT read the durable file directly —
+the tool owns the precedence. When it is `none`, drop every check
+declaring `requires_human_review: true` and report each as
+`skipped (supervisor_review: none)`.
 
 Which checks those are is declared in the **data**, not here — see the
 `requires_human_review` field in

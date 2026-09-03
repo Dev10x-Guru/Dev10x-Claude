@@ -108,13 +108,17 @@ SOLO_OVERLAY = "solo-maintainer"
 def coerce_supervisor_review(value: object) -> str:
     """Coerce a durable ``supervisor_review`` value to one of the two poles.
 
-    Only the exact literal ``"none"`` (case- and whitespace-insensitive)
-    disables the supervisor park. Absent, unrecognised, or malformed
-    values — ``"no"``, ``False``, ``"None"`` — read as ``required``, so
-    every typo fails toward MORE oversight (ADR-0022 D-2, mirroring the
-    direction ``human_review`` took under ADR-0019).
+    Only the exact literal ``"none"`` disables the supervisor park.
+    Absent, unrecognised, or malformed values — ``"no"``, ``False``,
+    and deliberately also ``"None"`` — read as ``required``, so every
+    typo fails toward MORE oversight (ADR-0022 D-2, mirroring the
+    direction ``human_review`` took under ADR-0019). Case folding is
+    withheld on purpose: ``"None"`` is far likelier to be a stray
+    Python literal than a considered "no supervisor reads this repo".
+    Surrounding whitespace is stripped, since that is a YAML artefact
+    rather than a different answer.
     """
-    if isinstance(value, str) and value.strip().lower() == SUPERVISOR_REVIEW_NONE:
+    if isinstance(value, str) and value.strip() == SUPERVISOR_REVIEW_NONE:
         return SUPERVISOR_REVIEW_NONE
     return SUPERVISOR_REVIEW_REQUIRED
 
@@ -195,9 +199,6 @@ class GateContext:
     overlap_signals: int | None = None
     confidence: int | None = None
     valid_fixup_count: int | None = None
-    # merge: humans are in the review loop here (ADR-0019). Defaults to
-    # True so an unconfigured repo keeps human oversight — the safe pole.
-    human_review: bool = True
     # Must the supervisor read this PR before the next step is allowed
     # (ADR-0022 D-2)? ``required`` | ``none``. Defaults to ``required`` so
     # an unconfigured repo — and every typo — fails toward MORE oversight.
@@ -248,21 +249,17 @@ class GateResolution:
 
 # Every other floor fires on something about the ACTION — a secret, an
 # irreversible write, a cross-author push — so its `ask` is self-explanatory
-# and has no config escape by design. `human_review` is the exception: it
-# fires on a durable CONFIGURATION fact, and the operator who trips it has
-# usually just composed `adaptive + [solo-maintainer, afk]` and been promised
-# "full walk-away, merges included". They get an `ask` naming a floor, with
-# nothing to say that a project key rather than the preset is holding it
-# (GH-1056) — so an unattended run freezes on its first merge with no
-# actionable diagnosis. Name the remedy in the reason. The floor does NOT
-# move: a session overlay must never lift a durable project fact (ADR-0019),
-# because "no human reviews this repo" is a property of the repo, not of how
-# this session was launched.
+# and has no config escape by design. `supervisor_review` is the exception:
+# it fires on a durable CONFIGURATION fact, and the operator who trips it
+# has usually just composed the baseline plus `[solo-maintainer, afk]` and
+# been promised "full walk-away, merges included". They get an `ask` naming
+# a floor, with nothing to say that a project key rather than the preset is
+# holding it (GH-1056) — so an unattended run freezes with no actionable
+# diagnosis. Name the remedy in the reason. The floor does NOT move: a
+# session overlay must never lift a durable project fact (ADR-0019, retained
+# by ADR-0022 D-5), because "who reads this PR" is a property of the repo,
+# not of how this session was launched.
 _FLOOR_REMEDIES = {
-    "human_review": (
-        "humans review this repo — set human_review: false in the matching "
-        "projects[] entry of ~/.config/Dev10x/friction.yaml if none do"
-    ),
     "supervisor_review": (
         "the supervisor reads this PR before the next step — add the "
         "review:cleared label once they have (Dev10x:gh-pr-request-review "
@@ -297,12 +294,10 @@ def _floors(*, gate: str, context: GateContext, solo_repo: bool = False) -> list
         floors.append("privacy_disclosure")
     if context.blocking:
         floors.append("blocking")
-    # ADR-0019 behaviour 3 (GH-1000). A floor only ever forces `ask`, so
-    # expressing the precondition here is what keeps it a precondition
-    # and not a grant. Merge-only: the flag's other two consequences are
-    # skill concerns, not gate concerns.
-    if gate == "merge" and context.human_review:
-        floors.append("human_review")
+    # ADR-0019 behaviour 3 (GH-1000), renamed and generalised by ADR-0022
+    # D-2: the `human_review` boolean's floor is this one. Its other two
+    # consequences remain skill concerns, not gate concerns.
+    #
     # ADR-0022 D-5. Expressed as a floor precisely because a floor can only
     # ever force `ask` — that is what keeps `supervisor_review` a
     # PRECONDITION for autonomy and never a grant of it. The floor lifts

@@ -88,16 +88,13 @@ class TestGatePolicyResolver:
 
     # --- Audit scenario 3: GH-743/744 — the merge human boundary ---
     #
-    # These exercise the merge gate's PRESET/OVERRIDE mechanics, so they
-    # pass `human_review=False` to lift the ADR-0019 precondition floor
-    # (GH-1000) that would otherwise short-circuit every one of them. The
-    # floor's own behaviour is covered under "human_review as a merge
-    # precondition" below.
+    # These exercise the merge gate's PRESET/OVERRIDE mechanics with no
+    # overlays, so the repo reads as team-shaped and the ADR-0022 review
+    # boundary parks at `request_review` rather than short-circuiting them.
+    # That floor's own behaviour is covered in TestSupervisorReviewFloor.
 
     def test_merge_is_auto_advance_at_adaptive_by_default(self) -> None:
-        resolution = resolve_gate(
-            gate="merge", context=GateContext(human_review=False), preset="adaptive"
-        )
+        resolution = resolve_gate(gate="merge", context=GateContext(), preset="adaptive")
         assert resolution.effect is GateEffect.AUTO_ADVANCE
 
     def test_team_repo_project_pin_outranks_adaptive_preset(self) -> None:
@@ -112,7 +109,7 @@ class TestGatePolicyResolver:
     def test_session_toggle_override_outranks_project_pin(self) -> None:
         resolution = resolve_gate(
             gate="merge",
-            context=GateContext(human_review=False),
+            context=GateContext(),
             preset="adaptive",
             project_overrides={"merge": "ask"},
             session_overrides={"merge": AUTO_ADVANCE},
@@ -224,120 +221,31 @@ class TestGatePolicyResolver:
         assert resolution.effect is GateEffect.ASK
         assert expected_floor in resolution.floors_applied
 
-    # --- human_review as a merge precondition (ADR-0019 #3, GH-1000) ---
-
-    def test_human_review_floors_the_merge_gate(self) -> None:
-        # The default pole: humans review here, so the agent does not merge
-        # on its own however permissive the preset and overlays are.
-        resolution = resolve_gate(
-            gate="merge",
-            context=GateContext(human_review=True),
-            preset="adaptive",
-            overlays=["solo-maintainer", "afk"],
-            session_overrides={"merge": AUTO_ADVANCE},
-        )
-        assert resolution.effect is GateEffect.ASK
-        assert "human_review" in resolution.floors_applied
-
-    def test_human_review_floor_names_its_remedy(self) -> None:
-        # GH-1056: the floor is correct, but an unattended run that trips it
-        # froze on an `ask` whose reason named only the floor — leaving the
-        # operator to guess that a durable key, not the preset, held it.
-        resolution = resolve_gate(
-            gate="merge",
-            context=GateContext(human_review=True),
-            preset="adaptive",
-            overlays=["solo-maintainer", "afk"],
-        )
-        assert "human_review: false" in resolution.reason
-        assert "friction.yaml" in resolution.reason
+    # --- Floor remedies ---
+    #
+    # The review-boundary floor itself (ADR-0019 #3 / GH-1000, renamed and
+    # generalised by ADR-0022 D-2) is covered in TestSupervisorReviewFloor.
 
     def test_action_floors_carry_no_remedy(self) -> None:
         # An action floor has no config escape by design, so its reason must
         # not imply one.
         resolution = resolve_gate(
             gate="merge",
-            context=GateContext(human_review=False, secret_access=True),
+            context=GateContext(secret_access=True),
             preset="adaptive",
         )
         assert resolution.effect is GateEffect.ASK
         assert "friction.yaml" not in resolution.reason
 
-    def test_human_review_defaults_to_flooring_when_unset(self) -> None:
-        # An omitted fact must resolve toward oversight: an unconfigured
-        # repo keeps a human on the merge.
-        resolution = resolve_gate(
-            gate="merge",
-            context=GateContext(),
-            preset="adaptive",
-            overlays=["solo-maintainer", "afk"],
-        )
-        assert resolution.effect is GateEffect.ASK
-        assert "human_review" in resolution.floors_applied
-
-    def test_no_human_review_lets_the_merge_gate_resolve(self) -> None:
-        # With humans out of the loop the floor lifts — and only then does
-        # the preset get to decide.
-        resolution = resolve_gate(
-            gate="merge",
-            context=GateContext(human_review=False, supervisor_review=SUPERVISOR_REVIEW_NONE),
-            preset="adaptive",
-            overlays=["solo-maintainer", "afk"],
-        )
-        assert resolution.effect is GateEffect.AUTO_ADVANCE
-        assert "human_review" not in resolution.floors_applied
-
-    def test_human_review_floor_is_scoped_to_merge(self) -> None:
-        # The flag's other consequences live in skills, not gates: it must
-        # not quietly floor every unrelated gate.
+    def test_review_floor_does_not_leak_onto_unrelated_gates(self) -> None:
+        # The durable fact's other consequences live in skills, not gates: it
+        # must not quietly floor every unrelated gate.
         resolution = resolve_gate(
             gate="thread_resolution",
-            context=GateContext(human_review=True),
+            context=GateContext(supervisor_review=SUPERVISOR_REVIEW_REQUIRED),
             preset="adaptive",
         )
         assert resolution.floors_applied == []
-
-    def test_no_human_review_cannot_re_admit_a_withheld_merge(self) -> None:
-        # The composition invariant: both must agree, either can veto.
-        # A project pin of `merge: ask` still wins — clearing human_review
-        # is a precondition, never a grant.
-        resolution = resolve_gate(
-            gate="merge",
-            context=GateContext(human_review=False),
-            preset="adaptive",
-            overlays=["solo-maintainer", "afk"],
-            project_overrides={"merge": "ask"},
-        )
-        assert resolution.effect is GateEffect.ASK
-
-    def test_no_human_review_cannot_re_admit_a_dropped_overlay(self) -> None:
-        # allowed_overlays drops solo-maintainer upstream of resolution, so
-        # the repo reads as team-shaped and the supervisor_review floor lands
-        # on request_review — while a `merge: ask` project pin still governs
-        # the merge itself. human_review is not an overlay and cannot put the
-        # dropped one back to reach auto-advance.
-        resolution = resolve_gate(
-            gate="merge",
-            context=GateContext(human_review=False),
-            preset=BASELINE_PRESET,
-            overlays=[],
-            project_overrides={"merge": "ask"},
-        )
-        assert resolution.effect is GateEffect.ASK
-        assert resolution.effect is not GateEffect.AUTO_ADVANCE
-
-    def test_a_safety_floor_still_outranks_cleared_human_review(self) -> None:
-        # human_review: false lifts its own floor only. An unrelated safety
-        # floor is untouched by it.
-        resolution = resolve_gate(
-            gate="merge",
-            context=GateContext(human_review=False, secret_access=True),
-            preset="adaptive",
-            overlays=["solo-maintainer", "afk"],
-            session_overrides={"merge": AUTO_ADVANCE},
-        )
-        assert resolution.effect is GateEffect.ASK
-        assert "secret_access" in resolution.floors_applied
 
     def test_destructive_but_recoverable_is_not_floored(self) -> None:
         resolution = resolve_gate(
@@ -370,12 +278,12 @@ class TestGatePolicyResolver:
         assert resolution.effect is expected_effect
 
     def test_invalid_toggle_value_raises(self) -> None:
-        # human_review=False so the ADR-0019 floor does not short-circuit
-        # ahead of toggle evaluation — the bad value must still be reached.
+        # No overlays, so no review floor short-circuits ahead of toggle
+        # evaluation on this gate — the bad value must still be reached.
         with pytest.raises(UnknownToggleError):
             resolve_gate(
                 gate="merge",
-                context=GateContext(human_review=False),
+                context=GateContext(),
                 preset="adaptive",
                 session_overrides={"merge": "maybe"},
             )
@@ -496,7 +404,7 @@ class TestLegacySessionMapping:
         )
         resolution: GateResolution = resolve_gate(
             gate="merge",
-            context=GateContext(human_review=False, supervisor_review=SUPERVISOR_REVIEW_NONE),
+            context=GateContext(supervisor_review=SUPERVISOR_REVIEW_NONE),
             preset=preset,
             overlays=overlays,
         )
@@ -504,9 +412,8 @@ class TestLegacySessionMapping:
 
 
 class TestSupervisorReviewFloor:
-    # ADR-0022 D-3/D-5. `human_review=False` throughout so the ADR-0019
-    # floor does not short-circuit the merge rows before this floor is
-    # reached — GH-1161 collapses the two into one key.
+    # ADR-0022 D-3/D-5. This floor IS the ADR-0019 `human_review` floor,
+    # renamed and generalised (GH-1161) — the two are one key, not two.
 
     SOLO = ["solo-maintainer"]
     TEAM: list[str] = []
@@ -530,7 +437,7 @@ class TestSupervisorReviewFloor:
     ) -> None:
         resolution = resolve_gate(
             gate=gate,
-            context=GateContext(human_review=False, supervisor_review=supervisor_review),
+            context=GateContext(supervisor_review=supervisor_review),
             preset=BASELINE_PRESET,
             overlays=overlays,
         )
@@ -541,7 +448,7 @@ class TestSupervisorReviewFloor:
         # floored — it is skipped by the overlay, as before.
         resolution = resolve_gate(
             gate="request_review",
-            context=GateContext(human_review=False, supervisor_review=SUPERVISOR_REVIEW_REQUIRED),
+            context=GateContext(supervisor_review=SUPERVISOR_REVIEW_REQUIRED),
             preset=BASELINE_PRESET,
             overlays=self.SOLO,
         )
@@ -554,7 +461,6 @@ class TestSupervisorReviewFloor:
         resolution = resolve_gate(
             gate="request_review",
             context=GateContext(
-                human_review=False,
                 supervisor_review=SUPERVISOR_REVIEW_REQUIRED,
                 supervisor_cleared=True,
             ),
@@ -566,7 +472,7 @@ class TestSupervisorReviewFloor:
     def test_floor_defaults_to_required_when_unset(self) -> None:
         resolution = resolve_gate(
             gate="request_review",
-            context=GateContext(human_review=False),
+            context=GateContext(),
             preset=BASELINE_PRESET,
         )
         assert resolution.effect is GateEffect.ASK
@@ -575,7 +481,7 @@ class TestSupervisorReviewFloor:
     def test_floor_names_its_remedy(self) -> None:
         resolution = resolve_gate(
             gate="request_review",
-            context=GateContext(human_review=False),
+            context=GateContext(),
             preset=BASELINE_PRESET,
         )
         assert "review:cleared" in resolution.reason
@@ -585,7 +491,7 @@ class TestSupervisorReviewFloor:
         # `none` is a PRECONDITION, never a grant: a project pin still wins.
         resolution = resolve_gate(
             gate="merge",
-            context=GateContext(human_review=False, supervisor_review=SUPERVISOR_REVIEW_NONE),
+            context=GateContext(supervisor_review=SUPERVISOR_REVIEW_NONE),
             preset=BASELINE_PRESET,
             overlays=self.SOLO,
             project_overrides={"merge": "ask"},
@@ -596,7 +502,6 @@ class TestSupervisorReviewFloor:
         resolution = resolve_gate(
             gate="merge",
             context=GateContext(
-                human_review=False,
                 supervisor_review=SUPERVISOR_REVIEW_NONE,
                 secret_access=True,
             ),
@@ -610,9 +515,11 @@ class TestSupervisorReviewFloor:
         ("raw", "expected"),
         [
             ("none", SUPERVISOR_REVIEW_NONE),
-            ("  None  ", SUPERVISOR_REVIEW_NONE),
+            ("  none  ", SUPERVISOR_REVIEW_NONE),  # YAML whitespace artefact
             ("required", SUPERVISOR_REVIEW_REQUIRED),
-            # Everything malformed fails toward MORE oversight.
+            # Everything malformed fails toward MORE oversight — including
+            # `None`, likelier a stray Python literal than a considered answer.
+            ("None", SUPERVISOR_REVIEW_REQUIRED),
             ("no", SUPERVISOR_REVIEW_REQUIRED),
             (False, SUPERVISOR_REVIEW_REQUIRED),
             (None, SUPERVISOR_REVIEW_REQUIRED),
@@ -635,14 +542,14 @@ class TestSupervisorReviewFloor:
 class TestInjectedShippedPresets:
     # ADR-0016 #752: the infra tier injects YAML-hydrated preset maps.
 
-    # human_review=False throughout: with the ADR-0019 floor active these
-    # would resolve to ASK whether or not the injection took effect, so the
-    # assertion would pass vacuously.
+    # No overlays throughout, so the review boundary parks at request_review
+    # and cannot resolve these merge assertions to ASK regardless of whether
+    # the injection took effect — which would make them pass vacuously.
 
     def test_injected_presets_replace_the_domain_default(self) -> None:
         resolution = resolve_gate(
             gate="merge",
-            context=GateContext(human_review=False),
+            context=GateContext(),
             preset="custom",
             shipped_presets={"custom": {**SHIPPED_PRESETS["adaptive"], "merge": "ask"}},
         )
@@ -651,7 +558,7 @@ class TestInjectedShippedPresets:
     def test_injected_overlays_replace_the_domain_default(self) -> None:
         resolution = resolve_gate(
             gate="merge",
-            context=GateContext(human_review=False),
+            context=GateContext(),
             preset="adaptive",
             overlays=["freeze"],
             shipped_overlays={"freeze": {"merge": "ask"}},
@@ -680,10 +587,11 @@ class TestVisibleRecord:
         assert record.endswith(")")
 
     def test_ask_has_no_record(self) -> None:
-        # human_review defaults to True, so the ADR-0019 floor asks.
+        # supervisor_review defaults to `required`, so the review floor asks
+        # at the gate a team-shaped repo parks at.
         assert (
             resolve_gate(
-                gate="merge", context=GateContext(), preset=BASELINE_PRESET
+                gate="request_review", context=GateContext(), preset=BASELINE_PRESET
             ).visible_record()
             is None
         )

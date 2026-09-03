@@ -41,6 +41,7 @@ __all__ = [
     "preset_pin_status",
     "resolve_gate",
     "resolve_gate_for_toplevel",
+    "supervisor_review_status",
     "tracker_status",
 ]
 
@@ -167,48 +168,87 @@ async def preset_pin_status(cwd: str | None = None) -> dict:
         return to_wire(preset_pin.preset_pin_status(cwd=cwd))
 
 
-@server.tool()
-async def human_review_status(cwd: str | None = None) -> dict:
-    """Report whether humans review PRs on this project (ADR-0019, GH-950).
+def _read_supervisor_review() -> Result[dict[str, Any]]:
+    """Shared body for `supervisor_review_status` and its deprecated alias.
 
-    The sanctioned way for a skill to read the durable `human_review`
+    Callers bind the effective CWD (GH-979) before invoking this.
+    """
+    from dev10x.domain.documents.session_yaml import SessionYamlDocument
+    from dev10x.domain.gate_policy import SUPERVISOR_REVIEW_REQUIRED
+    from dev10x.domain.git_context import GitContext
+    from dev10x.mcp.gate_query import _policy_toplevel
+
+    toplevel = GitContext().toplevel
+    if toplevel is None:
+        return err("Not in a git repository")
+    # Resolve through the same GH-978 repo-root fallback the gate uses
+    # (GH-1000). One durable fact must not have two answers: in a linked
+    # worktree matching no friction.yaml glob, a raw toplevel here would
+    # report `required` — sending the skills off to park — while
+    # resolve_gate read the repo's `none` and lifted its floor.
+    document = SessionYamlDocument(toplevel=_policy_toplevel(toplevel))
+    supervisor_review = document.read_supervisor_review()
+    return ok(
+        {
+            "supervisor_review": supervisor_review,
+            # Deprecated alias, emitted for one release so callers that
+            # still branch on the boolean keep working (ADR-0022 D-2).
+            "human_review": supervisor_review == SUPERVISOR_REVIEW_REQUIRED,
+            "repo_root": toplevel,
+        }
+    )
+
+
+@server.tool()
+async def supervisor_review_status(cwd: str | None = None) -> dict:
+    """Report whether the supervisor reads this project's PRs (ADR-0022 D-2).
+
+    The sanctioned way for a skill to read the durable `supervisor_review`
     posture. Skills MUST call this rather than reading
     `~/.config/Dev10x/friction.yaml` directly or re-deriving the
     first-match-wins glob precedence in prose — the same rule
-    `resolve_gate` enforces for `friction_level` / `active_modes`.
+    `resolve_gate` enforces for the rest of the gate policy.
 
-    Three behaviours key off the returned value: `Dev10x:gh-pr-request-review`
-    requests review only when it is true; `Dev10x:verify-acc-dod` runs the
-    checks marked `requires_human_review` only when it is true; and false is
-    a *precondition* for merge autonomy — never a grant, since the
-    `merge: ask` project pin and `allowed_overlays` remain independent
-    vetoes.
+    Where the park lands follows repo shape (ADR-0022 D-3): before `merge`
+    in a solo repo, before `request_review` in a team one. `required` never
+    REMOVES a step — in a team repo it precedes the team review request
+    rather than replacing it. `none` is a *precondition* for autonomy,
+    never a grant, since the `merge: ask` project pin and
+    `allowed_overlays` remain independent vetoes.
 
     Args:
         cwd: Effective working directory (GH-979).
 
     Returns:
-        Dictionary with keys: human_review (bool — true when unset or
-        malformed, so a bad value fails toward MORE oversight), repo_root.
-        `{"error": ...}` outside a git repo.
+        Dictionary with keys: supervisor_review ("required" | "none" —
+        "required" when unset or malformed, so a bad value fails toward
+        MORE oversight), human_review (the deprecated boolean alias),
+        repo_root. `{"error": ...}` outside a git repo.
     """
-    from dev10x.domain.documents.session_yaml import SessionYamlDocument
-    from dev10x.domain.git_context import GitContext
-    from dev10x.mcp.gate_query import _policy_toplevel
     from dev10x.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
-        toplevel = GitContext().toplevel
-        if toplevel is None:
-            return to_wire(err("Not in a git repository"))
-        # Resolve through the same GH-978 repo-root fallback the merge gate
-        # uses (GH-1000). One durable fact must not have two answers: in a
-        # linked worktree matching no friction.yaml glob, a raw toplevel
-        # here would report human_review: true — sending the skills off to
-        # request review — while resolve_gate(gate="merge") read the repo's
-        # `false` and lifted its floor.
-        document = SessionYamlDocument(toplevel=_policy_toplevel(toplevel))
-        return to_wire(ok({"human_review": document.read_human_review(), "repo_root": toplevel}))
+        return to_wire(_read_supervisor_review())
+
+
+@server.tool()
+async def human_review_status(cwd: str | None = None) -> dict:
+    """Deprecated alias for `supervisor_review_status` (ADR-0022 D-2).
+
+    `human_review` conflated the session supervisor with the wider team,
+    which is why it could only ever gate `merge`. Retained for one release;
+    returns the same payload, including the boolean `human_review` key.
+
+    Args:
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Same as `supervisor_review_status`.
+    """
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return to_wire(_read_supervisor_review())
 
 
 @server.tool()
