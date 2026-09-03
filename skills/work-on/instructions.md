@@ -1494,9 +1494,9 @@ until `Skill(Dev10x:gh-pr-monitor)` has run end-to-end.
 
 ### Swarm-Child Auto-Advance (GH-368 F2, GH-385 F1)
 
-**Hard rule:** When the resolved `active_modes` contains
-`swarm-child` (dispatch-time, set by the fanout orchestrator —
-ADR-0019 keeps it out of the durable file), work-on MUST
+**Hard rule:** When the dispatch prompt carries the fanout
+swarm-context marker (the `wave_id` line — ADR-0019 / GH-950 keep
+swarm-child identity out of every config file), work-on MUST
 auto-advance past `Skill(Dev10x:ticket-branch)` without a
 continuation prompt. The branch is not a milestone — it is
 setup infrastructure. After the branch is created, immediately
