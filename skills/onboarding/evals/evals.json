@@ -31,6 +31,21 @@
         },
         {
           "check": "tool_called",
+          "tool": "mcp__plugin_Dev10x_cli__supervisor_review_status",
+          "assertion": "review_policy_status_checked_before_ask"
+        },
+        {
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "assertion": "review_policy_asked"
+        },
+        {
+          "check": "tool_called",
+          "tool": "mcp__plugin_Dev10x_cli__pin_supervisor_review",
+          "assertion": "review_policy_persisted"
+        },
+        {
+          "check": "tool_called",
           "tool": "AskUserQuestion",
           "assertion": "platform_registration_offered"
         },
@@ -49,6 +64,27 @@
           "check": "output_contains",
           "value": "Skip",
           "assertion": "configured_steps_skipped"
+        }
+      ]
+    },
+    {
+      "scenario": "Returning user with supervisor_review already pinned",
+      "expected": "supervisor_review_status returns pinned: true; the review-policy AskUserQuestion does NOT fire and pin_supervisor_review is NOT called",
+      "assertions": [
+        {
+          "check": "tool_called",
+          "tool": "mcp__plugin_Dev10x_cli__supervisor_review_status",
+          "assertion": "review_policy_status_still_checked"
+        },
+        {
+          "check": "behavioral",
+          "value": "no-review-policy-ask",
+          "assertion": "review_policy_ask_skipped_when_pinned"
+        },
+        {
+          "check": "behavioral",
+          "value": "no-pin-supervisor-review-call",
+          "assertion": "pin_supervisor_review_not_called_when_pinned"
         }
       ]
     }

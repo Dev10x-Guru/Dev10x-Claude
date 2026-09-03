@@ -174,6 +174,40 @@ generalization, full permission audit, project-settings dedup)
 — those remain available via `/Dev10x:upgrade-cleanup` whenever
 the user wants the comprehensive sweep.
 
+### 2.2b-2 Review Policy (ADR-0022)
+
+**Skip if:** `mcp__plugin_Dev10x_cli__supervisor_review_status()`
+returns `pinned: true` — the choice is a settled workspace fact, and
+re-asking it on every onboarding run is exactly the friction this gate
+exists to remove.
+
+```
+Dev10x asks one durable question about how this project ships:
+
+  Does the supervisor read the PR before it moves on?
+
+AI self-review and CI always run first, in every posture (ADR-0022
+D-4) — this only decides whether the agent also waits for you.
+```
+
+**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text) when
+`pinned` is `false`. Question: "Does the supervisor read the PR
+before it moves on?" Options:
+
+- **Yes — the supervisor reviews first (Recommended)** —
+  `supervisor_review=required`. In a solo repo the park lands before
+  merge; in a team repo it lands before teammates are asked to review
+  (ADR-0022 D-3). This is the safe default.
+- **No — the agent ships it** — `supervisor_review=none`.
+
+Persist the answer with
+`mcp__plugin_Dev10x_cli__pin_supervisor_review(value="required"|"none")`.
+It keys off the repo stem, so one answer covers the repo and every
+worktree of it — same repo-scoping as `pin_tracker` above. There is no
+`strict` / `guided` / `adaptive` preset to pick (ADR-0022 D-1);
+`adaptive` is the sole shipped baseline and every gate auto-advances
+unless this posture, a floor, or a project pin says otherwise.
+
 ### 2.2c Platform Registration
 
 **Skip if:** `uvx dev10x platform list` already reports one or
