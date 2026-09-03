@@ -1,223 +1,200 @@
-# Session Configuration Schema
+# Durable Configuration Schema (v2)
 
-Schema for the durable session preferences read by SessionStart
-hooks and `resolve_gate` to configure session behavior.
+Schema for the durable preferences read by SessionStart hooks and
+`resolve_gate`. **Schema v2** is the ADR-0022 shape: one baseline
+preset, so there is nothing to select, and one key naming whether the
+supervisor reads the PR.
 
-> **ADR-0018 relocation (GH-812).** Durable prefs now live in the
+> **ADR-0018 relocation (GH-812).** Durable prefs live in the
 > **global `~/.config/Dev10x/friction.yaml`**, keyed by project
-> dir-path globs — NOT in a per-repo `.claude/Dev10x/config.yaml`.
-> The ephemeral `.claude/Dev10x/session.yaml` is **retired**; session
-> identity (`branch`/`tickets`) for the adoption/staleness gate comes
-> from plan-sync. Nothing durable is written under a repo's `.claude/`,
-> so Claude Code's self-settings gate never fires on Dev10x session
-> state. A legacy per-repo `config.yaml` is still *read* as a one-cycle
-> migration fallback. The field semantics below are unchanged — only
-> the file location and keying moved.
+> dir-path globs — never in a per-repo `.claude/Dev10x/config.yaml`.
+> The ephemeral `.claude/Dev10x/session.yaml` is retired; session
+> identity for the adoption gate comes from plan-sync. Nothing durable
+> is written under a repo's `.claude/`, so Claude Code's self-settings
+> gate never fires on Dev10x state. A legacy per-repo `config.yaml` is
+> still *read* as a migration fallback.
 
-## File Location
+## File location
 
 ```
 ~/.config/Dev10x/friction.yaml
 ```
 
-Machine-global, keyed by project. Hand-authored (or seeded via
-`dev10x session seed`, which writes a starter `defaults:` block).
-The resolver reads the first matching `projects[]` entry, then a
-legacy per-repo `config.yaml`, then `defaults:`.
+Machine-global, keyed by project. The resolver reads the first
+matching `projects[]` entry, then the legacy per-repo `config.yaml`,
+then `defaults:`. Written once when absent by `dev10x session seed`
+(or `Skill(Dev10x:session-config-seed)`), hand-authored thereafter.
 
 ```yaml
 defaults:
-  friction_level: guided
-  active_modes: []
-projects:
-  - match: ["*/my-repo", "/abs/path/**"]
-    friction_level: adaptive
-    active_modes: [solo-maintainer]
-    allowed_overlays: []
-    human_review: false
-```
-
-## Schema Definition
-
-Durable keys (in `defaults:` or a `projects[]` entry):
-
-| Field | Type | Required | Default | Example |
-|-------|------|----------|---------|---------|
-| `friction_level` | string (enum) | Yes | `strict` | `adaptive` |
-| `active_modes` | list of strings | Yes | `[]` | `[solo-maintainer, open-source]` |
-| `allowed_overlays` | list of strings | No | *unset = permissive* | `[]` |
-| `human_review` | boolean | No | `true` | `false` |
-
-### friction_level
-
-Controls how often the agent pauses for user decisions.
-
-| Value | Behavior |
-|-------|----------|
-| `strict` | Agent pauses frequently; asks confirmation before each major action. Recommended for collaborative work. |
-| `guided` | Agent proceeds with confidence but pauses for significant architectural or policy decisions. |
-| `adaptive` | Agent operates with high autonomy; pauses only when facing ambiguity that cannot be resolved by the current task context. Recommended for solo-maintainer mode. |
-
-### active_modes
-
-List of named modes that customize agent behavior. Known modes:
-
-| Mode | Behavior | Set by |
-|------|----------|--------|
-| `solo-maintainer` | Skip reviewer assignment and Slack notifications. Agent assumes single owner and high autonomy. | User (durable `active_modes` in `~/.config/Dev10x/friction.yaml`) |
-| `open-source` | Prefer issue templates and public-safe language. Assume external contribution norms. | User (durable `active_modes` in `~/.config/Dev10x/friction.yaml`) |
-| `swarm-child` | Internal mode for fanout skill (GH-300+). Agent is part of a swarm and reports to orchestrator. | Skill (set by fanout orchestrator) |
-
-Empty list is valid (no modes active).
-
-### allowed_overlays (GH-805)
-
-Local repo-character allow-list guarding against a **stale/incorrect
-high-autonomy mode** being honored where it should not be. It lives in
-the gitignored, worktree-copied `config.yaml` — durable between sessions
-and copied source→worktree by `post-checkout` (like `.claude`
-`settings.local` / `.idea`), but **never committed** to the remote, so
-it is a private repo-character preference teammates cannot dispute.
-
-| Value | Behavior |
-|-------|----------|
-| *unset* (key absent) | Permissive — every session overlay is honored (back-compat). |
-| `[]` | No high-autonomy overlay is honored — correct for a **team repo**. A stale `active_modes: [solo-maintainer]` is dropped before gate resolution. |
-| `[solo-maintainer]` | Only the listed overlays are honored; any other is dropped. |
-
-The gate resolver (`resolve_gate_for_toplevel`) filters the session's
-computed overlays (`solo-maintainer`, `afk`) against this list, dropping
-those absent from it — so their `request_review` / `external_notify` /
-`merge` skips never apply. Dropping only ever *removes* autonomy, so it
-can never make a gate less safe. The `session-mode-guard` SessionStart
-feature (`ModeGuardRule`) warns when it drops something.
-
-This is a separate, local tier from the git-tracked
-`.dev10x/gate-policy.yaml` project pin (`overrides: {merge: ask}`): the
-pin is shared repo policy for specific toggles; `allowed_overlays` is a
-private, whole-overlay allow-list.
-
-### human_review (ADR-0019, GH-950)
-
-Whether humans — including the session supervisor — are in the review
-loop on this project. One durable fact with three consequences.
-
-| Value | Behavior |
-|-------|----------|
-| *unset* / malformed | Reads as `true`. An unconfigured repo keeps today's behavior, and a bad value (e.g. `"no"`) fails toward MORE oversight. Note what that costs: a repo that never set the key does not auto-merge even at `gate_preset: adaptive` with the `solo-maintainer` and `afk` overlays. Add `human_review: false` to its `projects[]` entry to opt in. |
-| `true` | `Dev10x:gh-pr-request-review` requests review; `Dev10x:verify-acc-dod` runs the **"No unresolved review threads"** and **"Review requested"** checks. An open thread is a real failing check. `resolve_gate(gate="merge")` raises a `human_review` floor, so the merge gate resolves to `ask` whatever the preset says. |
-| `false` | No review request; both checks are dropped and reported as `skipped (human_review: false)`. The merge floor lifts, and only then does the preset/pin/overlay stack decide the merge gate. |
-
-Read via `SessionYamlDocument.read_human_review()`, or from a skill via
-`mcp__plugin_Dev10x_cli__human_review_status`. The merge gate reads it
-for you, and does so **unconditionally**: a `human_review` key passed in
-a `resolve_gate` context is ignored and reported back in
-`ignored_context_fields`. Honouring it would let any caller clear the
-floor with one wire key. Both readers resolve through the same GH-978
-repo-root fallback, so a linked worktree cannot report a different
-posture from the merge gate.
-
-**`false` is a precondition for merge autonomy, not a grant.** The
-git-tracked `.dev10x/gate-policy.yaml` `merge: ask` pin and the
-`allowed_overlays` guard remain independent vetoes — merge autonomy
-requires this flag *and* those gates to agree, and either can refuse.
-This is enforced structurally rather than by convention (GH-1000):
-the precondition is a **floor**, and a floor can only force `ask`.
-Clearing `human_review` therefore removes one veto and cannot
-re-admit autonomy that any other layer withheld.
-
-This supersedes the ephemeral `review-deferred` mode, which was written
-to the retired per-repo `session.yaml` and therefore never read back in
-a configured repo. There is no per-session deferral: the posture is a
-standing property of the project. `review-deferred` is still *read* for
-back-compat but nothing writes it.
-
-## Readers (Consumers)
-
-The file read is owned by `SessionYamlDocument`
-(`src/dev10x/domain/documents/session_yaml.py`); it returns the parsed
-`friction_level` and `active_modes` with soft fallbacks. Policy Rules in
-`src/dev10x/domain/session_rules.py` consume those values and perform no
-I/O (ADR-0007 D3):
-
-1. **`SessionYamlDocument`** — owns the durable-prefs read.
-   `read_friction_level()`, `read_active_modes()`,
-   `read_friction_and_modes()`, and `read_human_review()` apply the
-   fallbacks below.
-
-2. **`BuildAutonomyReassuranceRule`**
-   - Receives `friction_level` and `active_modes` as fields
-   - Fires only when: `friction_level == "adaptive"` AND `"solo-maintainer"` in `active_modes`
-   - Fallback: Silent (returns empty string) if conditions not met
-   - Output: Reassurance text displayed at SessionStart
-
-3. **`DecisionGuidanceRule`**
-   - Receives `friction_level`
-   - Provides guidance text tailored to the selected level
-
-## Fallback Behavior
-
-When fields are missing or malformed:
-
-- **Missing `friction_level`**: Defaults to `"strict"`
-- **Malformed `friction_level`** (not in enum): Defaults to `"strict"`, no error
-- **Missing `active_modes`**: Defaults to `[]` (empty list, no modes active)
-- **Malformed `active_modes`** (not a list): Treated as `[]`, no error
-- **Missing entire file**: All defaults apply; session runs in default configuration
-
-All readers handle missing/null fields gracefully — no exceptions are raised.
-
-## Template
-
-Durable preferences live in the **global**
-`~/.config/Dev10x/friction.yaml`, keyed by first-match-wins project
-dir-path globs (ADR-0018). There is no per-repo session file to
-create — writing one under a repo's `.claude/` trips Claude Code's
-self-settings consent gate on every session and is never read back
-in a repo that has a `friction.yaml` entry.
-
-```yaml
-# ~/.config/Dev10x/friction.yaml
-defaults:
-  friction_level: guided
+  supervisor_review: required     # required | none
   active_modes: []
 projects:
   - match: ["*/my-solo-repo", "*/my-solo-repo-*"]
-    gate_preset: adaptive
-    gate_overlays: [afk, solo-maintainer]
-    active_modes: [solo-maintainer]
-    human_review: false
+    supervisor_review: none
+    gate_overlays: [solo-maintainer]
+    gate_overrides: {merge: ask}
+    allowed_overlays: []
+    tracker: github
 ```
 
-Note that `active_modes` is listed alongside `gate_overlays` rather
-than replaced by it. Overlays feed `resolve_gate`; `active_modes`
-feeds the non-gate consumers (`verify-acc-dod`'s mode filter,
-playbook step `modes:` blocks). `legacy_session_mapping()` maps
-`active_modes` → overlays but never the reverse, so an overlay-only
-entry leaves those consumers seeing `[]`. Set both when a mode needs
-to reach both surfaces.
+## Schema definition
 
-**Do not hand-write this file when it is absent** — run
-`dev10x session seed` (or `Skill(Dev10x:session-config-seed)`), the
-same idempotent writer the `post-checkout` hook uses, so the shape
-stays consistent across entry points. To pin a preset for the repo
-you are sitting in, prefer
-`mcp__plugin_Dev10x_cli__pin_gate_preset`, which derives the glob
-from the git common dir so every present and future worktree matches.
+Durable keys, in `defaults:` or a `projects[]` entry. Any key outside
+this set is dropped by the reader before it reaches the resolver.
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `supervisor_review` | `required` \| `none` | `required` | ADR-0022 D-2 |
+| `active_modes` | list of strings | `[]` | Non-gate consumers only |
+| `gate_overlays` | list of strings | `[]` | `solo-maintainer`, `afk` |
+| `gate_overrides` | map | `{}` | Per-toggle pins (ADR-0016 D-4) |
+| `allowed_overlays` | list of strings | *unset = permissive* | GH-805 guard |
+| `protected_branches` | list of globs | script default | `push_safe` (GH-1031) |
+| `tracker` | `linear` \| `jira` \| `github` | `linear` | GH-768 |
+
+**v2 carries no `gate_preset` and no `friction_level`.** There is one
+shipped baseline, so naming it says nothing; and the ADR-0002
+command-redirect dial that shares the `friction_level` name lives in
+the plugin's own `command-skill-map.yaml`, not here.
+
+### `supervisor_review` (ADR-0022 D-2)
+
+Must the supervisor read this PR before the next step is allowed? An
+enum rather than a boolean, because the two poles are *states of the
+project*, not a negation of one another, and because a future third
+value has somewhere to go.
+
+| Value | Behaviour |
+|---|---|
+| `required` (default) | The review gate floors to `ask`. In a solo repo that gate is `merge`; in a team repo it is `request_review`, where the supervisor pass **precedes** the team request rather than replacing it (ADR-0022 D-3). |
+| `none` | The floor lifts, and only then do the baseline, overlays, and pins decide the gate. |
+
+Only the exact literal `none` disables the park. Absent,
+unrecognised, and malformed values — `"no"`, `false`, and
+deliberately also `"None"` — read as `required`, so every typo fails
+toward more oversight. Case folding is withheld on purpose: `"None"`
+is likelier a stray Python literal than a considered answer.
+
+Read it with `mcp__plugin_Dev10x_cli__supervisor_review_status`
+(which also reports `pinned` — whether an entry names the key at all)
+and write it with `pin_supervisor_review`. The gate reads the durable
+value **unconditionally**: a `supervisor_review` key passed in a
+`resolve_gate` context is dropped into `ignored_context_fields`
+(GH-1000), so no caller can self-authorise past the supervisor.
+
+**`none` is a precondition for merge autonomy, not a grant.** It is
+expressed as a *floor*, and a floor can only ever force `ask` —
+clearing it removes one veto and cannot re-admit autonomy some other
+layer withheld. The git-tracked `.dev10x/gate-policy.yaml` `merge:
+ask` pin and the `allowed_overlays` guard remain independent vetoes.
+The `review:cleared` PR label (GH-1008, GH-1163) is the positive
+sign-off signal that lifts the floor for the commits under review.
+
+> `human_review` is the deprecated v1 spelling, retained for one
+> release as a read alias. `human_review: false` reads as
+> `supervisor_review: none`; anything else reads as `required`.
+
+### `active_modes`
+
+Named modes customising **non-gate** behaviour — structural skill
+steps, `Dev10x:verify-acc-dod`'s check filter, and playbook step
+`modes:` blocks. It has no gate-resolution role; see
+`references/active-modes.md` for the catalog and the reasoning.
+`legacy_session_mapping()` maps `active_modes` → overlays but never
+the reverse, so an overlay-only entry leaves those consumers seeing
+`[]`. Set both keys when a mode must reach both surfaces.
+
+### `allowed_overlays` (GH-805)
+
+A private allow-list guarding against a stale or incorrect
+high-autonomy overlay being honoured where it should not be. The
+resolver drops any computed overlay not named here — which only ever
+*removes* autonomy, so it can never make a gate less safe.
+
+| Value | Behaviour |
+|---|---|
+| *unset* | Permissive — every overlay is honoured (back-compat) |
+| `[]` | No high-autonomy overlay is honoured — correct for a team repo |
+| `[solo-maintainer]` | Only the listed overlays survive |
+
+Separate from the git-tracked `.dev10x/gate-policy.yaml` pin: that is
+shared repo policy for specific toggles; this is private and
+whole-overlay.
+
+## Migrating v1 → v2
+
+`dev10x config migrate-schema --dry-run` reports the posture change
+per entry; `dev10x config migrate-schema` applies it.
+
+Rewrites `gate_preset` / `friction_level` / `human_review` /
+`walk_away` into `supervisor_review` + `gate_overlays`, across the
+`defaults:` block and every `projects[]` entry. A legacy per-repo
+`config.yaml` is *folded into* `friction.yaml` as a new entry keyed by
+the repo stem rather than rewritten (ADR-0018 keeps Dev10x out of a
+repo's `.claude/` tree); a repo already covered by a `projects[]`
+entry is skipped, since that entry already shadows the legacy file.
+
+**The safety direction is one-way: no config resolves to MORE
+autonomy after migration than before.**
+
+| v1 input | v2 `supervisor_review` |
+|---|---|
+| `supervisor_review` already present | coerced (malformed → `required`) |
+| `gate_preset` / `friction_level` of `strict` or `guided` | `required` — an explicit request for oversight outranks a stale `human_review: false` in the same entry |
+| real boolean `human_review: false` | `none` — the only input producing it |
+| anything else (absent, unset, malformed) | `required` |
+
+`active_modes: [solo-maintainer]` and `walk_away: true` materialise as
+`gate_overlays` entries, since only the legacy translation seam
+produced those overlays before. `active_modes` itself stays — it is a
+playbook/DoD axis the migration does not own — while `friction_level`,
+`walk_away`, and `human_review` are dropped, and a retired preset name
+(`strict`, `guided`, `adaptive`) is removed rather than rewritten. A
+user-defined preset name is a real selection, preserved verbatim.
+`.dev10x/gate-policy.yaml` is deliberately not walked: its
+`overrides:` are per-toggle pins, still valid verbatim under v2.
+
+Idempotent — an entry already carrying `supervisor_review` and none of
+the retired keys is left byte-identical, so a second run writes
+nothing.
+
+## Fallback behaviour
+
+Readers degrade softly; no missing or malformed field raises.
+
+- **Missing file, unreadable file, or malformed YAML** — all defaults
+  apply, and the SessionStart hook still runs.
+- **Missing `supervisor_review`** — `required`.
+- **Malformed `active_modes`** (not a list) — `[]`.
+- **Malformed `allowed_overlays`** (not a list) — treated as *unset*.
+  The distinction between unset and explicitly empty is load-bearing,
+  so `[]` survives coercion.
+
+## Readers
+
+`FrictionYamlDocument`
+(`src/dev10x/domain/documents/session_yaml.py`) owns the read —
+`read_supervisor_review()`, `read_active_modes()`, and the `matched()`
+first-match-wins lookup. Policy rules in
+`src/dev10x/domain/session_rules.py` consume the parsed values and
+perform no I/O (ADR-0007 D3). `resolve_gate` is the only sanctioned
+gate consumer; `supervisor_review_status` / `pin_supervisor_review`
+are the read and write halves exposed to skills; SessionStart display
+rules print the resolved posture and drive no behaviour.
 
 ## Testing
 
-Verify durable-pref parsing in
-`tests/domain/documents/test_session_yaml.py` (file reads + fallbacks)
-and rule behaviour in `tests/hooks/test_orchestrators.py` (value-based):
+- `tests/domain/documents/test_session_yaml.py` — reads and fallbacks
+- `tests/domain/test_config_migration.py` — the v1 → v2 mapping table,
+  the one-way safety direction, and idempotency
+- `tests/session/test_supervisor_review_pin.py` — the pin writer and
+  its loud rejection of an unrecognised value
 
-- `TestReadFrictionLevel` — declared / missing / malformed / unknown
-- `TestReadActiveModes` — declared / unset / non-list / missing file
-- `TestAutonomyReassurance` — fires on adaptive+solo; silent otherwise
+## Related
 
-## Related Files
-
-- `src/dev10x/domain/friction_level.py` — Friction level enum definition
-- `src/dev10x/commands/init.py` — Template initialization
-- Skills using `active_modes`: playbook, gh-pr-merge, gh-pr-monitor,
-  git-commit, fanout, verify-acc-dod, review
+- `references/friction-levels.md` — how a gate resolves
+- `references/active-modes.md` — the non-gate `active_modes` consumers
+- `src/dev10x/domain/gate_policy.py` — `coerce_supervisor_review()`,
+  `SHIPPED_PRESETS`, `_floors()`
+- `src/dev10x/domain/config_migration.py` — the v1 → v2 migrator
