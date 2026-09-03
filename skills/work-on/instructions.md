@@ -43,14 +43,14 @@ During each phase, create subtasks for the concrete work items
 discovered — e.g., Phase 2 creates one subtask per source being
 fetched, Phase 4 creates subtasks per plan step.
 
-## Phase 0: Session Friction Level (GH-689)
+## Phase 0: Session Posture (GH-689, ADR-0022)
 
-**At the very start** — before Phase 1 — prompt the user to set
-the session friction level. This controls how aggressively the
-skill auto-advances vs pauses for confirmation.
+**At the very start** — before Phase 1 — make sure this project has a
+review posture, so the gates downstream have a policy to resolve
+against.
 
 **Skip this entirely when:** running as a nested invocation from
-`Dev10x:fanout` (fanout sets friction level once for the entire
+`Dev10x:fanout` (fanout settles posture once for the entire
 session).
 
 **Otherwise, resolve the session-adoption gate first.** Call
@@ -65,96 +65,40 @@ file — so do not read or hand-compare any config yourself.
   authoritative). Surface the returned `record` line in the
   transcript so a present supervisor can veto.
 - `effect == "ask"` — no valid session config exists (or it is
-  stale). Fall through to the Phase 0 friction prompt below.
-- `effect == "skip"` — skip the prompt entirely, no config change.
+  stale). Fall through to the posture check below.
+- `effect == "skip"` — skip the check entirely, no config change.
 - Response has an `error` key — fail safe: fall through to the
-  Phase 0 friction prompt below.
+  posture check below.
 
-**REQUIRED: Call `AskUserQuestion`** (this is the gate's `ask`
-branch — fires whenever no valid session config exists).
+### Settle the review posture (ADR-0022)
 
-Options:
-- Guided (Recommended) — Gates fire with recommendations,
-  user can override. Default for attended sessions.
-- Adaptive (AFK) — Auto-select recommended options at all
-  gates. No `AskUserQuestion` interruptions except
-  `ALWAYS_ASK` gates. Best for walk-away sessions.
-- Strict — All gates fire, no auto-selection. Every
-  decision requires explicit user input.
+There is no friction-level question here any more. `adaptive` is the
+sole shipped baseline (ADR-0022 D-1) — there is no `strict` /
+`guided` / `adaptive` picker to offer, and this skill must not
+reintroduce one. The one durable question ("does the supervisor read
+the PR before the next step is allowed?") belongs to
+`Dev10x:friction-setup`, which owns both the ask and the write.
 
-For the in-between "trust the plan, attend the rest" posture, keep
-`friction_level: guided` and add the `auto-plan` mode to
-`active_modes` (GH-678) — the Phase 3 plan-approval gate then
-auto-approves while downstream decision gates keep firing. `auto-plan`
-is set via `active_modes`, not this friction prompt. See
-`references/active-modes.md` § `auto-plan`.
+1. Call `mcp__plugin_Dev10x_cli__supervisor_review_status()`.
+2. `pinned: true` — a `projects[]` entry already answers this for the
+   repo. Adopt the resolved `supervisor_review` silently, persist
+   nothing, and continue to Phase 1.
+3. `pinned: false` — this project is unconfigured. Delegate:
+   `Skill(Dev10x:friction-setup)`. It fires the blocking review-policy
+   gate, collects any overlays / per-gate deviations, and persists
+   them through the locked writers. Continue to Phase 1 when it
+   returns, whatever the supervisor answered — a dismissal simply
+   leaves the safe unset default (`supervisor_review: required`) in
+   place.
 
-**Persist the choice** to the global `~/.config/Dev10x/friction.yaml`
-(ADR-0018) — **never** to any file under the repo's `.claude/`.
-Writing `.claude/Dev10x/*` with the Write/Edit tool trips Claude
-Code's self-settings consent gate on every session regardless of
-allow rules (GH-812); the global file lives outside every repo, so
-it is gate-free and syncs across a repo's worktrees by construction.
-The file is keyed by project dir-path globs:
-
-```yaml
-defaults:
-  friction_level: guided   # strict | guided | adaptive
-  active_modes: []
-projects:
-  - match: ["*/<repo-name>", "/abs/path/**"]
-    friction_level: adaptive
-    active_modes: []         # e.g. [solo-maintainer]
-```
-
-**Prefer the CLI/MCP writers over a raw Write** so the write stays
-gate-free and the shape stays canonical: `dev10x session seed`
-(idempotent — creates a starter `friction.yaml` with a `defaults:`
-block when absent). The resolver reads first-match-wins, falling back
-to a legacy per-repo `config.yaml` and then `defaults:` (ADR-0018 D4).
-Merge `active_modes` from the project playbook file into the chosen
-project entry.
-
-#### Offer to remember the preset (GH-855)
-
-A preset picked here is session-scoped and evaporates at session end —
-so the same stale session re-asks forever. After the supervisor picks,
-offer to persist it:
-
-1. Call `mcp__plugin_Dev10x_cli__preset_pin_status`. Only when it
-   returns `pinned: false` does the gate below fire — that is the
-   **first-pick** condition. `pinned: true` means a `projects[]` entry
-   already covers this repo; persist nothing and do NOT ask (re-asking
-   on every pick is the friction this feature exists to remove).
-
-2. **REQUIRED: Call `AskUserQuestion`** (do NOT use plain text, call
-   spec: [ask-preset-pin.md](./tool-calls/ask-preset-pin.md)) —
-   "Remember this preset for `<repo_name>`?" using the `repo_name` the
-   status tool returned. Options:
-   - **Yes — this repo and its worktrees (Recommended)** — `scope="repo"`.
-     Writes `match: ["*/<stem>", "*/<stem>-*"]`, so every present and
-     future worktree matches.
-   - **Yes — this repo only** — `scope="repo-only"`. The main checkout
-     alone; sibling worktrees keep asking.
-   - **Yes — this directory only** — `scope="dir"`. Pins the literal path.
-   - **No, just this session** — persist nothing; behavior is unchanged.
-
-3. On any *Yes*, call `mcp__plugin_Dev10x_cli__pin_gate_preset(preset=…,
-   scope=…)` (add `overlays` / `gate_overrides` when the supervisor chose
-   any). It is idempotent — an entry already covering this checkout is
-   replaced, never duplicated.
-
-**The pin is repo-scoped, not worktree-scoped.** The tool derives the
-key from the git common dir, so choosing a preset while sitting in
-`<repo>-3` also covers `<repo>` and a `<repo>-9` created next month.
-Never hand-write a `match` containing the worktree path or a
-single-worktree glob — that re-prompts in every sibling worktree,
-defeating the point. On **No**, write nothing: the choice stays
-session-scoped and the gate simply fires again next time.
-
-**Read-before-write (GH-846):** `resolve_gate` already reads the
-resolved durable prefs; only persist a *changed* friction choice —
-skip the write when the resolved level/modes already match.
+**Never write `friction.yaml` from this skill.** No Write/Edit of
+`friction_level`, `active_modes`, or a hand-built `projects[]` entry:
+the pin tools lock and atomically write (GH-827 / ADR-0011), and
+nothing durable is written under a repo's `.claude/` at all
+(ADR-0018), so Claude Code's self-settings consent gate never fires
+(GH-812). When no `friction.yaml` exists yet, `Dev10x:friction-setup`
+seeds it; `Skill(Dev10x:session-config-seed)` (or `dev10x session
+seed`) is the standalone idempotent equivalent.
 
 **Session identity is NOT written here (ADR-0018).** The
 `session_adoption` gate keys on `session_stale`, which the resolver
@@ -165,18 +109,15 @@ stores identity: do **not** Write/Edit it, and no per-project
 `.gitignore` edit for session state is needed — nothing durable is
 written under the repo's `.claude/` anymore.
 
-**Seeding when missing.** When no `friction.yaml` exists yet,
-delegate to `Skill(Dev10x:session-config-seed)` (or run `dev10x
-session seed`) rather than hand-writing it — the same idempotent
-CLI the `post-checkout` hook uses, so the file shape stays
-consistent across both entry points.
-
-**How skills consume the level:**
-- Gates marked `(Recommended)` auto-select at `adaptive`
-- Gates marked `ALWAYS_ASK` always fire regardless of level
-- The `references/friction-levels.md` document defines the
-  full behavior matrix
-- Playbook steps may override with `friction_level:` per step
+**How this skill consumes the posture:** it does not. Every gate
+below calls `mcp__plugin_Dev10x_cli__resolve_gate(gate=…, context=…)`
+and branches on the returned `effect` (`ask` / `auto-advance` /
+`skip`). The resolver reads the preset, the overlays, the project
+pin, and `supervisor_review` itself, and applies the floors that
+protect an irreversible step. Never re-derive a gate's behaviour from
+a config value in prose — a skill that reads policy keys can only
+disagree with the resolver. `references/friction-levels.md` documents
+the resulting behaviour matrix.
 
 ## Phase 0.5: Resumed-Plan Task-List Reconstruction (GH-861)
 
@@ -354,14 +295,17 @@ route some through `structured-spec` and others through `feature`.
 
 **Phase 3 gate behaviour:**
 
-- When `structured_spec_candidate = true`, **REQUIRED: Call
-  `AskUserQuestion`** in Phase 3 with options:
-  - **Use structured-spec play (Recommended)** — full SPDD pipeline
-    with scope-with-reasons → spec-update gate → implement →
-    spec-sync gate before merge.
-  - **Use the default play** — feature / bugfix / etc.
-- At `friction_level: adaptive`, auto-select the **Recommended**
-  option and skip the prompt.
+- When `structured_spec_candidate = true`, call
+  `mcp__plugin_Dev10x_cli__resolve_gate(gate="strategy_choice",
+  context={})` in Phase 3 and branch on `effect`:
+  - `ask` — **REQUIRED: Call `AskUserQuestion`** with options:
+    - **Use structured-spec play (Recommended)** — full SPDD pipeline
+      with scope-with-reasons → spec-update gate → implement →
+      spec-sync gate before merge.
+    - **Use the default play** — feature / bugfix / etc.
+  - `auto-advance` — take the **Recommended** option, skip the
+    prompt, and surface the returned `record` line.
+  - `skip` — the default play applies silently.
 - When the candidate flag is false, the gate does not fire — the
   default play applies silently.
 
@@ -1187,62 +1131,67 @@ autonomous behavior auditable upfront — without it, supervisors
 cannot tell whether the session will auto-merge or pause for
 confirmation, which is the visibility gap GH-189 closes.
 
-Read the resolved `friction_level` and `active_modes` from the
-matching `projects[]` entry of `~/.config/Dev10x/friction.yaml`
-(falling back to `defaults:`) and print:
+Gather the three facts through their owning tools — never by
+reading `~/.config/Dev10x/friction.yaml` yourself:
+
+1. `mcp__plugin_Dev10x_cli__supervisor_review_status()` →
+   `supervisor_review` (`required` / `none`) and `pinned`.
+2. `mcp__plugin_Dev10x_cli__preset_pin_status()` → `prefs`, whose
+   `gate_overlays` names the active overlays and whose
+   `gate_overrides` names any per-gate deviation.
+3. `mcp__plugin_Dev10x_cli__resolve_gate(gate="merge", context={})`
+   → whether this session ends by merging on its own.
+
+Then print:
 
 ```
 Session mode summary
-  Friction level: <level> (<one-line behavior summary>)
-  Active modes:
-    - <mode-name>
+  Baseline: adaptive (every gate auto-advances unless a floor,
+    a project pin, or an override says otherwise)
+  Supervisor review: <required | none> (<where the park lands>)
+  Overlays:
+    - <overlay-name>
       • <one-line behavior bullet>
-      • <one-line behavior bullet>
+  Gate overrides: <toggle>=<value>, … (or "none")
+  Merge: <auto-advance | ask | skip> — <what that means here>
 ```
 
-For `friction_level`, use these summaries:
+`adaptive` is the sole shipped baseline (ADR-0022 D-1), so the
+baseline line is a constant, not a lookup — there is no
+`strict` / `guided` / `adaptive` level to report. For
+`supervisor_review`, say where the park lands: `required` parks
+before merge in a solo repo and before the team review request in a
+team repo (ADR-0022 D-3); `none` removes the supervisor's own park
+only — AI self-review and CI still run (ADR-0022 D-4). For each
+overlay, inline the documented behavior bullets from
+[`references/active-modes.md`](../../references/active-modes.md);
+an undocumented name emits a single warning bullet ("overlay not
+documented — verify with `Dev10x:playbook`") rather than failing.
 
-| Level | One-line behavior |
-|-------|-------------------|
-| `strict` | All gates fire, no auto-selection |
-| `guided` | Gates fire with recommendations, user can override |
-| `adaptive` | Auto-select recommended at all gates (AFK) |
-
-For active modes, look up each entry in
-[`references/active-modes.md`](../../references/active-modes.md)
-and inline its documented behavior bullets. Unknown mode names
-emit a single warning bullet ("mode not documented — verify
-with `Dev10x:playbook`") rather than failing.
-
-**Contradiction warning (GH-744 F3).** Oversight modes that force
-checkpoints — `supervised` and `pair-review` — oppose an
-autonomous posture. When either appears in `active_modes` (or as a
-gate overlay) alongside `friction_level: adaptive`, `gate_preset:
-adaptive`, `walk_away: true`, or the `afk` overlay, append a
-warning line to the summary so the contradiction is visible before
-the plan gate:
+**Contradiction warning (GH-744 F3).** Oversight overlays that force
+checkpoints — `supervised` and `pair-review` — oppose an autonomous
+posture. When either is active alongside the `afk` overlay, append a
+warning line so the contradiction is visible before the plan gate:
 
 ```
-  ⚠ Contradiction: <mode> forces checkpoints but the session is
-    adaptive/walk-away — every gate will still fire. Drop <mode>
-    (e.g., re-run Dev10x:afk, which reconciles it) or lower the
-    friction posture.
+  ⚠ Contradiction: <overlay> forces checkpoints but the session is
+    walk-away — every gate will still fire. Drop <overlay>
+    (e.g., re-run Dev10x:afk, which reconciles it) or drop `afk`.
 ```
 
 This was the root cause of every gate firing during an
-intended-AFK session (GH-744 F3): the oversight modes silently
+intended-AFK session (GH-744 F3): the oversight overlays silently
 outranked the adaptive intent with no surfaced contradiction. The
 warning is advisory — it does not block; `resolve_gate` still
 governs actual gate behavior.
 
-`friction_level`/`active_modes` describe the session's declared
-posture for this display only. They no longer drive gate behavior
-directly in this skill — `mcp__plugin_Dev10x_cli__resolve_gate`
-(ADR-0016) reads session policy (preset/overlays/project-pin/
-session-overrides plus safety floors) itself and is the single
+**This block is display-only (GH-189).** Nothing it prints decides
+anything. `mcp__plugin_Dev10x_cli__resolve_gate` (ADR-0016) reads
+session policy (baseline, overlays, project pin, session overrides,
+`supervisor_review`, plus the safety floors) itself and is the single
 source of truth for whether any gate below fires or auto-advances.
-Do not re-derive auto-approve/bypass decisions from
-`friction_level`/`active_modes` in prose.
+Do not re-derive an auto-approve or bypass decision from a policy
+value in prose.
 
 Print this block once per session, immediately after the
 context summary and before the plan-approval gate. Subsequent
@@ -1328,8 +1277,8 @@ Work through the approved task list. Update task status via
 
 When a new supervisor message arrives while a Phase 4 task is
 `in_progress`, classify it before deciding whether to pause.
-Under `friction_level: adaptive` the default is to keep working;
-only the signals in the **pause** column below justify stopping.
+The default is to keep working; only the signals in the **pause**
+column below justify stopping.
 
 | Signal type | Classification | Action |
 |-------------|----------------|--------|
@@ -1513,15 +1462,16 @@ rebase, force-push, or re-monitor a PR that already merged.
 
 ### Solo-Maintainer Post-Create Monitor Mandate (GH-185)
 
-**Hard rule:** When the resolved `active_modes` contains
-`solo-maintainer`, the Phase 4
-shipping sequence MUST invoke `Skill(Dev10x:gh-pr-monitor)`
-immediately after `Skill(Dev10x:gh-pr-create)` completes
-(success OR "PR already exists"). This is NOT suppressible by
-`friction_level: adaptive` — adaptive mode auto-advances
-through gates, but it must NOT auto-advance past the monitor
-step. The monitor task remains a blocking step that runs in
-the same session, not a deferred follow-up.
+**Hard rule:** When `mcp__plugin_Dev10x_cli__resolve_gate(gate=
+"request_review", context={})` returns `effect: "skip"` — nobody
+else is being asked to look at this PR — the Phase 4 shipping
+sequence MUST invoke `Skill(Dev10x:gh-pr-monitor)` immediately
+after `Skill(Dev10x:gh-pr-create)` completes (success OR "PR
+already exists"). No gate effect suppresses this: an
+`auto-advance` elsewhere advances *through* gates, it must never
+advance *past* the monitor step. The monitor task remains a
+blocking step that runs in the same session, not a deferred
+follow-up.
 
 **Anti-pattern (GH-185):** A solo-maintainer + adaptive session
 created the PR and returned control to the user without
@@ -1690,16 +1640,16 @@ the shipping pipeline, not an optional convenience.
 the main implementation and verification are done, the remaining
 shipping steps (code review → commit → PR → CI → groom → update
 → ready → merge) form an atomic, no-checkpoints sequence. Auto-
-advance through ALL of them without pausing for user input. Under
-`friction_level: adaptive` this sequence runs end-to-end with
-zero interruptions other than `ALWAYS_ASK` gates. Do NOT stop
+advance through ALL of them without pausing for user input. The
+sequence runs end-to-end with zero interruptions other than gates
+whose `resolve_gate` effect is `ask`. Do NOT stop
 after posting review replies, after creating the PR, after CI
 goes green, or after grooming — continue until the plan
 completion gate or a genuine blocker (unrecoverable CI,
 unresolved human review thread, merge conflict needing judgment).
 A trailing "Ready to proceed to the next step?" between any of
-these shipping steps is a checkpoint and is forbidden under
-adaptive friction.
+these shipping steps is a checkpoint the resolver never asked
+for, and is forbidden.
 
 **Batched Decision Queue:** When a task hits a genuine A/B
 decision, do NOT interrupt the user immediately. Instead:
@@ -1953,8 +1903,8 @@ review" with `skills: [Dev10x:gh-pr-request-review]` and
 `solo-maintainer` mode override `prompt: "Run gh pr ready. No
 reviewers, no Slack."` Agent reads the prompt, runs `gh pr
 ready 37` directly, never invokes the skill. Correct behavior:
-invoke `Skill(Dev10x:gh-pr-request-review)`; the skill checks
-`active_modes` and runs the solo-maintainer code path itself.
+invoke `Skill(Dev10x:gh-pr-request-review)`; the skill resolves
+the `request_review` gate and takes the no-reviewer path itself.
 
 Common skill delegations:
 
@@ -2298,10 +2248,10 @@ decides whether that recommendation needs confirmation — see below.
    the `milestone` field from `mcp__plugin_Dev10x_cli__issue_get`
    or the Linear project field. Skip this check if any ticket
    lacks a milestone field.
-2. **Solo-maintainer mode active** — the resolved `active_modes`
-   contains `solo-maintainer`.
+2. **No separate reviewer** — `mcp__plugin_Dev10x_cli__resolve_gate(
+   gate="request_review", context={})` returns `effect: "skip"`.
    Team reviewers imply separate review cycles, so fanout
-   remains correct for team modes.
+   remains correct whenever that gate asks or auto-advances.
 3. **Small/medium effort** — no ticket is labeled `effort:L`,
    `effort:XL`, or `size:L`+. Large epics warrant isolation
    even within a milestone.
