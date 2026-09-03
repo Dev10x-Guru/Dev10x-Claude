@@ -44,10 +44,6 @@ version: "0.97.0.dev0"
 #               mode name to either "skip" (remove step) or a dict
 #               of field overrides {subject, prompt, skills, ...}.
 #               See references/execution-modes.md for the full spec.
-#   friction  — per-friction-level overrides (optional). Map of
-#               friction level (strict/guided/adaptive) to either
-#               "skip" or a dict of field overrides.
-#               See references/friction-levels.md § Playbook Integration.
 #
 # Fragments — reusable step sequences referenced via `- fragment: <name>`.
 # A fragment reference copies the fragment's steps inline at resolution
@@ -74,13 +70,9 @@ fragments:
       type: detailed
       prompt: >
         Self-review the current branch to catch issues before
-        creating the PR.
+        creating the PR. Run with --unattended. Auto-fix all
+        findings. Auto-advance without supervisor gate.
       skills: [Dev10x:review, Dev10x:review-fix]
-      friction:
-        adaptive:
-          prompt: >
-            Self-review with --unattended flag. Auto-fix all
-            findings. Auto-advance without supervisor gate.
       modes:
         supervised:
           prompt: >
@@ -143,7 +135,8 @@ fragments:
       type: detailed
       prompt: >
         Assign reviewers and post Slack notification per project
-        config.
+        config. Auto-assign from CODEOWNERS — no AskUserQuestion
+        for reviewer selection.
       skills: [Dev10x:gh-pr-request-review]
       modes:
         solo-maintainer:
@@ -151,11 +144,6 @@ fragments:
           prompt: >
             Mark ready via the `pr_ready` MCP wrapper (GH-779) — not
             raw `gh pr ready`. No reviewers, no Slack.
-      friction:
-        adaptive:
-          prompt: >
-            Auto-assign reviewers from CODEOWNERS. No
-            AskUserQuestion for reviewer selection.
     - subject: Merge PR
       type: detailed
       prompt: >
@@ -173,8 +161,7 @@ fragments:
       type: detailed
       prompt: >
         Always delegate to Dev10x:verify-acc-dod skill
-        regardless of mode or friction level. The skill
-        reads friction_level and adapts its own gates.
+        regardless of mode. The skill owns its own gates.
       skills: [Dev10x:verify-acc-dod]
 
   # Bundled multi-issue implementation (GH-196).
@@ -231,14 +218,12 @@ fragments:
       skills: [Dev10x:gh-pr-monitor]
     - subject: Groom commit history
       type: detailed
-      prompt: Squash fixups into their parent commits.
+      prompt: >
+        Squash fixups into their parent commits. Choose the best
+        grooming option and auto-advance. No strategy gate —
+        select fixup autosquash if fixup commits exist, mass
+        rewrite otherwise.
       skills: [Dev10x:git-groom]
-      friction:
-        adaptive:
-          prompt: >
-            Choose the best grooming option and auto-advance.
-            No strategy gate — select fixup autosquash if
-            fixup commits exist, mass rewrite otherwise.
     - subject: Update PR description
       type: detailed
       prompt: >
@@ -274,8 +259,7 @@ fragments:
       type: detailed
       prompt: >
         Always delegate to Dev10x:verify-acc-dod skill
-        regardless of mode or friction level. The skill
-        reads friction_level and adapts its own gates.
+        regardless of mode. The skill owns its own gates.
       skills: [Dev10x:verify-acc-dod]
 
 # Mode definitions — structural modes that adapt step behavior.
@@ -288,12 +272,8 @@ fragments:
 #   cautious     — extra verification, confirm destructive ops
 #   pair-review  — human review at implementation checkpoints
 #
-# Friction levels (pacing — how gates behave):
-#   strict / guided / adaptive
-#   Declared via `friction:` on steps, NOT as modes.
-#   afk = adaptive, auto-advance = adaptive.
-#
-# Per-step modes and friction are declared inline (see above).
+# Per-step modes are declared inline (see above). Gate pacing is
+# no longer a per-step concern — a step states its behaviour once.
 # Project-level mode activation:
 #   active_modes: [solo-maintainer]
 #   mode_extensions:
@@ -320,21 +300,17 @@ defaults:
       - subject: Draft Job Story
         type: detailed
         prompt: >
-          Invoke in attended mode. Pass gathered context to avoid
-          redundant API calls. If approved, write back to the
-          ticket as a comment.
+          Pass gathered context to avoid redundant API calls.
+          Accept what the skill produces, use it in the session,
+          and improve if needed. Auto-advance without approval,
+          then write the story back to the ticket as a comment.
         skills: [Dev10x:jtbd]
-        friction:
-          adaptive:
-            prompt: >
-              Accept what the skill produces, use in the session,
-              and improve if needed. Auto-advance without approval.
         modes:
           solo-maintainer:
             prompt: >
               Draft JTBD as a documentation artifact. It does not
-              need approval in adaptive mode, but serves as an
-              indicator of how well the agent understood the task.
+              need approval, but serves as an indicator of how
+              well the agent understood the task.
           supervised:
             prompt: >
               Present JTBD draft for approval. Do not write to
@@ -345,13 +321,9 @@ defaults:
           Understand the codebase areas affected by this change.
           For small changes (single file, < 50 lines), collapse
           into a single "read and propose" step. For large changes,
-          produce an approach summary before implementing.
-        friction:
-          adaptive:
-            prompt: >
-              Choose the best option and auto-advance. Make
-              design decisions autonomously without asking
-              for approach approval.
+          produce an approach summary before implementing. Choose
+          the best option and auto-advance — make design decisions
+          autonomously without asking for approach approval.
         modes:
           supervised:
             prompt: >
