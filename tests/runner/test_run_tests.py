@@ -63,7 +63,11 @@ class TestRunTests:
 
         assert isinstance(result, SuccessResult)
         called_args = mock_run.call_args.kwargs["args"]
-        assert called_args[:3] == ["uv", "run", "pytest"]
+        # GH-1198: this repo declares its test deps under the `dev` extra, so
+        # the resolved command carries it. Asserting the bare three-token
+        # prefix would pin the shape that cannot run this suite.
+        assert called_args[:2] == ["uv", "run"]
+        assert "pytest" in called_args
         assert "--cov" in called_args
         assert "--cov-report=term-missing" in called_args
         assert "--tb=short" in called_args
@@ -184,3 +188,147 @@ class TestRunTests:
 
         assert isinstance(result, ErrorResult)
         assert "uv" in result.error
+
+
+MISSING_DEP_STDOUT = (
+    "============================= test session starts =============================\n"
+    "ImportError while loading conftest 'tests/conftest.py'.\n"
+    "ModuleNotFoundError: No module named 'factory'\n"
+)
+
+
+def _write_pyproject(*, tmp_path, extras: str) -> str:
+    (tmp_path / "pyproject.toml").write_text(
+        f'[project]\nname = "demo"\nversion = "0"\n\n[project.optional-dependencies]\n{extras}\n',
+        encoding="utf-8",
+    )
+    return str(tmp_path)
+
+
+class TestResolveTestExtras:
+    """GH-1198: the wrapper resolves the extra that carries the test deps."""
+
+    def test_group_declaring_pytest_is_selected(self, tmp_path) -> None:
+        cwd = _write_pyproject(tmp_path=tmp_path, extras='dev = ["pytest>=8.0,<9"]')
+
+        assert runner.resolve_test_extras(cwd=cwd) == ["dev"]
+
+    def test_group_without_pytest_is_not_selected(self, tmp_path) -> None:
+        cwd = _write_pyproject(tmp_path=tmp_path, extras='docs = ["mkdocs>=1,<2"]')
+
+        assert runner.resolve_test_extras(cwd=cwd) == []
+
+    def test_narrower_test_group_wins_over_dev(self, tmp_path) -> None:
+        cwd = _write_pyproject(
+            tmp_path=tmp_path,
+            extras='dev = ["pytest>=8,<9"]\ntest = ["pytest>=8,<9"]',
+        )
+
+        assert runner.resolve_test_extras(cwd=cwd) == ["test"]
+
+    def test_pytest_plugin_alone_qualifies_the_group(self, tmp_path) -> None:
+        cwd = _write_pyproject(tmp_path=tmp_path, extras='qa = ["pytest-cov>=6,<7"]')
+
+        assert runner.resolve_test_extras(cwd=cwd) == ["qa"]
+
+    def test_missing_pyproject_resolves_to_no_extras(self, tmp_path) -> None:
+        assert runner.resolve_test_extras(cwd=str(tmp_path)) == []
+
+    def test_unparseable_pyproject_resolves_to_no_extras(self, tmp_path) -> None:
+        (tmp_path / "pyproject.toml").write_text("not = [valid", encoding="utf-8")
+
+        assert runner.resolve_test_extras(cwd=str(tmp_path)) == []
+
+    def test_non_table_optional_dependencies_resolves_to_no_extras(self, tmp_path) -> None:
+        # Valid TOML, wrong shape. Falling through to a bare `uv run pytest`
+        # beats raising out of a wrapper whose whole job is running tests.
+        (tmp_path / "pyproject.toml").write_text(
+            '[project]\nname = "demo"\nversion = "0"\noptional-dependencies = "dev"\n',
+            encoding="utf-8",
+        )
+
+        assert runner.resolve_test_extras(cwd=str(tmp_path)) == []
+
+    def test_this_repo_resolves_to_the_dev_extra(self) -> None:
+        # The concrete case from the issue: a bare `uv run pytest` dies at
+        # collection on `ModuleNotFoundError: No module named 'factory'`.
+        assert runner.resolve_test_extras() == ["dev"]
+
+
+class TestMissingDependencyRetry:
+    """The safety net for a project whose extras resolution finds nothing."""
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.resolve_test_extras", return_value=[])
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_collection_import_error_retries_with_dev_extra(
+        self,
+        mock_run: AsyncMock,
+        _resolve: object,
+    ) -> None:
+        mock_run.side_effect = [
+            _completed(returncode=2, stdout=MISSING_DEP_STDOUT),
+            _completed(stdout=PASS_STDOUT),
+        ]
+
+        result = await runner.run_tests()
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["retried_with_extras"] is True
+        assert result.value["extras"] == ["dev"]
+        assert mock_run.await_count == 2
+        assert ["--extra", "dev"] == mock_run.await_args.kwargs["args"][2:4]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.resolve_test_extras", return_value=[])
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_ordinary_failure_is_not_retried(
+        self,
+        mock_run: AsyncMock,
+        _resolve: object,
+    ) -> None:
+        mock_run.return_value = _completed(returncode=1, stdout=FAIL_STDOUT)
+
+        result = await runner.run_tests()
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["retried_with_extras"] is False
+        assert mock_run.await_count == 1
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.resolve_test_extras", return_value=[])
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_passing_run_mentioning_the_error_is_not_retried(
+        self,
+        mock_run: AsyncMock,
+        _resolve: object,
+    ) -> None:
+        # A test that asserts on ModuleNotFoundError handling puts the string
+        # in stdout while passing. Retrying on the text alone would re-run the
+        # whole green suite for nothing.
+        mock_run.return_value = _completed(returncode=0, stdout=PASS_STDOUT + MISSING_DEP_STDOUT)
+
+        result = await runner.run_tests()
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["retried_with_extras"] is False
+        assert mock_run.await_count == 1
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.resolve_test_extras", return_value=["dev"])
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_resolved_extras_skip_the_retry(
+        self,
+        mock_run: AsyncMock,
+        _resolve: object,
+    ) -> None:
+        # Resolution already applied the extra, so a still-missing module is a
+        # genuine project problem — retrying the same command would only hide
+        # it behind a second identical failure.
+        mock_run.return_value = _completed(returncode=2, stdout=MISSING_DEP_STDOUT)
+
+        result = await runner.run_tests()
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["retried_with_extras"] is False
+        assert mock_run.await_count == 1
