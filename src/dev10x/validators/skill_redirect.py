@@ -26,7 +26,6 @@ from dev10x.domain import HookInput, HookResult
 from dev10x.domain.common.bash_tokens import split_tokens
 from dev10x.domain.common.branch_name import PROTECTED_BRANCHES
 from dev10x.domain.documents.config_document import Config
-from dev10x.domain.friction_level import FrictionLevel
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.domain.rules.validation_rule import Compensation
 from dev10x.validators.base import ValidatorBase
@@ -322,7 +321,6 @@ def _load_config(yaml_path: Path = _YAML_PATH) -> tuple[Config, RuleEngine]:
     full = load_config(yaml_path=yaml_path)
     engine = RuleEngine.from_config(config=full)
     config = Config(
-        friction_level=full.friction_level,
         plugin_repo=full.plugin_repo,
         rules=engine.command_rules,
     )
@@ -376,9 +374,16 @@ def _format_skill_msg(
     *,
     label: str,
     comp: Compensation,
-    friction_level: FrictionLevel,
     plugin_repo: str,
 ) -> str:
+    """Render the block message for a redirected command.
+
+    The fallback clause used to be conditional on the ADR-0002
+    ``friction_level`` axis, which only ever shipped as ``guided``.
+    GH-1194 collapsed the axis, so the clause is unconditional — an
+    agent that cannot reach the sanctioned path always sees what to do
+    instead.
+    """
     file_issue_hint = (
         f"\n\nIf you are inside a skill that instructed this command, "
         f"file an issue at {plugin_repo} — the skill needs updating."
@@ -386,12 +391,10 @@ def _format_skill_msg(
         else ""
     )
     if comp.type == "use-tool":
-        mcp_fallback = friction_level.fallback_guidance(
-            fallback=(
-                f"If the MCP server is unavailable, fall back to:\n{comp.description}"
-                if comp.description
-                else ""
-            )
+        mcp_fallback = (
+            f"If the MCP server is unavailable, fall back to:\n{comp.description}"
+            if comp.description
+            else ""
         )
         sep = "\n\n" if mcp_fallback else ""
         return (
@@ -404,12 +407,10 @@ def _format_skill_msg(
             f"{file_issue_hint}{OVERRIDE_HINT}"
         )
 
-    skill_fallback = friction_level.fallback_guidance(
-        fallback=(
-            f"If the skill fails, apply these guardrails manually:\n{comp.fallback}"
-            if comp.fallback
-            else ""
-        )
+    skill_fallback = (
+        f"If the skill fails, apply these guardrails manually:\n{comp.fallback}"
+        if comp.fallback
+        else ""
     )
     sep = "\n\n" if skill_fallback else ""
     return (
@@ -459,7 +460,6 @@ class SkillRedirectValidator(ValidatorBase):
         msg = _format_skill_msg(
             label=label,
             comp=comp,
-            friction_level=config.friction_level,
             plugin_repo=config.plugin_repo,
         )
         return HookResult(message=msg)

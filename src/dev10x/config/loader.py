@@ -11,7 +11,6 @@ import yaml
 from dev10x.domain.config_loader import ConfigLoader
 from dev10x.domain.documents.config_document import Config
 from dev10x.domain.file_locks import atomic_write_bytes
-from dev10x.domain.friction_level import FrictionLevel
 from dev10x.domain.rules.validation_rule import (
     Compensation,
     MatchingRule,
@@ -85,7 +84,6 @@ def _parse_yaml(*, yaml_path: Path) -> Config:
     rules = [MatchingRule.from_yaml_entry(entry=entry) for entry in data.get("rules", [])]
 
     return Config(
-        friction_level=FrictionLevel.from_yaml(cfg_data.get("friction_level")),
         plugin_repo=cfg_data.get("plugin_repo", ""),
         rules=rules,
     )
@@ -112,8 +110,10 @@ def _dict_to_config(*, raw: dict[str, Any]) -> Config:
         )
         for r in raw.get("rules", [])
     ]
+    # GH-1194: a msgpack cache written before the collapse still carries a
+    # `friction_level` key. Ignoring an unknown key is the whole migration —
+    # the cache self-heals on the next YAML change or TTL expiry.
     return Config(
-        friction_level=FrictionLevel.from_yaml(raw.get("friction_level")),
         plugin_repo=raw.get("plugin_repo", ""),
         rules=rules,
     )

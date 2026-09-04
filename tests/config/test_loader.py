@@ -33,7 +33,6 @@ def cache_path(yaml_path: Path) -> Path:
 def minimal_yaml_content() -> dict:
     return {
         "config": {
-            "friction_level": "guided",
             "plugin_repo": "https://github.com/example/repo",
         },
         "rules": [
@@ -65,7 +64,6 @@ class TestParseYaml:
     def test_parses_config_section(self, yaml_file: Path) -> None:
         result = _parse_yaml(yaml_path=yaml_file)
 
-        assert result.friction_level == "guided"
         assert result.plugin_repo == "https://github.com/example/repo"
 
     def test_parses_rules(self, yaml_file: Path) -> None:
@@ -87,7 +85,7 @@ class TestParseYaml:
 
         result = _parse_yaml(yaml_path=yaml_path)
 
-        assert result.friction_level == "strict"
+        assert result.plugin_repo == ""
         assert result.rules == []
 
     def test_defaults_for_missing_fields(self, yaml_path: Path) -> None:
@@ -118,7 +116,7 @@ class TestWriteAndReadCache:
         )
 
         assert result is not None
-        assert result.friction_level == config.friction_level
+        assert result.plugin_repo == config.plugin_repo
         assert len(result.rules) == len(config.rules)
         assert result.rules[0].name == config.rules[0].name
 
@@ -201,7 +199,7 @@ class TestLoadConfig:
     def test_loads_from_yaml_on_cache_miss(self, yaml_file: Path) -> None:
         result = load_config(yaml_path=yaml_file)
 
-        assert result.friction_level == "guided"
+        assert result.plugin_repo == "https://github.com/example/repo"
         assert len(result.rules) == 1
 
     def test_creates_cache_after_first_load(
@@ -213,7 +211,8 @@ class TestLoadConfig:
 
         assert cache_path.exists()
         data = msgpack.unpackb(cache_path.read_bytes(), raw=False)
-        assert data["friction_level"] == "guided"
+        assert data["plugin_repo"] == "https://github.com/example/repo"
+        assert "friction_level" not in data
 
     def test_uses_cache_on_second_load(
         self,
@@ -222,14 +221,13 @@ class TestLoadConfig:
         first = load_config(yaml_path=yaml_file)
         second = load_config(yaml_path=yaml_file)
 
-        assert first.friction_level == second.friction_level
+        assert first.plugin_repo == second.plugin_repo
         assert len(first.rules) == len(second.rules)
 
 
 class TestDictToConfig:
     def test_converts_dict_with_rules(self) -> None:
         raw = {
-            "friction_level": "adaptive",
             "plugin_repo": "https://example.com",
             "rules": [
                 {
@@ -242,12 +240,31 @@ class TestDictToConfig:
 
         result = _dict_to_config(raw=raw)
 
-        assert result.friction_level == "adaptive"
+        assert result.plugin_repo == "https://example.com"
         assert len(result.rules) == 1
         assert result.rules[0].compensations[0].skill == "test-skill"
 
     def test_defaults_for_missing_keys(self) -> None:
         result = _dict_to_config(raw={})
 
-        assert result.friction_level == "strict"
+        assert result.plugin_repo == ""
         assert result.rules == []
+
+    def test_stale_cache_carrying_friction_level_still_loads(self) -> None:
+        """GH-1194: a msgpack cache written before the collapse must not raise.
+
+        The cache is rewritten on any YAML change or TTL expiry, so
+        ignoring the retired key is the whole migration — but ignoring it
+        has to actually work, or every session with a warm cache breaks
+        on upgrade.
+        """
+        raw = {
+            "friction_level": "guided",
+            "plugin_repo": "https://example.com",
+            "rules": [],
+        }
+
+        result = _dict_to_config(raw=raw)
+
+        assert result.plugin_repo == "https://example.com"
+        assert not hasattr(result, "friction_level")

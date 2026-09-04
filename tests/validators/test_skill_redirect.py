@@ -875,19 +875,29 @@ class TestMessageContent:
         assert "Dev10x-Guru/dev10x-claude" in result.message
 
 
-class TestFrictionLevels:
+class TestBlockMessageFallback:
+    """GH-1194: the fallback clause is unconditional.
+
+    It used to vary by the ADR-0002 `config.friction_level` axis, which
+    only ever shipped as `guided`. With the axis collapsed, an agent that
+    cannot reach the sanctioned path always sees what to do instead —
+    which is the behaviour every real session already got.
+    """
+
     def _make_yaml(
         self,
         *,
-        friction_level: str,
         fallback: str = "",
+        description: str = "",
         comp_type: str = "use-skill",
     ) -> str:
+        # The two branches read different fields: `use-skill` renders
+        # `fallback`, `use-tool` renders `description` as its
+        # MCP-unavailable escape.
         skill_or_tool = "skill" if comp_type == "use-skill" else "tool"
         return textwrap.dedent(
             f"""\
             config:
-              friction_level: {friction_level}
               plugin_repo: https://github.com/Dev10x-Guru/dev10x-claude
             rules:
               - name: test-rule
@@ -900,21 +910,13 @@ class TestFrictionLevels:
                   - type: {comp_type}
                     {skill_or_tool}: Dev10x:test-skill
                     guardrails: test guardrail
+                    description: "{description}"
                     fallback: "{fallback}"
         """
         )
 
-    def test_guided_mode_includes_fallback(self, tmp_path: Path) -> None:
-        yaml_file = tmp_path / "map.yaml"
-        yaml_file.write_text(
-            self._make_yaml(
-                friction_level="guided",
-                fallback="Apply manual guardrail here.",
-            )
-        )
+    def _validate(self, *, yaml_file: Path):
         config, engine = _load_config(yaml_path=yaml_file)
-        assert config.friction_level == "guided"
-
         validator = SkillRedirectValidator()
         inp = _make_input(command="test cmd foo")
 
@@ -923,37 +925,35 @@ class TestFrictionLevels:
         orig_config, orig_engine = mod._CONFIG, mod._ENGINE
         mod._CONFIG, mod._ENGINE = config, engine
         try:
-            result = validator.validate(inp=inp)
+            return config, validator.validate(inp=inp)
         finally:
             mod._CONFIG, mod._ENGINE = orig_config, orig_engine
+
+    def test_skill_fallback_is_always_included(self, tmp_path: Path) -> None:
+        yaml_file = tmp_path / "map.yaml"
+        yaml_file.write_text(self._make_yaml(fallback="Apply manual guardrail here."))
+
+        _config, result = self._validate(yaml_file=yaml_file)
 
         assert result is not None
         assert "Apply manual guardrail here." in result.message
 
-    def test_strict_mode_omits_fallback(self, tmp_path: Path) -> None:
+    def test_absent_fallback_adds_no_empty_clause(self, tmp_path: Path) -> None:
         yaml_file = tmp_path / "map.yaml"
-        yaml_file.write_text(
-            self._make_yaml(
-                friction_level="strict",
-                fallback="Apply manual guardrail here.",
-            )
-        )
-        config, engine = _load_config(yaml_path=yaml_file)
+        yaml_file.write_text(self._make_yaml(fallback=""))
 
-        validator = SkillRedirectValidator()
-        inp = _make_input(command="test cmd foo")
-
-        import dev10x.validators.skill_redirect as mod
-
-        orig_config, orig_engine = mod._CONFIG, mod._ENGINE
-        mod._CONFIG, mod._ENGINE = config, engine
-        try:
-            result = validator.validate(inp=inp)
-        finally:
-            mod._CONFIG, mod._ENGINE = orig_config, orig_engine
+        _config, result = self._validate(yaml_file=yaml_file)
 
         assert result is not None
-        assert "Apply manual guardrail here." not in result.message
+        assert "apply these guardrails manually" not in result.message
+
+    def test_config_carries_no_friction_level(self, tmp_path: Path) -> None:
+        yaml_file = tmp_path / "map.yaml"
+        yaml_file.write_text(self._make_yaml(fallback="x"))
+
+        config, _result = self._validate(yaml_file=yaml_file)
+
+        assert not hasattr(config, "friction_level")
 
     def test_hook_block_false_entries_not_loaded(self, tmp_path: Path) -> None:
         yaml_file = tmp_path / "map.yaml"
@@ -961,7 +961,7 @@ class TestFrictionLevels:
             textwrap.dedent(
                 """\
                 config:
-                  friction_level: guided
+                  plugin_repo: https://github.com/Dev10x-Guru/dev10x-claude
                 rules:
                   - name: ignored-rule
                     matcher: Bash
@@ -974,57 +974,30 @@ class TestFrictionLevels:
             """
             )
         )
-        config, engine = _load_config(yaml_path=yaml_file)
+        config, _engine = _load_config(yaml_path=yaml_file)
         assert config.rules == []
 
-    def test_mcp_type_guided_uses_mcp_template(self, tmp_path: Path) -> None:
+    def test_mcp_type_uses_mcp_template_with_fallback(self, tmp_path: Path) -> None:
         yaml_file = tmp_path / "map.yaml"
         yaml_file.write_text(
             self._make_yaml(
-                friction_level="guided",
-                fallback="Use gh issue view directly.",
+                description="Use gh issue view directly.",
                 comp_type="use-tool",
             )
         )
-        config, engine = _load_config(yaml_path=yaml_file)
 
-        validator = SkillRedirectValidator()
-        inp = _make_input(command="test cmd foo")
-
-        import dev10x.validators.skill_redirect as mod
-
-        orig_config, orig_engine = mod._CONFIG, mod._ENGINE
-        mod._CONFIG, mod._ENGINE = config, engine
-        try:
-            result = validator.validate(inp=inp)
-        finally:
-            mod._CONFIG, mod._ENGINE = orig_config, orig_engine
+        _config, result = self._validate(yaml_file=yaml_file)
 
         assert result is not None
         assert "MCP tool" in result.message
         assert "Skill(" not in result.message
+        assert "Use gh issue view directly." in result.message
 
-    def test_mcp_type_strict_uses_mcp_template(self, tmp_path: Path) -> None:
+    def test_mcp_type_without_fallback_still_uses_mcp_template(self, tmp_path: Path) -> None:
         yaml_file = tmp_path / "map.yaml"
-        yaml_file.write_text(
-            self._make_yaml(
-                friction_level="strict",
-                comp_type="use-tool",
-            )
-        )
-        config, engine = _load_config(yaml_path=yaml_file)
+        yaml_file.write_text(self._make_yaml(comp_type="use-tool"))
 
-        validator = SkillRedirectValidator()
-        inp = _make_input(command="test cmd foo")
-
-        import dev10x.validators.skill_redirect as mod
-
-        orig_config, orig_engine = mod._CONFIG, mod._ENGINE
-        mod._CONFIG, mod._ENGINE = config, engine
-        try:
-            result = validator.validate(inp=inp)
-        finally:
-            mod._CONFIG, mod._ENGINE = orig_config, orig_engine
+        _config, result = self._validate(yaml_file=yaml_file)
 
         assert result is not None
         assert "MCP tool" in result.message
@@ -1049,7 +1022,11 @@ class TestYamlSchema:
         data = yaml.safe_load(_YAML_PATH.read_text())
         assert "config" in data
         assert "rules" in data
-        assert data["config"]["friction_level"] in {"strict", "guided", "adaptive"}
+        assert data["config"]["plugin_repo"]
+        # GH-1194: the ADR-0002 command-redirect axis is collapsed. A
+        # re-added key would be inert — nothing reads it — so assert its
+        # absence rather than letting it drift back in as decoration.
+        assert "friction_level" not in data["config"]
 
     @pytest.mark.parametrize("entry", _HOOK_BLOCK_RULES, ids=_rule_ids(_HOOK_BLOCK_RULES))
     def test_hook_block_entry_has_compensations(self, entry: dict) -> None:
