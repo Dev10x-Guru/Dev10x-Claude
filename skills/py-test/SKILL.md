@@ -47,9 +47,26 @@ Pass extra pytest args via the `args` parameter, e.g.
 `args=["src/dev10x/runner/"]` or `args=["-k", "name"]`. The tool
 returns a structured payload: `returncode`, `summary`, `passed`,
 `failed`, `skipped`, `coverage_percent`, `failed_tests`,
-`missing_coverage`, `stdout`, `stderr`. The subprocess is
-launched from the MCP server so the PreToolUse hook does not
-apply.
+`missing_coverage`, `extras`, `retried_with_extras`, `stdout`,
+`stderr`. The subprocess is launched from the MCP server so the
+PreToolUse hook does not apply.
+
+**The tool resolves the project's dependency extra itself
+(GH-1198).** It reads `[project.optional-dependencies]` from
+`pyproject.toml` and adds the group that declares pytest, so a suite
+whose test dependencies live under a `dev` extra runs green without
+anyone typing `--extra dev`. `extras` reports what it applied. When
+resolution finds nothing and the run dies at collection on a
+`ModuleNotFoundError`, it retries once with `--extra dev` and sets
+`retried_with_extras` — read that as a signal the project's extras
+are named unusually, not as a normal outcome.
+
+Before this, the sanctioned wrapper could not run such a suite at
+all, so the agent fell back to the raw command the routing table
+forbids — and kept using it for every iteration of the fix-test
+loop. **If you find yourself reaching for a raw `pytest` because
+the wrapper failed on a missing import, that is a bug in the
+wrapper: file it rather than working around it.**
 
 **Fallback — Bash** (only when the MCP server is unavailable):
 
@@ -58,10 +75,11 @@ pytest --cov --cov-report=term-missing
 ```
 
 Inside a worktree (`.git` is a file, not a directory), prefix
-with `uv run`:
+with `uv run`, and add the extra that carries the test
+dependencies if the project declares one:
 
 ```bash
-uv run pytest --cov --cov-report=term-missing
+uv run --extra dev pytest --cov --cov-report=term-missing
 ```
 
 ### Step 2: Parse Results

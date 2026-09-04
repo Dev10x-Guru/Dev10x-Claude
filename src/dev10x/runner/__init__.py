@@ -12,10 +12,13 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
+import tomllib
+from pathlib import Path
 from typing import Any
 
 from dev10x.domain.common.result import Result, err, ok
-from dev10x.subprocess_utils import async_run
+from dev10x.subprocess_utils import async_run, effective_cwd
 
 _SUMMARY_RE = re.compile(
     r"=+\s+(\d+\s+(?:passed|failed|skipped|error|errors)"
@@ -33,6 +36,77 @@ _MISSING_LINE_RE = re.compile(
     r"^(src/\S+\.py)\s+\d+\s+\d+(?:\s+\d+\s+\d+)?\s+(\d+)%\s+(.+)$",
     re.MULTILINE,
 )
+
+# GH-1198: a suite whose test dependencies live in an optional-dependency
+# group dies at collection under a bare `uv run pytest`, and the agent then
+# falls back to the raw `uv run --extra dev pytest` the routing table
+# forbids -- for every iteration of the fix-test loop, not just the first.
+# The wrapper resolves the extra itself so the sanctioned path is the one
+# that works.
+_PYPROJECT = "pyproject.toml"
+
+# A requirement name that means "this group carries the test dependencies".
+# Deliberately narrow: matching on any dev-ish tool would pull in a lint-only
+# group and install more than the run needs.
+_TEST_REQUIREMENT_MARKERS = ("pytest",)
+
+# Preferred order when several groups qualify. A project that ships both
+# `test` and `dev` usually means the narrower one.
+_EXTRA_PREFERENCE = ("test", "tests", "dev", "develop", "testing")
+
+# Collection died because an import was missing, rather than a test failing.
+_MISSING_MODULE_RE = re.compile(r"ModuleNotFoundError: No module named", re.MULTILINE)
+
+
+def _requirement_name(*, requirement: str) -> str:
+    """Return the bare package name from a PEP 508 requirement string."""
+    return re.split(r"[\s\[<>=!~;(]", requirement.strip(), maxsplit=1)[0].lower()
+
+
+def resolve_test_extras(*, cwd: str | None = None) -> list[str]:
+    """Return the ``pyproject.toml`` extras that provide the test dependencies.
+
+    Empty when there is no ``pyproject.toml``, it cannot be parsed, or no
+    optional-dependency group declares pytest -- all of which mean a bare
+    ``uv run pytest`` is the right command and nothing needs adding.
+    """
+    root = Path(cwd or effective_cwd() or os.getcwd())
+    try:
+        parsed = tomllib.loads((root / _PYPROJECT).read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        return []
+
+    groups = parsed.get("project", {}).get("optional-dependencies", {})
+    if not isinstance(groups, dict):
+        return []
+
+    qualifying = [
+        name
+        for name, requirements in groups.items()
+        if isinstance(requirements, list)
+        and any(
+            _requirement_name(requirement=str(req)).startswith(_TEST_REQUIREMENT_MARKERS)
+            for req in requirements
+        )
+    ]
+    if not qualifying:
+        return []
+
+    for preferred in _EXTRA_PREFERENCE:
+        if preferred in qualifying:
+            return [preferred]
+    return [sorted(qualifying)[0]]
+
+
+def _pytest_command(*, extras: list[str], coverage: bool, extra_args: list[str]) -> list[str]:
+    cmd = ["uv", "run"]
+    for extra in extras:
+        cmd += ["--extra", extra]
+    cmd += ["pytest"]
+    if coverage:
+        cmd += ["--cov", "--cov-report=term-missing"]
+    cmd += ["--tb=short", "--color=no"]
+    return cmd + extra_args
 
 
 async def run_tests(
@@ -59,6 +133,8 @@ async def run_tests(
             "coverage_percent": int | None,
             "failed_tests": [{"id": str, "message": str | None}, ...],
             "missing_coverage": [{"file": str, "percent": int, "lines": str}, ...],
+            "extras": list[str],       # optional-dependency extras applied
+            "retried_with_extras": bool,
             "stdout": str,
             "stderr": str,
         })
@@ -67,15 +143,14 @@ async def run_tests(
         times out. A non-zero pytest returncode is *not* an MCP-level
         error — the caller reads ``returncode`` and ``failed_tests``.
     """
-    extra = list(args) if args else []
-    cmd = ["uv", "run", "pytest"]
-    if coverage:
-        cmd += ["--cov", "--cov-report=term-missing"]
-    cmd += ["--tb=short", "--color=no"]
-    cmd += extra
+    extra_args = list(args) if args else []
+    extras = resolve_test_extras()
 
     try:
-        proc = await async_run(args=cmd, timeout=timeout)
+        proc = await async_run(
+            args=_pytest_command(extras=extras, coverage=coverage, extra_args=extra_args),
+            timeout=timeout,
+        )
     except FileNotFoundError:
         return err(
             "uv not found on PATH — install uv or call pytest via the "
@@ -89,14 +164,43 @@ async def run_tests(
             stderr=proc.stderr,
         )
 
+    # Safety net for the case resolution cannot see: a group that carries the
+    # test deps without declaring pytest itself (a shared `conftest` import
+    # like factory-boy), or a project whose pyproject is unreadable. Retrying
+    # once here is what keeps the caller from reaching for the raw command.
+    retried = False
+    if not extras and _looks_like_missing_dependency(proc=proc):
+        retried = True
+        extras = ["dev"]
+        try:
+            proc = await async_run(
+                args=_pytest_command(extras=extras, coverage=coverage, extra_args=extra_args),
+                timeout=timeout,
+            )
+        except FileNotFoundError:  # pragma: no cover - first call already proved uv exists
+            pass
+
     parsed = _parse(proc.stdout)
     payload: dict[str, Any] = {
         "returncode": proc.returncode,
+        "extras": extras,
+        "retried_with_extras": retried,
         "stdout": proc.stdout,
         "stderr": proc.stderr,
         **parsed,
     }
     return ok(payload)
+
+
+def _looks_like_missing_dependency(*, proc: subprocess.CompletedProcess[str]) -> bool:
+    """True when the run died on a missing import rather than a failing test.
+
+    Scoped to a non-zero exit so a suite that merely *mentions*
+    ``ModuleNotFoundError`` in a passing test's output is not retried.
+    """
+    if proc.returncode == 0:
+        return False
+    return bool(_MISSING_MODULE_RE.search(proc.stdout) or _MISSING_MODULE_RE.search(proc.stderr))
 
 
 # GH-703: node/JS test runners. Routing the run through the MCP server
@@ -298,4 +402,4 @@ def _parse(stdout: str) -> dict[str, Any]:
     }
 
 
-__all__ = ["run_node_tests", "run_tests"]
+__all__ = ["resolve_test_extras", "run_node_tests", "run_tests"]
