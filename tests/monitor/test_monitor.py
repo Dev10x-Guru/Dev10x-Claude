@@ -85,6 +85,23 @@ class TestCiCheckStatus:
 
     @pytest.mark.asyncio
     @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
+    async def test_unparseable_stdout_falls_back_to_the_raw_output(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[],
+            returncode=2,
+            stdout="Traceback (most recent call last): boom",
+            stderr="",
+        )
+        result = await monitor_mod.ci_check_status(pr_number=42, repo="owner/repo")
+        assert isinstance(result, ErrorResult)
+        assert "exited 2" in result.error
+        assert "boom" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
     async def test_returns_error_on_invalid_json(
         self,
         mock_run: AsyncMock,

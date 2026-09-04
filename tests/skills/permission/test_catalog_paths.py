@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from dev10x.skills.permission import (
+    catalog_paths,
     clean_project_files,
     doctor,
     merge_worktree_permissions,
@@ -22,6 +25,16 @@ class TestShippedProjectsCatalog:
         resolved = shipped_projects_catalog()
         assert resolved is not None
         assert resolved.is_file()
+
+    def test_returns_none_when_no_plugin_root_exists(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # An installed wheel with no plugin cache and no
+        # $CLAUDE_PLUGIN_ROOT. `None` must surface as "absent", never as
+        # a plausible-looking wrong path — that is the GH-1190 defect.
+        monkeypatch.setattr(catalog_paths, "resolve_plugin_root", lambda: None)
+        assert shipped_projects_catalog() is None
 
     def test_no_call_site_hardcodes_a_parents_hop(self) -> None:
         # The whole point of GH-1190: a fixed parents[N] walk is correct
