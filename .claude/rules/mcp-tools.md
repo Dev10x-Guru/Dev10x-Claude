@@ -361,10 +361,14 @@ Behavioral caveats:
   anchor_recommendations}`; on an `auto-advance` it adds a `record`
   key carrying the visible D-7 line (`⚙ gate:… → "…" (reason)`),
   absent for `ask`/`skip` (ADR-0016 #754). Session policy is read
-  from `.claude/Dev10x/session.yaml` — the new-style `gate_preset`
-  / `gate_overlays` / `gate_overrides` keys take precedence over the
-  legacy `friction_level` / `active_modes` / `walk_away` mapping
-  (#753); the durable project pin lives at git-tracked
+  from `.claude/Dev10x/session.yaml` through `gate_preset` /
+  `gate_overlays` / `gate_overrides` and nothing else — GH-1162
+  deleted the read-compat seam that used to translate the v1
+  `friction_level` / `active_modes` / `walk_away` keys, so a config
+  still carrying them is **refused** with an error naming
+  `dev10x config migrate-schema` rather than silently resolving to a
+  posture nobody wrote. An omitted `gate_overlays` inherits nothing.
+  The durable project pin lives at git-tracked
   `.dev10x/gate-policy.yaml` (legacy `.claude/Dev10x/gate-policy.yaml`
   still read as a fallback, #752).
 

@@ -25,10 +25,14 @@ What `active_modes` still feeds — its only remaining consumers:
 3. **Playbook step `modes:` blocks** — which steps exist in a play
    (`references/execution-modes.md`).
 
-Overlays and modes are separate lists with separate readers.
-`legacy_session_mapping()` maps `active_modes` → overlays but never
-the reverse, so an overlay-only entry leaves the three consumers
-above seeing `[]`. Set both when a mode must reach both surfaces.
+Overlays and modes are separate lists with separate readers, and
+nothing derives one from the other: an overlay-only entry leaves the
+three consumers above seeing `[]`. Set both when a mode must reach
+both surfaces. A config that still declares its posture through the
+v1 keys is refused rather than translated —
+`legacy_policy_keys()` in `src/dev10x/domain/gate_policy.py` names
+the offending keys, and the migrator's own v1 readers in
+`src/dev10x/domain/config_migration.py` convert them.
 
 ## Mode catalog
 

@@ -101,9 +101,13 @@ Named modes customising **non-gate** behaviour — structural skill
 steps, `Dev10x:verify-acc-dod`'s check filter, and playbook step
 `modes:` blocks. It has no gate-resolution role; see
 `references/active-modes.md` for the catalog and the reasoning.
-`legacy_session_mapping()` maps `active_modes` → overlays but never
-the reverse, so an overlay-only entry leaves those consumers seeing
-`[]`. Set both keys when a mode must reach both surfaces.
+Nothing derives overlays from it, so an overlay-only entry leaves
+those consumers seeing `[]`. Set both keys when a mode must reach
+both surfaces. A config still declaring its posture through the v1
+keys is refused rather than translated — `legacy_policy_keys()` in
+`src/dev10x/domain/gate_policy.py` names the offending keys, and the
+migrator's own v1 readers in
+`src/dev10x/domain/config_migration.py` convert them.
 
 ### `allowed_overlays` (GH-805)
 
