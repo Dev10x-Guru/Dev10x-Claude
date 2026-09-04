@@ -383,6 +383,15 @@ user-benefit prose, they double as narration copy. Attaching a `Narration`
 speaks them and switches caption dwell from a character-count estimate to
 the actual audio duration, so the two tracks cannot drift:
 
+**Synthesize before the recorded context exists.** `install()` pre-renders
+the whole script, so any ordering that opens the recorded context first
+records the entire synthesis pass as a static screen *and* anchors every
+cue offset behind it. A measured run lost ~36s to dead head frames and
+ran the voice-over ~16s past the end of the footage. Reordering
+`install()` and `mark_video_start()` fixes the anchor but not the wasted
+head — the recorded context is open during `install()` either way. Slot
+the synthesis into Phase 1 of the two-phase recipe above:
+
 ```python
 from narration import Narration
 
@@ -391,13 +400,35 @@ NARRATION = [
     "Done — assigned instantly, no extra clicks",
 ]
 
+# Phase 1 — in the un-recorded setup context, before Phase 2 opens.
 narration = Narration(f"{RUN_DIR}/narration", script=NARRATION)
-narration.mark_video_start()      # right after the recorded context opens
+narration.prerender()             # all synthesis happens here
+storage_state = setup_context.storage_state()
+setup_context.close()
+
+# Phase 2 — the recorded context. Nothing slow happens between the
+# context opening and the anchor.
+context = browser.new_context(..., record_video_dir=VIDEO_DIR,
+                              storage_state=storage_state)
+page = context.new_page()
 anno = Annotator(page, narration=narration)
-anno.install()                    # pre-renders all lines before the first caption
+anno.install()                    # a no-op re-render; already synthesized
+anno.mark_video_start()
+narration.mark_video_start()
 ...
 narration.write_manifest()        # after context.close()
 ```
+
+`prerender()` is idempotent (GH-1205), so the `install()` that follows it
+does not synthesize a second time. That matters most on the Kokoro path,
+where cost is a model load **per line** rather than per batch — a
+20-caption script is ~100s, and a double render ~200s.
+
+**`write_manifest()` is not optional.** Skip it and the run produces a
+silent video, correct `.wav` files on disk, and exit code 0 — nothing
+fails, and the cue offsets live only in process memory, so there is no
+post-hoc mux. `verify-evidence.py` now fails a narrated take that has no
+audio stream, and one whose last cue ends past the container duration.
 
 Narration is **opt-in** — omit it and every behaviour above is unchanged.
 

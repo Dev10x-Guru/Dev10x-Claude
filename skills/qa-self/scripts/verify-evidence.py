@@ -212,6 +212,87 @@ def video_duration(path: Path) -> float:
         raise ToolingError(f"ffprobe reported no duration for {path.name}") from exc
 
 
+def stream_codec_types(path: Path) -> list[str]:
+    """Codec types present in the container, in stream order."""
+    raw = _run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "stream=codec_type",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            str(path),
+        ]
+    )
+    return [line.strip() for line in raw.splitlines() if line.strip()]
+
+
+def find_narration_manifest(path: Path) -> Path | None:
+    """Locate the narration manifest that belongs to a recording.
+
+    `Narration` writes `narration.json` into its own out-dir, which a
+    capture script typically places beside — not inside — the video dir,
+    so check both plus a sibling `narration/`.
+    """
+    candidates = [
+        path.parent / "narration.json",
+        path.parent / "narration" / "narration.json",
+        path.parent.parent / "narration" / "narration.json",
+    ]
+    return next((candidate for candidate in candidates if candidate.is_file()), None)
+
+
+def load_narration(path: Path) -> dict:
+    try:
+        parsed = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ToolingError(f"{path} is not a readable narration manifest: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise ToolingError(f"{path} does not hold a narration manifest object")
+    return parsed
+
+
+def last_cue_end_ms(manifest: dict) -> int | None:
+    """End of the last spoken cue, or None when nothing was spoken."""
+    ends = [
+        segment["offset_ms"] + segment["duration_ms"]
+        for segment in manifest.get("segments", [])
+        if segment.get("offset_ms") is not None and segment.get("duration_ms") is not None
+    ]
+    return max(ends) if ends else None
+
+
+def narration_failures(path: Path, *, manifest: dict | None, duration: float) -> list[str]:
+    """Published-artifact checks a frame sample structurally cannot make.
+
+    Sampled frames carry real file size and real stddev whether or not the
+    take has audio at all, and whether or not the voice-over runs past the
+    end of the footage. Both are only visible on the container (GH-1204).
+    """
+    narrated = manifest is not None or path.stem.endswith("-narrated")
+    if not narrated:
+        return []
+    failures = []
+    if "audio" not in stream_codec_types(path):
+        failures.append(
+            "narrated take has no audio stream — write_manifest() was likely "
+            "never called, and the cue offsets are gone with the process "
+            "(GH-1204)"
+        )
+    if manifest is not None:
+        cue_end = last_cue_end_ms(manifest)
+        if cue_end is not None and cue_end > round(duration * 1000):
+            overrun = (cue_end / 1000) - duration
+            failures.append(
+                f"narration runs {overrun:.1f}s past the end of the video "
+                f"(last cue ends {cue_end / 1000:.1f}s, video is {duration:.1f}s) — "
+                "synthesis was anchored inside the recording (GH-1204)"
+            )
+    return failures
+
+
 def extract_frame(path: Path, *, offset: float, dest: Path) -> None:
     _run(
         [
@@ -281,11 +362,17 @@ def verify_video(
     min_stddev: float,
     save_frames: Path | None = None,
     border_max_stddev: float | None = BORDER_MAX_STDDEV,
+    narration: Path | None = None,
+    check_narration: bool = True,
 ) -> dict:
     size = path.stat().st_size
     failures = size_floor_failures(size, min_bytes)
 
     duration = video_duration(path)
+    manifest_path = narration or find_narration_manifest(path) if check_narration else None
+    manifest = load_narration(manifest_path) if manifest_path else None
+    if check_narration:
+        failures.extend(narration_failures(path, manifest=manifest, duration=duration))
     frames: list[dict] = []
     with tempfile.TemporaryDirectory(prefix="dx-evidence-") as tmp:
         # The sampled frames are what a human actually looks at during the
@@ -321,6 +408,7 @@ def verify_video(
         "ok": not failures,
         "bytes": size,
         "duration": round(duration, 2),
+        "narration": str(manifest_path) if manifest_path else None,
         "frames": frames,
         "failures": failures,
     }
@@ -333,6 +421,8 @@ def verify(
     min_stddev: float,
     save_frames: Path | None = None,
     border_max_stddev: float | None = BORDER_MAX_STDDEV,
+    narration: Path | None = None,
+    check_narration: bool = True,
 ) -> dict:
     if not path.is_file():
         return {
@@ -350,6 +440,8 @@ def verify(
         min_stddev=min_stddev,
         save_frames=save_frames,
         border_max_stddev=border_max_stddev,
+        narration=narration,
+        check_narration=check_narration,
     )
 
 
@@ -405,6 +497,24 @@ def main(argv: list[str] | None = None) -> int:
             " genuinely is a single flat colour"
         ),
     )
+    parser.add_argument(
+        "--narration",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help=(
+            "narration.json for the take — normally discovered beside the"
+            " video; pass it when the manifest lives elsewhere"
+        ),
+    )
+    parser.add_argument(
+        "--no-narration-check",
+        action="store_true",
+        help=(
+            "skip the audio-stream and cue-overrun checks — for a take that"
+            " is deliberately silent despite a manifest being present"
+        ),
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -415,6 +525,8 @@ def main(argv: list[str] | None = None) -> int:
                 min_stddev=args.min_stddev,
                 save_frames=args.save_frames,
                 border_max_stddev=None if args.no_border_check else args.border_max_stddev,
+                narration=args.narration,
+                check_narration=not args.no_narration_check,
             )
             for name in args.files
         ]

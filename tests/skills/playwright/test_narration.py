@@ -126,6 +126,35 @@ class TestPrerender:
         narration.prerender()
         assert narration.warning == "voice is CC BY-NC-SA 4.0"
 
+    def test_a_second_call_does_not_re_synthesize(self, tmp_path):
+        # The corrected capture ordering calls prerender() and then
+        # install(), which calls it again — under Kokoro that second pass
+        # is a model load per line, not tidiness (GH-1205).
+        runner = fake_runner({"alpha": 1000, "beta": 2000})
+        narration = _narration.Narration(tmp_path, script=["alpha", "beta"], runner=runner)
+        narration.prerender()
+        narration.prerender()
+
+        assert len(runner.calls) == 1
+        assert narration.duration_ms("alpha") == 1000
+
+    def test_a_second_call_renders_only_lines_added_since(self, tmp_path):
+        runner = fake_runner({"alpha": 1000, "beta": 2000})
+        narration = _narration.Narration(tmp_path, script=["alpha"], runner=runner)
+        narration.prerender()
+        narration.script.append("beta")
+        narration.prerender()
+
+        assert len(runner.calls) == 2
+        assert [segment["text"] for segment in runner.calls[1]["segments"]] == ["beta"]
+
+    def test_a_guarded_second_call_keeps_the_licence_warning(self, tmp_path):
+        runner = fake_runner({"alpha": 1000}, warning="voice is CC BY-NC-SA 4.0")
+        narration = _narration.Narration(tmp_path, script=["alpha"], runner=runner)
+        narration.prerender()
+        narration.prerender()
+        assert narration.warning == "voice is CC BY-NC-SA 4.0"
+
 
 class TestDwell:
     def test_dwell_is_the_audio_plus_a_tail(self, tmp_path):
