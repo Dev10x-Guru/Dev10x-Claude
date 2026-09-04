@@ -12,16 +12,6 @@ import yaml
 from dev10x.skills.permission import enumerate_mcp
 from dev10x.skills.permission import update_paths as mod
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-_PROJECTS_YAML = _REPO_ROOT / "skills" / "upgrade-cleanup" / "projects.yaml"
-
-
-@pytest.fixture
-def settings_file(tmp_path: Path) -> Path:
-    path = tmp_path / "settings.local.json"
-    path.write_text("{}\n")
-    return path
-
 
 @pytest.fixture(autouse=True)
 def _isolate(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -62,8 +52,11 @@ class TestDenyAwareAllowSeeding:
 class TestSanctionedPreCommitCoverage:
     """GH-1149: the catalog must carry the sanctioned bare `pre-commit run` form."""
 
-    def test_shipped_catalog_carries_sanctioned_pre_commit_rule(self) -> None:
-        config = yaml.safe_load(_PROJECTS_YAML.read_text(encoding="utf-8"))
+    def test_shipped_catalog_carries_sanctioned_pre_commit_rule(
+        self,
+        projects_yaml: Path,
+    ) -> None:
+        config = yaml.safe_load(projects_yaml.read_text(encoding="utf-8"))
         assert "Bash(pre-commit run:*)" in config["base_permissions"]
 
 

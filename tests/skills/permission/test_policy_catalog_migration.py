@@ -22,6 +22,7 @@ from dev10x.domain.common.policy import (
 )
 from dev10x.domain.common.policy_resolution import resolve_effect
 from dev10x.domain.common.tracker_choice import Tracker, apply_tracker_selection
+from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
 from dev10x.skills.permission.policy_catalog_migration import (
     CLAUDE_AI_MCP_GROUP,
     DEFAULT_TIER,
@@ -33,7 +34,8 @@ from dev10x.skills.permission.policy_catalog_migration import (
 )
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
-_PROJECTS_YAML = _REPO_ROOT / "skills" / "upgrade-cleanup" / "projects.yaml"
+_PROJECTS_YAML = shipped_projects_catalog(plugin_root=_REPO_ROOT)
+assert _PROJECTS_YAML is not None
 
 
 def _shipped_config() -> dict:

@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
 import yaml
 
 from dev10x.domain.common.policy import PolicyEffect
@@ -13,16 +12,6 @@ from dev10x.domain.common.policy_migration import migrate_flat_config
 from dev10x.skills.permission import update_paths as mod
 from dev10x.skills.permission.catalog_gap import compute_gap
 from dev10x.skills.permission.policy_renderer import render_permissions
-
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-_PROJECTS_YAML = _REPO_ROOT / "skills" / "upgrade-cleanup" / "projects.yaml"
-
-
-@pytest.fixture
-def settings_file(tmp_path: Path) -> Path:
-    path = tmp_path / "settings.local.json"
-    path.write_text("{}\n")
-    return path
 
 
 def _ask(path: Path) -> list[str]:
@@ -129,13 +118,13 @@ def test_compute_gap_without_base_asks_reports_empty_ask_gap(settings_file: Path
     assert gap.is_empty
 
 
-def test_shipped_catalog_populates_the_ask_tier() -> None:
-    config = yaml.safe_load(_PROJECTS_YAML.read_text(encoding="utf-8"))
+def test_shipped_catalog_populates_the_ask_tier(projects_yaml: Path) -> None:
+    config = yaml.safe_load(projects_yaml.read_text(encoding="utf-8"))
     base_asks = config["base_asks"]
     assert base_asks
     assert all(rule.startswith("Bash(gh api ") for rule in base_asks)
 
 
-def test_shipped_catalog_guards_gh_api_delete() -> None:
-    config = yaml.safe_load(_PROJECTS_YAML.read_text(encoding="utf-8"))
+def test_shipped_catalog_guards_gh_api_delete(projects_yaml: Path) -> None:
+    config = yaml.safe_load(projects_yaml.read_text(encoding="utf-8"))
     assert "Bash(gh api -X DELETE:*)" in config["base_asks"]

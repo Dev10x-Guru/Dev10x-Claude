@@ -22,14 +22,13 @@ from dev10x.domain.common.policy import Policy, PolicySource
 from dev10x.domain.common.result import Result
 from dev10x.domain.common.ticket_id import TICKET_ID_PATTERN
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
 from dev10x.skills.permission.config import parse_config, resolve_config
 from dev10x.skills.permission.policy_authoring import policy_from_accepted_prompt
 
 MEMORY_CONFIG = Dev10xConfigDir.projects_yaml()
 USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
-PLUGIN_CONFIG = (
-    Path(__file__).resolve().parents[4] / "skills" / "upgrade-cleanup" / "projects.yaml"
-)
+PLUGIN_CONFIG = shipped_projects_catalog()
 
 NOISE_PATTERNS = [
     re.compile(r"\.[A-Za-z0-9]{8,}\.(txt|md|json)"),
@@ -92,7 +91,10 @@ def generalize_permission(entry: str) -> str:
 
 
 def find_config() -> Result[Path]:
-    return resolve_config(candidates=[MEMORY_CONFIG, USERSPACE_CONFIG, PLUGIN_CONFIG])
+    candidates = [MEMORY_CONFIG, USERSPACE_CONFIG]
+    if PLUGIN_CONFIG is not None:
+        candidates.append(PLUGIN_CONFIG)
+    return resolve_config(candidates=candidates)
 
 
 def load_config(config_path: Path) -> dict:

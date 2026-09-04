@@ -42,15 +42,14 @@ from dev10x.skills.permission.catalog_merge import (
     MergedCatalog,
     merge_catalogs,
 )
+from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
 from dev10x.skills.permission.config import parse_config, resolve_config
 from dev10x.skills.permission.policy_catalog_migration import migrate_flat_config
 from dev10x.skills.permission.policy_renderer import render_permissions
 
 MEMORY_CONFIG = Dev10xConfigDir.projects_yaml()
 USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
-PLUGIN_CONFIG = (
-    Path(__file__).resolve().parents[4] / "skills" / "upgrade-cleanup" / "projects.yaml"
-)
+PLUGIN_CONFIG = shipped_projects_catalog()
 VERSION_PATTERN = re.compile(rf"(plugins/cache/)([^/]+)(/{PLUGIN_NAMES}/)({SEMVER_PATTERN})")
 
 log = logging.getLogger(__name__)
@@ -67,10 +66,10 @@ def extract_cache_publisher(plugin_cache: str) -> str | None:
 
 
 def find_config() -> Result[Path]:
-    return resolve_config(
-        candidates=[MEMORY_CONFIG, USERSPACE_CONFIG, PLUGIN_CONFIG],
-        create_path=MEMORY_CONFIG,
-    )
+    candidates = [MEMORY_CONFIG, USERSPACE_CONFIG]
+    if PLUGIN_CONFIG is not None:
+        candidates.append(PLUGIN_CONFIG)
+    return resolve_config(candidates=candidates, create_path=MEMORY_CONFIG)
 
 
 def load_config(config_path: Path) -> dict:
@@ -84,7 +83,11 @@ def load_shipped_config() -> dict | None:
     userspace catalog alone rather than failing the command — the same
     tolerance :func:`load_policy_layers` applies to a partial install.
     """
+    if PLUGIN_CONFIG is None:
+        log.warning("Plugin root unresolvable, shipped catalog not loaded")
+        return None
     if not PLUGIN_CONFIG.is_file():
+        log.warning("Shipped catalog missing, merging skipped: %s", PLUGIN_CONFIG)
         return None
     try:
         return parse_config(PLUGIN_CONFIG)
@@ -101,7 +104,7 @@ def load_effective_config(config_path: Path) -> MergedCatalog:
     file is returned as-is.
     """
     user_config = load_config(config_path)
-    if config_path == PLUGIN_CONFIG:
+    if PLUGIN_CONFIG is not None and config_path == PLUGIN_CONFIG:
         return MergedCatalog(config=user_config)
     return merge_catalogs(shipped=load_shipped_config(), user=user_config)
 
@@ -2173,6 +2176,14 @@ def init_userspace_config() -> dict[str, object]:
             messages.append(f"Migrated {USERSPACE_CONFIG} -> {MEMORY_CONFIG}")
             messages.append(f"{USERSPACE_CONFIG} is deprecated; edit {MEMORY_CONFIG} from now on.")
             return _result(exit_code=0, messages=messages, errors=errors)
+
+        if PLUGIN_CONFIG is None:
+            errors.append(
+                "ERROR: Could not resolve the Dev10x plugin root, so the "
+                "shipped catalog could not be located. Set $CLAUDE_PLUGIN_ROOT "
+                "or install the plugin."
+            )
+            return _result(exit_code=1, messages=messages, errors=errors)
 
         if not PLUGIN_CONFIG.is_file():
             errors.append(f"ERROR: Plugin default config not found: {PLUGIN_CONFIG}")
