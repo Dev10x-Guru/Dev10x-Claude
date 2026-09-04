@@ -783,7 +783,9 @@ class Annotator:
         ``evaluate`` covers the document already loaded when this runs.
 
         With narration attached this also pre-renders every declared line
-        in one piper process, so no ``say()`` pays a model load mid-take.
+        up front, so no ``say()`` pays a model load mid-take. Piper renders
+        the whole script in one process; a kokoro voice pays a load per
+        line, which is setup cost rather than a frozen frame either way.
         """
         script = overlay_script(self._theme)
         self._page.context.add_init_script(script)

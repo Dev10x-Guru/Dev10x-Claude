@@ -71,7 +71,7 @@ page = context.new_page()
 page.goto(wo_url, wait_until="networkidle")
 
 anno = Annotator(page, narration=narration)
-anno.install()          # pre-renders every line in ONE piper process
+anno.install()          # pre-renders every line before the first caption
 ```
 
 If `mark_video_start()` is never called the offsets are relative to
@@ -130,7 +130,13 @@ every clip one full dwell late.
 
 ## Cost
 
-Pre-rendering is one piper process for the whole script — measured ~1.0 s
-for three lines, against ~0.7 s each when run separately. It happens during
-`install()`, before the first caption, so it never freezes a frame
-mid-take.
+Pre-rendering happens during `install()`, before the first caption, so it
+never freezes a frame mid-take whichever engine renders it. What it costs
+depends on the voice:
+
+- **Piper** — one process for the whole script; measured ~1.0 s for three
+  lines, against ~0.7 s each when run separately.
+- **Kokoro** — one process *per line*, ~5 s each, because `kokoro-tts`
+  emits one audio file per run. A twenty-caption walkthrough is a couple of
+  minutes of setup. Worth it for the Apache-2.0 licence on English; reach
+  for a Piper voice when the script is long and the timbre allows it.
