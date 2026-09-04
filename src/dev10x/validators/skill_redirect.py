@@ -294,10 +294,20 @@ OVERRIDE_HINT = (
 MCP_UNAVAILABLE_HINT = (
     "\n\n\u26a0\ufe0f  If the MCP server is disconnected "
     '(tool listed as "no longer available" in system-reminders), '
-    "STOP and ask the user to reconnect via `/mcp` or a session "
+    "ask the user to reconnect via `/mcp` or a session "
     f"restart. Do NOT use {SKIP_ENV_VAR} as a workaround — that "
     "flag is reserved for skill-authorized exceptions, not transient "
-    "MCP unavailability."
+    "MCP unavailability.\n\n"
+    "While you wait, READ-ONLY `gh api` calls are NOT blocked and are "
+    "the sanctioned fallback for gathering state (GH-1173 F2):\n"
+    "  gh api repos/<owner>/<repo>/pulls/<n>\n"
+    "  gh api repos/<owner>/<repo>/issues/<n>\n"
+    "  gh api graphql -f query='...'   # e.g. reviewThreads state\n"
+    "Only state-CHANGING operations must wait for the wrapper — a "
+    "write is what these guardrails exist to gate. An unattended "
+    "agent told only to stop, with no named alternative, either "
+    "stalls on a prompt nobody will answer or reaches for the skip "
+    "flag; neither is the intended behaviour."
 )
 
 

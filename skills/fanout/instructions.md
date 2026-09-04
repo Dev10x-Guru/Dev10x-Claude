@@ -445,12 +445,33 @@ holds `--git-common-dir`'s parent repo (i.e. the orchestrator is
 a sibling worktree, not the main checkout), set
 `worktree_orchestrator = true`.
 
-**When `worktree_orchestrator` is true, default to serial mode**
-(invoke `Skill(Dev10x:work-on)` inline, sequentially — see Serial
-fallback below) rather than dispatching a swarm that cannot be
-recovered. Announce the downgrade: "Orchestrator runs from a
-sibling worktree (cross-repo root); using serial mode per
-GH-427." The supervisor may override and force the swarm, but
+**Second condition — is the main repo root actually reachable?**
+(GH-1173 F4). Being a sibling worktree is not by itself
+disqualifying. The only capability that genuinely fails
+cross-repo-root is `EnterWorktree(path=…)`; `git -C <main-root>
+…` reaches the agent worktree fine *when the main repo root is
+allowlisted for this session*. Downgrading on the sibling test
+alone therefore serialised waves that would have run in parallel
+safely — the precheck was measuring the wrong thing.
+
+So check reachability too, from `--git-common-dir`'s repo root:
+
+```
+git -C <main-repo-root> rev-parse --show-toplevel
+```
+
+- Exits 0 → the root is reachable and allowlisted. Salvage via
+  `git -C` works, so **keep the parallel swarm** and note that
+  recovery routes through `git -C` rather than `EnterWorktree`.
+- Non-zero, or the call prompts / is denied → the root is not
+  reachable. **Downgrade to serial mode** (invoke
+  `Skill(Dev10x:work-on)` inline, sequentially — see Serial
+  fallback below) rather than dispatching a swarm that cannot be
+  recovered. Announce it: "Orchestrator runs from a sibling
+  worktree and the main repo root is not reachable; using serial
+  mode per GH-427."
+
+The supervisor may override a downgrade and force the swarm, but
 only with the cherry-pick salvage path (DONE_WITH_CONCERNS
 recovery, below) understood as the only recovery route.
 
@@ -581,12 +602,22 @@ ANTI-STALL CONTRACT (highest priority — read before invoking work-on):
   Run straight through: branch → implement → commit → push →
   PR → CI monitor → merge. Every step is mandatory.
 - COMMIT EARLY (GH-427): reach a committed (ideally pushed)
-  state as soon as the change compiles — before deep test
-  polishing or refactoring. The commit is your durable
+  state as soon as the change compiles. The commit is your durable
   checkpoint: if your turn ends mid-lifecycle, the orchestrator
   can salvage a committed SHA from the shared object store, but
   uncommitted files in your ephemeral worktree are lost when the
   worktree is reclaimed.
+- NOTHING YOU ARE WAITING FOR JUSTIFIES HOLDING A COMMIT
+  (GH-1173 F1): waiting on a test run, a CI verdict, a monitor
+  notification, a sibling's file lock, or a review is NEVER
+  grounds to leave work uncommitted. Commit first, then wait.
+  This is stated as a reason CLASS on purpose — an earlier
+  version listed the activities to defer ("before deep test
+  polishing or refactoring") and a worker held five uncommitted
+  files "waiting for the test suite", believing it was compliant
+  because its reason was not on the list. If you can articulate
+  why you have not committed yet, and the reason is that some
+  other step has not finished, commit now.
 - After work-on returns, if the PR is open but not merged,
   that is NOT done. Invoke Skill(Dev10x:gh-pr-monitor) and
   then Skill(Dev10x:gh-pr-merge) to complete.
@@ -600,21 +631,29 @@ ANTI-STALL CONTRACT (highest priority — read before invoking work-on):
   MUST be NEEDS_CONTEXT (not DONE). The orchestrator will
   re-dispatch to finish.
 
-Sibling coordination (REQUIRED when shared_files_with_siblings
-is non-empty OR mid-work drift is detected):
-- Append events to bus_path. One JSON object per line.
-- Before writing a path that overlaps with a sibling, append
-  a file_lock_request event and wait up to lock_wait_timeout
-  for a matching file_lock_grant from the implicated sibling.
-- On detected drift, append a conflict_signal event then
-  apply the decision gate:
-    - Wait: severity=soft AND sibling reachable AND timeout
-      not yet exceeded → poll bus.jsonl for a file_lock_grant
-      or the sibling's bailout.
-    - Bail: severity=hard, sibling unreachable, or wait
-      timed out → append a bailout event and return
-      "BLOCKED: file-scope drift on <path>".
-- Never busy-loop. Never delete or rewrite bus.jsonl.
+Sibling coordination (BEST-EFFORT — never your conflict guard):
+- The real conflict guard is the orchestrator's Phase 2
+  file-overlap analysis, which partitioned your file set before
+  you were dispatched. Treat the bus as a bonus signal only, and
+  never block your lifecycle on it.
+- Why it is only best-effort (GH-1173 F3): appending with `>>`
+  is hook-blocked, so the only available write is a Write-tool
+  replace of the whole file — which means the second sibling to
+  post silently clobbers the first. A lock protocol built on a
+  channel that loses messages cannot be relied on for
+  correctness, and a worker that waits on a grant which was
+  overwritten stalls for the full timeout and then bails on work
+  that had no genuine conflict.
+- So: post events if you can, read them if they are there, and
+  proceed on your own partition regardless. Do NOT wait for a
+  file_lock_grant before writing a file the orchestrator assigned
+  you.
+- On genuinely detected drift (you find a sibling's edit inside
+  your own partition), do not negotiate over the bus — commit
+  what you have and return
+  "NEEDS_CONTEXT: file-scope drift on <path>" so the orchestrator
+  can re-partition with full knowledge.
+- Never busy-loop. Never delete bus.jsonl.
 - Full schema and field definitions:
   references/orchestration/fanout-bus.md
 
