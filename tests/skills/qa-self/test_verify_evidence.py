@@ -133,6 +133,13 @@ class TestSizeFloorFailures:
 
 
 class TestVerifyVideo:
+    @pytest.fixture(autouse=True)
+    def _skip_border_check(self, monkeypatch):
+        """These cases stub ``extract_frame`` to a no-op, so no real PNG
+        exists for the border check to measure. Padding is covered on its
+        own in ``TestVerifyVideoBorderCheck``."""
+        monkeypatch.setattr(_mod, "flat_border_edges", lambda path, *, max_stddev: {})
+
     def _write(self, tmp_path: Path, *, size: int) -> Path:
         path = tmp_path / "clip.webm"
         path.write_bytes(b"\x00" * size)
@@ -209,6 +216,132 @@ class TestVerifyVideo:
         assert result["ok"] is False
 
 
+class TestImageSize:
+    def test_parses_identify_output(self, monkeypatch):
+        monkeypatch.setattr(_mod, "_run", lambda argv: "1920 1080\n")
+        assert _mod.image_size(Path("f.png")) == (1920, 1080)
+
+    @pytest.mark.parametrize("raw", ["", "1920", "wide tall"])
+    def test_unparseable_output_raises(self, monkeypatch, raw):
+        monkeypatch.setattr(_mod, "_run", lambda argv: raw)
+        with pytest.raises(_mod.ToolingError):
+            _mod.image_size(Path("f.png"))
+
+
+class TestRegionStats:
+    def test_returns_stddev_and_mean(self, monkeypatch):
+        monkeypatch.setattr(_mod, "_run", lambda argv: "0.0 0.494\n")
+        assert _mod.region_stats(Path("f.png"), geometry="6x1080+1914+0") == (0.0, 0.494)
+
+    def test_crops_on_read_rather_than_writing_a_temp_file(self, monkeypatch):
+        seen: list[str] = []
+
+        def record(argv):
+            seen.append(argv[-1])
+            return "0.1 0.5"
+
+        monkeypatch.setattr(_mod, "_run", record)
+        _mod.region_stats(Path("f.png"), geometry="6x1080+1914+0")
+        assert seen == ["f.png[6x1080+1914+0]"]
+
+    def test_short_output_raises(self, monkeypatch):
+        monkeypatch.setattr(_mod, "_run", lambda argv: "0.1")
+        with pytest.raises(_mod.ToolingError):
+            _mod.region_stats(Path("f.png"), geometry="6x6+0+0")
+
+
+class TestBorderGeometries:
+    def test_samples_only_the_right_and_bottom_edges(self):
+        assert _mod.border_geometries(1920, 1080, strip=6) == {
+            "right": "6x1080+1914+0",
+            "bottom": "1920x6+0+1074",
+        }
+
+    def test_an_axis_narrower_than_the_strip_is_skipped(self):
+        assert _mod.border_geometries(4, 1080, strip=6) == {"bottom": "4x6+0+1074"}
+
+
+class TestFlatBorderEdges:
+    def _stub(self, monkeypatch, *, stats: dict[str, tuple[float, float]]):
+        monkeypatch.setattr(_mod, "image_size", lambda path: (1920, 1080))
+        geometries = _mod.border_geometries(1920, 1080)
+        by_geometry = {geometries[edge]: value for edge, value in stats.items()}
+        monkeypatch.setattr(_mod, "region_stats", lambda path, *, geometry: by_geometry[geometry])
+
+    def test_a_full_bleed_frame_reports_no_flat_edges(self, monkeypatch):
+        self._stub(monkeypatch, stats={"right": (0.19, 0.87), "bottom": (0.22, 0.84)})
+        assert _mod.flat_border_edges(Path("f.png"), max_stddev=0.005) == {}
+
+    def test_a_padded_frame_reports_the_padded_edges_with_their_grey(self, monkeypatch):
+        self._stub(monkeypatch, stats={"right": (0.0, 0.494), "bottom": (0.0, 0.494)})
+        flat = _mod.flat_border_edges(Path("f.png"), max_stddev=0.005)
+        assert sorted(flat) == ["bottom", "right"]
+        assert flat["right"] == {"stddev": 0.0, "mean": 0.494}
+
+    def test_padding_on_one_axis_only_is_still_caught(self, monkeypatch):
+        self._stub(monkeypatch, stats={"right": (0.0, 0.494), "bottom": (0.21, 0.84)})
+        assert list(_mod.flat_border_edges(Path("f.png"), max_stddev=0.005)) == ["right"]
+
+
+class TestPaddedEdgeFailures:
+    def test_an_edge_flat_in_every_frame_fails(self):
+        frames = [{"flat_edges": {"right": {}}} for _ in range(3)]
+        (failure,) = _mod.padded_edge_failures(frames)
+        assert "right edge" in failure
+        assert "record_video_size" in failure
+
+    def test_an_edge_flat_in_only_some_frames_is_tolerated(self):
+        frames = [{"flat_edges": {"right": {}}}, {"flat_edges": {}}, {"flat_edges": {}}]
+        assert _mod.padded_edge_failures(frames) == []
+
+    def test_both_padded_axes_are_named_in_one_failure(self):
+        frames = [{"flat_edges": {"right": {}, "bottom": {}}} for _ in range(3)]
+        (failure,) = _mod.padded_edge_failures(frames)
+        assert failure.startswith("bottom, right edge")
+
+    def test_frames_without_border_data_are_not_judged(self):
+        assert _mod.padded_edge_failures([{"at": 1.0}, {"at": 2.0}]) == []
+
+    def test_no_frames_yields_no_failure(self):
+        assert _mod.padded_edge_failures([]) == []
+
+
+class TestVerifyVideoBorderCheck:
+    def _prepare(self, tmp_path, monkeypatch, *, flat_edges: dict):
+        path = tmp_path / "clip.webm"
+        path.write_bytes(b"\x00" * 500_000)
+        monkeypatch.setattr(_mod, "video_duration", lambda path: 30.0)
+        monkeypatch.setattr(_mod, "extract_frame", lambda path, *, offset, dest: None)
+        monkeypatch.setattr(_mod, "image_stddev", lambda path: 0.3)
+        monkeypatch.setattr(
+            _mod, "flat_border_edges", lambda path, *, max_stddev: dict(flat_edges)
+        )
+        return path
+
+    def test_a_padded_recording_fails(self, tmp_path, monkeypatch):
+        path = self._prepare(tmp_path, monkeypatch, flat_edges={"right": {"mean": 0.494}})
+        result = _mod.verify_video(path, min_bytes=50_000, min_stddev=0.02)
+        assert result["ok"] is False
+        assert "padded" in result["failures"][0]
+
+    def test_a_full_bleed_recording_passes(self, tmp_path, monkeypatch):
+        path = self._prepare(tmp_path, monkeypatch, flat_edges={})
+        result = _mod.verify_video(path, min_bytes=50_000, min_stddev=0.02)
+        assert result["ok"] is True
+
+    def test_the_check_can_be_disabled(self, tmp_path, monkeypatch):
+        path = self._prepare(tmp_path, monkeypatch, flat_edges={"right": {"mean": 0.494}})
+        result = _mod.verify_video(path, min_bytes=50_000, min_stddev=0.02, border_max_stddev=None)
+        assert result["ok"] is True
+        assert all("flat_edges" not in frame for frame in result["frames"])
+
+    def test_a_uniform_recording_reports_only_the_uniformity_failure(self, tmp_path, monkeypatch):
+        path = self._prepare(tmp_path, monkeypatch, flat_edges={"right": {"mean": 0.494}})
+        monkeypatch.setattr(_mod, "image_stddev", lambda path: 0.001)
+        result = _mod.verify_video(path, min_bytes=50_000, min_stddev=0.02)
+        assert result["failures"] == ["every sampled frame is uniform (max stddev 0.0010 < 0.02)"]
+
+
 class TestMain:
     def test_reports_tooling_error_as_json_on_stdout(self, tmp_path, capsys):
         target = tmp_path / "evidence.txt"
@@ -219,3 +352,29 @@ class TestMain:
     def test_failing_artifact_exits_one(self, tmp_path, capsys):
         assert _mod.main([str(tmp_path / "missing.png")]) == 1
         assert '"ok": false' in capsys.readouterr().out
+
+    def test_no_border_check_disables_the_threshold(self, tmp_path, monkeypatch, capsys):
+        seen: list[float | None] = []
+        monkeypatch.setattr(
+            _mod,
+            "verify",
+            lambda path, *, kind, min_stddev, save_frames, border_max_stddev: (
+                seen.append(border_max_stddev) or {"ok": True}
+            ),
+        )
+        _mod.main([str(tmp_path / "clip.webm"), "--no-border-check"])
+        capsys.readouterr()
+        assert seen == [None]
+
+    def test_border_threshold_is_configurable(self, tmp_path, monkeypatch, capsys):
+        seen: list[float | None] = []
+        monkeypatch.setattr(
+            _mod,
+            "verify",
+            lambda path, *, kind, min_stddev, save_frames, border_max_stddev: (
+                seen.append(border_max_stddev) or {"ok": True}
+            ),
+        )
+        _mod.main([str(tmp_path / "clip.webm"), "--border-max-stddev", "0.02"])
+        capsys.readouterr()
+        assert seen == [0.02]

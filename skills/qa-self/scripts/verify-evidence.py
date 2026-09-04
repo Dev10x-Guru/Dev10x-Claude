@@ -20,6 +20,8 @@ Per video:
   - the same size floor
   - frames extracted with ffmpeg at three points through the recording,
     each run through the same uniformity check
+  - a border check for the grey padding Playwright leaves when the
+    viewport is smaller than ``record_video_size`` (GH-1204)
 
 Uniformity is measured with ImageMagick's ``identify`` (already required
 by ``convert-evidence.sh``) as the image's standard deviation, normalised
@@ -56,6 +58,15 @@ MIN_STDDEV = 0.02
 # Fractions of the video duration to sample frames at. Sampling the very
 # first and last frames would flag legitimate fade-in/teardown moments.
 FRAME_SAMPLE_POINTS = (0.25, 0.5, 0.75)
+
+# Width, in pixels, of the edge strips sampled for the padding check.
+BORDER_STRIP_PX = 6
+
+# Playwright's padding is one constant fill, so a strip cut from inside
+# it measures a standard deviation of exactly 0. Real page content at
+# the frame's edge — even a plain background column — carries gradients,
+# borders or antialiasing that clear this threshold comfortably.
+BORDER_MAX_STDDEV = 0.005
 
 _SUBPROCESS_TIMEOUT_SECONDS = 60
 
@@ -122,6 +133,66 @@ def image_stddev(path: Path) -> float:
     return parse_stddev(_run(["identify", "-format", "%[fx:standard_deviation]", str(path)]))
 
 
+def image_size(path: Path) -> tuple[int, int]:
+    raw = _run(["identify", "-format", "%w %h", str(path)]).split()
+    try:
+        width, height = int(raw[0]), int(raw[1])
+    except (IndexError, ValueError) as exc:
+        raise ToolingError(f"identify reported no dimensions for {path.name}") from exc
+    return width, height
+
+
+def region_stats(path: Path, *, geometry: str) -> tuple[float, float]:
+    """Standard deviation and mean of one cropped region, normalised 0..1.
+
+    ImageMagick crops on read when the geometry is appended to the
+    filename, so this costs one process and never writes a temp file.
+    """
+    raw = _run(
+        [
+            "identify",
+            "-format",
+            "%[fx:standard_deviation] %[fx:mean]",
+            f"{path}[{geometry}]",
+        ]
+    ).split()
+    if len(raw) < 2:
+        raise ToolingError(f"identify reported no statistics for {path.name}[{geometry}]")
+    return parse_stddev(raw[0]), parse_stddev(raw[1])
+
+
+def border_geometries(width: int, height: int, *, strip: int = BORDER_STRIP_PX) -> dict[str, str]:
+    """Crop geometries for the right and bottom edge strips of a frame.
+
+    Playwright pads on the right, the bottom, or both — never the top or
+    left, because the undersized viewport is anchored top-left.
+    """
+    geometries: dict[str, str] = {}
+    if width > strip:
+        geometries["right"] = f"{strip}x{height}+{width - strip}+0"
+    if height > strip:
+        geometries["bottom"] = f"{width}x{strip}+0+{height - strip}"
+    return geometries
+
+
+def flat_border_edges(path: Path, *, max_stddev: float) -> dict[str, dict]:
+    """Edges of ``path`` whose outer strip is a single flat colour.
+
+    A flat edge is the signature of Playwright's padding. The mean rides
+    along in the result so the review report can show *which* grey it
+    measured — the padding is mid-grey (~0.49), which is also roughly
+    what a dimmed modal backdrop reads, so the mean alone never settles
+    it and the stddev is what decides.
+    """
+    width, height = image_size(path)
+    flat: dict[str, dict] = {}
+    for edge, geometry in border_geometries(width, height).items():
+        stddev, mean = region_stats(path, geometry=geometry)
+        if stddev < max_stddev:
+            flat[edge] = {"stddev": round(stddev, 5), "mean": round(mean, 4)}
+    return flat
+
+
 def video_duration(path: Path) -> float:
     raw = _run(
         [
@@ -182,12 +253,34 @@ def verify_screenshot(path: Path, *, min_bytes: int, min_stddev: float) -> dict:
     }
 
 
+def padded_edge_failures(frames: list[dict]) -> list[str]:
+    """The padding verdict: an edge flat in *every* sampled frame.
+
+    Content moves between the three sample points; Playwright's padding
+    does not. Requiring the edge to be flat in all of them keeps a
+    single frame that happens to end on a plain background from failing
+    an otherwise good take.
+    """
+    borders = [frame.get("flat_edges") for frame in frames]
+    if not borders or any(edge_map is None for edge_map in borders):
+        return []
+    persistent = set.intersection(*(set(edge_map) for edge_map in borders))
+    if not persistent:
+        return []
+    edges = ", ".join(sorted(persistent))
+    return [
+        f"{edges} edge is a flat fill in every sampled frame — the capture is "
+        "padded, so the viewport was smaller than record_video_size (GH-1204)"
+    ]
+
+
 def verify_video(
     path: Path,
     *,
     min_bytes: int,
     min_stddev: float,
     save_frames: Path | None = None,
+    border_max_stddev: float | None = BORDER_MAX_STDDEV,
 ) -> dict:
     size = path.stat().st_size
     failures = size_floor_failures(size, min_bytes)
@@ -206,6 +299,8 @@ def verify_video(
             extract_frame(path, offset=offset, dest=dest)
             stddev = image_stddev(dest)
             frame = {"at": offset, "stddev": round(stddev, 4)}
+            if border_max_stddev is not None:
+                frame["flat_edges"] = flat_border_edges(dest, max_stddev=border_max_stddev)
             if save_frames:
                 frame["path"] = str(dest)
             frames.append(frame)
@@ -217,6 +312,8 @@ def verify_video(
             f"every sampled frame is uniform (max stddev "
             f"{max(frame['stddev'] for frame in frames):.4f} < {min_stddev})"
         )
+    else:
+        failures.extend(padded_edge_failures(frames))
 
     return {
         "path": str(path),
@@ -235,6 +332,7 @@ def verify(
     kind: str,
     min_stddev: float,
     save_frames: Path | None = None,
+    border_max_stddev: float | None = BORDER_MAX_STDDEV,
 ) -> dict:
     if not path.is_file():
         return {
@@ -251,6 +349,7 @@ def verify(
         min_bytes=VIDEO_MIN_BYTES,
         min_stddev=min_stddev,
         save_frames=save_frames,
+        border_max_stddev=border_max_stddev,
     )
 
 
@@ -289,6 +388,23 @@ def main(argv: list[str] | None = None) -> int:
             " paths) so a human can review the footage without playing it"
         ),
     )
+    parser.add_argument(
+        "--border-max-stddev",
+        type=float,
+        default=BORDER_MAX_STDDEV,
+        help=(
+            "flatness threshold for the padding check, normalised 0..1"
+            f" (default: {BORDER_MAX_STDDEV})"
+        ),
+    )
+    parser.add_argument(
+        "--no-border-check",
+        action="store_true",
+        help=(
+            "skip the padding check — for a page whose right or bottom edge"
+            " genuinely is a single flat colour"
+        ),
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -298,6 +414,7 @@ def main(argv: list[str] | None = None) -> int:
                 kind=args.kind,
                 min_stddev=args.min_stddev,
                 save_frames=args.save_frames,
+                border_max_stddev=None if args.no_border_check else args.border_max_stddev,
             )
             for name in args.files
         ]

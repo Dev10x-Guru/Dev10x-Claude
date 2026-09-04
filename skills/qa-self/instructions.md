@@ -163,21 +163,32 @@ explicitly: `--basetemp=<RUN_DIR>`.
 
 Follow these patterns learned from production QA sessions:
 
-**Viewport + Video Recording**: Always use `1680x1050` (app-e2e standard).
-Enable video recording on the test context (see **Two-phase recording**
-below for where this fits):
-```python
-os.makedirs(VIDEO_DIR, exist_ok=True)
-context = browser.new_context(
-    viewport={"width": 1680, "height": 1050},
-    device_scale_factor=2,
-    record_video_dir=VIDEO_DIR,
-    record_video_size={"width": 1920, "height": 1080},
-)
-```
+**Viewport + Video Recording**: the viewport must be **at least as large
+as `record_video_size`**. Playwright's `record_video_size` only ever
+scales *down*: a viewport smaller than the recording size is placed 1:1
+in the top-left of the frame and the remainder is filled with mid-grey.
+Pairing the old `1680x1050` app-e2e viewport with a `1920x1080`
+recording padded every single take — 240px on the right, 30px at the
+bottom (GH-1204).
 
-Never resize the viewport for sharpness — it silently changes the app's
-layout. The reasoning, and the rest of the recording guidance, is in
+Matching the aspect ratio does **not** fix it. `1680x945` is exactly
+16:9 and still pads, because the rule is a size relation, not an aspect
+relation.
+
+Record Full HD and set the viewport to match — the canonical context is
+the **Two-phase recording** snippet below; it is the only one to copy.
+`device_scale_factor=2` renders the page at 3840x2160 and Playwright
+scales that *down* to 1920x1080 — a genuine supersample, and the
+scaling direction it actually supports. Text comes out visibly sharper.
+
+1080 is also the height that survives publishing: YouTube's tiers are
+1080 / 720 / 480, so a 1050-tall video is served at 720p **and**
+resampled 1050 → 720, softening text a second time.
+
+Choose the geometry once, at context creation, and never resize the
+viewport mid-run — that silently changes the app's layout, so the
+recording stops showing what a user sees. The reasoning, and the rest of
+the recording guidance, is in
 [`recording-for-humans.md`](../playwright/references/recording-for-humans.md).
 
 **Video pacing**: Add `time.sleep(1)` pauses after filling forms and
@@ -189,11 +200,15 @@ context.close()
 browser.close()
 ```
 
-**Two-phase recording** (keeps video focused on test cases, not login/setup):
+**Two-phase recording** — the canonical capture context. It keeps the
+video focused on the test cases rather than login/setup, and it carries
+the padding-free geometry above. Copy this one:
 ```python
+os.makedirs(VIDEO_DIR, exist_ok=True)
+
 # Phase 1: authenticate + create test data WITHOUT video
 setup_context = browser.new_context(
-    viewport={"width": 1680, "height": 1050},
+    viewport={"width": 1920, "height": 1080},
 )
 setup_page = setup_context.new_page()
 setup_cf_headers(setup_page)
@@ -202,9 +217,11 @@ wo_url = create_new_wo(setup_page)
 storage_state = setup_context.storage_state()
 setup_context.close()
 
-# Phase 2: reuse auth cookies, start recording on the target page
+# Phase 2: reuse auth cookies, start recording on the target page.
+# viewport == record_video_size, so nothing is padded; the 2x scale
+# factor supersamples 3840x2160 down into the frame.
 context = browser.new_context(
-    viewport={"width": 1680, "height": 1050},
+    viewport={"width": 1920, "height": 1080},
     device_scale_factor=2,
     record_video_dir=VIDEO_DIR,
     record_video_size={"width": 1920, "height": 1080},
@@ -213,6 +230,10 @@ context = browser.new_context(
 page = context.new_page()
 page.goto(wo_url, wait_until="networkidle")
 ```
+
+Both contexts use the same viewport on purpose: setup runs at the
+layout the recording will show, so an element positioned during Phase 1
+is where Phase 2 expects it.
 
 **Cloudflare headers**: Route all `.example.com` requests:
 ```python
@@ -577,9 +598,17 @@ screenshot, and the same checks to three frames extracted through each
 video. Output is a JSON report; a non-zero exit means at least one
 artifact is empty, blank or truncated.
 
+Each video frame also gets a **border check** (GH-1204): an edge whose
+outer 6px strip is a single flat colour in *every* sampled frame is
+Playwright's grey padding, which means the viewport was smaller than
+`record_video_size`. Fix the capture geometry (§ 2.2) and re-record —
+no re-encode can recover the lost frame area. For a page whose right or
+bottom edge genuinely is one flat colour, pass `--no-border-check`.
+
 **On any failure, re-capture — do NOT convert or upload.** A failing
 artifact is a capture bug (a step that no-opped, a context that was
-never flushed), not a cosmetic problem.
+never flushed, a viewport smaller than the recording size), not a
+cosmetic problem.
 
 **Anti-pattern — silent conditional capture guards.** A step written as
 
@@ -665,7 +694,17 @@ bad take either way. Review locally first.
    can recover the detail — the take has to be re-recorded. Every other
    check in the pipeline passes on a downgraded capture: the frames are
    non-uniform, the file is a real size, and `narration.json` reports no
-   defects. This line is the only place the pipeline notices.
+   defects.
+
+   **A `1920,1080` raster is not proof the frame is full-bleed
+   (GH-1204).** A padded capture reports exactly those dimensions — the
+   grey fill is inside the frame. That is what the verifier's border
+   check in 4.1 is for: it fails a take whose right or bottom edge is a
+   flat fill in every sampled frame. Do not try to eyeball it instead —
+   a MUI modal backdrop dims the page to roughly the same mid-grey as
+   the padding, so a frame sampled with a dialog open reads as clean
+   when it is not, and `cropdetect` misses it at default settings
+   because the fill is mid-grey rather than black.
 
    **When the capture was narrated, this report MUST also carry, from
    `narration.json`:**
@@ -861,7 +900,8 @@ Dev10x:qa-self
 ├── Scripts:
 │   ├── upload-screenshots.py (upload images & video to Linear)
 │   ├── convert-evidence.sh (PNG→JPG, webm→mp4 conversion)
-│   └── verify-evidence.py (size floor, uniform-frame, video frames)
+│   └── verify-evidence.py (size floor, uniform-frame, video frames,
+│       padded-border check)
 ├── Imports: skills/playwright/lib/annotate.py (pointer, captions)
 ├── Reads: $QA_ARGOCD_REPO (verify deployment)
 ├── Reads: $QA_FRONTEND_REPO (understand UI selectors)
