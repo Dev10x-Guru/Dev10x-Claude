@@ -1,6 +1,7 @@
 """Tests for ci-check-status.py verdict logic."""
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -302,6 +303,46 @@ class TestGetChecksError:
         assert '"error"' in captured.out
         assert "rate limited" in captured.out
         assert captured.err == ""
+
+    def test_failure_with_no_stderr_still_names_the_exit_code(self, monkeypatch, capsys):
+        # GH-1192: an empty stderr must not produce an empty error.
+        class _Silent:
+            returncode = 1
+            stderr = ""
+            stdout = ""
+
+        monkeypatch.setattr(_mod.subprocess, "run", lambda *a, **k: _Silent())
+        with pytest.raises(SystemExit):
+            _mod.get_checks(pr_number=42, repo="org/repo")
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["error"]
+        assert "exit 1" in payload["error"]
+
+
+class TestGetChecksExitCodeIsAVerdict:
+    """GH-1192: `gh pr checks` exits 8 when pending, 1 when failing.
+
+    Both still write the requested JSON to stdout, so a non-zero exit
+    with parseable output is the answer — not a call failure. Aborting
+    there is what made every PR with non-green checks return an empty
+    error.
+    """
+
+    @pytest.mark.parametrize("returncode", [1, 8])
+    def test_non_zero_exit_with_parseable_stdout_returns_checks(
+        self,
+        monkeypatch,
+        returncode: int,
+    ):
+        payload = [{"name": "ci", "bucket": "pending", "state": "IN_PROGRESS"}]
+
+        class _Verdict:
+            stdout = json.dumps(payload)
+            stderr = ""
+
+        _Verdict.returncode = returncode
+        monkeypatch.setattr(_mod.subprocess, "run", lambda *a, **k: _Verdict())
+        assert _mod.get_checks(pr_number=42, repo="org/repo") == payload
 
 
 class TestPollUntilTerminal:
