@@ -143,12 +143,24 @@ class Narration:
     # -- synthesis ------------------------------------------------------
 
     def prerender(self) -> None:
-        """Synthesize every declared line through the Dev10x:tts wrapper."""
+        """Synthesize every declared line through the Dev10x:tts wrapper.
+
+        Idempotent (GH-1205): lines already synthesized are skipped, so
+        calling this and then ``Annotator.install()`` — which the corrected
+        ordering requires — does not render the script twice. The guard
+        lives here rather than in a runner because ``runner`` is a
+        caller-supplied hook and the default one has no existence check;
+        resting a library invariant on a replaceable hook makes the stock
+        path the unguarded one. Under Kokoro the cost is a model load per
+        line, so a second pass is ~100s of dead setup, not untidiness.
+        """
         if not self.script:
             return
         # dict.fromkeys keeps first-seen order while dropping duplicates —
         # a line repeated across steps is one clip, reused.
-        unique = list(dict.fromkeys(self.script))
+        unique = [text for text in dict.fromkeys(self.script) if text not in self._clips]
+        if not unique:
+            return
         payload = {
             "segments": [
                 {"id": f"line-{index:03d}", "text": text} for index, text in enumerate(unique)

@@ -358,9 +358,7 @@ class TestMain:
         monkeypatch.setattr(
             _mod,
             "verify",
-            lambda path, *, kind, min_stddev, save_frames, border_max_stddev: (
-                seen.append(border_max_stddev) or {"ok": True}
-            ),
+            lambda path, **kwargs: seen.append(kwargs["border_max_stddev"]) or {"ok": True},
         )
         _mod.main([str(tmp_path / "clip.webm"), "--no-border-check"])
         capsys.readouterr()
@@ -371,10 +369,181 @@ class TestMain:
         monkeypatch.setattr(
             _mod,
             "verify",
-            lambda path, *, kind, min_stddev, save_frames, border_max_stddev: (
-                seen.append(border_max_stddev) or {"ok": True}
-            ),
+            lambda path, **kwargs: seen.append(kwargs["border_max_stddev"]) or {"ok": True},
         )
         _mod.main([str(tmp_path / "clip.webm"), "--border-max-stddev", "0.02"])
         capsys.readouterr()
         assert seen == [0.02]
+
+    def test_no_narration_check_disables_the_published_artifact_checks(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        seen: list[bool] = []
+        monkeypatch.setattr(
+            _mod,
+            "verify",
+            lambda path, **kwargs: seen.append(kwargs["check_narration"]) or {"ok": True},
+        )
+        _mod.main([str(tmp_path / "clip.webm"), "--no-narration-check"])
+        capsys.readouterr()
+        assert seen == [False]
+
+    def test_narration_path_is_forwarded(self, tmp_path, monkeypatch, capsys):
+        seen: list[Path | None] = []
+        monkeypatch.setattr(
+            _mod,
+            "verify",
+            lambda path, **kwargs: seen.append(kwargs["narration"]) or {"ok": True},
+        )
+        _mod.main([str(tmp_path / "clip.webm"), "--narration", str(tmp_path / "n.json")])
+        capsys.readouterr()
+        assert seen == [tmp_path / "n.json"]
+
+
+class TestFindNarrationManifest:
+    def test_finds_a_manifest_beside_the_video(self, tmp_path):
+        video = tmp_path / "clip.webm"
+        manifest = tmp_path / "narration.json"
+        manifest.write_text("{}")
+        assert _mod.find_narration_manifest(video) == manifest
+
+    def test_finds_a_manifest_in_a_sibling_narration_dir(self, tmp_path):
+        video = tmp_path / "clip.webm"
+        manifest = tmp_path / "narration" / "narration.json"
+        manifest.parent.mkdir()
+        manifest.write_text("{}")
+        assert _mod.find_narration_manifest(video) == manifest
+
+    def test_finds_a_manifest_one_level_up(self, tmp_path):
+        video_dir = tmp_path / "video"
+        video_dir.mkdir()
+        manifest = tmp_path / "narration" / "narration.json"
+        manifest.parent.mkdir()
+        manifest.write_text("{}")
+        assert _mod.find_narration_manifest(video_dir / "clip.webm") == manifest
+
+    def test_returns_none_when_no_manifest_exists(self, tmp_path):
+        assert _mod.find_narration_manifest(tmp_path / "clip.webm") is None
+
+
+class TestLastCueEndMs:
+    def test_returns_the_latest_cue_end(self):
+        manifest = {
+            "segments": [
+                {"offset_ms": 1_000, "duration_ms": 2_000},
+                {"offset_ms": 5_000, "duration_ms": 1_500},
+            ]
+        }
+        assert _mod.last_cue_end_ms(manifest) == 6_500
+
+    def test_returns_none_when_nothing_was_spoken(self):
+        assert _mod.last_cue_end_ms({"segments": []}) is None
+
+    def test_ignores_a_segment_missing_timing(self):
+        manifest = {"segments": [{"offset_ms": 1_000, "duration_ms": None}]}
+        assert _mod.last_cue_end_ms(manifest) is None
+
+
+class TestNarrationFailures:
+    def test_a_take_with_no_manifest_is_not_checked(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(_mod, "stream_codec_types", lambda path: pytest.fail("must not probe"))
+        failures = _mod.narration_failures(tmp_path / "clip.webm", manifest=None, duration=30.0)
+        assert failures == []
+
+    def test_a_narrated_filename_is_checked_without_a_manifest(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(_mod, "stream_codec_types", lambda path: ["video"])
+        failures = _mod.narration_failures(
+            tmp_path / "walkthrough-narrated.mp4", manifest=None, duration=30.0
+        )
+        assert len(failures) == 1
+        assert "no audio stream" in failures[0]
+
+    def test_a_manifest_with_audio_and_room_to_spare_passes(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(_mod, "stream_codec_types", lambda path: ["video", "audio"])
+        manifest = {"segments": [{"offset_ms": 80_000, "duration_ms": 12_300}]}
+        failures = _mod.narration_failures(
+            tmp_path / "clip.webm", manifest=manifest, duration=99.4
+        )
+        assert failures == []
+
+    def test_flags_a_silent_narrated_take(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(_mod, "stream_codec_types", lambda path: ["video"])
+        manifest = {"segments": [{"offset_ms": 0, "duration_ms": 1_000}]}
+        failures = _mod.narration_failures(
+            tmp_path / "clip.webm", manifest=manifest, duration=99.4
+        )
+        assert any("no audio stream" in failure for failure in failures)
+
+    def test_flags_narration_running_past_the_end(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(_mod, "stream_codec_types", lambda path: ["video", "audio"])
+        manifest = {"segments": [{"offset_ms": 100_000, "duration_ms": 7_000}]}
+        failures = _mod.narration_failures(
+            tmp_path / "clip.webm", manifest=manifest, duration=90.9
+        )
+        assert len(failures) == 1
+        assert "16.1s past the end" in failures[0]
+
+    def test_a_take_with_no_spoken_cues_skips_the_overrun_check(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(_mod, "stream_codec_types", lambda path: ["video", "audio"])
+        failures = _mod.narration_failures(
+            tmp_path / "clip.webm", manifest={"segments": []}, duration=90.9
+        )
+        assert failures == []
+
+
+class TestVerifyVideoNarration:
+    @pytest.fixture(autouse=True)
+    def _stub_frames(self, monkeypatch):
+        monkeypatch.setattr(_mod, "flat_border_edges", lambda path, *, max_stddev: {})
+        monkeypatch.setattr(_mod, "video_duration", lambda path: 90.9)
+        monkeypatch.setattr(_mod, "extract_frame", lambda path, *, offset, dest: None)
+        monkeypatch.setattr(_mod, "image_stddev", lambda path: 0.3)
+
+    def _write(self, tmp_path: Path) -> Path:
+        path = tmp_path / "clip.webm"
+        path.write_bytes(b"\x00" * 500_000)
+        return path
+
+    def test_reports_the_discovered_manifest_path(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(_mod, "stream_codec_types", lambda path: ["video", "audio"])
+        manifest = tmp_path / "narration.json"
+        manifest.write_text('{"segments": []}')
+        result = _mod.verify_video(self._write(tmp_path), min_bytes=50_000, min_stddev=0.02)
+        assert result["ok"] is True
+        assert result["narration"] == str(manifest)
+
+    def test_a_cue_overrun_fails_the_take(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(_mod, "stream_codec_types", lambda path: ["video", "audio"])
+        manifest = tmp_path / "narration.json"
+        manifest.write_text('{"segments": [{"offset_ms": 100000, "duration_ms": 7000}]}')
+        result = _mod.verify_video(self._write(tmp_path), min_bytes=50_000, min_stddev=0.02)
+        assert result["ok"] is False
+        assert any("past the end" in failure for failure in result["failures"])
+
+    def test_check_narration_false_skips_discovery(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(_mod, "stream_codec_types", lambda path: pytest.fail("must not probe"))
+        (tmp_path / "narration.json").write_text('{"segments": []}')
+        result = _mod.verify_video(
+            self._write(tmp_path), min_bytes=50_000, min_stddev=0.02, check_narration=False
+        )
+        assert result["narration"] is None
+
+    def test_an_unreadable_manifest_raises_tooling_error(self, tmp_path):
+        (tmp_path / "narration.json").write_text("{not json")
+        with pytest.raises(_mod.ToolingError):
+            _mod.verify_video(self._write(tmp_path), min_bytes=50_000, min_stddev=0.02)
+
+    def test_a_non_object_manifest_raises_tooling_error(self, tmp_path):
+        (tmp_path / "narration.json").write_text("[]")
+        with pytest.raises(_mod.ToolingError):
+            _mod.verify_video(self._write(tmp_path), min_bytes=50_000, min_stddev=0.02)
+
+
+class TestStreamCodecTypes:
+    def test_parses_ffprobe_output(self, monkeypatch):
+        monkeypatch.setattr(_mod, "_run", lambda argv: "video\naudio\n")
+        assert _mod.stream_codec_types(Path("clip.mp4")) == ["video", "audio"]
+
+    def test_drops_blank_lines(self, monkeypatch):
+        monkeypatch.setattr(_mod, "_run", lambda argv: "video\n\n")
+        assert _mod.stream_codec_types(Path("clip.mp4")) == ["video"]
