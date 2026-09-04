@@ -122,6 +122,14 @@ def slack_send(
     default=None,
     help="Plain-text shown in mobile notifications when the card cannot render",
 )
+@click.option(
+    "--thread",
+    default=None,
+    help=(
+        "Reply into this thread instead of starting a new one. Accepts the full "
+        "spaces/<space>/threads/<id> name or the bare thread id from a Chat URL"
+    ),
+)
 def gchat_send(
     *,
     space: str,
@@ -131,6 +139,7 @@ def gchat_send(
     card_subtitle: str | None,
     card_file: Path | None,
     fallback_text: str | None,
+    thread: str | None,
 ) -> None:
     """Send a Google Chat message via the importable gchat_notify module.
 
@@ -145,6 +154,34 @@ def gchat_send(
     behind, so pair `--message` with `--card-file` when the notification
     has to reach a person.
     """
+    msg, cards = _resolve_gchat_body(
+        message=message,
+        message_file=message_file,
+        card_title=card_title,
+        card_subtitle=card_subtitle,
+        card_file=card_file,
+    )
+
+    from dev10x.skills.notifications import gchat_notify
+
+    result = gchat_notify.notify_gchat(
+        space=space, message=msg, cards=cards, fallback_text=fallback_text, thread=thread
+    )
+    if isinstance(result, ErrorResult):
+        click.echo(f"❌ {result.error}", err=True)
+        sys.exit(1)
+    click.echo(f"✅ Google Chat message sent! name={result.value}")
+
+
+def _resolve_gchat_body(
+    *,
+    message: str | None,
+    message_file: Path | None,
+    card_title: str | None,
+    card_subtitle: str | None,
+    card_file: Path | None,
+) -> tuple[str | None, list[dict] | None]:
+    """Turn the shared body/card flags into a (text, cards) pair."""
     if not message and not message_file and not card_file:
         raise click.UsageError("Provide --message, --message-file, or --card-file.")
     if card_title and card_file:
@@ -152,7 +189,7 @@ def gchat_send(
     if card_subtitle and not card_title:
         raise click.UsageError("--card-subtitle requires --card-title.")
 
-    from dev10x.skills.notifications import gchat_cards, gchat_notify
+    from dev10x.skills.notifications import gchat_cards
 
     msg: str | None = None
     if message_file is not None:
@@ -174,14 +211,7 @@ def gchat_send(
         ]
         # The body now lives in the panel; leaving it in `text` duplicates it.
         msg = None
-
-    result = gchat_notify.notify_gchat(
-        space=space, message=msg, cards=cards, fallback_text=fallback_text
-    )
-    if isinstance(result, ErrorResult):
-        click.echo(f"❌ {result.error}", err=True)
-        sys.exit(1)
-    click.echo(f"✅ Google Chat message sent! name={result.value}")
+    return msg, cards
 
 
 def _load_cards(card_file: Path) -> list[dict]:
@@ -199,6 +229,95 @@ def _load_cards(card_file: Path) -> list[dict]:
     if "card" in parsed:
         return [parsed]
     return [{"cardId": "dev10x-message", "card": parsed}]
+
+
+@notify.command(name="gchat-update")
+@click.option(
+    "--message-name",
+    required=True,
+    help="Full spaces/<space>/messages/<id> name, as printed by gchat-send",
+)
+@click.option("--message", default=None, help="Replacement message text (or use --message-file)")
+@click.option(
+    "--message-file",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=None,
+    help="Read the replacement message body from this file",
+)
+@click.option(
+    "--card-title",
+    default=None,
+    help="Render the replacement body as a cardsV2 panel with this header title",
+)
+@click.option("--card-subtitle", default=None, help="Subtitle for the --card-title header")
+@click.option(
+    "--card-file",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=None,
+    help="Read a raw cardsV2 array (or a single card) from this JSON file",
+)
+@click.option(
+    "--fallback-text",
+    default=None,
+    help="Plain-text shown in mobile notifications when the card cannot render",
+)
+def gchat_update(
+    *,
+    message_name: str,
+    message: str | None,
+    message_file: Path | None,
+    card_title: str | None,
+    card_subtitle: str | None,
+    card_file: Path | None,
+    fallback_text: str | None,
+) -> None:
+    """Edit a Google Chat message the bot posted earlier.
+
+    Takes the same body flags as `gchat-send`. No `--space` is needed: the
+    space is already part of the message name.
+
+    Only fields you supply are masked, so replacing the text of a card
+    message leaves its card intact. Under app auth the bot can edit only
+    its own messages — a message posted by a person returns a 403.
+    """
+    msg, cards = _resolve_gchat_body(
+        message=message,
+        message_file=message_file,
+        card_title=card_title,
+        card_subtitle=card_subtitle,
+        card_file=card_file,
+    )
+
+    from dev10x.skills.notifications import gchat_notify
+
+    result = gchat_notify.update_gchat_message(
+        message_name=message_name, message=msg, cards=cards, fallback_text=fallback_text
+    )
+    if isinstance(result, ErrorResult):
+        click.echo(f"❌ {result.error}", err=True)
+        sys.exit(1)
+    click.echo(f"✅ Google Chat message updated! name={result.value}")
+
+
+@notify.command(name="gchat-delete")
+@click.option(
+    "--message-name",
+    required=True,
+    help="Full spaces/<space>/messages/<id> name, as printed by gchat-send",
+)
+def gchat_delete(*, message_name: str) -> None:
+    """Delete a Google Chat message the bot posted earlier.
+
+    Under app auth the bot can delete only its own messages — a message
+    posted by a person returns a 403.
+    """
+    from dev10x.skills.notifications import gchat_notify
+
+    result = gchat_notify.delete_gchat_message(message_name=message_name)
+    if isinstance(result, ErrorResult):
+        click.echo(f"❌ {result.error}", err=True)
+        sys.exit(1)
+    click.echo(f"✅ Google Chat message deleted! name={result.value}")
 
 
 @notify.command(name="gchat-review-prepare")

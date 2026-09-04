@@ -10,6 +10,8 @@ user-invocable: true
 invocation-name: Dev10x:gchat
 allowed-tools:
   - Bash(uvx dev10x skill notify gchat-send:*)
+  - Bash(uvx dev10x skill notify gchat-update:*)
+  - Bash(uvx dev10x skill notify gchat-delete:*)
 ---
 
 # Dev10x:gchat — Google Chat Notifications
@@ -141,6 +143,57 @@ For multi-line messages, use the Write tool to create a temp file and pass
 | `--card-subtitle` | Subtitle under `--card-title` |
 | `--card-file` | Post hand-authored card JSON from a file |
 | `--fallback-text` | Notification text when a card cannot render |
+| `--thread` | Reply into an existing thread instead of starting a new one |
+
+### Threading
+
+By default every message starts its own thread, which in a
+`THREADED_MESSAGES` space leaves a reply detached from the conversation
+it answers. Pass `--thread` to reply into an existing one:
+
+```bash
+uvx dev10x skill notify gchat-send \
+  --space tt-reviews --message "Re-recorded, link updated." \
+  --thread spaces/AAAA1234567/threads/BBBB890
+```
+
+Threading **is** supported under app auth — it needs no user OAuth grant.
+The flag accepts the full `spaces/<space>/threads/<id>` resource name, or
+the bare thread id, which is the segment you copy out of a
+`chat.google.com/room/<space>/<thread>/<message>` URL.
+
+The request uses `messageReplyOption=REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD`,
+so a stale or wrong thread name posts a new thread rather than failing the
+send — a notification is never lost to a bad thread id.
+
+Addressing by `thread.threadKey` (a caller-chosen key, better for "keep
+re-posting into the thread I own" cases such as a nightly run updating one
+thread) is not implemented; `thread.name` covers the reply case.
+
+## Updating and Deleting
+
+The bot can edit and delete messages **it posted itself**. Both take the
+full message name that `gchat-send` prints on success — no `--space` is
+needed, because the space is already part of the name.
+
+```bash
+uvx dev10x skill notify gchat-update \
+  --message-name spaces/AAAA1234567/messages/CCCC456 \
+  --message-file corrected.md
+
+uvx dev10x skill notify gchat-delete \
+  --message-name spaces/AAAA1234567/messages/CCCC456
+```
+
+`gchat-update` takes the same body flags as `gchat-send`
+(`--message`, `--message-file`, `--card-title`, `--card-subtitle`,
+`--card-file`, `--fallback-text`). Only the fields you supply are sent in
+the `updateMask`, so replacing the text of a card message leaves its card
+intact.
+
+**App auth can only touch the bot's own messages.** A message a person
+posted returns HTTP 403, and the error says so explicitly rather than
+surfacing a bare API response.
 
 ## Formatting
 
@@ -185,11 +238,18 @@ cannot render; it is derived from the message body unless you pass
 | `Service-account impersonation failed (HTTP 403)` | Missing/backwards Token Creator grant, grant still propagating, or ADC logged into the wrong Google account | Grant `roles/iam.serviceAccountTokenCreator` on the SA **to your user**; wait a few minutes after granting; re-run ADC login with the right account |
 | `auth.method is 'impersonate' but auth.service_account is not set` | Incomplete auth block | Add `service_account:` under `auth:` in `gchat-config.yaml` |
 | App not findable under *Add apps* in the space | Interactive features off, missing Visibility entry, or propagation lag | Enable interactive features + *Join spaces*, add the user to Visibility, then allow a few minutes after saving |
+| `is not a Google Chat message name` | `--message-name` was a bare id or a thread name | Pass the full `spaces/<space>/messages/<id>` that `gchat-send` printed |
+| `the bot can only modify or delete its own messages` | Tried to edit/delete a message a person posted | Only bot-posted messages are editable; ask the author, or post a correction |
 
 ## Non-goals
 
-File upload, message update/delete, reactions, threading. These exist
-for Slack but remain out of scope for Google Chat.
+File upload and reactions. These exist for Slack but remain out of scope
+for Google Chat.
+
+Threading (GH-1203) and message update/delete (GH-1207) **were** listed
+here and are no longer non-goals — see § Threading and § Updating and
+Deleting. Both work under app auth; the old wording read as a platform
+limitation when it was only a missing feature.
 
 **Reading is not just out of scope, it is impossible here.** The bot has
 app auth and is only a member of spaces it was explicitly added to, so it

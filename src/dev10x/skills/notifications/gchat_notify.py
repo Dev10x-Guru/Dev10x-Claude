@@ -36,6 +36,7 @@ TOKEN_URI = "https://oauth2.googleapis.com/token"
 CHAT_API_BASE = "https://chat.googleapis.com/v1"
 IAM_CREDENTIALS_BASE = "https://iamcredentials.googleapis.com/v1"
 _JWT_GRANT = "urn:ietf:params:oauth:grant-type:jwt-bearer"
+REPLY_FALLBACK_OPTION = "REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD"
 
 _config: dict | None = None
 
@@ -261,6 +262,42 @@ def mint_chat_token() -> Result[str]:
     return mint_access_token(sa_result.value)
 
 
+def _request_json(
+    url: str,
+    *,
+    token: str,
+    payload: dict | None = None,
+    method: str = "POST",
+    error_label: str = "Google Chat request failed",
+    status_notes: dict[int, str] | None = None,
+) -> Result[dict]:
+    """Issue one Chat API call.
+
+    ``status_notes`` appends an explanation for a specific HTTP status.
+    The status is only reliably known here — re-deriving it downstream by
+    matching on the formatted message would also match a code quoted
+    inside the API's own response body.
+    """
+    data = json.dumps(payload).encode() if payload is not None else None
+    headers = {"Authorization": f"Bearer {token}"}
+    if data is not None:
+        headers["Content-Type"] = "application/json; charset=UTF-8"
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310
+            # A successful DELETE answers 200 with an empty body, which
+            # json.loads would reject.
+            body = resp.read().decode()
+            return ok(json.loads(body) if body.strip() else {})
+    except urllib.error.HTTPError as ex:
+        detail = ex.read().decode(errors="replace")
+        message = f"{error_label} (HTTP {ex.code}): {detail}"
+        note = (status_notes or {}).get(ex.code)
+        return err(f"{message}\n{note}" if note else message)
+    except urllib.error.URLError as ex:
+        return err(f"{urllib.parse.urlsplit(url).netloc} unreachable: {ex.reason}")
+
+
 def _post_json(
     url: str,
     payload: dict,
@@ -268,24 +305,7 @@ def _post_json(
     *,
     error_label: str = "Google Chat POST failed",
 ) -> Result[dict]:
-    data = json.dumps(payload).encode()
-    req = urllib.request.Request(
-        url,
-        data=data,
-        headers={
-            "Content-Type": "application/json; charset=UTF-8",
-            "Authorization": f"Bearer {token}",
-        },
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310
-            return ok(json.loads(resp.read().decode()))
-    except urllib.error.HTTPError as ex:
-        detail = ex.read().decode(errors="replace")
-        return err(f"{error_label} (HTTP {ex.code}): {detail}")
-    except urllib.error.URLError as ex:
-        return err(f"{urllib.parse.urlsplit(url).netloc} unreachable: {ex.reason}")
+    return _request_json(url, token=token, payload=payload, method="POST", error_label=error_label)
 
 
 def build_message_payload(
@@ -293,13 +313,17 @@ def build_message_payload(
     text: str | None = None,
     cards: list[dict] | None = None,
     fallback_text: str | None = None,
+    thread: str | None = None,
 ) -> Result[dict]:
-    """Assemble the Chat ``messages.create`` body (GH-1113).
+    """Assemble the Chat ``messages.create`` body (GH-1113, GH-1203).
 
     ``text`` and ``cards`` are independent: a message may carry either or
     both. Sending both is the norm for a notification, because a card
     renders rich formatting but does NOT resolve ``<users/ID>`` mentions —
     only ``text`` notifies the people named in it.
+
+    ``thread`` is the full ``spaces/<space>/threads/<id>`` resource name of
+    the thread to reply into; omitting it starts a new thread as before.
     """
     if not text and not cards:
         return err("A Google Chat message needs text, cards, or both.")
@@ -314,7 +338,18 @@ def build_message_payload(
         fallback = fallback_text or gchat_cards.plain_text_fallback(text or "")
         if fallback:
             payload["fallbackText"] = fallback
+    if thread:
+        payload["thread"] = {"name": thread}
     return ok(payload)
+
+
+def qualify_thread_name(thread: str, *, space_id: str) -> str:
+    """Accept either a full thread resource name or the bare id from a Chat URL.
+
+    A `chat.google.com/room/<space>/<thread>/<message>` link is where a user
+    copies a thread id from, and that segment carries no `spaces/` prefix.
+    """
+    return thread if thread.startswith("spaces/") else f"spaces/{space_id}/threads/{thread}"
 
 
 def post_message(
@@ -324,11 +359,19 @@ def post_message(
     text: str | None = None,
     cards: list[dict] | None = None,
     fallback_text: str | None = None,
+    thread: str | None = None,
 ) -> Result[str]:
-    payload_result = build_message_payload(text=text, cards=cards, fallback_text=fallback_text)
+    qualified_thread = qualify_thread_name(thread, space_id=space_id) if thread else None
+    payload_result = build_message_payload(
+        text=text, cards=cards, fallback_text=fallback_text, thread=qualified_thread
+    )
     if isinstance(payload_result, ErrorResult):
         return payload_result
     url = f"{CHAT_API_BASE}/spaces/{space_id}/messages"
+    if qualified_thread:
+        # FALLBACK_TO_NEW_THREAD degrades safely: a stale or wrong thread
+        # name posts a new thread rather than failing the send.
+        url = f"{url}?messageReplyOption={REPLY_FALLBACK_OPTION}"
     result = _post_json(url, payload_result.value, token)
     if isinstance(result, ErrorResult):
         return result
@@ -338,12 +381,95 @@ def post_message(
     return ok(name)
 
 
+def _validate_message_name(message_name: str) -> Result[str]:
+    parts = message_name.split("/")
+    if len(parts) != 4 or parts[0] != "spaces" or parts[2] != "messages":
+        return err(
+            f"{message_name!r} is not a Google Chat message name. "
+            "Expected the full 'spaces/<space>/messages/<id>' resource name, "
+            "which `gchat-send` prints on a successful post."
+        )
+    return ok(message_name)
+
+
+# Under app auth the bot can only modify or delete messages it posted
+# itself, and the raw 403 body does not say so.
+_OWN_MESSAGE_NOTE = {
+    403: (
+        "Under app auth the bot can only modify or delete its own messages. "
+        "A message posted by a person cannot be edited or deleted here."
+    )
+}
+
+# spaces.messages.patch accepts a CLOSED set of updateMask field paths, in
+# snake_case: text, attachment, cards, cards_v2, accessory_widgets. Our
+# payload keys are the resource's JSON names, which differ — `cardsV2` is
+# not accepted, and `fallbackText` is not updatable at all, so it rides in
+# the body (where it is ignored) but never in the mask.
+#
+# [Verify] Taken from the Chat API's documented field-path list, not
+# exercised against a live space in the session that wrote it.
+_UPDATE_MASK_PATHS = {"text": "text", "cardsV2": "cards_v2"}
+
+
+def patch_message(
+    *,
+    message_name: str,
+    token: str,
+    text: str | None = None,
+    cards: list[dict] | None = None,
+    fallback_text: str | None = None,
+) -> Result[str]:
+    name_result = _validate_message_name(message_name)
+    if isinstance(name_result, ErrorResult):
+        return name_result
+    payload_result = build_message_payload(text=text, cards=cards, fallback_text=fallback_text)
+    if isinstance(payload_result, ErrorResult):
+        return payload_result
+    payload = payload_result.value
+    # Only the fields actually supplied are masked, so updating the text of a
+    # card message does not blank the card (and vice versa). The payload
+    # always carries text or cardsV2 — build_message_payload rejects a body
+    # with neither — so the mask is never empty.
+    update_mask = ",".join(path for key, path in _UPDATE_MASK_PATHS.items() if key in payload)
+    url = f"{CHAT_API_BASE}/{message_name}?updateMask={urllib.parse.quote(update_mask)}"
+    result = _request_json(
+        url,
+        token=token,
+        payload=payload,
+        method="PATCH",
+        error_label="Google Chat message update failed",
+        status_notes=_OWN_MESSAGE_NOTE,
+    )
+    if isinstance(result, ErrorResult):
+        return result
+    return ok(result.value.get("name") or message_name)
+
+
+def delete_message(*, message_name: str, token: str) -> Result[str]:
+    name_result = _validate_message_name(message_name)
+    if isinstance(name_result, ErrorResult):
+        return name_result
+    url = f"{CHAT_API_BASE}/{message_name}"
+    result = _request_json(
+        url,
+        token=token,
+        method="DELETE",
+        error_label="Google Chat message delete failed",
+        status_notes=_OWN_MESSAGE_NOTE,
+    )
+    if isinstance(result, ErrorResult):
+        return result
+    return ok(message_name)
+
+
 def send_gchat_message(
     *,
     space: str,
     message: str | None = None,
     cards: list[dict] | None = None,
     fallback_text: str | None = None,
+    thread: str | None = None,
 ) -> Result[str]:
     space_result = resolve_space_id(space)
     if isinstance(space_result, ErrorResult):
@@ -357,6 +483,7 @@ def send_gchat_message(
         text=resolve_mentions(message) if message else None,
         cards=cards,
         fallback_text=resolve_mentions(fallback_text) if fallback_text else None,
+        thread=thread,
     )
 
 
@@ -366,6 +493,7 @@ def notify_gchat(
     message: str | None = None,
     cards: list[dict] | None = None,
     fallback_text: str | None = None,
+    thread: str | None = None,
 ) -> Result[str]:
     """Single service entry for sending a Google Chat message.
 
@@ -373,7 +501,45 @@ def notify_gchat(
     user-facing output formatting (mirrors ``slack_notify.notify_slack``).
     Pass ``cards`` (built with ``gchat_cards``) for a formatted cardsV2
     panel, optionally alongside ``message`` so mentions still notify.
+    Pass ``thread`` to reply into an existing thread (GH-1203).
     """
     return send_gchat_message(
-        space=space, message=message, cards=cards, fallback_text=fallback_text
+        space=space,
+        message=message,
+        cards=cards,
+        fallback_text=fallback_text,
+        thread=thread,
     )
+
+
+def update_gchat_message(
+    *,
+    message_name: str,
+    message: str | None = None,
+    cards: list[dict] | None = None,
+    fallback_text: str | None = None,
+) -> Result[str]:
+    """Edit a message the bot posted earlier (GH-1207).
+
+    ``message_name`` is the full ``spaces/<space>/messages/<id>`` resource
+    name returned by a successful send, so no space alias is needed — the
+    space is already part of the name.
+    """
+    token_result = mint_chat_token()
+    if isinstance(token_result, ErrorResult):
+        return token_result
+    return patch_message(
+        message_name=message_name,
+        token=token_result.value,
+        text=resolve_mentions(message) if message else None,
+        cards=cards,
+        fallback_text=resolve_mentions(fallback_text) if fallback_text else None,
+    )
+
+
+def delete_gchat_message(*, message_name: str) -> Result[str]:
+    """Delete a message the bot posted earlier (GH-1207)."""
+    token_result = mint_chat_token()
+    if isinstance(token_result, ErrorResult):
+        return token_result
+    return delete_message(message_name=message_name, token=token_result.value)
