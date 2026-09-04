@@ -266,12 +266,19 @@ async def async_run(
     env: dict[str, str] | None = None,
     timeout: float = 30,
     cwd: str | None = None,
+    input_text: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """GH-410: uses ``safe_effective_cwd()`` so a deleted bound worktree path
     does not cause ENOENT when launching subprocesses.
+
+    Args:
+        input_text: Written to the child's stdin and closed. Needed by
+            callers that hand a subprocess a pre-built payload rather
+            than argv flags — e.g. ``gh api --input -`` (GH-1191).
     """
     proc = await asyncio.create_subprocess_exec(
         *args,
+        stdin=asyncio.subprocess.PIPE if input_text is not None else None,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         env=env,
@@ -279,7 +286,7 @@ async def async_run(
     )
     try:
         stdout_bytes, stderr_bytes = await asyncio.wait_for(
-            proc.communicate(),
+            proc.communicate(input=input_text.encode() if input_text is not None else None),
             timeout=timeout,
         )
     except TimeoutError:
