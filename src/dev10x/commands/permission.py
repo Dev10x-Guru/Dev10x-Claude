@@ -311,17 +311,33 @@ def catalog_diff(*, strict: bool) -> None:
 @permission.command()
 @click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
 @click.option("--quiet", is_flag=True, help="Suppress per-file details")
-def generalize(*, dry_run: bool, quiet: bool) -> None:
+@click.option(
+    "--allow-tracked",
+    is_flag=True,
+    help="Write even when a target settings file is git-tracked (GH-1155).",
+)
+def generalize(*, dry_run: bool, quiet: bool, allow_tracked: bool) -> None:
     """Replace session-specific permission args with wildcard patterns."""
     from dev10x.skills.permission import update_paths as mod
 
-    _run_fix(mod.generalize, needs_config=False, dry_run=dry_run, quiet=quiet)
+    _run_fix(
+        mod.generalize,
+        needs_config=False,
+        dry_run=dry_run,
+        quiet=quiet,
+        extra={"allow_tracked": allow_tracked},
+    )
 
 
 @permission.command(name="ensure-workspace")
 @click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
 @click.option("--quiet", is_flag=True, help="Suppress per-file details")
-def ensure_workspace(*, dry_run: bool, quiet: bool) -> None:
+@click.option(
+    "--allow-tracked",
+    is_flag=True,
+    help="Write even when a target settings file is git-tracked (GH-1155).",
+)
+def ensure_workspace(*, dry_run: bool, quiet: bool, allow_tracked: bool) -> None:
     """Register workspace directories (e.g. /tmp/Dev10x) in settings files.
 
     Paths outside the project root require registration under
@@ -330,7 +346,13 @@ def ensure_workspace(*, dry_run: bool, quiet: bool) -> None:
     """
     from dev10x.skills.permission import update_paths as mod
 
-    _run_fix(mod.ensure_workspace, needs_config=True, dry_run=dry_run, quiet=quiet)
+    _run_fix(
+        mod.ensure_workspace,
+        needs_config=True,
+        dry_run=dry_run,
+        quiet=quiet,
+        extra={"allow_tracked": allow_tracked},
+    )
 
 
 @permission.command(name="ensure-scripts")
