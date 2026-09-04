@@ -42,8 +42,46 @@ class TestCiCheckStatus:
         )
         result = await monitor_mod.ci_check_status(pr_number=42, repo="owner/repo")
         assert isinstance(result, ErrorResult)
-        assert result.error == "Script error"
-        assert result.to_dict() == {"error": "Script error"}
+        # GH-1192: the exit code now rides along, so the payload still
+        # says something when stderr alone would not.
+        assert "Script error" in result.error
+        assert "exited 1" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
+    async def test_script_json_error_on_stdout_is_surfaced(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        # The script is stdout-parsed, so its own error blob lands there.
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[],
+            returncode=1,
+            stdout='{"error": "gh pr checks failed (exit 8) with no output"}',
+            stderr="",
+        )
+        result = await monitor_mod.ci_check_status(pr_number=42, repo="owner/repo")
+        assert isinstance(result, ErrorResult)
+        assert result.error == "gh pr checks failed (exit 8) with no output"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
+    async def test_failure_with_no_output_never_returns_an_empty_error(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        # The GH-1192 report: `{"error": ""}` for every PR, carrying no
+        # cause and reading as success to a truthiness check.
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[],
+            returncode=1,
+            stdout="",
+            stderr="",
+        )
+        result = await monitor_mod.ci_check_status(pr_number=42, repo="owner/repo")
+        assert isinstance(result, ErrorResult)
+        assert result.error
+        assert result.to_dict()["error"] != ""
 
     @pytest.mark.asyncio
     @patch("dev10x.monitor.async_run", new_callable=AsyncMock)

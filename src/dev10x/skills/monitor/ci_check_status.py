@@ -128,10 +128,49 @@ def get_checks(
     result = subprocess.run(
         cmd, capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT_SECONDS
     )
+    # GH-1192: `gh pr checks` signals the VERDICT through its exit code —
+    # 8 when checks are pending, 1 when some failed — and still writes the
+    # requested JSON to stdout. Treating any non-zero exit as a call
+    # failure aborted on every PR that had anything other than all-green
+    # checks, and did so with empty stderr, so the caller received
+    # `{"error": ""}`: no cause, and indistinguishable from success to
+    # anything branching on truthiness. Parseable stdout IS the answer.
+    parsed = _parse_checks_json(result.stdout)
+    if parsed is not None:
+        return parsed
     if result.returncode != 0:
-        print(json.dumps({"error": f"gh pr checks failed: {result.stderr.strip()}"}))
+        print(json.dumps({"error": _gh_checks_failure(result)}))
         sys.exit(1)
-    return json.loads(result.stdout)
+    print(
+        json.dumps({"error": f"gh pr checks returned unparseable output: {result.stdout[:200]}"})
+    )
+    sys.exit(1)
+
+
+def _parse_checks_json(stdout: str) -> list[dict] | None:
+    """Return the decoded check list, or ``None`` when stdout is not one."""
+    if not stdout.strip():
+        return None
+    try:
+        parsed = json.loads(stdout)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, list) else None
+
+
+def _gh_checks_failure(result: subprocess.CompletedProcess[str]) -> str:
+    """A never-empty diagnostic for a genuinely failed `gh pr checks` call.
+
+    `gh` exits non-zero with no stderr in several situations, so the exit
+    code has to carry the message when nothing else can.
+    """
+    stderr = result.stderr.strip()
+    if stderr:
+        return f"gh pr checks failed (exit {result.returncode}): {stderr}"
+    stdout = result.stdout.strip()
+    if stdout:
+        return f"gh pr checks failed (exit {result.returncode}): {stdout[:200]}"
+    return f"gh pr checks failed (exit {result.returncode}) with no output"
 
 
 def get_required_names(
