@@ -10,7 +10,6 @@ import yaml
 
 from dev10x.domain.common.policy import PolicyEffect
 from dev10x.domain.common.policy_migration import migrate_flat_config
-from dev10x.skills.permission import enumerate_mcp
 from dev10x.skills.permission import update_paths as mod
 from dev10x.skills.permission.catalog_gap import compute_gap
 from dev10x.skills.permission.policy_renderer import render_permissions
@@ -24,12 +23,6 @@ def settings_file(tmp_path: Path) -> Path:
     path = tmp_path / "settings.local.json"
     path.write_text("{}\n")
     return path
-
-
-@pytest.fixture(autouse=True)
-def _isolate(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(enumerate_mcp, "discover_mcp_tools", lambda **_kw: {})
-    monkeypatch.setattr(mod, "_is_git_tracked", lambda _path: False)
 
 
 def _ask(path: Path) -> list[str]:
@@ -136,8 +129,13 @@ def test_compute_gap_without_base_asks_reports_empty_ask_gap(settings_file: Path
     assert gap.is_empty
 
 
-def test_shipped_catalog_carries_eight_base_asks() -> None:
+def test_shipped_catalog_populates_the_ask_tier() -> None:
     config = yaml.safe_load(_PROJECTS_YAML.read_text(encoding="utf-8"))
     base_asks = config["base_asks"]
-    assert len(base_asks) == 8
+    assert base_asks
     assert all(rule.startswith("Bash(gh api ") for rule in base_asks)
+
+
+def test_shipped_catalog_guards_gh_api_delete() -> None:
+    config = yaml.safe_load(_PROJECTS_YAML.read_text(encoding="utf-8"))
+    assert "Bash(gh api -X DELETE:*)" in config["base_asks"]

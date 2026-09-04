@@ -542,6 +542,64 @@ class TestEnsureBaseDenies:
         assert "mcp__claude_ai_Linear__get_issue" in data["permissions"]["allow"]
         assert "mcp__claude_ai_Linear__delete_customer" in data["permissions"]["deny"]
 
+    def test_ensure_base_applies_all_three_tiers(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "dev10x.skills.permission.update_paths.Path.home",
+            lambda: tmp_path / "home",
+        )
+        (tmp_path / "home" / ".claude").mkdir(parents=True)
+
+        settings = tmp_path / "settings.local.json"
+        settings.write_text(json.dumps({"permissions": {"allow": [], "deny": [], "ask": []}}))
+
+        result = update_paths.ensure_base(
+            config={
+                "base_permissions": ["mcp__claude_ai_Linear__get_issue"],
+                "base_denies": ["mcp__claude_ai_Linear__delete_customer"],
+                "base_asks": ["Bash(gh api -X DELETE:*)"],
+            },
+            settings_files=[settings],
+            dry_run=False,
+        )
+
+        assert result["total_added"] == 3
+        data = json.loads(settings.read_text())
+        assert "Bash(gh api -X DELETE:*)" in data["permissions"]["ask"]
+
+    def test_ask_tier_survives_an_empty_allow_list(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """GH-1154 regression: the early return used to fire on an empty allow
+        list and skip the deny and ask tiers with it."""
+        monkeypatch.setattr(
+            "dev10x.skills.permission.update_paths.Path.home",
+            lambda: tmp_path / "home",
+        )
+        (tmp_path / "home" / ".claude").mkdir(parents=True)
+
+        settings = tmp_path / "settings.local.json"
+        settings.write_text(json.dumps({"permissions": {"allow": [], "ask": []}}))
+
+        result = update_paths.ensure_base(
+            config={
+                "base_permissions": [],
+                "base_denies": [],
+                "base_asks": ["Bash(gh api -X DELETE:*)"],
+            },
+            settings_files=[settings],
+            dry_run=False,
+        )
+
+        assert result["total_added"] == 1
+        data = json.loads(settings.read_text())
+        assert data["permissions"]["ask"] == ["Bash(gh api -X DELETE:*)"]
+
     def test_ensure_base_emits_home_twin_for_tilde_rule(
         self,
         tmp_path: Path,

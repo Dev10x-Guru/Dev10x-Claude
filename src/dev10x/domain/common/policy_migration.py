@@ -73,6 +73,13 @@ def migrate_flat_config(
     own rationale is that a sensitive-but-legitimate operation should
     prompt rather than hard-deny, and until this key existed the catalog
     could only offer allow or deny.
+
+    The flat compatibility shim projects allow and deny back to their
+    original lists; there is deliberately no ``flat_ask_rules``. The shim
+    exists for legacy flat consumers, and none of them read an ask tier —
+    ``ensure_base`` reaches asks through ``render_permissions``, which is
+    where ask-tier order parity is asserted. This is a scoping decision,
+    not an omission: add the projection only when a flat consumer needs it.
     """
     if baseline_policies is None:
         baseline_policies = load_baseline_policies()
