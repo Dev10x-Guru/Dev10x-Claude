@@ -9,32 +9,78 @@ jobs:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     permissions:
+      # `contents: read` is required now that the job checks out the repo to
+      # run bin/extract-linked-issues.py. Naming any scope in this block sets
+      # every unnamed scope to `none`, so without this line actions/checkout
+      # fails — and a job that cannot start closes nothing, which is the
+      # failure mode GH-1196 exists to end.
+      contents: read
       issues: write
     steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
       - name: Close issues referenced in PR body
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_BODY: ${{ github.event.pull_request.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
 
-          urls=$(echo "$PR_BODY" \
-            | grep -oP '(?<=Fixes: )https://github\.com/[^\s]+/issues/\d+' \
-            || true)
+          refs=$(printf '%s' "$PR_BODY" \
+            | ./bin/extract-linked-issues.py --repo "$PR_REPO")
 
-          if [ -z "$urls" ]; then
-            echo "No Fixes: URLs found in PR body"
-            exit 0
+          # GH-1196: a merged PR whose body yields zero closable references
+          # is far more often a body-format problem than a genuine no-op.
+          # This job is the ONLY thing that closes a bundle PR's
+          # constituents -- GitHub's native auto-close fires on a merge to
+          # the *default* branch, and this repo merges to `develop`. So
+          # "found nothing" must be loud, not a green check.
+          if [ -z "$refs" ]; then
+            echo "::error::No closable issue references found in the PR body."
+            echo "Recognised shapes: 'Fixes: GH-123', 'Fixes: #123',"
+            echo "'Closes #123', 'Resolves #123', and full issue URLs."
+            exit 1
           fi
 
-          for url in $urls; do
-            number=$(echo "$url" | grep -oP '\d+$')
-            repo=$(echo "$url" | grep -oP 'github\.com/\K[^/]+/[^/]+')
-            echo "Closing $repo#$number"
-            gh issue close "$number" \
+          failed=0
+          while read -r ref; do
+            repo="${ref%#*}"
+            number="${ref#*#}"
+
+            # Report the prior state so "already closed" is an observation
+            # rather than an assumption. The old `|| echo "may already be
+            # closed"` swallowed permission errors and wrong-repo failures
+            # as benign.
+            # `< /dev/null` on every gh call in this loop: the loop reads the
+            # ref list from stdin, and a child that touches stdin would eat
+            # the remaining refs — silently closing only the first issue,
+            # which is this workflow's original failure mode wearing a
+            # different hat.
+            state=$(gh issue view "$number" --repo "$repo" \
+              --json state -q '.state' < /dev/null 2>/dev/null || echo "UNKNOWN")
+
+            if [ "$state" = "CLOSED" ]; then
+              echo "  $repo#$number: already closed, skipping"
+              continue
+            fi
+            if [ "$state" = "UNKNOWN" ]; then
+              echo "::error::$repo#$number: not readable (missing, wrong repo, or no permission)"
+              failed=1
+              continue
+            fi
+
+            if gh issue close "$number" \
               --repo "$repo" \
-              --comment "Closed by #${{ github.event.pull_request.number }}" \
-              || {
-                echo "Note: Issue $repo#$number may already be closed"
-              }
-          done
+              --comment "Closed by #${PR_NUMBER}" < /dev/null; then
+              echo "  $repo#$number: closed"
+            else
+              echo "::error::$repo#$number: close failed"
+              failed=1
+            fi
+          done <<< "$refs"
+
+          exit "$failed"
