@@ -39,6 +39,13 @@ defaults:
 - `model`: (Optional) Override model for agent dispatch (haiku/sonnet/opus)
 - `condition`: (Optional) Python expression filtering when step runs
 
+**There is no per-step `friction:` key (GH-1171).** A step states
+its behaviour once, in its own `prompt`. Gate pacing is baseline
+policy under ADR-0022 — `resolve_gate` owns it — not a field a step
+carries. Structural variation between execution shapes still belongs
+in `modes:`, which changes *which steps exist*, not how hard the
+agent pauses inside one.
+
 ## When to Use Playbooks
 
 **Use playbooks when:**
@@ -84,6 +91,8 @@ When reviewing a skill with playbook.yaml:
    verify SKILL.md marks it as "REQUIRED: Call AskUserQuestion"
 5. **Tool alignment** — Verify `skills:` array in playbook matches
    `allowed-tools:` declarations in SKILL.md
+6. **No per-step `friction:` key** — pacing is baseline policy, not a
+   step field (GH-1171)
 
 ## Example
 
@@ -116,3 +125,8 @@ defaults:
 - ❌ Duplicating steps across plays — extract to a shared step template
 - ❌ Playbook-only documentation — SKILL.md must still explain mode
   detection and play names
+- ❌ Re-introducing a per-step `friction:` block to vary how hard a
+  step pauses — GH-1171 removed the key from every shipped playbook,
+  the schema, the resolution order, and `playbook diff`. Put the
+  behaviour in the step's `prompt`, or the structural difference in
+  `modes:`
