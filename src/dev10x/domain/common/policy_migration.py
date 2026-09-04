@@ -1,7 +1,8 @@
 """Flat base_permissions catalog → structured Policy entries (PAP-2, GH-799).
 
 Bridges the two catalogs that drifted apart (GH-796): the flat
-``base_permissions``/``base_denies`` lists in ``projects.yaml`` (what
+``base_permissions``/``base_denies``/``base_asks`` lists in
+``projects.yaml`` (what
 ``ensure_base`` actually ships to settings files) and the grouped,
 tier-tagged ``baseline-permissions.yaml``. Every flat rule becomes a
 :class:`Policy` — enriched with tier/group/sensitivity from the grouped
@@ -60,11 +61,18 @@ def migrate_flat_config(
     config: dict,
     baseline_policies: list[Policy] | None = None,
 ) -> list[Policy]:
-    """Convert ``base_permissions``/``base_denies`` into Policy entries.
+    """Convert ``base_permissions``/``base_denies``/``base_asks`` into Policy entries.
 
     Order is preserved per effect so the compatibility shim can
     reproduce the original flat lists exactly. Non-string entries are
     skipped, mirroring :meth:`PolicyCatalog.from_baseline_dict`.
+
+    ``base_asks`` (GH-1154) is the ask tier. It was the one effect the
+    renderer could already express (``PolicyEffect.ASK``) but the flat
+    catalog had no key for, so an ask-tier rule could not ship: DX014's
+    own rationale is that a sensitive-but-legitimate operation should
+    prompt rather than hard-deny, and until this key existed the catalog
+    could only offer allow or deny.
     """
     if baseline_policies is None:
         baseline_policies = load_baseline_policies()
@@ -87,6 +95,7 @@ def _flat_rules(*, config: dict) -> list[tuple[str, PolicyEffect]]:
     for key, effect in (
         ("base_permissions", PolicyEffect.ALLOW),
         ("base_denies", PolicyEffect.DENY),
+        ("base_asks", PolicyEffect.ASK),
     ):
         entries = config.get(key)
         if not isinstance(entries, list):

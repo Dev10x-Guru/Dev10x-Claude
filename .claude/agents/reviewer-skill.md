@@ -63,6 +63,12 @@ Files matching: `skills/**`
 8b. **`allowed-tools` sync** — when a PR adds `mktmp.sh <ns> ...` calls,
     verify BOTH entries: `Bash(/tmp/Dev10x/bin/mktmp.sh:*)` AND
     `Write(/tmp/Dev10x/<ns>/**)`. Missing either causes WARNING.
+8b-ii. **`allowed-tools` is not a grant (GH-1153)** — declaring an MCP tool
+    here only scopes the skill; it pre-approves nothing. When a PR adds a
+    `mcp__plugin_Dev10x_*` entry, verify the tool is also in `base_permissions`
+    (`skills/upgrade-cleanup/projects.yaml`) — otherwise the skill prompts on
+    every invocation. `triage_roster` shipped declared-but-un-catalogued and
+    prompted until GH-1153.
 8c. **Plugin directory existence** — for every `${CLAUDE_PLUGIN_ROOT}/skills/<name>/`
     entry in `allowed-tools`, verify `skills/<name>/` exists using
     Glob(`skills/<name>/SKILL.md`).

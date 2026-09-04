@@ -157,12 +157,23 @@ def update_paths(
     if dry_run and not quiet:
         click.echo("(dry run — no files will be modified)\n")
 
+    # GH-1155: update-paths rewrites version strings in place, so a
+    # git-tracked settings.json was being modified on every upgrade even
+    # though ensure-base carefully skipped it. Plain skip rather than
+    # redirect: this command mutates rules that already exist, so there
+    # is nothing to hand to a sibling file — the sibling gets its own
+    # rewrite from its own entry in settings_files.
+    writable_files, skip_messages = mod.partition_writable(sorted(settings_files))
+    if not quiet:
+        for msg in skip_messages:
+            click.echo(msg)
+
     total_changes = 0
     files_changed = 0
     total_collapsed = 0
     files_collapsed = 0
 
-    for path in sorted(settings_files):
+    for path in writable_files:
         count, messages = mod.update_file(
             path,
             target,
@@ -325,7 +336,12 @@ def ensure_workspace(*, dry_run: bool, quiet: bool) -> None:
 @permission.command(name="ensure-scripts")
 @click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
 @click.option("--quiet", is_flag=True, help="Suppress per-file details")
-def ensure_scripts(*, dry_run: bool, quiet: bool) -> None:
+@click.option(
+    "--allow-tracked",
+    is_flag=True,
+    help="Write even when a target settings file is git-tracked (GH-1155).",
+)
+def ensure_scripts(*, dry_run: bool, quiet: bool, allow_tracked: bool) -> None:
     """Verify plugin and user-skill scripts have allow rules; add missing ones."""
     from dev10x.skills.permission import update_paths as mod
 
@@ -339,6 +355,7 @@ def ensure_scripts(*, dry_run: bool, quiet: bool) -> None:
             settings_files=ctx.settings_files,
             dry_run=dry_run,
             quiet=quiet,
+            allow_tracked=allow_tracked,
         )
     )
     # GH-606 AC2: also enumerate ~/.claude/skills/<dir>/scripts/ so personal
@@ -348,6 +365,7 @@ def ensure_scripts(*, dry_run: bool, quiet: bool) -> None:
             settings_files=ctx.settings_files,
             dry_run=dry_run,
             quiet=quiet,
+            allow_tracked=allow_tracked,
         )
     )
     sys.exit(max(plugin_exit, user_exit))
@@ -356,11 +374,22 @@ def ensure_scripts(*, dry_run: bool, quiet: bool) -> None:
 @permission.command(name="ensure-reads")
 @click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
 @click.option("--quiet", is_flag=True, help="Suppress per-file details")
-def ensure_reads(*, dry_run: bool, quiet: bool) -> None:
+@click.option(
+    "--allow-tracked",
+    is_flag=True,
+    help="Write even when a target settings file is git-tracked (GH-1155).",
+)
+def ensure_reads(*, dry_run: bool, quiet: bool, allow_tracked: bool) -> None:
     """Emit per-skill folder Read rules with ~/ + /home/<user>/ twins."""
     from dev10x.skills.permission import update_paths as mod
 
-    _run_fix(mod.ensure_reads, needs_config=True, dry_run=dry_run, quiet=quiet)
+    _run_fix(
+        mod.ensure_reads,
+        needs_config=True,
+        dry_run=dry_run,
+        quiet=quiet,
+        extra={"allow_tracked": allow_tracked},
+    )
 
 
 @permission.command()
@@ -550,6 +579,7 @@ def enumerate_mcp(*, dry_run: bool, quiet: bool, plugin_root: str | None) -> Non
         dry_run=dry_run,
         quiet=quiet,
         plugin_root_override=Path(plugin_root) if plugin_root else None,
+        config=ctx.config,
     )
     if isinstance(result, ErrorResult):
         click.echo(f"ERROR: {result.error}", err=True)
@@ -581,6 +611,11 @@ def enumerate_mcp(*, dry_run: bool, quiet: bool, plugin_root: str | None) -> Non
     is_flag=True,
     help="Seed the curated default-safe surface (GH-601) without a prior approval (GH-603).",
 )
+@click.option(
+    "--allow-tracked",
+    is_flag=True,
+    help="Write even when the target settings file is git-tracked (GH-1155).",
+)
 def promote_plan(
     *,
     quiet: bool,
@@ -588,6 +623,7 @@ def promote_plan(
     include_sensitive: bool,
     dry_run: bool,
     proactive: bool,
+    allow_tracked: bool,
 ) -> None:
     """Promote read-only MCP tools + research domains to global settings (GH-470/GH-480/GH-603).
 
@@ -628,9 +664,33 @@ def promote_plan(
         click.echo(mod.render_promotion_plan(plan))
         return
 
+    # GH-1155: --apply writes the global settings file, which on a
+    # dotfiles-managed machine is git-tracked. ensure-base has skipped
+    # that file since GH-1136; this command did not, so a promotion
+    # dirtied the tracked file. Same shared helper, so the two commands
+    # cannot drift apart again.
+    from dev10x.skills.permission.update_paths import partition_writable
+
+    write_targets, skip_messages = partition_writable(
+        [global_settings],
+        redirect_tracked=True,
+        allow_tracked=allow_tracked,
+    )
+    if not quiet:
+        for msg in skip_messages:
+            click.echo(msg)
+    if not write_targets:
+        click.echo(
+            "Nothing written: the target settings file is git-tracked and has no "
+            "settings.local.json sibling to redirect to. Re-run with "
+            "--allow-tracked to write it anyway.",
+            err=True,
+        )
+        sys.exit(1)
+
     result = mod.apply_promotion_plan(
         plan=plan,
-        global_settings_path=global_settings,
+        global_settings_path=write_targets[0],
         include_sensitive=include_sensitive,
         dry_run=dry_run,
     )

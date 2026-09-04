@@ -447,12 +447,51 @@ def build_catalog(*, plugin_root_override: Path | None = None) -> Result[dict[st
     return ok(catalog)
 
 
+#: Registered tools deliberately left out of the seeded permission
+#: surface because they mutate state — the prompt is the last line of
+#: defence before a write. Lives here rather than in the test so the
+#: runtime report and the CI guard cannot drift apart (GH-1153).
+WRITE_TOOLS_NOT_SEEDED: frozenset[str] = frozenset(
+    {
+        "mcp__plugin_Dev10x_cli__record_upgrade",
+    }
+)
+
+
+def uncatalogued_tools(
+    *,
+    catalog: dict[str, list[str]],
+    config: dict | None,
+) -> list[str]:
+    """Registered read tools the permission catalog does not carry (GH-1153).
+
+    A tool absent from ``base_permissions`` can never be seeded by
+    ``ensure-base``, so every caller prompts forever — and nothing said
+    so out loud, because registering a tool and cataloguing it are
+    separate edits in separate files. Writes are excluded by name, not
+    by a verb heuristic, so a read tool whose name merely looks write-ish
+    is still reported.
+
+    An absent ``config`` yields no findings rather than reporting the
+    whole catalog as missing: "we could not check" must not look like
+    "everything is broken".
+    """
+    if not config:
+        return []
+    catalogued: set[str] = set(config.get("base_permissions") or [])
+    for tracker_rules in (config.get("tracker_permissions") or {}).values():
+        catalogued.update(tracker_rules or [])
+    registered = {tool for tools in catalog.values() for tool in tools}
+    return sorted(registered - catalogued - WRITE_TOOLS_NOT_SEEDED)
+
+
 def enumerate_settings(
     settings_files: Iterable[Path],
     *,
     dry_run: bool = False,
     quiet: bool = False,
     plugin_root_override: Path | None = None,
+    config: dict | None = None,
 ) -> Result[dict[str, Any]]:
     """Expand MCP wildcards across a collection of settings files.
 
@@ -460,6 +499,11 @@ def enumerate_settings(
     list[str], "plugin_root": str})`` — ``changed == 0`` is a successful
     no-op — or ``err(...)`` when the tool catalog could not be built, so
     a discovery failure can never be read as "nothing to do" (GH-919).
+
+    ``config`` is the permission catalog. When supplied, registered tools
+    missing from it are reported (GH-1153); it is injected rather than
+    loaded here so this module stays independent of ``update_paths``,
+    which already imports it.
     """
     catalog_result = build_catalog(plugin_root_override=plugin_root_override)
     if not isinstance(catalog_result, SuccessResult):
@@ -467,6 +511,15 @@ def enumerate_settings(
     catalog = catalog_result.value
 
     messages: list[str] = []
+    missing_from_catalog = uncatalogued_tools(catalog=catalog, config=config)
+    if missing_from_catalog and not quiet:
+        messages.append(
+            f"WARNING: {len(missing_from_catalog)} registered MCP tool(s) are absent "
+            "from base_permissions. ensure-base cannot seed them, so every caller "
+            "prompts until they are catalogued:"
+        )
+        messages.extend(f"  ! {tool}" for tool in missing_from_catalog)
+
     total = 0
     changed_files = 0
     for path in sorted(settings_files):
