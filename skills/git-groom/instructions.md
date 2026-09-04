@@ -19,7 +19,7 @@ Read that file for full context on auto-advance and batched
 decision queues.
 
 **Auto-advance:** Complete each phase and immediately start the
-next — no checkpoints under adaptive friction. Never pause
+next — no checkpoints the resolver did not ask for. Never pause
 between phases to ask "should I continue?".
 
 **REQUIRED: Create tasks before ANY work.** Execute these
