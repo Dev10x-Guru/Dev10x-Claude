@@ -76,27 +76,20 @@ async def _gh_api_raw(
     # A JSON body on stdin is version-independent, so any payload carrying
     # a list goes that way. Mixing is not an option: with `--input`, gh
     # moves every field flag into the query string.
-    body = _json_body(fields) if _needs_json_body(fields) else None
-    if body is None and fields:
+    body: str | None = None
+    if fields and any(isinstance(value, list) for value in fields.values()):
+        body = json.dumps(fields)
+        args.extend(["--input", "-"])
+    elif fields:
         for key, value in fields.items():
             if isinstance(value, int):
                 args.extend(["-F", f"{key}={value}"])
             else:
                 args.extend(["-f", f"{key}={value}"])
-    if body is not None:
-        args.extend(["--input", "-"])
     args.append(endpoint)
 
     env = await _bot_env(repo=repo) if as_bot and repo else None
     return await async_run(args=args, timeout=30, env=env, input_text=body)
-
-
-def _needs_json_body(fields: dict[str, str | int | list[str]] | None) -> bool:
-    return bool(fields) and any(isinstance(value, list) for value in (fields or {}).values())
-
-
-def _json_body(fields: dict[str, str | int | list[str]] | None) -> str:
-    return json.dumps(fields or {})
 
 
 async def _gh_api(
