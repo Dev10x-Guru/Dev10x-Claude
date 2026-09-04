@@ -4,7 +4,19 @@ Date: 2026-03-24
 
 ## Status
 
-Proposed
+Proposed — **partially superseded by GH-1194.**
+
+The data-driven half stands: `command-skill-map.yaml` remains the single
+source of truth for redirect rules, and per-rule `hook_block` still
+decides whether a rule blocks or merely advises.
+
+The **friction-levels** half is gone. `config.friction_level` was a
+different dial from the gate preset that happened to share the name, and
+only `guided` was ever shipped, so the three tiers were untested
+configuration surface. ADR-0022 collapsed the gate-preset axis; GH-1194
+collapsed this one. Block messages now carry their fallback clause
+unconditionally. Read the `friction_level` references below as historical
+— nothing reads that key.
 
 ## Context
 
