@@ -990,17 +990,66 @@ def collapse_legacy_upgrade_cleanup_rules(
     return len(replacements), messages
 
 
+# GH-1150: an argument tail can legitimately contain escaped parens —
+# a BigQuery predicate like `JSON_VALUE\(c,'$.k'\)` is the observed case.
+# A bare `[^)]+` stops at the first `\)`, so the substitution closed the
+# rule early and stranded the remainder outside it, yielding a malformed
+# string like `Bash(/tmp/q.py:*)" | tail -20)`. Claude Code silently
+# drops an invalid rule on the next read, so a working (if over-specific)
+# allow rule was destroyed and the run reported success. Consume escaped
+# parens as payload and stop only at an unescaped `)`.
+#
+# The escape branch MUST precede the any-char branch: `[^)]` happily
+# matches a lone backslash, and once it has consumed the `\` of a `\)`
+# the escape branch can no longer see it, leaving the match stranded at
+# the very paren this is meant to step over.
+_RULE_ARG_TAIL = r"(?:\\.|[^)])+"
+
 GENERALIZE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"(detect-tracker\.sh)\s+[^)]+"), r"\1:*"),
-    (re.compile(r"(gh-issue-get\.sh)\s+[^)]+"), r"\1:*"),
-    (re.compile(r"(gh-pr-detect\.sh)\s+[^)]+"), r"\1:*"),
-    (re.compile(r"(generate-commit-list\.sh)\s+[^)]+"), r"\1:*"),
-    (re.compile(r"(extract-session\.sh)\s+[^)]+"), r"\1:*"),
-    (re.compile(r"(\.(?:sh|py))\s+[^)]+"), r"\1:*"),
+    (re.compile(r"(detect-tracker\.sh)\s+" + _RULE_ARG_TAIL), r"\1:*"),
+    (re.compile(r"(gh-issue-get\.sh)\s+" + _RULE_ARG_TAIL), r"\1:*"),
+    (re.compile(r"(gh-pr-detect\.sh)\s+" + _RULE_ARG_TAIL), r"\1:*"),
+    (re.compile(r"(generate-commit-list\.sh)\s+" + _RULE_ARG_TAIL), r"\1:*"),
+    (re.compile(r"(extract-session\.sh)\s+" + _RULE_ARG_TAIL), r"\1:*"),
+    (re.compile(r"(\.(?:sh|py))\s+" + _RULE_ARG_TAIL), r"\1:*"),
     (re.compile(MKTMP_GENERALIZE_PATTERN), r"\1*"),
     (re.compile(r"(git reset --hard) origin/\S+"), r"\1"),
     (re.compile(r"(git reset --soft) [A-Fa-f0-9]{6,}"), r"\1"),
 ]
+
+_RULE_SHAPE_RE = re.compile(r"^[A-Za-z]+\(.*\)$", re.DOTALL)
+
+
+def _unescaped_parens_balance(entry: str) -> bool:
+    """True when `entry`'s unescaped parens nest and close cleanly."""
+    depth = 0
+    index = 0
+    while index < len(entry):
+        char = entry[index]
+        if char == "\\":
+            index += 2
+            continue
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth < 0:
+                return False
+        index += 1
+    return depth == 0
+
+
+def is_well_formed_rule(entry: str) -> bool:
+    """True when `entry` is a syntactically valid permission rule (GH-1150).
+
+    Guards the generalizer's output. An emitted rule that fails this
+    check is not a cosmetic problem: the permission engine discards it
+    without comment, so writing one deletes the over-specific rule the
+    user actually had and reports a successful generalization.
+    """
+    if not _RULE_SHAPE_RE.match(entry):
+        return False
+    return _unescaped_parens_balance(entry)
 
 
 def generalize_permission(entry: str) -> str | None:
@@ -1012,14 +1061,20 @@ def generalize_permission(entry: str) -> str | None:
     return None
 
 
-def _generalizations(allow_list: list[str]) -> list[tuple[str, str]]:
+def _generalizations(allow_list: list[str]) -> tuple[list[tuple[str, str]], list[str]]:
+    """Return the safe (old, new) rewrites plus the rules it refused to touch."""
     existing = set(allow_list)
     replacements: list[tuple[str, str]] = []
+    refused: list[str] = []
     for entry in allow_list:
         generalized = generalize_permission(entry)
-        if generalized and generalized != entry and generalized not in existing:
-            replacements.append((entry, generalized))
-    return replacements
+        if not generalized or generalized == entry or generalized in existing:
+            continue
+        if not is_well_formed_rule(generalized):
+            refused.append(entry)
+            continue
+        replacements.append((entry, generalized))
+    return replacements, refused
 
 
 def generalize_permissions(
@@ -1037,10 +1092,11 @@ def generalize_permissions(
     if not allow_list:
         return 0, []
 
-    replacements = _generalizations(allow_list)
+    replacements, refused = _generalizations(allow_list)
+    refusal_messages = [f"  REFUSED (would emit a malformed rule): {entry}" for entry in refused]
 
     if not replacements:
-        return 0, []
+        return 0, refusal_messages
 
     if not dry_run:
         from dev10x.skills.permission.backup import create_backup
@@ -1049,10 +1105,12 @@ def generalize_permissions(
         create_backup(path)
         with locked_json_update(path=path) as live_data:
             live_allow = live_data.get("permissions", {}).get("allow", [])
-            for old, new in _generalizations(live_allow):
+            live_replacements, _live_refused = _generalizations(live_allow)
+            for old, new in live_replacements:
                 live_allow[live_allow.index(old)] = new
 
     messages = [f"  {old} → {new}" for old, new in replacements]
+    messages.extend(refusal_messages)
     return len(replacements), messages
 
 

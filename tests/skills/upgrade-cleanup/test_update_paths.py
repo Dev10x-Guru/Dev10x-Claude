@@ -730,6 +730,39 @@ class TestGeneralizePermission:
     def test_returns_none_when_no_change(self) -> None:
         assert generalize_permission("Bash(git status:*)") is None
 
+    def test_escaped_parens_survive_generalization(self) -> None:
+        entry = "Bash(/p/q.py --sql SELECT COUNT\\(*\\) FROM t | tail -20:*)"
+        assert generalize_permission(entry) == "Bash(/p/q.py:*)"
+
+    def test_escaped_parens_do_not_strand_the_tail(self) -> None:
+        entry = "Bash(/p/q.py --sql JSON_VALUE\\(c,'$.k'\\):*)"
+        assert generalize_permission(entry) == "Bash(/p/q.py:*)"
+
+
+class TestWellFormedRule:
+    @pytest.mark.parametrize(
+        "entry",
+        [
+            "Bash(/p/foo.sh:*)",
+            "Bash(/p/q.py --sql COUNT\\(*\\):*)",
+            "Read(/p/**)",
+        ],
+    )
+    def test_accepts_valid_rules(self, entry: str) -> None:
+        assert update_paths.is_well_formed_rule(entry)
+
+    @pytest.mark.parametrize(
+        "entry",
+        [
+            'Bash(/p/q.py:*)" | tail -20)',
+            "Bash(/p/foo.sh:*",
+            "/p/foo.sh:*)",
+            "Bash(/p/foo.sh:*))",
+        ],
+    )
+    def test_rejects_malformed_rules(self, entry: str) -> None:
+        assert not update_paths.is_well_formed_rule(entry)
+
 
 class TestGeneralizePermissions:
     def test_rewrites_in_file(self, tmp_path: Path) -> None:
