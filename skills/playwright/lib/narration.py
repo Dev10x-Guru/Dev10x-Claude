@@ -9,10 +9,10 @@ tracks cannot drift apart.
 Three decisions are load-bearing:
 
 1. **Lines are pre-rendered, not synthesized mid-recording.** The script
-   declares every narration line up front; all of them are synthesized in
-   one piper process before the run starts. Synthesizing inside ``say()``
-   would freeze the frame for the model load at every caption, and would
-   pay that load once per line instead of once per run.
+   declares every narration line up front and they are all synthesized
+   before the run starts. Synthesizing inside ``say()`` would freeze the
+   frame for the model load at every caption — which is the whole cost on
+   a piper voice, where one process renders the entire script.
 2. **Caption dwell comes from the audio, not the character count.**
    ``caption_dwell_ms`` estimates reading time; once a line is spoken, the
    only correct dwell is how long the speech actually takes. Estimating
@@ -81,7 +81,7 @@ def default_runner(payload: dict, out_dir: Path, voice: str | None) -> dict:
         # Surface as NarrationError like every other failure here, so the
         # caller has one exception type to decide on rather than two.
         raise NarrationError(
-            f"piper exceeded {SYNTHESIS_TIMEOUT_SECONDS}s — treating as wedged"
+            f"synthesis exceeded {SYNTHESIS_TIMEOUT_SECONDS}s — treating as wedged"
         ) from None
     # The wrapper prints {"error": ...} on stdout and exits non-zero, so the
     # message is in stdout even on failure.
@@ -143,7 +143,7 @@ class Narration:
     # -- synthesis ------------------------------------------------------
 
     def prerender(self) -> None:
-        """Synthesize every declared line, in one piper process."""
+        """Synthesize every declared line through the Dev10x:tts wrapper."""
         if not self.script:
             return
         # dict.fromkeys keeps first-seen order while dropping duplicates —

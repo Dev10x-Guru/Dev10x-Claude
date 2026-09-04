@@ -14,7 +14,12 @@
     {
       "id": "wrapper-delegation",
       "name": "Wrapper Delegation",
-      "description": "Piper is invoked through scripts/synthesize.py, never as a raw binary call"
+      "description": "Piper and kokoro-tts are invoked through scripts/synthesize.py, never as raw binary calls"
+    },
+    {
+      "id": "language-routing",
+      "name": "Language Routing",
+      "description": "The engine follows the language — Kokoro for English, Piper for Polish — and is never named by the caller"
     },
     {
       "id": "failure-visibility",
@@ -100,6 +105,46 @@
           "check": "output_not_contains",
           "value": "piper -m",
           "signal": "No bare piper invocation appears in the transcript"
+        },
+        {
+          "dimension": "wrapper-delegation",
+          "check": "output_not_contains",
+          "value": "kokoro-tts ",
+          "signal": "No bare kokoro-tts invocation appears in the transcript"
+        }
+      ]
+    },
+    {
+      "id": "polish-routes-to-piper",
+      "name": "Polish narration reaches an engine that speaks it",
+      "description": "Kokoro has no Polish weights, so a Polish walkthrough must resolve a pl_PL Piper voice",
+      "input": "/Dev10x:tts synthesize Polish narration for a qa-self capture",
+      "assertions": [
+        {
+          "dimension": "language-routing",
+          "check": "output_contains",
+          "value": "pl_PL-",
+          "signal": "The resolved voice is a pl_PL Piper voice, reached via --lang pl or an explicit --voice"
+        },
+        {
+          "dimension": "language-routing",
+          "check": "output_not_contains",
+          "value": "pf_dora",
+          "signal": "The Kokoro pf_/pm_ voices are Brazilian Portuguese and are never used for Polish"
+        }
+      ]
+    },
+    {
+      "id": "english-default-does-not-gate",
+      "name": "The English default does not fire the licence gate",
+      "description": "Kokoro's Apache-2.0 weights mean check returns warning null on the default English path",
+      "input": "/Dev10x:tts synthesize English narration for a qa-self capture",
+      "assertions": [
+        {
+          "dimension": "language-routing",
+          "check": "behavioral",
+          "value": "no-gate",
+          "signal": "No licence AskUserQuestion fires when the resolved voice is a Kokoro one"
         }
       ]
     },
@@ -128,7 +173,8 @@
     "should_trigger": [
       "Narration or voice-over audio is needed for a walkthrough recording",
       "A Dev10x:qa-self capture should be narrated",
-      "Text needs to be synthesized to speech with a local Piper voice"
+      "Text needs to be synthesized to speech with a local voice",
+      "Narration is needed in a language other than English"
     ],
     "should_not_trigger": [
       "Capturing the walkthrough recording itself (use Dev10x:qa-self)",

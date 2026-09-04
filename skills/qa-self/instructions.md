@@ -373,7 +373,7 @@ NARRATION = [
 narration = Narration(f"{RUN_DIR}/narration", script=NARRATION)
 narration.mark_video_start()      # right after the recorded context opens
 anno = Annotator(page, narration=narration)
-anno.install()                    # pre-renders all lines in ONE piper process
+anno.install()                    # pre-renders all lines before the first caption
 ...
 narration.write_manifest()        # after context.close()
 ```
@@ -383,9 +383,16 @@ Narration is **opt-in** — omit it and every behaviour above is unchanged.
 **Before capturing a narrated run**, resolve the voice-licence gate: run
 `${CLAUDE_PLUGIN_ROOT}/skills/tts/scripts/synthesize.py check` and, when it
 returns a non-null `warning`, **REQUIRED: Call `AskUserQuestion`** per
-`skills/tts/SKILL.md` § *Voice licensing is the supervisor's call*. Most
-English Piper voices forbid commercial use, and QA evidence for client work
-is commercial use — catching that after the take wastes the recording.
+`skills/tts/SKILL.md` § *Voice licensing is the supervisor's call*. The
+built-in voices are commercial-safe on both the English (Kokoro,
+Apache-2.0) and Polish (Piper, CC0) paths, so the gate normally stays
+quiet — but most English *Piper* voices forbid commercial use, and QA
+evidence for client work is commercial use, so a deliberately chosen voice
+can still trip it. Catching that after the take wastes the recording.
+
+For a non-English walkthrough, pass the language through the voice:
+`Narration(..., voice="pl_PL-gosia-medium")`. The wrapper picks the engine
+from the name.
 
 Full recipe, timing model and the licence gate:
 [`skills/tts/references/qa-self-narration.md`](../tts/references/qa-self-narration.md).
