@@ -19,9 +19,6 @@ from dev10x.domain.common.policy import Policy, PolicyEffect, PolicyLifecycle, P
 from dev10x.domain.common.workspace import Workspace
 from dev10x.skills.permission.policy_renderer import expand_twin_paths, render_permissions
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-_PROJECTS_YAML = _REPO_ROOT / "skills" / "upgrade-cleanup" / "projects.yaml"
-
 _HOME = "/home/tester"
 
 
@@ -128,14 +125,14 @@ class TestTwinPathExpansion:
 class TestParityWithShippedCatalog:
     """PAP-3 AC: renderer output matches the pre-PAP settings lists."""
 
-    def _shipped(self) -> tuple[dict, list[Policy]]:
+    def _shipped(self, projects_yaml: Path) -> tuple[dict, list[Policy]]:
         from dev10x.skills.permission.policy_catalog_migration import migrate_flat_config
 
-        config = yaml.safe_load(_PROJECTS_YAML.read_text(encoding="utf-8"))
+        config = yaml.safe_load(projects_yaml.read_text(encoding="utf-8"))
         return config, migrate_flat_config(config=config)
 
-    def test_byte_parity_without_twin_expansion(self) -> None:
-        config, policies = self._shipped()
+    def test_byte_parity_without_twin_expansion(self, projects_yaml: Path) -> None:
+        config, policies = self._shipped(projects_yaml)
         rendered = render_permissions(policies=policies, home=_HOME, twin_paths=False)
         assert rendered["allow"] == config["base_permissions"]
         assert rendered["deny"] == config["base_denies"]
@@ -144,8 +141,8 @@ class TestParityWithShippedCatalog:
         # ask-tier policies, so it arrived.
         assert rendered["ask"] == config["base_asks"]
 
-    def test_twin_expansion_diffs_are_only_home_twins(self) -> None:
-        config, policies = self._shipped()
+    def test_twin_expansion_diffs_are_only_home_twins(self, projects_yaml: Path) -> None:
+        config, policies = self._shipped(projects_yaml)
         rendered = render_permissions(policies=policies, home=_HOME)
         added = [rule for rule in rendered["allow"] if rule not in config["base_permissions"]]
         assert added, "the shipped catalog carries ~/ rules, so twins must appear"

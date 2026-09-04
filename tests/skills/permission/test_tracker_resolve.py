@@ -14,10 +14,6 @@ from dev10x.domain.common.tracker_choice import (
 )
 from dev10x.skills.permission.tracker_resolve import resolve_tracker, tracker_source
 
-_PROJECTS_YAML = (
-    Path(__file__).resolve().parents[3] / "skills" / "upgrade-cleanup" / "projects.yaml"
-)
-
 
 @pytest.fixture
 def friction(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
@@ -70,8 +66,8 @@ class TestResolveTracker:
 
 class TestShippedCatalog:
     @pytest.fixture
-    def catalog(self) -> dict:
-        return yaml.safe_load(_PROJECTS_YAML.read_text())
+    def catalog(self, projects_yaml: Path) -> dict:
+        return yaml.safe_load(projects_yaml.read_text())
 
     def test_every_tracker_has_a_block(self, catalog: dict) -> None:
         inventory = tracker_inventory(config=catalog)

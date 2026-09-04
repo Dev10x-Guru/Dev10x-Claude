@@ -35,13 +35,12 @@ from dev10x.domain.common.plugin_version import SEMVER_PATTERN, PluginVersion
 from dev10x.domain.common.result import Result
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.plugin_identity import PLUGIN_NAMES
+from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
 from dev10x.skills.permission.config import parse_config, resolve_config
 
 MEMORY_CONFIG = Dev10xConfigDir.projects_yaml()
 USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
-PLUGIN_CONFIG = (
-    Path(__file__).resolve().parents[4] / "skills" / "upgrade-cleanup" / "projects.yaml"
-)
+PLUGIN_CONFIG = shipped_projects_catalog()
 GLOBAL_SETTINGS = ClaudeDir.settings_json()
 
 VERSION_PATTERN = re.compile(
@@ -145,10 +144,10 @@ class RemovalResult:
 
 
 def find_config() -> Result[Path]:
-    return resolve_config(
-        candidates=[MEMORY_CONFIG, USERSPACE_CONFIG, PLUGIN_CONFIG],
-        create_path=MEMORY_CONFIG,
-    )
+    candidates = [MEMORY_CONFIG, USERSPACE_CONFIG]
+    if PLUGIN_CONFIG is not None:
+        candidates.append(PLUGIN_CONFIG)
+    return resolve_config(candidates=candidates, create_path=MEMORY_CONFIG)
 
 
 def load_config(config_path: Path) -> dict:

@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import logging
 import re
 import subprocess
 from collections.abc import Iterable
@@ -43,7 +44,10 @@ from dev10x import subprocess_utils
 from dev10x.domain.common.allow_rule import AllowRule
 from dev10x.domain.common.baseline_catalog import load_baseline_dict
 from dev10x.domain.common.policy import Policy, PolicyAssessment, PolicyCatalog, PolicySource
+from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
 from dev10x.skills.permission_investigator.policy_report import render_policy_report
+
+log = logging.getLogger(__name__)
 
 CATALOG_PATH = Path(__file__).resolve().parent / "baseline-permissions.yaml"
 
@@ -52,9 +56,7 @@ CATALOG_PATH = Path(__file__).resolve().parent / "baseline-permissions.yaml"
 # read — the two have measurably diverged (GH-1151, GH-1100 class J), and
 # which one is authoritative is still an open ADR. Contamination
 # exemptions therefore consult BOTH rather than picking a winner here.
-PROJECTS_CATALOG_PATH = (
-    Path(__file__).resolve().parents[4] / "skills" / "upgrade-cleanup" / "projects.yaml"
-)
+PROJECTS_CATALOG_PATH = shipped_projects_catalog()
 
 # A `/home/*/`-rooted rule is a deliberate catalog twin (GH-47): a `~/`
 # rule does not match a session that spells the path `/home/<user>/`, so
@@ -306,31 +308,80 @@ def _is_system_path(path_str: str) -> bool:
     return path_str.startswith(SYSTEM_PATH_PREFIXES)
 
 
-def catalogued_rules(
+@dataclass(frozen=True)
+class CatalogRules:
+    """What the shipped catalogs declare, and which of them failed to load.
+
+    ``unread`` is the GH-1190 distinction: an empty ``rules`` with an
+    empty ``unread`` means the catalogs genuinely declare nothing, while
+    an empty ``rules`` with a non-empty ``unread`` means we could not
+    check. Collapsing the two is what let an unresolvable catalog path
+    silently narrow the cross-contamination exemption set.
+    """
+
+    rules: set[str] = field(default_factory=set)
+    unread: tuple[str, ...] = ()
+
+    @property
+    def is_degraded(self) -> bool:
+        return bool(self.unread)
+
+
+def load_catalogued_rules(
     *,
     baseline_path: Path = CATALOG_PATH,
-    projects_path: Path = PROJECTS_CATALOG_PATH,
-) -> set[str]:
-    """Every rule the shipped catalogs declare, across both files (GH-1151).
+    projects_path: Path | None = PROJECTS_CATALOG_PATH,
+) -> CatalogRules:
+    """Every rule the shipped catalogs declare, plus what could not be read.
 
     A missing or unparseable catalog yields the rules it could read
     rather than raising: the caller is a diagnostic, and failing to load
-    a catalog must not turn every catalog rule into a finding.
+    a catalog must not turn every catalog rule into a finding. Each such
+    failure is named in ``unread`` so the caller can say so out loud
+    instead of reporting a narrowed exemption set as a clean result.
     """
     rules: set[str] = set()
+    unread: list[str] = []
     try:
         for group in load_catalog(baseline_path).groups.values():
             rules.update(r for r in group.get("rules", []) if isinstance(r, str))
-    except (OSError, ValueError, KeyError):
-        pass
+    except (OSError, ValueError, KeyError) as exc:
+        unread.append(f"{baseline_path}: {exc}")
+
+    if projects_path is None:
+        unread.append(
+            "shipped projects.yaml: could not resolve the Dev10x plugin root "
+            "(set $CLAUDE_PLUGIN_ROOT or install the plugin)"
+        )
+        return CatalogRules(rules=rules, unread=tuple(unread))
+
     try:
         config = yaml.safe_load(projects_path.read_text()) or {}
-    except (OSError, yaml.YAMLError):
-        return rules
+    except (OSError, yaml.YAMLError) as exc:
+        unread.append(f"{projects_path}: {exc}")
+        return CatalogRules(rules=rules, unread=tuple(unread))
+
     rules.update(r for r in (config.get("base_permissions") or []) if isinstance(r, str))
     for tracker_rules in (config.get("tracker_permissions") or {}).values():
         rules.update(r for r in (tracker_rules or []) if isinstance(r, str))
-    return rules
+    return CatalogRules(rules=rules, unread=tuple(unread))
+
+
+def catalogued_rules(
+    *,
+    baseline_path: Path = CATALOG_PATH,
+    projects_path: Path | None = PROJECTS_CATALOG_PATH,
+) -> set[str]:
+    """Every rule the shipped catalogs declare, across both files (GH-1151).
+
+    Thin accessor over :func:`load_catalogued_rules` for callers that
+    only need the rule set. Callers that report to a user should prefer
+    the richer result so a load failure stays visible.
+    """
+    return load_catalogued_rules(
+        baseline_path=baseline_path,
+        projects_path=projects_path,
+    ).rules
 
 
 def detect_cross_contamination(
@@ -348,7 +399,16 @@ def detect_cross_contamination(
     to remove them.
     """
     findings: list[CrossContaminationFinding] = []
-    catalog = catalogued_rules() if catalog_rules is None else catalog_rules
+    if catalog_rules is None:
+        loaded = load_catalogued_rules()
+        for failure in loaded.unread:
+            log.warning(
+                "Catalog unread, exemptions narrowed — findings may be spurious: %s",
+                failure,
+            )
+        catalog = loaded.rules
+    else:
+        catalog = catalog_rules
     project_resolved = workspace.project_root.resolve()
     source_resolved = workspace.source_repo.resolve() if workspace.source_repo else None
     for rule in rules:

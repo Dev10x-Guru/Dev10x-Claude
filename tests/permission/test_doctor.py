@@ -288,6 +288,29 @@ class TestCrossContamination:
         assert findings == []
 
 
+class TestCatalogueLoadVisibility:
+    """GH-1190: an unread catalog must not look like an empty one."""
+
+    def test_missing_projects_yaml_is_reported_as_unread(self, tmp_path: Path) -> None:
+        loaded = doctor.load_catalogued_rules(projects_path=tmp_path / "absent.yaml")
+        assert loaded.is_degraded
+        assert any("absent.yaml" in failure for failure in loaded.unread)
+
+    def test_unresolvable_plugin_root_is_reported_as_unread(self) -> None:
+        loaded = doctor.load_catalogued_rules(projects_path=None)
+        assert loaded.is_degraded
+        assert any("plugin root" in failure for failure in loaded.unread)
+
+    def test_readable_catalogs_report_nothing_unread(self) -> None:
+        loaded = doctor.load_catalogued_rules()
+        assert not loaded.is_degraded
+        assert loaded.rules
+
+    def test_catalogued_rules_still_returns_the_bare_set(self, tmp_path: Path) -> None:
+        rules = doctor.catalogued_rules(projects_path=tmp_path / "absent.yaml")
+        assert isinstance(rules, set)
+
+
 class TestCatalogAndDeprecations:
     def test_catalog_path_is_package_data(self) -> None:
         # GH-264: catalog YAML must ship inside the wheel — co-located
