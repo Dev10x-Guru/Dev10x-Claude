@@ -23,6 +23,10 @@ That list is imported from ``enumerate_mcp`` rather than restated here:
 ``permission enumerate-mcp`` reports the same gap at runtime, and two
 copies of the exclusion set would eventually disagree about which tools
 are writes.
+
+``test_exclusion_list_names_only_registered_tools`` doubles as a canary:
+if tool discovery ever returns nothing, it fails rather than letting its
+sibling pass vacuously on an empty set.
 """
 
 from __future__ import annotations
@@ -50,25 +54,30 @@ def _catalogued_rules() -> set[str]:
 
 
 def _registered_tools() -> set[str]:
-    return {tool for tools in discover_mcp_tools().values() for tool in tools}
+    # Pinned to this checkout. discover_mcp_tools() defaults to
+    # resolve_plugin_root(), whose fallback chain reaches $CLAUDE_PLUGIN_ROOT
+    # and then the newest installed copy — so an unpinned call could diff an
+    # INSTALLED plugin's registrations against this tree's catalog and report
+    # a gap, or a clean pass, that describes neither.
+    return {tool for tools in discover_mcp_tools(root=REPO_ROOT).values() for tool in tools}
 
 
 def test_every_registered_tool_is_catalogued_or_explicitly_excluded() -> None:
     uncatalogued = _registered_tools() - _catalogued_rules() - WRITE_TOOLS_NOT_SEEDED
-    assert "\n".join(sorted(uncatalogued)) == "", (
+    assert not uncatalogued, (
         "these MCP tools are registered but absent from base_permissions, so "
         "ensure-base cannot seed them and every caller will prompt — add them "
         "to skills/upgrade-cleanup/projects.yaml, or to WRITE_TOOLS_NOT_SEEDED "
-        "if they mutate state and should keep prompting"
+        "if they mutate state and should keep prompting:\n" + "\n".join(sorted(uncatalogued))
     )
 
 
 def test_exclusion_list_names_only_registered_tools() -> None:
     stale = WRITE_TOOLS_NOT_SEEDED - _registered_tools()
-    assert "\n".join(sorted(stale)) == "", (
+    assert not stale, (
         "WRITE_TOOLS_NOT_SEEDED names tools that are no longer registered — "
         "a renamed or deleted tool left behind here would mask a real "
-        "catalog gap for its replacement"
+        "catalog gap for its replacement:\n" + "\n".join(sorted(stale))
     )
 
 

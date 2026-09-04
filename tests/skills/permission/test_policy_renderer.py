@@ -1,9 +1,12 @@
 """Tests for the Policy → settings.json renderer (PAP-3, GH-800).
 
 The parity class is the acceptance gate: with twin expansion off, the
-renderer reproduces the exact allow/deny lists the pre-PAP maintenance
-flow shipped for the migrated catalog; with twins on, every diff is a
+renderer reproduces the exact allow/deny/ask lists the maintenance flow
+ships for the migrated catalog; with twins on, every diff is a
 ``/home/<user>/`` twin of a ``~/`` rule — the one intended change.
+
+Ask-tier order parity is owned here (GH-1154). The flat compatibility
+shim in ``policy_catalog_migration`` covers allow and deny only.
 """
 
 from __future__ import annotations
@@ -136,10 +139,9 @@ class TestParityWithShippedCatalog:
         rendered = render_permissions(policies=policies, home=_HOME, twin_paths=False)
         assert rendered["allow"] == config["base_permissions"]
         assert rendered["deny"] == config["base_denies"]
-        # Was `"ask" not in rendered`. This module's docstring always
-        # described the ask key as appearing "as soon as ask-tier policies
-        # exist (an intended diff, never an accidental one)" — GH-1154
-        # shipped the first such policies, so the intended diff arrived.
+        # policy_renderer's own docstring calls the ask key "an intended
+        # diff, never an accidental one" — GH-1154 shipped the first
+        # ask-tier policies, so it arrived.
         assert rendered["ask"] == config["base_asks"]
 
     def test_twin_expansion_diffs_are_only_home_twins(self) -> None:
