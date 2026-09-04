@@ -62,19 +62,15 @@ class TestPendingDecisionsGuidance:
             assert member.pending_decisions_guidance()
 
 
-class TestFallbackGuidance:
-    def test_guided_returns_fallback(self) -> None:
-        result = FrictionLevel.GUIDED.fallback_guidance(fallback="try this instead")
-        assert result == "try this instead"
+class TestFallbackGuidanceIsGone:
+    """GH-1194 collapsed the ADR-0002 command-redirect axis.
 
-    def test_strict_returns_empty(self) -> None:
-        result = FrictionLevel.STRICT.fallback_guidance(fallback="try this instead")
-        assert result == ""
+    `fallback_guidance()` existed only to vary the block message by that
+    axis, and `skill_redirect` was its only caller. The clause is now
+    unconditional there, so the method is gone — asserted rather than
+    silently dropped, because a re-added method would quietly
+    re-introduce the level-dependent branch.
+    """
 
-    def test_adaptive_returns_empty(self) -> None:
-        result = FrictionLevel.ADAPTIVE.fallback_guidance(fallback="try this instead")
-        assert result == ""
-
-    def test_guided_with_empty_fallback_returns_empty(self) -> None:
-        result = FrictionLevel.GUIDED.fallback_guidance(fallback="")
-        assert result == ""
+    def test_method_no_longer_exists(self) -> None:
+        assert not hasattr(FrictionLevel.GUIDED, "fallback_guidance")

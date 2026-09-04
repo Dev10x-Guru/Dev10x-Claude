@@ -13,7 +13,6 @@
 #
 # Schema:
 #   config:
-#     friction_level: strict | guided | adaptive
 #     plugin_repo: URL for filing issues when skills instruct blocked commands
 #
 #   rules[]:
@@ -57,7 +56,6 @@
 #       content_pattern:  regex on content being written (new_string or content)
 
 config:
-  friction_level: guided  # strict | guided | adaptive
   plugin_repo: https://github.com/Dev10x-Guru/dev10x-claude
 
 rules:

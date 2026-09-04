@@ -74,7 +74,7 @@ class TestConfigCaching:
         first = load_config(yaml_path=yaml_copy)
         second = load_config(yaml_path=yaml_copy)
 
-        assert first.friction_level == second.friction_level
+        assert first.plugin_repo == second.plugin_repo
         assert len(first.rules) == len(second.rules)
 
 
