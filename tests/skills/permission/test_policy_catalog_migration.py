@@ -63,7 +63,11 @@ class TestFlatParity:
         assert flat_deny_rules(policies=_POLICIES) == _CONFIG["base_denies"]
 
     def test_every_flat_rule_became_a_policy(self) -> None:
-        expected = len(_CONFIG["base_permissions"]) + len(_CONFIG["base_denies"])
+        expected = (
+            len(_CONFIG["base_permissions"])
+            + len(_CONFIG["base_denies"])
+            + len(_CONFIG["base_asks"])
+        )
         assert len(_POLICIES) == expected
 
     def test_all_policies_are_plugin_default(self) -> None:

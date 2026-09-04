@@ -136,7 +136,11 @@ class TestParityWithShippedCatalog:
         rendered = render_permissions(policies=policies, home=_HOME, twin_paths=False)
         assert rendered["allow"] == config["base_permissions"]
         assert rendered["deny"] == config["base_denies"]
-        assert "ask" not in rendered
+        # Was `"ask" not in rendered`. This module's docstring always
+        # described the ask key as appearing "as soon as ask-tier policies
+        # exist (an intended diff, never an accidental one)" — GH-1154
+        # shipped the first such policies, so the intended diff arrived.
+        assert rendered["ask"] == config["base_asks"]
 
     def test_twin_expansion_diffs_are_only_home_twins(self) -> None:
         config, policies = self._shipped()

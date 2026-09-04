@@ -161,6 +161,23 @@ base_permissions:
   - "mcp__plugin_Dev10x_cli__audit_analyze_actions"
   - "mcp__plugin_Dev10x_cli__audit_analyze_permissions"
   - "mcp__plugin_Dev10x_cli__usage_blocks"
+  # GH-1153: read-only milestone/label roster behind Dev10x:ticket-create
+  # Step 4. It was registered, declared in SKILL.md `allowed-tools`, and
+  # listed in .claude/rules/mcp-tools.md — none of which grants anything.
+  # Absent from every catalog, ensure-base could never seed it, so every
+  # caller prompted. test_catalog_covers_mcp_tools.py now fails on any
+  # un-catalogued read tool so this cannot recur silently.
+  - "mcp__plugin_Dev10x_cli__triage_roster"
+  # The same GH-1153 gap, found by that new test rather than by a user
+  # hitting the prompt: five more registered read-only tools had never
+  # been catalogued. `record_upgrade` is deliberately absent — it writes
+  # the applied-version state, and writes keep prompting (it is named in
+  # the test's WRITE_TOOLS_NOT_SEEDED list).
+  - "mcp__plugin_Dev10x_cli__audit_hook_log_path"
+  - "mcp__plugin_Dev10x_cli__audit_hook_recent"
+  - "mcp__plugin_Dev10x_cli__background_preamble"
+  - "mcp__plugin_Dev10x_cli__resolve_plugin_origin"
+  - "mcp__plugin_Dev10x_cli__slack_thread_is_forward"
 
   # --- Dev10x MCP tools: db server (GH-878) ---
   - "mcp__plugin_Dev10x_db__query"
@@ -314,6 +331,16 @@ base_permissions:
   - "Bash(uv run --extra dev pytest:*)" # cli-friction: allow raw-pytest — base allow rule for plugin-maintenance, not a skill doc
   - "Bash(uv run ruff:*)"
   - "Bash(uv run dev10x:*)"
+  # GH-1149: the SANCTIONED lint form is bare `pre-commit run` — CLAUDE.md
+  # says to call it directly, never via `uv run`. Only the discouraged
+  # `uv run` shape was catalogued here, so the form users are told to use
+  # prompted in every project. The rule exists in
+  # src/dev10x/skills/permission/baseline-permissions.yaml (build-tools
+  # tier), but that catalog is read by `permission resolve/audit/doctor`
+  # and never by the ensure-base write path — a rule present only there
+  # reaches no settings file. Global settings happened to carry it, which
+  # masked the gap until GH-47 (project file wins) made global irrelevant.
+  - "Bash(pre-commit run:*)"
 
   # --- YAML config parsing (GH-20) ---
   # Skills like slack-review-request, verify-acc-dod, and
@@ -666,6 +693,47 @@ tracker_denies:
   - "mcp__claude_ai_Linear__delete_comment"
   - "mcp__claude_ai_Linear__delete_attachment"
   - "mcp__claude_ai_Linear__delete_status_update"
+
+# --- Base ask rules (GH-1154) ---
+# The prompt tier. Until this key existed the catalog could express only
+# allow and deny, so a rule that *should* prompt had nowhere to live and
+# never reached a project file.
+#
+# Why ask and not deny: DX014's own rationale (.claude/rules/hook-patterns.md)
+# is that a sensitive-but-legitimate operation must prompt rather than
+# hard-block — a deny drops the user into a manual `!` shell with no
+# in-session recourse. Deny stays reserved for operations that are never
+# permitted (see base_denies below).
+#
+# Why these eight: `Bash(gh api:*)` is allowed in 34 project settings
+# files, which covers every write method too. The guardrails below
+# existed in exactly two places — the user's global `ask` list and one
+# project's `deny` — and per GH-47 a project file wins outright, so in
+# the other 32 checkouts the DELETE shape was unguarded.  # cli-friction: allow raw-gh-api — names the shape being guarded, not a command to run
+# That also slips past the `gh repo delete` deny, which is a
+# different command shape entirely.
+#
+# These do NOT break the sanctioned MCP path. `milestone_create`,
+# `milestone_edit` and `milestone_reopen` do issue write-method calls  # cli-friction: allow raw-gh-api — explains why the MCP path is unaffected
+# via `_gh_api_raw` -> subprocess *inside the MCP server process*
+# (src/dev10x/github/__init__.py). Claude Code permission rules gate
+# tool calls, so no Bash-layer rule — ask or deny — can reach them.
+#
+# KNOWN LIMITATION (inherited from the shapes these replace, not
+# introduced here): rule matching is prefix-based, so these only match
+# when the method flag directly follows the subcommand. A command  # cli-friction: allow raw-gh-api — documents a matching limitation
+# written with the endpoint first does not match and still falls
+# through to `Bash(gh api:*)`. Closing that needs a hook-side check
+# on the parsed argv, not more prefix rules — tracked on GH-1100.
+base_asks:
+  - "Bash(gh api --method DELETE:*)"
+  - "Bash(gh api --method PATCH:*)"
+  - "Bash(gh api --method POST:*)"
+  - "Bash(gh api --method PUT:*)"
+  - "Bash(gh api -X DELETE:*)"
+  - "Bash(gh api -X PATCH:*)"
+  - "Bash(gh api -X POST:*)"
+  - "Bash(gh api -X PUT:*)"
 
 # --- Base deny rules (GH-204) ---
 # Tracker-independent denies. Tracker-specific ones live above.

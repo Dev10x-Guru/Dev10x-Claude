@@ -271,9 +271,20 @@ def ensure_base_permissions(
     )
     if expanded_tools:
         existing.update(expanded_tools)
-    missing = [p for p in base_permissions if p not in existing]
+
+    # GH-1152: a rule this file's own `permissions.deny` names is a
+    # deliberate local opt-out (e.g. denying mcp__claude_ai_Linear__* in
+    # favour of mcp__linear-server__*). Re-adding it to `allow` does not
+    # weaken anything — deny wins at evaluation time — but it accumulates
+    # a contradictory pair on every upgrade and reads as the tool
+    # fighting the user. Skip and report instead.
+    denied = set(data.get("permissions", {}).get("deny", []))
+    missing = [p for p in base_permissions if p not in existing and p not in denied]
+    skipped_denied = [p for p in base_permissions if p not in existing and p in denied]
 
     if not missing and not stale_wildcards:
+        if skipped_denied:
+            return 0, [f"  skipped {len(skipped_denied)} denied by this file"]
         return 0, []
 
     if not dry_run:
@@ -298,6 +309,8 @@ def ensure_base_permissions(
     messages = [f"  - {wc}  (non-functional MCP wildcard removed)" for wc in stale_wildcards]
     messages.extend(f"  + {tool}  (expanded from MCP wildcard)" for tool in expanded_tools)
     messages.extend(f"  + {p}" for p in missing)
+    if skipped_denied:
+        messages.append(f"  skipped {len(skipped_denied)} denied by this file")
     return len(missing) + len(stale_wildcards) + len(expanded_tools), messages
 
 
@@ -340,6 +353,60 @@ def ensure_base_denies(
             live_data["permissions"]["deny"].extend(missing)
 
     messages = [f"  + {d}  (deny)" for d in missing]
+    return len(missing), messages
+
+
+def ensure_base_asks(
+    path: Path,
+    base_asks: list[str],
+    *,
+    dry_run: bool = False,
+) -> tuple[int, list[str]]:
+    """Add missing base ask rules to a settings file's `permissions.ask` list.
+
+    Asks share the per-project posture of denies, not of allows: a rule
+    that prompts only in global settings prompts nowhere once a project
+    `settings.local.json` exists (GH-47), so this helper skips the
+    global-rules filter that `ensure_base_permissions` uses for allows.
+
+    The ask tier exists because deny is the wrong instrument for a
+    sensitive-but-legitimate operation (GH-1154). A hard deny drops the
+    user into a manual `!` shell with no in-session recourse, which is
+    exactly what DX014 avoids by emitting `ask`. A rule already denied by
+    the target file is left alone — a deny is the stricter statement, and
+    downgrading it to a prompt would silently weaken a deliberate choice.
+    """
+    content = path.read_text()
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError as e:
+        return 0, [f"  SKIP (invalid JSON): {e}"]
+
+    permissions = data.get("permissions", {})
+    existing = set(permissions.get("ask", []))
+    denied = set(permissions.get("deny", []))
+    missing = [a for a in base_asks if a not in existing and a not in denied]
+    skipped_denied = [a for a in base_asks if a not in existing and a in denied]
+    if not missing:
+        if skipped_denied:
+            return 0, [f"  skipped {len(skipped_denied)} already denied by this file"]
+        return 0, []
+
+    if not dry_run:
+        from dev10x.skills.permission.backup import create_backup
+        from dev10x.skills.permission.file_lock import locked_json_update
+
+        create_backup(path)
+        with locked_json_update(path=path) as live_data:
+            if "permissions" not in live_data:
+                live_data["permissions"] = {}
+            if "ask" not in live_data["permissions"]:
+                live_data["permissions"]["ask"] = []
+            live_data["permissions"]["ask"].extend(missing)
+
+    messages = [f"  + {a}  (ask)" for a in missing]
+    if skipped_denied:
+        messages.append(f"  skipped {len(skipped_denied)} already denied by this file")
     return len(missing), messages
 
 
@@ -1034,16 +1101,65 @@ def _is_git_tracked(path: Path) -> bool:
     return completed.returncode == 0
 
 
-def _partition_writable(settings_files: list[Path]) -> tuple[list[Path], list[str]]:
-    """Split settings files into writable ones and skip messages (GH-1136)."""
+def partition_writable(
+    settings_files: list[Path],
+    *,
+    redirect_tracked: bool = False,
+    allow_tracked: bool = False,
+) -> tuple[list[Path], list[str]]:
+    """Split settings files into writable ones and skip messages (GH-1136).
+
+    For a long time this was the ONLY guard against writing a git-tracked
+    `settings.json`, and it had exactly one caller — `ensure_base`. Its
+    siblings (`ensure_scripts`, `ensure_reads`, the promote/update-paths
+    writers) never consulted it, so a single maintenance run took one
+    tracked file from 2 committed rules to 1495 allow / 51 ask / 82 deny
+    in the working tree. The `SKIP (git-tracked)` line implied a safety
+    property the tool set did not actually have (GH-1155).
+
+    `redirect_tracked` sends those rules to the sibling
+    `settings.local.json` instead of dropping them, which is what a
+    caller wants when skipping would mean the rules reach no file at all.
+    The redirect target is de-duplicated, so passing both spellings of a
+    project's settings is safe.
+
+    `allow_tracked` is the escape hatch for a user who genuinely intends
+    to commit their settings; it disables the guard entirely and says so.
+    """
+    if allow_tracked:
+        return list(settings_files), ["  (--allow-tracked: git-tracked guard disabled)"]
+
     writable: list[Path] = []
     messages: list[str] = []
     for path in settings_files:
-        if path.name == "settings.json" and _is_git_tracked(path):
+        if path.name != "settings.json" or not _is_git_tracked(path):
+            writable.append(path)
+            continue
+        if not redirect_tracked:
             messages.append(f"  SKIP (git-tracked): {path}")
             continue
-        writable.append(path)
+        local_sibling = path.with_name("settings.local.json")
+        if local_sibling in writable or local_sibling in settings_files:
+            messages.append(f"  SKIP (git-tracked, sibling already targeted): {path}")
+            continue
+        if not local_sibling.is_file():
+            # Redirecting to a file that does not exist would hand every
+            # downstream writer a missing path to read. Creating it here
+            # would invent a settings file the user never opted into, so
+            # this reports the gap and writes nothing.
+            messages.append(
+                f"  SKIP (git-tracked, no {local_sibling.name} to redirect to): {path}"
+            )
+            continue
+        messages.append(f"  REDIRECT (git-tracked): {path} -> {local_sibling.name}")
+        writable.append(local_sibling)
     return writable, messages
+
+
+# Retained so in-module callers and the existing monkeypatch-based tests
+# keep working after the helper was promoted to the public surface for
+# cross-module use by the `update-paths` and `promote-plan` commands.
+_partition_writable = partition_writable
 
 
 def _load_global_allow_rules() -> tuple[set[str], list[str]]:
@@ -1291,8 +1407,9 @@ def ensure_base(
     rendered = render_permissions(policies=policies, home=str(Path.home()))
     base_permissions = rendered.get("allow", [])
     base_denies = rendered.get("deny", [])
-    if not base_permissions and not base_denies:
-        messages.append("No base_permissions or base_denies defined in config.")
+    base_asks = rendered.get("ask", [])
+    if not base_permissions and not base_denies and not base_asks:
+        messages.append("No base_permissions, base_denies or base_asks defined in config.")
         return _result(exit_code=0, messages=messages, errors=errors)
 
     messages.extend(_catalog_drift_messages(drift=drift, quiet=quiet))
@@ -1324,7 +1441,11 @@ def ensure_base(
         if dry_run:
             messages.append("(dry run — no files will be modified)\n")
 
-    if not filtered:
+    # Only the allow tier is dedupable against global; denies and asks are
+    # enforced per project regardless (GH-47). Returning here whenever the
+    # allow list came back empty would skip both of the other tiers, so the
+    # early exit has to be conditional on all three (GH-1154).
+    if not filtered and not base_denies and not base_asks:
         if not quiet:
             messages.append("All base permissions already covered by global settings.")
         return _result(exit_code=0, messages=messages, errors=errors)
@@ -1369,6 +1490,23 @@ def ensure_base(
                 changed_files.add(path)
                 per_file_added[path] = per_file_added.get(path, 0) + count
 
+    if base_asks:
+        if not quiet:
+            messages.append(f"\nBase asks: {len(base_asks)} rules")
+        for path in writable_files:
+            count, file_messages = ensure_base_asks(
+                path,
+                base_asks,
+                dry_run=dry_run,
+            )
+            if count > 0:
+                if not quiet:
+                    messages.append(f"\n{path}")
+                    messages.extend(file_messages)
+                total_added += count
+                changed_files.add(path)
+                per_file_added[path] = per_file_added.get(path, 0) + count
+
     files_changed = len(changed_files)
 
     if total_added == 0:
@@ -1385,6 +1523,7 @@ def ensure_base(
         settings_files=writable_files,
         base_permissions=filtered,
         base_denies=base_denies,
+        base_asks=base_asks,
         dry_run=dry_run,
     )
     errors.extend(residual)
@@ -1404,6 +1543,7 @@ def _residual_gap_errors(
     base_permissions: list[str],
     base_denies: list[str],
     dry_run: bool,
+    base_asks: list[str] | None = None,
 ) -> list[str]:
     """Name every file that still lacks catalog rules after a write (GH-1136).
 
@@ -1423,11 +1563,13 @@ def _residual_gap_errors(
             path=path,
             base_permissions=base_permissions,
             base_denies=base_denies,
+            base_asks=base_asks,
         )
         if not gap.is_empty:
             errors.append(
                 f"ERROR: {path} still missing {len(gap.missing_allow)} allow / "
-                f"{len(gap.missing_deny)} deny catalog rules after ensure-base."
+                f"{len(gap.missing_deny)} deny / {len(gap.missing_ask)} ask "
+                "catalog rules after ensure-base."
             )
     return errors
 
@@ -1461,10 +1603,12 @@ def catalog_gap(
     rendered = render_permissions(policies=policies, home=str(Path.home()))
     base_permissions = rendered.get("allow", [])
     base_denies = rendered.get("deny", [])
+    base_asks = rendered.get("ask", [])
 
     if not quiet:
         messages.append(
-            f"Catalog: {len(base_permissions)} allow / {len(base_denies)} deny rules\n"
+            f"Catalog: {len(base_permissions)} allow / {len(base_denies)} deny"
+            f" / {len(base_asks)} ask rules\n"
         )
 
     total_missing = 0
@@ -1473,6 +1617,7 @@ def catalog_gap(
             path=path,
             base_permissions=base_permissions,
             base_denies=base_denies,
+            base_asks=base_asks,
         )
         total_missing += gap.total_missing
         messages.extend(format_gap_report(gap, verbose=verbose))
@@ -1598,6 +1743,7 @@ def ensure_scripts(
     settings_files: list[Path],
     dry_run: bool,
     quiet: bool = False,
+    allow_tracked: bool = False,
 ) -> dict[str, object]:
     """Add missing per-script allow rules for plugin scripts. Returns result dict."""
     messages: list[str] = []
@@ -1635,11 +1781,21 @@ def ensure_scripts(
         if dry_run:
             messages.append("(dry run — no files will be modified)\n")
 
+    # GH-1155: this guard used to live only in ensure_base, so a tracked
+    # settings.json collected every per-script rule this command emits.
+    writable_files, skip_messages = _partition_writable(
+        sorted(settings_files),
+        redirect_tracked=True,
+        allow_tracked=allow_tracked,
+    )
+    if not quiet:
+        messages.extend(skip_messages)
+
     total_added = 0
     total_purged = 0
     files_changed = 0
 
-    for path in sorted(settings_files):
+    for path in writable_files:
         # GH-471: purge dead ** cache globs first so verify_script_coverage
         # reports the concrete version-pinned rules as missing and they get
         # added — replacing the non-functional globs rather than coexisting.
@@ -1692,6 +1848,7 @@ def ensure_user_skill_scripts(
     user_home: Path | None = None,
     dry_run: bool,
     quiet: bool = False,
+    allow_tracked: bool = False,
 ) -> dict[str, object]:
     """Seed canonical allow rules for user-skill scripts (GH-606 AC2).
 
@@ -1726,10 +1883,21 @@ def ensure_user_skill_scripts(
         if dry_run:
             messages.append("(dry run — no files will be modified)\n")
 
+    # GH-1155: shares the `ensure-scripts` command with ensure_scripts, so
+    # it needs the same git-tracked guard — guarding only its sibling would
+    # leave the command still writing a tracked file.
+    writable_files, skip_messages = _partition_writable(
+        sorted(settings_files),
+        redirect_tracked=True,
+        allow_tracked=allow_tracked,
+    )
+    if not quiet:
+        messages.extend(skip_messages)
+
     total_added = 0
     files_changed = 0
 
-    for path in sorted(settings_files):
+    for path in writable_files:
         _covered, missing = verify_read_coverage(
             settings_path=path,
             expected_rules=expected_rules,
@@ -1771,6 +1939,7 @@ def ensure_reads(
     settings_files: list[Path],
     dry_run: bool,
     quiet: bool = False,
+    allow_tracked: bool = False,
 ) -> dict[str, object]:
     """Emit per-skill folder Read rules with ~/ + /home/<user>/ twins. Returns result dict."""
     messages: list[str] = []
@@ -1807,10 +1976,20 @@ def ensure_reads(
         if dry_run:
             messages.append("(dry run — no files will be modified)\n")
 
+    # GH-1155: this guard used to live only in ensure_base, so a tracked
+    # settings.json collected every Read rule this command emits.
+    writable_files, skip_messages = _partition_writable(
+        sorted(settings_files),
+        redirect_tracked=True,
+        allow_tracked=allow_tracked,
+    )
+    if not quiet:
+        messages.extend(skip_messages)
+
     total_added = 0
     files_changed = 0
 
-    for path in sorted(settings_files):
+    for path in writable_files:
         _covered, missing = verify_read_coverage(
             settings_path=path,
             expected_rules=expected_rules,

@@ -459,6 +459,35 @@ When adding a new tool, update this table and note any dependencies on
 specific CLI commands or external programs. Skills should declare required
 tools explicitly in `allowed-tools:` to catch availability mismatches early.
 
+### A registered tool is not a pre-approved tool (GH-1153)
+
+Neither this table nor a skill's `allowed-tools:` grants permission.
+The only thing `ensure-base` seeds into settings files is
+`base_permissions` in `skills/upgrade-cleanup/projects.yaml`, so a tool
+missing from that catalog prompts on **every** call, in every project,
+forever — while looking fully wired up everywhere a reader would think
+to check.
+
+`triage_roster` was the worked example: registered, declared in
+`Dev10x:ticket-create`'s front matter, and present in the table above
+— and still prompting. The guard that found six more of them
+(`audit_hook_log_path`, `audit_hook_recent`, `background_preamble`,
+`resolve_plugin_origin`, `slack_thread_is_forward`, all read-only and
+all now catalogued) is
+`tests/skills/permission/test_catalog_covers_mcp_tools.py`.
+
+So a new tool needs **three** edits, not two:
+
+1. the `@server.tool()` registration,
+2. a row in the table above,
+3. an entry in `base_permissions` — or, for a tool that mutates state,
+   an entry in `dev10x.skills.permission.enumerate_mcp.WRITE_TOOLS_NOT_SEEDED`
+   so it keeps prompting on purpose. `record_upgrade` is the one such
+   tool today.
+
+`permission enumerate-mcp` reports un-catalogued tools at runtime from
+that same exclusion set, so the CLI and the test cannot disagree.
+
 ## Skill Usage
 
 In SKILL.md, declare MCP tool access via `allowed-tools:`:

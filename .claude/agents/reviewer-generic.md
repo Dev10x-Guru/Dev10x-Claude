@@ -107,6 +107,13 @@ For `servers/*.py` files:
   must be validated to start without errors before merge
 - **Replacement deprecation** — if tool replaces a Bash fallback, require
   documented deprecation timeline in session-guidance.md or a tracking issue
+- **Catalog coverage (GH-1153)** — a new `@server.tool` must also be added to
+  `base_permissions` in `skills/upgrade-cleanup/projects.yaml`, or named in
+  `enumerate_mcp.WRITE_TOOLS_NOT_SEEDED` when it writes. `allowed-tools` front
+  matter and the `mcp-tools.md` table grant NOTHING — only the catalog is
+  seeded by `ensure-base`, so an un-catalogued read tool prompts on every call
+  forever. `tests/skills/permission/test_catalog_covers_mcp_tools.py` enforces
+  this; flag as WARNING if a PR adds a tool without the catalog entry
 
 ## Output Format
 

@@ -58,28 +58,30 @@ class CatalogGap:
     path: Path
     missing_allow: list[str] = field(default_factory=list)
     missing_deny: list[str] = field(default_factory=list)
+    missing_ask: list[str] = field(default_factory=list)
     unreadable: str | None = None
 
     @property
     def is_empty(self) -> bool:
-        return not self.missing_allow and not self.missing_deny
+        return not self.missing_allow and not self.missing_deny and not self.missing_ask
 
     @property
     def total_missing(self) -> int:
-        return len(self.missing_allow) + len(self.missing_deny)
+        return len(self.missing_allow) + len(self.missing_deny) + len(self.missing_ask)
 
 
-def _existing_rules(path: Path) -> tuple[set[str], set[str], str | None]:
+def _existing_rules(path: Path) -> tuple[set[str], set[str], set[str], str | None]:
     try:
         data = json.loads(path.read_text())
     except OSError as error:
-        return set(), set(), f"unreadable: {error}"
+        return set(), set(), set(), f"unreadable: {error}"
     except json.JSONDecodeError as error:
-        return set(), set(), f"invalid JSON: {error}"
+        return set(), set(), set(), f"invalid JSON: {error}"
     permissions = data.get("permissions", {})
     return (
         set(permissions.get("allow", [])),
         set(permissions.get("deny", [])),
+        set(permissions.get("ask", [])),
         None,
     )
 
@@ -89,6 +91,7 @@ def compute_gap(
     path: Path,
     base_permissions: list[str],
     base_denies: list[str],
+    base_asks: list[str] | None = None,
 ) -> CatalogGap:
     """Return the catalog rules that ``path`` does not carry.
 
@@ -96,19 +99,26 @@ def compute_gap(
     catalog plus an ``unreadable`` reason — never as a clean result,
     since "we could not tell" and "nothing is missing" must not look
     alike to a caller deciding whether to backfill.
+
+    ``base_asks`` (GH-1154) is optional so a caller predating the ask
+    tier keeps its behaviour: an omitted ask catalog reports no ask gap
+    rather than reporting every ask rule as missing.
     """
-    allow, deny, unreadable = _existing_rules(path)
+    asks = list(base_asks or [])
+    allow, deny, ask, unreadable = _existing_rules(path)
     if unreadable is not None:
         return CatalogGap(
             path=path,
             missing_allow=list(base_permissions),
             missing_deny=list(base_denies),
+            missing_ask=asks,
             unreadable=unreadable,
         )
     return CatalogGap(
         path=path,
         missing_allow=[rule for rule in base_permissions if rule not in allow],
         missing_deny=[rule for rule in base_denies if rule not in deny],
+        missing_ask=[rule for rule in asks if rule not in ask],
     )
 
 
@@ -126,13 +136,18 @@ def format_gap_report(gap: CatalogGap, *, verbose: bool = False) -> list[str]:
     if gap.unreadable is not None:
         lines.append(f"  WARNING: {gap.unreadable} — treating the whole catalog as missing")
     if gap.is_empty:
-        lines.append("  0 missing allow / 0 missing deny")
+        lines.append("  0 missing allow / 0 missing deny / 0 missing ask")
         return lines
 
     lines.append(
         f"  {len(gap.missing_allow)} missing allow / {len(gap.missing_deny)} missing deny"
+        f" / {len(gap.missing_ask)} missing ask"
     )
-    for label, rules in (("allow", gap.missing_allow), ("deny", gap.missing_deny)):
+    for label, rules in (
+        ("allow", gap.missing_allow),
+        ("deny", gap.missing_deny),
+        ("ask", gap.missing_ask),
+    ):
         if not rules:
             continue
         counts = _family_counts(rules)
