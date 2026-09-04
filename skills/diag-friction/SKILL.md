@@ -37,6 +37,7 @@ allowed-tools:
   - Bash(uvx dev10x permission seed-worktree:*)
   - Bash(dev10x permission seed-worktree:*)
   - mcp__plugin_Dev10x_cli__audit_analyze_permissions
+  - mcp__plugin_Dev10x_cli__permission_catalog_gap
 ---
 
 # Dev10x:diag-friction
@@ -140,9 +141,28 @@ different question.
    `.claude/settings.local.json`, else the project's, else global.
 2. Run the catalog-gap check and read the counts by family:
 
+```
+mcp__plugin_Dev10x_cli__permission_catalog_gap()
+```
+
+   Returns `total_missing`, `files_checked`, `clean`, and the
+   per-family `messages`. Pass `verbose=true` to list every missing
+   rule rather than the counts.
+
+   **Fallback — Bash** (only when the MCP server is unavailable):
+
 ```bash
 uvx dev10x permission catalog-gap
 ```
+
+   The Bash form was primary until GH-1175, which made the *first*
+   diagnostic step of the friction-diagnosis skill a source of
+   permission friction: without a `Bash(uvx:*)` rule it prompts, and
+   in an unattended background agent a pending prompt is neither a
+   block nor a denial — so the coverage check silently never ran and
+   the three-outcome routing below was unreachable. `uvx` also
+   re-resolves from the network on every call even though the plugin
+   is installed locally.
 
 3. If the offending command's generalized rule (Step 3d) is in the
    catalog but absent from the effective file, say so **first**:
