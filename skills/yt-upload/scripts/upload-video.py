@@ -22,6 +22,13 @@ Subcommands:
     pin             Persist account/channel defaults to ~/.config/Dev10x/yt-upload.yaml
     resolve-video   Pick the one artifact to publish from a qa-self run directory
     upload          Upload the video and return the embed forms
+    update          Correct the title or description of a published video
+    delete          Permanently remove a published video
+
+``update`` and ``delete`` need the broader ``youtube.force-ssl`` scope;
+``upload`` keeps the narrow ``youtube.upload``. The split is deliberate —
+a grant that can only add is a meaningful safety property, so the wider
+scope is demanded per-operation rather than requested up front (GH-1206).
 """
 
 from __future__ import annotations
@@ -41,6 +48,21 @@ import requests
 import yaml
 
 UPLOAD_ENDPOINT = "https://www.googleapis.com/upload/youtube/v3/videos"
+VIDEOS_ENDPOINT = "https://www.googleapis.com/youtube/v3/videos"
+
+# Publishing needs only youtube.upload. Correcting or removing what was
+# published needs the broader youtube.force-ssl (GH-1206) — the narrow
+# upload-only scope is a real security property, so it stays the default
+# and the wider one is demanded per-operation rather than globally.
+UPLOAD_SCOPE = "youtube.upload"
+MANAGE_SCOPE = "youtube.force-ssl"
+
+# force-ssl subsumes upload, so a grant holding only the wider scope can
+# still publish. Requiring the exact string would tell such an operator
+# their grant cannot publish, which is untrue.
+_SCOPE_ALTERNATIVES = {UPLOAD_SCOPE: (UPLOAD_SCOPE, MANAGE_SCOPE)}
+
+_METADATA_TIMEOUT_SECONDS = 60
 
 # 28 = Science & Technology. Least-wrong bucket for internal product demos;
 # overridable per project because "least wrong" is a judgement, not a fact.
@@ -296,8 +318,12 @@ def warm_token(account: str) -> None:
     raise UploadError(f"gog could not reach YouTube: {error}")
 
 
-def get_access_token(account: str, export_path: Path) -> str:
-    """Export gog's live access token. Verifies scope and remaining lifetime."""
+def get_access_token(account: str, export_path: Path, *, scope: str = UPLOAD_SCOPE) -> str:
+    """Export gog's live access token. Verifies scope and remaining lifetime.
+
+    ``scope`` is the capability this operation needs: ``youtube.upload`` to
+    publish, ``youtube.force-ssl`` to correct or remove (GH-1206).
+    """
     # gog creates the file, so its mode comes from gog and the ambient
     # umask — the chmod below cannot run until the subprocess returns,
     # leaving a window where a live token sits at gog's default mode.
@@ -336,12 +362,16 @@ def get_access_token(account: str, export_path: Path) -> str:
         raise UploadError("the gog export contained no access_token")
 
     scopes = data.get("scopes") or []
-    if not any("youtube.upload" in scope for scope in scopes):
+    accepted = _SCOPE_ALTERNATIVES.get(scope, (scope,))
+    if not any(candidate in granted for candidate in accepted for granted in scopes):
+        capability = (
+            "publish to it" if scope == UPLOAD_SCOPE else "correct or remove what it published"
+        )
         raise UploadError(
-            "this grant lacks the youtube.upload scope, so it can read YouTube but "
-            "not publish to it. Authorize YouTube as its OWN grant — `gog auth add "
-            "<email> --services youtube --extra-scopes "
-            "https://www.googleapis.com/auth/youtube.upload --force-consent --remote "
+            f"this grant lacks the {scope} scope, so it can read YouTube but not "
+            f"{capability}. Authorize YouTube as its OWN grant — `gog auth add "
+            f"<email> --services youtube --extra-scopes "
+            f"https://www.googleapis.com/auth/{scope} --force-consent --remote "
             "--step 1` — rather than adding the scope to a service list that already "
             "includes drive, which Google refuses"
         )
@@ -564,6 +594,41 @@ def verify_via_gog(*, video_id: str, account: str) -> dict:
     return items[0] if items else {}
 
 
+def update_snippet(*, token: str, video_id: str, snippet: dict) -> dict:
+    """Replace a video's snippet.
+
+    ``videos.update`` is a REPLACE, not a merge: a part sent with fields
+    omitted CLEARS them, and ``categoryId`` is required. The caller must
+    therefore hand over a snippet merged onto the stored one — which is why
+    ``cmd_update`` refuses to proceed when read-back is unavailable.
+    """
+    response = requests.put(
+        VIDEOS_ENDPOINT,
+        params={"part": "snippet"},
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json; charset=UTF-8",
+        },
+        json={"id": video_id, "snippet": snippet},
+        timeout=_METADATA_TIMEOUT_SECONDS,
+    )
+    if response.status_code != 200:
+        raise UploadError(f"update failed ({response.status_code}): {response.text[:400]}")
+    return response.json()
+
+
+def delete_video(*, token: str, video_id: str) -> None:
+    response = requests.delete(
+        VIDEOS_ENDPOINT,
+        params={"id": video_id},
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=_METADATA_TIMEOUT_SECONDS,
+    )
+    # The API answers 204 with no body on success.
+    if response.status_code not in (200, 204):
+        raise UploadError(f"delete failed ({response.status_code}): {response.text[:400]}")
+
+
 def embed_forms(*, video_id: str, title: str) -> dict:
     """The per-destination forms. The split is load-bearing, not cosmetic.
 
@@ -751,6 +816,96 @@ def cmd_upload(args: argparse.Namespace) -> dict:
     return payload
 
 
+def cmd_update(args: argparse.Namespace) -> dict:
+    """Correct the title or description of an already-published video.
+
+    The concrete cost this answers: a caveat discovered after upload could
+    be added to the GitHub comment but not to the YouTube description, so
+    anyone opening the raw link saw the uncorrected version (GH-1206).
+    """
+    if not args.title and not args.description and not args.description_file:
+        raise UploadError("nothing to update — pass --title, --description or --description-file")
+
+    preference = resolve_preference(account=args.account, channel=args.channel)
+    account = require_account(preference)
+
+    warm_token(account)
+    export_path = token_export_path()
+    try:
+        token = get_access_token(account, export_path, scope=MANAGE_SCOPE)
+        stored = verify_via_gog(video_id=args.video_id, account=account)
+        current = stored.get("snippet") or {}
+        if not current:
+            # A blind PUT would clear every field we could not read, and
+            # categoryId is mandatory — so an unreadable video is a refusal,
+            # not a best-effort write.
+            raise UploadError(
+                f"could not read the current snippet for {args.video_id}. "
+                "videos.update REPLACES the snippet, so updating without it "
+                "would clear the fields it could not read. Check the id and "
+                "that this account owns the video."
+            )
+        snippet = {
+            "title": args.title or current.get("title"),
+            "description": current.get("description", ""),
+            "categoryId": current.get("categoryId") or preference["category_id"],
+        }
+        for key in ("tags", "defaultLanguage"):
+            if current.get(key):
+                snippet[key] = current[key]
+        if args.description_file:
+            snippet["description"] = Path(args.description_file).read_text(encoding="utf-8")
+        elif args.description:
+            snippet["description"] = args.description
+        result = update_snippet(token=token, video_id=args.video_id, snippet=snippet)
+    finally:
+        shred(export_path)
+
+    updated = result.get("snippet") or snippet
+    return {
+        "video_id": args.video_id,
+        "title": updated.get("title"),
+        "updated": [
+            field
+            for field, changed in (
+                ("title", bool(args.title)),
+                ("description", bool(args.description or args.description_file)),
+            )
+            if changed
+        ],
+        **embed_forms(video_id=args.video_id, title=updated.get("title") or ""),
+    }
+
+
+def cmd_delete(args: argparse.Namespace) -> dict:
+    """Remove a superseded upload.
+
+    Irreversible and not undoable through any Dev10x path, so it refuses
+    without an explicit ``--yes``: an agent reaching this by accident
+    should get a refusal, not a deleted video.
+    """
+    if not args.yes:
+        raise UploadError(
+            f"refusing to delete {args.video_id} without --yes. Deletion is "
+            "permanent and cannot be undone — confirm the id first."
+        )
+
+    preference = resolve_preference(account=args.account, channel=args.channel)
+    account = require_account(preference)
+
+    warm_token(account)
+    export_path = token_export_path()
+    try:
+        token = get_access_token(account, export_path, scope=MANAGE_SCOPE)
+        stored = verify_via_gog(video_id=args.video_id, account=account)
+        title = (stored.get("snippet") or {}).get("title")
+        delete_video(token=token, video_id=args.video_id)
+    finally:
+        shred(export_path)
+
+    return {"video_id": args.video_id, "deleted": True, "title": title, "account": account}
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -783,6 +938,26 @@ def build_parser() -> argparse.ArgumentParser:
     up.add_argument("--category-id")
     up.add_argument("--privacy", default="unlisted", choices=["unlisted", "private", "public"])
     up.set_defaults(handler=cmd_upload)
+
+    update = subparsers.add_parser(
+        "update", help="correct the title or description of a published video"
+    )
+    add_target_options(update)
+    update.add_argument("--video-id", required=True)
+    update.add_argument("--title")
+    update.add_argument("--description", default="")
+    update.add_argument("--description-file")
+    update.set_defaults(handler=cmd_update)
+
+    delete = subparsers.add_parser("delete", help="permanently remove a published video")
+    add_target_options(delete)
+    delete.add_argument("--video-id", required=True)
+    delete.add_argument(
+        "--yes",
+        action="store_true",
+        help="confirm the permanent deletion — required, and deliberately not default",
+    )
+    delete.set_defaults(handler=cmd_delete)
 
     return parser
 

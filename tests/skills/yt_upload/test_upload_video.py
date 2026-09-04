@@ -55,6 +55,7 @@ def _install_requests_stub() -> bool:
     stub.RequestException = RequestException
     stub.post = unavailable
     stub.put = unavailable
+    stub.delete = unavailable
     sys.modules["requests"] = stub
     return True
 
@@ -1497,3 +1498,292 @@ def test_request_exception_is_reported_on_stdout(
         _mod.main(["resolve-video", "--run-dir", str(run_dir)])
 
     assert "connection reset" in json.loads(capsys.readouterr().out)["error"]
+
+
+# --------------------------------------------------------------------------
+# update / delete — the tool can clean up the state it creates (GH-1206)
+# --------------------------------------------------------------------------
+
+
+class _Response:
+    def __init__(self, *, status_code: int, payload: dict | None = None, text: str = "") -> None:
+        self.status_code = status_code
+        self._payload = payload or {}
+        self.text = text
+
+    def json(self) -> dict:
+        return self._payload
+
+
+@pytest.fixture
+def manage_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    """Stand in for gog: a resolved account, a live token, no real network."""
+    monkeypatch.setenv("DEV10X_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("DEV10X_YT_ACCOUNT", "someone@example.com")
+    monkeypatch.setattr(_mod, "warm_token", lambda account: None)
+    monkeypatch.setattr(_mod, "token_export_path", lambda: tmp_path / "token.json")
+    scopes: list[str] = []
+    monkeypatch.setattr(
+        _mod,
+        "get_access_token",
+        lambda account, path, *, scope=_mod.UPLOAD_SCOPE: scopes.append(scope) or "tok",
+    )
+    monkeypatch.setattr(_mod, "shred", lambda path: None)
+    return scopes
+
+
+class TestUpdateSnippet:
+    def test_puts_a_full_snippet(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured: dict = {}
+
+        def fake_put(url, *, params, headers, json, timeout):  # noqa: A002, ANN001, ANN202
+            captured.update(url=url, params=params, body=json)
+            return _Response(status_code=200, payload={"snippet": json["snippet"]})
+
+        monkeypatch.setattr(_mod.requests, "put", fake_put)
+        result = _mod.update_snippet(
+            token="tok", video_id="abc", snippet={"title": "t", "categoryId": "28"}
+        )
+        assert captured["url"] == _mod.VIDEOS_ENDPOINT
+        assert captured["params"] == {"part": "snippet"}
+        assert captured["body"]["id"] == "abc"
+        assert result["snippet"]["title"] == "t"
+
+    def test_raises_on_a_non_200(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            _mod.requests,
+            "put",
+            lambda *a, **k: _Response(status_code=403, text="forbidden"),
+        )
+        with pytest.raises(_mod.UploadError, match="update failed"):
+            _mod.update_snippet(token="tok", video_id="abc", snippet={})
+
+
+class TestDeleteVideo:
+    @pytest.mark.parametrize("status", [200, 204])
+    def test_accepts_both_success_codes(
+        self, monkeypatch: pytest.MonkeyPatch, status: int
+    ) -> None:
+        monkeypatch.setattr(_mod.requests, "delete", lambda *a, **k: _Response(status_code=status))
+        assert _mod.delete_video(token="tok", video_id="abc") is None
+
+    def test_raises_on_a_failure_code(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            _mod.requests,
+            "delete",
+            lambda *a, **k: _Response(status_code=404, text="not found"),
+        )
+        with pytest.raises(_mod.UploadError, match="delete failed"):
+            _mod.delete_video(token="tok", video_id="abc")
+
+
+class TestCmdUpdate:
+    def _args(self, **overrides: object) -> object:
+        defaults = {
+            "video_id": "abc",
+            "title": None,
+            "description": "",
+            "description_file": None,
+            "account": None,
+            "channel": None,
+        }
+        defaults.update(overrides)
+        return types.SimpleNamespace(**defaults)
+
+    def test_refuses_when_nothing_was_supplied(self) -> None:
+        with pytest.raises(_mod.UploadError, match="nothing to update"):
+            _mod.cmd_update(self._args())
+
+    def test_merges_onto_the_stored_snippet(
+        self, manage_env: list[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            _mod,
+            "verify_via_gog",
+            lambda *, video_id, account: {
+                "snippet": {
+                    "title": "old title",
+                    "description": "old description",
+                    "categoryId": "27",
+                    "tags": ["qa"],
+                }
+            },
+        )
+        captured: dict = {}
+        monkeypatch.setattr(
+            _mod,
+            "update_snippet",
+            lambda *, token, video_id, snippet: (
+                captured.update(snippet=snippet) or {"snippet": snippet}
+            ),
+        )
+
+        result = _mod.cmd_update(self._args(description="corrected"))
+
+        # A REPLACE that dropped these would clear them on YouTube.
+        assert captured["snippet"]["title"] == "old title"
+        assert captured["snippet"]["categoryId"] == "27"
+        assert captured["snippet"]["tags"] == ["qa"]
+        assert captured["snippet"]["description"] == "corrected"
+        assert result["updated"] == ["description"]
+
+    def test_requests_the_manage_scope_not_the_upload_scope(
+        self, manage_env: list[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            _mod,
+            "verify_via_gog",
+            lambda *, video_id, account: {"snippet": {"title": "t", "categoryId": "28"}},
+        )
+        monkeypatch.setattr(
+            _mod, "update_snippet", lambda *, token, video_id, snippet: {"snippet": snippet}
+        )
+        _mod.cmd_update(self._args(title="new"))
+        assert manage_env == [_mod.MANAGE_SCOPE]
+
+    def test_refuses_when_the_stored_snippet_cannot_be_read(
+        self, manage_env: list[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(_mod, "verify_via_gog", lambda *, video_id, account: {})
+        monkeypatch.setattr(
+            _mod,
+            "update_snippet",
+            lambda **kwargs: pytest.fail("must not write a partial snippet"),
+        )
+        with pytest.raises(_mod.UploadError, match="REPLACES the snippet"):
+            _mod.cmd_update(self._args(title="new"))
+
+    def test_description_file_wins_over_description(
+        self, manage_env: list[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        body = tmp_path / "d.txt"
+        body.write_text("from file", encoding="utf-8")
+        monkeypatch.setattr(
+            _mod,
+            "verify_via_gog",
+            lambda *, video_id, account: {"snippet": {"title": "t", "categoryId": "28"}},
+        )
+        captured: dict = {}
+        monkeypatch.setattr(
+            _mod,
+            "update_snippet",
+            lambda *, token, video_id, snippet: (
+                captured.update(snippet=snippet) or {"snippet": snippet}
+            ),
+        )
+        _mod.cmd_update(self._args(description="inline", description_file=str(body)))
+        assert captured["snippet"]["description"] == "from file"
+
+    def test_returns_the_embed_forms(
+        self, manage_env: list[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            _mod,
+            "verify_via_gog",
+            lambda *, video_id, account: {"snippet": {"title": "t", "categoryId": "28"}},
+        )
+        monkeypatch.setattr(
+            _mod, "update_snippet", lambda *, token, video_id, snippet: {"snippet": snippet}
+        )
+        result = _mod.cmd_update(self._args(title="new title"))
+        assert result["watch_url"] == "https://www.youtube.com/watch?v=abc"
+        assert result["updated"] == ["title"]
+
+
+class TestCmdDelete:
+    def _args(self, **overrides: object) -> object:
+        defaults = {"video_id": "abc", "yes": True, "account": None, "channel": None}
+        defaults.update(overrides)
+        return types.SimpleNamespace(**defaults)
+
+    def test_refuses_without_an_explicit_yes(self) -> None:
+        with pytest.raises(_mod.UploadError, match="without --yes"):
+            _mod.cmd_delete(self._args(yes=False))
+
+    def test_deletes_and_reports_the_title(
+        self, manage_env: list[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            _mod,
+            "verify_via_gog",
+            lambda *, video_id, account: {"snippet": {"title": "superseded take"}},
+        )
+        captured: dict = {}
+        monkeypatch.setattr(
+            _mod,
+            "delete_video",
+            lambda *, token, video_id: captured.update(video_id=video_id),
+        )
+
+        result = _mod.cmd_delete(self._args())
+
+        assert captured["video_id"] == "abc"
+        assert result == {
+            "video_id": "abc",
+            "deleted": True,
+            "title": "superseded take",
+            "account": "someone@example.com",
+        }
+        assert manage_env == [_mod.MANAGE_SCOPE]
+
+    def test_an_unreadable_video_still_deletes_with_no_title(
+        self, manage_env: list[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(_mod, "verify_via_gog", lambda *, video_id, account: {})
+        monkeypatch.setattr(_mod, "delete_video", lambda *, token, video_id: None)
+        assert _mod.cmd_delete(self._args())["title"] is None
+
+
+class TestScopeAlternatives:
+    def _export(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, scopes: list[str]) -> Path:
+        path = tmp_path / "token.json"
+        payload = {"access_token": "tok", "scopes": scopes}
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        monkeypatch.setattr(
+            _mod,
+            "_run_gog",
+            lambda arguments: types.SimpleNamespace(returncode=0, stdout="", stderr=""),
+        )
+        return path
+
+    def test_force_ssl_alone_satisfies_the_upload_requirement(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # force-ssl subsumes upload; telling such a grant it cannot publish
+        # would be untrue.
+        path = self._export(
+            tmp_path, monkeypatch, ["https://www.googleapis.com/auth/youtube.force-ssl"]
+        )
+        assert _mod.get_access_token("a@example.com", path) == "tok"
+
+    def test_upload_alone_does_not_satisfy_the_manage_requirement(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        path = self._export(
+            tmp_path, monkeypatch, ["https://www.googleapis.com/auth/youtube.upload"]
+        )
+        with pytest.raises(_mod.UploadError, match="youtube.force-ssl"):
+            _mod.get_access_token("a@example.com", path, scope=_mod.MANAGE_SCOPE)
+
+    def test_a_read_only_grant_still_fails_for_upload(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        path = self._export(
+            tmp_path, monkeypatch, ["https://www.googleapis.com/auth/youtube.readonly"]
+        )
+        with pytest.raises(_mod.UploadError, match="youtube.upload"):
+            _mod.get_access_token("a@example.com", path)
+
+
+class TestManageParser:
+    def test_update_requires_a_video_id(self) -> None:
+        with pytest.raises(SystemExit):
+            _mod.build_parser().parse_args(["update"])
+
+    def test_delete_defaults_yes_to_false(self) -> None:
+        args = _mod.build_parser().parse_args(["delete", "--video-id", "abc"])
+        assert args.yes is False
+
+    def test_delete_accepts_yes(self) -> None:
+        args = _mod.build_parser().parse_args(["delete", "--video-id", "abc", "--yes"])
+        assert args.yes is True
