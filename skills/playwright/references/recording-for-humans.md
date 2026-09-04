@@ -179,19 +179,30 @@ next run.
 
 ## Resolution
 
-Keep the viewport at the app's designed size — resizing it silently
-changes the app's layout, so the recording no longer shows what a user
-sees. Buy sharpness instead with a higher raster and a Full HD
-recording:
+Pick the viewport once, at context creation, and never resize it
+mid-run — resizing silently changes the app's layout, so the recording
+no longer shows what a user sees. Buy sharpness with a higher raster,
+not with a mid-run resize:
 
 ```python
 context = browser.new_context(
-    viewport={"width": 1680, "height": 1050},
+    viewport={"width": 1920, "height": 1080},
     device_scale_factor=2,
     record_video_dir=VIDEO_DIR,
     record_video_size={"width": 1920, "height": 1080},
 )
 ```
+
+**The viewport must be >= `record_video_size` (GH-1204).**
+`record_video_size` only ever scales *down*. A smaller viewport is
+placed 1:1 in the top-left of the frame and the rest is filled with
+mid-grey, so `1680x1050` into `1920x1080` pads 240px right and 30px
+bottom on every take. Matching the aspect ratio does not help —
+`1680x945` is exactly 16:9 and pads just the same, because the rule is
+a size relation, not an aspect relation. With the two equal,
+`device_scale_factor=2` renders at 3840x2160 and Playwright scales that
+down into the frame: a real supersample, and the only scaling direction
+it supports.
 
 ## Beyond the pointer and one caption line
 
