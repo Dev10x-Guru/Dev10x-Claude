@@ -205,8 +205,9 @@ setup_context.close()
 # Phase 2: reuse auth cookies, start recording on the target page
 context = browser.new_context(
     viewport={"width": 1680, "height": 1050},
+    device_scale_factor=2,
     record_video_dir=VIDEO_DIR,
-    record_video_size={"width": 1680, "height": 1050},
+    record_video_size={"width": 1920, "height": 1080},
     storage_state=storage_state,
 )
 page = context.new_page()
@@ -649,7 +650,23 @@ costs a superseded re-upload on the ticket, and the supervisor sees the
 bad take either way. Review locally first.
 
 1. Report what will be published — each artifact's path, size, duration
-   (for video), and the verifier's verdict from 4.1.
+   and **raster** (for video), and the verifier's verdict from 4.1.
+
+   **The raster line is not decoration (GH-1188).** Read it from the
+   file, not from the script that was supposed to produce it:
+
+   ```bash
+   ffprobe -v error -select_streams v:0 \
+     -show_entries stream=width,height -of csv=p=0 <video>
+   ```
+
+   Anything below `1920,1080` means the recording was captured at the
+   viewport's own size instead of the Full HD raster, and no re-encode
+   can recover the detail — the take has to be re-recorded. Every other
+   check in the pipeline passes on a downgraded capture: the frames are
+   non-uniform, the file is a real size, and `narration.json` reports no
+   defects. This line is the only place the pipeline notices.
+
    **When the capture was narrated, this report MUST also carry, from
    `narration.json`:**
    - `unrendered` — the count and the actual lines. A non-empty list means

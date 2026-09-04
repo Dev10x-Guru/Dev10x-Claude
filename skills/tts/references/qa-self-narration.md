@@ -59,8 +59,9 @@ recorded context opens, or every cue lands early by however long setup took.
 ```python
 context = browser.new_context(
     viewport={"width": 1680, "height": 1050},
+    device_scale_factor=2,
     record_video_dir=VIDEO_DIR,
-    record_video_size={"width": 1680, "height": 1050},
+    record_video_size={"width": 1920, "height": 1080},
     storage_state=storage_state,
 )
 narration = Narration(f"{RUN_DIR}/narration", script=NARRATION)
