@@ -3,7 +3,7 @@
 This rule applies to ALL skills, regardless of tier. It is the
 single most important orchestration pattern.
 
-**Always auto-advance — no checkpoints under adaptive friction.**
+**Always auto-advance — no checkpoints the resolver did not ask for.**
 Complete a step or task, immediately start the next. Never pause
 to ask "should I continue?", "ready for the next step?", or wait
 for the user to say "go" / "next" / "continue". The invocation of

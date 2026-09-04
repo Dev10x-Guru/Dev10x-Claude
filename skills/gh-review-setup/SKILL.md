@@ -64,7 +64,7 @@ This skill follows `references/task-orchestration.md` patterns
 end-to-end.
 
 **Auto-advance:** Complete each phase and immediately start the next — no
-checkpoints under adaptive friction. The only pauses are the REQUIRED
+checkpoints the resolver did not ask for. The only pauses are the REQUIRED
 decision gates below (module selection + strategy choices); these are
 genuine A/B choices that change the generated output.
 

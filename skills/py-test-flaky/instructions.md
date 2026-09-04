@@ -39,7 +39,7 @@ exists.
 This skill follows `references/task-orchestration.md` patterns.
 
 **Auto-advance:** Complete each step, immediately start the
-next — no checkpoints under adaptive friction. Never pause
+next — no checkpoints the resolver did not ask for. Never pause
 between steps except at documented decision gates.
 
 **REQUIRED: Create tasks before ANY work.** Execute these

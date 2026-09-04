@@ -88,7 +88,7 @@ re-enter via this skill. See `Dev10x:gh-pr-respond/instructions.md`
 
 This skill follows `references/task-orchestration.md` patterns.
 
-**Auto-advance:** Complete each step, immediately start the next — no checkpoints under adaptive friction.
+**Auto-advance:** Complete each step, immediately start the next — no checkpoints the resolver did not ask for.
 Never pause to ask "should I continue?" between steps.
 
 **REQUIRED: Create tasks before ANY work.** Execute these

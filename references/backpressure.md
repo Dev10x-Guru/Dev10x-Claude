@@ -99,9 +99,9 @@ blocking decision points within a workflow.
 
 - All gates must be declared with **`REQUIRED: Call AskUserQuestion`**
   in SKILL.md (not plain text — plain text allows agents to auto-proceed)
-- `ALWAYS_ASK` gates fire at all friction levels, including adaptive
+- `ALWAYS_ASK` gates fire whatever the session policy says
 - Non-`ALWAYS_ASK` gates auto-select their `(Recommended)` option
-  under adaptive friction
+  whenever `resolve_gate` returns `auto-advance`
 
 Full pattern: `.claude/rules/skill-gates.md`.
 
