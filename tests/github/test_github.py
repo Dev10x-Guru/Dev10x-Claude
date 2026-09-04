@@ -1050,6 +1050,83 @@ class TestPrCommentsActionEdit:
         assert "comment_id and body required" in result.error
 
 
+class TestGhApiFieldSerialisation:
+    """GH-1191: a list field must reach gh as a JSON array, not `key[]=`.
+
+    The existing request_review tests mock ``_gh_api_raw`` itself, so
+    they assert the fields dict and never see how it is serialised —
+    which is how `-f 'reviewers[]=alice'` shipped. These tests patch one
+    level lower, at ``async_run``, and assert on the actual argv/stdin.
+    """
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_list_field_is_sent_as_a_json_body(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(stdout="{}")
+
+        await gh._gh_api_raw(
+            "repos/o/r/pulls/1/requested_reviewers",
+            method="POST",
+            fields={"reviewers": ["alice", "bob"]},
+        )
+
+        argv = mock_run.call_args.kwargs["args"]
+        assert "--input" in argv
+        assert argv[argv.index("--input") + 1] == "-"
+        assert json.loads(mock_run.call_args.kwargs["input_text"]) == {
+            "reviewers": ["alice", "bob"]
+        }
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_list_field_never_uses_bracket_flag_syntax(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(stdout="{}")
+
+        await gh._gh_api_raw(
+            "repos/o/r/pulls/1/requested_reviewers",
+            method="POST",
+            fields={"reviewers": ["alice"]},
+        )
+
+        argv = mock_run.call_args.kwargs["args"]
+        assert not any("[]" in arg for arg in argv)
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_scalar_fields_still_use_flags_and_no_stdin(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(stdout="{}")
+
+        await gh._gh_api_raw("repos/o/r/issues/1", method="PATCH", fields={"title": "hi"})
+
+        argv = mock_run.call_args.kwargs["args"]
+        assert "-f" in argv
+        assert "title=hi" in argv
+        assert "--input" not in argv
+        assert mock_run.call_args.kwargs["input_text"] is None
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_mixed_payload_sends_every_field_in_the_body(self, mock_run: AsyncMock) -> None:
+        # With `--input`, gh moves field flags to the query string, so a
+        # mixed payload must not be split across the two mechanisms.
+        mock_run.return_value = _completed(stdout="{}")
+
+        await gh._gh_api_raw(
+            "repos/o/r/pulls/1/requested_reviewers",
+            method="POST",
+            fields={"reviewers": ["alice"], "note": "please", "count": 2},
+        )
+
+        argv = mock_run.call_args.kwargs["args"]
+        assert "-f" not in argv
+        assert "-F" not in argv
+        assert json.loads(mock_run.call_args.kwargs["input_text"]) == {
+            "reviewers": ["alice"],
+            "note": "please",
+            "count": 2,
+        }
+
+
 class TestRequestReview:
     @pytest.mark.asyncio
     @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)

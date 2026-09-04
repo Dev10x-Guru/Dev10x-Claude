@@ -173,12 +173,18 @@ class TestGhApi:
             fields={"reviewers": ["alice", "bob"]},
         )
 
+        # GH-1191: this used to assert `-f 'reviewers[]=alice'`, which
+        # only builds an array on gh versions supporting the bracket
+        # syntax for --raw-field; older gh sent a literal `reviewers[]`
+        # field and GitHub 422'd with "reviewers wasn't supplied". A JSON
+        # body on stdin is version-independent.
         cmd = mock_run.call_args.kwargs["args"]
-        assert "-f" in cmd
-        f_indices = [i for i, c in enumerate(cmd) if c == "-f"]
-        assert len(f_indices) == 2
-        assert cmd[f_indices[0] + 1] == "reviewers[]=alice"
-        assert cmd[f_indices[1] + 1] == "reviewers[]=bob"
+        assert "--input" in cmd
+        assert cmd[cmd.index("--input") + 1] == "-"
+        assert not any("[]" in arg for arg in cmd)
+        assert json.loads(mock_run.call_args.kwargs["input_text"]) == {
+            "reviewers": ["alice", "bob"]
+        }
 
 
 class TestResolveRepo:
