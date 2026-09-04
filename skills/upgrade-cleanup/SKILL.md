@@ -166,6 +166,21 @@ maintenance pass reported failures — leaving `version.yml`
 stale keeps the upgrade prompt visible until the issue is
 resolved.
 
+## Post-upgrade verification (GH-1137)
+
+**A clean maintenance log is not proof the upgrade landed.** GH-1136
+was invisible for months because `ensure-base` reported "All base
+permissions already covered by global settings" while 137 of 285
+catalog rules were absent from every project file — a truthful log
+and a wrong outcome. Verify against the files, not the log.
+
+Run the four checks in
+[`references/post-upgrade-verification.md`](references/post-upgrade-verification.md):
+catalog reach across every worktree, no git-tracked settings file
+written, the `disableAutoMode` / `disableBypassPermissionsMode`
+string values intact, and a spot-check that a sanctioned command
+does not prompt.
+
 ## Configuration
 
 See `Dev10x:plugin-maintenance` for `projects.yaml` location
