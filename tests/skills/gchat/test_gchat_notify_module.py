@@ -514,6 +514,16 @@ class TestBuildMessagePayload:
         assert isinstance(result, SuccessResult)
         assert result.value["fallbackText"] == "override"
 
+    def test_thread_adds_a_thread_name(self) -> None:
+        result = mod.build_message_payload(text="hi", thread="spaces/AAAA/threads/T1")
+        assert isinstance(result, SuccessResult)
+        assert result.value["thread"] == {"name": "spaces/AAAA/threads/T1"}
+
+    def test_omitted_thread_leaves_the_key_out(self) -> None:
+        result = mod.build_message_payload(text="hi")
+        assert isinstance(result, SuccessResult)
+        assert "thread" not in result.value
+
     def test_errors_when_neither_text_nor_cards_given(self) -> None:
         result = mod.build_message_payload()
         assert isinstance(result, ErrorResult)
@@ -567,6 +577,43 @@ class TestPostMessage:
         result = mod.post_message(space_id="AAAA123", text="hi", token="tok")
         assert isinstance(result, ErrorResult)
 
+    def test_thread_sets_reply_option_and_payload(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured: dict = {}
+
+        def fake_post_json(url, payload, token):  # noqa: ANN001, ANN202
+            captured.update(url=url, payload=payload)
+            return ok({"name": "spaces/AAAA123/messages/M1"})
+
+        monkeypatch.setattr(mod, "_post_json", fake_post_json)
+        result = mod.post_message(
+            space_id="AAAA123", text="hi", token="tok", thread="spaces/AAAA123/threads/T1"
+        )
+        assert isinstance(result, SuccessResult)
+        assert captured["url"].endswith(f"?messageReplyOption={mod.REPLY_FALLBACK_OPTION}")
+        assert captured["payload"]["thread"] == {"name": "spaces/AAAA123/threads/T1"}
+
+    def test_bare_thread_id_is_qualified_with_the_space(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        captured: dict = {}
+        monkeypatch.setattr(
+            mod,
+            "_post_json",
+            lambda url, payload, token: captured.update(payload=payload) or ok({"name": "n"}),
+        )
+        mod.post_message(space_id="AAAA123", text="hi", token="tok", thread="T1")
+        assert captured["payload"]["thread"] == {"name": "spaces/AAAA123/threads/T1"}
+
+    def test_no_thread_leaves_the_url_unqueried(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured: dict = {}
+        monkeypatch.setattr(
+            mod,
+            "_post_json",
+            lambda url, payload, token: captured.update(url=url) or ok({"name": "n"}),
+        )
+        mod.post_message(space_id="AAAA123", text="hi", token="tok")
+        assert "?" not in captured["url"]
+
     def test_propagates_post_json_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(mod, "_post_json", lambda url, payload, token: err("boom"))
         result = mod.post_message(space_id="AAAA123", text="hi", token="tok")
@@ -590,6 +637,7 @@ class TestNotifyGchat:
             text=None,  # noqa: ANN001
             cards=None,  # noqa: ANN001
             fallback_text=None,  # noqa: ANN001
+            thread=None,  # noqa: ANN001
         ):
             captured.update(
                 space_id=space_id,
@@ -597,6 +645,7 @@ class TestNotifyGchat:
                 token=token,
                 cards=cards,
                 fallback_text=fallback_text,
+                thread=thread,
             )
             return ok("spaces/AAAA123/messages/XYZ")
 
@@ -663,3 +712,279 @@ class TestNotifyGchat:
         result = mod.notify_gchat(space="tt-reviews", message="hi")
         assert isinstance(result, ErrorResult)
         assert result.error == "no token"
+
+    def test_forwards_thread_to_post_message(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured: dict = {}
+        self._wire(monkeypatch, captured)
+        result = mod.notify_gchat(
+            space="tt-reviews", message="hi", thread="spaces/AAAA123/threads/T1"
+        )
+        assert isinstance(result, SuccessResult)
+        assert captured["thread"] == "spaces/AAAA123/threads/T1"
+
+    def test_omitted_thread_stays_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured: dict = {}
+        self._wire(monkeypatch, captured)
+        mod.notify_gchat(space="tt-reviews", message="hi")
+        assert captured["thread"] is None
+
+
+class TestQualifyThreadName:
+    def test_leaves_a_full_resource_name_untouched(self) -> None:
+        assert (
+            mod.qualify_thread_name("spaces/AAAA/threads/T1", space_id="BBBB")
+            == "spaces/AAAA/threads/T1"
+        )
+
+    def test_qualifies_a_bare_id_from_a_chat_url(self) -> None:
+        assert mod.qualify_thread_name("T1", space_id="AAAA") == "spaces/AAAA/threads/T1"
+
+
+class TestRequestJson:
+    def test_parses_an_empty_delete_body_as_an_empty_dict(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            mod.urllib.request, "urlopen", lambda req, timeout=30: _FakeResponse(b"")
+        )
+        result = mod._request_json("https://example.com", token="tok", method="DELETE")
+        assert isinstance(result, SuccessResult)
+        assert result.value == {}
+
+    def test_appends_a_note_for_a_matching_status(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def fake_urlopen(req, timeout=30):  # noqa: ANN001, ANN202
+            raise urllib.error.HTTPError(
+                "https://example.com", 403, "Forbidden", hdrs=None, fp=io.BytesIO(b"denied")
+            )
+
+        monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
+        result = mod._request_json(
+            "https://example.com", token="tok", status_notes={403: "only your own messages"}
+        )
+        assert isinstance(result, ErrorResult)
+        assert "denied" in result.error
+        assert "only your own messages" in result.error
+
+    def test_leaves_an_unmatched_status_unannotated(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # A 403 quoted inside a 404's body must not attract the note — the
+        # status is read from the exception, not matched in the text.
+        def fake_urlopen(req, timeout=30):  # noqa: ANN001, ANN202
+            raise urllib.error.HTTPError(
+                "https://example.com",
+                404,
+                "Not Found",
+                hdrs=None,
+                fp=io.BytesIO(b"previously HTTP 403"),
+            )
+
+        monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
+        result = mod._request_json(
+            "https://example.com", token="tok", status_notes={403: "only your own messages"}
+        )
+        assert isinstance(result, ErrorResult)
+        assert "only your own messages" not in result.error
+
+    def test_sends_no_content_type_without_a_payload(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        captured: dict = {}
+
+        def fake_urlopen(req, timeout=30):  # noqa: ANN001, ANN202
+            captured["headers"] = req.headers
+            captured["method"] = req.get_method()
+            return _FakeResponse(b"")
+
+        monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
+        mod._request_json("https://example.com", token="tok", method="DELETE")
+        assert captured["method"] == "DELETE"
+        assert "Content-type" not in captured["headers"]
+
+
+class TestPatchMessage:
+    def test_masks_only_the_supplied_fields(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured: dict = {}
+
+        def fake_request_json(url, *, token, payload=None, method, error_label, status_notes=None):  # noqa: ANN001, ANN202
+            captured.update(url=url, payload=payload, method=method)
+            return ok({"name": "spaces/AAAA/messages/M1"})
+
+        monkeypatch.setattr(mod, "_request_json", fake_request_json)
+        result = mod.patch_message(
+            message_name="spaces/AAAA/messages/M1", token="tok", text="corrected"
+        )
+        assert isinstance(result, SuccessResult)
+        assert captured["method"] == "PATCH"
+        assert captured["url"].endswith("?updateMask=text")
+        assert captured["payload"] == {"text": "corrected"}
+
+    def test_masks_card_fields_using_the_api_field_paths(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # spaces.messages.patch accepts snake_case paths from a closed set;
+        # `cardsV2` is the JSON resource name, not a valid mask path, and
+        # `fallbackText` is not updatable at all.
+        captured: dict = {}
+        monkeypatch.setattr(
+            mod,
+            "_request_json",
+            lambda url, **kw: captured.update(url=url) or ok({"name": "n"}),
+        )
+        cards = [{"cardId": "c1", "card": {"sections": []}}]
+        mod.patch_message(
+            message_name="spaces/AAAA/messages/M1", token="tok", text="hi", cards=cards
+        )
+        assert "updateMask=text%2Ccards_v2" in captured["url"]
+        assert "cardsV2" not in captured["url"]
+        assert "fallbackText" not in captured["url"]
+
+    def test_fallback_text_still_rides_in_the_body(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured: dict = {}
+        monkeypatch.setattr(
+            mod,
+            "_request_json",
+            lambda url, **kw: captured.update(payload=kw["payload"]) or ok({"name": "n"}),
+        )
+        mod.patch_message(
+            message_name="spaces/AAAA/messages/M1",
+            token="tok",
+            text="hi",
+            cards=[{"cardId": "c1", "card": {}}],
+        )
+        assert "fallbackText" in captured["payload"]
+
+    def test_passes_the_own_message_note_for_a_403(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured: dict = {}
+        monkeypatch.setattr(
+            mod,
+            "_request_json",
+            lambda url, **kw: captured.update(notes=kw["status_notes"]) or ok({"name": "n"}),
+        )
+        mod.patch_message(message_name="spaces/AAAA/messages/M1", token="tok", text="hi")
+        assert "own messages" in captured["notes"][403]
+
+    def test_rejects_a_bare_id(self) -> None:
+        result = mod.patch_message(message_name="M1", token="tok", text="hi")
+        assert isinstance(result, ErrorResult)
+        assert "not a Google Chat message name" in result.error
+
+    def test_rejects_a_thread_name(self) -> None:
+        result = mod.patch_message(message_name="spaces/AAAA/threads/T1", token="tok", text="hi")
+        assert isinstance(result, ErrorResult)
+        assert "not a Google Chat message name" in result.error
+
+    def test_errors_when_no_body_is_supplied(self) -> None:
+        result = mod.patch_message(message_name="spaces/AAAA/messages/M1", token="tok")
+        assert isinstance(result, ErrorResult)
+        assert "needs text, cards, or both" in result.error
+
+    def test_passes_a_non_403_error_through_unchanged(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(mod, "_request_json", lambda url, **kw: err("HTTP 404: gone"))
+        result = mod.patch_message(message_name="spaces/AAAA/messages/M1", token="tok", text="hi")
+        assert isinstance(result, ErrorResult)
+        assert result.error == "HTTP 404: gone"
+
+    def test_falls_back_to_the_requested_name_when_the_response_omits_it(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(mod, "_request_json", lambda url, **kw: ok({}))
+        result = mod.patch_message(message_name="spaces/AAAA/messages/M1", token="tok", text="hi")
+        assert isinstance(result, SuccessResult)
+        assert result.value == "spaces/AAAA/messages/M1"
+
+
+class TestDeleteMessage:
+    def test_issues_a_delete_and_returns_the_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured: dict = {}
+
+        def fake_request_json(url, *, token, payload=None, method, error_label, status_notes=None):  # noqa: ANN001, ANN202
+            captured.update(url=url, method=method, payload=payload)
+            return ok({})
+
+        monkeypatch.setattr(mod, "_request_json", fake_request_json)
+        result = mod.delete_message(message_name="spaces/AAAA/messages/M1", token="tok")
+        assert isinstance(result, SuccessResult)
+        assert result.value == "spaces/AAAA/messages/M1"
+        assert captured["method"] == "DELETE"
+        assert captured["payload"] is None
+        assert captured["url"].endswith("/spaces/AAAA/messages/M1")
+
+    def test_rejects_a_malformed_name(self) -> None:
+        result = mod.delete_message(message_name="spaces/AAAA", token="tok")
+        assert isinstance(result, ErrorResult)
+        assert "not a Google Chat message name" in result.error
+
+    def test_passes_the_own_message_note_for_a_403(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured: dict = {}
+        monkeypatch.setattr(
+            mod,
+            "_request_json",
+            lambda url, **kw: captured.update(notes=kw["status_notes"]) or ok({}),
+        )
+        mod.delete_message(message_name="spaces/AAAA/messages/M1", token="tok")
+        assert "own messages" in captured["notes"][403]
+
+
+class TestUpdateAndDeleteServiceEntries:
+    def _wire_token(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mod, "_load_config", lambda: {"user_groups": {"@team": "<GROUP>"}})
+        monkeypatch.setattr(
+            mod, "get_sa_info", lambda: ok({"client_email": "x", "private_key": "k"})
+        )
+        monkeypatch.setattr(mod, "mint_access_token", lambda info: ok("tok"))
+
+    def test_update_resolves_mentions_and_forwards_the_token(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._wire_token(monkeypatch)
+        captured: dict = {}
+
+        def fake_patch(**kwargs):  # noqa: ANN003, ANN202
+            captured.update(kwargs)
+            return ok("spaces/AAAA/messages/M1")
+
+        monkeypatch.setattr(mod, "patch_message", fake_patch)
+        result = mod.update_gchat_message(
+            message_name="spaces/AAAA/messages/M1", message="@team corrected"
+        )
+        assert isinstance(result, SuccessResult)
+        assert captured["text"] == "<GROUP> corrected"
+        assert captured["token"] == "tok"
+
+    def test_update_short_circuits_on_mint_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mod, "_load_config", lambda: {})
+        monkeypatch.setattr(mod, "get_sa_info", lambda: err("no key"))
+        monkeypatch.setattr(
+            mod,
+            "patch_message",
+            lambda **kwargs: pytest.fail("patch_message must not be reached"),
+        )
+        result = mod.update_gchat_message(message_name="spaces/AAAA/messages/M1", message="hi")
+        assert isinstance(result, ErrorResult)
+        assert result.error == "no key"
+
+    def test_delete_forwards_the_token(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self._wire_token(monkeypatch)
+        captured: dict = {}
+
+        def fake_delete(**kwargs):  # noqa: ANN003, ANN202
+            captured.update(kwargs)
+            return ok(kwargs["message_name"])
+
+        monkeypatch.setattr(mod, "delete_message", fake_delete)
+        result = mod.delete_gchat_message(message_name="spaces/AAAA/messages/M1")
+        assert isinstance(result, SuccessResult)
+        assert captured["token"] == "tok"
+
+    def test_delete_short_circuits_on_mint_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mod, "_load_config", lambda: {})
+        monkeypatch.setattr(mod, "get_sa_info", lambda: err("no key"))
+        monkeypatch.setattr(
+            mod,
+            "delete_message",
+            lambda **kwargs: pytest.fail("delete_message must not be reached"),
+        )
+        result = mod.delete_gchat_message(message_name="spaces/AAAA/messages/M1")
+        assert isinstance(result, ErrorResult)
+        assert result.error == "no key"

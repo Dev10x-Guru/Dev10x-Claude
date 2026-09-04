@@ -226,8 +226,15 @@ class TestGchatSend:
             message: str | None = None,
             cards: list[dict] | None = None,
             fallback_text: str | None = None,
+            thread: str | None = None,
         ) -> Result[str]:
-            captured.update(space=space, message=message, cards=cards, fallback_text=fallback_text)
+            captured.update(
+                space=space,
+                message=message,
+                cards=cards,
+                fallback_text=fallback_text,
+                thread=thread,
+            )
             return ok("spaces/A/messages/X")
 
         from dev10x.skills.notifications import gchat_notify
@@ -456,6 +463,234 @@ class TestLoadCards:
         path = self._write(tmp_path, '"just a string"')
         with pytest.raises(click.UsageError, match="cardsV2 array or a single card"):
             _load_cards(path)
+
+
+class TestGchatSendThread:
+    def test_forwards_thread_to_notify_gchat(
+        self,
+        runner: CliRunner,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        captured: dict[str, object] = {}
+        TestGchatSend()._capture_notify(monkeypatch, captured)
+
+        result = runner.invoke(
+            cli,
+            [
+                "skill",
+                "notify",
+                "gchat-send",
+                "--space",
+                "tt-reviews",
+                "--message",
+                "hi",
+                "--thread",
+                "spaces/A/threads/T1",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert captured["thread"] == "spaces/A/threads/T1"
+
+    def test_thread_defaults_to_none(
+        self,
+        runner: CliRunner,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        captured: dict[str, object] = {}
+        TestGchatSend()._capture_notify(monkeypatch, captured)
+
+        runner.invoke(
+            cli,
+            ["skill", "notify", "gchat-send", "--space", "tt-reviews", "--message", "hi"],
+        )
+
+        assert captured["thread"] is None
+
+
+class TestGchatUpdate:
+    def _capture_update(
+        self, monkeypatch: pytest.MonkeyPatch, captured: dict[str, object]
+    ) -> None:
+        def fake_update(
+            *,
+            message_name: str,
+            message: str | None = None,
+            cards: list[dict] | None = None,
+            fallback_text: str | None = None,
+        ) -> Result[str]:
+            captured.update(
+                message_name=message_name,
+                message=message,
+                cards=cards,
+                fallback_text=fallback_text,
+            )
+            return ok(message_name)
+
+        from dev10x.skills.notifications import gchat_notify
+
+        monkeypatch.setattr(gchat_notify, "update_gchat_message", fake_update)
+
+    def test_requires_a_body(self, runner: CliRunner) -> None:
+        result = runner.invoke(
+            cli,
+            [
+                "skill",
+                "notify",
+                "gchat-update",
+                "--message-name",
+                "spaces/A/messages/X",
+            ],
+        )
+
+        assert result.exit_code != 0
+        assert "Provide --message, --message-file, or --card-file" in result.output
+
+    def test_calls_update_gchat_message(
+        self,
+        runner: CliRunner,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        captured: dict[str, object] = {}
+        self._capture_update(monkeypatch, captured)
+
+        result = runner.invoke(
+            cli,
+            [
+                "skill",
+                "notify",
+                "gchat-update",
+                "--message-name",
+                "spaces/A/messages/X",
+                "--message",
+                "corrected",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert captured["message_name"] == "spaces/A/messages/X"
+        assert captured["message"] == "corrected"
+        assert "Google Chat message updated" in result.output
+
+    def test_card_title_wraps_the_replacement_body(
+        self,
+        runner: CliRunner,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        captured: dict[str, object] = {}
+        self._capture_update(monkeypatch, captured)
+
+        result = runner.invoke(
+            cli,
+            [
+                "skill",
+                "notify",
+                "gchat-update",
+                "--message-name",
+                "spaces/A/messages/X",
+                "--message",
+                "*hi*",
+                "--card-title",
+                "Nightly",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert captured["message"] is None
+        assert captured["cards"] is not None
+
+    def test_maps_error_to_exit_1(
+        self,
+        runner: CliRunner,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from dev10x.skills.notifications import gchat_notify
+
+        monkeypatch.setattr(
+            gchat_notify,
+            "update_gchat_message",
+            lambda **kwargs: err("nope"),
+        )
+
+        result = runner.invoke(
+            cli,
+            [
+                "skill",
+                "notify",
+                "gchat-update",
+                "--message-name",
+                "spaces/A/messages/X",
+                "--message",
+                "hi",
+            ],
+        )
+
+        assert result.exit_code == 1
+        assert "nope" in result.output
+
+
+class TestGchatDelete:
+    def test_calls_delete_gchat_message(
+        self,
+        runner: CliRunner,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        captured: dict[str, object] = {}
+
+        from dev10x.skills.notifications import gchat_notify
+
+        monkeypatch.setattr(
+            gchat_notify,
+            "delete_gchat_message",
+            lambda *, message_name: captured.update(message_name=message_name) or ok(message_name),
+        )
+
+        result = runner.invoke(
+            cli,
+            [
+                "skill",
+                "notify",
+                "gchat-delete",
+                "--message-name",
+                "spaces/A/messages/X",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert captured["message_name"] == "spaces/A/messages/X"
+        assert "Google Chat message deleted" in result.output
+
+    def test_requires_message_name(self, runner: CliRunner) -> None:
+        result = runner.invoke(cli, ["skill", "notify", "gchat-delete"])
+
+        assert result.exit_code != 0
+
+    def test_maps_error_to_exit_1(
+        self,
+        runner: CliRunner,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from dev10x.skills.notifications import gchat_notify
+
+        monkeypatch.setattr(
+            gchat_notify,
+            "delete_gchat_message",
+            lambda **kwargs: err("denied"),
+        )
+
+        result = runner.invoke(
+            cli,
+            [
+                "skill",
+                "notify",
+                "gchat-delete",
+                "--message-name",
+                "spaces/A/messages/X",
+            ],
+        )
+
+        assert result.exit_code == 1
+        assert "denied" in result.output
 
 
 def test_gchat_review_prepare_invokes_cmd_prepare(monkeypatch: pytest.MonkeyPatch) -> None:
