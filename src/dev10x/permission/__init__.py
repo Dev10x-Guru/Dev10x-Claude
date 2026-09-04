@@ -12,10 +12,57 @@ result dicts (``exit_code``, ``messages``, ``errors``, stats). No
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import Any, cast
 
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.permission.service import load_permission_context
+
+
+async def catalog_gap(*, verbose: bool = False) -> Result[dict[str, Any]]:
+    """Report catalog rules missing from each settings file (GH-1175).
+
+    Read-only. The CLI form (``uvx dev10x permission catalog-gap``) was
+    the only surface, which made it the *first* diagnostic step of
+    ``Dev10x:diag-friction`` — the skill whose whole job is diagnosing
+    permission friction — a source of permission friction. On a machine
+    without a ``Bash(uvx:*)`` rule that step prompts; in an unattended
+    background agent a pending prompt is neither a block nor a denial,
+    so the coverage check silently never runs.
+
+    Returns:
+        ok({"total_missing": int, "files_checked": int, "clean": bool,
+            "messages": [str, ...]})
+    """
+    return await asyncio.to_thread(_run_catalog_gap, verbose=verbose)
+
+
+def _run_catalog_gap(*, verbose: bool) -> Result[dict[str, Any]]:
+    from dev10x.skills.permission import update_paths as mod
+
+    ctx = load_permission_context()
+    if isinstance(ctx, ErrorResult):
+        return ctx
+    settings_files = ctx.value.settings_files
+    if not settings_files:
+        return err("No settings files found.")
+
+    result = mod.catalog_gap(
+        config=ctx.value.config,
+        settings_files=settings_files,
+        quiet=False,
+        verbose=verbose,
+    )
+    # catalog_gap is typed dict[str, object]; the counts are ints by
+    # contract, so narrow explicitly rather than trusting the annotation.
+    total_missing = int(cast(int, result.get("total_added", 0)))
+    return ok(
+        {
+            "total_missing": total_missing,
+            "files_checked": int(cast(int, result.get("files_changed", 0))),
+            "clean": total_missing == 0,
+            "messages": result.get("messages", []),
+        }
+    )
 
 
 def _run_sub_command(

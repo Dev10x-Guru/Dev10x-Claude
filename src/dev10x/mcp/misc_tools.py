@@ -169,6 +169,30 @@ async def update_paths(
 
 
 @server.tool()
+async def permission_catalog_gap(
+    verbose: bool = False,
+) -> dict:
+    """Report catalog rules missing from each settings file (read-only).
+
+    The MCP surface for `dev10x permission catalog-gap`, so
+    `Dev10x:diag-friction` Step 3a can run its coverage check without
+    a `Bash(uvx:*)` allow rule (GH-1175). Answers "does this settings
+    file carry the catalog?" — a non-zero `total_missing` means a
+    propagation gap, not a missing rule.
+
+    Args:
+        verbose: List every missing rule, not just the counts by family
+
+    Returns:
+        Dictionary with keys: total_missing (int), files_checked (int),
+        clean (bool), messages (list[str])
+    """
+    from dev10x import permission as perm
+
+    return to_wire(await perm.catalog_gap(verbose=verbose))
+
+
+@server.tool()
 async def generate_skill_index(
     force: bool = False,
 ) -> dict:

@@ -79,6 +79,12 @@ rules:
           (1) prefix with gitmoji, (2) include ticket ID from branch,
           (3) keep title under 72 chars, (4) use -F with temp file
           (not -m), (5) add Fixes: footer.
+
+          For (4): get the path from mktmp(namespace="git") and Write
+          the message straight to it. Do NOT author the message
+          elsewhere and `cp` it into place — the copy is a second
+          command needing its own allow rule, and it prompted on an
+          unattended run (GH-1189). Write to the mktmp path once.
     reason: >
       Direct git commit bypasses gitmoji prefix, ticket ID
       extraction from branch name, and 72-char line limit
@@ -1202,12 +1208,23 @@ rules:
     hook_block: true
     compensations:
       - type: use-tool
-        tool: mcp__plugin_Dev10x_cli__audit_analyze_permissions
-        guardrails: structured read of permission rules, no path-scope gate
+        tool: mcp__plugin_Dev10x_cli__permission_catalog_gap
+        guardrails: read-only catalog coverage per settings file, no path-scope gate
         description: >
-          Use audit_analyze_permissions to inspect allow/deny/ask rules
-          across every settings layer. This is the default — it answers
-          rule-coverage questions directly instead of grepping JSON.
+          Use permission_catalog_gap for "does this settings file carry
+          the catalog?" — the coverage question. This is the default for
+          rule-coverage work: it answers directly instead of grepping
+          JSON, and a non-zero total_missing names a propagation gap
+          rather than a missing rule.
+      - type: use-tool
+        tool: mcp__plugin_Dev10x_cli__audit_analyze_permissions
+        guardrails: friction analysis over a session transcript
+        description: >
+          Use audit_analyze_permissions to analyse the friction a
+          recorded session actually hit. It takes a required
+          transcript_path, so it answers "what prompted, and why",
+          NOT "is this rule present" — GH-1175 found it named as the
+          default for the coverage question it cannot answer.
       - type: use-tool
         tool: Read
         guardrails: raw file contents, declared in diag-friction allowed-tools

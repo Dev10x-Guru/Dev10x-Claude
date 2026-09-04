@@ -161,6 +161,10 @@ base_permissions:
   - "mcp__plugin_Dev10x_cli__audit_analyze_actions"
   - "mcp__plugin_Dev10x_cli__audit_analyze_permissions"
   - "mcp__plugin_Dev10x_cli__usage_blocks"
+  # GH-1175: read-only catalog-coverage check behind Dev10x:diag-friction
+  # Step 3a. Catalogued in the same commit that registers the tool — the
+  # friction-diagnosis skill's own first step must not be a prompt.
+  - "mcp__plugin_Dev10x_cli__permission_catalog_gap"
   # GH-1153: read-only milestone/label roster behind Dev10x:ticket-create
   # Step 4. It was registered, declared in SKILL.md `allowed-tools`, and
   # listed in .claude/rules/mcp-tools.md — none of which grants anything.
@@ -331,6 +335,16 @@ base_permissions:
   - "Bash(uv run --extra dev pytest:*)" # cli-friction: allow raw-pytest — base allow rule for plugin-maintenance, not a skill doc
   - "Bash(uv run ruff:*)"
   - "Bash(uv run dev10x:*)"
+  # GH-1189: `uv lock`, `uv sync`, `uv build`, `uv tool`, `uv pip *` and
+  # `uv run *` were all catalogued; `uv add` was not, so a crew worker
+  # adding a dependency prompted on an unattended night run while
+  # `catalog-gap` reported 0 missing. `npm install *` is already a default
+  # at the same trust level — both mutate a manifest and a lockfile in the
+  # checkout, neither reaches outside it. `uv remove` is the symmetric
+  # form; cataloguing only the additive half is how the next unattended
+  # run finds the same wedge from the other direction.
+  - "Bash(uv add:*)"
+  - "Bash(uv remove:*)"
   # GH-1149: the SANCTIONED lint form is bare `pre-commit run` — CLAUDE.md
   # says to call it directly, never via `uv run`. Only the discouraged
   # `uv run` shape was catalogued here, so the form users are told to use
@@ -341,6 +355,28 @@ base_permissions:
   # reaches no settings file. Global settings happened to carry it, which
   # masked the gap until GH-47 (project file wins) made global irrelevant.
   - "Bash(pre-commit run:*)"
+
+  # --- Temp-file staging (GH-1189) ---
+  # `cp`/`mv` under the plugin's own scratch roots prompted on an
+  # unattended foreman run while `catalog-gap` reported 0 missing. The
+  # filed diagnosis blamed `prefix:*` matcher semantics; the verifiable
+  # cause is narrower and is GH-1149 a second time — `Bash(cp /tmp:*)`
+  # exists ONLY in src/dev10x/skills/permission/baseline-permissions.yaml
+  # (file-ops tier), which `permission resolve/audit/doctor` read and the
+  # `ensure-base` write path never does. A rule present only there reaches
+  # no settings file, and under GH-47 the project file wins, so a global
+  # copy does not rescue it.
+  #
+  # Both shapes ship because the matcher question is not settled: the
+  # prefix form is what the other tier uses, and the slash-continued glob
+  # is what every real path the plugin hands out via `mktmp` actually
+  # looks like (/tmp/Dev10x/<ns>/<name>). If the prefix form alone were
+  # sufficient the glob is inert; if it is not, the glob is the rule that
+  # works. Neither reaches outside a scratch root.
+  - "Bash(cp /tmp:*)"
+  - "Bash(cp /tmp/*)"
+  - "Bash(mv /tmp:*)"
+  - "Bash(mv /tmp/*)"
 
   # --- YAML config parsing (GH-20) ---
   # Skills like slack-review-request, verify-acc-dod, and

@@ -2,6 +2,30 @@
 
 Central reference for MCP tool naming conventions and invocation patterns.
 
+> **[OVERRIDE DETECTED]** — well over the 200-line rule budget in
+> `.claude/rules/INDEX.md`, and the largest breach in `.claude/rules/`.
+> Kept whole under § Budget Overrides for two reasons that the two
+> reviewer agent specs split in the same PR (GH-1197) do **not** share:
+>
+> 1. **Cohesion.** The file is one contract read as a unit — the naming
+>    format, the `Result`/`to_wire` declaration pattern, the canonical
+>    parameter shapes, the behavioural caveats, and the availability
+>    table all answer "how do I call this tool correctly". A caller
+>    checking a parameter shape usually needs the caveat two rows down.
+> 2. **Cost shape.** An agent spec's whole body loads into the
+>    dispatched session's system prompt on **every** dispatch, which is
+>    what makes 145 lines expensive there. This rule is path-scoped and
+>    read on demand, so length costs only the readers who need it.
+>
+> **Conditional split plan.** If it passes ~800 lines, or the parameter
+> table and the availability table start disagreeing, split along the
+> seam that already exists: `mcp-tool-authoring.md` (name format,
+> declaration pattern, server registration, the three edits a new tool
+> needs) and `mcp-tool-reference.md` (parameter shapes, behavioural
+> caveats, availability table, routed-CLI map), with this file left as
+> a thin index. Do not split by tool family — that cuts across the
+> authoring/calling distinction readers actually use.
+
 ## Name Format
 
 MCP tools follow a consistent naming convention from Python function to MCP
@@ -457,6 +481,7 @@ supporting each tool:
 | `task_index_append` | `cli` | GH-1009 | v0.94.0+ |
 | `task_index_set` | `cli` | GH-1009 | v0.94.0+ |
 | `usage_blocks` | `cli` | GH-878 | v0.90.0+ |
+| `permission_catalog_gap` | `cli` | GH-1175 | v0.97.0+ |
 | `query` | `db` | PR #126 | v0.25.0+ |
 
 When adding a new tool, update this table and note any dependencies on

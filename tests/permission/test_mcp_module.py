@@ -117,3 +117,99 @@ class TestUpdatePathsSubCommand:
             result = await perm_mod.update_paths(ensure_base=True)
         assert isinstance(result, ErrorResult)
         assert "No settings files" in result.error
+
+
+def _resolved_context(*, settings_files: list[Path]) -> object:
+    return (
+        patch(f"{MOD}.find_config", return_value=ok(Path("/fake/config.yaml"))),
+        patch(
+            f"{MOD}.load_config",
+            return_value={
+                "roots": ["/fake"],
+                "include_user_settings": True,
+                "plugin_cache": "/fake/cache",
+            },
+        ),
+        patch(f"{MOD}.find_settings_files", return_value=settings_files),
+    )
+
+
+class TestCatalogGap:
+    """GH-1175: the coverage check reachable without a Bash allow rule."""
+
+    @pytest.mark.asyncio
+    async def test_clean_when_nothing_is_missing(self) -> None:
+        find_config, load_config, find_files = _resolved_context(
+            settings_files=[Path("/fake/settings.json")]
+        )
+        with (
+            find_config,
+            load_config,
+            find_files,
+            patch(
+                f"{MOD}.catalog_gap",
+                return_value={
+                    "exit_code": 0,
+                    "messages": ["Catalog: 348 allow / 16 deny rules"],
+                    "errors": [],
+                    "total_added": 0,
+                    "files_changed": 1,
+                },
+            ),
+        ):
+            result = await perm_mod.catalog_gap()
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["clean"] is True
+        assert result.value["total_missing"] == 0
+        assert result.value["files_checked"] == 1
+        assert result.value["messages"]
+
+    @pytest.mark.asyncio
+    async def test_reports_the_gap_rather_than_erroring(self) -> None:
+        # A propagation gap is a finding, not an MCP-level failure — the
+        # caller reads total_missing and routes on it (Step 3a).
+        find_config, load_config, find_files = _resolved_context(
+            settings_files=[Path("/a.json"), Path("/b.json")]
+        )
+        with (
+            find_config,
+            load_config,
+            find_files,
+            patch(
+                f"{MOD}.catalog_gap",
+                return_value={
+                    "exit_code": 1,
+                    "messages": ["/a.json — 137 missing allow"],
+                    "errors": [],
+                    "total_added": 137,
+                    "files_changed": 2,
+                },
+            ),
+        ):
+            result = await perm_mod.catalog_gap(verbose=True)
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["clean"] is False
+        assert result.value["total_missing"] == 137
+        assert result.value["files_checked"] == 2
+
+    @pytest.mark.asyncio
+    async def test_returns_error_when_no_settings_files(self) -> None:
+        find_config, load_config, find_files = _resolved_context(settings_files=[])
+        with find_config, load_config, find_files:
+            result = await perm_mod.catalog_gap()
+
+        assert isinstance(result, ErrorResult)
+        assert "No settings files" in result.error
+
+    @pytest.mark.asyncio
+    async def test_propagates_a_context_resolution_error(self) -> None:
+        with patch(
+            "dev10x.permission.load_permission_context",
+            return_value=ErrorResult(error="No config found."),
+        ):
+            result = await perm_mod.catalog_gap()
+
+        assert isinstance(result, ErrorResult)
+        assert "No config found." in result.error
