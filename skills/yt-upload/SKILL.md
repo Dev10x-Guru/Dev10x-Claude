@@ -102,6 +102,8 @@ for.
 | `pin` | Persist account/channel defaults to `~/.config/Dev10x/yt-upload.yaml` |
 | `resolve-video` | Pick the one artifact to publish from a qa-self run dir |
 | `upload` | Upload and return the per-destination embed forms |
+| `update` | Correct the title or description of a published video |
+| `delete` | Permanently remove a published video |
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/skills/yt-upload/scripts/upload-video.py check
@@ -110,6 +112,47 @@ ${CLAUDE_PLUGIN_ROOT}/skills/yt-upload/scripts/upload-video.py \
   upload --video <RUN_DIR>/video/qa-GH-42-narrated.mp4 \
          --title "GH-42 — assigning a work order from the queue" \
          --description-file <RUN_DIR>/description.txt
+```
+
+## Correcting and removing what was published
+
+A published video is not immutable, and neither is its description
+(GH-1206). Use `update` when a caveat surfaces after upload — the GitHub
+comment can be edited, and until now the YouTube description could not,
+so anyone opening the raw link saw the uncorrected version:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/skills/yt-upload/scripts/upload-video.py \
+  update --video-id <ID> --description-file <RUN_DIR>/description.txt
+```
+
+`videos.update` REPLACES the snippet rather than merging into it, so the
+script reads the stored snippet first and merges your fields onto it. When
+that read-back fails it **refuses** rather than writing a partial snippet
+that would clear the fields it could not see.
+
+Use `delete` for a superseded take, so a stale unlisted link stops
+resolving for anyone still holding it:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/skills/yt-upload/scripts/upload-video.py \
+  delete --video-id <ID> --yes
+```
+
+**REQUIRED: Call `AskUserQuestion`** before any `delete`. Deletion is
+permanent, nothing in Dev10x can undo it, and a wrong id destroys someone
+else's evidence. The `--yes` flag is a second interlock, not a substitute
+for the gate — the script refuses without it.
+
+**Scope.** `update` and `delete` need `youtube.force-ssl`; `upload` needs
+only `youtube.upload`. The narrow upload-only grant is a genuine safety
+property, so the wider scope is demanded per-operation and `check` still
+reports on the upload scope. Re-authorize when you first need it:
+
+```bash
+gog auth add <email> --services youtube \
+  --extra-scopes https://www.googleapis.com/auth/youtube.force-ssl \
+  --force-consent --remote --step 1
 ```
 
 Every command prints JSON to stdout. On failure it prints `{"error": "..."}`
