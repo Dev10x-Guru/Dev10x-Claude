@@ -168,3 +168,66 @@ class TestPartitionWritableGitGuard:
 
         writable, _messages = mod.partition_writable([untracked], **kwargs)
         assert writable == [untracked]
+
+
+class TestEveryWriterHonoursTheGuard:
+    """GH-1155 widened: no writer in this module may skip the guard."""
+
+    @pytest.fixture
+    def tracked_only(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+        tracked = tmp_path / "settings.json"
+        tracked.write_text(json.dumps({"permissions": {"allow": ["Bash(/p/x.sh a b:*)"]}}))
+        monkeypatch.setattr(mod, "_is_git_tracked", lambda path: path.name == "settings.json")
+        return tracked
+
+    def test_ensure_workspace_does_not_write_a_tracked_file(self, tracked_only: Path) -> None:
+        before = tracked_only.read_text()
+        mod.ensure_workspace(
+            config={"workspace_directories": ["/tmp/Dev10x"]},
+            settings_files=[tracked_only],
+            dry_run=False,
+            quiet=True,
+        )
+        assert tracked_only.read_text() == before
+
+    def test_generalize_does_not_write_a_tracked_file(self, tracked_only: Path) -> None:
+        before = tracked_only.read_text()
+        mod.generalize(settings_files=[tracked_only], dry_run=False, quiet=True)
+        assert tracked_only.read_text() == before
+
+    def test_ensure_workspace_allow_tracked_writes_anyway(self, tracked_only: Path) -> None:
+        result = mod.ensure_workspace(
+            config={"workspace_directories": ["/tmp/Dev10x"]},
+            settings_files=[tracked_only],
+            dry_run=False,
+            quiet=True,
+            allow_tracked=True,
+        )
+        assert result["total_added"] == 1
+
+    def test_generalize_allow_tracked_writes_anyway(self, tracked_only: Path) -> None:
+        result = mod.generalize(
+            settings_files=[tracked_only],
+            dry_run=False,
+            quiet=True,
+            allow_tracked=True,
+        )
+        assert result["total_added"] == 1
+
+
+class TestRefusalsStayVisible:
+    """GH-1150 follow-through: a refused rule must not look like a no-op."""
+
+    def test_refusal_is_reported_when_nothing_was_generalized(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        path = tmp_path / "settings.local.json"
+        path.write_text(json.dumps({"permissions": {"allow": ["Bash(/p/x.sh a:*)"]}}))
+        monkeypatch.setattr(mod, "_is_git_tracked", lambda _path: False)
+        monkeypatch.setattr(mod, "is_well_formed_rule", lambda _entry: False)
+
+        result = mod.generalize(settings_files=[path], dry_run=False, quiet=False)
+        rendered = "\n".join(str(m) for m in result["messages"])
+        assert "REFUSED" in rendered

@@ -1303,6 +1303,7 @@ def ensure_workspace(
     settings_files: list[Path],
     dry_run: bool,
     quiet: bool = False,
+    allow_tracked: bool = False,
 ) -> dict[str, object]:
     """Add workspace directory registrations to settings files.
 
@@ -1332,10 +1333,21 @@ def ensure_workspace(
         if dry_run:
             messages.append("(dry run — no files will be modified)\n")
 
+    # GH-1155: additionalDirectories entries are additive, so redirect a
+    # tracked settings.json to its local sibling rather than skipping —
+    # skipping would leave the workspace unregistered anywhere.
+    writable_files, skip_messages = _partition_writable(
+        sorted(settings_files),
+        redirect_tracked=True,
+        allow_tracked=allow_tracked,
+    )
+    if not quiet:
+        messages.extend(skip_messages)
+
     total_added = 0
     files_changed = 0
 
-    for path in sorted(settings_files):
+    for path in writable_files:
         count, file_messages = ensure_workspace_directories(
             path,
             workspace_dirs,
@@ -1760,6 +1772,7 @@ def generalize(
     settings_files: list[Path],
     dry_run: bool,
     quiet: bool = False,
+    allow_tracked: bool = False,
 ) -> dict[str, object]:
     """Replace session-specific permission args with wildcards. Returns result dict."""
     messages: list[str] = []
@@ -1768,10 +1781,21 @@ def generalize(
     if dry_run and not quiet:
         messages.append("(dry run — no files will be modified)\n")
 
+    # GH-1155: plain skip rather than redirect. Like the update-paths CLI,
+    # this command rewrites rules that already exist in the target file,
+    # so there is nothing to hand to a sibling — the sibling gets its own
+    # pass from its own entry in settings_files.
+    writable_files, skip_messages = _partition_writable(
+        sorted(settings_files),
+        allow_tracked=allow_tracked,
+    )
+    if not quiet:
+        messages.extend(skip_messages)
+
     total_generalized = 0
     files_changed = 0
 
-    for path in sorted(settings_files):
+    for path in writable_files:
         count, file_messages = generalize_permissions(path, dry_run=dry_run)
         if count > 0:
             if not quiet:
@@ -1779,6 +1803,13 @@ def generalize(
                 messages.extend(file_messages)
             total_generalized += count
             files_changed += 1
+        elif file_messages and not quiet:
+            # A zero count with messages means every candidate rule was
+            # REFUSED as malformed (GH-1150). Dropping those messages here
+            # would restore the silence that issue exists to remove — the
+            # file looks untouched and nothing says a rule was skipped.
+            messages.append(f"\n{path}")
+            messages.extend(file_messages)
 
     if total_generalized == 0:
         messages.append("No session-specific permissions found.")
