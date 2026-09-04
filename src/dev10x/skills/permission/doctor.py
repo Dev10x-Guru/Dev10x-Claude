@@ -37,6 +37,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from dev10x import subprocess_utils
 from dev10x.domain.common.allow_rule import AllowRule
 from dev10x.domain.common.baseline_catalog import load_baseline_dict
@@ -44,6 +46,27 @@ from dev10x.domain.common.policy import Policy, PolicyAssessment, PolicyCatalog,
 from dev10x.skills.permission_investigator.policy_report import render_policy_report
 
 CATALOG_PATH = Path(__file__).resolve().parent / "baseline-permissions.yaml"
+
+# The catalog `ensure-base` actually writes from. Distinct from
+# CATALOG_PATH above, which only this module and the resolve/audit CLIs
+# read — the two have measurably diverged (GH-1151, GH-1100 class J), and
+# which one is authoritative is still an open ADR. Contamination
+# exemptions therefore consult BOTH rather than picking a winner here.
+PROJECTS_CATALOG_PATH = (
+    Path(__file__).resolve().parents[4] / "skills" / "upgrade-cleanup" / "projects.yaml"
+)
+
+# A `/home/*/`-rooted rule is a deliberate catalog twin (GH-47): a `~/`
+# rule does not match a session that spells the path `/home/<user>/`, so
+# `ensure-base` seeds both spellings. Such a rule can never start with
+# the resolved home directory, so the home-prefix exemption below misses
+# it — and a path rooted at an arbitrary user's home cannot be
+# project-scoped by construction, so it is never contamination.
+#
+# Matched against the RULE, not the extracted path: _ABSOLUTE_PATH_RE
+# excludes `*`, so `Bash(/home/*/x:*)` extracts only `/home/` and a
+# prefix test on the path would never fire.
+_HOME_GLOB_MARKERS = ("/home/*/", "/Users/*/")
 
 # GH-704: ``${CLAUDE_PLUGIN_ROOT}`` resolves with a trailing slash, so the
 # expanded command (and Claude Code's "don't ask again" remediation) bakes a
@@ -283,17 +306,57 @@ def _is_system_path(path_str: str) -> bool:
     return path_str.startswith(SYSTEM_PATH_PREFIXES)
 
 
+def catalogued_rules(
+    *,
+    baseline_path: Path = CATALOG_PATH,
+    projects_path: Path = PROJECTS_CATALOG_PATH,
+) -> set[str]:
+    """Every rule the shipped catalogs declare, across both files (GH-1151).
+
+    A missing or unparseable catalog yields the rules it could read
+    rather than raising: the caller is a diagnostic, and failing to load
+    a catalog must not turn every catalog rule into a finding.
+    """
+    rules: set[str] = set()
+    try:
+        for group in load_catalog(baseline_path).groups.values():
+            rules.update(r for r in group.get("rules", []) if isinstance(r, str))
+    except (OSError, ValueError, KeyError):
+        pass
+    try:
+        config = yaml.safe_load(projects_path.read_text()) or {}
+    except (OSError, yaml.YAMLError):
+        return rules
+    rules.update(r for r in (config.get("base_permissions") or []) if isinstance(r, str))
+    for tracker_rules in (config.get("tracker_permissions") or {}).values():
+        rules.update(r for r in (tracker_rules or []) if isinstance(r, str))
+    return rules
+
+
 def detect_cross_contamination(
     rules: Iterable[str],
     *,
     workspace: WorkspaceContext,
+    catalog_rules: set[str] | None = None,
 ) -> list[CrossContaminationFinding]:
-    """Flag rules whose absolute paths leak across projects or into the source repo."""
+    """Flag rules whose absolute paths leak across projects or into the source repo.
+
+    Rules the shipped catalog declares are never findings (GH-1151).
+    Without that exemption two commands in the same
+    ``plugin-maintenance`` pass contradicted each other: ``ensure-base``
+    wrote the catalog's ``/home/*/`` twins, then this check told the user
+    to remove them.
+    """
     findings: list[CrossContaminationFinding] = []
+    catalog = catalogued_rules() if catalog_rules is None else catalog_rules
     project_resolved = workspace.project_root.resolve()
     source_resolved = workspace.source_repo.resolve() if workspace.source_repo else None
     for rule in rules:
         if not isinstance(rule, str):
+            continue
+        if rule in catalog:
+            continue
+        if any(marker in rule for marker in _HOME_GLOB_MARKERS):
             continue
         path_str = _extract_absolute_path(rule)
         if path_str is None:

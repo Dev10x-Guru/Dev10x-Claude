@@ -251,6 +251,42 @@ class TestCrossContamination:
         ]
         assert doctor.detect_cross_contamination(rules, workspace=workspace) == []
 
+    @pytest.mark.parametrize(
+        "rule",
+        [
+            "Bash(/home/*/.claude/tools/*:*)",
+            "Bash(/Users/*/.claude/tools/*:*)",
+        ],
+    )
+    def test_skips_home_glob_twins(self, tmp_path: Path, rule: str) -> None:
+        project = tmp_path / "p"
+        project.mkdir()
+        workspace = doctor.WorkspaceContext(project_root=project)
+        assert doctor.detect_cross_contamination([rule], workspace=workspace) == []
+
+    def test_skips_rule_declared_by_the_shipped_catalog(self, tmp_path: Path) -> None:
+        project = tmp_path / "p"
+        project.mkdir()
+        workspace = doctor.WorkspaceContext(project_root=project)
+        rule = "Bash(/work/other-project/script.sh:*)"
+        findings = doctor.detect_cross_contamination(
+            [rule],
+            workspace=workspace,
+            catalog_rules={rule},
+        )
+        assert findings == []
+
+    def test_shipped_catalog_home_glob_rules_are_not_flagged(self, tmp_path: Path) -> None:
+        project = tmp_path / "p"
+        project.mkdir()
+        workspace = doctor.WorkspaceContext(project_root=project)
+        home_glob_rules = [
+            rule for rule in doctor.catalogued_rules() if rule.startswith("Bash(/home/*/")
+        ]
+        assert home_glob_rules, "the catalog is expected to ship /home/*/ twins"
+        findings = doctor.detect_cross_contamination(home_glob_rules, workspace=workspace)
+        assert findings == []
+
 
 class TestCatalogAndDeprecations:
     def test_catalog_path_is_package_data(self) -> None:
