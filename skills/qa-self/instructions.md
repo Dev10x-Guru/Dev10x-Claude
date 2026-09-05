@@ -839,10 +839,19 @@ become world-readable to any link-holder*, so `Dev10x:yt-upload` fires
 its own provenance gate. That is by design — do not try to satisfy it
 with 4.4's answer.
 
-For a full write-up to both a ticket and a PR — verdict, threaded
-Jira-synced comment, per-destination screenshots — use
+**Publishing to a PR is `Dev10x:qa-publish`, not something to assemble
+here.** For a full write-up to both a ticket and a PR — verdict,
+threaded Jira-synced comment, per-destination screenshots — use
 `Dev10x:qa-publish`, which composes this skill's scripts with
 `Dev10x:yt-upload`.
+
+It also owns two rules that are easy to miss when reaching for the PR by
+hand (GH-1213): the PR comment must **lead** with a caveat whenever the
+fixture's flags differ from production — this phase's evidence review
+checks that the artifact is well-formed, never that the configuration is
+representative — and a re-record **edits the one QA comment in place**
+rather than posting a second one, since the superseded upload cannot be
+deleted. See `qa-publish` § 6.
 
 ### Phase 5: Post Results to Linear
 
