@@ -237,10 +237,27 @@ cohesive, justified by scope):
   tearing down the external wake timer is execution-gating (Phase 1
   step 2 and Phase 3 step 1, ~14 lines inline), while the evidence for why a
   paused session cannot observe its own quota reset went to
-  `durability-envelope.md` § Rule 3b. Split plan if `instructions.md`
-  grows again: the Phase 0.1/0.2 queue-building and model-gate prose is
-  the next extractable candidate (`references/queue-and-model.md`),
-  since the crew contract table is already split out
+  `durability-envelope.md` § Rule 3b. GH-1214 **executed** that split
+  plan: the Phase 0.1 convergence-file rule is 9 lines inline and its
+  evidence is the new `references/queue-and-model.md`, and the Phase 0.4
+  crew-depth probe is 10 lines inline pointing at `mcp-connectivity.md`
+  § Absent from spawn — `instructions.md` lands at 382. The same PR is
+  the second-largest template exception after GH-1050: the **fatal-shapes
+  block** is read by the worker verbatim, before its first Bash call, and
+  a block held in a reference file is a block the worker never sees, so
+  the 34-line block is inline (`crew-prompt-template.md` → 452) with two
+  now-redundant ban sites collapsed into pointers to it, and all of the
+  evidence — the ten frozen workers' verbatim last calls, why a ban on
+  line 160 does not fire, and the two correct-but-unhelpful validate-bash
+  denials — in the new `references/fatal-shapes.md`.
+  `preflight-checklist.md` went to 213 for the same reason
+  `tool-surface.md` did: a section rewritten in place could not absorb a
+  fourth failure surface. Split plan if the template grows again: § 5
+  (verified tool shapes) and § 6 (workspace + branch) are the next
+  extractable pair — both are `{{placeholder}}`-driven and could be
+  assembled from `worker-tool-shapes.md` rather than restated, leaving
+  the template as the *order* of the brief plus the verbatim blocks that
+  must be read in it
 - `ddd` (~299 lines) — workshop orchestration hub: 4 session
   modes, 7-layer event storming flow, solo AI-cast facilitation
   (incl. the GH-789 discussion-agent model-tier gate), and

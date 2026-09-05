@@ -147,7 +147,36 @@ def _resolved_executable(command: str) -> str:
     return _executable_token(tokens=split_tokens(command=command)).split("/")[-1]
 
 
-def _is_search_command(command: str) -> bool:
+def _unquoted(command: str) -> str:
+    """Return ``command`` with the contents of quoted spans removed.
+
+    Shell metacharacters are only metacharacters outside quotes. Callers
+    that scan for a pipeline, a redirect, or a chain need to look at the
+    shell's view of the string, not at regex syntax a user typed inside
+    an argument.
+    """
+    out: list[str] = []
+    quote: str | None = None
+    escaped = False
+    for ch in command:
+        if escaped:
+            escaped = False
+            continue
+        if ch == "\\" and quote != "'":
+            escaped = True
+            continue
+        if quote:
+            if ch == quote:
+                quote = None
+            continue
+        if ch in "'\"":
+            quote = ch
+            continue
+        out.append(ch)
+    return "".join(out)
+
+
+def is_search_command(*, command: str) -> bool:
     """Return True when the resolved executable is a filesystem search tool.
 
     Used by :meth:`MatchingRule.matches_command` to suppress false positives where
@@ -156,8 +185,23 @@ def _is_search_command(command: str) -> bool:
     executed (GH-210). Commands containing ``-exec`` or shell pipelines
     keep their normal evaluation because they can run the searched-for
     binary.
+
+    The pipeline test reads the **unquoted** command (GH-1214 finding 6).
+    A `|` inside a quoted argument is regex alternation, not a pipe, so
+    `grep -E 'manage\\.py|gh pr edit|update_pr' brief.md` was read as a
+    pipeline, lost this exemption, and was denied as a `gh pr edit` call —
+    a supervisor auditing a brief for banned shapes cannot grep for the
+    shapes by name. Searching for the literal text of a hook-blocked
+    command is exactly what a search tool is for.
+
+    Public because the exemption belongs to any validator that matches a
+    command name against a raw string, not only to rule evaluation:
+    DX005 (pr-base) denied ``rg -n 'gh pr create --body-file' skills/``
+    for lacking a ``--base`` flag, the same defect in a validator that
+    never reaches :meth:`MatchingRule.matches_command`.
     """
-    if "|" in command or "-exec" in command:
+    bare = _unquoted(command)
+    if "|" in bare or "-exec" in bare:
         return False
     return _resolved_executable(command=command) in _SEARCH_TOOLS
 
@@ -326,7 +370,7 @@ class MatchingRule:
             return False
         if any(exc in command for exc in self.except_):
             return False
-        if _is_search_command(command=command):
+        if is_search_command(command=command):
             return False
         return True
 

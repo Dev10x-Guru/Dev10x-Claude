@@ -88,6 +88,21 @@ liability the moment the worker goes quiet — which is why the crew
 contract asks for a push as soon as there is anything worth keeping,
 not at the end.
 
+## Dawn cleanup: enumerate, then remove one at a time (GH-1214)
+
+Removing the night's worktrees invites a pipeline —
+`git worktree list --porcelain | awk … | xargs -r -n1 git worktree
+remove --force` — and validate-bash denies it, correctly: that is a
+loop running a git write per line, and each `--force` is unrecoverable
+for anything uncommitted in the tree it deletes.
+
+The steer is the shape, not an exception to it. Run `git worktree list
+--porcelain` once, read the paths, then issue one `git worktree remove`
+per path as its own Bash call. At the scale a run actually produces
+that is a handful of calls, and each one is individually visible in the
+transcript — which is what you want for a destructive verb you are
+issuing at the end of a long unattended night.
+
 ## Status
 
 `EnterWorktree` / `ExitWorktree` and the isolation guard are harness

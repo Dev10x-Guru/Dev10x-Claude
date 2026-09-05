@@ -30,6 +30,17 @@ class TestShouldRun:
         inp = _make_input(command="gh issue list")
         assert validator.should_run(inp=inp) is False
 
+    def test_false_for_search_naming_the_command(self, validator: PrBaseValidator) -> None:
+        # GH-1214 finding 6: grepping the docs for a shape is not running
+        # it, and demanding --base of a search blocks the audit.
+        inp = _make_input(command="rg -n 'gh pr create --body-file' skills/")
+        assert validator.should_run(inp=inp) is False
+
+    def test_true_for_pipeline_into_gh_pr_create(self, validator: PrBaseValidator) -> None:
+        # An unquoted pipe can still run the command — stay on.
+        inp = _make_input(command="grep -l foo . | xargs gh pr create --title x")
+        assert validator.should_run(inp=inp) is True
+
 
 class TestValidate:
     @pytest.fixture()

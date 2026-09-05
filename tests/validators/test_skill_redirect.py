@@ -695,6 +695,44 @@ class TestSearchToolFalsePositive:
         assert result is not None
         assert "mcp__plugin_Dev10x_cli__push_safe" in result.message
 
+
+class TestQuotedAlternationIsNotAPipeline:
+    """GH-1214 finding 6: `|` inside a quoted argument is regex, not a pipe.
+
+    The search-tool exemption above bails out on any `|`, on the
+    reasonable theory that a pipeline can run the searched-for binary. It
+    read the whole command string, so an `-E` alternation lost the
+    exemption and the pattern's own text was evaluated as a command —
+    denying a watchdog that was auditing a crew brief for exactly the
+    banned shapes it names.
+    """
+
+    def test_grep_alternation_naming_blocked_commands_allowed(
+        self, validator: SkillRedirectValidator
+    ) -> None:
+        cmd = "grep -n -i -E 'manage\\.py|check-adr|gh api|gh pr edit|update_pr' brief.md"
+        assert validator.validate(inp=_make_input(command=cmd)) is None
+
+    def test_rg_alternation_naming_blocked_commands_allowed(
+        self, validator: SkillRedirectValidator
+    ) -> None:
+        cmd = 'rg -e "gh pr create|gh pr merge" skills/'
+        assert validator.validate(inp=_make_input(command=cmd)) is None
+
+    def test_real_pipeline_into_search_tool_still_evaluated(
+        self, validator: SkillRedirectValidator
+    ) -> None:
+        # An unquoted `|` is a genuine pipeline: the exemption must stay off.
+        cmd = "grep -l foo src/ | xargs git push"
+        assert validator.validate(inp=_make_input(command=cmd)) is not None
+
+    def test_pipeline_after_quoted_alternation_still_evaluated(
+        self, validator: SkillRedirectValidator
+    ) -> None:
+        # Quoted alternation AND a real pipe — the real pipe must win.
+        cmd = "grep -E 'a|b' src/ | xargs git push"
+        assert validator.validate(inp=_make_input(command=cmd)) is not None
+
     def test_find_with_exec_still_blocks(self, validator: SkillRedirectValidator) -> None:
         cmd = "find . -name '*.sh' -exec git-push-safe.sh {} ;"
         result = validator.validate(inp=_make_input(command=cmd))

@@ -44,24 +44,49 @@ the only agent managing a queue.
 ```markdown
 # Roster — run 2026-08-01.s95kDH1ejzuW
 
-| Chunk | Issue(s) | State | PR | Worker | Last update |
-|---|---|---|---|---|---|
-| c1 | #941 | merged | #981 | — | 2026-08-01 23:04 UTC |
-| c2 | #952, #953 | delivered | #985 | crew-c2 | 2026-08-02 00:31 UTC |
-| c3 | #960 | spawned | — | crew-c3 | 2026-08-02 00:38 UTC |
-| c4 | #967 | split | — | — | 2026-08-01 22:10 UTC → #986 |
-| c5 | #970 | deferred | — | — | 2026-08-01 21:55 UTC |
-| c6 | #976 | queued | — | — | — |
+| Chunk | Issue(s) | State | PR | ADR | Worker | Last update |
+|---|---|---|---|---|---|---|
+| c1 | #941 | merged | #981 | 016 | — | 2026-08-01 23:04 UTC |
+| c2 | #952, #953 | delivered | #985 | 017 | crew-c2 | 2026-08-02 00:31 UTC |
+| c3 | #960 | spawned | — | 018 | crew-c3 | 2026-08-02 00:38 UTC |
+| c4 | #967 | split | — | — | — | 2026-08-01 22:10 UTC → #986 |
+| c5 | #970 | deferred | — | — | — | 2026-08-01 21:55 UTC |
+| c6 | #976 | queued | — | — | — | — |
 ```
 
 - **Chunk** — the id used in `manifest.md` and `status-<chunk>.md`.
 - **Issue(s)** — every tracker issue the chunk is expected to close.
 - **State** — one of the vocabulary below, nothing else.
 - **PR** — number once opened; `—` before that.
+- **ADR** — the ADR number reserved for this chunk, or `—` when the
+  chunk records none. See § ADR numbers below.
 - **Worker** — the live agent name, or `—` when no agent is running
   (queued, deferred, merged, or between a stand-down and a respawn).
 - **Last update** — `date -u`, never composed by hand, same rule as a
   heartbeat line.
+
+## ADR numbers
+
+**The foreman assigns ADR numbers; workers never discover them.** A
+worker picking "the next free number" reads `docs/adr/` on its own
+branch plus whatever is on the base — and cannot see a number a
+sibling chunk already claimed on an unmerged branch. Three collisions
+happened this way in one run (GH-1214 finding 4), including a chunk
+announcing "017 is free on main and both open branches" minutes after
+another chunk had renamed itself to 017 locally. What a worker can
+observe is a lower bound, never the next free slot.
+
+So the counter is roster state, like the chunk id:
+
+1. At dispatch, if the chunk may record an ADR, take the next number
+   above the highest in the ADR column AND the highest on the base
+   branch, write it into the chunk's row, and interpolate it into the
+   brief as `{{adr_number}}`.
+2. The number is reserved from the moment it is written down — not
+   when the file lands, and not when the PR merges. A `split` or
+   `deferred` chunk keeps its reservation until someone deliberately
+   releases it; recycling a number is how the third collision happened.
+3. A worker needing a second ADR reports and asks. Do not let it pick.
 
 ## State vocabulary
 
