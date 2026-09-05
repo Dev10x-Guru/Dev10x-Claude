@@ -5,6 +5,255 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.97.0 — One Review Question, Every Rule Tier & Loops That Get Denied
+
+Released 2026-09-05
+
+### Features
+
+- **Let one durable fact answer whether the supervisor reads the PR** —
+  `strict` / `guided` / `adaptive` survived as artefacts of the pre-ADR-0016
+  ladder rather than because anyone chose between them, and ADR-0019's
+  `human_review` boolean conflated two different readers, which is why it could
+  only ever gate `merge`. ADR-0022 collapses the shipped presets to `adaptive`
+  alone and replaces the boolean with a per-project `supervisor_review:
+  required | none`, whose effect point moves with repo shape — before `merge`
+  in a solo repo, before `request_review` in a team one. It is expressed as a
+  floor, never a toggle, so `required` stays a precondition and `none` a
+  precondition-for-autonomy rather than a grant of it; GH-1008's existing
+  `review:cleared` label is what lifts the park, so no second sign-off channel
+  was invented. A config still speaking v1 is refused naming `dev10x config
+  migrate-schema` — resolving it silently would hand auto-merge to exactly the
+  repo that had asked for less — and the migrator fails every ambiguous input
+  toward `required`. `pin_supervisor_review` persists the answer, and both
+  `Dev10x:onboarding` and `Dev10x:friction-setup` now ask the one question
+  instead of a retired three-way picker
+  ([GH-1157](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1157),
+  [GH-1159](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1159),
+  [GH-1160](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1160),
+  [GH-1161](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1161),
+  [GH-1163](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1163),
+  [GH-1164](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1164),
+  [GH-1165](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1165),
+  [GH-1166](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1166),
+  [GH-1167](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1167),
+  [GH-1162](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1162))
+- **Let the permission catalog express and deliver every rule tier** — there
+  was no `base_asks` key, so an ask-tier rule had nowhere to live even though
+  DX014 argues a sensitive-but-legitimate operation should prompt rather than
+  hard-deny; allow seeding ignored each file's own deny list and re-added a
+  contradiction on every upgrade; and the git-tracked-settings guard had
+  exactly one caller, so four sibling writers dirtied a tracked `settings.json`
+  the SKIP line implied was protected. All three tiers now reach project files,
+  the guard is derived from the source AST so an unlisted new writer fails
+  loudly instead of being skipped, and `WRITE_TOOLS_NOT_SEEDED` lives in
+  `enumerate_mcp` so the runtime report and CI cannot disagree
+  ([GH-1149](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1149),
+  [GH-1152](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1152),
+  [GH-1153](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1153),
+  [GH-1154](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1154),
+  [GH-1155](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1155))
+- **Let friction diagnosis stop being a source of friction** — the first
+  diagnostic step of the skill whose whole job is diagnosing permission
+  friction hardcoded a raw `uvx dev10x permission catalog-gap`; unattended, a
+  pending prompt is neither a block nor a denial, so the coverage check
+  silently never ran and Step 3a's three-outcome routing was unreachable. A
+  `permission_catalog_gap` MCP tool over the same domain function is
+  catalogued in the same commit that registers it, and the catalog gains
+  `uv add` / `uv remove` plus the scratch-root `cp`/`mv` forms a night crew
+  actually types
+  ([GH-1175](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1175),
+  [GH-1189](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1189),
+  [GH-1197](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1197))
+- **Let a published walkthrough be corrected, withdrawn, or caveated** —
+  `Dev10x:yt-upload` could create videos but not update or delete them, so one
+  session's four takes left three orphaned uploads still resolving for anyone
+  holding the link, and a caveat found after upload never reached the YouTube
+  description. Update merges onto the stored snippet (`videos.update` replaces
+  rather than merges), delete demands both an `AskUserQuestion` gate and
+  `--yes`, and the wider `youtube.force-ssl` scope is demanded per operation
+  so publishing keeps the narrow grant. A QA fixture's flags are incidental,
+  so the PR comment must now lead with a fixture-vs-production caveat and is
+  edited in place per PR rather than re-posted
+  ([GH-1206](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1206),
+  [GH-1213](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1213))
+- **Let a Chat notification reach the thread it answers** — `Dev10x:gchat`
+  could only post top-level messages, so a reply started its own thread and
+  landed detached from the conversation it answered, and stale review cards
+  pointing at superseded links could not be fixed. Both were listed as
+  platform limits; neither is one
+  ([GH-1203](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1203),
+  [GH-1207](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1207))
+- **Enable narration in Polish and licence-free English** — most good English
+  Piper voices are CC BY-NC-SA, so the licence gate had to be negotiated per
+  voice; Kokoro's weights are Apache-2.0 but it has no Polish at all (its
+  `pf_`/`pm_` voices read as Polish and are Brazilian Portuguese). Routing by
+  language — Kokoro for English, Piper for Polish — leaves both defaults with
+  a quiet gate, and the engine is inferred from the voice-name shape so the
+  runner contract callers depend on does not change
+  ([GH-1200](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1200))
+- **Let one place answer every gog setup question** — three of the four traps
+  that decide whether a first-time gog OAuth setup succeeds are not
+  YouTube-specific at all, so documenting them inside `Dev10x:yt-upload` put
+  shared knowledge behind a skill most callers never open. `Dev10x:gog` carries
+  the contract with a chapter router, symptom-first
+  ([GH-1156](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1156))
+
+### Fixes
+
+- **Let a Monitor poll loop be denied, not prompted** — every command submitted
+  through the `Monitor` tool bypassed the whole PreToolUse validator chain.
+  `hooks.json` had registered the matcher since GH-1138, but
+  `_validate_bash_body` exited on `tool_name != "Bash"` before a single
+  validator ran, so DX001–DX016 never saw a Monitor command and the
+  registration shipped inert — a hand-rolled `while true … sleep` loop reached
+  the supervisor as a raw permission prompt no allow rule can answer, and
+  unattended it wedged the turn. Two narrower gaps kept the loop rules blind
+  even on the Bash path (single-line patterns, and a fast-path token filter
+  that dropped the command before the rule engine saw it); loops are matched on
+  shape now, not on the command inside
+  ([GH-1211](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1211),
+  [GH-1212](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1212))
+- **Let the catalog guard see every registered tool** — the GH-1153 guard
+  passed 3/3 on `develop` while blind to roughly four fifths of the registered
+  MCP surface: discovery scanned a hard-coded five-module list against twelve
+  tool modules, so all of `gate_tools.py` — `resolve_gate` included, called by
+  every skill gate since GH-1168 — was never looked at, and it matched only
+  `@server.tool()`, missing the `@github_tool` wrapper that registers 48 of ~50
+  GitHub handlers. A tool absent from `base_permissions` can never be seeded by
+  `ensure-base`, so each one prompted once per checkout, forever, while looking
+  fully wired up everywhere a reader would think to check. Discovery now globs
+  the tool modules, 36 newly visible tools are catalogued, and a test counts
+  registration decorators in the tree so a narrowed scan fails loudly
+  ([GH-1215](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1215))
+- **Let a crew worker survive its own shell commands** — ten of ten crew
+  recoveries in a 27-hour foreman run were a permission prompt opened by a
+  shell shape, never a code problem. A prompt records neither a block nor a
+  denial, so each frozen worker cost ~15 minutes of watchdog attention plus a
+  respawned generation, and one chunk needed seven. Every shape already had a
+  ban somewhere in the brief — but a ban on line 160 does not fire when the
+  worker reaches for the command at line 12 of its own reasoning, so every
+  brief now opens with a FATAL SHAPES block. Underneath it, the Dev10x MCP
+  tools were absent for the foreman and every worker from the first dispatch
+  while the watchdog kept them, and pre-flight passed 12 of 12 because it
+  probes at depth 1; the probe now runs at crew depth
+  ([GH-1214](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1214))
+- **Let a merged bundle actually close its constituents** — `close-issues.yml`
+  passed on PR #1193 while closing none of its eight linked issues: the
+  extractor required a full GitHub URL and the body used the bare `Fixes: GH-N`
+  form this repo's own convention prescribes, so zero matches reported as
+  success. Since this repo merges to `develop`, GitHub's native auto-close never
+  fires and that job is the only mechanism there is. Bare refs are recognised,
+  zero closable references now fails, and per-issue prior state is read rather
+  than assumed
+  ([GH-1196](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1196))
+- **Let the sanctioned test wrapper run a suite that needs an extra** — two
+  independent sessions failed the skill-routing DoD check on the same day for
+  the same reason: `run_tests` hardcoded a bare `uv run pytest`, which dies at
+  collection here with `ModuleNotFoundError: No module named 'factory'`, so the
+  agent fell back to raw pytest and the fallback then persisted for every
+  iteration of the fix-test loop. The wrapper now resolves the extras group
+  that declares pytest
+  ([GH-1198](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1198))
+- **Let a CI status failure say what went wrong** — `ci_check_status` returned
+  `{"error": ""}` for every PR across two repos. `gh pr checks` signals its
+  verdict through the exit code while still writing the requested JSON, so any
+  PR whose checks were not all green aborted; the failure then reported through
+  stdout while the wrapper read only stderr. An empty error string reads as
+  success to a caller branching on truthiness
+  ([GH-1192](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1192))
+- **Let a reviewer request reach GitHub as an array** — list fields were
+  serialised as repeated `-f 'key[]=value'` flags, which older `gh` sends as a
+  literal field named `key[]`, so GitHub rejected every `request_review` with
+  `"reviewers" wasn't supplied` — naming the very field that was passed, and
+  pushing users onto the raw `gh api` POST the review gate exists to keep them
+  off ([GH-1191](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1191))
+- **Let the catalog be found from an installed wheel** — four modules located
+  the shipped catalog with a fixed `parents[4]` hop that only lands on the repo
+  root from a checkout. From site-packages the path named a file that cannot
+  exist, nothing raised, and `doctor` silently resumed flagging rules
+  `ensure-base` had just written: "could not check" read as "nothing is wrong"
+  ([GH-1190](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1190),
+  [GH-1151](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1151))
+- **Let an escaped-paren rule survive generalization** — every generalize
+  pattern ended in `[^)]+`, which stops at the first `)` including an escaped
+  one, so a rule holding a SQL predicate closed early and emitted a malformed
+  allow rule. Claude Code discards an invalid rule without comment on the next
+  read, so a working rule was destroyed while the run reported success; every
+  generated rule is now validated before writing, and each refusal named
+  ([GH-1150](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1150))
+- **Let a QA recording fill the frame it records and keep its Full HD raster**
+  — Playwright's `record_video_size` only ever scales down, so every recipe
+  pairing a 1680×1050 viewport with a 1920×1080 recording sat 1:1 in the
+  top-left with mid-grey padding on two edges, and the snippets a real script
+  copies recorded below the canonical raster with no `device_scale_factor`. A
+  padded file has real dimensions, real size and non-uniform frames, so nothing
+  caught it; `verify-evidence.py` gains a border check and Phase 4.4 reports
+  raster off the file rather than off the script meant to produce it
+  ([GH-1204](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1204),
+  [GH-1188](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1188))
+- **Let a narrated take anchor to the footage it narrates** — the recipe opened
+  the recorded context and only then pre-rendered the whole script, so
+  synthesis was recorded as a static screen and every cue shifted behind it: a
+  measured run lost ~36s of dead head frames and ran the voice-over ~16s past
+  the end. Neither failure was visible to the verifier, which samples frames
+  rather than the published container
+  ([GH-1205](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1205))
+- **Let a first-time yt-upload setup follow a path that works** — the
+  prerequisites told operators to append `youtube.upload` to their existing gog
+  service list, but Google refuses Drive and YouTube scopes in one consent, so
+  that command cannot succeed on any account holding the Drive grant — which is
+  every account the other Dev10x Google skills set up
+  ([GH-1156](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1156))
+
+### Refactoring
+
+- **Let `friction_level` mean one thing again** — the key in
+  `command-skill-map.yaml` was the ADR-0002 command-redirect axis, a different
+  dial that happened to share a name with the gate preset. Only `guided` was
+  ever shipped, and whether a rule blocks at all is already per-rule
+  `hook_block`, so the tiers were untested configuration surface
+  ([GH-1194](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1194))
+- **Let a playbook step state its behaviour once** — with one baseline, a
+  step's `friction.adaptive:` branch was the only branch that ever applied.
+  Every adaptive prompt is inlined into the step it modified, and the key is
+  gone from the schema, the resolution order and `playbook diff`
+  ([GH-1171](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1171))
+- **Let every gate decision ask the resolver** — `work-on`, `fanout`,
+  `skill-audit`, `git-groom`, `gh-pr-create`, `gh-review-setup`, `review`,
+  `git-commit` and `verify-acc-dod` each re-derived posture from a session-file
+  value in prose. They now resolve the gate they mean, so nesting cannot
+  re-impose a gate the resolver auto-advanced
+  ([GH-1168](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1168),
+  [GH-1172](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1172))
+
+### Docs & Guidance
+
+- **Let the policy docs describe the seam that exists** — the schema reference
+  still led with `friction_level` as a required enum and `human_review` as a
+  boolean, so an operator hand-authoring `friction.yaml` from that page would
+  produce a v1 file the migrator then had to convert; `walk-away.md` was half a
+  trail of what a retired key used to mean; and 24 skills carried an
+  auto-advance line naming a condition that no longer distinguishes anything
+  ([GH-1169](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1169),
+  [GH-1185](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1185),
+  [GH-1186](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1186),
+  [GH-1187](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1187),
+  [GH-1194](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1194))
+- **Let an upgrade prove the catalog reached every file** — confirming an
+  upgrade landed meant reading the maintenance log, which is exactly what let
+  GH-1136 hide for months: `ensure-base` reported "all base permissions already
+  covered" while 137 of 285 rules were absent from every project file. The log
+  was truthful and the outcome was wrong, so the new four-step checklist runs
+  against the files
+  ([GH-1137](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1137))
+- **Let a fanout worker know when holding work is wrong** — a skill-audit of a
+  3-item run found the anti-stall rule stated as an activity list, so a worker
+  holding five uncommitted files "waiting for the test suite" believed it was
+  compliant; the sibling bus is demoted to best-effort since appending is
+  hook-blocked and a whole-file Write silently clobbers the first poster
+  ([GH-1173](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1173))
+
 ## 0.96.0 — Catalog Propagation, Narrated Evidence & Outside-Session Recovery
 
 Released 2026-09-02
