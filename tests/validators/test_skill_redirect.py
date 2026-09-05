@@ -8,12 +8,15 @@ from pathlib import Path
 import pytest
 import yaml
 
+from dev10x.domain.rules.validation_rule import Compensation
 from dev10x.validators.skill_redirect import (
     _YAML_PATH,
     SkillRedirectValidator,
+    _format_alternatives_msg,
     _load_config,
 )
 from tests.fakers import BashHookInputFaker
+from tests.validators.loop_shapes import BARE_POLL_LOOP, UNTIL_POLL_LOOP
 
 
 def _make_input(*, command: str) -> BashHookInputFaker:
@@ -873,6 +876,97 @@ class TestMessageContent:
         assert result is not None
         assert "file an issue" in result.message
         assert "Dev10x-Guru/dev10x-claude" in result.message
+
+
+class TestLoopShapesReachTheEngine:
+    """A loop is matched on its shape, not the command inside it (GH-1212).
+
+    The dispatcher tests cover the same ground end-to-end, but they run
+    the hook in a subprocess — these exercise the validator in-process so
+    the branches are actually measured.
+    """
+
+    def test_should_run_on_a_loop_naming_no_cli_verb(
+        self, validator: SkillRedirectValidator
+    ) -> None:
+        """`sleep` is the token that gets the loop past the fast path."""
+        assert validator.should_run(inp=_make_input(command=BARE_POLL_LOOP)) is True
+
+    def test_should_run_on_a_watch_invocation(self, validator: SkillRedirectValidator) -> None:
+        assert validator.should_run(inp=_make_input(command="watch -n 5 date")) is True
+
+    def test_multiline_loop_is_blocked(self, validator: SkillRedirectValidator) -> None:
+        assert validator.validate(inp=_make_input(command=BARE_POLL_LOOP)) is not None
+
+    def test_until_loop_is_blocked(self, validator: SkillRedirectValidator) -> None:
+        assert validator.validate(inp=_make_input(command=UNTIL_POLL_LOOP)) is not None
+
+    def test_plain_sleep_without_a_loop_is_not_blocked(
+        self, validator: SkillRedirectValidator
+    ) -> None:
+        """The fast-path token widening must not block a bare sleep."""
+        assert validator.validate(inp=_make_input(command="sleep 5")) is None
+
+
+@pytest.fixture()
+def loop_block_message(validator: SkillRedirectValidator) -> str:
+    result = validator.validate(inp=_make_input(command=BARE_POLL_LOOP))
+    assert result is not None
+    return result.message
+
+
+class TestAlternativesMessage:
+    """`use-alternative` rules render their steer (GH-1212).
+
+    These compensations have no `skill`/`tool`, so the skill branch
+    emitted a bare `Skill()` — a deny naming no remedy at all.
+    """
+
+    def test_message_never_renders_an_empty_skill_call(self, loop_block_message: str) -> None:
+        assert "Skill()" not in loop_block_message
+
+    def test_message_lists_the_non_prompting_alternatives_first(
+        self, loop_block_message: str
+    ) -> None:
+        assert loop_block_message.index("run_in_background") < loop_block_message.index(
+            "dev10x foreman watch"
+        )
+
+    def test_message_names_a_tool_carrying_alternative(self, loop_block_message: str) -> None:
+        assert "mcp__plugin_Dev10x_cli__ci_check_status" in loop_block_message
+
+    def test_shape_matching_rule_is_labelled_by_name(self, loop_block_message: str) -> None:
+        assert "watch-loop-handrolled" in loop_block_message
+
+    def test_shape_matching_rule_label_is_not_a_raw_regex(self, loop_block_message: str) -> None:
+        assert r"\bsleep\b" not in loop_block_message
+
+    def test_command_prefix_rule_keeps_its_readable_label(
+        self, validator: SkillRedirectValidator
+    ) -> None:
+        """Only shape matchers fall back to the rule name."""
+        result = validator.validate(inp=_make_input(command="git push origin main"))
+        assert result is not None
+        assert "`git push`" in result.message
+
+    def test_a_skill_carrying_alternative_renders_its_skill_call(self) -> None:
+        """No shipped rule mixes a skill into an alternatives list yet.
+
+        The branch exists so one can, without regressing to the empty
+        `Skill()` this replaced.
+        """
+        message = _format_alternatives_msg(
+            label="some-rule",
+            comps=[
+                Compensation(type="use-alternative", description="Do the cheap thing."),
+                Compensation(
+                    type="use-skill", skill="Dev10x:gh-pr-monitor", description="Or this."
+                ),
+            ],
+            plugin_repo="",
+        )
+        assert "Invoke `Skill(Dev10x:gh-pr-monitor)`." in message
+        assert "Do the cheap thing." in message
 
 
 class TestBlockMessageFallback:

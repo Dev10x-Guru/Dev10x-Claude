@@ -13,6 +13,8 @@ from typing import Any
 import pytest
 import yaml
 
+from tests.validators.loop_shapes import BARE_POLL_LOOP
+
 _YAML_PATH = (
     Path(__file__).resolve().parent.parent.parent
     / "src"
@@ -275,10 +277,35 @@ class TestGh879WatchLoopEntry:
         cmd = "until grep -q Ready dev.log; do sleep 1; done"
         assert _matches_any_pattern(rule=rule, command=cmd)
 
-    def test_ci_shaped_loop_left_to_ci_rule(self) -> None:
+    def test_ci_shaped_loop_left_to_ci_rule_by_ordering(self) -> None:
+        """Ordering routes it, not an `except` carve-out (GH-1212).
+
+        The rule used to exempt `gh pr checks` / `gh pr view` so those
+        shapes landed on ci-loop-handrolled's richer compensation.
+        First-match-wins already does that, so the carve-out only ever
+        fired when ci-loop-handrolled had NOT matched — letting a loop
+        escape both rules by merely naming `gh pr view`.
+        """
+        names = _all_rule_ids()
+        assert names.index("ci-loop-handrolled") < names.index("watch-loop-handrolled")
+
+    def test_ci_shaped_loop_is_still_matched_by_this_rules_patterns(self) -> None:
+        """No longer exempt — the shape matches; ordering picks the rule."""
         rule = _rule_by_name("watch-loop-handrolled")
         cmd = "while true; do gh pr checks 42; sleep 30; done"
-        assert any(exc in cmd for exc in rule.get("except", []))
+        assert _matches_any_pattern(rule=rule, command=cmd)
+
+    def test_no_except_carve_out_remains(self) -> None:
+        assert _rule_by_name("watch-loop-handrolled").get("except", []) == []
+
+    def test_multiline_loop_matches(self) -> None:
+        """Patterns compile without DOTALL, so `(?s)` carries the newline.
+
+        Every real poll loop is multiline; the single-line shapes this
+        replaced could not see a `sleep` below `do` at all (GH-1212).
+        """
+        rule = _rule_by_name("watch-loop-handrolled")
+        assert _matches_any_pattern(rule=rule, command=BARE_POLL_LOOP)
 
     def test_is_blocking_since_gh_1138(self) -> None:
         # Was advisory. An advisory setting on a shape that can never be
