@@ -15,7 +15,55 @@ not run (GH-922).
 Fetch via `mcp__plugin_Dev10x_cli__background_preamble` and prepend
 unmodified. Never hand-write a summary of it.
 
-## 2. Tool-surface bootstrap (immediately after the preamble)
+## 2. Fatal shapes + tool-surface bootstrap (immediately after the preamble)
+
+The fatal-shapes block goes FIRST, before the bootstrap, and is the
+first thing the foreman writes into any brief. It is not a style note:
+ten of ten crew recoveries in the GH-1214 night run were a permission
+prompt opened by a shell shape, never a code problem — and every one
+of those shapes had a ban somewhere in the brief already. A ban the
+worker reads on line 160 does not fire when it reaches for the command
+on line 12. Evidence, and the rule for what belongs in the block:
+[`fatal-shapes.md`](fatal-shapes.md).
+
+```
+FATAL SHAPES — read before your first Bash call.
+
+These do not fail. They open a permission prompt nobody will answer
+overnight: you freeze mid-turn, and a PENDING prompt is recorded
+nowhere, so no one knows why. If your next command matches a line
+here, use the paired shape — or report and STOP.
+
+  ✗ ./manage.py, ./bin/*.py, node_modules/.bin/*, bare vite/tsc
+    → uv run --directory <wt> …, or run_node_tests(script=…).
+      Never a script's own shebang.
+  ✗ gh api -X PATCH/POST, gh pr edit/ready/create/merge, gh issue edit
+    → update_pr / pr_ready / create_pr / issue_edit. A subagent that
+      shells out to `gh` for a write always prompts.
+  ✗ cd X && cmd · ENV=v cmd · cmd | tail · cmd > file · --prefix
+    → one command per Bash call. No chain, env prefix, pipe, or
+      redirect. Files go through the Write tool.
+  ✗ cp · mv — anywhere, including inside your own worktree
+    → Read then Write. Porting means re-expressing a design, not
+      copying bytes.
+  ✗ bash /tmp/Dev10x/bin/mktmp.sh (the documented .sh fallback)
+    → mktmp(namespace="git", prefix="commit-msg", ext=".txt"), and
+      Write the message straight to the path it returns.
+  ✗ git rebase -i · git commit without -F · anything opening an editor
+    → non-interactive only. An interactive rebase freezes you with
+      every conflict resolved and staged — it looks like progress.
+  ✗ git --git-dir=… --work-tree=…
+    → the Mode P / Mode C spelling from the workspace section.
+  ✗ find
+    → the Glob tool. Escaped parens in a (group) path match no allow
+      rule and wedge you silently.
+
+Note what half of these are: the fallback our own docs name. A
+fallback fires when your wrappers are gone — which is exactly when it
+prompts. Losing a tool means REPORT, never improvise a shape.
+```
+
+## 2b. Tool-surface bootstrap (immediately after the fatal-shapes block)
 
 ```
 Skill() invocations are NOT available to you — every convention you
@@ -62,6 +110,13 @@ green, review addressed, PR OPEN AND READY (verified NOT draft). You
 do NOT merge and you do NOT close issues — the orchestrator owns
 merge and closure. The supervisor is away: decide, act, log
 decisions; never wait on a human, never fire AskUserQuestion.
+
+If this chunk records an ADR, it is ADR-{{adr_number}}. That number
+is ASSIGNED, not discovered: do NOT scan docs/adr/ or the base branch
+to pick the next free one. Sibling chunks hold numbers that exist only
+on their own unmerged branches, so anything you can see is a lower
+bound, not the next free slot. Need a second ADR: report it and ask
+the foreman for another number.
 ```
 
 ## 4. Anti-stall contract
@@ -122,7 +177,8 @@ Name the EXACT invocations proven unpromptable for this repo, e.g.:
 - Lint: {{lint_shape}}. A bare `pre-commit` lints the DISPATCHER's
   tree, not yours; if Phase 0.4 proved no worktree-pinned shape, this
   reads "CI only" and you do not improvise one.
-- Never: `| tail`, `--prefix`, `&&`, redirects, inline interpreters.
+- Shape bans (chaining, pipes, redirects, `find`, direct scripts,
+  raw `gh` writes, `cp`): see the FATAL SHAPES block above.
 ```
 
 The `find`, `pre-commit`, and web-build lines are worker deaths, not
@@ -160,11 +216,9 @@ BOTH MODES:
     path, keeping the rest of the command exactly as written.
   - files → absolute paths under {{worktree_path}} for every
             Read / Write / Edit / Grep call
-  - NEVER `git --git-dir=... --work-tree=...`. It matches no allow
-    rule, and the prompt it raises is one nobody can answer overnight —
-    you wedge silently, with no denial recorded anywhere.
-  - NEVER chain (`;`, `&&`, pipes) — `cd X; cmd` is hook-blocked and
-    its prompt is equally unanswerable. One command per Bash call.
+  - `git --git-dir=…`, chaining, and the rest are in the FATAL SHAPES
+    block above — the `cd X` in the self-test is the ONE exception,
+    and only as its own standalone Bash call.
 
 FIRST ACTION after the self-test: confirm the branch with
 `git rev-parse --abbrev-ref HEAD` (Mode P) or
@@ -267,8 +321,11 @@ this recipe to other repos or other `.claude/` paths.
 
 ```
 - Read every issue body (issue_get) and the source memo/spec BEFORE coding.
-- One atomic commit per issue: write the message with the Write tool,
-  then `git -C {{worktree_path}} commit -F <msgfile>`. Title
+- One atomic commit per issue: get the message path from
+  mktmp(namespace="git", prefix="commit-msg", ext=".txt"), Write the
+  message to THAT path, then `git -C {{worktree_path}} commit -F
+  <that path>`. A message written anywhere else and then copied in is
+  the `cp` prompt from the fatal-shapes block. Title
   `<gitmoji> <TICKET> <outcome>`, 72 chars/line, no Claude co-author
   footer. Scan changed files for
   `# TODO` — they are instructions. NEVER leave `fixup!` commits.

@@ -61,6 +61,19 @@ the probe comes back empty, narrow the worker contract in the
 manifest rather than letting workers improvise raw CLI
 (`tool-surface.md`).
 
+**Spawn the probe at crew depth — through the foreman, not from here
+(GH-1214 finding 2).** A probe this session spawns is depth 1; a crew
+worker is spawned by the foreman overseer, at depth 2. Those are not
+the same surface, and one run passed this checklist 12 of 12 while the
+foreman and every worker had no `mcp__plugin_Dev10x_cli__*` at all.
+
+So spawn the overseer FIRST, have it spawn the probe, and have the
+result travel back up — then repeat the two read-only calls from the
+overseer itself, since an overseer that cannot reach `issue_get` cannot
+relay whatever its workers can do. Record both surfaces in the manifest
+separately. An empty result at either depth selects the narrow contract:
+[`mcp-connectivity.md`](mcp-connectivity.md) § Absent from spawn.
+
 **In the same probe, run the crew template's CWD mode self-test and
 the git shape that mode implies** (GH-1030, GH-1050):
 

@@ -39,13 +39,52 @@ call we make. GH-1088 removed an unconditional 60s `initial_wait` paid
 even when CI had already finished. That narrows the window; it does
 not close it.
 
-## Three failure surfaces, not one
+## Four failure surfaces, not one
 
 | Surface | Who is stranded | Documented containment |
 |---|---|---|
+| Surface absent from the first spawn | foreman + every worker | detect at Phase 0.4 with a depth-2 probe; run the narrow contract — see below |
 | Worker loses loaded tools after ~60–90min | crew worker | re-run the exact `ToolSearch` select-query ONCE, then report-and-stop |
 | Top-level session loses the whole surface | watchdog / foreman | **no self-recovery path** — see below |
 | A write drops mid-call and reports nothing | any role | assume it did not land; re-read before depending on it |
+
+### Absent from spawn (GH-1214 finding 2)
+
+The three surfaces below are all *degradation over time* — a role that
+had the tools and lost them. The fourth is different in kind: the
+foreman subagent and every crew worker never had them at all, for a
+whole 27-hour run, while the watchdog session kept all of them
+throughout. Worker heartbeat, verbatim: "Dev10x CLI MCP server failed
+to connect this session — using documented fallbacks (gh api,
+scratchpad env file, uv run pytest, Dev10x:git skill for push)".
+Foreman heartbeat: "MCP is still disconnected on my end, retrying
+periodically", all night.
+
+Two things make this the most expensive surface of the four:
+
+1. **The retry mitigation does not apply.** Re-running the select-query
+   assumes the tools were once reachable. Here there is nothing to
+   re-reach, so a worker following the contract correctly still ends up
+   with an empty surface and reaches for a fallback.
+2. **Every documented fallback is a prompting shape.** `gh api`, raw
+   `pytest`, `mktmp.sh` — the shapes the briefs name for exactly this
+   case are the ones the hook layer gates. So the absent surface did not
+   merely remove convenience; it manufactured ten worker recoveries
+   (GH-1214 finding 1), which is what the run actually paid.
+
+**Detection is a Phase 0.4 obligation, and it must be at crew depth.**
+The pre-flight probe subagent is spawned by the top-level session
+(depth 1); a worker is spawned by the foreman subagent (depth 2). This
+run's pre-flight passed 12 of 12 because it measured the watchdog's
+surface. Spawn the overseer first and have *it* spawn the probe.
+
+**Containment is the narrow contract**, declared in the manifest before
+dispatch rather than improvised per worker: workers implement, commit,
+push, and write the PR body to a file in the run directory; the
+watchdog opens the PR with `create_pr`, polls CI, and owns the merge
+gate; web-lane workers read CI with `gh run view --log-failed` instead
+of running tests locally. That is what held once the gap was found by
+hand — the cost of finding it at Phase 0.4 is one extra spawn.
 
 ### Worker surface loss (GH-1063)
 

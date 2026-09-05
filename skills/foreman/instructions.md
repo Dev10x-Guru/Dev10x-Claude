@@ -35,6 +35,16 @@ or coherent bundle per chunk, **sequential by default** (reach for
 dependency, pushing risky/decision-hungry chunks to the queue END.
 Classify each chunk: `mechanical` / `standard` / `domain-heavy`.
 
+**Convergence files force serialization (GH-1214 finding 5).** Disjoint
+*feature* scope is not disjoint *file* scope: settings, url tables, the
+DI container and a generated schema are edited by nearly every change,
+and four "disjoint" parallel workers sharing them cost one conflict
+rebase per merge across the whole tail. Name the repo's convergence
+files at Phase 0.4 and record them in the manifest; any two chunks
+sharing one go sequential and adjacent, second rebased onto the first.
+Chunks sharing none may run in parallel. Evidence and the effect on the
+0.2 estimate: [`references/queue-and-model.md`](references/queue-and-model.md).
+
 ### 0.2 Queue & model gate (REQUIRED AskUserQuestion)
 
 Present the chunk plan with a per-chunk model recommendation derived
@@ -89,6 +99,18 @@ the last moment anyone can fix that (GH-1051).
 Any prompt fired during pre-flight = fix it NOW, or that shape is
 BANNED for the night. Full checklist:
 [`references/preflight-checklist.md`](references/preflight-checklist.md).
+
+**Probe at crew depth, not watchdog depth (GH-1214 finding 2).** The
+probe subagent is spawned by the top-level session (depth 1); a crew
+worker is spawned by the foreman subagent (depth 2). A run where
+`mcp__plugin_Dev10x_cli__*` was absent for the foreman AND every worker
+for 27 hours passed this pre-flight 12 of 12 — the probe measured the
+watchdog's surface. So spawn the overseer FIRST and have *it* spawn the
+probe. An empty result at either depth selects the **narrow contract**
+(workers commit/push and write a PR-body file; the watchdog opens the
+PR and owns CI and merge), declared in the manifest before dispatch:
+[`references/mcp-connectivity.md`](references/mcp-connectivity.md)
+§ Absent from spawn.
 
 ### 0.5 Write the run manifest
 
