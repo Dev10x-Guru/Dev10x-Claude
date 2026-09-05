@@ -17,6 +17,7 @@ allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/yt-upload/scripts/upload-video.py:*)
   - AskUserQuestion
   - mcp__plugin_Dev10x_cli__pr_issue_comment
+  - mcp__plugin_Dev10x_cli__issue_comment_edit
   - mcp__plugin_Dev10x_cli__pr_get
   - mcp__linear-server__list_comments
   - mcp__linear-server__save_comment
@@ -143,11 +144,41 @@ a QA verdict on the wrong PR is worse than a missing one.
 
 The PR comment is not a second copy of the ticket write-up. It carries:
 
+- **a fixture-vs-production caveat, when one applies — above the video**;
 - the verdict, in one line;
 - anything the PR flagged as unknown that this run answered;
 - the video, as the linked poster frame;
 - at most the two or three screenshots that carry the argument;
 - a link to the ticket comment for everything else.
+
+**REQUIRED when the fixture's flags, labels, or settings differ from
+production: lead with the caveat.** A fixture is picked for convenience
+and its flags are incidental, so a walkthrough can show UI no production
+user will ever see — and no existing gate catches it: every one asks
+whether the artifact is well-formed, never whether the configuration is
+representative. Enumerate the flags in force on the fixture and compare
+them to production before publishing.
+
+Use a GitHub `> [!IMPORTANT]` alert callout, above the video — a
+trailing note is what gets skimmed past. Name all three of: **what**
+differs, **why** (the specific flag), and **what in the video is still
+trustworthy**. A caveat that only casts doubt makes the artifact
+unusable.
+
+**One QA comment per PR.** A re-record produces a new YouTube id, and
+`Dev10x:yt-upload` cannot delete the superseded upload (#1206). On a
+re-record, edit the existing comment in place via
+`mcp__plugin_Dev10x_cli__issue_comment_edit` with the new
+`github_markdown` — never post a second comment, or the PR ends up
+carrying poster frames that point at dead videos.
+
+`Dev10x:yt-upload` returns `thumbnail_may_404: true`: YouTube needs a
+minute or two to generate `maxresdefault.jpg`, so a comment posted
+immediately shows a broken image. It resolves itself — do not "fix" a
+correct embed.
+
+Callout template, the dealer-label join the flag check needs, and the
+reasoning: [`references/pr-comment.md`](references/pr-comment.md).
 
 ### 7. Do not change the ticket status
 
@@ -162,6 +193,10 @@ not the publisher's.
   both Linear and GitHub. Using one is how a poster ends up broken or a URL
   ends up unclickable.
 - **Re-implementing conversion.** `convert-evidence.sh` owns it.
+- **A caveat as a trailing note.** Below the video it reads as a footnote
+  and gets skimmed; the reader has already drawn the wrong conclusion.
+- **A second QA comment for a re-record.** The old comment's poster frame
+  keeps pointing at a video that cannot be taken down. Edit in place.
 - **Writing to a Linear comment after handing it to a human to embed.** A
   later API write silently overwrites their edit.
 - **A verdict derived from the exit code.** Read the per-case results.
