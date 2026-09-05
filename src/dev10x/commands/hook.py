@@ -11,6 +11,13 @@ import click
 
 _DEBUG = os.environ.get("HOOK_DEBUG", "") != ""
 
+# Tools whose `tool_input.command` is a shell command and so belongs on the
+# validator chain. `Monitor` is here because its command is a Bash command in
+# every respect a validator cares about — omitting it let a hand-rolled poll
+# loop routed through Monitor bypass DX001-DX016 entirely, which is what made
+# the GH-1138 `Monitor` matcher in hooks.json inert (GH-1211, GH-1212).
+_COMMAND_TOOLS = frozenset({"Bash", "Monitor"})
+
 
 @click.group()
 def hook() -> None:
@@ -19,7 +26,7 @@ def hook() -> None:
 
 @hook.command(name="validate-bash")
 def validate_bash() -> None:
-    """Validate Bash commands via the unified validator registry.
+    """Validate Bash and Monitor commands via the unified validator registry.
 
     Reads JSON from stdin, dispatches to registered validators.
     Exit codes: 0=allow, 2=block.
@@ -36,7 +43,7 @@ def _validate_bash_body() -> None:
     from dev10x.validators import get_chain
 
     inp = read_hook_input()
-    if inp.tool_name != "Bash":
+    if inp.tool_name not in _COMMAND_TOOLS:
         sys.exit(0)
     if not inp.command:
         sys.exit(0)

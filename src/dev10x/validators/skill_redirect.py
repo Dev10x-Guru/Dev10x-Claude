@@ -27,7 +27,7 @@ from dev10x.domain.common.bash_tokens import split_tokens
 from dev10x.domain.common.branch_name import PROTECTED_BRANCHES
 from dev10x.domain.documents.config_document import Config
 from dev10x.domain.profile_tier import ProfileTier
-from dev10x.domain.rules.validation_rule import Compensation
+from dev10x.domain.rules.validation_rule import Compensation, MatchingRule
 from dev10x.validators.base import ValidatorBase
 
 if TYPE_CHECKING:
@@ -339,6 +339,11 @@ def _get_config_and_engine() -> tuple[Config, RuleEngine]:
 # `npm --prefix <dir> test` shape. "psql" does the same for psql-write
 # (GH-1034) — of that rule's verbs only CREATE happened to contain an
 # existing token, so DROP/DELETE/UPDATE/… never reached the engine.
+# "sleep" and "watch -n" do the same for the loop rules (GH-1212): every
+# ci-loop / watch-loop pattern keys on the loop, not on the command inside
+# it, so a poll loop naming none of the tokens above — `while true; do curl
+# …; sleep 30; done` — never reached the engine and fell through to DX010's
+# generic aggregation message instead of the gh-pr-monitor steer.
 # The fast-path filter is intentionally broad — evaluate_command() still
 # applies the precise per-rule regex.
 _QUICK_TOKENS = frozenset(
@@ -354,6 +359,8 @@ _QUICK_TOKENS = frozenset(
         "api",
         "npm",
         "psql",
+        "sleep",
+        "watch -n",
     ]
 )
 
@@ -368,6 +375,70 @@ _COMMIT_HEAL_MSG = (
 )
 
 _WRONG_TEMP_PATH_RE = re.compile(r"-F\s+/tmp/Dev10x/(?!git/)\S+/\S+\.\S+")
+
+# A pattern carrying any of these is a shape matcher, not a command-name
+# prefix, so it is unfit to name in a block message (GH-1212).
+_REGEX_METACHARS_RE = re.compile(r"[(?*+\[\]{}|^$]|\\[bswdBSWD]")
+
+
+def _rule_label(*, rule: MatchingRule) -> str:
+    """A label a reader can act on.
+
+    The first pattern doubles as the label, which reads fine for a
+    command-name prefix (``git commit``) but not for a shape-matching
+    regex — a block naming ``(?s)\\bwhile\\b.*?\\bdo\\b.*?\\bsleep\\b``
+    tells the agent nothing about what to do (GH-1212). Fall back to the
+    rule name whenever the pattern carries regex metacharacters.
+
+    Reads the raw YAML pattern rather than the compiled one:
+    :func:`_anchor_subcommand` appends a lookahead to nearly every
+    pattern, so the compiled form would read as a shape matcher even for
+    a plain ``gh pr view``.
+    """
+    pattern = rule.patterns[0] if rule.patterns else ""
+    if not pattern or _REGEX_METACHARS_RE.search(pattern):
+        return rule.name
+    return pattern
+
+
+def _format_alternatives_msg(
+    *,
+    label: str,
+    comps: list[Compensation],
+    plugin_repo: str,
+) -> str:
+    """Render a rule whose compensations are alternatives, not one target.
+
+    ``watch-loop-handrolled`` orders its compensations so the
+    non-prompting shapes come first, and that ordering IS the steer — so
+    every alternative is rendered, not just ``compensations[0]``.
+    Before GH-1212 this fell through to the skill branch below and
+    emitted a bare ``Skill()`` with an empty name: a deny carrying no
+    actionable remedy, which is worse than the generic block it
+    replaced.
+    """
+    file_issue_hint = (
+        f"\n\nIf you are inside a skill that instructed this command, "
+        f"file an issue at {plugin_repo} — the skill needs updating."
+        if plugin_repo
+        else ""
+    )
+    options: list[str] = []
+    for comp in comps:
+        if comp.type == "use-tool" and comp.tool:
+            head = f"Use the MCP tool `{comp.tool}`."
+        elif comp.type == "use-skill" and comp.skill:
+            head = f"Invoke `Skill({comp.skill})`."
+        else:
+            head = ""
+        body = " ".join((comp.description or "").split())
+        options.append(f"  - {head} {body}".rstrip() if head else f"  - {body}")
+    return (
+        f"⛔  `{label}` blocked — this shape has no allow rule that can\n"
+        f"answer it. Use one of these instead, in order:\n\n"
+        + "\n".join(options)
+        + f"{file_issue_hint}{OVERRIDE_HINT}"
+    )
 
 
 def _format_skill_msg(
@@ -456,7 +527,15 @@ class SkillRedirectValidator(ValidatorBase):
             return None
         if comp.skill == "Dev10x:git-commit" and _WRONG_TEMP_PATH_RE.search(inp.command):
             return HookResult(message=_COMMIT_HEAL_MSG)
-        label = rule.compiled_patterns[0].pattern
+        label = _rule_label(rule=rule)
+        if comp.type == "use-alternative":
+            return HookResult(
+                message=_format_alternatives_msg(
+                    label=label,
+                    comps=rule.compensations,
+                    plugin_repo=config.plugin_repo,
+                )
+            )
         msg = _format_skill_msg(
             label=label,
             comp=comp,

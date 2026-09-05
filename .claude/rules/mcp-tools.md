@@ -329,9 +329,26 @@ Behavioral caveats:
   validated — then stalled on a prompt. Pass
   `wait_for=["claude-review", "hygiene-review"]` instead. The poll
   budget still bounds the wait, and `conflicting` still returns
-  immediately. `Monitor` is now on the same PreToolUse validator chain
+  immediately. `Monitor` is on the same PreToolUse validator chain
   as `Bash`, and both `ci-loop-handrolled` and `watch-loop-handrolled`
   are `hook_block: true`.
+
+  **Regression window — GH-1138 through v0.96.0 (GH-1211, GH-1212).**
+  For that span the sentence above was aspirational. `hooks.json`
+  registered the `Monitor` matcher, but `_validate_bash_body` exited on
+  `tool_name != "Bash"` before a single validator ran, so the
+  registration was inert: DX001–DX016 never saw a Monitor command, and a
+  hand-rolled poll loop routed through `Monitor` reached the supervisor
+  as a raw permission prompt that no allow rule can answer. Two narrower
+  gaps closed alongside it — the loop patterns were single-line, so a
+  `sleep` several lines below `do` could not match (patterns compile
+  without `DOTALL`), and `skill_redirect.should_run`'s fast-path token
+  filter dropped any command naming none of `commit`/`push`/`checks`/…
+  before the rule engine saw it. A loop is matched on its shape now, not
+  on the command inside it. Which steer a *PR-shaped* loop receives is a
+  separate, still-open question: `gh pr view` is matched by an earlier
+  rule, so such a loop gets the one-shot `pr_get` steer rather than
+  `Dev10x:gh-pr-monitor` (tracked on #1100 E21).
 - `ci_check_status(wait=true)` probes once before sleeping and returns
   straight away when the verdict is already terminal (GH-1088). A call
   that lands after CI finished costs one API round trip instead of the
