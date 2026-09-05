@@ -39,16 +39,36 @@ from dev10x.domain.plugin_root import resolve_plugin_root
 
 # MCP server registration file convention.
 # For the cli server, all handlers live in per-domain modules (GH-243/A6).
-# Each entry maps a plugin server key to one or more relative file paths.
-_SERVER_FILES: dict[str, list[str]] = {
-    "Dev10x_cli": [
-        "src/dev10x/mcp/github_tools.py",
-        "src/dev10x/mcp/git_tools.py",
-        "src/dev10x/mcp/plan_tools.py",
-        "src/dev10x/mcp/audit_tools.py",
-        "src/dev10x/mcp/misc_tools.py",
-    ],
-    "Dev10x_db": ["src/dev10x/mcp/server_db.py"],
+# Each entry maps a plugin server key to a directory + filename glob, so a
+# newly added `*_tools.py` module is discovered without a second edit here.
+#
+# A hard-coded five-module list is what made the GH-1153 guard pass green
+# while blind to roughly four fifths of the registered surface (GH-1215):
+# `src/dev10x/mcp/` grew to twelve tool modules, and `gate_tools.py`
+# (`resolve_gate` — called by every skill gate), `task_index_tools.py`,
+# `monitor_tools.py`, `roots_tools.py`, `usage_tools.py`,
+# `sampling_tools.py` and `release_tools.py` were simply never scanned.
+#
+# Why a glob and not the live FastMCP registry. GH-1215 preferred
+# importing `server_cli` and reading the registered tools, on the grounds
+# that a new wrapper then cannot re-open the gap. That was rejected for a
+# concrete reason: discovery takes a `root` (see `--plugin-root`), and
+# `upgrade-cleanup` uses it to scan a checkout that is NOT the importable
+# copy — often on a machine with no `mcp` package installed at all. A live
+# import can only ever describe the process doing the importing, so it
+# would answer a different question than the one the guard asks.
+#
+# What that costs, stated plainly: a registration decorator shaped like
+# neither `@x.tool(...)` nor `@..._tool` escapes both
+# `_is_server_tool_decorator` and the canary in
+# `tests/skills/permission/test_catalog_covers_mcp_tools.py`, which mirrors
+# the same two shapes — the exact blind spot `@github_tool` occupied. The
+# canary closes the *module-list* half of the gap and not this half. So the
+# `_tool` suffix is a convention with teeth: a new wrapper MUST keep it, or
+# extend both matchers in the same commit.
+_SERVER_GLOBS: dict[str, tuple[str, str]] = {
+    "Dev10x_cli": ("src/dev10x/mcp", "*_tools.py"),
+    "Dev10x_db": ("src/dev10x/mcp", "server_db.py"),
 }
 
 
@@ -112,11 +132,12 @@ def plugin_root() -> Path:
 
 
 def _parse_tool_names(server_file: Path) -> list[str]:
-    """Extract @server.tool() function names from a server registration file.
+    """Extract registered tool function names from a server module.
 
     Uses ast so it works even when the file imports modules we don't have
     at cleanup time (e.g., the mcp library on a machine without mcp
-    installed).
+    installed), and so an arbitrary ``--plugin-root`` checkout can be
+    scanned rather than only the importable installed copy.
     """
     if not server_file.is_file():
         return []
@@ -138,11 +159,31 @@ def _parse_tool_names(server_file: Path) -> list[str]:
 
 
 def _is_server_tool_decorator(node: ast.expr) -> bool:
-    """Detect `@server.tool()` decorators without importing mcp."""
+    """Detect a tool registration decorator without importing mcp.
+
+    Two shapes register a tool in this codebase:
+
+    - ``@server.tool()`` — the direct FastMCP decorator.
+    - ``@github_tool`` — a module-level wrapper that binds cwd and calls
+      ``to_wire()`` before handing the function to ``server.tool()``
+      (`mcp/github_tools.py`). 48 of ~50 GitHub handlers use it.
+
+    Matching only the first shape hid every wrapped handler — ``pr_get``,
+    ``pr_labels``, ``merge_pr``, ``update_pr``, every ``milestone_*`` and
+    ``issues_bulk_*``, ``triage_roster`` — from the GH-1153 catalog guard
+    (GH-1215). A wrapper is recognised by a ``_tool`` name suffix, which is
+    the convention every such wrapper follows.
+
+    ``@server.resource(...)`` and ``@server.prompt(...)`` are deliberately
+    NOT matched: they register resources and prompts, which carry no
+    permission rule of their own.
+    """
     if isinstance(node, ast.Call):
         node = node.func
     if isinstance(node, ast.Attribute):
         return node.attr == "tool" and isinstance(node.value, ast.Name)
+    if isinstance(node, ast.Name):
+        return node.id.endswith("_tool")
     return False
 
 
@@ -161,10 +202,10 @@ def discover_mcp_tools(*, root: Path | None = None) -> dict[str, list[str]]:
     """
     root = root or resolve_plugin_root() or plugin_root()
     catalog: dict[str, list[str]] = {}
-    for server, rel_paths in _SERVER_FILES.items():
+    for server, (rel_dir, pattern) in _SERVER_GLOBS.items():
         names: list[str] = []
-        for rel_path in rel_paths:
-            names.extend(_parse_tool_names(root / rel_path))
+        for module in sorted((root / rel_dir).glob(pattern)):
+            names.extend(_parse_tool_names(module))
         if not names:
             continue
         server_key = server.split("_", 1)[1] if "_" in server else server
@@ -451,9 +492,31 @@ def build_catalog(*, plugin_root_override: Path | None = None) -> Result[dict[st
 #: surface because they mutate state — the prompt is the last line of
 #: defence before a write. Lives here rather than in the test so the
 #: runtime report and the CI guard cannot drift apart (GH-1153).
+#:
+#: Not every write belongs here. A write whose raw-CLI equivalent the
+#: skill-redirect hook BLOCKS (``gh pr edit`` → ``update_pr``, and the
+#: rest of the routed-CLI map in ``.claude/rules/mcp-tools.md``) is
+#: catalogued in ``base_permissions`` instead: refusing to seed the only
+#: remaining route just makes the sanctioned path prompt while the
+#: unsanctioned one is denied. What stays here are the writes a caller
+#: can reasonably be stopped on — the ones that change durable user
+#: policy, spend money, or land a merge (GH-1215).
 WRITE_TOOLS_NOT_SEEDED: frozenset[str] = frozenset(
     {
+        # Writes the applied-version state that upgrade-cleanup reads back.
         "mcp__plugin_Dev10x_cli__record_upgrade",
+        # Lands a merge — the least reversible action in the pipeline.
+        "mcp__plugin_Dev10x_cli__merge_pr",
+        # Rewrite durable project policy in ~/.config/Dev10x/friction.yaml;
+        # changing a repo's gate posture is a supervisor decision.
+        "mcp__plugin_Dev10x_cli__pin_gate_preset",
+        "mcp__plugin_Dev10x_cli__pin_tracker",
+        "mcp__plugin_Dev10x_cli__pin_supervisor_review",
+        # Spends the client's tokens on an LLM completion.
+        "mcp__plugin_Dev10x_cli__request_sampling",
+        # Appends to the review-rule feedback store that
+        # rule_confidence_report ranks from.
+        "mcp__plugin_Dev10x_cli__record_rule_feedback",
     }
 )
 
