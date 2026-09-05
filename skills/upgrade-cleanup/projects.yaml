@@ -183,6 +183,67 @@ base_permissions:
   - "mcp__plugin_Dev10x_cli__resolve_plugin_origin"
   - "mcp__plugin_Dev10x_cli__slack_thread_is_forward"
 
+  # GH-1215: the guard added by GH-1153 scanned 5 of 12 mcp modules and
+  # could not see the @github_tool decorator, so it passed green while
+  # blind to roughly four fifths of the registered surface. Widening
+  # discovery surfaced 36 more registered tools. The reads are below;
+  # the writes split between the workflow-write block that follows and
+  # enumerate_mcp.WRITE_TOOLS_NOT_SEEDED.
+  #
+  # resolve_gate is the headline: every skill gate has called it since
+  # GH-1168, and it appears accepted-via-option-2 in three separate
+  # repos' settings.local.json — once per checkout, forever.
+  - "mcp__plugin_Dev10x_cli__resolve_gate"
+  - "mcp__plugin_Dev10x_cli__preset_pin_status"
+  - "mcp__plugin_Dev10x_cli__supervisor_review_status"
+  - "mcp__plugin_Dev10x_cli__human_review_status"
+  - "mcp__plugin_Dev10x_cli__tracker_status"
+  - "mcp__plugin_Dev10x_cli__task_index_get"
+  - "mcp__plugin_Dev10x_cli__list_client_roots"
+  - "mcp__plugin_Dev10x_cli__pr_get"
+  # pr_labels defaults to action="list"; its add/remove writes are the
+  # sanctioned path for the review:cleared signal (GH-1008) and are
+  # idempotent, so skills call them unconditionally rather than probing.
+  - "mcp__plugin_Dev10x_cli__pr_labels"
+  # Review-pattern analysis (GH-346..GH-350). All four report only —
+  # author_reference_rules is a dry run that returns rendered docs for
+  # human review and writes no file.
+  - "mcp__plugin_Dev10x_cli__cluster_review_comments"
+  - "mcp__plugin_Dev10x_cli__candidate_rules_report"
+  - "mcp__plugin_Dev10x_cli__validate_candidate_patterns"
+  - "mcp__plugin_Dev10x_cli__author_reference_rules"
+  - "mcp__plugin_Dev10x_cli__rule_confidence_report"
+
+  # --- Plugin-mandated workflow writes (GH-1215) ---
+  # These write, and are catalogued anyway for the same reason
+  # create_pr / issue_create / push_safe already are: every one of them
+  # appears in the routed-CLI map in .claude/rules/mcp-tools.md, so the
+  # skill-redirect hook blocks its raw equivalent and the wrapper is the
+  # only route left. Leaving them uncatalogued makes the sanctioned path
+  # prompt while the unsanctioned one is denied — a dead end, not a
+  # safety margin.
+  - "mcp__plugin_Dev10x_cli__update_pr"
+  - "mcp__plugin_Dev10x_cli__pr_ready"
+  - "mcp__plugin_Dev10x_cli__pr_close"
+  - "mcp__plugin_Dev10x_cli__pr_issue_comment"
+  - "mcp__plugin_Dev10x_cli__pr_review_edit"
+  - "mcp__plugin_Dev10x_cli__resolve_review_thread"
+  - "mcp__plugin_Dev10x_cli__minimize_comments"
+  - "mcp__plugin_Dev10x_cli__milestone_create"
+  - "mcp__plugin_Dev10x_cli__milestone_close"
+  - "mcp__plugin_Dev10x_cli__milestone_edit"
+  - "mcp__plugin_Dev10x_cli__milestone_reopen"
+  - "mcp__plugin_Dev10x_cli__milestones_bulk_create"
+  - "mcp__plugin_Dev10x_cli__issues_bulk_create"
+  - "mcp__plugin_Dev10x_cli__issues_bulk_edit"
+  # The park family's only sanctioned write path (GH-1009, ADR-0018 D5).
+  # Reaching the store with Write/Edit trips the self-settings consent
+  # gate AND bypasses the file lock, so two parallel worktrees parking at
+  # once lose an entry — the prompt here has no safe alternative to steer
+  # toward.
+  - "mcp__plugin_Dev10x_cli__task_index_append"
+  - "mcp__plugin_Dev10x_cli__task_index_set"
+
   # --- Dev10x MCP tools: db server (GH-878) ---
   - "mcp__plugin_Dev10x_db__query"
 

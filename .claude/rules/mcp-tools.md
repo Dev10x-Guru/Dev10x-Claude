@@ -528,11 +528,35 @@ So a new tool needs **three** edits, not two:
 2. a row in the table above,
 3. an entry in `base_permissions` — or, for a tool that mutates state,
    an entry in `dev10x.skills.permission.enumerate_mcp.WRITE_TOOLS_NOT_SEEDED`
-   so it keeps prompting on purpose. `record_upgrade` is the one such
-   tool today.
+   so it keeps prompting on purpose.
 
 `permission enumerate-mcp` reports un-catalogued tools at runtime from
 that same exclusion set, so the CLI and the test cannot disagree.
+
+**Not every write is excluded (GH-1215).** A write whose raw-CLI
+equivalent the skill-redirect hook *blocks* — everything in the routed
+map below (`gh pr edit` → `update_pr`, `gh pr ready` → `pr_ready`, the
+`milestone_*` family, and the `task_index_*` trio, which is the park
+family's only sanctioned write path) — belongs in `base_permissions`
+alongside the already-catalogued `create_pr` / `issue_create` /
+`push_safe`. Declining to seed the only remaining route does not add a
+safety margin; it makes the sanctioned path prompt while the
+unsanctioned one is denied, leaving the caller nowhere to go.
+`WRITE_TOOLS_NOT_SEEDED` is for writes a caller can reasonably be
+stopped on: `merge_pr`, the three `pin_*` policy writers,
+`request_sampling`, `record_rule_feedback`, `record_upgrade`.
+
+**The guard only sees what discovery sees (GH-1215).** `discover_mcp_tools()`
+scanned a hard-coded five-module list against twelve tool modules and
+matched only `@server.tool()`, so `@github_tool`-wrapped handlers —
+48 of ~50 GitHub tools — were invisible along with all of
+`gate_tools.py`. The guard passed 3/3 on develop while blind to roughly
+four fifths of the surface, `resolve_gate` included. Discovery now globs
+`src/dev10x/mcp/*_tools.py` and accepts any decorator named `*_tool`,
+and `test_discovery_sees_every_registration` counts registration
+decorators in the tree and fails when discovery finds fewer — so
+narrowing the scan fails loudly instead of shrinking the guard's field
+of view. A new registration wrapper must keep the `_tool` suffix.
 
 ## Skill Usage
 
