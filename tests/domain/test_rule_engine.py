@@ -8,7 +8,7 @@ import yaml
 from dev10x.domain.common.config_io import ConfigIOError
 from dev10x.domain.documents.config_document import Config
 from dev10x.domain.rules.rule_engine import RuleEngine
-from dev10x.domain.rules.validation_rule import Compensation, Rule
+from dev10x.domain.rules.validation_rule import Compensation, Rule, is_search_command
 
 
 class TestRuleFromYamlEntry:
@@ -448,3 +448,48 @@ class TestMatchPosition:
         )
 
         assert engine.evaluate_command(command='grep -rl "git push" src/') is None
+
+
+class TestIsSearchCommandQuoting:
+    """GH-1214 finding 6: the pipeline test reads the unquoted command.
+
+    A `|` only pipes when the shell sees it as an operator. Reading the
+    raw string made `grep -E 'a|b'` look like a pipeline, which dropped
+    the search-tool exemption and got the pattern's own text evaluated
+    as a command.
+    """
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "grep -E 'gh pr edit|update_pr' brief.md",
+            'rg -e "gh pr create|gh pr merge" skills/',
+            # Escaped pipe outside quotes is a literal, not an operator.
+            "grep -E gh\\ pr\\ edit\\|update_pr brief.md",
+            # Backslash inside double quotes still escapes.
+            'grep -E "a\\|b" src/',
+        ],
+    )
+    def test_quoted_or_escaped_pipe_keeps_exemption(self, command: str) -> None:
+        assert is_search_command(command=command) is True
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # A real operator: the pipeline can run the searched-for binary.
+            "grep -l foo src/ | xargs git push",
+            "grep -E 'a|b' src/ | xargs git push",
+            # -exec has always disabled the exemption.
+            "find . -name '*.sh' -exec git push {} ;",
+        ],
+    )
+    def test_real_pipeline_or_exec_drops_exemption(self, command: str) -> None:
+        assert is_search_command(command=command) is False
+
+    def test_backslash_is_literal_inside_single_quotes(self) -> None:
+        # POSIX: no escapes inside '...', so the closing quote is the
+        # first one — and the trailing | is then a real operator.
+        assert is_search_command(command="grep -E 'a\\' src | xargs git push") is False
+
+    def test_non_search_executable_is_never_exempt(self) -> None:
+        assert is_search_command(command="git push origin main") is False

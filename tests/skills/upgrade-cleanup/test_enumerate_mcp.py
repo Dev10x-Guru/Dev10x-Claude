@@ -69,6 +69,61 @@ class TestDiscoverMcpTools:
         assert result == {}
 
 
+class TestDecoratorShapes:
+    """GH-1215: discovery must see wrappers, and only wrappers.
+
+    Matching `@server.tool()` alone hid the 48 handlers registered
+    through `@github_tool`. Widening it must not sweep in
+    `@server.resource` / `@server.prompt`, which register no tool and
+    carry no permission rule.
+    """
+
+    @pytest.fixture
+    def fake_root(self, tmp_path: Path) -> Path:
+        src = tmp_path / "src" / "dev10x" / "mcp"
+        src.mkdir(parents=True)
+        (src / "github_tools.py").write_text(
+            "def github_tool(fn): return server.tool()(fn)\n"
+            "\n"
+            "@github_tool\n"
+            "async def wrapped() -> dict: pass\n"
+            "\n"
+            "@server.tool()\n"
+            "async def direct() -> dict: pass\n"
+            "\n"
+            "@server.resource('x://y')\n"
+            "async def a_resource() -> str: pass\n"
+            "\n"
+            "@server.prompt()\n"
+            "async def a_prompt() -> str: pass\n"
+            "\n"
+            "@some.registry['key']\n"
+            "async def exotic() -> dict: pass\n"
+        )
+        return tmp_path
+
+    def test_wrapper_decorated_handler_discovered(self, fake_root: Path) -> None:
+        tools = enumerate_mcp.discover_mcp_tools(root=fake_root)["Dev10x_cli"]
+        assert "mcp__plugin_Dev10x_cli__wrapped" in tools
+
+    def test_direct_decorated_handler_discovered(self, fake_root: Path) -> None:
+        tools = enumerate_mcp.discover_mcp_tools(root=fake_root)["Dev10x_cli"]
+        assert "mcp__plugin_Dev10x_cli__direct" in tools
+
+    @pytest.mark.parametrize("name", ["a_resource", "a_prompt", "exotic", "github_tool"])
+    def test_non_tool_registrations_are_not_discovered(self, fake_root: Path, name: str) -> None:
+        tools = enumerate_mcp.discover_mcp_tools(root=fake_root)["Dev10x_cli"]
+        assert f"mcp__plugin_Dev10x_cli__{name}" not in tools
+
+    def test_new_tool_module_needs_no_second_edit(self, fake_root: Path) -> None:
+        # The point of globbing: a module nobody listed is still scanned.
+        (fake_root / "src" / "dev10x" / "mcp" / "gate_tools.py").write_text(
+            "@server.tool()\nasync def resolve_gate() -> dict: pass\n"
+        )
+        tools = enumerate_mcp.discover_mcp_tools(root=fake_root)["Dev10x_cli"]
+        assert "mcp__plugin_Dev10x_cli__resolve_gate" in tools
+
+
 class TestExpandRules:
     """Replaces MCP wildcards with enumerated tools, deduplicates."""
 
