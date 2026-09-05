@@ -46,13 +46,12 @@ class PrBaseValidator(ValidatorBase):
         # for the command, not running it — demanding a --base flag of
         # `rg -n 'gh pr create --body-file' skills/` blocks the audit
         # rather than the mistake (GH-1214 finding 6).
-        #
-        # That shape was observed, not hypothesised: it is the second of
-        # two live denials behind finding 6. DX005 needs this call of its
-        # own because it matches the raw command string here, never
-        # reaching `MatchingRule.matches_command` where the same
-        # exemption already lived — which is why `is_search_command` was
-        # promoted out of the rule engine rather than fixed in place.
+        # That shape was observed, not hypothesised — the second of two
+        # live denials behind finding 6. DX005 needs its own call because
+        # it matches the raw string here and never reaches
+        # `MatchingRule.matches_command`, where the exemption already
+        # lived; hence `is_search_command` is public rather than fixed
+        # in place.
         if is_search_command(command=inp.command):
             return False
         return GH_PR_CREATE_RE.search(inp.command) is not None

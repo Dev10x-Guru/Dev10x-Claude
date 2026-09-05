@@ -49,23 +49,17 @@ from dev10x.domain.plugin_root import resolve_plugin_root
 # `monitor_tools.py`, `roots_tools.py`, `usage_tools.py`,
 # `sampling_tools.py` and `release_tools.py` were simply never scanned.
 #
-# Why a glob and not the live FastMCP registry. GH-1215 preferred
-# importing `server_cli` and reading the registered tools, on the grounds
-# that a new wrapper then cannot re-open the gap. That was rejected for a
-# concrete reason: discovery takes a `root` (see `--plugin-root`), and
-# `upgrade-cleanup` uses it to scan a checkout that is NOT the importable
-# copy — often on a machine with no `mcp` package installed at all. A live
-# import can only ever describe the process doing the importing, so it
-# would answer a different question than the one the guard asks.
+# Not the live FastMCP registry, which GH-1215 preferred: discovery takes
+# a `root` (`--plugin-root`), and `upgrade-cleanup` points it at a
+# checkout that is not the importable copy, often where `mcp` is not
+# installed. An import describes the importing process, not that root.
 #
-# What that costs, stated plainly: a registration decorator shaped like
-# neither `@x.tool(...)` nor `@..._tool` escapes both
-# `_is_server_tool_decorator` and the canary in
-# `tests/skills/permission/test_catalog_covers_mcp_tools.py`, which mirrors
-# the same two shapes — the exact blind spot `@github_tool` occupied. The
-# canary closes the *module-list* half of the gap and not this half. So the
-# `_tool` suffix is a convention with teeth: a new wrapper MUST keep it, or
-# extend both matchers in the same commit.
+# The cost of staying textual: a decorator shaped like neither
+# `@x.tool(...)` nor `@..._tool` escapes `_is_server_tool_decorator` AND
+# the canary in `test_catalog_covers_mcp_tools.py`, which mirrors the same
+# two shapes — the blind spot `@github_tool` occupied. So `_tool` is a
+# convention with teeth: a new wrapper keeps the suffix, or widens both
+# matchers in the same commit.
 _SERVER_GLOBS: dict[str, tuple[str, str]] = {
     "Dev10x_cli": ("src/dev10x/mcp", "*_tools.py"),
     "Dev10x_db": ("src/dev10x/mcp", "server_db.py"),
