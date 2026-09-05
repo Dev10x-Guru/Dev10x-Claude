@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from tests.validators.loop_shapes import BARE_POLL_LOOP, PR_WATCH_LOOP, UNTIL_POLL_LOOP
+
 DISPATCHER = (
     Path(__file__).resolve().parent.parent.parent
     / "hooks"
@@ -92,26 +94,6 @@ class TestDispatcherBlocking:
         assert result.returncode == 0
 
 
-MONITOR_PR_WATCH_LOOP = """
-prev=""
-while true; do
-  s=$(gh pr view 1234 --repo owner/repo --json state,mergedAt,reviewDecision \
-2>/dev/null) || { sleep 300; continue; }
-  cur=$(jq -r ".state" <<<"$s" 2>/dev/null) || cur=""
-  if [ -n "$cur" ] && [ "$cur" != "$prev" ] && [ -n "$prev" ]; then echo "$cur"; fi
-  [ -n "$cur" ] && prev="$cur"
-  if jq -e '.state=="MERGED"' <<<"$s" >/dev/null 2>&1; then break; fi
-  sleep 300
-done
-"""
-
-BARE_WATCH_LOOP = """\
-while true; do
-  curl -sf https://example.test/ready && break
-  sleep 30
-done"""
-
-
 class TestMonitorToolReachesTheChain:
     """A Monitor command is a Bash command (GH-1211, GH-1212).
 
@@ -123,7 +105,7 @@ class TestMonitorToolReachesTheChain:
     """
 
     def test_blocks_the_field_reported_pr_watch_loop(self) -> None:
-        result = _run_hook(tool_name="Monitor", command=MONITOR_PR_WATCH_LOOP)
+        result = _run_hook(tool_name="Monitor", command=PR_WATCH_LOOP)
         assert result.returncode == 2
 
     def test_blocks_a_bare_while_sleep_loop_naming_no_pr_command(self) -> None:
@@ -135,31 +117,28 @@ class TestMonitorToolReachesTheChain:
         command naming none of `commit`/`push`/`checks`/… before the
         engine ran.
         """
-        result = _run_hook(tool_name="Monitor", command=BARE_WATCH_LOOP)
+        result = _run_hook(tool_name="Monitor", command=BARE_POLL_LOOP)
         assert result.returncode == 2
 
     def test_bare_watch_loop_names_the_rule_not_a_raw_regex(self) -> None:
-        result = _run_hook(tool_name="Monitor", command=BARE_WATCH_LOOP)
+        result = _run_hook(tool_name="Monitor", command=BARE_POLL_LOOP)
         assert "watch-loop-handrolled" in result.stderr
         assert r"\bsleep\b" not in result.stderr
 
     def test_bare_watch_loop_renders_every_alternative(self) -> None:
         """`use-alternative` rules used to emit a bare `Skill()` (GH-1212)."""
-        result = _run_hook(tool_name="Monitor", command=BARE_WATCH_LOOP)
+        result = _run_hook(tool_name="Monitor", command=BARE_POLL_LOOP)
         assert "Skill()" not in result.stderr
         assert "run_in_background" in result.stderr
         assert "dev10x foreman watch" in result.stderr
 
     def test_blocks_a_multiline_until_sleep_loop(self) -> None:
-        result = _run_hook(
-            tool_name="Monitor",
-            command="until [ -f /tmp/ready ]; do\n  echo waiting\n  sleep 10\ndone",
-        )
+        result = _run_hook(tool_name="Monitor", command=UNTIL_POLL_LOOP)
         assert result.returncode == 2
 
     def test_blocks_the_same_loop_submitted_as_bash(self) -> None:
         """Routing through Monitor must not be the cheaper path."""
-        result = _run_hook(tool_name="Bash", command=MONITOR_PR_WATCH_LOOP)
+        result = _run_hook(tool_name="Bash", command=PR_WATCH_LOOP)
         assert result.returncode == 2
 
     def test_allows_a_benign_monitor_command(self) -> None:
