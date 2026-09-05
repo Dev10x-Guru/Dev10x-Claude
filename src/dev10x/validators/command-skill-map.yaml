@@ -954,11 +954,25 @@ rules:
       - type: use-skill
         skill: Dev10x:gh-pr-monitor
         guardrails: failure detection, fixup commits, re-monitor after push
+        description: >
+          Watching review comments, approval, or merge state rather
+          than CI is STILL this skill — ci_check_status's CI focus is
+          not a licence to hand-roll a watch for the non-CI signals.
+          No MCP wrapper waits on review or merge state (`pr_get` is
+          one-shot), so "my condition isn't CI" resolves to
+          gh-pr-monitor, never to a loop (GH-1212).
     reason: >
       A hand-rolled while/sleep loop around `gh pr checks` reinvents
       ci_check_status(wait=true) and the gh-pr-monitor skill. The loop
       exits on the first tick, skips bot-review checks, and does no
       fixup/re-monitor — route to the wrapper/skill instead (GH-488 #22).
+
+      The scope trap (GH-1212): "ci_check_status waits on CI, I want a
+      standing watch on review activity — different thing, so the
+      wrapper does not apply" is the rationalisation that defeated four
+      prior correct uses of the wrapper in one session. A different
+      signal changes which compensation applies, never whether a loop
+      is allowed.
 
       Blocking, not advising (GH-1138): the shape is structurally
       un-allow-listable, so an advisory entry only speaks after the
@@ -973,13 +987,13 @@ rules:
   - name: watch-loop-handrolled
     matcher: Bash
     patterns:
-      - "while true.*sleep"
-      - "while \\[.*\\]; do.*sleep"
+      # (?s) so a `sleep` several lines below `do` still matches — patterns
+      # compile without DOTALL, and every real poll loop is multiline, so the
+      # single-line shapes these replaced could not see one (GH-1212).
+      - "(?s)\\bwhile\\b.*?\\bdo\\b.*?\\bsleep\\b"
+      - "(?s)\\buntil\\b.*?\\bdo\\b.*?\\bsleep\\b"
+      - "(?s)\\bfor\\b.*?\\bdo\\b.*?\\bsleep\\b"
       - "watch -n"
-      - "until .*; do sleep"
-    except:
-      - "gh pr checks"
-      - "gh pr view"
     hook_block: true
     compensations:
       - type: use-alternative
@@ -1036,7 +1050,19 @@ rules:
       that can never be approved deterministically is the worst of both
       — it neither prevents the prompt nor answers it. The Monitor tool
       is now on the same PreToolUse validator chain as Bash, so a loop
-      routed through Monitor to dodge the Bash hook is seen too.
+      routed through Monitor to dodge the Bash hook is seen too —
+      genuinely so only since GH-1211; from GH-1138 until then the
+      matcher was registered but the entry point discarded every
+      non-Bash payload before any validator ran.
+
+      No `except` carve-out (GH-1212): this rule used to exempt
+      `gh pr checks` / `gh pr view` so those shapes would land on
+      ci-loop-handrolled's richer compensation. First-match-wins
+      already does that — ci-loop-handrolled is listed above — so the
+      carve-out only ever fired when ci-loop-handrolled had NOT
+      matched, i.e. it let a loop escape both rules purely by
+      mentioning `gh pr view`. The defect is the loop, not the command
+      inside it.
     related:
       - Dev10x:foreman
       - Dev10x:gh-pr-monitor
