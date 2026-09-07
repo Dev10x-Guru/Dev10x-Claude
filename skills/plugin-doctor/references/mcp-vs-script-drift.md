@@ -45,6 +45,16 @@ The strategy detects each channel and proposes a targeted fix.
    `~/.claude/plugins/cache/Dev10x-Guru/Dev10x/**/SKILL.md`.
    Flag files showing the script form before the MCP form, or
    showing both without indicating the MCP form as canonical.
+   The comparison reads the document body only: YAML frontmatter is
+   stripped first, so a script path appearing solely in
+   `allowed-tools:` is not drift — that list is an unordered
+   declaration whose order carries no guidance, and both entries are
+   required because the script is the sanctioned shell-context
+   fallback (GH-1223).
+   Findings are keyed by plugin identity plus the in-plugin path with
+   the version segment dropped, so the several versions the cache
+   holds of one skill collapse to a single finding while two distinct
+   plugins shipping a same-named skill still report separately.
 4. **Hook message scan** — read recent records via
    `mcp__plugin_Dev10x_cli__audit_hook_recent`. Flag hook messages
    that suggest a script path when the MCP equivalent exists.

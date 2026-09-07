@@ -12,7 +12,9 @@ full equivalence table and detection heuristics.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
+from pathlib import Path
 
 from dev10x.skills.doctor.strategy import (
     Context,
@@ -21,6 +23,31 @@ from dev10x.skills.doctor.strategy import (
     RemediationKind,
     Strategy,
 )
+
+_VERSION_SEGMENT = re.compile(r"^v?\d+(?:\.\d+)*(?:[-+][0-9A-Za-z.-]+)?$")
+
+
+def _skill_body(text: str) -> str:
+    if not text.startswith("---\n"):
+        return text
+    end = text.find("\n---\n", 4)
+    if end == -1:
+        return text
+    return text[end + len("\n---\n") :]
+
+
+def _normalized_skill_path(skill_md: str, plugin_root: str) -> str:
+    # The cache holds one tree per installed version, so the version is
+    # the only axis safe to collapse. Segments before it identify the
+    # plugin: dropping those would key two plugins that ship a
+    # same-named skill to one entry and discard the second's finding.
+    parts = list(Path(skill_md).relative_to(Path(plugin_root)).parts)
+    if "skills" not in parts:
+        return "/".join(parts)
+    marker = parts.index("skills")
+    if marker and _VERSION_SEGMENT.match(parts[marker - 1]):
+        del parts[marker - 1]
+    return "/".join(parts)
 
 
 @dataclass(frozen=True)
@@ -93,15 +120,29 @@ def _scan_skill_docs(*, context: Context) -> list[Finding]:
     if plugin_root is None or not plugin_root.exists():
         return findings
 
+    seen: set[tuple[str, str, str]] = set()
+
     for skill_md in plugin_root.rglob("SKILL.md"):
         try:
             text = skill_md.read_text()
         except (OSError, UnicodeDecodeError):
             continue
+        body = _skill_body(text)
         for script_token, mcp_tool in SCRIPT_TO_MCP.items():
-            if script_token not in text:
+            if script_token not in body:
                 continue
-            if mcp_tool in text and text.find(script_token) < text.find(mcp_tool):
+            if mcp_tool in body and body.find(script_token) < body.find(mcp_tool):
+                dedupe_key = (
+                    _normalized_skill_path(
+                        skill_md=str(skill_md),
+                        plugin_root=str(plugin_root),
+                    ),
+                    script_token,
+                    mcp_tool,
+                )
+                if dedupe_key in seen:
+                    continue
+                seen.add(dedupe_key)
                 findings.append(
                     Finding(
                         strategy_id="mcp-vs-script-drift",
