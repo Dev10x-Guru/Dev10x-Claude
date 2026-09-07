@@ -50,6 +50,50 @@ class TestDetect:
         assert len(findings) == 1
         assert findings[0].severity == "suggestion"
 
+    def test_skill_md_allowed_tools_frontmatter_does_not_produce_finding(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        plugin_root = tmp_path / "plugin_cache"
+        skill_dir = plugin_root / "plugins" / "cache" / "v1" / "skills" / "example"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            "---\n"
+            "name: Example\n"
+            "allowed-tools:\n"
+            "  - skills/gh-context/scripts/gh-pr-detect.sh\n"
+            "  - mcp__plugin_Dev10x_cli__pr_detect\n"
+            "---\n",
+        )
+
+        context = Context(plugin_cache_root=plugin_root)
+        findings = strategy_mod.detect(context=context)
+
+        assert findings == []
+
+    def test_skill_md_body_drift_below_frontmatter_still_produces_finding(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        plugin_root = tmp_path / "plugin_cache"
+        skill_dir = plugin_root / "skills" / "example"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            "---\n"
+            "name: Example\n"
+            "allowed-tools:\n"
+            "  - mcp__plugin_Dev10x_cli__pr_detect\n"
+            "---\n"
+            "use the script: skills/gh-context/scripts/gh-pr-detect.sh\n"
+            "...later: mcp__plugin_Dev10x_cli__pr_detect is the MCP form\n",
+        )
+
+        context = Context(plugin_cache_root=plugin_root)
+        findings = strategy_mod.detect(context=context)
+
+        assert len(findings) == 1
+        assert findings[0].severity == "suggestion"
+
     def test_skill_md_with_mcp_only_does_not_produce_finding(
         self,
         tmp_path: Path,
@@ -65,6 +109,58 @@ class TestDetect:
         findings = strategy_mod.detect(context=context)
 
         assert findings == []
+
+    def test_skill_md_duplicate_cached_versions_are_deduplicated(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        plugin_root = tmp_path / "plugin_cache"
+        for version in ("v1", "v2"):
+            skill_dir = plugin_root / "plugins" / "cache" / version / "skills" / "example"
+            skill_dir.mkdir(parents=True)
+            (skill_dir / "SKILL.md").write_text(
+                "use the script: skills/gh-context/scripts/gh-pr-detect.sh\n"
+                "...later: mcp__plugin_Dev10x_cli__pr_detect is the MCP form\n",
+            )
+
+        context = Context(plugin_cache_root=plugin_root)
+        findings = strategy_mod.detect(context=context)
+
+        assert len(findings) == 1
+
+    def test_same_skill_name_in_two_plugins_produces_two_findings(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        plugin_root = tmp_path / "plugin_cache"
+        for owner in ("owner-a", "owner-b"):
+            skill_dir = plugin_root / owner / "plug" / "1.0" / "skills" / "example"
+            skill_dir.mkdir(parents=True)
+            (skill_dir / "SKILL.md").write_text(
+                "use the script: skills/gh-context/scripts/gh-pr-detect.sh\n"
+                "...later: mcp__plugin_Dev10x_cli__pr_detect is the MCP form\n",
+            )
+
+        context = Context(plugin_cache_root=plugin_root)
+        findings = strategy_mod.detect(context=context)
+
+        assert len(findings) == 2
+
+    def test_skill_md_outside_a_skills_directory_produces_finding(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        plugin_root = tmp_path / "plugin_cache"
+        plugin_root.mkdir()
+        (plugin_root / "SKILL.md").write_text(
+            "use the script: skills/gh-context/scripts/gh-pr-detect.sh\n"
+            "...later: mcp__plugin_Dev10x_cli__pr_detect is the MCP form\n",
+        )
+
+        context = Context(plugin_cache_root=plugin_root)
+        findings = strategy_mod.detect(context=context)
+
+        assert len(findings) == 1
 
     def test_empty_context_produces_no_findings(self) -> None:
         findings = strategy_mod.detect(context=Context())
