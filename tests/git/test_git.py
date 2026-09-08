@@ -449,6 +449,106 @@ class ShellTwinHarness:
         return match.group("reason") if match else None
 
 
+class TestPushSafeReportsThePushedRef(ShellTwinHarness):
+    """GH-1220: the payload must describe the branch that was pushed.
+
+    Worktrees of one repo share an object store and a ref namespace, so
+    ``git push origin <branch>`` succeeds from any of them while
+    ``rev-parse HEAD`` answers for whichever checkout the process stands
+    in. The MCP daemon inherits its CWD, so after an ``EnterWorktree``
+    those are different places and the push landed correctly while the
+    reported ref/sha described someone else's commit.
+
+    Pushing a branch that is NOT the checked-out one reproduces exactly
+    that divergence without needing a second worktree.
+    """
+
+    @pytest.fixture
+    def repo_with_two_branches(self, tmp_path: Path) -> tuple[Path, str, str]:
+        """A repo on ``main`` carrying a second branch at a later commit."""
+        remote = tmp_path / "remote.git"
+        work = tmp_path / "work"
+        subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True, timeout=30)
+        subprocess.run(["git", "init", "-q", "-b", "main", str(work)], check=True, timeout=30)
+        git = [
+            "git",
+            "-c",
+            "user.name=test",
+            "-c",
+            "user.email=test@example.com",
+        ]
+        subprocess.run(
+            [*git, "commit", "-q", "--allow-empty", "-m", "root"],
+            check=True,
+            cwd=work,
+            timeout=30,
+        )
+        subprocess.run(
+            ["git", "remote", "add", "origin", str(remote)], check=True, cwd=work, timeout=30
+        )
+        subprocess.run(
+            ["git", "checkout", "-q", "-b", "feature"], check=True, cwd=work, timeout=30
+        )
+        subprocess.run(
+            [*git, "commit", "-q", "--allow-empty", "-m", "feature work"],
+            check=True,
+            cwd=work,
+            timeout=30,
+        )
+        subprocess.run(["git", "checkout", "-q", "main"], check=True, cwd=work, timeout=30)
+
+        def sha_of(ref: str) -> str:
+            return subprocess.run(
+                ["git", "rev-parse", "--short", ref],
+                capture_output=True,
+                text=True,
+                check=True,
+                cwd=work,
+                timeout=30,
+            ).stdout.strip()
+
+        return work, sha_of("feature"), sha_of("HEAD")
+
+    def _payload(self, *args: str, cwd: Path) -> dict[str, str]:
+        result = subprocess.run(
+            [str(self.SCRIPT), *args],
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            timeout=30,
+        )
+        return dict(re.findall(r'"(\w+)":"([^"]*)"', result.stdout))
+
+    def test_sha_describes_the_pushed_branch_not_head(self, repo_with_two_branches):
+        work, feature_sha, head_sha = repo_with_two_branches
+        assert feature_sha != head_sha
+
+        payload = self._payload("origin", "feature", cwd=work)
+
+        assert payload["ref"] == "feature"
+        assert payload["sha"] == feature_sha
+
+    def test_a_src_dst_refspec_reports_the_source_commit(self, repo_with_two_branches):
+        work, feature_sha, _ = repo_with_two_branches
+
+        payload = self._payload("origin", "feature:published", cwd=work)
+
+        assert payload["ref"] == "published"
+        assert payload["sha"] == feature_sha
+
+    def test_a_bare_push_still_describes_head(self, repo_with_two_branches):
+        # No refspec means there is nothing to resolve but HEAD, so the
+        # pre-GH-1220 behaviour is still the correct one here. The first
+        # push establishes the upstream a bare push needs.
+        work, _, head_sha = repo_with_two_branches
+        self._payload("-u", "origin", "main", cwd=work)
+
+        payload = self._payload("origin", cwd=work)
+
+        assert payload["sha"] == head_sha
+        assert payload["tracking"] == "origin/main"
+
+
 class TestShellTwinDetectsBundledForceFlags(ShellTwinHarness):
     """GH-1047: the shell twin must agree with the validator on what is force.
 

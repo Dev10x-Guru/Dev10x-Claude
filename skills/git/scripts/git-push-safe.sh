@@ -64,6 +64,7 @@ source "$SCRIPT_DIR/protected-branches.sh"
 force=0
 remote="origin"
 target_branches=()
+source_refs=()
 positional_index=0
 skip_value=0
 for arg in "${PUSH_ARGS[@]}"; do
@@ -100,10 +101,18 @@ for arg in "${PUSH_ARGS[@]}"; do
     ref="${ref#+}"
     ref="${ref#refs/heads/}"
     target_branches+=("$ref")
+    # Source half of src:dst — what was actually pushed, and therefore
+    # what the reported sha must describe. Bare `branch` is its own
+    # source; a delete refspec (`:dst`) has none (GH-1220).
+    src="${arg%%:*}"
+    src="${src#+}"
+    src="${src#refs/heads/}"
+    source_refs+=("$src")
 done
 
 if [[ ${#target_branches[@]} -eq 0 ]]; then
     target_branches=("$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")")
+    source_refs=("HEAD")
 fi
 
 # The ref reported in every JSON payload: the first target, matching the
@@ -139,8 +148,25 @@ if ! git push "${PUSH_ARGS[@]}" 2>"$push_stderr"; then
 fi
 cat "$push_stderr" >&2
 
-sha=$(git rev-parse --short HEAD 2>/dev/null || echo "")
-tracking=$(git rev-parse --abbrev-ref --symbolic-full-name "@{u}" 2>/dev/null || echo "")
+# Report the ref that was PUSHED, not whatever HEAD happens to be here
+# (GH-1220). Sibling worktrees share one object store and one set of
+# refs, so `git push origin <branch>` succeeds from any of them — while
+# `rev-parse HEAD` answers for the checkout the process happens to be
+# standing in. After an EnterWorktree the MCP daemon's inherited CWD is
+# a DIFFERENT worktree, so the push landed correctly and the payload
+# described another branch's commit. Resolving the source refspec makes
+# the answer independent of where the script ran.
+source_ref="${source_refs[0]}"
+if [[ -n "$source_ref" ]]; then
+    sha=$(git rev-parse --short "$source_ref" 2>/dev/null || echo "")
+    upstream_ref="${source_ref}@{u}"
+    [[ "$source_ref" == "HEAD" ]] && upstream_ref="@{u}"
+    tracking=$(git rev-parse --abbrev-ref --symbolic-full-name "$upstream_ref" 2>/dev/null || echo "")
+else
+    # A delete refspec (`git push origin :old-branch`) pushes no commit.
+    sha=""
+    tracking=""
+fi
 
 printf '{"pushed":true,"ref":"%s","remote":"%s","sha":"%s","tracking":"%s","ci_run_url":null}\n' \
     "$target_branch" "$remote" "$sha" "$tracking"
