@@ -11,9 +11,8 @@ user-invocable: true
 invocation-name: Dev10x:qa-scope
 allowed-tools:
   - Bash(gh pr diff:*)
-  - Bash(gh pr view:*)
-  - Bash(gh repo view:*)
   - Bash(grep:*)
+  - mcp__plugin_Dev10x_cli__pr_detect
   - mcp__claude_ai_Linear__list_issues
   - mcp__claude_ai_Linear__get_issue
   - mcp__claude_ai_Linear__save_issue
@@ -35,8 +34,8 @@ Mark completed when done: `TaskUpdate(taskId, status="completed")`
 ## Overview
 
 Analyzes a PR for QA needs by assessing regression risk, checking existing e2e
-test coverage in app-e2e, identifying gaps, and creating QA sub-tickets in Linear
-when manual testing or new e2e scenarios are needed.
+test coverage in the project's e2e suite, identifying gaps, and creating QA
+sub-tickets in Linear when manual testing or new e2e scenarios are needed.
 
 **Use when:**
 - A PR is ready for merge and needs QA assessment
@@ -54,7 +53,9 @@ when manual testing or new e2e scenarios are needed.
 - PR number, URL, or branch name (will auto-detect from current branch)
 
 **Available context:**
-- `/work/example/app-e2e/` — E2E test repository
+- `$E2E_ROOT` — the project's e2e test repository, resolved at Phase 3.0.
+  There is no fixed path: this skill ships with every project, and the
+  suite lives wherever that project keeps it
 - Linear MCP — ticket and team management
 - GitHub CLI — PR details
 
@@ -64,15 +65,16 @@ when manual testing or new e2e scenarios are needed.
 
 #### 1.1 Identify PR
 
-Accept input as PR URL, PR number, or auto-detect from current branch:
+Accept input as PR URL, PR number, or auto-detect from current branch.
+One call resolves all four values:
 
-```bash
-# Auto-detect from current branch
-PR_NUMBER=$(gh pr view --json number -q '.number')
-REPO=$(gh repo view --json nameWithOwner -q '.nameWithOwner')
-PR_URL=$(gh pr view --json url -q '.url')
-BRANCH=$(git branch --show-current)
 ```
+mcp__plugin_Dev10x_cli__pr_detect(pr="<URL, bare number, or empty>")
+```
+
+It returns `PR_NUMBER`, `REPO`, `PR_URL` and `BRANCH`. Take `BRANCH`
+from the response rather than from local git — in a multi-worktree
+checkout the local branch is not necessarily the PR's head.
 
 #### 1.2 Extract Ticket ID
 
@@ -85,7 +87,7 @@ TICKET_ID=$(echo "$BRANCH" | grep -oP '[A-Z]+-\d+')
 #### 1.3 Fetch PR Diff
 
 ```bash
-gh pr diff $PR_NUMBER
+gh pr diff $PR_NUMBER  # cli-friction: allow raw-gh-pr — no MCP diff wrapper exists; declared in allowed-tools
 ```
 
 Identify changed modules by examining file paths in the diff. Map each changed
@@ -152,28 +154,49 @@ Evaluate each factor and aggregate:
 
 ### Phase 3: Check E2E Coverage
 
-Reference the coverage map at `references/e2e-coverage-map.md` to quickly identify
-relevant e2e tests without searching the entire app-e2e repo.
+#### 3.0 Locate the E2E Suite
+
+Resolve `$E2E_ROOT` before searching anything. In order:
+
+1. An `e2e_root` entry for this repo in the project's qa-scope config
+   (3-tier resolution, `references/config-resolution.md`)
+2. A sibling checkout whose name ends in `-e2e` under the same parent
+   directory as the repo under review
+3. A `features/` directory inside the repo under review
+
+**When none of the three resolves, stop and say so.** Report the coverage
+check as "not performed — no e2e suite found" and let risk stand on the
+Phase 2 assessment alone. Do NOT report "no existing coverage": a suite
+that was never searched and a suite with no matching scenarios produce
+the same empty result, and only one of them justifies filing a
+new-tests ticket.
 
 #### 3.1 Map Changed Modules to E2E Features
 
-For each changed app-pos module, look up the corresponding e2e feature files,
-tags, and step definitions in the coverage map.
+When the project keeps a coverage map, look up the changed modules' feature
+files, tags, and step definitions there rather than searching the whole
+suite. `references/e2e-coverage-map.md` is a **worked example from one
+project**, not a map of yours — a project's own map belongs at tier 1 or 2.
+With no map, skip to 3.2.
 
 #### 3.2 Search for Existing Coverage
 
-Search `/work/example/app-e2e/features/` for scenarios that exercise the changed code paths:
+Search the resolved suite for scenarios that exercise the changed code paths:
 
 ```bash
 # Search feature files for relevant keywords
-grep -r "keyword" /work/example/app-e2e/features/ --include="*.feature"
+grep -r "keyword" "$E2E_ROOT/features/" --include="*.feature"
 
 # Search step definitions for relevant steps
-grep -r "keyword" /work/example/app-e2e/features/steps/ --include="*.py"
+grep -r "keyword" "$E2E_ROOT/features/steps/" --include="*.py"
 
 # Check page objects for relevant UI interactions
-grep -r "keyword" /work/example/app-e2e/tests/pages/ --include="*.py"
+grep -r "keyword" "$E2E_ROOT/tests/pages/" --include="*.py"
 ```
+
+Layouts differ — `tests/pages/` in particular is a convention, not a
+standard. A path that does not exist is a miss to work around, not
+evidence of missing coverage.
 
 #### 3.3 Identify Gaps
 
@@ -299,8 +322,11 @@ New scenarios needed:
 
 #### 5.4 Ask About Assignment
 
-Use `AskUserQuestion` to ask who to assign:
-- Suggest Nicholas (default QA resource) or let user pick
+Use `AskUserQuestion` to ask who to assign. Offer the project's QA
+assignee when its config names one, otherwise offer the tracker's own
+candidates (team members already assigned to QA tickets) — never a
+name hardcoded here, which belongs to one deployment's staffing and
+not to every project the plugin ships to.
 
 #### 5.5 Report Completion
 
@@ -312,8 +338,8 @@ Output the created ticket ID and URL.
 Dev10x:qa-scope
 ├── Uses: Linear MCP (ticket data, create sub-ticket)
 ├── Uses: GitHub CLI (PR diff, PR details)
-├── Reads: /work/example/app-e2e/ (e2e coverage check)
-├── References: references/e2e-coverage-map.md
+├── Reads: $E2E_ROOT (e2e coverage check, resolved at Phase 3.0)
+├── References: references/e2e-coverage-map.md (worked example)
 ├── Called by: pr:monitor (Phase 2.5)
 └── Standalone: /qa-scope <PR URL or number>
 ```
