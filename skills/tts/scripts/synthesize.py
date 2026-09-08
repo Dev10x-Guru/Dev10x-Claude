@@ -418,14 +418,33 @@ def kokoro_language(voice: str) -> str | None:
 # --------------------------------------------------------------------------
 
 
-def normalize_line(text: str) -> str:
-    """Collapse a caption into the single line piper's batching requires.
+def collapse_line(text: str) -> str:
+    """Collapse a caption to the single line piper's batching requires.
 
     Piper emits one WAV per input line, so an embedded newline would split
     one caption into two clips and silently shift every later segment onto
     the wrong timestamp.
+
+    This is also the **clip lookup key** on both sides of the subprocess
+    boundary, so it must stay character-for-character identical to
+    ``skills/playwright/lib/narration.py::collapse_line``. The two cannot
+    share an import — this file is a standalone uv-script — so
+    ``tests/skills/test_narration_tts_agreement.py`` pins them against a
+    shared corpus instead. Rejecting an empty result is NOT part of this
+    contract: it belongs to the caller that cannot proceed without audio,
+    which is why it lives in ``normalize_line`` below.
     """
-    collapsed = re.sub(r"\s+", " ", text).strip()
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def normalize_line(text: str) -> str:
+    """Collapse a caption and refuse one that says nothing.
+
+    An empty line makes piper emit one clip fewer than expected, shifting
+    every later caption onto the wrong audio — so the synthesizer, unlike
+    the recorder, cannot carry on past it.
+    """
+    collapsed = collapse_line(text)
     if not collapsed:
         raise SynthesisError("narration segment is empty after whitespace collapse")
     return collapsed
