@@ -80,9 +80,11 @@ checkout layout needs no edit to this skill, and nobody has to skip the
 one step this phase calls critical:
 
 ```bash
+QA_DEPLOY_MODEL="${QA_DEPLOY_MODEL:-gitops}"   # gitops | host-managed
 QA_ARGOCD_REPO="${QA_ARGOCD_REPO:-/work/example/app-argocd}"
 QA_APP_REPO="${QA_APP_REPO:-/work/example/app-pos}"
 QA_STAGING_MANIFEST="${QA_STAGING_MANIFEST:-apps/staging/app-pos/generated.yaml}"
+QA_DEPLOYED_BRANCH="${QA_DEPLOYED_BRANCH:-origin/develop}"   # host-managed only
 ```
 
 `QA_STAGING_MANIFEST` is a knob in its own right, not a detail of
@@ -90,7 +92,16 @@ QA_STAGING_MANIFEST="${QA_STAGING_MANIFEST:-apps/staging/app-pos/generated.yaml}
 file if the manifest path inside it stays fixed, and the resulting "not
 deployed" verdict looks like a stale clone rather than a wrong path.
 
-Check that the feature commit is included in the staging image:
+**Detect the deploy model; never assume one (GH-1236).** GH-1147 made the
+GitOps path portable *between GitOps deployments*, but a host-managed app
+(Vercel, Netlify, Fly) has no manifest to read at all — so manifest
+archaeology there is not a check that fails, it is a check that cannot
+run. Reporting its guaranteed failure as "not deployed" states a fact
+about the application that the run never established. Pick the branch by
+`QA_DEPLOY_MODEL`:
+
+**`gitops`** — check that the feature commit is included in the staging
+image:
 
 ```bash
 # Always fetch first — local argocd clone may be days stale
@@ -102,15 +113,49 @@ git -C "$QA_ARGOCD_REPO" log --oneline -1 origin/main -- "$QA_STAGING_MANIFEST"
 git -C "$QA_APP_REPO" merge-base --is-ancestor <feature-sha> <staging-sha>
 ```
 
+**`host-managed`** — the host deploys a branch, so containment in that
+branch is the strongest claim available. There is no image tag to read:
+
+```bash
+git -C "$QA_APP_REPO" fetch origin --quiet
+# Is the feature commit contained in what the host deploys?
+git -C "$QA_APP_REPO" merge-base --is-ancestor <feature-sha> "$QA_DEPLOYED_BRANCH"
+# What has landed on the deployed branch since the last known-good tag?
+git -C "$QA_APP_REPO" log --oneline "$QA_DEPLOYED_BRANCH" --not <last-verified-tag>
+```
+
+Containment is weaker evidence than a deployed SHA — it proves the commit
+is *eligible* to be live, not that the host has finished building it. Say
+so in the comment rather than reporting it as an image match.
+
 `git -C` is correct here — these are *other* clones, not the session's own
 worktree, so the usual objection to `-C` (it shifts the allow-rule prefix
 for a path that is already the CWD) does not apply.
 
-If the feature is NOT deployed, post a "BLOCKED — not deployed" comment
-on the QA ticket and stop. Include:
-- Current staging image tag
+**Three verdicts, not two (GH-1236).** Match the distinction
+`Dev10x:qa-scope` Phase 3.0 already draws:
+
+| Verdict | When | Action |
+|---------|------|--------|
+| deployed | the model's check ran and the commit is contained | continue |
+| NOT deployed | the model's check ran and the commit is absent | post "BLOCKED — not deployed", stop |
+| check NOT performed | the model's inputs are unresolvable | post "deploy check not performed", **name the unset knob**, continue only with the supervisor's agreement |
+
+"Check not performed" is never reported as "not deployed". An
+unresolvable manifest path, a missing clone, or `QA_DEPLOY_MODEL` naming
+a model this skill does not implement all land in the third row — the run
+learned nothing about the deployment, and the comment must say that
+rather than assert a failure it did not observe.
+
+A NOT-deployed comment includes:
+- Current staging image tag (gitops) or deployed branch + head SHA (host-managed)
 - Feature commit SHA
 - Gap size (number of commits between)
+
+A check-not-performed comment includes:
+- Which knob was unset or unresolvable, by name
+- What was attempted
+- That the deployment state remains **unknown**
 
 #### 1.3 Understand the UI Flow
 
@@ -432,6 +477,40 @@ audio stream, and one whose last cue ends past the container duration.
 
 Narration is **opt-in** — omit it and every behaviour above is unchanged.
 
+**A caption must not out-run the state it claims (GH-1240).** Captions
+and voice-over are cued from the declared script and the timeline;
+nothing ties a cue to the application. So a caption fires on schedule
+even when the step that was supposed to produce the claimed outcome
+failed, and the take narrates a falsehood over a screen that disagrees.
+`verify-evidence.py` does not catch it — it validates the *artifact*
+(audio stream present, file size, stddev, padding, cue offsets inside
+the container duration), never the truthfulness of what is said, so it
+passes such a take silently.
+
+Two rules close it:
+
+1. **Let a beat carry its assertion, and require it before the cue.**
+   `say()` takes an optional `assert_state` callable; when supplied it
+   must hold before the caption is shown. A failed assertion aborts the
+   beat and names the mismatch, rather than narrating over it:
+
+   ```python
+   anno.say(
+       "Done — assigned instantly, no extra clicks",
+       assert_state=lambda: page.get_by_test_id("owner-chip").inner_text() == "Jetson",
+   )
+   ```
+
+   Beats with no assertion still work; they are reported in the
+   manifest under `unasserted` so a reviewer can see which claims the
+   run never checked.
+
+2. **Capture before narrating, for transient UI.** A toast or flash
+   message can expire inside the narration dwell, so `shoot()` then
+   `say()` — never the reverse. The caption consuming the visibility
+   window is how a screenshot of the proof ends up blank while the
+   voice-over asserts it.
+
 **Before capturing a narrated run**, resolve the voice-licence gate: run
 `${CLAUDE_PLUGIN_ROOT}/skills/tts/scripts/synthesize.py check` and, when it
 returns a non-null `warning`, **REQUIRED: Call `AskUserQuestion`** per
@@ -572,6 +651,63 @@ Things worth probing before they cost a take:
 - **Controls that are already in the target state.** A loop that
   "checks every unchecked box" does nothing on a pre-checked list and
   then reports that nothing could be checked.
+
+##### Probing is a precondition, not a recommendation (GH-1238)
+
+The guidance above describes the right order but does not enforce it,
+and synthesis is front-loaded: `prerender()` renders the entire script
+before the browser does anything interesting, while fixture setup runs
+later, inside the recorded context. Nothing stops a run from paying the
+full synthesis cost and *then* discovering the fixture cannot be built.
+Sessions paid it repeatedly on runs that never produced a frame.
+
+So the probe is a gate on synthesis. **The fixture probe MUST succeed
+before `prerender()` is allowed to run.** Wire it as a callable the
+`Narration` is constructed with, so the ordering is enforced by the
+library rather than remembered by the author:
+
+```python
+narration = Narration(
+    RUN_DIR / "narration",
+    script=SCRIPT,
+    fixture_probe=probe_fixtures,   # cheap, re-runnable, raises on failure
+)
+narration.prerender()   # refuses unless probe_fixtures() returned truthy
+```
+
+When the probe fails, `prerender()` raises before any model is loaded
+and the message **names the unmet fixture step** — not "synthesis
+aborted", but which control or record was missing. A failed run then
+costs fixture time only.
+
+The probe must be cheap and repeatable, which is exactly the
+idempotence contract below — the two findings compound: a probe you
+cannot safely re-run is not a probe.
+
+##### Setup steps must be convergent (GH-1239)
+
+Setup re-runs on every probe, every retry, and every resumed take, so
+probe-first makes re-running setup the *normal* path rather than the
+exceptional one. A setup step that is not safely re-runnable fails on
+the second pass and reads as an application bug.
+
+**The contract:** a setup step asserts the desired end state and
+performs work only when that state does not already hold.
+
+- **Check before writing.** Read the current value; skip the write when
+  it already matches. Never assume a control is enabled because a value
+  needs setting — a Save button bound to `react-hook-form`'s `isDirty`
+  is disabled precisely when the value is already correct, so a blind
+  click burns a timeout and reports a failure that is really a success.
+- **Assert the end state, not the transition.** "The record has owner
+  X" survives a re-run; "click Assign" does not.
+- **Prefer a fresh uniquely-named entity per run** over mutating shared
+  state. A per-run name makes convergence trivial and removes the
+  cross-run coupling that makes a second take fail for reasons the
+  first one caused.
+
+This is enforced at review, not merely remembered — see the
+idempotence check in `agents/reviewer-e2e.md`.
 
 #### 2.4 Screenshot Timing
 
@@ -728,6 +864,16 @@ A narrated run therefore verifies **twice**: structure before
 converting, audio after muxing. Reading this phase as one pass over the
 `.webm` makes every narrated capture look like a failure, which is how
 the ordering was found.
+
+**The verifier checks the artifact, not the claim (GH-1240).** Every
+check it applies — size floor, frame stddev, audio stream present, cue
+offsets inside the container duration — is a property of the file. None
+of them can tell whether the caption said something true. A take in
+which a step silently failed and the voice-over asserted success
+anyway passes this phase cleanly. Truthfulness is established upstream,
+by the per-beat `assert_state` in § 2.2; read the manifest's
+`unasserted` list here and treat a long one as a reviewable gap rather
+than a green run.
 
 Each video frame also gets a **border check** (GH-1204): an edge whose
 outer 6px strip is a single flat colour in *every* sampled frame is

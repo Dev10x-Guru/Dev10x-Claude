@@ -30,10 +30,12 @@ the gap is visible rather than silent.
 
 from __future__ import annotations
 
+import hashlib
 import inspect
 import json
 import os
 import re
+import shutil
 import subprocess
 import time
 from collections.abc import Callable, Iterable
@@ -56,6 +58,102 @@ SYNTHESIS_TIMEOUT_SECONDS = 300
 # ``--lang`` mean the same thing on every path instead of two things
 # depending on the caller.
 DEFAULT_LANG = "en"
+
+# Clip cache root (GH-1237). Deliberately NOT under RUN_DIR: the whole
+# point is to survive a re-take, and RUN_DIR is per-run, so a cache
+# rooted there is unreachable by exactly the process that needs it.
+NARRATION_CACHE_ROOT = Path(
+    os.environ.get("DEV10X_NARRATION_CACHE", "/tmp/Dev10x/self-qa/narration-cache")
+)
+
+# Cache entries older than this are swept on write. A clip is cheap to
+# re-render once and the cache has no invalidation signal from the voice
+# model, so age is the only honest bound.
+CACHE_MAX_AGE_SECONDS = 14 * 24 * 60 * 60
+
+# How often the sweep above is worth paying for. Without this the sweep
+# stats every entry on every capture run, so its cost tracks the cache's
+# total history rather than the current script's ~10-30 lines — a walk
+# that grows without bound while the thing it is protecting does not.
+CACHE_SWEEP_INTERVAL_SECONDS = 24 * 60 * 60
+
+
+def voice_pin_fingerprint(path: Path | None = None) -> str:
+    """Fingerprint the durable voice pin that decides an unnamed voice.
+
+    Both documented call sites construct ``Narration`` with no ``voice``,
+    so the requested voice is ``None`` and the *resolved* one comes from
+    ``~/.config/Dev10x/tts.yaml``. A key built from the requested voice
+    alone would therefore keep serving the old voice after a re-pin —
+    which is GH-1221's silent-divergence failure wearing a cache, and for
+    a CC BY-NC-SA voice past its licence gate that is a licence breach
+    rather than a wrong timbre. Folding the pin's content into the key
+    makes a re-pin miss automatically instead of relying on anyone
+    remembering to clear the cache.
+    """
+    pin = (
+        path
+        or Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "Dev10x" / "tts.yaml"
+    )
+    try:
+        return hashlib.sha256(pin.read_bytes()).hexdigest()[:16]
+    except OSError:
+        # No pin file is itself a stable state to key on — it resolves to
+        # the wrapper's built-in default until someone pins one.
+        return "unpinned"
+
+
+def cache_key(*, voice: str | None, lang: str | None, text: str, pin: str | None = None) -> str:
+    """Content address for one synthesized clip.
+
+    ``lang`` is part of the key, not an afterthought: GH-1221 made the
+    same text in the same voice resolve to different audio per language,
+    so a key without it returns a clip that is confidently wrong rather
+    than merely stale. ``pin`` covers the same hazard for the voice —
+    see ``voice_pin_fingerprint``.
+    """
+    material = "\x1f".join(
+        [
+            voice or "",
+            lang or "",
+            pin if pin is not None else voice_pin_fingerprint(),
+            collapse_line(text),
+        ]
+    )
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:32]
+
+
+def _sweep_cache(root: Path, *, now: float | None = None) -> None:
+    """Drop cache entries past ``CACHE_MAX_AGE_SECONDS``.
+
+    Best-effort: a cache that cannot be swept is still a usable cache,
+    so every failure here is survivable and none of them should abort a
+    capture that was otherwise ready to run.
+    """
+    moment = now if now is not None else time.time()
+    # A sentinel keeps the full walk to roughly once a day. Touched before
+    # the walk, not after, so two runs starting together do not both decide
+    # they are the one that has to sweep.
+    sentinel = root / ".last-swept"
+    try:
+        if moment - sentinel.stat().st_mtime < CACHE_SWEEP_INTERVAL_SECONDS:
+            return
+    except OSError:
+        pass
+    cutoff = moment - CACHE_MAX_AGE_SECONDS
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+        sentinel.touch()
+        entries = list(root.iterdir())
+    except OSError:
+        return
+    for entry in entries:
+        try:
+            if entry.stat().st_mtime >= cutoff:
+                continue
+            shutil.rmtree(entry) if entry.is_dir() else entry.unlink()
+        except OSError:
+            continue
 
 
 def collapse_line(text: str) -> str:
@@ -135,6 +233,24 @@ class NarrationError(Exception):
     """Narration could not be produced; the caller decides whether to abort."""
 
 
+class FixtureProbeError(NarrationError):
+    """The fixture probe failed, so synthesis was refused (GH-1238).
+
+    A subclass rather than a bare ``NarrationError`` because the caller's
+    response differs: a synthesis failure is a narration problem, this is
+    the run telling you the fixture is not there yet — and it is raised
+    *before* any model load, which is the whole point.
+    """
+
+
+class CaptionClaimError(NarrationError):
+    """A caption's asserted state did not hold, so the beat was aborted (GH-1240).
+
+    Distinct from a synthesis failure: the audio is fine, the claim is
+    not. Narrating over it would put a falsehood in the artifact.
+    """
+
+
 def _accepts_lang(runner: Callable[..., dict]) -> bool:
     """Whether ``runner`` can receive the fourth, language argument.
 
@@ -195,10 +311,16 @@ class Narration:
         lang: str | None = None,
         tail_ms: int = CAPTION_TAIL_MS,
         runner: Callable[..., dict] = default_runner,
+        fixture_probe: Callable[[], Any] | None = None,
+        cache_root: str | Path | None = None,
     ) -> None:
         self.out_dir = Path(out_dir)
         self.script = _validated_script(script)
         self.voice = voice
+        # `self.voice` is overwritten with whatever the wrapper resolved, so
+        # the cache needs the pre-synthesis value: it is the only key the
+        # NEXT process can reconstruct before synthesizing anything.
+        self._requested_voice = voice
         # The environment sits between the argument and the default rather
         # than below it: `synthesize.py` reads DEV10X_TTS_LANG itself, so a
         # Narration that always sent DEFAULT_LANG would override a
@@ -212,8 +334,15 @@ class Narration:
         self._lang_was_requested = bool(requested)
         self.tail_ms = tail_ms
         self._runner = runner
+        self._fixture_probe = fixture_probe
+        self._cache_root = Path(cache_root) if cache_root is not None else NARRATION_CACHE_ROOT
+        # Read once: the pin cannot meaningfully change mid-capture, and
+        # re-reading per line would make the key depend on timing.
+        self._voice_pin = voice_pin_fingerprint()
         self._clips: dict[str, dict[str, Any]] = {}
+        self._cache_hits = 0
         self._spoken: list[dict[str, Any]] = []
+        self._unasserted: list[str] = []
         self._t0: float | None = None
         self._anchor = "install"
         self.warning: str | None = None
@@ -239,6 +368,77 @@ class Narration:
 
     # -- synthesis ------------------------------------------------------
 
+    def _cached_clip(self, text: str) -> dict[str, Any] | None:
+        """Return a previously-synthesized clip for ``text``, if one survives.
+
+        A cache entry is only usable while its ``.wav`` is still on disk —
+        the metadata alone would hand back a manifest entry pointing at
+        nothing, which is worse than a miss.
+        """
+        entry = self._cache_root / cache_key(
+            voice=self._requested_voice, lang=self.lang, text=text, pin=self._voice_pin
+        )
+        try:
+            payload = json.loads((entry / "clip.json").read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        wav = entry / "clip.wav"
+        if not wav.exists():
+            return None
+        payload["wav"] = str(wav)
+        return payload
+
+    def _store_clip(self, segment: dict[str, Any]) -> None:
+        """Copy a freshly-synthesized clip into the cross-run cache.
+
+        Best-effort by design: a cache that cannot be written must not
+        fail a capture that already has its audio in hand.
+        """
+        source = segment.get("wav")
+        if not source:
+            return
+        entry = self._cache_root / cache_key(
+            voice=self._requested_voice,
+            lang=self.lang,
+            text=segment["text"],
+            pin=self._voice_pin,
+        )
+        try:
+            entry.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, entry / "clip.wav")
+            payload = {key: value for key, value in segment.items() if key != "wav"}
+            # What actually narrated it, so a later hit can disclose the
+            # voice in the audio rather than the voice that was asked for.
+            payload["resolved_voice"] = self.voice
+            (entry / "clip.json").write_text(json.dumps(payload), encoding="utf-8")
+        except OSError:
+            return
+
+    def _run_fixture_probe(self) -> None:
+        """Refuse synthesis until the fixture probe passes (GH-1238).
+
+        Synthesis is front-loaded and fixture setup runs later, so without
+        this gate a run pays the full model-load cost and only then finds
+        out the fixture cannot be built. Sessions paid that repeatedly for
+        runs that never produced a frame.
+        """
+        if self._fixture_probe is None:
+            return
+        try:
+            result = self._fixture_probe()
+        except Exception as exc:
+            raise FixtureProbeError(
+                f"fixture probe failed, so narration was not synthesized: {exc}."
+                " Fix the named setup step and re-run — no model was loaded,"
+                " so this cost fixture time only."
+            ) from exc
+        if result is False or result is None:
+            raise FixtureProbeError(
+                "fixture probe returned no confirmation, so narration was not"
+                " synthesized. Return a truthy value (or raise naming the unmet"
+                " setup step) once the fixture holds."
+            )
+
     def prerender(self) -> None:
         """Synthesize every declared line through the Dev10x:tts wrapper.
 
@@ -256,6 +456,26 @@ class Narration:
         # dict.fromkeys keeps first-seen order while dropping duplicates —
         # a line repeated across steps is one clip, reused.
         unique = [text for text in dict.fromkeys(self.script) if text not in self._clips]
+        if not unique:
+            return
+        self._run_fixture_probe()
+        # Cross-process reuse (GH-1237). The in-process guard above only
+        # helps within one run; a re-take is a fresh process with an empty
+        # `_clips`, so every line was re-synthesized on every attempt.
+        still_missing = []
+        for text in unique:
+            cached = self._cached_clip(text)
+            if cached is None:
+                still_missing.append(text)
+                continue
+            # Adopt the voice recorded with the clip: the manifest must name
+            # what is in the audio, not what was asked for.
+            resolved = cached.pop("resolved_voice", None)
+            if resolved is not None:
+                self.voice = resolved
+            self._clips[collapse_line(text)] = cached
+            self._cache_hits += 1
+        unique = still_missing
         if not unique:
             return
         payload = {
@@ -294,6 +514,8 @@ class Narration:
             self.commercial_use_allowed = reported
         for segment in rendered.get("segments", []):
             self._clips[collapse_line(segment["text"])] = segment
+            self._store_clip(segment)
+        _sweep_cache(self._cache_root)
 
     def clip_for(self, text: str) -> dict[str, Any] | None:
         return self._clips.get(collapse_line(text))
@@ -310,16 +532,58 @@ class Narration:
 
     # -- recording ------------------------------------------------------
 
-    def record(self, text: str, dwell_ms: int) -> dict[str, Any]:
+    def assert_claim(self, text: str, assert_state: Callable[[], Any] | None) -> None:
+        """Require the state a caption claims, before the caption cues (GH-1240).
+
+        Captions are cued from the script and the timeline, so one fires on
+        schedule even when the step meant to produce its claimed outcome
+        failed — and ``verify-evidence.py`` validates the artifact, not the
+        claim, so such a take passes silently. Aborting here is the only
+        point at which the falsehood can still be kept out of the video.
+
+        A beat with no assertion is recorded as unasserted rather than
+        rejected: requiring one everywhere would make narration
+        all-or-nothing, and a visible gap beats a blocked capture.
+        """
+        collapsed = collapse_line(text)
+        if assert_state is None:
+            self._unasserted.append(collapsed)
+            return
+        try:
+            held = assert_state()
+        except Exception as exc:
+            raise CaptionClaimError(
+                f"caption {collapsed!r} asserts a state that raised on check:"
+                f" {exc}. The beat was aborted rather than narrated over."
+            ) from exc
+        if held is False or held is None:
+            raise CaptionClaimError(
+                f"caption {collapsed!r} claims a state that does not hold —"
+                " the beat was aborted rather than narrated over. Fix the step"
+                " that should have produced it, or correct the caption."
+            )
+
+    def record(
+        self,
+        text: str,
+        dwell_ms: int,
+        *,
+        asserted: bool | None = None,
+    ) -> dict[str, Any]:
         """Note that ``text`` was shown now, and return its manifest entry."""
         clip = self.clip_for(text)
+        collapsed = collapse_line(text)
         entry = {
             "index": len(self._spoken),
-            "text": collapse_line(text),
+            "text": collapsed,
             "offset_ms": self.offset_ms(),
             "dwell_ms": dwell_ms,
             "wav": clip["wav"] if clip else None,
             "duration_ms": clip["duration_ms"] if clip else None,
+            # None means the caller predates `assert_state` entirely; False
+            # means it opted out for this beat. Collapsing the two would
+            # report an old script as deliberately unchecked.
+            "asserted": asserted,
         }
         self._spoken.append(entry)
         return entry
@@ -342,6 +606,20 @@ class Narration:
     def played(self) -> list[str]:
         """Every line that actually reached the screen, deduplicated."""
         return list(dict.fromkeys(entry["text"] for entry in self._spoken))
+
+    @property
+    def unasserted(self) -> list[str]:
+        """Captions that cued without checking the state they claim (GH-1240).
+
+        Not a failure — a reviewable gap. A long list means the take's
+        claims rest on the script's word rather than the application's.
+        """
+        return list(dict.fromkeys(self._unasserted))
+
+    @property
+    def cache_hits(self) -> int:
+        """Clips served from the cross-run cache instead of re-synthesized."""
+        return self._cache_hits
 
     @property
     def never_played(self) -> list[str]:
@@ -374,6 +652,11 @@ class Narration:
             "unrendered": self.unrendered,
             "declared": self.declared,
             "never_played": self.never_played,
+            # Which claims the run actually checked (GH-1240). The verifier
+            # cannot tell a true caption from a false one, so this is the
+            # only record of how much of the narration was grounded.
+            "unasserted": self.unasserted,
+            "cache_hits": self._cache_hits,
             # Only spoken lines that produced audio can be laid on the
             # timeline; `segments` is what `synthesize.py track` consumes.
             "segments": [entry for entry in self._spoken if entry["wav"]],

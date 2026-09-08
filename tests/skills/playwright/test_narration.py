@@ -85,6 +85,52 @@ def fake_runner(durations: dict[str, int], *, warning: str | None = None):
     return run
 
 
+def caching_runner(durations: dict[str, int], *, voice: str = "test-voice"):
+    """A runner that actually writes its wav files.
+
+    ``fake_runner`` returns paths without creating them, which is fine for
+    every test that only reads durations — but the clip cache copies the
+    wav, so a runner whose files do not exist exercises the cache's
+    best-effort failure path instead of its success path.
+    """
+    calls: list[dict] = []
+
+    def run(payload: dict, out_dir: Path, requested: str | None, lang: str | None = None) -> dict:
+        calls.append(payload)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        segments = []
+        for index, segment in enumerate(payload["segments"]):
+            wav = out_dir / f"seg-{index:03d}.wav"
+            wav.write_bytes(b"RIFF-fake")
+            segments.append(
+                {
+                    "index": index,
+                    "id": segment["id"],
+                    "text": segment["text"],
+                    "wav": str(wav),
+                    "duration_ms": durations[segment["text"]],
+                }
+            )
+        return {"voice": requested or voice, "warning": None, "segments": segments}
+
+    run.calls = calls  # type: ignore[attr-defined]
+    return run
+
+
+@pytest.fixture(autouse=True)
+def isolated_cache(tmp_path_factory, monkeypatch):
+    """Keep the clip cache out of the real shared /tmp root.
+
+    ``NARRATION_CACHE_ROOT`` deliberately lives outside RUN_DIR so it can
+    survive a re-take — which also means an un-patched test would read and
+    write a path shared with every other run on the machine, and could be
+    handed a "cached" clip it never synthesized.
+    """
+    root = tmp_path_factory.mktemp("narration-cache")
+    monkeypatch.setattr(_narration, "NARRATION_CACHE_ROOT", root)
+    return root
+
+
 @pytest.fixture(autouse=True)
 def no_sleep(monkeypatch):
     monkeypatch.setattr(_annotate.time, "sleep", lambda seconds: None)
@@ -532,6 +578,37 @@ class TestAnnotatorIntegration:
         ]
         assert narration.unrendered == ["undeclared line"]
 
+    def test_say_refuses_a_caption_whose_claim_does_not_hold(self, tmp_path):
+        # GH-1240: the caption is cued from the script, so without this the
+        # beat narrates success over a step that failed — and the evidence
+        # verifier checks the artifact, not the claim, so it passes.
+        narration = _narration.Narration(
+            tmp_path, script=["alpha"], runner=fake_runner({"alpha": 2400})
+        )
+        page = FakePage()
+        anno = _annotate.Annotator(page, narration=narration)
+        anno.install()
+        before = len(page.evaluated)
+
+        with pytest.raises(_narration.CaptionClaimError):
+            anno.say("alpha", assert_state=lambda: False)
+
+        assert len(page.evaluated) == before, "no caption may reach the page"
+        assert narration.spoken == []
+
+    def test_say_records_whether_the_beat_was_asserted(self, tmp_path):
+        narration = _narration.Narration(
+            tmp_path, script=["alpha", "beta"], runner=fake_runner({"alpha": 100, "beta": 100})
+        )
+        page = FakePage()
+        anno = _annotate.Annotator(page, narration=narration)
+        anno.install()
+        anno.say("alpha", assert_state=lambda: True)
+        anno.say("beta")
+
+        assert [entry["asserted"] for entry in narration.spoken] == [True, False]
+        assert narration.unasserted == ["beta"]
+
     def test_install_prerenders_before_the_first_caption(self, tmp_path):
         runner = fake_runner({"alpha": 1000})
         narration = _narration.Narration(tmp_path, script=["alpha"], runner=runner)
@@ -640,3 +717,278 @@ def _stub_clock(*, start: float, step: float):
         return state["now"]
 
     return now
+
+
+class TestClipCache:
+    """Cross-take reuse of synthesized audio (GH-1237)."""
+
+    def test_a_second_process_reuses_the_first_ones_audio(self, tmp_path):
+        first = caching_runner({"alpha": 1000})
+        _narration.Narration(tmp_path / "one", script=["alpha"], runner=first).prerender()
+        assert len(first.calls) == 1
+
+        # A re-take is a NEW Narration with an empty _clips and a fresh
+        # RUN_DIR — exactly the case the in-process GH-1205 guard misses.
+        second = caching_runner({"alpha": 1000})
+        retake = _narration.Narration(tmp_path / "two", script=["alpha"], runner=second)
+        retake.prerender()
+
+        assert second.calls == [], "a re-take must not re-synthesize a cached line"
+        assert retake.duration_ms("alpha") == 1000
+        assert retake.cache_hits == 1
+
+    def test_only_the_uncached_lines_are_synthesized(self, tmp_path):
+        first = caching_runner({"alpha": 1000})
+        _narration.Narration(tmp_path / "one", script=["alpha"], runner=first).prerender()
+
+        second = caching_runner({"alpha": 1000, "beta": 2000})
+        retake = _narration.Narration(tmp_path / "two", script=["alpha", "beta"], runner=second)
+        retake.prerender()
+
+        rendered = [segment["text"] for segment in second.calls[0]["segments"]]
+        assert rendered == ["beta"]
+        assert retake.duration_ms("alpha") == 1000
+
+    def test_a_different_language_is_a_different_clip(self, tmp_path):
+        # GH-1221 made the same text in the same voice resolve differently
+        # per language, so a key without lang returns confidently wrong audio.
+        first = caching_runner({"alpha": 1000})
+        _narration.Narration(
+            tmp_path / "one", script=["alpha"], lang="en", runner=first
+        ).prerender()
+
+        second = caching_runner({"alpha": 1000})
+        _narration.Narration(
+            tmp_path / "two", script=["alpha"], lang="pl", runner=second
+        ).prerender()
+
+        assert len(second.calls) == 1, "a language change must miss the cache"
+
+    def test_a_cache_entry_whose_wav_vanished_is_a_miss(self, tmp_path, isolated_cache):
+        first = caching_runner({"alpha": 1000})
+        _narration.Narration(tmp_path / "one", script=["alpha"], runner=first).prerender()
+        for wav in isolated_cache.rglob("clip.wav"):
+            wav.unlink()
+
+        second = caching_runner({"alpha": 1000})
+        retake = _narration.Narration(tmp_path / "two", script=["alpha"], runner=second)
+        retake.prerender()
+
+        # Handing back metadata pointing at a deleted file would produce a
+        # manifest entry with no audio behind it — worse than a miss.
+        assert len(second.calls) == 1
+        assert retake.cache_hits == 0
+
+    def test_an_unwritable_cache_does_not_fail_the_capture(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            _narration.shutil,
+            "copyfile",
+            lambda *args, **kwargs: (_ for _ in ()).throw(OSError("read-only")),
+        )
+        runner = caching_runner({"alpha": 1000})
+        narration = _narration.Narration(tmp_path, script=["alpha"], runner=runner)
+        narration.prerender()
+
+        assert narration.duration_ms("alpha") == 1000
+
+    def test_entries_past_the_age_bound_are_swept(self, tmp_path, isolated_cache):
+        stale = isolated_cache / "stale-entry"
+        stale.mkdir(parents=True)
+        (stale / "clip.wav").write_bytes(b"old")
+        import os as _os
+
+        ancient = 1.0
+        _os.utime(stale, (ancient, ancient))
+
+        runner = caching_runner({"alpha": 1000})
+        _narration.Narration(tmp_path, script=["alpha"], runner=runner).prerender()
+
+        assert not stale.exists(), "the cache has no invalidation signal but age"
+
+    def test_sweeping_an_absent_root_is_survivable(self, tmp_path):
+        _narration._sweep_cache(tmp_path / "never-created")
+
+    def test_a_recent_sweep_skips_the_directory_walk(self, tmp_path, isolated_cache):
+        # Unthrottled, the sweep stats every entry on every capture run, so
+        # its cost tracks the cache's whole history rather than this
+        # script's handful of lines.
+        stale = isolated_cache / "stale-entry"
+        stale.mkdir(parents=True)
+        (stale / "clip.wav").write_bytes(b"old")
+        import os as _os
+
+        _os.utime(stale, (1.0, 1.0))
+        (isolated_cache / ".last-swept").touch()
+
+        _narration._sweep_cache(isolated_cache)
+
+        assert stale.exists(), "a sweep inside the interval must not walk"
+
+    def test_the_walk_resumes_once_the_interval_has_passed(self, tmp_path, isolated_cache):
+        stale = isolated_cache / "stale-entry"
+        stale.mkdir(parents=True)
+        (stale / "clip.wav").write_bytes(b"old")
+        import os as _os
+
+        _os.utime(stale, (1.0, 1.0))
+        sentinel = isolated_cache / ".last-swept"
+        sentinel.touch()
+        _os.utime(sentinel, (1.0, 1.0))
+
+        _narration._sweep_cache(isolated_cache)
+
+        assert not stale.exists()
+
+    def test_a_cache_hit_reports_the_voice_that_narrated_it(self, tmp_path):
+        first = caching_runner({"alpha": 1000}, voice="af_heart")
+        _narration.Narration(tmp_path / "one", script=["alpha"], runner=first).prerender()
+
+        retake = _narration.Narration(
+            tmp_path / "two", script=["alpha"], runner=caching_runner({"alpha": 1000})
+        )
+        retake.prerender()
+
+        # The manifest must name what is in the audio, not what was asked
+        # for — the artifact's licence disclosure depends on it.
+        assert retake.manifest()["voice"] == "af_heart"
+
+    def test_re_pinning_the_voice_invalidates_the_cache(self, tmp_path, monkeypatch):
+        # Without this the cache keeps serving the previously-pinned voice:
+        # GH-1221's silent divergence wearing a cache, and for a
+        # CC BY-NC-SA voice past its licence gate that is a licence breach.
+        monkeypatch.setattr(_narration, "voice_pin_fingerprint", lambda *a, **k: "pin-one")
+        first = caching_runner({"alpha": 1000})
+        _narration.Narration(tmp_path / "one", script=["alpha"], runner=first).prerender()
+
+        monkeypatch.setattr(_narration, "voice_pin_fingerprint", lambda *a, **k: "pin-two")
+        second = caching_runner({"alpha": 1000})
+        _narration.Narration(tmp_path / "two", script=["alpha"], runner=second).prerender()
+
+        assert len(second.calls) == 1, "a re-pin must miss rather than serve stale audio"
+
+
+class TestVoicePinFingerprint:
+    def test_the_same_pin_yields_a_stable_fingerprint(self, tmp_path):
+        pin = tmp_path / "tts.yaml"
+        pin.write_text("voice: af_heart\n")
+        assert _narration.voice_pin_fingerprint(pin) == _narration.voice_pin_fingerprint(pin)
+
+    def test_editing_the_pin_changes_the_fingerprint(self, tmp_path):
+        pin = tmp_path / "tts.yaml"
+        pin.write_text("voice: af_heart\n")
+        before = _narration.voice_pin_fingerprint(pin)
+        pin.write_text("voice: en_US-ryan-medium\n")
+        assert _narration.voice_pin_fingerprint(pin) != before
+
+    def test_an_absent_pin_is_its_own_stable_state(self, tmp_path):
+        assert _narration.voice_pin_fingerprint(tmp_path / "absent.yaml") == "unpinned"
+
+
+class TestFixtureProbeGate:
+    """Synthesis is refused until the fixture probe passes (GH-1238)."""
+
+    def test_a_failing_probe_prevents_any_model_load(self, tmp_path):
+        runner = caching_runner({"alpha": 1000})
+        narration = _narration.Narration(
+            tmp_path,
+            script=["alpha"],
+            runner=runner,
+            fixture_probe=lambda: (_ for _ in ()).throw(RuntimeError("owner select is empty")),
+        )
+
+        with pytest.raises(_narration.FixtureProbeError) as caught:
+            narration.prerender()
+
+        assert runner.calls == [], "a failed fixture must cost fixture time only"
+        assert "owner select is empty" in str(caught.value)
+
+    def test_a_probe_returning_false_also_refuses(self, tmp_path):
+        runner = caching_runner({"alpha": 1000})
+        narration = _narration.Narration(
+            tmp_path, script=["alpha"], runner=runner, fixture_probe=lambda: False
+        )
+
+        with pytest.raises(_narration.FixtureProbeError):
+            narration.prerender()
+        assert runner.calls == []
+
+    def test_a_passing_probe_lets_synthesis_run(self, tmp_path):
+        runner = caching_runner({"alpha": 1000})
+        narration = _narration.Narration(
+            tmp_path, script=["alpha"], runner=runner, fixture_probe=lambda: True
+        )
+        narration.prerender()
+
+        assert len(runner.calls) == 1
+
+    def test_no_probe_keeps_the_previous_behaviour(self, tmp_path):
+        runner = caching_runner({"alpha": 1000})
+        _narration.Narration(tmp_path, script=["alpha"], runner=runner).prerender()
+        assert len(runner.calls) == 1
+
+    def test_the_probe_error_is_a_narration_error(self, tmp_path):
+        # Callers that already catch NarrationError keep working.
+        assert issubclass(_narration.FixtureProbeError, _narration.NarrationError)
+
+
+class TestCaptionClaims:
+    """A caption must not out-run the state it claims (GH-1240)."""
+
+    def test_a_failing_assertion_aborts_the_beat(self, tmp_path):
+        narration = _narration.Narration(tmp_path, script=[], runner=caching_runner({}))
+
+        with pytest.raises(_narration.CaptionClaimError) as caught:
+            narration.assert_claim("Assigned instantly", assert_state=lambda: False)
+
+        assert "Assigned instantly" in str(caught.value)
+        assert narration.spoken == [], "the beat must not reach the manifest"
+
+    def test_an_assertion_that_raises_is_reported_not_swallowed(self, tmp_path):
+        narration = _narration.Narration(tmp_path, script=[], runner=caching_runner({}))
+
+        with pytest.raises(_narration.CaptionClaimError, match="locator timed out"):
+            narration.assert_claim(
+                "Assigned",
+                assert_state=lambda: (_ for _ in ()).throw(RuntimeError("locator timed out")),
+            )
+
+    def test_a_holding_assertion_lets_the_caption_cue(self, tmp_path):
+        narration = _narration.Narration(tmp_path, script=[], runner=caching_runner({}))
+        narration.assert_claim("Assigned", assert_state=lambda: True)
+        assert narration.unasserted == []
+
+    def test_a_beat_without_an_assertion_is_recorded_as_unasserted(self, tmp_path):
+        narration = _narration.Narration(tmp_path, script=[], runner=caching_runner({}))
+        narration.assert_claim("Assigned", assert_state=None)
+
+        # Not a failure — requiring an assertion everywhere would make
+        # narration all-or-nothing; a visible gap beats a blocked capture.
+        assert narration.unasserted == ["Assigned"]
+
+    def test_unasserted_is_deduplicated(self, tmp_path):
+        narration = _narration.Narration(tmp_path, script=[], runner=caching_runner({}))
+        narration.assert_claim("Assigned", assert_state=None)
+        narration.assert_claim("Assigned", assert_state=None)
+        assert narration.unasserted == ["Assigned"]
+
+    def test_the_manifest_reports_which_claims_were_checked(self, tmp_path):
+        narration = _narration.Narration(tmp_path, script=[], runner=caching_runner({}))
+        narration.assert_claim("Checked", assert_state=lambda: True)
+        narration.record("Checked", 900, asserted=True)
+        narration.assert_claim("Unchecked", assert_state=None)
+        narration.record("Unchecked", 900, asserted=False)
+
+        manifest = narration.manifest()
+        assert manifest["unasserted"] == ["Unchecked"]
+        assert [entry["asserted"] for entry in manifest["all_captions"]] == [True, False]
+
+    def test_a_legacy_record_call_reports_asserted_as_unknown(self, tmp_path):
+        # None (predates assert_state) is a different answer from False
+        # (opted out for this beat); collapsing them would report an old
+        # script as deliberately unchecked.
+        narration = _narration.Narration(tmp_path, script=[], runner=caching_runner({}))
+        entry = narration.record("Legacy", 900)
+        assert entry["asserted"] is None
+
+    def test_the_claim_error_is_a_narration_error(self):
+        assert issubclass(_narration.CaptionClaimError, _narration.NarrationError)

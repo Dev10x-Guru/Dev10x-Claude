@@ -49,6 +49,7 @@ import base64
 import json
 import os
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -1055,6 +1056,7 @@ class Annotator:
         sub: str | None = None,
         kind: str = "claim",
         settle: bool = True,
+        assert_state: Callable[[], Any] | None = None,
     ) -> None:
         """Show a caption and hold for as long as it takes to read or hear.
 
@@ -1075,10 +1077,26 @@ class Annotator:
         it from the audio is what keeps the caption and the voice-over on
         the same beat — two independent estimates drift.
 
+        ``assert_state`` is checked BEFORE the caption cues (GH-1240). A
+        caption is scheduled from the script, not from the application, so
+        without it a beat narrates its claim even when the step meant to
+        produce that claim failed — and ``verify-evidence.py`` validates
+        the artifact rather than the claim, so the take passes silently. A
+        failing assertion raises ``CaptionClaimError`` and aborts the beat
+        instead of putting a falsehood in the video. Beats without one are
+        reported in the manifest under ``unasserted``.
+
+        For transient UI (a toast, a flash message) capture before
+        narrating — ``shoot()`` then ``say()``, never the reverse. The
+        caption dwell can outlast the element the screenshot needs.
+
         Call this only AFTER a navigation completes — the overlay is
         re-created per document, so a caption set before ``goto`` is
         wiped by the page load and the step plays silently.
         """
+        if self._narration is not None:
+            self._narration.assert_claim(text, assert_state)
+
         dwell = None
         if self._narration is not None:
             dwell = self._narration.dwell_ms(text)
@@ -1093,7 +1111,7 @@ class Annotator:
         # start. Recording after the settle sleep would cue every clip one
         # dwell late.
         if self._narration is not None:
-            self._narration.record(text, dwell)
+            self._narration.record(text, dwell, asserted=assert_state is not None)
 
         self._page.evaluate(
             "([text, dwell, sub, kind]) => window.__dxAnnotate.caption(text, dwell, sub, kind)",
