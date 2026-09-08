@@ -43,73 +43,109 @@
         "commits_ahead": 1,
         "commit_title": "✅ PAY-310 Stabilize tax amount tests"
       },
-      "dimensions": ["title", "body-format", "story-language", "safety", "workflow"],
+      "dimensions": [
+        "title",
+        "body-format",
+        "story-language",
+        "safety",
+        "workflow"
+      ],
       "assertions": [
         {
           "id": "title-from-commit",
           "text": "PR title is the single commit title (✅ PAY-310 Stabilize tax amount tests)",
           "check": "output_contains",
-          "signals": ["Stabilize tax amount tests"]
+          "signals": [
+            "Stabilize tax amount tests"
+          ]
         },
         {
           "id": "body-starts-with-job-story",
           "text": "PR body starts with a JTBD Job Story in **When** / **[actor] wants to** / **so [beneficiary] can** format",
           "check": "output_contains",
-          "signals": ["**When**", "wants to", "**so"]
+          "signals": [
+            "**When**",
+            "wants to",
+            "**so"
+          ]
         },
         {
           "id": "uses-ticket-language",
           "text": "PR body uses the project or ticket language for Job Story and BDD/user-story prose",
           "check": "output_contains",
-          "signals": ["cucumber.io/docs/gherkin/languages", "project or ticket language"]
+          "signals": [
+            "cucumber.io/docs/gherkin/languages",
+            "project or ticket language"
+          ]
         },
         {
           "id": "body-has-commit-list",
           "text": "PR body contains linked commit list with short hash and commit message",
           "check": "output_contains",
-          "signals": ["commits/", "PAY-310"]
+          "signals": [
+            "commits/",
+            "PAY-310"
+          ]
         },
         {
           "id": "body-has-fixes-link",
           "text": "PR body contains Fixes: link to the issue tracker",
           "check": "output_contains",
-          "signals": ["Fixes:"]
+          "signals": [
+            "Fixes:"
+          ]
         },
         {
           "id": "created-as-draft",
           "text": "PR is created as a draft (--draft flag)",
           "check": "command_contains",
-          "signals": ["--draft", "draft"]
+          "signals": [
+            "--draft",
+            "draft"
+          ]
         },
         {
           "id": "targets-develop",
           "text": "PR targets develop branch (--base develop)",
           "check": "command_contains",
-          "signals": ["--base develop", "develop"]
+          "signals": [
+            "--base develop",
+            "develop"
+          ]
         },
         {
           "id": "runs-verify-state",
           "text": "Runs verify-state.sh before any PR creation",
           "check": "command_contains",
-          "signals": ["verify-state.sh"]
+          "signals": [
+            "verify-state.sh"
+          ]
         },
         {
           "id": "runs-pre-pr-checks",
           "text": "Runs pre-pr-checks.sh (ruff, black, mypy, pytest) before pushing",
           "check": "command_contains",
-          "signals": ["pre-pr-checks.sh"]
+          "signals": [
+            "pre-pr-checks.sh"
+          ]
         },
         {
           "id": "shows-preview",
           "text": "Shows PR title and body preview before creating, asks for approval",
           "check": "tool_called",
-          "signals": ["AskUserQuestion", "Preview", "Create PR"]
+          "signals": [
+            "AskUserQuestion",
+            "Preview",
+            "Create PR"
+          ]
         },
         {
           "id": "opens-in-browser",
           "text": "Opens the created PR in browser via gh pr view --web",
           "check": "command_contains",
-          "signals": ["gh pr view --web"]
+          "signals": [
+            "gh pr view --web"
+          ]
         }
       ]
     },
@@ -128,31 +164,50 @@
           "📝 PAY-200 Document location routing"
         ]
       },
-      "dimensions": ["title", "body-format"],
+      "dimensions": [
+        "title",
+        "body-format"
+      ],
       "assertions": [
         {
           "id": "title-not-last-commit",
           "text": "PR title is NOT just the last commit title (📝 PAY-200 Document location routing)",
           "check": "output_not_contains",
-          "signals": ["Document location routing"]
+          "signals": [
+            "Document location routing"
+          ]
         },
         {
           "id": "title-outcome-focused",
           "text": "PR title describes overall outcome (e.g., Enable multi-location payment routing)",
           "check": "output_contains",
-          "signals": ["Enable", "routing", "location"]
+          "signals": [
+            "Enable",
+            "routing",
+            "location"
+          ]
         },
         {
           "id": "body-lists-all-commits",
           "text": "PR body commit list includes all 4 commits, not just the latest",
           "check": "output_contains",
-          "signals": ["Extract location", "Enable location", "Verify multi", "Document location"]
+          "signals": [
+            "Extract location",
+            "Enable location",
+            "Verify multi",
+            "Document location"
+          ]
         },
         {
           "id": "jtbd-sourced-or-generated",
           "text": "Searches ticket for existing Job Story before generating new one",
           "check": "behavioral",
-          "signals": ["detect-tracker.sh", "search", "Job Story", "generate"]
+          "signals": [
+            "detect-tracker.sh",
+            "search",
+            "Job Story",
+            "generate"
+          ]
         }
       ]
     },
@@ -164,31 +219,44 @@
       "setup": {
         "existing_pr": 312
       },
-      "dimensions": ["workflow"],
+      "dimensions": [
+        "workflow"
+      ],
       "assertions": [
         {
           "id": "detects-update-mode",
           "text": "Detects PR number argument and switches to update mode",
           "check": "transcript_contains",
-          "signals": ["update", "existing PR", "edit"]
+          "signals": [
+            "update",
+            "existing PR",
+            "edit"
+          ]
         },
         {
           "id": "skips-verify-and-push",
           "text": "Skips verify-state.sh and branch push (PR already exists)",
           "check": "command_absent",
-          "signals": ["verify-state.sh"]
+          "signals": [
+            "verify-state.sh"
+          ]
         },
         {
           "id": "uses-gh-pr-edit",
           "text": "Uses gh pr edit (not gh pr create) to update the PR",
           "check": "command_contains",
-          "signals": ["gh pr edit"]
+          "signals": [
+            "gh pr edit"
+          ]
         },
         {
           "id": "regenerates-body",
           "text": "Still regenerates Job Story and commit list for the updated body",
           "check": "output_contains",
-          "signals": ["**When**", "commits/"]
+          "signals": [
+            "**When**",
+            "commits/"
+          ]
         }
       ]
     },
@@ -200,27 +268,41 @@
       "setup": {
         "branch": "janusz/PAY-400/fix-timeout",
         "commits_ahead": 1,
-        "diff_excludes": ["migrations/", "env"]
+        "diff_excludes": [
+          "migrations/",
+          "env"
+        ]
       },
-      "dimensions": ["body-format"],
+      "dimensions": [
+        "body-format"
+      ],
       "assertions": [
         {
           "id": "strikes-migration-items",
           "text": "Migration-related checklist items are struck through (no migrations/ in diff)",
           "check": "output_contains",
-          "signals": ["~", "migration"]
+          "signals": [
+            "~",
+            "migration"
+          ]
         },
         {
           "id": "strikes-env-items",
           "text": "Environment variable checklist items are struck through (no env changes)",
           "check": "output_contains",
-          "signals": ["~", "environment", "env"]
+          "signals": [
+            "~",
+            "environment",
+            "env"
+          ]
         },
         {
           "id": "uses-gh-pr-edit-for-strikethrough",
           "text": "Updates PR body with strikethroughs via gh pr edit after initial creation",
           "check": "command_contains",
-          "signals": ["gh pr edit"]
+          "signals": [
+            "gh pr edit"
+          ]
         }
       ]
     },
@@ -233,25 +315,87 @@
         "branch": "janusz/PAY-500/new-feature",
         "pre_pr_checks_fail": true
       },
-      "dimensions": ["safety", "workflow"],
+      "dimensions": [
+        "safety",
+        "workflow"
+      ],
       "assertions": [
         {
           "id": "stops-on-check-failure",
           "text": "Workflow stops when pre-PR checks fail — does NOT push or create PR",
           "check": "command_absent",
-          "signals": ["gh pr create", "git push"]
+          "signals": [
+            "gh pr create",
+            "git push"
+          ]
         },
         {
           "id": "shows-error-output",
           "text": "Displays the specific check failure output to the user",
           "check": "output_contains",
-          "signals": ["error", "failed", "fix"]
+          "signals": [
+            "error",
+            "failed",
+            "fix"
+          ]
         },
         {
           "id": "suggests-fix",
           "text": "Suggests commands to fix the failing checks",
           "check": "output_contains",
-          "signals": ["ruff", "black", "fix"]
+          "signals": [
+            "ruff",
+            "black",
+            "fix"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "release-batch-titles-are-distinguishable",
+      "prompt": "/Dev10x:gh-pr-create",
+      "description": "GH-1225: a release bundle's PR titles must be distinguishable from each other, not variations on one frame. The observed failure was a 17-PR tt:safe-to-ship bundle in which 11 titles opened with 'Let', four named a system as the actor, and sibling PRs differed only by their verb. Each Job Story below is real input to title derivation; the titles produced across the batch are judged together, not one at a time.",
+      "setup": {
+        "batch": true,
+        "job_stories": [
+          "When a lead arrives from the web form, the CRM wants to create a contact record, so the CRM can keep the pipeline current.",
+          "When a lead arrives from the web form, the CRM wants to look up an existing contact, so the CRM can avoid duplicate records.",
+          "When the vendor catalogue changes overnight, the schema poller wants to retry with backoff, so the schema poller can avoid hammering the vendor API.",
+          "When a customer declines a tyre, the service writer wants the bill to update immediately, so the customer can see the real total before paying."
+        ]
+      },
+      "dimensions": [
+        "title"
+      ],
+      "assertions": [
+        {
+          "id": "batch-does-not-collapse-to-one-frame",
+          "text": "No more than half the batch's titles share an opening word — the monoculture GH-1225 reports is 11 of 17 opening 'Let'",
+          "check": "batch_opening_word_share",
+          "max_share": 0.5
+        },
+        {
+          "id": "siblings-differ-past-two-words",
+          "text": "The two CRM-contact titles differ beyond their first two words — a verb-only difference ('create' vs 'look up') is not distinct",
+          "check": "batch_titles_distinct",
+          "min_distinct_prefix_words": 2
+        },
+        {
+          "id": "no-system-as-actor",
+          "text": "No title names a system ('the CRM', 'the schema poller', 'the client') as its actor — each is traced upward to a human role or re-framed with no actor slot",
+          "check": "output_absent",
+          "signals": [
+            "Let the CRM",
+            "Let the schema poller",
+            "Let the client"
+          ]
+        },
+        {
+          "id": "every-title-maps-to-an-roi-bucket",
+          "text": "Each title is readable as one of Risk, Cost, Revenue, Time-to-value, Retention, or Platform integrity per memo 006 (GH-276)",
+          "check": "rubric",
+          "rubric": "For each title in the batch, name the ROI bucket an approver would read from it. Fail if any title maps to no bucket, which means it describes the implementation rather than the outcome."
         }
       ]
     }

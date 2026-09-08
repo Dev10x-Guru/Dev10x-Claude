@@ -679,6 +679,25 @@ nodes, where `.screenshot()` quietly captures the first. Pass
 `expected=0` to assert something is genuinely absent — that is a real
 claim, and it must be written as one rather than as an untaken branch.
 
+**Two backstops, both soft.** The verifier can scan the capture script
+for the guard shape and reconcile the declared screenshots against what
+reached disk:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/skills/qa-self/scripts/verify-evidence.py \
+  /tmp/Dev10x/self-qa/*.png \
+  --script /tmp/Dev10x/self-qa/qa-PAY-1434-matrix.py \
+  --declared /tmp/Dev10x/self-qa/manifest.json
+```
+
+Both report under a `warnings` key and neither changes the `ok`
+verdict. That is deliberate: `if rows.count() > 5:` is a legitimate
+line, and a hard block on a regex teaches authors to route around the
+verifier rather than to write the assertion. They exist so a step that
+no-opped is *visible* — the manifest is written from what the script
+intended to capture, so a declared file that never landed is the one
+failure every other check in the verifier structurally cannot see.
+
 **"In-viewport" is not "`bounding_box()` non-null."** That check catches
 only detached and `display:none` elements; anything laid out below the
 fold returns a perfectly good box and sails through. `point_at()`
