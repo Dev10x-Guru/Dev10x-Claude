@@ -320,11 +320,36 @@ including *self-disclosed* cuts (a PR body or unchecked checklist
 noting remaining work), because the link fires on merge
 regardless of disclosure.
 
-Read the PR body via `mcp__plugin_Dev10x_cli__pr_get`. For each
-`Fixes:`/`Closes:` link, compare the linked issue's title +
-acceptance criteria against the diff (`git diff
-origin/<base>..HEAD`). This is a reasoning judgment, not a shell
-command:
+**Run the deterministic pass first (GH-1241).** The judgment
+below is the right instrument for the hard case and the wrong one
+for the easy case — and the easy case is what shipped wrong. PR
+#1228 declared six links and carried commits for five; GH-1221
+closed with no commit behind it at all. A link with *no* commit
+mentioning its ticket needs no reasoning, so decide it
+mechanically before spending judgment on the rest:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-merge/scripts/reconcile-fixes-links.py \
+  --body-file <pr-body.txt> --base origin/<base>
+```
+
+Write the PR body to a file via `mcp__plugin_Dev10x_cli__mktmp`
+first. The script prints a JSON verdict on stdout and exits
+non-zero when any link is unbacked; `unbacked` names the specific
+issues. **Exit 1 blocks the merge** — the link would close an
+issue this PR never touched.
+
+For a link deliberately kept without a commit of its own (an
+issue delivered by a commit that names a sibling), pass
+`--acknowledge <number>`. That is an explicit argument rather
+than an inferred exception so a human records the decision;
+never widen the regex or drop the link to make the check pass.
+
+Then, for each link the deterministic pass cleared, compare the
+linked issue's title + acceptance criteria against the diff
+(`git diff origin/<base>..HEAD`). This second pass is a reasoning
+judgment, not a shell command — a commit can mention a ticket
+without delivering what the ticket titled:
 
 - **Block** when a titled capability is unbuilt — tell-tales:
   new production code with no non-test caller, a titled
