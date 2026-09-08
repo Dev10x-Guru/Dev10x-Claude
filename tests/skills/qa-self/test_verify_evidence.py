@@ -483,6 +483,29 @@ class TestNarrationFailures:
         assert len(failures) == 1
         assert "16.1s past the end" in failures[0]
 
+    def test_flags_a_declared_line_that_never_played(self, tmp_path, monkeypatch):
+        # GH-1218: every other check here samples the footage, and a take
+        # missing one beat samples exactly like a complete one.
+        monkeypatch.setattr(_mod, "stream_codec_types", lambda path: ["video", "audio"])
+        manifest = {
+            "segments": [{"offset_ms": 0, "duration_ms": 1_000}],
+            "never_played": ["the refund confirmation toast"],
+        }
+        failures = _mod.narration_failures(
+            tmp_path / "clip.webm", manifest=manifest, duration=90.9
+        )
+        assert len(failures) == 1
+        assert "the refund confirmation toast" in failures[0]
+
+    def test_a_manifest_without_the_key_is_not_flagged(self, tmp_path, monkeypatch):
+        """Manifests written before GH-1218 carry no never_played key."""
+        monkeypatch.setattr(_mod, "stream_codec_types", lambda path: ["video", "audio"])
+        manifest = {"segments": [{"offset_ms": 0, "duration_ms": 1_000}]}
+        failures = _mod.narration_failures(
+            tmp_path / "clip.webm", manifest=manifest, duration=90.9
+        )
+        assert failures == []
+
     def test_a_take_with_no_spoken_cues_skips_the_overrun_check(self, tmp_path, monkeypatch):
         monkeypatch.setattr(_mod, "stream_codec_types", lambda path: ["video", "audio"])
         failures = _mod.narration_failures(

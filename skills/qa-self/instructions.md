@@ -659,6 +659,26 @@ passes whether or not the target ever existed, so a missing feature
 looks identical to a working one. Assert instead, by routing the shot
 through `Annotator.shoot()`.
 
+Use `require()` when you need the locator before the shot — it is the
+copyable form of that assertion, and it is shorter than the guard it
+replaces:
+
+```python
+from annotate import require                    # DEV10X_PLAYWRIGHT_LIB
+
+row = require(page.get_by_role("button", name="Assign"),
+              "the Assign button on the work-order card")
+anno.shoot(row, "test1-success.png",
+           claim="Assign is offered directly on the card")
+```
+
+`require()` raises `RuntimeError` naming the claim, the locator, and the
+count it actually found. `expected=` takes a count, not a bool: the
+failure that reaches review is usually a locator matching *several*
+nodes, where `.screenshot()` quietly captures the first. Pass
+`expected=0` to assert something is genuinely absent — that is a real
+claim, and it must be written as one rather than as an untaken branch.
+
 **"In-viewport" is not "`bounding_box()` non-null."** That check catches
 only detached and `display:none` elements; anything laid out below the
 fold returns a perfectly good box and sails through. `point_at()`

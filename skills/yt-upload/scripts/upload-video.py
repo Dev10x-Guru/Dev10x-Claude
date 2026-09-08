@@ -434,6 +434,16 @@ def narration_defects(narration: dict | None) -> list[str]:
     unrendered = narration.get("unrendered") or []
     if unrendered:
         defects.append(f"{len(unrendered)} caption(s) played with no audio: {unrendered}")
+    # A declared line that never played is the OPPOSITE failure to an
+    # unrendered one, and older manifests carry neither key — absent reads
+    # as "nothing to report", which is what this list existed to stop
+    # (GH-1218).
+    never_played = narration.get("never_played") or []
+    if never_played:
+        defects.append(
+            f"{len(never_played)} declared line(s) never played, so the beat they "
+            f"narrate is missing from the recording: {never_played}"
+        )
     if narration.get("anchor") == "install":
         defects.append(
             "narration is anchored at 'install', so every cue is offset by however "

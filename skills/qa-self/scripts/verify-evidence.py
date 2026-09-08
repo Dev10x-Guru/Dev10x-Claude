@@ -290,6 +290,15 @@ def narration_failures(path: Path, *, manifest: dict | None, duration: float) ->
                 f"(last cue ends {cue_end / 1000:.1f}s, video is {duration:.1f}s) — "
                 "synthesis was anchored inside the recording (GH-1204)"
             )
+        # Declared-but-never-played is invisible to every frame-sampling
+        # check above: the beat is simply missing, and what did record
+        # looks perfectly well-formed (GH-1218).
+        never_played = manifest.get("never_played") or []
+        if never_played:
+            failures.append(
+                f"{len(never_played)} declared narration line(s) never played, so "
+                f"the step(s) they narrate are missing from the take: {never_played}"
+            )
     return failures
 
 
