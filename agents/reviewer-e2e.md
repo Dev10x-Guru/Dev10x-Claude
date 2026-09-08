@@ -70,6 +70,20 @@ absence as a missing binding.
 11. **No-op Given steps** — a `@given` whose body is only `pass`; flag
     as INFO. A Given that asserts nothing also proves nothing when the
     same scenario is replayed as a walkthrough recording
+12. **Non-convergent setup steps** — a `@given` (or fixture helper)
+    that performs a write without first checking whether the desired
+    end state already holds; flag as WARNING. Setup re-runs on every
+    probe, retry, and resumed take, so a step that only works from a
+    clean slate fails on the second pass and reads as an application
+    bug. Two shapes to catch specifically:
+    - a click on a control whose enabled-ness depends on dirty state
+      (`react-hook-form`'s `isDirty`, a disabled Save) with no prior
+      read of the current value — it is disabled *precisely* when the
+      value is already correct
+    - mutation of a shared, fixed-name fixture where a per-run
+      uniquely-named entity would remove the cross-run coupling
+    See `skills/qa-self/instructions.md` § "Setup steps must be
+    convergent" (GH-1239)
 
 ## Output Format
 
