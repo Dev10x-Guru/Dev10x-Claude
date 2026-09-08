@@ -446,18 +446,37 @@ class TestLastCueEndMs:
 
 
 class TestSilentGuardFindings:
-    def test_flags_a_locator_count_guard(self, tmp_path):
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "if kebab.count():",  # the bare truthy form require() names
+            "if kebab.count() > 0:",
+            "if kebab.count() >= 1:",
+            "if kebab.count() != 0:",
+            "if not kebab.count():",
+            "if page.get_by_role('button').count():",
+        ],
+    )
+    def test_flags_every_spelling_of_an_existence_guard(self, tmp_path, line):
         script = tmp_path / "qa-PAY-1.py"
-        script.write_text("if kebab.count() > 0:\n    shoot(page)\n", encoding="utf-8")
+        script.write_text(f"{line}\n    shoot(page)\n", encoding="utf-8")
 
         (finding,) = _mod.silent_guard_findings(script)
 
         assert "qa-PAY-1.py:1" in finding
         assert "require()" in finding
 
-    def test_a_require_call_is_not_flagged(self, tmp_path):
+    @pytest.mark.parametrize(
+        "line",
+        [
+            'require(kebab, "the menu")',
+            "if rows.count() > 5:",  # a real threshold, not an existence test
+            "if rows.count() == 12:",
+        ],
+    )
+    def test_a_legitimate_line_is_not_flagged(self, tmp_path, line):
         script = tmp_path / "qa-PAY-1.py"
-        script.write_text('require(kebab, "the menu")\n', encoding="utf-8")
+        script.write_text(f"{line}\n", encoding="utf-8")
 
         assert _mod.silent_guard_findings(script) == []
 
