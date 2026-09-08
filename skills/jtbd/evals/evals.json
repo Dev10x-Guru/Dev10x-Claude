@@ -15,6 +15,11 @@
       "id": "trace-upward-actor",
       "name": "Trace-Upward Actor Selection for Plumbing PRs",
       "description": "For refactor/infra/dependency-bump PRs, the drafted actor is the user-facing feature's actor traced upward through the dependency chain — never \"the developer\" as actor."
+    },
+    {
+      "id": "evidence-ranking",
+      "name": "Evidence Ranking Over Agent-Written Tickets",
+      "description": "Value claims rest on the diff, PR body, QA comments, and human-sourced quotes before ticket prose; ticket-only claims are tagged [Verify: ticket-only]; comments are read, not just descriptions; one ROI bucket is named with its rejected runner-up (GH-1225)."
     }
   ],
   "evals": [
@@ -60,6 +65,48 @@
           "dimension": "unattended-no-gate",
           "check": "behavioral",
           "signal": "AskUserQuestion is NOT called; the drafted story string is returned directly to the caller for batching"
+        }
+      ]
+    },
+    {
+      "id": "empty-ticket-evidence-comes-from-qa-comment",
+      "name": "An empty ticket description sends the skill to the comments and the diff",
+      "description": "GH-1225: the ticket description is empty and the only measured evidence (a declined line lowering the parts subtotal) is in a QA walkthrough comment. The story must cite that, tag anything ticket-only, and name one bucket plus its runner-up.",
+      "input": "Dev10x:jtbd invoked with mode=unattended, ticket_id=PROJ-706, pr_number=1977",
+      "assertions": [
+        {
+          "dimension": "evidence-ranking",
+          "check": "tool_called",
+          "tool": "mcp__linear-server__list_comments",
+          "signal": "Comments on the ticket are read, not only the description"
+        },
+        {
+          "dimension": "evidence-ranking",
+          "check": "behavioral",
+          "signal": "The drafted story's outcome is grounded in the QA comment or the diff, and any number carries its source"
+        },
+        {
+          "dimension": "evidence-ranking",
+          "check": "output_contains",
+          "signal": "Exactly one ROI bucket is named, and a one-line rejected runner-up is recorded"
+        }
+      ]
+    },
+    {
+      "id": "system-as-actor-rejected",
+      "name": "A system is never the actor or beneficiary",
+      "description": "GH-1225: the ticket says 'the CRM cannot tell a shop what their staff login is'. The story must name the support rep and the shop owner, not the CRM; for a generated-types-only diff it must story the contract held, not a borrowed outcome.",
+      "input": "Dev10x:jtbd invoked with mode=unattended, ticket_id=PROJ-724, pr_number=1993",
+      "assertions": [
+        {
+          "dimension": "trace-upward-actor",
+          "check": "output_absent",
+          "signal": "Story does not contain 'the CRM wants', 'the client wants', or 'so the CRM can'"
+        },
+        {
+          "dimension": "evidence-ranking",
+          "check": "behavioral",
+          "signal": "Because the diff is generated types only, the story names Platform integrity with a counterparty (the backend schema) and records the ticket-level Cost outcome as belonging to the wiring PR"
         }
       ]
     },
