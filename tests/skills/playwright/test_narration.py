@@ -103,6 +103,23 @@ class TestCollapseLine:
         assert _narration.collapse_line(messy) == "Pick a customer. One click assigns them."
 
 
+class TestScriptValidation:
+    @pytest.mark.parametrize("blank", ["", "   ", "\n\t "])
+    def test_an_empty_declared_line_is_refused_at_construction(self, tmp_path, blank):
+        # Left to the synthesizer, this surfaces as "narration segment is
+        # empty after whitespace collapse" from inside a subprocess, naming
+        # neither the line nor the script it came from.
+        runner = fake_runner({})
+        with pytest.raises(_narration.NarrationError) as caught:
+            _narration.Narration(tmp_path, script=["alpha", blank], runner=runner)
+        assert runner.calls == [], "synthesis must not start with a bad script"
+        assert "line 1" in str(caught.value)
+
+    def test_the_refusal_quotes_the_original_text(self, tmp_path):
+        with pytest.raises(_narration.NarrationError, match=r"'\\n\\t '"):
+            _narration.Narration(tmp_path, script=["\n\t "], runner=fake_runner({}))
+
+
 class TestPrerender:
     def test_synthesizes_every_line_in_one_batch(self, tmp_path):
         runner = fake_runner({"alpha": 1000, "beta": 2000})
