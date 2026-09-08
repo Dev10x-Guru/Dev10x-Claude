@@ -150,6 +150,30 @@ def _accepts_lang(runner: Callable[..., dict]) -> bool:
     return len(positional) >= 4
 
 
+def _validated_script(script: Iterable[str]) -> list[str]:
+    """Collapse every declared line, refusing one that says nothing.
+
+    An empty line reaches the synthesizer as a segment piper cannot voice.
+    The wrapper does reject it — but by then the message is
+    ``narration segment is empty after whitespace collapse``, raised
+    inside a subprocess, naming neither which line nor where it came
+    from. On a thirty-line script that is a hunt; here the index and the
+    original text are still in hand, so say them.
+    """
+    collapsed = []
+    for index, line in enumerate(script):
+        text = collapse_line(line)
+        if not text:
+            raise NarrationError(
+                f"narration script line {index} is empty (was {line!r}) — every"
+                " declared line becomes one synthesized clip, so an empty one"
+                " has no audio to pair a caption with. Drop it from the"
+                " script, or give it the words the caption will show."
+            )
+        collapsed.append(text)
+    return collapsed
+
+
 class Narration:
     """Pre-rendered voice-over bound to one recording."""
 
@@ -164,7 +188,7 @@ class Narration:
         runner: Callable[..., dict] = default_runner,
     ) -> None:
         self.out_dir = Path(out_dir)
-        self.script = [collapse_line(line) for line in script]
+        self.script = _validated_script(script)
         self.voice = voice
         self.lang = lang
         self.tail_ms = tail_ms

@@ -50,6 +50,13 @@ Every line passed to `anno.say()` should appear here verbatim. A line that
 does not is still shown and still recorded — it just plays silently, and
 lands in the manifest's `unrendered` list so the gap is visible.
 
+An **empty** entry is different: it is refused when `Narration` is
+constructed, before a browser opens, naming the index and the original
+text. One declared line is one synthesized clip, so a blank one has no
+audio for a caption to pair with — and left to the synthesizer the same
+failure arrives from inside a subprocess with no index in it. A trailing
+comma that leaves `""` in the list is the usual cause.
+
 ## 2. Anchor the timeline, then install
 
 Playwright starts recording when the **context** is created, not when the
