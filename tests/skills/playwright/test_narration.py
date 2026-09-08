@@ -226,11 +226,46 @@ class TestLanguage:
 
         assert runner.langs == ["en"]
 
-    def test_no_language_leaves_the_flag_off(self, tmp_path):
+    def test_no_language_still_resolves_one(self, tmp_path, monkeypatch):
+        # GH-1221's residual half. Forwarding --lang was necessary but not
+        # sufficient: both documented call sites construct Narration with
+        # neither lang= nor voice=, so leaving the flag off meant the
+        # language-scoped pin was still never consulted on the one path
+        # that produces client-facing artifacts.
+        monkeypatch.delenv("DEV10X_TTS_LANG", raising=False)
         runner = fake_runner({"alpha": 1000})
         _narration.Narration(tmp_path, script=["alpha"], runner=runner).prerender()
 
-        assert runner.langs == [None]
+        assert runner.langs == [_narration.DEFAULT_LANG]
+
+    def test_the_environment_language_is_honoured_when_none_is_passed(self, tmp_path, monkeypatch):
+        # The default must not shadow a supervisor who exported the
+        # variable: synthesize.py reads DEV10X_TTS_LANG itself, so a
+        # Narration that always sent "en" would narrate Polish text in
+        # an English voice — the same divergence pointed the other way.
+        monkeypatch.setenv("DEV10X_TTS_LANG", "pl")
+        runner = fake_runner({"alpha": 1000})
+        _narration.Narration(tmp_path, script=["alpha"], runner=runner).prerender()
+
+        assert runner.langs == ["pl"]
+
+    def test_an_explicit_language_outranks_the_environment(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DEV10X_TTS_LANG", "pl")
+        runner = fake_runner({"alpha": 1000})
+        _narration.Narration(tmp_path, script=["alpha"], lang="en", runner=runner).prerender()
+
+        assert runner.langs == ["en"]
+
+    def test_the_resolved_language_is_what_the_manifest_records(self, tmp_path, monkeypatch):
+        # The manifest is the disclosure surface, so it must report the
+        # language actually synthesized in — not the None that was passed.
+        monkeypatch.delenv("DEV10X_TTS_LANG", raising=False)
+        narration = _narration.Narration(
+            tmp_path, script=["alpha"], runner=fake_runner({"alpha": 1000})
+        )
+        narration.prerender()
+
+        assert narration.manifest()["lang"] == _narration.DEFAULT_LANG
 
     def test_the_language_is_recorded_in_the_manifest(self, tmp_path):
         narration = _narration.Narration(
@@ -293,6 +328,96 @@ class TestLanguage:
         _narration.default_runner({"segments": []}, tmp_path, "af_heart")
 
         assert "--lang" not in seen["command"]
+
+
+class TestLicenceDisclosure:
+    """The manifest discloses the licence; it never enforces it.
+
+    Whether a recording is commercial use, and whether a non-commercial
+    voice is acceptable in it, is the supervisor's call. So the run
+    records what it narrated in and leaves the decision alone — there is
+    deliberately no refusal here to assert.
+    """
+
+    @staticmethod
+    def _runner(**extra):
+        def run(payload, out_dir, voice, lang=None):
+            return {
+                "voice": voice or "test-voice",
+                "segments": [
+                    {
+                        "index": index,
+                        "id": segment["id"],
+                        "text": segment["text"],
+                        "wav": str(out_dir / f"seg-{index:03d}.wav"),
+                        "duration_ms": 1000,
+                    }
+                    for index, segment in enumerate(payload["segments"])
+                ],
+                **extra,
+            }
+
+        return run
+
+    def test_the_licence_standing_of_the_voice_is_carried_through(self, tmp_path):
+        # `batch` already computes this for `check`; it was simply never
+        # read on the walkthrough path, so the one artifact that reaches a
+        # client carried no record of what narrated it.
+        narration = _narration.Narration(
+            tmp_path, script=["alpha"], runner=self._runner(commercial_use_allowed=False)
+        )
+        narration.prerender()
+
+        assert narration.manifest()["commercial_use_allowed"] is False
+
+    def test_a_commercially_licensed_voice_is_recorded_as_such(self, tmp_path):
+        narration = _narration.Narration(
+            tmp_path, script=["alpha"], runner=self._runner(commercial_use_allowed=True)
+        )
+        narration.prerender()
+
+        assert narration.manifest()["commercial_use_allowed"] is True
+
+    def test_a_wrapper_that_reports_nothing_is_unknown_not_permitted(self, tmp_path):
+        # Absent is not the same as allowed. Defaulting to True would let a
+        # silent wrapper read as a clean licence, which is the direction
+        # this whole issue was about.
+        narration = _narration.Narration(tmp_path, script=["alpha"], runner=self._runner())
+        narration.prerender()
+
+        assert narration.manifest()["commercial_use_allowed"] is None
+
+    def test_a_later_batch_cannot_downgrade_a_known_answer(self, tmp_path):
+        # The second batch renders a newly added line but reports no
+        # licence standing. Letting that reset a reported False to None
+        # would turn "not permitted" back into "unknown" — the same
+        # silent-wrong-direction failure, smaller.
+        standings = [False, None]
+
+        def run(payload, out_dir, voice, lang=None):
+            standing = standings.pop(0)
+            rendered = self._runner()(payload, out_dir, voice, lang)
+            if standing is not None:
+                rendered["commercial_use_allowed"] = standing
+            return rendered
+
+        narration = _narration.Narration(tmp_path, script=["alpha"], runner=run)
+        narration.prerender()
+        narration.script.append("beta")
+        narration.prerender()
+
+        assert narration.manifest()["commercial_use_allowed"] is False
+
+    def test_disclosure_does_not_block_the_run(self, tmp_path):
+        # Licence compliance is the supervisor's call: a non-commercial
+        # voice must still produce a usable narration.
+        narration = _narration.Narration(
+            tmp_path, script=["alpha"], runner=self._runner(commercial_use_allowed=False)
+        )
+        narration.prerender()
+        narration.record("alpha", dwell_ms=1700)
+
+        assert narration.manifest()["segments"]
 
 
 class TestManifest:
