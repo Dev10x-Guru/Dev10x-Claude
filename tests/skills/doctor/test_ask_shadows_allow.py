@@ -23,7 +23,13 @@ def _detect(path: Path) -> list:
 
 class TestDetect:
     def test_narrow_ask_over_broad_allow_is_reported(self, tmp_path: Path) -> None:
-        """The GH-1007 E10 shape: ask on -D shadows the branch family."""
+        """The GH-1007 E10 shape: ask on -D shadows the branch family.
+
+        Still reported, but as a suggestion (GH-1222) — a narrow gate
+        under a broad allow is how you pre-approve a family while gating
+        its destructive variant, so calling it drift asked the user to
+        dismantle the guardrail.
+        """
         path = _settings(
             tmp_path,
             allow=["Bash(git branch:*)", "Bash(git branch -d:*)"],
@@ -31,9 +37,41 @@ class TestDetect:
         )
         (finding,) = _detect(path)
         assert finding.strategy_id == "ask-shadows-allow"
-        assert finding.severity == "drift"
+        assert finding.severity == "suggestion"
         assert "Bash(git branch -D:*)" in finding.evidence
         assert "Bash(git branch:*)" in finding.evidence
+
+    def test_an_exact_cross_bucket_duplicate_is_drift(self, tmp_path: Path) -> None:
+        """The same string in both buckets: one entry is simply dead."""
+        path = _settings(
+            tmp_path,
+            allow=["Bash(git stash drop:*)"],
+            ask=["Bash(git stash drop:*)"],
+        )
+        (finding,) = _detect(path)
+        assert finding.severity == "drift"
+        assert "BOTH" in finding.evidence
+
+    def test_an_intentional_guardrail_is_not_drift(self, tmp_path: Path) -> None:
+        """69 of 73 findings in the 2026-09-07 audit were this shape."""
+        path = _settings(
+            tmp_path,
+            allow=["Bash(git push:*)"],
+            deny=["Bash(git push --force:*)"],
+        )
+        (finding,) = _detect(path)
+        assert finding.severity == "suggestion"
+        assert "intentional" in finding.proposed_fix
+
+    def test_a_duplicate_and_a_narrowing_are_separate_findings(self, tmp_path: Path) -> None:
+        """The two shapes need different verdicts, so they cannot merge."""
+        path = _settings(
+            tmp_path,
+            allow=["Bash(git push:*)", "Bash(git push --force:*)"],
+            deny=["Bash(git push --force:*)"],
+        )
+        severities = sorted(finding.severity for finding in _detect(path))
+        assert severities == ["drift", "suggestion"]
 
     def test_deny_bucket_is_checked_too(self, tmp_path: Path) -> None:
         path = _settings(

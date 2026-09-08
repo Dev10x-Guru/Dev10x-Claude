@@ -105,7 +105,18 @@ def _shadowed_by(*, gate: AllowRule, allows: list[AllowRule]) -> list[AllowRule]
 
 
 def detect(context: Context) -> list[Finding]:
-    """Report every ask/deny rule that overrides a same-family allow rule."""
+    """Report ask/deny rules that overlap a same-family allow rule.
+
+    Two shapes hide under one prefix match, and conflating them is what
+    made this strategy 95% noise (GH-1222): 69 of 73 findings in the
+    2026-09-07 audit were a broad allow paired with a deliberate narrow
+    deny — ``git push:*`` with ``git push --force`` denied, ``docker
+    run:*`` with ``--privileged`` denied. That pairing is not drift; it
+    is the only way to pre-approve a command family while gating its
+    destructive variant, and reporting it as drift asks the user to
+    dismantle the guardrail. Only an EXACT duplicate across buckets is
+    contradictory — the same rule string cannot belong in both.
+    """
     findings: list[Finding] = []
     for path in _settings_paths_from_context(context):
         buckets = _load_buckets(path)
@@ -117,32 +128,77 @@ def detect(context: Context) -> list[Finding]:
                 shadowed = _shadowed_by(gate=AllowRule.parse(raw), allows=allows)
                 if not shadowed:
                     continue
-                findings.append(_finding(bucket=bucket, raw=raw, shadowed=shadowed, path=path))
+                duplicates = [allow for allow in shadowed if allow.raw == raw]
+                narrowings = [allow for allow in shadowed if allow.raw != raw]
+                if duplicates:
+                    findings.append(
+                        _duplicate_finding(bucket=bucket, raw=raw, shadowed=duplicates, path=path)
+                    )
+                if narrowings:
+                    findings.append(
+                        _narrowing_finding(bucket=bucket, raw=raw, shadowed=narrowings, path=path)
+                    )
     return findings
 
 
-def _finding(
+def _duplicate_finding(
     *,
     bucket: str,
     raw: str,
     shadowed: list[AllowRule],
     path: Path,
 ) -> Finding:
+    """The same rule string in two buckets — genuinely contradictory."""
     shadowed_raws = tuple(allow.raw for allow in shadowed)
-    listed = ", ".join(f"``{rule}``" for rule in shadowed_raws)
     return Finding(
         strategy_id="ask-shadows-allow",
         severity="drift",
         location=str(path),
         evidence=(
-            f"rule ``{raw}`` in '{bucket}' shadows allow rule(s) {listed} — "
-            f"'{bucket}' outranks 'allow', so those commands still prompt"
+            f"rule ``{raw}`` appears in BOTH '{bucket}' and 'allow' — "
+            f"'{bucket}' outranks 'allow', so the allow entry never applies "
+            "and the command prompts anyway"
         ),
         proposed_fix=(
-            "Pick a bucket. Keep the gate only if the narrower shape genuinely "
-            "warrants a prompt, and narrow the allow rule(s) to match; otherwise "
-            "drop the gate so the pre-approved family works unattended. A prompt "
-            "no one is present to answer is a silent wedge, not a safeguard."
+            "Pick one bucket. The identical string in both is not a narrowing, "
+            "so nothing is being deliberately gated here — one of the two "
+            "entries is dead. A prompt no one is present to answer is a silent "
+            "wedge, not a safeguard."
+        ),
+        data=ShadowedAllowRemediation(
+            gate_bucket=bucket,
+            gate_rule=raw,
+            shadowed_allow_rules=shadowed_raws,
+            settings_path=str(path),
+        ),
+    )
+
+
+def _narrowing_finding(
+    *,
+    bucket: str,
+    raw: str,
+    shadowed: list[AllowRule],
+    path: Path,
+) -> Finding:
+    """A strictly narrower gate under a broad allow — usually deliberate."""
+    shadowed_raws = tuple(allow.raw for allow in shadowed)
+    listed = ", ".join(f"``{rule}``" for rule in shadowed_raws)
+    return Finding(
+        strategy_id="ask-shadows-allow",
+        severity="suggestion",
+        location=str(path),
+        evidence=(
+            f"rule ``{raw}`` in '{bucket}' is strictly narrower than allow "
+            f"rule(s) {listed}, so that one shape prompts while the rest of "
+            "the family runs unattended"
+        ),
+        proposed_fix=(
+            "Usually intentional and usually correct — pre-approving a family "
+            "while gating its destructive variant is the pattern this pairing "
+            "exists for, and dropping either half is the change that would "
+            "cause harm. Act only if the narrow shape is NOT one you meant to "
+            "gate; then remove it so the family runs unattended."
         ),
         data=ShadowedAllowRemediation(
             gate_bucket=bucket,
