@@ -382,6 +382,14 @@ Invokes `Dev10x:jtbd` in **unattended** mode to derive an outcome-focused
 commit title from the "so X can" clause. Only for first commits on
 feature/bug branches.
 
+The clause is the **input** to that title, not a template for it
+(GH-1225). Transposing it literally yields one shape — "Let
+[beneficiary] [outcome]" — so a whole release bundle comes out sounding
+identical. The caller picks among four frames and must resolve a
+system ("the CRM", "the schema poller") upward to the human role that
+actually benefits, exactly as the trace-upward rule requires of the
+story itself. See `Dev10x:gh-pr-create` § Title Frames.
+
 ### PR monitor skill
 Delegates to the ticket write layer when a PR is missing its Job Story.
 
