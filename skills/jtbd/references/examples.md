@@ -166,3 +166,39 @@ slot — situation / effort-free desire / two ROI outcomes. The
 contrast with the old pain survives *implicitly* in "keep support
 calls short". Each rejected draft maps to a red-flag row in the
 *Anti-pattern: Pseudo-Business Value* table in `SKILL.md`.
+
+## Example 8: A whole release re-titled — where the agent missed the bullseye
+
+**Domain:** Repair-shop POS (17 merged PRs, one release; GH-1225)
+
+The shipped titles were derived by transposing each story's "so X can"
+clause into an imperative. Eleven of seventeen began `Let <actor> <verb>`.
+Four named a system as beneficiary. The supervisor re-read them as a
+business reader would and rewrote the framing on five, each time naming a
+job the ticket had not stated. The tickets were agent-written and unread.
+
+| Shipped title | Agent's re-framing (from ticket) | Supervisor's framing |
+|---|---|---|
+| Let a shop set how strictly it bills unapproved work | Risk: prevent a billing dispute the shop would lose | Owner chooses the trade-off between regulatory compliance and record-keeping effort → `Choose how much authorization proof a shop keeps` |
+| Let a technician record the pressure at each wheel | Risk: answer an over-inflation complaint | Owner wants techs to QA their work so it passes spot checks → `Prove each wheel's pressure before a spot inspection` |
+| Let a shop decide where the card processor asks for tips | Retention: stop prompting for tips a shop refuses | Revenue for the shop → `Collect tips on terminals and pay-by-link, per store` |
+| Let a shop find the tip setting by the name it uses | Cost: avoid a support call | Ownership: tip settings are POS settings, the processor is a side effect → `Make tip settings about pay-by-link, not the processor` |
+| Let the schema poller notice this repo's generated files | Cost: a 40-minute wait | Capability: a landing on either gateway ends the poll → `Notice a schema landing from either gateway` |
+
+Note: In every row the agent was close — right feature, right area, a
+defensible bucket. The miss is the same each time: a defensive or
+effort framing where the owner's aim was positive, or a side effect
+(a support call, a wait) where the human saw the capability. The
+agent's framing was good enough to start implementation; it was not a
+bullseye for the release note. Two rules follow. First, rank the diff,
+QA comments, and human quotes above ticket prose (SKILL.md Step 1).
+Second, when a supervisor rewrites a suggested title, keep the rewrite
+and record what the draft missed — that record is how the next draft
+gets closer.
+
+Titles that survived unchanged: `Prevent stale plans from reaching new
+worktrees` (Cost money, prevention sentence) and, tightened only,
+`Keep the unreleased AI phone agent to its rollout`. Generated-types-only
+PRs took contract titles: `Hold the POS tipping schema in generated
+types`, because any outcome title would have repeated the sibling PR's
+win or claimed a step the diff did not deliver.

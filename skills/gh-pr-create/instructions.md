@@ -222,7 +222,11 @@ Pick the frame that carries the most information about *this* change:
 
 The Actor frame is one option among four, not the default. Reach for it
 when the *role* is the news; when the outcome is the news, the Outcome
-or Prevention frame says more in the same width.
+or Prevention frame says more in the same width. For commit titles the
+same choice is made from the ROI bucket and the shape of the change —
+see `Dev10x:git-commit` Step 2.5, whose shape table and title checks
+(generated-only diffs, sibling PRs, revert and re-land subjects) apply
+to PR titles as well.
 
 **The title actor must be a human role.** The trace-upward rule that
 governs Job Stories governs titles too — it was being applied to the

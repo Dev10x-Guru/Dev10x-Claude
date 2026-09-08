@@ -2,11 +2,48 @@
 
 Real examples of well-formatted commit messages following project conventions.
 
+## Title Frames by Shape of the Truth
+
+Seventeen titles from one repair-shop POS release (GH-1225), before and
+after. The shipped titles were derived by transposing each Job Story's
+"so X can" clause; eleven began `Let <actor> <verb>`. The rewrites pick
+the bucket first, then the shape of the change, then a frame from that
+row (see `instructions.md` Step 2.5). Openers across the rewritten set:
+Spare, Choose, Prove, Keep, Prevent, Bill, Capture, Collect, Make, Drop,
+Notice, Hold, Reland — thirteen distinct, where the shipped set had five.
+
+| Shipped | Rewrite | Bucket · shape |
+|---|---|---|
+| `Ensure regulated work orders carry the odometer at completion` | `Spare a shop a state fine for a missing odometer` | Risk · prevention |
+| `Let a shop set how strictly it bills unapproved work` | `Choose how much authorization proof a shop keeps` | Risk · owner's choice |
+| `Let a technician record the pressure at each wheel` | `Prove each wheel's pressure before a spot inspection` | Risk · discipline |
+| `Keep the AI phone agent behind the rollout it ships under` | `Keep the unreleased AI phone agent to its rollout` | Risk · invariant |
+| `Keep the PIN lock screen on the store that locked it` | `Prevent a PIN wall on shops that never enabled it` | Risk · prevention |
+| `Keep approved work on the bill after a fast reopen` | `Bill every service the customer agreed to` | Revenue · leak |
+| `Capture what the customer approved before work starts` | `Capture the approval that makes the job billable` | Revenue · new value |
+| `Let a shop decide where the card processor asks for tips` | `Collect tips on terminals and pay-by-link, per store` | Revenue · new value |
+| `Let a shop find the tip setting by the name it uses` | `Make tip settings about pay-by-link, not the processor` | Cost · ownership |
+| `Save shop settings instantly and let owners set a transfer number` | `Drop the staff approval from every settings edit` | Cost · manual step ("and" = split) |
+| `Prevent stale plans from reaching new worktrees` | unchanged | Cost · prevention |
+| `Let the schema poller notice this repo's generated files` | `Notice a schema landing from either gateway` | Cost · capability |
+| `Let the client read a store's tip prompt settings` | `Hold the POS tipping schema in generated types` | Platform integrity · contract |
+| `Let the CRM create a shop's staff login` | `Hold the backend contract for creating a staff login` | Platform integrity · contract |
+| `Let the CRM look up a shop's staff login` | `Hold the backend contract for a staff-login lookup` | Platform integrity · contract |
+| `Let suppliers activate an API from a one-time link` | `Hold the app to the schema the gateways now serve` | Platform integrity · contract |
+| `Revert "Revert "✨ PROJ-725 Let shop admins add, …""` | `⏩ PROJ-725 Reland self-serve roster changes, no support ticket` | Cost · re-land |
+
+Three things to notice. The four `Hold` titles are generated-types-only
+PRs, where an outcome title would repeat the sibling PR's win or claim a
+step the diff does not deliver. `Prevent stale plans…` is Cost money in a
+prevention sentence and was already right. Five of the rewrites came from
+the supervisor correcting the agent's framing, not from the tickets — the
+agent named a complaint to avoid where the owner named a standard to meet.
+
 ## Test Improvements
 
 ### Example 1: Fixing Flaky Tests
 ```
-✅ PAY-310 Fix flaky tests with non-zero tax amounts
+✅ PAY-310 Stabilize tax amount tests
 
 Tests in TestAddTireServiceIndividual and TestAddTireServiceMultiple
 were marked as flaky because they randomly failed when tax amounts
@@ -22,7 +59,7 @@ Fixes: PAY-310
 
 ### Example 2: Adding Test Coverage
 ```
-✅ PAY-289 Add tests for discount code validation
+✅ PAY-289 Make discount validation safe to change
 
 The discount validation logic had no test coverage, making it risky
 to modify or refactor.
@@ -40,7 +77,7 @@ Fixes: PAY-289
 
 ### Example 3: Production Bug
 ```
-🐛 PAY-133 Fix motor timeout in payment processing
+🐛 PAY-133 Keep checkout alive when the card API responds slowly
 
 MotorTimeoutException occurs when Square API is slow to respond,
 causing checkout failures for customers. Timeout was set to 5s
@@ -57,7 +94,7 @@ Fixes: PAY-133
 
 ### Example 4: Data Integrity Bug
 ```
-🐛 PAY-275 Fix tax calculation for exempt customers
+🐛 PAY-275 Stop charging sales tax to exempt customers
 
 Tax-exempt customers were incorrectly charged sales tax through
 Square terminal checkout. The OrderConverter was not checking
@@ -76,7 +113,7 @@ Fixes: PAY-275
 
 ### Example 5: Extract to Base Class
 ```
-♻️ PAY-200 Refactor payment repository to use base class
+♻️ PAY-200 Simplify payment repository hierarchy
 
 PaymentRepository duplicated CRUD operations that exist in
 BaseRepository. This refactor reduces duplication and establishes
@@ -93,7 +130,7 @@ Fixes: PAY-200
 
 ### Example 6: Service Extraction
 ```
-♻️ PAY-180 Extract discount validation to service
+♻️ PAY-180 Give discount rules one home to change
 
 Discount code validation logic was scattered across mutations
 and repository. Extracting to DiscountService centralizes
@@ -112,7 +149,7 @@ Fixes: PAY-180
 
 ### Example 7: Business Feature
 ```
-✨ PAY-220 Add discount code system
+✨ PAY-220 Run promotions with expiring discount codes
 
 Store managers need the ability to create promotional discount
 codes that customers can apply during checkout. Codes can have
@@ -131,7 +168,7 @@ Fixes: PAY-220
 
 ### Example 8: API Enhancement
 ```
-✨ PAY-195 Add pagination to customer search results
+✨ PAY-195 Keep customer search fast on large rosters
 
 Customer search was returning all results causing slow performance
 and poor UX with large datasets. Added cursor-based pagination
@@ -151,7 +188,7 @@ Fixes: PAY-195
 
 ### Example 9: Database Optimization
 ```
-⚡ PAY-211 Optimize search query with compound index
+⚡ PAY-211 Cut customer search from seconds to a blink
 
 Customer search was taking 2-3 seconds due to full table scan.
 Added compound index on (dealer_id, last_name, first_name) to
@@ -168,7 +205,7 @@ Fixes: PAY-211
 
 ### Example 10: Caching
 ```
-⚡ PAY-156 Cache tax settings lookup per request
+⚡ PAY-156 Spare the database 14 tax lookups per work order
 
 TaxSettings were loaded from database on every quote calculation,
 causing 10-15 redundant queries per work order. Implemented
@@ -188,7 +225,7 @@ Fixes: PAY-156
 
 ### Example 11: README Update
 ```
-📝 Update README with Docker setup instructions
+📝 Get a new developer running locally in one sitting
 
 New developers were struggling with local setup using Docker.
 Added comprehensive Docker setup instructions with common
@@ -205,7 +242,7 @@ Fixes: DOC-45
 
 ### Example 12: Architecture Decision Record
 ```
-📝 Add ADR for payment retry strategy
+📝 Record why payment retries back off with jitter
 
 Documented decision to use exponential backoff with jitter for
 payment retries to prevent thundering herd problem when external
@@ -224,7 +261,7 @@ Fixes: DOC-52
 
 ### Example 13: Authorization Fix
 ```
-🔒 PAY-240 Fix authorization check in discount mutations
+🔒 PAY-240 Keep one store's discount codes out of another's reach
 
 Store managers from other dealers could create/modify discount
 codes for any store due to missing dealer_id authorization check
@@ -243,7 +280,7 @@ Fixes: PAY-240
 
 ### Example 14: Bug Fix + Refactor
 ```
-🐛 PAY-302 Fix race condition in payment processing
+🐛 PAY-302 Stop a double-tapped checkout charging twice
 
 Duplicate payments were created when checkout was initiated twice
 within 5 seconds. Fixed by adding idempotency key and refactored
@@ -261,7 +298,7 @@ Fixes: PAY-302
 
 ### Example 15: Feature + Tests
 ```
-✨ PAY-267 Add bulk discount code upload
+✨ PAY-267 Load a season's discount codes in one upload
 
 Store managers can now upload multiple discount codes via CSV
 file instead of creating them one by one. Includes validation

@@ -12,6 +12,11 @@
       "description": "Title uses outcome verbs (Enable, Simplify, Resolve), blocks implementation verbs (Add, Update, Remove, Refactor)"
     },
     {
+      "id": "frame-diversity",
+      "name": "Title Frame Diversity and Business Bullseye",
+      "description": "Titles are derived from the ROI bucket and the shape of the change, not by transposing the Job Story clause; across a batch they use several distinct opening frames, name humans not systems, take Hold <contract> only for generated-only diffs with a named counterparty, and never begin with GitHub's default Revert string (GH-1225)"
+    },
+    {
       "id": "extraction",
       "name": "Ticket Extraction",
       "description": "Correctly extracts ticket ID from branch name convention (username/TICKET-ID/[worktree/]description)"
@@ -268,6 +273,109 @@
           "text": "Proceeds normally to Step 2 (ticket extraction)",
           "check": "transcript_contains",
           "signals": ["PAY-310"]
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "name": "batch-title-distinctiveness",
+      "prompt": "/Dev10x:git-commit use Dev10x:jtbd\n\n(Run once per branch, eight branches, each a first feature/bug commit)",
+      "description": "GH-1225: eight tickets spanning Risk, Revenue (new value and leak), Cost (manual step and prevention), Retention, and one generated-types-only diff. The shipped release this reproduces emitted `Let <actor> <verb>` eleven times in seventeen. Titles must be derived from bucket + shape of the truth, not from the story clause, and must read as distinct real-world use cases side by side.",
+      "setup": {
+        "branches": [
+          "janusz/PROJ-401/odometer-required-at-completion",
+          "janusz/PROJ-404/approved-work-drops-off-bill",
+          "janusz/PROJ-248/per-store-tip-toggles",
+          "janusz/PROJ-609/settings-save-without-staff-approval",
+          "janusz/PROJ-730/per-wheel-pressure-on-printout",
+          "janusz/PROJ-725/stale-plan-in-new-worktree",
+          "janusz/PROJ-592/ai-phone-agent-route-guard",
+          "janusz/PROJ-248/pos-tipping-generated-types"
+        ],
+        "staged_changes": true,
+        "note": "The last branch's diff is a generated types file only; ticket descriptions are agent-written and one (PROJ-730) has its only evidence in a QA comment"
+      },
+      "dimensions": ["frame-diversity", "jtbd"],
+      "assertions": [
+        {
+          "id": "five-distinct-openers",
+          "text": "Across the eight suggested titles at least five distinct opening words appear",
+          "check": "behavioral",
+          "signals": ["distinct opening frames", ">= 5"]
+        },
+        {
+          "id": "no-opener-dominates",
+          "text": "No opening word appears in more than three of the eight titles",
+          "check": "behavioral",
+          "signals": ["opener count <= 3"]
+        },
+        {
+          "id": "no-let-monoculture",
+          "text": "At most one title begins with Let, Enable, or Allow (capability-grant frames)",
+          "check": "behavioral",
+          "signals": ["Let", "Enable", "Allow", "<= 1"]
+        },
+        {
+          "id": "no-system-as-actor",
+          "text": "No title names a system as actor or beneficiary (the CRM, the client, the poller, the API, the service)",
+          "check": "output_absent",
+          "signals": ["the CRM", "the client", "the poller", "the API", "the service"]
+        },
+        {
+          "id": "generated-only-takes-hold",
+          "text": "The generated-types-only branch gets a Hold <contract> title with a named counterparty and bucket Platform integrity, not an outcome title",
+          "check": "output_contains",
+          "signals": ["Hold", "contract", "Platform integrity"]
+        },
+        {
+          "id": "leak-not-capture",
+          "text": "The PROJ-404 leak fix is framed as billing what was agreed or stopping a leak, not as capturing new revenue",
+          "check": "behavioral",
+          "signals": ["Bill every", "Stop", "not Capture"]
+        },
+        {
+          "id": "two-frames-offered",
+          "text": "Each suggestion presents two candidates in different frames plus type-your-own, and names the bucket",
+          "check": "output_contains",
+          "signals": ["Suggested titles", "bucket:", "1.", "2."]
+        },
+        {
+          "id": "ticket-only-claims-tagged",
+          "text": "A value claim resting only on agent-written ticket prose is tagged [Verify: ticket-only]",
+          "check": "output_contains",
+          "signals": ["[Verify: ticket-only]"]
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "name": "revert-subject-rejected",
+      "prompt": "/Dev10x:git-commit\n\n(Branch re-lands a reverted feature; git suggests the default subject Revert \"Revert \"✨ EXT-8471 Let shop admins add, deactivate and reactivate employees\"\"\")",
+      "description": "GH-1225: GitHub's default double-revert subject was 83 chars, carried a key from a tracker the release pipeline cannot resolve, and named no outcome. The skill must replace it with the re-land convention.",
+      "setup": {
+        "branch": "janusz/PROJ-725/reland-employee-roster",
+        "staged_changes": true
+      },
+      "dimensions": ["frame-diversity", "format"],
+      "assertions": [
+        {
+          "id": "no-default-revert-string",
+          "text": "Final subject does not begin with Revert \"",
+          "check": "output_not_starts_with",
+          "blocked_verbs": ["Revert \""]
+        },
+        {
+          "id": "reland-marker-after-ticket",
+          "text": "Subject follows ⏩ <TICKET> Reland <noun-phrase outcome>",
+          "check": "output_matches_pattern",
+          "pattern": "^⏩ [A-Z]+-[0-9]+ Reland .+"
+        },
+        {
+          "id": "title-72-chars",
+          "text": "Subject is <= 72 characters",
+          "check": "line_length",
+          "max_chars": 72,
+          "target": "title_line"
         }
       ]
     },

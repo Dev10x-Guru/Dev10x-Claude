@@ -371,23 +371,87 @@ This step activates when **any** of these conditions are met:
   commit type is Feature (✨) or Bug (🐛)
 
 **Flow:**
-1. Invoke the `Dev10x:jtbd` base skill in **unattended** mode with `ticket_id`
-2. Extract the "so [beneficiary] can" clause from the returned story
-3. Choose a title frame — do NOT transpose the clause word by word.
-   A literal transposition has exactly one output shape,
-   "Let [beneficiary] [outcome]", and a branch or release bundle built
-   that way reads as a monoculture (GH-1225). The four frames and the
-   human-actor rule live in `Dev10x:gh-pr-create` § Title Frames; the
-   same rules govern commit titles. Example: "so the merchant can track
-   Zelle transactions" → "Enable Zelle transaction tracking" (Outcome
-   frame), not "Let the merchant track Zelle transactions".
-4. Present as a suggestion:
+1. Invoke the `Dev10x:jtbd` base skill in **unattended** mode with `ticket_id`.
+   The returned story carries one ROI bucket and an evidence rank (see
+   `Dev10x:jtbd` § Guiding Principle and § Step 1).
+2. Derive the title from the **bucket and the shape of the truth**, never by
+   transposing the "so [beneficiary] can" clause into an imperative.
+   Transposing a fixed-shape clause yields a fixed-shape title; a release of
+   17 PRs derived that way read `Let <actor> <verb>` eleven times (GH-1225).
+   The same rules govern PR titles — `Dev10x:gh-pr-create` § Title Frames
+   names four PR-title frames (Outcome, Prevention, Actor, Subject); they
+   map onto the shape table below, and the Actor frame is only available
+   for a human role.
+3. Run the title checks below, then present two candidates in different
+   frames plus "type your own":
    ```
-   Suggested title: Enable Zelle transaction tracking
-   Accept? (Enter = yes, or type your own)
+   Suggested titles (bucket: Revenue — leak):
+     1. Bill every service the customer agreed to
+     2. Stop approved work vanishing from the order total
+   Accept 1 or 2, or type your own
    ```
-5. If user accepts → use as the commit title description (Step 4 is pre-filled)
-6. If user types their own → use that instead
+4. If the user accepts → use it as the commit title description (Step 4 is
+   pre-filled). If the user types their own → use that; when it names a
+   different job than the story did, feed the correction back to the story.
+
+**Frame follows the shape of the truth, not the bucket.** The bucket says
+where the money is; the frame says what kind of change the diff is.
+Pick the bucket first, then the shape, then a frame from that row.
+Evidence: one repair-shop POS release of 17 PRs re-titled (GH-1225).
+
+| Shape of the truth | Frames | Example |
+|---|---|---|
+| New value the actor could not get before | `Collect`, `Bill`, `Capture <revenue event>`, `Unblock <sale>`, `Get <actor> to <milestone> sooner` | `Collect tips on terminals and pay-by-link, per store` |
+| Money or agreed work leaking away | `Bill every <agreed thing>`, `Stop <leak>` | `Bill every service the customer agreed to` |
+| Preventing a failure or a cost | `Prevent <failure>`, `Keep <invariant>`, `Spare <actor> <penalty>` | `Spare a shop a state fine for a missing odometer` |
+| Manual step or wait removed | `Drop <manual step>`, `Cut <wait>` | `Drop the staff approval from every settings edit` |
+| Owner's choice or discipline made available | `Choose <trade-off>`, `Prove <thing> before <check>` | `Prove each wheel's pressure before a spot inspection` |
+| Contract held with a named counterparty | `Hold <contract> with <counterparty>` | `Hold the POS tipping schema in generated types` |
+
+Same bucket, different shape: `Prevent stale plans from reaching new
+worktrees` is Cost money in a prevention sentence, and it is the right title.
+`Cut <effort>` on that change would have billed a saving nobody measured.
+
+**Title checks (run before presenting):**
+
+- **Human first.** The subject or object names a role: shop, owner,
+  technician, support rep, customer. "the CRM", "the client", "the poller",
+  "the API" are mechanisms. When the only honest actor is a system, the PR is
+  plumbing — apply the generated-only rule below instead of hunting for a
+  human.
+- **Generated-only rule.** A diff that is entirely machine output (codegen,
+  lockfiles, schema regen) takes `Hold <contract> with <counterparty>`, bucket
+  Platform integrity, `👽`, no `Fixes:`. Never an outcome title: it either
+  repeats the sibling PR's win on the release list or claims a step the diff
+  does not deliver. The ticket-level outcome goes on the PR that wires it.
+- **`Hold` needs a counterparty.** Finish "the contract we hold is with
+  ___" (the POS service, the backend gateway, the rollout plan). If nothing outside
+  this repo relies on the change, it is Cost, not Platform integrity.
+  A watcher script that slept is Cost; the types it watches are integrity.
+- **No undelivered invariant.** If the PR body names an open ticket that
+  undermines the claim, `Keep <invariant>` is unavailable.
+- **"and" is a split signal.** Two buckets or two beneficiaries in one title
+  means two PRs. If already merged, title by the part with the hardest number
+  and carry the other in the body.
+- **Second meaning check.** Read each candidate once in the feature's own
+  domain. `Capture` on a change that records an approval reads as
+  capture-as-record; `Cut staff` on an employee-deactivation feature reads as
+  firing. Force the money word into the line or pick another frame.
+- **Sibling check.** When the ticket has other PRs, titles differ by
+  outcome, not by verb. `look up` vs `create` is not a distinction; a support
+  rep on a call vs an owner self-serving is.
+- **Incumbent paraphrase.** A candidate that restates the current title
+  almost verbatim is not an alternative; produce a second frame.
+- **Specific and general.** Offer one candidate naming the entities (channels,
+  states, roles) and one without. Pick the specific one when the names matter
+  to a business reader, the general one when the specific reads technical:
+  `Collect tips on terminals and pay-by-link, per store` vs
+  `Earn tips wherever a store takes payment`.
+- **Release-list bullseye.** Release notes are read by the business. Read the
+  title next to its siblings from the same release; a non-engineer must be
+  able to say what real-world use case each one serves and which carry
+  deployment risk. When a supervisor rewrites a suggested title, the
+  rewrite names the job the AI missed: keep the rewrite, and record the miss.
 
 **Skip entirely** when not explicitly requested AND it's a subsequent commit,
 refactor, test, docs, or config change — keeping those fast. Also skip when a
@@ -462,9 +526,9 @@ Short description (will be title line):
 - Iterate until ≤ 72 chars
 
 **JTBD self-check (mandatory):** Before accepting the description, verify it
-describes the **user-facing outcome**, not the implementation action. A
-PreToolUse hook will block implementation-focused verbs at commit time, but
-catch them earlier here to avoid the round-trip.
+describes the **user-facing outcome**, not the implementation action. No hook
+enforces this today — the only commit-msg hook checks fixup links — so this
+self-check is the gate.
 
 | Blocked verb | Example bad title | JTBD rewrite |
 |---|---|---|
@@ -476,13 +540,42 @@ catch them earlier here to avoid the round-trip.
 | Synchronize | "Sync skill with source" | "Enable dual-mode workflow" |
 
 If the description starts with an implementation verb, rewrite it before
-proceeding. Use outcome verbs: **Enable, Allow, Support, Prevent, Ensure,
-Simplify, Improve, Resolve, Streamline, Protect, Stabilize, Automate**.
+proceeding. The verb list is a denylist, not a recipe: `Let`, `Enable`,
+`Allow`, `Support`, `Ensure` all pass it and all produce capability-grant
+titles ("Let a shop find the tip setting") that read as feature inventory.
+An outcome is a changed behaviour or metric, not a granted capability.
+Pick the frame from the shape-of-the-truth table in Step 2.5 instead.
 
 **Example titles:**
 - `✅ PAY-310 Stabilize tax amount tests` (38 chars)
-- `🐛 PAY-133 Resolve motor timeout in payments` (46 chars)
-- `♻️ PAY-200 Simplify payment repository hierarchy` (50 chars)
+- `🐛 PROJ-404 Bill every service the customer agreed to` (52 chars)
+- `✨ PROJ-248 Collect tips on terminals and pay-by-link, per store` (63 chars)
+- `👽 PROJ-248 Hold the POS tipping schema in generated types` (57 chars)
+
+### Step 4.5: Revert and Re-land Titles
+
+GitHub's default revert subject fails every rule here: on GH-1225's release
+it was 83 chars, nested two `Revert "` prefixes, carried a key from a
+tracker the release pipeline cannot resolve, and named no outcome.
+Never let `Revert "…"` become a commit subject.
+
+| Kind | Format | Example |
+|---|---|---|
+| Revert | `⏪ <REVERT-TICKET> <effect on the user, for now>` | `⏪ PROJ-727 Send roster changes back through support for now` |
+| Re-land | `⏩ <FEATURE-TICKET> Reland <noun-phrase outcome>` | `⏩ PROJ-725 Reland self-serve roster changes, no support ticket` |
+
+- The marker sits right after the ticket ID: the gitmoji slot is taken, and a
+  trailing `(re-land)` is the first thing a 72-char trim eats.
+- After `Reland` the outcome is a noun phrase inherited from the original
+  title's frame, not a fresh imperative.
+- Only the original carries the plain outcome; the revert and re-land carry a
+  direction marker so a release list never shows the same capability twice
+  with no way to tell which entry is live.
+- The revert carries its own ticket (create one), the re-land the feature
+  ticket, so both close in the release pipeline.
+- A revert body must state: the observed failure and where it was seen, what
+  must be true before re-landing, the reverted SHA and original PR, and
+  `Fixes:` its own ticket. "Reverts #N" alone is not a body.
 
 ### Step 5: Get Problem Explanation
 
