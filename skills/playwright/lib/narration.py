@@ -58,8 +58,23 @@ def normalize_line(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def default_runner(payload: dict, out_dir: Path, voice: str | None) -> dict:
-    """Invoke the bundled Dev10x:tts wrapper and return its JSON payload."""
+def default_runner(
+    payload: dict,
+    out_dir: Path,
+    voice: str | None,
+    lang: str | None = None,
+) -> dict:
+    """Invoke the bundled Dev10x:tts wrapper and return its JSON payload.
+
+    ``lang`` is forwarded as ``--lang`` (GH-1221). Without it the wrapper
+    resolves the language-agnostic ``voice:`` key, so a pin made with
+    ``tts pin --lang en --voice af_heart`` — which nests under
+    ``languages.en`` — is never consulted on this path. ``tts check --lang
+    en`` reads the pin and reports the commercial voice, so the pin looks
+    correct while the walkthrough narrates in a different one; for a
+    CC BY-NC-SA voice already past its one-time licence gate, that
+    divergence is a silent licence breach rather than a wrong timbre.
+    """
     script = os.environ.get("DEV10X_TTS_SCRIPT")
     if not script:
         raise NarrationError(
@@ -69,6 +84,8 @@ def default_runner(payload: dict, out_dir: Path, voice: str | None) -> dict:
     command = [script, "batch", "--out-dir", str(out_dir)]
     if voice:
         command += ["--voice", voice]
+    if lang:
+        command += ["--lang", lang]
     try:
         result = subprocess.run(
             command,
@@ -110,12 +127,14 @@ class Narration:
         *,
         script: Iterable[str] = (),
         voice: str | None = None,
+        lang: str | None = None,
         tail_ms: int = CAPTION_TAIL_MS,
-        runner: Callable[[dict, Path, str | None], dict] = default_runner,
+        runner: Callable[..., dict] = default_runner,
     ) -> None:
         self.out_dir = Path(out_dir)
         self.script = [normalize_line(line) for line in script]
         self.voice = voice
+        self.lang = lang
         self.tail_ms = tail_ms
         self._runner = runner
         self._clips: dict[str, dict[str, Any]] = {}
@@ -167,7 +186,7 @@ class Narration:
             ]
         }
         self.out_dir.mkdir(parents=True, exist_ok=True)
-        rendered = self._runner(payload, self.out_dir, self.voice)
+        rendered = self._runner(payload, self.out_dir, self.voice, self.lang)
         self.warning = rendered.get("warning")
         self.voice = rendered.get("voice", self.voice)
         for segment in rendered.get("segments", []):
@@ -211,15 +230,42 @@ class Narration:
         """Lines that played without audio — undeclared in ``script``."""
         return [entry["text"] for entry in self._spoken if entry["wav"] is None]
 
+    @property
+    def declared(self) -> list[str]:
+        """Every line the script registered, first-seen order, deduplicated."""
+        return list(dict.fromkeys(self.script))
+
+    @property
+    def played(self) -> list[str]:
+        """Every line that actually reached the screen, deduplicated."""
+        return list(dict.fromkeys(entry["text"] for entry in self._spoken))
+
+    @property
+    def never_played(self) -> list[str]:
+        """Declared lines that never played (GH-1218).
+
+        ``unrendered`` is computed from ``_spoken`` and so can only ever
+        report lines that DID play — a declared line whose ``say()`` never
+        ran is absent from that list by construction, and the manifest
+        reported ``unrendered: []`` for a run that silently dropped a whole
+        beat. The two lists answer different questions and both are needed:
+        ``unrendered`` is "played, but mute", this is "never spoke at all".
+        """
+        played = set(self.played)
+        return [text for text in self.declared if text not in played]
+
     # -- output ---------------------------------------------------------
 
     def manifest(self) -> dict[str, Any]:
         return {
             "voice": self.voice,
+            "lang": self.lang,
             "anchor": self._anchor,
             "tail_ms": self.tail_ms,
             "warning": self.warning,
             "unrendered": self.unrendered,
+            "declared": self.declared,
+            "never_played": self.never_played,
             # Only spoken lines that produced audio can be laid on the
             # timeline; `segments` is what `synthesize.py track` consumes.
             "segments": [entry for entry in self._spoken if entry["wav"]],

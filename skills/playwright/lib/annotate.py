@@ -700,6 +700,33 @@ def assert_in_viewport(
         )
 
 
+def require(locator: Any, claim: str, *, expected: int = 1) -> Any:
+    """Return ``locator`` if it matches ``expected`` nodes, else raise.
+
+    The counter-measure to the silent conditional guard (GH-1219). An
+    author reaching for ``if locator.count():`` gets a step that passes
+    whether or not the feature exists, so a regression that removed the
+    button and a run that exercised it produce byte-identical evidence:
+    a green exit code and no screenshot. Defensive idiom is the natural
+    thing to write, which is why documenting the anti-pattern was not
+    enough on its own — the fix has to be the shorter thing to type.
+
+    ``expected`` is a count rather than a bool because the failure that
+    actually reaches review is usually a locator matching *several*
+    nodes, where ``.screenshot()`` silently captures the first. Pass
+    ``expected=0`` to assert a thing is genuinely absent, which is a
+    real claim some steps need to make.
+    """
+    found = locator.count()
+    if found == expected:
+        return locator
+    raise RuntimeError(
+        f"require({claim!r}) found {found} node(s), expected {expected}"
+        f" — locator {locator!r}. The step this guards would otherwise have"
+        " no-opped and produced evidence indistinguishable from a passing run."
+    )
+
+
 def debug_dump(
     page: Any, tag: str, *, out_dir: str = "/tmp/Dev10x/self-qa/debug"
 ) -> dict[str, Any]:

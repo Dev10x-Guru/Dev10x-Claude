@@ -235,6 +235,46 @@ class TestAssertInViewport:
         _mod.assert_in_viewport({"x": 100, "y": 9999, "width": 300, "height": 40}, None)
 
 
+class CountingLocator:
+    """Stands in for a Playwright locator with a fixed match count."""
+
+    def __init__(self, count: int) -> None:
+        self._count = count
+
+    def count(self) -> int:
+        return self._count
+
+    def __repr__(self) -> str:
+        return f"CountingLocator(count={self._count})"
+
+
+class TestRequire:
+    def test_a_present_target_is_returned_for_chaining(self):
+        locator = CountingLocator(1)
+        assert _mod.require(locator, "the Assign button") is locator
+
+    def test_an_absent_target_raises_instead_of_no_opping(self):
+        # GH-1219: the whole point. `if locator.count():` would have
+        # skipped the step and exited 0 with no screenshot, which is
+        # byte-identical to a run where the feature worked.
+        with pytest.raises(RuntimeError, match="found 0 node"):
+            _mod.require(CountingLocator(0), "the Assign button")
+
+    def test_the_claim_is_named_in_the_failure(self):
+        with pytest.raises(RuntimeError, match="the Assign button"):
+            _mod.require(CountingLocator(0), "the Assign button")
+
+    def test_an_ambiguous_locator_raises(self):
+        # `.screenshot()` silently captures the first of several matches,
+        # so this is the failure that actually reaches review.
+        with pytest.raises(RuntimeError, match="found 3 node"):
+            _mod.require(CountingLocator(3), "the work-order row")
+
+    def test_absence_can_be_asserted_deliberately(self):
+        locator = CountingLocator(0)
+        assert _mod.require(locator, "no error banner", expected=0) is locator
+
+
 class TestInstall:
     def test_registers_an_init_script_so_the_overlay_survives_navigation(self, anno, page):
         anno.install()

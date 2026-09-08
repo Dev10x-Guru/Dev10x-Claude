@@ -60,9 +60,11 @@ class FakePage:
 def fake_runner(durations: dict[str, int], *, warning: str | None = None):
     """A runner returning fixed durations, recording how often it ran."""
     calls: list[dict] = []
+    langs: list[str | None] = []
 
-    def run(payload: dict, out_dir: Path, voice: str | None) -> dict:
+    def run(payload: dict, out_dir: Path, voice: str | None, lang: str | None = None) -> dict:
         calls.append(payload)
+        langs.append(lang)
         return {
             "voice": voice or "test-voice",
             "warning": warning,
@@ -79,6 +81,7 @@ def fake_runner(durations: dict[str, int], *, warning: str | None = None):
         }
 
     run.calls = calls  # type: ignore[attr-defined]
+    run.langs = langs  # type: ignore[attr-defined]
     return run
 
 
@@ -193,6 +196,65 @@ class TestTimeline:
         assert narration.manifest()["anchor"] == "video-start"
 
 
+class TestLanguage:
+    def test_the_requested_language_reaches_the_runner(self, tmp_path):
+        # GH-1221: a `tts pin --lang en` nests under languages.en, so a
+        # runner never told the language resolves the language-agnostic
+        # voice instead and the pin silently misses this path.
+        runner = fake_runner({"alpha": 1000})
+        narration = _narration.Narration(tmp_path, script=["alpha"], lang="en", runner=runner)
+        narration.prerender()
+
+        assert runner.langs == ["en"]
+
+    def test_no_language_leaves_the_flag_off(self, tmp_path):
+        runner = fake_runner({"alpha": 1000})
+        _narration.Narration(tmp_path, script=["alpha"], runner=runner).prerender()
+
+        assert runner.langs == [None]
+
+    def test_the_language_is_recorded_in_the_manifest(self, tmp_path):
+        narration = _narration.Narration(
+            tmp_path, script=["alpha"], lang="pl", runner=fake_runner({"alpha": 1000})
+        )
+        narration.prerender()
+
+        assert narration.manifest()["lang"] == "pl"
+
+    def test_default_runner_passes_lang_to_the_wrapper(self, tmp_path, monkeypatch):
+        # Pins the argv itself: the bug was not in the plumbing above but
+        # in this command being built without --lang at all.
+        monkeypatch.setenv("DEV10X_TTS_SCRIPT", "/bin/true")
+        seen: dict[str, list[str]] = {}
+
+        def fake_subprocess_run(command, **kwargs):
+            seen["command"] = command
+            return sys.modules["subprocess"].CompletedProcess(
+                args=command, returncode=0, stdout=json.dumps({"segments": []}), stderr=""
+            )
+
+        monkeypatch.setattr(_narration.subprocess, "run", fake_subprocess_run)
+        _narration.default_runner({"segments": []}, tmp_path, "af_heart", "en")
+
+        assert "--lang" in seen["command"]
+        assert seen["command"][seen["command"].index("--lang") + 1] == "en"
+
+    def test_default_runner_omits_lang_when_unset(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("DEV10X_TTS_SCRIPT", "/bin/true")
+        seen: dict[str, list[str]] = {}
+
+        def fake_subprocess_run(command, **kwargs):
+            seen["command"] = command
+            return sys.modules["subprocess"].CompletedProcess(
+                args=command, returncode=0, stdout=json.dumps({"segments": []}), stderr=""
+            )
+
+        monkeypatch.setattr(_narration.subprocess, "run", fake_subprocess_run)
+        _narration.default_runner({"segments": []}, tmp_path, "af_heart")
+
+        assert "--lang" not in seen["command"]
+
+
 class TestManifest:
     def test_only_lines_with_audio_reach_the_timeline(self, tmp_path):
         narration = _narration.Narration(
@@ -206,6 +268,53 @@ class TestManifest:
         assert [segment["text"] for segment in manifest["segments"]] == ["alpha"]
         assert manifest["unrendered"] == ["undeclared"]
         assert len(manifest["all_captions"]) == 2
+
+    def test_a_declared_line_that_never_played_is_reported(self, tmp_path):
+        # GH-1218: the regression. `unrendered` is derived from what
+        # played, so it structurally cannot report a line that did not —
+        # it stayed [] while a whole declared beat went missing.
+        narration = _narration.Narration(
+            tmp_path,
+            script=["alpha", "beta"],
+            runner=fake_runner({"alpha": 1000, "beta": 900}),
+        )
+        narration.prerender()
+        narration.record("alpha", dwell_ms=1700)
+
+        manifest = narration.manifest()
+        assert manifest["unrendered"] == []
+        assert manifest["never_played"] == ["beta"]
+        assert manifest["declared"] == ["alpha", "beta"]
+
+    def test_a_fully_played_script_reports_nothing_missing(self, tmp_path):
+        narration = _narration.Narration(
+            tmp_path,
+            script=["alpha", "beta"],
+            runner=fake_runner({"alpha": 1000, "beta": 900}),
+        )
+        narration.prerender()
+        narration.record("alpha", dwell_ms=1700)
+        narration.record("beta", dwell_ms=1600)
+
+        manifest = narration.manifest()
+        assert manifest["never_played"] == []
+        assert manifest["unrendered"] == []
+
+    def test_never_played_and_unrendered_answer_different_questions(self, tmp_path):
+        # One line declared and skipped, one line played without audio.
+        # Collapsing these into a single list loses one of the two.
+        narration = _narration.Narration(
+            tmp_path,
+            script=["alpha", "beta"],
+            runner=fake_runner({"alpha": 1000, "beta": 900}),
+        )
+        narration.prerender()
+        narration.record("alpha", dwell_ms=1700)
+        narration.record("improvised", dwell_ms=2000)
+
+        manifest = narration.manifest()
+        assert manifest["never_played"] == ["beta"]
+        assert manifest["unrendered"] == ["improvised"]
 
     def test_manifest_is_written_as_json(self, tmp_path):
         narration = _narration.Narration(

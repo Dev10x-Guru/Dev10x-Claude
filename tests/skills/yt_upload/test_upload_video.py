@@ -210,6 +210,22 @@ def test_unrendered_captions_are_a_defect() -> None:
     assert "step three" in defects[0]
 
 
+def test_never_played_lines_are_a_defect() -> None:
+    # GH-1218: a declared line that never played leaves a missing beat
+    # in otherwise well-formed footage — nothing else detects it.
+    defects = _mod.narration_defects(
+        {"unrendered": [], "never_played": ["step four"], "anchor": "video-start"}
+    )
+
+    assert len(defects) == 1
+    assert "step four" in defects[0]
+
+
+def test_a_manifest_without_the_key_reports_nothing() -> None:
+    """Manifests written before GH-1218 carry no never_played key."""
+    assert _mod.narration_defects({"unrendered": [], "anchor": "video-start"}) == []
+
+
 def test_install_anchor_is_a_defect() -> None:
     defects = _mod.narration_defects({"unrendered": [], "anchor": "install"})
 
