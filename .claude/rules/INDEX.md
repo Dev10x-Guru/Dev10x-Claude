@@ -32,7 +32,7 @@ The code review system uses a **multi-agent architecture**:
 | `.claude/rules/**`, `.claude/agents/**`, `agents/**` | `reviewer-rules-maintenance` | (self-contained) |
 | `skills/**` | `reviewer-skill`, `reviewer-skill-behavior` | `.claude/rules/skill-naming.md`, `references/skill-invocation.md`, `references/eval-schema.md` |
 | `**/tasks.py`, `**/celery.py` | `reviewer-celery` | (self-contained) |
-| `**/e2e/**/*.py`, `**/e2e/**/*.feature` | `reviewer-e2e` | (self-contained) |
+| `**/features/**/*.feature`, `**/features/steps/*.py`, `**/environment.py`, `**/e2e/**/*.py` | `reviewer-e2e` | (self-contained) |
 | `**/*.svelte`, `**/*.astro`, `**/*.tsx` | `reviewer-frontend` | (self-contained) |
 | `**/api/queries.py`, `**/api/mutations.py` | `reviewer-graphql` | (self-contained) |
 | `**/migrations/*.py` | `reviewer-migration` | (self-contained) |
@@ -146,7 +146,7 @@ evaluation, and testing — usable on any project.
 | File | Trigger |
 |------|---------|
 | `reviewer-celery.md` | `**/tasks.py`, `**/celery.py` |
-| `reviewer-e2e.md` | `**/e2e/**/*.py`, `**/e2e/**/*.feature` |
+| `reviewer-e2e.md` | `**/features/**/*.feature`, `**/features/steps/*.py`, `**/environment.py`, `**/e2e/**/*.py` |
 | `reviewer-frontend.md` | `**/*.svelte`, `**/*.astro`, `**/*.tsx` |
 | `reviewer-graphql.md` | `**/api/queries.py`, `**/schema.py` |
 | `reviewer-migration.md` | `**/migrations/*.py` |
