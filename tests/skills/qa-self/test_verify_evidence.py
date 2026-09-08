@@ -8,6 +8,7 @@ aggregation — without invoking ImageMagick or ffmpeg.
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 
 import pytest
@@ -442,6 +443,55 @@ class TestLastCueEndMs:
     def test_ignores_a_segment_missing_timing(self):
         manifest = {"segments": [{"offset_ms": 1_000, "duration_ms": None}]}
         assert _mod.last_cue_end_ms(manifest) is None
+
+
+class TestSilentGuardFindings:
+    def test_flags_a_locator_count_guard(self, tmp_path):
+        script = tmp_path / "qa-PAY-1.py"
+        script.write_text("if kebab.count() > 0:\n    shoot(page)\n", encoding="utf-8")
+
+        (finding,) = _mod.silent_guard_findings(script)
+
+        assert "qa-PAY-1.py:1" in finding
+        assert "require()" in finding
+
+    def test_a_require_call_is_not_flagged(self, tmp_path):
+        script = tmp_path / "qa-PAY-1.py"
+        script.write_text('require(kebab, "the menu")\n', encoding="utf-8")
+
+        assert _mod.silent_guard_findings(script) == []
+
+    def test_an_unreadable_script_is_not_a_finding(self, tmp_path):
+        assert _mod.silent_guard_findings(tmp_path / "missing.py") == []
+
+
+class TestManifestReconciliation:
+    def test_a_declared_screenshot_that_never_landed_is_reported(self, tmp_path):
+        (tmp_path / "one.png").write_bytes(b"x")
+
+        (failure,) = _mod.manifest_reconciliation_failures(
+            declared=["one.png", "two.png"], directory=tmp_path
+        )
+
+        assert "two.png" in failure
+
+    def test_a_complete_manifest_reports_nothing(self, tmp_path):
+        (tmp_path / "one.png").write_bytes(b"x")
+
+        assert (
+            _mod.manifest_reconciliation_failures(declared=["one.png"], directory=tmp_path) == []
+        )
+
+    def test_no_declaration_disables_the_check(self, tmp_path):
+        assert _mod.manifest_reconciliation_failures(declared=[], directory=tmp_path) == []
+
+    def test_manifest_rows_are_read_by_their_file_key(self, tmp_path):
+        manifest = tmp_path / "declared.json"
+        manifest.write_text(
+            json.dumps([{"file": "a.png", "claim": "c"}, "b.png"]), encoding="utf-8"
+        )
+
+        assert _mod.load_declared_screenshots(manifest) == ["a.png", "b.png"]
 
 
 class TestNarrationFailures:

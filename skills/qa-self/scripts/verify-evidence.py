@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -302,6 +303,69 @@ def narration_failures(path: Path, *, manifest: dict | None, duration: float) ->
     return failures
 
 
+SILENT_GUARD_RE = re.compile(r"^\s*if\s+.*\.count\(\)\s*(?:[><=!]|\))")
+
+
+def silent_guard_findings(script: Path) -> list[str]:
+    """Lines in a capture script that guard on a locator count (GH-1219).
+
+    `if locator.count() > 0:` passes whether or not the target ever
+    existed, so a missing feature and a working one produce identical
+    evidence. This is a soft finding rather than a hard failure: a
+    legitimate `if rows.count() > 5:` exists, and blocking on a regex
+    would train authors to route around the verifier. Reported so a
+    reviewer can look, not so the run dies.
+    """
+    try:
+        lines = script.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        return []
+    return [
+        f"{script.name}:{number} guards on a locator count, which no-ops "
+        f"silently when the target is absent — use require(): {line.strip()}"
+        for number, line in enumerate(lines, start=1)
+        if SILENT_GUARD_RE.match(line)
+    ]
+
+
+def load_declared_screenshots(path: Path) -> list[str]:
+    """Filenames from a bare JSON array or from manifest rows' ``file`` key."""
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    if not isinstance(loaded, list):
+        return []
+    names = []
+    for entry in loaded:
+        if isinstance(entry, str):
+            names.append(entry)
+        elif isinstance(entry, dict) and isinstance(entry.get("file"), str):
+            names.append(entry["file"])
+    return names
+
+
+def manifest_reconciliation_failures(*, declared: list[str], directory: Path) -> list[str]:
+    """Declared screenshots that never reached disk, and strays (GH-1219).
+
+    The manifest is written from what the script *intended* to capture,
+    so a step that no-opped leaves a row with no file behind it. Nothing
+    else compares the two: every check in this module inspects files
+    that exist, and a file that was never written is invisible to all
+    of them.
+    """
+    if not declared:
+        return []
+    present = {path.name for path in directory.glob("*") if path.is_file()}
+    missing = [name for name in declared if name not in present]
+    if not missing:
+        return []
+    return [
+        f"{len(missing)} screenshot(s) declared in the manifest were never "
+        f"written, so the step that captures them no-opped: {missing}"
+    ]
+
+
 def extract_frame(path: Path, *, offset: float, dest: Path) -> None:
     _run(
         [
@@ -524,6 +588,27 @@ def main(argv: list[str] | None = None) -> int:
             " is deliberately silent despite a manifest being present"
         ),
     )
+    parser.add_argument(
+        "--script",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help=(
+            "the capture script — scanned for silent locator-count guards,"
+            " which no-op instead of failing when the target is absent"
+        ),
+    )
+    parser.add_argument(
+        "--declared",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help=(
+            "JSON array of screenshot filenames the script declared, or a"
+            " manifest with a 'file' key per row; reconciled against what"
+            " actually reached disk"
+        ),
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -544,6 +629,20 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     report = build_report(artifacts)
+    # Soft findings: reported beside the verdict, never folded into `ok`
+    # (GH-1219). A regex over source and a directory listing are both
+    # heuristics — worth a reviewer's eye, not worth failing a run that
+    # produced good evidence.
+    warnings: list[str] = []
+    if args.script:
+        warnings += silent_guard_findings(args.script)
+    if args.declared:
+        warnings += manifest_reconciliation_failures(
+            declared=load_declared_screenshots(args.declared),
+            directory=Path(args.files[0]).parent,
+        )
+    if warnings:
+        report["warnings"] = warnings
     print(json.dumps(report, indent=2))
     return 0 if report["ok"] else 1
 
