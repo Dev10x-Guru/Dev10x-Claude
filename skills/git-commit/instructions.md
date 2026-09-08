@@ -373,7 +373,14 @@ This step activates when **any** of these conditions are met:
 **Flow:**
 1. Invoke the `Dev10x:jtbd` base skill in **unattended** mode with `ticket_id`
 2. Extract the "so [beneficiary] can" clause from the returned story
-3. Transform it to an imperative title (e.g., "so the merchant can track Zelle transactions" → "Enable Zelle transaction tracking")
+3. Choose a title frame — do NOT transpose the clause word by word.
+   A literal transposition has exactly one output shape,
+   "Let [beneficiary] [outcome]", and a branch or release bundle built
+   that way reads as a monoculture (GH-1225). The four frames and the
+   human-actor rule live in `Dev10x:gh-pr-create` § Title Frames; the
+   same rules govern commit titles. Example: "so the merchant can track
+   Zelle transactions" → "Enable Zelle transaction tracking" (Outcome
+   frame), not "Let the merchant track Zelle transactions".
 4. Present as a suggestion:
    ```
    Suggested title: Enable Zelle transaction tracking

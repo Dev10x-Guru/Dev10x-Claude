@@ -386,6 +386,44 @@
           "signals": ["git commit -F"]
         }
       ]
+    },
+    {
+      "id": 10,
+      "name": "jtbd-title-frame-is-chosen-not-transposed",
+      "prompt": "/Dev10x:git-commit use Dev10x:jtbd",
+      "description": "GH-1225: Step 2.5 must pick a title frame rather than transposing the 'so X can' clause word by word. A literal transposition has exactly one output shape, 'Let <beneficiary> <outcome>', which produced 11 of 17 identical-sounding titles in a release bundle. The story's beneficiary here is a system, so the trace-upward rule must also resolve it to a human role.",
+      "setup": {
+        "branch": "janusz/PAY-620/schema-poller-backoff",
+        "staged_changes": true,
+        "prior_context": "Dev10x:jtbd returned: 'When the upstream schema changes mid-sync, the schema poller wants to back off and retry, so the schema poller can avoid hammering the vendor API.'"
+      },
+      "dimensions": ["jtbd"],
+      "assertions": [
+        {
+          "id": "does-not-transpose-to-let-frame",
+          "text": "Title is not a word-by-word transposition of the 'so X can' clause into 'Let <beneficiary> <outcome>'",
+          "check": "output_absent",
+          "signals": ["Let the schema poller"]
+        },
+        {
+          "id": "actor-is-a-human-role",
+          "text": "No system ('the schema poller', 'the CRM', 'the client') appears as the title's actor — traced upward to a human role or a frame with no actor slot",
+          "check": "output_absent",
+          "signals": ["Let the schema poller", "Let the CRM", "Let the client"]
+        },
+        {
+          "id": "title-still-outcome-focused",
+          "text": "Title opens with an outcome verb rather than an implementation verb",
+          "check": "output_matches_pattern",
+          "pattern": "(Enable|Prevent|Stop|Simplify|Resolve|Protect|Stabilize|Streamline|Automate|Harden)\\b"
+        },
+        {
+          "id": "consults-the-title-frames",
+          "text": "References the Title Frames guidance rather than applying a single fixed shape",
+          "check": "transcript_contains",
+          "signals": ["Title Frames"]
+        }
+      ]
     }
   ],
   "trigger_evals": {

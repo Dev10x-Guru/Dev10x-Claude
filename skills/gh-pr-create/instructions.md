@@ -191,9 +191,9 @@ last incremental step, not the overall change. Instead:
    git log origin/$BASE_BRANCH..HEAD --reverse --format=%s
    ```
 2. Check if the JTBD "so [beneficiary] can" clause (from Step 3)
-   suggests a better title — transform it to imperative form with the
-   ticket's gitmoji prefix (e.g., "so the merchant can reuse outbox for
-   SMS" → `♻️ PROJ-551 Enable outbox reuse for SMS messaging`).
+   suggests a better title — choose a frame per § Title Frames below
+   and prefix the ticket's gitmoji (e.g., "so the merchant can reuse
+   outbox for SMS" → `♻️ PROJ-551 Enable outbox reuse for SMS`).
 3. If no JTBD is available yet, select the commit title that best
    describes the **overall outcome** of the PR, not an intermediate
    step.
@@ -201,6 +201,49 @@ last incremental step, not the overall change. Instead:
 
 **Guiding Principle:** The PR title should describe the user-facing
 outcome, not the implementation detail.
+
+#### Title Frames (GH-1225)
+
+**Do not transpose the "so X can" clause mechanically.** Read
+literally, "so [beneficiary] can [outcome]" has exactly one imperative
+form — "Let [beneficiary] [outcome]" — so following the clause word by
+word produces a monoculture. A 17-PR `tt:safe-to-ship` release bundle
+came back with 11 titles opening "Let", which is a list an approver
+cannot skim.
+
+Pick the frame that carries the most information about *this* change:
+
+| Frame | Shape | Use when |
+|-------|-------|----------|
+| Outcome | `Enable <outcome>` | a capability appears |
+| Prevention | `Prevent <failure>` / `Stop <symptom>` | a bug fix; name the symptom the reader recognises |
+| Actor | `Let <human role> <outcome>` | the beneficiary is a person AND naming them is what distinguishes this PR |
+| Subject | `<subject> now <behaviour>` | the changed thing is the distinguishing part |
+
+The Actor frame is one option among four, not the default. Reach for it
+when the *role* is the news; when the outcome is the news, the Outcome
+or Prevention frame says more in the same width.
+
+**The title actor must be a human role.** The trace-upward rule that
+governs Job Stories governs titles too — it was being applied to the
+story and then dropped at the title. "the CRM", "the schema poller",
+"the client" are systems: none of them benefits from anything, so a
+title naming one as actor tells the approver nothing. Trace upward to
+whoever actually gains (the dealer, the service writer, the wholesaler)
+or switch to a frame with no actor slot.
+
+**Sibling PRs must be distinguishable.** In a release bundle, no two
+titles may share their first two words, and a verb-only difference
+("create" vs "look up" on otherwise identical titles) does not count as
+distinct. When two PRs collide, re-frame one of them — the collision
+means at least one title is describing the shared mechanism rather than
+its own change.
+
+**Name the ROI bucket.** Memo 006 (GH-276) requires every release title
+to be readable as one of Risk, Cost, Revenue, Time-to-value, Retention,
+or Platform integrity. It need not appear as a literal word, but an
+approver must be able to name it from the title alone. A title that
+maps to no bucket is describing the implementation — re-frame it.
 
 ### Step 3: Source or Generate Job Story
 
