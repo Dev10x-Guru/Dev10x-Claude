@@ -49,12 +49,19 @@ CAPTION_TAIL_MS = 700
 SYNTHESIS_TIMEOUT_SECONDS = 300
 
 
-def normalize_line(text: str) -> str:
+def collapse_line(text: str) -> str:
     """Collapse a caption to one line.
 
-    Must match ``skills/tts/scripts/synthesize.py::normalize_line`` — this
+    Must match ``skills/tts/scripts/synthesize.py::collapse_line`` — this
     is the lookup key on both sides of the subprocess boundary, so the two
-    have to agree or every pre-rendered clip misses.
+    have to agree or every pre-rendered clip misses. They cannot share an
+    import (the synthesizer is a standalone uv-script), so
+    ``tests/skills/test_narration_tts_agreement.py`` pins them against a
+    shared corpus.
+
+    The synthesizer wraps this in a ``normalize_line`` that rejects an
+    empty result; the recorder does not, because a caption is validated
+    once at ``Narration`` construction rather than on every lookup.
     """
     return re.sub(r"\s+", " ", text).strip()
 
@@ -157,7 +164,7 @@ class Narration:
         runner: Callable[..., dict] = default_runner,
     ) -> None:
         self.out_dir = Path(out_dir)
-        self.script = [normalize_line(line) for line in script]
+        self.script = [collapse_line(line) for line in script]
         self.voice = voice
         self.lang = lang
         self.tail_ms = tail_ms
@@ -226,10 +233,10 @@ class Narration:
         self.warning = rendered.get("warning")
         self.voice = rendered.get("voice", self.voice)
         for segment in rendered.get("segments", []):
-            self._clips[normalize_line(segment["text"])] = segment
+            self._clips[collapse_line(segment["text"])] = segment
 
     def clip_for(self, text: str) -> dict[str, Any] | None:
-        return self._clips.get(normalize_line(text))
+        return self._clips.get(collapse_line(text))
 
     def duration_ms(self, text: str) -> int | None:
         """Spoken length of a pre-rendered line, or None if it was not declared."""
@@ -248,7 +255,7 @@ class Narration:
         clip = self.clip_for(text)
         entry = {
             "index": len(self._spoken),
-            "text": normalize_line(text),
+            "text": collapse_line(text),
             "offset_ms": self.offset_ms(),
             "dwell_ms": dwell_ms,
             "wav": clip["wav"] if clip else None,

@@ -90,15 +90,17 @@ def no_sleep(monkeypatch):
     monkeypatch.setattr(_annotate.time, "sleep", lambda seconds: None)
 
 
-class TestNormalizeLine:
+class TestCollapseLine:
     def test_collapses_newlines_so_one_caption_stays_one_clip(self):
-        assert _narration.normalize_line("one\ntwo   three\t") == "one two three"
+        assert _narration.collapse_line("one\ntwo   three\t") == "one two three"
 
     def test_matches_the_synthesizer_side_key(self):
         # Both sides key clips on this exact transformation; if they drift,
         # every pre-rendered clip misses and narration silently vanishes.
+        # tests/skills/test_narration_tts_agreement.py pins the two against
+        # a shared corpus — this case is the readable summary of it.
         messy = "  Pick a customer.\n One click assigns them.  "
-        assert _narration.normalize_line(messy) == "Pick a customer. One click assigns them."
+        assert _narration.collapse_line(messy) == "Pick a customer. One click assigns them."
 
 
 class TestPrerender:
