@@ -5,6 +5,170 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.98.0 — Titles a Reader Can Tell Apart & Captures That Cannot Lie
+
+Released 2026-09-08
+
+### Features
+
+- **Make a release list readable by the person who pays for it** — a 17-PR
+  release shipped with eleven titles opening `Let <actor> <verb>`, sibling PRs
+  separated only by a verb, and four naming a system — "the CRM", "the schema
+  poller" — as the actor. The cause was structural, not stylistic: `git-commit`
+  Step 2.5 derived every title by transposing the Job Story's fixed-shape "so X
+  can" clause, so exactly one frame was reachable, and the verb denylist waved
+  `Let` and `Keep` through twelve times. Step 2.5 now derives the title from
+  memo 006's ROI bucket and the shape of the truth, offers two frames, and runs
+  eight checks (human-first actor, sibling distinctness, "and" split, second
+  meaning, incumbent paraphrase, `Hold <contract>` for generated-only work, the
+  release-list bullseye); `Dev10x:jtbd` gains a sixth Platform-integrity
+  bucket, ranks diff/PR/QA/human quotes above agent-written ticket prose, and
+  reads ticket comments rather than descriptions alone. The rules were derived
+  from re-writing all 17 titles and having each approved individually — five of
+  those approvals reframed the job the agent had named
+  ([GH-1225](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1225))
+- **Spare a maintainer findings they are already tracking** — filing from
+  `Dev10x:skill-audit` was mandatory and ungated, and no step asked whether a
+  finding was already filed, so an audit run late in a session whose earlier
+  findings had reached the tracker by another route re-filed all of them; in the
+  run that surfaced this, three of three were already tracked and a fourth
+  asserted a skill documented an attribute as a method when the shipped file
+  said otherwise. Filing now searches the tracker open and closed first,
+  suppresses an already-open finding with its issue number, re-files a closed
+  one only when the behaviour recurred after it, and requires any claim about a
+  shipped file to quote that file read at filing time — withdrawing the finding
+  when it contradicts
+  ([GH-1244](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1244))
+
+### Fixes
+
+- **Stop a narrated walkthrough passing as clean when it lost a beat** — a
+  `qa-self` capture could drop a whole narrated line, film past a step that
+  failed, and still report `unrendered: []`, because that list was derived from
+  the lines that *played*: a declared line whose `say()` never ran was absent by
+  construction. Declared and played lines are now tracked separately and
+  `never_played` fails `verify-evidence` and blocks publishing; a caption must
+  hold the state it asserts before it cues, and unasserted beats are reported;
+  a blank declared line is refused at construction — quoting its index and text
+  — before fixtures are set up or a browser opens; the `collapse_line` clip-key
+  contract is split out and pinned on both sides of the synthesis subprocess
+  boundary, where silent drift produced video with captions and no voice at all;
+  `require()` raises on an absent or ambiguous locator, and a scanner catches
+  the bare `if locator.count():` guard shape it was written for. The deploy
+  check now detects the deploy model and reports "check not performed" naming
+  the unset knob, distinct from "not deployed"; synthesis is gated on a fixture
+  probe so a failed fixture costs fixture time and no model load; and clips are
+  reused across takes from a content-addressed cache keyed on voice, language
+  and the TTS pin
+  ([GH-1218](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1218),
+  [GH-1219](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1219),
+  [GH-1232](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1232),
+  [GH-1236](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1236),
+  [GH-1237](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1237),
+  [GH-1238](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1238),
+  [GH-1239](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1239),
+  [GH-1240](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1240))
+- **Let a language pin reach the voice that actually narrates** — PR #1228
+  closed this issue with a `Fixes:` trailer and carried no commit for it, so
+  only half the fix landed: `--lang` forwarding shipped incidentally, the
+  default did not. Both documented call sites pass neither lang nor voice, so
+  the wrapper resolved the language-agnostic `voice:` key and skipped the
+  `languages:` pin on the one path whose output reaches a client — while `tts
+  check --lang en` read the pin and cheerfully reported the commercial voice.
+  Language now resolves as explicit argument, then `DEV10X_TTS_LANG`, then
+  `DEFAULT_LANG`; a language-blind legacy runner is refused only when a language
+  was actually asked for, and reports `None` rather than claiming one was
+  applied; `commercial_use_allowed` is carried into the manifest as disclosure.
+  Licence compliance stays the supervisor's call — this surfaces terms and adds
+  no publish refusal
+  ([GH-1221](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1221))
+- **Stop a PR closing an issue it never delivered** — `gh-pr-merge` Check 1d
+  compared linked-issue scope against the diff by reasoning, the right
+  instrument for the hard case and the wrong one for the easy one. The easy case
+  is what shipped wrong: PR #1228 declared six `Fixes:` links, carried commits
+  for five, and closed GH-1221 with nothing behind it. A wrongly-closed issue
+  reads as settled and drops out of every future sweep. The body's closing links
+  are now diffed deterministically against the ticket IDs in the commits — whole
+  messages, so a batched commit backs every member it lists — and the merge is
+  blocked on any unbacked link unless `--acknowledge` records a human decision
+  ([GH-1241](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1241))
+- **Make plugin-doctor findings worth reading** — two strategies buried their
+  real hits in noise. `ask-shadows-allow` reported every broad-allow/narrow-deny
+  pairing as drift — 69 of 73 findings in the 2026-09-07 audit, each advising
+  the reader to dismantle a guardrail (`git push` with `--force` denied, `docker
+  run` with `--privileged` denied) — so the four real collisions were
+  unfindable. An exact cross-bucket duplicate is now drift; a strict narrowing
+  is a suggestion that says plainly the pairing is usually intentional.
+  `mcp-vs-script-drift` compared byte offsets across the whole SKILL.md, so an
+  `allowed-tools:` block listing a script path beside its MCP equivalent read as
+  "script documented first" — an unordered declaration with no prose to reorder.
+  Frontmatter is stripped before the ordering scan and findings deduplicate by
+  source-relative path, clearing 25 of 26
+  ([GH-1222](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1222),
+  [GH-1223](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1223))
+- **Ensure a push report names the branch that moved** — four consecutive
+  pushes after an `EnterWorktree` reported a ref and sha that did not match the
+  remote. The pushes landed: worktrees share an object store and a ref
+  namespace, so `git push origin <branch>` succeeds from any of them, while
+  `rev-parse HEAD` answers for whichever checkout the long-lived MCP daemon is
+  standing in. Callers that branch on `ref`/`sha` — `gh-pr-respond`,
+  `gh-pr-monitor` — were reading a value about the wrong branch. The sha is now
+  resolved from the source half of the refspec, tracking from that same ref, and
+  a delete refspec reports no sha at all
+  ([GH-1220](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1220))
+
+### Docs
+
+- **Let a walkthrough be argued from a written decision** — the walkthrough
+  capability grew inside `qa-self` incrementally and is now shared, in different
+  shapes, by QA evidence, demo video and the tt-e2e suite, with nothing
+  recording the decisions governing it. An ADR records the three-skill
+  decomposition, decides per-scenario capture over one continuous take as
+  failure containment first (six consecutive takes died in setup; a thirteen-take
+  run lost every earlier chapter's cue offsets to one late crash), states the
+  clip contract as offsets rebased from measured durations, ties annotation
+  richness to who can repair a break — which is why tt-e2e stays standalone —
+  and says plainly what `verify-evidence.py` does not check
+  ([GH-1242](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1242))
+- **Enable a narrated capture to verify and re-run** — Phase 4.1 told the reader
+  to run the verifier on the raw `.webm` before converting, but the voice-over
+  is muxed on in 4.3, so a narrated take could never satisfy the audio checks
+  the phase demanded and a session following it read a guaranteed failure as its
+  own mistake. The phase is split (structural checks on the `.webm`, audio
+  checks on the muxed `-narrated.mp4`), the hardcoded accounts are replaced with
+  read-the-account-map guidance, and probing gets a name, a workflow slot and
+  its own `self-qa/probes/` namespace so probe residue stops landing beside
+  formal evidence
+  ([GH-1229](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1229),
+  [GH-1230](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1230),
+  [GH-1233](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1233))
+- **Let qa-scope and the e2e reviewer fire on the suite in front of them** —
+  `Dev10x:qa-scope` shipped with one deployment's filesystem baked in, and its
+  coverage check failed in the worst direction: a suite that was never searched
+  returns exactly what a suite with no matching scenarios returns, so the
+  verdict recommended writing tests that may already exist. Phase 3.0 resolves
+  `$E2E_ROOT` from project config, a sibling `*-e2e` checkout, or a `features/`
+  dir, and reports "not performed" when none does. The `reviewer-e2e` spec was
+  written against pytest-bdd while the suite it reviews runs behave, so its
+  triggers matched nothing in a behave layout and its checklist demanded a
+  `scenarios()` call that correctly does not exist — triggers widened, a
+  framework-difference table added, duplicate steps raised to CRITICAL (behave
+  aborts the run where pytest-bdd silently takes the last), and the
+  `context.execute_steps()` DocString trap documented
+  ([GH-1231](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1231))
+- **Keep one deployment's accounts out of a shipped skill** — GH-1230 took one
+  deployment's test accounts out of `qa-self`, and the same class survived in
+  two sibling skills of the same pipeline: a plugin user reading
+  `skills/playwright/SKILL.md` was told to authenticate as accounts that do not
+  exist for them, and the `qa-publish` PR-comment template named one staging
+  shop as though it were every reader's. This defect only breaks for other
+  people — the runtime path reads the account map from config and works fine for
+  the deployment the names came from — which makes it unlikely to be reported by
+  anyone able to fix it. Permission levels replace usernames, the dealer number
+  becomes a backticked placeholder (angle brackets vanish when GitHub strips an
+  unknown tag), and all three are pinned by test
+  ([GH-1235](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1235))
+
 ## 0.97.0 — One Review Question, Every Rule Tier & Loops That Get Denied
 
 Released 2026-09-05
