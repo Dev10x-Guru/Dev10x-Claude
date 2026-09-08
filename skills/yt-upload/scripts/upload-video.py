@@ -464,7 +464,19 @@ def resolve_video(run_dir: Path) -> dict:
     """
     video_dir = run_dir / "video"
     if not video_dir.is_dir():
-        raise UploadError(f"no video directory at {video_dir}")
+        # A probe directory has no video/ subdir by design — probes are
+        # un-recorded discovery runs, not evidence (GH-1233). Naming the
+        # convention here turns "no video directory" from a puzzle into an
+        # answer, since the two namespaces sit side by side under
+        # /tmp/Dev10x/self-qa/.
+        hint = (
+            " — this looks like a probe directory (probes live under"
+            " self-qa/probes/ and record nothing); pass a formal run"
+            " directory instead"
+            if "probes" in run_dir.parts
+            else ""
+        )
+        raise UploadError(f"no video directory at {video_dir}{hint}")
 
     narrated = sorted(video_dir.glob("*-narrated.mp4"))
     if len(narrated) > 1:

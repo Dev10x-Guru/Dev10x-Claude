@@ -143,7 +143,7 @@ from playwright.sync_api import Page, sync_playwright
 CF_CLIENT_ID = os.environ["CF_CLIENT_ID"]
 CF_SECRET    = os.environ["CF_SECRET"]
 STAGING_URL  = os.environ.get("STAGING_URL", "https://staging-app.example.com")
-CRM_USERNAME = os.environ.get("CRM_USERNAME", "e2e_test_user")
+CRM_USERNAME = os.environ["CRM_USERNAME"]   # from the secrets file
 CRM_PASSWORD = os.environ["CRM_PASSWORD"]
 
 # Run-scoped artifact directory — NEVER a bare /tmp or a pytest default
@@ -492,12 +492,72 @@ Full guidance — pointer anatomy, palette, pacing, resolution — lives in
   `random.randint(1000,9999)` for phone suffixes
 - **Test order matters**: If tests depend on each other (e.g., create
   first, then duplicate), enforce ordering in the script
-- **e2e_test_user is USER-level only (level=1)**: Has USER permissions for
-  dealer 382. Cannot test features gated on dealer admin (level≥2) — e.g.
-  reopen/void work orders. For admin-level tests use `janusz_ai` (level=2,
-  dealer 585, password in the secrets file — `$PLAYWRIGHT_SECRETS_FILE`,
-  defaulting to `/work/example/app-e2e/settings.secrets.env` — as
-  `CRM_PASSWORD2`). Per-dealer constraints only fire within the same dealer.
+- **Read the account map; do not trust prose about it (GH-1230).** The
+  wrapper's user map is config: each account is a
+  `CRM_USERNAME<suffix>` / `CRM_PASSWORD<suffix>` pair in
+  `${PLAYWRIGHT_SECRETS_FILE:-/work/example/app-e2e/settings.secrets.env}`,
+  selected with `--user <name>` or `--profile <suffix>` (that path is
+  one deployment's default — set the variable for yours). Read that
+  file to learn which accounts exist
+  and what they can do. A skill cannot name them: they are one
+  deployment's fixtures, they drift, and a session that trusted a
+  documented account map found it stale **in both directions** — an
+  account the prose said was missing, and a capability it claimed that
+  no longer held.
+- **Plan for two privilege levels, whatever they are called.** Most
+  suites need a standard user and an admin-level one, because features
+  gated on elevated permissions (reopening or voiding an order, say)
+  are invisible to the standard account. Resolve both from the secrets
+  file at the start of the run rather than hard-coding either.
+- **Per-tenant constraints only fire within the same tenant.** A
+  uniqueness or duplicate-detection rule scoped to a dealer, store or
+  org will not trigger across two of them, so the fixture and the
+  record under test must live in the same one.
+- **A tenant that lacks the data a case needs is a fixture fact, not a
+  bug.** Some accounts have no vehicles, no completed orders, no
+  payment history. Discover this in the probe phase (§ 2.3a) and pick
+  the account accordingly — do not encode the answer here, where it
+  goes stale silently.
+
+#### 2.3a Probe first; film what the probe proved (GH-1233)
+
+A capture is for **communicating** a verified fact. It is a bad
+instrument for **discovering** one: a full narrated take costs minutes
+(narration pre-renders before the browser does anything interesting),
+so every unknown found inside a take costs a whole take. One session
+lost six takes this way — all six failed in fixture setup, none in the
+recording or narration machinery.
+
+So before filming, run **probes**: small un-recorded scripts that log
+in, walk the intended path, and print what they find — role, name,
+count, enabled, checked — for every control they will touch. Text
+output, seconds not minutes, and re-runnable. Probing is the phase
+that turns "I think the fixture looks like this" into a fact the
+script can rely on.
+
+**Probes get their own namespace.** Write them under
+`/tmp/Dev10x/self-qa/probes/<slug>/`, never beside the formal
+timestamped run directories. Probe output is flat, ad hoc and often
+half-finished; run-scanning logic (including
+`upload-video.py resolve-video --run-dir`) walks the run namespace and
+must not have to guess which directories are evidence and which are
+notes.
+
+Things worth probing before they cost a take:
+
+- **A control that binds Save to a dirty-state flag.** Re-selecting a
+  value the record already has leaves Save disabled, and a blind click
+  burns a timeout. Setup steps must be idempotent — read the current
+  value and skip the write when it already holds.
+- **A search that returns nothing for data you know exists.** Where
+  lookup is unreliable, "select an existing fixture" is not merely
+  discouraged, it is impossible, and the create path is the only one.
+- **A dialog that renders empty until some precondition holds.** The
+  precondition is frequently a *state* rather than a record, and is
+  invisible from the code.
+- **Controls that are already in the target state.** A loop that
+  "checks every unchecked box" does nothing on a pre-checked list and
+  then reports that nothing could be checked.
 
 #### 2.4 Screenshot Timing
 
@@ -586,11 +646,13 @@ ${CLAUDE_PLUGIN_ROOT}/skills/playwright/scripts/run-playwright.sh \
   /tmp/Dev10x/self-qa/qa-<ticket>-test.py
 ```
 
-For admin-gated features (reopen/void WO), use `--user janusz_ai`:
+For a feature gated on elevated permissions, select the admin-level
+account from the secrets file by name (§ 2.3 — read the map, do not
+assume a name):
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/skills/playwright/scripts/run-playwright.sh \
-  /tmp/Dev10x/self-qa/qa-<ticket>-test.py --user janusz_ai
+  /tmp/Dev10x/self-qa/qa-<ticket>-test.py --user <admin-account>
 ```
 
 #### 3.3 Review output
@@ -604,7 +666,7 @@ If tests fail, fix the script and re-run. Common issues:
 - Dialog closed unexpectedly = mutation succeeded (check deployment)
 - Phone format wrong = ensure "1" prefix for US numbers
 - Element not found = add `wait_for` or increase sleep
-- Wrong dealer data = e2e_test_user is dealer 382
+- Wrong tenant's data = the selected account belongs to another tenant
 
 #### 3.4 Confirm the mechanism, not just the pixels (optional)
 
@@ -636,12 +698,44 @@ screenshot, and the same checks to three frames extracted through each
 video. Output is a JSON report; a non-zero exit means at least one
 artifact is empty, blank or truncated.
 
+**Structural checks here; audio checks after the mux (GH-1229).** The
+raw Playwright `.webm` has no audio track — the voice-over is muxed on
+in § 4.3 — so the verifier's audio-stream and cue-overrun checks cannot
+pass against it and are not meant to. Run them against the
+`-narrated.mp4` once § 4.3 has produced it:
+
+```bash
+# after 4.3, on the muxed take
+${CLAUDE_PLUGIN_ROOT}/skills/qa-self/scripts/verify-evidence.py \
+  <RUN_DIR>/video/*-narrated.mp4
+```
+
+A narrated run therefore verifies **twice**: structure before
+converting, audio after muxing. Reading this phase as one pass over the
+`.webm` makes every narrated capture look like a failure, which is how
+the ordering was found.
+
 Each video frame also gets a **border check** (GH-1204): an edge whose
 outer 6px strip is a single flat colour in *every* sampled frame is
 Playwright's grey padding, which means the viewport was smaller than
 `record_video_size`. Fix the capture geometry (§ 2.2) and re-record —
 no re-encode can recover the lost frame area. For a page whose right or
 bottom edge genuinely is one flat colour, pass `--no-border-check`.
+
+**Decide which one you have before reaching for the flag (GH-1229).**
+"Flat edge" is the same observation for padding and for a page that is
+a narrow centred card on a plain ground, so read the value rather than
+the verdict — `flat_edges[*].mean` is ~0.5 for Playwright's mid-grey
+fill, and near 0.98 (white) or 0.05 (black) for a real background. A
+second, independent confirmation is `ffprobe` on the **source** stream:
+a capture that reports 1920x1080 straight out of the `.webm` was not
+padded, whatever the edge looks like.
+
+**Sample a frame with no dialog open.** A MUI modal backdrop dims the
+page to roughly the same mid-grey as the padding, so a frame caught
+with a dialog up reads as padded when it is not. This has misled two
+sessions. `cropdetect` does not settle it either — the fill is
+mid-grey, not black, so it misses at default settings.
 
 **On any failure, re-capture — do NOT convert or upload.** A failing
 artifact is a capture bug (a step that no-opped, a context that was
@@ -726,11 +820,17 @@ file paths to stdout.
 Playwright records video as `.webm`. Convert to `.mp4` for Linear:
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/skills/qa-self/scripts/convert-evidence.sh \
-  video /tmp/Dev10x/self-qa/qa-<ticket>-video/*.webm
+  video <RUN_DIR>/video/*.webm
 ```
 
 Uses ffmpeg (`h264, crf 18, yuv420p, faststart`). Prints the `.mp4` path
 to stdout.
+
+**Never type the video filename (GH-1229).** Playwright names its own
+recording `page@<32-hex>.webm` and the converters keep that stem, so a
+command copied with a `qa-<ticket>.mp4` in it matches nothing. Glob the
+directory, or read the path the converter prints — every command below
+uses the printed path rather than a guessed one.
 
 **If the capture was narrated**, build the voice-over track and mux it on.
 Skip this step entirely when no `narration.json` was written:
@@ -940,7 +1040,7 @@ If tests are blocked, leave in current status and note the blocker.
 | Pitfall | Solution |
 |---------|----------|
 | Phone input shows +61 (Australia) | Always prepend `1` for US country code |
-| Per-dealer constraints don't fire | e2e_test_user is dealer 382; create test data in same session |
+| Per-tenant constraints don't fire | Fixture and record under test are in different tenants; create both in the same session under one account |
 | Save button click doesn't register | `scroll_into_view_if_needed()` + `time.sleep(0.5)` |
 | Screenshot misses snackbar | Screenshot immediately after `wait_for_selector`, before sleep |
 | Linear images "Failed to load" | Must include signed headers from `fileUpload` response in PUT |
@@ -975,7 +1075,7 @@ If tests are blocked, leave in current status and note the blocker.
 | Cursor/overlay appears duplicated | `inject_overlay()` must be idempotent — guard with `if (document.getElementById('qa-cursor')) return;` at the top of the JS. Page navigations or SPA route changes can re-trigger injection. |
 | Video subtitles are too technical | Subtitles should describe the **user benefit** ("One click assigns them, no Save needed"), not implementation details ("TC1: should auto-save on onChange"). Sprinkle in light easter egg humor to keep viewers engaged. |
 | TC only verifies UI presence, not full flow | Test cases should **complete full flows** — e.g., "Add Customer" should fill the form and actually save, not just verify the dialog opens. A TC that stops at "dialog opened" doesn't prove the feature works. |
-| Dealer 382 has no vehicles | `e2e_test_user` (dealer 382) has no customers with real vehicles — only "No Vehicle" entries. For vehicle-related TCs, use `janusz_ai` (dealer 585) via `--user janusz_ai`. |
+| The account has none of the data the case needs | Some tenants hold no vehicles, no completed orders, no payment history. Probe (§ 2.3a) and switch account with `--user <name>`; do not assume the default account can reach every case |
 
 ## Integration with Other Skills
 
