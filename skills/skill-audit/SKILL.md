@@ -30,6 +30,8 @@ allowed-tools:
   - mcp__plugin_Dev10x_cli__preset_pin_status
   - mcp__plugin_Dev10x_cli__supervisor_review_status
   - mcp__plugin_Dev10x_cli__resolve_gate
+  - mcp__plugin_Dev10x_cli__issue_list
+  - mcp__plugin_Dev10x_cli__issue_get
   - Bash(ls -t ~/.claude/:*)
   - Bash(wc:*)
   - Bash(git config --list:*)

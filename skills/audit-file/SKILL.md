@@ -19,6 +19,8 @@ allowed-tools:
   - Bash(gh issue create:*)
   - Bash(gh label list:*)
   - Bash(gh label create:*)
+  - mcp__plugin_Dev10x_cli__issue_list
+  - mcp__plugin_Dev10x_cli__issue_get
 ---
 
 # Audit Report — File Findings Upstream
@@ -314,6 +316,24 @@ and the temp file path so the user can file manually.
   of context per finding, not raw transcript blocks.
 - **One issue per audit**: Batch all findings into a single
   issue per audit session to avoid issue spam.
+- **Check the tracker before filing (GH-1244)**: The rule above
+  guards against *volume*, not against *re-filing* — and a
+  duplicate buried inside a batched issue is harder to triage
+  than a standalone one, because a maintainer must read every
+  finding to discover which are already tracked. Before
+  assembling the body, search `$TARGET_REPO` for each finding —
+  open **and** closed. Drop the ones already tracked and list
+  them in the issue as "already tracked: #N" instead. File only
+  what is new. A finding already closed is re-filed only when
+  this session shows the behaviour recurring after the close,
+  and the body must say so.
+- **Quote the shipped file, never recall it (GH-1244)**: A
+  finding asserting what a skill documents must carry a quote
+  read from the shipped file at filing time. A claim sourced
+  from the reporting agent's own invention sends a maintainer
+  hunting a defect that does not exist — worse than a duplicate,
+  which merely wastes triage. Withdraw any finding the file
+  contradicts.
 - **Bundle via labels, not separate issues**: Apply the label
   taxonomy in `references/labels.md` so similar issues can be
   filtered and worked together during implementation. Never

@@ -1179,24 +1179,78 @@ Instead report: "Skill X invoked `gh pr view` directly 3 times
 
 2. Use AskUserQuestion to confirm filing issues (batch).
 
-3. **REQUIRED: File a GitHub issue for every actionable finding.**
-   After presenting the summary, iterate over all findings
-   classified as SKILL_UPDATE, GAP, or SKIPPED_STEP. For each:
+3. **REQUIRED: Check the tracker before filing anything (GH-1244).**
+   Filing is mandatory and ungated, which makes a duplicate
+   mandatory too unless this step runs first. An audit late in a
+   session whose earlier findings already reached the tracker by
+   another route — a post-mortem handed to a peer session, say —
+   will otherwise re-file every one of them. In the run that
+   found this, three of three findings were already tracked: one
+   open with the same evidence down to the rendered values, one
+   closed with its decision recorded in an ADR, and one covered
+   by a third open issue.
+
+   The skill already carries this principle for the local case
+   ("**No duplicate memory**: Check existing memory/CLAUDE.md
+   before proposing additions"). The upstream case needs it more,
+   not less: the cost lands on a maintainer rather than on the
+   author, and a duplicate buried inside a batched issue is
+   harder to triage than a standalone one, because every finding
+   must be read to discover which are already tracked.
+
+   For each actionable finding, before filing:
+   - Search the target tracker for an existing issue — open
+     **and** closed — matching the finding's skill and symptom
+     (`mcp__plugin_Dev10x_cli__issue_list` with the relevant
+     `skill:<name>` label, plus a keyword search on the symptom)
+   - **Already open** → do not file. Record the existing issue
+     number in the summary. Add a comment only when this session
+     contributes genuinely new evidence
+   - **Already closed** → do not file. Report it as closed and
+     name where the decision was recorded. Re-file only when
+     this session shows the behaviour recurring *after* the
+     close, and say so explicitly in the body
+   - **Not found** → file it
+
+4. **REQUIRED: Ground every claim about a shipped file in a quote
+   (GH-1244).** Phase 6 already says the audit reports findings
+   rather than designing solutions; the same discipline applies
+   to evidence. A claim about what a skill *documents* must quote
+   the shipped file, read at audit time — not recalled. A finding
+   in the same run asserted that a skill documented an attribute
+   as a method; a grep of the shipped plugin showed the
+   documented form was correct and the method call was the
+   reporting agent's own invention. That is worse than a
+   duplicate: a duplicate wastes triage, while a finding sourced
+   from the reporter's error sends a maintainer hunting a defect
+   that does not exist. Withdraw any finding whose asserted form
+   the file does not contain.
+
+5. **File the findings that survive both checks.**
+   Iterate over the remaining findings classified as
+   SKILL_UPDATE, GAP, or SKIPPED_STEP. For each:
    - Invoke `Skill(Dev10x:ticket-create)` with:
      - Title: `[<classification>] <affected skill>: <short description>`
      - Body: finding classification, affected skill, description
        of the gap/deviation, and session evidence (turn numbers)
      - Do NOT include recommended fixes in the ticket body —
        the implementor designs the solution
-   - Do NOT gate behind `AskUserQuestion` — filing is mandatory
-   - Report all created issue URLs in the final summary
+   - Do NOT gate behind `AskUserQuestion` — filing what survives
+     the duplicate and evidence checks is mandatory
+   - Report all created issue URLs in the final summary, and
+     alongside them the findings suppressed as duplicates or
+     withdrawn, with the issue number or the contradicting quote.
+     A suppressed finding must stay visible: silently dropping it
+     is how the same gap gets re-discovered next session
 
-4. Generate a summary report:
+6. Generate a summary report:
    - Total actions reviewed
    - Skills invoked vs missed vs gaps
    - Compliance score (% of steps followed correctly)
    - Permission prompts: total, avoidable (count only, no rules)
    - Issues filed (with URLs)
+   - Findings suppressed as already-tracked (with issue numbers)
+     and withdrawn on evidence (with the contradicting quote)
    - Recommendations for future sessions (behavioral, not
      architectural — e.g., "invoke skill X before step Y")
 
