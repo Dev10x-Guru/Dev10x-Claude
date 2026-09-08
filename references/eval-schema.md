@@ -107,6 +107,27 @@ Each eval scenario tests a specific code path:
 | `tool_parameters` | Validate tool arguments match spec | Check multiSelect=true, option labels, skill name |
 | `behavioral` | Verify side effects (not just tool presence) | Task state updated, no auto-progression |
 | `plain_text` | Detect forbidden plain-text questions (negative check) | Catch "Do you want to proceed?" inline |
+| `rubric` | Judge an output against a stated standard when no mechanical check can express it | "Name the ROI bucket this title reads as; fail if none applies" |
+
+### Batch Checks (GH-1225)
+
+Some defects exist only *across* a set of outputs and are invisible
+one at a time. A monoculture is the worked example: every title in a
+release bundle can be individually well-formed while the batch is
+unreadable because they all open the same way. An eval declaring
+`"batch": true` in its `setup` produces several outputs from several
+inputs, and these checks judge them together.
+
+| Type | Purpose | Parameter |
+|------|---------|-----------|
+| `batch_opening_word_share` | Fail when too much of the batch opens with the same word | `max_share` (0..1) |
+| `batch_titles_distinct` | Fail when two outputs are separated only by a short prefix | `min_distinct_prefix_words` |
+
+A single-output eval **cannot** substitute for these: it has nothing
+to compare against, so it passes on the batch that provoked the rule.
+GH-1225 shipped with exactly that gap — a single-title eval for a
+defect that only appears at batch scale — and it was caught in review
+rather than by the eval.
 
 ## Trigger Evals
 

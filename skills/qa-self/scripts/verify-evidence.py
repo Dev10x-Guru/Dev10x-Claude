@@ -303,7 +303,14 @@ def narration_failures(path: Path, *, manifest: dict | None, duration: float) ->
     return failures
 
 
-SILENT_GUARD_RE = re.compile(r"^\s*if\s+.*\.count\(\)\s*(?:[><=!]|\))")
+# Matches an EXISTENCE guard on a locator count, in any of its spellings:
+# the bare truthy `if x.count():` (the shape require()'s docstring names),
+# and the comparisons against 0/1 that mean the same thing. A threshold
+# test like `if rows.count() > 5:` is a legitimate line and must NOT match
+# — the numeric bound is what separates the two, not the operator.
+SILENT_GUARD_RE = re.compile(
+    r"^\s*if\s+(?:not\s+)?.*\.count\(\)\s*(?::|\)|(?:>=|<=|!=|==|>|<)\s*[01]\b)"
+)
 
 
 def silent_guard_findings(script: Path) -> list[str]:

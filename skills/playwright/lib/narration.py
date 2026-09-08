@@ -30,6 +30,7 @@ the gap is visible rather than silent.
 
 from __future__ import annotations
 
+import inspect
 import json
 import os
 import re
@@ -118,6 +119,30 @@ class NarrationError(Exception):
     """Narration could not be produced; the caller decides whether to abort."""
 
 
+def _accepts_lang(runner: Callable[..., dict]) -> bool:
+    """Whether ``runner`` can receive the fourth, language argument.
+
+    ``runner`` is a caller-supplied seam, so widening it is a breaking
+    change for anyone who wrote one against the pre-GH-1221 three-
+    argument shape. A callable whose signature cannot be read (a C
+    builtin, a mock) is assumed to accept it — guessing "no" there
+    would silently drop the language on a runner that wanted it.
+    """
+    try:
+        signature = inspect.signature(runner)
+    except (TypeError, ValueError):
+        return True
+    parameters = list(signature.parameters.values())
+    if any(p.kind is inspect.Parameter.VAR_POSITIONAL for p in parameters):
+        return True
+    positional = [
+        p
+        for p in parameters
+        if p.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+    ]
+    return len(positional) >= 4
+
+
 class Narration:
     """Pre-rendered voice-over bound to one recording."""
 
@@ -186,7 +211,18 @@ class Narration:
             ]
         }
         self.out_dir.mkdir(parents=True, exist_ok=True)
-        rendered = self._runner(payload, self.out_dir, self.voice, self.lang)
+        if _accepts_lang(self._runner):
+            rendered = self._runner(payload, self.out_dir, self.voice, self.lang)
+        elif self.lang:
+            # Refusing beats narrating in the wrong voice: a language that
+            # silently fails to reach synthesis is the whole of GH-1221.
+            raise NarrationError(
+                f"lang={self.lang!r} was requested, but the supplied runner takes"
+                " no language argument — give it a `lang: str | None = None`"
+                " parameter, or drop the lang."
+            )
+        else:
+            rendered = self._runner(payload, self.out_dir, self.voice)
         self.warning = rendered.get("warning")
         self.voice = rendered.get("voice", self.voice)
         for segment in rendered.get("segments", []):

@@ -536,6 +536,18 @@ class TestPushSafeReportsThePushedRef(ShellTwinHarness):
         assert payload["ref"] == "published"
         assert payload["sha"] == feature_sha
 
+    def test_a_delete_refspec_reports_no_commit(self, repo_with_two_branches):
+        # `git push origin :old-branch` pushes no commit, so there is no
+        # source ref to resolve and reporting one would be a fabrication.
+        work, _, _ = repo_with_two_branches
+        self._payload("origin", "feature:doomed", cwd=work)
+
+        payload = self._payload("origin", ":doomed", cwd=work)
+
+        assert payload["ref"] == "doomed"
+        assert payload["sha"] == ""
+        assert payload["tracking"] == ""
+
     def test_a_bare_push_still_describes_head(self, repo_with_two_branches):
         # No refspec means there is nothing to resolve but HEAD, so the
         # pre-GH-1220 behaviour is still the correct one here. The first

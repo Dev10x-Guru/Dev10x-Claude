@@ -221,35 +221,56 @@ class TestLanguage:
 
         assert narration.manifest()["lang"] == "pl"
 
-    def test_default_runner_passes_lang_to_the_wrapper(self, tmp_path, monkeypatch):
-        # Pins the argv itself: the bug was not in the plumbing above but
-        # in this command being built without --lang at all.
+    def _record_argv(self, monkeypatch) -> dict[str, list[str]]:
+        """Capture the argv `default_runner` builds, using the file's stub."""
         monkeypatch.setenv("DEV10X_TTS_SCRIPT", "/bin/true")
         seen: dict[str, list[str]] = {}
 
         def fake_subprocess_run(command, **kwargs):
             seen["command"] = command
-            return sys.modules["subprocess"].CompletedProcess(
-                args=command, returncode=0, stdout=json.dumps({"segments": []}), stderr=""
-            )
+            return _Completed(0, json.dumps({"segments": []}), "")
 
         monkeypatch.setattr(_narration.subprocess, "run", fake_subprocess_run)
+        return seen
+
+    def test_default_runner_passes_lang_to_the_wrapper(self, tmp_path, monkeypatch):
+        # Pins the argv itself: the bug was not in the plumbing above but
+        # in this command being built without --lang at all.
+        seen = self._record_argv(monkeypatch)
+
         _narration.default_runner({"segments": []}, tmp_path, "af_heart", "en")
 
         assert "--lang" in seen["command"]
         assert seen["command"][seen["command"].index("--lang") + 1] == "en"
 
+    def test_a_pre_existing_three_argument_runner_still_works(self, tmp_path):
+        # `runner` is a caller-supplied seam, so widening it must not
+        # break a runner written against the old three-argument shape.
+        calls: list[str | None] = []
+
+        def legacy_runner(payload: dict, out_dir: Path, voice: str | None) -> dict:
+            calls.append(voice)
+            return {"voice": voice, "segments": []}
+
+        _narration.Narration(tmp_path, script=["alpha"], runner=legacy_runner).prerender()
+
+        assert calls == [None]
+
+    def test_a_three_argument_runner_refuses_a_language(self, tmp_path):
+        # Silently dropping the language is exactly the GH-1221 defect.
+        def legacy_runner(payload: dict, out_dir: Path, voice: str | None) -> dict:
+            return {"voice": voice, "segments": []}
+
+        narration = _narration.Narration(
+            tmp_path, script=["alpha"], lang="en", runner=legacy_runner
+        )
+
+        with pytest.raises(_narration.NarrationError, match="no language argument"):
+            narration.prerender()
+
     def test_default_runner_omits_lang_when_unset(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("DEV10X_TTS_SCRIPT", "/bin/true")
-        seen: dict[str, list[str]] = {}
+        seen = self._record_argv(monkeypatch)
 
-        def fake_subprocess_run(command, **kwargs):
-            seen["command"] = command
-            return sys.modules["subprocess"].CompletedProcess(
-                args=command, returncode=0, stdout=json.dumps({"segments": []}), stderr=""
-            )
-
-        monkeypatch.setattr(_narration.subprocess, "run", fake_subprocess_run)
         _narration.default_runner({"segments": []}, tmp_path, "af_heart")
 
         assert "--lang" not in seen["command"]
