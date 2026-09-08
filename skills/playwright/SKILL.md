@@ -162,10 +162,14 @@ time.sleep(2)  # after result appears
 username and a password key:
 
 ```sh
-CRM_USERNAME=e2e_test_user    CRM_PASSWORD=…      # the default profile
-CRM_USERNAME2=janusz_ai       CRM_PASSWORD2=…     # --profile 2
-CRM_USERNAME_QA=qa_bot        CRM_PASSWORD_QA=…   # --profile _QA
+CRM_USERNAME=<standard-level>   CRM_PASSWORD=…      # the default profile
+CRM_USERNAME2=<admin-level>     CRM_PASSWORD2=…     # --profile 2
+CRM_USERNAME_QA=<a bot>         CRM_PASSWORD_QA=…   # --profile _QA
 ```
+
+The suffixes are the contract; the usernames are yours. Which accounts
+exist, and at what permission level, is a property of your deployment —
+so this table names roles rather than accounts on purpose.
 
 A third credential pair is two lines of config — no edit to the wrapper,
 and no fork (a fork loses the syntax validation and the
@@ -174,7 +178,7 @@ no-hardcoded-credentials guarantee the wrapper exists to provide).
 Select one either by name, which is resolved against the file:
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/skills/playwright/scripts/run-playwright.sh \
-  /tmp/Dev10x/playwright/qa-xxx.py --user janusz_ai
+  /tmp/Dev10x/playwright/qa-xxx.py --user <admin-level-username>
 ```
 
 or by suffix, which skips the lookup:
@@ -186,7 +190,10 @@ ${CLAUDE_PLUGIN_ROOT}/skills/playwright/scripts/run-playwright.sh \
 `--user` with an unknown name lists what the secrets file does offer and
 names the two keys to add. A secrets file carrying only `CRM_PASSWORD`
 keeps working unsuffixed: the username falls back to `$CRM_USERNAME`,
-then `$PLAYWRIGHT_DEFAULT_USER`, then `e2e_test_user`.
+then `$PLAYWRIGHT_DEFAULT_USER`, then the wrapper's legacy built-in
+(`e2e_test_user`). That last one is a pre-GH-1130 default and matches
+only the deployment it came from — set `PLAYWRIGHT_DEFAULT_USER` rather
+than relying on it.
 
 Which account a given feature needs — permission level, dealer scoping —
 is a property of the deployment, not of this plugin. Record it in the

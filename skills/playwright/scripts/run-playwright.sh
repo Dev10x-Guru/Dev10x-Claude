@@ -178,6 +178,14 @@ CRM_PASSWORD_RESOLVED=$(secret_value "CRM_PASSWORD${PROFILE}")
 # An unsuffixed run keeps working against a secrets file that only ever
 # carried passwords, which is what every deployment had before the map
 # became config.
+#
+# The `e2e_test_user` tail is a DELIBERATE documented default, not stale
+# hardcoding (GH-1235) — same kind as `${PLAYWRIGHT_SECRETS_FILE:-…}`,
+# which GH-1229 also kept. Removing it would break the pre-GH-1130
+# deployments this branch exists for, and every layer above it
+# (`CRM_USERNAME`, `PLAYWRIGHT_DEFAULT_USER`, a suffixed key) overrides
+# it from config. It is reachable only when a deployment has set none of
+# them. Do not "clean it up" in a later sweep.
 if [[ -z "$CRM_USERNAME_RESOLVED" && -z "$PROFILE" ]]; then
     CRM_USERNAME_RESOLVED="${CRM_USERNAME:-${PLAYWRIGHT_DEFAULT_USER:-e2e_test_user}}"
 fi
