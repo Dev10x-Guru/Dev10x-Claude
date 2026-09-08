@@ -1,8 +1,14 @@
-# E2E Coverage Map
+# E2E Coverage Map (worked example)
 
-Maps app-pos source modules to app-e2e feature files, tags, step definitions,
-and known coverage gaps. Used by `Dev10x:qa-scope` Phase 3 to quickly assess coverage
-without searching the entire app-e2e repo.
+Maps source modules to feature files, tags, step definitions, and known
+coverage gaps, so `Dev10x:qa-scope` Phase 3 can assess coverage without
+searching the whole suite.
+
+**This is one project's map, kept here as a shape to copy — not yours.**
+The module paths, tags, and page objects below belong to a single
+deployment. A project's own map belongs at tier 1 or 2 (see
+`references/config-resolution.md`); Phase 3.1 skips the lookup entirely
+when the project has no map, rather than matching against this one.
 
 **Last updated:** 2026-02-09
 
@@ -195,8 +201,7 @@ without searching the entire app-e2e repo.
 ## Running E2E Tests by Tag
 
 ```bash
-# Run specific feature area
-cd /work/example/app-e2e
+# Run specific feature area, from the resolved $E2E_ROOT
 behave --tags=@dealer-crm-square
 behave --tags=@dealer-crm-pos
 behave --tags=@dealer-crm-invoices
