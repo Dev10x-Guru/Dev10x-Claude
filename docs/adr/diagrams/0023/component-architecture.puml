@@ -1,0 +1,58 @@
+@startuml component-architecture
+!theme plain
+title Walkthrough capture decomposition (ADR-0023)
+
+package "Scope deciders (judgement)" {
+  [qa-self\nwhich flows are evidence\nfor this PR] as QA
+  [demo\nnarrative order,\naudience, polish] as DEMO
+}
+
+package "Foundation (mechanics)" {
+  [recording + annotation] as REC
+  [narration\ncues, clip keys,\nlicence disclosure] as NARR
+  [stitching\nchapter cards,\noffset rebasing] as STITCH
+  [clip contract\nffprobe'd real durations] as CONTRACT
+}
+
+database "Scenario library\n.feature — cases to draw from,\nnot a suite to execute" as LIB
+database "narration cache\nkeyed (voice, lang, text)\noutside RUN_DIR" as CACHE
+
+package "tt-e2e (standalone)" {
+  [behave suite\nminimal annotation:\nscenario name + step bounds] as E2E
+}
+
+QA --> LIB : selects
+DEMO --> LIB : selects
+QA --> REC
+DEMO --> REC
+
+REC --> NARR
+NARR --> CACHE : reuses across takes
+REC --> STITCH : one clip per scenario
+STITCH --> CONTRACT : rebases offsets from
+
+E2E ..> CONTRACT : may emit\nthe same artifact shape
+
+note right of E2E
+  Runs in GitHub Actions with no agent
+  present to repair a break, so it stays
+  minimally annotated -- and it must NOT
+  depend on the foundation skills.
+  Consumption is one-directional.
+end note
+
+note bottom of REC
+  One file PER SCENARIO, never one
+  continuous take: the video finalises
+  only at context.close(), so a late
+  crash loses every earlier chapter's
+  cue offsets.
+end note
+
+note bottom of QA
+  Setup is proven before it is paid for:
+  fixture probe -> synthesis -> filming.
+  A caption is cued only after the state
+  it claims is asserted.
+end note
+@enduml
