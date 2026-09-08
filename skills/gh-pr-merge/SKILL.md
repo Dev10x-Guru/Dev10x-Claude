@@ -22,6 +22,7 @@ allowed-tools:
   - mcp__plugin_Dev10x_cli__merge_pr
   - mcp__plugin_Dev10x_cli__resolve_gate
   - mcp__plugin_Dev10x_cli__ci_check_status
+  - mcp__plugin_Dev10x_cli__mktmp
   - Bash(gh repo view:*)
   - Bash(git status:*)
   - Bash(git log:*)
