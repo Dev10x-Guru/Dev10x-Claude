@@ -44,12 +44,22 @@ iconned block that survives skimming, which a trailing note does not:
 > [!IMPORTANT]
 > **The money rows in this video are not what production shows.** The dialog
 > here displays **Presented total** and **Authorized amount** because the
-> staging shop it was filmed on (dealer 585) carries
+> staging shop it was filmed on (dealer `DEALER`) carries
 > `rollout-authorization-amounts`. That label has **zero dealers in
 > production** — no production shop sees those two rows. They are not part of
-> TD-5706 and this PR does not change them. Everything else in the video is
+> `TICKET` and this PR does not change them. Everything else in the video is
 > what production will get.
 ```
+
+Substitute `DEALER` and `TICKET` from the run you actually filmed. Name the
+real tenant in the posted comment — `qa-self` requires published evidence
+to say exactly which record it shows — but keep the identifier out of this
+template, where it would read as every deployment's shop (GH-1235).
+
+The placeholders are backticked rather than angle-bracketed on purpose:
+this block is pasted into a GitHub comment, and GitHub strips an unknown
+tag like `<DEALER>`, so an un-substituted angle placeholder would vanish
+from the rendered caveat instead of standing out as unfilled.
 
 ## Why all three properties are required
 
