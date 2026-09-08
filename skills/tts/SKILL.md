@@ -150,7 +150,8 @@ in `~/.config/Dev10x/tts.yaml` → its `defaults` → the built-in `af_heart`.
 keys are skipped entirely and only `languages:` blocks are consulted — a
 globally pinned English voice must not end up narrating Polish. An unknown
 language is an error naming the pin command, never a silent fall back to
-English.
+English. The walkthrough path always lands here: `Narration` resolves
+explicit → `DEV10X_TTS_LANG` → `en` and forwards it (GH-1221).
 
 ```yaml
 # ~/.config/Dev10x/tts.yaml

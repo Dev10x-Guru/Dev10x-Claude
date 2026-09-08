@@ -442,9 +442,23 @@ quiet — but most English *Piper* voices forbid commercial use, and QA
 evidence for client work is commercial use, so a deliberately chosen voice
 can still trip it. Catching that after the take wastes the recording.
 
-For a non-English walkthrough, pass the language through the voice:
-`Narration(..., voice="pl_PL-gosia-medium")`. The wrapper picks the engine
-from the name.
+For a non-English walkthrough, name the **language**, not the voice:
+`Narration(..., lang="pl")`. That consults the `languages.pl` pin, so the
+voice a supervisor chose with `tts pin --lang pl` is the one that
+narrates. Naming a voice directly — `Narration(..., voice=…)` — skips the
+`languages:` block entirely and is only correct when you mean to override
+the pin for this one run.
+
+`lang` resolves as explicit argument, then `DEV10X_TTS_LANG`, then `en`.
+The default is what makes `tts pin --lang en` reach this path at all
+(GH-1221): before it, a `Narration` built without a language resolved the
+language-agnostic `voice:` key, so `tts check --lang en` reported the
+pinned voice while the walkthrough narrated in a different one.
+
+The manifest records `lang` and `commercial_use_allowed` for the voice
+that actually rendered. That is **disclosure, not enforcement** — whether
+this recording is commercial use, and whether a non-commercial voice is
+acceptable in it, is the supervisor's call. Nothing here blocks a publish.
 
 Full recipe, timing model and the licence gate:
 [`skills/tts/references/qa-self-narration.md`](../tts/references/qa-self-narration.md).

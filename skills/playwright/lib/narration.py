@@ -48,6 +48,15 @@ CAPTION_TAIL_MS = 700
 # of work. Anything past this is wedged, not slow.
 SYNTHESIS_TIMEOUT_SECONDS = 300
 
+# Language used when a caller names none (GH-1221). Forwarding ``--lang``
+# was only half the fix: both documented call sites construct ``Narration``
+# without one, so an unresolved language left the wrapper resolving the
+# language-agnostic ``voice:`` key and skipping the ``languages:`` pin on
+# the one path whose output reaches a client. Defaulting here makes
+# ``--lang`` mean the same thing on every path instead of two things
+# depending on the caller.
+DEFAULT_LANG = "en"
+
 
 def collapse_line(text: str) -> str:
     """Collapse a caption to one line.
@@ -190,7 +199,17 @@ class Narration:
         self.out_dir = Path(out_dir)
         self.script = _validated_script(script)
         self.voice = voice
-        self.lang = lang
+        # The environment sits between the argument and the default rather
+        # than below it: `synthesize.py` reads DEV10X_TTS_LANG itself, so a
+        # Narration that always sent DEFAULT_LANG would override a
+        # supervisor who exported one — narrating Polish text in an English
+        # voice, the same divergence pointed the other way.
+        requested = lang or os.environ.get("DEV10X_TTS_LANG")
+        self.lang = requested or DEFAULT_LANG
+        # Only an explicit ask justifies refusing a runner that cannot take
+        # a language; a defaulted one must still degrade to the legacy
+        # three-argument shape (see `prerender`).
+        self._lang_was_requested = bool(requested)
         self.tail_ms = tail_ms
         self._runner = runner
         self._clips: dict[str, dict[str, Any]] = {}
@@ -198,6 +217,9 @@ class Narration:
         self._t0: float | None = None
         self._anchor = "install"
         self.warning: str | None = None
+        # None until synthesis reports it, and None if it never does —
+        # "unknown" is a distinct answer from "permitted".
+        self.commercial_use_allowed: bool | None = None
 
     # -- timeline -------------------------------------------------------
 
@@ -244,7 +266,7 @@ class Narration:
         self.out_dir.mkdir(parents=True, exist_ok=True)
         if _accepts_lang(self._runner):
             rendered = self._runner(payload, self.out_dir, self.voice, self.lang)
-        elif self.lang:
+        elif self._lang_was_requested:
             # Refusing beats narrating in the wrong voice: a language that
             # silently fails to reach synthesis is the whole of GH-1221.
             raise NarrationError(
@@ -253,9 +275,23 @@ class Narration:
                 " parameter, or drop the lang."
             )
         else:
+            # A legacy runner never received the defaulted language, so the
+            # manifest must not claim one was applied. Overclaiming here is
+            # the failure this issue is about.
+            self.lang = None
             rendered = self._runner(payload, self.out_dir, self.voice)
         self.warning = rendered.get("warning")
         self.voice = rendered.get("voice", self.voice)
+        # `batch` already computes this for `check`; nothing read it on this
+        # path, so the artifact that reaches a client carried no record of
+        # what narrated it. Absent stays None — defaulting to True would let
+        # a silent wrapper read as a clean licence. A later batch that omits
+        # the field must not downgrade a known answer to "unknown" either:
+        # losing a reported `False` is the same silent-wrong-direction
+        # failure in miniature.
+        reported = rendered.get("commercial_use_allowed")
+        if reported is not None:
+            self.commercial_use_allowed = reported
         for segment in rendered.get("segments", []):
             self._clips[collapse_line(segment["text"])] = segment
 
@@ -330,6 +366,11 @@ class Narration:
             "anchor": self._anchor,
             "tail_ms": self.tail_ms,
             "warning": self.warning,
+            # Disclosure, never enforcement: whether this recording is
+            # commercial use, and whether a non-commercial voice is
+            # acceptable in it, is the supervisor's call. The run records
+            # what it narrated in and leaves the decision alone.
+            "commercial_use_allowed": self.commercial_use_allowed,
             "unrendered": self.unrendered,
             "declared": self.declared,
             "never_played": self.never_played,

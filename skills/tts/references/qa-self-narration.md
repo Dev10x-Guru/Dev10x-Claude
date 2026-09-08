@@ -81,6 +81,26 @@ anno = Annotator(page, narration=narration)
 anno.install()          # pre-renders every line before the first caption
 ```
 
+`Narration` takes no language above because it defaults to `en`
+(GH-1221) — explicit `lang=` → `DEV10X_TTS_LANG` → `en` — and forwards it
+as `--lang`, so a `tts pin --lang en` is consulted on this path. For
+another language name it: `Narration(..., lang="pl")`. Passing `voice=`
+instead skips the `languages:` pin, so reach for it only to override a
+pin deliberately.
+
+Why that default is load-bearing rather than a convenience: without it a
+`Narration` built with no language took the language-*agnostic* branch of
+the resolution order, so `tts check --lang en` read the pin and reported
+the commercial voice while the walkthrough narrated in whatever
+`defaults.voice` held. For a voice already past its one-time licence
+gate, `warning` is `null` forever — so the pin looked correct, the
+walkthrough used a different voice, and nothing said a word. The pin has
+to *reach* this path, not merely be readable from it.
+
+The manifest records `lang` and `commercial_use_allowed` for the voice
+that rendered — disclosure for the supervisor's licence decision, not a
+gate on it.
+
 If `mark_video_start()` is never called the offsets are relative to
 `install()` instead, and the manifest records `anchor: "install"` — an
 approximate anchor that says so, rather than a silently wrong one.
