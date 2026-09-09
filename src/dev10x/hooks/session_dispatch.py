@@ -26,10 +26,12 @@ from dev10x.domain.documents.session_state import SessionState
 from dev10x.domain.git_context import GitContext
 from dev10x.domain.session_document import (
     plan_path_for_toplevel,
+    read_plan_summary,
     state_path_for_toplevel,
     write_state,
 )
 from dev10x.hooks.session_policy import MigratePluginPermissionsRule
+from dev10x.hooks.stop_verdict import StopVerdict, decide, record_block
 from dev10x.session.service import SessionService
 
 
@@ -241,6 +243,37 @@ def session_persist(data: dict | None = None) -> None:
     write_state(path=state_path_for_toplevel(toplevel=toplevel), state=state)
 
 
+def build_stop_verdict(data: dict | None = None) -> StopVerdict | None:
+    """Decide whether this Stop should be blocked and steered (GH-1251).
+
+    Returns ``None`` when the turn may end — the common case. A
+    :class:`StopVerdict` with ``block=True`` carries the steer text the
+    orchestrator hands back as the continued turn's instruction.
+
+    The decision itself lives in :mod:`dev10x.hooks.stop_verdict` so it
+    is testable without a subprocess; this function is only the wiring
+    that finds the persisted plan.
+    """
+    if data is None:
+        try:
+            data = json.load(sys.stdin)
+        except (json.JSONDecodeError, EOFError):
+            return None
+
+    toplevel = _get_toplevel()
+    plan: dict | None = None
+    if toplevel:
+        summary = read_plan_summary(toplevel=toplevel)
+        candidate = summary.get("plan") if isinstance(summary, dict) else None
+        plan = candidate if isinstance(candidate, dict) else None
+
+    verdict = decide(data=data, plan=plan)
+    if not verdict.block:
+        return None
+    record_block(session_id=str(data.get("session_id") or ""))
+    return verdict
+
+
 def session_goodbye(data: dict | None = None) -> None:
     """Output goodbye message with community link and resume hint (SessionStop hook)."""
     if data is None:
@@ -260,6 +293,7 @@ def session_goodbye(data: dict | None = None) -> None:
 
 
 __all__ = [
+    "build_stop_verdict",
     "build_friction_setup_context",
     "build_hook_version_drift_context",
     "build_install_check_context",

@@ -70,6 +70,107 @@ class TestSessionStopOrchestrator:
         assert "Thank you for using Dev10x" in result.stdout
 
 
+class TestSessionStopVerdict:
+    """The orchestrator can now carry a verdict (GH-1251)."""
+
+    def _transcript(self, *, tmp_path: Path, closing: str) -> str:
+        path = tmp_path / "transcript.jsonl"
+        path.write_text(
+            "\n".join(
+                [
+                    json.dumps({"type": "user", "message": {"role": "user", "content": "go"}}),
+                    json.dumps(
+                        {
+                            "type": "assistant",
+                            "message": {
+                                "role": "assistant",
+                                "content": [{"type": "text", "text": closing}],
+                            },
+                        }
+                    ),
+                ]
+            ),
+            encoding="utf-8",
+        )
+        return str(path)
+
+    def test_a_turn_with_no_widget_emits_a_block_envelope(self, tmp_path: Path) -> None:
+        result = _run(
+            SESSION_STOP,
+            {
+                "session_id": f"verdict-block-{uuid.uuid4()}",
+                "transcript_path": self._transcript(tmp_path=tmp_path, closing="All done."),
+            },
+        )
+
+        assert result.returncode == 0
+        envelope = json.loads(result.stdout)
+        assert envelope["decision"] == "block"
+        assert "Dev10x:ask" in envelope["reason"]
+
+    def test_a_block_suppresses_the_goodbye(self, tmp_path: Path) -> None:
+        """A farewell while the turn is being continued would be a lie."""
+        result = _run(
+            SESSION_STOP,
+            {
+                "session_id": f"verdict-quiet-{uuid.uuid4()}",
+                "transcript_path": self._transcript(tmp_path=tmp_path, closing="All done."),
+            },
+        )
+
+        assert "Thank you for using Dev10x" not in result.stdout
+
+    def test_stop_hook_active_lets_the_turn_end(self, tmp_path: Path) -> None:
+        result = _run(
+            SESSION_STOP,
+            {
+                "session_id": f"verdict-active-{uuid.uuid4()}",
+                "transcript_path": self._transcript(tmp_path=tmp_path, closing="All done."),
+                "stop_hook_active": True,
+            },
+        )
+
+        assert result.returncode == 0
+        assert "Thank you for using Dev10x" in result.stdout
+
+    def test_a_turn_that_asked_lets_the_turn_end(self, tmp_path: Path) -> None:
+        path = tmp_path / "asked.jsonl"
+        path.write_text(
+            "\n".join(
+                [
+                    json.dumps({"type": "user", "message": {"role": "user", "content": "go"}}),
+                    json.dumps(
+                        {
+                            "type": "assistant",
+                            "message": {
+                                "role": "assistant",
+                                "content": [
+                                    {
+                                        "type": "tool_use",
+                                        "name": "AskUserQuestion",
+                                        "input": {},
+                                    }
+                                ],
+                            },
+                        }
+                    ),
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        result = _run(
+            SESSION_STOP,
+            {
+                "session_id": f"verdict-asked-{uuid.uuid4()}",
+                "transcript_path": str(path),
+            },
+        )
+
+        assert result.returncode == 0
+        assert "Thank you for using Dev10x" in result.stdout
+
+
 class TestOrchestratorConsolidation:
     """Orchestrators must survive feature failures — one broken feature
     does not skip the rest."""

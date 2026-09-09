@@ -111,6 +111,40 @@ orchestrator script that:
    the user); use `contextlib.redirect_stdout` in the orchestrator
    only for features that emit structured JSON
 
+### A Stop Feature May Carry a Verdict (GH-1251)
+
+The Stop orchestrator no longer discards return values. A feature may
+return a verdict; the orchestrator merges them and emits **at most one**
+envelope, mirroring what `SessionStart` does for `additionalContext`
+(item 5 above).
+
+Three constraints came out of building the first one:
+
+1. **Ordering resolves the stdout collision.** `session_goodbye` prints
+   to the user's terminal while a blocking decision must print JSON on
+   stdout — the Stop orchestrator is the first to hold both kinds at
+   once. Item 6 above prescribes `contextlib.redirect_stdout` for
+   structured emitters; the resolution here is to capture the goodbye
+   and **replay it only when nothing blocks**. A farewell printed while
+   the turn is being continued asserts the session ended when it did
+   not.
+2. **A raising feature must not block.** `_verdict` returns `None` on
+   any exception. A check that failed to run is not evidence that a
+   gate was skipped, and the failure mode of guessing wrong here is a
+   turn that cannot end.
+3. **Two loop guards, not one.** A hook that always blocks needs
+   `stop_hook_active` — but that is a documented harness contract this
+   repo had never exercised, so it is paired with a
+   cooldown marker keyed by session id. Either one alone suffices;
+   together they survive the field being absent or renamed.
+
+**Keep the decision out of the hook.** `dev10x.hooks.stop_verdict`
+holds the rule and is a pure function over `(payload, plan)`;
+`build_stop_verdict` is the wiring that finds the plan and records the
+marker. That split is what makes the rule testable without a
+subprocess — the same separation `dev10x.hooks.format_scope` got under
+GH-1143 — and it is why `decide` reads the marker but never writes it.
+
 ### Adding a new SessionStart/Stop feature
 
 1. Write the logic in `src/dev10x/hooks/session.py` with an
