@@ -396,6 +396,17 @@ base_permissions:
   - "Bash(uv run --extra dev pytest:*)" # cli-friction: allow raw-pytest — base allow rule for plugin-maintenance, not a skill doc
   - "Bash(uv run ruff:*)"
   - "Bash(uv run dev10x:*)"
+  # GH-1248: the `--directory` forms of the same three commands. Allow-rule
+  # matching keys on the literal command string, so the plain forms above do
+  # not match a `uv run --directory <path> …` invocation — and that is the
+  # shape used in the multi-worktree setups Dev10x itself encourages via
+  # Dev10x:git-worktree. Same failure mode as GH-1189 (`uv add`) and GH-1149
+  # (bare `pre-commit run`): a family catalogued in one shape while users type
+  # another, with `catalog-gap` reporting 0 missing because it compares
+  # against the catalog rather than against what people run.
+  - "Bash(uv run --directory * pytest:*)" # cli-friction: allow raw-pytest — base allow rule for plugin-maintenance, not a skill doc
+  - "Bash(uv run --directory * mypy:*)"
+  - "Bash(uv run --directory * ruff:*)"
   # GH-1189: `uv lock`, `uv sync`, `uv build`, `uv tool`, `uv pip *` and
   # `uv run *` were all catalogued; `uv add` was not, so a crew worker
   # adding a dependency prompted on an unattended night run while
@@ -864,3 +875,14 @@ base_denies:
   - "Bash(doas *)"
   - "Bash(pkexec:*)"    # polkit-based privilege escalation
   - "Bash(pkexec *)"
+
+  # --- Pager tier (GH-1248) ---
+  # `git -P` / `git --no-pager` prefix a git verb, which shifts the effective
+  # command prefix and defeats allow-rule matching for every `Bash(git <verb>:*)`
+  # rule in this catalog — the same prefix-shift problem documented for env-var
+  # prefixes and `git -C`. Neither shape is in base_permissions, so denying
+  # them is additive hardening rather than a behaviour change: today they fall
+  # through to a prompt. Git is already non-interactive under Claude Code, so
+  # the pager flags buy nothing that would be lost.
+  - "Bash(git -P:*)"
+  - "Bash(git --no-pager:*)"
