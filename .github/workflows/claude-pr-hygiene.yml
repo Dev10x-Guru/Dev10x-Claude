@@ -10,7 +10,18 @@ on:
 
 jobs:
   hygiene-review:
-    if: ${{ !github.event.pull_request.draft }}
+    # GH-1226: GitHub refuses OIDC minting for a pull_request run from a
+    # fork, so claude-code-action cannot authenticate and this job fails
+    # at token minting every time — reporting a red check that says
+    # `id-token: write` is missing when it is declared right below. Skip
+    # instead, so a fork PR reads as not-reviewed rather than broken.
+    # Both checks are non-required, so nothing that gated a merge is
+    # lost. Getting actual review coverage on fork PRs needs a
+    # workflow_run split or pull_request_target, neither of which is a
+    # trigger swap — see the issue.
+    if: >-
+      !github.event.pull_request.draft
+      && !github.event.pull_request.head.repo.fork
     runs-on: ubuntu-latest
     permissions:
       contents: read
