@@ -221,7 +221,18 @@ class SessionService:
         """Return a warning when the Dev10x install needs bootstrap or upgrade.
 
         Returns an empty string when the install is current.
+
+        Two independent facts are reported, because they were previously
+        conflated (GH-1252). A version lag is a *plugin* fact
+        (``version.yml`` vs ``plugin.json``); an unmigrated durable config
+        is a *schema* fact (retired keys inside ``friction.yaml``). The
+        banner used only the former while promising to "migrate config
+        files", so it named a remedy whose need it could not observe:
+        ``record_upgrade`` stamping a version silenced it regardless of
+        config state, and a genuinely stale config on an up-to-date plugin
+        was never mentioned at all. Each fact now gates its own sentence.
         """
+        from dev10x.domain.config_migration import schema_v2_pending
         from dev10x.domain.install_version import install_state
 
         state = install_state()
@@ -230,16 +241,25 @@ class SessionService:
                 "Dev10x config folder is missing at ~/.config/Dev10x.\n"
                 "Run `/Dev10x:upgrade-cleanup` to bootstrap the userspace install."
             )
+        lines: list[str] = []
         if state.needs_upgrade:
             plugin = state.plugin_version or "unknown"
             applied = state.applied_version or "never applied"
-            return (
+            lines.append(
                 f"Dev10x plugin {plugin} is installed but upgrade-cleanup was last "
                 f"run for {applied}.\n"
-                "Run `/Dev10x:upgrade-cleanup` to refresh permissions and "
-                "migrate config files."
+                "Run `/Dev10x:upgrade-cleanup` to refresh permissions."
             )
-        return ""
+        pending = schema_v2_pending()
+        if pending:
+            entries = "entry" if pending == 1 else "entries"
+            lines.append(
+                f"Dev10x durable config has {pending} {entries} still on the "
+                f"pre-ADR-0022 schema.\n"
+                "Run `dev10x config migrate-schema` to convert them "
+                "(`--dry-run` to preview)."
+            )
+        return "\n\n".join(lines)
 
     def build_hook_version_drift_context(self) -> str:
         """Return a warning when the running-hook version lags the latest installed version.

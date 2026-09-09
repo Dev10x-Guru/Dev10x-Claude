@@ -11,6 +11,7 @@ import pytest
 
 from dev10x.domain.gate_policy import (
     AUTO_ADVANCE,
+    AUTO_ADVANCE_IF_SAFE,
     BASELINE_PRESET,
     KNOWN_TOGGLES,
     MIGRATOR_COMMAND,
@@ -601,6 +602,127 @@ class TestInjectedShippedPresets:
                 preset="missing",
                 shipped_presets={"only-one": SHIPPED_PRESETS[BASELINE_PRESET]},
             )
+
+
+class TestReasonNamesWinningLayer:
+    """GH-1252: the reason must name the layer that supplied the value.
+
+    The reported bug was "``gate_overlays`` is inert". It is not — the
+    overlays resolve correctly, but every reason string reads
+    ``preset:adaptive`` regardless of which layer won, so an
+    overlay-supplied value is indistinguishable from a baseline one. The
+    reporter read that string, saw no trace of two configured overlays,
+    and filed a resolver bug against working code. Diagnostics that
+    cannot be told apart from the failure they would diagnose are the
+    defect.
+    """
+
+    # Every assertion below is full equality, not a substring. A substring
+    # check here is one gate-name away from vacuous: `session_adoption` is
+    # itself a gate, so `"session" in reason` would pass on the bare
+    # `session_adoption=ask` of a resolver with no provenance at all.
+
+    def test_overlay_supplied_value_names_the_overlay(self) -> None:
+        resolution = resolve_gate(
+            gate="request_review",
+            context=GateContext(supervisor_review=SUPERVISOR_REVIEW_NONE),
+            preset=BASELINE_PRESET,
+            overlays=["solo-maintainer"],
+        )
+        assert resolution.effect is GateEffect.SKIP
+        assert resolution.reason == (
+            f"preset:{BASELINE_PRESET} via overlay:solo-maintainer request_review=skip"
+        )
+
+    def test_active_overlays_are_named_even_when_none_claim_the_gate(self) -> None:
+        # The exact GH-1252 A/B: `solo-maintainer` and `afk` define no
+        # `history_rewrite`, so the baseline's auto-advance-if-safe wins and
+        # correctly asks on an empty context. The old reason gave no hint
+        # that two overlays were in play and simply did not claim this gate.
+        resolution = resolve_gate(
+            gate="history_rewrite",
+            context=GateContext(supervisor_review=SUPERVISOR_REVIEW_NONE),
+            preset=BASELINE_PRESET,
+            overlays=["solo-maintainer", "afk"],
+        )
+        assert resolution.effect is GateEffect.ASK
+        assert resolution.reason == (
+            f"preset:{BASELINE_PRESET} overlays=[solo-maintainer,afk] "
+            f"history_rewrite={AUTO_ADVANCE_IF_SAFE} safe=false"
+        )
+
+    def test_session_override_is_named_as_the_winner(self) -> None:
+        resolution = resolve_gate(
+            gate="history_rewrite",
+            context=GateContext(supervisor_review=SUPERVISOR_REVIEW_NONE),
+            preset=BASELINE_PRESET,
+            session_overrides={"history_rewrite": AUTO_ADVANCE},
+        )
+        assert resolution.effect is GateEffect.AUTO_ADVANCE
+        assert resolution.reason == (
+            f"preset:{BASELINE_PRESET} via session history_rewrite={AUTO_ADVANCE}"
+        )
+
+    def test_project_override_is_named_as_the_winner(self) -> None:
+        resolution = resolve_gate(
+            gate="history_rewrite",
+            context=GateContext(supervisor_review=SUPERVISOR_REVIEW_NONE),
+            preset=BASELINE_PRESET,
+            project_overrides={"history_rewrite": AUTO_ADVANCE},
+        )
+        assert resolution.effect is GateEffect.AUTO_ADVANCE
+        assert resolution.reason == (
+            f"preset:{BASELINE_PRESET} via project history_rewrite={AUTO_ADVANCE}"
+        )
+
+    def test_session_adoption_gate_still_names_its_overlay(self) -> None:
+        """The gate whose name would defeat a substring assertion.
+
+        `afk` sets `session_adoption: auto-advance`, overriding the
+        baseline's `auto-advance-if-stale-free`. Asserting equality proves
+        the word "session" in the reason comes from provenance and not
+        from the gate's own name.
+        """
+        resolution = resolve_gate(
+            gate="session_adoption",
+            context=GateContext(supervisor_review=SUPERVISOR_REVIEW_NONE),
+            preset=BASELINE_PRESET,
+            overlays=["afk"],
+        )
+        assert resolution.effect is GateEffect.AUTO_ADVANCE
+        assert resolution.reason == (
+            f"preset:{BASELINE_PRESET} via overlay:afk session_adoption={AUTO_ADVANCE}"
+        )
+
+    def test_baseline_value_with_no_overlays_keeps_the_bare_prefix(self) -> None:
+        # Backward compatibility: an unconfigured repo's reason is unchanged.
+        resolution = resolve_gate(
+            gate="plan_approval", context=GateContext(), preset=BASELINE_PRESET
+        )
+        assert resolution.reason == f"preset:{BASELINE_PRESET} plan_approval={AUTO_ADVANCE}"
+
+    def test_equivalent_overlay_and_override_intent_resolve_identically(self) -> None:
+        """GH-1252 suggestion 4: the A/B is the test case.
+
+        `solo-maintainer` sets `merge: auto-advance`; an explicit override
+        states the same intent. Both must reach the same effect — only the
+        reason may differ, since the winning layer genuinely differs.
+        """
+        context = GateContext(supervisor_review=SUPERVISOR_REVIEW_NONE)
+        via_overlay = resolve_gate(
+            gate="merge",
+            context=context,
+            preset=BASELINE_PRESET,
+            overlays=["solo-maintainer"],
+        )
+        via_override = resolve_gate(
+            gate="merge",
+            context=context,
+            preset=BASELINE_PRESET,
+            session_overrides={"merge": AUTO_ADVANCE},
+        )
+        assert via_overlay.effect is via_override.effect
+        assert via_overlay.effect is GateEffect.AUTO_ADVANCE
 
 
 class TestVisibleRecord:
