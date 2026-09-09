@@ -29,6 +29,32 @@ The `ask` count is new as of GH-1154. A catalog predating the ask
 tier reports `0 missing ask` trivially; a non-zero count means the
 tier shipped but did not propagate.
 
+**`0 missing ask` is therefore not self-verifying — confirm which
+of the two it means.** Run:
+
+```
+dev10x permission catalog-diff --strict
+```
+
+A `shipped SECTIONS absent from userspace` block naming `base_asks`
+means the zero is trivial: the tier never reached the catalog, so
+there was nothing to propagate and nothing to miss. No such block
+means the zero is real.
+
+GH-1249 is why this matters. On the machine that prompted this
+checklist's own first run, `catalog-gap` reported `0 missing ask`
+across 76 of 77 settings files while the userspace catalog had no
+`base_asks` section at all — and the same catalog had no
+`tracker_permissions`, so a repo pinned `tracker: github` carried
+none of its tracker rules. Every file-level check passed. Reading
+the zero as "the ask tier propagated" is exactly the
+truthful-log-wrong-outcome failure this document exists to prevent,
+reproduced against the document itself.
+
+The sections merge as of GH-1249, so a current plugin fixes the
+underlying gap; the disambiguation stays because a `0` that means
+two different things is worth resolving explicitly either way.
+
 ## 2. Nothing git-tracked was written
 
 `git status` must be clean in every repo whose
