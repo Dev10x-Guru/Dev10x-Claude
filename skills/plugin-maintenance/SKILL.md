@@ -516,6 +516,29 @@ family (`git`, `mcp`, `skill`, …) and exits non-zero on any gap. This is
 the deterministic answer to "does this checkout carry the catalog?" —
 run it after an upgrade and in any freshly created worktree.
 
+4. Verify the catalog itself, not just its reach:
+
+```bash
+uvx dev10x permission catalog-diff --strict
+```
+
+Read-only. `catalog-gap` answers "did the catalog reach every settings
+file?"; this answers the prior question, "is the catalog itself
+current?". The two fail differently and neither substitutes for the
+other — a userspace catalog missing a whole shipped **section** reaches
+every settings file perfectly and is still wrong.
+
+GH-1249 is the worked example: a catalog predating GH-768 and GH-1149
+carried no `tracker_permissions` and no `base_asks`, so zero `ask` rules
+reached any settings file and a repo pinned `tracker: github` was seeded
+with no github tracker rules — while `catalog-gap` reported `0 missing`
+throughout, because a section the user's catalog never declares is a
+section nothing compares against. Those sections merge now; this step
+surfaces the drift so an upgrade cannot pass clean over it.
+
+A `shipped keys neither merged nor user-owned` block in the output is a
+plugin defect, not a user problem — report it upstream.
+
 ### 5. Generalize session-specific permissions *(full only)*
 
 Replace permission rules containing session-specific arguments

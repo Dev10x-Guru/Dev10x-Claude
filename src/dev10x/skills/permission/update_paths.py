@@ -1413,6 +1413,13 @@ def _apply_tracker_block(
     unless the run states which tracker it seeded and where that came
     from. A catalog with no ``tracker_permissions:`` block at all is
     pre-GH-768 and passes through untouched.
+
+    That pass-through is now a fallback rather than the pre-GH-768 norm
+    (GH-1249): ``merge_catalogs`` supplies the shipped tracker block to a
+    user catalog that lacks one, so a pre-GH-768 catalog reaches here
+    already carrying it. The guard still fires when there is no shipped
+    catalog to merge from — an unresolvable plugin root — where passing
+    through untouched remains the right answer.
     """
     from dev10x.domain.common.tracker_choice import (
         TRACKER_ALLOW_KEY,
