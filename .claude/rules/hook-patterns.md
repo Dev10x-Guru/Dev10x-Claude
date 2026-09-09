@@ -212,6 +212,7 @@ higher tiers — `minimal` rules are always active.
 | DX014 | sensitivity-target | standard |
 | DX015 | spec-drift | standard (experimental) |
 | DX016 | inline-linter | standard |
+| DX017 | write-destination | standard |
 
 ### DX014 Sensitivity Axis: `ask`, Not `deny` (GH-604)
 
@@ -252,6 +253,35 @@ a command that also trips a second, un-blessed label. First applicable
 entry wins (catalog order). A missing/malformed catalog fails open to
 the default `ask`. The validator exposes `with_exceptions()` (mirroring
 `with_patterns()`) as the injection seam.
+
+### DX017 Scopes to the Working Tree, Not the Command (GH-1245)
+
+`cp`, `mv`, `tee`, `touch` and `install` write files without going
+through the `Write` tool, so they never reach `validate-edit-write.py`.
+DX017 denies such a command **only when the destination resolves inside
+the working tree**; a `/tmp` → `/tmp` copy or any write outside the
+checkout is left alone.
+
+The scoping is the whole design. Banning the commands outright would be
+friction with no safety payoff — shell staging under a scratch root is
+legitimate work. What is not legitimate is landing content in the repo
+that no one read: GH-1245 records an 866-line script copied in
+sight-unseen, and re-doing it as `Read` + `Write` exposed dead `/tmp`
+paths, a duplicated block, and useless timing offsets immediately. A
+`cp` cannot discover correctness, because copying is not reading. The
+skipped validator and the missing `Edit` baseline are the other two
+costs.
+
+`HookInput.cwd` stands in for the working tree deliberately. It is
+already the checkout root on every hook invocation, and depending on it
+keeps DX017 free of a `git rev-parse` subprocess — with the startup
+budget gated by `tests/benchmarks/test_startup_time.py`, a subprocess
+per Bash call would be the most expensive check in the chain. An empty
+`cwd` makes the validator abstain rather than guess.
+
+A new validator that inspects paths should follow the same shape: decide
+from the payload the hook already carries, and scope the denial to the
+blast radius that motivated it.
 
 ### Configuration
 
