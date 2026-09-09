@@ -140,6 +140,12 @@ _SPECS: list[ValidatorSpec] = [
         rule_id="DX016",
         profile=ProfileTier.STANDARD,
     ),
+    ValidatorSpec(
+        module_path="dev10x.validators.write_destination",
+        class_name="WriteDestinationValidator",
+        rule_id="DX017",
+        profile=ProfileTier.STANDARD,
+    ),
 ]
 
 
