@@ -105,6 +105,37 @@ expensive step runs. A small race window remains if a PR is merged
 *during* an in-flight step. This is acceptable — the 99% case is
 prevented, and the 1% case causes only redundant review comments.
 
+### Fork PRs Cannot Mint an OIDC Token (GH-1226)
+
+A job that authenticates via OIDC — anything running
+`anthropics/claude-code-action` — **cannot work on a `pull_request`
+run from a fork**. GitHub refuses to issue the token (and withholds
+secrets) for fork-triggered runs. That is a platform security
+restriction, not a misconfiguration, and the resulting error is
+actively misleading: `Could not fetch an OIDC token. Did you remember
+to add id-token: write…` when `id-token: write` is declared right
+there in the job.
+
+Guard such a job rather than letting it fail:
+
+```yaml
+if: >-
+  !github.event.pull_request.draft
+  && !github.event.pull_request.head.repo.fork
+```
+
+*Why skip rather than fix?* Two permanently-red non-required checks
+train reviewers to read a red CI as "just the fork thing" — which is
+the state a genuine failure slips through. Skipping costs the review
+coverage that was never actually happening and buys back a check
+column that means something.
+
+Getting real coverage on fork PRs takes a `workflow_run` split (the
+privileged job runs after the untrusted build, with fork code kept out
+of the privileged context) or `pull_request_target` (which grants
+base-repo credentials and must never check out or execute fork-supplied
+code). Neither is a trigger swap; both need deliberate guarding.
+
 ## Concurrency Groups
 
 All PR-triggered workflows use concurrency groups to prevent duplicate
