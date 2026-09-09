@@ -170,6 +170,81 @@ class TestSessionInstallCheck:
         assert "0.71.0" in ctx
         assert "/Dev10x:upgrade-cleanup" in ctx
 
+    # GH-1252: the version lag and the config schema are separate facts.
+    # The banner used to gate a "migrate config files" promise on a bare
+    # version-string comparison, so stamping a version silenced it whatever
+    # the config held, and a stale config on a current plugin said nothing.
+
+    def _isolate(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *, applied: str) -> None:
+        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR
+        from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
+        from dev10x.domain.install_version import write_applied_version
+
+        monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
+        monkeypatch.setenv(CONFIG_HOME_ENV_VAR, str(tmp_path / "config_dev10x"))
+        Dev10xConfigDir.reset_cache()
+        Dev10xConfigDir.home().mkdir(parents=True)
+        plugin_root = tmp_path / "plugin"
+        (plugin_root / ".claude-plugin").mkdir(parents=True)
+        (plugin_root / ".claude-plugin" / "plugin.json").write_text(
+            json.dumps({"version": "0.72.0"})
+        )
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(plugin_root))
+        write_applied_version(plugin_version=applied)
+
+    def test_warns_on_unmigrated_config_despite_current_version(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from dev10x.domain.dev10x_paths import Dev10xConfigDir
+        from dev10x.hooks.session_dispatch import build_install_check_context
+
+        self._isolate(monkeypatch, tmp_path, applied="0.72.0")
+        Dev10xConfigDir.friction_yaml().write_text(
+            "defaults:\n  friction_level: adaptive\nprojects: []\n"
+        )
+
+        ctx = build_install_check_context()
+        assert "pre-ADR-0022 schema" in ctx
+        assert "dev10x config migrate-schema" in ctx
+
+    def test_silent_when_config_already_v2(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        # The 2026-09-09 field case: an already-migrated config must not be
+        # nagged. Surviving `active_modes` is a playbook/DoD axis the
+        # migrator deliberately preserves (ADR-0022 D-6), not v1 residue.
+        from dev10x.domain.dev10x_paths import Dev10xConfigDir
+        from dev10x.hooks.session_dispatch import build_install_check_context
+
+        self._isolate(monkeypatch, tmp_path, applied="0.72.0")
+        Dev10xConfigDir.friction_yaml().write_text(
+            "defaults:\n"
+            "  supervisor_review: required\n"
+            "  active_modes: []\n"
+            "projects:\n"
+            "  - match: ['*/repo']\n"
+            "    supervisor_review: none\n"
+            "    active_modes: [solo-maintainer]\n"
+            "    gate_overlays: [solo-maintainer, afk]\n"
+        )
+
+        assert build_install_check_context() == ""
+
+    def test_reports_both_facts_when_both_are_outstanding(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from dev10x.domain.dev10x_paths import Dev10xConfigDir
+        from dev10x.hooks.session_dispatch import build_install_check_context
+
+        self._isolate(monkeypatch, tmp_path, applied="0.71.0")
+        Dev10xConfigDir.friction_yaml().write_text(
+            "defaults:\n  friction_level: adaptive\nprojects: []\n"
+        )
+
+        ctx = build_install_check_context()
+        assert "/Dev10x:upgrade-cleanup" in ctx
+        assert "dev10x config migrate-schema" in ctx
+
     def test_session_install_check_emits_envelope(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
     ) -> None:

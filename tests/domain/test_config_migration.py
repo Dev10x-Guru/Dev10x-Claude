@@ -20,6 +20,7 @@ from dev10x.domain.config_migration import (
     migrate_legacy_repo_config,
     migrate_prefs,
     resolve_supervisor_review,
+    schema_v2_pending,
 )
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 
@@ -49,6 +50,20 @@ def write_legacy_config(tmp_path: Path):
     def _write(body: str, *, name: str = "acme-repo") -> str:
         root = tmp_path / name
         target = root / ".claude" / "Dev10x" / "config.yaml"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(body)
+        return str(root)
+
+    return _write
+
+
+@pytest.fixture
+def write_legacy_session(tmp_path: Path):
+    """Write a pre-split per-repo ``.claude/Dev10x/session.yaml`` (GH-1252)."""
+
+    def _write(body: str, *, name: str = "acme-repo") -> str:
+        root = tmp_path / name
+        target = root / ".claude" / "Dev10x" / "session.yaml"
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(body)
         return str(root)
@@ -357,6 +372,191 @@ class TestIdempotency:
         assert path.read_text() == before
 
 
+class TestSchemaV2Pending:
+    """GH-1252: the banner's staleness signal, and its parse-free fast path."""
+
+    def test_already_migrated_store_is_not_pending(self, write_friction) -> None:
+        write_friction(
+            "defaults:\n  supervisor_review: required\n  active_modes: []\n"
+            "projects:\n  - match: ['*/repo']\n    supervisor_review: none\n"
+            "    active_modes: [solo-maintainer]\n"
+            "    gate_overlays: [solo-maintainer, afk]\n"
+        )
+
+        assert schema_v2_pending() == 0
+
+    def test_surviving_active_modes_is_not_residue(self, write_friction) -> None:
+        """ADR-0022 D-6: ``active_modes`` is a playbook axis, not v1 residue.
+
+        The field report that prompted GH-1252 counted 50 ``active_modes``
+        entries as evidence of a failed migration. The migrator preserves
+        the key on purpose, so a banner keyed on it would nag forever.
+        """
+        write_friction("defaults:\n  supervisor_review: required\n  active_modes: ['afk']\n")
+
+        assert schema_v2_pending() == 0
+
+    def test_missing_supervisor_review_alone_is_not_residue(self, write_friction) -> None:
+        write_friction("defaults:\n  tracker: github\n")
+
+        assert schema_v2_pending() == 0
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "defaults:\n  friction_level: adaptive\n",
+            "defaults:\n  walk_away: true\n",
+            "defaults:\n  human_review: false\n",
+            "defaults:\n  gate_preset: guided\n",
+        ],
+    )
+    def test_each_retired_key_counts_as_pending(self, write_friction, body: str) -> None:
+        write_friction(body)
+
+        assert schema_v2_pending() == 1
+
+    def test_counts_every_stale_entry(self, write_friction) -> None:
+        write_friction(
+            "defaults:\n  supervisor_review: required\n"
+            "projects:\n"
+            "  - match: ['*/a']\n    friction_level: strict\n"
+            "  - match: ['*/b']\n    supervisor_review: none\n"
+            "  - match: ['*/c']\n    walk_away: true\n"
+        )
+
+        assert schema_v2_pending() == 2
+
+    def test_residue_in_defaults_is_inherited_by_every_entry(self, write_friction) -> None:
+        """Counting follows resolution, so inherited residue counts (GH-1252).
+
+        An entry that states nothing retained still resolves through
+        ``{**defaults, **matched}``, so a retired key in ``defaults``
+        reaches it and ``legacy_policy_keys`` would refuse that repo too.
+        Reporting only ``defaults`` would understate how many repos are
+        actually broken.
+        """
+        write_friction(
+            "defaults:\n  friction_level: adaptive\n"
+            "projects:\n"
+            "  - match: ['*/a']\n    supervisor_review: none\n"
+            "  - match: ['*/b']\n    supervisor_review: none\n"
+        )
+
+        # defaults itself, plus both entries that inherit from it.
+        assert schema_v2_pending() == 3
+
+    def test_absent_store_is_not_pending(self, tmp_path: Path) -> None:
+        assert schema_v2_pending(path=tmp_path / "nowhere" / "friction.yaml") == 0
+
+    def test_non_utf8_store_warns_and_does_not_raise(self, tmp_path: Path, caplog) -> None:
+        """A corrupt store must not take down the SessionStart banner.
+
+        ``read_text`` raises ``UnicodeDecodeError`` — a ``ValueError``, not
+        an ``OSError`` — so catching only the latter would let it escape
+        into a hook and deny the user a session over a bad config byte.
+        """
+        corrupt = tmp_path / "friction.yaml"
+        corrupt.write_bytes(b"friction_level: \xff\xfe not utf-8\n")
+
+        assert schema_v2_pending(path=corrupt) == 0
+        assert any("schema-staleness check" in record.message for record in caplog.records)
+
+    def test_unreadable_store_warns_and_does_not_raise(self, tmp_path: Path, caplog) -> None:
+        unreadable = tmp_path / "friction.yaml"
+        unreadable.write_text("defaults:\n  friction_level: adaptive\n")
+        unreadable.chmod(0o000)
+        try:
+            assert schema_v2_pending(path=unreadable) == 0
+            assert any("schema-staleness check" in record.message for record in caplog.records)
+        finally:
+            unreadable.chmod(0o644)
+
+    def test_solo_mode_without_matching_overlay_is_pending(self, write_friction) -> None:
+        """The half-migrated shape ``resolve_gate`` refuses (GH-1252).
+
+        ``legacy_policy_keys`` refuses resolution when ``solo-maintainer``
+        is in ``active_modes`` but not in ``gate_overlays``. The migrator's
+        guard did not inspect ``active_modes``, so this store reported
+        "already at schema v2" while every gate call errored — naming a
+        migrator that would not touch it.
+        """
+        write_friction(
+            "defaults:\n  supervisor_review: required\n"
+            "projects:\n  - match: ['*/repo']\n    supervisor_review: none\n"
+            "    active_modes: [solo-maintainer]\n"
+        )
+
+        assert schema_v2_pending() == 1
+
+    def test_solo_mode_with_matching_overlay_is_not_pending(self, write_friction) -> None:
+        """A fully migrated store states the posture in both places."""
+        write_friction(
+            "defaults:\n  supervisor_review: required\n"
+            "projects:\n  - match: ['*/repo']\n    supervisor_review: none\n"
+            "    active_modes: [solo-maintainer]\n"
+            "    gate_overlays: [solo-maintainer, afk]\n"
+        )
+
+        assert schema_v2_pending() == 0
+
+    def test_entry_is_judged_on_the_merged_view(self, write_friction) -> None:
+        """Mirrors ``_durable()``'s ``{**defaults, **matched}`` (GH-1252).
+
+        The mode sits in ``defaults`` and the overlay in the entry, so the
+        resolver sees both and resolves cleanly. Judging the entry in
+        isolation would count it stale and nag about a healthy store.
+        """
+        write_friction(
+            "defaults:\n  supervisor_review: required\n  active_modes: [solo-maintainer]\n"
+            "projects:\n  - match: ['*/repo']\n    supervisor_review: none\n"
+            "    gate_overlays: [solo-maintainer]\n"
+        )
+
+        # `defaults` alone still carries residue — it is what an UNMATCHED
+        # repo resolves against — but the matched entry must not add to it.
+        assert schema_v2_pending() == 1
+
+    def test_migrator_now_converts_the_shape_the_resolver_refuses(
+        self, write_friction, friction_path: Path
+    ) -> None:
+        """The remedy must fix what the error names (GH-1252).
+
+        Before this, `migrate-schema` reported "already at schema v2" on a
+        store whose every gate resolution errored — the guard never looked
+        at `active_modes`. `migrate_prefs` could always materialise the
+        overlay; it was simply never called.
+        """
+        write_friction(
+            "defaults:\n  supervisor_review: required\n"
+            "projects:\n  - match: ['*/repo']\n    supervisor_review: none\n"
+            "    active_modes: [solo-maintainer]\n"
+        )
+
+        report = migrate_configs().value
+
+        assert report["pending"] == 1
+        entry = _entry(yaml.safe_load(friction_path.read_text()))
+        assert "solo-maintainer" in entry["gate_overlays"]
+        assert entry["active_modes"] == ["solo-maintainer"]
+        assert schema_v2_pending() == 0
+
+    def test_empty_store_is_quiet(self, write_friction, caplog) -> None:
+        """A comments-only store is valid and must not warn."""
+        write_friction("# nothing here yet\n")
+
+        assert schema_v2_pending() == 0
+        assert not [record for record in caplog.records if record.levelname == "WARNING"]
+
+    def test_unparseable_store_warns_rather_than_reporting_clean(
+        self, write_friction, caplog
+    ) -> None:
+        """Silence about a store nobody could parse is the GH-1252 blind spot."""
+        write_friction("defaults:\n  friction_level: [unclosed\n")
+
+        assert schema_v2_pending() == 0
+        assert any("schema-staleness check" in record.message for record in caplog.records)
+
+
 class TestLegacyRepoConfigFold:
     def test_legacy_posture_becomes_a_repo_stem_project_entry(
         self, write_legacy_config, friction_path: Path
@@ -399,6 +599,51 @@ class TestLegacyRepoConfigFold:
 
         assert report["migrated"] is False
         assert report["reason"] == "absent"
+
+    # GH-1252: `_durable()` step 2 reads {**session.yaml, **config.yaml}, but
+    # this fold saw only config.yaml — so a repo carrying its v1 posture in
+    # the pre-split session.yaml was unreachable by every migration path
+    # while still tripping the legacy_policy_keys refusal, which names this
+    # very migrator as the remedy.
+
+    def test_pre_split_session_yaml_posture_is_folded(
+        self, write_legacy_session, friction_path: Path
+    ) -> None:
+        root = write_legacy_session("friction_level: adaptive\nactive_modes: []\n")
+
+        report = migrate_legacy_repo_config(toplevel=root).value
+
+        assert report["migrated"] is True
+        entry = _entry(yaml.safe_load(friction_path.read_text()))
+        assert entry["supervisor_review"] == "required"
+        assert "friction_level" not in entry
+        assert any("session.yaml" in source for source in report["sources"])
+
+    def test_the_session_file_itself_is_never_rewritten(self, write_legacy_session) -> None:
+        """ADR-0018: Dev10x writes nothing under a repo's ``.claude/`` tree."""
+        root = write_legacy_session("friction_level: strict\n")
+        session = Path(root) / ".claude" / "Dev10x" / "session.yaml"
+        before = session.read_text()
+
+        migrate_legacy_repo_config(toplevel=root)
+
+        assert session.read_text() == before
+
+    def test_config_yaml_wins_over_session_yaml(
+        self, write_legacy_config, write_legacy_session, friction_path: Path
+    ) -> None:
+        """Fold precedence must mirror ``_durable()`` step 2 exactly.
+
+        If the fold disagreed, migrating would silently change the posture a
+        repo resolves to — the one thing a migration must never do.
+        """
+        root = write_legacy_session("human_review: true\n")
+        write_legacy_config("human_review: false\n")
+
+        migrate_legacy_repo_config(toplevel=root)
+
+        entry = _entry(yaml.safe_load(friction_path.read_text()))
+        assert entry["supervisor_review"] == "none"
 
     def test_fold_is_idempotent(self, write_legacy_config, friction_path: Path) -> None:
         root = write_legacy_config("friction_level: strict\n")

@@ -166,6 +166,25 @@ class TestLegacyConfigIsRefused:
         assert MIGRATOR_COMMAND in result.to_dict()["error"]
 
     @pytest.mark.asyncio
+    async def test_legacy_only_session_yaml_also_refuses(self, tmp_path: Path) -> None:
+        """GH-1252: the pre-split ``session.yaml`` is the same tier-2 carrier.
+
+        Every case above writes ``config.yaml``. Both files merge into one
+        dict in ``_durable()`` step 2, so the refusal was believed to cover
+        a session.yaml-only carrier — but that variant had no test, and it
+        is exactly the shape found in the field. The remedy the error names
+        now reaches this file too (the legacy fold reads both).
+        """
+        path = tmp_path / ".claude" / "Dev10x" / "session.yaml"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("friction_level: adaptive\nactive_modes: []\n")
+
+        result = await GateResolutionQuery(gate="merge", context={}, toplevel=str(tmp_path)).run()
+
+        assert isinstance(result, ErrorResult)
+        assert MIGRATOR_COMMAND in result.to_dict()["error"]
+
+    @pytest.mark.asyncio
     async def test_migrated_config_resolves_normally(self, tmp_path: Path) -> None:
         """The migrator's own output — overlays materialised, v1 keys gone."""
         _write_config(

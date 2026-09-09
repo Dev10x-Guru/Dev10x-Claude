@@ -112,6 +112,17 @@ SUPERVISOR_REVIEW_NONE = "none"
 #: would re-grow the stack ADR-0022 collapses.
 SOLO_OVERLAY = "solo-maintainer"
 
+# Provenance labels for the four policy layers (GH-1252). A reason string
+# that names only the preset cannot be told apart from one where a
+# configured overlay contributed nothing — the reporter of GH-1252 read
+# `preset:adaptive` for a repo carrying two overlays and correctly
+# concluded the overlays were being discarded. They were not; the reason
+# string simply never named them.
+_LAYER_PRESET = "preset"
+_LAYER_OVERLAY_PREFIX = "overlay:"
+_LAYER_PROJECT = "project"
+_LAYER_SESSION = "session"
+
 
 def coerce_supervisor_review(value: object) -> str:
     """Coerce a durable ``supervisor_review`` value to one of the two poles.
@@ -341,7 +352,15 @@ def _merge_layers(
     shipped_presets: dict[str, dict[str, str | int | bool]] | None = None,
     shipped_overlays: dict[str, dict[str, str | int | bool]] | None = None,
     user_presets: dict[str, dict[str, str | int | bool]] | None = None,
-) -> dict[str, str | int | bool]:
+) -> tuple[dict[str, str | int | bool], dict[str, str]]:
+    """Merge the four policy layers, returning values AND their provenance.
+
+    The second element maps each toggle to the label of the layer that
+    supplied its winning value. Without it a reason string can only name
+    the preset, so an overlay-supplied value is indistinguishable from a
+    baseline one — which is how GH-1252 came to be filed as "overlays are
+    inert" against a resolver that applies them correctly.
+    """
     # The shipped maps default to the domain constants so pure-domain
     # callers/tests need no I/O; the infra tier injects the YAML-hydrated
     # maps (ADR-0016 D-1) at the MCP boundary. A drift-guard test keeps
@@ -362,15 +381,20 @@ def _merge_layers(
             f"Unknown preset {preset!r}; shipped: {sorted(base_presets)}{hint}"
         )
     resolved = dict(presets[preset])
+    sources = dict.fromkeys(resolved, _LAYER_PRESET)
     for overlay in overlays:
         if overlay not in base_overlays:
             raise UnknownPresetError(
                 f"Unknown overlay {overlay!r}; shipped: {sorted(base_overlays)}"
             )
-        resolved.update(base_overlays[overlay])
+        patch = base_overlays[overlay]
+        resolved.update(patch)
+        sources.update(dict.fromkeys(patch, f"{_LAYER_OVERLAY_PREFIX}{overlay}"))
     resolved.update(project_overrides)
+    sources.update(dict.fromkeys(project_overrides, _LAYER_PROJECT))
     resolved.update(session_overrides)
-    return resolved
+    sources.update(dict.fromkeys(session_overrides, _LAYER_SESSION))
+    return resolved, sources
 
 
 @dataclass(frozen=True)
@@ -461,6 +485,24 @@ def _weight_conditions(
     return GateEffect.AUTO_ADVANCE, f"{gate}={AUTO_ADVANCE}"
 
 
+def _reason_prefix(*, preset: str, overlays: list[str], source: str) -> str:
+    """Render the layer-provenance prefix of a reason string (GH-1252).
+
+    Keeps ``preset:<name>`` leading in every form so existing readers and
+    the audit log's record line stay parseable, then names the layer that
+    actually won. When the preset wins but overlays are in play, the
+    overlays are listed rather than omitted — "these were applied and
+    none of them claims this gate" is the fact a reader needs, and its
+    absence is what made a working resolver look broken.
+    """
+    base = f"preset:{preset}"
+    if source != _LAYER_PRESET:
+        return f"{base} via {source}"
+    if overlays:
+        return f"{base} overlays=[{','.join(overlays)}]"
+    return base
+
+
 def resolve_gate(
     *,
     gate: str,
@@ -491,9 +533,10 @@ def resolve_gate(
     """
     if gate not in _ENUM_TOGGLES:
         raise UnknownToggleError(f"Unknown gate {gate!r}; known: {sorted(_ENUM_TOGGLES)}")
-    toggles = _merge_layers(
+    active_overlays = list(overlays or [])
+    toggles, toggle_sources = _merge_layers(
         preset=preset,
-        overlays=list(overlays or []),
+        overlays=active_overlays,
         project_overrides=dict(project_overrides or {}),
         session_overrides=dict(session_overrides or {}),
         shipped_presets=shipped_presets,
@@ -508,7 +551,7 @@ def resolve_gate(
     # `allowed_overlays` guard that dropped `solo-maintainer` leaves the repo
     # reading as team-shaped, which floors `request_review` instead of
     # `merge` — strictly the safer of the two effect points.
-    floors = _floors(gate=gate, context=context, solo_repo=SOLO_OVERLAY in list(overlays or []))
+    floors = _floors(gate=gate, context=context, solo_repo=SOLO_OVERLAY in active_overlays)
     if floors:
         reason = f"floor:{'+'.join(floors)} overrides preset:{preset}"
         remedies = [_FLOOR_REMEDIES[name] for name in floors if name in _FLOOR_REMEDIES]
@@ -524,12 +567,17 @@ def resolve_gate(
 
     value = str(toggles[gate])
     effect, reason = _apply_conditions(gate=gate, value=value, context=context, toggles=toggles)
+    prefix = _reason_prefix(
+        preset=preset,
+        overlays=active_overlays,
+        source=toggle_sources.get(gate, _LAYER_PRESET),
+    )
     return GateResolution(
         gate=gate,
         effect=effect,
         resolved_option="Recommended" if effect is GateEffect.AUTO_ADVANCE else None,
         log_to=log_to,
-        reason=f"preset:{preset} {reason}",
+        reason=f"{prefix} {reason}",
         floors_applied=[],
         anchor_recommendations=anchor,
     )
