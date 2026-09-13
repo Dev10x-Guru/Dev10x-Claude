@@ -336,3 +336,41 @@ def set_playbook(*, skill: str, modes: tuple[str, ...], skip_steps: tuple[str, .
         skip_steps=list(skip_steps) or None,
     )
     click.echo(f"wrote playbook modes for {skill} to {written}")
+
+
+@session.command("reap")
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Report what would be removed without writing.",
+)
+def reap(*, dry_run: bool) -> None:
+    """Drop durable project pins whose every named checkout is gone.
+
+    The maintenance machinery's only removal path (GH-1253). Every other
+    command ensures something is present, so nothing has ever retired a
+    pin for an ephemeral worktree that no longer exists — and
+    first-match-wins evaluation walks all of them before reaching a real
+    project.
+
+    An entry is removed only when it names at least one absolute path and
+    every such path is absent. A glob-only entry names no checkout that
+    can be checked, so it is always kept.
+    """
+    from dev10x.domain.dev10x_paths import Dev10xConfigDir
+    from dev10x.domain.documents.session_yaml import (
+        is_provably_dead,
+        project_entries,
+        reap_dead_projects,
+    )
+
+    if dry_run:
+        path = Dev10xConfigDir.friction_yaml()
+        entries = project_entries(path=path)
+        dead = [entry for entry in entries if is_provably_dead(entry)]
+        click.echo(f"  {path}: {len(entries)} entries, {len(dead)} provably dead")
+        for entry in dead:
+            click.echo(f"    − {', '.join(str(m) for m in entry.get('match', []))}")
+        return
+
+    click.echo(reap_dead_projects().summary())
