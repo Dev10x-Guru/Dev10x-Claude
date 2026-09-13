@@ -38,6 +38,8 @@ projects:
     space: tt-reviews      # alias from gchat-config.yaml
     mentions:
       - "@dev-team-fe"     # user group -> native group mention token
+    preview: true          # add a Preview App button (front-end repos)
+    preview_environment: preview   # optional: which deployment to use
   plain-text-repo:
     space: tt-reviews
     card: false            # opt this repo out, back to plain text
@@ -49,12 +51,26 @@ Mentions resolve against `gchat-config.yaml` `user_groups` and `users`.
 
 **Cards are the default.** A review request renders as a panel — PR title
 as the card header, the Job Story as formatted text, and an *Open PR*
-button — accompanied by a short text line carrying the mentions, because
-a card cannot resolve them.
+button (plus *Preview App* when one resolves) — accompanied by a short
+text line carrying the mentions, because a card cannot resolve them.
 
 Two opt-outs remain, narrowest first: a per-repo `card: false`, and a
 global `default_card: false`. Either restores the single plain-text
 message; the per-repo key wins over the global one.
+
+**Preview App is opt-in** (GH-1262), unlike cards: the URL costs a
+Deployments API call per review request and most repos deploy nothing to
+look at. Set `preview: true` per repo, or `default_preview: true`
+globally with per-repo `preview: false` to opt back out. The URL comes
+from `deployment_status.environment_url` on the PR's head SHA — the field
+Vercel, Netlify and Pages all populate — taking the most recent
+deployment whose current status is `success`. `preview_environment` names
+one environment when a repo deploys several per commit.
+
+Preview deployments are asynchronous, so the button is simply absent when
+none has landed yet: the ping is never delayed or blocked waiting for a
+deployment, and an API failure is silent. A repo with `card: false` gets
+the URL as a line in the message instead, rather than losing it.
 
 ## Flow
 
@@ -89,7 +105,13 @@ uvx dev10x skill notify gchat-review-prepare --pr {pr_number} --repo {repo}
 ```
 
 Output JSON keys: `skip`, `ask`, `space`, `message`, `reason`,
-`resolved_mentions`, `pr_url`, `pr_title`, `card`, `fallback_text`.
+`resolved_mentions`, `pr_url`, `pr_title`, `preview_url`, `card`,
+`fallback_text`.
+
+`preview_url` is `null` unless the repo opted in AND a deployment
+succeeded on the PR's head SHA. It is already rendered into `card` (as a
+button) or `message` (as a line) — the key is there for callers that want
+the URL itself.
 
 `card` holds the panel unless the repo opted out, in which case it is
 `null`. When set, `message` shrinks to the mentions line and the
