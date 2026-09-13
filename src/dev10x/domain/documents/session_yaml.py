@@ -562,6 +562,104 @@ def upsert_project_prefs(
     return target
 
 
+@dataclass(frozen=True)
+class ReapReport:
+    """What a reap pass removed from ``friction.yaml`` (GH-1253)."""
+
+    path: Path
+    before: int
+    reaped: tuple[str, ...] = ()
+
+    @property
+    def after(self) -> int:
+        return self.before - len(self.reaped)
+
+    @property
+    def changed(self) -> bool:
+        return bool(self.reaped)
+
+    def summary(self) -> str:
+        if not self.reaped:
+            return f"  {self.path}: {self.before} entries, 0 provably dead"
+        return (
+            f"  {self.path}: {self.before} → {self.after} entries "
+            f"(−{len(self.reaped)} whose worktree paths are gone)"
+        )
+
+
+def _absolute_match_paths(entry: dict[str, Any]) -> list[str]:
+    match = entry.get("match")
+    if not isinstance(match, list):
+        return []
+    return [pattern for pattern in match if isinstance(pattern, str) and pattern.startswith("/")]
+
+
+def is_provably_dead(entry: dict[str, Any]) -> bool:
+    """Whether every checkout this entry names is gone from disk.
+
+    Deliberately narrow. An entry earns removal only by carrying at
+    least one ABSOLUTE path — an ephemeral worktree pin records one
+    alongside its glob — and having every such path absent. A
+    glob-only entry (``*/tt-pos``) names no checkout that can be
+    checked, so it can never be proven dead and is always kept: the
+    cost of keeping a dead entry is a wasted glob comparison, while
+    the cost of removing a live one is a silently changed posture.
+    """
+    absolute = _absolute_match_paths(entry)
+    if not absolute:
+        return False
+    return all(not Path(pattern).exists() for pattern in absolute)
+
+
+def project_entries(*, path: Path | None = None) -> list[dict[str, Any]]:
+    """The ``projects[]`` entries as written, for read-only inspection.
+
+    Unlocked on purpose: a dry-run report wants a snapshot, and taking
+    the write lock to read one would block a concurrent pin for no gain.
+    """
+    target = path or Dev10xConfigDir.friction_yaml()
+    projects = _load_yaml_mapping(target).get("projects")
+    if not isinstance(projects, list):
+        return []
+    return [entry for entry in projects if isinstance(entry, dict)]
+
+
+def reap_dead_projects(*, path: Path | None = None) -> ReapReport:
+    """Drop ``projects[]`` entries whose every named checkout is gone.
+
+    The maintenance machinery is monotone by construction — every other
+    command's contract is "ensure X is present" — so nothing has ever
+    removed a pin for a worktree that no longer exists. Two thirds of
+    this file was such pins when GH-1253 was filed, and first-match-wins
+    evaluation walked all of them before reaching a real project, while
+    real defects hid among them.
+
+    Shares ``upsert_project_prefs``'s lock and atomic write on the same
+    file. Mixing lock helpers here would silently fail to exclude: the
+    two sidecar names differ (ADR-0011).
+    """
+    target = path or Dev10xConfigDir.friction_yaml()
+    with file_lock(target):
+        doc = _load_yaml_mapping(target)
+        projects = doc.get("projects")
+        if not isinstance(projects, list):
+            return ReapReport(path=target, before=0)
+
+        # Count the whole list, not just the entries we can classify. A
+        # non-dict entry is kept — nothing this function understands well
+        # enough to delete — and the survivors are rebuilt from `projects`,
+        # so counting only dicts would make `after` disagree with what the
+        # file actually holds.
+        dead = [entry for entry in projects if isinstance(entry, dict) and is_provably_dead(entry)]
+        if not dead:
+            return ReapReport(path=target, before=len(projects))
+
+        reaped = tuple(", ".join(_absolute_match_paths(entry)) for entry in dead)
+        doc["projects"] = [entry for entry in projects if entry not in dead]
+        atomic_write_text(target, FrictionYamlDocument.render_document(doc))
+        return ReapReport(path=target, before=len(projects), reaped=reaped)
+
+
 def set_playbook_modes(
     *,
     skill: str,
@@ -923,9 +1021,13 @@ __all__ = [
     "PIN_SCOPES",
     "ConfigYamlDocument",
     "FrictionYamlDocument",
+    "ReapReport",
     "SessionYamlDocument",
+    "is_provably_dead",
     "legacy_durable_prefs",
     "match_globs_for_repo",
+    "project_entries",
+    "reap_dead_projects",
     "repo_stem",
     "seed_safe_baseline_if_absent",
     "seed_strict_baseline_if_absent",
