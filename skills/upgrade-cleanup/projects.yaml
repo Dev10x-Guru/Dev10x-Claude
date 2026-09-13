@@ -20,11 +20,23 @@ include_user_settings: true
 # Allow-rules alone are NOT sufficient for paths outside the project
 # root (GH-40). These are added under permissions.additionalDirectories
 # in every settings file.
+#
+# GH-1260: the gate governs the Read/Write/Edit TOOLS ONLY. It does not
+# gate Bash, and the two rule namespaces are independent — a `Read()`
+# rule, allow or deny, has no bearing on a Bash command reading the same
+# path. Adding a workspace directory therefore does NOT relieve Bash
+# friction, and no `Read()` deny protects a path that `cat`/`rg`/`wc`
+# can reach. Do not reach for either as a path-scoping remedy; a path is
+# scopable only by an effect-based PreToolUse validator (the DX0xx
+# axis), filesystem permissions, or not storing the secret in a readable
+# file. Every `Read()` entry below is an ALLOW; the shipped catalog
+# carries no `Read()` deny, so it makes no protection promise it cannot
+# keep — keep it that way.
 workspace_directories:
   - /tmp/Dev10x
   # GH-254: skills read playbook overrides, plan-sync state, and
   # plugin assets from these well-known locations. Without them,
-  # the additionalDirectories gate fires per-Read/Bash even when
+  # the additionalDirectories gate fires per-Read even when
   # the underlying tool is allowed.
   - ~/.claude/memory
   - ~/.claude/plugins
@@ -346,28 +358,45 @@ base_permissions:
   # the versioned per-file script rule already covers.
   - "Bash(identify:*)"
 
-  # --- Read-only git plumbing spelling (GH-1135) ---
-  # An agent in a worktree that needs the MAIN checkout's state emits
-  # `git --git-dir=<repo>/.git --work-tree=<repo> <verb>`. The
-  # pre-approved prefixes are `git status`, `git -C` and
-  # `git -C <repo>`; `git --git-dir` matches none of them, so the
-  # supervisor is prompted — and offered `git *`, the GH-310
-  # catch-all footgun, as the "don't ask again" rule.
+  # --- Read-only cross-worktree git spellings (GH-1135, GH-1268) ---
+  # An agent in a worktree that needs ANOTHER checkout's state has two
+  # spellings available: the preferred `git -C <path> <verb>` and the
+  # plumbing `git --git-dir=<repo>/.git --work-tree=<repo> <verb>`.
   #
-  # `git -C <path> <verb>` remains the preferred spelling and the
-  # command-skill-map steer (`git-dir-worktree-pinning`) still points
-  # there. These rules exist so the plumbing spelling an agent already
-  # emitted resolves deterministically instead of prompting. Read-only
-  # verbs ONLY — mutating verbs stay routed to Dev10x:git /
-  # Dev10x:git-groom.
+  # GH-1268: until this block seeded the `-C` form, only the plumbing
+  # form was covered — so `git-dir-worktree-pinning` steered agents to a
+  # shape with no rule behind it while the shape it deprecates was
+  # pre-approved. The catalog-gap report could not see the contradiction,
+  # because a rule that was never seeded cannot be reported missing. Both
+  # spellings are now covered, symmetrically, on the same nine verbs.
   #
-  # Both orderings are covered because agents emit both. Whether a
-  # mid-path `*` matches at all is the open question these rules
-  # depend on (ADR-0021, GH-925 F2); the permission-investigator
-  # matrix now carries a `mid_path_star` cell to settle it. If the
-  # cell reports PROMPTED, the shape is un-allow-listable and
-  # `git-dir-worktree-pinning` flips to `hook_block: true` with its
-  # existing `-C` compensation.
+  # Read-only verbs ONLY — mutating verbs stay routed to Dev10x:git /
+  # Dev10x:git-groom. This is why the `-C` rules below are verb-scoped
+  # rather than the harness's verb-blind `Bash(git -C:*)`, which would
+  # also grant `git -C <path> push --force`.
+  #
+  # These rules cover `-C` with a path ARGUMENT (cross-worktree reads).
+  # They do not sanction `git -C <cwd>` — a `-C` whose path already
+  # equals the CWD is redundant and shifts the command prefix for no
+  # gain (GH-97, GH-760 F5). `git-dir-worktree-pinning`'s two-mode
+  # compensation is what decides which spelling applies; these rules
+  # only ensure the cross-worktree branch of it can land.
+  #
+  # Both plumbing orderings are covered because agents emit both.
+  # Whether a mid-path `*` matches at all is the open question these
+  # rules depend on (ADR-0021, GH-925 F2); the permission-investigator
+  # matrix now carries a `mid_path_star` cell to settle it. If the cell
+  # reports PROMPTED, the shape is un-allow-listable and
+  # `git-dir-worktree-pinning` flips to `hook_block: true`.
+  - "Bash(git -C * status:*)"
+  - "Bash(git -C * log:*)"
+  - "Bash(git -C * rev-parse:*)"
+  - "Bash(git -C * diff:*)"
+  - "Bash(git -C * branch:*)"
+  - "Bash(git -C * worktree list:*)"
+  - "Bash(git -C * ls-files:*)"
+  - "Bash(git -C * show:*)"
+  - "Bash(git -C * merge-base:*)"
   - "Bash(git --git-dir=* --work-tree=* status:*)"
   - "Bash(git --git-dir=* --work-tree=* log:*)"
   - "Bash(git --git-dir=* --work-tree=* rev-parse:*)"
@@ -880,9 +909,15 @@ base_denies:
   # `git -P` / `git --no-pager` prefix a git verb, which shifts the effective
   # command prefix and defeats allow-rule matching for every `Bash(git <verb>:*)`
   # rule in this catalog — the same prefix-shift problem documented for env-var
-  # prefixes and `git -C`. Neither shape is in base_permissions, so denying
-  # them is additive hardening rather than a behaviour change: today they fall
-  # through to a prompt. Git is already non-interactive under Claude Code, so
-  # the pager flags buy nothing that would be lost.
+  # prefixes. Neither pager shape is in base_permissions, so denying them is
+  # additive hardening rather than a behaviour change: today they fall through
+  # to a prompt. Git is already non-interactive under Claude Code, so the pager
+  # flags buy nothing that would be lost.
+  #
+  # `git -C` shares the prefix-shift mechanism but NOT this conclusion, and
+  # this comment used to conflate the two (GH-1268). The cross-worktree `-C`
+  # read verbs ARE seeded above, deliberately: unlike a pager flag, `-C <path>`
+  # buys something nothing else does — reaching another checkout — so it is
+  # spelled out per verb rather than denied.
   - "Bash(git -P:*)"
   - "Bash(git --no-pager:*)"
