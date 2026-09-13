@@ -325,18 +325,25 @@ async def run_node_tests(
             ``{"TZ": "America/New_York"}`` to match a CI-pinned timezone
             that snapshot tests depend on).
         timeout: Subprocess timeout in seconds (default 600).
-        cwd: Effective working directory (GH-979).
+        cwd: Effective working directory (GH-979). Must be ABSOLUTE — a
+            relative path is rejected, because the server resolves it
+            against its own directory rather than the caller's checkout
+            and a green run then certifies the wrong tree (GH-1264).
         ctx: FastMCP context injected automatically — do not pass (GH-342).
 
     Returns:
         Dictionary with keys: returncode (int), runner (str), script (str),
         summary (str), passed (int), failed (int), skipped (int),
-        todo (int), total (int | None), stdout (str), stderr (str).
-        A non-zero ``returncode`` is *not* an MCP-level error —
-        callers read ``returncode`` to decide.
+        todo (int), total (int | None), cwd (str), stdout (str),
+        stderr (str). ``cwd`` is the absolute directory the run actually
+        happened in, so a green result can be audited against the tree it
+        was meant to cover (GH-1264). A non-zero ``returncode`` is *not*
+        an MCP-level error — callers read ``returncode`` to decide.
     """
+    import os
+
     from dev10x import runner as test_runner
-    from dev10x.subprocess_utils import use_cwd
+    from dev10x.subprocess_utils import effective_cwd, use_cwd
 
     if ctx is not None:
         await ctx.report_progress(progress=0, total=100, message=f"Starting {runner}")
@@ -353,6 +360,9 @@ async def run_node_tests(
                 timeout=timeout,
             )
         )
+        # Echo where the run actually happened (GH-1264), so a green
+        # result can be audited against the tree it was meant to cover.
+        result.setdefault("cwd", effective_cwd() or os.getcwd())
 
     if ctx is not None:
         summary = result.get("summary", "")

@@ -714,6 +714,14 @@ no allow-rule can suppress (GH-703).
 `vitest`/`yarn`/`npm`/`pnpm`); `jest`/`vitest` get `--coverage` when
 `coverage=true`.
 
+Its `cwd` — like every tool's — must be **absolute** (GH-1264). A
+relative path is now rejected at the `use_cwd` seam rather than
+resolved against the long-lived server's own directory, which is not
+the caller's checkout: `cwd="apps/web"` ran somewhere else entirely and
+returned green, certifying a tree the worker had never written to. The
+success payload also carries `cwd`, the directory the run actually
+happened in, so a green result can be audited instead of trusted.
+
 It also takes `script` and `env` (GH-1029). `script` names the
 `package.json` script to run — default `"test"`, which keeps the
 historical `yarn test` / `npm test` shape; any other value becomes

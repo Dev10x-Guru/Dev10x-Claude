@@ -18,6 +18,20 @@ after `EnterWorktree`.
   first-call toplevel permanently. Construct a fresh `GitContext()` per
   call (or `lambda: GitContext().toplevel`). Enforced by
   `tests/test_no_module_scope_gitcontext.py`.
+- **An MCP `cwd=` argument must be absolute** (GH-1264). `use_cwd`
+  rejects a relative path rather than binding it. The server is
+  long-lived and resolves a relative path against the directory it was
+  spawned in, which is not the caller's checkout — `run_node_tests(
+  cwd="apps/web")` ran against an unrelated tree and returned green,
+  manufacturing evidence for an artefact it never touched. The intended
+  directory is not recoverable from a relative path at that boundary, so
+  refusing is the only safe reading; callers pass the absolute worktree
+  path (`list_client_roots` reports it). It raises `RelativeCwdError`
+  rather than returning an `ErrorResult`: ADR-0009 covers *operational*
+  failures a caller can branch on, while a relative `cwd` is a
+  programming error no retry recovers — the same category `to_wire`
+  already asserts on. The named type is what separates "fix your
+  argument" from "the server broke".
 - **Domain code resolves CWD via the domain seam, not `subprocess_utils`**
   (GH-584, audit N21): `domain/` modules (e.g. `domain/git_context.py`)
   call `dev10x.domain.cwd_resolver.resolve_cwd()` instead of importing
