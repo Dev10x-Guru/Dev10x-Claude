@@ -52,9 +52,11 @@ all push operations.
 
 ### Configuring `protected_branches`
 
-`push_safe` blocks **`--force`** to a protected branch — an ordinary
-push and a `--force-with-lease` are always allowed, on any branch.
-Protection resolves in three tiers (GH-1031):
+`push_safe` blocks **`--force`** to a protected branch, and an ordinary
+push is always allowed. A `--force-with-lease` is allowed on any branch
+too, with one condition on a protected one: the remote tip must already
+be an ancestor of what you are pushing (GH-1270). Protection resolves in
+three tiers (GH-1031):
 
 1. The `protected_branches` call parameter, when non-empty.
 2. Else the project's durable `protected_branches` key in the
@@ -173,11 +175,23 @@ A skill must never instruct an action its own guardrail forbids. The
 script still ships (other tooling shells out to it); it is not an
 agent-facing entry point.
 
-`push_safe` itself always allows `--force-with-lease` (it verifies the
-remote has not diverged before overwriting) and blocks bare `--force` /
-`-f` on protected branches. The resolved protected set is the one
-documented above — the shell script's own default is the last tier, not
-a separate list.
+`push_safe` blocks bare `--force` / `-f` on protected branches. The
+resolved protected set is the one documented above — the shell script's
+own default is the last tier, not a separate list.
+
+`--force-with-lease` is allowed everywhere else, but a **protected**
+target is fetched first and refused with `blocked_reason:
+"base_behind_remote"` unless its remote tip is already an ancestor of
+the pushed ref (GH-1270). A lease is not the protection it reads as
+here: it compares the remote against the local remote-tracking ref, so
+a `develop` last fetched hours ago leases cleanly against its own stale
+copy and overwrites every merge landed since — seven PRs were erased
+that way in eleven minutes, with git reporting success and `git diff`
+showing nothing, because the two tips shared a tree. The refusal names
+the commits that would be dropped; rebase onto `origin/<base>` and push
+again. When the fetch itself fails the push is refused as
+`base_fetch_failed` rather than attempted blind — unless the branch
+does not exist on the remote yet, which has nothing to lose.
 
 ## Non-Interactive Rebase
 

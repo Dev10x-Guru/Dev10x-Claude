@@ -32,6 +32,31 @@ if [[ ! -x "$SEQ_EDITOR" ]]; then
     exit 1
 fi
 
+# Stale-base guard (GH-1270).
+#
+# A LOCAL `<base-ref>` hides every merge landed since it was fetched: the
+# rebase replays onto the old tip and still reports success. Refuse early
+# and name the remote-tracking ref instead.
+if [[ "$base_ref" != */* ]] && git rev-parse --quiet --verify "refs/heads/$base_ref" >/dev/null; then
+    base_remote="$(git config --get "branch.$base_ref.remote" || echo origin)"
+    if ! git fetch --quiet "$base_remote" "$base_ref" 2>/dev/null; then
+        echo "WARNING: could not fetch $base_remote/$base_ref — comparing" >&2
+        echo "against the last known remote tip, which may itself be stale." >&2
+        base_tip="$(git rev-parse --quiet --verify "refs/remotes/$base_remote/$base_ref" || true)"
+    else
+        base_tip="$(git rev-parse --quiet --verify FETCH_HEAD || true)"
+    fi
+
+    if [[ -n "$base_tip" ]] && ! git merge-base --is-ancestor "$base_tip" "$base_ref"; then
+        echo "ERROR: refusing to groom — local '$base_ref' is behind" >&2
+        echo "'$base_remote/$base_ref' and is missing:" >&2
+        git log --oneline "$base_ref..$base_tip" >&2
+        echo "" >&2
+        echo "Groom against '$base_remote/$base_ref' instead (GH-1270)." >&2
+        exit 1
+    fi
+fi
+
 # Base-moved guard (GH-1103).
 #
 # `git rebase -i <base>` drops any commit whose patch the base already

@@ -61,7 +61,12 @@ source "$SCRIPT_DIR/protected-branches.sh"
 # stream and shifts every index after it (GH-1049 gap 2). Optional-value flags
 # (--force-with-lease) are absent by design — they are commonly spelled bare
 # and consuming the next token would swallow the remote.
+#
+# `--force-with-lease` is tracked separately as `lease`, not folded into
+# `force`: it stays ALLOWED on every branch, and only feeds the
+# base-ancestry gate below (GH-1270).
 force=0
+lease=0
 remote="origin"
 target_branches=()
 source_refs=()
@@ -76,6 +81,9 @@ for arg in "${PUSH_ARGS[@]}"; do
         case "$arg" in
             --force|-f)
                 force=1
+                ;;
+            --force-with-lease|--force-with-lease=*|--force-if-includes)
+                lease=1
                 ;;
             -o|--push-option|--receive-pack|--exec|--repo)
                 skip_value=1
@@ -130,6 +138,54 @@ if [[ $force -eq 1 ]]; then
             echo "BLOCKED: --force push to protected branch '$branch' is not allowed." >&2
             echo "Use --force-with-lease on a feature branch instead." >&2
             printf '{"pushed":false,"ref":"%s","remote":"%s","blocked_reason":"protected_branch_force_push"}\n' \
+                "$branch" "$remote"
+            exit 2
+        fi
+    done
+fi
+
+# Base-ancestry gate for a leased force-push to a protected branch (GH-1270).
+#
+# A lease only compares the remote against the LOCAL remote-tracking ref,
+# so a stale one leases against its own copy and drops every merge landed
+# since. Bare `--force` never reaches here — the block above refused it —
+# so this gate covers the spelling allowed everywhere else.
+if [[ $lease -eq 1 ]]; then
+    for index in "${!target_branches[@]}"; do
+        branch="${target_branches[$index]}"
+        is_protected_branch "$branch" || continue
+        # A delete refspec (`:dst`) pushes no commit, so there is no
+        # source ref to compare the remote tip against.
+        src="${source_refs[$index]}"
+        [[ -n "$src" ]] || continue
+
+        if ! git fetch --quiet "$remote" "$branch" 2>/dev/null; then
+            # A branch absent from the remote has nothing to lose;
+            # anything else means the check could not run, and an
+            # unverifiable force-push is what this gate exists to stop.
+            # --exit-code separates the two (2 = no matching refs, 128 =
+            # unreachable); empty stdout does not.
+            ls_remote_rc=0
+            git ls-remote --exit-code --heads "$remote" "$branch" >/dev/null 2>&1 ||
+                ls_remote_rc=$?
+            if [[ $ls_remote_rc -eq 2 ]]; then
+                continue
+            fi
+            echo "BLOCKED: cannot verify '$remote/$branch' before a forced push." >&2
+            echo "Fetch failed, so the commits this push would drop are unknown." >&2
+            printf '{"pushed":false,"ref":"%s","remote":"%s","blocked_reason":"base_fetch_failed"}\n' \
+                "$branch" "$remote"
+            exit 2
+        fi
+
+        remote_tip=$(git rev-parse --quiet --verify FETCH_HEAD) || continue
+        if ! git merge-base --is-ancestor "$remote_tip" "$src"; then
+            echo "BLOCKED: '$src' does not contain the current tip of '$remote/$branch'." >&2
+            echo "Forcing this push would drop these commits:" >&2
+            git log --oneline "$src..$remote_tip" >&2
+            echo "" >&2
+            echo "Rebase onto '$remote/$branch' first, then push again." >&2
+            printf '{"pushed":false,"ref":"%s","remote":"%s","blocked_reason":"base_behind_remote"}\n' \
                 "$branch" "$remote"
             exit 2
         fi
