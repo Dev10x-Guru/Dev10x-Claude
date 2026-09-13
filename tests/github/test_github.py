@@ -2694,7 +2694,10 @@ class TestMergePr:
     ) -> None:
         mock_run.return_value = _completed(stdout="merged\n")
 
-        result = await gh.merge_pr(pr_number=42)
+        # Pin the bot preference off (GH-1272) so the assertion does not
+        # depend on the developer's own ~/.config/Dev10x/github-app.yaml.
+        with patch.object(gh.AppConfig, "load", return_value=None):
+            result = await gh.merge_pr(pr_number=42)
 
         assert isinstance(result, SuccessResult)
         assert result.value == {
@@ -2706,6 +2709,8 @@ class TestMergePr:
             "auto": False,
             "repo": "owner/repo",
             "expected_head_sha": None,
+            "merged_as": "engineer",
+            "bot_fallback": "not requested",
         }
         called_args = mock_run.call_args.kwargs["args"]
         assert called_args == [

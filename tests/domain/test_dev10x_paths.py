@@ -245,3 +245,41 @@ def test_migrate_all_is_idempotent(isolated_dirs: tuple[Path, Path]) -> None:
     second = migrate_all()
     assert len(first) == 1
     assert second == []
+
+
+def _write_legacy_app_config(body: str) -> None:
+    legacy = ClaudeDir.github_app_yaml()
+    legacy.parent.mkdir(parents=True, exist_ok=True)
+    legacy.write_text(body)
+
+
+def test_migration_rewrites_private_key_path(isolated_dirs: tuple[Path, Path]) -> None:
+    """GH-1271: the yaml moved but its own key path kept naming the old dir.
+
+    The relocated config pointed at ``~/.claude/Dev10x/github-bot/…`` for
+    a key that had already been moved, so the read failed after a
+    migration that otherwise looked clean.
+    """
+    _write_legacy_app_config(
+        "github_app:\n"
+        '  app_id: "1"\n'
+        '  private_key_path: "~/.claude/Dev10x/github-bot/dev10x-bot.pem"\n'
+    )
+
+    migrated = Dev10xConfigDir.github_app_yaml()
+
+    assert ".claude/Dev10x/github-bot" not in migrated.read_text()
+    assert ".config/Dev10x/github-bot/dev10x-bot.pem" in migrated.read_text()
+
+
+def test_migration_leaves_an_unrelated_key_path_alone(
+    isolated_dirs: tuple[Path, Path],
+) -> None:
+    """Only the legacy fragment is rewritten — a custom path is preserved."""
+    _write_legacy_app_config(
+        'github_app:\n  app_id: "1"\n  private_key_path: "/opt/secrets/bot.pem"\n'
+    )
+
+    migrated = Dev10xConfigDir.github_app_yaml()
+
+    assert "/opt/secrets/bot.pem" in migrated.read_text()

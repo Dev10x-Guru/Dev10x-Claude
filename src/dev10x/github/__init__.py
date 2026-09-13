@@ -1323,6 +1323,90 @@ async def update_pr(
     return ok(payload)
 
 
+async def _merge_bot_fallback_reason(
+    *,
+    use_bot: bool | None,
+    admin: bool,
+    auto: bool,
+    repo_ref: str,
+) -> str | None:
+    """Return why the bot merge transport cannot run, or None to use it.
+
+    A non-None reason is reported in the payload rather than raised:
+    falling back to the engineer identity still merges (GH-1272), and a
+    repo whose ruleset restricts who may merge depends on that.
+    """
+    if use_bot is None:
+        config = AppConfig.load()
+        wants_bot = config is not None and config.merge_bot
+    else:
+        wants_bot = use_bot
+    if not wants_bot:
+        return "not requested"
+    if admin or auto:
+        # --admin and --auto have no REST merge equivalent; honouring
+        # them matters more than the identity the merge carries.
+        return "admin/auto merge has no bot transport"
+    if await _bot_env(repo=repo_ref) is None:
+        return "no installation token"
+    return None
+
+
+async def _merge_as_bot(
+    *,
+    pr_number: int,
+    strategy: str,
+    delete_branch: bool,
+    repo_ref: str,
+    expected_head_sha: str | None,
+) -> Result[dict[str, Any]]:
+    """Merge via ``PUT /pulls/{n}/merge`` under the installation token."""
+    fields: dict[str, str | int | list[str]] = {"merge_method": strategy}
+    if expected_head_sha:
+        fields["sha"] = expected_head_sha
+
+    head_ref: str | None = None
+    if delete_branch:
+        pr = await pr_get(number=pr_number, repo=repo_ref)
+        if isinstance(pr, SuccessResult):
+            head_ref = pr.value.get("headRefName")
+
+    result = await _gh_api_raw(
+        f"repos/{repo_ref}/pulls/{pr_number}/merge",
+        method="PUT",
+        fields=fields,
+        repo=repo_ref,
+        as_bot=True,
+    )
+    if result.returncode != 0:
+        return err(result.stderr.strip() or result.stdout.strip())
+
+    branch_deleted = False
+    if head_ref:
+        deletion = await _gh_api_raw(
+            f"repos/{repo_ref}/git/refs/heads/{head_ref}",
+            method="DELETE",
+            repo=repo_ref,
+            as_bot=True,
+        )
+        branch_deleted = deletion.returncode == 0
+
+    return ok(
+        {
+            "pr_number": pr_number,
+            "url": f"https://github.com/{repo_ref}/pull/{pr_number}",
+            "strategy": strategy,
+            "branch_deleted": branch_deleted,
+            "admin": False,
+            "auto": False,
+            "repo": repo_ref,
+            "expected_head_sha": expected_head_sha,
+            "merged_as": "bot",
+            "bot_fallback": None,
+        }
+    )
+
+
 async def merge_pr(
     *,
     pr_number: int,
@@ -1332,6 +1416,7 @@ async def merge_pr(
     auto: bool = False,
     repo: str | None = None,
     expected_head_sha: str | None = None,
+    use_bot: bool | None = None,
 ) -> Result[dict[str, Any]]:
     """Merge a pull request via ``gh pr merge``.
 
@@ -1365,11 +1450,18 @@ async def merge_pr(
             that verification and this call ships code no gate saw.
             Passed as ``--match-head-commit``, so a moved head fails
             the merge instead of silently widening it.
+        use_bot: Execute the merge under the GitHub App identity so
+            ``merged_by`` names the bot (GH-1272). ``None`` reads the
+            durable ``github_app.merge_bot`` preference; ``True`` /
+            ``False`` override it for one call. The bot path is
+            skipped — with the reason reported in ``bot_fallback`` —
+            when no installation token is available, or when ``admin``
+            / ``auto`` is set, since neither has a REST equivalent.
 
     Returns:
         ok({"pr_number", "url", "strategy", "branch_deleted",
-        "admin", "auto", "repo", "expected_head_sha"}) on success,
-        err(...) otherwise.
+        "admin", "auto", "repo", "expected_head_sha", "merged_as",
+        "bot_fallback"}) on success, err(...) otherwise.
     """
     if strategy not in {"rebase", "squash", "merge"}:
         return err(f"Invalid merge strategy: {strategy!r}. Use rebase, squash, or merge.")
@@ -1378,6 +1470,18 @@ async def merge_pr(
     if isinstance(repo_result, ErrorResult):
         return err(repo_result.error)
     repo_ref = repo_result.value
+
+    bot_fallback = await _merge_bot_fallback_reason(
+        use_bot=use_bot, admin=admin, auto=auto, repo_ref=str(repo_ref)
+    )
+    if bot_fallback is None:
+        return await _merge_as_bot(
+            pr_number=pr_number,
+            strategy=strategy,
+            delete_branch=delete_branch,
+            repo_ref=str(repo_ref),
+            expected_head_sha=expected_head_sha,
+        )
 
     args = [
         "gh",
@@ -1413,6 +1517,8 @@ async def merge_pr(
             "auto": auto,
             "repo": str(repo_ref),
             "expected_head_sha": expected_head_sha,
+            "merged_as": "engineer",
+            "bot_fallback": bot_fallback,
         }
     )
 

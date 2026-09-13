@@ -421,17 +421,98 @@ class TestStatus:
         assert result.exit_code == 1
         assert "No config" in result.output
 
-    def test_reports_present_config(self, fake_home: Path) -> None:
+    def _write_config(self) -> None:
         gha.CONFIG_DIR.mkdir(parents=True)
-        gha.CONFIG_PATH.write_text("github_app:\n  app_id: '0'\n")
+        gha.CONFIG_PATH.write_text(
+            f"github_app:\n  app_id: '0'\n  private_key_path: '{gha.KEY_PATH}'\n"
+        )
         gha.KEY_PATH.write_text("KEY")
         os.chmod(gha.KEY_PATH, 0o600)
+
+    def test_reports_present_config(self, fake_home: Path) -> None:
+        self._write_config()
+
+        runner = CliRunner()
+        result = runner.invoke(gha.github_app, ["status"])
+
+        assert str(gha.CONFIG_PATH) in result.output
+
+    def test_present_config_alone_is_not_healthy(self, fake_home: Path) -> None:
+        """GH-1271: config presence used to exit 0 while every call fell back.
+
+        An unusable App and an absent one looked identical from the
+        outside, which is why the bot identity sat dark for months.
+        """
+        self._write_config()
+
+        runner = CliRunner()
+        result = runner.invoke(gha.github_app, ["status"])
+
+        assert result.exit_code == 1
+        assert "fall back" in result.output
+
+    def test_reports_each_granted_permission(
+        self, fake_home: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._write_config()
+        monkeypatch.setattr(gha.api, "mint_app_jwt", lambda **_: "JWT")
+        monkeypatch.setattr(gha.api, "list_installations", lambda **_: [{"id": 7}])
+        monkeypatch.setattr(
+            gha.api,
+            "create_installation_token_full",
+            lambda **_: {
+                "token": "ghs_x",
+                "permissions": {
+                    "pull_requests": "write",
+                    "issues": "write",
+                    "contents": "write",
+                },
+            },
+        )
 
         runner = CliRunner()
         result = runner.invoke(gha.github_app, ["status"])
 
         assert result.exit_code == 0
-        assert str(gha.CONFIG_PATH) in result.output
+        assert "installation 7" in result.output
+        assert "✓ issues: write" in result.output
+
+    def test_missing_permission_names_the_acceptance_step(
+        self, fake_home: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A granted set short of what the plugin calls means a pending accept."""
+        self._write_config()
+        monkeypatch.setattr(gha.api, "mint_app_jwt", lambda **_: "JWT")
+        monkeypatch.setattr(gha.api, "list_installations", lambda **_: [{"id": 7}])
+        monkeypatch.setattr(
+            gha.api,
+            "create_installation_token_full",
+            lambda **_: {
+                "token": "ghs_x",
+                "permissions": {"pull_requests": "write", "contents": "read"},
+            },
+        )
+
+        runner = CliRunner()
+        result = runner.invoke(gha.github_app, ["status"])
+
+        assert result.exit_code == 1
+        assert "✗ issues: none" in result.output
+        assert "✗ contents: read" in result.output
+        assert "settings/installations" in result.output
+
+    def test_uninstalled_app_is_reported(
+        self, fake_home: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._write_config()
+        monkeypatch.setattr(gha.api, "mint_app_jwt", lambda **_: "JWT")
+        monkeypatch.setattr(gha.api, "list_installations", lambda **_: [])
+
+        runner = CliRunner()
+        result = runner.invoke(gha.github_app, ["status"])
+
+        assert result.exit_code == 1
+        assert "not installed anywhere" in result.output
 
 
 class TestVerifySetup:

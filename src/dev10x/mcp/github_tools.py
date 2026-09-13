@@ -722,6 +722,7 @@ async def merge_pr(
     auto: bool = False,
     repo: str | None = None,
     expected_head_sha: str | None = None,
+    use_bot: bool | None = None,
     cwd: str | None = None,
 ) -> Result[dict]:
     """Merge a pull request via ``gh pr merge`` (GH-232).
@@ -761,12 +762,19 @@ async def merge_pr(
             (GH-1267). Pass the ``headRefOid`` the pre-merge checks
             verified: without it the merge takes whatever the head is
             *now*, so a push landing mid-gate ships unreviewed code.
+        use_bot: Execute the merge under the GitHub App identity so
+            ``merged_by`` names the bot and an out-of-gate merge
+            becomes visible (GH-1272). Omit to read the durable
+            ``github_app.merge_bot`` preference. Falls back to the
+            engineer identity — reporting why in ``bot_fallback`` —
+            rather than failing.
         cwd: Effective working directory (GH-979).
 
     Returns:
         Dictionary with keys: pr_number (int), url (str),
         strategy (str), branch_deleted (bool), admin (bool),
-        auto (bool), repo (str), expected_head_sha (str | None).
+        auto (bool), repo (str), expected_head_sha (str | None),
+        merged_as ("bot" | "engineer"), bot_fallback (str | None).
     """
     return await gh.merge_pr(
         pr_number=pr_number,
@@ -776,6 +784,7 @@ async def merge_pr(
         auto=auto,
         repo=repo,
         expected_head_sha=expected_head_sha,
+        use_bot=use_bot,
     )
 
 
