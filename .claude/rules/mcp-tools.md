@@ -318,9 +318,14 @@ Behavioral caveats:
   `protected_branches` key in the matching `projects[]` entry of
   `~/.config/Dev10x/friction.yaml`, else the script default
   `main master develop development staging trunk`. Each tier
-  REPLACES the one below rather than adding to it, and only
-  `--force` is blocked — a plain push and `--force-with-lease` are
-  always allowed. Prefer the durable pref over a per-call list: an
+  REPLACES the one below rather than adding to it. A plain push is
+  always allowed and `--force` is blocked on a protected branch;
+  `--force-with-lease` is allowed on any branch, but a protected
+  target is fetched first and refused as `base_behind_remote` unless
+  the remote tip is already an ancestor of the pushed ref (GH-1270) —
+  a lease alone compares against the local remote-tracking ref, so a
+  stale one leases cleanly and drops every merge landed since. Prefer
+  the durable pref over a per-call list: an
   unattended agent never passes one, which is when an unprotected
   force-push costs the most. Three docs previously stated three
   different defaults ("main, develop", "main master", and the real

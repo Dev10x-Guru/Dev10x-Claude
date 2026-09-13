@@ -48,6 +48,14 @@ git rebase -i $(git merge-base develop HEAD)
 - Create backup before complex rewrites: `git branch backup-before-rewrite`
 - Use `--force-with-lease` not `--force` when pushing rewrites
 - Coordinate with teammates before force-pushing shared branches
+- On a **protected** branch (`main`, `develop`, …) a lease is not
+  enough: `push_safe` fetches the branch first and refuses unless the
+  remote tip is already an ancestor of what you are pushing (GH-1270).
+  A lease only compares the remote against your local remote-tracking
+  ref, so a `develop` fetched hours ago leases cleanly against its own
+  stale copy and silently drops every merge landed since. Rebase onto
+  `origin/<base>` and push again — the refusal names the commits at
+  risk.
 
 ## Pull Request Guidelines
 

@@ -685,7 +685,6 @@ class TestShellTwinResolvesExplicitRefspecTargets(ShellTwinHarness):
         "args",
         [
             ("--force", "origin", "feature"),
-            ("--force-with-lease", "origin", "main"),
             ("-o", "ci.skip", "--force", "origin", "feature"),
         ],
     )
@@ -695,16 +694,35 @@ class TestShellTwinResolvesExplicitRefspecTargets(ShellTwinHarness):
         feature_repo: Path,
     ) -> None:
         """The tightening must not over-block: a force push to an
-        unprotected branch is allowed, and ``--force-with-lease`` is
-        allowed even against a protected branch. Neither has a remote to
-        reach, so each fails at the push itself — ``push_failed`` proves
-        the guard let it through."""
+        unprotected branch is allowed. There is no remote to reach, so it
+        fails at the push itself — ``push_failed`` proves the guard let it
+        through."""
         assert self._blocked_reason(*args, cwd=feature_repo) == "push_failed"
 
     @pytest.mark.parametrize(
-        "flag",
-        ["-u", "-vu", "--force-with-lease"],
+        "args",
+        [
+            ("--force-with-lease", "origin", "main"),
+            ("--force-with-lease",),
+        ],
     )
+    def test_a_lease_against_a_protected_branch_is_verified_first(
+        self,
+        args: tuple[str, ...],
+        repo_on_protected_branch: Path,
+    ) -> None:
+        """GH-1270 changed this case deliberately.
+
+        A lease used to reach the push unconditionally; it now has to
+        prove the remote tip is an ancestor first. This repo has no
+        remote, so the verification cannot run and the push is refused
+        rather than attempted blind — ``base_fetch_failed`` is that
+        refusal, and it fires before ``push_failed`` would.
+        """
+        reason = self._blocked_reason(*args, cwd=repo_on_protected_branch)
+        assert reason == "base_fetch_failed"
+
+    @pytest.mark.parametrize("flag", ["-u", "-vu"])
     def test_non_force_flags_reach_the_push(
         self,
         flag: str,
