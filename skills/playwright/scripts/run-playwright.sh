@@ -4,6 +4,8 @@
 # Usage:
 #   run-playwright.sh <script.py> [--validate-only]
 #                     [--user <username> | --profile <suffix>]
+#                     [--staging-url <url>] [--secrets-file <path>]
+#                     [--tail <n>]
 #
 # What it does:
 #   1. Reads CF Access + CRM credentials from settings.secrets.env
@@ -23,6 +25,14 @@
 #   PLAYWRIGHT_PROFILE       default credential suffix (see below)
 #   PLAYWRIGHT_SPEC          the pinned playwright requirement
 #
+# The two knobs a per-run invocation must set also have flag forms —
+# --staging-url and --secrets-file — because an environment prefix is
+# what defeats permission matching: an allow rule keys on the command
+# prefix, and `STAGING_URL=… run-playwright.sh` does not start with the
+# script path (GH-1263). Precedence is flag > env > default, so every
+# existing caller's environment keeps working. --tail exists for the
+# same reason: `| tail -40` extends the command past the rule too.
+#
 # Accounts are keyed by an optional suffix on the secrets-file keys:
 #
 #   CRM_USERNAME=…   CRM_PASSWORD=…     -> the default profile
@@ -41,16 +51,6 @@ SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="$(cd "${SCRIPTS_DIR}/../lib" && pwd)"
 SKILLS_DIR="$(cd "${SCRIPTS_DIR}/../.." && pwd)"
 
-SECRETS_FILE="${PLAYWRIGHT_SECRETS_FILE:-/work/example/app-e2e/settings.secrets.env}"
-
-# `${VAR:-default}`, like SECRETS_FILE above. An unconditional assignment
-# here silently overrode the caller's own environment, so the documented
-# `os.environ.get("STAGING_URL", "<real host>")` default in a generated
-# script could never apply — every script got the placeholder and failed
-# at its first goto with ERR_NAME_NOT_RESOLVED, an error that points at
-# DNS rather than at this line (GH-1130).
-STAGING_URL="${STAGING_URL:-https://staging-app.example.com}"
-
 # Bounded, like every other dependency pin in this repo (GH-916). An
 # unbounded `--with playwright` resolves to whatever is newest on each
 # run: one release refused to install a browser at all on a current
@@ -64,6 +64,9 @@ SCRIPT=""
 VALIDATE_ONLY=false
 USER_ACCOUNT=""
 PROFILE="${PLAYWRIGHT_PROFILE:-}"
+STAGING_URL_FLAG=""
+SECRETS_FILE_FLAG=""
+TAIL_LINES=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -79,6 +82,18 @@ while [[ $# -gt 0 ]]; do
             PROFILE="$2"
             shift 2
             ;;
+        --staging-url)
+            STAGING_URL_FLAG="$2"
+            shift 2
+            ;;
+        --secrets-file)
+            SECRETS_FILE_FLAG="$2"
+            shift 2
+            ;;
+        --tail)
+            TAIL_LINES="$2"
+            shift 2
+            ;;
         -*)
             echo "Unknown option: $1" >&2
             exit 1
@@ -92,7 +107,8 @@ done
 
 if [[ -z "$SCRIPT" ]]; then
     echo "Usage: run-playwright.sh <script.py> [--validate-only]" \
-         "[--user <username> | --profile <suffix>]" >&2
+         "[--user <username> | --profile <suffix>]" \
+         "[--staging-url <url>] [--secrets-file <path>] [--tail <n>]" >&2
     exit 1
 fi
 
@@ -100,6 +116,22 @@ if [[ ! -f "$SCRIPT" ]]; then
     echo "Error: script not found: $SCRIPT" >&2
     exit 1
 fi
+
+if [[ -n "$TAIL_LINES" && ! "$TAIL_LINES" =~ ^[1-9][0-9]*$ ]]; then
+    echo "Error: --tail takes a positive number of lines, got '$TAIL_LINES'." >&2
+    exit 1
+fi
+
+# ── Resolve configuration (flag > env > default) ───────────────────────────────
+SECRETS_FILE="${SECRETS_FILE_FLAG:-${PLAYWRIGHT_SECRETS_FILE:-/work/example/app-e2e/settings.secrets.env}}"
+
+# `${VAR:-default}`, like SECRETS_FILE above. An unconditional assignment
+# here silently overrode the caller's own environment, so the documented
+# `os.environ.get("STAGING_URL", "<real host>")` default in a generated
+# script could never apply — every script got the placeholder and failed
+# at its first goto with ERR_NAME_NOT_RESOLVED, an error that points at
+# DNS rather than at this line (GH-1130).
+STAGING_URL="${STAGING_URL_FLAG:-${STAGING_URL:-https://staging-app.example.com}}"
 
 # ── Load credentials ───────────────────────────────────────────────────────────
 if [[ ! -f "$SECRETS_FILE" ]]; then
@@ -202,6 +234,9 @@ if [[ -z "$CRM_PASSWORD_RESOLVED" ]]; then
 fi
 
 # ── Syntax validation ──────────────────────────────────────────────────────────
+# Named, because a run against the wrong host reads as a product failure.
+echo "Base URL: $STAGING_URL"
+echo "Secrets:  $SECRETS_FILE"
 echo "Validating $SCRIPT ..."
 if ! python3 -m py_compile "$SCRIPT" 2>&1; then
     echo "Syntax error in $SCRIPT — aborting." >&2
@@ -248,4 +283,24 @@ else
     unset DEV10X_TTS_SCRIPT
 fi
 
-VIRTUAL_ENV="" uv run --with "$PLAYWRIGHT_SPEC" python3 "$SCRIPT"
+if [[ -z "$TAIL_LINES" ]]; then
+    VIRTUAL_ENV="" uv run --with "$PLAYWRIGHT_SPEC" python3 "$SCRIPT"
+    exit $?
+fi
+
+# The run's own output is captured so the caller does not have to pipe for
+# it. The exit status is carried across the capture deliberately: a
+# truncated view of a failed probe must still fail, or --tail would turn
+# every red run green.
+RUN_LOG=$(mktemp "${TMPDIR:-/tmp}/run-playwright.XXXXXX.log")
+trap 'rm -f "$RUN_LOG"' EXIT
+
+set +e
+VIRTUAL_ENV="" uv run --with "$PLAYWRIGHT_SPEC" python3 "$SCRIPT" >"$RUN_LOG" 2>&1
+RUN_STATUS=$?
+set -e
+
+# `|| true` so a failing tail cannot become the script's exit status and
+# report a different failure than the one the probe actually had.
+tail -n "$TAIL_LINES" "$RUN_LOG" || true
+exit "$RUN_STATUS"

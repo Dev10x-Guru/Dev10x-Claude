@@ -212,6 +212,25 @@ ${CLAUDE_PLUGIN_ROOT}/skills/playwright/scripts/run-playwright.sh \
 ${CLAUDE_PLUGIN_ROOT}/skills/playwright/scripts/run-playwright.sh /tmp/Dev10x/playwright/qa-xxx.py
 ```
 
+### Against a PR preview, or any non-default host
+
+Pass the per-run knobs as flags, never as an environment prefix:
+```bash
+${CLAUDE_PLUGIN_ROOT}/skills/playwright/scripts/run-playwright.sh \
+  /tmp/Dev10x/playwright/qa-xxx.py \
+  --staging-url https://<preview-host> \
+  --secrets-file <path-to-settings.secrets.env> \
+  --tail 40
+```
+
+`STAGING_URL=… run-playwright.sh …` prompts for approval on every run
+and cannot be silenced: an allow rule matches the command *prefix*, and
+an env prefix moves the command away from the script path the rule
+covers. `| tail -40` extends it past the rule for the same reason —
+`--tail <n>` prints the last *n* lines without a pipe, and still exits
+non-zero when the run failed. `STAGING_URL` and `PLAYWRIGHT_SECRETS_FILE`
+keep working for existing callers; a flag wins over them (GH-1263).
+
 The wrapper:
 1. Reads `/work/example/app-e2e/settings.secrets.env`
 2. Validates syntax with `python -m py_compile`
