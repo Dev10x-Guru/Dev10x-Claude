@@ -84,7 +84,10 @@ class SensitivityTargetValidator(ValidatorBase):
     """Elevate commands matching the PAP sensitivity wordlist to ``ask``.
 
     Uses ``SensitivityClassifier`` to check the full command string
-    against the default wordlist. When *any* sensitivity pattern fires,
+    against the default wordlist, and the command's operand paths
+    against the path wordlist (GH-1278) — a read is an effect reachable
+    by unbounded means, so the reading verb does not gate the match.
+    When *any* sensitivity pattern fires,
     the sensitivity axis elevates the effective effect to ``ask``
     (``HookAsk``) — a prompt the user can approve in-session — rather
     than a hard ``deny`` that drops them to a manual ``!`` shell (GH-604,
@@ -161,14 +164,32 @@ class SensitivityTargetValidator(ValidatorBase):
             self._loaded_exceptions = load_sensitivity_exceptions()
         return self._loaded_exceptions
 
-    def with_patterns(self, patterns: list[SensitivityPattern]) -> SensitivityTargetValidator:
+    def with_patterns(
+        self,
+        patterns: list[SensitivityPattern],
+        operand_patterns: list[SensitivityPattern] | None = None,
+    ) -> SensitivityTargetValidator:
         """Return a new validator instance using the supplied wordlist.
 
         Useful for tests and for project-local sensitivity overrides.
         Preserves any injected exception catalog.
+
+        ``operand_patterns`` narrows the path axis separately, because
+        the two wordlists answer different questions and a caller
+        narrowing one rarely means the other. Omitting it keeps the
+        current path wordlist rather than the defaults, so a chained
+        call cannot silently restore patterns an earlier one dropped;
+        pass ``[]`` to switch the axis off.
         """
         return SensitivityTargetValidator(
-            classifier=SensitivityClassifier(patterns=patterns),
+            classifier=SensitivityClassifier(
+                patterns=patterns,
+                operand_patterns=(
+                    self.classifier.operand_patterns
+                    if operand_patterns is None
+                    else operand_patterns
+                ),
+            ),
             exceptions=self.exceptions,
         )
 

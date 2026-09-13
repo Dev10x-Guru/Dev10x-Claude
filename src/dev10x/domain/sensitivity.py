@@ -22,6 +22,8 @@ import re
 from dataclasses import dataclass, field
 from enum import StrEnum
 
+from dev10x.domain.common.bash_tokens import split_tokens
+
 
 class SensitivityLabel(StrEnum):
     """Orthogonal sensitivity labels for PAP action classification.
@@ -266,6 +268,91 @@ _DEFAULT_PATTERNS: list[SensitivityPattern] = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Operand-path sensitivity — the PATH axis (GH-1278)
+#
+# Permission rules match command *strings*, but a read is an *effect*
+# reachable by unbounded means: cat, head, rg, jq, awk, sed, a redirect,
+# a symlink, different quoting. Enumerating readers is therefore not a
+# closure — a path-scoped deny is evaded by the next reader nobody
+# listed (#1260 established this by controlled test).
+#
+# So these patterns are matched against the command's OPERANDS rather
+# than against a verb+target shape: whatever reached the path, reaching
+# it is what earns the prompt. Deliberately not a general solution —
+# filesystem permissions and not storing secrets in readable files
+# remain the real boundaries; this closes the cases that matter inside
+# an agent session.
+# ---------------------------------------------------------------------------
+
+_OPERAND_PATH_PATTERNS: list[SensitivityPattern] = [
+    _compile(SensitivityLabel.SECRET, r"(?:^|/)\.env(?:\.|$)", ".env file"),
+    _compile(
+        SensitivityLabel.CREDENTIAL, r"(?:^|/)\.aws/(?:credentials|config)$", "AWS credentials"
+    ),
+    _compile(SensitivityLabel.CREDENTIAL, r"(?:^|/)\.ssh/", "SSH key material"),
+    _compile(
+        SensitivityLabel.CREDENTIAL,
+        r"(?:^|/)id_(?:rsa|dsa|ecdsa|ed25519)(?:\.pub)?$",
+        "SSH private key",
+    ),
+    _compile(
+        SensitivityLabel.CREDENTIAL, r"\.(?:pem|p12|pfx|jks|keystore)$", "key/certificate store"
+    ),
+    _compile(
+        SensitivityLabel.CREDENTIAL,
+        r"(?:^|/)\.(?:netrc|pgpass|npmrc|pypirc|git-credentials)$",
+        "credential dotfile",
+    ),
+    _compile(
+        SensitivityLabel.CREDENTIAL, r"(?:^|/)\.docker/config\.json$", "docker registry auth"
+    ),
+    _compile(
+        SensitivityLabel.CREDENTIAL, r"(?:^|/)\.config/gh/hosts\.ya?ml$", "gh auth token store"
+    ),
+    _compile(SensitivityLabel.CREDENTIAL, r"(?:^|/)(?:\.kube/config|kubeconfig)$", "kubeconfig"),
+    _compile(
+        SensitivityLabel.SECRET,
+        r"(?:^|/)(?:service-account|serviceaccount)[^/]*\.json$",
+        "service-account key",
+    ),
+    _compile(
+        SensitivityLabel.SECRET, r"(?:^|/)[^/]*secrets?\.(?:ya?ml|json|env)$", "secrets file"
+    ),
+]
+
+# Shell operators bind without whitespace, so `cat ~/.netrc;ls` carries the
+# path in a token ending `;ls` and matches no path pattern. They are turned
+# into separators before splitting rather than stripped afterwards, since
+# stripping only reaches the ends of a token. Quotes are deliberately left
+# for `split_tokens` to resolve.
+_OPERAND_SEPARATORS = str.maketrans({character: " " for character in "`()<>|;&"})
+
+
+def operand_tokens(*, command: str) -> list[str]:
+    """Split a command into the tokens that could name a file.
+
+    Shell-splitting is delegated to ``split_tokens`` rather than
+    re-derived: a hand-rolled whitespace split shreds a quoted path that
+    contains a space into fragments that match nothing, which would
+    silently defeat the "quoting cannot hide it" guarantee this module
+    exists to make.
+
+    The remaining filtering is sensitivity-specific — drop flags, but
+    keep the value half of ``--flag=value``, since that is where a path
+    hides.
+    """
+    tokens: list[str] = []
+    for token in split_tokens(command=command.translate(_OPERAND_SEPARATORS)):
+        if token.startswith("-"):
+            if "=" not in token:
+                continue
+            token = token.split("=", 1)[1]
+        if token:
+            tokens.append(token)
+    return tokens
+
+
 @dataclass
 class SensitivityClassifier:
     """Classifies a command string against the sensitivity wordlist.
@@ -286,9 +373,15 @@ class SensitivityClassifier:
         patterns: The wordlist used for classification.  Defaults to
             ``_DEFAULT_PATTERNS``.  Pass a custom list to narrow or
             extend coverage without subclassing.
+        operand_patterns: Path shapes matched against the command's
+            operands rather than its shape (GH-1278), so the reading
+            verb is irrelevant.
     """
 
     patterns: list[SensitivityPattern] = field(default_factory=lambda: list(_DEFAULT_PATTERNS))
+    operand_patterns: list[SensitivityPattern] = field(
+        default_factory=lambda: list(_OPERAND_PATH_PATTERNS)
+    )
 
     def classify(self, *, command: str) -> list[SensitivityMatch]:
         """Return all sensitivity matches for *command*.
@@ -300,7 +393,7 @@ class SensitivityClassifier:
             List of :class:`SensitivityMatch` objects, one per matched
             pattern.  Empty list means no sensitivity concern was found.
         """
-        results: list[SensitivityMatch] = []
+        results: list[SensitivityMatch] = self._classify_operands(command=command)
         for pat in self.patterns:
             m = pat.regex.search(command)
             if m:
@@ -309,6 +402,32 @@ class SensitivityClassifier:
                         label=pat.label,
                         pattern=pat.description,
                         matched_text=m.group(0),
+                    )
+                )
+        return results
+
+    def _classify_operands(self, *, command: str) -> list[SensitivityMatch]:
+        """Match the operand-path patterns against each operand token.
+
+        ``matched_text`` carries the whole token rather than the matched
+        span, because the prompt has to show which file is at stake —
+        ``.ssh/`` names nothing the supervisor can act on.
+        """
+        results: list[SensitivityMatch] = []
+        seen: set[tuple[str, str]] = set()
+        for token in operand_tokens(command=command):
+            for pat in self.operand_patterns:
+                if not pat.regex.search(token):
+                    continue
+                key = (pat.description, token)
+                if key in seen:
+                    continue
+                seen.add(key)
+                results.append(
+                    SensitivityMatch(
+                        label=pat.label,
+                        pattern=pat.description,
+                        matched_text=token,
                     )
                 )
         return results
@@ -465,6 +584,7 @@ __all__ = [
     "SensitivityMatch",
     "SensitivityPattern",
     "name_is_sensitive",
+    "operand_tokens",
     "resolve_exception_effect",
     "tokenize_identifier",
 ]

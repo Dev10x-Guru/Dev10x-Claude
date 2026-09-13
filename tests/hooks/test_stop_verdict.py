@@ -8,8 +8,10 @@ from pathlib import Path
 
 import pytest
 
+from dev10x.hooks.audit_emit import clear_decision_attribution
 from dev10x.hooks.session_dispatch import build_stop_verdict
 from dev10x.hooks.stop_verdict import (
+    StopSignal,
     StopVerdict,
     _marker_path,
     _read_turn,
@@ -38,6 +40,20 @@ def _transcript(*, tmp_path: Path, entries: list[dict]) -> str:
     path = tmp_path / "transcript.jsonl"
     path.write_text("\n".join(json.dumps(entry) for entry in entries), encoding="utf-8")
     return str(path)
+
+
+@pytest.fixture(autouse=True)
+def _clear_attribution() -> None:
+    """Empty the audit attribution slot around every test.
+
+    ``build_stop_verdict`` now sets it on every outcome, and the slot is
+    module-level state that only ``audit_hook`` consumes and clears.
+    These tests call the feature without that wrapper, so a slot left
+    set here would be folded into whichever wrapped record ran next.
+    """
+    clear_decision_attribution()
+    yield
+    clear_decision_attribution()
 
 
 @pytest.fixture()
@@ -488,6 +504,109 @@ class TestMarker:
         """The first block of a session is the expected case, not a fault."""
         assert blocked_recently(session_id="first") is False
         assert capsys.readouterr().err == ""
+
+
+class TestSignalIsReported:
+    """GH-1257: which branch let the turn end has to be observable.
+
+    Retiring the cooldown marker is safe only with positive evidence
+    that ``stop_hook_active`` arrives set on a continuation — and the
+    audit log carried nothing but wrap-phase timing, so the question
+    could not be answered from the field at all.
+    """
+
+    def test_stop_hook_active_is_named(self, tmp_path: Path, isolated_marker: Path) -> None:
+        transcript = _transcript(
+            tmp_path=tmp_path,
+            entries=[
+                {"type": "user", "message": {"role": "user", "content": "go"}},
+                _assistant(blocks=[_text(text="Done.")]),
+            ],
+        )
+
+        verdict = decide(
+            data={
+                "session_id": "sig1",
+                "transcript_path": transcript,
+                "stop_hook_active": True,
+            },
+            plan=None,
+        )
+
+        assert verdict.signal == StopSignal.STOP_HOOK_ACTIVE
+
+    def test_the_cooldown_branch_is_distinguishable_from_it(
+        self,
+        tmp_path: Path,
+        isolated_marker: Path,
+    ) -> None:
+        # The whole point: the two guards must not report the same
+        # thing, or the evidence cannot separate them.
+        transcript = _transcript(
+            tmp_path=tmp_path,
+            entries=[
+                {"type": "user", "message": {"role": "user", "content": "go"}},
+                _assistant(blocks=[_text(text="Done.")]),
+            ],
+        )
+        data = {"session_id": "sig2", "transcript_path": transcript}
+
+        blocked = decide(data=data, plan=None)
+        record_block(session_id="sig2")
+        suppressed = decide(data=data, plan=None)
+
+        assert blocked.signal == StopSignal.BLOCKED
+        assert suppressed.signal == StopSignal.COOLDOWN
+
+    def test_an_asking_turn_is_named(self, tmp_path: Path, isolated_marker: Path) -> None:
+        transcript = _transcript(
+            tmp_path=tmp_path,
+            entries=[
+                {"type": "user", "message": {"role": "user", "content": "go"}},
+                _assistant(blocks=[_ask()]),
+            ],
+        )
+
+        verdict = decide(data={"session_id": "sig3", "transcript_path": transcript}, plan=None)
+
+        assert verdict.signal == StopSignal.ASKED
+
+    def test_an_unreadable_transcript_is_named(self, isolated_marker: Path) -> None:
+        verdict = decide(data={"session_id": "sig4", "transcript_path": ""}, plan=None)
+
+        assert verdict.signal == StopSignal.NO_TRANSCRIPT
+
+    def test_the_wiring_attributes_the_signal_to_the_audit_record(
+        self,
+        tmp_path: Path,
+        isolated_marker: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # Without this the signal exists but never reaches the log, which
+        # is the state GH-1257 is stuck in.
+        monkeypatch.setattr("dev10x.hooks.session_dispatch._get_toplevel", lambda: None)
+        recorded: dict[str, str] = {}
+        monkeypatch.setattr(
+            "dev10x.hooks.session_dispatch.set_decision_attribution",
+            lambda *, rule_id, reason: recorded.update(rule_id=rule_id, reason=reason),
+        )
+        transcript = _transcript(
+            tmp_path=tmp_path,
+            entries=[
+                {"type": "user", "message": {"role": "user", "content": "go"}},
+                _assistant(blocks=[_text(text="Done.")]),
+            ],
+        )
+
+        build_stop_verdict(
+            data={
+                "session_id": "sig5",
+                "transcript_path": transcript,
+                "stop_hook_active": True,
+            }
+        )
+
+        assert recorded == {"rule_id": "stop-verdict", "reason": StopSignal.STOP_HOOK_ACTIVE}
 
 
 class TestWiringRecordsTheBlock:
