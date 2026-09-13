@@ -725,7 +725,7 @@ class TestPostSummaryCommentMcp:
         assert "error" in result
 
 
-@pytest.mark.usefixtures("stub_feature_branch")
+@pytest.mark.usefixtures("stub_feature_branch", "stub_fixes_trailer_readback")
 class TestCreatePrMcp:
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run_script", new_callable=AsyncMock)

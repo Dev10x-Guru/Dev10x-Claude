@@ -1,12 +1,13 @@
 import subprocess
 from collections.abc import Generator
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from factory.random import reseed_random
 
 from dev10x.domain.claude_paths import ClaudeDir
+from dev10x.domain.common.result import ok
 from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -131,6 +132,23 @@ def stub_feature_branch() -> Generator[MagicMock, None, None]:
     with patch("dev10x.domain.git_context.GitContext") as mock_git_context:
         mock_git_context.return_value.branch = "janusz/GH-1124/test-isolation"
         yield mock_git_context
+
+
+@pytest.fixture
+def stub_fixes_trailer_readback() -> Generator[AsyncMock, None, None]:
+    """Pin ``create_pr``'s post-create read-back to a compliant body (GH-1274).
+
+    ``create_pr`` re-reads the PR it just opened and refuses a body with
+    no ``Fixes:`` trailer. Tests exercising ``create_pr``'s *other*
+    behaviour mock ``async_run_script`` once for the whole call, so the
+    read-back would parse the create script's own stdout and every such
+    test would fail on a trailer that was never the subject. Same
+    contract as ``stub_feature_branch``: the guard keeps its own
+    coverage in ``TestCreatePrFixesTrailerReadback``.
+    """
+    with patch("dev10x.github.pr_get", new_callable=AsyncMock) as mock_pr_get:
+        mock_pr_get.return_value = ok({"body": "Story\n\nFixes: #1"})
+        yield mock_pr_get
 
 
 @pytest.fixture(autouse=True)

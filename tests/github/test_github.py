@@ -2297,7 +2297,7 @@ class TestPostSummaryComment:
         assert "rate limit" in result.error
 
 
-@pytest.mark.usefixtures("stub_feature_branch")
+@pytest.mark.usefixtures("stub_feature_branch", "stub_fixes_trailer_readback")
 class TestCreatePr:
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
@@ -2409,7 +2409,8 @@ class TestCreatePr:
         result = await gh.create_pr(title="t", job_story=_JOB_STORY, issue_id="GH-1")
 
         assert isinstance(result, SuccessResult)
-        assert result.value == {"pr_number": 99, "url": "PR #99"}
+        assert result.value["pr_number"] == 99
+        assert result.value["url"] == "PR #99"
 
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
@@ -2455,7 +2456,7 @@ _LONG_BODY = (
 )
 
 
-@pytest.mark.usefixtures("stub_feature_branch")
+@pytest.mark.usefixtures("stub_feature_branch", "stub_fixes_trailer_readback")
 class TestCreatePrBodyOverride:
     """GH-1073 — a caller-supplied body reaches GitHub intact."""
 
@@ -2572,6 +2573,7 @@ class TestCreatePrBodyOverride:
         assert isinstance(result, SuccessResult)
 
 
+@pytest.mark.usefixtures("stub_fixes_trailer_readback")
 class TestCreatePrHead:
     """GH-1073 — naming the head branch instead of deriving it from CWD."""
 
@@ -2610,7 +2612,7 @@ class TestCreatePrHead:
         mock_run.assert_not_called()
 
 
-@pytest.mark.usefixtures("stub_feature_branch")
+@pytest.mark.usefixtures("stub_feature_branch", "stub_fixes_trailer_readback")
 class TestCreatePrMilestone:
     """GH-1098 — the created PR carries a milestone."""
 
@@ -3563,6 +3565,7 @@ class TestMalformedJsonGuards:
         assert "Invalid JSON" in result.error
 
 
+@pytest.mark.usefixtures("stub_fixes_trailer_readback")
 class TestCreatePrBaseBranchGuard:
     """GH-873 F1: refuse to open a PR when HEAD is on a base branch — the
     tell-tale of a wrong/unbound working directory (e.g. a swarm child that

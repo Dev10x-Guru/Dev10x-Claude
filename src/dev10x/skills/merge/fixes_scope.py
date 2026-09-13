@@ -23,6 +23,7 @@ import json
 import re
 import subprocess
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -109,6 +110,68 @@ class ScopeReconciliation:
             f"{len(self.unbacked)} of {len(self.linked)} linked issue(s) have no"
             f" commit mentioning them: {names}"
         )
+
+
+@dataclass(frozen=True)
+class LinkClosure:
+    """What each of a merged PR's links actually did (GH-1274)."""
+
+    linked: tuple[int, ...] = ()
+    closed: tuple[int, ...] = ()
+    still_open: tuple[int, ...] = ()
+    unknown: tuple[int, ...] = ()
+
+    @property
+    def ok(self) -> bool:
+        return not self.still_open and not self.unknown
+
+    def summary(self) -> str:
+        if not self.linked:
+            return "no Fixes:/Closes: links to reconcile"
+        if self.ok:
+            return f"all {len(self.linked)} linked issue(s) closed on merge"
+        parts = []
+        if self.still_open:
+            names = ", ".join(f"GH-{number}" for number in self.still_open)
+            parts.append(f"{len(self.still_open)} still open: {names}")
+        if self.unknown:
+            names = ", ".join(f"GH-{number}" for number in self.unknown)
+            parts.append(f"{len(self.unknown)} unread: {names}")
+        return f"of {len(self.linked)} linked issue(s), " + "; ".join(parts)
+
+
+def reconcile_link_closure(
+    *,
+    body: str,
+    issue_states: Mapping[int, str],
+) -> LinkClosure:
+    """Diff a merged PR's closing links against the issues' real states.
+
+    The symmetric question to ``reconcile_fixes_links``, which asks
+    before a merge whether every link has a commit behind it (GH-1274).
+
+    An issue missing from ``issue_states`` is reported as ``unknown``,
+    never folded into ``closed`` — a state nobody read is not evidence
+    of a closure.
+    """
+    linked = fixes_links(body)
+    closed: list[int] = []
+    still_open: list[int] = []
+    unknown: list[int] = []
+    for number in linked:
+        state = issue_states.get(number)
+        if state is None:
+            unknown.append(number)
+        elif state.strip().upper() == "CLOSED":
+            closed.append(number)
+        else:
+            still_open.append(number)
+    return LinkClosure(
+        linked=linked,
+        closed=tuple(closed),
+        still_open=tuple(still_open),
+        unknown=tuple(unknown),
+    )
 
 
 def fixes_links(body: str) -> tuple[int, ...]:

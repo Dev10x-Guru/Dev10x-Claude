@@ -29,7 +29,12 @@ from typing import Any
 
 from dev10x.domain.common.repository_ref import RepositoryRef
 from dev10x.domain.common.result import ErrorResult, Result, SuccessResult, err, ok
-from dev10x.domain.pr_body import fixes_references, job_story_error, normalize_pr_body
+from dev10x.domain.pr_body import (
+    fixes_references,
+    has_fixes_trailer,
+    job_story_error,
+    normalize_pr_body,
+)
 from dev10x.github.app_auth import AppConfig, get_bot_token
 from dev10x.subprocess_utils import (
     async_run,
@@ -1254,14 +1259,22 @@ async def create_pr(
     url = next((line for line in lines if line.startswith("http")), f"PR #{pr_number}")
     payload: dict[str, Any] = {"pr_number": int(pr_number), "url": url}
 
+    # Carries the resolved repo forward to the read-back below, so the
+    # two calls cannot disagree about which repository this PR is in.
+    # Stays None on the no-milestone path rather than forcing an extra
+    # resolution round-trip — pr_get auto-detects from the same bound
+    # CWD that create-pr.sh just used.
+    resolved_repo = repo
+
     if milestone is not None:
         repo_result = await _resolve_repo(repo)
         if isinstance(repo_result, ErrorResult):
             return err(repo_result.error)
+        resolved_repo = str(repo_result.value)
         milestone_result = await _set_pr_milestone(
             pr_number=payload["pr_number"],
             milestone=milestone,
-            repo_ref=str(repo_result.value),
+            repo_ref=resolved_repo,
         )
         if isinstance(milestone_result, ErrorResult):
             # The PR is already open at this point, so an error naming
@@ -1274,6 +1287,30 @@ async def create_pr(
             )
         payload["milestone"] = milestone_result.value
 
+    # Read the trailer back off GitHub (GH-1274). Deriving one is not
+    # proof it arrived — a write is a request, not a receipt (GH-1099) —
+    # so only a fresh read settles it.
+    verified = await pr_get(number=payload["pr_number"], repo=resolved_repo)
+    if isinstance(verified, ErrorResult):
+        # The PR exists and may well be fine; an unreadable verification
+        # is not evidence of a bad body, so flag it rather than fail it.
+        payload["fixes_trailer_verified"] = False
+        payload["warning"] = (
+            f"PR #{payload['pr_number']} was created but its body could not be "
+            f"read back to confirm the Fixes: trailer: {verified.error}"
+        )
+        return ok(payload)
+
+    if not has_fixes_trailer(body=str(verified.value.get("body", ""))):
+        # Named like the milestone failure above: the PR is already open,
+        # so an error that does not identify it strands it.
+        return err(
+            f"PR #{payload['pr_number']} ({payload['url']}) was created, but its "
+            "body carries no Fixes: trailer — the hygiene bot will reject it and "
+            "no linked issue will close on merge. Add the trailer with update_pr."
+        )
+
+    payload["fixes_trailer_verified"] = True
     return ok(payload)
 
 

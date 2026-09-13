@@ -233,8 +233,29 @@ Behavioral caveats:
   reference and every `closes=` member is added alongside it, because
   `Closes #N` never fires on a merge to `develop` (GH-958). An explicit
   `fixes_url` still leads, and prose such as `none — self-motivated`
-  passes through untouched. Verify the body after the call regardless —
-  a write is a request, not a receipt.
+  passes through untouched.
+
+- `create_pr` now reads the created body back and refuses a PR whose
+  body carries no `Fixes:` trailer (GH-1274). Deriving a reference was
+  never proof one arrived, and a write is a request, not a receipt — so
+  the check is a fresh `pr_get`, not a local assertion. The refusal
+  names the PR number and URL, because the PR is already open at that
+  point and an error that does not identify it strands it; repair the
+  body with `update_pr` rather than opening a second PR. A successful
+  call carries `fixes_trailer_verified: true`. When the read-back
+  itself fails the call still succeeds, with
+  `fixes_trailer_verified: false` and a `warning` — an unreadable
+  verification is not evidence of a bad body.
+
+- **The trailer closes issues unreliably on a merge to `develop`**
+  (GH-1274). One merge closed two of three identical trailers, a later
+  session recorded 0 of 7 across two merges, and a third closed two of
+  three; both the full-URL and bare-`#N` spellings failed in the 0-of-7
+  run, so the form is not the variable. Never treat a merged bundle as
+  self-closing: `Dev10x:gh-pr-monitor` Phase 3.6 reconciles each link
+  against the issue's real state after the merge
+  (`fixes_scope.reconcile_link_closure`), and a straggler is reported
+  for the supervisor to confirm — not closed silently.
 
 - `merge_pr(use_bot=…)` executes the merge under the GitHub App
   identity so `merged_by` distinguishes a gated merge from a human one
