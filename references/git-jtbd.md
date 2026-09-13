@@ -102,11 +102,27 @@ Funkcja: Rezerwacja opon
     Wtedy rezerwacja zostaje potwierdzona
 ```
 
-The structured JTBD markers (`**When**`, `**[actor] wants to**`,
-`**so [beneficiary] can**`) stay in their canonical English form so the
-release-notes extractor keeps recognizing the Job Story; the free-text
-situation, motivation, and outcome — and any BDD scenario body — are
-written in the project language.
+The structured JTBD markers may be written in the project's language
+too (GH-1291). Until then they had to stay English so the release-notes
+extractor could still find the Job Story — a real constraint, since the
+extractor located stories by matching `**When**`. Both the extractor and
+the `create_pr` validator now accept a per-language marker set, so the
+constraint is gone and the instruction it justified with it.
+
+| Language | Markers |
+|----------|---------|
+| English  | `**When**` … `**[actor] wants to**` … `**so [beneficiary] can**` |
+| Polish   | `**Gdy**` … `**[rola] chce**` … `**żeby [beneficjent] mógł**` |
+
+**Use one language throughout.** English markers wrapped around prose in
+another language satisfied the old validator and reads worse than either
+language alone — it is the workaround the English-only rule forced, not
+a target. A mixed story is rejected.
+
+Adding a language means adding its marker set in **both**
+`dev10x.domain.pr_body` (validation) and `dev10x.skills.common.jtbd`
+(extraction). Adding it to only one silently drops those Job Stories
+from release notes instead of refusing them.
 
 ## Key Principles
 

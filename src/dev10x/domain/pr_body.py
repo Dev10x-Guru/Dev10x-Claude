@@ -6,6 +6,7 @@ bold markers, and `Fixes:` must be the literal last line.
 """
 
 import re
+from dataclasses import dataclass
 
 WHEN_MARKER = "**When**"
 WANTS_MARKER = "**<actor> wants**"
@@ -15,27 +16,83 @@ JOB_STORY_FORMAT = (
     "**When** <situation>, **<actor> wants to** <motivation>, **so <beneficiary> can** <outcome>"
 )
 
-_WHEN_PATTERN = re.compile(r"\*\*When\*\*")
+
+@dataclass(frozen=True)
+class JobStoryDialect:
+    """One language's spelling of the three structural JTBD markers.
+
+    The skill instructions tell writers to use the project's language
+    (`gh-pr-create` Step 3d) and to search for translated markers when
+    reading (Step 3b), but the validator matched English literals — so a
+    Polish story written exactly as its own project prescribed was
+    refused at the only point that could still accept it (GH-1291). The
+    workaround it forced, English markers around Polish prose, reads
+    worse than either language alone.
+    """
+
+    language: str
+    markers: tuple[str, str, str]
+    patterns: tuple[re.Pattern[str], re.Pattern[str], re.Pattern[str]]
+
+    @property
+    def format_hint(self) -> str:
+        situation, motivation, outcome = self.markers
+        return f"{situation} …, {motivation} …, {outcome} …"
+
+
 # GH-1258: an outcome frame ("**the dealer wants** the reason to be
 # obvious") carries the actor but not the `to` verb, so demanding a
 # literal `wants to**` forced writers off the guidance jtbd recommends.
 # The leading `[^*\s]` keeps the actor clause mandatory — `**wants**`
-# still fails.
-_WANTS_PATTERN = re.compile(r"\*\*[^*\s][^*]*\bwants?\b[^*]*\*\*")
-_SO_CAN_PATTERN = re.compile(r"\*\*so\b[^*]*\bcan\b[^*]*\*\*")
+# still fails. The Polish patterns keep the same shape: the actor clause
+# is mandatory, the verb may inflect.
+_ENGLISH = JobStoryDialect(
+    language="en",
+    markers=(WHEN_MARKER, WANTS_MARKER, SO_CAN_MARKER),
+    patterns=(
+        re.compile(r"\*\*When\*\*"),
+        re.compile(r"\*\*[^*\s][^*]*\bwants?\b[^*]*\*\*"),
+        re.compile(r"\*\*so\b[^*]*\bcan\b[^*]*\*\*"),
+    ),
+)
+
+_POLISH = JobStoryDialect(
+    language="pl",
+    markers=("**Gdy**", "**<rola> chce**", "**żeby <beneficjent> mógł**"),
+    patterns=(
+        re.compile(r"\*\*Gdy\*\*"),
+        re.compile(r"\*\*[^*\s][^*]*\bchc[ei]\b[^*]*\*\*"),
+        re.compile(r"\*\*żeby\b[^*]*\bm(?:óg[łl]|ogł[aoy]|ogli)\b[^*]*\*\*"),
+    ),
+)
+
+DIALECTS: tuple[JobStoryDialect, ...] = (_ENGLISH, _POLISH)
 
 _SEPARATOR_PATTERN = re.compile(r"^\s*(-{3,}|\*{3,}|_{3,})\s*$")
 _FIXES_PATTERN = re.compile(r"^Fixes:", re.IGNORECASE)
 
 
+def _missing_for(dialect: JobStoryDialect, *, job_story: str) -> list[str]:
+    return [
+        marker
+        for marker, pattern in zip(dialect.markers, dialect.patterns, strict=True)
+        if not pattern.search(job_story)
+    ]
+
+
 def missing_job_story_markers(*, job_story: str) -> list[str]:
-    """Return the JTBD markers absent from ``job_story``, in order."""
-    checks = (
-        (WHEN_MARKER, _WHEN_PATTERN),
-        (WANTS_MARKER, _WANTS_PATTERN),
-        (SO_CAN_MARKER, _SO_CAN_PATTERN),
-    )
-    return [marker for marker, pattern in checks if not pattern.search(job_story)]
+    """Return the JTBD markers absent from ``job_story``, in order.
+
+    A story satisfies the contract when ANY one dialect is complete —
+    mixing halves of two languages is what the old validator pushed
+    writers into, and it is not a pass. The reported gap comes from the
+    dialect the story came closest to, so the error names the language
+    the author was actually writing.
+    """
+    per_dialect = [_missing_for(dialect, job_story=job_story) for dialect in DIALECTS]
+    if any(not missing for missing in per_dialect):
+        return []
+    return min(per_dialect, key=len)
 
 
 def job_story_error(*, job_story: str) -> str | None:
@@ -43,11 +100,13 @@ def job_story_error(*, job_story: str) -> str | None:
     missing = missing_job_story_markers(job_story=job_story)
     if not missing:
         return None
+    accepted = "; ".join(f"{d.language}: {d.format_hint}" for d in DIALECTS)
     return (
         "Job Story is missing required JTBD marker(s): "
         + ", ".join(missing)
-        + f". Expected format: {JOB_STORY_FORMAT}. Third-person concrete "
-        "domain actor — see references/git-jtbd.md."
+        + f". Accepted marker sets — {accepted}. Use one language "
+        "throughout. Third-person concrete domain actor — see "
+        "references/git-jtbd.md."
     )
 
 

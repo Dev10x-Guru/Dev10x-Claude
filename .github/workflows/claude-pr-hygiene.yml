@@ -100,7 +100,12 @@ jobs:
 
             2. **PR Description (body)**
                - Must start with a JTBD Job Story as the **first paragraph** (1-3 lines)
-                 Format: `**When** [situation], **I want to** [motivation], **so I can** [outcome]`
+                 Format: `**When** [situation], **[actor] wants to** [motivation], **so [beneficiary] can** [outcome]`
+                 A Job Story written in the project's language is equally valid, using
+                 that language's markers — Polish is
+                 `**Gdy** …, **[rola] chce** …, **żeby [beneficjent] mógł** …`.
+                 Accept ONE language throughout; a story mixing English markers with
+                 another language's prose is a finding, not a pass (GH-1291).
                  The release notes process collects Job Stories by position — it must
                  come before the commit list and any other content
                - May optionally include a compact commit list with links
