@@ -233,7 +233,9 @@ rules:
         guardrails: structured responses, no Bash permission friction
         description: >
           If the MCP server is unavailable, use gh pr view directly
-          and parse the JSON output manually with --json flag.
+          and parse the JSON output manually with --json flag,
+          including the string `cli-friction: allow raw-gh-pr` in the
+          command so this rule lets it through.
     reason: >
       Direct gh pr view requires Bash permission approval on every
       call. The MCP tool provides structured JSON (number, title,
@@ -247,7 +249,13 @@ rules:
     matcher: Bash
     patterns:
       - gh issue close
-    except: []
+    except:
+      # GH-1266: the fallback below names `gh issue close`, which this
+      # rule denies. A caller that has read the fallback and accepted it
+      # carries this marker to reach the raw command; without it the
+      # block still routes to issue_close. Distinct from the read marker
+      # so an escape granted for reading never authorizes a mutation.
+      - "cli-friction: allow raw-gh-issue-write"
     hook_block: true
     compensations:
       - type: use-tool
@@ -255,7 +263,9 @@ rules:
         guardrails: structured responses, no Bash permission friction
         description: >
           If the MCP server is unavailable, use gh issue close N
-          --reason <completed|not_planned> directly.
+          --reason <completed|not_planned> directly, including the
+          string `cli-friction: allow raw-gh-issue-write` in the
+          command so this rule lets it through.
     reason: >
       Direct gh issue close changes issue state and requires per-call
       Bash permission. The MCP tool accepts reason and optional
@@ -265,7 +275,9 @@ rules:
     matcher: Bash
     patterns:
       - gh issue reopen
-    except: []
+    except:
+      # GH-1266 — see gh-issue-close.
+      - "cli-friction: allow raw-gh-issue-write"
     hook_block: true
     compensations:
       - type: use-tool
@@ -273,7 +285,9 @@ rules:
         guardrails: structured responses, no Bash permission friction
         description: >
           If the MCP server is unavailable, use gh issue reopen N
-          directly.
+          directly, including the string
+          `cli-friction: allow raw-gh-issue-write` in the command so
+          this rule lets it through.
     reason: >
       Direct gh issue reopen changes issue state and requires per-call
       Bash permission. The MCP tool returns structured responses and
@@ -283,7 +297,15 @@ rules:
     matcher: Bash
     patterns:
       - gh issue view
-    except: []
+    except:
+      # GH-1266: a read escape, symmetric with gh-pr-view's `raw-gh-pr`.
+      # Deliberately NOT `hook_block: false`, though the issue floats it:
+      # this rule is the carrier for the GH-957 MCP-disconnect guidance
+      # (`gh issue view 42` is that path's fixture), so going advisory
+      # would drop the reconnect hint exactly when the MCP server is the
+      # thing that is down. An escape keeps the read reachable while the
+      # steer and the hint survive.
+      - "cli-friction: allow raw-gh-issue"
     hook_block: true
     compensations:
       - type: use-tool
@@ -291,11 +313,14 @@ rules:
         guardrails: structured responses, no Bash permission friction
         description: >
           If the MCP server is unavailable, use gh issue view directly
-          and parse the JSON output manually with --json flag.
+          and parse the JSON output manually with --json flag, including
+          the string `cli-friction: allow raw-gh-issue` in the command so
+          this rule lets it through.
     reason: >
       Direct gh issue view requires Bash permission approval on
       every call. The MCP tool provides structured JSON responses
-      and avoids permission friction.
+      and avoids permission friction. The GH-1266 escape keeps the
+      documented fallback reachable during an MCP outage.
 
   - name: gh-issue-create
     matcher: Bash
@@ -310,7 +335,9 @@ rules:
         guardrails: structured responses, no Bash permission friction
         description: >
           If the MCP server is unavailable, use gh issue create directly
-          with --title and --body flags.
+          with --title and --body-file. GH-1266: --body-file is the form
+          this rule's `except` lets through — a --body fallback would be
+          denied by the same rule that suggested it.
     reason: >
       Direct gh issue create requires Bash permission approval on
       every call. The MCP tool provides structured JSON responses
@@ -320,7 +347,11 @@ rules:
     matcher: Bash
     patterns:
       - gh pr edit
-    except: []
+    except:
+      # GH-1266 — see gh-issue-close. Separate from `raw-gh-pr`, which
+      # gh-pr-view uses for reads, so a DoD check cleared to read a PR
+      # cannot also edit one.
+      - "cli-friction: allow raw-gh-pr-write"
     hook_block: true
     compensations:
       - type: use-tool
@@ -329,7 +360,9 @@ rules:
         description: >
           If the MCP server is unavailable, use gh pr edit directly
           with the required flags (--title, --body-file, --add-label,
-          --milestone, --base).
+          --milestone, --base), including the string
+          `cli-friction: allow raw-gh-pr-write` in the command so this
+          rule lets it through.
     reason: >
       Direct gh pr edit mutates PR metadata (title, body, labels,
       base) and bypasses the gh-pr-create "update mode" guardrails.
@@ -340,7 +373,9 @@ rules:
     matcher: Bash
     patterns:
       - gh pr ready
-    except: []
+    except:
+      # GH-1266 — see gh-pr-edit.
+      - "cli-friction: allow raw-gh-pr-write"
     hook_block: true
     compensations:
       - type: use-tool
@@ -351,7 +386,9 @@ rules:
           `undo=true` to convert a published PR back to draft (GH-931
           finding 2) — the safe response to spotting a problem after
           marking ready. If the MCP server is unavailable, run
-          gh pr ready <pr> --repo <owner/repo> [--undo] directly.
+          gh pr ready <pr> --repo <owner/repo> [--undo] directly,
+          including the string `cli-friction: allow raw-gh-pr-write`
+          in the command so this rule lets it through.
     reason: >
       The draft flag is not PATCHable via update_pr, so un-drafting
       needs gh pr ready. The pr_ready MCP tool (GH-779) wraps it with
@@ -362,7 +399,9 @@ rules:
     matcher: Bash
     patterns:
       - gh issue edit
-    except: []
+    except:
+      # GH-1266 — see gh-issue-close.
+      - "cli-friction: allow raw-gh-issue-write"
     hook_block: true
     compensations:
       - type: use-tool
@@ -370,7 +409,9 @@ rules:
         guardrails: structured responses, no Bash permission friction
         description: >
           If the MCP server is unavailable, use gh issue edit directly
-          with --title, --body-file, --milestone, --add-label.
+          with --title, --body-file, --milestone, --add-label, including
+          the string `cli-friction: allow raw-gh-issue-write` in the
+          command so this rule lets it through.
     reason: >
       Direct gh issue edit mutates issue metadata (title, body,
       milestone, labels) and requires per-call Bash permission. The
@@ -541,8 +582,12 @@ rules:
               `-C`: a `-C` whose path already equals CWD is denied as
               redundant, so the "always pin" habit backfires here.
             • pwd != the path → `git -C <worktree-path> <verb> ...`. One
-              argument instead of two, and it is what allow rules are
-              written against (e.g. `Bash(git -C <worktrees-root>/*)`).
+              argument instead of two, and the catalog seeds it per verb
+              (e.g. `Bash(git -C * log:*)`) for the nine read-only verbs.
+              GH-1268: this claim used to be aspirational — no `git -C`
+              rule was catalogued at all, so the steer pointed at a shape
+              that prompted. Mutating verbs are deliberately absent; route
+              those to Dev10x:git / Dev10x:git-groom.
 
           Never `cd <path>; <cmd>` as a recovery — chaining is blocked, and
           for an unattended agent that prompt is another silent wedge.
