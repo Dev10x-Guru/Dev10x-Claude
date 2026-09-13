@@ -51,6 +51,37 @@ def job_story_error(*, job_story: str) -> str | None:
     )
 
 
+def _issue_reference(issue_id: str) -> str:
+    bare = issue_id.strip().lstrip("#")
+    return f"#{bare}" if bare.isdigit() else bare
+
+
+def fixes_references(
+    *,
+    issue_id: str,
+    fixes_url: str | None,
+    closes: list[int] | None,
+) -> str:
+    """Assemble the ``Fixes:`` references for a new PR (GH-1256).
+
+    ``create-pr.sh`` derived its trailer from ``fixes_url`` alone, so
+    linking an issue the documented way — ``issue_id`` — produced a body
+    with no trailer, which the hygiene bot rejects. ``closes`` members
+    are folded in for a second reason: ``Closes #N`` never fires on a
+    merge to ``develop`` (GH-958), so only a ``Fixes:`` line closes them.
+
+    An explicit ``fixes_url`` leads, and prose such as
+    ``none — self-motivated`` passes through untouched so the script's
+    non-splittable branch keeps handling it.
+    """
+    if fixes_url and not fixes_url.lstrip().startswith(("http", "#")):
+        return fixes_url
+
+    references = [fixes_url] if fixes_url else [_issue_reference(issue_id)]
+    references.extend(f"#{number}" for number in closes or [])
+    return " ".join(dict.fromkeys(reference for reference in references if reference))
+
+
 def has_fixes_trailer(*, body: str) -> bool:
     return _last_fixes_index(lines=body.rstrip().split("\n")) is not None
 

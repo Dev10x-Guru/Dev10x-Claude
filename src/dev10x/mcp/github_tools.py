@@ -97,11 +97,15 @@ async def pr_get(number: int, repo: str | None = None, cwd: str | None = None) -
         Dictionary with keys: number, title, body, state, baseRefName,
         headRefName, merged, mergedAt, closedAt, labels, milestone,
         assignees, author, url, isDraft, mergeable, reviewDecision,
-        reviewRequests, autoMergeRequest, reviews, headRefOid.
+        reviewRequests, autoMergeRequest, reviews, headRefOid, files.
 
         ``reviews`` + ``headRefOid`` (GH-917) carry each review's state,
         author and ``commit.oid``, so a caller can tell a human approval on
         the current HEAD from a stale or bot one.
+
+        ``files`` (GH-1265) is the complete changed-file list. Prefer it
+        over a raw ``gh api repos/.../pulls/N/files``, whose 30-item
+        default page silently truncates a large PR.
     """
     return await gh.pr_get(number=number, repo=repo)
 
