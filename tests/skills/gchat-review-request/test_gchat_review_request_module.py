@@ -34,6 +34,8 @@ class TestResolveProjectConfig:
             "space": "tt-reviews",
             "mentions": ["@team"],
             "card": True,
+            "preview": False,
+            "preview_environment": None,
         }
 
     def test_card_mode_is_on_when_config_is_silent(self) -> None:
