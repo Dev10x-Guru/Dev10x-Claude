@@ -86,6 +86,23 @@ class TestSensitiveFiles:
             "/work/project/.secret",
             "/work/project/config/.env.production",
             "/work/project/deploy/secrets.env.local",
+            # GH-1287: the credential STORES stay blocked. Narrowing the
+            # rule to fix the source-file false positive must not admit
+            # any of these — a first attempt matched exact basenames and
+            # silently dropped every decorated name below, which is most
+            # of the real ones.
+            "/home/dev/.aws/credentials",
+            "/work/project/credentials",
+            "/work/project/credentials.ini",
+            "/work/project/credentials.yaml",
+            "/home/dev/.git-credentials",
+            "/home/dev/.config/gcloud/application_default_credentials.json",
+            "/work/project/deploy/service-account-credentials.json",
+            "/work/project/prod_credentials.yaml",
+            "/home/dev/aws.credentials",
+            "/etc/app/credentials.d/token",
+            "/home/dev/.config/app/credentials/prod.json",
+            "/work/project/CREDENTIALS.JSON",
         ],
     )
     def test_blocks_sensitive_file_paths(self, file_path: str) -> None:
@@ -107,6 +124,15 @@ class TestSensitiveFiles:
             "/work/project/config/settings.py",
             "/tmp/Dev10x/gh-issues/001-setup.json",
             "/tmp/Dev10x/gh-issues/001-setup.env.json",
+            # GH-1287: source and docs that merely NAME credentials. The
+            # old substring rule matched the whole path, so each of these
+            # was hard-blocked with "ask the user to edit it manually" —
+            # unanswerable in an unattended run.
+            "/work/project/src/pkg/credentials.py",
+            "/work/project/tests/test_credentials.py",
+            "/work/project/src/pkg/credentials_store.ts",
+            "/work/project/docs/credentials-setup.md",
+            "/work/project/src/credentials/loader.py",
         ],
     )
     def test_allows_non_sensitive_files(self, file_path: str) -> None:
