@@ -36,6 +36,15 @@ log = logging.getLogger(__name__)
 _effective_cwd: ContextVar[str | None] = ContextVar("_effective_cwd", default=None)
 
 
+class RelativeCwdError(ValueError):
+    """A caller passed a relative ``cwd`` to an MCP tool (GH-1264).
+
+    Named rather than a bare ``ValueError`` so a contract violation is
+    distinguishable from a server fault. Why this raises instead of
+    returning an ``ErrorResult``: `.claude/rules/cwd-discipline.md`.
+    """
+
+
 @contextlib.contextmanager
 def use_cwd(cwd: str | None):
     """Bind subprocess_utils calls to `cwd` for the duration of the block.
@@ -43,10 +52,20 @@ def use_cwd(cwd: str | None):
     Pass None (or omit) to leave the current binding untouched. MCP tool
     entry points wrap their handler invocation with this context manager
     when the caller passes `cwd=`.
+
+    A RELATIVE ``cwd`` is rejected (GH-1264): the long-lived server
+    resolves it against its own directory, not the caller's checkout,
+    and the intended one is not recoverable from here.
     """
     if cwd is None:
         yield
         return
+    if not os.path.isabs(cwd):
+        raise RelativeCwdError(
+            f"cwd must be an absolute path, got {cwd!r}. The MCP server resolves a "
+            "relative path against its own working directory, which is not the "
+            "caller's checkout — pass the absolute path to the target worktree."
+        )
     token = _effective_cwd.set(cwd)
     try:
         yield
