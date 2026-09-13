@@ -11,37 +11,53 @@ set -euo pipefail
 ALIASES=(
     "nopager:git --no-pager"
     "nocolor:git -c color.ui=never"
-    "develop-log:git log --oneline \$(git merge-base develop HEAD)..HEAD"
-    "develop-diff:git diff \$(git merge-base develop HEAD)..HEAD"
-    "develop-rebase:git rebase -i --autosquash \$(git merge-base develop HEAD)"
-    "development-log:git log --oneline \$(git merge-base development HEAD)..HEAD"
-    "development-diff:git diff \$(git merge-base development HEAD)..HEAD"
-    "development-rebase:git rebase -i --autosquash \$(git merge-base development HEAD)"
-    "trunk-log:git log --oneline \$(git merge-base trunk HEAD)..HEAD"
-    "trunk-diff:git diff \$(git merge-base trunk HEAD)..HEAD"
-    "trunk-rebase:git rebase -i --autosquash \$(git merge-base trunk HEAD)"
-    "main-log:git log --oneline \$(git merge-base main HEAD)..HEAD"
-    "main-diff:git diff \$(git merge-base main HEAD)..HEAD"
-    "main-rebase:git rebase -i --autosquash \$(git merge-base main HEAD)"
-    "master-log:git log --oneline \$(git merge-base master HEAD)..HEAD"
-    "master-diff:git diff \$(git merge-base master HEAD)..HEAD"
-    "master-rebase:git rebase -i --autosquash \$(git merge-base master HEAD)"
-    "autosquash-develop:env GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash \$(git merge-base origin/develop HEAD)"
-    "autosquash-development:env GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash \$(git merge-base origin/development HEAD)"
-    "autosquash-trunk:env GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash \$(git merge-base origin/trunk HEAD)"
-    "autosquash-main:env GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash \$(git merge-base origin/main HEAD)"
-    "autosquash-master:env GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash \$(git merge-base origin/master HEAD)"
 )
+
+BASES=(develop development trunk main master)
+
+# Every merge-base resolves against origin/<base>, never the local ref
+# (GH-1281). A local `develop` last pulled hours ago moves the merge-base
+# backwards, so the -log and -diff aliases reported every commit merged
+# since as part of this branch — one session reviewed 36 files where 18
+# had changed.
+#
+# The four shapes are declared once and expanded per base rather than
+# written out twenty times, because writing them out twenty times is the
+# mechanism that produced GH-1281: `autosquash-*` was authored separately,
+# stayed correctly qualified, and the two families diverged with nothing
+# asserting they agreed. Generated, they cannot disagree.
+for base in "${BASES[@]}"; do
+    merge_base="\$(git merge-base origin/${base} HEAD)"
+    ALIASES+=(
+        "${base}-log:git log --oneline ${merge_base}..HEAD"
+        "${base}-diff:git diff ${merge_base}..HEAD"
+        "${base}-rebase:git rebase -i --autosquash ${merge_base}"
+        "autosquash-${base}:env GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash ${merge_base}"
+    )
+done
 
 for entry in "${ALIASES[@]}"; do
     name="${entry%%:*}"
     value="${entry#*:}"
 
+    # What an earlier version of this script wrote for the same alias: the
+    # current definition with the remote qualification removed. Without this,
+    # the already-configured branch below would skip every machine that ever
+    # ran the pre-GH-1281 script and the fix would reach only new installs.
+    superseded="${value//merge-base origin\//merge-base }"
+
     existing=$(git config --global --get "alias.${name}" 2>/dev/null || true)
-    if [[ -n "$existing" ]]; then
-        echo "  ✓ git ${name} (already configured)"
-    else
+    if [[ -z "$existing" ]]; then
         git config --global "alias.${name}" "!${value}"
         echo "  + git ${name} (configured)"
+    elif [[ "$existing" == "!${value}" ]]; then
+        echo "  ✓ git ${name} (already configured)"
+    elif [[ "$existing" == "!${superseded}" ]]; then
+        git config --global "alias.${name}" "!${value}"
+        echo "  ↻ git ${name} (updated — now resolves against origin)"
+    else
+        # Anything else is the user's own definition. Say so rather than
+        # overwriting it or reporting it as configured.
+        echo "  ! git ${name} (customized — left unchanged)"
     fi
 done
