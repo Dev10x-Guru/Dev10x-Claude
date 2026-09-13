@@ -50,6 +50,105 @@ FAIL_STDOUT = (
 )
 
 
+XPASS_STDOUT = (
+    "============================= test session starts =============================\n"
+    "collected 9556 items\n"
+    "============ 9543 passed, 13 skipped, 1 xpassed in 294.74s (0:04:54) ============\n"
+)
+
+# Observed verbatim while fixing GH-1285: the wrapper scored its own
+# passing run as `passed: 0` because `deselected` and `warnings` were
+# outside the closed outcome set.
+DESELECTED_STDOUT = "===== 19 passed, 104 deselected, 9124 warnings in 0.95s =====\n"
+
+QUIET_STDOUT = "9543 passed, 13 skipped in 294.74s\n"
+
+NO_SUMMARY_STDOUT = (
+    "============================= test session starts =============================\n"
+    "collected 0 items\n"
+)
+
+
+class TestSummaryParsing:
+    """GH-1285: the counts must describe the run, or say they don't."""
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_outcome_outside_the_known_set_does_not_zero_the_counts(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout=XPASS_STDOUT)
+
+        result = await runner.run_tests()
+
+        assert isinstance(result, SuccessResult)
+        payload = result.value
+        assert payload["summary_parsed"] is True
+        assert payload["passed"] == 9543
+        assert payload["skipped"] == 13
+        assert payload["failed"] == 0
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_deselected_and_warnings_do_not_zero_the_counts(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout=DESELECTED_STDOUT)
+
+        result = await runner.run_tests()
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["passed"] == 19
+        assert result.value["summary_parsed"] is True
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_quiet_mode_summary_is_parsed(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout=QUIET_STDOUT)
+
+        result = await runner.run_tests()
+
+        assert isinstance(result, SuccessResult)
+        payload = result.value
+        assert payload["summary_parsed"] is True
+        assert payload["passed"] == 9543
+        assert payload["skipped"] == 13
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_absent_summary_is_distinguishable_from_an_empty_run(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout=NO_SUMMARY_STDOUT)
+
+        result = await runner.run_tests()
+
+        assert isinstance(result, SuccessResult)
+        payload = result.value
+        assert payload["summary_parsed"] is False
+        assert payload["passed"] == 0
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_xpassed_is_not_counted_as_passed(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="==== 1 xpassed in 0.10s ====\n")
+
+        result = await runner.run_tests()
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["passed"] == 0
+        assert result.value["summary_parsed"] is True
+
+
 class TestRunTests:
     @pytest.mark.asyncio
     @patch("dev10x.runner.async_run", new_callable=AsyncMock)
@@ -119,6 +218,7 @@ class TestRunTests:
         assert payload["failed_tests"] == []
         assert payload["missing_coverage"] == []
         assert payload["summary"].startswith("150 passed")
+        assert payload["summary_parsed"] is True
 
     @pytest.mark.asyncio
     @patch("dev10x.runner.async_run", new_callable=AsyncMock)

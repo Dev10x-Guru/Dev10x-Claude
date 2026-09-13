@@ -15,6 +15,12 @@ if [ -z "$BASE_BRANCH" ]; then
     source "$SCRIPT_DIR/detect-base-branch.sh"
 fi
 
+# Every use below qualifies the branch as origin/$BASE_BRANCH, so a caller
+# passing the already-qualified "origin/develop" produced origin/origin/develop
+# and a failure that read as a git problem rather than an argument one
+# (GH-1285). Both spellings are accepted.
+BASE_BRANCH="${BASE_BRANCH#origin/}"
+
 # Prefer project pre-commit configuration when present (GH-38).
 # Walks up to the repo root before checking so the script works
 # from any subdirectory.

@@ -119,7 +119,26 @@ for arg in "${PUSH_ARGS[@]}"; do
 done
 
 if [[ ${#target_branches[@]} -eq 0 ]]; then
-    target_branches=("$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")")
+    # GH-1285: `--abbrev-ref` answers "HEAD" on a detached HEAD and the
+    # fallback answered "" when it failed outright, so every payload could
+    # carry a `ref` that names nothing.
+    head_ref=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+    if [[ -z "$head_ref" || "$head_ref" == "HEAD" ]]; then
+        detached_sha=$(git rev-parse --short HEAD 2>/dev/null || echo "")
+        if [[ -z "$detached_sha" ]]; then
+            echo "BLOCKED: cannot resolve HEAD — no branch and no commit." >&2
+            echo "Name the refspec explicitly, e.g. push_safe(args=[\"-u\",\"origin\",\"<branch>\"])." >&2
+            printf '{"pushed":false,"ref":"","remote":"%s","blocked_reason":"unresolvable_head"}\n' \
+                "$remote"
+            exit 2
+        fi
+        echo "BLOCKED: HEAD is detached at $detached_sha — refusing to guess a target branch." >&2
+        echo "Check out a branch, or name the refspec explicitly." >&2
+        printf '{"pushed":false,"ref":"%s","remote":"%s","blocked_reason":"detached_head"}\n' \
+            "$detached_sha" "$remote"
+        exit 2
+    fi
+    target_branches=("$head_ref")
     source_refs=("HEAD")
 fi
 

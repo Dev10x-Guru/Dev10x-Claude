@@ -20,13 +20,23 @@ from typing import Any
 from dev10x.domain.common.result import Result, err, ok
 from dev10x.subprocess_utils import async_run, effective_cwd
 
+# GH-1285: the outcome vocabulary used to be a closed set, so a run
+# reporting an outcome outside it broke the comma-separated chain and the
+# whole line failed to match -- "9543 passed, 13 skipped, 1 xpassed" scored
+# zeros on every field. pytest's outcome names are open-ended (xpassed,
+# xfailed, deselected, warnings, rerun, ...), so the shape is matched
+# instead and _COUNT_RE picks out the four that are reported.
+_OUTCOME = r"\d+\s+[a-z]+"
 _SUMMARY_RE = re.compile(
-    r"=+\s+(\d+\s+(?:passed|failed|skipped|error|errors)"
-    r"(?:,\s+\d+\s+(?:passed|failed|skipped|error|errors))*)"
-    r"\s+in\s+[\d.]+s\s+=+",
+    rf"=+\s+({_OUTCOME}(?:,\s+{_OUTCOME})*)\s+in\s+[\d.]+s(?:\s+\([^)]*\))?\s+=+",
     re.MULTILINE,
 )
-_COUNT_RE = re.compile(r"(\d+)\s+(passed|failed|skipped|error|errors)")
+# The `-q` form carries the same counts with no `=` decoration.
+_SUMMARY_QUIET_RE = re.compile(
+    rf"^({_OUTCOME}(?:,\s+{_OUTCOME})*)\s+in\s+[\d.]+s(?:\s+\([^)]*\))?$",
+    re.MULTILINE,
+)
+_COUNT_RE = re.compile(r"(\d+)\s+(passed|failed|skipped|error|errors)\b")
 _COVERAGE_TOTAL_RE = re.compile(
     r"^TOTAL\s+\d+\s+\d+(?:\s+\d+\s+\d+)?\s+(\d+)%",
     re.MULTILINE,
@@ -126,6 +136,7 @@ async def run_tests(
         ok({
             "returncode": int,
             "summary": str,            # e.g. "150 passed"
+            "summary_parsed": bool,    # False => counts below are not evidence
             "passed": int,
             "failed": int,
             "skipped": int,
@@ -282,8 +293,12 @@ async def run_node_tests(
         timeout: Subprocess timeout in seconds (default 10 minutes).
 
     Returns:
-        ok({"returncode", "runner", "script", "summary", "passed", "failed",
-            "skipped", "todo", "total", "stdout", "stderr"})
+        ok({"returncode", "runner", "script", "summary", "summary_parsed",
+            "passed", "failed", "skipped", "todo", "total", "stdout",
+            "stderr"})
+
+        ``summary_parsed`` is False when no summary line was found, in
+        which case the counts below it are not evidence of anything.
 
         err(...) only when the runner binary is missing, the runner name
         is unknown, ``script`` is unsupported by the runner, or the
@@ -356,6 +371,10 @@ def _parse_node(output: str) -> dict[str, Any]:
 
     return {
         "summary": summary,
+        # Same ambiguity as the pytest parser, and the same remedy: an
+        # unmatched `Tests:` line is indistinguishable from a run that
+        # collected nothing unless the caller is told which it was.
+        "summary_parsed": bool(match),
         "passed": counts["passed"],
         "failed": counts["failed"],
         "skipped": counts["skipped"],
@@ -369,7 +388,7 @@ def _parse(stdout: str) -> dict[str, Any]:
     counts = {"passed": 0, "failed": 0, "skipped": 0, "errors": 0}
     summary = ""
 
-    match = _SUMMARY_RE.search(stdout)
+    match = _SUMMARY_RE.search(stdout) or _SUMMARY_QUIET_RE.search(stdout)
     if match:
         summary = match.group(1).strip()
         for count, label in _COUNT_RE.findall(summary):
@@ -392,6 +411,11 @@ def _parse(stdout: str) -> dict[str, Any]:
 
     return {
         "summary": summary,
+        # GH-1285: all-zero counts otherwise read identically whether the
+        # run collected nothing or the parser simply found no summary line
+        # -- and "collected nothing" is the false-green this wrapper exists
+        # to catch. A caller branching on the counts must check this first.
+        "summary_parsed": bool(match),
         "passed": counts["passed"],
         "failed": counts["failed"],
         "skipped": counts["skipped"],

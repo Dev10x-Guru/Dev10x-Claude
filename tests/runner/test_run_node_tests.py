@@ -39,6 +39,34 @@ JEST_FAIL_STDERR = (
 )
 
 
+class TestSummaryParsing:
+    """GH-1285: zero counts must not stand in for an unparsed summary."""
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_a_parsed_summary_says_so(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(stderr=JEST_PASS_STDERR)
+
+        result = await runner.run_node_tests()
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["summary_parsed"] is True
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_an_absent_summary_is_distinguishable_from_an_empty_run(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = _completed(stderr="Time: 0.01 s\n")
+
+        result = await runner.run_node_tests()
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["summary_parsed"] is False
+        assert result.value["passed"] == 0
+
+
 class TestRunNodeTests:
     @pytest.mark.asyncio
     @patch("dev10x.runner.async_run", new_callable=AsyncMock)
