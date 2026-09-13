@@ -46,3 +46,19 @@ creation, thread resolution, parent detection — lives in
 When this skill is invoked, Read `instructions.md` now and
 follow it end-to-end. `TaskCreate` and `AskUserQuestion` calls
 documented there are REQUIRED.
+
+**End-to-end read enforcement (GH-166, GH-1279): this file may
+not fit in one `Read`.** At ~57 KB it sits close enough to the
+token cap a single call returns that a truncated `PARTIAL view`
+is likely, and an agent that stops at the first page is working
+from part of the contract while believing it holds all of it.
+
+Keep issuing `Read(offset=…)` until you have reached the final
+line. Do NOT substitute `Grep` or a single `Read(limit=…)` for
+the missing pages: the mode split, the triage routing and the
+thread-resolution rules are scattered through the body rather
+than sectioned, so a truncated read drops whichever happens to
+fall past the cut.
+
+If you did not see the last line of the file, you have not read
+the contract.
