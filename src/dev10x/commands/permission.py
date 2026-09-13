@@ -774,6 +774,47 @@ def seed_worktree(*, worktree_path: str, dry_run: bool) -> None:
     click.echo(f"{verb} {result.value['added']} rule(s) → {result.value['path']}")
 
 
+@permission.command(name="ensure-ignored")
+@click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
+@click.option("--quiet", is_flag=True, help="Suppress per-repo details")
+def ensure_ignored(*, dry_run: bool, quiet: bool) -> None:
+    """Keep Dev10x's own session state out of `git status` (GH-1275).
+
+    Writes `.claude/Dev10x/` to each managed repo's `.git/info/exclude`.
+    That file lives in the git COMMON dir, so one write per repo covers
+    every present and future worktree of it — there is no per-worktree
+    pass to keep up to date.
+    """
+    from dev10x.skills.permission import ignore_session_state as mod
+
+    ctx = _require_context()
+    roots = ctx.config.get("roots", [])
+    if not roots:
+        click.echo("No roots configured. Run `dev10x permission init` first.")
+        return
+
+    if dry_run and not quiet:
+        click.echo("(dry run — no files will be modified)\n")
+
+    outcomes = mod.ensure_ignored_for_roots(
+        repo_roots=[Path(root) for root in roots],
+        dry_run=dry_run,
+    )
+    if not quiet:
+        for outcome in outcomes:
+            click.echo(outcome.summary())
+
+    changed = [outcome for outcome in outcomes if outcome.changed]
+    verb = "would gain" if dry_run else "gained"
+    click.echo(f"\n{len(changed)} of {len(outcomes)} repo(s) {verb} the rule.")
+
+    suggestions = [text for text in map(mod.suggestion_for, changed) if text]
+    if suggestions:
+        click.echo("\nOptional — a tracked rule survives a fresh clone:")
+        for text in suggestions:
+            click.echo(text)
+
+
 @permission.command(name="merge-worktree")
 @click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
 @click.option("--restore", is_flag=True, help="Restore settings from most recent backups")
