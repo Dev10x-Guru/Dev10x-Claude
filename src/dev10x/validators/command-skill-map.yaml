@@ -1394,7 +1394,21 @@ rules:
     matcher: "Edit|Write"
     file_names: [".env", "secrets.env", ".secret"]
     file_prefixes: [".env.", "secrets.env."]
-    file_substrings: ["credentials"]
+    # `credentials` used to be a `file_substrings` entry, which matches
+    # anywhere in the full path — so `credentials.py`,
+    # `test_credentials.py` and `credentials-setup.md` were all
+    # hard-blocked, told to ask a human to hand-edit them (GH-1287).
+    #
+    # The discriminator is the EXTENSION, not the name: a credential
+    # store is `credentials` or `application_default_credentials.json`;
+    # a module that talks to one is `credentials.py`. So keep matching
+    # the word anywhere in the path — which is what covers
+    # `credentials.d/` directories and descriptive names like
+    # `service-account-credentials.json` — and exempt source and prose
+    # extensions instead. Listing exact basenames was tried and dropped:
+    # it admitted every decorated name, which is most real ones.
+    file_pattern: >-
+      (?i)^(?!.*\.(?:py|pyi|ts|tsx|js|jsx|mjs|go|rs|rb|java|kt|swift|c|h|cc|cpp|sh|bash|zsh|md|rst|txt)$).*credentials.*$
     hook_block: true
     message: "BLOCKED: Editing sensitive file: {file_path}"
     compensations:
