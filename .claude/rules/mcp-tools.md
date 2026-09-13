@@ -160,7 +160,7 @@ one session). Use these shapes verbatim:
 | `pr_get` | `number` | `pr_number` |
 | `pr_comments` | `pr_number`, `action` (no default) | omitting `action` |
 | `unresolved_threads` | `repo` (no CWD default); pass `pr_number` for a single PR | omitting `repo`; omitting `pr_number` for a per-PR check |
-| `check_top_level_comments` | `repo` (no CWD default) | omitting `repo` |
+| `check_top_level_comments` | `repo` (no CWD default), `pr_number` | omitting either; expecting `unresolved_threads`'s sweep-all-PRs mode — this tool has none (GH-1285) |
 | `push_safe` | `args` list, e.g. `["-u", "origin", "<branch>"]` | bare call; passing `protected_branches=[]` expecting protection off — an empty list reads as "no override" (GH-1031) |
 | `resolve_review_thread` | `thread_ids` (list) | singular `thread_id` |
 | `resolve_gate` | `gate` (toggle name); optional `context` dict of gate facts | passing preset/friction values — the tool reads session policy itself (ADR-0016 D-2); passing `human_review` on `gate="merge"` — durable policy, read unconditionally and echoed back in `ignored_context_fields` (GH-1000) |
