@@ -89,6 +89,59 @@ def test_error_names_the_missing_marker_and_the_expected_format():
     assert "references/git-jtbd.md" in error
 
 
+# GH-1291: the skill tells writers to use the project's language and to
+# look for translated markers when reading, but the validator matched
+# English literals — so a Polish story written exactly as its own
+# project prescribed was refused.
+POLISH_STORY = (
+    "**Gdy** zaczynamy implementować klienta KSeF, **deweloper chce** mieć model "
+    "domeny udokumentowany razem z dowodami, **żeby zespół mógł** budować na "
+    "ustaleniach potwierdzonych wykonaniem."
+)
+
+
+def test_polish_job_story_is_accepted():
+    assert missing_job_story_markers(job_story=POLISH_STORY) == []
+
+
+def test_polish_job_story_yields_no_error():
+    assert job_story_error(job_story=POLISH_STORY) is None
+
+
+@pytest.mark.parametrize(
+    "job_story",
+    [
+        "**Gdy** X, **osoba utrzymująca chce** Y, **żeby integratorzy mogli** Z.",
+        "**Gdy** X, **dealer chce** Y, **żeby serwisantka mogła** Z.",
+    ],
+)
+def test_polish_verb_inflections_are_accepted(job_story):
+    # mógł / mogła / mogli all appear in real stories; pinning one form
+    # would reproduce the GH-1258 mistake in another language.
+    assert missing_job_story_markers(job_story=job_story) == []
+
+
+def test_polish_actor_clause_is_still_required():
+    missing = missing_job_story_markers(job_story="**Gdy** X, **chce** Y, **żeby zespół mógł** Z.")
+
+    assert missing != []
+
+
+def test_a_story_mixing_two_languages_is_not_accepted():
+    # The English-marker/Polish-prose hybrid is exactly the workaround the
+    # old validator forced, and it reads worse than either language alone.
+    mixed = "**When** X, **deweloper chce** Y, **so the team can** Z."
+
+    assert missing_job_story_markers(job_story=mixed) != []
+
+
+def test_the_error_names_every_accepted_marker_set():
+    error = job_story_error(job_story="brak jakichkolwiek znaczników")
+
+    assert "**When**" in error
+    assert "**Gdy**" in error
+
+
 def test_bare_separator_after_fixes_is_dropped():
     body = f"Story\n\n---\n\n- commit\n\nFixes: {FIXES_URL}\n\n---\n"
     assert normalize_pr_body(body=body) == f"Story\n\n---\n\n- commit\n\nFixes: {FIXES_URL}"
