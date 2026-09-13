@@ -138,6 +138,21 @@ Three constraints came out of building the first one:
    cooldown marker keyed by session id. Either one alone suffices;
    together they survive the field being absent or renamed.
 
+   **Retiring the marker needs evidence, and the evidence is now
+   recorded (GH-1257).** The pair is meant to collapse to one once
+   `stop_hook_active` is trusted, but nothing observed it: the audit
+   log carried only wrap-phase timing, so "does a continuation arrive
+   with the field set?" could not be answered from the field at all —
+   and an unverifiable precondition is how belt-and-braces calcifies
+   into permanent dead weight. `StopVerdict.signal` now names which
+   branch ended the turn (`stop_hook_active`, `cooldown_marker`,
+   `no_transcript`, `asked`, `blocked`) and `build_stop_verdict`
+   attributes it to the audit record under `rule_id: stop-verdict`.
+   Remove the marker when `stop_hook_active` appears there across a
+   few harness versions — not before, and never merely because the
+   guard looks redundant: what it prevents is a hook that re-blocks
+   every turn forever.
+
 **Keep the decision out of the hook.** `dev10x.hooks.stop_verdict`
 holds the rule and is a pure function over `(payload, plan)`;
 `build_stop_verdict` is the wiring that finds the plan and records the
@@ -263,6 +278,38 @@ validators (DX001–DX005/DX012), which run **before** DX014 in the
 chain and short-circuit on a `deny`. DX014 only ever sees commands the
 safety axis already cleared, so its `ask` (and a blessed `allow`, below)
 never overrides a real block.
+
+**The operand is classified, not just the shape (GH-1278).** A read is
+an *effect* reachable by unbounded means — `cat`, `head`, `rg`, `jq`,
+`awk`, `sed`, a redirect, a symlink, different quoting. GH-1260
+established by controlled test that neither permission namespace can
+close that: a `Read()` rule governs the Read tool only and says nothing
+about a Bash command reading the same path, while a blanket
+`Bash(rg:*)` allow makes every file on the machine readable with no
+prompt. Enumerating readers is therefore not a closure — the next
+reader nobody listed evades it.
+
+So DX014 also matches a path wordlist against the command's **operand
+tokens** (`.aws/credentials`, `.ssh/`, `*.pem`, `.netrc`, `.pgpass`,
+`.npmrc`, `.git-credentials`, `.docker/config.json`, gh's `hosts.yml`,
+kubeconfig, service-account JSON, `secrets.y[a]ml`), whatever verb
+reached them. `matched_text` carries the whole token rather than the
+matched span, because the prompt has to name the file at stake.
+
+This is deliberately **not** a general solution. Filesystem permissions
+and not storing secrets in readable files remain the real boundaries;
+this closes the cases that matter inside an agent session. Keep the
+scope honest when extending it: over-firing is what turns DX014 into
+noise, so naming a word (`rg pem src/`) or listing a directory
+(`ls ~/.ssh`) must stay silent.
+
+Tokenizing goes through `bash_tokens.split_tokens`, not a local
+whitespace split — a split shreds a quoted path containing a space into
+fragments that match nothing, silently defeating the guarantee. The
+pass costs a bounded number of regex searches over short tokens, which
+is noise against the hook budget in `.claude/rules/performance.md`; a
+heavier mechanism (a real shell parser) would not be, so re-measure
+before reaching for one.
 
 **Sensitivity-exception catalog (Tier 2, synced).** A user-owned
 `~/.config/Dev10x/sensitivity-exceptions.yaml` downgrades blessed probes

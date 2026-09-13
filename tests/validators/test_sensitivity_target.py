@@ -111,6 +111,102 @@ class TestBenignCommands:
 
 
 # ---------------------------------------------------------------------------
+# validate() — operand paths, whatever verb reached them (GH-1278)
+# ---------------------------------------------------------------------------
+
+_READERS = ("cat", "head", "tail", "less", "bat", "rg", "jq", "awk", "sed", "wc", "cut")
+
+
+class TestOperandPathIsVerbIndependent:
+    """A read is an effect; enumerating readers is not a closure (#1260)."""
+
+    @pytest.mark.parametrize("reader", _READERS)
+    def test_every_reader_of_a_credential_file_is_elevated(
+        self, validator: SensitivityTargetValidator, reader: str
+    ) -> None:
+        result = validator.validate(inp=_inp(f"{reader} ~/.aws/credentials"))
+        assert isinstance(result, HookAsk)
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "~/.aws/credentials",
+            "~/.aws/config",
+            "/home/dev/.ssh/id_ed25519",
+            "id_rsa",
+            "certs/server.pem",
+            "~/.netrc",
+            "~/.pgpass",
+            "~/.npmrc",
+            "~/.git-credentials",
+            "~/.docker/config.json",
+            "~/.config/gh/hosts.yml",
+            "~/.kube/config",
+            "kubeconfig",
+            "deploy/service-account-prod.json",
+            "k8s/secrets.yaml",
+        ],
+    )
+    def test_each_sensitive_path_shape_is_elevated(
+        self, validator: SensitivityTargetValidator, path: str
+    ) -> None:
+        result = validator.validate(inp=_inp(f"rg token {path}"))
+        assert isinstance(result, HookAsk), f"Not elevated: {path!r}"
+
+    def test_the_prompt_names_the_file_at_stake(
+        self, validator: SensitivityTargetValidator
+    ) -> None:
+        # The matched span alone ('.ssh/') names nothing the supervisor
+        # can act on, so the whole operand is carried.
+        result = validator.validate(inp=_inp("awk '{print}' /home/dev/.ssh/id_ed25519"))
+        assert isinstance(result, HookAsk)
+        assert "/home/dev/.ssh/id_ed25519" in result.message
+
+    def test_a_quoted_operand_is_not_a_hiding_place(
+        self, validator: SensitivityTargetValidator
+    ) -> None:
+        result = validator.validate(inp=_inp('cat "$HOME/.aws/credentials"'))
+        assert isinstance(result, HookAsk)
+
+    def test_a_quoted_path_containing_a_space_is_not_a_hiding_place(
+        self, validator: SensitivityTargetValidator
+    ) -> None:
+        # A whitespace split shreds this into fragments matching nothing,
+        # which defeats the guarantee the test above only appears to make.
+        result = validator.validate(inp=_inp('cat "/home/dev/my keys/.aws/credentials"'))
+        assert isinstance(result, HookAsk)
+
+    def test_an_operator_glued_to_the_operand_is_not_a_hiding_place(
+        self, validator: SensitivityTargetValidator
+    ) -> None:
+        result = validator.validate(inp=_inp("cat ~/.netrc;ls"))
+        assert isinstance(result, HookAsk)
+
+    def test_a_flag_value_operand_is_classified(
+        self, validator: SensitivityTargetValidator
+    ) -> None:
+        result = validator.validate(inp=_inp("myprobe --secrets-file=/srv/app/.env.production"))
+        assert isinstance(result, HookAsk)
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "rg pem src/",
+            "cat README.md",
+            "jq . package.json",
+            "ls ~/.ssh",
+            "git log --oneline",
+        ],
+    )
+    def test_near_misses_are_left_alone(
+        self, validator: SensitivityTargetValidator, command: str
+    ) -> None:
+        # Naming the word, or listing a directory, is not reading the
+        # material — over-firing here is what would make DX014 noise.
+        assert validator.validate(inp=_inp(command)) is None
+
+
+# ---------------------------------------------------------------------------
 # validate() — SECRET label
 # ---------------------------------------------------------------------------
 
@@ -440,6 +536,19 @@ class TestCustomClassifier:
         result = custom.validate(inp=_inp("SELECT * FROM my_pii_table"))
         assert result is not None
         assert "PII" in result.message
+
+    def test_narrowing_the_operand_axis_is_possible(self) -> None:
+        # "Custom uses injected patterns only" above is checked with a
+        # command carrying no path operand, so it would hold even if the
+        # operand axis were unnarrowable. This pins the axis itself.
+        custom = SensitivityTargetValidator().with_patterns(patterns=[], operand_patterns=[])
+
+        assert custom.validate(inp=_inp("cat ~/.aws/credentials")) is None
+
+    def test_the_operand_axis_is_kept_when_only_the_wordlist_is_narrowed(self) -> None:
+        custom = SensitivityTargetValidator().with_patterns(patterns=[])
+
+        assert isinstance(custom.validate(inp=_inp("cat ~/.aws/credentials")), HookAsk)
 
 
 # ---------------------------------------------------------------------------

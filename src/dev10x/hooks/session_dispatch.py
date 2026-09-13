@@ -30,6 +30,7 @@ from dev10x.domain.session_document import (
     state_path_for_toplevel,
     write_state,
 )
+from dev10x.hooks.audit_emit import set_decision_attribution
 from dev10x.hooks.session_policy import MigratePluginPermissionsRule
 from dev10x.hooks.stop_verdict import StopVerdict, decide, record_block
 from dev10x.session.service import SessionService
@@ -268,6 +269,12 @@ def build_stop_verdict(data: dict | None = None) -> StopVerdict | None:
         plan = candidate if isinstance(candidate, dict) else None
 
     verdict = decide(data=data, plan=plan)
+    # Attribute every outcome, not only a block (GH-1257). Retiring the
+    # cooldown marker is safe only once `stop_hook_active` is known to
+    # arrive set on a continuation, and the audit log carried nothing
+    # but wrap-phase timing — so the question could not be answered from
+    # the field at all. Recording the signal makes it answerable.
+    set_decision_attribution(rule_id="stop-verdict", reason=verdict.signal)
     if not verdict.block:
         return None
     record_block(session_id=str(data.get("session_id") or ""))

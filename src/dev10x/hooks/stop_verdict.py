@@ -49,6 +49,7 @@ import re
 import sys
 import time
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 
 from dev10x.domain.file_locks import atomic_write_text
@@ -84,12 +85,37 @@ _DEFERRAL_RE = re.compile(
 _ASK_TOOL = "AskUserQuestion"
 
 
+class StopSignal(StrEnum):
+    """Which branch of :func:`decide` produced a verdict (GH-1257).
+
+    ``STOP_HOOK_ACTIVE`` is the load-bearing member: seeing it in the
+    audit log is the evidence that retiring the cooldown marker needs,
+    and until it appears the marker is the only guard known to work.
+    """
+
+    STOP_HOOK_ACTIVE = "stop_hook_active"
+    COOLDOWN = "cooldown_marker"
+    NO_TRANSCRIPT = "no_transcript"
+    ASKED = "asked"
+    BLOCKED = "blocked"
+
+    def __repr__(self) -> str:
+        return f"StopSignal.{self.name}"
+
+
 @dataclass(frozen=True)
 class StopVerdict:
     """Whether to block the Stop, and the steer to hand back if so."""
 
     block: bool
     reason: str = ""
+    #: Which branch of :func:`decide` produced this verdict (GH-1257).
+    #: Four of the five mean "let the turn end", and the caller needs to
+    #: tell them apart: retiring the cooldown marker is only safe with
+    #: positive evidence that ``stop_hook_active`` arrives set, and the
+    #: audit log recorded nothing but wrap-phase timing, so the
+    #: question could not be answered from the field at all.
+    signal: StopSignal = StopSignal.BLOCKED
 
     def to_envelope(self) -> dict:
         """Render the Claude Code Stop-hook decision payload."""
@@ -305,22 +331,24 @@ def decide(*, data: dict, plan: dict | None, now: float | None = None) -> StopVe
     document (or ``None`` when there is none).
     """
     if data.get("stop_hook_active"):
-        return StopVerdict(block=False)
+        return StopVerdict(block=False, signal=StopSignal.STOP_HOOK_ACTIVE)
 
     session_id = str(data.get("session_id") or "")
     if blocked_recently(session_id=session_id, now=now):
-        return StopVerdict(block=False)
+        return StopVerdict(block=False, signal=StopSignal.COOLDOWN)
 
     entries = _read_turn(transcript_path=str(data.get("transcript_path") or ""))
     if not entries:
         # No readable transcript is no evidence. Blocking on an absent
         # file would fire on every session whose transcript moved.
-        return StopVerdict(block=False)
+        return StopVerdict(block=False, signal=StopSignal.NO_TRANSCRIPT)
 
     if asked_a_question(entries=entries):
-        return StopVerdict(block=False)
+        return StopVerdict(block=False, signal=StopSignal.ASKED)
 
     signal = task_signal(plan=plan)
     return StopVerdict(
-        block=True, reason=_reason(signal=signal, closing=final_text(entries=entries))
+        block=True,
+        reason=_reason(signal=signal, closing=final_text(entries=entries)),
+        signal=StopSignal.BLOCKED,
     )
