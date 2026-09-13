@@ -60,6 +60,7 @@ def _completed(
     )
 
 
+@pytest.mark.usefixtures("stub_fixes_trailer_readback")
 class TestCreatePrAcceptsRepo:
     """GH-1269: the MCP signature omits the sibling wrappers' ``repo``."""
 
@@ -167,6 +168,7 @@ class TestMergePrPinsTheVerifiedHead:
         assert result.value["expected_head_sha"] == "deadbeef"
 
 
+@pytest.mark.usefixtures("stub_fixes_trailer_readback")
 class TestCreatePrAlwaysEmitsFixes:
     """GH-1256: ``issue_id`` alone produced a body with no trailer.
 

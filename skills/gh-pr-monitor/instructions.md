@@ -974,6 +974,38 @@ Skip this phase if `milestone == null`. Never invoke
 `milestone_close` via raw `gh api` — the permission gap is
 intentional outside the MCP tool.
 
+## Phase 3.6: Post-Merge Link Reconciliation (GH-1274)
+
+A merged PR's `Fixes:` trailer does not reliably close its issues
+on a merge to `develop`. One merge closed two of three identical
+trailers; a later session recorded **0 of 7** across two merges;
+a third closed two of three again. Both spellings (full URL and
+bare `#N`) failed in the 0-of-7 run, so the form is not the
+variable. Nothing noticed any of it: the issue simply stayed open
+and the bundle read as complete.
+
+Run this whenever the PR is `MERGED`, milestone or not:
+
+1. Read the merged PR's body — `mcp__plugin_Dev10x_cli__pr_get(
+   number=<N>)`.
+2. Extract the closing links with
+   `dev10x.skills.merge.fixes_scope.fixes_links(body)`.
+3. For each linked number, read its real state with
+   `mcp__plugin_Dev10x_cli__issue_get(number=<n>)`.
+4. Pass the numbers and states to
+   `reconcile_link_closure(body=..., issue_states=...)` and
+   report `summary()`.
+
+Do **not** close a straggler silently. Report it — "GH-1268 was
+linked but is still open" — and let the supervisor confirm the
+scope actually shipped before closing it with `issue_close`. A
+wrongly-closed issue reads as settled and drops out of every
+future sweep.
+
+An issue whose state could not be read is reported as **unread**,
+never as closed. Counting an unread state as a closure would
+recreate the silence this phase exists to break.
+
 ## Phase 4: Acceptance Criteria Verification
 
 After Phase 3 completes, verify acceptance criteria before the
