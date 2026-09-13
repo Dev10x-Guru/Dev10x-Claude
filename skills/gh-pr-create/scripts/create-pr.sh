@@ -2,7 +2,7 @@
 # Create a PR with two-pass body generation.
 # Usage: create-pr.sh <title> <job_story> <issue_id> \
 #            [<fixes_url>] [<base_branch>] [<closes_csv>] [<draft>] \
-#            [<head_repo>] [<body>] [<head>]
+#            [<head_repo>] [<body>] [<head>] [<repo>]
 #   closes_csv: comma-separated issue numbers to add as Closes #N lines (GH-186)
 #   draft: "true" (default) or "false" — pass "false" in solo-maintainer mode (GH-184)
 #   head_repo: fork owner for a cross-fork PR (GH-473). When set, the head
@@ -13,6 +13,9 @@
 #     PR carries exactly what the caller supplied.
 #   head: branch to open the PR from (GH-1073). Defaults to the checkout's
 #     current HEAD; pass it explicitly to act for another checkout.
+#   repo: target repository (owner/repo), passed as --repo (GH-1269). Restores
+#     parity with merge_pr / pr_get / update_pr, which all accept it. Omit to
+#     keep detecting the repo from the checkout.
 # Outputs the PR number on success.
 set -euo pipefail
 
@@ -26,6 +29,7 @@ DRAFT="${7:-true}"
 HEAD_REPO="${8:-}"
 BODY_OVERRIDE="${9:-}"
 HEAD_BRANCH="${10:-}"
+REPO="${11:-}"
 
 FIXES_LINE=""
 if [ -n "$FIXES_URL" ]; then
@@ -126,9 +130,14 @@ else
 fi
 
 CREATE_ARGS=(--base "$BASE_BRANCH" --title "$TITLE" --body "$BODY")
+if [ -n "$REPO" ]; then
+    CREATE_ARGS+=(--repo "$REPO")
+fi
 if [ -n "$HEAD_REPO" ]; then
     CREATE_ARGS+=(--head "$HEAD_REPO:$BRANCH_NAME")
-elif [ -n "$HEAD_BRANCH" ]; then
+elif [ -n "$HEAD_BRANCH" ] || [ -n "$REPO" ]; then
+    # --repo stops gh inferring the head from the local checkout, so the
+    # branch has to be named explicitly (GH-1269).
     CREATE_ARGS+=(--head "$BRANCH_NAME")
 fi
 if [ "$DRAFT" = "true" ]; then
@@ -156,7 +165,7 @@ if [ -z "$BODY_OVERRIDE" ]; then
     # Use REST API instead of `gh pr edit` to avoid GraphQL Projects-classic
     # deprecation warnings causing exit 1 even when the body update succeeds.
     # See GH-41 for context (session c83f5182).
-    REPO_NWO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+    REPO_NWO="${REPO:-$(gh repo view --json nameWithOwner -q .nameWithOwner)}"
     BODY_FILE=$(mktemp)
     trap 'rm -f "$BODY_FILE"' EXIT
     printf '%s' "$FINAL_BODY" > "$BODY_FILE"

@@ -2336,8 +2336,10 @@ class TestCreatePr:
 
         called_args = mock_run.call_args.args
         # Trailing args: fixes_url, base_branch, closes_csv, draft,
-        # head_repo, body, head
-        assert called_args[-7:] == ("", "", "", "true", "", "", "")
+        # head_repo, body, head, repo. fixes_url is derived from
+        # issue_id rather than blank (GH-1256) — a body with no
+        # Fixes: trailer is what the hygiene bot rejects.
+        assert called_args[-8:] == ("GH-1", "", "", "true", "", "", "", "")
 
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
@@ -2356,8 +2358,26 @@ class TestCreatePr:
         )
 
         called_args = mock_run.call_args.args
-        # Trailing args: closes_csv, draft, head_repo, body, head
-        assert called_args[-5:] == ("184,185,186", "false", "", "", "")
+        # Trailing args: closes_csv, draft, head_repo, body, head, repo
+        assert called_args[-6:] == ("184,185,186", "false", "", "", "", "")
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_closes_members_also_reach_the_fixes_argument(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        """`Closes #N` never auto-closes on a develop merge (GH-958)."""
+        mock_run.return_value = _completed(stdout="https://github.com/o/r/pull/9\n9")
+
+        await gh.create_pr(
+            title="t",
+            job_story=_JOB_STORY,
+            issue_id="GH-1",
+            closes=[184, 185],
+        )
+
+        assert mock_run.call_args.args[4] == "GH-1 #184 #185"
 
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
@@ -2375,8 +2395,8 @@ class TestCreatePr:
         )
 
         called_args = mock_run.call_args.args
-        # head_repo precedes the body/head args passed to create-pr.sh
-        assert called_args[-3] == "octocat"
+        # head_repo precedes the body/head/repo args passed to create-pr.sh
+        assert called_args[-4] == "octocat"
 
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
@@ -2450,8 +2470,8 @@ class TestCreatePrBodyOverride:
         result = await gh.create_pr(title="t", issue_id="GH-1073", body=_LONG_BODY)
 
         assert isinstance(result, SuccessResult)
-        # body is the second-to-last positional arg; head is last.
-        passed = mock_run.call_args.args[-2]
+        # Trailing positional args are body, head, repo.
+        passed = mock_run.call_args.args[-3]
         assert "## Background" in passed
         assert "nowhere to put it." in passed
         assert "- Batch 1: GH-1073, GH-1098" in passed
@@ -2467,7 +2487,7 @@ class TestCreatePrBodyOverride:
 
         await gh.create_pr(title="t", issue_id="GH-1073", body=_LONG_BODY)
 
-        passed = mock_run.call_args.args[-2]
+        passed = mock_run.call_args.args[-3]
         assert passed.count("Fixes: ") == 2
         assert passed.endswith("Fixes: https://github.com/o/r/issues/1098")
 
@@ -2485,7 +2505,7 @@ class TestCreatePrBodyOverride:
             body=f"{_JOB_STORY}\n\nFixes: https://github.com/o/r/issues/1\n\nTrailing note",
         )
 
-        assert mock_run.call_args.args[-2] == (
+        assert mock_run.call_args.args[-3] == (
             f"{_JOB_STORY}\n\nTrailing note\n\nFixes: https://github.com/o/r/issues/1"
         )
 
@@ -2570,7 +2590,7 @@ class TestCreatePrHead:
             head="janusz/GH-1073/worker/fix",
         )
 
-        assert mock_run.call_args.args[-1] == "janusz/GH-1073/worker/fix"
+        assert mock_run.call_args.args[-2] == "janusz/GH-1073/worker/fix"
 
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
@@ -2685,6 +2705,7 @@ class TestMergePr:
             "admin": False,
             "auto": False,
             "repo": "owner/repo",
+            "expected_head_sha": None,
         }
         called_args = mock_run.call_args.kwargs["args"]
         assert called_args == [

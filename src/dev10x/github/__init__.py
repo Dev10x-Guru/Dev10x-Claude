@@ -1156,6 +1156,44 @@ async def _set_pr_milestone(
     return ok(number)
 
 
+def _issue_reference(issue_id: str) -> str:
+    """Render ``issue_id`` as a reference ``create-pr.sh`` will split on."""
+    bare = issue_id.strip().lstrip("#")
+    return f"#{bare}" if bare.isdigit() else bare
+
+
+def fixes_references(
+    *,
+    issue_id: str,
+    fixes_url: str | None,
+    closes: list[int] | None,
+) -> str:
+    """Assemble the ``Fixes:`` references for ``create-pr.sh`` (GH-1256).
+
+    The script derived the trailer from ``fixes_url`` alone, so the
+    documented way to link an issue — ``issue_id`` — produced a body with
+    no trailer at all, which the hygiene bot rejects. ``closes`` members
+    are folded in for a second reason: ``Closes #N`` never fires on a
+    merge to ``develop`` (GH-958), so only a ``Fixes:`` line actually
+    closes them.
+
+    An explicit ``fixes_url`` still leads, and prose such as
+    ``none — self-motivated`` is passed through untouched so the script's
+    non-splittable branch keeps handling it.
+    """
+    if fixes_url and not fixes_url.lstrip().startswith(("http", "#")):
+        return fixes_url
+
+    references = [fixes_url] if fixes_url else [_issue_reference(issue_id)]
+    references.extend(f"#{number}" for number in closes or [])
+
+    seen: dict[str, None] = {}
+    for reference in references:
+        if reference:
+            seen.setdefault(reference, None)
+    return " ".join(seen)
+
+
 async def create_pr(
     *,
     title: str,
@@ -1223,13 +1261,18 @@ async def create_pr(
         )
 
     args = [title, job_story, issue_id]
-    args.append(fixes_url or "")
+    args.append(
+        ""
+        if body is not None
+        else fixes_references(issue_id=issue_id, fixes_url=fixes_url, closes=closes)
+    )
     args.append(base_branch or "")
     args.append(",".join(str(n) for n in closes) if closes else "")
     args.append("true" if draft else "false")
     args.append(head_repo or "")
     args.append(normalize_pr_body(body=body) if body is not None else "")
     args.append(head or "")
+    args.append(repo or "")
 
     result = await async_run_script(
         "skills/gh-pr-create/scripts/create-pr.sh",
@@ -1326,6 +1369,7 @@ async def merge_pr(
     admin: bool = False,
     auto: bool = False,
     repo: str | None = None,
+    expected_head_sha: str | None = None,
 ) -> Result[dict[str, Any]]:
     """Merge a pull request via ``gh pr merge``.
 
@@ -1353,10 +1397,17 @@ async def merge_pr(
             Always passed as ``--repo`` to ``gh pr merge`` so the
             command never tries to check out the base branch
             locally — required for worktree safety (GH-773).
+        expected_head_sha: Merge only if the PR head still points at
+            this commit (GH-1267). The pre-merge gate verifies a
+            specific head; without pinning it, a push landing between
+            that verification and this call ships code no gate saw.
+            Passed as ``--match-head-commit``, so a moved head fails
+            the merge instead of silently widening it.
 
     Returns:
         ok({"pr_number", "url", "strategy", "branch_deleted",
-        "admin", "auto", "repo"}) on success, err(...) otherwise.
+        "admin", "auto", "repo", "expected_head_sha"}) on success,
+        err(...) otherwise.
     """
     if strategy not in {"rebase", "squash", "merge"}:
         return err(f"Invalid merge strategy: {strategy!r}. Use rebase, squash, or merge.")
@@ -1381,6 +1432,8 @@ async def merge_pr(
         args.append("--admin")
     if auto:
         args.append("--auto")
+    if expected_head_sha:
+        args.extend(["--match-head-commit", expected_head_sha])
 
     result = await async_run(args=args, timeout=60)
 
@@ -1397,6 +1450,7 @@ async def merge_pr(
             "admin": admin,
             "auto": auto,
             "repo": str(repo_ref),
+            "expected_head_sha": expected_head_sha,
         }
     )
 
