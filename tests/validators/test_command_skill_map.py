@@ -543,3 +543,120 @@ class TestGh1117ForLoopEntry:
 
     def test_names_diag_friction_as_related(self) -> None:
         assert "Dev10x:diag-friction" in _rule_by_name("for-loop-handrolled")["related"]
+
+
+def _fallback_text(rule: dict[str, Any]) -> str:
+    return " ".join(
+        str(comp.get(field, ""))
+        for comp in rule.get("compensations", [])
+        for field in ("description", "fallback")
+    )
+
+
+# A fallback may name the denied command in order to warn AGAINST it —
+# `gh-issue-comment` says "NOT `gh issue comment --body-file`" and
+# `gh-pr-merge` says "rather than running raw `gh pr merge`". Those are
+# the fix, not the defect. `\bnot\b` deliberately does not match
+# `not_planned`, a literal `--reason` value in gh-issue-close's hint.
+_NEGATION = re.compile(r"\b(?:not|never|instead\s+of|rather\s+than)\b", re.IGNORECASE)
+
+
+def _recommends_a_denied_command(rule: dict[str, Any]) -> bool:
+    for clause in re.split(r"[.;\n]", _fallback_text(rule)):
+        if _matches_any_pattern(rule=rule, command=clause) and not _NEGATION.search(clause):
+            return True
+    return False
+
+
+def _self_denying_rule_ids() -> list[str]:
+    return [rule["name"] for rule in _hook_block_rules() if _recommends_a_denied_command(rule)]
+
+
+class TestSelfDenyingFallbacks:
+    """GH-1266: a hint that is itself denied reads as sanctioned.
+
+    GH-1068 F6 fixed this for `gh-issue-comment` alone; six more rules in
+    the same family still named, in their own fallback, a command their
+    own pattern denied. With the MCP server down that made every issue
+    read, close, edit and comment path a dead end pointing at another
+    dead end. These tests generalize the one-off fix into an invariant
+    over every blocking rule, so the class cannot silently return.
+    """
+
+    @pytest.mark.parametrize(
+        "rule_name",
+        [
+            "gh-issue-close",
+            "gh-issue-reopen",
+            "gh-issue-edit",
+            "gh-pr-edit",
+            "gh-pr-ready",
+            "gh-pr-view",
+        ],
+    )
+    def test_detector_still_sees_the_known_self_denying_rules(self, rule_name: str) -> None:
+        # Non-vacuity guard (the GH-1215 lesson): the two assertions below
+        # only mean something while the detector still classifies these
+        # rules as self-denying. If a wording change makes the detector go
+        # blind, they would pass while checking nothing — fail loudly here
+        # instead.
+        assert rule_name in _self_denying_rule_ids(), (
+            f"{rule_name} is no longer detected as self-denying — the escape "
+            "assertions have gone vacuous for it"
+        )
+
+    def test_self_denying_fallback_carries_an_escape(self) -> None:
+        offenders = [
+            name for name in _self_denying_rule_ids() if not _rule_by_name(name).get("except")
+        ]
+        assert not offenders, (
+            "these blocking rules name their own denied command as the "
+            f"fallback and offer no `except` escape: {offenders}"
+        )
+
+    def test_self_denying_fallback_names_its_escape(self) -> None:
+        # An escape the caller is never told about is only half a fix —
+        # they still burn a round trip discovering the hint is denied.
+        offenders = [
+            name
+            for name in _self_denying_rule_ids()
+            if not any(
+                str(token) in _fallback_text(_rule_by_name(name))
+                for token in _rule_by_name(name).get("except", [])
+            )
+        ]
+        assert not offenders, (
+            "these blocking rules carry an `except` escape but their "
+            f"fallback text never names it: {offenders}"
+        )
+
+    @pytest.mark.parametrize(
+        "rule_name",
+        [
+            "gh-issue-close",
+            "gh-issue-reopen",
+            "gh-issue-edit",
+            "gh-pr-edit",
+            "gh-pr-ready",
+        ],
+    )
+    def test_write_rules_use_a_write_scoped_marker(self, rule_name: str) -> None:
+        # A read escape must never authorize a mutation: `gh-pr-view`'s
+        # `raw-gh-pr` marker is carried by verify-acc-dod DoD checks, which
+        # are cleared to read a PR, not to edit one.
+        markers = _rule_by_name(rule_name)["except"]
+        assert markers, f"{rule_name} has no escape marker"
+        assert all(str(marker).endswith("-write") for marker in markers), (
+            f"{rule_name} must use a write-scoped marker, got {markers}"
+        )
+
+    def test_issue_view_keeps_a_read_scoped_escape(self) -> None:
+        # GH-1266 floats making this advisory. It stays blocking on
+        # purpose: `gh issue view 42` is the fixture carrying GH-957's
+        # MCP-disconnect guidance, so an advisory rule would drop the
+        # reconnect hint exactly when the MCP server is down. The escape
+        # is read-scoped — it must not end in `-write`.
+        rule = _rule_by_name("gh-issue-view")
+        assert rule["hook_block"] is True
+        assert rule["except"] == ["cli-friction: allow raw-gh-issue"]
+        assert not any(str(marker).endswith("-write") for marker in rule["except"])
