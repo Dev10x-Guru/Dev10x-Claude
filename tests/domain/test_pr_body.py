@@ -58,6 +58,31 @@ def test_missing_markers_are_reported(job_story, expected):
     assert missing_job_story_markers(job_story=job_story) == expected
 
 
+@pytest.mark.parametrize(
+    "job_story",
+    [
+        "**When** a refund times out, **the dealer wants** the reason to be "
+        "obvious, **so the service writer can** answer the customer.",
+        "**When** CI is red, **the maintainer wants** a named failing leg, "
+        "**so the crew can** skip the bisect.",
+    ],
+)
+def test_outcome_framed_story_is_accepted(job_story):
+    """GH-1258: jtbd recommends outcome frames that omit the ``to`` verb.
+
+    The marker check demanded a literal ``wants to**``, so writers had to
+    abandon the better guidance to pass validation.
+    """
+    assert missing_job_story_markers(job_story=job_story) == []
+
+
+def test_actor_clause_is_still_required():
+    """Widening the marker must not accept a story with no actor."""
+    assert WANTS_MARKER in missing_job_story_markers(
+        job_story="**When** X, **wants** Y, **so the crew can** Z."
+    )
+
+
 def test_error_names_the_missing_marker_and_the_expected_format():
     error = job_story_error(job_story="**When** X, **I want to** Y, so I can Z.")
     assert SO_CAN_MARKER in error

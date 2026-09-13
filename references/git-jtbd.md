@@ -24,6 +24,12 @@ commit messages, and issue tickets.
 
 One sentence. No bullet points. No implementation details.
 
+An **outcome frame** is equally valid where it reads better —
+`**the dealer wants** the timeout reason to be obvious` states the
+wanted end state rather than the effort to reach it. The validator
+accepts both (GH-1258); what it requires is the actor clause, so
+`**wants**` with no role in front of it still fails.
+
 Name a concrete domain **actor** (who has the need) and a concrete
 **beneficiary** (who gains from the outcome). They are often the same
 role — then name that role in both slots ("**the dealer wants to** …

@@ -572,6 +572,7 @@ async def create_pr(
     closes: list[int] | None = None,
     draft: bool = True,
     head_repo: str | None = None,
+    repo: str | None = None,
     cwd: str | None = None,
     ctx: Context | None = None,
 ) -> dict:
@@ -613,6 +614,11 @@ async def create_pr(
             the head branch is pushed to that owner's remote and the
             PR opens with `--head <head_repo>:<branch>` against the
             upstream base. Omit for same-repo PRs.
+        repo: Target repository as `owner/repo` (GH-1269). Every sibling
+            PR wrapper (`pr_get`, `update_pr`, `merge_pr`) accepts this,
+            so callers reasonably passed it here too and paid a
+            round-trip retry on the validation error. Omit to keep
+            detecting the repo from the effective checkout.
         cwd: Effective working directory (GH-979). Pass the worktree
             path after EnterWorktree so the PR is created from the
             worktree's branch, not the main repo's.
@@ -641,6 +647,7 @@ async def create_pr(
                 closes=closes,
                 draft=draft,
                 head_repo=head_repo,
+                repo=repo,
             )
         )
 
@@ -710,6 +717,7 @@ async def merge_pr(
     admin: bool = False,
     auto: bool = False,
     repo: str | None = None,
+    expected_head_sha: str | None = None,
     cwd: str | None = None,
 ) -> Result[dict]:
     """Merge a pull request via ``gh pr merge`` (GH-232).
@@ -745,12 +753,16 @@ async def merge_pr(
         repo: Repository (owner/repo). Auto-detected if omitted.
             Always passed as ``--repo`` to ``gh pr merge`` for
             worktree safety (GH-773).
+        expected_head_sha: Merge only if the head still points here
+            (GH-1267). Pass the ``headRefOid`` the pre-merge checks
+            verified: without it the merge takes whatever the head is
+            *now*, so a push landing mid-gate ships unreviewed code.
         cwd: Effective working directory (GH-979).
 
     Returns:
         Dictionary with keys: pr_number (int), url (str),
         strategy (str), branch_deleted (bool), admin (bool),
-        auto (bool), repo (str).
+        auto (bool), repo (str), expected_head_sha (str | None).
     """
     return await gh.merge_pr(
         pr_number=pr_number,
@@ -759,6 +771,7 @@ async def merge_pr(
         admin=admin,
         auto=auto,
         repo=repo,
+        expected_head_sha=expected_head_sha,
     )
 
 

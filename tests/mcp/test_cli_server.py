@@ -1126,6 +1126,7 @@ class TestMergePrMcp:
             "admin": False,
             "auto": False,
             "repo": None,
+            "expected_head_sha": None,
         }
 
     @pytest.mark.asyncio

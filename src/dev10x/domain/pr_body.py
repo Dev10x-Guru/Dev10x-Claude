@@ -8,7 +8,7 @@ bold markers, and `Fixes:` must be the literal last line.
 import re
 
 WHEN_MARKER = "**When**"
-WANTS_MARKER = "**<actor> wants to**"
+WANTS_MARKER = "**<actor> wants**"
 SO_CAN_MARKER = "**so <beneficiary> can**"
 
 JOB_STORY_FORMAT = (
@@ -16,7 +16,12 @@ JOB_STORY_FORMAT = (
 )
 
 _WHEN_PATTERN = re.compile(r"\*\*When\*\*")
-_WANTS_PATTERN = re.compile(r"\*\*[^*]*\bwants? to\*\*")
+# GH-1258: an outcome frame ("**the dealer wants** the reason to be
+# obvious") carries the actor but not the `to` verb, so demanding a
+# literal `wants to**` forced writers off the guidance jtbd recommends.
+# The leading `[^*\s]` keeps the actor clause mandatory — `**wants**`
+# still fails.
+_WANTS_PATTERN = re.compile(r"\*\*[^*\s][^*]*\bwants?\b[^*]*\*\*")
 _SO_CAN_PATTERN = re.compile(r"\*\*so\b[^*]*\bcan\b[^*]*\*\*")
 
 _SEPARATOR_PATTERN = re.compile(r"^\s*(-{3,}|\*{3,}|_{3,})\s*$")

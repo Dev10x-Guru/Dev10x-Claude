@@ -176,7 +176,8 @@ one session). Use these shapes verbatim:
 | `task_index_get` | none (optional `cwd`) | `Read`ing `.claude/Dev10x/session.yaml` — retired by ADR-0018 D5; the tool probes it as a fallback |
 | `pr_ready` | `pr_number`; optional `undo` (bool) | assuming it only publishes — `undo=true` returns a PR to draft |
 | `ci_check_status` | `pr_number`, `repo`; optional `wait`, `wait_out_pending` (default `true`), `wait_for` (list of check names) | reading a `wait=true` `failing` as "every leg finished" — check `pending` (GH-1065); expecting `wait_out_pending` to cover a failed REQUIRED leg — it does not, use `wait_for` (GH-1138) |
-| `create_pr` | `title`, `issue_id`, plus either `job_story` or `body`; optional `head`, `milestone` | passing a long `job_story` and expecting the extra paragraphs to survive — only `body` is used verbatim (GH-1073) |
+| `create_pr` | `title`, `issue_id`, plus either `job_story` or `body`; optional `head`, `milestone`, `repo` | passing a long `job_story` and expecting the extra paragraphs to survive — only `body` is used verbatim (GH-1073); assuming `repo` is rejected — it is accepted since GH-1269 |
+| `merge_pr` | `pr_number`; optional `expected_head_sha` | omitting `expected_head_sha` after a pre-merge gate read `headRefOid` — the merge then takes whatever the head is *now* (GH-1267) |
 | `update_pr` | `pr_number`, plus at least one of `body` / `title` / `base_branch` / `milestone` | `gh pr edit --milestone` — routed here (GH-1098) |
 
 Behavioral caveats:
@@ -220,10 +221,26 @@ Behavioral caveats:
   another bot-CI round.
 
 - `create_pr` rejects a `job_story` missing any of `**When**` /
-  `**<actor> wants to**` / `**so <beneficiary> can**` with an
+  `**<actor> wants**` / `**so <beneficiary> can**` with an
   actionable error before the PR is opened, and `update_pr` moves any
   content trailing the `Fixes:` line above it (GH-945) — so neither
   path can emit a body that trips the hygiene bot.
+
+- `create_pr` always emits at least one `Fixes:` reference (GH-1256).
+  The trailer used to be derived from `fixes_url` alone, so linking an
+  issue the documented way — `issue_id` — produced a body with no
+  trailer, which the hygiene bot rejects. `issue_id` now seeds the
+  reference and every `closes=` member is added alongside it, because
+  `Closes #N` never fires on a merge to `develop` (GH-958). An explicit
+  `fixes_url` still leads, and prose such as `none — self-motivated`
+  passes through untouched. Verify the body after the call regardless —
+  a write is a request, not a receipt.
+
+- `pr_get` returns `files`, the complete changed-file list (GH-1265).
+  Callers previously hand-rolled `gh api repos/.../pulls/N/files`, whose
+  30-item default page silently truncated a 41-file PR and produced a
+  false-negative "did the frontend change?" merge gate. The field is
+  GraphQL-backed, so the REST page size does not apply.
 
 - `create_pr` assembles the body from `job_story` plus a generated
   commit list — anything else the caller wanted in the body has

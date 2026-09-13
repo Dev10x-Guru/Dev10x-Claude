@@ -9,7 +9,11 @@
 # Output: JSON with number, title, body, state, baseRefName, headRefName,
 # mergedAt, closedAt, labels, milestone, assignees, author, url, isDraft,
 # mergeable, reviewDecision, reviewRequests, autoMergeRequest, reviews,
-# headRefOid.
+# headRefOid, files.
+# files (GH-1265) carries the complete changed-file list. Without it callers
+# hand-rolled `gh api repos/.../pulls/N/files`, whose 30-item default page
+# truncated a 41-file PR and produced a false-negative merge gate. This field
+# is GraphQL-backed, so it is not subject to that REST page size.
 # Note: ``merged`` is not a valid gh pr view field (GH-329); use mergedAt.
 # The isDraft/mergeable/reviewDecision/reviewRequests fields (GH-668) make
 # pr_get a drop-in for the hook-blocked ``gh pr view --json ...`` checks in
@@ -36,13 +40,14 @@ set -euo pipefail
 NUMBER="${1:?Usage: gh-pr-get.sh NUMBER [REPO]}"
 REPO="${2:-$(gh repo view --json nameWithOwner -q '.nameWithOwner')}"
 
-FIELDS=number,title,body,state,baseRefName,headRefName,mergedAt,closedAt,labels,milestone,assignees,author,url,isDraft,mergeable,reviewDecision,reviewRequests,autoMergeRequest,reviews,headRefOid
+FIELDS=number,title,body,state,baseRefName,headRefName,mergedAt,closedAt,labels,milestone,assignees,author,url,isDraft,mergeable,reviewDecision,reviewRequests,autoMergeRequest,reviews,headRefOid,files
 
 # One retry per droppable field, bounded so a persistent non-field error
 # (auth, network, unknown PR) surfaces instead of looping. The bound must
-# exceed the number of fields a genuinely old gh can reject — seven of the
+# exceed the number of fields a genuinely old gh can reject — eight of the
 # fields above post-date the GH-267 baseline (isDraft, mergeable,
-# reviewDecision, reviewRequests, autoMergeRequest, reviews, headRefOid) —
+# reviewDecision, reviewRequests, autoMergeRequest, reviews, headRefOid,
+# files) —
 # or the retry budget runs out before converging on the very builds this
 # loop exists to serve. The loop always terminates: each retry removes one
 # field, and an empty field list breaks out below.
