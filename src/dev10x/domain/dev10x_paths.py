@@ -22,6 +22,7 @@ from __future__ import annotations
 import functools
 import logging
 import os
+import re
 import shutil
 import sys
 from collections.abc import Callable
@@ -211,12 +212,10 @@ class Dev10xConfigDir:
 
     @classmethod
     def github_app_yaml(cls) -> Path:
-        current = _with_lazy_migration(
+        return _with_lazy_migration(
             cls._resolve("github-bot", "github-app.yaml"),
             _legacy_github_app_yaml,
         )
-        _rewrite_legacy_private_key_path(current)
-        return current
 
     @classmethod
     def gitmoji_yaml(cls) -> Path:
@@ -256,30 +255,76 @@ def _with_lazy_migration(current: Path, legacy_provider: Callable[[], Path]) -> 
     return current
 
 
-_LEGACY_BOT_DIR_FRAGMENT = ".claude/Dev10x/github-bot"
-_CURRENT_BOT_DIR_FRAGMENT = ".config/Dev10x/github-bot"
+def _legacy_bot_dir_spellings() -> list[str]:
+    """Every way the legacy bot directory can appear inside the yaml.
+
+    The resolved form covers an expanded path (and honours
+    ``CLAUDE_CONFIG_HOME``); the tilde form covers a config written by
+    hand, which is what the setup doc used to instruct.
+    """
+    return [str(_legacy_github_bot_dir()), "~/.claude/Dev10x/github-bot"]
 
 
-def _rewrite_legacy_private_key_path(config: Path) -> None:
+def reconcile_github_app_key_path() -> bool:
     """Point ``private_key_path`` at the relocated key (GH-1271).
 
     ``migrate_path`` moves the yaml and the ``.pem`` beside it, but the
     ``private_key_path`` *inside* the yaml keeps naming the old
     directory — so the key read fails after a migration that otherwise
-    looks clean. Rewriting the one fragment in place is safe: the key
-    has already been moved to the mirrored location, and a path that
-    never referenced the legacy directory is left untouched.
+    looks clean.
+
+    The replacement is derived from the **resolved** config directory,
+    never a hardcoded ``~/.config``: the root honours
+    ``DEV10X_CONFIG_HOME`` / ``XDG_CONFIG_HOME`` / ``%APPDATA%``, and
+    writing the default over a configured root would swap a
+    stale-but-obvious path for a stale-and-plausible one that no later
+    pass could correct.
+
+    Refuses to rewrite unless the relocated key is actually present —
+    leaving a visibly broken path beats inventing a different broken
+    one. Returns True when the file was changed.
+
+    This is called explicitly rather than from the path accessor: a
+    getter with a disk-write side effect is the same structural smell
+    the repo bans module-scope ``GitContext()`` for, and it put a
+    read-modify-write on the hot path of every ``AppConfig.load()``.
     """
+    config = Dev10xConfigDir._resolve("github-bot", "github-app.yaml")
+    relocated_dir = config.parent
+    spellings = _legacy_bot_dir_spellings()
+
     try:
-        text = config.read_text()
+        if not any(spelling in config.read_text() for spelling in spellings):
+            return False
     except OSError:
-        return
-    if _LEGACY_BOT_DIR_FRAGMENT not in text:
-        return
-    atomic_write_text(
-        path=config,
-        content=text.replace(_LEGACY_BOT_DIR_FRAGMENT, _CURRENT_BOT_DIR_FRAGMENT),
-    )
+        return False
+
+    with file_lock(config):
+        try:
+            current = config.read_text()
+        except OSError:
+            return False
+        rewritten = current
+        for spelling in spellings:
+            rewritten = rewritten.replace(spelling, str(relocated_dir))
+        if rewritten == current:
+            return False
+
+        key_name = Path(_key_path_in(rewritten) or "").name
+        if key_name and not (relocated_dir / key_name).is_file():
+            log.warning(
+                "Leaving github-app.yaml private_key_path alone: %s was never "
+                "relocated, so rewriting the path would only hide the failure.",
+                key_name,
+            )
+            return False
+        atomic_write_text(path=config, content=rewritten)
+    return True
+
+
+def _key_path_in(text: str) -> str | None:
+    match = re.search(r"private_key_path\s*:\s*[\"']?([^\"'\n]+)", text)
+    return match.group(1).strip() if match else None
 
 
 # Legacy path providers — wrapped in callables so test overrides of
@@ -348,6 +393,11 @@ def migrate_all() -> list[Path]:
     for legacy, current in _migration_pairs():
         if migrate_path(legacy=legacy, current=current):
             migrated.append(current)
+    # Relocating github-app.yaml is not enough on its own — the key path
+    # it carries names the old directory (GH-1271). Run unconditionally:
+    # the engineers this repairs migrated long ago, so gating on a copy
+    # happening in *this* call would skip exactly them.
+    reconcile_github_app_key_path()
     return migrated
 
 
@@ -361,5 +411,6 @@ __all__ = [
     "Dev10xConfigDir",
     "migrate_all",
     "migrate_path",
+    "reconcile_github_app_key_path",
     "stale_legacy_paths",
 ]

@@ -177,7 +177,7 @@ one session). Use these shapes verbatim:
 | `pr_ready` | `pr_number`; optional `undo` (bool) | assuming it only publishes — `undo=true` returns a PR to draft |
 | `ci_check_status` | `pr_number`, `repo`; optional `wait`, `wait_out_pending` (default `true`), `wait_for` (list of check names) | reading a `wait=true` `failing` as "every leg finished" — check `pending` (GH-1065); expecting `wait_out_pending` to cover a failed REQUIRED leg — it does not, use `wait_for` (GH-1138) |
 | `create_pr` | `title`, `issue_id`, plus either `job_story` or `body`; optional `head`, `milestone`, `repo` | passing a long `job_story` and expecting the extra paragraphs to survive — only `body` is used verbatim (GH-1073); assuming `repo` is rejected — it is accepted since GH-1269 |
-| `merge_pr` | `pr_number`; optional `expected_head_sha` | omitting `expected_head_sha` after a pre-merge gate read `headRefOid` — the merge then takes whatever the head is *now* (GH-1267) |
+| `merge_pr` | `pr_number`; optional `expected_head_sha`, `use_bot` | omitting `expected_head_sha` after a pre-merge gate read `headRefOid` — the merge then takes whatever the head is *now* (GH-1267); reading `merged_as` as a request rather than a result — it reports which identity actually merged (GH-1272) |
 | `update_pr` | `pr_number`, plus at least one of `body` / `title` / `base_branch` / `milestone` | `gh pr edit --milestone` — routed here (GH-1098) |
 
 Behavioral caveats:
@@ -235,6 +235,21 @@ Behavioral caveats:
   `fixes_url` still leads, and prose such as `none — self-motivated`
   passes through untouched. Verify the body after the call regardless —
   a write is a request, not a receipt.
+
+- `merge_pr(use_bot=…)` executes the merge under the GitHub App
+  identity so `merged_by` distinguishes a gated merge from a human one
+  (GH-1272). Omit it to read the durable `github_app.merge_bot` key.
+  It never fails the merge: the payload's `merged_as` is `"bot"` or
+  `"engineer"`, and `bot_fallback` names the reason whenever the bot
+  path was skipped — `not requested`, `admin/auto merge has no bot
+  transport` (neither flag has a REST equivalent), `no installation
+  token`, or `bot merge refused: …` when a ruleset excludes the bot.
+  Trust `merged_as`, not the parameter you passed: the installation
+  token is minted once and threaded into the request precisely so a
+  second resolution cannot fail into engineer credentials while the
+  payload still claims the bot merged. The bot path also reports
+  `branch_deletion_error`, since the REST merge does not delete the
+  head ref and a protected ref refuses the follow-up `DELETE`.
 
 - `pr_get` returns `files`, the complete changed-file list (GH-1265).
   Callers previously hand-rolled `gh api repos/.../pulls/N/files`, whose

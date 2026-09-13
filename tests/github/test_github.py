@@ -2705,6 +2705,7 @@ class TestMergePr:
             "url": "https://github.com/owner/repo/pull/42",
             "strategy": "rebase",
             "branch_deleted": True,
+            "branch_deletion_error": None,
             "admin": False,
             "auto": False,
             "repo": "owner/repo",
