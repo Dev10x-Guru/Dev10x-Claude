@@ -23,6 +23,7 @@ allowed-tools:
   # authorized to invoke.
   - Bash(uvx dev10x permission update-paths:*)
   - Bash(uvx dev10x permission merge-worktree:*)
+  - Bash(uvx dev10x permission ensure-ignored:*)
   - Bash(uvx dev10x permission clean:*)
   - Bash(uvx dev10x permission enumerate-mcp:*)
   - Bash(uvx dev10x permission promote-plan:*)
@@ -709,6 +710,28 @@ uvx dev10x permission merge-worktree
 
 Session-specific noise is filtered out automatically; only
 stable, reusable permissions are merged.
+
+3. Keep Dev10x's own session state out of `git status` (GH-1275):
+
+```bash
+uvx dev10x permission ensure-ignored --dry-run
+```
+
+```bash
+uvx dev10x permission ensure-ignored
+```
+
+Dev10x writes per-session state to `.claude/Dev10x/` in whichever
+checkout it runs in, and projects that track `.claude/` — the common
+case — ignore nothing under it, so every worktree accumulates an
+untracked directory and reads as dirty the moment a session runs.
+
+The rule goes in `.git/info/exclude`, which lives in the git **common**
+dir: one write per repo covers every present and future worktree, so
+this step does not need to enumerate them. It never writes git-tracked
+content (`references/post-upgrade-verification.md`), and where it wrote
+a rule it prints the tracked spelling for a human to commit
+deliberately if they want teammates and fresh clones covered.
 
 ### 10. Audit permissions for friction *(full only)*
 
