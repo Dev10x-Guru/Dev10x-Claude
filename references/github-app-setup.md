@@ -273,9 +273,14 @@ If a reply still posts under your personal account:
 4. Confirm `app_id` in the yaml matches the numeric App ID
    on the App settings page.
 5. Confirm `private_key_path` **inside** the yaml points at the
-   `~/.config/Dev10x/` location. An install that predates that move
-   may carry a stale `~/.claude/Dev10x/...` value even though the
-   file itself was relocated; `dev10x config migrate` rewrites it.
+   config directory the yaml itself lives in. An install predating
+   the `~/.config/Dev10x/` move may carry a stale
+   `~/.claude/Dev10x/...` value even though the file was relocated.
+   `dev10x config migrate` rewrites it — deriving the replacement
+   from your resolved config root, so a `DEV10X_CONFIG_HOME` or
+   `XDG_CONFIG_HOME` setting is honoured. It deliberately declines
+   when the key is not present at the new location, leaving the
+   broken path visible rather than substituting a plausible one.
 6. Run the failing call once more and check the Dev10x debug
    logs — when token resolution fails (missing key, bad scope,
    App not installed), Dev10x logs the failure and falls back
@@ -325,7 +330,7 @@ resolve; an invented name does not.
 Verify against a throwaway commit on a temp ref before trusting it:
 
 ```bash
-gh api repos/<owner>/<repo>/commits/<sha> --jq '{author: .author.login, author_type: .author.type, committer: .committer.login}'
+gh api repos/<owner>/<repo>/commits/<sha> --jq '{author: .author.login, author_type: .author.type, committer: .committer.login, committer_type: .committer.type}'
 ```
 
 Both `author_type` and `committer_type` should read `Bot`.

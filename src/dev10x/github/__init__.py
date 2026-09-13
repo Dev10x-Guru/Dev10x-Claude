@@ -62,6 +62,8 @@ async def _gh_api_raw(
     jq: str | None = None,
     repo: str | None = None,
     as_bot: bool = False,
+    bot_env: dict[str, str] | None = None,
+    timeout: int = 30,
 ) -> subprocess.CompletedProcess[str]:
     args = ["gh", "api"]
     if method != "GET":
@@ -88,8 +90,11 @@ async def _gh_api_raw(
                 args.extend(["-f", f"{key}={value}"])
     args.append(endpoint)
 
-    env = await _bot_env(repo=repo) if as_bot and repo else None
-    return await async_run(args=args, timeout=30, env=env, input_text=body)
+    # An already-resolved bot_env wins: re-minting the token here would
+    # let a second exchange fail and silently fall through to engineer
+    # credentials while the caller still reports a bot action (GH-1272).
+    env = bot_env or (await _bot_env(repo=repo) if as_bot and repo else None)
+    return await async_run(args=args, timeout=timeout, env=env, input_text=body)
 
 
 async def _gh_api(
@@ -1323,18 +1328,23 @@ async def update_pr(
     return ok(payload)
 
 
-async def _merge_bot_fallback_reason(
+async def _resolve_merge_bot(
     *,
     use_bot: bool | None,
     admin: bool,
     auto: bool,
     repo_ref: str,
-) -> str | None:
-    """Return why the bot merge transport cannot run, or None to use it.
+) -> tuple[str | None, dict[str, str] | None]:
+    """Decide whether the bot merge transport runs, and mint its token once.
 
-    A non-None reason is reported in the payload rather than raised:
-    falling back to the engineer identity still merges (GH-1272), and a
-    repo whose ruleset restricts who may merge depends on that.
+    Returns ``(fallback_reason, bot_env)``. A non-None reason is reported
+    in the payload rather than raised: falling back to the engineer
+    identity still merges (GH-1272), and a repo whose ruleset restricts
+    who may merge depends on that.
+
+    The token is returned rather than re-resolved at the call site so a
+    second exchange cannot fail into engineer credentials while the
+    payload still claims the merge was the bot's.
     """
     if use_bot is None:
         config = AppConfig.load()
@@ -1342,14 +1352,15 @@ async def _merge_bot_fallback_reason(
     else:
         wants_bot = use_bot
     if not wants_bot:
-        return "not requested"
+        return "not requested", None
     if admin or auto:
         # --admin and --auto have no REST merge equivalent; honouring
         # them matters more than the identity the merge carries.
-        return "admin/auto merge has no bot transport"
-    if await _bot_env(repo=repo_ref) is None:
-        return "no installation token"
-    return None
+        return "admin/auto merge has no bot transport", None
+    bot_env = await _bot_env(repo=repo_ref)
+    if bot_env is None:
+        return "no installation token", None
+    return None, bot_env
 
 
 async def _merge_as_bot(
@@ -1359,17 +1370,25 @@ async def _merge_as_bot(
     delete_branch: bool,
     repo_ref: str,
     expected_head_sha: str | None,
+    bot_env: dict[str, str],
 ) -> Result[dict[str, Any]]:
-    """Merge via ``PUT /pulls/{n}/merge`` under the installation token."""
+    """Merge via ``PUT /pulls/{n}/merge`` under the installation token.
+
+    An error here is not terminal — the caller degrades to the engineer
+    identity, which is what a repo ruleset that excludes the bot needs.
+    """
     fields: dict[str, str | int | list[str]] = {"merge_method": strategy}
     if expected_head_sha:
         fields["sha"] = expected_head_sha
 
     head_ref: str | None = None
+    head_ref_error: str | None = None
     if delete_branch:
         pr = await pr_get(number=pr_number, repo=repo_ref)
         if isinstance(pr, SuccessResult):
             head_ref = pr.value.get("headRefName")
+        else:
+            head_ref_error = f"could not resolve head branch: {pr.error}"
 
     result = await _gh_api_raw(
         f"repos/{repo_ref}/pulls/{pr_number}/merge",
@@ -1377,19 +1396,31 @@ async def _merge_as_bot(
         fields=fields,
         repo=repo_ref,
         as_bot=True,
+        bot_env=bot_env,
+        timeout=60,
     )
     if result.returncode != 0:
         return err(result.stderr.strip() or result.stdout.strip())
 
+    # A 200 whose body says otherwise is still a failed merge — the wire
+    # contract's "a write is a request, not a receipt" rule.
+    payload = _loads_or_empty(result.stdout)
+    if isinstance(payload, dict) and payload.get("merged") is False:
+        return err(str(payload.get("message") or "merge reported merged: false"))
+
     branch_deleted = False
+    deletion_error = head_ref_error
     if head_ref:
         deletion = await _gh_api_raw(
             f"repos/{repo_ref}/git/refs/heads/{head_ref}",
             method="DELETE",
             repo=repo_ref,
             as_bot=True,
+            bot_env=bot_env,
         )
         branch_deleted = deletion.returncode == 0
+        if not branch_deleted:
+            deletion_error = deletion.stderr.strip() or "ref deletion refused"
 
     return ok(
         {
@@ -1397,6 +1428,7 @@ async def _merge_as_bot(
             "url": f"https://github.com/{repo_ref}/pull/{pr_number}",
             "strategy": strategy,
             "branch_deleted": branch_deleted,
+            "branch_deletion_error": deletion_error,
             "admin": False,
             "auto": False,
             "repo": repo_ref,
@@ -1471,17 +1503,23 @@ async def merge_pr(
         return err(repo_result.error)
     repo_ref = repo_result.value
 
-    bot_fallback = await _merge_bot_fallback_reason(
+    bot_fallback, bot_env = await _resolve_merge_bot(
         use_bot=use_bot, admin=admin, auto=auto, repo_ref=str(repo_ref)
     )
-    if bot_fallback is None:
-        return await _merge_as_bot(
+    if bot_fallback is None and bot_env is not None:
+        bot_result = await _merge_as_bot(
             pr_number=pr_number,
             strategy=strategy,
             delete_branch=delete_branch,
             repo_ref=str(repo_ref),
             expected_head_sha=expected_head_sha,
+            bot_env=bot_env,
         )
+        if isinstance(bot_result, SuccessResult):
+            return bot_result
+        # A ruleset that excludes the bot refuses the REST merge; the
+        # documented contract is to degrade, not to block the merge.
+        bot_fallback = f"bot merge refused: {bot_result.error}"
 
     args = [
         "gh",
@@ -1513,6 +1551,7 @@ async def merge_pr(
             "url": url,
             "strategy": strategy,
             "branch_deleted": delete_branch,
+            "branch_deletion_error": None,
             "admin": admin,
             "auto": auto,
             "repo": str(repo_ref),

@@ -13,16 +13,36 @@ import shutil
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import click
 
 from dev10x.commands import github_app_api as api
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.file_locks import atomic_write_text
+from dev10x.github.app_auth import AppConfig
 
 CONFIG_DIR = Dev10xConfigDir.github_bot_dir()
 CONFIG_PATH = Dev10xConfigDir.github_app_yaml()
 KEY_PATH = CONFIG_DIR / "dev10x-bot.pem"
+
+# What the plugin calls, and the capability each one unlocks. Reported
+# against the permissions the INSTALLATION was granted, not the ones the
+# App requests: editing an App's permissions raises a request the
+# installation must accept, and until it does every call runs on the old
+# set (GH-1271).
+NEEDED_PERMISSIONS = {
+    "pull_requests": ("write", "review-thread replies, PR summary comments"),
+    "issues": ("write", "comments on issues — the shared /issues/ endpoint"),
+    "contents": ("write", "repo reads; bot-authored commits"),
+}
+
+# Short of these the bot is degraded, not broken, so status still passes.
+# The setup doc sanctions `Contents: read` for comments-without-commit-
+# identity; failing that configuration would contradict our own guidance.
+OPTIONAL_PERMISSIONS = {"contents": "commit identity unavailable; comments still work"}
+
+_PERMISSION_RANK = {"read": 1, "write": 2, "admin": 3}
 
 PERSONAL_NEW_APP_URL = "https://github.com/settings/apps/new"
 
@@ -496,34 +516,27 @@ def status() -> None:
         sys.exit(1)
 
 
-# What the plugin actually calls, and the capability each one unlocks.
-# Reported against the permissions the INSTALLATION was granted, not the
-# ones the App requests: editing an App's permissions raises a request the
-# installation must accept, and until it does every call runs on the old
-# set (GH-1271).
-REQUIRED_PERMISSIONS = {
-    "pull_requests": ("write", "review-thread replies, PR summary comments"),
-    "issues": ("write", "comments on issues — the shared /issues/ endpoint"),
-    "contents": ("write", "repo reads; bot-authored commits"),
-}
-
-_PERMISSION_RANK = {"read": 1, "write": 2, "admin": 3}
-
-
 def _report_granted_permissions() -> bool:
-    """Exercise the credentials and report granted vs required permissions.
+    """Exercise the credentials and report granted vs needed permissions.
 
     A status command that reads config and stops is the defect GH-1271
     names: token resolution falls back to user auth silently, so an
     unusable App and an absent one look identical from the outside.
     """
+    config = AppConfig.load(path=CONFIG_PATH)
+    if config is None:
+        click.echo("Token check:   ✗ config is unreadable, disabled, or missing app_id")
+        click.echo("  The bot will fall back to your engineer identity on every call.")
+        return False
+
     try:
-        config = _load_config_block()
         jwt_token = api.mint_app_jwt(
-            app_id=config["app_id"], private_key=Path(config["private_key_path"]).read_text()
+            app_id=config.app_id, private_key=config.private_key_path.read_text()
         )
         installations = api.list_installations(jwt_token=jwt_token)
-    except Exception as exc:  # noqa: BLE001 — any failure is a report line
+    except Exception as exc:
+        # Any failure here is a report line, not a traceback: the whole
+        # point is to name what silently falls back (GH-1271).
         click.echo(f"Token check:   ✗ {exc}")
         click.echo("  The bot will fall back to your engineer identity on every call.")
         return False
@@ -532,24 +545,12 @@ def _report_granted_permissions() -> bool:
         click.echo("Token check:   ✗ App is registered but not installed anywhere")
         return False
 
-    installation_id = int(installations[0]["id"])
-    try:
-        granted = api.create_installation_token_full(
-            jwt_token=jwt_token, installation_id=installation_id
-        ).get("permissions", {})
-    except Exception as exc:  # noqa: BLE001 — any failure is a report line
-        click.echo(f"Token check:   ✗ could not mint an installation token: {exc}")
-        return False
-
-    click.echo(f"Token check:   ✓ installation {installation_id}")
-    click.echo("Permissions granted to the installation:")
+    # Every installation is reported, not just the first: an App on both
+    # a personal account and an org has independent permission sets, and
+    # picking one is a coin flip on exactly the setup the doc calls a trap.
     complete = True
-    for name, (needed, unlocks) in REQUIRED_PERMISSIONS.items():
-        actual = granted.get(name)
-        ok_level = _PERMISSION_RANK.get(actual or "", 0) >= _PERMISSION_RANK[needed]
-        mark = "✓" if ok_level else "✗"
-        click.echo(f"  {mark} {name}: {actual or 'none'} (need {needed}) — {unlocks}")
-        complete = complete and ok_level
+    for installation in installations:
+        complete = _report_one_installation(installation) and complete
 
     if not complete:
         click.echo("")
@@ -559,12 +560,18 @@ def _report_granted_permissions() -> bool:
     return complete
 
 
-def _load_config_block() -> dict[str, str]:
-    import yaml
+def _report_one_installation(installation: dict[str, Any]) -> bool:
+    account = (installation.get("account") or {}).get("login", "?")
+    click.echo(f"Installation {installation.get('id')} ({account}):")
 
-    data = yaml.safe_load(CONFIG_PATH.read_text()) or {}
-    block = data.get("github_app") or {}
-    return {
-        "app_id": str(block["app_id"]),
-        "private_key_path": str(Path(str(block["private_key_path"])).expanduser()),
-    }
+    granted = installation.get("permissions") or {}
+    satisfied = True
+    for name, (needed, unlocks) in NEEDED_PERMISSIONS.items():
+        actual = granted.get(name)
+        has_level = _PERMISSION_RANK.get(actual or "", 0) >= _PERMISSION_RANK[needed]
+        optional = name in OPTIONAL_PERMISSIONS
+        mark = "✓" if has_level else ("•" if optional else "✗")
+        suffix = "" if has_level else (f" — {OPTIONAL_PERMISSIONS[name]}" if optional else "")
+        click.echo(f"  {mark} {name}: {actual or 'none'} (need {needed}) — {unlocks}{suffix}")
+        satisfied = satisfied and (has_level or optional)
+    return satisfied

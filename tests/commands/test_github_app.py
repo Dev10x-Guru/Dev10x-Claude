@@ -429,26 +429,46 @@ class TestStatus:
         gha.KEY_PATH.write_text("KEY")
         os.chmod(gha.KEY_PATH, 0o600)
 
-    def test_reports_present_config(self, fake_home: Path) -> None:
+    @staticmethod
+    def _fail_token(monkeypatch: pytest.MonkeyPatch, message: str) -> None:
+        """Stub both network calls so the test cannot escape to the wire."""
+
+        def _raise(**_: object) -> str:
+            raise RuntimeError(message)
+
+        monkeypatch.setattr(gha.api, "mint_app_jwt", _raise)
+        monkeypatch.setattr(gha.api, "list_installations", _raise)
+
+    def test_reports_present_config(
+        self, fake_home: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         self._write_config()
-
-        runner = CliRunner()
-        result = runner.invoke(gha.github_app, ["status"])
-
-        assert str(gha.CONFIG_PATH) in result.output
-
-    def test_present_config_alone_is_not_healthy(self, fake_home: Path) -> None:
-        """GH-1271: config presence used to exit 0 while every call fell back.
-
-        An unusable App and an absent one looked identical from the
-        outside, which is why the bot identity sat dark for months.
-        """
-        self._write_config()
+        self._fail_token(monkeypatch, "bad key")
 
         runner = CliRunner()
         result = runner.invoke(gha.github_app, ["status"])
 
         assert result.exit_code == 1
+        assert str(gha.CONFIG_PATH) in result.output
+
+    def test_present_config_alone_is_not_healthy(
+        self, fake_home: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """GH-1271: config presence used to exit 0 while every call fell back.
+
+        An unusable App and an absent one looked identical from the
+        outside, which is why the bot identity sat dark for months. The
+        failure is stubbed explicitly so the test asserts the reported
+        reason rather than whatever the blanket handler happens to catch.
+        """
+        self._write_config()
+        self._fail_token(monkeypatch, "could not parse private key")
+
+        runner = CliRunner()
+        result = runner.invoke(gha.github_app, ["status"])
+
+        assert result.exit_code == 1
+        assert "could not parse private key" in result.output
         assert "fall back" in result.output
 
     def test_reports_each_granted_permission(
@@ -456,26 +476,90 @@ class TestStatus:
     ) -> None:
         self._write_config()
         monkeypatch.setattr(gha.api, "mint_app_jwt", lambda **_: "JWT")
-        monkeypatch.setattr(gha.api, "list_installations", lambda **_: [{"id": 7}])
         monkeypatch.setattr(
             gha.api,
-            "create_installation_token_full",
-            lambda **_: {
-                "token": "ghs_x",
-                "permissions": {
-                    "pull_requests": "write",
-                    "issues": "write",
-                    "contents": "write",
-                },
-            },
+            "list_installations",
+            lambda **_: [
+                {
+                    "id": 7,
+                    "account": {"login": "acme"},
+                    "permissions": {
+                        "pull_requests": "write",
+                        "issues": "write",
+                        "contents": "write",
+                    },
+                }
+            ],
         )
 
         runner = CliRunner()
         result = runner.invoke(gha.github_app, ["status"])
 
         assert result.exit_code == 0
-        assert "installation 7" in result.output
+        assert "Installation 7 (acme)" in result.output
         assert "✓ issues: write" in result.output
+
+    def test_every_installation_is_reported(
+        self, fake_home: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A personal App installed on an org has two independent sets."""
+        self._write_config()
+        monkeypatch.setattr(gha.api, "mint_app_jwt", lambda **_: "JWT")
+        monkeypatch.setattr(
+            gha.api,
+            "list_installations",
+            lambda **_: [
+                {
+                    "id": 7,
+                    "account": {"login": "personal"},
+                    "permissions": {
+                        "pull_requests": "write",
+                        "issues": "write",
+                        "contents": "write",
+                    },
+                },
+                {
+                    "id": 8,
+                    "account": {"login": "acme-org"},
+                    "permissions": {"pull_requests": "write"},
+                },
+            ],
+        )
+
+        runner = CliRunner()
+        result = runner.invoke(gha.github_app, ["status"])
+
+        assert result.exit_code == 1
+        assert "Installation 7 (personal)" in result.output
+        assert "Installation 8 (acme-org)" in result.output
+
+    def test_contents_read_is_degraded_not_broken(
+        self, fake_home: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The setup doc sanctions comments-without-commit-identity."""
+        self._write_config()
+        monkeypatch.setattr(gha.api, "mint_app_jwt", lambda **_: "JWT")
+        monkeypatch.setattr(
+            gha.api,
+            "list_installations",
+            lambda **_: [
+                {
+                    "id": 7,
+                    "account": {"login": "acme"},
+                    "permissions": {
+                        "pull_requests": "write",
+                        "issues": "write",
+                        "contents": "read",
+                    },
+                }
+            ],
+        )
+
+        runner = CliRunner()
+        result = runner.invoke(gha.github_app, ["status"])
+
+        assert result.exit_code == 0
+        assert "commit identity unavailable" in result.output
 
     def test_missing_permission_names_the_acceptance_step(
         self, fake_home: Path, monkeypatch: pytest.MonkeyPatch
@@ -483,14 +567,16 @@ class TestStatus:
         """A granted set short of what the plugin calls means a pending accept."""
         self._write_config()
         monkeypatch.setattr(gha.api, "mint_app_jwt", lambda **_: "JWT")
-        monkeypatch.setattr(gha.api, "list_installations", lambda **_: [{"id": 7}])
         monkeypatch.setattr(
             gha.api,
-            "create_installation_token_full",
-            lambda **_: {
-                "token": "ghs_x",
-                "permissions": {"pull_requests": "write", "contents": "read"},
-            },
+            "list_installations",
+            lambda **_: [
+                {
+                    "id": 7,
+                    "account": {"login": "acme"},
+                    "permissions": {"pull_requests": "write", "contents": "read"},
+                }
+            ],
         )
 
         runner = CliRunner()
@@ -498,7 +584,6 @@ class TestStatus:
 
         assert result.exit_code == 1
         assert "✗ issues: none" in result.output
-        assert "✗ contents: read" in result.output
         assert "settings/installations" in result.output
 
     def test_uninstalled_app_is_reported(

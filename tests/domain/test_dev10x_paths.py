@@ -12,6 +12,7 @@ from dev10x.domain.dev10x_paths import (
     Dev10xConfigDir,
     migrate_all,
     migrate_path,
+    reconcile_github_app_key_path,
     stale_legacy_paths,
 )
 
@@ -247,39 +248,112 @@ def test_migrate_all_is_idempotent(isolated_dirs: tuple[Path, Path]) -> None:
     assert second == []
 
 
-def _write_legacy_app_config(body: str) -> None:
-    legacy = ClaudeDir.github_app_yaml()
-    legacy.parent.mkdir(parents=True, exist_ok=True)
-    legacy.write_text(body)
+def _seed_legacy_bot_dir(legacy_root: Path, *, key_path: str) -> None:
+    """Write a legacy github-app.yaml plus the key it names."""
+    legacy_config = ClaudeDir.github_app_yaml()
+    legacy_config.parent.mkdir(parents=True, exist_ok=True)
+    legacy_config.write_text(f'github_app:\n  app_id: "1"\n  private_key_path: "{key_path}"\n')
+    (legacy_config.parent / "dev10x-bot.pem").write_text("KEY")
+
+
+def _key_path_of(config: Path) -> str:
+    import yaml
+
+    return str(yaml.safe_load(config.read_text())["github_app"]["private_key_path"])
+
+
+def _migrated_config() -> Path:
+    """Migrate the bot dir (which carries the .pem) and then the yaml."""
+    Dev10xConfigDir.github_bot_dir()
+    return Dev10xConfigDir.github_app_yaml()
 
 
 def test_migration_rewrites_private_key_path(isolated_dirs: tuple[Path, Path]) -> None:
     """GH-1271: the yaml moved but its own key path kept naming the old dir.
 
-    The relocated config pointed at ``~/.claude/Dev10x/github-bot/…`` for
-    a key that had already been moved, so the read failed after a
-    migration that otherwise looked clean.
+    Asserted by resolving the rewritten path rather than by matching the
+    string the implementation writes — the earlier version of this test
+    asserted a literal ``~/.config/...`` and so passed while producing a
+    path that does not exist under a configured ``DEV10X_CONFIG_HOME``.
     """
-    _write_legacy_app_config(
+    legacy_root, _ = isolated_dirs
+    _seed_legacy_bot_dir(legacy_root, key_path=str(ClaudeDir.github_bot_dir() / "dev10x-bot.pem"))
+
+    migrated = _migrated_config()
+    assert reconcile_github_app_key_path() is True
+
+    rewritten = Path(_key_path_of(migrated))
+    assert rewritten.is_file(), f"rewritten key path does not resolve: {rewritten}"
+    assert rewritten.parent == migrated.parent
+
+
+def test_rewrite_honours_a_configured_config_home(
+    isolated_dirs: tuple[Path, Path],
+) -> None:
+    """The replacement comes from the resolved root, not a hardcoded ~/.config."""
+    _, new_root = isolated_dirs
+    _seed_legacy_bot_dir(
+        isolated_dirs[0], key_path=str(ClaudeDir.github_bot_dir() / "dev10x-bot.pem")
+    )
+
+    migrated = _migrated_config()
+    reconcile_github_app_key_path()
+
+    assert str(new_root) in _key_path_of(migrated)
+
+
+def test_rewrite_is_idempotent(isolated_dirs: tuple[Path, Path]) -> None:
+    _seed_legacy_bot_dir(
+        isolated_dirs[0], key_path=str(ClaudeDir.github_bot_dir() / "dev10x-bot.pem")
+    )
+    migrated = _migrated_config()
+
+    assert reconcile_github_app_key_path() is True
+    after_first = migrated.read_text()
+    assert reconcile_github_app_key_path() is False
+    assert migrated.read_text() == after_first
+
+
+def test_rewrite_refuses_when_the_key_was_never_relocated(
+    isolated_dirs: tuple[Path, Path],
+) -> None:
+    """A visibly broken path beats a plausible one nothing can correct."""
+    legacy_config = ClaudeDir.github_app_yaml()
+    legacy_config.parent.mkdir(parents=True, exist_ok=True)
+    legacy_config.write_text(
         "github_app:\n"
         '  app_id: "1"\n'
-        '  private_key_path: "~/.claude/Dev10x/github-bot/dev10x-bot.pem"\n'
+        f'  private_key_path: "{ClaudeDir.github_bot_dir() / "dev10x-bot.pem"}"\n'
     )
 
     migrated = Dev10xConfigDir.github_app_yaml()
 
-    assert ".claude/Dev10x/github-bot" not in migrated.read_text()
-    assert ".config/Dev10x/github-bot/dev10x-bot.pem" in migrated.read_text()
+    assert reconcile_github_app_key_path() is False
+    assert str(ClaudeDir.github_bot_dir()) in migrated.read_text()
 
 
 def test_migration_leaves_an_unrelated_key_path_alone(
     isolated_dirs: tuple[Path, Path],
 ) -> None:
-    """Only the legacy fragment is rewritten — a custom path is preserved."""
-    _write_legacy_app_config(
-        'github_app:\n  app_id: "1"\n  private_key_path: "/opt/secrets/bot.pem"\n'
-    )
+    """A custom key path is preserved byte-for-byte."""
+    legacy_config = ClaudeDir.github_app_yaml()
+    legacy_config.parent.mkdir(parents=True, exist_ok=True)
+    body = 'github_app:\n  app_id: "1"\n  private_key_path: "/opt/secrets/bot.pem"\n'
+    legacy_config.write_text(body)
 
     migrated = Dev10xConfigDir.github_app_yaml()
 
-    assert "/opt/secrets/bot.pem" in migrated.read_text()
+    assert reconcile_github_app_key_path() is False
+    assert migrated.read_text() == body
+
+
+def test_migrate_all_reconciles_the_key_path(isolated_dirs: tuple[Path, Path]) -> None:
+    """The troubleshooting doc points engineers at `dev10x config migrate`."""
+    _seed_legacy_bot_dir(
+        isolated_dirs[0], key_path=str(ClaudeDir.github_bot_dir() / "dev10x-bot.pem")
+    )
+
+    migrate_all()
+
+    config = Dev10xConfigDir._resolve("github-bot", "github-app.yaml")
+    assert Path(_key_path_of(config)).is_file()
