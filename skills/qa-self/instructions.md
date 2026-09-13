@@ -805,7 +805,32 @@ ${CLAUDE_PLUGIN_ROOT}/skills/playwright/scripts/run-playwright.sh \
   /tmp/Dev10x/self-qa/qa-<ticket>-test.py --user <admin-account>
 ```
 
+To probe a PR's own preview deployment rather than the default host,
+name the host as a **flag**:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/skills/playwright/scripts/run-playwright.sh \
+  /tmp/Dev10x/self-qa/qa-<ticket>-test.py \
+  --staging-url https://<preview-host>
+```
+
+`--secrets-file <path>` is the matching flag for the credentials file
+when this deployment's is not the one `$PLAYWRIGHT_SECRETS_FILE` names.
+
+Do NOT reach for the environment-prefix form
+(`STAGING_URL=… run-playwright.sh …`). It prompts for approval on every
+run and *"don't ask again"* cannot help: an allow rule matches the
+command prefix, so the env prefix moves the command off the rule — and
+the rule it would remember carries that PR's preview host, which the
+next PR does not share (GH-1263). The env vars still work for callers
+that already set them; a flag wins over them.
+
 #### 3.3 Review output
+
+A probe run is verbose. Pass `--tail <n>` to keep the last *n* lines
+instead of piping to `tail` — a pipe defeats permission matching the
+same way an env prefix does, and the flag still reports a failed run as
+a non-zero exit.
 
 Check console output for:
 - GraphQL errors (expected for duplicate detection tests)
