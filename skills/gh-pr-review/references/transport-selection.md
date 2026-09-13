@@ -104,10 +104,24 @@ plugin:
   that posts comments under a GitHub App identity. Not bundled
   with Dev10x. Users wire it up alongside their own GitHub App
   credentials.
-- `~/.claude/Dev10x/github-bot/github-app.yaml` — App identity
+
+  It reads the same `github-app.yaml` as the plugin, so a copy
+  written before the `~/.config/Dev10x/` move may still hardcode
+  the legacy `~/.claude/Dev10x/github-bot/` config path and fail
+  to find it (GH-1271). Resolve the new location first and fall
+  back to the legacy one; do not hardcode either.
+
+- `~/.config/Dev10x/github-bot/github-app.yaml` — App identity
   config (App ID, private-key path, installation ID). Users
-  create this file when setting up the bot. Step 1 below checks
-  `enabled: true` before selecting Transport B.
+  create this file when setting up the bot; `dev10x github-app
+  setup` writes it. Step 1 below checks `enabled: true` before
+  selecting Transport B.
+
+  This endpoint (`POST /repos/{repo}/issues/{n}/comments`) needs
+  `issues: write` when the target is an actual issue, even though
+  `pull_requests: write` covers it on a PR — see
+  `references/github-app-setup.md` § One-time GitHub App
+  registration.
 
 If either is missing, Transport B falls back to Transport A even
 for merged or oversize PRs. The fallback posts under the user's

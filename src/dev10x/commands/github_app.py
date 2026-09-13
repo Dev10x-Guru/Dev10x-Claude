@@ -3,7 +3,7 @@
 Walks the engineer through GitHub App registration with install-target
 guidance, picks up the downloaded ``.pem`` from disk, and runs an
 end-to-end verification (App JWT → installations → installation token →
-repo read) before writing config under ``~/.claude/Dev10x/github-bot/``.
+repo read) before writing config under ``~/.config/Dev10x/github-bot/``.
 """
 
 from __future__ import annotations
@@ -476,7 +476,7 @@ def setup(*, force: bool, paste: bool) -> None:
 
 @github_app.command()
 def status() -> None:
-    """Show current GitHub App config status."""
+    """Show GitHub App config status and the permissions actually granted."""
     if not CONFIG_PATH.exists():
         click.echo(f"No config at {CONFIG_PATH}")
         click.echo("Run `dev10x github-app setup` to create one.")
@@ -490,3 +490,81 @@ def status() -> None:
         click.echo(f"Key mode:      {mode}")
         if mode != "0o600":
             click.echo("  ⚠  Expected 0o600 — fix with: chmod 600 " + str(KEY_PATH))
+
+    click.echo("")
+    if not _report_granted_permissions():
+        sys.exit(1)
+
+
+# What the plugin actually calls, and the capability each one unlocks.
+# Reported against the permissions the INSTALLATION was granted, not the
+# ones the App requests: editing an App's permissions raises a request the
+# installation must accept, and until it does every call runs on the old
+# set (GH-1271).
+REQUIRED_PERMISSIONS = {
+    "pull_requests": ("write", "review-thread replies, PR summary comments"),
+    "issues": ("write", "comments on issues — the shared /issues/ endpoint"),
+    "contents": ("write", "repo reads; bot-authored commits"),
+}
+
+_PERMISSION_RANK = {"read": 1, "write": 2, "admin": 3}
+
+
+def _report_granted_permissions() -> bool:
+    """Exercise the credentials and report granted vs required permissions.
+
+    A status command that reads config and stops is the defect GH-1271
+    names: token resolution falls back to user auth silently, so an
+    unusable App and an absent one look identical from the outside.
+    """
+    try:
+        config = _load_config_block()
+        jwt_token = api.mint_app_jwt(
+            app_id=config["app_id"], private_key=Path(config["private_key_path"]).read_text()
+        )
+        installations = api.list_installations(jwt_token=jwt_token)
+    except Exception as exc:  # noqa: BLE001 — any failure is a report line
+        click.echo(f"Token check:   ✗ {exc}")
+        click.echo("  The bot will fall back to your engineer identity on every call.")
+        return False
+
+    if not installations:
+        click.echo("Token check:   ✗ App is registered but not installed anywhere")
+        return False
+
+    installation_id = int(installations[0]["id"])
+    try:
+        granted = api.create_installation_token_full(
+            jwt_token=jwt_token, installation_id=installation_id
+        ).get("permissions", {})
+    except Exception as exc:  # noqa: BLE001 — any failure is a report line
+        click.echo(f"Token check:   ✗ could not mint an installation token: {exc}")
+        return False
+
+    click.echo(f"Token check:   ✓ installation {installation_id}")
+    click.echo("Permissions granted to the installation:")
+    complete = True
+    for name, (needed, unlocks) in REQUIRED_PERMISSIONS.items():
+        actual = granted.get(name)
+        ok_level = _PERMISSION_RANK.get(actual or "", 0) >= _PERMISSION_RANK[needed]
+        mark = "✓" if ok_level else "✗"
+        click.echo(f"  {mark} {name}: {actual or 'none'} (need {needed}) — {unlocks}")
+        complete = complete and ok_level
+
+    if not complete:
+        click.echo("")
+        click.echo("  A permission you added still needs the INSTALLATION to accept it.")
+        click.echo("  Personal install: https://github.com/settings/installations")
+        click.echo("  Org install:      /organizations/<org>/settings/installations")
+    return complete
+
+
+def _load_config_block() -> dict[str, str]:
+    import yaml
+
+    data = yaml.safe_load(CONFIG_PATH.read_text()) or {}
+    block = data.get("github_app") or {}
+    return {
+        "app_id": str(block["app_id"]),
+        "private_key_path": str(Path(str(block["private_key_path"])).expanduser()),
+    }

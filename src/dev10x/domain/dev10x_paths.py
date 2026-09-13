@@ -28,7 +28,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.domain.file_locks import file_lock
+from dev10x.domain.file_locks import atomic_write_text, file_lock
 
 CONFIG_HOME_ENV_VAR = "DEV10X_CONFIG_HOME"
 XDG_CONFIG_HOME_ENV_VAR = "XDG_CONFIG_HOME"
@@ -211,10 +211,12 @@ class Dev10xConfigDir:
 
     @classmethod
     def github_app_yaml(cls) -> Path:
-        return _with_lazy_migration(
+        current = _with_lazy_migration(
             cls._resolve("github-bot", "github-app.yaml"),
             _legacy_github_app_yaml,
         )
+        _rewrite_legacy_private_key_path(current)
+        return current
 
     @classmethod
     def gitmoji_yaml(cls) -> Path:
@@ -252,6 +254,32 @@ class Dev10xConfigDir:
 def _with_lazy_migration(current: Path, legacy_provider: Callable[[], Path]) -> Path:
     migrate_path(legacy=legacy_provider(), current=current)
     return current
+
+
+_LEGACY_BOT_DIR_FRAGMENT = ".claude/Dev10x/github-bot"
+_CURRENT_BOT_DIR_FRAGMENT = ".config/Dev10x/github-bot"
+
+
+def _rewrite_legacy_private_key_path(config: Path) -> None:
+    """Point ``private_key_path`` at the relocated key (GH-1271).
+
+    ``migrate_path`` moves the yaml and the ``.pem`` beside it, but the
+    ``private_key_path`` *inside* the yaml keeps naming the old
+    directory — so the key read fails after a migration that otherwise
+    looks clean. Rewriting the one fragment in place is safe: the key
+    has already been moved to the mirrored location, and a path that
+    never referenced the legacy directory is left untouched.
+    """
+    try:
+        text = config.read_text()
+    except OSError:
+        return
+    if _LEGACY_BOT_DIR_FRAGMENT not in text:
+        return
+    atomic_write_text(
+        path=config,
+        content=text.replace(_LEGACY_BOT_DIR_FRAGMENT, _CURRENT_BOT_DIR_FRAGMENT),
+    )
 
 
 # Legacy path providers — wrapped in callables so test overrides of

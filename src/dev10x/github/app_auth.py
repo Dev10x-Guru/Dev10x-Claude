@@ -45,6 +45,7 @@ class AppConfig:
     app_id: str
     private_key_path: Path
     installation_id: str | None = None
+    merge_bot: bool = False
 
     @classmethod
     def load(cls, *, path: Path | None = None) -> AppConfig | None:
@@ -67,6 +68,7 @@ class AppConfig:
             app_id=str(app_id),
             private_key_path=Path(str(key_path)).expanduser(),
             installation_id=str(installation_raw) if installation_raw else None,
+            merge_bot=bool(block.get("merge_bot", False)),
         )
 
 
