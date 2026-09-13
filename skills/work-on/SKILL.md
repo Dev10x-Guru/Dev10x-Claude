@@ -43,3 +43,21 @@ follow it end-to-end. The `TaskCreate`, `TaskUpdate`, and
 `AskUserQuestion` calls documented there are REQUIRED (blocking,
 not advisory); do not substitute plain-text acknowledgements
 for tool calls.
+
+**End-to-end read enforcement (GH-166, GH-1279): this file does
+NOT fit in one `Read`.** At ~2600 lines it is roughly twice the
+token cap a single call returns, so the first `Read` comes back
+truncated — `PARTIAL view … showing lines 1-1141 of 2627` — and an
+agent that stops there is working from under half the contract
+while believing it read the whole thing.
+
+Keep issuing `Read(offset=…)` until you have reached the final
+line. Do NOT substitute `Grep` or a single `Read(limit=…)` for the
+missing pages: the guardrails are scattered, not sectioned. The
+tail is where the Plan Completion Gate, the pre-gate checklist,
+the merge-gated completion rule and the skill-routing table live —
+a truncated read silently drops all four, which is exactly the
+session GH-1279 documents.
+
+If you did not see the last line of the file, you have not read
+the contract.

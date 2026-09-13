@@ -48,3 +48,11 @@ dispatch, parallel group management, completion gate — lives in
 When this skill is invoked, Read `instructions.md` now and
 follow it end-to-end. `TaskCreate` calls and the Strategy
 `AskUserQuestion` gate documented there are REQUIRED.
+
+**End-to-end read enforcement (GH-166, GH-1279): this file does
+NOT fit in one `Read`.** The first call returns a truncated
+`PARTIAL view` and stops around line 1209 of 1451. Keep issuing
+`Read(offset=…)` until you reach the final line — the tail holds
+the teardown decision tree and the Phase 5 comment-resolution
+gate, and a truncated read drops both while looking complete.
+If you did not see the last line, you have not read the contract.

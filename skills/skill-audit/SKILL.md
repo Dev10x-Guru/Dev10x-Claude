@@ -70,6 +70,15 @@ When this skill is invoked, Read `instructions.md` now and
 follow it end-to-end. `TaskCreate` calls, `AskUserQuestion`
 gates, and `Agent` dispatches documented there are REQUIRED.
 
+**End-to-end read enforcement (GH-166, GH-1279): this file does
+NOT fit in one `Read`.** The first call returns a truncated
+`PARTIAL view`. Keep issuing `Read(offset=…)` until you reach the
+final line — the decision gates listed below live in the tail, and
+a truncated read drops them while looking complete. An auditor
+reasoning from half a file produces confident wrong claims about
+the skill it is auditing, which is the failure GH-1279 records.
+If you did not see the last line, you have not read the contract.
+
 ## Decision Gates
 
 Each gate below blocks execution until the user responds.
