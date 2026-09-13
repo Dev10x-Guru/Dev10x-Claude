@@ -244,3 +244,49 @@ class TestCreatePrAlwaysEmitsFixes:
             )
 
         assert url in self._fixes_arg(mock_run_script)
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_explicit_url_and_closes_both_survive(
+        self,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        """The two sources compose; neither silently drops the other."""
+        mock_run_script.return_value = _completed(
+            stdout="https://github.com/owner/repo/pull/7\n7\n"
+        )
+        url = "https://github.com/owner/repo/issues/99"
+
+        with patch("dev10x.domain.git_context.GitContext") as mock_ctx:
+            mock_ctx.return_value.branch = "feature/x"
+            await gh.create_pr(
+                title="t",
+                issue_id="1245",
+                job_story=_JOB_STORY,
+                fixes_url=url,
+                closes=[1251],
+            )
+
+        assert self._fixes_arg(mock_run_script) == f"{url} #1251"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_self_motivated_prose_is_not_split(
+        self,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        """create-pr.sh only splits a trailer whose tokens are all refs."""
+        mock_run_script.return_value = _completed(
+            stdout="https://github.com/owner/repo/pull/7\n7\n"
+        )
+
+        with patch("dev10x.domain.git_context.GitContext") as mock_ctx:
+            mock_ctx.return_value.branch = "feature/x"
+            await gh.create_pr(
+                title="t",
+                issue_id="1245",
+                job_story=_JOB_STORY,
+                fixes_url="none — self-motivated",
+            )
+
+        assert self._fixes_arg(mock_run_script) == "none — self-motivated"

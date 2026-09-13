@@ -29,7 +29,7 @@ from typing import Any
 
 from dev10x.domain.common.repository_ref import RepositoryRef
 from dev10x.domain.common.result import ErrorResult, Result, SuccessResult, err, ok
-from dev10x.domain.pr_body import job_story_error, normalize_pr_body
+from dev10x.domain.pr_body import fixes_references, job_story_error, normalize_pr_body
 from dev10x.github.app_auth import AppConfig, get_bot_token
 from dev10x.subprocess_utils import (
     async_run,
@@ -1154,44 +1154,6 @@ async def _set_pr_milestone(
     if result.returncode != 0:
         return err(result.stderr.strip())
     return ok(number)
-
-
-def _issue_reference(issue_id: str) -> str:
-    """Render ``issue_id`` as a reference ``create-pr.sh`` will split on."""
-    bare = issue_id.strip().lstrip("#")
-    return f"#{bare}" if bare.isdigit() else bare
-
-
-def fixes_references(
-    *,
-    issue_id: str,
-    fixes_url: str | None,
-    closes: list[int] | None,
-) -> str:
-    """Assemble the ``Fixes:`` references for ``create-pr.sh`` (GH-1256).
-
-    The script derived the trailer from ``fixes_url`` alone, so the
-    documented way to link an issue — ``issue_id`` — produced a body with
-    no trailer at all, which the hygiene bot rejects. ``closes`` members
-    are folded in for a second reason: ``Closes #N`` never fires on a
-    merge to ``develop`` (GH-958), so only a ``Fixes:`` line actually
-    closes them.
-
-    An explicit ``fixes_url`` still leads, and prose such as
-    ``none — self-motivated`` is passed through untouched so the script's
-    non-splittable branch keeps handling it.
-    """
-    if fixes_url and not fixes_url.lstrip().startswith(("http", "#")):
-        return fixes_url
-
-    references = [fixes_url] if fixes_url else [_issue_reference(issue_id)]
-    references.extend(f"#{number}" for number in closes or [])
-
-    seen: dict[str, None] = {}
-    for reference in references:
-        if reference:
-            seen.setdefault(reference, None)
-    return " ".join(seen)
 
 
 async def create_pr(
