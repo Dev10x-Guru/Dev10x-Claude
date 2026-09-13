@@ -70,6 +70,45 @@ def test_review_deferred_skips_review_request(
     assert check["modes"]["review-deferred"]["skip"] is True
 
 
+# `gh pr view --json` does not expose `reviewThreads` — it lives only on
+# the GraphQL PullRequest type. The check asking for it failed on every
+# invocation across three work types, so it could never pass and nothing
+# said so (GH-1290).
+_NON_JSON_PR_FIELD = "reviewThreads"
+
+
+def _checks_querying(field: str, *, defaults: dict) -> list[tuple[str, str]]:
+    return [
+        (work_type, check["name"])
+        for work_type, spec in defaults.items()
+        for check in spec.get("checks", [])
+        if f"--json {field}" in check["check"]
+    ]
+
+
+@pytest.mark.parametrize("work_type", REVIEW_WORK_TYPES)
+def test_unresolved_threads_check_can_actually_run(defaults: dict, work_type: str) -> None:
+    # The wrapper is not merely preferred here: command-skill-map.yaml
+    # hook-blocks a raw `gh api graphql ... reviewThreads`, so dropping
+    # to GraphQL would swap a broken check for a blocked one.
+    check = _check_by_name(defaults[work_type]["checks"], "No unresolved review threads")
+
+    assert check["check"] == "prompt"
+    assert "unresolved_threads" in check["prompt"]
+
+
+def test_no_dod_check_queries_the_nonexistent_json_field(defaults: dict) -> None:
+    assert _checks_querying(_NON_JSON_PR_FIELD, defaults=defaults) == []
+
+
+def test_the_offender_search_would_find_one(defaults: dict) -> None:
+    # Without this, the assertion above passes just as happily when the
+    # search itself is broken as when the defaults are clean.
+    planted = {"x": {"checks": [{"name": "planted", "check": "gh pr view --json reviewThreads"}]}}
+
+    assert _checks_querying(_NON_JSON_PR_FIELD, defaults=planted) == [("x", "planted")]
+
+
 @pytest.mark.parametrize("work_type", REVIEW_WORK_TYPES)
 def test_fixes_scope_delivery_check_present(defaults: dict, work_type: str) -> None:
     # GH-856: a Fixes:/Closes: link auto-closes its issue on merge
