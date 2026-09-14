@@ -1453,6 +1453,51 @@ def _apply_tracker_block(
     ]
 
 
+def _apply_ide_block(
+    *,
+    config: dict,
+    toplevel: str | None,
+    quiet: bool,
+) -> tuple[dict, list[str]]:
+    """Fold in only the project's IDE block, and say which (GH-1261).
+
+    Mirrors :func:`_apply_tracker_block`, with one difference that
+    matters: the resolved default is ``none``, so an unpinned project
+    folds nothing and the run stays silent. Announcing "IDE: none" on
+    every seeding run in every repo without an IDE server would be noise
+    about a non-event.
+    """
+    from dev10x.domain.common.ide_choice import (
+        IDE_ALLOW_KEY,
+        IDE_DENY_KEY,
+        Ide,
+        apply_ide_selection,
+    )
+    from dev10x.domain.git_context import GitContext
+    from dev10x.skills.permission.ide_resolve import ide_source, resolve_ide
+
+    if not isinstance(config.get(IDE_ALLOW_KEY), dict) and not isinstance(
+        config.get(IDE_DENY_KEY), dict
+    ):
+        return config, []
+
+    resolved = toplevel if toplevel is not None else GitContext().toplevel
+    ide = resolve_ide(toplevel=resolved)
+    merged = apply_ide_selection(config=config, ide=ide)
+    if quiet or ide is Ide.NONE:
+        return merged, []
+    origin = {
+        "project": "from this project's friction.yaml entry",
+        "defaults": "from the friction.yaml defaults block",
+        "default": "no IDE configured — using the default",
+    }[ide_source(toplevel=resolved)]
+    return merged, [
+        f"IDE MCP server: {ide.value} ({origin}). Its read and edit tools "
+        f"are seeded; its shell-equivalent tools stay denied. Change it "
+        f"with the `ide:` key in ~/.config/Dev10x/friction.yaml."
+    ]
+
+
 def ensure_base(
     *,
     config: dict,
@@ -1482,6 +1527,13 @@ def ensure_base(
         quiet=quiet,
     )
     messages.extend(tracker_messages)
+
+    config, ide_messages = _apply_ide_block(
+        config=config,
+        toplevel=toplevel,
+        quiet=quiet,
+    )
+    messages.extend(ide_messages)
 
     policies = migrate_flat_config(config=config)
     rendered = render_permissions(policies=policies, home=str(Path.home()))
@@ -1678,6 +1730,13 @@ def catalog_gap(
         quiet=quiet,
     )
     messages.extend(tracker_messages)
+
+    config, ide_messages = _apply_ide_block(
+        config=config,
+        toplevel=toplevel,
+        quiet=quiet,
+    )
+    messages.extend(ide_messages)
 
     policies = migrate_flat_config(config=config)
     rendered = render_permissions(policies=policies, home=str(Path.home()))
