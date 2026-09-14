@@ -36,7 +36,9 @@ __all__ = [
     "PROJECT_POLICY_RELPATH",
     "GateResolutionQuery",
     "human_review_status",
+    "ide_status",
     "pin_gate_preset",
+    "pin_ide",
     "pin_supervisor_review",
     "pin_tracker",
     "preset_pin_status",
@@ -368,6 +370,72 @@ async def pin_tracker(
 
     with use_cwd(cwd):
         return to_wire(tracker_pin.pin_tracker(tracker=tracker, scope=scope, cwd=cwd))
+
+
+@server.tool()
+async def ide_status(cwd: str | None = None) -> dict:
+    """Report this repo's IDE, and whether it was chosen (GH-1261).
+
+    Consult this BEFORE asking the onboarding IDE question: `pinned:
+    false` is the "never answered" condition that warrants the gate.
+    Unlike `tracker_status`, a resolved "none" is a real answer and not
+    a stand-in for one — most checkouts run no IDE MCP server, so an
+    unpinned repo folds no IDE rules rather than guessing.
+
+    Args:
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: pinned (bool — a `projects[]` entry names
+        an IDE), ide (the resolved value, defaulting to "none"), source
+        ("project" | "defaults" | "default"), repo_name, repo_root,
+        choices. `{"error": ...}` outside a git repository.
+    """
+    from dev10x.session import ide_pin
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return to_wire(ide_pin.ide_status(cwd=cwd))
+
+
+@server.tool()
+async def pin_ide(
+    ide: str,
+    scope: str = "repo",
+    cwd: str | None = None,
+) -> dict:
+    """Persist the project's IDE to the global friction.yaml (GH-1261).
+
+    `ensure-base` then seeds that IDE's read tools as allows and its
+    shell-equivalent tools as denies — a setup with no IDE server stops
+    collecting inert allows, and one with PyCharm stops handing its
+    terminal tool a route around every Bash guardrail.
+
+    Keyed off the **repo stem** from the git common dir like
+    `pin_gate_preset` and `pin_tracker`, so a choice made inside
+    worktree `<repo>-3` also covers `<repo>` and any `<repo>-9` created
+    later. Idempotent: an entry already covering this checkout is
+    replaced, never duplicated. Nothing is written under the repo's
+    `.claude/` (ADR-0018).
+
+    Args:
+        ide: "pycharm" or "none". An unrecognised value is an error,
+            not a silent fallback to "none" — a typo would otherwise
+            surface only as an IDE whose tools never stopped prompting.
+        scope: "repo" (default — repo + all present/future worktrees),
+            "repo-only" (main checkout only), or "dir" (this directory).
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: path, match, repo_name, repo_root, scope,
+        prefs. `{"error": ...}` on an unknown IDE or scope, or outside a
+        git repository.
+    """
+    from dev10x.session import ide_pin
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return to_wire(ide_pin.pin_ide(ide=ide, scope=scope, cwd=cwd))
 
 
 @server.tool()
