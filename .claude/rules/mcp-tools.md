@@ -171,6 +171,8 @@ one session). Use these shapes verbatim:
 | `pin_supervisor_review` | `supervisor_review` (`required`/`none`); optional `scope` (`repo` default / `repo-only` / `dir`) | reaching for `pin_gate_preset`'s `gate_overrides` — `supervisor_review` is a project-wide fact, not a gate toggle (GH-1165) |
 | `tracker_status` | none (optional `cwd`) | treating `pinned: false` as "no tracker" — it still reports a resolved `tracker` (the default) |
 | `pin_tracker` | `tracker` (`linear`/`jira`/`github`); optional `scope` | passing `gitlab`/`clickup` — not in v1 scope, and an unknown value errors rather than defaulting |
+| `ide_status` | none (optional `cwd`) | reading a resolved `none` as "unanswered" — most checkouts genuinely run no IDE server, so `none` is an answer; `pinned` is the unanswered flag |
+| `pin_ide` | `ide` (`pycharm`/`none`); optional `scope` | passing `vscode`/`intellij` — not in v1 scope, and an unknown value errors rather than defaulting |
 | `task_index_append` | `entry` dict with required `subject` + `source` | reading the store and writing it back by hand — the tool owns the locked read-append-write |
 | `pr_labels` | `pr_number`; `action` (`list` default / `add` / `remove`), plus `labels` for the two writes | separate `pr_label_add` / `pr_label_remove` names — it is one tool with an action selector, like `pr_comments` |
 | `task_index_get` | none (optional `cwd`) | `Read`ing `.claude/Dev10x/session.yaml` — retired by ADR-0018 D5; the tool probes it as a fallback |
@@ -430,6 +432,21 @@ Behavioral caveats:
   GitLab and ClickUp are deliberately unsupported rather than shipped
   as empty blocks.
 
+- `pin_ide` / `ide_status` carry the same fact for the project's IDE
+  (GH-1261), and `ensure-base` folds that IDE's block the way it folds
+  the tracker's. Two things differ from `pin_tracker`. First, the
+  resolved default is `none`, not a named IDE: every project has a
+  tracker, but most checkouts run no IDE MCP server, so an unpinned
+  repo folds nothing rather than seeding a guess — `pinned: false` is
+  the unanswered flag, and a resolved `none` is a real answer. Second,
+  an IDE block carries **denies** as well as allows: a tool that runs a
+  terminal command is a Bash call the PreToolUse chain never sees, so
+  its three shell-equivalent tools are denied unconditionally — in
+  `base_denies`, not only under the IDE's own key — because the hazard
+  does not depend on which IDE was pinned. `seed_worktree` folds
+  neither the IDE block nor the tracker block; that pre-existing
+  asymmetry is unchanged here.
+
 - `pin_gate_preset` persists a Phase-0 preset pick into the global
   `~/.config/Dev10x/friction.yaml`, keyed by the repo stem read from the
   git **common dir** — so a pick made inside worktree `<repo>-3` also
@@ -551,6 +568,8 @@ supporting each tool:
 | `pin_supervisor_review` | `cli` | GH-1165 | v0.97.0+ |
 | `tracker_status` | `cli` | GH-768 | v0.95.0+ |
 | `pin_tracker` | `cli` | GH-768 | v0.95.0+ |
+| `ide_status` | `cli` | GH-1261 | v0.99.0+ |
+| `pin_ide` | `cli` | GH-1261 | v0.99.0+ |
 | `pr_labels` | `cli` | GH-1008 | v0.94.0+ |
 | `task_index_get` | `cli` | GH-1009 | v0.94.0+ |
 | `task_index_append` | `cli` | GH-1009 | v0.94.0+ |

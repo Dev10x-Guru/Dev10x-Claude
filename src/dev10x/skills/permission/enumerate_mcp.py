@@ -506,6 +506,7 @@ WRITE_TOOLS_NOT_SEEDED: frozenset[str] = frozenset(
         "mcp__plugin_Dev10x_cli__pin_gate_preset",
         "mcp__plugin_Dev10x_cli__pin_tracker",
         "mcp__plugin_Dev10x_cli__pin_supervisor_review",
+        "mcp__plugin_Dev10x_cli__pin_ide",
         # Spends the client's tokens on an LLM completion.
         "mcp__plugin_Dev10x_cli__request_sampling",
         # Appends to the review-rule feedback store that
