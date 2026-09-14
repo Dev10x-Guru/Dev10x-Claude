@@ -177,7 +177,7 @@ one session). Use these shapes verbatim:
 | `pr_labels` | `pr_number`; `action` (`list` default / `add` / `remove`), plus `labels` for the two writes | separate `pr_label_add` / `pr_label_remove` names — it is one tool with an action selector, like `pr_comments` |
 | `task_index_get` | none (optional `cwd`) | `Read`ing `.claude/Dev10x/session.yaml` — retired by ADR-0018 D5; the tool probes it as a fallback |
 | `pr_ready` | `pr_number`; optional `undo` (bool) | assuming it only publishes — `undo=true` returns a PR to draft |
-| `ci_check_status` | `pr_number`, `repo`; optional `wait`, `wait_out_pending` (default `true`), `wait_for` (list of check names) | reading a `wait=true` `failing` as "every leg finished" — check `pending` (GH-1065); expecting `wait_out_pending` to cover a failed REQUIRED leg — it does not, use `wait_for` (GH-1138) |
+| `ci_check_status` | `pr_number`, `repo`; optional `wait`, `wait_out_pending` (default `true`), `wait_for` (list of check names) | reading a `wait=true` `failing` as "every leg finished" — check `pending` (GH-1065); expecting `wait_out_pending` to cover a failed REQUIRED leg — it does not, use `wait_for` (GH-1138); raising `max_polls` to cover a slow PR — the grant is capped by the transport budget, so ask twice rather than once for longer (GH-1288) |
 | `create_pr` | `title`, `issue_id`, plus either `job_story` or `body`; optional `head`, `milestone`, `repo` | passing a long `job_story` and expecting the extra paragraphs to survive — only `body` is used verbatim (GH-1073); assuming `repo` is rejected — it is accepted since GH-1269 |
 | `merge_pr` | `pr_number`; optional `expected_head_sha`, `use_bot` | omitting `expected_head_sha` after a pre-merge gate read `headRefOid` — the merge then takes whatever the head is *now* (GH-1267); reading `merged_as` as a request rather than a result — it reports which identity actually merged (GH-1272) |
 | `update_pr` | `pr_number`, plus at least one of `body` / `title` / `base_branch` / `milestone` | `gh pr edit --milestone` — routed here (GH-1098) |
@@ -409,6 +409,22 @@ Behavioral caveats:
   separate, still-open question: `gh pr view` is matched by an earlier
   rule, so such a loop gets the one-shot `pr_get` steer rather than
   `Dev10x:gh-pr-monitor` (tracked on #1100 E21).
+- `ci_check_status(wait=true)` budgets its own wait against the
+  transport ceiling, and `max_polls` is a request rather than a grant
+  (GH-1288). The cap used to be summed inline as `initial_wait +
+  poll_interval * max_polls + 60` with nothing bounding it: the default
+  came to 1320s — above both deaths GH-1288 reports at ~1137s — and
+  `max_polls=500` bought a four-hour one. `dev10x.monitor` now asks
+  `polls_within_budget` what `MAX_TOOL_CALL_SECONDS` affords and passes
+  that down, so the default 40 is served as 32 (990s of polling under a
+  1080s cap). **A slow PR is covered by calling twice, not by asking for
+  longer** — the poll count is reduced rather than the subprocess merely
+  capped, precisely so the loop ends on its own terms and returns a
+  verdict instead of being killed mid-poll and surfacing as a non-zero
+  exit. This is the same clamp `run_tests` and `run_node_tests` take,
+  reaching the one long-running tool that had been left restating the
+  budget in prose.
+
 - `ci_check_status(wait=true)` probes once before sleeping and returns
   straight away when the verdict is already terminal (GH-1088). A call
   that lands after CI finished costs one API round trip instead of the

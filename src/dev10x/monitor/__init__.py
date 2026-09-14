@@ -11,7 +11,12 @@ import subprocess
 from typing import Any
 
 from dev10x.domain.common.result import Result, err, ok
+from dev10x.domain.transport_budget import clamp_tool_timeout, polls_within_budget
 from dev10x.subprocess_utils import async_run, get_plugin_root
+
+# Slack between the script's last poll and the subprocess cap, so a loop
+# that runs its full budget is not killed a moment before it prints.
+_WAIT_OVERHEAD_SECONDS = 60
 
 
 async def ci_check_status(
@@ -37,15 +42,31 @@ async def ci_check_status(
     if required_only:
         args.append("--required-only")
     if wait:
+        # GH-1288: the cap used to be this sum, uncapped — 1320s by
+        # default and 15120s for `max_polls=500`, both above the
+        # transport ceiling the run_tests clamp was introduced to
+        # respect. Grant only the polls that fit, so the loop ends on its
+        # own terms and the caller gets a verdict rather than a killed
+        # subprocess.
+        budget = polls_within_budget(
+            requested=max_polls,
+            poll_interval=poll_interval,
+            initial_wait=initial_wait,
+            overhead=_WAIT_OVERHEAD_SECONDS,
+        )
         args.extend(["--wait", "--poll-interval", str(poll_interval)])
         args.extend(["--initial-wait", str(initial_wait)])
-        args.extend(["--max-polls", str(max_polls)])
+        args.extend(["--max-polls", str(budget.polls)])
         if not wait_out_pending:
             args.append("--no-wait-out-pending")
         for check_name in wait_for or []:
             args.extend(["--wait-for", check_name])
+        timeout = clamp_tool_timeout(
+            initial_wait + poll_interval * budget.polls + _WAIT_OVERHEAD_SECONDS
+        ).seconds
+    else:
+        timeout = 60.0
 
-    timeout = float((initial_wait + poll_interval * max_polls + 60) if wait else 60)
     result = await async_run(args=args, timeout=timeout)
 
     if result.returncode != 0:

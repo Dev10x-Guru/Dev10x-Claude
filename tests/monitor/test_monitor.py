@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from dev10x.domain.common.result import ErrorResult, SuccessResult
+from dev10x.domain.transport_budget import MAX_TOOL_CALL_SECONDS
 
 monitor_mod = pytest.importorskip("dev10x.monitor", reason="dev10x not installed")
 
@@ -176,6 +177,92 @@ class TestCiCheckStatus:
         )
         await monitor_mod.ci_check_status(pr_number=42, repo="owner/repo", wait=True)
         assert "--no-wait-out-pending" not in mock_run.call_args.kwargs["args"]
+
+
+class TestTheWaitStaysUnderTheTransportCeiling:
+    """GH-1288: `run_tests` was clamped and `ci_check_status` was not.
+
+    The clamp was introduced so a third long-running tool could not
+    reintroduce the gap — but the gap was never closed in the second
+    one. This call's cap was `initial_wait + poll_interval * max_polls
+    + 60`, a free-form sum over caller-supplied numbers, defaulting to
+    1320s. That is above `MAX_TOOL_CALL_SECONDS` and above both deaths
+    the issue reports at ~1137s, so the tool that runs on every slow-CI
+    PR could still die the way the reported `run_tests` call did.
+    """
+
+    @pytest.mark.asyncio
+    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
+    async def test_the_default_wait_fits_the_budget(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout='{"verdict": "green"}', stderr=""
+        )
+        await monitor_mod.ci_check_status(pr_number=42, repo="owner/repo", wait=True)
+
+        assert mock_run.call_args.kwargs["timeout"] <= MAX_TOOL_CALL_SECONDS
+
+    @pytest.mark.asyncio
+    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
+    async def test_an_extravagant_poll_count_cannot_outrun_the_budget(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        # The shape that killed `run_tests`: a caller hands the tool a
+        # number larger than the transport tolerates and nothing says no.
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout='{"verdict": "green"}', stderr=""
+        )
+        await monitor_mod.ci_check_status(
+            pr_number=42, repo="owner/repo", wait=True, max_polls=500
+        )
+
+        assert mock_run.call_args.kwargs["timeout"] <= MAX_TOOL_CALL_SECONDS
+
+    @pytest.mark.asyncio
+    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
+    async def test_the_script_is_told_to_stop_polling_before_it_is_killed(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        # Capping only the subprocess would trade one opaque failure for
+        # another: the script gets SIGKILLed mid-poll and the caller reads
+        # a non-zero exit instead of a verdict. The poll count has to come
+        # down with the cap so the loop ends on its own terms.
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout='{"verdict": "green"}', stderr=""
+        )
+        await monitor_mod.ci_check_status(
+            pr_number=42, repo="owner/repo", wait=True, max_polls=500
+        )
+
+        args_list = mock_run.call_args.kwargs["args"]
+        granted = int(args_list[args_list.index("--max-polls") + 1])
+        assert 60 + 30 * granted < mock_run.call_args.kwargs["timeout"]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
+    async def test_a_wait_that_already_fits_is_left_alone(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout='{"verdict": "green"}', stderr=""
+        )
+        await monitor_mod.ci_check_status(
+            pr_number=42,
+            repo="owner/repo",
+            wait=True,
+            poll_interval=10,
+            initial_wait=5,
+            max_polls=3,
+        )
+
+        args_list = mock_run.call_args.kwargs["args"]
+        assert args_list[args_list.index("--max-polls") + 1] == "3"
+        assert mock_run.call_args.kwargs["timeout"] == 95
 
     @pytest.mark.asyncio
     @patch("dev10x.monitor.async_run", new_callable=AsyncMock)

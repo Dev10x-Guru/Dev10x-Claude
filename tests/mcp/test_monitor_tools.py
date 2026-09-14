@@ -72,16 +72,22 @@ class TestCiCheckStatusMcp:
 
     @pytest.mark.asyncio
     @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
-    async def test_subprocess_cap_is_1320s_distinct_from_poll_budget(
+    async def test_subprocess_cap_is_distinct_from_the_poll_budget(
         self,
         mock_run: AsyncMock,
     ) -> None:
-        """GH-1104: 1320s is the SUBPROCESS cap, not the poll budget.
+        """GH-1104: the cap is the SUBPROCESS ceiling, not the poll budget.
 
-        `poll_until_terminal`'s in-loop budget is 1230s (it skips the sleep
-        after the final poll). This wrapper adds a 60s grace on top of the
-        ×40 upper bound, which is where 1320 comes from. Pinning it here
-        keeps the two ceilings from being conflated again.
+        Two numbers, and conflating them is the mistake this pins against.
+        The loop must finish strictly inside the cap, or it gets killed
+        mid-poll and the caller reads an exit code where it expected a
+        verdict.
+
+        The figures moved under GH-1288: the cap was 1320s, summed inline
+        from `max_polls` with nothing bounding it, which put it above the
+        transport ceiling and above both deaths the issue reports at
+        ~1137s. The ×40 request is now served as ×32 — 990s of polling
+        (the loop skips the sleep after the final poll) under a 1080s cap.
         """
         import dev10x.monitor as monitor
 
@@ -91,7 +97,13 @@ class TestCiCheckStatusMcp:
 
         await monitor.ci_check_status(pr_number=1, repo="o/r", wait=True)
 
-        assert mock_run.call_args.kwargs["timeout"] == 1320.0
+        args_list = mock_run.call_args.kwargs["args"]
+        granted = int(args_list[args_list.index("--max-polls") + 1])
+        poll_budget = 60 + 30 * (granted - 1)
+
+        assert mock_run.call_args.kwargs["timeout"] == 1080.0
+        assert poll_budget == 990
+        assert poll_budget < mock_run.call_args.kwargs["timeout"]
 
     @pytest.mark.asyncio
     async def test_use_cwd_activates_when_cwd_passed(self, tmp_path) -> None:
