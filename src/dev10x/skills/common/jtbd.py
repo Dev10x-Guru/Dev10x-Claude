@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 
 # Accepts third-person domain-actor voice (`**the dealer wants to** …,
 # **so the service writer can** …`) as well as the legacy first-person
@@ -38,6 +39,44 @@ JTBD_PATTERNS: tuple[re.Pattern[str], ...] = (JTBD_PATTERN, JTBD_PATTERN_PL)
 # starts when scanning line by line.
 _OPENING_MARKERS: tuple[str, ...] = ("**When**", "**Gdy**")
 
+# GH-1293: how much of a body the structured patterns are allowed to see.
+#
+# Their cost is (failing `**When**` positions) x (lazy expansion at each),
+# so it grows with the BODY, not with the story — measured at ~8x per
+# doubling: 107ms at 4.6KB, 6.8s at 18.4KB, minutes at GitHub's 65536-char
+# ceiling. Release-notes collection runs this over every merged PR body,
+# and on a repo taking outside contributions those bodies are written by
+# strangers.
+#
+# Windowing is preferred over bounding the patterns' own free groups
+# (`[^*]+?` instead of `.+?`). That alternative looks tidier and is the
+# one the issue first proposed, but a clause containing bold text would
+# stop matching — turning a loud nothing-to-extract into a story silently
+# missing from release notes, which is exactly the defect GH-1291 closed.
+# A window changes no pattern, so every story that still matches, matches
+# as it did. Each window starts at an opening marker rather than at a
+# fixed offset, so a story is never cut in half by where it happens to
+# sit — only by its own length, and 2000 characters is several times what
+# a one-sentence story needs.
+_SEARCH_WINDOW_CHARS = 2000
+
+# One window is not enough: the FIRST opening marker in a body need not
+# belong to the real story — a quoted example or a malformed attempt can
+# come first — and parking on it would drop the story below, which is the
+# silent omission this fix exists to avoid. So successive windows are
+# tried. The count is bounded because each one costs, and a body whose
+# twelfth window still has not yielded a story is not carrying one where
+# release notes would look.
+_MAX_STORY_WINDOWS = 12
+
+# Consecutive windows overlap by this much so a marker sitting near a
+# window's end still has room for the rest of its story inside that same
+# window. Without the overlap a story could be cut by a boundary it
+# merely happened to land on — the same positional accident the
+# marker-anchored window exists to avoid. It doubles as the longest
+# story this extractor promises to find.
+_STORY_OVERLAP_CHARS = 1000
+
 
 def extract_jtbd(body: str) -> str | None:
     lines = body.splitlines()
@@ -52,16 +91,38 @@ def extract_jtbd(body: str) -> str | None:
     return None
 
 
+def _story_windows(body: str) -> Iterator[str]:
+    """The slices the structured patterns are allowed to search.
+
+    Each window is located by a plain substring scan for an opening
+    marker — linear, and unable to backtrack — so the expensive patterns
+    only ever see a bounded slice, however large the body is.
+    """
+    position = 0
+    for _ in range(_MAX_STORY_WINDOWS):
+        starts = [
+            found
+            for found in (body.find(marker, position) for marker in _OPENING_MARKERS)
+            if found >= 0
+        ]
+        if not starts:
+            return
+        start = min(starts)
+        yield body[start : start + _SEARCH_WINDOW_CHARS]
+        position = start + _SEARCH_WINDOW_CHARS - _STORY_OVERLAP_CHARS
+
+
 def extract_jtbd_structured(body: str) -> str | None:
-    for pattern in JTBD_PATTERNS:
-        match = pattern.search(body)
-        if not match:
-            continue
-        full = body[match.start() : match.end()]
-        full = full.replace("\n", " ").strip()
-        if not full.endswith("."):
-            full += "."
-        return full
+    for window in _story_windows(body):
+        for pattern in JTBD_PATTERNS:
+            match = pattern.search(window)
+            if not match:
+                continue
+            full = window[match.start() : match.end()]
+            full = full.replace("\n", " ").strip()
+            if not full.endswith("."):
+                full += "."
+            return full
     return None
 
 
