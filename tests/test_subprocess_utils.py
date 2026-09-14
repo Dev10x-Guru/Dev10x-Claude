@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import subprocess
 from pathlib import Path
@@ -300,6 +301,94 @@ class TestAsyncRun:
 
         assert result.returncode == -1
         assert "timed out" in result.stderr.lower()
+
+
+class TestAsyncRunReapsTheWholeTree:
+    """GH-1304: killing only the direct child orphans the real work.
+
+    The commands this Gateway launches are wrappers — ``uv run … pytest``
+    makes pytest a grandchild — and an orphaned pytest keeps mutating the
+    worktree (this repo's git tests run ``git reset --hard``), so
+    committed work vanishes with no error raised anywhere.
+    """
+
+    @pytest.fixture
+    def sut(self):
+        from dev10x.subprocess_utils import async_run
+
+        return async_run
+
+    @pytest.mark.asyncio
+    async def test_child_gets_its_own_process_group(self, sut) -> None:
+        result = await sut(args=["sh", "-c", "ps -o pgid= -p $$"])
+
+        assert int(result.stdout.strip()) != os.getpgid(0)
+
+    @pytest.mark.asyncio
+    async def test_timeout_kills_the_grandchild(self, sut, tmp_path: Path) -> None:
+        pidfile = tmp_path / "grandchild.pid"
+
+        await sut(args=_spawn_grandchild(pidfile=pidfile), timeout=0.5)
+
+        assert await _reaped(pid=_recorded_pid(pidfile=pidfile))
+
+    @pytest.mark.asyncio
+    async def test_cancellation_kills_the_grandchild(self, sut, tmp_path: Path) -> None:
+        pidfile = tmp_path / "grandchild.pid"
+        call = asyncio.create_task(sut(args=_spawn_grandchild(pidfile=pidfile), timeout=30))
+        await _wait_for_pidfile(pidfile=pidfile)
+
+        call.cancel()
+
+        with pytest.raises(asyncio.CancelledError):
+            await call
+        assert await _reaped(pid=_recorded_pid(pidfile=pidfile))
+
+    @pytest.mark.asyncio
+    async def test_cancellation_still_propagates(self, sut, tmp_path: Path) -> None:
+        pidfile = tmp_path / "grandchild.pid"
+        call = asyncio.create_task(sut(args=_spawn_grandchild(pidfile=pidfile), timeout=30))
+        await _wait_for_pidfile(pidfile=pidfile)
+
+        call.cancel()
+
+        with pytest.raises(asyncio.CancelledError):
+            await call
+
+
+def _spawn_grandchild(*, pidfile: Path) -> list[str]:
+    """A shell that backgrounds a long sleep and records the sleep's PID.
+
+    The sleep is a *grandchild* of the process ``async_run`` spawns, which
+    is the shape ``uv run … pytest`` has and the one ``proc.kill()`` misses.
+    """
+    return ["sh", "-c", f"sleep 30 & echo $! > {pidfile}; wait"]
+
+
+def _recorded_pid(*, pidfile: Path) -> int:
+    return int(pidfile.read_text().strip())
+
+
+async def _wait_for_pidfile(*, pidfile: Path, timeout: float = 5.0) -> None:
+    deadline = asyncio.get_running_loop().time() + timeout
+    while asyncio.get_running_loop().time() < deadline:
+        await asyncio.sleep(0.05)
+        recorded = pidfile.exists() and pidfile.read_text().strip()
+        if recorded:
+            return
+    raise AssertionError(f"grandchild never recorded its PID in {pidfile}")
+
+
+async def _reaped(*, pid: int, timeout: float = 5.0) -> bool:
+    """SIGKILL is asynchronous, so poll rather than assert immediately."""
+    deadline = asyncio.get_running_loop().time() + timeout
+    while asyncio.get_running_loop().time() < deadline:
+        try:
+            os.kill(pid, 0)
+        except (ProcessLookupError, PermissionError):
+            return True
+        await asyncio.sleep(0.05)
+    return False
 
 
 class TestAsyncRunScript:
