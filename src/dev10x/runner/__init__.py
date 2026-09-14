@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from dev10x.domain.common.result import Result, err, ok
+from dev10x.domain.transport_budget import ClampedTimeout, clamp_tool_timeout
 from dev10x.subprocess_utils import async_run, effective_cwd
 
 # GH-1285: the outcome vocabulary used to be a closed set, so a run
@@ -119,6 +120,24 @@ def _pytest_command(*, extras: list[str], coverage: bool, extra_args: list[str])
     return cmd + extra_args
 
 
+def _timed_out_message(*, runner: str, budget: ClampedTimeout, narrowing: str) -> str:
+    """Say which ceiling ended the run, not merely that one did.
+
+    A suite that genuinely needs longer than the transport allows is a
+    different problem from a suite that hung, and the caller can only act
+    differently on them if the message separates the two. When the clamp
+    is what ended it, the caller is also told how to get the run it
+    wanted — an unexplained ceiling just moves the dead end.
+    """
+    timed_out = f"{runner} timed out after {budget.seconds:.0f}s"
+    if not budget.was_clamped:
+        return timed_out
+    return (
+        f"{timed_out} — the requested {budget.requested:.0f}s was clamped "
+        f"to the MCP transport budget (GH-1288). {narrowing}"
+    )
+
+
 async def run_tests(
     *,
     args: list[str] | None = None,
@@ -131,6 +150,11 @@ async def run_tests(
         args: Extra pytest arguments appended after the coverage flags.
         coverage: When True, add ``--cov --cov-report=term-missing``.
         timeout: Subprocess timeout in seconds (default 10 minutes).
+            Clamped to ``MAX_TOOL_CALL_SECONDS`` (GH-1288): a value the
+            transport will not sit through buys nothing — the connection
+            drops first and the caller gets ``Connection closed``, which
+            does not distinguish a slow suite from a dead server. The
+            error payload names the clamp when it bites.
 
     Returns:
         ok({
@@ -156,11 +180,12 @@ async def run_tests(
     """
     extra_args = list(args) if args else []
     extras = resolve_test_extras()
+    budget = clamp_tool_timeout(timeout)
 
     try:
         proc = await async_run(
             args=_pytest_command(extras=extras, coverage=coverage, extra_args=extra_args),
-            timeout=timeout,
+            timeout=budget.seconds,
         )
     except FileNotFoundError:
         return err(
@@ -170,7 +195,17 @@ async def run_tests(
 
     if proc.returncode == -1 and "timed out" in proc.stderr.lower():
         return err(
-            f"pytest timed out after {timeout:.0f}s",
+            _timed_out_message(
+                runner="pytest",
+                budget=budget,
+                narrowing=(
+                    "Narrow the run (-k, a path) or invoke pytest through the "
+                    "test skill's documented fallback for a full serial suite."
+                ),
+            ),
+            verdict="timeout",
+            elapsed=budget.seconds,
+            timeout_clamped=budget.was_clamped,
             stdout=proc.stdout,
             stderr=proc.stderr,
         )
@@ -186,7 +221,7 @@ async def run_tests(
         try:
             proc = await async_run(
                 args=_pytest_command(extras=extras, coverage=coverage, extra_args=extra_args),
-                timeout=timeout,
+                timeout=budget.seconds,
             )
         except FileNotFoundError:  # pragma: no cover - first call already proved uv exists
             pass
@@ -326,8 +361,10 @@ async def run_node_tests(
         cmd.append(_NODE_COVERAGE_FLAG[runner])
     cmd += list(args) if args else []
 
+    budget = clamp_tool_timeout(timeout)
+
     try:
-        proc = await async_run(args=cmd, env=_overlay_env(env), timeout=timeout)
+        proc = await async_run(args=cmd, env=_overlay_env(env), timeout=budget.seconds)
     except FileNotFoundError:
         return err(
             f"{base[0]} not found on PATH — install Node tooling or run the "
@@ -336,7 +373,16 @@ async def run_node_tests(
 
     if proc.returncode == -1 and "timed out" in proc.stderr.lower():
         return err(
-            f"node tests timed out after {timeout:.0f}s",
+            _timed_out_message(
+                runner="node tests",
+                budget=budget,
+                narrowing=(
+                    "Narrow the run (a test-name filter, a path) or split the suite across calls."
+                ),
+            ),
+            verdict="timeout",
+            elapsed=budget.seconds,
+            timeout_clamped=budget.was_clamped,
             stdout=proc.stdout,
             stderr=proc.stderr,
         )

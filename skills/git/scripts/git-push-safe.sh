@@ -243,5 +243,37 @@ else
     tracking=""
 fi
 
-printf '{"pushed":true,"ref":"%s","remote":"%s","sha":"%s","tracking":"%s","ci_run_url":null}\n' \
-    "$target_branch" "$remote" "$sha" "$tracking"
+# Confirm the remote actually carries what we just pushed (GH-1099).
+#
+# `git push` exiting 0 is the local process's account of a network
+# exchange, and a write wrapper's job is to report the state that
+# resulted, not the call that was made. The worked case is a crew worker
+# whose `update_pr` was silently lost mid-transport: the payload said
+# nothing, and only the worker's own re-read caught it.
+#
+# Be precise about what this does and does not catch. It confirms the
+# remote ref matches the ref that was pushed. It cannot notice that the
+# LOCAL ref moved somewhere the caller did not intend before the push —
+# a truthful report of pushing the wrong commit still reads as success.
+# A caller that needs a specific commit on the remote must compare
+# against the sha it meant, not merely trust `pushed`.
+#
+# A delete refspec pushes no commit, so there is nothing to confirm.
+remote_verified="null"
+remote_sha=""
+if [[ -n "$source_ref" && -n "$target_branch" ]]; then
+    remote_sha=$(git ls-remote --heads "$remote" "$target_branch" 2>/dev/null | cut -f1)
+    pushed_full=$(git rev-parse "$source_ref" 2>/dev/null || echo "")
+    if [[ -z "$remote_sha" || -z "$pushed_full" ]]; then
+        # An unreadable remote is not evidence of a bad push — say
+        # "unknown" rather than manufacturing either verdict.
+        remote_verified="null"
+    elif [[ "$remote_sha" == "$pushed_full" ]]; then
+        remote_verified="true"
+    else
+        remote_verified="false"
+    fi
+fi
+
+printf '{"pushed":true,"ref":"%s","remote":"%s","sha":"%s","tracking":"%s","remote_sha":"%s","remote_verified":%s,"ci_run_url":null}\n' \
+    "$target_branch" "$remote" "$sha" "$tracking" "$remote_sha" "$remote_verified"
