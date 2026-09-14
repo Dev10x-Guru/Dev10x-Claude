@@ -563,6 +563,27 @@ When adding a new tool, update this table and note any dependencies on
 specific CLI commands or external programs. Skills should declare required
 tools explicitly in `allowed-tools:` to catch availability mismatches early.
 
+### A Bash guardrail does not constrain an MCP tool that shells out (GH-1261)
+
+`_validate_bash_body` returns on `tool_name != "Bash"` before a single
+validator runs. So an MCP tool that executes a shell command or evaluates
+arbitrary code — `execute_terminal_command`, `execute_code_on_kernel`,
+`execute_tool`, or whatever the next server calls its equivalent — is a
+Bash call that the Bash layer never sees. Allowing one voids **all** of:
+
+- DX001–DX016, the entire PreToolUse validator chain (the same early
+  return GH-1211/GH-1212 documented for `Monitor`);
+- every `Bash()` deny in settings — `sudo`, `git push --force`,
+  `rm -rf /`, `gh api --method DELETE`, `git config --global`;
+- the skill-redirect hook, so nothing routes `gh pr edit` to `update_pr`.
+
+This is GH-1260's sharpest case: rules and hooks match a **tool name and
+a command string**, never an **effect**. Assess every new server against
+it — a shell or eval tool belongs in `deny`, not in the allow catalog,
+and that deny is unconditional rather than keyed to whether the user
+picked that IDE. `plugin-doctor`'s `shell-equivalent-mcp-tools` strategy
+flags them, but detection is by name and so is a floor, not a guarantee.
+
 ### A registered tool is not a pre-approved tool (GH-1153)
 
 Neither this table nor a skill's `allowed-tools:` grants permission.
