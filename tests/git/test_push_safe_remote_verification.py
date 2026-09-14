@@ -80,6 +80,17 @@ class TestRemoteVerification:
 
         assert payload["sha"] == expected
 
+    def test_setting_upstream_does_not_swallow_the_payload(self, repo_with_remote: Path):
+        # `git push -u` announces the tracking setup on STDOUT. The
+        # wrapper json.loads this script's whole stdout and falls back to
+        # `{}` on failure, so that one line silently replaced every
+        # payload — and `-u` is the shape every first push uses, which is
+        # when a caller most needs the confirmation.
+        payload = push(repo_with_remote, "-u", "origin", "feature")
+
+        assert payload["pushed"] is True
+        assert payload["remote_verified"] is True
+
     def test_a_second_push_of_new_work_reconfirms(self, repo_with_remote: Path):
         push(repo_with_remote, "origin", "feature")
         (repo_with_remote / "file.txt").write_text("more\n")
