@@ -407,15 +407,17 @@ def poll_until_terminal(
     SHAs review-bot comments reference). The poll budget bounds it like
     every other wait.
 
-    The default poll budget (`initial_wait 60 + poll_interval 30 * 39`
-    = 1230s — ×39, not ×40, because the loop skips the sleep after the
-    final poll) is kept below the ~1800s MCP idle-timeout so a
-    `wait=true` call returns a verdict rather than being torn down
-    mid-poll (GH-808 F2). So is the distinct 1320s subprocess cap
-    (`initial_wait + poll_interval * max_polls + 60`) that
-    `dev10x.monitor` puts on this script — do not read 1320s as the
-    poll budget (GH-1104). A caller needing longer coverage re-invokes
-    rather than raising the budget past that ceiling.
+    The poll budget is kept below the MCP idle-timeout so a `wait=true`
+    call returns a verdict rather than being torn down mid-poll (GH-808
+    F2). `dev10x.monitor` no longer trusts its caller for that: it asks
+    `polls_within_budget` how many polls `MAX_TOOL_CALL_SECONDS` affords
+    and passes that number here, so `--max-polls` arrives already
+    reduced (GH-1288). At the defaults it grants 32, making the in-loop
+    budget `60 + 30 * 31` = 990s — ×31, not ×32, because the loop skips
+    the sleep after the final poll — under a distinct 1080s subprocess
+    cap. Do not read the cap as the poll budget; they are two ceilings
+    (GH-1104). A caller needing longer coverage re-invokes rather than
+    raising the budget past the transport's patience.
     """
     # Fast path (GH-1088): a caller that reaches this after CI already
     # finished should not pay `initial_wait` for a verdict that is already
