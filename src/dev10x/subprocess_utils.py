@@ -17,6 +17,7 @@ import contextlib
 import functools
 import logging
 import os
+import signal
 import subprocess
 from collections.abc import Awaitable, Callable
 from contextvars import ContextVar
@@ -279,6 +280,29 @@ def run_script(
     )
 
 
+def _kill_process_tree(proc: asyncio.subprocess.Process) -> None:
+    """Kill the child *and every process it spawned* (GH-1304).
+
+    ``proc.kill()`` signals only the direct child. The commands this
+    Gateway launches are mostly wrappers — ``uv run … pytest`` makes
+    pytest a *grandchild* — so killing the child reaps the wrapper and
+    leaves the real work running. An orphaned pytest is not merely
+    wasted CPU: this repo's git tests run ``git reset --hard``, so a
+    survivor keeps mutating the worktree long after its caller believes
+    it stopped, and committed work disappears with no error anywhere.
+
+    ``start_new_session=True`` at spawn puts the child in its own
+    process group precisely so one signal can reach the whole tree.
+    """
+    try:
+        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+    except (ProcessLookupError, PermissionError, OSError):
+        # The group is already gone, or the platform refused it. Fall
+        # back to the direct child rather than leaving it running.
+        with contextlib.suppress(ProcessLookupError):
+            proc.kill()
+
+
 async def async_run(
     args: list[str],
     *,
@@ -289,6 +313,13 @@ async def async_run(
 ) -> subprocess.CompletedProcess[str]:
     """GH-410: uses ``safe_effective_cwd()`` so a deleted bound worktree path
     does not cause ENOENT when launching subprocesses.
+
+    The child leads its own session (GH-1304), so it has **no controlling
+    terminal**: a command that wants to prompt — ``gh auth login``, a
+    credential helper, a pager, an editor — cannot, and will fail or hang
+    rather than ask. Every stream here is already a pipe, so nothing
+    reaches a terminal anyway; this Gateway is for non-interactive
+    commands only.
 
     Args:
         input_text: Written to the child's stdin and closed. Needed by
@@ -302,14 +333,31 @@ async def async_run(
         stderr=asyncio.subprocess.PIPE,
         env=env,
         cwd=cwd if cwd is not None else safe_effective_cwd(),
+        # GH-1304: own process group, so a timeout or a cancellation can
+        # reap the whole tree instead of only the wrapper.
+        start_new_session=True,
     )
     try:
         stdout_bytes, stderr_bytes = await asyncio.wait_for(
             proc.communicate(input=input_text.encode() if input_text is not None else None),
             timeout=timeout,
         )
+    except asyncio.CancelledError:
+        # GH-1304: a cancelled call (TaskStop on a backgrounded run) never
+        # reaches the timeout branch below — the coroutine is torn down
+        # instead. Without this the child is orphaned *unconditionally*,
+        # which is the more common half of the bug.
+        #
+        # Deliberately no `await proc.wait()` here, unlike the timeout
+        # branch: awaiting inside a coroutine that is already being
+        # cancelled delays the cancellation it is supposed to propagate,
+        # and the await can itself be cancelled. Reaping is not lost —
+        # asyncio's child watcher collects the process on SIGCHLD — and
+        # SIGKILL has already guaranteed it is on its way down.
+        _kill_process_tree(proc)
+        raise
     except TimeoutError:
-        proc.kill()
+        _kill_process_tree(proc)
         await proc.wait()
         return subprocess.CompletedProcess(
             args=args,
