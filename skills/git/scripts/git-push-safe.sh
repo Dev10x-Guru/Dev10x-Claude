@@ -211,17 +211,32 @@ if [[ $lease -eq 1 ]]; then
     done
 fi
 
-# Run the push; capture stderr so we can re-emit it after the JSON payload.
+# Run the push, capturing BOTH streams so this script's stdout carries
+# nothing but the JSON payload (GH-1099).
+#
+# `git push -u` announces "branch '…' set up to track '…'" on **stdout**.
+# The wrapper parses this script's whole stdout with `json.loads` and
+# falls back to `{}` when that fails, so one line of git chatter ahead of
+# the payload silently replaced the entire result — every `-u` push
+# reported `{}` while a plain push reported the full payload. That is why
+# "push_safe returning {} means success" was passed around as folklore:
+# it was never a design, it was this. A caller asking "did the write
+# land?" was answered by a parser failing open.
+#
+# `.claude/rules/script-domain-boundaries.md` already states the rule a
+# stdout-parsed script must keep: one channel, payload only. Git's own
+# chatter is diagnostics, so it joins stderr.
+push_stdout=$(mktemp)
 push_stderr=$(mktemp)
-trap 'rm -f "$push_stderr"' EXIT
-if ! git push "${PUSH_ARGS[@]}" 2>"$push_stderr"; then
+trap 'rm -f "$push_stdout" "$push_stderr"' EXIT
+if ! git push "${PUSH_ARGS[@]}" >"$push_stdout" 2>"$push_stderr"; then
     rc=$?
-    cat "$push_stderr" >&2
+    cat "$push_stdout" "$push_stderr" >&2
     printf '{"pushed":false,"ref":"%s","remote":"%s","blocked_reason":"push_failed"}\n' \
         "$target_branch" "$remote"
     exit "$rc"
 fi
-cat "$push_stderr" >&2
+cat "$push_stdout" "$push_stderr" >&2
 
 # Report the ref that was PUSHED, not whatever HEAD happens to be here
 # (GH-1220). Sibling worktrees share one object store and one set of
