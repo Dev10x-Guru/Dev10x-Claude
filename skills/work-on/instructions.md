@@ -407,13 +407,40 @@ admonition you can skip "because the tasks were obviously
 created"; the explicit `TaskList` call is the audit trail. After
 calling it, verify exactly 4 phase parents (Phase 1 through
 Phase 4) exist. If fewer than 4 are present, create the missing
-ones before proceeding. If `TaskCreate` is unavailable (e.g.,
-`ToolSearch` returned it but calling fails), STOP and inform the
-user — do NOT proceed without the task list.
+ones before proceeding.
 
 **Anti-pattern (GH-729, GH-928, GH-55 F2):** Skipping the
 `TaskList` call because "I just created the tasks one tool-call
 ago" is exactly the regression the audit caught. Run it.
+
+**When the task tools are absent, run anyway (GH-1055).** They
+ship by default only on Claude 3.x, Opus 4–4.7, Sonnet 4–4.6 and
+Haiku 4.5; a newer or unrecognised model omits them unless the
+user opts in, so this is a supported configuration and not a
+broken one. Stopping there would refuse to run the orchestrator
+on the models it will most often meet. Carry the phase plan as a
+written checklist in the transcript instead and close with an
+explicit `Verify AC` section — the contract, what it costs, and
+what still works are in `.claude/rules/essentials.md` § When the
+task tools are absent. The `TaskList` self-check does not apply
+in that mode: it audits a mechanism this session does not have,
+and an audit of an absent thing can only fail.
+
+**A tool that is present and fails is a different case.** When
+`TaskCreate` is offered and the call errors, nothing about the
+session says the tools were left out — something is broken, and
+degrading past it silently hides a fault the supervisor needs to
+hear about. Report the error and stop, as before. Absence is read
+from the tool not being available at all, never from a failed
+call.
+
+Phase 0.5 needs the same reading. Its resume signature is "the
+persisted plan holds tasks but `TaskList` is empty" — on a model
+without the tools the `TaskCreate|TaskUpdate` hook matchers never
+fire, so `plan.tasks` is always empty and the signature can never
+match. That is correct behaviour, not a failed resume: there is
+no task tree to rebuild. The plan-sync **context** still
+rehydrates, because `plan_sync_*` are MCP tools.
 
 ---
 
