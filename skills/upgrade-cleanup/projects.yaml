@@ -832,6 +832,47 @@ tracker_denies:
   - "mcp__claude_ai_Linear__delete_attachment"
   - "mcp__claude_ai_Linear__delete_status_update"
 
+# GH-1261
+ide_permissions:
+  pycharm:
+  - "mcp__pycharm__analyze_calls"
+  - "mcp__pycharm__get_all_open_file_paths"
+  - "mcp__pycharm__get_file_problems"
+  - "mcp__pycharm__get_notebook_state"
+  - "mcp__pycharm__get_project_dependencies"
+  - "mcp__pycharm__get_project_modules"
+  - "mcp__pycharm__get_python_environment"
+  - "mcp__pycharm__get_repositories"
+  - "mcp__pycharm__get_run_configurations"
+  - "mcp__pycharm__get_symbol_info"
+  - "mcp__pycharm__git_status"
+  - "mcp__pycharm__lint_files"
+  - "mcp__pycharm__list_directory_tree"
+  - "mcp__pycharm__read_file"
+  - "mcp__pycharm__read_notebook"
+  - "mcp__pycharm__read_notebook_cell"
+  - "mcp__pycharm__search_file"
+  - "mcp__pycharm__search_regex"
+  - "mcp__pycharm__search_symbol"
+  - "mcp__pycharm__search_text"
+  - "mcp__pycharm__wait_cell_execution"
+  - "mcp__pycharm__open_file_in_editor"
+  - "mcp__pycharm__interrupt_notebook"
+  - "mcp__pycharm__kill_notebook"
+  - "mcp__pycharm__apply_patch"
+  - "mcp__pycharm__create_new_file"
+  - "mcp__pycharm__create_notebook"
+  - "mcp__pycharm__edit_notebook"
+  - "mcp__pycharm__reformat_file"
+  - "mcp__pycharm__rename_refactoring"
+
+# GH-1261
+ide_denies:
+  pycharm:
+  - "mcp__pycharm__execute_terminal_command"
+  - "mcp__pycharm__execute_code_on_kernel"
+  - "mcp__pycharm__execute_tool"
+
 # --- Base ask rules (GH-1154) ---
 # The prompt tier. Until this key existed the catalog could express only
 # allow and deny, so a rule that *should* prompt had nowhere to live and
@@ -876,6 +917,11 @@ base_asks:
 # --- Base deny rules (GH-204) ---
 # Tracker-independent denies. Tracker-specific ones live above.
 base_denies:
+  # GH-1261
+  - "mcp__pycharm__execute_terminal_command"
+  - "mcp__pycharm__execute_code_on_kernel"
+  - "mcp__pycharm__execute_tool"
+
   # --- Privilege-escalation tier (GH-326) ---
   # `sudo` and friends are denied for ANY shape, not just the option-2
   # catch-all. Unlike the GH-310 `<verb> *` footguns (which merely widen a
