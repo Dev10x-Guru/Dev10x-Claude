@@ -20,10 +20,21 @@ if [ "$1" = "0000000000000000000000000000000000000000" ]; then
     git -C "$ORIGINAL_REPO" status --porcelain -uall 2>/dev/null | \
         sed 's/^...//' > "$DIRTY_LIST"
 
+    # GH-1299: a git-tracked file is owned by the branch, not by the
+    # checkout — `git worktree add` already materialized the right
+    # version, so copying ORIGINAL_REPO's copy over it reverts it.
+    TRACKED_LIST=$(mktemp)
+    git -C "$ORIGINAL_REPO" ls-files 2>/dev/null > "$TRACKED_LIST"
+    # An empty list means the listing failed, not that nothing is tracked
+    # — and it fails OPEN, restoring the overwrite this guard prevents.
+    [ -s "$TRACKED_LIST" ] || echo "warning: could not list tracked files in" \
+        "$ORIGINAL_REPO — tracked config may be overwritten (GH-1299)" >&2
+
     copy_file() {
         src="$1"
         full="$ORIGINAL_REPO/$src"
-        [ -f "$full" ] && ! grep -qFx "$src" "$DIRTY_LIST" && {
+        [ -f "$full" ] && ! grep -qFx "$src" "$DIRTY_LIST" \
+            && ! grep -qFx "$src" "$TRACKED_LIST" && {
             mkdir -p "$(dirname "$src")"
             cp "$full" "$src" 2>/dev/null
         }
@@ -35,6 +46,7 @@ if [ "$1" = "0000000000000000000000000000000000000000" ]; then
         [ -d "$full" ] || return 0
         dir_excl=$(mktemp)
         grep "^${src}" "$DIRTY_LIST" | sed "s|^${src}||" > "$dir_excl"
+        grep "^${src}" "$TRACKED_LIST" | sed "s|^${src}||" >> "$dir_excl"
         extra=""
         for pattern in "$@"; do extra="$extra --exclude=$pattern"; done
         eval rsync -a --exclude-from="$dir_excl" "$extra" \
@@ -76,7 +88,7 @@ if [ "$1" = "0000000000000000000000000000000000000000" ]; then
     fi
     # <<< Dev10x session-seed (ADR-0018) <<<
 
-    rm -f "$DIRTY_LIST"
+    rm -f "$DIRTY_LIST" "$TRACKED_LIST"
 
     # ── Post-copy setup ─────────────────────────────────────────────
     if command -v yarn >/dev/null; then
