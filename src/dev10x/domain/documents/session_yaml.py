@@ -62,6 +62,11 @@ _DURABLE_KEYS = (
     # (GH-1031), and it belongs here for the same reason: the repo-stem
     # `match` globs make one answer cover every worktree of the project.
     "tracker",
+    # Which IDE MCP server this project drives, so `ensure-base` seeds its
+    # tools and not another IDE's (GH-1261). Same reasoning as `tracker`
+    # above, with `none` as the resolved default because most checkouts
+    # have no IDE server at all.
+    "ide",
     "walk_away",
 )
 
