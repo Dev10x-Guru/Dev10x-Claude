@@ -105,6 +105,48 @@ discrete unit while a broader plan is in flight.
    completes it explicitly during `Dev10x:verify-acc-dod` or
    `Dev10x:session-wrap-up`
 
+### When the task tools are absent (GH-1055)
+
+`TaskCreate` / `TaskGet` / `TaskUpdate` / `TaskList` / `TodoWrite`
+ship by default only on Claude 3.x, Opus 4–4.7, Sonnet 4–4.6 and
+Haiku 4.5. On every newer model, and on any model ID Claude Code
+does not recognise (a gateway-served custom name), they are left
+out unless the user opts in. So a session with no task tools is a
+supported configuration, not a broken one.
+
+The task list is a **mechanism**. What it serves is a **purpose**:
+the supervisor can see work in flight, a new prompt lands against
+that work instead of competing with it, and the agent never
+declares itself done. Losing the mechanism does not retire the
+purpose — it moves to the transcript:
+
+1. State the plan as a written checklist in the reply, in the same
+   order the tasks would have had, and restate what changed as
+   each item completes.
+2. Close with an explicit `Verify AC` section carrying the content
+   listed above — PR links, per-change summary, CI status,
+   outstanding review comments, unsigned AC items.
+3. Never announce the work complete on your own. The `Verify AC`
+   section ends the turn; the supervisor's confirmation ends the
+   session.
+
+**Never stop because the tools are missing.** Refusing to run is
+the one wrong answer — it makes the plugin unusable on the models
+it will most often meet.
+
+**Be honest that this is a degradation, not a substitute.** A
+supervisor cannot insert a task before `Verify AC` in a
+transcript, and nothing in it survives a compaction boundary.
+What does survive is what plan-sync persisted: the
+`plan_sync_*` tools are MCP tools rather than task tools, so
+`branch` / `tickets` identity and the `session_adoption`
+staleness computation keep working unchanged. Only the task
+mirror is lost — the `TaskUpdate` and `TaskCreate|TaskUpdate`
+matchers in `hooks/hooks.json` never fire, so `plan.yaml` holds
+no tasks. Any reader of `plan.tasks` therefore sees a session
+with no task tools as indistinguishable from a fresh one, and
+must not treat the emptiness as evidence of anything else.
+
 ## Reference Documents
 
 | Document | Topic | Loaded by |
