@@ -515,13 +515,36 @@ invoked the skill at all, so none of the 9 validations ran for it.
 Check 2b then correctly short-circuits to post-merge verification,
 but the merge is already done.
 
-Read this as a **repo-configuration** finding, not a skill bug: on a
-repo where these validations are meant to gate merges, require at
-least one status check in branch protection, so an armed auto-merge
-waits for something this skill can also see. Until then, treat a
-`state == "MERGED"` at Check 2b on such a repo as a signal that the
-gate was bypassed by timing, and say so in the post-merge report
-rather than reporting a clean merge.
+Read this as a **repo-configuration** finding, not a skill bug: the
+fix is to require at least one status check in branch protection, so
+an armed auto-merge waits for something this skill can also see.
+Establish it from `ci_check_status`, not from assumption —
+`required_verdict: "empty"` with every leg `required: false` is what
+an unprotected base looks like.
+
+**Do not re-file this against a repo that has already answered it
+(GH-1283).** The answer is a durable record, not a per-session
+judgement, so check for one before reporting:
+
+- **Answered, and the rule is live** — `required_verdict` is
+  something other than `"empty"`. Nothing to report; a
+  `state == "MERGED"` here is a genuine anomaly worth investigating
+  on its own terms, not the known gap.
+- **Answered, rule not yet applied, or answered as
+  deliberately-advisory** — the repo carries an ADR or equivalent
+  recording the decision (in this repo,
+  [ADR-0024](../../docs/adr/0024-required-status-checks-on-develop.md)).
+  Cite it in the post-merge report and move on. Re-raising a recorded
+  decision as a fresh finding is the failure mode this paragraph
+  exists to stop — it cost a slot in three consecutive bundles.
+- **Unanswered** — no such record exists. Report it once, and prefer
+  filing the *decision* (which legs are merge-blocking) over filing
+  "no required checks", which is a symptom.
+
+In every case where the base is genuinely unprotected, treat a
+`state == "MERGED"` at Check 2b as a signal that the gate was
+bypassed by timing, and say so in the post-merge report rather than
+reporting a clean merge.
 
 ### Check 3: PR is not in draft
 
