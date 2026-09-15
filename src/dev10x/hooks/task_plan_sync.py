@@ -76,6 +76,22 @@ TOOL_HANDLERS: dict[str, Callable[..., bool]] = {
 }
 
 
+def _tool_outcome(*, payload: dict[str, Any]) -> Any:
+    """What the tool reported back, across both PostToolUse shapes.
+
+    Claude Code delivered the result as rendered text under
+    ``tool_result`` and now delivers it structured under
+    ``tool_response`` (GH-1309) — the newer payload carries no
+    ``tool_result`` field at all. Both are handed on unchanged so the
+    handlers decide what to read; deciding here would need this seam to
+    know which tool ran.
+    """
+    result = payload.get("tool_result", "")
+    if isinstance(result, dict):
+        result = result.get("content", str(result))
+    return result or payload.get("tool_response", "")
+
+
 def cmd_hook() -> None:
     payload_str = sys.stdin.read()
     if not payload_str.strip():
@@ -87,9 +103,7 @@ def cmd_hook() -> None:
         sys.exit(0)
 
     tool_input = payload.get("tool_input", {})
-    tool_result = payload.get("tool_result", "")
-    if isinstance(tool_result, dict):
-        tool_result = tool_result.get("content", str(tool_result))
+    tool_result = _tool_outcome(payload=payload)
 
     handler = TOOL_HANDLERS.get(payload.get("tool_name", ""))
     if handler is None:

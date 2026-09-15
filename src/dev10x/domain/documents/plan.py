@@ -38,8 +38,27 @@ def _get_branch() -> str:
     return GitContext().branch
 
 
-def _extract_task_id(tool_result: str) -> str | None:
-    match = re.search(r"Task #(\d+)", tool_result)
+def _extract_task_id(tool_result: Any) -> str | None:
+    """The id of the task a ``TaskCreate`` just made.
+
+    Two shapes, because the harness changed one (GH-1309). Claude Code
+    used to hand back the rendered line ("Task #1 created successfully:
+    …") and now hands back the created task structured under
+    ``tool_response``. Reading only the prose meant every ``TaskCreate``
+    against 2.1.263+ was silently dropped: the harness task list held
+    the task, the hook exited 0, and ``plan.yaml`` grew no ``tasks`` key
+    at all.
+
+    The rendered form is still read, so an older harness keeps working
+    and the two need not be told apart by version.
+    """
+    if isinstance(tool_result, dict):
+        task = tool_result.get("task")
+        if not isinstance(task, dict):
+            return None
+        task_id = task.get("id")
+        return str(task_id) if task_id not in (None, "") else None
+    match = re.search(r"Task #(\d+)", str(tool_result))
     return match.group(1) if match else None
 
 
@@ -287,7 +306,7 @@ class Plan:
         self,
         *,
         tool_input: dict[str, Any],
-        tool_result: str,
+        tool_result: Any,
     ) -> bool:
         task_id = _extract_task_id(tool_result)
         if not task_id:
