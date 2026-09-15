@@ -5,6 +5,396 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.99.0 — Wrappers That Answer Truthfully & Guards That Cannot Be Walked Around
+
+Released 2026-09-15
+
+### Features
+
+- **Let a project answer which IDE it runs, once** — an installed IDE MCP
+  server's tools prompted on every call forever, because nothing could write
+  the answer a catalog fold would need. `pin_ide` / `ide_status` mirror
+  `pin_tracker` / `tracker_status` down to the repo-stem keying, so one answer
+  covers a repo and every worktree of it; `ensure_base` folds the keyed block
+  where it already folds the tracker's. Two things differ, both because an IDE
+  is not a tracker: the resolved default is `none` rather than a named IDE, so
+  an unpinned repo folds nothing instead of seeding a guess, and an unknown
+  name is an error rather than a quiet degrade — a typo would otherwise surface
+  weeks later as an IDE whose tools never stopped prompting. Thirty tools are
+  catalogued under `ide_permissions`, not `base_permissions`, because GH-768
+  already paid once for seeding one tracker's rules unconditionally
+  ([GH-1261](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1261))
+- **Close the hole an IDE shell tool opens in every Bash guard** —
+  `execute_terminal_command`, `execute_code_on_kernel` and `execute_tool` run
+  arbitrary shell without being a Bash call, and the PreToolUse chain returns
+  early on `tool_name != "Bash"`. One allowed tool of that shape voids
+  DX001–DX016, every `Bash()` deny in settings (sudo, `git push --force`,
+  `rm -rf /`, `gh api --method DELETE`) and the skill-redirect hook at once.
+  The three are denied unconditionally in `base_denies` — the hazard depends on
+  the server being installed, not on the user having picked that IDE — and a new
+  `shell-equivalent-mcp-tools` doctor strategy scans every MCP server in
+  settings, whatever its source, since `uncatalogued_tools` reported only
+  Dev10x's own registrations and an installed third-party server with 37 tools
+  was invisible to every check. Detection is by name, so it is a floor and not a
+  guarantee: GH-1260 again — rules match names and command strings, never
+  effects ([GH-1261](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1261))
+- **Prompt on a sensitive file however it is read** — a read is an effect
+  reachable by unbounded means (`cat`, `head`, `rg`, `jq`, `awk`, a redirect, a
+  symlink, different quoting), and GH-1260 established by controlled test that
+  neither permission namespace can close that: a `Read()` rule governs the Read
+  tool only, while a blanket `Bash(rg:*)` allow makes every file on the machine
+  readable with no prompt. DX014 now matches a path wordlist against the
+  command's operand tokens — AWS/SSH/kube/docker/gh credentials, key material,
+  credential dotfiles, secrets files — so the reading verb no longer gates the
+  match, and the whole operand is carried into the prompt because the matched
+  span names no file a supervisor can act on. The posture stays `ask`, not
+  `deny`, and near misses stay silent. `StopVerdict.signal` now names which
+  branch ended a turn and attributes it to the audit record, so GH-1257's
+  request to retire the cooldown marker becomes decidable from the field
+  ([GH-1278](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1278))
+- **Hand the supervisor a widget instead of a last sentence** — every mechanism
+  enforcing "do not end on a decision question" was model-side instruction, and
+  therefore skippable. A Stop hook was already wired and could enforce none of
+  it, because the orchestrator discarded every return value. Stop features may
+  now return a verdict; the orchestrator merges them and emits at most one
+  envelope, whose `reason` becomes the continued turn's instruction and names
+  `Dev10x:ask`. The block condition is broader than first proposed — a
+  plan-approval gate held as "say go and I'll run 4.1 through 4.11" has no
+  question mark at all — so a turn ending with no `AskUserQuestion` blocks, full
+  stop, and what varies is the steer, graded by the task list. The goodbye is
+  captured and replayed only when nothing blocks: a farewell during a continued
+  turn asserts an ending that is not happening
+  ([GH-1251](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1251))
+- **Let the durable config shrink as well as grow** — every maintenance
+  command's contract is "ensure X is present", which is monotone by
+  construction: a measured 0.98.0 pass ran ~1,250 additions against 14 removals.
+  The cost is not disk — two thirds of `friction.yaml` was pins for ephemeral
+  worktrees that no longer exist, so first-match-wins evaluation walked ~63 dead
+  entries before reaching a real project, and real defects hid among them.
+  `dev10x session reap` removes a `projects[]` entry only when it names at least
+  one absolute path and every such path is absent; a glob-only entry names no
+  checkout that can be checked, so it is always kept — keeping a dead entry
+  costs a glob comparison, removing a live one silently changes a project's
+  posture ([GH-1253](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1253))
+- **Stop Dev10x's own state dirtying every worktree** — Dev10x writes
+  per-session state to `.claude/Dev10x/`, and in any project that tracks
+  `.claude/` nothing ignored it, so a fresh worktree read as dirty the moment a
+  session ran in it and the user cleaned each by hand. The rule goes in
+  `.git/info/exclude` rather than a tracked `.claude/.gitignore`: it lives in
+  the common git dir, so one write covers a repo and every worktree of it,
+  including ones created later, and it keeps a maintenance pass from writing
+  git-tracked content. Git is asked whether the path is ignored rather than a
+  file being read, so any existing route counts
+  ([GH-1275](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1275))
+- **Put the running app one click from the review ping** — reviewing a
+  front-end change means looking at the app, but the Chat card offered only Open
+  PR, so the reviewer left Chat, opened the PR, scrolled past the CI checks to
+  the deployment bot's comment, and clicked through from there, every time. The
+  URL is read from the Deployments API rather than that comment, because
+  `deployment_status.environment_url` is the one field Vercel, Netlify and Pages
+  all populate while a comment's wording belongs to the provider. Preview
+  deployments are asynchronous, so the button is absent rather than waited for —
+  a review request that arrives late is worse than one missing a button
+  ([GH-1262](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1262))
+- **Drop the approval prompt from every preview probe** — probing a PR's own
+  preview deployment needed an environment prefix and a pipe, each of which
+  moves the command string off the allow rule covering the script path. "Don't
+  ask again" could not help: the rule it remembers carries that PR's preview
+  host, which the next PR does not share, so the prompt returns and the settings
+  file keeps a dead entry. `--staging-url`, `--secrets-file` and `--tail`
+  resolve flag > env > default, so every existing caller's environment keeps
+  working and the command can begin with the script path
+  ([GH-1263](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1263))
+- **Let a worktree run its tests without a prompt** — `Bash(uv run pytest:*)`
+  was catalogued, but allow-rule matching keys on the literal command string, so
+  it never matched `uv run --directory <path> pytest` — the shape Dev10x's own
+  `Dev10x:git-worktree` flow produces. `catalog-gap` reported 0 missing
+  throughout, because it compares settings against the catalog and the shape was
+  absent from both. Same failure mode as GH-1189 and GH-1149: a command family
+  catalogued in one shape while users type another
+  ([GH-1248](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1248))
+- **Let a long-lived catalog receive the sections it never had** — ADR-0021
+  merged the shipped catalog into the user's for `base_permissions` and
+  `base_denies` only; every other key fell through an implicit pass-through
+  branch, correct for the machine-specific keys it was written for and silently
+  wrong for `base_asks` and the tracker keys when those shipped later. On a
+  0.98.0 machine, zero `ask` rules reached any settings file and a repo pinned
+  `tracker: github` was seeded with no github rules — while every rule-level
+  check reported clean, because a section the user's catalog never declares is a
+  section nothing compares against. The classification is explicit now, and a
+  shipped key in none of the three sets warns
+  ([GH-1249](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1249))
+
+### Fixes
+
+- **Stop the PR wrappers accepting calls they cannot honour** — five
+  wrapper-contract defects that all failed the same way: the call was accepted,
+  something plausible came back, and the caller could not tell. `create_pr` was
+  the only PR wrapper without `repo=`; `pr_get` exposed no changed-file list,
+  pushing callers onto a raw `gh api` whose 30-item page truncated a 41-file PR
+  into a false-negative merge gate; `merge_pr` merged whatever the head was at
+  call time rather than the head the gate verified, so a push landing mid-gate
+  shipped unreviewed code; the JTBD marker check demanded a literal "wants to",
+  which the jtbd guidance itself advises against; and `create_pr` derived its
+  `Fixes:` trailer from `fixes_url` alone, so linking an issue the documented
+  way produced a body the hygiene bot rejects
+  ([GH-1269](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1269),
+  [GH-1265](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1265),
+  [GH-1267](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1267),
+  [GH-1258](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1258),
+  [GH-1256](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1256))
+- **Stop a linked issue staying open with nobody noticing** — GH-1256 taught
+  `create_pr` to derive a `Fixes:` reference, but nothing asserted one reached
+  the PR and nothing asked afterwards whether the link closed anything. Both
+  halves fail silently: a body with no trailer closes nothing, and an issue
+  GitHub declines to close just stays open while the bundle reads as complete.
+  Observed on develop — one merge closed two of three identical trailers, a
+  later session recorded 0 of 7 across two merges, and both spellings failed in
+  that run, so the form is not the variable. `create_pr` now re-reads the
+  created PR and refuses a body with no trailer, naming the PR so an open one is
+  not stranded; `reconcile_link_closure` runs as `gh-pr-monitor` Phase 3.6 and
+  reports stragglers for the supervisor rather than closing them silently
+  ([GH-1274](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1274))
+- **Prevent a stale base from erasing merged work** — a groom on a `develop`
+  last fetched the previous evening printed a clean success, and the leased
+  force-push that followed erased eight commits that seven PRs had merged eleven
+  minutes earlier. Nothing noticed: a lease compares the remote against the
+  *local* remote-tracking ref, so a stale copy leases against itself, and the two
+  tips shared a tree so `git diff` showed nothing either — only a subject-level
+  search of the log found the loss. `--force-with-lease` was the one force
+  spelling `push_safe` deliberately never matched, so on a protected branch it
+  was ungated entirely. A protected target is now fetched first and refused
+  unless its remote tip is already an ancestor, naming the commits that would be
+  dropped ([GH-1270](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1270))
+- **Prevent a green run certifying the wrong checkout** —
+  `run_node_tests(cwd="apps/web")` resolved against the long-lived MCP server's
+  own directory rather than the calling worker's worktree, ran there, and
+  returned green for a tree the worker had never written to. That is not
+  friction but manufactured evidence, and the relative form propagated from a
+  repo's own CLAUDE.md into every crew brief. A relative path has no correct
+  meaning across a worktree boundary and the intended directory is not
+  recoverable from it, so `use_cwd` — the seam every MCP tool's `cwd=` passes
+  through — refuses it, and the payload echoes the absolute directory the run
+  actually happened in
+  ([GH-1264](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1264))
+- **Tell the caller a long run timed out, not that the line died** — the MCP
+  server died mid-session and took every in-flight background task with it: a
+  `run_tests` call at 18m59s and an unrelated `ci_check_status` started thirteen
+  minutes later, killed in the same instant. What reaches the caller is
+  `Connection closed`, which cannot tell a slow suite from a crashed server. The
+  transport budget now lives in one shared module at 1080s — below both observed
+  deaths at ~1137s, deliberately not a measurement of the ceiling — both test
+  runners clamp to it, and a clamped run returns `verdict=timeout` with the
+  elapsed budget. `ci_check_status` reached the transport by a different path
+  and summed its own cap inline, so the shared constant never reached it: the
+  poll count now comes down with the cap, so the loop ends on its own terms
+  rather than being killed mid-iteration
+  ([GH-1288](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1288),
+  [GH-1302](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1302))
+- **Stop a stopped test run from outliving its caller** — stopping a
+  backgrounded `run_tests` killed the wrapper and left the real work running.
+  `async_run` spawned children in the caller's own process group, so
+  `proc.kill()` reached only the direct child — and `uv run … pytest` makes
+  pytest a grandchild. The survivor kept running this repo's git tests, which
+  call `git reset --hard`, so committed work vanished from a worktree nobody was
+  touching, with no error raised anywhere. The cancellation path was worse:
+  `TaskStop` tears the coroutine down, so the `TimeoutError` branch never ran
+  and the orphan was unconditional
+  ([GH-1304](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1304))
+- **Stop a push losing its own receipt to git's chatter** — every `push_safe`
+  call that set an upstream returned `{}`. `git push -u` announces "branch '…'
+  set up to track '…'" on stdout, the script redirected only stderr, and the
+  wrapper's `json.loads` fell back to an empty dict — so one line of chatter
+  replaced the entire payload, silently, because failing open looks like
+  success. `-u` is the shape every first push of a branch uses, which is exactly
+  when a caller most wants confirmation: the folklore that "`push_safe`
+  returning `{}` means success" was never a design, it was this bug
+  ([GH-1099](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1099))
+- **Stop four wrappers answering with nothing useful** — `push_safe` emitted
+  `"ref": ""` on a detached HEAD; `pre_pr_checks` qualified its argument as
+  `origin/$BASE_BRANCH`, so the already-qualified spelling the rest of the
+  toolchain passes produced `origin/origin/develop` and failed reading as a git
+  problem rather than an argument one; `run_tests` matched its summary against a
+  closed outcome vocabulary, so `xpassed` or `deselected` zeroed every count and
+  a caller could not tell "ran and passed" from "collected nothing"; and the
+  contract row for `check_top_level_comments` omitted its required `pr_number`,
+  in the one table written to make first-call inference work
+  ([GH-1285](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1285))
+- **Give a fresh worktree the rules its own branch holds** — a new worktree kept
+  opening with uncommitted deletions in tracked `.claude/rules/*.md` that
+  reverted recently-documented content, with about fifteen stashes across many
+  worktrees carrying the evidence. `git worktree add` checks those files out at
+  the new worktree's own commit, and the post-checkout hook then rsynced the
+  source checkout's `.claude/` over the top, excluding only paths dirty in the
+  source — so whenever the source sat on an older commit or another branch, its
+  copy won. A tracked file belongs to the branch, not to the checkout
+  ([GH-1299](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1299))
+- **Stop a stale base inflating what a branch changed** — the `{base}-log`,
+  `-diff` and `-rebase` aliases computed their merge-base against the *local*
+  base ref, so a `develop` last pulled hours ago folded every commit merged since
+  into the branch's own diff: one session reviewed 36 changed files where 18 had
+  actually changed, and a scope check built on the same aliases agreed with it.
+  The `autosquash-{base}` family was already written against origin, so the two
+  disagreed about what "since the base" meant. All 15 comparison aliases now
+  resolve against `origin/<base>`, and the installer rewrites a superseded
+  definition instead of reporting it as already configured
+  ([GH-1281](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1281))
+- **Let work-on run on a model that has no task tools** — the task tools ship by
+  default only on Claude 3.x, Opus 4–4.7, Sonnet 4–4.6 and Haiku 4.5, so "no
+  task tools" is a supported configuration and, for anyone on a current model,
+  the default one. `work-on`'s Phase 1 self-check was the only place in the repo
+  that acknowledged this, and its answer was to stop — which is not a safeguard
+  but a refusal to run the plugin's main orchestrator at all. The always-loaded
+  rule now separates the mechanism from its purpose: the task list is a
+  mechanism, and the purpose — the supervisor sees work in flight, a new prompt
+  lands against it, the agent never declares itself done — moves to the
+  transcript as a written checklist and a closing `Verify AC` section. It is a
+  degradation, not a substitute, and the rule says so
+  ([GH-1055](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1055))
+- **Stop unread content landing in the working tree** — `command-skill-map.yaml`
+  had no entry for `cp`, `mv`, `tee` or `touch`, so a shell copy into the working
+  tree never reached `validate-edit-write.py`. The third cost is the one that
+  bit: the agent never read what it placed. GH-1245 records an 866-line script
+  copied in sight-unseen; re-done as `Read` + `Write` it was immediately found
+  wrong — dead `/tmp` paths, a duplicated block, useless timing offsets. A `cp`
+  cannot discover correctness, because copying is not reading. DX017 scopes to
+  the destination rather than the command, so shell staging under a scratch root
+  stays legitimate work
+  ([GH-1245](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1245))
+- **Stop the secret guard blocking code that names a secret** — `sensitive-files`
+  carried `credentials` as a `file_substrings` entry, and substrings match the
+  whole path, so every `credentials.py`, `test_credentials.py` and
+  `credentials-setup.md` was hard-blocked from Edit and Write with a message
+  telling the agent to ask a human — which nobody can answer in an unattended
+  run. The guard exists to protect secret *data*, and it was stopping work on the
+  code that reads it. A credential store is named `credentials`; a module that
+  talks to one is named `credentials.py`, so the distinction lives in the
+  extension and exact basenames carry it
+  ([GH-1287](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1287))
+- **Let the unresolved-thread gate actually run** — the "No unresolved review
+  threads" DoD check ran `gh pr view --json reviewThreads`, which is not a valid
+  `--json` field, so it failed on every invocation for the feature, bugfix and
+  pr-continuation work types and could never return the "0" it expected. A DoD
+  check that cannot run is worse than an absent one: it reads as coverage. The
+  obvious repair — a raw `gh api graphql` query — is itself hook-blocked and
+  steered to the MCP wrapper, which is the only spelling that both runs and is
+  permitted ([GH-1290](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1290))
+- **Stop a blocked caller being sent back into the block** — six rules in the
+  `gh-issue`/`gh-pr` family denied a raw command and then named that same command
+  as the fallback. GH-1068 F6 established why that is worse than no hint — it
+  reads as sanctioned and costs another round trip to disprove — but the fix
+  reached one rule and the rest kept the defect. It turned an MCP outage from an
+  inconvenience into a hard stop, with reads the acute loss since a read has no
+  guardrail to bypass. The five mutating rules gain an `except` escape that the
+  fallback names, scoped separately from reads, and a family-wide guard stops the
+  class returning
+  ([GH-1266](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1266))
+- **Stop the catalog promising a route it never seeded** —
+  `git-dir-worktree-pinning` steers agents to `git -C <path> <verb>` and says
+  that is "what allow rules are written against", but no `git -C` rule had ever
+  been seeded while the plumbing shape it deprecates carried 18: the recommended
+  remedy prompted and the deprecated one did not, and `permission_catalog_gap`
+  could not see it, because a rule that was never catalogued cannot be reported
+  missing. Nine read-only verb-scoped rules are seeded — not the verb-blind
+  `Bash(git -C:*)`, which would also grant `git -C <path> push --force` — and two
+  comments asserting the rest are corrected
+  ([GH-1268](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1268),
+  [GH-1260](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1260))
+- **Tell the engineer the bot identity is dark, not absent** — the GitHub App sat
+  configured and silently unused for months, with four defects stacked so each
+  aborted before the next became reachable while `github-app status` reported
+  healthy throughout: the `~/.claude/Dev10x` → `~/.config/Dev10x` migration
+  rewrote neither the `private_key_path` inside the yaml nor the seven paths in
+  the setup doc; the documented permission set omitted `issues:write`, which
+  comment posting needs; the acceptance step an edited App raises was documented
+  nowhere; and status checked only that config existed. Separately, `merged_by`
+  named the same engineer for the orchestrator, every crew worker and the human,
+  so a merge that bypassed the pre-merge gate could not be attributed even in
+  principle — `merge_pr(use_bot=…)` now reports `merged_as` and falls back out
+  loud ([GH-1271](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1271),
+  [GH-1272](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1272))
+- **Prevent gate diagnostics from hiding the real posture** — a gate resolution
+  named only its preset, so a value supplied by an overlay, a project override or
+  a session override was indistinguishable from a baseline one: a repo carrying
+  two overlays reported a bare `preset:adaptive`, which is how GH-1252 came to be
+  filed as "gate_overlays is inert" against a resolver that applies them
+  correctly. Three further predicate divergences shared the shape — the
+  SessionStart banner gated on a plugin-version string it could not relate to
+  config state, `session.yaml` sat outside every store the migrator walks while
+  its residual keys tripped a refusal naming that migrator, and
+  `_needs_migration` never inspected `active_modes`. Gate resolution semantics
+  are unchanged; only diagnostics and the migrator's reach move
+  ([GH-1252](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1252))
+- **Surface a retired config file before it takes effect** — ADR-0018 D2 retired
+  the per-repo `.claude/Dev10x/session.yaml`, and nothing was made responsible
+  for removing what was already there; the migrator deliberately will not, since
+  folding a stale file over live config would overwrite the posture in force. It
+  is inert only while a `projects[]` entry shadows it — rename the directory,
+  drop the entry, or open a worktree the globs miss, and it becomes the tier-2
+  read, at which point its residual v1 keys stop gate resolution. The instance in
+  this repo asserted the inverse posture of the one in force, so the trap was a
+  contradiction, not just a refusal, and a supervisor cannot see it by reading
+  either file alone
+  ([GH-1259](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1259))
+- **Stop a truncated contract reading as a complete one** — three SKILL.md files
+  tell the agent to read their `instructions.md` "end-to-end", and for `work-on`,
+  `fanout` and `skill-audit` that cannot be done in one call: the file is larger
+  than a single `Read` returns, so an agent that stops there holds part of the
+  contract while believing it holds all of it. Measured on `work-on`: 57% unread,
+  with the Plan Completion Gate, the pre-gate checklist and the merge-gated
+  completion rule all in the unread tail. The existing enforcement block was
+  attached to the two skills whose files fit, where the failure cannot happen,
+  and missing from the three where it is structural
+  ([GH-1279](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1279))
+- **Keep release notes collectable from any PR body** — the two patterns that
+  read a Job Story out of a merged PR body backtrack over the whole body, so
+  their cost came from the number of failing `**When**` positions rather than
+  from the story: 107ms at 4.6KB, 844ms at 9.2KB, 6.8s at 18.4KB. GitHub accepts
+  65536 characters and on a repo taking outside contributions those bodies are
+  written by strangers, so a single crafted PR could hold the release job for
+  minutes. Bounding the patterns' own groups was the tempting fix and the wrong
+  one — a clause containing bold text would stop matching, turning a loud stall
+  into a story quietly missing from release notes, which is the trade GH-1291
+  just closed. Windowing changes no pattern
+  ([GH-1293](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1293))
+- **Accept a Job Story in the project's own language** — the skill tells writers
+  to use the project's language, but `create_pr` matched the English markers as
+  literals, so a Polish story written exactly as its own project prescribed was
+  refused at the only point that could still accept it, and the workaround it
+  forced — English markers wrapped around Polish prose — reads worse than either
+  language alone. The markers were English for a real reason: the release-notes
+  extractor located a story by matching `**When**`, so accepting Polish in the
+  validator alone would have traded a loud rejection for a silent hole. Both
+  surfaces move together, Polish verb inflections are covered rather than one
+  form pinned, and a story mixing two languages is refused — that hybrid is the
+  old workaround, not a target
+  ([GH-1291](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1291))
+- **Stop a fork PR reporting two checks that cannot pass** — GitHub refuses OIDC
+  minting for a `pull_request` run whose head is a fork, so `claude-review` and
+  `hygiene-review` fail at token minting, and the error compounds it by asking
+  whether `id-token: write` was added when both workflows declare exactly that
+  one line below the failure. Both checks are non-required, so nothing was
+  blocking a merge — the cost was silent instead: two permanently-red columns
+  teach reviewers to read a red CI as "just the fork thing", which is the state
+  in which a genuine failure goes unnoticed. Skipping is the honest report, and
+  no coverage is lost because none was ever produced
+  ([GH-1226](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1226))
+
+### Docs
+
+- **Settle which checks a merge to develop must clear** — `develop` carries no
+  branch-protection rule at all (the API answers 404), so every CI leg reports
+  advisory-only and the nine pre-merge validations in `Dev10x:gh-pr-merge` gate
+  nothing, while an armed auto-merge lands the instant CI settles. The finding
+  was observed across four PRs in one session and re-raised in three consecutive
+  bundles without being actioned, because nothing durable recorded an answer.
+  ADR-0024 requires `test` and `floors` and says why each other leg is
+  deliberately excluded — `git-history-linting` is red by design while fixups
+  exist, `hygiene-review` never re-runs on a push, `claude-review` goes red on an
+  org-wide API cap. Status stays Proposed: writing the rule is a privileged
+  repository setting, left to the supervisor
+  ([GH-1283](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1283))
+
 ## 0.98.0 — Titles a Reader Can Tell Apart & Captures That Cannot Lie
 
 Released 2026-09-08
