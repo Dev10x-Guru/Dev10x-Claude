@@ -40,6 +40,18 @@ harness contract is only documented and nothing in this repo exercised
 it before (the ``[Verify]`` the issue flags): ``stop_hook_active`` in
 the payload, and a per-session marker so a block happens at most once
 per turn even if that field is absent or named differently.
+
+**Who the rule is for (GH-1314).** "A turn always ends on a widget"
+presumes a supervisor on the other end of it, and two cases have none:
+
+  - a **subagent**, whose final message is its report to whoever
+    dispatched it. One was observed echoing the no-open-work steer back
+    as a status question — complying with a block it should never have
+    received;
+  - a session the supervisor has put **on standby**. "Are we done?" had
+    no terminal answer, so confirming it only re-armed the gate next
+    turn. Standby is that answer, scoped to the supervisor's next
+    message rather than forever.
 """
 
 from __future__ import annotations
@@ -55,8 +67,8 @@ from pathlib import Path
 from dev10x.domain.file_locks import atomic_write_text
 
 
-def _diagnose(*, what: str, error: OSError) -> None:
-    """Note a filesystem failure without changing the verdict.
+def _diagnose(*, what: str, error: OSError | ValueError) -> None:
+    """Note a filesystem or decode failure without changing the verdict.
 
     Every degradation in this module points the same way — toward
     letting the turn end — which is right and also invisible. A marker
@@ -84,6 +96,21 @@ _DEFERRAL_RE = re.compile(
 
 _ASK_TOOL = "AskUserQuestion"
 
+#: The terminal answer that parks the gate (GH-1314). Matched against the
+#: widget answer that opens the turn, so the option label the steer asks
+#: for must contain this phrase.
+_STANDBY_RE = re.compile(r"\bon standby\b", re.IGNORECASE)
+
+#: Payload fields that would mark a Stop as belonging to a subagent
+#: (GH-1314). ``hook_event_name`` is the documented one — the harness
+#: fires ``SubagentStop`` for a subagent — and the rest are defensive:
+#: the event reached subagent sessions despite this repo registering the
+#: orchestrator under ``Stop`` alone, so the field that actually arrives
+#: is not something to assume. ``StopSignal.SUBAGENT`` in the audit log
+#: is what turns the guess into evidence.
+_SUBAGENT_EVENT = "SubagentStop"
+_SUBAGENT_KEYS = ("is_subagent", "subagent", "subagent_id", "agent_id", "parent_session_id")
+
 
 class StopSignal(StrEnum):
     """Which branch of :func:`decide` produced a verdict (GH-1257).
@@ -91,9 +118,15 @@ class StopSignal(StrEnum):
     ``STOP_HOOK_ACTIVE`` is the load-bearing member: seeing it in the
     audit log is the evidence that retiring the cooldown marker needs,
     and until it appears the marker is the only guard known to work.
+
+    ``SUBAGENT`` and ``STANDBY`` are named for the same reason (GH-1314):
+    each is a new way for a turn to end legitimately, and a branch nobody
+    can observe is a branch nobody can retire or trust.
     """
 
     STOP_HOOK_ACTIVE = "stop_hook_active"
+    SUBAGENT = "subagent"
+    STANDBY = "standby"
     COOLDOWN = "cooldown_marker"
     NO_TRANSCRIPT = "no_transcript"
     ASKED = "asked"
@@ -101,6 +134,25 @@ class StopSignal(StrEnum):
 
     def __repr__(self) -> str:
         return f"StopSignal.{self.name}"
+
+
+def is_subagent(*, data: dict) -> bool:
+    """Whether this Stop belongs to a subagent rather than the session.
+
+    A subagent has no supervisor to hand a widget to. Its final message
+    is its report to whoever dispatched it, so blocking that message
+    both corrupts the report — the observed subagent echoed this
+    module's own steer text back as a status question — and risks
+    hanging an unattended run that cannot answer.
+
+    Degrades toward **not** blocking only on positive evidence: an
+    absent discriminator leaves the session treated as a main session,
+    which is the pre-GH-1314 behaviour. Guessing the other way would
+    silently disable the gate everywhere the payload shape surprises us.
+    """
+    if data.get("hook_event_name") == _SUBAGENT_EVENT:
+        return True
+    return any(data.get(key) for key in _SUBAGENT_KEYS)
 
 
 @dataclass(frozen=True)
@@ -154,12 +206,109 @@ def record_block(*, session_id: str) -> None:
     marker = _marker_path(session_id=session_id)
     try:
         marker.parent.mkdir(parents=True, exist_ok=True)
-        atomic_write_text(marker, str(time.time()))
+        atomic_write_text(path=marker, content=str(time.time()))
     except OSError as error:
         _diagnose(what="writing the cooldown marker", error=error)
 
 
+def _standby_path(*, session_id: str) -> Path:
+    return Path("/tmp/Dev10x/stop-verdict") / f"{session_id or 'unknown'}.standby"
+
+
+def standby_holds(*, session_id: str, boundary: dict | None) -> bool:
+    """Whether the supervisor has parked this gate and not yet spoken again.
+
+    "Are we done?" has no terminal answer — confirming it just re-arms
+    the same gate on the next turn, which is what made the widget feel
+    inescapable rather than useful. Standby is that missing answer, and
+    it is deliberately **not** a disable: it lasts exactly until the
+    supervisor's next message.
+
+    That lifetime is read off the transcript rather than a clock. The
+    turn's boundary user message is the supervisor's last word, so a
+    marker naming the same message means nothing has been said since.
+    A different one means they have spoken, and the marker is dropped.
+    """
+    marker = _standby_path(session_id=session_id)
+    boundary_id = _entry_id(entry=boundary)
+
+    if _STANDBY_RE.search(_answer_text(entry=boundary)):
+        _record_standby(marker=marker, boundary_id=boundary_id)
+        return True
+
+    try:
+        parked_id = json.loads(marker.read_text(encoding="utf-8")).get("boundary_id")
+    except FileNotFoundError:
+        return False
+    except (OSError, ValueError) as error:
+        _diagnose(what="reading the standby marker", error=error)
+        return False
+
+    if parked_id == boundary_id:
+        return True
+
+    # The supervisor has spoken since. Clearing here rather than on
+    # their message is what keeps standby free of a second writer.
+    marker.unlink(missing_ok=True)
+    return False
+
+
+def _record_standby(*, marker: Path, boundary_id: str) -> None:
+    try:
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(
+            path=marker,
+            content=json.dumps({"boundary_id": boundary_id, "at": time.time()}),
+        )
+    except OSError as error:
+        _diagnose(what="writing the standby marker", error=error)
+
+
+def _entry_id(*, entry: dict | None) -> str:
+    """A stable identity for one transcript entry.
+
+    ``uuid`` is what the harness writes; the timestamp is a fallback for
+    a transcript shape that carries no id, and an empty string means the
+    two cannot be told apart — in which case standby simply does not
+    persist past the turn that set it, which is the safe direction.
+    """
+    if not isinstance(entry, dict):
+        return ""
+    return str(entry.get("uuid") or entry.get("timestamp") or "")
+
+
+def _answer_text(*, entry: dict | None) -> str:
+    """The text of any tool results in a user entry, joined.
+
+    A widget answer comes back as a ``tool_result`` block whose content
+    is either a plain string or a list of text blocks, so both shapes
+    are flattened here.
+    """
+    if not isinstance(entry, dict):
+        return ""
+
+    parts: list[str] = []
+    for block in _content_blocks(entry=entry):
+        if block.get("type") != "tool_result":
+            continue
+        content = block.get("content")
+        if isinstance(content, str):
+            parts.append(content)
+        elif isinstance(content, list):
+            parts.extend(
+                inner.get("text", "")
+                for inner in content
+                if isinstance(inner, dict) and inner.get("type") == "text"
+            )
+    return "\n".join(part for part in parts if part)
+
+
 def _read_turn(*, transcript_path: str) -> list[dict]:
+    """The current turn, without the user message that opens it."""
+    return _read_turn_and_boundary(transcript_path=transcript_path)[0]
+
+
+def _read_turn_and_boundary(*, transcript_path: str) -> tuple[list[dict], dict | None]:
     """Read the current turn out of a JSONL transcript, oldest first.
 
     Only the turn matters, and the turn is always a suffix — the file is
@@ -171,21 +320,26 @@ def _read_turn(*, transcript_path: str) -> list[dict]:
 
     A malformed or truncated line is not a reason to block a turn, so
     every read failure degrades to "no evidence" rather than raising.
+
+    The boundary user message is returned alongside the turn rather than
+    discarded: it carries the supervisor's last word, which is what
+    standby is scoped to (GH-1314).
     """
     if not transcript_path:
-        return []
+        return [], None
     try:
         raw = Path(transcript_path).read_text(encoding="utf-8")
     except OSError as error:
         _diagnose(what="reading the transcript", error=error)
-        return []
+        return [], None
     except UnicodeDecodeError:
         # A ValueError, not an OSError — a corrupt or binary transcript
         # would otherwise escape this function and only be caught three
         # frames up, making the promise above true by accident.
-        return []
+        return [], None
 
     turn: list[dict] = []
+    boundary: dict | None = None
     for line in reversed(raw.splitlines()):
         stripped = line.strip()
         if not stripped:
@@ -197,10 +351,11 @@ def _read_turn(*, transcript_path: str) -> list[dict]:
         if not isinstance(entry, dict):
             continue
         if _is_user(entry=entry):
+            boundary = entry
             break
         turn.append(entry)
     turn.reverse()
-    return turn
+    return turn, boundary
 
 
 def _is_user(*, entry: dict) -> bool:
@@ -313,6 +468,14 @@ def _reason(*, signal: TaskSignal, closing: str) -> str:
             "present what was done for confirmation."
         )
 
+    # Without a terminal answer the widget only re-arms itself, which is
+    # what made the gate feel inescapable rather than useful (GH-1314).
+    standby = (
+        '\n\nInclude an option reading "On standby — not waiting on you". '
+        "Choosing it parks this gate until the supervisor speaks again; "
+        "it is not a permanent disable."
+    )
+
     tail = ""
     if _DEFERRAL_RE.search(closing):
         tail = (
@@ -321,7 +484,7 @@ def _reason(*, signal: TaskSignal, closing: str) -> str:
             "mark — GH-1251 instance 3."
         )
 
-    return head + body + tail
+    return head + body + standby + tail
 
 
 def decide(*, data: dict, plan: dict | None, now: float | None = None) -> StopVerdict:
@@ -333,15 +496,25 @@ def decide(*, data: dict, plan: dict | None, now: float | None = None) -> StopVe
     if data.get("stop_hook_active"):
         return StopVerdict(block=False, signal=StopSignal.STOP_HOOK_ACTIVE)
 
+    if is_subagent(data=data):
+        # A subagent's last message is its report, not an unanswered
+        # question — there is nobody on the other end of a widget.
+        return StopVerdict(block=False, signal=StopSignal.SUBAGENT)
+
     session_id = str(data.get("session_id") or "")
     if blocked_recently(session_id=session_id, now=now):
         return StopVerdict(block=False, signal=StopSignal.COOLDOWN)
 
-    entries = _read_turn(transcript_path=str(data.get("transcript_path") or ""))
+    entries, boundary = _read_turn_and_boundary(
+        transcript_path=str(data.get("transcript_path") or "")
+    )
     if not entries:
         # No readable transcript is no evidence. Blocking on an absent
         # file would fire on every session whose transcript moved.
         return StopVerdict(block=False, signal=StopSignal.NO_TRANSCRIPT)
+
+    if standby_holds(session_id=session_id, boundary=boundary):
+        return StopVerdict(block=False, signal=StopSignal.STANDBY)
 
     if asked_a_question(entries=entries):
         return StopVerdict(block=False, signal=StopSignal.ASKED)
