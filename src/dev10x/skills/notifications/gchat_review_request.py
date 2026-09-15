@@ -80,7 +80,13 @@ def resolve_project_config(config: dict, repo_name: str) -> dict[str, Any]:
     if default_action == "skip":
         return _resolution(skip=True)
 
-    return _resolution(ask=True)
+    # The global opt-out has to reach this branch too, or `_resolution`'s
+    # promise that "both opt-out levers still win" holds only for repos
+    # that have an entry — and a repo with an entry is exactly the case
+    # the per-repo lever already covers (GH-1307). `preview` is not
+    # mirrored: it is opt-in per repo by design, so a repo with no entry
+    # has not opted in.
+    return _resolution(ask=True, card=config.get("default_card", True))
 
 
 def resolve_mention(mention: str, gchat_config: dict) -> str:
@@ -260,46 +266,29 @@ def format_card_notice(resolved_mentions: list[str]) -> str:
     return f"{mentions_prefix}Please review"
 
 
-def cmd_prepare(args: argparse.Namespace) -> None:
-    config = load_yaml(path=Dev10xConfigDir.gchat_review_config_yaml())
-    gchat_config = load_yaml(path=Dev10xConfigDir.gchat_config_yaml())
-    repo_name = _repo_name(args.repo)
+def _prepared_envelope(
+    *,
+    args: argparse.Namespace,
+    project: dict[str, Any],
+    gchat_config: dict,
+) -> dict[str, Any]:
+    """Build the prepare envelope for every outcome that is not a skip.
 
-    project = resolve_project_config(config=config, repo_name=repo_name)
+    The ask path used to hand-write its own dict, and that is how the
+    GH-1115 cardsV2 default stopped reaching the caller: the resolver
+    carried ``card`` onto the ask resolution and the dict dropped it,
+    along with four more keys ``SKILL.md`` documents as prepare output.
+    An unconfigured repo therefore posted plain text no matter what the
+    default said. One constructor for both paths is what makes that
+    class of drift impossible — the same argument ``_resolution``
+    settles one layer up (GH-1307).
 
-    if project["skip"]:
-        print(
-            json.dumps(
-                {
-                    "skip": True,
-                    "reason": (
-                        f"Project '{repo_name}' configured to skip Google Chat notifications"
-                    ),
-                },
-                indent=2,
-            )
-        )
-        return
-
-    if project["ask"]:
-        print(
-            json.dumps(
-                {
-                    "skip": False,
-                    "ask": True,
-                    "reason": (
-                        f"No config found for '{repo_name}'. "
-                        "User should provide space and mentions."
-                    ),
-                    "space": None,
-                    "mentions": [],
-                    "message": None,
-                },
-                indent=2,
-            )
-        )
-        return
-
+    Nothing here needs to branch on ``ask``. The only value an
+    unconfigured repo genuinely lacks is ``space``, and
+    ``_resolution(ask=True)`` already reports that as ``None`` with no
+    mentions. Everything the card needs — title, URL, JTBD, preview —
+    comes from the PR, so the panel renders either way.
+    """
     pr = gh_json(
         args=[
             "pr",
@@ -336,7 +325,7 @@ def cmd_prepare(args: argparse.Namespace) -> None:
 
     envelope: dict[str, Any] = {
         "skip": False,
-        "ask": False,
+        "ask": project["ask"],
         "space": project["space"],
         "mentions": project["mentions"],
         "resolved_mentions": resolved_mentions,
@@ -356,8 +345,40 @@ def cmd_prepare(args: argparse.Namespace) -> None:
             jtbd=jtbd,
             preview_url=preview_url,
         )
-        envelope["fallback_text"] = gchat_cards.plain_text_fallback(message)
+        envelope["fallback_text"] = gchat_cards.plain_text_fallback(text=message)
         # Mentions cannot notify from inside a card, so the text half keeps them.
         envelope["message"] = format_card_notice(resolved_mentions=resolved_mentions)
+
+    return envelope
+
+
+def cmd_prepare(args: argparse.Namespace) -> None:
+    config = load_yaml(path=Dev10xConfigDir.gchat_review_config_yaml())
+    gchat_config = load_yaml(path=Dev10xConfigDir.gchat_config_yaml())
+    repo_name = _repo_name(args.repo)
+
+    project = resolve_project_config(config=config, repo_name=repo_name)
+
+    if project["skip"]:
+        print(
+            json.dumps(
+                {
+                    "skip": True,
+                    "reason": (
+                        f"Project '{repo_name}' configured to skip Google Chat notifications"
+                    ),
+                },
+                indent=2,
+            )
+        )
+        return
+
+    envelope = _prepared_envelope(args=args, project=project, gchat_config=gchat_config)
+    if project["ask"]:
+        envelope["reason"] = (
+            f"No config found for '{repo_name}'. User should provide the "
+            "space alias; mentions are optional. The card below is already "
+            "rendered — pass it to Dev10x:gchat rather than posting plain text."
+        )
 
     print(json.dumps(envelope, indent=2))
