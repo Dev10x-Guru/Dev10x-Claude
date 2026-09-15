@@ -1,21 +1,25 @@
 ---
 name: Dev10x:request-review
 description: >
-  Request PR review — assigns GitHub reviewers and posts Slack
-  notification in one command. Delegates to Dev10x:gh-pr-request-review
-  and Dev10x:slack-review-request.
+  Request PR review — assigns GitHub reviewers and posts the team's
+  chat notification (Slack, Google Chat, or both) in one command.
+  Delegates to Dev10x:gh-pr-request-review, Dev10x:slack-review-request
+  and Dev10x:gchat-review-request.
   TRIGGER when: PR is ready for review and needs both GitHub reviewer
-  assignment and Slack notification.
+  assignment and a chat notification.
   DO NOT TRIGGER when: PR is draft/WIP, or only need GitHub assignment
-  without Slack (use Dev10x:gh-pr-request-review directly).
+  without a notification (use Dev10x:gh-pr-request-review directly).
 user-invocable: true
 invocation-name: Dev10x:request-review
 allowed-tools:
+  - Read
+  - AskUserQuestion
   - mcp__plugin_Dev10x_cli__pr_detect
   - mcp__plugin_Dev10x_cli__pr_get
   - mcp__plugin_Dev10x_cli__pr_issue_comment
   - Skill(Dev10x:gh-pr-request-review)
   - Skill(Dev10x:slack-review-request)
+  - Skill(Dev10x:gchat-review-request)
 ---
 
 ## Orchestration
@@ -104,19 +108,45 @@ if the project is configured with `skip: true`.
 
 Capture the outcome (assigned / skipped / error) for the summary.
 
-### Step 3: Post Slack review notification
+### Step 3: Post the review notification
 
-Delegate to the Slack notification skill:
+The transport is whichever one this team actually uses — Slack, Google
+Chat, or both. Resolve it from config rather than assuming (GH-1308);
+hardcoding Slack here left a Chat-only team with no supported way to
+invoke this skill at all.
+
+**Resolve the transports.** `Read` each per-repo config and check
+whether its `projects` map names the repo's short name (the part after
+the `/` in `{REPO}`):
+
+| Transport | Config file | Delegate to |
+|-----------|-------------|-------------|
+| Slack | `~/.config/Dev10x/slack-config-code-review-requests.yaml` | `Dev10x:slack-review-request` |
+| Google Chat | `~/.config/Dev10x/gchat-config-code-review-requests.yaml` | `Dev10x:gchat-review-request` |
+
+A missing file counts as "does not name the repo". Then:
+
+- **One names it** → delegate to that transport.
+- **Both name it** → delegate to **both**, in the order above. Mirroring
+  review requests into two places is a legitimate configuration, so this
+  step must not assume exactly one.
+- **Neither names it** → **REQUIRED: Call `AskUserQuestion`** (do NOT
+  use plain text): "No chat transport is configured for {REPO}. Where
+  should the review request go?" with options **Slack**, **Google
+  Chat**, and **Skip the notification (Recommended)**. Delegate to the
+  chosen skill, which will ask for the channel or space itself.
 
 ```
 Skill("Dev10x:slack-review-request", args="--pr {PR_NUMBER} --repo {REPO}")
+Skill("Dev10x:gchat-review-request", args="--pr {PR_NUMBER} --repo {REPO}")
 ```
 
-This skill reads `~/.config/Dev10x/slack-config-code-review-requests.yaml`,
-formats the message, asks for user confirmation, and posts to Slack.
-It may skip if the project is configured with `skip: true`.
+Each skill resolves its own config, formats the message, confirms with
+the user, and posts. Either may skip when its project entry sets
+`skip: true`.
 
-Capture the outcome (posted / skipped / error) for the summary.
+Capture the outcome per transport (posted / skipped / error) for the
+summary — name the transport that was actually used.
 
 ### Step 3.5: Post PR comment (optional)
 
@@ -142,13 +172,18 @@ Report the combined result:
 Review request for PR #{PR_NUMBER}:
 - GitHub reviewers: {assigned / skipped / error}
 - PR comment: {posted / skipped}
-- Slack notification: {posted / skipped / error}
+- {Slack | Google Chat} notification: {posted / skipped / error}
 ```
+
+List one line per transport that ran. A transport whose config does not
+name the repo is not reported at all — it was never in play.
 
 ## Notes
 
 - Steps 2 and 3 are independent — if one skips, the other still runs
 - Both skipping is valid (project may be configured to skip both)
+- Either transport may skip independently of the other — the same
+  wording applies within Step 3
 - Each sub-skill uses its own config file — no combined config needed
 - This skill is invoked by `Dev10x:gh-pr-monitor` Phase 3 and
   directly by users via `/Dev10x:request-review`
@@ -157,4 +192,5 @@ Review request for PR #{PR_NUMBER}:
 
 - `Dev10x:gh-pr-request-review` — GitHub reviewer assignment
 - `Dev10x:slack-review-request` — Slack notification
+- `Dev10x:gchat-review-request` — Google Chat notification
 - `Dev10x:gh-pr-monitor` — calls this skill in Phase 3
