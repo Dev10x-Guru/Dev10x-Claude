@@ -20,7 +20,7 @@ RED='\033[0;31m'
 BOLD='\033[1m'
 RESET='\033[0m'
 
-VERSION_FILES=(.bumpversion.toml .claude-plugin/plugin.json pyproject.toml uv.lock skills/playbook/references/playbook.yaml)
+VERSION_FILES=(.bumpversion.toml .claude-plugin/plugin.json .claude-plugin/marketplace.json pyproject.toml uv.lock skills/playbook/references/playbook.yaml)
 
 command -v bump-my-version >/dev/null || {
     echo "bump-my-version not found. Install: pip install bump-my-version" >&2

@@ -31,6 +31,14 @@ _REPO_ROOT = Path(__file__).parents[1]
 _PLUGIN_MANIFEST = _REPO_ROOT / ".claude-plugin" / "plugin.json"
 _MARKETPLACE_MANIFEST = _REPO_ROOT / ".claude-plugin" / "marketplace.json"
 _BUMPVERSION = _REPO_ROOT / ".bumpversion.toml"
+_RELEASE_SCRIPT = _REPO_ROOT / "bin" / "release.sh"
+
+
+def _bumpversion_files() -> set[str]:
+    return {
+        entry["filename"]
+        for entry in tomllib.loads(_BUMPVERSION.read_text())["tool"]["bumpversion"]["files"]
+    }
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -68,13 +76,30 @@ def test_bumpversion_moves_the_marketplace_manifest() -> None:
     Without the bumpversion entry the two manifests agree exactly once —
     on the commit that hand-edited them — and diverge on the next bump.
     """
-    configured = {
-        entry["filename"]
-        for entry in tomllib.loads(_BUMPVERSION.read_text())["tool"]["bumpversion"]["files"]
-    }
+    configured = _bumpversion_files()
     assert ".claude-plugin/marketplace.json" in configured, (
         "'.claude-plugin/marketplace.json' is missing from .bumpversion.toml "
         "[[tool.bumpversion.files]] — its version would freeze at the next bump"
+    )
+
+
+def test_the_release_script_stages_every_versioned_file() -> None:
+    """Adding a bumpversion entry is only half the wiring.
+
+    ``bin/release.sh`` rewrites versions with ``--no-commit`` and then
+    stages its own hardcoded ``VERSION_FILES`` list. A file bumpversion
+    rewrites but the script never stages is left dirty, and the *next*
+    ``bump-my-version`` call in the same run aborts on an unclean tree —
+    stranding the release between the patch bump and the finalize.
+    GH-1310 added the marketplace entry and left this list untouched,
+    which is exactly how the 0.100.1 release failed mid-flight.
+    """
+    version_files = _RELEASE_SCRIPT.read_text(encoding="utf-8")
+    missing = sorted(name for name in _bumpversion_files() if name not in version_files)
+    assert not missing, (
+        f"{missing} appear in .bumpversion.toml but not in bin/release.sh's "
+        "VERSION_FILES — the release would leave them unstaged and abort on "
+        "the next bump"
     )
 
 

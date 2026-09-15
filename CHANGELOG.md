@@ -58,6 +58,17 @@ Released 2026-09-15
   touched the PR at all. The ask envelope is built with the same constructor
   the success path uses, so a key added to one cannot be missed by the other
   ([GH-1307](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1307))
+- **Spare the operator a release stranded mid-flight** — `bin/release.sh`
+  rewrites versions with `--no-commit` and then stages its own hardcoded
+  `VERSION_FILES` array, so a file bumpversion rewrites but the script never
+  stages stays dirty and the next `bump-my-version` call in the same run aborts
+  on an unclean tree. Adding `marketplace.json` to `.bumpversion.toml` (below)
+  did exactly that: this release stranded between the patch bump and the
+  finalize, with the bump commit already landed, so a naive re-run would have
+  bumped the patch a second time and shipped a version nobody chose. Every
+  bumpversion filename must now appear in `release.sh`, asserted in the suite,
+  so the next entry fails a test rather than a release
+  ([GH-1328](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1328))
 - **Tell the operator which plugin version is installed** — the Plugins panel
   renders an installed plugin from its marketplace entry, and that entry
   carried no version key at all, so the panel had nothing to show. Nothing
