@@ -12,6 +12,7 @@ user-invocable: true
 invocation-name: Dev10x:git-groom
 allowed-tools:
   - mcp__plugin_Dev10x_cli__mass_rewrite
+  - Skill(Dev10x:git-commit-split)
   - mcp__plugin_Dev10x_cli__rebase_groom
   - mcp__plugin_Dev10x_cli__update_pr
   # Phase 4 rewrites commit permalinks on both comment surfaces (GH-996):

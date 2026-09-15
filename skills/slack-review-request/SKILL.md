@@ -10,6 +10,7 @@ description: >
 user-invocable: true
 invocation-name: Dev10x:slack-review-request
 allowed-tools:
+  - Skill(Dev10x:slack)
   - Bash(uvx dev10x skill notify slack-review-prepare:*)
   - Bash(gh pr view:*)
 ---

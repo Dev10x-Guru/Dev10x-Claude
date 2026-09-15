@@ -13,6 +13,8 @@ user-invocable: true
 invocation-name: Dev10x:gh-pr-create
 allowed-tools:
   - AskUserQuestion
+  - Skill(Dev10x:git)
+  - Skill(test)
   - mcp__plugin_Dev10x_cli__detect_base_branch
   - mcp__plugin_Dev10x_cli__verify_pr_state
   - mcp__plugin_Dev10x_cli__pre_pr_checks

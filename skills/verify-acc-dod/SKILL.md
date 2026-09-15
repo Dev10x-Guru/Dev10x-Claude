@@ -13,6 +13,7 @@ user-invocable: true
 invocation-name: Dev10x:verify-acc-dod
 allowed-tools:
   - AskUserQuestion
+  - Skill(Dev10x:gh-pr-monitor)
   - Bash(gh:*)
   - Bash(git status:*)
   - Bash(git log:*)

@@ -12,6 +12,7 @@ description: >
 user-invocable: false
 allowed-tools:
   - AskUserQuestion
+  - Skill(Dev10x:gh-context)
   - Bash(gh pr view:*)
   - Bash(gh pr diff:*)
   - Bash(gh pr list:*)

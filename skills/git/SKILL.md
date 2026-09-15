@@ -11,6 +11,7 @@ user-invocable: true
 invocation-name: Dev10x:git
 allowed-tools:
   - mcp__plugin_Dev10x_cli__push_safe
+  - Skill(Dev10x:gh-pr-monitor)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git/scripts/git-rebase-groom.sh:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git/scripts/git-seq-editor.sh:*)
   - Bash(git reset --soft:*)
