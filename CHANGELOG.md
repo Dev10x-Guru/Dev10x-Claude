@@ -5,6 +5,69 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.100.1 — Review Requests That Reach the Team & Gates That Know Their Audience
+
+Released 2026-09-15
+
+### Features
+
+- **Let a Chat-only team use the combined review request** —
+  `Dev10x:request-review` is the documented way to ask a team to look at a PR,
+  and every layer of its notification step named Slack: the step title, the
+  delegation, the summary template, the frontmatter. A team on Google Chat had
+  no supported way in, even though the Chat sibling has shipped in the same
+  plugin since GH-885 — the observed session passed the transport as free text
+  and the agent substituted the sibling on its own judgement. The transport is
+  now resolved from whichever per-repo config names the repo, both run when
+  both are configured (mirroring a request into two places is a real setup, not
+  an error), and neither configured asks where the request should go rather
+  than failing into silence
+  ([GH-1308](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1308))
+
+### Fixes
+
+- **Spare the operator a prompt per delegated skill** — 17 skills invoked a
+  `Skill()` they never declared, so each of those 52 delegations cost an
+  approval prompt on every run, in every project, forever, while looking fully
+  wired up everywhere a reader would think to check. Enforcement was a manual
+  checklist item; the two guards nearby cover MCP tools and raw CLI and never
+  skill-to-skill delegation. A guard now scans every `SKILL.md` together with
+  its sibling `instructions.md` — a call and its declaration can sit in
+  different files and neither reads as incomplete alone — resolves bare names
+  against `skills/` so prose and diagrams cannot demand a declaration for a
+  skill that does not exist, honours a blanket `- Skill` grant, and skips
+  anti-pattern lines, since a body teaching a wrong call is not making it
+  ([GH-1326](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1326))
+- **Stop the turn gate addressing an absent supervisor** — "a turn always ends
+  on a widget" presumes someone is there to answer, and two cases have nobody.
+  A subagent reports back to whoever dispatched it; one was seen ending with
+  "No open decisions on my end. Are we done here?", a near-verbatim echo of
+  this hook's own steer, complying with a block it should never have received.
+  A parked session has a supervisor who has said to stop asking, and the widget
+  offered no answer that meant it — confirming "are we done?" only re-armed the
+  gate next turn. Standby is now the widget's terminal answer, scoped to the
+  turn's boundary user message so it lasts until the supervisor speaks again
+  rather than forever, and both branches are named in the audit log so each is
+  observable in the field rather than assumed
+  ([GH-1314](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1314))
+- **Give an unconfigured repo the review card too** — the Chat prepare step's
+  ask branch printed a hand-written six-key dict instead of the envelope
+  SKILL.md documents, dropping the `cardsV2` default the resolver carried onto
+  every other path, so a repo with no config entry silently posted plain text.
+  The test pinning the branch asserted that absence, against a path that never
+  touched the PR at all. The ask envelope is built with the same constructor
+  the success path uses, so a key added to one cannot be missed by the other
+  ([GH-1307](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1307))
+- **Tell the operator which plugin version is installed** — the Plugins panel
+  renders an installed plugin from its marketplace entry, and that entry
+  carried no version key at all, so the panel had nothing to show. Nothing
+  could self-heal it either: a release moved `plugin.json` and never touched
+  `marketplace.json`, which is why the entry's duplicated description had also
+  drifted months stale. `marketplace.json` is now listed in
+  `.bumpversion.toml`, so a release moves both manifests in one commit, and the
+  stale copy is dropped because `plugin.json` owns it
+  ([GH-1310](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1310))
+
 ## 0.99.0 — Wrappers That Answer Truthfully & Guards That Cannot Be Walked Around
 
 Released 2026-09-15
