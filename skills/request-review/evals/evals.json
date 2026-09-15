@@ -1,0 +1,217 @@
+{
+  "skill_name": "Dev10x:request-review",
+  "eval_dimensions": [
+    {
+      "id": "transport-resolution",
+      "name": "Notification Transport Resolution",
+      "description": "Step 3 resolves Slack vs Google Chat from whichever per-repo config names the repo, runs both when both do, and asks when neither does (GH-1308)"
+    },
+    {
+      "id": "approval-precheck",
+      "name": "Approval State Precheck",
+      "description": "Step 1.5 filters bot approvals before matching reviews against headRefOid, and gates on a human approval of the current HEAD"
+    },
+    {
+      "id": "delegation",
+      "name": "Skill Delegation",
+      "description": "Assignment and notification are delegated to the sibling skills, never inlined as raw gh or API calls"
+    }
+  ],
+  "evals": [
+    {
+      "id": 1,
+      "name": "chat-only-repo-reaches-its-transport",
+      "prompt": "/Dev10x:request-review --pr 42 --repo org/wonka-docs",
+      "description": "GH-1308: the repo is named only in the Google Chat config. Before the fix, Step 3 was hardcoded to Slack and a Chat-only team had no supported path through this skill — the observed session passed the transport as a free-text argument and the agent substituted the sibling skill on its own.",
+      "setup": {
+        "gchat_config_names_repo": true,
+        "slack_config_names_repo": false
+      },
+      "dimensions": [
+        "transport-resolution",
+        "delegation"
+      ],
+      "assertions": [
+        {
+          "id": "delegates-to-gchat",
+          "text": "Delegates to Dev10x:gchat-review-request, the transport whose config names the repo",
+          "check": "tool_called",
+          "signals": [
+            "Dev10x:gchat-review-request"
+          ]
+        },
+        {
+          "id": "does-not-post-to-slack",
+          "text": "Does NOT invoke the Slack sibling — its config does not name this repo",
+          "check": "command_absent",
+          "signals": [
+            "Dev10x:slack-review-request"
+          ]
+        },
+        {
+          "id": "summary-names-the-transport-used",
+          "text": "Step 4 summary reports Google Chat rather than a hardcoded 'Slack notification' line",
+          "check": "output_contains",
+          "signals": [
+            "Google Chat"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "both-configs-name-the-repo",
+      "prompt": "/Dev10x:request-review --pr 42 --repo org/dual-transport",
+      "description": "Mirroring review requests into Slack and Chat is a legitimate configuration, so Step 3 must not assume exactly one transport.",
+      "setup": {
+        "gchat_config_names_repo": true,
+        "slack_config_names_repo": true
+      },
+      "dimensions": [
+        "transport-resolution"
+      ],
+      "assertions": [
+        {
+          "id": "runs-both-transports",
+          "text": "Invokes both sibling skills rather than picking one",
+          "check": "tool_called",
+          "signals": [
+            "Dev10x:slack-review-request",
+            "Dev10x:gchat-review-request"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "no-config-fires-the-transport-gate",
+      "prompt": "/Dev10x:request-review --pr 42 --repo org/unconfigured",
+      "description": "Neither config names the repo. The skill must ask where the request should go rather than failing into silence or guessing a transport.",
+      "setup": {
+        "gchat_config_names_repo": false,
+        "slack_config_names_repo": false
+      },
+      "dimensions": [
+        "transport-resolution"
+      ],
+      "assertions": [
+        {
+          "id": "gate-uses-the-tool",
+          "text": "Fires AskUserQuestion — a plain-text question would let the skill auto-proceed without an answer",
+          "check": "tool_called",
+          "signals": [
+            "AskUserQuestion"
+          ]
+        },
+        {
+          "id": "gate-offers-both-transports-and-skip",
+          "text": "The widget offers Slack, Google Chat, and Skip the notification",
+          "check": "output_contains",
+          "signals": [
+            "Slack",
+            "Google Chat",
+            "Skip"
+          ]
+        },
+        {
+          "id": "no-transport-before-the-answer",
+          "text": "Neither sibling skill is invoked before the user answers",
+          "check": "behavioral",
+          "signals": [
+            "AskUserQuestion",
+            "before",
+            "delegate"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "bot-approval-does-not-short-circuit",
+      "prompt": "/Dev10x:request-review --pr 42 --repo org/repo",
+      "description": "GH-128: only a bot has approved the current HEAD. A bot approval must not satisfy the human-review requirement, so the skill proceeds to request review rather than offering to merge.",
+      "setup": {
+        "reviews": [
+          {
+            "author": "claude[bot]",
+            "state": "APPROVED",
+            "matches_head": true
+          }
+        ]
+      },
+      "dimensions": [
+        "approval-precheck"
+      ],
+      "assertions": [
+        {
+          "id": "proceeds-to-request-review",
+          "text": "Continues to Step 2 instead of firing the skip-and-merge gate",
+          "check": "output_contains",
+          "signals": [
+            "only a bot approval",
+            "requesting human review"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "human-approval-on-head-fires-the-merge-gate",
+      "prompt": "/Dev10x:request-review --pr 42 --repo org/repo",
+      "description": "A human has approved the current HEAD, so pinging reviewers again is noise. The skill must ask rather than silently short-circuiting.",
+      "setup": {
+        "reviews": [
+          {
+            "author": "a-human",
+            "state": "APPROVED",
+            "matches_head": true
+          }
+        ]
+      },
+      "dimensions": [
+        "approval-precheck"
+      ],
+      "assertions": [
+        {
+          "id": "approval-gate-uses-the-tool",
+          "text": "Fires AskUserQuestion with Skip / Force request / Cancel",
+          "check": "tool_called",
+          "signals": [
+            "AskUserQuestion"
+          ]
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "description": "Queries that should/should-not trigger the request-review skill",
+    "should_trigger": [
+      {
+        "query": "/Dev10x:request-review",
+        "rationale": "Direct invocation"
+      },
+      {
+        "query": "this PR is ready, ping the team and assign reviewers",
+        "rationale": "Wants both GitHub assignment and a chat notification — the combined entry point"
+      },
+      {
+        "query": "request review on #42 and let the team know in chat",
+        "rationale": "Explicitly names both halves of this skill's job"
+      }
+    ],
+    "should_not_trigger": [
+      {
+        "query": "assign @alice as reviewer, no notification needed",
+        "rationale": "GitHub assignment only — use Dev10x:gh-pr-request-review directly"
+      },
+      {
+        "query": "post a message to the team channel about the outage",
+        "rationale": "General chat post, unrelated to a review request — use Dev10x:slack or Dev10x:gchat"
+      },
+      {
+        "query": "the PR is still a draft, hold off",
+        "rationale": "Explicitly defers the review request"
+      }
+    ]
+  }
+}
