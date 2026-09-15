@@ -16,6 +16,7 @@ description: >
 user-invocable: true
 invocation-name: Dev10x:plugin-maintenance
 allowed-tools:
+  - Skill(Dev10x:onboarding)
   # GH-269: Plugin maintenance now runs through the version-stable
   # `uvx dev10x` CLI. Each subcommand is enumerated explicitly (no
   # `Bash(uvx dev10x:*)` wildcard) for user trust and transparency —

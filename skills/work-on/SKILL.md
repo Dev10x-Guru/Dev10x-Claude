@@ -13,6 +13,21 @@ user-invocable: true
 invocation-name: Dev10x:work-on
 allowed-tools:
   - mcp__plugin_Dev10x_cli__*
+  - Skill(Dev10x:friction-setup)
+  - Skill(Dev10x:gh-context)
+  - Skill(Dev10x:gh-pr-create)
+  - Skill(Dev10x:gh-pr-merge)
+  - Skill(Dev10x:gh-pr-monitor)
+  - Skill(Dev10x:gh-pr-request-review)
+  - Skill(Dev10x:gh-pr-respond)
+  - Skill(Dev10x:git)
+  - Skill(Dev10x:git-commit)
+  - Skill(Dev10x:git-groom)
+  - Skill(Dev10x:session-config-seed)
+  - Skill(Dev10x:skill-create)
+  - Skill(Dev10x:ticket-branch)
+  - Skill(Dev10x:verify-acc-dod)
+  - Skill(test)
   - Read(.claude/Dev10x/playbooks/work-on.yaml)
   - Read(~/.config/Dev10x/playbooks/work-on.yaml)
   - Read(~/.claude/memory/Dev10x/playbooks/work-on.yaml)

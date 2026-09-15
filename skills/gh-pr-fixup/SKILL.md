@@ -11,6 +11,8 @@ user-invocable: true
 invocation-name: Dev10x:gh-pr-fixup
 allowed-tools:
   - mcp__plugin_Dev10x_cli__pr_comment_reply
+  - Skill(Dev10x:git)
+  - Skill(Dev10x:py-test)
   - mcp__plugin_Dev10x_cli__pr_comments
   - Bash(gh pr comment:*)
   - Bash(gh api:*)

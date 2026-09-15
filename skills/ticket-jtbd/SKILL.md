@@ -10,6 +10,7 @@ description: >
 user-invocable: true
 invocation-name: Dev10x:ticket-jtbd
 allowed-tools:
+  - Skill(Dev10x:jira)
   - Bash(gh pr view:*)
   - Bash(gh pr diff:*)
   - Bash(gh pr edit:*)
@@ -81,14 +82,23 @@ Determine the write target from the arguments:
 
 ### Step 2: Gather Identifiers
 
-Extract all available identifiers for context:
+Extract all available identifiers for context.
+
+**If a PR was provided**, read its branch through the MCP wrapper and
+take the ticket ID from the second `/`-delimited segment:
+
+```
+mcp__plugin_Dev10x_cli__pr_detect(arg="{PR_NUMBER}")
+```
+
+It returns `BRANCH` fetched from GitHub rather than local git, which
+is what makes it correct in a multi-worktree checkout.
+
+**If a ticket was provided**, find the linked PR. No MCP wrapper
+covers PR search, so this is the one raw call in this skill:
 
 ```bash
-# If PR provided, extract ticket ID from branch
-gh pr view {PR_NUMBER} --json headRefName -q '.headRefName' | cut -d'/' -f2
-
-# If ticket provided, find linked PR
-gh pr list --search "{TICKET_ID}" --state open --json number --limit 1
+gh pr list --search "{TICKET_ID}" --state open --json number --limit 1  # cli-friction: allow raw-gh-pr — no MCP wrapper covers PR search
 ```
 
 ### Step 3: Delegate to Dev10x:jtbd Base Skill

@@ -18,6 +18,8 @@ user-invocable: true
 invocation-name: Dev10x:py-test-flaky
 allowed-tools:
   - AskUserQuestion
+  - Skill(Dev10x:ticket-create)
+  - Skill(Dev10x:work-on)
   - Bash(pytest:*)
   - Bash(uv:*)
   - Skill(skill="Dev10x:ticket-create")

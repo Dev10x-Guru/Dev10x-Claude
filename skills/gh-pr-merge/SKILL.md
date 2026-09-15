@@ -12,6 +12,8 @@ user-invocable: true
 invocation-name: Dev10x:gh-pr-merge
 allowed-tools:
   - AskUserQuestion
+  - Skill(Dev10x:gh-pr-monitor)
+  - Skill(Dev10x:gh-pr-respond)
   - Bash(gh pr checks:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-merge/scripts/:*)
   - mcp__plugin_Dev10x_cli__pr_detect

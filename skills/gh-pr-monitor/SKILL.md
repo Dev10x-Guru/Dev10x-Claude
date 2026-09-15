@@ -11,6 +11,13 @@ user-invocable: true
 invocation-name: Dev10x:gh-pr-monitor
 allowed-tools:
   - Agent
+  - Skill(Dev10x:gh-pr-respond)
+  - Skill(Dev10x:git-commit)
+  - Skill(Dev10x:git-groom)
+  - Skill(Dev10x:qa-scope)
+  - Skill(Dev10x:slack-review-request)
+  - Skill(Dev10x:ticket-jtbd)
+  - Skill(Dev10x:verify-acc-dod)
   - AskUserQuestion
   - mcp__plugin_Dev10x_cli__pr_notify
   - mcp__plugin_Dev10x_cli__detect_tracker

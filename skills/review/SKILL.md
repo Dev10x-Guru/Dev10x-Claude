@@ -12,6 +12,7 @@ description: >
   or no changes exist on the branch.
 user-invocable: true
 allowed-tools:
+  - Skill(Dev10x:review-fix)
   - Bash(git log:*)
   - Bash(git diff:*)
   - Bash(git status:*)
