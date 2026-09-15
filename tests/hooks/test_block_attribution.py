@@ -19,18 +19,11 @@ from dev10x.domain.profile_tier import ProfileTier
 from dev10x.hooks import audit_emit
 from dev10x.hooks.audit_emit import (
     audit_hook,
-    clear_decision_attribution,
     set_audit_writer,
     set_decision_attribution,
 )
 from dev10x.hooks.hook_transport import emit
 from dev10x.validators.registry import ValidatorChain, ValidatorRegistry
-
-
-@pytest.fixture(autouse=True)
-def reset_attribution() -> None:
-    """The slot is module-level; tests share one process."""
-    clear_decision_attribution()
 
 
 class RecordingWriter:

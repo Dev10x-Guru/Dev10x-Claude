@@ -153,6 +153,24 @@ Three constraints came out of building the first one:
    guard looks redundant: what it prevents is a hook that re-blocks
    every turn forever.
 
+4. **Ask who is listening before blocking (GH-1314).** "A turn always
+   ends on a widget" presumes a supervisor on the other end, and two
+   cases have none. A **subagent** hands its report back to whoever
+   dispatched it — one was observed echoing this module's own
+   no-open-work steer as a status question, complying with a block it
+   should never have received. A session on **standby** has a
+   supervisor who has explicitly said "stop asking until I speak";
+   without that answer the widget's only replies re-arm it next turn,
+   which is a gate with no exit rather than a gate.
+
+   Standby is scoped by reading the turn's boundary user message, not
+   a clock: a marker naming the same message means nothing has been
+   said since, a different one means it has and the marker is dropped.
+   That keeps it a pause rather than a disable, and keeps the lifetime
+   free of a second writer. Both branches carry their own
+   `StopSignal` — a branch nobody can observe is a branch nobody can
+   retire or trust, the same argument GH-1257 made for the other five.
+
 **Keep the decision out of the hook.** `dev10x.hooks.stop_verdict`
 holds the rule and is a pure function over `(payload, plan)`;
 `build_stop_verdict` is the wiring that finds the plan and records the

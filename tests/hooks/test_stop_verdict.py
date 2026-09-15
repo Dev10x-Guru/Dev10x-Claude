@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 
-from dev10x.hooks.audit_emit import clear_decision_attribution
 from dev10x.hooks.session_dispatch import build_stop_verdict
 from dev10x.hooks.stop_verdict import (
     StopSignal,
@@ -42,36 +41,11 @@ def _transcript(*, tmp_path: Path, entries: list[dict]) -> str:
     return str(path)
 
 
-@pytest.fixture(autouse=True)
-def _clear_attribution() -> None:
-    """Empty the audit attribution slot around every test.
-
-    ``build_stop_verdict`` now sets it on every outcome, and the slot is
-    module-level state that only ``audit_hook`` consumes and clears.
-    These tests call the feature without that wrapper, so a slot left
-    set here would be folded into whichever wrapped record ran next.
-    """
-    clear_decision_attribution()
-    yield
-    clear_decision_attribution()
-
-
-@pytest.fixture()
-def isolated_marker(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Point the once-per-turn marker at a temp dir, not the real /tmp."""
-    marker_dir = tmp_path / "markers"
-    monkeypatch.setattr(
-        "dev10x.hooks.stop_verdict._marker_path",
-        lambda *, session_id: marker_dir / f"{session_id or 'unknown'}.marker",
-    )
-    return marker_dir
-
-
 class TestBlocksATurnWithNoWidget:
     def test_blocks_when_the_turn_never_asked(
         self,
         tmp_path: Path,
-        isolated_marker: Path,
+        isolated_markers: Path,
     ) -> None:
         transcript = _transcript(
             tmp_path=tmp_path,
@@ -92,7 +66,7 @@ class TestBlocksATurnWithNoWidget:
     def test_blocks_an_imperative_deferral_with_no_question_mark(
         self,
         tmp_path: Path,
-        isolated_marker: Path,
+        isolated_markers: Path,
     ) -> None:
         """GH-1251 instance 3 — the "?" test alone would miss this."""
         transcript = _transcript(
@@ -114,7 +88,7 @@ class TestBlocksATurnWithNoWidget:
     def test_a_done_session_still_ends_on_a_widget(
         self,
         tmp_path: Path,
-        isolated_marker: Path,
+        isolated_markers: Path,
     ) -> None:
         """Nothing open is not a licence to close on prose."""
         transcript = _transcript(
@@ -136,7 +110,7 @@ class TestBlocksATurnWithNoWidget:
     def test_open_work_names_the_next_loop(
         self,
         tmp_path: Path,
-        isolated_marker: Path,
+        isolated_markers: Path,
     ) -> None:
         transcript = _transcript(
             tmp_path=tmp_path,
@@ -157,7 +131,7 @@ class TestBlocksATurnWithNoWidget:
     def test_a_phase_boundary_names_the_skipped_gate(
         self,
         tmp_path: Path,
-        isolated_marker: Path,
+        isolated_markers: Path,
     ) -> None:
         """The structural detector the GH-1251 comment recommends as primary."""
         transcript = _transcript(
@@ -186,7 +160,7 @@ class TestLetsATurnEnd:
     def test_a_turn_that_asked_is_not_blocked(
         self,
         tmp_path: Path,
-        isolated_marker: Path,
+        isolated_markers: Path,
     ) -> None:
         transcript = _transcript(
             tmp_path=tmp_path,
@@ -206,7 +180,7 @@ class TestLetsATurnEnd:
     def test_stop_hook_active_short_circuits(
         self,
         tmp_path: Path,
-        isolated_marker: Path,
+        isolated_markers: Path,
     ) -> None:
         """The harness loop guard — a continuation must be allowed to end."""
         transcript = _transcript(
@@ -231,7 +205,7 @@ class TestLetsATurnEnd:
     def test_a_recorded_block_suppresses_the_next_one(
         self,
         tmp_path: Path,
-        isolated_marker: Path,
+        isolated_markers: Path,
     ) -> None:
         """Belt and braces — holds even if stop_hook_active never arrives.
 
@@ -257,7 +231,7 @@ class TestLetsATurnEnd:
 
     def test_an_unreadable_transcript_is_no_evidence(
         self,
-        isolated_marker: Path,
+        isolated_markers: Path,
     ) -> None:
         verdict = decide(
             data={"session_id": "s9", "transcript_path": "/nonexistent/transcript.jsonl"},
@@ -268,14 +242,14 @@ class TestLetsATurnEnd:
 
     def test_a_missing_transcript_path_is_no_evidence(
         self,
-        isolated_marker: Path,
+        isolated_markers: Path,
     ) -> None:
         assert decide(data={"session_id": "s10"}, plan=None).block is False
 
     def test_a_corrupt_transcript_is_no_evidence(
         self,
         tmp_path: Path,
-        isolated_marker: Path,
+        isolated_markers: Path,
     ) -> None:
         """UnicodeDecodeError is a ValueError, so OSError alone misses it."""
         path = tmp_path / "binary.jsonl"
@@ -288,7 +262,7 @@ class TestLetsATurnEnd:
     def test_a_turn_with_no_assistant_output_is_no_evidence(
         self,
         tmp_path: Path,
-        isolated_marker: Path,
+        isolated_markers: Path,
     ) -> None:
         transcript = _transcript(
             tmp_path=tmp_path,
@@ -345,7 +319,7 @@ class TestTranscriptReading:
 
         assert len(_read_turn(transcript_path=transcript)) == 1
 
-    def test_malformed_lines_are_skipped(self, tmp_path: Path, isolated_marker: Path) -> None:
+    def test_malformed_lines_are_skipped(self, tmp_path: Path, isolated_markers: Path) -> None:
         path = tmp_path / "transcript.jsonl"
         path.write_text(
             "\n".join(
@@ -442,15 +416,15 @@ class TestMarker:
     def test_a_session_without_an_id_still_has_a_marker(self) -> None:
         assert _marker_path(session_id="").name == "unknown.marker"
 
-    def test_a_fresh_session_was_not_blocked_recently(self, isolated_marker: Path) -> None:
+    def test_a_fresh_session_was_not_blocked_recently(self, isolated_markers: Path) -> None:
         assert blocked_recently(session_id="fresh") is False
 
-    def test_a_recorded_block_is_seen(self, isolated_marker: Path) -> None:
+    def test_a_recorded_block_is_seen(self, isolated_markers: Path) -> None:
         record_block(session_id="seen")
 
         assert blocked_recently(session_id="seen") is True
 
-    def test_the_cooldown_expires(self, isolated_marker: Path) -> None:
+    def test_the_cooldown_expires(self, isolated_markers: Path) -> None:
         record_block(session_id="old")
 
         assert blocked_recently(session_id="old", now=1e12) is False
@@ -498,7 +472,7 @@ class TestMarker:
 
     def test_a_missing_marker_is_silent(
         self,
-        isolated_marker: Path,
+        isolated_markers: Path,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         """The first block of a session is the expected case, not a fault."""
@@ -515,7 +489,7 @@ class TestSignalIsReported:
     could not be answered from the field at all.
     """
 
-    def test_stop_hook_active_is_named(self, tmp_path: Path, isolated_marker: Path) -> None:
+    def test_stop_hook_active_is_named(self, tmp_path: Path, isolated_markers: Path) -> None:
         transcript = _transcript(
             tmp_path=tmp_path,
             entries=[
@@ -538,7 +512,7 @@ class TestSignalIsReported:
     def test_the_cooldown_branch_is_distinguishable_from_it(
         self,
         tmp_path: Path,
-        isolated_marker: Path,
+        isolated_markers: Path,
     ) -> None:
         # The whole point: the two guards must not report the same
         # thing, or the evidence cannot separate them.
@@ -558,7 +532,7 @@ class TestSignalIsReported:
         assert blocked.signal == StopSignal.BLOCKED
         assert suppressed.signal == StopSignal.COOLDOWN
 
-    def test_an_asking_turn_is_named(self, tmp_path: Path, isolated_marker: Path) -> None:
+    def test_an_asking_turn_is_named(self, tmp_path: Path, isolated_markers: Path) -> None:
         transcript = _transcript(
             tmp_path=tmp_path,
             entries=[
@@ -571,7 +545,7 @@ class TestSignalIsReported:
 
         assert verdict.signal == StopSignal.ASKED
 
-    def test_an_unreadable_transcript_is_named(self, isolated_marker: Path) -> None:
+    def test_an_unreadable_transcript_is_named(self, isolated_markers: Path) -> None:
         verdict = decide(data={"session_id": "sig4", "transcript_path": ""}, plan=None)
 
         assert verdict.signal == StopSignal.NO_TRANSCRIPT
@@ -579,7 +553,7 @@ class TestSignalIsReported:
     def test_the_wiring_attributes_the_signal_to_the_audit_record(
         self,
         tmp_path: Path,
-        isolated_marker: Path,
+        isolated_markers: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         # Without this the signal exists but never reaches the log, which
@@ -622,7 +596,7 @@ class TestWiringRecordsTheBlock:
     def test_a_block_is_returned_and_recorded_once(
         self,
         tmp_path: Path,
-        isolated_marker: Path,
+        isolated_markers: Path,
         no_plan: None,
     ) -> None:
         transcript = _transcript(
@@ -644,7 +618,7 @@ class TestWiringRecordsTheBlock:
     def test_a_turn_that_asked_returns_none(
         self,
         tmp_path: Path,
-        isolated_marker: Path,
+        isolated_markers: Path,
         no_plan: None,
     ) -> None:
         transcript = _transcript(
@@ -660,7 +634,7 @@ class TestWiringRecordsTheBlock:
     def test_the_payload_is_read_from_stdin_when_absent(
         self,
         tmp_path: Path,
-        isolated_marker: Path,
+        isolated_markers: Path,
         no_plan: None,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -684,7 +658,7 @@ class TestWiringRecordsTheBlock:
 
     def test_malformed_stdin_lets_the_turn_end(
         self,
-        isolated_marker: Path,
+        isolated_markers: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setattr("sys.stdin", io.StringIO("{not json"))
@@ -694,7 +668,7 @@ class TestWiringRecordsTheBlock:
     def test_the_plan_feeds_the_steer(
         self,
         tmp_path: Path,
-        isolated_marker: Path,
+        isolated_markers: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         transcript = _transcript(
