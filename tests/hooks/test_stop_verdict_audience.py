@@ -203,10 +203,33 @@ class TestStandbyParksTheGate:
             },
         }
 
-        assert standby_holds(session_id="park6", boundary=boundary) is True
+        assert standby_holds(session_id="park6", entries=[boundary], boundary=None) is True
 
     def test_no_boundary_message_is_not_standby(self, isolated_markers: Path) -> None:
-        assert standby_holds(session_id="park7", boundary=None) is False
+        assert standby_holds(session_id="park7", entries=[], boundary=None) is False
+
+    def test_an_answer_the_supervisor_typed_over_is_still_read(
+        self, isolated_markers: Path
+    ) -> None:
+        """A boundary entry can carry a widget answer alongside prose.
+
+        Typing while a tool returns keeps that entry the boundary
+        (GH-1334), so the answer has to be read there as well as in the
+        turn — otherwise it is dropped on the one entry carrying it.
+        """
+        boundary = {
+            "type": "user",
+            "uuid": "u1",
+            "message": {
+                "role": "user",
+                "content": [
+                    {"type": "tool_result", "content": _STANDBY_ANSWER},
+                    {"type": "text", "text": "and take the evening off"},
+                ],
+            },
+        }
+
+        assert standby_holds(session_id="park8", entries=[], boundary=boundary) is True
 
 
 class TestStandbyDegradesQuietly:
@@ -223,7 +246,7 @@ class TestStandbyDegradesQuietly:
         isolated_markers.mkdir(parents=True, exist_ok=True)
         (isolated_markers / "bad.standby").write_text("{not json", encoding="utf-8")
 
-        assert standby_holds(session_id="bad", boundary=_user(uuid="u1")) is False
+        assert standby_holds(session_id="bad", entries=[], boundary=_user(uuid="u1")) is False
         assert "standby marker" in capsys.readouterr().err
 
     def test_recording_is_best_effort_when_unwritable(
@@ -239,7 +262,7 @@ class TestStandbyDegradesQuietly:
 
         monkeypatch.setattr("dev10x.hooks.stop_verdict.atomic_write_text", refuse)
 
-        assert standby_holds(session_id="ro", boundary=_answered()) is True
+        assert standby_holds(session_id="ro", entries=[_answered()], boundary=None) is True
         assert "writing the standby marker" in capsys.readouterr().err
 
     def test_a_non_tool_result_block_contributes_nothing(self, isolated_markers: Path) -> None:
@@ -256,7 +279,7 @@ class TestStandbyDegradesQuietly:
             },
         }
 
-        assert standby_holds(session_id="prose", boundary=boundary) is False
+        assert standby_holds(session_id="prose", entries=[], boundary=boundary) is False
 
 
 class TestTheRealStandbyPath:

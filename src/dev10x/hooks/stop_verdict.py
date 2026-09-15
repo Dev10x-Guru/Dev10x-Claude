@@ -215,7 +215,7 @@ def _standby_path(*, session_id: str) -> Path:
     return Path("/tmp/Dev10x/stop-verdict") / f"{session_id or 'unknown'}.standby"
 
 
-def standby_holds(*, session_id: str, boundary: dict | None) -> bool:
+def standby_holds(*, session_id: str, entries: list[dict], boundary: dict | None) -> bool:
     """Whether the supervisor has parked this gate and not yet spoken again.
 
     "Are we done?" has no terminal answer — confirming it just re-arms
@@ -224,15 +224,23 @@ def standby_holds(*, session_id: str, boundary: dict | None) -> bool:
     it is deliberately **not** a disable: it lasts exactly until the
     supervisor's next message.
 
-    That lifetime is read off the transcript rather than a clock. The
-    turn's boundary user message is the supervisor's last word, so a
-    marker naming the same message means nothing has been said since.
-    A different one means they have spoken, and the marker is dropped.
+    The answer is looked for across the whole turn rather than in the
+    boundary entry alone. A widget answer arrives as a ``tool_result``,
+    and GH-1334 stopped treating those as boundaries — so the answer now
+    sits *inside* the turn, and reading only the boundary would find the
+    supervisor's typed message instead and never see it.
+
+    The lifetime is still read off the transcript rather than a clock,
+    and now off a genuine message: a marker naming the same boundary
+    means nothing has been said since, a different one means they have
+    spoken and the marker is dropped. Scoping it to a typed message is
+    what stops a tool result from silently clearing a park the
+    supervisor set.
     """
     marker = _standby_path(session_id=session_id)
     boundary_id = _entry_id(entry=boundary)
 
-    if _STANDBY_RE.search(_answer_text(entry=boundary)):
+    if _STANDBY_RE.search(_turn_answers(entries=entries, boundary=boundary)):
         _record_standby(marker=marker, boundary_id=boundary_id)
         return True
 
@@ -303,6 +311,18 @@ def _answer_text(*, entry: dict | None) -> str:
     return "\n".join(part for part in parts if part)
 
 
+def _turn_answers(*, entries: list[dict], boundary: dict | None) -> str:
+    """Every widget answer given since the supervisor last spoke, joined.
+
+    The boundary is included because a supervisor who types alongside a
+    tool result keeps that entry as the boundary — the answer would
+    otherwise be dropped on exactly the entry that carries it.
+    """
+    return "\n".join(
+        text for text in (_answer_text(entry=entry) for entry in (*entries, boundary)) if text
+    )
+
+
 def _read_turn(*, transcript_path: str) -> list[dict]:
     """The current turn, without the user message that opens it."""
     return _read_turn_and_boundary(transcript_path=transcript_path)[0]
@@ -317,6 +337,12 @@ def _read_turn_and_boundary(*, transcript_path: str) -> tuple[list[dict], dict |
     which keeps the cost proportional to one turn rather than to the
     whole session. Parsing every line instead would make turn N pay for
     the N-1 turns before it, on a file that grows all session.
+
+    That invariant was false until GH-1334: ``_is_user`` matched tool
+    results too, so the walk stopped at the last tool *call* and the
+    "turn" was only whatever the assistant emitted after it. The repair
+    is in the predicate, not here — widening the scan would have bought
+    the same correctness at the cost this docstring exists to avoid.
 
     A malformed or truncated line is not a reason to block a turn, so
     every read failure degrades to "no evidence" rather than raising.
@@ -359,7 +385,25 @@ def _read_turn_and_boundary(*, transcript_path: str) -> tuple[list[dict], dict |
 
 
 def _is_user(*, entry: dict) -> bool:
-    return entry.get("type") == "user" or entry.get("role") == "user"
+    """Whether this entry is the supervisor speaking, not a tool answering.
+
+    A tool result is written as a ``user`` entry, so matching on the type
+    alone made every tool call a turn boundary (GH-1334): 36 of the 38
+    user entries in a captured transcript were ``tool_result`` blocks and
+    2 were typed messages. ``_read_turn`` therefore stopped at the last
+    tool call, and since an ``AskUserQuestion`` is always followed by its
+    own result, the call it looks for was always outside the window —
+    ``asked`` fired 0 times in 159 records against 76 blocks.
+
+    Content that is nothing but tool results is the tool answering.
+    Anything else — a typed string, prose blocks, a result the supervisor
+    typed alongside — is the boundary. Content that is absent or not a
+    list reads as a plain message, which is what a typed one looks like.
+    """
+    if entry.get("type") != "user" and entry.get("role") != "user":
+        return False
+    blocks = _content_blocks(entry=entry)
+    return not blocks or any(block.get("type") != "tool_result" for block in blocks)
 
 
 def _content_blocks(*, entry: dict) -> list[dict]:
@@ -513,7 +557,7 @@ def decide(*, data: dict, plan: dict | None, now: float | None = None) -> StopVe
         # file would fire on every session whose transcript moved.
         return StopVerdict(block=False, signal=StopSignal.NO_TRANSCRIPT)
 
-    if standby_holds(session_id=session_id, boundary=boundary):
+    if standby_holds(session_id=session_id, entries=entries, boundary=boundary):
         return StopVerdict(block=False, signal=StopSignal.STANDBY)
 
     if asked_a_question(entries=entries):
