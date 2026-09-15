@@ -27,6 +27,24 @@ class TestExtractTaskId:
     def test_extracts_first_match(self) -> None:
         assert _extract_task_id("Task #1 and Task #2") == "1"
 
+    def test_reads_the_structured_response(self) -> None:
+        """GH-1309: current Claude Code sends the task, not a rendered line."""
+        assert _extract_task_id({"task": {"id": "7", "subject": "Build"}}) == "7"
+
+    def test_reads_an_unquoted_id(self) -> None:
+        assert _extract_task_id({"task": {"id": 7}}) == "7"
+
+    def test_a_response_without_a_task_is_none(self) -> None:
+        assert _extract_task_id({"ok": True}) is None
+
+    def test_a_task_that_is_not_a_mapping_is_none(self) -> None:
+        assert _extract_task_id({"task": "created"}) is None
+
+    @pytest.mark.parametrize("task_id", [None, ""])
+    def test_an_empty_id_is_none(self, task_id: object) -> None:
+        """An id-shaped hole must not become a task keyed on nothing."""
+        assert _extract_task_id({"task": {"id": task_id}}) is None
+
 
 class TestSetNested:
     def test_sets_top_level_key(self) -> None:
