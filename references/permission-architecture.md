@@ -360,6 +360,9 @@ running-hook version against the fix's release tag.
 ## References
 
 - [ADR-0003](../docs/adr/0003-allow-rules-as-hook-enablers.md) — decision record
+- `references/permission-friction-taxonomy.md` — friction types A–G, the
+  friction class map A–O, and the standing D0–D5 diagnosis. This file is
+  the mechanism; that one is the problem model laid over it.
 - `hooks/scripts/bash_validators/skill_redirect.py` — the hook implementation
 - `agents/permission-auditor.md` — audit agent with `HOOK_ENABLED` classification
 - `references/permission-safe-flags.md` — flag-overrides pattern for safe flags
