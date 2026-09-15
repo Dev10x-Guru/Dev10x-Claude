@@ -11,7 +11,7 @@
     {
       "name": "Dev10x",
       "source": "./",
-      "description": "67 skills for structured commits, PR lifecycle, branch hygiene, ticket management, task tracking, code review, scoping, and QA automation.",
+      "version": "0.100.0.dev0",
       "keywords": [
         "git", "commits", "pull-requests", "code-review",
         "workflow", "tasks", "JTBD", "gitmoji", "hooks",
