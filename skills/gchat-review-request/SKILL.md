@@ -2,8 +2,8 @@
 name: Dev10x:gchat-review-request
 description: >
   Post a Google Chat review request for a PR using per-repo config
-  (space, mentions). Mirrors Dev10x:slack-review-request. Standalone —
-  not wired into Dev10x:request-review.
+  (space, mentions). Mirrors Dev10x:slack-review-request. Invoked
+  standalone or delegated to by Dev10x:request-review.
   TRIGGER when: a PR needs a Google Chat review notification.
   DO NOT TRIGGER when: Google Chat is not configured, or posting to Slack
   (use Dev10x:slack-review-request).
@@ -13,6 +13,7 @@ allowed-tools:
   - Bash(uvx dev10x skill notify gchat-review-prepare:*)
   - Bash(gh pr view:*)
   - AskUserQuestion
+  - Skill(Dev10x:gchat)
 ---
 
 # Google Chat Review Request
@@ -121,8 +122,17 @@ formatted body lives in the card.
 
 - `skip=true` → report "Google Chat notification skipped for {repo}", done.
 - `ask=true` → **REQUIRED: Call `AskUserQuestion`** for space alias (required)
-  and mentions (optional); then proceed with the provided values.
+  and mentions (optional). Then continue to Step 3 with the **envelope you
+  already have**: `card`, `fallback_text`, `pr_url` and `pr_title` are
+  rendered on this path too, so an unconfigured repo posts the same panel a
+  configured one does. Only `space` was unknown. Any mentions the user
+  supplies here are used verbatim — prepare cannot resolve them to
+  `<users/ID>` tokens without a config entry.
 - otherwise → continue to Step 3.
+
+An `ask=true` envelope whose `card` is `null` means the repo opted out of
+cards, not that the default was lost (GH-1307). Do NOT rebuild the message
+by hand on this path.
 
 ### Step 3: Confirm
 

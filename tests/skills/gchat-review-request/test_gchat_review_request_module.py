@@ -237,7 +237,25 @@ class TestCmdPrepare:
     def test_unconfigured_emits_ask_json(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
+        """The ask path now renders the same envelope the success path does.
+
+        It used to assert ``message is None`` against a hand-written
+        six-key dict — and because that dict was built without touching
+        the PR, this test never needed a ``gh`` stub. Both facts were
+        the bug (GH-1307): the envelope dropped the cardsV2 default, so
+        an unconfigured repo posted plain text.
+        """
         monkeypatch.setattr(mod, "load_yaml", lambda path: {"default_action": "ask"})
+        monkeypatch.setattr(
+            mod,
+            "gh_json",
+            lambda args, **kwargs: {
+                "number": 42,
+                "title": "Fix routing",
+                "body": "When x, I want y, so I can z.",
+                "url": "https://github.com/org/my-app/pull/42",
+            },
+        )
         mod.cmd_prepare(SimpleNamespace(pr=42, repo="org/my-app"))
         import json
 
@@ -245,4 +263,5 @@ class TestCmdPrepare:
         assert out["ask"] is True
         assert out["skip"] is False
         assert out["space"] is None
-        assert out["message"] is None
+        assert out["card"] is not None
+        assert out["pr_url"] == "https://github.com/org/my-app/pull/42"
