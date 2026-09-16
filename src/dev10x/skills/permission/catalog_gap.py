@@ -59,6 +59,7 @@ class CatalogGap:
     missing_allow: list[str] = field(default_factory=list)
     missing_deny: list[str] = field(default_factory=list)
     missing_ask: list[str] = field(default_factory=list)
+    skipped_denied: list[str] = field(default_factory=list)
     unreadable: str | None = None
 
     @property
@@ -103,6 +104,17 @@ def compute_gap(
     ``base_asks`` (GH-1154) is optional so a caller predating the ask
     tier keeps its behaviour: an omitted ask catalog reports no ask gap
     rather than reporting every ask rule as missing.
+
+    An ask rule already covered by a ``deny`` in ``path`` is NOT reported
+    missing (GH-1319): ``ensure_base_asks`` deliberately leaves such a
+    rule alone (a deny is the stricter statement), so a checker that
+    still counted it as missing would fail every run that writer
+    correctly declined to touch. It is reported separately in
+    ``skipped_denied`` instead of silently vanishing — an ask that is
+    absent because a deny already covers it is not the same fact as an
+    ask that is absent because nothing covers it, and this repo has been
+    bitten before by a checker that could not tell "looked and found
+    nothing to do" from "did not look" (GH-1215).
     """
     asks = list(base_asks or [])
     allow, deny, ask, unreadable = _existing_rules(path)
@@ -118,7 +130,8 @@ def compute_gap(
         path=path,
         missing_allow=[rule for rule in base_permissions if rule not in allow],
         missing_deny=[rule for rule in base_denies if rule not in deny],
-        missing_ask=[rule for rule in asks if rule not in ask],
+        missing_ask=[rule for rule in asks if rule not in ask and rule not in deny],
+        skipped_denied=[rule for rule in asks if rule not in ask and rule in deny],
     )
 
 
@@ -137,12 +150,18 @@ def format_gap_report(gap: CatalogGap, *, verbose: bool = False) -> list[str]:
         lines.append(f"  WARNING: {gap.unreadable} — treating the whole catalog as missing")
     if gap.is_empty:
         lines.append("  0 missing allow / 0 missing deny / 0 missing ask")
+        if gap.skipped_denied:
+            lines.append(
+                f"  skipped {len(gap.skipped_denied)} ask rules already denied by this file"
+            )
         return lines
 
     lines.append(
         f"  {len(gap.missing_allow)} missing allow / {len(gap.missing_deny)} missing deny"
         f" / {len(gap.missing_ask)} missing ask"
     )
+    if gap.skipped_denied:
+        lines.append(f"  skipped {len(gap.skipped_denied)} ask rules already denied by this file")
     for label, rules in (
         ("allow", gap.missing_allow),
         ("deny", gap.missing_deny),
