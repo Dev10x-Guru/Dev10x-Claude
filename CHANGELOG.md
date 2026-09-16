@@ -5,6 +5,51 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.101.1 — Plans That Remember, Gates That Can Be Answered
+
+Released 2026-09-16
+
+### Fixes
+
+- **Keep a plan that still knows what was planned** — the PostToolUse hook read
+  `tool_result` and regex-matched the rendered line a previous Claude Code
+  wrote. Since 2.1.263 the created task arrives structured under
+  `tool_response`, and that field was absent, so every `TaskCreate` was dropped
+  without a trace: the harness task list held the task, the hook exited 0, and
+  `plan.yaml` grew no `tasks` key at all. Anything reading the persisted plan
+  for open work saw a fresh session. The created task is now read from
+  `tool_response` as well as the rendered text, so neither harness needs
+  detecting, and the outcome is handed on unchanged from the payload seam —
+  which cannot know which tool ran
+  ([GH-1309](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1309))
+- **Spare a session a block it already answered** — a tool result is written as
+  a `user` entry, so `_is_user` treated every tool call as a turn boundary.
+  `_read_turn` stopped at the last tool call rather than the last typed
+  message, and because an `AskUserQuestion` is always followed by its own
+  result, the call sat outside the window that looks for it. The gate's own
+  steer was therefore unsatisfiable: `asked` fired 0 times in 159 audit records
+  while `blocked` fired 76. A user entry whose content is only tool results now
+  reads as the tool answering rather than the supervisor speaking, standby is
+  scoped to a genuine message so a tool result can no longer silently clear a
+  park the supervisor set, and tests fail if `asked` becomes unreachable again
+  ([GH-1334](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1334))
+
+### Docs
+
+- **Keep the friction class map citable after the tracker closes** — the
+  permission-friction types (A–G), the class map, and the D0–D5 diagnosis
+  existed only in GH-1100's issue body. Twenty-plus issues cite the class map
+  by letter, so closing the tracker would have broken every one of those
+  cross-references with no replacement to point at.
+  `references/permission-friction-taxonomy.md` now carries the types, the class
+  map, the diagnosis, and the tracker lineage, and records that the classes end
+  at O — the "A–R" range named in the extraction map has no P/Q/R rows and never
+  did. PAP/PDP/PEP cross-link to the two docs that already cover them rather
+  than adding a third competing description, D2 stays a pointer to
+  `permission-architecture.md` (which has held the live copy since GH-1095), and
+  the new reference is registered in `.claude/rules/INDEX.md`
+  ([GH-1100](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1100))
+
 ## 0.100.1 — Review Requests That Reach the Team & Gates That Know Their Audience
 
 Released 2026-09-15
