@@ -1274,6 +1274,30 @@ async def milestone_edit(
 
 
 @github_tool
+async def milestone_list(
+    repo: str | None = None,
+    state: str = "open",
+    cwd: str | None = None,
+) -> Result[dict]:
+    """List GitHub milestones (GH-1319).
+
+    Wraps `gh api --paginate repos/{r}/milestones` — the general-purpose
+    counterpart to `triage_roster`'s open-milestone read, so listing the
+    roster never falls back to raw `gh api`.
+
+    Args:
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        state: Filter by state — "open" (default), "closed", or "all".
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with key: milestones (list of {number, title, state,
+        description}).
+    """
+    return await gh.milestone_list(repo=repo, state=state)
+
+
+@github_tool
 async def generate_commit_list(
     pr_number: int,
     base_branch: str | None = None,

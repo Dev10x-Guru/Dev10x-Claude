@@ -1534,6 +1534,93 @@ class TestMilestoneEdit:
         assert "Invalid JSON" in result.error
 
 
+class TestMilestoneList:
+    """GH-1319: the general-purpose counterpart to triage_roster's read."""
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_returns_milestones(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(
+            stdout=json.dumps(
+                [
+                    {
+                        "number": 57,
+                        "title": "DX-M1",
+                        "state": "open",
+                        "description": "Session UX",
+                    },
+                    {"number": 54, "title": "PLAT-M1", "state": "open", "description": None},
+                ]
+            )
+        )
+
+        result = await gh.milestone_list()
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["milestones"] == [
+            {"number": 57, "title": "DX-M1", "state": "open", "description": "Session UX"},
+            {"number": 54, "title": "PLAT-M1", "state": "open", "description": ""},
+        ]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_empty_roster_returns_empty_list(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(stdout="[]")
+
+        result = await gh.milestone_list()
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["milestones"] == []
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_defaults_to_open_state(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(stdout="[]")
+
+        await gh.milestone_list()
+
+        args = mock_run.call_args.kwargs["args"]
+        assert any("state=open" in arg for arg in args)
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_explicit_repo_and_state_scope_the_query(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(stdout="[]")
+
+        await gh.milestone_list(repo="owner/name", state="closed")
+
+        args = mock_run.call_args.kwargs["args"]
+        assert any("repos/owner/name/milestones" in arg for arg in args)
+        assert any("state=closed" in arg for arg in args)
+
+    @pytest.mark.asyncio
+    async def test_rejects_invalid_state(self) -> None:
+        result = await gh.milestone_list(state="frozen")
+
+        assert isinstance(result, ErrorResult)
+        assert "frozen" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_returns_error_on_api_failure(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(returncode=1, stderr="rate limit")
+
+        result = await gh.milestone_list()
+
+        assert isinstance(result, ErrorResult)
+        assert "rate limit" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_guards_malformed_json(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(stdout="not json")
+
+        result = await gh.milestone_list()
+
+        assert isinstance(result, ErrorResult)
+        assert "Invalid JSON" in result.error
+
+
 class TestIssueEdit:
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run", new_callable=AsyncMock)

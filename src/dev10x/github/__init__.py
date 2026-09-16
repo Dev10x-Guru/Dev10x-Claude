@@ -1977,6 +1977,59 @@ async def milestone_edit(
     )
 
 
+async def milestone_list(
+    *,
+    repo: str | None = None,
+    state: str = "open",
+) -> Result[dict[str, Any]]:
+    """List GitHub milestones (GH-1319).
+
+    Wraps ``gh api --paginate repos/{r}/milestones``, the general-purpose
+    counterpart to ``triage_roster``'s open-milestone read — GH-1100 E4
+    found the roster's only other path was raw ``gh api``, which the
+    skill-redirect hook steers away from with nowhere sanctioned to land.
+
+    Args:
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        state: Filter by state: ``open`` (default), ``closed``, ``all``.
+
+    Returns:
+        ``{"milestones": [{number, title, state, description}, ...]}``.
+    """
+    if state not in ("open", "closed", "all"):
+        return err(f"Invalid milestone state {state!r}: must be 'open', 'closed', or 'all'.")
+
+    args = ["gh", "api", "--paginate"]
+    if repo:
+        path = f"repos/{repo}/milestones?state={state}&per_page=100"
+    else:
+        # gh expands the {owner}/{repo} placeholders from the CWD's remote.
+        path = f"repos/{{owner}}/{{repo}}/milestones?state={state}&per_page=100"
+    args.append(path)
+
+    result = await async_run(args=args, timeout=30)
+    if result.returncode != 0:
+        return err(result.stderr.strip())
+    try:
+        raw_milestones = json.loads(result.stdout) if result.stdout.strip() else []
+    except json.JSONDecodeError:
+        return err(f"Invalid JSON output from milestone lookup: {result.stdout[:200]}")
+
+    return ok(
+        {
+            "milestones": [
+                {
+                    "number": m.get("number"),
+                    "title": m.get("title"),
+                    "state": m.get("state"),
+                    "description": m.get("description") or "",
+                }
+                for m in raw_milestones
+            ],
+        }
+    )
+
+
 async def _issue_result(
     *,
     number: int,
