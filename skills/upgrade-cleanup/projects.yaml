@@ -760,12 +760,49 @@ tracker_permissions:
   - "mcp__claude_ai_Linear__get_diff_threads"
   - "mcp__claude_ai_Linear__list_diffs"
 
-  # Group A — read-only (linear-server variant)
+  # Group A — read-only (linear-server variant, GH-1323).
+  # The claude.ai-hosted block above is NOT the namespace Dev10x
+  # sessions actually call — `mcp__linear-server__*` is. Every read op
+  # in the claude.ai-hosted list has a same-named counterpart here;
+  # this block mirrors it one-for-one so the two stay at parity (see
+  # tests/skills/permission/test_linear_namespace_parity.py). Before
+  # GH-1323 only 5 of these 28 were catalogued, so the other 23 had
+  # accumulated as ad-hoc per-call approvals in userspace settings.
   - "mcp__linear-server__get_issue"
   - "mcp__linear-server__get_project"
+  - "mcp__linear-server__get_initiative"
+  - "mcp__linear-server__get_team"
+  - "mcp__linear-server__get_user"
+  - "mcp__linear-server__get_milestone"
+  - "mcp__linear-server__get_document"
+  - "mcp__linear-server__get_issue_status"
+  - "mcp__linear-server__get_status_updates"
+  - "mcp__linear-server__get_attachment"
   - "mcp__linear-server__list_issues"
   - "mcp__linear-server__list_projects"
+  - "mcp__linear-server__list_initiatives"
+  - "mcp__linear-server__list_milestones"
+  - "mcp__linear-server__list_teams"
+  - "mcp__linear-server__list_users"
+  - "mcp__linear-server__list_cycles"
   - "mcp__linear-server__list_comments"
+  - "mcp__linear-server__list_issue_labels"
+  - "mcp__linear-server__list_issue_statuses"
+  - "mcp__linear-server__list_project_labels"
+  - "mcp__linear-server__list_documents"
+  - "mcp__linear-server__list_customers"
+  - "mcp__linear-server__search_documentation"
+  - "mcp__linear-server__extract_images"
+  - "mcp__linear-server__get_diff"
+  - "mcp__linear-server__get_diff_threads"
+  - "mcp__linear-server__list_diffs"
+
+  # `get_release` has no `claude_ai_Linear` counterpart — it exists
+  # only in the linear-server namespace. Folded in here (not part of
+  # the parity mirror above) because it had already accumulated as a
+  # standalone ad-hoc allow in userspace settings; a genuine read-only
+  # op with demonstrated real usage, not a blanket namespace grant.
+  - "mcp__linear-server__get_release"
 
   # Group B — write (claude.ai-hosted variant)
   - "mcp__claude_ai_Linear__save_comment"
