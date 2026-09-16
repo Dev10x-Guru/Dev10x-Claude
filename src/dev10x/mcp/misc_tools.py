@@ -11,6 +11,7 @@ from typing import Literal, cast
 from mcp.server.fastmcp import Context  # noqa: F401
 
 from dev10x.domain.common.result import err, ok, to_wire
+from dev10x.domain.transport_budget import MAX_TOOL_CALL_SECONDS
 from dev10x.mcp._app import server
 
 
@@ -233,7 +234,7 @@ async def record_upgrade(version: str | None = None) -> dict:
 async def run_tests(
     args: list[str] | None = None,
     coverage: bool = True,
-    timeout: int = 600,
+    timeout: int = MAX_TOOL_CALL_SECONDS,
     cwd: str | None = None,
     ctx: Context | None = None,
 ) -> dict:
@@ -251,7 +252,12 @@ async def run_tests(
             Example: ``["src/dev10x/runner/"]`` or ``["-k", "name"]``.
         coverage: When True (default), add
             ``--cov --cov-report=term-missing``.
-        timeout: Subprocess timeout in seconds (default 600).
+        timeout: Subprocess timeout in seconds (default
+            ``MAX_TOOL_CALL_SECONDS``, GH-1331 — the transport ceiling
+            a larger value is clamped to anyway, GH-1288). A suite whose
+            full run genuinely exceeds this needs narrowing (``-k``, a
+            path) or the test skill's documented fallback, not a bigger
+            number here.
         cwd: Effective working directory (GH-979).
         ctx: FastMCP context injected automatically — do not pass (GH-342).
 

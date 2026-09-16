@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from dev10x.domain.common.result import err, ok
+from dev10x.domain.transport_budget import MAX_TOOL_CALL_SECONDS
 from dev10x.mcp import server_cli as cli_server
 
 
@@ -264,6 +265,9 @@ class TestRunTests:
         assert result["passed"] == 42
         assert mock_fn.call_args.kwargs["args"] is None
         assert mock_fn.call_args.kwargs["coverage"] is True
+        # GH-1331: omitting timeout asks for the transport ceiling, not a
+        # value real full-suite runs already exceed.
+        assert mock_fn.call_args.kwargs["timeout"] == MAX_TOOL_CALL_SECONDS
 
     @pytest.mark.asyncio
     @patch("dev10x.runner.run_tests", new_callable=AsyncMock)
