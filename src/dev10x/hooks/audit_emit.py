@@ -33,7 +33,12 @@ _REASON_MAX_CHARS = 200
 _decision_attribution: dict[str, str] | None = None
 
 
-def set_decision_attribution(*, rule_id: str, reason: str) -> None:
+def set_decision_attribution(
+    *,
+    rule_id: str,
+    reason: str,
+    extra: dict[str, str] | None = None,
+) -> None:
     """Record which rule produced a deny/ask, for the audit record (GH-1095).
 
     The hook body signals its decision by calling ``sys.exit`` from
@@ -50,12 +55,29 @@ def set_decision_attribution(*, rule_id: str, reason: str) -> None:
     a slot left set by one feature would be misattributed to the next
     feature's record. :func:`audit_hook` therefore clears it after
     every write, not only after a block.
+
+    ``extra`` carries fields a particular ``rule_id`` needs under a name
+    of its own (GH-1390). ``reason`` is this function's generic slot and
+    every validator's prose lands in it, so a rule whose documentation
+    names a different field — ``stop-verdict``'s ``signal`` and
+    ``harness_version`` — had nowhere to put it and its readers queried
+    a key that was never written. Values are normalized exactly like
+    ``reason``, and ``rule_id``/``reason`` win on a name collision so a
+    caller cannot rewrite the attribution through the side door.
     """
     global _decision_attribution
-    reason = " ".join(reason.split())
-    if len(reason) > _REASON_MAX_CHARS:
-        reason = reason[: _REASON_MAX_CHARS - 1].rstrip() + "…"
-    _decision_attribution = {"rule_id": rule_id, "reason": reason}
+    attribution = {key: _fit(value) for key, value in (extra or {}).items()}
+    attribution["rule_id"] = rule_id
+    attribution["reason"] = _fit(reason)
+    _decision_attribution = attribution
+
+
+def _fit(value: str) -> str:
+    """Collapse whitespace and cap a recorded value at one log-line's worth."""
+    value = " ".join(str(value).split())
+    if len(value) > _REASON_MAX_CHARS:
+        value = value[: _REASON_MAX_CHARS - 1].rstrip() + "…"
+    return value
 
 
 def clear_decision_attribution() -> None:

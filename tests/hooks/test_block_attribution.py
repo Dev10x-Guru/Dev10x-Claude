@@ -189,6 +189,46 @@ class TestReasonNormalization:
         assert reason.endswith("…")
 
 
+class TestExtraFields:
+    """GH-1390: a rule may record a field under a name of its own."""
+
+    def test_extra_fields_join_the_attribution(self) -> None:
+        set_decision_attribution(
+            rule_id="stop-verdict",
+            reason="asked",
+            extra={"signal": "asked", "harness_version": "2.1.263"},
+        )
+        assert audit_emit._decision_attribution == {
+            "rule_id": "stop-verdict",
+            "reason": "asked",
+            "signal": "asked",
+            "harness_version": "2.1.263",
+        }
+
+    def test_extra_values_are_normalized_like_reason(self) -> None:
+        set_decision_attribution(rule_id="DX010", reason="r", extra={"signal": "a\n\nb"})
+        assert audit_emit._decision_attribution["signal"] == "a b"
+
+    def test_long_extra_values_are_truncated(self) -> None:
+        set_decision_attribution(rule_id="DX010", reason="r", extra={"signal": "y" * 500})
+        signal = audit_emit._decision_attribution["signal"]
+        assert len(signal) == 200
+        assert signal.endswith("…")
+
+    def test_extra_cannot_overwrite_the_attribution(self) -> None:
+        set_decision_attribution(
+            rule_id="DX010",
+            reason="real",
+            extra={"rule_id": "spoofed", "reason": "spoofed"},
+        )
+        assert audit_emit._decision_attribution["rule_id"] == "DX010"
+        assert audit_emit._decision_attribution["reason"] == "real"
+
+    def test_omitting_extra_leaves_the_record_unchanged(self) -> None:
+        set_decision_attribution(rule_id="DX010", reason="real")
+        assert audit_emit._decision_attribution == {"rule_id": "DX010", "reason": "real"}
+
+
 class TestAuditRecordCarriesAttribution:
     def test_block_record_names_the_rule(self, writer: RecordingWriter) -> None:
         @audit_hook(name="validate-bash", event="PreToolUse")

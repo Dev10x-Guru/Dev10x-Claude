@@ -153,6 +153,20 @@ Three constraints came out of building the first one:
    guard looks redundant: what it prevents is a hook that re-blocks
    every turn forever.
 
+   **Query `signal`, and group by `harness_version` (GH-1390).** Until
+   GH-1390 neither key was written: the branch went into the generic
+   `reason` slot `set_decision_attribution` gives every validator, so a
+   reader following this paragraph queried `.signal` and got a zero —
+   indistinguishable from the branch never firing, and a session acting
+   on that reading nearly retired a guard a wider re-measurement found
+   firing repeatedly. `reason` still carries the same value for
+   back-compat; prefer `signal`. `harness_version` is read off the
+   transcript the harness stamps it on, and is the literal `unknown`
+   when unreadable — never absent, since an absent key re-creates the
+   ambiguity this fixed. The marker goes only when all three agree:
+   `stop_hook_active` present, `cooldown_marker` absent, across a few
+   distinct `harness_version` values.
+
 4. **Ask who is listening before blocking (GH-1314).** "A turn always
    ends on a widget" presumes a supervisor on the other end, and two
    cases have none. A **subagent** hands its report back to whoever

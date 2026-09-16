@@ -32,7 +32,12 @@ from dev10x.domain.session_document import (
 )
 from dev10x.hooks.audit_emit import set_decision_attribution
 from dev10x.hooks.session_policy import MigratePluginPermissionsRule
-from dev10x.hooks.stop_verdict import StopVerdict, decide, record_block
+from dev10x.hooks.stop_verdict import (
+    StopVerdict,
+    decide,
+    read_harness_version,
+    record_block,
+)
 from dev10x.session.service import SessionService
 
 
@@ -313,7 +318,21 @@ def build_stop_verdict(data: dict | None = None) -> StopVerdict | None:
     # arrive set on a continuation, and the audit log carried nothing
     # but wrap-phase timing — so the question could not be answered from
     # the field at all. Recording the signal makes it answerable.
-    set_decision_attribution(rule_id="stop-verdict", reason=verdict.signal)
+    #
+    # Under the name the documentation gives it (GH-1390). `reason` is
+    # kept alongside for the readers of the records already written;
+    # `harness_version` is what makes the "across a few harness
+    # versions" half of the condition checkable.
+    set_decision_attribution(
+        rule_id="stop-verdict",
+        reason=verdict.signal,
+        extra={
+            "signal": verdict.signal,
+            "harness_version": read_harness_version(
+                transcript_path=str(data.get("transcript_path") or "")
+            ),
+        },
+    )
     if not verdict.block:
         return None
     record_block(session_id=str(data.get("session_id") or ""))
