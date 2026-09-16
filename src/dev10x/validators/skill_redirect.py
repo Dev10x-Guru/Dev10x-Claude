@@ -344,6 +344,14 @@ def _get_config_and_engine() -> tuple[Config, RuleEngine]:
 # it, so a poll loop naming none of the tokens above — `while true; do curl
 # …; sleep 30; done` — never reached the engine and fell through to DX010's
 # generic aggregation message instead of the gh-pr-monitor steer.
+# "pytest" gates pytest-inner-loop (GH-1337): a narrow raw run names its
+# runner and nothing else, so `uv run --extra dev pytest -k name` carries
+# none of the tokens above and would never reach the engine. "pr view"
+# and "pr ready" close the same gap for gh-pr-view and gh-pr-ready, which
+# the routed-CLI map in .claude/rules/mcp-tools.md has claimed all along
+# were steered to pr_get / pr_ready — GH-1211 reasoned from that claim.
+# test_literal_pattern_contains_a_quick_token pins the invariant so a new
+# blocking rule cannot ship inert.
 # The fast-path filter is intentionally broad — evaluate_command() still
 # applies the precise per-rule regex.
 _QUICK_TOKENS = frozenset(
@@ -361,6 +369,9 @@ _QUICK_TOKENS = frozenset(
         "psql",
         "sleep",
         "watch -n",
+        "pytest",
+        "pr view",
+        "pr ready",
     ]
 )
 

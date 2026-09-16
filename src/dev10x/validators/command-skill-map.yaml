@@ -712,6 +712,54 @@ rules:
       Direct playwright calls skip CF Access header injection
       and credential management for staging environments.
 
+  - name: pytest-inner-loop
+    matcher: Bash
+    patterns:
+      - 'pytest\b(?=.*(?:\s-k\b|\s--no-cov\b|\s(?:src|tests)/))'
+    hook_block: true
+    compensations:
+      - type: use-tool
+        tool: mcp__plugin_Dev10x_cli__run_tests
+        guardrails: >
+          routes off the Bash layer; resolves the project's dependency
+          extra itself; `args` takes the same narrowing you just typed
+        description: >
+          Run the narrowed suite through the MCP wrapper instead:
+
+            run_tests(args=["-k", "<name>"], coverage=false)
+            run_tests(args=["tests/<path>/"])
+
+          Translate the CLI shape:
+            • `-k <expr>` / a path argument → `args=[...]`, verbatim.
+            • `--no-cov` → `coverage=false`.
+            • `--extra dev` → drop it; the tool reads
+              `[project.optional-dependencies]` and applies the group that
+              declares pytest (GH-1198), reporting it as `extras`.
+          The wrapper is not the full-suite gate wearing a wrapper — a
+          targeted run is what `args` exists for, and it is the cheaper
+          call of the two.
+    reason: >
+      Every test run is routed, not only the full-suite one that gates
+      commit / PR / DONE. GH-1337 audited a bugfix session where the
+      gating run routed correctly and all six edit-run-edit iterations
+      did not: each was a targeted `-k` / path-scoped raw invocation,
+      with a working wrapper available and no excuse. The contract is
+      asserted once at plan time and checked once at the terminal DoD
+      step — after the work had merged — so nothing bit where the drift
+      actually happened.
+
+      Scoped to the NARROW shape on purpose. The generic `pytest` rule
+      below stays advisory, which keeps the full-coverage form
+      (`uv run --extra dev pytest --cov --cov-report=term-missing`)
+      unblocked: that is `Dev10x:py-test`'s documented fallback for a
+      session with no MCP server, and it is the shape that seeds a fresh
+      worktree's virtualenv. Blocking it would leave such a session with
+      no sanctioned path at all. It also keeps GH-155's recursion out of
+      reach — the flip reverted there hard-blocked the form the skill
+      itself ran.
+    related:
+      - Dev10x:py-test
+
   - name: pytest
     matcher: Bash
     patterns:
