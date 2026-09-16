@@ -120,6 +120,51 @@ class TestBuildGuidanceContext:
         assert len(result) > 0
 
 
+class TestBuildSkillsIndexContext:
+    def test_empty_when_index_missing(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+
+        monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path / "claude-home"))
+        ClaudeDir.reset_cache()
+
+        svc = SessionService()
+        assert svc.build_skills_index_context() == ""
+
+    def test_returns_file_contents_when_present(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+
+        claude_home = tmp_path / "claude-home"
+        claude_home.mkdir(parents=True)
+        (claude_home / "SKILLS.md").write_text("# Skills\n- foo: does foo things")
+        monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(claude_home))
+        ClaudeDir.reset_cache()
+
+        svc = SessionService()
+        result = svc.build_skills_index_context()
+
+        assert "# Skills" in result
+        assert "foo: does foo things" in result
+
+    def test_empty_when_index_unreadable(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+
+        claude_home = tmp_path / "claude-home"
+        claude_home.mkdir(parents=True)
+        (claude_home / "SKILLS.md").write_text("# Skills")
+        monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(claude_home))
+        ClaudeDir.reset_cache()
+
+        svc = SessionService()
+        with patch("pathlib.Path.read_text", side_effect=OSError("permission denied")):
+            assert svc.build_skills_index_context() == ""
+
+
 class TestBuildBackgroundPreambleContext:
     def test_empty_when_preamble_file_missing(self, tmp_path: Path) -> None:
         svc = SessionService(plugin_root=tmp_path)

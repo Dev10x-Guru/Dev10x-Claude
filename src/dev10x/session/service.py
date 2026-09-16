@@ -78,6 +78,25 @@ class SessionService:
         guidance_file = self._plugin_root / "hooks" / "scripts" / "session-guidance.md"
         return guidance_file.read_text() if guidance_file.exists() else ""
 
+    def build_skills_index_context(self) -> str:
+        """Return ``~/.claude/SKILLS.md`` contents, or empty string when absent (GH-1315).
+
+        The Read TOOL is gated by ``additionalDirectories``, not by
+        ``Read()`` allow-rules — no permission rule closes that gap, so a
+        ``Read`` of this file prompts on every session regardless of what
+        rule is written. Reading it directly here, in-process, carries no
+        such gate. Degrades to an empty string (never raises) so a missing
+        or unreadable index is silently absent from ``additionalContext``
+        rather than breaking the SessionStart orchestrator.
+        """
+        from dev10x.domain.claude_paths import ClaudeDir
+
+        index_file = ClaudeDir.skills_index_md()
+        try:
+            return index_file.read_text() if index_file.exists() else ""
+        except OSError:
+            return ""
+
     def build_background_preamble_context(self) -> str:
         """Return the background-dispatch friction preamble (GH-610).
 
