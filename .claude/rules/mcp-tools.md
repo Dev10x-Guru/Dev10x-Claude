@@ -443,6 +443,25 @@ Behavioral caveats:
   verdict GitHub had already decided. Checks that have not registered
   yet summarize as `empty`, which is not terminal — a genuine
   post-push call still waits normally.
+
+- `ci_check_status` corroborates a zero before reporting one, and says
+  which source produced it in `checks_source` (GH-1376). `gh pr checks`
+  under-reports: PR #1372 had a completed, successful `PR Hygiene
+  Review` run that the Actions runs API listed and the CLI did not,
+  persistently and across two sessions. Because this tool is the only
+  sanctioned CI-wait path — `ci-loop-handrolled` and
+  `watch-loop-handrolled` are `hook_block: true` — an uncorroborated
+  zero gets acted on. So a zero read is now cross-checked against
+  `repos/{repo}/actions/runs?branch=<head>`, filtered to the PR's head
+  SHA, and `checks_source` reports `confirmed-zero` (both sources
+  agree), `runs-api` (the CLI was wrong and the verdict is built from
+  the runs), or `gh-pr-checks`. A runs-API call that cannot be made
+  returns `{"error": …, "undetermined": true}` rather than a zero — an
+  unreadable second source is not evidence about the first. The two
+  extra calls are paid **only** on the zero path, so a poll with checks
+  to report costs exactly what it did before. `required_only` reads are
+  exempt: an empty required set is normal on an unprotected base
+  (ADR-0024) and the runs API cannot say which runs the host requires.
 - `pin_tracker` / `tracker_status` carry the project's issue-tracker
   choice (GH-768). `ensure-base` and `seed_worktree` seed only that
   tracker's MCP rules, so a Jira user stops collecting ~35 inert
