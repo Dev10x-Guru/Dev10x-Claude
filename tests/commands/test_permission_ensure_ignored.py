@@ -151,7 +151,7 @@ class TestReporting:
 
         assert str(repo) not in result.output.split("Optional")[0]
 
-    def test_a_non_repository_root_is_skipped(
+    def test_a_root_with_no_repo_anywhere_reports_zero_candidates(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         plain = tmp_path / "not-a-repo"
@@ -161,7 +161,7 @@ class TestReporting:
         result = CliRunner().invoke(ensure_ignored_cmd, [])
 
         assert result.exit_code == 0
-        assert "not a git repository" in result.output
+        assert "0 candidates found" in result.output
 
     def test_no_roots_is_reported_not_crashed(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _with_roots(monkeypatch, [])
@@ -170,3 +170,59 @@ class TestReporting:
 
         assert result.exit_code == 0
         assert "No roots configured" in result.output
+
+
+class TestContainerRoots:
+    """A configured root may be a container of repos, not a repo (GH-1330)."""
+
+    def test_nested_repos_under_a_container_root_are_all_reached(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        container = tmp_path / "container"
+        container.mkdir()
+        nested = {}
+        for name in ("repoA", "repoB"):
+            repo_dir = container / name
+            repo_dir.mkdir()
+            subprocess.run(
+                ["git", "init", "-q", "-b", "main", str(repo_dir)],
+                check=True,
+                timeout=_TIMEOUT_SECONDS,
+            )
+            nested[name] = repo_dir
+        _with_roots(monkeypatch, [str(container)])
+
+        result = CliRunner().invoke(ensure_ignored_cmd, [])
+
+        assert result.exit_code == 0
+        assert "2 of 2 repo(s) gained the rule." in result.output
+        for repo_dir in nested.values():
+            assert ".claude/Dev10x/" in _exclude(repo_dir)
+
+    def test_a_root_that_is_itself_a_repo_still_works(
+        self, repo: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _with_roots(monkeypatch, [str(repo)])
+
+        result = CliRunner().invoke(ensure_ignored_cmd, [])
+
+        assert result.exit_code == 0
+        assert "1 of 1 repo(s) gained the rule." in result.output
+        assert ".claude/Dev10x/" in _exclude(repo)
+
+    def test_zero_candidates_reads_differently_than_zero_needing_changes(
+        self, repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        empty_container = tmp_path / "empty-container"
+        empty_container.mkdir()
+        _with_roots(monkeypatch, [str(empty_container)])
+        zero_candidates = CliRunner().invoke(ensure_ignored_cmd, [])
+
+        _with_roots(monkeypatch, [str(repo)])
+        CliRunner().invoke(ensure_ignored_cmd, [])  # first run gains the rule
+        zero_needing_changes = CliRunner().invoke(ensure_ignored_cmd, [])  # second is a no-op
+
+        assert "0 candidates found" in zero_candidates.output
+        assert "0 of" not in zero_candidates.output
+        assert "0 of 1 repo(s) gained the rule." in zero_needing_changes.output
+        assert "0 candidates found" not in zero_needing_changes.output
