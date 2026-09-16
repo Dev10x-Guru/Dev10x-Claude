@@ -158,8 +158,6 @@ UNTRIAGED_BACKLOG: frozenset[str] = frozenset(
         "Bash(gh run download:*)",
         "Bash(gh run rerun:*)",
         # dev10x-scaffolding
-        "Read(/tmp/claude/git/**)",
-        "Edit(/tmp/claude/git/**)",
         "Read(~/.claude/plugins/marketplaces/Dev10x-Guru/**)",
         "Read(~/.claude/plugins/cache/Dev10x-Guru/**)",
         "Bash(${CLAUDE_PLUGIN_ROOT}/bin/**)",

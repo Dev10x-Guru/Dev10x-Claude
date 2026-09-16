@@ -224,15 +224,13 @@ groups:
       `${CLAUDE_PLUGIN_ROOT}` so they survive upgrades.
     rules:
       - Skill(Dev10x:*)
-      - Read(/tmp/claude/git/**)
-      # Edit(path) covers all file-editing tools (Write, Edit,
-      # NotebookEdit); Write(path) rules are no longer matched by
-      # Claude Code's file-permission checks (GH-862).
-      - Edit(/tmp/claude/git/**)
       # A path rule's leading `//` anchors at the filesystem root; a
       # single `/` anchors at the settings source instead (GH-1325).
-      # The two `/tmp/claude/git` rules above still need that fix and
-      # the triage their UNTRIAGED_BACKLOG entries are waiting on.
+      # Edit(path) covers all file-editing tools (Write, Edit,
+      # NotebookEdit); Write(path) rules are no longer matched by
+      # Claude Code's file-permission checks (GH-862). mktmp writes
+      # under /tmp/Dev10x/<namespace>/ — the legacy /tmp/claude
+      # spelling is retired (GH-949, GH-1395).
       - Read(//tmp/Dev10x/**)
       - Edit(//tmp/Dev10x/**)
       # GH-127 #4: skills load their own instructions.md and references
