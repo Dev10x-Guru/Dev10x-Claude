@@ -82,9 +82,11 @@ def playbook_diff(*, skill_key: str | None, plugin_root: str | None) -> None:
         return
 
     findings_count = 0
+    skipped: list[str] = []
     for override in overrides:
         default_path = plugin_default_path(skill_key=override.skill_key, plugin_root=root)
         if not default_path.is_file():
+            skipped.append(override.skill_key)
             click.echo(
                 f"\n## Skipping `{override.skill_key}` ({override.scope})\n"
                 f"  No plugin default at {default_path}\n"
@@ -103,7 +105,21 @@ def playbook_diff(*, skill_key: str | None, plugin_root: str | None) -> None:
         if diff.has_findings:
             findings_count += 1
 
-    if findings_count == 0:
-        click.echo("All user overrides are up to date with plugin defaults.")
+    checked_count = len(overrides) - len(skipped)
+    skipped_note = (
+        f" ({len(skipped)} skipped — no plugin default found: {', '.join(skipped)})"
+        if skipped
+        else ""
+    )
+    if checked_count == 0:
+        # Every override was skipped — a bare "up to date" here would report
+        # success for overrides that were never actually checked (GH-1329).
+        click.echo(f"{len(skipped)} override(s) skipped — no plugin default found; unchecked.")
+    elif findings_count == 0:
+        click.echo(
+            f"All checked user overrides are up to date with plugin defaults.{skipped_note}"
+        )
     else:
-        click.echo(f"{findings_count} override(s) have upstream changes worth reviewing.")
+        click.echo(
+            f"{findings_count} override(s) have upstream changes worth reviewing.{skipped_note}"
+        )
