@@ -8,7 +8,10 @@ and strips rules that are:
   - Shell control flow fragments (do, done, fi, for, while, etc.)
   - Double-slash path typos (Read(//...), Write(//...))
 
-Also flags rules containing leaked secrets (env vars with plaintext values).
+Also flags rules containing leaked secrets: env-var key/value pairs, known
+token prefixes (GitHub, GitLab, AWS), Bearer headers, and URL query-string
+tokens. Findings name the matched rule (with the credential VALUE redacted),
+the matched pattern, and the redacted span — never the raw secret (GH-1312).
 
 WARNING — global-dedup assumption (#47):
   The exact-duplicate removal assumes global ~/.claude/settings.json rules
@@ -95,15 +98,70 @@ HOOK_ENABLED_INNER_PREFIXES: tuple[str, ...] = (
     "gh pr checks",
 )
 
-SECRET_INDICATORS = [
-    re.compile(r"LINEAR_KEY=lin_api_"),
-    re.compile(r"DATABASE_URL=postgres"),
-    re.compile(r"SECRET_KEY=\S"),
-    re.compile(r"API_KEY=\S"),
-    re.compile(r"TOKEN=\S{10,}"),
-    re.compile(r"PASSWORD=\S"),
-    re.compile(r"PRIVATE_KEY=\S"),
-]
+
+@dataclass(frozen=True)
+class SecretPattern:
+    """A named credential-shape detector (GH-1312).
+
+    ``pattern`` MUST define a ``secret`` capture group spanning only the
+    credential *value* — the part redacted before any user-facing output —
+    so a matched rule such as ``API_KEY=...`` keeps the ``API_KEY=`` prefix
+    visible while the value itself never reaches a message, log, or commit.
+    """
+
+    rule_id: str
+    pattern: re.Pattern[str]
+
+
+@dataclass(frozen=True)
+class LeakedSecretFinding:
+    """One matched credential shape, safe to print (GH-1312).
+
+    ``redacted_rule`` is the original rule string with only the matched
+    ``secret`` span replaced by a placeholder — never the raw value.
+    ``span`` names the character offsets of the redacted value within the
+    ORIGINAL rule string, so a maintainer can locate the finding in the
+    settings file without the payload ever being echoed.
+    """
+
+    rule_id: str
+    redacted_rule: str
+    span: tuple[int, int]
+
+
+# Credential *shapes*, not bare word matches — a filename like
+# `html-token-validator.py` or an env var name with no value attached must
+# never match (GH-1312). Each pattern's `secret` group is the minimal span
+# that identifies the actual credential value so redaction can mask only
+# that portion, leaving the rest of the rule (and any `<KEY>=` prefix)
+# visible for triage.
+SECRET_PATTERNS: tuple[SecretPattern, ...] = (
+    SecretPattern("linear-api-key", re.compile(r"LINEAR_KEY=(?P<secret>lin_api_\S+)")),
+    SecretPattern("database-url", re.compile(r"DATABASE_URL=(?P<secret>postgres\S+)")),
+    SecretPattern("secret-key-env", re.compile(r"SECRET_KEY=(?P<secret>\S+)")),
+    SecretPattern("api-key-env", re.compile(r"API_KEY=(?P<secret>\S+)")),
+    SecretPattern("token-env", re.compile(r"TOKEN=(?P<secret>\S{10,})")),
+    SecretPattern("password-env", re.compile(r"PASSWORD=(?P<secret>\S+)")),
+    SecretPattern("private-key-env", re.compile(r"PRIVATE_KEY=(?P<secret>\S+)")),
+    # GitHub token prefixes: ghp_ (PAT), gho_ (OAuth), ghu_ (user-to-server),
+    # ghs_ (server-to-server), ghr_ (refresh).
+    SecretPattern("github-token", re.compile(r"(?P<secret>gh[oprsu]_[A-Za-z0-9]{20,})")),
+    SecretPattern("gitlab-token", re.compile(r"(?P<secret>glpat-[A-Za-z0-9_-]{20,})")),
+    SecretPattern("aws-access-key-id", re.compile(r"(?P<secret>AKIA[0-9A-Z]{16})")),
+    SecretPattern(
+        "bearer-header",
+        re.compile(r"Bearer\s+(?P<secret>[A-Za-z0-9\-._~+/]{16,}=*)"),
+    ),
+    # A capability token embedded in a URL query string, e.g. an invoice
+    # link of the form `...?token=<uuid>` (GH-1312 repro) — the false
+    # negative that let a real credential slip past `generalize` unflagged.
+    SecretPattern(
+        "url-token-param",
+        re.compile(r"[?&]token=(?P<secret>[A-Za-z0-9\-_]{8,})", re.IGNORECASE),
+    ),
+)
+
+_REDACTED = "<redacted>"
 
 
 _WILDCARD_BYPASS_TOOLS: dict[str, frozenset[str]] = {
@@ -122,7 +180,7 @@ class RemovalResult:
     env_noise: list[str] = field(default_factory=list)
     shell_fragments: list[str] = field(default_factory=list)
     double_slash: list[str] = field(default_factory=list)
-    leaked_secrets: list[str] = field(default_factory=list)
+    leaked_secrets: list[LeakedSecretFinding] = field(default_factory=list)
     hook_enabled: list[str] = field(default_factory=list)
     wildcard_bypasses: list[str] = field(default_factory=list)
     allow_deny_contradictions: list[tuple[str, str]] = field(default_factory=list)
@@ -224,8 +282,28 @@ def is_hook_enabled(rule: str) -> bool:
     )
 
 
+def find_leaked_secret(rule: str) -> LeakedSecretFinding | None:
+    """Return the first matched credential shape in ``rule``, or ``None``.
+
+    The returned finding carries a redacted rule string — the secret VALUE
+    itself is never retained or returned (GH-1312).
+    """
+    for secret_pattern in SECRET_PATTERNS:
+        match = secret_pattern.pattern.search(rule)
+        if match is None:
+            continue
+        start, end = match.span("secret")
+        redacted_rule = f"{rule[:start]}{_REDACTED}{rule[end:]}"
+        return LeakedSecretFinding(
+            rule_id=secret_pattern.rule_id,
+            redacted_rule=redacted_rule,
+            span=(start, end),
+        )
+    return None
+
+
 def has_leaked_secret(rule: str) -> bool:
-    return any(p.search(rule) for p in SECRET_INDICATORS)
+    return find_leaked_secret(rule) is not None
 
 
 def is_wildcard_bypass(rule: str) -> bool:
@@ -290,8 +368,9 @@ def classify_rules(
         )
 
     for rule in project_rules:
-        if has_leaked_secret(rule):
-            result.leaked_secrets.append(rule)
+        finding = find_leaked_secret(rule)
+        if finding is not None:
+            result.leaked_secrets.append(finding)
 
         if is_wildcard_bypass(rule):
             result.wildcard_bypasses.append(rule)
@@ -404,8 +483,11 @@ def _format_messages(
 
     if result.leaked_secrets:
         messages.append(f"  ⚠ LEAKED SECRETS ({len(result.leaked_secrets)}):")
-        for rule in result.leaked_secrets:
-            messages.append(f"    ⚠ {rule}")
+        for finding in result.leaked_secrets:
+            start, end = finding.span
+            messages.append(
+                f"    ⚠ [{finding.rule_id}] {finding.redacted_rule} (redacted chars {start}-{end})"
+            )
 
     if result.wildcard_bypasses:
         messages.append(f"  ⚠ WILDCARD BYPASSES ({len(result.wildcard_bypasses)}):")

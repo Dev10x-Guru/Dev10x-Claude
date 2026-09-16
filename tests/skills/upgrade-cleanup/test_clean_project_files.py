@@ -91,6 +91,12 @@ class TestHasLeakedSecret:
             "Bash(DATABASE_URL=postgres://user:pass@host/db command)",
             "Bash(API_KEY=sk_live_abcdef1234 curl)",
             "Bash(TOKEN=eyJhbGciOiJIUzI1NiJ9 command)",
+            # GH-1312: credential shapes beyond the KEY=value env convention.
+            "Bash(curl -H 'Authorization: ghp_ABCDEFGHIJ0123456789KLMN' api)",
+            "Bash(curl -H 'PRIVATE-TOKEN: glpat-ABCDEFGHIJ0123456789' api)",
+            "Bash(aws configure set aws_access_key_id AKIAABCDEFGHIJ012345)",
+            "Bash(curl -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6' api)",
+            "Bash(curl https://x.example/invoices/1?token=synthetic-fake-0000abc:*)",
         ],
     )
     def test_detects_leaked_secrets(self, rule: str) -> None:
@@ -102,10 +108,54 @@ class TestHasLeakedSecret:
             "Bash(git log:*)",
             "Bash(GIT_SEQUENCE_EDITOR=: git rebase)",
             "mcp__plugin_Dev10x_cli__detect_tracker",
+            # GH-1312: bare word matches on "token"/"secret" in an ordinary
+            # identifier must stay silent — these are the exact false
+            # positives reported in the issue.
+            "Bash(~/.claude/skills/tt-debug-square-terminal/scripts/decrypt-square-token.sh:*)",
+            "Bash(~/.claude/skills/design-system/scripts/html-token-validator.py:*)",
+            "Bash(~/.claude/skills/design-system/scripts/slide-token-validator.py:*)",
+            "Bash(curl -s http://localhost:8765/tokens/tokens.css:*)",
+            "Bash(gog auth tokens export:*)",
+            "Bash(PLAYWRIGHT_SECRETS_FILE=/work/tt/tt-e2e/settings.secrets.env pnpm test:*)",
+            "Bash(echo this mentions a secret token by name only:*)",
         ],
     )
     def test_ignores_non_secrets(self, rule: str) -> None:
         assert clean_mod.has_leaked_secret(rule) is False
+
+
+class TestFindLeakedSecret:
+    def test_redacts_only_the_value_span(self) -> None:
+        rule = "Bash(API_KEY=synthetic-fake-1234567890 pnpm test:*)"
+
+        finding = clean_mod.find_leaked_secret(rule)
+
+        assert finding is not None
+        assert finding.rule_id == "api-key-env"
+        assert "synthetic-fake-1234567890" not in finding.redacted_rule
+        assert finding.redacted_rule == "Bash(API_KEY=<redacted> pnpm test:*)"
+
+    def test_span_locates_the_redacted_value_in_the_original_rule(self) -> None:
+        rule = "Bash(API_KEY=synthetic-fake-1234567890 pnpm test:*)"
+
+        finding = clean_mod.find_leaked_secret(rule)
+
+        assert finding is not None
+        start, end = finding.span
+        assert rule[start:end] == "synthetic-fake-1234567890"
+
+    def test_url_token_param_is_redacted(self) -> None:
+        rule = "Bash(curl https://x.example/invoices/1?token=synthetic-fake-0000abc:*)"
+
+        finding = clean_mod.find_leaked_secret(rule)
+
+        assert finding is not None
+        assert finding.rule_id == "url-token-param"
+        assert "synthetic-fake-0000abc" not in finding.redacted_rule
+        assert "?token=<redacted>" in finding.redacted_rule
+
+    def test_returns_none_for_a_clean_rule(self) -> None:
+        assert clean_mod.find_leaked_secret("Bash(git log:*)") is None
 
 
 class TestIsHookEnabled:
@@ -708,6 +758,21 @@ class TestVerboseFormatting:
         output = "\n".join(messages)
         assert "1 exact duplicates" in output
         assert "Bash(git log:*)" not in output
+
+    def test_leaked_secret_message_names_rule_id_path_and_span(self, format_messages) -> None:
+        finding = clean_mod.LeakedSecretFinding(
+            rule_id="api-key-env",
+            redacted_rule="Bash(API_KEY=<redacted> pnpm test:*)",
+            span=(13, 38),
+        )
+        result = clean_mod.RemovalResult(leaked_secrets=[finding])
+
+        output = "\n".join(format_messages(result))
+
+        assert "[api-key-env]" in output
+        assert "Bash(API_KEY=<redacted> pnpm test:*)" in output
+        assert "redacted chars 13-38" in output
+        assert "<redacted>" in output
 
 
 class TestExactMatchNoSubsumptionContract:
