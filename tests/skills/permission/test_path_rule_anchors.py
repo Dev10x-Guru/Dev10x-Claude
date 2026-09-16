@@ -1,6 +1,6 @@
 """Path-rule anchor semantics and the GH-1325 compaction proof.
 
-Three jobs, in order of what they protect:
+Four jobs, in order of what they protect:
 
 - unit coverage of the anchor/depth reading itself;
 - an equivalence proof that ``Read|Edit(//tmp/Dev10x/**)`` reaches every
@@ -11,7 +11,10 @@ Three jobs, in order of what they protect:
   passing 3/3 while its own discovery was blind to four fifths of the
   surface, so each catalog's rule set is measured twice — by scanning
   the raw text and by walking the parsed document — and the two must
-  agree.
+  agree;
+- the retirement of ``/tmp/claude`` (GH-1395), which was dead twice
+  over: misanchored, and pointing at a tree superseded by
+  ``/tmp/Dev10x`` in GH-949.
 """
 
 from __future__ import annotations
@@ -213,18 +216,62 @@ class TestCompactionEquivalence:
 
 
 class TestAnchorRatchet:
+    """The ratchet is scoped to ``/tmp/``, not to one namespace (GH-1395).
+
+    A settings-source anchor is only *wrong* where the author plainly
+    meant a fixed filesystem location, and a temp path is that case: no
+    project keeps a `tmp/` tree it wants a rule to resolve against, so
+    `/tmp/...` with one slash is dead by construction whatever follows
+    it. `/tmp/Dev10x` was the first namespace to prove it and
+    `/tmp/claude` the second; naming namespaces one at a time leaves the
+    third undefended. Rules anchored at the settings source on purpose —
+    a project-relative `Read(/src/**)` — stay outside the scope.
+    """
+
     @pytest.mark.parametrize("source", [PROJECTS_YAML, BASELINE_YAML])
-    def test_no_dev10x_temp_rule_anchors_at_the_settings_source(self, source: Path) -> None:
+    def test_no_temp_rule_anchors_at_the_settings_source(self, source: Path) -> None:
         misanchored = [
             rule.pattern
             for rule in path_rules(rules=_rules_in_parsed_yaml(source=source))
-            if rule.anchor is Anchor.SETTINGS_SOURCE and rule.pattern.startswith("/tmp/Dev10x")
+            if rule.anchor is Anchor.SETTINGS_SOURCE and rule.pattern.startswith("/tmp/")
         ]
         assert not misanchored, (
-            f"{source.name} anchors a /tmp/Dev10x path rule with a single "
-            "leading slash, which resolves against the settings source "
-            "rather than the filesystem root — the rule grants nothing. Use "
-            "`//tmp/Dev10x/...` (GH-1325):\n" + "\n".join(sorted(misanchored))
+            f"{source.name} anchors a /tmp path rule with a single leading "
+            "slash, which resolves against the settings source rather than "
+            "the filesystem root — the rule grants nothing. Use "
+            "`//tmp/...` (GH-1325, GH-1395):\n" + "\n".join(sorted(misanchored))
+        )
+
+
+class TestRetiredTempNamespace:
+    """`/tmp/claude` is superseded by `/tmp/Dev10x`, not re-spelled.
+
+    `bin/mktmp.sh` writes `/tmp/Dev10x/<namespace>/`, and GH-949 moved
+    the whole namespace; the catalog's own `deprecations:` block already
+    sweeps the legacy `Bash(/tmp/claude/bin/mktmp.sh:*)` spelling. So
+    re-anchoring the two path rules to `//tmp/claude/git/**` would have
+    granted access to a directory nothing writes.
+    """
+
+    @pytest.mark.parametrize("source", [PROJECTS_YAML, BASELINE_YAML])
+    def test_no_catalog_declares_a_tmp_claude_path_rule(self, source: Path) -> None:
+        revived = [
+            rule.pattern
+            for rule in path_rules(rules=_rules_in_parsed_yaml(source=source))
+            if rule.pattern.lstrip("/").startswith("tmp/claude")
+        ]
+        assert not revived, (
+            f"{source.name} declares a /tmp/claude path rule again. mktmp "
+            "writes under /tmp/Dev10x/<namespace>/, so such a rule grants "
+            "reach into a tree nothing writes (GH-1395):\n" + "\n".join(sorted(revived))
+        )
+
+    def test_the_successor_reaches_the_git_namespace(self) -> None:
+        rules = path_rules(rules=REPLACEMENT_RULES)
+        assert all(
+            covered_by_any(rules=rules, tool=tool, absolute_path=path)
+            for tool in ("Read", "Edit")
+            for path in ("/tmp/Dev10x/git/msg.txt", "/tmp/Dev10x/git/groom/todo.txt")
         )
 
 
