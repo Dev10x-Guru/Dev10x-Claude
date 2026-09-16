@@ -21,6 +21,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      issues: write
       id-token: write
 
     steps:
@@ -159,7 +160,17 @@ jobs:
             ${{ github.workspace }}/.claude-output/lessons_learned_report.md
 
             Your task: evaluate the lessons for genuine value, implement only
-            high-quality improvements, then open a draft PR. Do NOT merge.
+            high-quality improvements, then open a PR ready for review
+            (do NOT pass --draft) and request review from a human. Do NOT
+            merge.
+
+            A draft PR here is invisible by design: claude-code-review.yml
+            and claude-pr-hygiene.yml both gate their jobs on
+            `!github.event.pull_request.draft`, so a draft never gets CI or
+            a bot review, and this repo's own convention treats drafts as
+            "not yet ready to look at." Opening ready-for-review plus an
+            explicit reviewer request is what gets this PR in front of a
+            human instead of expiring unseen for weeks (GH-1351).
 
             ## Hard Constraints (NON-NEGOTIABLE)
 
@@ -227,6 +238,13 @@ jobs:
 
             3. Apply the Value Filter to each item. Log which items were
                skipped and why (include in PR body under "Filtered items").
+               For an item that is a genuine improvement but falls outside
+               the four allowed file globs, or otherwise cannot be applied
+               in this run, file it as a follow-up issue with
+               `gh issue create --title "..." --label rules-maintenance`
+               instead of leaving it only as PR prose — prose in a PR that
+               may sit unreviewed does not survive; a filed issue does.
+               Link the issue in "Filtered items" alongside the skip reason.
 
             4. If fewer than 2 items survive, write "none" to
                `${{ github.workspace }}/.claude-output/docs_pr_url.txt`
@@ -249,9 +267,12 @@ jobs:
                git add CLAUDE.md .claude/ references/
                git commit -m "🤖 <outcome-focused title, max 72 chars>"
 
-            9. Push and open a DRAFT PR targeting develop:
+            9. Push and open a PR targeting develop, ready for review
+               (do NOT pass --draft — a draft is invisible to
+               claude-code-review.yml, claude-pr-hygiene.yml, and CI in
+               this repo, GH-1351):
                git push origin "claude/lessons-pr-$PR_NUMBER"
-               gh pr create --draft \
+               gh pr create \
                  --title "🤖 <outcome-focused title>" \
                  --label "rules-maintenance" \
                  --body "<JTBD Job Story>
@@ -260,15 +281,24 @@ jobs:
                <bullet list of surviving items>
 
                ## Filtered items (skipped)
-               <bullet list with skip reason for each>
+               <bullet list with skip reason for each, including any
+               filed follow-up issue links>
 
                Based on: ${{ github.event.pull_request.html_url }}" \
                  --base develop
 
-            10. Write the PR URL to
+            10. Request review from a human so this PR reaches someone
+                instead of expiring unseen. Best-effort — do not let a
+                failure here (e.g. the account cannot be requested) stop
+                the run, since the PR itself must still be delivered:
+                gh pr edit "claude/lessons-pr-$PR_NUMBER" \
+                  --add-reviewer "${{ steps.pr-context.outputs.pr_author }}" \
+                  || echo "reviewer request failed — PR still stands"
+
+            11. Write the PR URL to
                 `${{ github.workspace }}/.claude-output/docs_pr_url.txt`
 
-          claude_args: '--model haiku --allowed-tools "Read,Write,Edit,Glob,Grep,Bash(git config:*),Bash(git checkout:*),Bash(git pull:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(gh pr create:*)"'
+          claude_args: '--model haiku --allowed-tools "Read,Write,Edit,Glob,Grep,Bash(git config:*),Bash(git checkout:*),Bash(git pull:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh issue create:*)"'
 
       - name: Read documentation PR URL
         if: always() && steps.skip-check.outputs.skip != 'true'
