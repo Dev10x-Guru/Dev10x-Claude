@@ -22,6 +22,7 @@ entry — one source of truth beats two a tool has to reconcile.
 from __future__ import annotations
 
 import json
+import re
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -110,4 +111,42 @@ def test_the_description_is_not_duplicated_across_manifests() -> None:
         "marketplace.json's plugins[] entry should not carry its own "
         "'description' — plugin.json owns it, and the copy here went stale "
         "because no release step updated it"
+    )
+
+
+def _shipped_skill_count() -> int:
+    return len(list((_REPO_ROOT / "skills").glob("*/SKILL.md")))
+
+
+def test_the_description_counts_the_skills_actually_shipped() -> None:
+    """The one claim in that string a release does not maintain (GH-1356).
+
+    ``.bumpversion.toml`` rewrites the ``v{version} —`` prefix on every
+    release, so the version half of the description looks after itself.
+    The skill count sits in the same sentence with no such entry and no
+    other step recomputing it, so it only moves when someone hand-edits
+    it — and it had drifted to 69 against 91 shipped skills.
+
+    That asymmetry is worse than uniform staleness: a correct version
+    beside a wrong count invites trusting both. The GH-1310 field test
+    did exactly that, certifying "the version reads v0.101.1 and the
+    skill count reads 69, both current" against a number 22 out.
+
+    The expected value is derived rather than pinned, so adding a skill
+    fails here with the new number in the message and the fix is a
+    one-character edit instead of a rediscovery.
+    """
+    description = _load_json(_PLUGIN_MANIFEST)["description"]
+    match = re.search(r"(\d+) skills", description)
+    assert match, (
+        "plugin.json's description no longer states a skill count in the "
+        "form '<N> skills' — if the wording changed deliberately, update "
+        "this guard rather than deleting it"
+    )
+
+    expected = _shipped_skill_count()
+    assert int(match.group(1)) == expected, (
+        f"plugin.json's description says {match.group(1)} skills but "
+        f"skills/*/SKILL.md counts {expected} — the Plugins panel renders "
+        "this string verbatim, so the count a supervisor reads is wrong"
     )
