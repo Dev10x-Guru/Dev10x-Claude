@@ -192,7 +192,7 @@ than overriding it once.
 
 ## Prerequisite
 
-Applying anything is blocked on
+Applying anything was blocked on
 [GH-1298](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1298),
 which is a code change and therefore out of this ticket's declared
 scope ("Files Changed — None in-repo"):
@@ -203,11 +203,19 @@ scope ("Files Changed — None in-repo"):
    each dependency succeeded or was skipped.
 3. Then require that single context.
 
-The shape, once step 2 exists:
+**Steps 1 and 2 have landed.** `.github/workflows/ci-gate.yml` folds
+the three legs into one workflow — `needs:` reaches only jobs in the
+same file — under the names `hook-tests`, `server-tests` and
+`floors`, each gated by a job-level `if:` against a `changes`
+classifier rather than an event-level `paths:` filter. The aggregator
+is `ci-gate`. Step 3 is a repository-configuration change and remains
+the maintainer's to make; until it does, this ADR stays `Proposed`.
+
+The shape:
 
 ```json
 {
-  "required_status_checks": { "strict": false, "contexts": ["<aggregator>"] },
+  "required_status_checks": { "strict": false, "contexts": ["ci-gate"] },
   "enforce_admins": false,
   "required_pull_request_reviews": null,
   "restrictions": null
@@ -218,9 +226,13 @@ applied with `gh api -X PUT
 repos/Dev10x-Guru/Dev10x-Claude/branches/develop/protection --input
 <payload.json>`, reverted symmetrically with `-X DELETE`.
 
-**Do not apply a payload naming `test` or `floors` directly.** That
-is the deadlock described above, and it would strand every docs-only
-PR with no way out except deleting the rule.
+**Do not apply a payload naming `test` or `floors` directly.** `test`
+no longer exists as a context at all. `floors` does, and since
+GH-1298 it reports `skipped` rather than nothing on a docs-only PR —
+so requiring it would no longer deadlock, it would pass *vacuously*,
+which is the failure mode that makes a merge gate lie. Require
+`ci-gate`, which refuses to go green unless at least one dependency
+actually ran.
 
 ## Verifying it
 
