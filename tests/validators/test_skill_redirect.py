@@ -3,19 +3,23 @@
 from __future__ import annotations
 
 import textwrap
+import warnings
 from pathlib import Path
 
 import pytest
 import yaml
 
-from dev10x.domain.rules.validation_rule import Compensation
+from dev10x.config.loader import load_config
+from dev10x.domain.rules.validation_rule import Compensation, MatchingRule
 from dev10x.validators.skill_redirect import (
-    _QUICK_TOKENS,
     _REGEX_METACHARS_RE,
     _YAML_PATH,
     SkillRedirectValidator,
     _format_alternatives_msg,
     _load_config,
+    format_unreachable_report,
+    names_quick_token,
+    unreachable_patterns,
 )
 from tests.fakers import BashHookInputFaker
 from tests.validators.loop_shapes import BARE_POLL_LOOP, UNTIL_POLL_LOOP
@@ -1534,6 +1538,13 @@ def _blocking_rule_literal_patterns() -> list[tuple[str, str]]:
     ]
 
 
+def _advisory_bash_rules() -> list[MatchingRule]:
+    """The rules ``RuleEngine.from_config`` drops, which ``_load_config``
+    therefore cannot return — read the full YAML instead."""
+    full = load_config(yaml_path=_YAML_PATH)
+    return [r for r in full.rules if r.matcher == "Bash" and not r.hook_block]
+
+
 class TestEveryBlockingRuleSurvivesTheFastPath:
     """GH-1337: a rule the fast path drops is registered but inert.
 
@@ -1571,12 +1582,63 @@ class TestEveryBlockingRuleSurvivesTheFastPath:
         ("rule_name", "pattern"), _blocking_rule_literal_patterns(), ids=lambda v: str(v)
     )
     def test_literal_pattern_contains_a_quick_token(self, rule_name: str, pattern: str) -> None:
-        lowered = pattern.lower()
-        assert any(token in lowered for token in _QUICK_TOKENS), (
+        assert names_quick_token(pattern=pattern), (
             f"Rule {rule_name!r} pattern {pattern!r} names no _QUICK_TOKENS entry, "
             "so should_run() short-circuits before it is ever evaluated. "
             "Add a gating token to _QUICK_TOKENS in skill_redirect.py."
         )
+
+
+class TestReachabilityIsDerived:
+    """GH-1398: the map states intentions; only the fast path states behaviour.
+
+    ``command-skill-map.yaml`` is read as authoritative — by
+    ``Dev10x:diag-friction``, by ``.claude/rules/mcp-tools.md``'s routed-CLI
+    table, and by humans, GH-1211 included. Nothing in it was coupled to
+    whether the hook could actually see a rule, so a false claim survived
+    in three documents at once.
+
+    These pin the derivation both sides share, rather than a second
+    hand-maintained field free to drift from what it attests.
+    """
+
+    def test_literal_pattern_naming_a_token_is_reachable(self) -> None:
+        assert names_quick_token(pattern="gh pr view") is True
+
+    def test_literal_pattern_naming_no_token_is_not(self) -> None:
+        assert names_quick_token(pattern="kubectl get pods") is False
+
+    def test_token_match_ignores_pattern_case(self) -> None:
+        assert names_quick_token(pattern="GH PR READY") is True
+
+    def test_unreachable_patterns_names_the_dropped_pair(self) -> None:
+        rules = [MatchingRule(name="kubectl", patterns=["kubectl get", "gh pr view"])]
+        assert unreachable_patterns(rules=rules) == [("kubectl", "kubectl get")]
+
+    def test_shape_matchers_are_excluded(self) -> None:
+        """A shape matcher matches a command that need not contain the
+        pattern text, so its gating token is a separate deliberate choice."""
+        rules = [MatchingRule(name="loop", patterns=[r"\bwhile\b.*\bdo\b"])]
+        assert unreachable_patterns(rules=rules) == []
+
+    def test_report_names_every_drifted_rule(self) -> None:
+        report = format_unreachable_report(
+            pairs=[("kubectl", "kubectl get"), ("bash-n", "bash -n")]
+        )
+        assert "2 advisory rule pattern(s)" in report
+        assert "kubectl" in report
+        assert "bash-n" in report
+        assert "_QUICK_TOKENS" in report
+
+
+def test_advisory_rules_that_would_ship_inert_are_reported() -> None:
+    """GH-1398: report, never assert — an advisory rule is under no
+    obligation to be hook-reachable, so failing here would pin something
+    untrue. What must not happen is the drift going unnamed until someone
+    flips ``hook_block`` and ships a rule that can never fire."""
+    pairs = unreachable_patterns(rules=_advisory_bash_rules())
+    if pairs:
+        warnings.warn(format_unreachable_report(pairs=pairs), UserWarning, stacklevel=1)
 
 
 # Make _YAML_PATH accessible for tests above

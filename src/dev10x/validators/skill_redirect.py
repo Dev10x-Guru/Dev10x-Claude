@@ -18,6 +18,7 @@ overrides:
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
@@ -390,6 +391,55 @@ _WRONG_TEMP_PATH_RE = re.compile(r"-F\s+/tmp/Dev10x/(?!git/)\S+/\S+\.\S+")
 # A pattern carrying any of these is a shape matcher, not a command-name
 # prefix, so it is unfit to name in a block message (GH-1212).
 _REGEX_METACHARS_RE = re.compile(r"[(?*+\[\]{}|^$]|\\[bswdBSWD]")
+
+
+def names_quick_token(*, pattern: str) -> bool:
+    """Whether a literal pattern survives :meth:`should_run`'s fast path.
+
+    A pattern naming no :data:`_QUICK_TOKENS` entry is dropped before any
+    rule regex is applied, so a rule resting on it can never fire however
+    well it matches (GH-1337).
+    """
+    lowered = pattern.lower()
+    return any(token in lowered for token in _QUICK_TOKENS)
+
+
+def unreachable_patterns(*, rules: Iterable[MatchingRule]) -> list[tuple[str, str]]:
+    """The ``(rule name, pattern)`` pairs the fast path would drop.
+
+    Shape matchers are excluded: such a pattern matches a command that
+    need not contain the pattern text, so the token gating it is a
+    separate deliberate choice already pinned by that rule's own tests.
+
+    Deriving reachability rather than declaring it is the point (GH-1398).
+    A hand-maintained "this rule is enforced" field would be a second
+    claim free to drift from the behaviour it attests — which is the
+    defect, not the fix.
+    """
+    return [
+        (rule.name, pattern)
+        for rule in rules
+        for pattern in rule.patterns
+        if not _REGEX_METACHARS_RE.search(pattern) and not names_quick_token(pattern=pattern)
+    ]
+
+
+def format_unreachable_report(*, pairs: list[tuple[str, str]]) -> str:
+    """Name every drifted rule, so a promotion is not read as one line.
+
+    An advisory rule is under no obligation to be hook-reachable, so this
+    reports rather than asserts. What it buys is that flipping
+    ``hook_block`` to ``true`` stops looking like a one-line change: the
+    rules that would ship inert are enumerated before anyone tries.
+    """
+    listed = "\n".join(f"  - {name}: {pattern!r}" for name, pattern in pairs)
+    return (
+        f"{len(pairs)} advisory rule pattern(s) name no _QUICK_TOKENS entry. "
+        "Each is inert today only because RuleEngine.from_config drops "
+        "advisory rules before the engine sees them. Promoting one to "
+        "hook_block: true without adding a gating token to _QUICK_TOKENS "
+        f"in skill_redirect.py ships a rule that can never fire:\n{listed}"
+    )
 
 
 def _rule_label(*, rule: MatchingRule) -> str:

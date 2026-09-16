@@ -31,7 +31,17 @@
 #                       script paths; leave it unset for rules that
 #                       deliberately match a path as an argument.
 #     except:           list of strings — if any present, rule is skipped
-#     hook_block:       true to enforce via hook (exit 2), false for advisory only
+#     hook_block:       true to enforce via hook (exit 2), false for advisory only.
+#                       Flipping false -> true is NOT a one-line change: the
+#                       hook's fast path (`should_run`) short-circuits on
+#                       `_QUICK_TOKENS` in skill_redirect.py, so a promoted
+#                       rule whose literal pattern names none of those tokens
+#                       ships registered, documented and inert (GH-1337).
+#                       `test_literal_pattern_contains_a_quick_token` fails on
+#                       that; the advisory rules that would hit it today are
+#                       named by `test_advisory_rules_that_would_ship_inert_
+#                       are_reported` (GH-1398). Add the gating token in the
+#                       same change.
 #     compensations[]:  list of remediation options (first = recommended)
 #       type:           use-skill | split-commands | change-cwd | use-alias
 #                       | use-file-flag | use-tool | use-alternative | file-issue
