@@ -20,7 +20,11 @@ from typing import TYPE_CHECKING, ClassVar
 from dev10x.domain import HookAllow, HookInput, HookResult
 from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.allow_rule import AllowRule, AllowRuleLoader
-from dev10x.domain.common.bash_tokens import GIT_C_DIR_RE
+from dev10x.domain.common.bash_tokens import (
+    GIT_C_DIR_RE,
+    strip_line_continuations,
+    strip_quoted_spans,
+)
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
 
@@ -199,6 +203,25 @@ SEMICOLON_CHAIN_RE = re.compile(
 OR_CHAIN_RE = re.compile(
     rf"^\s*(?P<head>{_CHAIN_HEAD_RE}\b.*?)"
     r"\s*\|\|\s*"
+    rf"(?P<tail>{_CHAIN_HEAD_RE}\b.*)$",
+    re.DOTALL,
+)
+
+# GH-1350: two commands on separate lines with no separator at all —
+# `cmd1\ncmd2` — are invisible to SEMICOLON_CHAIN_RE and OR_CHAIN_RE alike;
+# neither looks at a bare newline. Matched against a scan that has already
+# been quote-stripped (`strip_quoted_spans`) and line-continuation-joined
+# (`strip_line_continuations`) in `_check_newline_chain`, so a multi-line
+# quoted payload (`-m "line1\nline2"`, inline JSON/YAML) or a single command
+# wrapped across lines with a trailing `\` never reaches this regex as a
+# bare newline. Same head/tail-gated shape as the two chain regexes above:
+# the tail must itself start with a recognized head token, so prose that
+# merely starts a new line stays silent. `re.DOTALL` lets the lazy head
+# group cross an earlier legitimate newline (e.g. inside an already-joined
+# multi-line command) without truncating.
+NEWLINE_CHAIN_RE = re.compile(
+    rf"^\s*(?P<head>{_CHAIN_HEAD_RE}\b[^\n]*?)"
+    r"\n\s*"
     rf"(?P<tail>{_CHAIN_HEAD_RE}\b.*)$",
     re.DOTALL,
 )
@@ -405,6 +428,16 @@ OR_CHAIN_MSG = (
     "Split into separate Bash tool calls instead.\n"
 )
 
+NEWLINE_CHAIN_MSG = (
+    "⚠️  Bare-newline chain blocked — permission friction risk.\n\n"
+    "Claude Code matches the whole command string against allow rules,\n"
+    "not individual lines. So `Bash({head_cmd}:*)` does NOT cover\n"
+    "`{head_cmd} ...` on one line followed by `{tail_cmd} ...` on the\n"
+    "next, even when both halves are individually allowed and there is\n"
+    "no `;` at all.\n\n"
+    "Split into separate Bash tool calls instead.\n"
+)
+
 SHELL_LOOP_WRAP_MSG = (
     "⚠️  Shell {wrapper} wraps an allowed command (`{inner}`) — permission friction risk.\n\n"
     "Claude Code's allow-rule matcher keys on the leading token of the\n"
@@ -554,6 +587,7 @@ class PrefixFrictionValidator(ValidatorBase):
             self._check_redirect_then_positional,
             self._check_semicolon_chain,
             self._check_or_chain,
+            self._check_newline_chain,
             self._check_shell_loop_wrap,
             self._check_and_chaining,
         ]
@@ -571,6 +605,9 @@ class PrefixFrictionValidator(ValidatorBase):
             or ";" in cmd
             # GH-1316: `||` chains break allow-rule matching the same way
             or "||" in cmd
+            # GH-1350: a bare-newline chain has no separator character
+            # at all — checked against a quote-stripped scan downstream.
+            or "\n" in cmd
             or re.search(r"\d?>(?:&\d|/\S+)", cmd) is not None
             # GH-258: shell loops/xargs/find -exec wrap allowed commands
             or any(re.search(rf"\b{kw}\b", cmd) for kw in _LOOP_KEYWORDS)
@@ -754,6 +791,20 @@ class PrefixFrictionValidator(ValidatorBase):
         tail_cmd = match.group("tail").strip().split()[0]
         return HookResult(
             message=OR_CHAIN_MSG.format(
+                head_cmd=head_cmd,
+                tail_cmd=tail_cmd,
+            )
+        )
+
+    def _check_newline_chain(self, *, inp: HookInput) -> HookResult | None:
+        scan = strip_quoted_spans(command=strip_line_continuations(command=inp.command))
+        match = NEWLINE_CHAIN_RE.match(scan)
+        if not match:
+            return None
+        head_cmd = match.group("head").strip().split()[0]
+        tail_cmd = match.group("tail").strip().split()[0]
+        return HookResult(
+            message=NEWLINE_CHAIN_MSG.format(
                 head_cmd=head_cmd,
                 tail_cmd=tail_cmd,
             )

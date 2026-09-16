@@ -8,6 +8,8 @@ from dev10x.domain.common.bash_tokens import (
     GIT_C_DIR_RE,
     GIT_C_PREFIX_RE,
     split_tokens,
+    strip_line_continuations,
+    strip_quoted_spans,
 )
 
 
@@ -81,3 +83,41 @@ class TestGitCDirRe:
 
     def test_lowercase_config_flag_is_not_a_dir(self) -> None:
         assert GIT_C_DIR_RE.search("git -c core.pager=cat log") is None
+
+
+class TestStripQuotedSpans:
+    def test_strips_single_quoted_span(self) -> None:
+        assert strip_quoted_spans(command="echo 'a;b'") == "echo ''"
+
+    def test_strips_double_quoted_span(self) -> None:
+        assert strip_quoted_spans(command='echo "a;b"') == "echo ''"
+
+    def test_strips_multiline_double_quoted_span(self) -> None:
+        assert strip_quoted_spans(command='echo "line1\nline2"') == "echo ''"
+
+    def test_strips_multiline_single_quoted_span(self) -> None:
+        assert strip_quoted_spans(command="echo 'line1\nline2'") == "echo ''"
+
+    def test_honours_escaped_double_quote(self) -> None:
+        # The escaped `\"` must not end the span early.
+        assert strip_quoted_spans(command='echo "she said \\"hi\\""') == "echo ''"
+
+    def test_leaves_unquoted_text_alone(self) -> None:
+        assert strip_quoted_spans(command="git status; git fetch") == "git status; git fetch"
+
+    def test_strips_both_quote_types_in_one_command(self) -> None:
+        result = strip_quoted_spans(command="grep 'a;b' file | echo \"c;d\"")
+        assert result == "grep '' file | echo ''"
+
+
+class TestStripLineContinuations:
+    def test_joins_backslash_newline(self) -> None:
+        result = strip_line_continuations(command="git commit -m foo \\\n  --author bar")
+        assert "\n" not in result
+        assert result.split() == ["git", "commit", "-m", "foo", "--author", "bar"]
+
+    def test_leaves_bare_newline_alone(self) -> None:
+        assert strip_line_continuations(command="git status\ngit fetch") == "git status\ngit fetch"
+
+    def test_no_continuation_is_a_no_op(self) -> None:
+        assert strip_line_continuations(command="git status") == "git status"

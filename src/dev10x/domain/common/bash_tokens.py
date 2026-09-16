@@ -48,6 +48,42 @@ def split_tokens(*, command: str) -> list[str]:
         return command.split()
 
 
+# Single- and double-quoted spans, quote-aware (GH-1350). A double-quoted
+# span honours backslash-escaped quotes (`\"`) so it doesn't end early on
+# `"she said \"hi\""`; both alternatives are DOTALL so a span embedding a
+# real newline (a multi-line `-m` message, inline JSON/YAML) is captured
+# whole rather than truncated at line end.
+#
+# Deliberately NOT used to feed command-substitution-depth checks: `$(...)`
+# still executes inside double quotes in bash, so a caller counting nested
+# substitutions must scan the ORIGINAL text there — this helper is for
+# statement-separator counting (`;`, bare newline), where a literal
+# separator character embedded in a quoted string is never a real shell
+# boundary.
+QUOTED_SPAN_RE = re.compile(r"'[^']*'|\"(?:[^\"\\]|\\.)*\"", re.DOTALL)
+
+LINE_CONTINUATION_RE = re.compile(r"\\\n")
+
+
+def strip_quoted_spans(*, command: str) -> str:
+    """Replace every single- or double-quoted span with an empty pair.
+
+    See ``QUOTED_SPAN_RE`` for why this is scoped to statement-separator
+    counting rather than command-substitution detection.
+    """
+    return QUOTED_SPAN_RE.sub("''", command)
+
+
+def strip_line_continuations(*, command: str) -> str:
+    """Collapse a backslash-newline continuation into a single space.
+
+    A command wrapped across lines with a trailing ``\\`` is one logical
+    statement, not a bare-newline chain — join the halves before any
+    newline-based separator counting runs.
+    """
+    return LINE_CONTINUATION_RE.sub(" ", command)
+
+
 # ``git -C <dir>`` at the start of a command — a boolean prefix probe.
 # Used by the permission-audit model to classify a poisoned prefix.
 GIT_C_PREFIX_RE = re.compile(r"^git\s+-C\s+")

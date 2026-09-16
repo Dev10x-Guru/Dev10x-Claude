@@ -44,6 +44,10 @@ class TestShouldRun:
         inp = _make_input(command="git fetch || git pull")
         assert validator.should_run(inp=inp) is True
 
+    def test_true_for_bare_newline(self, validator: PrefixFrictionValidator) -> None:
+        inp = _make_input(command="git status\ngit fetch")
+        assert validator.should_run(inp=inp) is True
+
     def test_false_for_simple_command(self, validator: PrefixFrictionValidator) -> None:
         inp = _make_input(command="git status")
         assert validator.should_run(inp=inp) is False
@@ -670,6 +674,58 @@ class TestOrChain:
         result = validator.validate(inp=inp)
         assert result is not None
         assert "separate Bash tool calls" in result.message
+
+
+class TestNewlineChain:
+    """GH-1350: two commands on separate lines with no `;` at all — a gap
+    both SEMICOLON_CHAIN_RE and OR_CHAIN_RE leave open."""
+
+    @pytest.fixture()
+    def validator(self) -> PrefixFrictionValidator:
+        return PrefixFrictionValidator()
+
+    def test_blocks_two_git_commands_on_bare_newlines(
+        self,
+        validator: PrefixFrictionValidator,
+    ) -> None:
+        inp = _make_input(command="git status\ngit fetch")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "separate Bash tool calls" in result.message
+
+    def test_blocks_pwd_then_whoami(self, validator: PrefixFrictionValidator) -> None:
+        inp = _make_input(command="pwd\nwhoami")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "separate Bash tool calls" in result.message
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # Multi-line `-m` commit message — the newline is inside the
+            # quoted string, not a statement separator.
+            'git commit -m "line1\nline2"',
+            # Multi-line JSON payload as a single-quoted argument; `curl`
+            # is not a recognized chain head anyway, but this also proves
+            # the newline never reaches the head/tail match.
+            'curl -d \'{\n  "key": "value"\n}\' https://example.com',
+            # Heredoc-shaped multi-line string in double quotes.
+            'echo "SELECT *\nFROM table\nWHERE x = 1"',
+            # A single command wrapped across lines with a trailing `\`.
+            "git commit -m foo \\\n  --author 'Test <t@example.com>'",
+            # A trailing newline whose "tail" is not a recognized head
+            # token — prose, not a second command.
+            "echo hello\nworld",
+        ],
+    )
+    def test_allows_legitimate_multiline_shapes(
+        self,
+        validator: PrefixFrictionValidator,
+        command: str,
+    ) -> None:
+        inp = _make_input(command=command)
+        result = validator.validate(inp=inp)
+        assert result is None
 
 
 class TestShellLoopWrap:
