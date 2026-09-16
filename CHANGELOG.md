@@ -5,6 +5,126 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.102.0 — A Gate That Reads the Plan, A Catalog That Reaches Settings
+
+Released 2026-09-16
+
+### Features
+
+- **Give issue labels an add/remove selector** — `issue_edit`'s `labels`
+  parameter documented replacement semantics it never had: it only ever calls
+  `gh issue edit --add-label`, so a caller trying to remove a label got a
+  silent no-op rather than an error or a removal. `issue_labels` mirrors
+  `pr_labels` (GH-1008) — one tool with a `list`/`add`/`remove` selector,
+  idempotent both ways so callers can call it unconditionally instead of
+  probing. It is catalogued in `base_permissions` because its raw-CLI
+  equivalent is routed and blocked, which makes the wrapper the only route
+  ([GH-1322](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1322))
+
+### Fixes
+
+- **Stop the Stop gate interrupting work already assigned** — the gate blocked
+  any turn that had not called `AskUserQuestion`, whatever the plan still held,
+  so a session with a pending task was told to invent a question about work it
+  had already been given; blocking was its most common outcome, 106 of 224
+  audit records. Open work is now itself the recommended next action and
+  auto-advances, leaving one blocking state — a task list that exists and holds
+  nothing open. An absent task list is told apart from a depleted one (GH-1055),
+  because models without the task tools never populate `plan.tasks` and
+  conflating the two would have blocked every such session on every turn. The
+  prose-deferral carve-out went too: "shall I push?" is not a question — pushing
+  is a forward, reversible step — and removing it leaves nothing but structure
+  deciding the verdict. That exposed a defect the carve-out had been masking:
+  the wiring handed `task_signal` the `plan` metadata rather than the whole
+  summary, so the signal had always been empty in the field
+  ([GH-1339](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1339))
+- **Spare a dispatched worker a question meant for a human** — a subagent's
+  counterparty is the orchestrator that dispatched it, never a person, and
+  GH-1314's branch to keep the Stop gate away from subagents had never once
+  fired: `SUBAGENT` appeared 0 times in 224 audit records. Every discriminator
+  it keyed on was a guess at a payload shape that does not arrive. A subagent is
+  now detected from the transcript layout captured from live dispatches — a
+  `subagents/` parent *and* an `agent-` prefix, both required so neither a main
+  session under such a directory nor a project named after an agent is misread.
+  The payload-key checks remain as a fallback, and absent evidence still reads
+  as a main session
+  ([GH-1340](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1340))
+- **Close chain-detection gaps in two validators** — DX010 required 3+
+  statements before blocking, so a two-statement `;` chain of two
+  already-allowed commands matched no allow rule and reached a raw permission
+  prompt; the threshold is now one remaining separator. DX007 checked `;` chains
+  but never `||`, which shifts the allow-rule prefix identically — it now has a
+  matching check, deliberately silent on `cmd || true`-style fallbacks
+  ([GH-1316](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1316))
+- **Stop steering crews to a withdrawn `cp` recipe and an uninstalled alias** —
+  the foreman crew template recommended a `cp`-based `.claude/` staging recipe
+  the supervisor withdrew, contradicting the template's own fatal-shapes ban;
+  the git-pager steer named a `git nopager` alias not installed for every user,
+  routing them around their own `--no-pager` deny; and the commit-message steer
+  pointed at the `mktmp.sh` shell fallback instead of the sanctioned MCP tool.
+  A worker now files an issue and defers to the foreman rather than writing
+  under `.claude/` by any route
+  ([GH-1318](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1318))
+- **Enable `playbook diff` to reach work-on's default** — `plugin_default_path()`
+  looked only for a per-skill `references/playbook.yaml`, and work-on has none —
+  its tier-3 default is the shared `skills/playbook/` file — so the diff
+  silently skipped it every run and folded the skip into its "up to date"
+  summary. A skill nobody checked read as clean: the same class of defect as
+  GH-1215. Skipped skills are now tracked and reported distinctly
+  ([GH-1329](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1329))
+- **Stop the skills index costing a permission prompt** — the session-start
+  skills index used a plain `Read` of `~/.claude/SKILLS.md`, and the Read *tool*
+  is gated by `additionalDirectories` rather than by `Read()` allow-rules, so no
+  permission rule could close the gap: the file prompted on every session
+  whatever rule was written. It is now read in-process, with no tool call and no
+  gate, and degrades to an empty string on a missing or unreadable file so one
+  failing feature never skips the rest
+  ([GH-1315](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1315))
+- **Enable pre-GH-1261 catalogs to get IDE rules** — `ide_permissions` and
+  `ide_denies` were classified in neither the merge set nor `USER_OWNED_KEYS`,
+  so a userspace catalog written before GH-1261 never received the shipped IDE
+  permission block and `catalog-diff` warned on every invocation. They now merge
+  per-IDE the way the tracker keys do, and `ide_denies` refuses suppression
+  because GH-1261's shell-equivalent-tool denies are unconditional
+  ([GH-1311](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1311))
+- **Enable `ensure-ignored` to reach repos, not roots** — a configured root can
+  be a container of many repos (`/work/dx`) rather than a repo itself, so
+  passing it straight to `common_git_dir` failed and every real repo underneath
+  was never reached. Each root is now expanded into the git repos beneath it,
+  and "0 candidates found" is reportable separately from "0 need changes" — the
+  two reading as the same success is why the gap went unnoticed
+  ([GH-1330](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1330))
+
+### Internal
+
+- **Prevent a catalogued rule from never reaching settings** — two permission
+  catalogs of comparable size have coexisted since GH-99 with no relationship
+  any code enforced, and only `skills/upgrade-cleanup/projects.yaml` is on the
+  write path. A rule written into `baseline-permissions.yaml`'s `groups:` block
+  reached a settings file only if someone ran `--enable-group` by name. GH-1100
+  E18 and E19 turned out to be two of 189 such rules across 17 groups. They are
+  recorded as a ratchet rather than seeded — the set includes
+  arbitrary-execution rules, raw `psql` the db skill exists to route around, and
+  raw `gh` spellings the skill-redirect hook steers to MCP wrappers, and seeding
+  those unreviewed would widen every user's default permission surface. ADR-0025
+  records why `projects.yaml` is authoritative: it is the one on the write path,
+  and a rule's whole value is that it reaches a settings file
+  ([GH-1313](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1313))
+
+### Docs
+
+- **Give recurring procedures a reference to derive from** — four guides
+  distilled from field-backed work: the safety-floor pattern (deny rules as
+  immutable boundaries) and degraded-input testing from PR #1036
+  ([GH-912](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/912)),
+  diff-scoped CI check patterns
+  ([GH-835](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/835)),
+  operational-protocol patterns for skills that interpret signals — what a
+  signal proves and does not, field evidence, and excuse-vs-reality tables
+  ([GH-933](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/933)), and
+  durability-first guidance on what survives session death (commits, issue
+  comments) versus what must be re-derived (transcripts, inherited claims)
+
 ## 0.101.1 — Plans That Remember, Gates That Can Be Answered
 
 Released 2026-09-16
