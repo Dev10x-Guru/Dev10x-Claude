@@ -26,6 +26,14 @@ omission. On one observed machine that meant zero ``ask`` rules
 reached any settings file, and a repo pinned ``tracker: github`` was
 seeded with no github tracker rules at all.
 
+GH-1311 repeated the same omission for ``ide_permissions`` /
+``ide_denies`` (GH-1261): both are per-IDE keyed dicts shaped exactly
+like ``tracker_permissions`` / ``tracker_denies``, so they merge the
+same way. ``ide_denies`` carries the unconditional shell-equivalent-
+tool denies GH-1261 shipped, so it joins
+:data:`SUPPRESSION_REFUSED_KEYS` alongside ``tracker_denies`` — a user
+catalog must not be able to opt an IDE's denies back out.
+
 The classification is now explicit rather than residual:
 :data:`MERGED_LIST_KEYS`, :data:`MERGED_TRACKER_KEYS` and
 :data:`USER_OWNED_KEYS` name every key, and
@@ -49,11 +57,16 @@ SUPPRESS_KEY = "base_permission_suppressions"
 TRACKER_ALLOW_KEY = "tracker_permissions"
 TRACKER_DENY_KEY = "tracker_denies"
 
+IDE_ALLOW_KEY = "ide_permissions"
+IDE_DENY_KEY = "ide_denies"
+
 #: Flat rule lists that merge shipped ⊕ user.
 MERGED_LIST_KEYS = (ALLOW_KEY, DENY_KEY, ASK_KEY)
 
-#: Tracker-keyed dicts of rule lists that merge per tracker.
-MERGED_TRACKER_KEYS = (TRACKER_ALLOW_KEY, TRACKER_DENY_KEY)
+#: Tracker- and IDE-keyed dicts of rule lists that merge per key
+#: (``linear``/``jira``/``github`` for trackers, ``pycharm`` etc. for
+#: IDEs — GH-1311).
+MERGED_TRACKER_KEYS = (TRACKER_ALLOW_KEY, TRACKER_DENY_KEY, IDE_ALLOW_KEY, IDE_DENY_KEY)
 
 #: Machine-specific keys read from the userspace catalog alone.
 USER_OWNED_KEYS = (
@@ -65,7 +78,7 @@ USER_OWNED_KEYS = (
 
 #: Keys where a user suppression is refused — these are the safety
 #: floor and a downstream catalog must not opt out of them.
-SUPPRESSION_REFUSED_KEYS = (DENY_KEY, TRACKER_DENY_KEY)
+SUPPRESSION_REFUSED_KEYS = (DENY_KEY, TRACKER_DENY_KEY, IDE_DENY_KEY)
 
 
 @dataclass(frozen=True)
@@ -89,6 +102,9 @@ class CatalogDrift:
     #: tracker name (``linear`` / ``jira`` / ``github``).
     tracker_missing_from_user: dict[str, tuple[str, ...]] = field(default_factory=dict)
     tracker_denies_missing_from_user: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    #: Same as the tracker pair above, keyed by IDE name (GH-1311).
+    ide_missing_from_user: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    ide_denies_missing_from_user: dict[str, tuple[str, ...]] = field(default_factory=dict)
     #: Shipped sections wholly absent downstream. Distinct from
     #: per-rule drift: a missing *section* means a whole capability
     #: never arrived, which reads as "0 missing" to any check that
@@ -105,6 +121,8 @@ class CatalogDrift:
             or self.asks_missing_from_user
             or self.tracker_missing_from_user
             or self.tracker_denies_missing_from_user
+            or self.ide_missing_from_user
+            or self.ide_denies_missing_from_user
             or self.missing_sections
         )
 
@@ -121,6 +139,8 @@ class CatalogDrift:
             or self.asks_user_only
             or self.tracker_missing_from_user
             or self.tracker_denies_missing_from_user
+            or self.ide_missing_from_user
+            or self.ide_denies_missing_from_user
             or self.missing_sections
             or self.unclassified_keys
         )
@@ -250,11 +270,19 @@ def compute_drift(*, shipped: dict | None, user: dict | None) -> CatalogDrift:
     shipped_tracker_deny = _tracker_rules(shipped, TRACKER_DENY_KEY)
     user_tracker_deny = _tracker_rules(user, TRACKER_DENY_KEY)
 
+    shipped_ide_allow = _tracker_rules(shipped, IDE_ALLOW_KEY)
+    user_ide_allow = _tracker_rules(user, IDE_ALLOW_KEY)
+    shipped_ide_deny = _tracker_rules(shipped, IDE_DENY_KEY)
+    user_ide_deny = _tracker_rules(user, IDE_DENY_KEY)
+
     # A suppression naming a shipped deny is refused, not honored:
     # denies are the safety floor (ADR-0021 rule 2, GH-925 E6). Tracker
-    # denies are the same floor, so they are refused alongside.
+    # denies are the same floor, so they are refused alongside. IDE
+    # denies join them (GH-1311) — GH-1261's shell-equivalent-tool
+    # denies are unconditional and must not be suppressible either.
     shipped_tracker_deny_set = {rule for rules in shipped_tracker_deny.values() for rule in rules}
-    refused = shipped_deny_set | shipped_tracker_deny_set
+    shipped_ide_deny_set = {rule for rules in shipped_ide_deny.values() for rule in rules}
+    refused = shipped_deny_set | shipped_tracker_deny_set | shipped_ide_deny_set
     ignored_deny_suppressions = tuple(rule for rule in suppressions if rule in refused)
 
     return CatalogDrift(
@@ -278,6 +306,8 @@ def compute_drift(*, shipped: dict | None, user: dict | None) -> CatalogDrift:
         tracker_denies_missing_from_user=_tracker_drift(
             shipped=shipped_tracker_deny, user=user_tracker_deny
         ),
+        ide_missing_from_user=_tracker_drift(shipped=shipped_ide_allow, user=user_ide_allow),
+        ide_denies_missing_from_user=_tracker_drift(shipped=shipped_ide_deny, user=user_ide_deny),
         missing_sections=_missing_sections(shipped=shipped, user=user),
         unclassified_keys=unclassified_shipped_keys(shipped),
     )
@@ -405,6 +435,11 @@ def format_drift_report(drift: CatalogDrift) -> list[str]:
     tracker_block(
         "shipped TRACKER denies missing from userspace",
         drift.tracker_denies_missing_from_user,
+    )
+    tracker_block("shipped IDE rules missing from userspace", drift.ide_missing_from_user)
+    tracker_block(
+        "shipped IDE denies missing from userspace",
+        drift.ide_denies_missing_from_user,
     )
 
     block("userspace-only, not shipped", drift.user_only)

@@ -27,12 +27,15 @@ import pytest
 
 from dev10x.skills.permission.catalog_merge import (
     ASK_KEY,
+    IDE_ALLOW_KEY,
+    IDE_DENY_KEY,
     MERGED_LIST_KEYS,
     MERGED_TRACKER_KEYS,
     TRACKER_ALLOW_KEY,
     TRACKER_DENY_KEY,
     USER_OWNED_KEYS,
     compute_drift,
+    format_drift_report,
     merge_catalogs,
     unclassified_shipped_keys,
 )
@@ -50,6 +53,8 @@ SHIPPED = {
         "linear": ["mcp__claude_ai_Linear__get_issue"],
     },
     "tracker_denies": {"linear": ["mcp__claude_ai_Linear__delete_comment"]},
+    "ide_permissions": {"pycharm": ["mcp__pycharm__get_file_problems"]},
+    "ide_denies": {"pycharm": ["mcp__pycharm__execute_terminal_command"]},
 }
 
 # A catalog written before GH-768 and GH-1149: no ask tier, no tracker
@@ -105,6 +110,8 @@ def test_missing_sections_are_reported() -> None:
         ASK_KEY,
         TRACKER_ALLOW_KEY,
         TRACKER_DENY_KEY,
+        IDE_ALLOW_KEY,
+        IDE_DENY_KEY,
         "base_denies",
     }
 
@@ -147,6 +154,59 @@ def test_tracker_denies_refuse_suppression() -> None:
     drift = compute_drift(shipped=SHIPPED, user=user)
     assert rule in drift.ignored_deny_suppressions
     assert rule not in drift.suppressed
+
+
+def test_pre_gh1261_catalog_receives_the_ide_permission_block() -> None:
+    """GH-1311: a catalog predating GH-1261 has no IDE keys at all.
+
+    Before the fix, ``ide_permissions``/``ide_denies`` were classified
+    in neither the merge set nor ``USER_OWNED_KEYS``, so they never
+    reached a catalog written before GH-1261 shipped them.
+    """
+    merged = _merged(PRE_SECTIONS_USER)
+    assert "mcp__pycharm__get_file_problems" in merged[IDE_ALLOW_KEY]["pycharm"]
+    assert "mcp__pycharm__execute_terminal_command" in merged[IDE_DENY_KEY]["pycharm"]
+
+
+def test_ide_denies_refuse_suppression() -> None:
+    """GH-1261's shell-equivalent-tool denies are unconditional.
+
+    A user catalog must not be able to suppress them back out, the same
+    guarantee ``tracker_denies`` already carries.
+    """
+    rule = "mcp__pycharm__execute_terminal_command"
+    user = {**PRE_SECTIONS_USER, "base_permission_suppressions": [rule]}
+    assert rule in _merged(user)[IDE_DENY_KEY]["pycharm"]
+
+    drift = compute_drift(shipped=SHIPPED, user=user)
+    assert rule in drift.ignored_deny_suppressions
+    assert rule not in drift.suppressed
+
+
+def test_ide_keys_no_longer_reported_as_unclassified() -> None:
+    """The GH-1311 symptom: the warning fired on every invocation."""
+    assert IDE_ALLOW_KEY not in unclassified_shipped_keys(SHIPPED)
+    assert IDE_DENY_KEY not in unclassified_shipped_keys(SHIPPED)
+
+
+def test_ide_keys_do_not_warn(caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level(logging.WARNING):
+        merge_catalogs(shipped=SHIPPED, user=PRE_SECTIONS_USER)
+    assert "ide_permissions" not in caplog.text
+    assert "ide_denies" not in caplog.text
+
+
+def test_ide_drift_renders_in_the_report() -> None:
+    """A pre-GH-1261 catalog's missing IDE section and rules both print."""
+    drift = compute_drift(shipped=SHIPPED, user=PRE_SECTIONS_USER)
+    report = format_drift_report(drift)
+    assert any("shipped SECTIONS absent from userspace" in line for line in report)
+    assert any(IDE_ALLOW_KEY in line for line in report)
+    assert any(IDE_DENY_KEY in line for line in report)
+    assert any("shipped IDE rules missing from userspace" in line for line in report)
+    assert any("shipped IDE denies missing from userspace" in line for line in report)
+    assert any("mcp__pycharm__get_file_problems" in line for line in report)
+    assert any("mcp__pycharm__execute_terminal_command" in line for line in report)
 
 
 def test_unclassified_shipped_key_is_named() -> None:
