@@ -10,7 +10,9 @@ one-simple-command-per-call accomplishes without friction.
 Patterns blocked:
   - for/while/until loops:   for d in src/*/; do ... done
   - nested $(...) substitution: $(... $(...) ...)
-  - 3+ statement chains:     cmd1; cmd2; cmd3
+  - 2+ statement chains:     cmd1; cmd2   (GH-1316: was 3+, a 2-statement
+    chain of already-allowed commands still shifted the matched prefix
+    and slipped through undetected)
 
 False-positive guard: single-quoted strings are stripped before scanning so
 `grep 'for x in y'` does not match the for-loop pattern.
@@ -37,7 +39,7 @@ CONTROL_FLOW_SEPARATOR_RE = re.compile(r";\s*(?:then|do|else|elif|fi|done)\b")
 GUIDANCE_MSG = """\
 ⛔  Shell aggregation detected — use serialized commands instead.
 
-Shell aggregation (for/while/until loops, nested $(...), 3+ ;-chained
+Shell aggregation (for/while/until loops, nested $(...), 2+ ;-chained
 statements) shifts the effective Bash prefix so no allow-rule fires,
 then triggers per-call permission prompts.
 
@@ -83,7 +85,13 @@ def _count_nested_substitutions(command: str) -> int:
 
 
 def _count_chained_statements(command: str) -> int:
-    """Count statement separators that are NOT control-flow continuations."""
+    """Count statement separators that are NOT control-flow continuations.
+
+    GH-1316: a single remaining `;` is already a 2-statement chain
+    (`cmd1; cmd2`) — the threshold used to require 2 separators (3
+    statements), so a 2-statement chain of already-allowed commands
+    shifted the matched prefix and slipped through undetected.
+    """
     cleaned = CONTROL_FLOW_SEPARATOR_RE.sub("", command)
     return cleaned.count(";")
 
@@ -111,6 +119,6 @@ class BashAggregationValidator(ValidatorBase):
         # aggregation shape. A single top-level $() is allowed.
         if _count_nested_substitutions(command=scan) >= 2:
             return HookResult(message=GUIDANCE_MSG)
-        if _count_chained_statements(command=scan) >= 2:
+        if _count_chained_statements(command=scan) >= 1:
             return HookResult(message=GUIDANCE_MSG)
         return None

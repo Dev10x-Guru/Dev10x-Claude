@@ -187,6 +187,22 @@ SEMICOLON_CHAIN_RE = re.compile(
     rf"(?P<tail>{_CHAIN_HEAD_RE}\b.*)$"
 )
 
+# GH-1316: `||` was never checked here — a chain of two individually-allowed
+# read-only probes joined by `||` (e.g. `git fetch || git pull`) matches no
+# allow rule for the same reason a `;` chain doesn't: Claude Code matches the
+# whole command string. `[^|]` can't be used to bound the head (a legitimate
+# single `|` pipe may appear before the `||`), so the head is a lazy `.*?`
+# instead — `re.DOTALL` keeps that lazy match correct if either side spans
+# multiple lines. Deliberately silent on `cmd || true` and similar fallbacks:
+# the tail must itself start with a recognized head token, so a bare `true`/
+# `:`/state-changing tail (out of scope, same as the `;` chain) never matches.
+OR_CHAIN_RE = re.compile(
+    rf"^\s*(?P<head>{_CHAIN_HEAD_RE}\b.*?)"
+    r"\s*\|\|\s*"
+    rf"(?P<tail>{_CHAIN_HEAD_RE}\b.*)$",
+    re.DOTALL,
+)
+
 # GH-258: shell loops wrap allowed commands and shift the effective
 # command prefix to the loop keyword (`for`, `while`, `until`).
 # `Bash(gh api:*)` does not match `for n in 1 2 3; do gh api ... ; done`
@@ -381,6 +397,15 @@ SEMICOLON_CHAIN_MSG = (
     "Split into separate Bash tool calls instead.\n"
 )
 
+OR_CHAIN_MSG = (
+    "⚠️  `||` chain blocked — permission friction risk.\n\n"
+    "Claude Code matches the whole command string against allow rules,\n"
+    "not individual clauses. So `Bash({head_cmd}:*)` does NOT cover\n"
+    "`{head_cmd} ... || {tail_cmd} ...` even when both halves are\n"
+    "individually allowed.\n\n"
+    "Split into separate Bash tool calls instead.\n"
+)
+
 SHELL_LOOP_WRAP_MSG = (
     "⚠️  Shell {wrapper} wraps an allowed command (`{inner}`) — permission friction risk.\n\n"
     "Claude Code's allow-rule matcher keys on the leading token of the\n"
@@ -529,6 +554,7 @@ class PrefixFrictionValidator(ValidatorBase):
             self._check_cd_git_chain,
             self._check_redirect_then_positional,
             self._check_semicolon_chain,
+            self._check_or_chain,
             self._check_shell_loop_wrap,
             self._check_and_chaining,
         ]
@@ -544,6 +570,8 @@ class PrefixFrictionValidator(ValidatorBase):
             or "rev-parse --show-toplevel" in cmd
             # GH-119: shapes that bypass allow-rule prefix matching
             or ";" in cmd
+            # GH-1316: `||` chains break allow-rule matching the same way
+            or "||" in cmd
             or re.search(r"\d?>(?:&\d|/\S+)", cmd) is not None
             # GH-258: shell loops/xargs/find -exec wrap allowed commands
             or any(re.search(rf"\b{kw}\b", cmd) for kw in _LOOP_KEYWORDS)
@@ -714,6 +742,19 @@ class PrefixFrictionValidator(ValidatorBase):
         tail_cmd = match.group("tail").strip().split()[0]
         return HookResult(
             message=SEMICOLON_CHAIN_MSG.format(
+                head_cmd=head_cmd,
+                tail_cmd=tail_cmd,
+            )
+        )
+
+    def _check_or_chain(self, *, inp: HookInput) -> HookResult | None:
+        match = OR_CHAIN_RE.match(inp.command)
+        if not match:
+            return None
+        head_cmd = match.group("head").strip().split()[0]
+        tail_cmd = match.group("tail").strip().split()[0]
+        return HookResult(
+            message=OR_CHAIN_MSG.format(
                 head_cmd=head_cmd,
                 tail_cmd=tail_cmd,
             )
