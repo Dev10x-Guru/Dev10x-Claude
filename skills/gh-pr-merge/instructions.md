@@ -380,6 +380,17 @@ that are not required by branch protection. No checks may be
 `PENDING` or `IN_PROGRESS`. Report any failing or pending
 checks by name.
 
+**`ci_check_status`'s `required_verdict: "empty"` is not a pending
+state (GH-1381).** `develop` registers no required status checks
+(ADR-0024), so `required_verdict` reads `"empty"` on every green,
+mergeable PR — that is where it settles, not a step before
+`"green"`. Branch this check on the blended `verdict` field: a green
+`verdict` with zero `pending` and zero `fail` clears Check 2
+regardless of what `required_verdict` says. Two workers each sat on
+a fully-passed PR (#1362 at 7/7, #1360 at 6/6) without merging
+because `required_verdict: "empty"` read as "still waiting" —
+neither actually was.
+
 **Unattended contexts: prefer the wrapper (GH-1058).** When this
 skill runs the merge gate for an unattended harness (the
 `Dev10x:foreman` watchdog, an afk session), reach for
