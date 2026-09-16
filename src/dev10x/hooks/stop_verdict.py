@@ -472,6 +472,61 @@ def _read_turn_and_boundary(*, transcript_path: str) -> tuple[list[dict], dict |
     return turn, boundary
 
 
+#: What a stop-verdict record carries when the transcript names no
+#: harness version (GH-1390). Written rather than omitted, because an
+#: absent key is the ambiguity this whole change removes: a query
+#: returning nothing must not have to guess between "no such version",
+#: "no such record" and "wrong key".
+UNKNOWN_HARNESS_VERSION = "unknown"
+
+
+def read_harness_version(*, transcript_path: str) -> str:
+    """The Claude Code version that wrote this transcript (GH-1390).
+
+    ``hook-patterns.md`` makes retiring the cooldown marker conditional
+    on ``stop_hook_active`` appearing "across a few harness versions",
+    and nothing in the Stop payload names one — so the condition could
+    not be evaluated from the log at all, whatever key the signal was
+    written under. An unverifiable precondition is how a guard calcifies
+    into permanent dead weight, which is the failure GH-1257's own
+    paragraph warns about.
+
+    The harness stamps ``version`` on the transcript entries it writes,
+    so the answer is already on disk next to the evidence it qualifies.
+    Lines are walked from the end and the first version wins: a session
+    that spanned an upgrade should be attributed to the version that
+    ended it, which is the one that produced this Stop.
+
+    Read here rather than inside :func:`decide` because it is provenance
+    rather than rule input — ``decide`` stays a function of the payload
+    and the plan. Every read failure degrades to
+    :data:`UNKNOWN_HARNESS_VERSION`; a missing version is never a reason
+    to change a verdict.
+    """
+    if not transcript_path:
+        return UNKNOWN_HARNESS_VERSION
+    try:
+        raw = Path(transcript_path).read_text(encoding="utf-8")
+    except OSError as error:
+        _diagnose(what="reading the transcript for its harness version", error=error)
+        return UNKNOWN_HARNESS_VERSION
+    except UnicodeDecodeError:
+        return UNKNOWN_HARNESS_VERSION
+
+    for line in reversed(raw.splitlines()):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            entry = json.loads(stripped)
+        except json.JSONDecodeError:
+            continue
+        version = entry.get("version") if isinstance(entry, dict) else None
+        if isinstance(version, str) and version.strip():
+            return version.strip()
+    return UNKNOWN_HARNESS_VERSION
+
+
 def _is_user(*, entry: dict) -> bool:
     """Whether this entry is the supervisor speaking, not a tool answering.
 

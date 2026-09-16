@@ -10,6 +10,7 @@ import pytest
 
 from dev10x.hooks.session_dispatch import build_stop_verdict
 from dev10x.hooks.stop_verdict import (
+    UNKNOWN_HARNESS_VERSION,
     StopSignal,
     StopVerdict,
     _marker_path,
@@ -18,6 +19,7 @@ from dev10x.hooks.stop_verdict import (
     blocked_recently,
     decide,
     final_text,
+    read_harness_version,
     record_block,
     task_signal,
 )
@@ -35,6 +37,17 @@ def _text(*, text: str) -> dict:
 
 def _ask() -> dict:
     return {"type": "tool_use", "name": "AskUserQuestion", "input": {}}
+
+
+def _record_attribution(*, monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
+    """Capture what the wiring hands ``set_decision_attribution``."""
+    recorded: dict[str, str] = {}
+
+    def _capture(*, rule_id: str, reason: str, extra: dict[str, str] | None = None) -> None:
+        recorded.update(rule_id=rule_id, reason=reason, **(extra or {}))
+
+    monkeypatch.setattr("dev10x.hooks.session_dispatch.set_decision_attribution", _capture)
+    return recorded
 
 
 def _transcript(*, tmp_path: Path, entries: list[dict]) -> str:
@@ -524,11 +537,7 @@ class TestSignalIsReported:
         # Without this the signal exists but never reaches the log, which
         # is the state GH-1257 is stuck in.
         monkeypatch.setattr("dev10x.hooks.session_dispatch._get_toplevel", lambda: None)
-        recorded: dict[str, str] = {}
-        monkeypatch.setattr(
-            "dev10x.hooks.session_dispatch.set_decision_attribution",
-            lambda *, rule_id, reason: recorded.update(rule_id=rule_id, reason=reason),
-        )
+        recorded = _record_attribution(monkeypatch=monkeypatch)
         transcript = _transcript(
             tmp_path=tmp_path,
             entries=[
@@ -545,7 +554,98 @@ class TestSignalIsReported:
             }
         )
 
-        assert recorded == {"rule_id": "stop-verdict", "reason": StopSignal.STOP_HOOK_ACTIVE}
+        # `signal` is the name `hook-patterns.md` gives the observable;
+        # `reason` is kept for the records already written (GH-1390).
+        assert recorded["rule_id"] == "stop-verdict"
+        assert recorded["signal"] == StopSignal.STOP_HOOK_ACTIVE
+        assert recorded["reason"] == StopSignal.STOP_HOOK_ACTIVE
+
+    def test_the_record_names_the_harness_version(
+        self,
+        tmp_path: Path,
+        isolated_markers: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # Without it "across a few harness versions" cannot be evaluated
+        # from the log however the signal is keyed (GH-1390).
+        monkeypatch.setattr("dev10x.hooks.session_dispatch._get_toplevel", lambda: None)
+        recorded = _record_attribution(monkeypatch=monkeypatch)
+        transcript = _transcript(
+            tmp_path=tmp_path,
+            entries=[
+                {"type": "user", "message": {"role": "user", "content": "go"}, "version": "2.1.9"},
+                _assistant(blocks=[_text(text="Done.")]) | {"version": "2.1.263"},
+            ],
+        )
+
+        build_stop_verdict(
+            data={
+                "session_id": "sig6",
+                "transcript_path": transcript,
+                "stop_hook_active": True,
+            }
+        )
+
+        assert recorded["harness_version"] == "2.1.263"
+
+    def test_an_unreadable_transcript_records_an_unknown_version(
+        self,
+        isolated_markers: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr("dev10x.hooks.session_dispatch._get_toplevel", lambda: None)
+        recorded = _record_attribution(monkeypatch=monkeypatch)
+
+        build_stop_verdict(
+            data={"session_id": "sig7", "transcript_path": "", "stop_hook_active": True}
+        )
+
+        assert recorded["harness_version"] == UNKNOWN_HARNESS_VERSION
+
+
+class TestHarnessVersionIsReadable:
+    """GH-1390: the version qualifying the evidence is on disk beside it."""
+
+    def test_the_last_version_in_the_transcript_wins(self, tmp_path: Path) -> None:
+        transcript = _transcript(
+            tmp_path=tmp_path,
+            entries=[{"version": "2.1.1"}, {"version": "2.2.0"}],
+        )
+
+        assert read_harness_version(transcript_path=transcript) == "2.2.0"
+
+    def test_entries_without_a_version_are_skipped(self, tmp_path: Path) -> None:
+        transcript = _transcript(
+            tmp_path=tmp_path,
+            entries=[{"version": "2.1.1"}, {"type": "mode"}, {"version": ""}],
+        )
+
+        assert read_harness_version(transcript_path=transcript) == "2.1.1"
+
+    def test_a_transcript_naming_no_version_is_unknown(self, tmp_path: Path) -> None:
+        transcript = _transcript(tmp_path=tmp_path, entries=[{"type": "mode"}])
+
+        assert read_harness_version(transcript_path=transcript) == UNKNOWN_HARNESS_VERSION
+
+    def test_a_malformed_line_is_skipped(self, tmp_path: Path) -> None:
+        path = tmp_path / "broken.jsonl"
+        path.write_text('{"version": "2.1.1"}\n{not json\n\n"bare string"\n', encoding="utf-8")
+
+        assert read_harness_version(transcript_path=str(path)) == "2.1.1"
+
+    def test_a_missing_file_is_unknown(self, tmp_path: Path) -> None:
+        missing = str(tmp_path / "nope.jsonl")
+
+        assert read_harness_version(transcript_path=missing) == UNKNOWN_HARNESS_VERSION
+
+    def test_an_undecodable_transcript_is_unknown(self, tmp_path: Path) -> None:
+        path = tmp_path / "binary.jsonl"
+        path.write_bytes(b"\xff\xfe\x00garbage")
+
+        assert read_harness_version(transcript_path=str(path)) == UNKNOWN_HARNESS_VERSION
+
+    def test_an_empty_path_is_unknown(self) -> None:
+        assert read_harness_version(transcript_path="") == UNKNOWN_HARNESS_VERSION
 
 
 class TestWiringRecordsTheBlock:
