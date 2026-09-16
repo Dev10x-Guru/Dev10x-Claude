@@ -10,6 +10,8 @@ import yaml
 
 from dev10x.domain.rules.validation_rule import Compensation
 from dev10x.validators.skill_redirect import (
+    _QUICK_TOKENS,
+    _REGEX_METACHARS_RE,
     _YAML_PATH,
     SkillRedirectValidator,
     _format_alternatives_msg,
@@ -1445,6 +1447,136 @@ class TestNodeTestsNpmMonorepo:
     def test_allows_generic_npm(self, validator: SkillRedirectValidator, command: str) -> None:
         result = validator.validate(inp=_make_input(command=command))
         assert result is None
+
+
+NARROW_PYTEST_COMMANDS = [
+    "pytest -k test_name",
+    "pytest tests/validators/",
+    "pytest src/dev10x/ --no-cov",
+    "python -m pytest tests/",
+    "uv run pytest -k test_name",
+    "uv run --extra dev pytest -k test_name",
+    "uv run --extra dev pytest tests/validators/test_skill_redirect.py -q",
+    "uv run --extra dev pytest tests/ --no-cov",
+]
+
+FULL_SUITE_PYTEST_COMMANDS = [
+    "pytest --cov --cov-report=term-missing",
+    "uv run pytest --cov --cov-report=term-missing",
+    "uv run --extra dev pytest --cov --cov-report=term-missing",
+]
+
+
+class TestPytestInnerLoop:
+    """GH-1337: the routing contract binds every run, not only the gate.
+
+    All six deviations in the audited session were targeted ``-k`` /
+    path-scoped raw invocations inside an edit-run-edit loop, with a
+    working wrapper available. Two things had to change for anything to
+    bite there: the rule had to block rather than advise (``from_config``
+    drops every ``hook_block: false`` rule before the engine sees it), and
+    the command had to survive ``should_run``'s ``_QUICK_TOKENS``
+    fast path, which a command naming only its runner did not — the same
+    registered-but-inert shape GH-1211/GH-1212 recorded for ``Monitor``.
+    """
+
+    @pytest.mark.parametrize("command", NARROW_PYTEST_COMMANDS)
+    def test_should_run_reaches_the_rule_engine(
+        self, validator: SkillRedirectValidator, command: str
+    ) -> None:
+        assert validator.should_run(inp=_make_input(command=command)) is True
+
+    @pytest.mark.parametrize("command", NARROW_PYTEST_COMMANDS)
+    def test_narrow_run_is_steered_to_run_tests(
+        self, validator: SkillRedirectValidator, command: str
+    ) -> None:
+        result = validator.validate(inp=_make_input(command=command))
+        assert result is not None, f"No steer for: {command}"
+        assert "run_tests" in result.message
+
+    def test_steer_carries_the_args_translation(self, validator: SkillRedirectValidator) -> None:
+        """A steer that does not show the narrowing shape re-teaches the
+        misreading that the wrapper only runs the whole suite."""
+        result = validator.validate(inp=_make_input(command="pytest -k test_name"))
+        assert result is not None
+        assert "args=" in result.message
+        assert "coverage=false" in result.message
+
+    @pytest.mark.parametrize("command", FULL_SUITE_PYTEST_COMMANDS)
+    def test_full_coverage_form_stays_unblocked(
+        self, validator: SkillRedirectValidator, command: str
+    ) -> None:
+        """``Dev10x:py-test``'s documented MCP-unavailable fallback, and the
+        shape that seeds a fresh worktree's virtualenv. Blocking it would
+        leave such a session no sanctioned path, and is the flip GH-155
+        reverted."""
+        assert validator.validate(inp=_make_input(command=command)) is None
+
+    @pytest.mark.parametrize(
+        "command",
+        ["pip install pytest", "uv add --dev pytest", "rg -n pytest src/"],
+    )
+    def test_does_not_fire_on_non_invocations(
+        self, validator: SkillRedirectValidator, command: str
+    ) -> None:
+        assert validator.validate(inp=_make_input(command=command)) is None
+
+
+def _blocking_rule_literal_patterns() -> list[tuple[str, str]]:
+    """``_load_config`` already narrows to blocking Bash rules — the engine's
+    ``command_rules``, which is exactly what ``validate`` evaluates."""
+    config, _ = _load_config()
+    return [
+        (rule.name, pattern)
+        for rule in config.rules
+        for pattern in rule.patterns
+        if not _REGEX_METACHARS_RE.search(pattern)
+    ]
+
+
+class TestEveryBlockingRuleSurvivesTheFastPath:
+    """GH-1337: a rule the fast path drops is registered but inert.
+
+    ``should_run`` short-circuits on ``_QUICK_TOKENS`` before any rule
+    regex is applied, so a blocking rule whose literal pattern names none
+    of those tokens can never fire — it reads as wired up everywhere a
+    maintainer would think to look. That is how ``pytest-inner-loop``'s
+    predecessor went unnoticed, and it is the same shape GH-1211/GH-1212
+    found in the ``Monitor`` matcher and GH-1215 found in MCP discovery.
+
+    Scoped to metachar-free patterns: a shape matcher (a loop, a psql
+    verb list) matches a command that need not contain the pattern text,
+    so the token that gates it is a deliberate separate choice, already
+    pinned by that rule's own tests.
+    """
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gh pr view 123 --json body",
+            "gh pr ready 123",
+            "gh pr ready --undo 123",
+        ],
+    )
+    def test_gh_pr_view_and_ready_are_steered(
+        self, validator: SkillRedirectValidator, command: str
+    ) -> None:
+        """Found by the guard below, not by a report: both rules were
+        blocking and unreachable, while the routed-CLI map documented them
+        as live."""
+        assert validator.should_run(inp=_make_input(command=command)) is True
+        assert validator.validate(inp=_make_input(command=command)) is not None
+
+    @pytest.mark.parametrize(
+        ("rule_name", "pattern"), _blocking_rule_literal_patterns(), ids=lambda v: str(v)
+    )
+    def test_literal_pattern_contains_a_quick_token(self, rule_name: str, pattern: str) -> None:
+        lowered = pattern.lower()
+        assert any(token in lowered for token in _QUICK_TOKENS), (
+            f"Rule {rule_name!r} pattern {pattern!r} names no _QUICK_TOKENS entry, "
+            "so should_run() short-circuits before it is ever evaluated. "
+            "Add a gating token to _QUICK_TOKENS in skill_redirect.py."
+        )
 
 
 # Make _YAML_PATH accessible for tests above

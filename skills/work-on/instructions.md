@@ -1375,7 +1375,7 @@ early to measure meaningfully).
 
 | Action | MUST delegate to | Never use directly |
 |--------|-----------------|-------------------|
-| Run tests | `Skill(test)` | `pytest`, `uv run pytest`, `python -m pytest` |
+| Run tests — EVERY run, incl. narrow ones | `Skill(test)` | `pytest`, `uv run pytest`, `python -m pytest` |
 | Create a commit | `Skill(Dev10x:git-commit)` | `git commit` |
 | Create a PR | `Skill(Dev10x:gh-pr-create)` | `gh pr create` |
 | Monitor CI | `Skill(Dev10x:gh-pr-monitor)` | `gh pr checks --watch` |
@@ -1402,6 +1402,23 @@ CI after the item was already reported done. Narrow `Skill(test)`
 args (e.g. `-k` / a path) are fine for fast inner-loop iteration,
 but the final pre-commit / pre-DONE verification runs the full
 suite with no path-narrowing args.
+
+**The wrapper is not the gate wearing a wrapper (GH-1337).** The
+`Run tests` row binds EVERY run, including each iteration of an
+edit-run-edit loop. Reading it as "route the run that gates DONE" is
+the misreading that produced six raw invocations in one audited
+session. A narrow routed run is the cheaper of the two calls:
+
+- `-k <expr>` / a path → `run_tests(args=["-k", "<expr>"])`
+- `--no-cov` → `coverage=false`
+- `--extra dev` → drop it; the tool resolves the extra itself
+
+`pytest-inner-loop` (DX006) blocks the narrow raw shape and carries
+that translation, so a slip is caught at the call rather than at the
+terminal DoD check — which runs after the work merged. The
+full-coverage raw form stays unblocked: it is `Dev10x:py-test`'s
+fallback when no MCP server is reachable, and the shape that seeds a
+fresh worktree's virtualenv.
 
 **Compaction preservation (CRITICAL):** When context is
 compacted, the summary MUST retain this routing table
