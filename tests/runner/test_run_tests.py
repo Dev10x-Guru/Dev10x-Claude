@@ -7,6 +7,7 @@ import pytest
 
 from dev10x import runner
 from dev10x.domain.common.result import ErrorResult, SuccessResult
+from dev10x.domain.transport_budget import MAX_TOOL_CALL_SECONDS
 
 
 def _completed(
@@ -171,6 +172,20 @@ class TestRunTests:
         assert "--cov-report=term-missing" in called_args
         assert "--tb=short" in called_args
         assert "--color=no" in called_args
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_default_timeout_is_the_transport_ceiling(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        """GH-1331: omitting ``timeout`` asks for the most the transport
+        allows, instead of a value real suites already exceed."""
+        mock_run.return_value = _completed(stdout=PASS_STDOUT)
+
+        await runner.run_tests()
+
+        assert mock_run.call_args.kwargs["timeout"] == MAX_TOOL_CALL_SECONDS
 
     @pytest.mark.asyncio
     @patch("dev10x.runner.async_run", new_callable=AsyncMock)

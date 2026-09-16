@@ -65,8 +65,20 @@ Before this, the sanctioned wrapper could not run such a suite at
 all, so the agent fell back to the raw command the routing table
 forbids — and kept using it for every iteration of the fix-test
 loop. **If you find yourself reaching for a raw `pytest` because
-the wrapper failed on a missing import, that is a bug in the
-wrapper: file it rather than working around it.**
+the wrapper failed on a missing import — or timed out — that is a
+bug in the wrapper: file it rather than working around it.**
+
+**The default timeout is the transport ceiling (GH-1331).**
+`run_tests()` defaults `timeout` to `MAX_TOOL_CALL_SECONDS` (1080s)
+— the largest value the MCP transport is clamped to anyway
+(GH-1288) — so omitting the parameter already asks for the most
+the wrapper can serve. A run that still times out at that ceiling
+means the full suite genuinely needs longer than one tool call can
+give it: narrow with `args=["-k", "name"]` / a path, or split the
+suite across calls. On timeout the payload carries `verdict`,
+`elapsed`, `timeout_clamped`, and whatever `stdout`/`stderr` pytest
+produced before the cut-off, so a slow-but-green run is
+distinguishable from a hang.
 
 **Fallback — Bash** (only when the MCP server is unavailable):
 

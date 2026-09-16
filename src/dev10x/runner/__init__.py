@@ -18,7 +18,11 @@ from pathlib import Path
 from typing import Any
 
 from dev10x.domain.common.result import Result, err, ok
-from dev10x.domain.transport_budget import ClampedTimeout, clamp_tool_timeout
+from dev10x.domain.transport_budget import (
+    MAX_TOOL_CALL_SECONDS,
+    ClampedTimeout,
+    clamp_tool_timeout,
+)
 from dev10x.subprocess_utils import async_run, effective_cwd
 
 # GH-1285: the outcome vocabulary used to be a closed set, so a run
@@ -142,19 +146,26 @@ async def run_tests(
     *,
     args: list[str] | None = None,
     coverage: bool = True,
-    timeout: float = 600,
+    timeout: float = MAX_TOOL_CALL_SECONDS,
 ) -> Result[dict[str, Any]]:
     """Run pytest via ``uv run`` and return a structured summary.
 
     Args:
         args: Extra pytest arguments appended after the coverage flags.
         coverage: When True, add ``--cov --cov-report=term-missing``.
-        timeout: Subprocess timeout in seconds (default 10 minutes).
-            Clamped to ``MAX_TOOL_CALL_SECONDS`` (GH-1288): a value the
-            transport will not sit through buys nothing — the connection
-            drops first and the caller gets ``Connection closed``, which
-            does not distinguish a slow suite from a dead server. The
-            error payload names the clamp when it bites.
+        timeout: Subprocess timeout in seconds (default
+            ``MAX_TOOL_CALL_SECONDS``, GH-1331). A lower default used to
+            sit under real full-suite runtimes (GH-1331's own suite:
+            ~10,200 tests, observed exceeding 600s with coverage twice in
+            one day), so the documented full-suite gate timed out on the
+            call it mandates and every caller reached for the raw
+            ``pytest`` the routing table forbids — discovering
+            ``timeout=`` only by reading the tool schema. Defaulting to
+            the transport ceiling closes that gap without inviting a
+            value the transport will not sit through: anything higher is
+            still clamped to ``MAX_TOOL_CALL_SECONDS`` (GH-1288), and the
+            connection would drop before a bigger number bought anything.
+            The error payload names the clamp when it bites.
 
     Returns:
         ok({
