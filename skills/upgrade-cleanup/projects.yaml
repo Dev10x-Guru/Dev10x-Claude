@@ -32,6 +32,16 @@ include_user_settings: true
 # file. Every `Read()` entry below is an ALLOW; the shipped catalog
 # carries no `Read()` deny, so it makes no protection promise it cannot
 # keep — keep it that way.
+#
+# GH-1325: the two namespaces differ in MATCHING as well as in reach.
+# `Read`/`Edit`/`Write` patterns are gitignore patterns — `**` crosses
+# directories, `*` stays inside one segment, and the leading token picks
+# the anchor: `//` the filesystem root, `~/` the home directory, a lone
+# `/` the settings source. A `Bash()` rule is a literal command prefix
+# where `**` is two characters. Enumerate by intent, collapse by
+# redundancy: one tree rule replaces a per-subdirectory list, and no
+# rule is widened to absorb a neighbour it was not granted for.
+# Enforced by tests/skills/permission/test_path_rule_anchors.py.
 workspace_directories:
   - /tmp/Dev10x
   # GH-254: skills read playbook overrides, plan-sync state, and
@@ -302,35 +312,15 @@ base_permissions:
   # --- Dev10x MCP tools: db server (GH-878) ---
   - "mcp__plugin_Dev10x_db__query"
 
-  # --- Temp file namespaces (GH-878) ---
-  # Each /tmp/Dev10x/<namespace>/ is created by mktmp and used by
-  # skills for intermediate files. Enumerate all namespaces here.
-  #
-  # MAINTENANCE (GH-1095): this list is hand-maintained and is what
-  # actually ships — a skill that calls mktmp with a namespace absent
-  # here prompts on every run. `foreman` was missing for exactly this
-  # reason. When adding a skill that uses mktmp, add its namespace
-  # below in the same commit.
-  - "Read(/tmp/Dev10x/git/**)"
-  - "Edit(/tmp/Dev10x/git/**)"
-  - "Read(/tmp/Dev10x/review/**)"
-  - "Edit(/tmp/Dev10x/review/**)"
-  - "Read(/tmp/Dev10x/skill-audit/**)"
-  - "Edit(/tmp/Dev10x/skill-audit/**)"
-  - "Read(/tmp/Dev10x/playwright/**)"
-  - "Edit(/tmp/Dev10x/playwright/**)"
-  - "Read(/tmp/Dev10x/self-qa/**)"
-  - "Edit(/tmp/Dev10x/self-qa/**)"
-  - "Read(/tmp/Dev10x/ticket-scope/**)"
-  - "Edit(/tmp/Dev10x/ticket-scope/**)"
-  - "Read(/tmp/Dev10x/slack/**)"
-  - "Edit(/tmp/Dev10x/slack/**)"
-  - "Read(/tmp/Dev10x/pr-monitor/**)"
-  - "Edit(/tmp/Dev10x/pr-monitor/**)"
-  - "Read(/tmp/Dev10x/gh/**)"
-  - "Edit(/tmp/Dev10x/gh/**)"
-  - "Read(/tmp/Dev10x/foreman/**)"
-  - "Edit(/tmp/Dev10x/foreman/**)"
+  # --- Temp file tree (GH-878, GH-1095, GH-1325) ---
+  # mktmp writes every skill's intermediate files under /tmp/Dev10x/.
+  # One tree rule covers the whole namespace: `Read`/`Edit` rules are
+  # gitignore patterns, so `**` crosses directories, and the leading
+  # `//` anchors at the filesystem root — a single `/` would anchor at
+  # the settings source instead. Adding a mktmp namespace needs no
+  # catalog edit; do not re-enumerate them.
+  - "Read(//tmp/Dev10x/**)"
+  - "Edit(//tmp/Dev10x/**)"
 
   # --- gh CLI patterns (GH-98) ---
   - "Bash(gh pr view:*)"

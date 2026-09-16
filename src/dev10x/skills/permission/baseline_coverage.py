@@ -160,8 +160,6 @@ UNTRIAGED_BACKLOG: frozenset[str] = frozenset(
         # dev10x-scaffolding
         "Read(/tmp/claude/git/**)",
         "Edit(/tmp/claude/git/**)",
-        "Read(/tmp/Dev10x/**)",
-        "Edit(/tmp/Dev10x/**)",
         "Read(~/.claude/plugins/marketplaces/Dev10x-Guru/**)",
         "Read(~/.claude/plugins/cache/Dev10x-Guru/**)",
         "Bash(${CLAUDE_PLUGIN_ROOT}/bin/**)",
