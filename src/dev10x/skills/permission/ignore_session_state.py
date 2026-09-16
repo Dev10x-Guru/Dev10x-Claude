@@ -140,6 +140,34 @@ def ensure_ignored(*, repo_root: Path, dry_run: bool = False) -> IgnoreOutcome:
     )
 
 
+def discover_repo_roots(roots: list[Path]) -> list[Path]:
+    """Expand each configured root into every git repo beneath it (GH-1330).
+
+    A configured root may itself be a repo (`/work/dx/Dev10x-Claude`), or a
+    container directory holding many repos and worktrees beneath it
+    (`/work/dx` covers a dozen checkouts, not one). Passing a container
+    straight to :func:`ensure_ignored` made `common_git_dir` fail on it —
+    the container itself has no `.git` — so every real repo underneath
+    was never reached.
+
+    Mirrors the walk `update_paths.find_settings_files` already uses for
+    `.claude/settings.local.json`: `root.rglob(".git")` for a container,
+    keeping the root itself when IT is the repo rather than also
+    descending into its own tree (a worktree's `.git` is a file, not a
+    directory, so entry type is never checked).
+    """
+    seen: dict[Path, None] = {}
+    for root in roots:
+        if not root.is_dir():
+            continue
+        if (root / ".git").exists():
+            seen.setdefault(root.resolve(), None)
+            continue
+        for git_entry in root.rglob(".git"):
+            seen.setdefault(git_entry.parent.resolve(), None)
+    return list(seen.keys())
+
+
 def ensure_ignored_for_roots(
     *,
     repo_roots: list[Path],

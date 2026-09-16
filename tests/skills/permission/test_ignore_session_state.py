@@ -16,6 +16,7 @@ import pytest
 from dev10x.skills.permission.ignore_session_state import (
     IGNORE_PATTERN,
     SUGGESTED_TRACKED_PATTERN,
+    discover_repo_roots,
     ensure_ignored,
     ensure_ignored_for_roots,
     is_already_ignored,
@@ -290,3 +291,55 @@ class TestDryRun:
         outcomes = ensure_ignored_for_roots(repo_roots=[repo], dry_run=True)
 
         assert [outcome.status for outcome in outcomes] == ["would-append"]
+
+
+class TestDiscoverRepoRoots:
+    """A configured root may be a container of repos, not a repo (GH-1330)."""
+
+    def test_a_root_that_is_itself_a_repo_is_returned_as_is(self, repo: Path) -> None:
+        assert discover_repo_roots([repo]) == [repo.resolve()]
+
+    def test_nested_repos_under_a_container_root_are_all_found(self, tmp_path: Path) -> None:
+        container = tmp_path / "container"
+        container.mkdir()
+        nested_a = container / "repoA"
+        nested_b = container / "nested" / "repoB"
+        for nested in (nested_a, nested_b):
+            nested.mkdir(parents=True)
+            subprocess.run(
+                ["git", "init", "-q", "-b", "main", str(nested)],
+                check=True,
+                timeout=_TIMEOUT_SECONDS,
+            )
+
+        found = discover_repo_roots([container])
+
+        assert sorted(found) == sorted([nested_a.resolve(), nested_b.resolve()])
+
+    def test_a_container_with_no_repos_finds_nothing(self, tmp_path: Path) -> None:
+        empty_container = tmp_path / "empty"
+        empty_container.mkdir()
+
+        assert discover_repo_roots([empty_container]) == []
+
+    def test_a_missing_root_is_skipped_not_errored(self, tmp_path: Path) -> None:
+        missing = tmp_path / "does-not-exist"
+
+        assert discover_repo_roots([missing]) == []
+
+    def test_duplicate_discovery_across_roots_is_deduplicated(self, repo: Path) -> None:
+        assert discover_repo_roots([repo, repo]) == [repo.resolve()]
+
+    def test_a_worktree_under_a_container_root_is_found_too(
+        self, repo: Path, tmp_path: Path
+    ) -> None:
+        # A worktree's `.git` is a file, not a directory — the walk must
+        # not filter on entry type.
+        container = tmp_path / "container2"
+        container.mkdir()
+        worktree = container / "wt"
+        _git("worktree", "add", "-q", str(worktree), "-b", "feature-branch", cwd=repo)
+
+        found = discover_repo_roots([container])
+
+        assert found == [worktree.resolve()]

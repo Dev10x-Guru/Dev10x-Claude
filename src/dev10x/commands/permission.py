@@ -784,6 +784,13 @@ def ensure_ignored(*, dry_run: bool, quiet: bool) -> None:
     That file lives in the git COMMON dir, so one write per repo covers
     every present and future worktree of it — there is no per-worktree
     pass to keep up to date.
+
+    A configured root may be a container of many repos rather than a
+    repo itself (GH-1330), so it is expanded via
+    `ignore_session_state.discover_repo_roots` before processing —
+    reporting 0 repos FOUND is kept distinct from 0 repos NEEDING a
+    change, so a misconfigured root reads as a miss rather than a
+    silent no-op success (GH-1215's class of blindness).
     """
     from dev10x.skills.permission import ignore_session_state as mod
 
@@ -796,8 +803,16 @@ def ensure_ignored(*, dry_run: bool, quiet: bool) -> None:
     if dry_run and not quiet:
         click.echo("(dry run — no files will be modified)\n")
 
+    repo_roots = mod.discover_repo_roots([Path(root) for root in roots])
+    if not repo_roots:
+        click.echo(
+            "0 candidates found — no git repository under the configured "
+            "roots. Check `dev10x permission init` roots."
+        )
+        return
+
     outcomes = mod.ensure_ignored_for_roots(
-        repo_roots=[Path(root) for root in roots],
+        repo_roots=repo_roots,
         dry_run=dry_run,
     )
     if not quiet:
