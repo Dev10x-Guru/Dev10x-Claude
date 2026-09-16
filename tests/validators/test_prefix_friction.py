@@ -40,6 +40,10 @@ class TestShouldRun:
         inp = _make_input(command='cd "$(git rev-parse --show-toplevel)" && git status --short')
         assert validator.should_run(inp=inp) is True
 
+    def test_true_for_or_chain(self, validator: PrefixFrictionValidator) -> None:
+        inp = _make_input(command="git fetch || git pull")
+        assert validator.should_run(inp=inp) is True
+
     def test_false_for_simple_command(self, validator: PrefixFrictionValidator) -> None:
         inp = _make_input(command="git status")
         assert validator.should_run(inp=inp) is False
@@ -574,6 +578,98 @@ class TestSemicolonChain:
         inp = _make_input(command=command)
         result = validator.validate(inp=inp)
         assert result is None
+
+
+class TestOrChain:
+    """GH-1316: `||` chains break whole-command allow-rule matching, the
+    same way `;` chains do — but were never checked."""
+
+    @pytest.fixture()
+    def validator(self) -> PrefixFrictionValidator:
+        return PrefixFrictionValidator()
+
+    def test_blocks_two_find_commands_or_chained(
+        self,
+        validator: PrefixFrictionValidator,
+    ) -> None:
+        inp = _make_input(command="find /a -name x || find /b -name y")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "||" in result.message
+        assert "separate Bash tool calls" in result.message
+
+    def test_blocks_grep_then_find_or_chained(
+        self,
+        validator: PrefixFrictionValidator,
+    ) -> None:
+        inp = _make_input(command="grep foo /tmp/a.log || find /var/log -name 'b.log'")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "separate Bash tool calls" in result.message
+
+    def test_allows_single_command_with_pipe(
+        self,
+        validator: PrefixFrictionValidator,
+    ) -> None:
+        # A single `|` pipe before a legitimate `|| true` fallback must not
+        # be mistaken for a chain boundary — the head group is a lazy `.*?`,
+        # not a `[^|]`-bounded one, specifically to tolerate this.
+        inp = _make_input(command="find /tmp -name '*.log' | wc -l || true")
+        result = validator.validate(inp=inp)
+        assert result is None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git status || git fetch",
+            "git log -1 || git diff HEAD~1",
+            "gh pr view 1 || gh pr checks 1",
+            "pwd || whoami",
+            "echo a || echo b",
+            "uv run pytest || uv run ruff check",
+            "docker ps || docker images",
+            "kubectl get pods || kubectl get svc",
+        ],
+    )
+    def test_blocks_widened_or_chain_heads(
+        self,
+        validator: PrefixFrictionValidator,
+        command: str,
+    ) -> None:
+        inp = _make_input(command=command)
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "separate Bash tool calls" in result.message
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # The `|| true` / `|| :` no-op fallback idiom must stay silent —
+            # the tail is not a recognized head token, so no chain matches.
+            "git fetch || true",
+            "curl -sf https://example.com || true",
+            "test -f /tmp/ready || echo missing",
+            # State-changing commands intentionally NOT widened.
+            "rm a.txt || rm b.txt",
+            "mv a b || mv c d",
+        ],
+    )
+    def test_allows_non_matching_or_chains(
+        self,
+        validator: PrefixFrictionValidator,
+        command: str,
+    ) -> None:
+        inp = _make_input(command=command)
+        result = validator.validate(inp=inp)
+        assert result is None
+
+    def test_blocks_multiline_or_chain(self, validator: PrefixFrictionValidator) -> None:
+        """The `||` chain body may span multiple lines — `re.DOTALL` keeps
+        the lazy head/tail groups matching across the newline."""
+        inp = _make_input(command="git fetch\n  || git pull")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "separate Bash tool calls" in result.message
 
 
 class TestShellLoopWrap:

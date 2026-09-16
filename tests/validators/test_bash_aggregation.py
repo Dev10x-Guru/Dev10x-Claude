@@ -32,6 +32,23 @@ class TestBashAggregationValidator:
         assert result is not None
         assert "serialized commands" in result.message
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "while true\ndo\n  echo hi\ndone",
+            "until [ -f /tmp/ready ]\ndo\n  sleep 1\ndone",
+        ],
+    )
+    def test_blocks_multiline_loop_bodies(
+        self, validator: BashAggregationValidator, command: str
+    ) -> None:
+        """GH-1211/GH-1212: a loop split across lines must still match —
+        `.+?` without `re.DOTALL` never crosses a newline."""
+        inp = _make_input(command=command)
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "serialized commands" in result.message
+
     def test_blocks_nested_command_substitution(self, validator: BashAggregationValidator) -> None:
         inp = _make_input(command='echo "$(basename $(git rev-parse HEAD))"')
         result = validator.validate(inp=inp)
@@ -44,17 +61,25 @@ class TestBashAggregationValidator:
         result = validator.validate(inp=inp)
         assert result is not None
 
+    def test_blocks_two_statement_chain(self, validator: BashAggregationValidator) -> None:
+        """GH-1316: a 2-statement `;` chain (single separator) used to slip
+        through — the threshold required 2 separators (3 statements)."""
+        inp = _make_input(command="echo hello; echo world")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "serialized commands" in result.message
+
     @pytest.mark.parametrize(
         "command",
         [
             "ls src/",
             "wc -l src/foo.py",
             "git status",
-            "echo hello; echo world",
             'echo "$(git rev-parse HEAD)"',
             "if [ -f file ]; then echo yes; fi",
             "grep 'for x in y' file.txt",
             "grep -E 'while.*do' README.md",
+            "echo 'a;b'",
         ],
     )
     def test_allows_safe_commands(self, validator: BashAggregationValidator, command: str) -> None:
