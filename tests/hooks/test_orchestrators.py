@@ -94,12 +94,24 @@ class TestSessionStopVerdict:
         )
         return str(path)
 
-    def test_a_turn_with_no_widget_emits_a_block_envelope(self, tmp_path: Path) -> None:
+    def test_a_turn_ending_on_a_decision_emits_a_block_envelope(self, tmp_path: Path) -> None:
+        """Wiring only: a block reaches stdout as an envelope.
+
+        The closing defers a decision in prose because that blocks
+        whatever the task list holds, and this test must not depend on
+        whichever plan happens to be on disk when the suite runs. It is
+        therefore NOT a GH-1339 regression test — it would pass against
+        the pre-GH-1339 code too. The rule itself is pinned in
+        ``test_stop_verdict_open_work``; the advance is covered at this
+        level by ``test_a_turn_with_work_left_emits_no_envelope``.
+        """
         result = _run(
             SESSION_STOP,
             {
                 "session_id": f"verdict-block-{uuid.uuid4()}",
-                "transcript_path": self._transcript(tmp_path=tmp_path, closing="All done."),
+                "transcript_path": self._transcript(
+                    tmp_path=tmp_path, closing="All done. Want me to file that?"
+                ),
             },
         )
 
@@ -114,11 +126,32 @@ class TestSessionStopVerdict:
             SESSION_STOP,
             {
                 "session_id": f"verdict-quiet-{uuid.uuid4()}",
-                "transcript_path": self._transcript(tmp_path=tmp_path, closing="All done."),
+                "transcript_path": self._transcript(
+                    tmp_path=tmp_path, closing="All done. Want me to file that?"
+                ),
             },
         )
 
         assert "Thank you for using Dev10x" not in result.stdout
+
+    def test_a_turn_with_work_left_emits_no_envelope(self, tmp_path: Path) -> None:
+        """GH-1339 at the orchestrator level: a plain closing just ends.
+
+        This is the half the two tests above cannot cover, because a
+        prose deferral blocks under the old rule and the new one alike.
+        A closing with no deferral would have produced a block envelope
+        before GH-1339, so this one does fail against the old code.
+        """
+        result = _run(
+            SESSION_STOP,
+            {
+                "session_id": f"verdict-advance-{uuid.uuid4()}",
+                "transcript_path": self._transcript(tmp_path=tmp_path, closing="Committed."),
+            },
+        )
+
+        assert result.returncode == 0
+        assert '"decision"' not in result.stdout
 
     def test_stop_hook_active_lets_the_turn_end(self, tmp_path: Path) -> None:
         result = _run(

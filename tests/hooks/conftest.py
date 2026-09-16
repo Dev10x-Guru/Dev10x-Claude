@@ -42,6 +42,15 @@ def _clear_attribution() -> None:
     clear_decision_attribution()
 
 
+#: A task list that exists and holds nothing open. Since GH-1339 this is
+#: the only state that blocks without a prose deferral, so a test about
+#: blocking must say which emptiness it means.
+DEPLETED_PLAN = {"tasks": [{"subject": "Ship it", "status": "completed"}]}
+
+#: A task list with work still on it — the state that auto-advances.
+PENDING_PLAN = {"tasks": [{"subject": "Monitor CI", "status": "pending"}]}
+
+
 @pytest.fixture()
 def isolated_markers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Point the cooldown and standby markers at a temp dir."""

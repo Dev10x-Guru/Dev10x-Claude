@@ -22,6 +22,8 @@ from dev10x.hooks.stop_verdict import (
     task_signal,
 )
 
+from .conftest import DEPLETED_PLAN, PENDING_PLAN
+
 
 def _assistant(*, blocks: list[dict]) -> dict:
     return {"type": "assistant", "message": {"role": "assistant", "content": blocks}}
@@ -41,7 +43,15 @@ def _transcript(*, tmp_path: Path, entries: list[dict]) -> str:
     return str(path)
 
 
-class TestBlocksATurnWithNoWidget:
+class TestBlocksATurnEndingOnADecision:
+    """GH-1339 narrowed this from "no widget" to "an unanswered decision".
+
+    Every case here therefore carries either a prose deferral or a task
+    list that exists and is wholly completed. A bare "this turn used no
+    widget" no longer blocks, which is what the sibling
+    ``test_stop_verdict_open_work`` module pins.
+    """
+
     def test_blocks_when_the_turn_never_asked(
         self,
         tmp_path: Path,
@@ -83,7 +93,7 @@ class TestBlocksATurnWithNoWidget:
         )
 
         assert verdict.block is True
-        assert "instance 3" in verdict.reason
+        assert "defers a decision in prose" in verdict.reason
 
     def test_a_done_session_still_ends_on_a_widget(
         self,
@@ -101,59 +111,38 @@ class TestBlocksATurnWithNoWidget:
 
         verdict = decide(
             data={"session_id": "s3", "transcript_path": transcript},
-            plan={"tasks": [{"subject": "Ship it", "status": "completed"}]},
+            plan=DEPLETED_PLAN,
         )
 
         assert verdict.block is True
-        assert "No open loops. Are we done?" in verdict.reason
+        assert "stand down" in verdict.reason
 
-    def test_open_work_names_the_next_loop(
+    def test_a_deferral_alongside_open_work_names_the_next_loop(
         self,
         tmp_path: Path,
         isolated_markers: Path,
     ) -> None:
+        """Open work alone advances now — the deferral is what still blocks.
+
+        The steer names the next loop so the widget can offer proceeding
+        as its recommended option, rather than asking open-endedly.
+        """
         transcript = _transcript(
             tmp_path=tmp_path,
             entries=[
                 {"type": "user", "message": {"role": "user", "content": "carry on"}},
-                _assistant(blocks=[_text(text="Committed.")]),
+                _assistant(blocks=[_text(text="Committed. Want me to push?")]),
             ],
         )
 
         verdict = decide(
             data={"session_id": "s4", "transcript_path": transcript},
-            plan={"tasks": [{"subject": "Monitor CI", "status": "pending"}]},
+            plan=PENDING_PLAN,
         )
 
         assert verdict.block is True
         assert "Monitor CI" in verdict.reason
-
-    def test_a_phase_boundary_names_the_skipped_gate(
-        self,
-        tmp_path: Path,
-        isolated_markers: Path,
-    ) -> None:
-        """The structural detector the GH-1251 comment recommends as primary."""
-        transcript = _transcript(
-            tmp_path=tmp_path,
-            entries=[
-                {"type": "user", "message": {"role": "user", "content": "plan"}},
-                _assistant(blocks=[_text(text="Here is the plan.")]),
-            ],
-        )
-
-        verdict = decide(
-            data={"session_id": "s5", "transcript_path": transcript},
-            plan={
-                "tasks": [
-                    {"subject": "Phase 3: Build work plan", "status": "completed"},
-                    {"subject": "Phase 4: Execute plan", "status": "pending"},
-                ]
-            },
-        )
-
-        assert verdict.block is True
-        assert "plan gate" in verdict.reason
+        assert "(Recommended)" in verdict.reason
 
 
 class TestLetsATurnEnd:
@@ -222,9 +211,9 @@ class TestLetsATurnEnd:
         )
         data = {"session_id": "s8", "transcript_path": transcript}
 
-        first = decide(data=data, plan=None)
+        first = decide(data=data, plan=DEPLETED_PLAN)
         record_block(session_id="s8")
-        second = decide(data=data, plan=None)
+        second = decide(data=data, plan=DEPLETED_PLAN)
 
         assert first.block is True
         assert second.block is False
@@ -337,7 +326,9 @@ class TestTranscriptReading:
             encoding="utf-8",
         )
 
-        verdict = decide(data={"session_id": "s12", "transcript_path": str(path)}, plan=None)
+        verdict = decide(
+            data={"session_id": "s12", "transcript_path": str(path)}, plan=DEPLETED_PLAN
+        )
 
         assert verdict.block is True
 
@@ -370,7 +361,7 @@ class TestTaskSignal:
         signal = task_signal(plan=None)
 
         assert signal.has_open_work is False
-        assert signal.at_phase_boundary is False
+        assert signal.has_task_list is False
 
     def test_a_plan_without_tasks_yields_no_signal(self) -> None:
         assert task_signal(plan={"context": {}}).has_open_work is False
@@ -385,7 +376,8 @@ class TestTaskSignal:
 
         assert signal.has_open_work is False
 
-    def test_completed_phases_in_order_are_not_a_boundary(self) -> None:
+    def test_completed_phases_read_as_a_depleted_list(self) -> None:
+        """GH-1339 retired the phase-boundary detector; depletion replaced it."""
         signal = task_signal(
             plan={
                 "tasks": [
@@ -395,7 +387,7 @@ class TestTaskSignal:
             }
         )
 
-        assert signal.at_phase_boundary is False
+        assert signal.is_depleted is True
 
 
 class TestEnvelope:
@@ -525,9 +517,9 @@ class TestSignalIsReported:
         )
         data = {"session_id": "sig2", "transcript_path": transcript}
 
-        blocked = decide(data=data, plan=None)
+        blocked = decide(data=data, plan=DEPLETED_PLAN)
         record_block(session_id="sig2")
-        suppressed = decide(data=data, plan=None)
+        suppressed = decide(data=data, plan=DEPLETED_PLAN)
 
         assert blocked.signal == StopSignal.BLOCKED
         assert suppressed.signal == StopSignal.COOLDOWN
@@ -593,11 +585,27 @@ class TestWiringRecordsTheBlock:
             lambda: None,
         )
 
+    @pytest.fixture()
+    def depleted_plan(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A plan whose tasks are all complete — the blocking state.
+
+        Wiring tests need a turn that actually blocks, and since GH-1339
+        an absent plan no longer is one.
+        """
+        monkeypatch.setattr(
+            "dev10x.hooks.session_dispatch._get_toplevel",
+            lambda: "/repo",
+        )
+        monkeypatch.setattr(
+            "dev10x.hooks.session_dispatch.read_plan_summary",
+            lambda *, toplevel: {"plan": DEPLETED_PLAN},
+        )
+
     def test_a_block_is_returned_and_recorded_once(
         self,
         tmp_path: Path,
         isolated_markers: Path,
-        no_plan: None,
+        depleted_plan: None,
     ) -> None:
         transcript = _transcript(
             tmp_path=tmp_path,
@@ -635,7 +643,7 @@ class TestWiringRecordsTheBlock:
         self,
         tmp_path: Path,
         isolated_markers: Path,
-        no_plan: None,
+        depleted_plan: None,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """The feature is also callable as a bare hook entry point."""
@@ -675,7 +683,9 @@ class TestWiringRecordsTheBlock:
             tmp_path=tmp_path,
             entries=[
                 {"type": "user", "message": {"role": "user", "content": "go"}},
-                _assistant(blocks=[_text(text="Committed.")]),
+                # The deferral is what blocks now; the plan supplies the
+                # next loop the steer names (GH-1339).
+                _assistant(blocks=[_text(text="Committed. Want me to push?")]),
             ],
         )
         monkeypatch.setattr(
@@ -684,9 +694,7 @@ class TestWiringRecordsTheBlock:
         )
         monkeypatch.setattr(
             "dev10x.hooks.session_dispatch.read_plan_summary",
-            lambda *, toplevel: {
-                "plan": {"tasks": [{"subject": "Monitor CI", "status": "pending"}]}
-            },
+            lambda *, toplevel: {"plan": PENDING_PLAN},
         )
 
         verdict = build_stop_verdict(data={"session_id": "w3", "transcript_path": transcript})

@@ -13,26 +13,41 @@ the envelope. Keeping the two apart is what makes the rule testable
 without a subprocess — the separation `dev10x.hooks.format_scope` got
 under GH-1143.
 
-**The rule.** A turn that ends without an ``AskUserQuestion`` hands the
-supervisor nothing to answer. That is the block condition, and it is
+**The rule.** A turn that ends on an *unanswered decision* hands the
+supervisor nothing to answer. That is the block condition. It is
 deliberately broader than the conjunction the issue first proposed
-("prose block ending in ``?``"). The issue's own third instance
-disproved the narrower test: a plan-approval gate held in prose as
-"say go and I'll run 4.1 through 4.11" contains no question mark at
-all, and cost two extra round trips. The supervisor's ruling is that a
-turn always ends on a widget — when there is genuinely nothing open,
-the widget confirms that ("No open loops. Are we done?") rather than a
-closing sentence asserting it.
+("prose block ending in ``?``"): the issue's own third instance
+disproved the narrower test, since a plan-approval gate held in prose
+as "say go and I'll run 4.1 through 4.11" contains no question mark at
+all and cost two extra round trips.
 
-**What varies is the steer, not the verdict.** The reason text is
-graded by what the task list shows, because that is structural rather
-than a guess about English (the ordering the GH-1251 comment
-recommends):
+**But a pause is not a decision (GH-1339).** The condition was first
+written as "this turn used no widget", which made a block the gate's
+single most common outcome — 106 of 224 audit records — and told
+sessions holding a pending task to ask the supervisor about work they
+had already been told to do. The rule that replaces it comes from the
+friction ladder this repo has since collapsed, where ``guided`` meant
+"block **with a recommendation**" and ``adaptive`` merely auto-selected
+that recommendation:
 
-  - a phase boundary — one phase parent complete, the next still
-    pending — names the skipped gate outright;
-  - open tasks name the next open loop;
-  - nothing open asks for confirmation that the work is done.
+    A gate fires only where there is no recommended next action.
+
+Open work *is* the recommended next action, so it auto-advances. Two
+states are not open work and still do not block:
+
+  - a **deferral in prose** — "shall I push?" is a true question, asked
+    badly, and reformulating it as a widget is the gate working;
+  - an **absent task list** is not a depleted one (GH-1055). The task
+    tools ship by default only on older models, so a session without
+    them never populates ``plan.tasks``; ``essentials.md`` says that
+    emptiness "must not be treated as evidence of anything else".
+    Conflating the two would block every turn of every such session,
+    which is the very over-firing this rule ends.
+
+That leaves one blocking state on the no-decision side: a task list
+that exists and is wholly completed. There the next move genuinely is
+the supervisor's, and the steer asks to stand down — carrying its own
+recommended option rather than an open-ended "reformulate something".
 
 **The loop guard is not optional.** A hook that always blocks, without
 one, never lets a turn finish. Two independent guards, because the
@@ -122,9 +137,16 @@ class StopSignal(StrEnum):
     ``SUBAGENT`` and ``STANDBY`` are named for the same reason (GH-1314):
     each is a new way for a turn to end legitimately, and a branch nobody
     can observe is a branch nobody can retire or trust.
+
+    ``OPEN_WORK`` and ``NO_TASK_LIST`` are the two GH-1339 advances, kept
+    apart because they answer different questions: the first says the
+    plan named a next action, the second says there was no plan to read.
+    Collapsing them would hide exactly the population GH-1055 is about.
     """
 
     STOP_HOOK_ACTIVE = "stop_hook_active"
+    OPEN_WORK = "open_work"
+    NO_TASK_LIST = "no_task_list"
     SUBAGENT = "subagent"
     STANDBY = "standby"
     COOLDOWN = "cooldown_marker"
@@ -442,11 +464,19 @@ class TaskSignal:
     """What the task list says about open work."""
 
     open_subjects: tuple[str, ...] = ()
-    at_phase_boundary: bool = False
+    #: Whether a task list was found at all (GH-1055, GH-1339). The
+    #: default is ``False`` so that "no evidence" is what an unset signal
+    #: means, rather than "the work is finished".
+    has_task_list: bool = False
 
     @property
     def has_open_work(self) -> bool:
         return bool(self.open_subjects)
+
+    @property
+    def is_depleted(self) -> bool:
+        """A list that exists and holds nothing open — the one asking state."""
+        return self.has_task_list and not self.has_open_work
 
 
 def _plan_tasks(*, plan: dict) -> list[dict]:
@@ -459,10 +489,12 @@ def _plan_tasks(*, plan: dict) -> list[dict]:
 def task_signal(*, plan: dict | None) -> TaskSignal:
     """Read the open-work signal out of a persisted plan.
 
-    ``at_phase_boundary`` is the GH-1251 comment's primary detector: a
-    completed phase parent followed by a pending one is the point where
-    `Dev10x:work-on` requires a gate, whatever shape the closing
-    sentence took.
+    GH-1251 also detected a **phase boundary** — a completed phase parent
+    followed by a pending one — as the point `Dev10x:work-on` requires a
+    gate. GH-1339 retires it: a pending phase *is* an open task, so the
+    boundary strictly implies open work and could never reach a block
+    again. Keeping it would leave an unreachable branch asserting a
+    second opinion about plan gates that ``resolve_gate`` already owns.
     """
     if not isinstance(plan, dict):
         return TaskSignal()
@@ -475,60 +507,62 @@ def task_signal(*, plan: dict | None) -> TaskSignal:
         and str(task.get("subject", "")).strip()
     )
 
-    phases = [task for task in tasks if str(task.get("subject", "")).startswith("Phase ")]
-    at_boundary = any(
-        earlier.get("status") == "completed" and later.get("status") == "pending"
-        for earlier, later in zip(phases, phases[1:], strict=False)
-    )
+    return TaskSignal(open_subjects=open_subjects, has_task_list=bool(tasks))
 
-    return TaskSignal(open_subjects=open_subjects, at_phase_boundary=at_boundary)
+
+def auto_advances(*, signal: TaskSignal, closing: str) -> bool:
+    """Whether this turn may simply end, with no widget (GH-1339).
+
+    The pure rule, kept separate from :func:`decide` so it can be read
+    and tested as one sentence: a turn advances unless it is holding a
+    decision back, or the plan says the work is done.
+    """
+    if _DEFERRAL_RE.search(closing):
+        return False
+    return not signal.is_depleted
 
 
 def _reason(*, signal: TaskSignal, closing: str) -> str:
-    head = (
-        "⛔  This turn is ending without an `AskUserQuestion`.\n\n"
-        "Call `Dev10x:ask` to reformulate the open decision as a widget "
-        "before finishing.\n\n"
-    )
+    """The steer for a turn that really is ending on a decision.
 
-    if signal.at_phase_boundary:
-        body = (
-            "A phase completed while the next phase is still pending — "
-            "that is a plan gate, and the skill contract requires a "
-            "widget there. Ask which way to proceed instead of "
-            "describing the plan and waiting."
-        )
-    elif signal.has_open_work:
+    Both branches name a recommended option. Pre-collapse ``guided``
+    blocked *with* a recommendation and ``adaptive`` auto-selected it;
+    an open-ended "reformulate the open decision" is what produced
+    manufactured questions rather than progress (GH-1339).
+    """
+    head = "⛔  This turn is ending on an unanswered decision.\n\n"
+
+    if signal.has_open_work:
         nxt = signal.open_subjects[0]
-        body = (
-            f"Open work remains — the next open loop is {nxt!r}. Either "
-            "hand the supervisor a choice about it, or confirm it is the "
-            "right thing to pick up next."
-        )
-    else:
-        body = (
-            "Nothing is open. That still ends on a widget rather than a "
-            'closing sentence — ask "No open loops. Are we done?", or '
-            "present what was done for confirmation."
+        return (
+            head + "The closing sentence defers a decision in prose, so it "
+            "never reached the supervisor as something answerable. Open "
+            f"work remains — {nxt!r} is next — so the decision is that "
+            "deferral alone, not whether to carry on.\n\n"
+            "Call `Dev10x:ask` to put it in an `AskUserQuestion`, with "
+            "proceeding as the `(Recommended)` option."
         )
 
-    # Without a terminal answer the widget only re-arms itself, which is
-    # what made the gate feel inescapable rather than useful (GH-1314).
-    standby = (
-        '\n\nInclude an option reading "On standby — not waiting on you". '
-        "Choosing it parks this gate until the supervisor speaks again; "
-        "it is not a permanent disable."
+    if not signal.has_task_list:
+        # Reached only via a deferral: without a list there is nothing to
+        # call depleted, so the agent's own question is the whole gate.
+        return (
+            head + "The closing sentence defers a decision in prose. There is "
+            "no task list to say what comes next, so nothing else can "
+            "answer it.\n\n"
+            "Call `Dev10x:ask` to put that decision in an "
+            "`AskUserQuestion` with a `(Recommended)` option."
+        )
+
+    return (
+        head + "Every task on the list is complete, so the next move is the "
+        "supervisor's rather than yours.\n\n"
+        "Call `Dev10x:ask` to ask whether to stand down, offering "
+        '"Stand down — the work is complete" as the `(Recommended)` '
+        'option and "On standby — not waiting on you" alongside it. '
+        "Standby parks this gate until the supervisor speaks again; it "
+        "is not a permanent disable (GH-1314)."
     )
-
-    tail = ""
-    if _DEFERRAL_RE.search(closing):
-        tail = (
-            "\n\nThe closing sentence defers a decision in prose. A "
-            "deferral is a gate whether or not it ends in a question "
-            "mark — GH-1251 instance 3."
-        )
-
-    return head + body + standby + tail
 
 
 def decide(*, data: dict, plan: dict | None, now: float | None = None) -> StopVerdict:
@@ -564,8 +598,18 @@ def decide(*, data: dict, plan: dict | None, now: float | None = None) -> StopVe
         return StopVerdict(block=False, signal=StopSignal.ASKED)
 
     signal = task_signal(plan=plan)
+    closing = final_text(entries=entries)
+
+    if auto_advances(signal=signal, closing=closing):
+        # Two ways to advance, kept apart so the audit log can tell a
+        # plan that named a next action from one that was never there.
+        return StopVerdict(
+            block=False,
+            signal=StopSignal.OPEN_WORK if signal.has_open_work else StopSignal.NO_TASK_LIST,
+        )
+
     return StopVerdict(
         block=True,
-        reason=_reason(signal=signal, closing=final_text(entries=entries)),
+        reason=_reason(signal=signal, closing=closing),
         signal=StopSignal.BLOCKED,
     )
