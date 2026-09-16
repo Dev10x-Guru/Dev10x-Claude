@@ -2323,6 +2323,7 @@ DECORATED_DELEGATIONS: list[tuple[str, str, dict]] = [
     ("milestone_close", "milestone_close", {"number": 1}),
     ("milestone_reopen", "milestone_reopen", {"number": 1}),
     ("milestone_edit", "milestone_edit", {"number": 1, "title": "t"}),
+    ("milestone_list", "milestone_list", {}),
 ]
 
 

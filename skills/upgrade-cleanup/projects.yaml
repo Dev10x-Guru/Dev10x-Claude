@@ -185,6 +185,10 @@ base_permissions:
   # caller prompted. test_catalog_covers_mcp_tools.py now fails on any
   # un-catalogued read tool so this cannot recur silently.
   - "mcp__plugin_Dev10x_cli__triage_roster"
+  # GH-1319: read-only milestone listing, the general-purpose counterpart
+  # to triage_roster's open-milestone read. Read-only, so it belongs here
+  # rather than in WRITE_TOOLS_NOT_SEEDED.
+  - "mcp__plugin_Dev10x_cli__milestone_list"
   # The same GH-1153 gap, found by that new test rather than by a user
   # hitting the prompt: five more registered read-only tools had never
   # been catalogued. `record_upgrade` is deliberately absent — it writes

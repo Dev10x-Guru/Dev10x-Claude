@@ -553,6 +553,7 @@ supporting each tool:
 | `milestone_create` | `cli` | GH-220 | v0.73.0+ |
 | `milestone_reopen` | `cli` | GH-850 | v0.90.0+ |
 | `milestone_edit` | `cli` | GH-850 | v0.90.0+ |
+| `milestone_list` | `cli` | GH-1319 | v0.103.0+ |
 | `issue_edit` | `cli` | GH-220 | v0.73.0+ |
 | `issue_comment` | `cli` | GH-220 | v0.73.0+ |
 | `issue_comment_edit` | `cli` | GH-283 | v0.75.0+ |
@@ -774,6 +775,7 @@ the MCP server is unavailable.
 | `gh api .../milestones POST` | `mcp__plugin_Dev10x_cli__milestone_create` |
 | `gh api .../milestones/{n} PATCH state=open` | `mcp__plugin_Dev10x_cli__milestone_reopen` |
 | `gh api .../milestones/{n} PATCH` (title/desc/state/due) | `mcp__plugin_Dev10x_cli__milestone_edit` |
+| `gh api .../milestones GET` | `mcp__plugin_Dev10x_cli__milestone_list` (GH-1319) |
 | `gh pr edit` | `mcp__plugin_Dev10x_cli__update_pr` |
 | `gh pr ready` | `mcp__plugin_Dev10x_cli__pr_ready` |
 | `gh pr edit --add-label` / `--remove-label` | `mcp__plugin_Dev10x_cli__pr_labels` (GH-1008) |
