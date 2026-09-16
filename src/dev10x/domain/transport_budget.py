@@ -24,38 +24,77 @@ a second `clamp_tool_timeout` call: capping the subprocess alone would
 kill the poll loop mid-iteration and hand the caller a non-zero exit
 instead of the verdict it waited for.
 
-**The ceiling is not confirmed.** Two deaths were observed at ~1135s and
-~1139s elapsed, both comfortably under the 1800s the code budgets
-against. If the effective idle ceiling in this harness is nearer 1140s,
-`MCP_IDLE_TIMEOUT_SECONDS` is wrong and every budget derived from
-`MAX_TOOL_CALL_SECONDS` is merely lucky. GH-1288 item 5 asks for a real
-measurement before anyone tunes a constant to that inference, so
-`MCP_IDLE_TIMEOUT_SECONDS` keeps the documented value and the margin
-below does the defending. Do not lower it to 1140 on the strength of two
-data points — instrument the transport first.
+**GH-1305: `MCP_IDLE_TIMEOUT_SECONDS=1800` is now a documented, not
+inferred, value.** Claude Code's own MCP docs
+(https://code.claude.com/docs/en/mcp, "Idle Timeout") state the
+client-side idle-abort window defaults to 30 minutes for stdio servers
+(the `plugin:Dev10x:cli` transport here) with no per-server `timeout`
+override configured in `.claude-plugin/plugin.json`, confirmed against
+the installed harness (`claude --version` → 2.1.273, i.e. past the
+2.1.203 release that extended idle-timeout coverage to stdio servers —
+before that release stdio servers were exempt entirely). No probe was
+needed: the number was already published, which is exactly what GH-1305
+asked to check first.
+
+That documented figure does **not** explain the two ~1137s deaths GH-1288
+reports, and it should not be read as if it does. Idle-timeout is a
+per-call client-side abort of a call that sent no response/progress for
+the idle window; the GH-1288 deaths took down the whole server process,
+including calls that were themselves mid-progress, and (if they predate
+the harness's 2.1.203 stdio coverage) may have happened while stdio
+servers were exempt from idle-timeout altogether. These are two distinct
+failure modes with two distinct ceilings, and `MAX_TOOL_CALL_SECONDS`
+below defends against the GH-1288 crash symptom specifically, not
+against idle-timeout — which is why it sits so far under the now-
+confirmed 1800s. Raising it would need the GH-1288 crash's root cause
+understood, not merely a taller idle-timeout ceiling to spend.
+
+**A related, separate anomaly (GH-1305, unresolved):** a `run_tests` call
+with the default `timeout=600` was observed by the client as "no response
+or progress for 2345s" before aborting — well past both `timeout=600` and
+`MAX_TOOL_CALL_SECONDS`. Reading `runner.async_run`'s `asyncio.wait_for`
+handling confirms the kill-and-reap path is correct in this codebase: a
+`TimeoutError` synchronously kills the process tree, reaps it, and
+returns — there is no logic path here that leaves a clamped call
+outstanding. The likeliest explanation is that a second full-suite run
+was in flight on the same host at the time (noted in GH-1305), which
+would starve the single-threaded event loop of CPU and delay when its
+timer callback actually runs — a soft-realtime property of asyncio, not
+a defect in this module. This was not reproduced, so it is recorded
+rather than "fixed": GH-1358 tracks it, with the timestamps that would
+confirm or rule out the event-loop-starvation hypothesis if it recurs.
 """
 
 from __future__ import annotations
 
 from typing import NamedTuple
 
-# The documented transport idle ceiling (GH-808 F2, GH-1104). Treated as
-# an upper bound on what the transport tolerates, not as a measurement.
+# The client-side MCP idle-abort ceiling (GH-808 F2, GH-1104, confirmed
+# GH-1305). This is the documented default for a *stdio* MCP server with
+# no per-server `timeout` override (see `.claude-plugin/plugin.json`),
+# per https://code.claude.com/docs/en/mcp "Idle Timeout" — checked
+# against the installed harness version (>= 2.1.203, which is when idle
+# timeout coverage was extended to stdio servers at all). It is a
+# confirmed value, not an inference from observed deaths.
 MCP_IDLE_TIMEOUT_SECONDS = 1800
 
 # What a single tool call may ask for.
 #
-# This is NOT a measurement of the ceiling, and must not be read as one.
-# It is the largest budget defensible on the evidence: both observed
-# deaths landed at ~1137s, so a budget above that would have let the
-# reported run die exactly as it did, making the clamp cosmetic for the
-# case that motivated it. Sitting below the observations costs a suite
-# that genuinely needs 18+ minutes — but such a suite was already dying,
-# and now gets a timeout verdict it can act on instead of a dropped
-# socket.
+# This is NOT the idle-timeout ceiling above, and must not be read as
+# one — it defends against a *different, still-unexplained* failure:
+# GH-1288's whole-server crash, observed twice at ~1137s elapsed, which
+# took down every in-flight call rather than aborting just the one that
+# overran. A budget above that would have let the reported run die
+# exactly as it did, making the clamp cosmetic for the case that
+# motivated it. Sitting below the observations costs a suite that
+# genuinely needs 18+ minutes — but such a suite was already dying, and
+# now gets a timeout verdict it can act on instead of a dropped socket.
 #
-# Raising this needs the GH-1288 item 5 measurement, not an argument that
-# some suite would like more room.
+# GH-1305 confirmed `MCP_IDLE_TIMEOUT_SECONDS` above but did NOT explain
+# the GH-1288 deaths — they may predate stdio idle-timeout coverage
+# entirely, or be an unrelated crash. Raising this needs the GH-1288
+# crash's root cause understood, not a taller idle-timeout ceiling to
+# spend against it.
 MAX_TOOL_CALL_SECONDS = 1080
 
 
