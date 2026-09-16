@@ -65,6 +65,10 @@ class ClaudeDir:
         return cls._resolve("skills")
 
     @classmethod
+    def skills_index_md(cls) -> Path:
+        return cls._resolve("SKILLS.md")
+
+    @classmethod
     def tools_dir(cls) -> Path:
         return cls._resolve("tools")
 

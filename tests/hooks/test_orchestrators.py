@@ -229,6 +229,62 @@ class TestOrchestratorConsolidation:
         assert result.returncode == 0
 
 
+class TestSkillsIndexWiring:
+    """GH-1315: SessionStart reads ~/.claude/SKILLS.md in-process so the
+    supervisor's skill index displays every session without a Read-tool
+    permission prompt (the Read TOOL is gated by ``additionalDirectories``,
+    not by ``Read()`` allow-rules — no permission rule can close that gap)."""
+
+    def test_dispatch_empty_when_index_missing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+        from dev10x.hooks import session_dispatch
+
+        monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path / "claude-home"))
+        ClaudeDir.reset_cache()
+
+        assert session_dispatch.build_skills_index_context() == ""
+
+    def test_dispatch_returns_index_contents_when_present(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+        from dev10x.hooks import session_dispatch
+
+        claude_home = tmp_path / "claude-home"
+        claude_home.mkdir(parents=True)
+        (claude_home / "SKILLS.md").write_text("# Skills\n- example: does a thing")
+        monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(claude_home))
+        ClaudeDir.reset_cache()
+
+        result = session_dispatch.build_skills_index_context()
+
+        assert "example: does a thing" in result
+
+    def test_facade_reexports_dispatch(self) -> None:
+        from dev10x.hooks import session
+
+        assert hasattr(session, "build_skills_index_context")
+
+    def test_orchestrator_includes_index_in_envelope(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        dot_claude = Path(_ISOLATED_HOME) / ".claude"
+        dot_claude.mkdir(parents=True, exist_ok=True)
+        index_file = dot_claude / "SKILLS.md"
+        index_file.write_text("# Skills\n- orchestrator-marker: present")
+
+        try:
+            result = _run(SESSION_START, {"session_id": "skills-index-test"})
+
+            assert result.returncode == 0
+            obj = json.loads(result.stdout)
+            assert "orchestrator-marker: present" in obj["hookSpecificOutput"]["additionalContext"]
+        finally:
+            index_file.unlink()
+
+
 class TestAutonomyReassurance:
     """GH-261: SessionStart MOTD injects a reassurance block when the
     supervisor opted into adaptive + solo-maintainer autonomy.

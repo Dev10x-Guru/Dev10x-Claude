@@ -174,6 +174,7 @@ def main() -> None:
             emits_context=False,
         ),
         build_feature(name="session-guidance", fn=s.build_guidance_context),
+        build_feature(name="session-skills-index", fn=s.build_skills_index_context),
         build_feature(name="session-autonomy", fn=s.build_autonomy_reassurance_context),
         build_feature(name="session-auto-plan", fn=s.build_auto_plan_guidance_context),
         build_feature(name="session-mode-guard", fn=s.build_mode_guard_context),

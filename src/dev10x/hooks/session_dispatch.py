@@ -156,6 +156,16 @@ def build_friction_setup_context() -> str:
     return SessionService().build_friction_setup_context(toplevel=_get_toplevel())
 
 
+def build_skills_index_context() -> str:
+    """Return ``~/.claude/SKILLS.md`` contents for SessionStart display (GH-1315).
+
+    Returns an empty string when the index is absent or unreadable; the
+    orchestrator drops empty segments, so a fresh install with no
+    generated index sees no change.
+    """
+    return SessionService().build_skills_index_context()
+
+
 def build_install_check_context() -> str:
     """Warn the user when the Dev10x install needs bootstrap or upgrade.
 
@@ -315,6 +325,7 @@ __all__ = [
     "build_autonomy_reassurance_context",
     "build_auto_plan_guidance_context",
     "build_guidance_context",
+    "build_skills_index_context",
     "session_reload",
     "context_compact",
     "session_guidance",
