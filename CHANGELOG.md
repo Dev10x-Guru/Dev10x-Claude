@@ -5,6 +5,151 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.104.0 — Gates That Actually Fire, Verdicts You Can Trust
+
+Released 2026-09-16
+
+### Features
+
+- **Report one CI verdict on every pull request** — `develop` carries no branch
+  protection, so `Dev10x:gh-pr-merge`'s nine pre-merge validations gated nothing
+  (ADR-0024), and the obvious fix would have deadlocked the repo: every workflow
+  here is path-filtered, and a required check a `paths:` filter kept from
+  running never reports at all. The three substantive legs are folded into
+  `ci-gate.yml` — `needs:` only reaches jobs in the same file — with the path
+  filtering moved to the job level, where a filtered-out leg reports `skipped`
+  instead of reporting nothing. The aggregator passes on success or skipped,
+  fails on anything else, and fails when nothing ran, so a skip cannot pass
+  vacuously; the verdict is a script the test suite exercises rather than YAML
+  nobody can run ([GH-1298](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1298))
+- **Let CI assert catalog health without an agent** — `Dev10x:plugin-doctor` was
+  Claude-orchestrated only, so catalog health was assertable exactly when a human
+  was present to assert it; that is how GH-1100's redundant-rule drift survived
+  for months, its only detector being somebody noticing a prompt. `dev10x doctor
+  run` sweeps the same strategies with nobody in the loop, JSON in both
+  directions, and gates the noise on severity first — the doctor's findings run
+  heavily to false positives, and automating that unfiltered would emit them on a
+  schedule where nobody triages them. A durable acceptance catalog *moves* a
+  finding out of the blocking set rather than hiding it, requires a rationale, and
+  reports entries that matched nothing as stale
+  ([GH-1321](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1321))
+
+### Fixes
+
+- **Stop a false "no checks" ending a CI wait** — `gh pr checks` under-reports:
+  PR #1372 had a completed, successful hygiene run that the Actions runs API
+  listed and the CLI did not, persistently and across two sessions. That read is
+  load-bearing — every hand-rolled poll loop is routed here and both loop shapes
+  are hook-blocked, so an agent has no alternative and is told to trust the
+  answer. A zero is now corroborated against the runs API filtered to the PR's
+  head SHA, `checks_source` names which source answered, and an unreachable
+  second source degrades to `undetermined` rather than to a zero
+  ([GH-1376](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1376))
+- **Spare an agent a stall on an empty required verdict** — two workers each sat
+  on a fully green, mergeable PR (#1362 at 7/7, #1360 at 6/6) reading
+  `required_verdict: "empty"` as "required checks haven't passed yet"; both
+  needed orchestrator intervention. On an unprotected base `empty` is the normal
+  terminal value, and the blended `verdict` is what a merge decision branches on
+  ([GH-1381](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1381))
+- **Tell a claimed merge gate from a run one** — two fanout workers reported
+  running the nine-check merge gate for PRs they had never merged; the
+  orchestrator had merged both by hand while they were stalled, and they resumed
+  and narrated the pipeline their brief listed as REQUIRED. A skipped gate is
+  visible; a falsely claimed one is invisible, and GH-1093 trusts a worker's
+  report on purpose. The remedy is a comparison rather than a ledger the worker
+  could also narrate: GitHub stamps `mergedAt`, so checks measured at or after
+  that moment cannot be the gate that preceded it
+  ([GH-1380](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1380))
+- **Catch a routing slip at the call, not after the merge** — a bugfix session's
+  full-suite run routed correctly and all six edit-run-edit iterations did not,
+  each a targeted raw `pytest` with a working wrapper available. Nothing could
+  have caught it: the rule was advisory, dropped before the engine saw it, and
+  would have been short-circuited by the fast-path token filter anyway —
+  registered, documented and inert, the shape GH-1211/GH-1212 found in the
+  `Monitor` matcher. The narrow shape now blocks with an exact translation, and
+  an invariant pins that every blocking rule's pattern names a quick token, so a
+  new rule cannot ship unreachable
+  ([GH-1337](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1337))
+- **Hold a session to a widget after the last was answered** — a widget answer
+  arrives as a tool result, so the turn boundary slid past it to the last typed
+  message and every later turn still held the original `AskUserQuestion`; the
+  gate resolved ASKED and stayed suppressed until the supervisor next typed. A
+  widget answer now ends the turn it belongs to, discriminated by a
+  `toolUseResult` carrying both `questions` and `answers` — verified against a
+  live transcript before being built on, with `tool_use_id` kept as the
+  protocol-level fallback
+  ([GH-1336](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1336))
+- **Stop a zero reading retiring a live guard** — `hook-patterns.md` tells a
+  reader to query `StopVerdict.signal` to decide whether GH-1257's cooldown
+  guard can go, and no record ever carried that key: the branch landed in the
+  generic `reason` slot. One session read a narrow slice as near-zero and nearly
+  concluded the retirement condition was met; a wider re-measurement found the
+  guard firing repeatedly. Both keys are now written, `extra` is the seam for a
+  rule needing its own field, and `harness_version` — the other half of the
+  condition, previously not evaluable at all — is recorded as the literal
+  `unknown` when unreadable rather than left absent
+  ([GH-1390](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1390))
+- **Route lessons-learned PRs to a reviewer, not drafts** — six bot-authored
+  draft PRs sat six weeks with zero comments and zero CI runs before being
+  disposed. Three mechanisms compounded: the PRs opened as `--draft`, both
+  review workflows gate on the PR not being a draft, and drafts get no CI here
+  at all — the design guaranteed they would expire unseen. They now open ready
+  for review with the closed PR's author requested, and out-of-scope
+  improvements are filed as issues instead of prose that rots with the PR
+  ([GH-1351](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1351))
+- **Let a projects list say it selects nothing** — implements ADR-0026.
+  `projects[].match` carried two incompatible meanings, a directory-path glob in
+  `friction.yaml` and an `org/repo` glob everywhere else; the repo-addressed side
+  is now `match_repo:`, with `match:` read as a deprecated alias for one release
+  so no hand-edited config is silently orphaned. The rename makes the crossed
+  convention legible, but what prevents recurrence is the report: a `projects:`
+  list that matched nothing was indistinguishable from one never evaluated, and
+  both were silent. `config doctor` and `playbook diff` now keep absent,
+  unresolved, no-match and matched apart — `playbook diff` previously located
+  override files by path and never read the list inside them
+  ([GH-1375](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1375))
+- **Let the CLI-drift guard see lazy subcommands** — the walk read
+  `click.Group.commands` directly, which `LazyGroup` never populates, so every
+  top-level group was invisible and the CI drift gate passed green while
+  measuring nothing. Walking via `list_commands`/`get_command` leaves the ~40ms
+  startup budget unaffected, and the now-working guard immediately found 22
+  pre-existing uncovered commands, recorded as a shrink-only ratchet rather than
+  triaged here ([GH-1370](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1370))
+- **Name the cause when a plan file cannot be read** — `Plan.load` swallowed a
+  corrupt or wrong-shape `plan.yaml` into an empty plan with no diagnostic, and
+  since GH-1339 an empty plan reads as "this session has no task list" and
+  auto-advances quietly — indistinguishable in the audit log from the intended
+  GH-1055 case. A genuinely absent file stays silent; everything else now names
+  the path and the cause
+  ([GH-1346](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1346))
+
+### Maintenance
+
+- **Drop the hand-kept list of mktmp namespaces** — the catalog enumerated
+  `/tmp/Dev10x/<namespace>/**` once per tool per namespace, 20 hand-maintained
+  rules with a documented trap: an unlisted namespace prompts forever while
+  looking wired up. Settled empirically first, as the ticket asked — Read/Edit/
+  Write rules are gitignore patterns, so `**` crosses directories and one tree
+  rule reaches every namespace; the "`**` is unreliable" lesson is true of
+  `Bash()` rules and was wrongly generalised. The same reference settled a second
+  thing nobody had asked: a single leading slash anchors at the settings source,
+  so all 20 rules were granting nothing. 20 dead rules become 2 live ones, and a
+  ratchet keeps the anchor fixed
+  ([GH-1325](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1325))
+- **Settle what PAP means and rehome two axes** — the acronym expanded three
+  different ways across the repo, and two axes of the three-axis action model
+  pointed at a reference rewritten under ADR-0022 to cover gate behaviour only.
+  PAP is canonically Policy Administration Point (XACML sense), and Tier and
+  Reversibility now point at their surviving live definition
+  ([GH-1333](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1333))
+- **Spare the next editor an inherited red scanner** — two catalog comments
+  naming the raw CLI their wrapper replaces are exactly what the CLI-friction
+  scanner matches on; both landed the same day and were never scanned, because
+  the workflow only reads files a PR changed. Marked with the documented inline
+  suppression so the next person to touch the file does not inherit a red check
+  they cannot explain from their own diff
+  ([GH-1321](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1321))
+
 ## 0.103.0 — Rules That Match What You Type, A Turn That Keeps Going
 
 Released 2026-09-16
