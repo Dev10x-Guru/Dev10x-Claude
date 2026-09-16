@@ -34,6 +34,10 @@ Output (JSON):
                                        # "infra_unavailable"
         "required_verdict": "green",   # same vocabulary, computed over
                                        # required (merge-blocking) checks only
+        "checks_source": "gh-pr-checks",  # "gh-pr-checks", "runs-api",
+                                       # "confirmed-zero" — where the list came
+                                       # from, so an "empty" verdict says
+                                       # whether the zero was corroborated
         "mergeable": "MERGEABLE",      # "MERGEABLE", "CONFLICTING", "UNKNOWN"
         "total": 5,
         "pass": 3,
@@ -67,6 +71,14 @@ plus a per-check `required: bool`. A caller — e.g. gh-pr-merge Check 2 —
 branches on `required_verdict` to tell a true merge blocker from an
 advisory red without a manual per-job log fetch. When the host reports
 no required checks, `required_verdict` is "empty".
+
+Corroborated zeros (GH-1376): `gh pr checks` under-reports, so a zero
+read is cross-checked against the Actions runs API for the PR's head SHA
+before it is reported, and `checks_source` names the source. The extra
+two API calls are paid ONLY on the zero path — never on a call that has
+checks to report — so the common poll costs exactly what it did before.
+A runs-API call that cannot be made degrades to an `undetermined` error,
+never to a zero and never to a green.
 """
 
 import argparse
@@ -74,12 +86,53 @@ import json
 import subprocess
 import sys
 import time
+from dataclasses import dataclass
+from typing import NoReturn
 
 from dev10x.domain.common.repository_ref import RepositoryRef
 
 # Bound every gh subprocess so a wedged CLI cannot hang the poll loop
 # indefinitely (GH-824), matching pr_notify.py / slack_review_request.py.
 _SUBPROCESS_TIMEOUT_SECONDS = 30
+
+# Where a check list came from, reported as `checks_source` so a caller
+# can tell a corroborated zero from an uncorroborated one (GH-1376).
+SOURCE_GH_CLI = "gh-pr-checks"
+SOURCE_RUNS_API = "runs-api"
+SOURCE_CONFIRMED_ZERO = "confirmed-zero"
+
+# `gh pr checks` says this on stderr, and exits non-zero, when it sees no
+# checks — the same sentence for a PR that genuinely has none and for one
+# whose checks it failed to see (GH-1376).
+_NO_CHECKS_STDERR = "no checks reported"
+
+_RUNS_PAGE_SIZE = 50
+
+# GitHub run conclusions that are not "this check passed". Anything not
+# named here and not a success-shaped conclusion is read as a failure,
+# so a conclusion this map has never heard of never reads as green.
+_CONCLUSION_BUCKETS = {
+    "success": "pass",
+    "neutral": "pass",
+    "skipped": "skipping",
+    "cancelled": "cancel",
+    "stale": "cancel",
+}
+
+
+@dataclass(frozen=True)
+class ChecksRead:
+    """A check list plus where it came from (GH-1376).
+
+    `source` is the difference between "GitHub told us there are zero
+    checks and the runs API agrees" and "one API said zero" — a
+    distinction the caller of a zero verdict has to be able to make,
+    because merging on the first is fine and merging on the second is
+    merging blind.
+    """
+
+    checks: list[dict]
+    source: str
 
 
 def fetch_mergeable(
@@ -107,12 +160,28 @@ def fetch_mergeable(
     return result.stdout.strip() or "UNKNOWN"
 
 
-def get_checks(
+def read_checks(
     *,
     pr_number: int,
     repo: str,
     required_only: bool = False,
-) -> list[dict]:
+) -> ChecksRead:
+    """Fetch the PR's checks, corroborating a zero read before returning it.
+
+    GH-1376: `gh pr checks` under-reports. PR #1372 had a completed,
+    successful `PR Hygiene Review` run that the runs API listed and the
+    CLI did not — persistently, across two sessions. Because this wrapper
+    is the only sanctioned CI-wait path, that read is load-bearing: an
+    agent told "no checks will ever register" either merges believing CI
+    cannot run, or waits for something it has been told will never come.
+    A zero is therefore checked against a second source before it is
+    reported, and the payload says which source produced it.
+
+    `required_only` reads are exempt: an empty required set is the
+    NORMAL state on an unprotected base (ADR-0024), and the runs API
+    cannot tell which of the runs it lists the host marks required, so
+    corroborating there would invent required checks.
+    """
     cmd = [
         "gh",
         "pr",
@@ -136,15 +205,157 @@ def get_checks(
     # `{"error": ""}`: no cause, and indistinguishable from success to
     # anything branching on truthiness. Parseable stdout IS the answer.
     parsed = _parse_checks_json(result.stdout)
-    if parsed is not None:
-        return parsed
+    if parsed:
+        return ChecksRead(checks=parsed, source=SOURCE_GH_CLI)
+    if parsed == [] or _NO_CHECKS_STDERR in result.stderr.lower():
+        if required_only:
+            return ChecksRead(checks=[], source=SOURCE_GH_CLI)
+        return corroborate_zero_checks(pr_number=pr_number, repo=repo)
     if result.returncode != 0:
-        print(json.dumps({"error": _gh_checks_failure(result)}))
-        sys.exit(1)
-    print(
-        json.dumps({"error": f"gh pr checks returned unparseable output: {result.stdout[:200]}"})
-    )
+        _abort(_gh_checks_failure(result))
+    _abort(f"gh pr checks returned unparseable output: {result.stdout[:200]}")
+
+
+def get_checks(
+    *,
+    pr_number: int,
+    repo: str,
+    required_only: bool = False,
+) -> list[dict]:
+    return read_checks(
+        pr_number=pr_number,
+        repo=repo,
+        required_only=required_only,
+    ).checks
+
+
+def _abort(message: str, **extra: object) -> NoReturn:
+    """Emit a stdout error blob and exit non-zero.
+
+    Errors go to stdout because this script's stdout is what the MCP
+    wrapper parses — a caller must never have to read two channels to
+    learn a call failed.
+    """
+    print(json.dumps({"error": message, **extra}))
     sys.exit(1)
+
+
+def corroborate_zero_checks(
+    *,
+    pr_number: int,
+    repo: str,
+) -> ChecksRead:
+    """Second-source a "no checks" read against the Actions runs API.
+
+    Three outcomes, and the third is the point: a runs-API call that
+    itself fails must degrade to "could not determine" rather than to
+    either a confirmed zero or a green. An unreadable second source is
+    not evidence about the first.
+    """
+    head = fetch_head_ref(pr_number=pr_number, repo=repo)
+    if head is None:
+        _abort(
+            "gh pr checks reported no checks and the PR's head ref could not be "
+            "read to corroborate it — undetermined, not zero checks",
+            undetermined=True,
+        )
+    branch, head_sha = head
+    runs = fetch_branch_runs(repo=repo, branch=branch)
+    if runs is None:
+        _abort(
+            "gh pr checks reported no checks and the Actions runs API could not "
+            f"be reached to corroborate it for '{branch}' — undetermined, not "
+            "zero checks",
+            undetermined=True,
+        )
+    at_head = [run for run in runs if run.get("head_sha") == head_sha]
+    if not at_head:
+        return ChecksRead(checks=[], source=SOURCE_CONFIRMED_ZERO)
+    return ChecksRead(checks=checks_from_runs(at_head), source=SOURCE_RUNS_API)
+
+
+def fetch_head_ref(
+    *,
+    pr_number: int,
+    repo: str,
+) -> tuple[str, str] | None:
+    """The PR's `(head branch, head SHA)`, or None when unreadable."""
+    cmd = [
+        "gh",
+        "pr",
+        "view",
+        str(pr_number),
+        "--repo",
+        repo,
+        "--json",
+        "headRefName,headRefOid",
+    ]
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT_SECONDS
+    )
+    if result.returncode != 0:
+        return None
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return None
+    branch = payload.get("headRefName")
+    head_sha = payload.get("headRefOid")
+    if not branch or not head_sha:
+        return None
+    return branch, head_sha
+
+
+def fetch_branch_runs(
+    *,
+    repo: str,
+    branch: str,
+) -> list[dict] | None:
+    """Workflow runs the Actions API lists for `branch`, or None on failure.
+
+    An empty list means the API answered and saw nothing; None means it
+    did not answer. Collapsing the two is the bug this whole path exists
+    to avoid.
+    """
+    cmd = [
+        "gh",
+        "api",
+        f"repos/{repo}/actions/runs?branch={branch}&per_page={_RUNS_PAGE_SIZE}",
+    ]
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT_SECONDS
+    )
+    if result.returncode != 0:
+        return None
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return None
+    runs = payload.get("workflow_runs") if isinstance(payload, dict) else None
+    return runs if isinstance(runs, list) else None
+
+
+def checks_from_runs(runs: list[dict]) -> list[dict]:
+    """Shape workflow runs like `gh pr checks` entries, newest run per name.
+
+    The runs API lists newest first and a re-run adds a row rather than
+    replacing one, so the first occurrence of a name is the current one.
+    """
+    checks: list[dict] = []
+    seen: set[str] = set()
+    for run in runs:
+        name = run.get("name") or "unknown"
+        if name in seen:
+            continue
+        seen.add(name)
+        checks.append({"name": name, "bucket": _run_bucket(run), "state": run.get("status")})
+    return checks
+
+
+def _run_bucket(run: dict) -> str:
+    if run.get("status") != "completed":
+        return "pending"
+    return _CONCLUSION_BUCKETS.get(run.get("conclusion") or "", "fail")
 
 
 def _parse_checks_json(stdout: str) -> list[dict] | None:
@@ -213,22 +424,23 @@ def get_annotated_checks(
     pr_number: int,
     repo: str,
     required_only: bool = False,
-) -> list[dict]:
+) -> ChecksRead:
     """Fetch checks and tag each with `required` (merge-blocking) status.
 
     When `required_only` is set every returned check is required by
     definition; otherwise required-ness is resolved by name against
-    `get_required_names`.
+    `get_required_names`. The read's `source` is carried through so the
+    verdict can report where a zero came from (GH-1376).
     """
-    checks = get_checks(pr_number=pr_number, repo=repo, required_only=required_only)
+    read = read_checks(pr_number=pr_number, repo=repo, required_only=required_only)
     if required_only:
-        for check in checks:
+        for check in read.checks:
             check["required"] = True
-        return checks
+        return read
     required_names = get_required_names(pr_number=pr_number, repo=repo)
-    for check in checks:
+    for check in read.checks:
         check["required"] = check.get("name") in required_names
-    return checks
+    return read
 
 
 def _summarize(checks: list[dict]) -> tuple[str, dict[str, int]]:
@@ -267,6 +479,7 @@ def compute_verdict(
     *,
     checks: list[dict],
     mergeable: str = "UNKNOWN",
+    checks_source: str = SOURCE_GH_CLI,
 ) -> dict:
     verdict, counts = _summarize(checks)
     required_verdict, _ = _summarize([c for c in checks if c.get("required")])
@@ -278,6 +491,7 @@ def compute_verdict(
     return {
         "verdict": verdict,
         "required_verdict": required_verdict,
+        "checks_source": checks_source,
         "mergeable": mergeable,
         "total": len(checks),
         **counts,
@@ -362,13 +576,13 @@ def probe_once(
     required_only: bool = False,
 ) -> dict:
     """Fetch checks and mergeability once and derive the verdict."""
-    checks = get_annotated_checks(
+    read = get_annotated_checks(
         pr_number=pr_number,
         repo=repo,
         required_only=required_only,
     )
     mergeable = fetch_mergeable(pr_number=pr_number, repo=repo)
-    return compute_verdict(checks=checks, mergeable=mergeable)
+    return compute_verdict(checks=read.checks, mergeable=mergeable, checks_source=read.source)
 
 
 def poll_until_terminal(
@@ -539,16 +753,11 @@ def main() -> None:
             wait_for=args.wait_for,
         )
     else:
-        checks = get_annotated_checks(
+        result = probe_once(
             pr_number=args.pr,
             repo=repo,
             required_only=args.required_only,
         )
-        mergeable = fetch_mergeable(
-            pr_number=args.pr,
-            repo=repo,
-        )
-        result = compute_verdict(checks=checks, mergeable=mergeable)
 
     print(json.dumps(result, indent=2))
 

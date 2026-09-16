@@ -59,7 +59,12 @@ async def ci_check_status(
         escalates rather than treating it as a transient pending. A
         ``failing`` verdict from a ``wait_out_pending`` run names the failed
         leg in ``checks`` and reports ``pending: 0``, so the caller can tell
-        an advisory red apart from an unfinished run.
+        an advisory red apart from an unfinished run. ``checks_source``
+        (GH-1376) says where the list came from — ``confirmed-zero`` when a
+        zero was corroborated against the Actions runs API, ``runs-api``
+        when that cross-check overturned a false "no checks reported", and
+        ``gh-pr-checks`` otherwise. A cross-check that cannot be made
+        returns an error carrying ``undetermined: true``, never a zero.
     """
     from dev10x import monitor as mon
     from dev10x.subprocess_utils import use_cwd

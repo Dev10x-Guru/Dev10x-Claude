@@ -23,6 +23,11 @@ compute_verdict = _mod.compute_verdict
 _impl = sys.modules[compute_verdict.__module__]
 
 
+def _read(checks: list[dict]) -> _impl.ChecksRead:
+    """A `gh pr checks`-sourced read, the shape probe_once consumes."""
+    return _impl.ChecksRead(checks=checks, source=_impl.SOURCE_GH_CLI)
+
+
 class TestComputeVerdict:
     def test_empty_checks_returns_empty(self):
         result = compute_verdict(checks=[])
@@ -267,24 +272,26 @@ class TestGetAnnotatedChecks:
     def test_required_only_marks_all_required(self, monkeypatch):
         monkeypatch.setattr(
             _impl,
-            "get_checks",
-            lambda **k: [{"name": "build", "bucket": "pass"}],
+            "read_checks",
+            lambda **k: _read([{"name": "build", "bucket": "pass"}]),
         )
-        checks = _impl.get_annotated_checks(pr_number=1, repo="o/r", required_only=True)
-        assert checks[0]["required"] is True
+        read = _impl.get_annotated_checks(pr_number=1, repo="o/r", required_only=True)
+        assert read.checks[0]["required"] is True
 
     def test_annotates_required_by_name(self, monkeypatch):
         monkeypatch.setattr(
             _impl,
-            "get_checks",
-            lambda **k: [
-                {"name": "build", "bucket": "pass"},
-                {"name": "lint", "bucket": "pass"},
-            ],
+            "read_checks",
+            lambda **k: _read(
+                [
+                    {"name": "build", "bucket": "pass"},
+                    {"name": "lint", "bucket": "pass"},
+                ]
+            ),
         )
         monkeypatch.setattr(_impl, "get_required_names", lambda **k: {"build"})
-        checks = _impl.get_annotated_checks(pr_number=1, repo="o/r")
-        by_name = {c["name"]: c["required"] for c in checks}
+        read = _impl.get_annotated_checks(pr_number=1, repo="o/r")
+        by_name = {c["name"]: c["required"] for c in read.checks}
         assert by_name == {"build": True, "lint": False}
 
 
@@ -353,7 +360,7 @@ class TestPollUntilTerminal:
 
     def test_persisting_empty_becomes_infra_unavailable(self, monkeypatch):
         self._no_sleep(monkeypatch)
-        monkeypatch.setattr(_impl, "get_annotated_checks", lambda **k: [])
+        monkeypatch.setattr(_impl, "get_annotated_checks", lambda **k: _read([]))
         monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "UNKNOWN")
         result = _impl.poll_until_terminal(
             pr_number=1, repo="o/r", initial_wait=0, poll_interval=0, max_polls=3
@@ -365,7 +372,7 @@ class TestPollUntilTerminal:
         monkeypatch.setattr(
             _impl,
             "get_annotated_checks",
-            lambda **k: [{"name": "build", "bucket": "pending"}],
+            lambda **k: _read([{"name": "build", "bucket": "pending"}]),
         )
         monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "UNKNOWN")
         result = _impl.poll_until_terminal(
@@ -378,7 +385,7 @@ class TestPollUntilTerminal:
         monkeypatch.setattr(
             _impl,
             "get_annotated_checks",
-            lambda **k: [{"name": "build", "bucket": "pass"}],
+            lambda **k: _read([{"name": "build", "bucket": "pass"}]),
         )
         monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "MERGEABLE")
         result = _impl.poll_until_terminal(
@@ -412,7 +419,7 @@ class TestTerminalAtCallTimeFastPath:
         def _next(**_kwargs):
             index = min(calls["n"], len(rounds) - 1)
             calls["n"] += 1
-            return rounds[index]
+            return _read(rounds[index])
 
         monkeypatch.setattr(_impl, "get_annotated_checks", _next)
         monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "MERGEABLE")
@@ -450,7 +457,7 @@ class TestTerminalAtCallTimeFastPath:
         monkeypatch.setattr(
             _impl,
             "get_annotated_checks",
-            lambda **k: [{"name": "build", "bucket": "pass"}],
+            lambda **k: _read([{"name": "build", "bucket": "pass"}]),
         )
         monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "CONFLICTING")
         result = _impl.poll_until_terminal(
@@ -487,7 +494,7 @@ class TestTerminalAtCallTimeFastPath:
         monkeypatch.setattr(
             _impl,
             "get_annotated_checks",
-            lambda **k: [{"name": "build", "bucket": "pass", "required": True}],
+            lambda **k: _read([{"name": "build", "bucket": "pass", "required": True}]),
         )
         monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "MERGEABLE")
         result = _impl.probe_once(pr_number=1, repo="o/r")
@@ -520,7 +527,7 @@ class TestWaitOutsPendingLegs:
         def _next(**_kwargs):
             index = min(calls["n"], len(rounds) - 1)
             calls["n"] += 1
-            return rounds[index]
+            return _read(rounds[index])
 
         self._no_sleep(monkeypatch)
         monkeypatch.setattr(_impl, "get_annotated_checks", _next)
@@ -604,7 +611,7 @@ class TestWaitOutsPendingLegs:
         monkeypatch.setattr(
             _impl,
             "get_annotated_checks",
-            lambda **k: [{"name": "test", "bucket": "pending", "required": True}],
+            lambda **k: _read([{"name": "test", "bucket": "pending", "required": True}]),
         )
         monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "CONFLICTING")
         result = _impl.poll_until_terminal(
@@ -640,7 +647,7 @@ class TestDefaultBudgetUnderIdleTimeout:
         monkeypatch.setattr(
             _impl,
             "get_annotated_checks",
-            lambda **k: [{"name": "build", "bucket": "pending"}],
+            lambda **k: _read([{"name": "build", "bucket": "pending"}]),
         )
         monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "UNKNOWN")
 
@@ -648,3 +655,234 @@ class TestDefaultBudgetUnderIdleTimeout:
 
         assert sum(slept) == 1230
         assert len(slept) == 40  # one initial_wait + 39 inter-poll sleeps
+
+
+class _GhStub:
+    """Route a faked `subprocess.run` by which gh command it was handed."""
+
+    def __init__(
+        self,
+        *,
+        checks: tuple[int, str, str],
+        head: tuple[int, str] = (0, '{"headRefName": "feat", "headRefOid": "abc123"}'),
+        runs: tuple[int, str] = (0, '{"workflow_runs": []}'),
+    ):
+        self.checks = checks
+        self.head = head
+        self.runs = runs
+        self.commands: list[list[str]] = []
+
+    def __call__(self, cmd, **_kwargs):
+        self.commands.append(cmd)
+        if cmd[:3] == ["gh", "pr", "view"]:
+            returncode, stdout = self.head
+        elif cmd[:2] == ["gh", "api"]:
+            returncode, stdout = self.runs
+        elif "name,bucket,state" in cmd:
+            returncode, stdout, stderr = self.checks
+            return _Completed(returncode=returncode, stdout=stdout, stderr=stderr)
+        else:  # `gh pr checks --required --json name`, the required-name probe
+            returncode, stdout = 1, ""
+        return _Completed(returncode=returncode, stdout=stdout, stderr="")
+
+
+class _Completed:
+    def __init__(self, *, returncode: int, stdout: str, stderr: str):
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+_NO_CHECKS = (1, "", "no checks reported on the 'feat' branch")
+
+_HYGIENE_RUN = {
+    "name": "PR Hygiene Review",
+    "status": "completed",
+    "conclusion": "success",
+    "head_sha": "abc123",
+}
+
+
+class TestCorroboratedZeroChecks:
+    """GH-1376: `gh pr checks` reporting zero is a claim, not a fact.
+
+    PR #1372 had a completed, successful `PR Hygiene Review` run that the
+    runs API listed and `gh pr checks` did not — twice, in two sessions.
+    Since this wrapper is the only sanctioned CI-wait path, an
+    uncorroborated zero is acted on: the agent either merges believing CI
+    cannot run, or waits for what it has been told will never arrive.
+    """
+
+    def _install(self, monkeypatch, stub: _GhStub) -> _GhStub:
+        monkeypatch.setattr(_impl.subprocess, "run", stub)
+        return stub
+
+    def test_confirmed_zero_reports_empty(self, monkeypatch):
+        self._install(monkeypatch, _GhStub(checks=_NO_CHECKS))
+        read = _impl.read_checks(pr_number=1, repo="o/r")
+        assert read.checks == []
+        assert read.source == _impl.SOURCE_CONFIRMED_ZERO
+
+    def test_runs_api_corrects_a_false_no_checks(self, monkeypatch):
+        self._install(
+            monkeypatch,
+            _GhStub(
+                checks=_NO_CHECKS,
+                runs=(0, json.dumps({"workflow_runs": [_HYGIENE_RUN]})),
+            ),
+        )
+        read = _impl.read_checks(pr_number=1, repo="o/r")
+        assert read.source == _impl.SOURCE_RUNS_API
+        assert read.checks == [
+            {"name": "PR Hygiene Review", "bucket": "pass", "state": "completed"}
+        ]
+
+    def test_corrected_read_reaches_the_verdict_as_green(self, monkeypatch):
+        self._install(
+            monkeypatch,
+            _GhStub(
+                checks=_NO_CHECKS,
+                runs=(0, json.dumps({"workflow_runs": [_HYGIENE_RUN]})),
+            ),
+        )
+        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "MERGEABLE")
+        result = _impl.probe_once(pr_number=1, repo="o/r")
+        assert result["verdict"] == "green"
+        assert result["checks_source"] == _impl.SOURCE_RUNS_API
+
+    def test_confirmed_zero_reaches_the_verdict_as_empty(self, monkeypatch):
+        self._install(monkeypatch, _GhStub(checks=_NO_CHECKS))
+        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "MERGEABLE")
+        result = _impl.probe_once(pr_number=1, repo="o/r")
+        assert result["verdict"] == "empty"
+        assert result["checks_source"] == _impl.SOURCE_CONFIRMED_ZERO
+
+    def test_runs_api_failure_is_undetermined_not_zero(self, monkeypatch, capsys):
+        self._install(monkeypatch, _GhStub(checks=_NO_CHECKS, runs=(1, "")))
+        with pytest.raises(SystemExit) as exc:
+            _impl.read_checks(pr_number=1, repo="o/r")
+        assert exc.value.code == 1
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["undetermined"] is True
+        assert "undetermined" in payload["error"]
+
+    def test_head_ref_unreadable_is_undetermined(self, monkeypatch, capsys):
+        self._install(monkeypatch, _GhStub(checks=_NO_CHECKS, head=(1, "")))
+        with pytest.raises(SystemExit):
+            _impl.read_checks(pr_number=1, repo="o/r")
+        assert json.loads(capsys.readouterr().out)["undetermined"] is True
+
+    def test_runs_at_another_sha_do_not_count(self, monkeypatch):
+        stale = dict(_HYGIENE_RUN, head_sha="deadbee")
+        self._install(
+            monkeypatch,
+            _GhStub(checks=_NO_CHECKS, runs=(0, json.dumps({"workflow_runs": [stale]}))),
+        )
+        read = _impl.read_checks(pr_number=1, repo="o/r")
+        assert read.source == _impl.SOURCE_CONFIRMED_ZERO
+
+    def test_an_empty_json_list_is_corroborated_too(self, monkeypatch):
+        stub = self._install(
+            monkeypatch,
+            _GhStub(
+                checks=(0, "[]", ""),
+                runs=(0, json.dumps({"workflow_runs": [_HYGIENE_RUN]})),
+            ),
+        )
+        read = _impl.read_checks(pr_number=1, repo="o/r")
+        assert read.source == _impl.SOURCE_RUNS_API
+        assert any(cmd[:2] == ["gh", "api"] for cmd in stub.commands)
+
+    def test_a_non_empty_read_pays_nothing_extra(self, monkeypatch):
+        """The added cost is paid on the zero path only."""
+        stub = self._install(
+            monkeypatch,
+            _GhStub(checks=(0, json.dumps([{"name": "build", "bucket": "pass"}]), "")),
+        )
+        read = _impl.read_checks(pr_number=1, repo="o/r")
+        assert read.source == _impl.SOURCE_GH_CLI
+        assert len(stub.commands) == 1
+
+    def test_required_only_zero_is_left_alone(self, monkeypatch):
+        """An empty REQUIRED set is normal on an unprotected base (ADR-0024),
+        and the runs API cannot say which runs the host marks required."""
+        stub = self._install(monkeypatch, _GhStub(checks=_NO_CHECKS))
+        read = _impl.read_checks(pr_number=1, repo="o/r", required_only=True)
+        assert read == _impl.ChecksRead(checks=[], source=_impl.SOURCE_GH_CLI)
+        assert len(stub.commands) == 1
+
+    def test_an_unrelated_failure_still_aborts_with_its_cause(self, monkeypatch, capsys):
+        self._install(monkeypatch, _GhStub(checks=(1, "", "rate limited")))
+        with pytest.raises(SystemExit):
+            _impl.read_checks(pr_number=1, repo="o/r")
+        payload = json.loads(capsys.readouterr().out)
+        assert "rate limited" in payload["error"]
+        assert "undetermined" not in payload
+
+
+class TestRunsToChecks:
+    @pytest.mark.parametrize(
+        ("run", "bucket"),
+        [
+            ({"status": "in_progress"}, "pending"),
+            ({"status": "completed", "conclusion": "success"}, "pass"),
+            ({"status": "completed", "conclusion": "neutral"}, "pass"),
+            ({"status": "completed", "conclusion": "skipped"}, "skipping"),
+            ({"status": "completed", "conclusion": "cancelled"}, "cancel"),
+            ({"status": "completed", "conclusion": "stale"}, "cancel"),
+            ({"status": "completed", "conclusion": "failure"}, "fail"),
+            ({"status": "completed", "conclusion": "timed_out"}, "fail"),
+            ({"status": "completed", "conclusion": None}, "fail"),
+            ({"status": "completed", "conclusion": "a_new_word"}, "fail"),
+        ],
+    )
+    def test_bucket_mapping_never_invents_a_pass(self, run: dict, bucket: str):
+        assert _impl.checks_from_runs([run])[0]["bucket"] == bucket
+
+    def test_unnamed_run_is_still_a_check(self):
+        assert _impl.checks_from_runs([{"status": "queued"}])[0]["name"] == "unknown"
+
+    def test_a_rerun_does_not_double_count_its_workflow(self):
+        newest = dict(_HYGIENE_RUN)
+        older = dict(_HYGIENE_RUN, conclusion="failure")
+        checks = _impl.checks_from_runs([newest, older])
+        assert [c["bucket"] for c in checks] == ["pass"]
+
+
+class TestRunsApiReaders:
+    """An API that did not answer must not read as an API that saw nothing."""
+
+    def _stub(self, monkeypatch, *, returncode: int, stdout: str):
+        monkeypatch.setattr(
+            _impl.subprocess,
+            "run",
+            lambda *a, **k: _Completed(returncode=returncode, stdout=stdout, stderr=""),
+        )
+
+    def test_runs_unparseable_is_none(self, monkeypatch):
+        self._stub(monkeypatch, returncode=0, stdout="not json")
+        assert _impl.fetch_branch_runs(repo="o/r", branch="feat") is None
+
+    def test_runs_without_the_key_is_none(self, monkeypatch):
+        self._stub(monkeypatch, returncode=0, stdout='{"total_count": 0}')
+        assert _impl.fetch_branch_runs(repo="o/r", branch="feat") is None
+
+    def test_runs_answering_nothing_is_an_empty_list(self, monkeypatch):
+        self._stub(monkeypatch, returncode=0, stdout='{"workflow_runs": []}')
+        assert _impl.fetch_branch_runs(repo="o/r", branch="feat") == []
+
+    def test_head_unparseable_is_none(self, monkeypatch):
+        self._stub(monkeypatch, returncode=0, stdout="not json")
+        assert _impl.fetch_head_ref(pr_number=1, repo="o/r") is None
+
+    def test_head_missing_a_field_is_none(self, monkeypatch):
+        self._stub(monkeypatch, returncode=0, stdout='{"headRefName": "feat"}')
+        assert _impl.fetch_head_ref(pr_number=1, repo="o/r") is None
+
+    def test_head_is_parsed(self, monkeypatch):
+        self._stub(
+            monkeypatch,
+            returncode=0,
+            stdout='{"headRefName": "feat", "headRefOid": "abc123"}',
+        )
+        assert _impl.fetch_head_ref(pr_number=1, repo="o/r") == ("feat", "abc123")
