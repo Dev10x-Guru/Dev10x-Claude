@@ -16,6 +16,15 @@ The repair is a predicate change, not a wider scan: a user entry whose
 content is nothing but tool results is not a turn boundary. That
 restores the invariant ``_read_turn`` documents and keeps its cost tied
 to one turn.
+
+GH-1336 finishes it. A widget *answer* is a tool result too, so after
+GH-1334 the window for every turn following a click still held the
+original call and the gate resolved ``asked`` until the supervisor next
+typed — under-firing exactly where step 3 of the bug report says. An
+answer now ends the turn it belongs to, on either of two discriminators
+captured from a live transcript: the top-level ``toolUseResult``
+carrying ``questions`` beside ``answers``, or a ``tool_use_id`` matching
+an ``AskUserQuestion`` call earlier in the same turn.
 """
 
 from __future__ import annotations
@@ -53,8 +62,46 @@ def _assistant(*, blocks: list[dict]) -> dict:
     return {"type": "assistant", "message": {"role": "assistant", "content": blocks}}
 
 
-def _ask() -> dict:
-    return {"type": "tool_use", "name": "AskUserQuestion", "input": {}}
+def _ask(*, call_id: str = "toolu_ask") -> dict:
+    return {"type": "tool_use", "id": call_id, "name": "AskUserQuestion", "input": {}}
+
+
+def _widget_answer(*, text: str = "Yes, keep going") -> dict:
+    """A widget answer as the harness writes one (GH-1336).
+
+    Shape captured from a live transcript rather than invented: the
+    entry carries a top-level ``toolUseResult`` holding ``questions``
+    beside ``answers``, which no other tool result in that file did.
+    """
+    return {
+        "type": "user",
+        "uuid": "answer",
+        "message": {
+            "role": "user",
+            "content": [
+                {"type": "tool_result", "tool_use_id": "toolu_ask", "content": text},
+            ],
+        },
+        "toolUseResult": {"questions": [{"question": "Anything open?"}], "answers": [text]},
+    }
+
+
+def _bare_widget_answer(*, text: str = "Yes, keep going") -> dict:
+    """The same answer with only the wire-protocol discriminator left.
+
+    ``toolUseResult`` is written by the transcript writer, not promised
+    by the protocol, so the fallback has to stand on its own.
+    """
+    return {
+        "type": "user",
+        "uuid": "answer",
+        "message": {
+            "role": "user",
+            "content": [
+                {"type": "tool_result", "tool_use_id": "toolu_ask", "content": text},
+            ],
+        },
+    }
 
 
 def _text(*, text: str) -> dict:
@@ -67,7 +114,16 @@ def _transcript(*, tmp_path: Path, entries: list[dict]) -> str:
     return str(path)
 
 
-def _answered_widget() -> list[dict]:
+def _unanswered_widget() -> list[dict]:
+    """A turn that ends *on* the widget — the state the gate must not touch."""
+    return [
+        _typed(),
+        _assistant(blocks=[_text(text="Two options here.")]),
+        _assistant(blocks=[_ask()]),
+    ]
+
+
+def _answered_widget(*, answer: dict | None = None) -> list[dict]:
     """The sequence the bug report captured: ask, answer, keep working.
 
     Entry order matches the real transcript — the ``tool_use`` block sits
@@ -76,7 +132,7 @@ def _answered_widget() -> list[dict]:
     return [
         _typed(),
         _assistant(blocks=[_ask()]),
-        _tool_result(text='"Anything open?"="Yes, keep going"'),
+        answer or _widget_answer(),
         _assistant(blocks=[_text(text="Carrying on, then.")]),
     ]
 
@@ -84,10 +140,10 @@ def _answered_widget() -> list[dict]:
 class TestATurnThatAskedIsRecognised:
     """The measured zero: ``asked`` never fired, so the gate was unsatisfiable."""
 
-    def test_a_widget_answered_mid_turn_still_counts(
+    def test_a_turn_ending_on_the_widget_still_counts(
         self, tmp_path: Path, isolated_markers: Path
     ) -> None:
-        transcript = _transcript(tmp_path=tmp_path, entries=_answered_widget())
+        transcript = _transcript(tmp_path=tmp_path, entries=_unanswered_widget())
 
         verdict = decide(
             data={"session_id": "win1", "transcript_path": transcript},
@@ -97,8 +153,17 @@ class TestATurnThatAskedIsRecognised:
         assert verdict.block is False
         assert verdict.signal == StopSignal.ASKED
 
-    def test_the_window_reaches_past_the_answer_to_the_call(self, tmp_path: Path) -> None:
-        transcript = _transcript(tmp_path=tmp_path, entries=_answered_widget())
+    def test_the_window_reaches_past_ordinary_tool_traffic(self, tmp_path: Path) -> None:
+        """GH-1334's invariant, restated on a result that answers no widget."""
+        transcript = _transcript(
+            tmp_path=tmp_path,
+            entries=[
+                _typed(),
+                _assistant(blocks=[_ask()]),
+                _tool_result(),
+                _assistant(blocks=[_text(text="Still waiting on you.")]),
+            ],
+        )
 
         assert asked_a_question(entries=_read_turn(transcript_path=transcript)) is True
 
@@ -117,6 +182,139 @@ class TestATurnThatAskedIsRecognised:
         )
 
         assert asked_a_question(entries=_read_turn(transcript_path=transcript)) is True
+
+
+class TestAnAnsweredWidgetEndsTheTurn:
+    """GH-1336: the gate under-fired on every turn after a click.
+
+    A **false pass** (the bug) lets a session drift: the agent ends turn
+    after turn with no widget and nothing objects, because a widget the
+    supervisor answered hours ago is still inside the window. A **false
+    block** is the opposite failure and the more expensive one — it
+    would re-arm the gate on a turn that legitimately ended on a widget,
+    so the steer would demand a question that is already on screen.
+    """
+
+    def test_a_turn_after_an_answered_widget_is_blocked(
+        self, tmp_path: Path, isolated_markers: Path
+    ) -> None:
+        transcript = _transcript(tmp_path=tmp_path, entries=_answered_widget())
+
+        verdict = decide(
+            data={"session_id": "win-1336", "transcript_path": transcript},
+            plan={"tasks": [{"subject": "Ship it", "status": "completed"}]},
+        )
+
+        assert verdict.block is True
+        assert verdict.signal == StopSignal.BLOCKED
+
+    def test_the_tool_use_id_alone_is_enough(self, tmp_path: Path, isolated_markers: Path) -> None:
+        """The fallback stands without the transcript writer's richer key."""
+        transcript = _transcript(
+            tmp_path=tmp_path,
+            entries=_answered_widget(answer=_bare_widget_answer()),
+        )
+
+        verdict = decide(
+            data={"session_id": "win-1336-bare", "transcript_path": transcript},
+            plan={"tasks": [{"subject": "Ship it", "status": "completed"}]},
+        )
+
+        assert verdict.block is True
+
+    def test_the_answer_becomes_the_boundary(self, tmp_path: Path) -> None:
+        transcript = _transcript(tmp_path=tmp_path, entries=_answered_widget())
+
+        turn, boundary = _read_turn_and_boundary(transcript_path=transcript)
+
+        assert asked_a_question(entries=turn) is False
+        assert len(turn) == 1
+        assert boundary is not None
+        assert boundary["uuid"] == "answer"
+
+    def test_a_widget_asked_after_the_answer_still_counts(self, tmp_path: Path) -> None:
+        """Only the *last* answer cuts, so a fresh question survives the cut."""
+        transcript = _transcript(
+            tmp_path=tmp_path,
+            entries=[
+                *_answered_widget(),
+                _assistant(blocks=[_ask(call_id="toolu_second")]),
+            ],
+        )
+
+        assert asked_a_question(entries=_read_turn(transcript_path=transcript)) is True
+
+    def test_an_answer_with_nothing_after_it_leaves_the_turn_alone(self, tmp_path: Path) -> None:
+        """Cutting to nothing would report ``NO_TRANSCRIPT`` and lie about why."""
+        transcript = _transcript(
+            tmp_path=tmp_path,
+            entries=[_typed(), _assistant(blocks=[_ask()]), _widget_answer()],
+        )
+
+        turn, boundary = _read_turn_and_boundary(transcript_path=transcript)
+
+        assert len(turn) == 2
+        assert boundary is not None
+        assert boundary["uuid"] == "u1"
+
+    def test_a_result_naming_an_unrelated_call_is_not_an_answer(self, tmp_path: Path) -> None:
+        """A ``tool_use_id`` from any other tool must not cut the turn."""
+        transcript = _transcript(
+            tmp_path=tmp_path,
+            entries=[
+                _typed(),
+                _assistant(blocks=[_ask()]),
+                {
+                    "type": "user",
+                    "message": {
+                        "role": "user",
+                        "content": [
+                            {"type": "tool_result", "tool_use_id": "toolu_bash", "content": "ok"}
+                        ],
+                    },
+                },
+                _assistant(blocks=[_text(text="Still waiting on you.")]),
+            ],
+        )
+
+        assert asked_a_question(entries=_read_turn(transcript_path=transcript)) is True
+
+    def test_a_half_shaped_tool_use_result_is_not_an_answer(self, tmp_path: Path) -> None:
+        """``questions`` without ``answers`` is not the captured shape."""
+        transcript = _transcript(
+            tmp_path=tmp_path,
+            entries=[
+                _typed(),
+                _assistant(blocks=[_ask()]),
+                {
+                    "type": "user",
+                    "message": {"role": "user", "content": [{"type": "tool_result"}]},
+                    "toolUseResult": {"questions": []},
+                },
+                _assistant(blocks=[_text(text="Still waiting on you.")]),
+            ],
+        )
+
+        assert asked_a_question(entries=_read_turn(transcript_path=transcript)) is True
+
+    def test_standby_given_as_a_widget_answer_still_parks_the_gate(
+        self, tmp_path: Path, isolated_markers: Path
+    ) -> None:
+        """The answer that parks the gate is now the boundary carrying it."""
+        transcript = _transcript(
+            tmp_path=tmp_path,
+            entries=_answered_widget(
+                answer=_widget_answer(text="On standby — not waiting on you")
+            ),
+        )
+
+        verdict = decide(
+            data={"session_id": "win-standby", "transcript_path": transcript},
+            plan={"tasks": [{"subject": "Ship it", "status": "completed"}]},
+        )
+
+        assert verdict.block is False
+        assert verdict.signal == StopSignal.STANDBY
 
 
 class TestTheBoundaryIsStillTheSupervisor:

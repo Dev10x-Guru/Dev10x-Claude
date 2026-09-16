@@ -87,6 +87,14 @@ presumes a supervisor on the other end of it, and two cases have none:
     no terminal answer, so confirming it only re-armed the gate next
     turn. Standby is that answer, scoped to the supervisor's next
     message rather than forever.
+
+**A turn ends when the widget is answered (GH-1336).** GH-1334 made the
+``asked`` branch reachable by ruling that a tool result is not a turn
+boundary. But a widget answer arrives as a tool result, so the window
+for every turn after the supervisor clicked an option still held the
+original call, and the gate stayed suppressed until they next typed. An
+answer is the supervisor speaking and closes the turn it belongs to;
+only an *unanswered* widget keeps the gate quiet.
 """
 
 from __future__ import annotations
@@ -149,6 +157,20 @@ _SUBAGENT_KEYS = ("is_subagent", "subagent", "subagent_id", "agent_id", "parent_
 #: dependency.
 _SUBAGENT_DIR = "subagents"
 _SUBAGENT_FILE_PREFIX = "agent-"
+
+#: The keys a widget answer carries on its top-level ``toolUseResult``
+#: (GH-1336). Captured from a live transcript before being relied on,
+#: which is the precondition this module has been burned three times for
+#: skipping: every ``AskUserQuestion`` answer in it carries
+#: ``questions`` beside ``answers`` — the widget's own prompt set echoed
+#: back — and no other tool result in 300-odd entries carries either.
+#:
+#: This is preferred over matching ``tool_use_id`` because it is
+#: self-identifying: the entry says what it answers without anything
+#: having to locate the originating ``tool_use`` first. ``tool_use_id``
+#: stays as the fallback below, since ``toolUseResult`` is written by the
+#: transcript writer rather than promised by the wire protocol.
+_ANSWER_RESULT_KEYS = ("questions", "answers")
 
 
 class StopSignal(StrEnum):
@@ -321,9 +343,10 @@ def standby_holds(*, session_id: str, entries: list[dict], boundary: dict | None
     The lifetime is still read off the transcript rather than a clock,
     and now off a genuine message: a marker naming the same boundary
     means nothing has been said since, a different one means they have
-    spoken and the marker is dropped. Scoping it to a typed message is
-    what stops a tool result from silently clearing a park the
-    supervisor set.
+    spoken and the marker is dropped. Since GH-1336 a widget *answer*
+    can be that boundary too, which is the right widening — answering a
+    widget is the supervisor speaking, so it may clear a park, while an
+    ordinary tool result still may not.
     """
     marker = _standby_path(session_id=session_id)
     boundary_id = _entry_id(entry=boundary)
@@ -435,6 +458,13 @@ def _read_turn_and_boundary(*, transcript_path: str) -> tuple[list[dict], dict |
     A malformed or truncated line is not a reason to block a turn, so
     every read failure degrades to "no evidence" rather than raising.
 
+    A widget **answer** ends the turn too (GH-1336). GH-1334 correctly
+    stopped treating tool results as boundaries, but an answered
+    ``AskUserQuestion`` is a tool result, so the window for every later
+    turn still contained the original call and the gate resolved
+    ``ASKED`` until the supervisor next typed. An answer is the
+    supervisor speaking; a ``Bash`` result is not.
+
     The boundary user message is returned alongside the turn rather than
     discarded: it carries the supervisor's last word, which is what
     standby is scoped to (GH-1314).
@@ -469,7 +499,74 @@ def _read_turn_and_boundary(*, transcript_path: str) -> tuple[list[dict], dict |
             break
         turn.append(entry)
     turn.reverse()
-    return turn, boundary
+    return _after_last_widget_answer(turn=turn, boundary=boundary)
+
+
+def _after_last_widget_answer(
+    *, turn: list[dict], boundary: dict | None
+) -> tuple[list[dict], dict | None]:
+    """Re-cut the turn at the last widget answer in it (GH-1336).
+
+    Run as a forward pass over the already-read turn rather than inside
+    the backward walk, because the two discriminators want opposite
+    directions: ``toolUseResult`` is decidable where it sits, while
+    ``tool_use_id`` needs the ``AskUserQuestion`` call that produced it —
+    which is *earlier* in the file and so has not been parsed yet when
+    the backward walk meets the answer. One forward pass serves both, and
+    costs no extra I/O: the turn is already in memory, so ``_read_turn``
+    still costs one turn, the constraint GH-1334 was careful to preserve
+    and GH-1336 restates.
+
+    A turn with nothing after the answer is left uncut. There is no
+    agent activity to judge there, so cutting would only replace one
+    let-the-turn-end verdict with a differently-labelled one — and an
+    empty window would be reported as ``NO_TRANSCRIPT``, which would be
+    a lie about why.
+    """
+    ask_ids: set[str] = set()
+    answer_index: int | None = None
+    for index, entry in enumerate(turn):
+        if _is_widget_answer(entry=entry, ask_ids=ask_ids):
+            answer_index = index
+        ask_ids.update(_ask_tool_use_ids(entry=entry))
+
+    if answer_index is None or answer_index == len(turn) - 1:
+        return turn, boundary
+    return turn[answer_index + 1 :], turn[answer_index]
+
+
+def _ask_tool_use_ids(*, entry: dict) -> set[str]:
+    """The ids of every ``AskUserQuestion`` call this entry makes."""
+    return {
+        str(block["id"])
+        for block in _content_blocks(entry=entry)
+        if block.get("type") == "tool_use" and block.get("name") == _ASK_TOOL and block.get("id")
+    }
+
+
+def _is_widget_answer(*, entry: dict, ask_ids: set[str]) -> bool:
+    """Whether this entry is the supervisor answering a widget (GH-1336).
+
+    Two discriminators, both observed on a captured transcript. The
+    top-level ``toolUseResult`` carrying ``questions`` and ``answers`` is
+    checked first because it is self-identifying — the entry declares
+    what it answers, with no need to find the call it replies to.
+    ``tool_use_id`` is the fallback, matched against the calls seen
+    earlier in this same turn: it is part of the wire protocol and so
+    survives a transcript writer that stops recording the richer key.
+
+    Requiring both keys, not just ``questions``, keeps the test narrow.
+    A false positive here cuts the turn short and re-arms the gate on a
+    turn that legitimately ended on a widget.
+    """
+    result = entry.get("toolUseResult")
+    if isinstance(result, dict) and all(key in result for key in _ANSWER_RESULT_KEYS):
+        return True
+    return any(
+        block.get("type") == "tool_result" and str(block.get("tool_use_id") or "") in ask_ids
+        for block in _content_blocks(entry=entry)
+        if block.get("tool_use_id")
+    )
 
 
 #: What a stop-verdict record carries when the transcript names no
@@ -558,7 +655,13 @@ def _content_blocks(*, entry: dict) -> list[dict]:
 
 
 def asked_a_question(*, entries: list[dict]) -> bool:
-    """True when this turn used ``AskUserQuestion``."""
+    """True when this turn used ``AskUserQuestion``.
+
+    The predicate was never the defect (GH-1336) — the window was. Once
+    a widget answer ends the turn, an ``AskUserQuestion`` left in
+    ``entries`` is by construction one nobody has answered yet, which is
+    the only kind that should keep the gate quiet.
+    """
     for entry in entries:
         for block in _content_blocks(entry=entry):
             if block.get("type") == "tool_use" and block.get("name") == _ASK_TOOL:
