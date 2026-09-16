@@ -2,7 +2,7 @@
 
 Continuation spec for GH-271 Phase 0: turning the permission-friction
 evidence thread into YAML **test fixtures** — executable spec input for
-the future PAP (Permission Access Policy) classifier (GH-271 reflection
+the future PAP (Policy Administration Point) classifier (GH-271 reflection
 #14: every evidence entry is dual-purpose, scoping input AND fixture
 input).
 

@@ -156,8 +156,13 @@ warns about:
 - [`domain/authz-patterns.md`](domain/authz-patterns.md) — the general
   PAP / PDP / PIP / PEP definitions as domain patterns.
 
-Note that the acronym is expanded three different ways across the repo
-("Permission Abstraction Protocol", "Policy Administration Point",
-"Permission Access Policy").
-They are not the same concept, and a reader should check which one a
-given document means.
+**PAP expands to Policy Administration Point** (GH-1333) — the XACML
+sense that pairs with PDP / PIP / PEP in `authz-patterns.md`, not the
+two local coinages that used to collide with it: "Permission
+Abstraction Protocol" and "Permission Access Policy" are retired
+spellings. Both prior forms have been corrected at their sites
+(`cedar-sensitivity-annotation.md`, `docs/specs/GH-271-phase0-handoff.md`,
+`tests/fixtures/permission-friction/README.md`); this is the one place
+that records the retirement, so a reader who meets either spelling
+elsewhere in history (closed issues, `CHANGELOG.md`) knows it means the
+same thing.

@@ -1,8 +1,11 @@
 # Cedar `@sensitivity` Annotation Pattern
 
-Specification for the sensitivity axis of the PAP (Permission Abstraction
-Protocol) action model.
-Complementary to the tier and reversibility axes already defined in the PAP.
+Specification for the sensitivity axis of the PAP (Policy Administration
+Point) action model — see
+[`permission-friction-taxonomy.md`](permission-friction-taxonomy.md)
+§ "Where the PAP model lives" for the canonical expansion and its two
+retired spellings.
+Complementary to the tier and reversibility axes defined below.
 
 ## Three-Axis PAP Model
 
@@ -11,9 +14,19 @@ axes:
 
 | Axis | Question answered | Defined in |
 |------|-------------------|------------|
-| **Tier** | What verb class does this command fall into? | `references/friction-levels.md` |
-| **Reversibility** | Can the effect be undone without specialist help? | `references/friction-levels.md` |
+| **Tier** | What verb class does this command fall into? | `tests/fixtures/permission-friction/README.md` § Schema (`command_class`) |
+| **Reversibility** | Can the effect be undone without specialist help? | `tests/fixtures/permission-friction/README.md` § Schema (`reversibility`) |
 | **Sensitivity** | Does the target touch secrets, credentials, PII, or infra? | This document / `src/dev10x/domain/sensitivity.py` |
+
+`references/friction-levels.md` used to define Tier and Reversibility;
+it was rewritten under ADR-0022 to cover gate behaviour only and no
+longer mentions either (GH-1333). The fixtures README is the
+surviving live definition: `command_class` ∈ `safe-read` / `safe-write`
+/ `destructive` / `fence-tool` / `arbitrary-code`, and `reversibility`
+∈ `trivial` / `assisted` / `none`. Note it is a five-value scale there
+against the three values (`safe-read` / `destructive` / `fence-tool`)
+used in the matrix below — this document only needs the three that
+appear in DX014's evidence corpus, not the full classifier vocabulary.
 
 ### Deny-Overrides Resolution
 
