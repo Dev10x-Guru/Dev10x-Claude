@@ -10,6 +10,8 @@ from pathlib import Path
 import pytest
 import yaml
 
+from dev10x.domain.common.baseline_catalog import load_baseline_dict
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _SCRIPT = _REPO_ROOT / "skills" / "qa-self" / "scripts" / "convert-evidence.sh"
 _CATALOG = _REPO_ROOT / "skills" / "upgrade-cleanup" / "projects.yaml"
@@ -38,7 +40,10 @@ def test_identify_is_a_default_catalog_rule():
 
 def test_both_imagemagick_spellings_are_grouped():
     """IM7 renamed convert to magick; a rule for one does not cover the other."""
-    data = yaml.safe_load(_BASELINE.read_text()) or {}
+    # Through the chokepoint loader: since GH-1317 the aliases are
+    # declared as spellings of one capability, and the rule list is what
+    # that block renders rather than what the YAML literally spells.
+    data = load_baseline_dict(_BASELINE, strict=True)
     group = data["groups"]["imagemagick-evidence"]
     assert group["tier"] == 2
     assert "Bash(magick:*)" in group["rules"]
