@@ -492,6 +492,34 @@ async def pr_close(
 
 
 @github_tool
+async def pr_list(
+    repo: str | None = None,
+    state: str = "open",
+    limit: int = 30,
+    search: str | None = None,
+    cwd: str | None = None,
+) -> Result[dict]:
+    """List GitHub pull requests (GH-1359).
+
+    Wraps `gh pr list ... --json
+    number,title,state,headRefName,isDraft,mergedAt,url`, mirroring
+    `issue_list`'s shape so listing PRs never falls back to raw `gh pr
+    list`.
+
+    Args:
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        state: Filter by state: open (default), closed, merged, all.
+        limit: Max results (default 30).
+        search: Free-text search filter (passed via --search).
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with key: prs (list of PR dicts).
+    """
+    return await gh.pr_list(repo=repo, state=state, limit=limit, search=search)
+
+
+@github_tool
 async def minimize_comments(
     node_ids: list[str],
     classifier: str = "OUTDATED",

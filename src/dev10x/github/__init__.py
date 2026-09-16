@@ -1797,6 +1797,62 @@ async def pr_close(
     return ok({"pr_number": pr_number, "state": "closed", "url": url})
 
 
+async def pr_list(
+    *,
+    repo: str | None = None,
+    state: str = "open",
+    limit: int = 30,
+    search: str | None = None,
+) -> Result[dict[str, Any]]:
+    """List GitHub pull requests (GH-1359).
+
+    Wraps ``gh pr list ... --json
+    number,title,state,headRefName,isDraft,mergedAt,url``, mirroring
+    :func:`issue_list`'s shape. `Dev10x:diag-friction` filed this after
+    finding no ``pr_list`` MCP tool and no ``gh pr list`` rule in
+    ``command-skill-map.yaml`` — listing PRs had nowhere to go but raw
+    ``gh pr list``, uncatalogued and prompting on every call.
+
+    Args:
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        state: Filter by state: ``open`` (default), ``closed``, ``merged``,
+            ``all``.
+        limit: Max results to return (default 30).
+        search: Free-text search filter passed via ``--search``.
+
+    Returns:
+        ``{"prs": [{number, title, state, headRefName, isDraft,
+        mergedAt, url}, ...]}``.
+    """
+    if state not in ("open", "closed", "merged", "all"):
+        return err(f"Invalid PR state {state!r}: must be 'open', 'closed', 'merged', or 'all'.")
+
+    args = [
+        "gh",
+        "pr",
+        "list",
+        "--state",
+        state,
+        "--limit",
+        str(limit),
+        "--json",
+        "number,title,state,headRefName,isDraft,mergedAt,url",
+    ]
+    if repo:
+        args.extend(["--repo", repo])
+    if search:
+        args.extend(["--search", search])
+
+    result = await async_run(args=args, timeout=30)
+    if result.returncode != 0:
+        return err(result.stderr.strip())
+    try:
+        prs = json.loads(result.stdout) if result.stdout.strip() else []
+    except json.JSONDecodeError:
+        return err(f"Invalid JSON output: {result.stdout[:200]}")
+    return ok({"prs": prs})
+
+
 async def milestone_close(
     *,
     number: int,

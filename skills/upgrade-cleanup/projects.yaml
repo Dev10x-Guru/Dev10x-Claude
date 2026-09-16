@@ -249,6 +249,8 @@ base_permissions:
   - "mcp__plugin_Dev10x_cli__task_index_get"
   - "mcp__plugin_Dev10x_cli__list_client_roots"
   - "mcp__plugin_Dev10x_cli__pr_get"
+  # GH-1359: read-only, mirrors issue_list — no gh api fallback needed.
+  - "mcp__plugin_Dev10x_cli__pr_list"
   # pr_labels defaults to action="list"; its add/remove writes are the
   # sanctioned path for the review:cleared signal (GH-1008) and are
   # idempotent, so skills call them unconditionally rather than probing.

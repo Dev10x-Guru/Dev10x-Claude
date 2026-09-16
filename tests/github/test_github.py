@@ -3106,6 +3106,107 @@ class TestPrClose:
         assert isinstance(result, ErrorResult)
 
 
+class TestPrList:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_returns_prs(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(
+            stdout=json.dumps(
+                [
+                    {
+                        "number": 1359,
+                        "title": "Add pr_list MCP wrapper",
+                        "state": "OPEN",
+                        "headRefName": "janusz/GH-1359/pr-list",
+                        "isDraft": False,
+                        "mergedAt": None,
+                        "url": "https://github.com/owner/repo/pull/1359",
+                    },
+                ]
+            )
+        )
+
+        result = await gh.pr_list()
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["prs"] == [
+            {
+                "number": 1359,
+                "title": "Add pr_list MCP wrapper",
+                "state": "OPEN",
+                "headRefName": "janusz/GH-1359/pr-list",
+                "isDraft": False,
+                "mergedAt": None,
+                "url": "https://github.com/owner/repo/pull/1359",
+            },
+        ]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_empty_list_returns_empty(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(stdout="[]")
+
+        result = await gh.pr_list()
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["prs"] == []
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_defaults_to_open_state(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(stdout="[]")
+
+        await gh.pr_list()
+
+        args = mock_run.call_args.kwargs["args"]
+        assert args[:3] == ["gh", "pr", "list"]
+        assert "--state" in args
+        assert args[args.index("--state") + 1] == "open"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_explicit_repo_state_limit_and_search_scope_the_query(
+        self, mock_run: AsyncMock
+    ) -> None:
+        mock_run.return_value = _completed(stdout="[]")
+
+        await gh.pr_list(repo="owner/name", state="merged", limit=5, search="foo")
+
+        args = mock_run.call_args.kwargs["args"]
+        assert "--repo" in args
+        assert args[args.index("--repo") + 1] == "owner/name"
+        assert args[args.index("--state") + 1] == "merged"
+        assert args[args.index("--limit") + 1] == "5"
+        assert args[args.index("--search") + 1] == "foo"
+
+    @pytest.mark.asyncio
+    async def test_rejects_invalid_state(self) -> None:
+        result = await gh.pr_list(state="frozen")
+
+        assert isinstance(result, ErrorResult)
+        assert "frozen" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_returns_error_on_api_failure(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(returncode=1, stderr="rate limit")
+
+        result = await gh.pr_list()
+
+        assert isinstance(result, ErrorResult)
+        assert "rate limit" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    async def test_guards_malformed_json(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(stdout="not json")
+
+        result = await gh.pr_list()
+
+        assert isinstance(result, ErrorResult)
+        assert "Invalid JSON" in result.error
+
+
 class TestIssueClose:
     @pytest.mark.asyncio
     @patch("dev10x.github.async_run", new_callable=AsyncMock)
