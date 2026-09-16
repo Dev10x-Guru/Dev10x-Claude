@@ -462,6 +462,21 @@ Behavioral caveats:
   to report costs exactly what it did before. `required_only` reads are
   exempt: an empty required set is normal on an unprotected base
   (ADR-0024) and the runs API cannot say which runs the host requires.
+
+- **`required_verdict: "empty"` is a normal merge-time state on this
+  repo, not a pending one (GH-1381).** `develop` registers no required
+  status checks (ADR-0024), so `required_verdict` is `"empty"` on every
+  green, mergeable PR — it is the terminal value the field settles on,
+  never a step on the way to `"green"`. Two workers each sat on a
+  fully-passed PR without merging (#1362 at 7/7, #1360 at 6/6) because
+  they read `empty` as "required checks haven't passed yet"; both
+  needed orchestrator intervention. The blended `verdict` — not
+  `required_verdict` — is what a merge decision branches on here:
+  `verdict: "green"` means merge, regardless of what `required_verdict`
+  says. This is distinct from the transient `empty` two bullets up,
+  which describes `verdict` before GitHub has registered any checks at
+  all; `required_verdict: "empty"` persists for the PR's whole life on
+  an unprotected base.
 - `pin_tracker` / `tracker_status` carry the project's issue-tracker
   choice (GH-768). `ensure-base` and `seed_worktree` seed only that
   tracker's MCP rules, so a Jira user stops collecting ~35 inert

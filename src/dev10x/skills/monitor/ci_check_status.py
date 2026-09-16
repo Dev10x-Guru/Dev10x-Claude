@@ -70,7 +70,12 @@ checks the host marks required (sourced from `gh pr checks --required`),
 plus a per-check `required: bool`. A caller — e.g. gh-pr-merge Check 2 —
 branches on `required_verdict` to tell a true merge blocker from an
 advisory red without a manual per-job log fetch. When the host reports
-no required checks, `required_verdict` is "empty".
+no required checks, `required_verdict` is "empty" — this is a normal
+terminal value on a repo with no required status checks configured
+(e.g. ADR-0024 in this repo), not a sign that required checks are
+still pending. A merge decision branches on the blended `verdict`,
+not `required_verdict`; `required_verdict` only disambiguates a
+`verdict: "failing"` into a true blocker vs. an advisory red (GH-1381).
 
 Corroborated zeros (GH-1376): `gh pr checks` under-reports, so a zero
 read is cross-checked against the Actions runs API for the PR's head SHA
