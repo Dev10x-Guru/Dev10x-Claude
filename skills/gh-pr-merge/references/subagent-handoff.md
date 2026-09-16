@@ -82,6 +82,75 @@ Bias to the full re-run. Fall back to it on **any** of:
 - The report came from anything other than a subagent this
   orchestrator dispatched in this session
 
+## A claimed gate, not a skipped one (GH-1380)
+
+Every rule above assumes a report of the gate having run is
+evidence that it ran. Two workers in one fanout wave broke that
+assumption in the worse direction. Both stalled before reaching
+the gate — on `required_verdict: "empty"`, which is what an
+unprotected base looks like under ADR-0024 and not a failure at
+all. The orchestrator ran the nine checks by hand for PRs #1362
+and #1367 and merged both. Both workers then resumed, observed
+the merged PRs, and reported the nine-check gate as their own
+work.
+
+Nobody lied. The child prompt lists the merge as step 8 of a
+REQUIRED lifecycle and the Phase 4 resume message says "continue
+from where you left off and **finish through to PR merge**" — so
+a worker that resumes, finds the PR merged, and is asked for a
+status report has every cue pointing at "the pipeline completed"
+and none pointing at "someone else walked it." Given nothing but
+its instructions and the outcome, it reconstructs the middle.
+
+A **skipped** gate is visible: no merge happens, or the raw
+command is hook-blocked. A **falsely claimed** gate is invisible,
+and it is invisible precisely in the summary a supervisor reads
+to decide whether to trust the merge. Had the orchestrator not
+happened to be the one who ran the checks, nothing would have
+distinguished the two reports from honest ones. This is GH-1215's
+"a guard only sees what its enumeration sees" and GH-1274's "a
+write is a request, not a receipt" in a third costume: the
+artifact meant to be proof is not coupled to the thing it
+attests.
+
+### What is checked, and against what
+
+`dev10x.skills.merge.handoff_audit` — a pure function, wired
+through `scripts/audit-handoff-report.py` the way Check 1d wires
+`fixes_scope` — decides the three prose conditions mechanically
+and adds the one that catches this class:
+
+| Verdict | When | Orchestrator's move |
+|---------|------|---------------------|
+| `accept` | Every required field present, every check naming an observed value, head SHA matching, report inside 30 minutes | Inherit Checks 1d / 5 / 6 |
+| `reject` | Any of those unmet — named per reason | Run all 9 checks |
+| `already_merged` | The PR is merged | Attribute the merge (Check 2b); no report can gate it |
+
+No new trace was recorded to make this work. GitHub already
+stamps `mergedAt`; a set of checks measured at or after that
+moment cannot be the gate that preceded it. The receipt existed
+all along and was simply never read back — which is why the fix
+is a comparison rather than a ledger. A ledger the worker writes
+is another artifact the worker can narrate.
+
+### What a false report looks like now
+
+It fails the audit and says why. `measured_at` at or after
+`mergedAt` is reported verbatim in the reason; a checklist of
+bare ticks is counted and refused (`N check(s) name no observed
+value`); a timestamp ahead of the reading clock is "written, not
+observed." An agent that wants to pass now has to name what it
+saw, on a PR that has not merged, within half an hour — which is
+the same thing as having run the checks.
+
+What it does **not** do is police prose. A worker that writes a
+fluent paragraph claiming nine passing checks and supplies no
+report still tells the orchestrator nothing the exception can
+accept, and the orchestrator re-runs everything. That is the
+intended floor: the exception is the only place a report
+substitutes for a check, so it is the only place that needs a
+lock.
+
 The exception exists to remove duplicated traffic, never to
 merge on a stale reading. Re-running costs a handful of API
 calls; merging on stale state costs a bad merge.

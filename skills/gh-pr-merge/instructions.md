@@ -145,6 +145,25 @@ on a stale reading. Report schema, per-check reasoning, and the
 bl-zebra evidence:
 [`references/subagent-handoff.md`](references/subagent-handoff.md).
 
+**Audit the report before inheriting anything (GH-1380).** The
+three conditions above were prose the orchestrator applied by eye,
+and a report that narrates the pipeline reads exactly like one that
+reports it. Write the report and the fresh `pr_get` response to
+files (`mcp__plugin_Dev10x_cli__mktmp`) and run:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-merge/scripts/audit-handoff-report.py \
+  --report-file <report.json> --pr-state-file <pr-get.json>
+```
+
+It prints a JSON verdict on stdout and exits non-zero unless the
+verdict is `accept`. **Exit non-zero forbids the exception** — run
+all 9 checks yourself. The `already_merged` verdict is the GH-1380
+case: the PR merged before the report could gate it, so the report
+describes someone else's work. Attribute the merge per Check 2b
+rather than asking the worker for a better report; there is no
+report that can authorize a merge that already happened.
+
 **"Re-run the skill" expansion:** When the supervisor says
 "execute the whole skill again", "re-run the skill", "run it once
 more", or any equivalent phrasing, treat that as a fresh invocation
@@ -500,6 +519,24 @@ from the same response before evaluating Checks 3/4/7:
    merge again. **Short-circuit to post-merge verification**: confirm
    the merge commit, then hand off to `Dev10x:verify-acc-dod`. Report
    that the merge already happened; the remaining checks are moot.
+
+   **Report `ALREADY MERGED`, never the checklist (GH-1380).** The
+   Step 4 nine-item checklist is a claim that those nine checks ran in
+   THIS invocation. They did not — the merge preceded them. Emitting it
+   here is how two workers came to report a gate the orchestrator had
+   run by hand for them. Report instead:
+
+   ```
+   ## Pre-Merge Validation — NOT RUN
+   ALREADY MERGED: PR #N merged at <mergedAt> by <mergedBy, or
+   "an actor the PR state does not name">. This invocation ran no
+   pre-merge checks; the gate that governed this merge ran elsewhere.
+   ```
+
+   Name the actor when `pr_get` or your own `merge_pr` result carries
+   one (`mergedBy`, or `merged_as` per GH-1272), and say plainly that
+   it is unnamed when neither does. A guessed actor is the same defect
+   in a smaller font.
 2. **Auto-merge armed on an open PR.** If `state != "MERGED"` and
    `autoMergeRequest` is non-null, the PR will self-merge the instant
    CI passes — potentially before a deferred human review lands. Surface

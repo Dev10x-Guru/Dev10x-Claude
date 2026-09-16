@@ -697,9 +697,21 @@ When a Dev10x MCP wrapper is unreachable (GH-1107 finding 1):
   one raw-CLI'd its way through PR creation, body patching, AND the
   merge — bypassing every pre-merge validation for that PR.
 
-Return on completion:
+Return on completion — REPORT ONLY WHAT YOU DID (GH-1380):
+- Every step you name, you name with the evidence of having run
+  it: the PR number, the check verdict, the merge SHA. A step
+  someone else performed is named WITH ITS ACTOR, never as yours.
+  Do not narrate the lifecycle above as though you walked it —
+  answer what happened.
 - PR URL (or "no PR produced — <reason>")
-- Merge state: MERGED | OPEN | DRAFT (if open, explain why)
+- Merge state, one of:
+  - `MERGED_BY_ME` — you ran Skill(Dev10x:gh-pr-merge) yourself.
+    Give the merge SHA and `merged_as` from your own `merge_pr`
+    result.
+  - `ALREADY_MERGED` — you found it merged. Give `mergedAt` and
+    the merging actor from `pr_get`, or say the state names none.
+    Do NOT report the nine-check gate: it ran in another session.
+  - `OPEN` | `DRAFT` — explain why
 - Worktree path: the absolute path of your ephemeral worktree
   (run `git rev-parse --show-toplevel` to get it)
 - Cost (total_cost_usd if known)
@@ -996,6 +1008,14 @@ Phase 4's job is therefore **collection**, not orchestration:
    dispatch. Use re-dispatch (new agent with PR URL inlined)
    only when the agent is no longer resumable (turn expired,
    session ended, or agent returned BLOCKED).
+   **Say what you did while it was stalled (GH-1380).** "Continue
+   and finish through to PR merge" tells a worker to complete a
+   lifecycle, so a worker that resumes onto a PR *you* merged
+   reports the merge gate as its own — two did. When you have
+   performed any step for a stalled agent, name it in the resume
+   message ("I ran the gate and merged #N at <sha>; report
+   `ALREADY_MERGED`, not the checklist") so the worker has a fact
+   to report instead of a pipeline to reconstruct.
    **"PR created but not merged" (GH-368 F1):** If the
    agent result contains a PR URL and the trailing line is
    `DONE` but the PR state (via `mcp__plugin_Dev10x_cli__pr_get`)
