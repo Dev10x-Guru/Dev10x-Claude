@@ -360,6 +360,44 @@ async def pr_labels(
 
 
 @github_tool
+async def issue_labels(
+    number: int,
+    action: str = "list",
+    labels: list[str] | None = None,
+    repo: str | None = None,
+    cwd: str | None = None,
+) -> Result[dict]:
+    """List, add, or remove labels on an issue (GH-1322).
+
+    Mirrors `pr_labels` (GH-1008): one tool with an `action` selector —
+    `list` (default) / `add` / `remove` — instead of `issue_edit`'s
+    additive-only `labels` parameter. Idempotent both ways: `add` skips
+    labels already present, and `remove` intersects against the
+    current set first, so clearing a label that was never set is a
+    no-op rather than a 404 — callers can invoke either write
+    unconditionally instead of probing first.
+
+    Args:
+        number: Issue number.
+        action: One of `list` / `add` / `remove`. Defaults to `list`.
+        labels: Label names. Required for `add` / `remove`.
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: number, action, labels (the set after
+        the call), changed (only what this call actually altered —
+        empty on a no-op).
+    """
+    return await gh.issue_labels(
+        number=number,
+        action=action,
+        labels=labels,
+        repo=repo,
+    )
+
+
+@github_tool
 async def pr_review_edit(
     pr_number: int,
     review_id: int,
@@ -808,7 +846,9 @@ async def issue_edit(
         title: New title (optional).
         body: New body text (optional).
         milestone: Milestone title to assign (optional).
-        labels: Replacement label list (optional).
+        labels: Labels to ADD (optional) — additive only, never a
+            replace or remove (GH-1322). Use `issue_labels` for
+            add/remove/list with idempotent semantics.
         repo: Repository (owner/repo). Auto-detected if omitted.
         cwd: Effective working directory (GH-979).
 

@@ -251,6 +251,10 @@ base_permissions:
   - "mcp__plugin_Dev10x_cli__milestones_bulk_create"
   - "mcp__plugin_Dev10x_cli__issues_bulk_create"
   - "mcp__plugin_Dev10x_cli__issues_bulk_edit"
+  # issue_labels (GH-1322): same GH-1215 reasoning as pr_labels above —
+  # its raw-CLI equivalent (`gh issue edit --add-label`/`--remove-label`)
+  # is routed/blocked, so this wrapper is the only sanctioned route.
+  - "mcp__plugin_Dev10x_cli__issue_labels"
   # The park family's only sanctioned write path (GH-1009, ADR-0018 D5).
   # Reaching the store with Write/Edit trips the self-settings consent
   # gate AND bypasses the file lock, so two parallel worktrees parking at
