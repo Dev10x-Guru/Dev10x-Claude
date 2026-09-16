@@ -28,6 +28,18 @@ _OPEN_STATUSES = (TaskStatus.PENDING, TaskStatus.IN_PROGRESS)
 _CLOSING_STATUSES = ("completed", "deleted")
 
 
+def is_terminal_task_subject(*, subject: str) -> bool:
+    """Whether a subject names the terminal Verify-AC gate (GH-149).
+
+    Public so a second reader cannot invent a second definition. The
+    Stop gate needs the same answer this module already computes for
+    the PreToolUse guard: it must tell "there is work left to do" from
+    "the work is done and the supervisor has not signed off yet", and
+    those differ only by whether the one open task is this one.
+    """
+    return bool(_TERMINAL_SUBJECT.search(subject or ""))
+
+
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
@@ -291,7 +303,7 @@ class Plan:
         if target is None or target.status not in _OPEN_STATUSES:
             return None
         remaining_open = [t for t in self.tasks if t.id != task_id and t.status in _OPEN_STATUSES]
-        is_terminal = bool(_TERMINAL_SUBJECT.search(target.subject or ""))
+        is_terminal = is_terminal_task_subject(subject=target.subject or "")
         if remaining_open and not is_terminal:
             return None
         return TerminalTaskViolation(subject=target.subject or "", is_terminal=is_terminal)

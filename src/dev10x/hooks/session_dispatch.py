@@ -254,6 +254,29 @@ def session_persist(data: dict | None = None) -> None:
     write_state(path=state_path_for_toplevel(toplevel=toplevel), state=state)
 
 
+def _uncommitted_paths() -> tuple[str, ...] | None:
+    """The working tree's uncommitted paths, or ``None`` if unreadable.
+
+    Kept out of :func:`decide` so the rule stays a pure function of its
+    arguments (GH-1365). ``None`` and ``()`` are deliberately different:
+    ``()`` is a clean tree, ``None`` is "could not tell", and only the
+    first is evidence. A git read that failed must never manufacture a
+    block — every degradation in this path points toward letting the
+    turn end.
+
+    One ``git status`` per Stop event, which fires once per turn rather
+    than once per tool call, so this is not on the hook-startup budget
+    that `.claude/rules/performance.md` gates.
+    """
+    git = GitContext()
+    status = _run_git_safe(git, "status", "--porcelain")
+    if not status.strip():
+        # Indistinguishable here from a failed read, and both mean the
+        # same thing to the caller: no evidence of uncommitted work.
+        return ()
+    return tuple(line[3:].strip() for line in status.splitlines() if len(line) > 3)
+
+
 def build_stop_verdict(data: dict | None = None) -> StopVerdict | None:
     """Decide whether this Stop should be blocked and steered (GH-1251).
 
@@ -263,7 +286,7 @@ def build_stop_verdict(data: dict | None = None) -> StopVerdict | None:
 
     The decision itself lives in :mod:`dev10x.hooks.stop_verdict` so it
     is testable without a subprocess; this function is only the wiring
-    that finds the persisted plan.
+    that finds the persisted plan and reads the working tree.
     """
     if data is None:
         try:
@@ -284,7 +307,7 @@ def build_stop_verdict(data: dict | None = None) -> StopVerdict | None:
         # would make the stand-down gate unreachable.
         plan = summary if isinstance(summary, dict) else None
 
-    verdict = decide(data=data, plan=plan)
+    verdict = decide(data=data, plan=plan, dirty=_uncommitted_paths())
     # Attribute every outcome, not only a block (GH-1257). Retiring the
     # cooldown marker is safe only once `stop_hook_active` is known to
     # arrive set on a continuation, and the audit log carried nothing

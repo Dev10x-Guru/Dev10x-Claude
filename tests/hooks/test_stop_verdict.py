@@ -654,8 +654,9 @@ class TestWiringRecordsTheBlock:
     ) -> None:
         """The wiring's whole job: find the plan and hand it to the rule.
 
-        Asserted through the verdict rather than the steer text, since
-        GH-1339 left one blocking state whose message names no task.
+        A plan with open work keeps the turn alive (GH-1366); a depleted
+        one blocks to ask for sign-off. Both are blocks, so the verdicts
+        are told apart by their signal.
         """
         transcript = _transcript(
             tmp_path=tmp_path,
@@ -676,7 +677,10 @@ class TestWiringRecordsTheBlock:
             lambda *, toplevel: {"plan": {"status": "in_progress"}, **PENDING_PLAN},
         )
 
-        assert build_stop_verdict(data={"session_id": "w3", "transcript_path": transcript}) is None
+        open_work = build_stop_verdict(data={"session_id": "w3", "transcript_path": transcript})
+
+        assert open_work is not None
+        assert open_work.signal == StopSignal.CONTINUE
 
         monkeypatch.setattr(
             "dev10x.hooks.session_dispatch.read_plan_summary",

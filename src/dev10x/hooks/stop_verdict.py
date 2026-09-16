@@ -32,8 +32,20 @@ that recommendation:
 
     A gate fires only where there is no recommended next action.
 
-Open work *is* the recommended next action, so it auto-advances. So
-does an **absent task list**, which is not a depleted one (GH-1055):
+**Blocking continues the turn (GH-1366).** A Stop hook's ``block``
+means *do not stop*: the steer becomes the continued turn's next
+instruction. So "auto-advance" — proceed to the next task without
+asking — is expressed by BLOCKING with a continue-steer, not by
+letting the turn end. An earlier cut read it the other way and let a
+session with pending tasks stop at a "natural reporting point".
+
+Open work therefore continues the turn. The discriminator is the
+terminal ``Verify acceptance criteria`` task GH-149 keeps open until
+the supervisor signs off: since that makes "something is open" true
+almost always, what separates "keep going" from "genuinely waiting" is
+whether anything *besides* that gate is open.
+
+An **absent task list** is not a depleted one (GH-1055):
 the task tools ship by default only on older models, so a session
 without them never populates ``plan.tasks``, and ``essentials.md`` says
 that emptiness "must not be treated as evidence of anything else".
@@ -87,6 +99,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
+from dev10x.domain.documents.plan import is_terminal_task_subject
 from dev10x.domain.file_locks import atomic_write_text
 
 
@@ -162,8 +175,10 @@ class StopSignal(StrEnum):
     """
 
     STOP_HOOK_ACTIVE = "stop_hook_active"
-    OPEN_WORK = "open_work"
+    CONTINUE = "continue"
+    AWAITING_SUPERVISOR = "awaiting_supervisor"
     NO_TASK_LIST = "no_task_list"
+    DIRTY_TREE = "dirty_tree"
     SUBAGENT = "subagent"
     SUBAGENT_PATH = "subagent_path"
     STANDBY = "standby"
@@ -529,6 +544,31 @@ class TaskSignal:
         """A list that exists and holds nothing open — the one asking state."""
         return self.has_task_list and not self.has_open_work
 
+    @property
+    def actionable_subjects(self) -> tuple[str, ...]:
+        """Open tasks the agent can act on — everything but the terminal gate.
+
+        GH-149 keeps a terminal ``Verify acceptance criteria`` task open
+        until the supervisor signs off, so "something is open" is true of
+        almost every turn and cannot, on its own, mean "keep working".
+        What distinguishes the two is whether anything *other* than that
+        gate is open.
+        """
+        return tuple(
+            subject
+            for subject in self.open_subjects
+            if not is_terminal_task_subject(subject=subject)
+        )
+
+    @property
+    def has_actionable_work(self) -> bool:
+        return bool(self.actionable_subjects)
+
+    @property
+    def awaits_supervisor(self) -> bool:
+        """The work is done and only the sign-off gate is left."""
+        return self.has_open_work and not self.has_actionable_work
+
 
 def _plan_tasks(*, plan: dict) -> list[dict]:
     tasks = plan.get("tasks")
@@ -562,25 +602,89 @@ def task_signal(*, plan: dict | None) -> TaskSignal:
 
 
 def auto_advances(*, signal: TaskSignal) -> bool:
-    """Whether this turn may simply end, with no widget (GH-1339).
+    """Whether the agent should keep working rather than end the turn.
 
-    The whole rule, in one sentence: a turn advances unless the plan
-    says the work is done.
+    **The name of the verdict is not the direction of the turn**
+    (GH-1366). A Stop hook's ``block`` means *do not stop* — the turn
+    continues and the steer becomes its next instruction. GH-1339 read
+    "auto-advance" as "let the turn end quietly" and so returned
+    ``block=False`` on open work, which removed the only mechanism that
+    keeps an agent going. A session with real pending tasks then
+    stopped at a "natural reporting point" and nothing objected.
 
-    It does not read the closing sentence. An earlier cut blocked on
-    deferral shapes — "shall I push?", "want me to…" — on the reasoning
-    that the agent had taken a decision out of the supervisor's hands.
-    The supervisor's ruling is that it had not: pushing is a forward
-    step and a reversible one, so the answer is always yes, and asking
-    is the defect rather than the courtesy. Blocking there never made
-    the agent push anyway — it made it render a widget about work it
-    should have simply done.
+    Auto-advance in this codebase means *proceed to the next task
+    without asking*, and proceeding requires the turn to stay alive. So
+    actionable work now continues the turn.
 
-    That removes the last place this gate guessed at English, which was
-    also the one weakness its own docstring kept having to apologise
-    for. What remains is structural.
+    The discriminator is structural, not a guess about English: GH-149
+    keeps a terminal ``Verify acceptance criteria`` task open until the
+    supervisor signs off, so "something is open" is true nearly always
+    and would fire this gate every turn — the exact over-firing GH-1339
+    was filed to end. What separates "keep going" from "genuinely
+    waiting" is whether anything *besides* that gate is open.
     """
-    return not signal.is_depleted
+    return signal.has_actionable_work
+
+
+def _continue_reason(*, signal: TaskSignal) -> str:
+    """The steer for a turn that stopped with work still to do.
+
+    It names the next task and never mentions ``AskUserQuestion``.
+    There is no decision here to hand anyone: the plan already says
+    what comes next, and asking about it is the defect GH-1339
+    removed.
+    """
+    nxt = signal.actionable_subjects[0]
+    remaining = len(signal.actionable_subjects)
+    tail = "" if remaining == 1 else f" ({remaining} tasks still open.)"
+    return (
+        "⛔  The plan still has work on it, so this turn is not over.\n\n"
+        f"Next: **{nxt}**.{tail}\n\n"
+        "Continue with it now. Do not summarise progress and stop — a "
+        "report is not a stopping point, and the supervisor asked for "
+        "the work, not a status update. Do not ask whether to carry on; "
+        "the plan is the authorisation.\n\n"
+        "Running low on context is not a reason to stop either. Carry "
+        "on, or hand off through the skill's documented wrap-up so the "
+        "remaining tasks survive — never simply end mid-plan.\n\n"
+        "If this task genuinely cannot proceed, say what blocks it and "
+        "pick up the next unblocked task instead of ending here."
+    )
+
+
+def _dirty_tree_reason(*, dirty: tuple[str, ...]) -> str:
+    """The steer for a depleted list whose tree still holds changes.
+
+    This is an instruction, not a question. GH-1339 settled that only a
+    true question may ask the human, and an uncommitted edit is not one
+    — the next action is known, so naming it beats asking about it.
+
+    **The escape matters as much as the block.** A session and the
+    subagents it dispatches share one worktree, so these paths may
+    belong to a concurrent session. Nothing available here can settle
+    whose they are: uncommitted changes carry no author, and the
+    transcript window is one turn by design. Telling an agent to commit
+    files it never touched would be a worse outcome than the missing
+    commit this catches, so the steer names the paths and lets the
+    reader — who does know what it edited — decide.
+    """
+    listed = "\n".join(f"  - {path}" for path in dirty)
+    return (
+        "⛔  Every task on the list is complete, but the working tree is "
+        "not clean. An empty task list says the tracking is done; it "
+        "says nothing about the work.\n\n"
+        f"Uncommitted changes:\n\n{listed}\n\n"
+        "**If these are yours, you are not done.** Commit them via "
+        "`Skill(Dev10x:git-commit)` and carry on through the rest of the "
+        "shipping pipeline. Do not ask whether to commit — a commit is a "
+        "forward, reversible step, so the answer is always yes.\n\n"
+        "**If you did not touch these files, do not commit them.** This "
+        "worktree is shared with the subagents you dispatched and can be "
+        "shared with another session, and nothing here can tell whose "
+        "changes these are. Say so plainly, leave them alone, and stand "
+        "down — committing another session's work in progress is worse "
+        "than the missing commit this gate exists to catch."
+    )
 
 
 def _reason(*, signal: TaskSignal) -> str:
@@ -638,11 +742,24 @@ def _reason(*, signal: TaskSignal) -> str:
     )
 
 
-def decide(*, data: dict, plan: dict | None, now: float | None = None) -> StopVerdict:
+def decide(
+    *,
+    data: dict,
+    plan: dict | None,
+    dirty: tuple[str, ...] | None = None,
+    now: float | None = None,
+) -> StopVerdict:
     """Return the Stop verdict for one hook invocation.
 
     ``data`` is the Stop payload; ``plan`` is the persisted plan-sync
-    document (or ``None`` when there is none).
+    document (or ``None`` when there is none); ``dirty`` is the working
+    tree's uncommitted paths (GH-1365).
+
+    ``dirty`` arrives as an argument rather than being read here, so
+    this stays a pure function of what it is given and testable without
+    a subprocess — the same separation the module keeps for ``plan``.
+    ``None`` means the read failed or was not attempted, which is not
+    evidence of uncommitted work and so reads as clean.
     """
     if data.get("stop_hook_active"):
         return StopVerdict(block=False, signal=StopSignal.STOP_HOOK_ACTIVE)
@@ -675,12 +792,37 @@ def decide(*, data: dict, plan: dict | None, now: float | None = None) -> StopVe
 
     signal = task_signal(plan=plan)
 
+    if not signal.has_task_list:
+        # No list is no evidence either way (GH-1055). A model without
+        # the task tools never populates one, so emptiness here says
+        # nothing about whether the work is finished.
+        return StopVerdict(block=False, signal=StopSignal.NO_TASK_LIST)
+
     if auto_advances(signal=signal):
-        # Two ways to advance, kept apart so the audit log can tell a
-        # plan that named a next action from one that was never there.
+        # Blocking CONTINUES the turn (GH-1366). The tree is not
+        # consulted: uncommitted work mid-task is normal, and gating it
+        # would re-create the over-firing GH-1339 removed.
         return StopVerdict(
-            block=False,
-            signal=StopSignal.OPEN_WORK if signal.has_open_work else StopSignal.NO_TASK_LIST,
+            block=True,
+            reason=_continue_reason(signal=signal),
+            signal=StopSignal.CONTINUE,
         )
+
+    # Past here the agent is claiming to be done, which is the moment
+    # the supervisor's rule applies: a clean tree is part of that claim.
+    if dirty:
+        # The list says done, the tree says otherwise (GH-1365). Its own
+        # signal, because "finished with a missing commit" and "finished"
+        # are different outcomes and only one of them needs chasing.
+        return StopVerdict(
+            block=True,
+            reason=_dirty_tree_reason(dirty=dirty),
+            signal=StopSignal.DIRTY_TREE,
+        )
+
+    if signal.awaits_supervisor:
+        # Only the sign-off gate is left, and the agent must never close
+        # that itself (GH-149). Waiting is the correct end of the turn.
+        return StopVerdict(block=False, signal=StopSignal.AWAITING_SUPERVISOR)
 
     return StopVerdict(block=True, reason=_reason(signal=signal), signal=StopSignal.BLOCKED)

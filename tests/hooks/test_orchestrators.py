@@ -45,13 +45,39 @@ def _run(script: Path, payload: dict, cwd: Path | None = None) -> subprocess.Com
     )
 
 
-def _repo_with_depleted_plan(*, tmp_path: Path) -> Path:
+def _git(*args: str, cwd: Path) -> None:
+    """Run git under the same isolated HOME the subprocess under test uses.
+
+    Without this the fixture and the subject disagree about ignore
+    rules: ``_run`` overrides ``HOME``, so the hook reads no global
+    gitconfig and no ``core.excludesFile``, while a fixture inheriting
+    the real ``HOME`` does. The repo seeded here puts its plan under
+    ``.claude/session/``, which a developer's global gitignore is
+    likely to exclude — so the fixture would stage nothing while the
+    hook saw an untracked file.
+    """
+    subprocess.run(
+        ["git", *args],
+        check=True,
+        timeout=30,
+        cwd=str(cwd),
+        env={"HOME": _ISOLATED_HOME, "PATH": "/usr/bin:/bin:/usr/local/bin"},
+    )
+
+
+def _repo_with_depleted_plan(*, tmp_path: Path, commit: bool = True) -> Path:
     """A throwaway git repo whose plan holds nothing open.
 
     Since GH-1339 that is the only state the Stop gate blocks on, so an
     orchestrator test that needs a block has to supply one. Running
     against the real checkout would make the assertion depend on
     whatever plan happens to be on disk when the suite runs.
+
+    The plan is committed by default (GH-1365). Left untracked it makes
+    the tree dirty, and a dirty tree is now its own verdict — so a
+    fixture that means "finished" has to actually be finished, or it
+    silently tests the wrong branch. Pass ``commit=False`` to get the
+    unfinished shape on purpose.
     """
     repo = tmp_path / "repo"
     (repo / ".claude" / "session").mkdir(parents=True)
@@ -59,7 +85,19 @@ def _repo_with_depleted_plan(*, tmp_path: Path) -> Path:
         "plan:\n  status: in_progress\ntasks:\n  - subject: Ship it\n    status: completed\n",
         encoding="utf-8",
     )
-    subprocess.run(["git", "init", "-q", str(repo)], check=True, timeout=30)
+    _git("init", "-q", str(repo), cwd=tmp_path)
+    if commit:
+        _git("add", "-A", cwd=repo)
+        _git(
+            "-c",
+            "user.email=test@example.invalid",
+            "-c",
+            "user.name=test",
+            "commit",
+            "-qm",
+            "seed",
+            cwd=repo,
+        )
     return repo
 
 
@@ -146,6 +184,30 @@ class TestSessionStopVerdict:
         )
 
         assert "Thank you for using Dev10x" not in result.stdout
+
+    def test_an_uncommitted_tree_blocks_with_the_commit_steer(self, tmp_path: Path) -> None:
+        """GH-1365 end to end: the wiring reads the tree, not just the plan.
+
+        Same depleted plan as above, left uncommitted. The unit tests
+        pin the rule; this one pins that ``build_stop_verdict`` actually
+        gathers the git state and hands it over.
+        """
+        result = _run(
+            SESSION_STOP,
+            {
+                "session_id": f"verdict-dirty-{uuid.uuid4()}",
+                "transcript_path": self._transcript(tmp_path=tmp_path, closing="All done."),
+            },
+            cwd=_repo_with_depleted_plan(tmp_path=tmp_path, commit=False),
+        )
+
+        assert result.returncode == 0
+        envelope = json.loads(result.stdout)
+        assert envelope["decision"] == "block"
+        assert "Dev10x:git-commit" in envelope["reason"]
+        # Porcelain collapses a wholly-untracked tree to its directory,
+        # so this is `.claude/` rather than the plan file itself.
+        assert ".claude" in envelope["reason"]
 
     def test_a_turn_with_work_left_emits_no_envelope(self, tmp_path: Path) -> None:
         """GH-1339 at the orchestrator level: a plain closing just ends.
