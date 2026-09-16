@@ -101,9 +101,18 @@ class TestOpenWorkEndsTheTurn:
         assert verdict.signal == StopSignal.OPEN_WORK
 
 
-class TestATrueQuestionStillAsks:
-    def test_a_prose_deferral_still_blocks(self, tmp_path: Path, isolated_markers: Path) -> None:
-        """The agent held a decision back; open work does not excuse that."""
+class TestADeferralIsNotADecision:
+    """The supervisor's ruling: "shall I push?" has an obvious answer.
+
+    An earlier cut blocked on these shapes. Pushing is forward and
+    reversible, so the answer is always yes — asking is the defect, and
+    blocking never made the agent push anyway. Removing the carve-out
+    took the last guess about English out of the gate.
+    """
+
+    def test_a_prose_deferral_no_longer_blocks(
+        self, tmp_path: Path, isolated_markers: Path
+    ) -> None:
         verdict = decide(
             data={
                 "session_id": "adv4",
@@ -114,8 +123,25 @@ class TestATrueQuestionStillAsks:
             plan=PENDING_PLAN,
         )
 
-        assert verdict.block is True
+        assert verdict.block is False
+        assert verdict.signal == StopSignal.OPEN_WORK
 
+    def test_a_deferral_with_no_task_list_advances_too(
+        self, tmp_path: Path, isolated_markers: Path
+    ) -> None:
+        verdict = decide(
+            data={
+                "session_id": "adv10",
+                "transcript_path": _transcript(tmp_path=tmp_path, closing="Shall I push?"),
+            },
+            plan=None,
+        )
+
+        assert verdict.block is False
+        assert verdict.signal == StopSignal.NO_TASK_LIST
+
+
+class TestADepletedListAsksToStandDown:
     def test_a_completed_task_list_asks_to_stand_down(
         self, tmp_path: Path, isolated_markers: Path
     ) -> None:
@@ -131,15 +157,10 @@ class TestATrueQuestionStillAsks:
         assert verdict.block is True
         assert "stand down" in verdict.reason.lower()
 
-    def test_a_deferral_on_a_depleted_list_still_asks_to_stand_down(
+    def test_the_closing_sentence_does_not_change_the_verdict(
         self, tmp_path: Path, isolated_markers: Path
     ) -> None:
-        """Both blocking conditions at once resolve to the stand-down steer.
-
-        The steer does not separately acknowledge the deferral, which is
-        right — standing down subsumes it — but it is worth pinning, so
-        a later edit cannot change it silently.
-        """
+        """Depletion decides it; the prose is not consulted either way."""
         verdict = decide(
             data={
                 "session_id": "adv9",
@@ -152,6 +173,49 @@ class TestATrueQuestionStillAsks:
 
         assert verdict.block is True
         assert "stand down" in verdict.reason.lower()
+
+    def test_the_steer_sends_the_agent_back_to_the_plan_first(
+        self, tmp_path: Path, isolated_markers: Path
+    ) -> None:
+        """A depleted task list is not an exhausted plan.
+
+        The cheapest wrong outcome here is asking a question the plan
+        already answers, so consulting it comes before the widget.
+        """
+        verdict = decide(
+            data={
+                "session_id": "adv12",
+                "transcript_path": _transcript(
+                    tmp_path=tmp_path, closing="That was the last one."
+                ),
+            },
+            plan=DEPLETED_PLAN,
+        )
+        reason = verdict.reason.replace("\n", " ")
+
+        assert "Re-read the plan" in reason
+        assert "do not ask" in reason
+        assert "low on context is not a reason to ask" in reason
+
+    def test_the_steer_tells_a_subagent_not_to_ask_the_human(
+        self, tmp_path: Path, isolated_markers: Path
+    ) -> None:
+        """The fallback for when `subagent_signal` misses.
+
+        It went 224 audit records without firing, and this is the exact
+        state in which the GH-1314 subagent asked a human "are we done?".
+        """
+        verdict = decide(
+            data={
+                "session_id": "adv11",
+                "transcript_path": _transcript(tmp_path=tmp_path, closing="All four are done."),
+            },
+            plan=DEPLETED_PLAN,
+        )
+
+        assert "orchestrator" in verdict.reason
+        assert "stand down, wait for further work" in verdict.reason.replace("\n", " ")
+        assert "whether you may exit" in verdict.reason
 
     def test_the_surviving_gate_carries_a_recommendation(
         self, tmp_path: Path, isolated_markers: Path
@@ -213,23 +277,15 @@ class TestTheRuleIsAPureFunction:
     def test_a_depleted_list_does_not_advance(self) -> None:
         signal = TaskSignal(has_task_list=True)
 
-        assert auto_advances(signal=signal, closing="Done.") is False
+        assert auto_advances(signal=signal) is False
 
     def test_open_work_advances(self) -> None:
         signal = TaskSignal(open_subjects=("Monitor CI",), has_task_list=True)
 
-        assert auto_advances(signal=signal, closing="Done.") is True
+        assert auto_advances(signal=signal) is True
 
     def test_an_absent_list_advances(self) -> None:
-        assert auto_advances(signal=TaskSignal(), closing="Done.") is True
-
-    def test_a_deferral_overrides_open_work(self) -> None:
-        signal = TaskSignal(open_subjects=("Monitor CI",), has_task_list=True)
-
-        assert auto_advances(signal=signal, closing="Shall I push?") is False
-
-    def test_a_deferral_overrides_an_absent_list_too(self) -> None:
-        assert auto_advances(signal=TaskSignal(), closing="Shall I push?") is False
+        assert auto_advances(signal=TaskSignal()) is True
 
 
 class TestTheSignalIsLegible:

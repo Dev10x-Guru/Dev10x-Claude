@@ -44,15 +44,15 @@ def _transcript(*, tmp_path: Path, entries: list[dict]) -> str:
 
 
 class TestBlocksATurnEndingOnADecision:
-    """GH-1339 narrowed this from "no widget" to "an unanswered decision".
+    """GH-1339 narrowed this to a single state: a depleted task list.
 
-    Every case here therefore carries either a prose deferral or a task
-    list that exists and is wholly completed. A bare "this turn used no
-    widget" no longer blocks, which is what the sibling
-    ``test_stop_verdict_open_work`` module pins.
+    Every case here therefore supplies a list that exists and holds
+    nothing open. Neither a bare "this turn used no widget" nor a prose
+    deferral blocks any more — the sibling
+    ``test_stop_verdict_open_work`` module pins both.
     """
 
-    def test_blocks_when_the_turn_never_asked(
+    def test_blocks_when_the_work_is_done(
         self,
         tmp_path: Path,
         isolated_markers: Path,
@@ -61,39 +61,17 @@ class TestBlocksATurnEndingOnADecision:
             tmp_path=tmp_path,
             entries=[
                 {"type": "user", "message": {"role": "user", "content": "go"}},
-                _assistant(blocks=[_text(text="All done. Want me to file that?")]),
+                _assistant(blocks=[_text(text="All done.")]),
             ],
         )
 
         verdict = decide(
             data={"session_id": "s1", "transcript_path": transcript},
-            plan=None,
+            plan=DEPLETED_PLAN,
         )
 
         assert verdict.block is True
         assert "Dev10x:ask" in verdict.reason
-
-    def test_blocks_an_imperative_deferral_with_no_question_mark(
-        self,
-        tmp_path: Path,
-        isolated_markers: Path,
-    ) -> None:
-        """GH-1251 instance 3 — the "?" test alone would miss this."""
-        transcript = _transcript(
-            tmp_path=tmp_path,
-            entries=[
-                {"type": "user", "message": {"role": "user", "content": "plan it"}},
-                _assistant(blocks=[_text(text="say go and I'll run 4.1 through 4.11.")]),
-            ],
-        )
-
-        verdict = decide(
-            data={"session_id": "s2", "transcript_path": transcript},
-            plan=None,
-        )
-
-        assert verdict.block is True
-        assert "defers a decision in prose" in verdict.reason
 
     def test_a_done_session_still_ends_on_a_widget(
         self,
@@ -117,31 +95,26 @@ class TestBlocksATurnEndingOnADecision:
         assert verdict.block is True
         assert "stand down" in verdict.reason
 
-    def test_a_deferral_alongside_open_work_names_the_next_loop(
+    def test_the_steer_carries_a_recommendation(
         self,
         tmp_path: Path,
         isolated_markers: Path,
     ) -> None:
-        """Open work alone advances now — the deferral is what still blocks.
-
-        The steer names the next loop so the widget can offer proceeding
-        as its recommended option, rather than asking open-endedly.
-        """
+        """Pre-collapse `guided` blocked WITH a recommendation, never open-endedly."""
         transcript = _transcript(
             tmp_path=tmp_path,
             entries=[
                 {"type": "user", "message": {"role": "user", "content": "carry on"}},
-                _assistant(blocks=[_text(text="Committed. Want me to push?")]),
+                _assistant(blocks=[_text(text="Committed.")]),
             ],
         )
 
         verdict = decide(
             data={"session_id": "s4", "transcript_path": transcript},
-            plan=PENDING_PLAN,
+            plan=DEPLETED_PLAN,
         )
 
         assert verdict.block is True
-        assert "Monitor CI" in verdict.reason
         assert "(Recommended)" in verdict.reason
 
 
@@ -598,7 +571,7 @@ class TestWiringRecordsTheBlock:
         )
         monkeypatch.setattr(
             "dev10x.hooks.session_dispatch.read_plan_summary",
-            lambda *, toplevel: {"plan": DEPLETED_PLAN},
+            lambda *, toplevel: {"plan": {"status": "in_progress"}, **DEPLETED_PLAN},
         )
 
     def test_a_block_is_returned_and_recorded_once(
@@ -673,31 +646,44 @@ class TestWiringRecordsTheBlock:
 
         assert build_stop_verdict() is None
 
-    def test_the_plan_feeds_the_steer(
+    def test_the_plan_decides_the_verdict(
         self,
         tmp_path: Path,
         isolated_markers: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        """The wiring's whole job: find the plan and hand it to the rule.
+
+        Asserted through the verdict rather than the steer text, since
+        GH-1339 left one blocking state whose message names no task.
+        """
         transcript = _transcript(
             tmp_path=tmp_path,
             entries=[
                 {"type": "user", "message": {"role": "user", "content": "go"}},
-                # The deferral is what blocks now; the plan supplies the
-                # next loop the steer names (GH-1339).
-                _assistant(blocks=[_text(text="Committed. Want me to push?")]),
+                _assistant(blocks=[_text(text="Committed.")]),
             ],
         )
         monkeypatch.setattr(
             "dev10x.hooks.session_dispatch._get_toplevel",
             lambda: "/repo",
         )
+        # The real `Plan.to_dict` shape: tasks sit beside the metadata,
+        # not inside it. Reaching for summary["plan"] was the GH-1339
+        # bug that blanked the signal in the field.
         monkeypatch.setattr(
             "dev10x.hooks.session_dispatch.read_plan_summary",
-            lambda *, toplevel: {"plan": PENDING_PLAN},
+            lambda *, toplevel: {"plan": {"status": "in_progress"}, **PENDING_PLAN},
         )
 
-        verdict = build_stop_verdict(data={"session_id": "w3", "transcript_path": transcript})
+        assert build_stop_verdict(data={"session_id": "w3", "transcript_path": transcript}) is None
+
+        monkeypatch.setattr(
+            "dev10x.hooks.session_dispatch.read_plan_summary",
+            lambda *, toplevel: {"plan": {"status": "in_progress"}, **DEPLETED_PLAN},
+        )
+
+        verdict = build_stop_verdict(data={"session_id": "w5", "transcript_path": transcript})
 
         assert verdict is not None
-        assert "Monitor CI" in verdict.reason
+        assert verdict.block is True
