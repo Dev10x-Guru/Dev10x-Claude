@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import click
 import yaml
 
 from dev10x.domain.common.allow_rule import AllowRule
@@ -29,12 +30,29 @@ _UVX_PREFIX = "uvx dev10x "
 
 
 def enumerate_leaf_commands(group, prefix: tuple[str, ...] = ()) -> list[tuple[str, ...]]:
-    """Return the token path of every leaf command under a Click group."""
+    """Return the token path of every leaf command under a Click group.
+
+    Walks via ``list_commands``/``get_command`` — Click's own group
+    protocol — rather than the raw ``.commands`` dict. A ``LazyGroup``
+    (``dev10x.cli``) never populates ``.commands`` for its deferred
+    subcommands; they resolve only through that protocol, on demand,
+    which is the whole point of the lazy-import startup optimisation
+    (GH-1370). Reading ``.commands`` directly silently walked zero
+    top-level groups against the live CLI, so ``find_uncovered_commands``
+    always returned ``[]`` — the guard passed green while measuring
+    nothing. This forces each lazy subcommand's module import at
+    enumeration time (test/CI time), never at CLI-module import time, so
+    the ~40ms startup budget in ``.claude/rules/performance.md`` is
+    unaffected.
+    """
     leaves: list[tuple[str, ...]] = []
-    for name, command in sorted(getattr(group, "commands", {}).items()):
+    ctx = click.Context(group)
+    for name in sorted(group.list_commands(ctx)):
+        command = group.get_command(ctx, name)
+        if command is None:
+            continue
         path = (*prefix, name)
-        subcommands = getattr(command, "commands", None)
-        if subcommands:
+        if hasattr(command, "list_commands"):
             leaves.extend(enumerate_leaf_commands(command, path))
         else:
             leaves.append(path)
