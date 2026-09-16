@@ -35,6 +35,11 @@
       "id": "fixes-scope-block",
       "name": "Fixes-Linked Scope Delivery Block",
       "description": "Check 1d compares each Fixes:/Closes:-linked issue's stated scope against the diff and refuses merge when a titled capability is unbuilt (including self-disclosed cuts)."
+    },
+    {
+      "id": "already-merged-attribution",
+      "name": "Already-Merged Attribution",
+      "description": "Check 2b reports ALREADY MERGED with the merging actor when the PR is already merged, and never emits the nine-item checklist — those checks did not run in this invocation (GH-1380)."
     }
   ],
   "evals": [
@@ -179,6 +184,30 @@
           "dimension": "merge-tool",
           "check": "behavioral",
           "signal": "mcp__plugin_Dev10x_cli__merge_pr is NOT called when Fixes-linked scope is undelivered"
+        }
+      ]
+    },
+    {
+      "id": "already-merged-reports-actor-not-checklist",
+      "name": "Already-merged PR is attributed, not narrated",
+      "description": "pr_get returns state=MERGED with a mergedAt and mergedBy. Check 2b must report ALREADY MERGED naming the actor, and must NOT emit the nine-item pre-merge checklist — no check ran in this invocation.",
+      "input": "/Dev10x:gh-pr-merge",
+      "assertions": [
+        {
+          "dimension": "already-merged-attribution",
+          "check": "output_contains",
+          "value": "ALREADY MERGED",
+          "signal": "The report states the PR was already merged rather than reporting a gate run"
+        },
+        {
+          "dimension": "already-merged-attribution",
+          "check": "behavioral",
+          "signal": "The nine-item pre-merge checklist is NOT emitted for an already-merged PR"
+        },
+        {
+          "dimension": "merge-tool",
+          "check": "behavioral",
+          "signal": "mcp__plugin_Dev10x_cli__merge_pr is NOT called for an already-merged PR"
         }
       ]
     }
