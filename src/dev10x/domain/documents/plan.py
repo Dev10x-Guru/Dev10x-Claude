@@ -9,6 +9,7 @@ finding B1/B10) — load/save round-trip preserves all fields.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -19,6 +20,8 @@ import yaml
 
 from dev10x.domain.documents.task import Task, TaskStatus
 from dev10x.domain.file_locks import atomic_write_text
+
+log = logging.getLogger(__name__)
 
 # Terminal-task invariant (GH-149 / GH-681). Owned here so the PreToolUse
 # guard asks the Plan rather than re-deriving the rule externally
@@ -176,18 +179,53 @@ class Plan:
 
     @classmethod
     def load(cls, *, path: Path) -> Plan:
-        if path.exists():
-            try:
-                with open(path) as f:
-                    data = yaml.safe_load(f) or {}
-            except (yaml.YAMLError, OSError):
-                data = {}
-        else:
-            data = {}
+        """Load a plan from ``path``, degrading to empty on every failure.
+
+        A missing file is not a failure — a repo that never started a
+        plan reads as empty with no noise, which is what GH-1055 needs
+        (a session without the task tools must never look chatty). Every
+        *other* cause is a plan that once existed and cannot be trusted,
+        and GH-1346 requires each to name itself: an unreadable/corrupt
+        file (``OSError``/``yaml.YAMLError``) and a file that parsed but
+        not into the expected mapping shape (a list or scalar at the top
+        level, or a non-mapping ``plan`` section) both log a warning
+        naming the path and the cause before falling back to empty. The
+        verdict this feeds (``stop_verdict.decide``) is unchanged either
+        way — only the diagnosability is new.
+        """
+        if not path.exists():
+            return cls()
+
+        try:
+            with open(path) as f:
+                raw = yaml.safe_load(f)
+        except (yaml.YAMLError, OSError) as error:
+            log.warning("plan.yaml unreadable at %s (%s)", path, error)
+            raw = None
+
+        if raw is not None and not isinstance(raw, dict):
+            log.warning(
+                "plan.yaml at %s did not parse to a mapping (got %s); treating as empty",
+                path,
+                type(raw).__name__,
+            )
+            raw = None
+
+        data: dict[str, Any] = raw or {}
+
+        metadata = data.get("plan", {})
+        if not isinstance(metadata, dict):
+            log.warning(
+                "plan.yaml at %s has a non-mapping 'plan' section (got %s); ignoring",
+                path,
+                type(metadata).__name__,
+            )
+            metadata = {}
+
         raw_tasks = data.get("tasks", []) or []
         tasks = [Task.from_dict(t) for t in raw_tasks if isinstance(t, dict)]
         return cls(
-            metadata=data.get("plan", {}),
+            metadata=metadata,
             tasks=tasks,
         )
 

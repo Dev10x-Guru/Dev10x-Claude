@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from unittest.mock import patch
 
@@ -91,20 +92,83 @@ class TestPlanLoad:
         assert plan.tasks[0].id == "1"
         assert plan.tasks[0].status is TaskStatus.PENDING
 
-    def test_returns_empty_for_missing_file(self, tmp_path: Path) -> None:
-        plan = Plan.load(path=tmp_path / "nonexistent.yaml")
+    def test_returns_empty_for_missing_file(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """GH-1346: an absent plan is not a failure and must stay silent."""
+        with caplog.at_level(logging.WARNING):
+            plan = Plan.load(path=tmp_path / "nonexistent.yaml")
 
         assert plan.metadata == {}
         assert plan.tasks == []
+        assert caplog.records == []
 
-    def test_returns_empty_for_corrupt_yaml(self, tmp_path: Path) -> None:
+    def test_returns_empty_for_corrupt_yaml(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """GH-1346: unparseable YAML names the file and the parse error."""
         path = tmp_path / "bad.yaml"
         path.write_text(": [invalid yaml")
 
-        plan = Plan.load(path=path)
+        with caplog.at_level(logging.WARNING):
+            plan = Plan.load(path=path)
 
         assert plan.metadata == {}
         assert plan.tasks == []
+        assert len(caplog.records) == 1
+        assert str(path) in caplog.records[0].message
+        assert "unreadable" in caplog.records[0].message
+
+    def test_returns_empty_for_unreadable_file(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """GH-1346: an OSError (e.g. permission-denied) also names its cause."""
+        path = tmp_path / "plan.yaml"
+        path.write_text(yaml.dump({"plan": {"status": "in_progress"}}))
+
+        with (
+            patch("builtins.open", side_effect=PermissionError("denied")),
+            caplog.at_level(logging.WARNING),
+        ):
+            plan = Plan.load(path=path)
+
+        assert plan.metadata == {}
+        assert plan.tasks == []
+        assert len(caplog.records) == 1
+        assert str(path) in caplog.records[0].message
+        assert "denied" in caplog.records[0].message
+
+    def test_returns_empty_for_non_mapping_top_level(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """GH-1346: a plan.yaml that parses to a list is the wrong schema."""
+        path = tmp_path / "plan.yaml"
+        path.write_text(yaml.dump(["a", "b"]))
+
+        with caplog.at_level(logging.WARNING):
+            plan = Plan.load(path=path)
+
+        assert plan.metadata == {}
+        assert plan.tasks == []
+        assert len(caplog.records) == 1
+        assert str(path) in caplog.records[0].message
+        assert "list" in caplog.records[0].message
+
+    def test_returns_empty_for_non_mapping_plan_section(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """GH-1346: a scalar 'plan' section is also the wrong schema."""
+        path = tmp_path / "plan.yaml"
+        path.write_text(yaml.dump({"plan": "not a mapping", "tasks": []}))
+
+        with caplog.at_level(logging.WARNING):
+            plan = Plan.load(path=path)
+
+        assert plan.metadata == {}
+        assert plan.tasks == []
+        assert len(caplog.records) == 1
+        assert str(path) in caplog.records[0].message
+        assert "str" in caplog.records[0].message
 
 
 class TestPlanSave:
