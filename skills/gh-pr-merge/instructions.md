@@ -24,8 +24,11 @@ The merge strategy is resolved using the config resolution order
 (see `references/config-resolution.md`):
 
 1. **Global with repo matching** — read
-   `<Dev10x config>/settings-pr-merge.yaml`, match current
-   repo against `projects[].match` globs
+   `<Dev10x config>/settings-pr-merge.yaml`, match the current repo's
+   `org/repo` against `projects[].match_repo` globs (`match:` is a
+   deprecated alias for one release, ADR-0026). With no `origin`
+   remote there is no `org/repo` to match, so the list is not
+   evaluated at all and the default applies.
 2. **Default** — `rebase`
 
 Rationale for the `rebase` default: commits authored through this
@@ -38,7 +41,7 @@ the curated commits as-is.
 **Migration note for existing users:** If a project previously relied
 on the implicit `squash` default, set `strategy: squash` explicitly
 in `<Dev10x config>/settings-pr-merge.yaml` for that repo's
-`projects[].match` entry. No behavior change for projects that
+`projects[].match_repo` entry. No behavior change for projects that
 already declared `strategy:` explicitly.
 
 ### Config file format
@@ -47,15 +50,15 @@ already declared `strategy:` explicitly.
 ```yaml
 # <Dev10x config>/settings-pr-merge.yaml
 projects:
-  - match: "Dev10x-Guru/*"
+  - match_repo: "Dev10x-Guru/*"
     strategy: rebase
     delete_branch: true
     solo_maintainer: true
-  - match: "example-org/*"
+  - match_repo: "example-org/*"
     strategy: rebase
     delete_branch: true
     solo_maintainer: true
-  - match: "legacy-org/*"
+  - match_repo: "legacy-org/*"
     strategy: squash   # explicit opt-in to historical default
     delete_branch: true
 ```

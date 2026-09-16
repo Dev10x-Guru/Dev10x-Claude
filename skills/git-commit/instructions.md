@@ -464,9 +464,13 @@ Job Story was already sourced from the Linear ticket earlier in this session
 check for a strategy override:
 
 1. Read `<Dev10x config>/gitmoji.yaml`
-2. Get repo origin: `git remote get-url origin`
-3. Walk the `projects` list — first `match` glob that fits
-   the origin URL selects the named `strategy`
+2. Get the repo's `org/repo`: `git remote get-url origin`, then
+   take the last two path segments — the same pair for an SSH or
+   an HTTPS remote (ADR-0026). No `origin` remote → the `projects`
+   list is not evaluated; skip to step 4.
+3. Walk the `projects` list — first `match_repo` glob that fits
+   `org/repo` selects the named `strategy` (`match:` is read as a
+   deprecated alias for one release)
 4. If no match, check `default-strategy`
 5. If still no match, check for a semantic-release config in
    the project root (see `references/semantic-release.md`).

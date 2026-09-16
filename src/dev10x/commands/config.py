@@ -108,6 +108,42 @@ def migrate_schema(*, cwd: str | None, dry_run: bool) -> None:
         click.echo("\nRun `dev10x config migrate-schema` to apply.")
 
 
+def _report_projects_lists() -> None:
+    """Report Tier-2 `projects:` lists that select nothing (GH-1375, ADR-0026).
+
+    Four outcomes are kept apart on purpose. A file with no ``projects:``
+    list is silent, a matched list prints one confirmation line, and the
+    two failures — evaluated and matched nothing, versus never evaluated
+    because the target was unknown — say which happened. Collapsing the
+    last two is the defect: "no config applies" and "nobody checked"
+    look identical to a reader and mean opposite things.
+    """
+    from dev10x.domain.project_match import ProjectsStatus, describe
+    from dev10x.session.projects_scan import scan_projects_lists
+
+    reports = scan_projects_lists()
+    findings = [report for report in reports if report.needs_attention]
+    evaluated = [report for report in reports if report.status is not ProjectsStatus.ABSENT]
+    if not evaluated:
+        click.echo("\nDev10x config: no Tier-2 file carries a `projects:` list.")
+        return
+    if not findings:
+        matched = sum(1 for r in evaluated if r.status is ProjectsStatus.MATCHED)
+        click.echo(
+            f"\nDev10x config: {matched} of {len(evaluated)} `projects:` list(s) "
+            "select this checkout; none are misaddressed."
+        )
+        return
+    click.echo(f"\nFound {len(findings)} `projects:` list(s) worth a look:")
+    for report in findings:
+        for line in describe(report):
+            click.echo(line)
+    click.echo(
+        "\n`match:` is a directory-path glob (friction.yaml); `match_repo:` is an "
+        "org/repo glob (playbooks, settings-pr-merge.yaml, gitmoji.yaml). See ADR-0026."
+    )
+
+
 @config.command(name="doctor")
 def doctor() -> None:
     """Report legacy Dev10x config files and v1 schema entries needing migration."""
@@ -127,6 +163,8 @@ def doctor() -> None:
     pending = _schema_report(cwd=None, dry_run=True)["pending"]
     if not pending:
         click.echo("Dev10x config: durable prefs are at schema v2 (ADR-0022).")
-        return
-    click.echo(f"\nFound {pending} durable config entr{'y' if pending == 1 else 'ies'} on v1.")
-    click.echo("Run `dev10x config migrate-schema --dry-run` to preview the conversion.")
+    else:
+        click.echo(f"\nFound {pending} durable config entr{'y' if pending == 1 else 'ies'} on v1.")
+        click.echo("Run `dev10x config migrate-schema --dry-run` to preview the conversion.")
+
+    _report_projects_lists()

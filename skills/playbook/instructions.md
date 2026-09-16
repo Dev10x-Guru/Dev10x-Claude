@@ -32,9 +32,13 @@ User overrides follow the resolution order in
 Where `<key>` is the skill directory name (e.g., `work-on`,
 `release-notes`).
 
-**Tier 2 (global)** uses `projects[].match` globs so one file
-can serve multiple repos. See `references/config-resolution.md`
-for the YAML format.
+**Tier 2 (global)** uses `projects[].match_repo` globs — matched
+against the repo's `nameWithOwner` (`org/repo`) — so one file can
+serve multiple repos. `match:` is accepted here as a deprecated
+alias for one release (ADR-0026); it means a **directory path** in
+`friction.yaml`, so do not copy a glob between the two files. See
+`references/config-resolution.md` for the YAML format, the portable
+`*/<repo>` form, and the no-`origin`-remote case.
 
 ### Resolution Order
 
@@ -288,7 +292,7 @@ See `references/execution-modes.md` for the full mode taxonomy.
 ```yaml
 # ~/.config/Dev10x/playbooks/work-on.yaml
 projects:
-  - match: "example-org/*"
+  - match_repo: "example-org/*"
     active_modes: [solo-maintainer]
 ```
 

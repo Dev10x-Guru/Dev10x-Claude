@@ -36,6 +36,44 @@ def _load_yaml(path: Path) -> dict:
     return data
 
 
+def _report_projects(
+    *, document: dict, source: str, target: str | None, reason: str | None
+) -> None:
+    """Say whether a playbook override's `projects:` list selects this repo.
+
+    `playbook diff` located override *files* by path and never read the
+    `projects:` list inside them, so an override addressed at a repo it
+    no longer matches diffed clean — reported as up to date while
+    applying to nothing (GH-1375). A list that was never evaluated,
+    because the repo has no `origin` remote, is reported separately: a
+    check that cannot tell "found nothing" from "did not look" is the
+    failure ADR-0026 exists to prevent.
+    """
+    from dev10x.domain.project_match import (
+        MatchScheme,
+        ProjectsStatus,
+        describe,
+        evaluate_projects,
+    )
+
+    report = evaluate_projects(
+        document,
+        scheme=MatchScheme.REPO,
+        source=source,
+        target=target,
+        unresolved_reason=reason,
+    )
+    if report.status is ProjectsStatus.ABSENT:
+        return
+    if report.status is ProjectsStatus.MATCHED and not report.needs_attention:
+        click.echo(f"  `projects:` entry {report.matched_index} selects `{target}`.\n")
+        return
+    click.echo("  `projects:` list needs attention:")
+    for line in describe(report):
+        click.echo(line)
+    click.echo("")
+
+
 @click.group()
 def playbook() -> None:
     """Inspect user playbook overrides against plugin defaults."""
@@ -81,6 +119,13 @@ def playbook_diff(*, skill_key: str | None, plugin_root: str | None) -> None:
             click.echo("No user playbook overrides found.")
         return
 
+    from dev10x.domain.common.result import SuccessResult
+    from dev10x.session.repo_address import resolve_name_with_owner
+
+    address = resolve_name_with_owner()
+    repo_target = address.value if isinstance(address, SuccessResult) else None
+    repo_reason = None if isinstance(address, SuccessResult) else address.error
+
     findings_count = 0
     skipped: list[str] = []
     for override in overrides:
@@ -102,6 +147,12 @@ def playbook_diff(*, skill_key: str | None, plugin_root: str | None) -> None:
             default_path=str(default_path),
         )
         click.echo(render_markdown_report(diff))
+        _report_projects(
+            document=user_doc,
+            source=str(override.path),
+            target=repo_target,
+            reason=repo_reason,
+        )
         if diff.has_findings:
             findings_count += 1
 
