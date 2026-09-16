@@ -42,6 +42,7 @@ class LazyGroup(click.Group):
     lazy_subcommands={
         "config": "dev10x.commands.config.config",
         "deps": "dev10x.commands.deps.deps",
+        "doctor": "dev10x.commands.doctor.doctor",
         "foreman": "dev10x.commands.foreman.foreman",
         "github": "dev10x.commands.github.github",
         "github-app": "dev10x.commands.github_app.github_app",

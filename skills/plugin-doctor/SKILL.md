@@ -30,6 +30,7 @@ allowed-tools:
   - Bash(dev10x config doctor:*)
   - Bash(dev10x config migrate:*)
   - Bash(dev10x config migrate-schema:*)
+  - Bash(dev10x doctor run:*)
 ---
 
 # Dev10x:plugin-doctor — Intent Drift Diagnostic (GH-87)
@@ -148,16 +149,31 @@ Never auto-apply across strategies — each Finding is its own gate.
 
 ## Initial Strategy: `mcp-vs-script-drift`
 
-Detects memory entries, SKILL.md examples, and allow rules that
-reference shell-script paths (`/tmp/Dev10x/bin/mktmp.sh`,
-`~/.claude/plugins/cache/.../skills/.../scripts/*.sh`) when an
-MCP tool offers the same capability. The negative-reinforcement
-problem is real: "never use the script" memories load the literal
-forbidden path into context every session, paradoxically priming
-the agent to reach for it.
-
+Detects memory entries, SKILL.md examples, and allow rules citing
+shell-script paths when an MCP tool offers the same capability.
+"Never use the script" memories load the literal forbidden path
+into context every session, priming the agent to reach for it.
 See [`references/mcp-vs-script-drift.md`](references/mcp-vs-script-drift.md)
-for the script-to-MCP equivalence table and detection heuristics.
+for the equivalence table and detection heuristics.
+
+## Non-Interactive Runner (GH-1321)
+
+`dev10x doctor run` sweeps the same strategies with no agent in
+the loop and prints a JSON verdict, so catalog health is
+assertable from CI instead of waiting on someone to notice a
+prompt. Exit 0 = clean, 1 = a finding reached `--threshold`
+(default `drift`, excluding suggestions), 2 = the sweep failed.
+
+A runner is a noise amplifier before it is a convenience, so it
+does not ship alone. Two mechanisms keep it usable: severity
+grading — the doctor's largest false-positive class is graded
+`suggestion` and never gates anything — and a durable acceptance
+catalog at `~/.config/Dev10x/doctor-accepted-findings.yaml`. An
+acceptance **moves** a finding out of the blocking set; it never
+hides one, and an entry matching nothing is reported as stale.
+See [`references/non-interactive-runner.md`](references/non-interactive-runner.md)
+for the catalog schema, the payload shape, and why a CI check is
+not the periodic run this skill's anti-patterns forbid.
 
 ## Pluggability
 
@@ -180,3 +196,5 @@ No skill-core changes required. User strategies under
   Strategies rephrase fixes to avoid literal forbidden tokens.
 - **Running periodically** — the doctor is on-demand. A periodic
   run would re-prompt for findings the user already chose to skip.
+  `dev10x doctor run` is a CI check, not an exception: it never
+  prompts, and belongs where a catalog change triggers it.

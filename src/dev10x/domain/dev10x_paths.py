@@ -207,6 +207,19 @@ class Dev10xConfigDir:
         return cls._resolve("accepted-findings.yaml")
 
     @classmethod
+    def doctor_accepted_findings_yaml(cls) -> Path:
+        """User-owned accepted-by-design plugin-doctor findings (GH-1321).
+
+        Separate from ``accepted-findings.yaml`` because the two catalogs
+        key on different things — the auditor's on (rule, classification),
+        the doctor's on (strategy, location) — and folding them into one
+        file would need a discriminator that means nothing to either
+        reader. Introduced after the ``~/.config/Dev10x`` move, so there
+        is no legacy path.
+        """
+        return cls._resolve("doctor-accepted-findings.yaml")
+
+    @classmethod
     def github_bot_dir(cls) -> Path:
         return _with_lazy_migration(cls._resolve("github-bot"), _legacy_github_bot_dir)
 

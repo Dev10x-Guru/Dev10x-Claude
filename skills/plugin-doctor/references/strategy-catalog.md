@@ -18,6 +18,7 @@ changes required.
 | `memory-negative-reinforcement` | Memories whose negative examples literally contain the offending path string — re-loading the forbidden token into every session. | Rephrase to remove the literal forbidden path. |
 | `skill-doc-fallback-first` | SKILL.md files showing a script fallback before/alongside its MCP equivalent. | Suggest doc reorder so the MCP path is the only first-class option. |
 | `ask-shadows-allow` (GH-1067) | `ask`/`deny` rules that outrank a same-family `allow` rule — invisible in the settings file, and in an unattended run the resulting prompt is a silent wedge. | Report both buckets and the shadowed allow rules; the user picks one bucket to keep. |
+| `read-deny-phantom` (GH-1321) | Absolute-path `Read()` denies, which the engine re-roots under whatever root a recursive search walks — so they match a path that is not there and raise a prompt naming no cause. One `suggestion` per settings file, aggregating the denies it carries. | Keep the denies; route recursive content search through the Grep tool, which the re-rooting does not affect. |
 
 ## Strategy Interface
 
