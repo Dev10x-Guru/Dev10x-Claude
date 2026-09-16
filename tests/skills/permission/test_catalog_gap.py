@@ -122,6 +122,93 @@ def test_report_lists_rules_when_verbose(settings_file: Path):
     assert "+ Bash(git log:*)" in report
 
 
+def test_ask_present_is_not_missing(settings_file: Path):
+    settings_file.write_text(json.dumps({"permissions": {"ask": ["Bash(gh api:*)"]}}))
+    gap = compute_gap(
+        path=settings_file,
+        base_permissions=[],
+        base_denies=[],
+        base_asks=["Bash(gh api:*)"],
+    )
+    assert gap.missing_ask == []
+    assert gap.skipped_denied == []
+    assert gap.is_empty
+
+
+def test_ask_absent_and_not_denied_is_missing(settings_file: Path):
+    gap = compute_gap(
+        path=settings_file,
+        base_permissions=[],
+        base_denies=[],
+        base_asks=["Bash(gh api:*)"],
+    )
+    assert gap.missing_ask == ["Bash(gh api:*)"]
+    assert gap.skipped_denied == []
+    assert not gap.is_empty
+
+
+def test_ask_absent_but_denied_is_not_missing(settings_file: Path):
+    """GH-1319 regression: a deny is the stricter statement.
+
+    ``ensure_base_asks`` deliberately leaves an ask rule alone when the
+    target file already denies it. The checker must agree, or a
+    correct write is reported as a residual failure.
+    """
+    settings_file.write_text(
+        json.dumps({"permissions": {"deny": ["Bash(gh api --method POST:*)"]}})
+    )
+    gap = compute_gap(
+        path=settings_file,
+        base_permissions=[],
+        base_denies=[],
+        base_asks=["Bash(gh api --method POST:*)"],
+    )
+    assert gap.missing_ask == []
+    assert gap.skipped_denied == ["Bash(gh api --method POST:*)"]
+    assert gap.is_empty
+
+
+def test_skipped_denied_ask_is_reported_in_gap_report(settings_file: Path):
+    settings_file.write_text(
+        json.dumps({"permissions": {"deny": ["Bash(gh api --method POST:*)"]}})
+    )
+    gap = compute_gap(
+        path=settings_file,
+        base_permissions=[],
+        base_denies=[],
+        base_asks=["Bash(gh api --method POST:*)"],
+    )
+    report = "\n".join(format_gap_report(gap))
+    assert "skipped 1 ask rules already denied by this file" in report
+
+
+def test_writer_and_checker_agree_on_denied_ask(
+    settings_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """The writer and the checker must reach the same verdict (GH-1319).
+
+    ``ensure_base_asks`` (the writer) and ``compute_gap`` (the checker)
+    must never disagree on whether a deny-covered ask rule is "missing" —
+    that disagreement is exactly the bug this regression guards against.
+    """
+    settings_file.write_text(
+        json.dumps({"permissions": {"deny": ["Bash(gh api --method POST:*)"]}})
+    )
+    base_asks = ["Bash(gh api --method POST:*)"]
+
+    added, _messages = mod.ensure_base_asks(settings_file, base_asks)
+    assert added == 0
+
+    gap = compute_gap(
+        path=settings_file,
+        base_permissions=[],
+        base_denies=[],
+        base_asks=base_asks,
+    )
+    assert gap.is_empty, "checker must not report a rule the writer correctly skipped"
+
+
 def test_rule_in_global_still_written_to_project_file(
     settings_file: Path,
     config: dict,
