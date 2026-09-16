@@ -47,6 +47,7 @@ class LazyGroup(click.Group):
         "github-app": "dev10x.commands.github_app.github_app",
         "hook": "dev10x.commands.hook.hook",
         "init": "dev10x.commands.init.init",
+        "orchestration": "dev10x.commands.orchestration.orchestration",
         "permission": "dev10x.commands.permission.permission",
         "platform": "dev10x.commands.platform.platform",
         "playbook": "dev10x.commands.playbook.playbook",

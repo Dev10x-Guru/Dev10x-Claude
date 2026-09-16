@@ -596,40 +596,39 @@ Task:
 Invoke Skill(Dev10x:work-on) with this input: <issue or PR URL>
 
 ANTI-STALL CONTRACT (highest priority — read before invoking work-on):
-- "Branch created" = 0% done. "PR created" = 0% done.
-  Only "PR MERGED" counts as task complete.
-- Do NOT stop after branch creation or after PR creation.
-  Run straight through: branch → implement → commit → push →
-  PR → CI monitor → merge. Every step is mandatory.
-- COMMIT EARLY (GH-427): reach a committed (ideally pushed)
-  state as soon as the change compiles. The commit is your durable
-  checkpoint: if your turn ends mid-lifecycle, the orchestrator
-  can salvage a committed SHA from the shared object store, but
-  uncommitted files in your ephemeral worktree are lost when the
-  worktree is reclaimed.
-- NOTHING YOU ARE WAITING FOR JUSTIFIES HOLDING A COMMIT
-  (GH-1173 F1): waiting on a test run, a CI verdict, a monitor
-  notification, a sibling's file lock, or a review is NEVER
-  grounds to leave work uncommitted. Commit first, then wait.
-  This is stated as a reason CLASS on purpose — an earlier
-  version listed the activities to defer ("before deep test
-  polishing or refactoring") and a worker held five uncommitted
-  files "waiting for the test suite", believing it was compliant
-  because its reason was not on the list. If you can articulate
-  why you have not committed yet, and the reason is that some
-  other step has not finished, commit now.
-- After work-on returns, if the PR is open but not merged,
-  that is NOT done. Invoke Skill(Dev10x:gh-pr-monitor) and
-  then Skill(Dev10x:gh-pr-merge) to complete.
-- FULL TEST SUITE BEFORE DONE (GH-876 F1): run the COMPLETE test
-  suite with coverage — never only the edited-file subset — before
-  you report DONE. A subset-green run misses regressions in
-  unedited callers and the 100%-coverage gate, which then fail in
-  CI after you have already returned. Route through Skill(test) /
-  Skill(Dev10x:py-test) with NO path-narrowing args.
-- If your turn ends before the PR is merged, your final line
-  MUST be NEEDS_CONTEXT (not DONE). The orchestrator will
-  re-dispatch to finish.
+
+YOUR LIFECYCLE IS ORDERED. Do not reorder it:
+  1 branch → 2 implement → 3 COMMIT → 4 push → 5 verify (full
+  test suite) → 6 PR → 7 CI monitor → 8 merge.
+Verification is step 5 BECAUSE the commit is step 3. Whenever you
+are about to wait for anything — a test run, a CI verdict, a
+monitor notification, a sibling's file lock, a review — and steps
+3–4 have not happened, you are simply out of order: do them, then
+wait (GH-1173 F1, GH-1363). "I'll commit once the suite is green"
+is the sentence four agents wrote in one swarm immediately before
+losing their work; the prohibition was in every one of their
+briefs, which is why this is now an ordering and not a rule to
+remember mid-task.
+- Why step 3 is load-bearing (GH-427): the commit is your durable
+  checkpoint. If your turn ends mid-lifecycle the orchestrator can
+  salvage a committed SHA from the shared object store, but
+  uncommitted files in your ephemeral worktree are lost when it is
+  reclaimed. The orchestrator now inspects your worktree and
+  resumes you (`dev10x orchestration stranded-work`) — a resume you
+  did not need is a round-trip the whole wave pays for.
+- "Branch created" = 0% done. "PR created" = 0% done. Only
+  "PR MERGED" counts as task complete. Do NOT stop after branch or
+  PR creation; every step above is mandatory.
+- Step 5 runs the COMPLETE suite with coverage (GH-876 F1) — never
+  only the edited-file subset, which misses regressions in unedited
+  callers and the 100%-coverage gate and then fails in CI after you
+  have returned. Route through Skill(test) / Skill(Dev10x:py-test)
+  with NO path-narrowing args.
+- After work-on returns, if the PR is open but not merged, that is
+  NOT done. Invoke Skill(Dev10x:gh-pr-monitor) and then
+  Skill(Dev10x:gh-pr-merge) to complete.
+- If your turn ends before the PR is merged, your final line MUST
+  be NEEDS_CONTEXT (not DONE). The orchestrator will re-dispatch.
 
 Sibling coordination (BEST-EFFORT — never your conflict guard):
 - The real conflict guard is the orchestrator's Phase 2
@@ -973,6 +972,16 @@ Phase 4's job is therefore **collection**, not orchestration:
    arrives, parse its result for: PR URL, status (DONE /
    DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED), cost, and
    any sibling-coordination signals.
+   **Stranded-work check (GH-1363, REQUIRED before any status
+   is trusted):** run `dev10x orchestration stranded-work
+   <agent-worktree-path> --status <token>`; exit 1 means the agent
+   left work uncommitted in a worktree about to be reclaimed. Send
+   the printed `resume_prompt` to that agent via SendMessage and
+   re-run the check until it is clean. Do this even for `DONE` —
+   `DONE` is what advances to teardown, so it is the dangerous
+   case. Four agents in one swarm stranded work while waiting on a
+   test run with the prohibition verbatim in their briefs; the
+   orchestrator now looks instead of trusting.
    **Missing status line (GH-368 F2, GH-385 F1):** If the
    agent's trailing line does not match any of the four
    status tokens, treat it as `NEEDS_CONTEXT: agent
@@ -1013,7 +1022,8 @@ Phase 4's job is therefore **collection**, not orchestration:
    wave: rebase downstream conflict-chain successors onto
    the latest develop via `Skill(Dev10x:git-groom)`.
 6. **Teardown the completed agent's worktree (GH-463).**
-   After confirming the PR is MERGED (step 2), run the
+   After confirming the PR is MERGED (step 2) and the step-1
+   stranded-work check is clean, run the
    post-agent teardown sequence for that agent's worktree.
    See `### Post-Agent Worktree Teardown` below.
 

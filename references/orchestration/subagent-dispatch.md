@@ -156,9 +156,17 @@ This collapses the pipeline and skips:
 **Required pattern:**
 ```
 for each issue:
-  full play → branch → design → implement → verify →
-  review → commit → groom → update → ready → verify-acc   # 12+ steps
+  full play → branch → design → implement → commit → push →
+  verify → review → groom → update → ready → verify-acc   # 12+ steps
 ```
+
+**Commit precedes verify, not the other way round (GH-1363).** This
+list used to place `commit` after `verify`, which reads as licence to
+hold a dirty worktree while a test run finishes — and an isolated
+agent's worktree is reclaimed with everything uncommitted in it
+(GH-427). A verification result is worthless if the work it verified is
+unreachable, so the commit is the checkpoint the rest of the pipeline
+runs on top of.
 
 **Why:** Evidence from audit session 05d49f11 showed that agents
 rationalized pipeline collapse under fanout: "parallel processing
