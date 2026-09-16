@@ -36,6 +36,11 @@ _STANDBY_ANSWER = (
     'Your questions have been answered: "Anything open?"="On standby — not waiting on you".'
 )
 
+#: A task list that exists and holds nothing open. Since GH-1339 that is
+#: the state that blocks without a prose deferral — an absent plan is no
+#: longer evidence the work is finished.
+_DEPLETED = {"tasks": [{"subject": "Ship it", "status": "completed"}]}
+
 
 def _user(*, uuid: str = "u1", content: object = "go") -> dict:
     return {"type": "user", "uuid": uuid, "message": {"role": "user", "content": content}}
@@ -105,15 +110,62 @@ class TestASubagentIsNeverBlocked:
     def test_an_empty_discriminator_does_not_count(self) -> None:
         assert is_subagent(data={"agent_id": ""}) is False
 
+    def test_the_transcript_path_names_a_subagent(self) -> None:
+        """GH-1340: the discriminator that actually arrives.
+
+        None of the payload keys above has ever been seen in the field —
+        ``StopSignal.SUBAGENT`` fired 0 times in 224 audit records. The
+        transcript layout does distinguish them, and ``decide`` already
+        reads that path. Shape captured from a live dispatch.
+        """
+        path = (
+            "/home/janusz/.claude/projects/-work-dx--worktrees-Dev10x-Claude-5/"
+            "0423993e-9493-4920-9c23-b61df77fe6d3/subagents/agent-a0932d5778dc9cc06.jsonl"
+        )
+
+        assert is_subagent(data={"transcript_path": path}) is True
+
+    def test_a_main_session_transcript_path_does_not(self) -> None:
+        """The sibling file, one directory up — captured from the same session."""
+        path = (
+            "/home/janusz/.claude/projects/-work-dx--worktrees-Dev10x-Claude-5/"
+            "0423993e-9493-4920-9c23-b61df77fe6d3.jsonl"
+        )
+
+        assert is_subagent(data={"transcript_path": path}) is False
+
+    def test_a_subagent_transcript_ends_the_turn(
+        self, tmp_path: Path, isolated_markers: Path
+    ) -> None:
+        """The branch becomes reachable, which is the whole point of GH-1340."""
+        nested = tmp_path / "subagents"
+        nested.mkdir()
+        transcript = _transcript(
+            tmp_path=nested, entries=[_user(), _closing()], name="agent-a0932d5778dc9cc06"
+        )
+
+        verdict = decide(
+            data={"session_id": "sub2", "transcript_path": transcript},
+            plan={"tasks": [{"subject": "Ship it", "status": "completed"}]},
+        )
+
+        assert verdict.block is False
+        assert verdict.signal == StopSignal.SUBAGENT
+
     def test_the_main_session_is_still_blocked(
         self, tmp_path: Path, isolated_markers: Path
     ) -> None:
-        """The unchanged half of the contract."""
+        """The unchanged half of the contract.
+
+        The plan is a *depleted* one rather than absent since GH-1339: an
+        absent list is no longer evidence the work is finished, so it no
+        longer reaches the block this test is about.
+        """
         transcript = _transcript(tmp_path=tmp_path, entries=[_user(), _closing()])
 
         verdict = decide(
             data={"session_id": "main1", "transcript_path": transcript},
-            plan=None,
+            plan={"tasks": [{"subject": "Ship it", "status": "completed"}]},
         )
 
         assert verdict.block is True
@@ -160,7 +212,7 @@ class TestStandbyParksTheGate:
             name="spoke",
             entries=[_user(uuid="u2", content="actually, one more thing"), _closing()],
         )
-        verdict = decide(data={"session_id": "park3", "transcript_path": spoke}, plan=None)
+        verdict = decide(data={"session_id": "park3", "transcript_path": spoke}, plan=_DEPLETED)
 
         assert verdict.block is True
         assert verdict.signal == StopSignal.BLOCKED
@@ -188,7 +240,9 @@ class TestStandbyParksTheGate:
             entries=[_answered(text='"Anything open?"="Yes, keep going".'), _closing()],
         )
 
-        verdict = decide(data={"session_id": "park5", "transcript_path": transcript}, plan=None)
+        verdict = decide(
+            data={"session_id": "park5", "transcript_path": transcript}, plan=_DEPLETED
+        )
 
         assert verdict.block is True
 
@@ -312,7 +366,9 @@ class TestTheSteerOffersTheOption:
         """A terminal answer nobody is told about is one nobody can pick."""
         transcript = _transcript(tmp_path=tmp_path, entries=[_user(), _closing()])
 
-        verdict = decide(data={"session_id": "steer1", "transcript_path": transcript}, plan=None)
+        verdict = decide(
+            data={"session_id": "steer1", "transcript_path": transcript}, plan=_DEPLETED
+        )
 
         assert "On standby" in verdict.reason
         assert "not a permanent disable" in verdict.reason
