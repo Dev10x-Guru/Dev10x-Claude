@@ -8,6 +8,7 @@ from dev10x.validators.execution_safety import (
     INPLACE_EDIT_MSG,
     PYTHON3_INLINE_MSG,
     SHELL_INTERP_MSG,
+    SHELL_WRITE_MSG,
     ExecutionSafetyValidator,
 )
 from tests.fakers import BashHookInputFaker
@@ -46,6 +47,19 @@ class TestShellWrites:
         inp = _make_input(command="cat /tmp/file.txt")
         result = validator.validate(inp=inp)
         assert result is None
+
+    def test_steer_points_at_mktmp_mcp_tool_not_shell_fallback(
+        self, validator: ExecutionSafetyValidator
+    ) -> None:
+        # GH-1318: the steer must send a Bash-capable agent toward the
+        # mktmp MCP tool, never the mktmp.sh fallback the crew-worker
+        # fatal-shapes list bans (that fallback is itself a prompt risk).
+        inp = _make_input(command="echo hello > /tmp/file.txt")
+        result = validator.validate(inp=inp)
+        assert result is not None
+        assert "mcp__plugin_Dev10x_cli__mktmp" in result.message
+        assert "mktmp.sh" not in result.message
+        assert result.message == SHELL_WRITE_MSG
 
     @pytest.mark.parametrize(
         "command",

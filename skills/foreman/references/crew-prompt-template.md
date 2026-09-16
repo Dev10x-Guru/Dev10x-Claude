@@ -275,47 +275,23 @@ cannot read yours.
 So: push early and push often, and narrate any plan worth keeping
 into your heartbeat file or an issue comment rather than a local note.
 ```
-## 6b. Documentation under `.claude/` (unattended lane only)
+## 6b. Documentation under `.claude/` (supervisor-only)
 
 Claude Code's self-settings consent gate fires on the Write/Edit tool
 family for any path under `.claude/`, **regardless of matching allow
-rules** (GH-812 RC-A). An unattended worker cannot answer that prompt,
-so a chunk that authors this repo's own rule or agent docs dies on a
-permission wall and hangs silently — the exact failure the anti-stall
-contract exists to prevent.
-
-The gate is bound to the **tool**, not the path: a Bash `cp`/`mv` into
-the same directory is not gated (verified 2026-08-02). Crew workers
-therefore stage the content and move it into place:
+rules** (GH-812 RC-A), and an unattended worker cannot answer that
+prompt. The `cp`/`mv` staging workaround this section used to
+recommend is withdrawn (GH-1318, supervisor ruling 2026-09-01) — `cp`
+is a fatal shape (§2) with no carve-out here or anywhere else.
 
 ```
-To create or modify documentation under `.claude/rules/` or
-`.claude/agents/`, do NOT use the Write or Edit tool on that path —
-it will hang forever waiting for a consent prompt nobody can answer.
-
-Instead, two Bash calls:
-  1. Write the full file content to a staging path OUTSIDE `.claude/`
-     (use mktmp, e.g. /tmp/Dev10x/<ns>/<name>.md) with the Write tool.
-  2. `cp /tmp/Dev10x/<ns>/<name>.md {{worktree_path}}/.claude/rules/<name>.md`
-
-Then `git -C {{worktree_path}} add .claude/rules/<name>.md` and commit
-it normally — a path after `-C` resolves against {{worktree_path}}, not
-against your CWD.
-
-HARD EXCLUSIONS — never write these by any route, gated or not:
-  - `.claude/settings.json`, `.claude/settings.local.json`
-  - `.claude/Dev10x/**` (ADR-0018 — durable prefs live in
-    ~/.config/Dev10x/; runtime state has its own CLI writer)
-If your chunk appears to require one of these, STOP and report it to
-the foreman as a supervisor-only decision. Do not route around it.
+If your chunk requires creating or modifying anything under
+`.claude/rules/`, `.claude/agents/`, `.claude/settings.json`,
+`.claude/settings.local.json`, or `.claude/Dev10x/**`, do NOT write it
+by any route. STOP, file a scoped issue via issue_create naming the
+exact file and content needed, and report it to the foreman as a
+supervisor-only decision. Do not route around the gate.
 ```
-
-**Why this is narrow.** The consent gate exists so an agent cannot
-silently grant itself permissions. Authoring a tracked documentation
-file that merely *lives* under `.claude/` is not that, and Dev10x-Claude
-is the one repo where such files are ordinary source. The exclusions
-above are what keeps the gate's actual purpose intact. Do not generalize
-this recipe to other repos or other `.claude/` paths.
 
 ## 7. Scope + lifecycle (worker half)
 

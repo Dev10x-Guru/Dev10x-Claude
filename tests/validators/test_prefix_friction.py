@@ -138,7 +138,7 @@ class TestGitCConfig:
         assert result is not None
         assert "page" in result.message
         assert "git status --porcelain" in result.message
-        assert "git nopager" in result.message
+        assert "git nopager" not in result.message
 
     def test_blocks_pager_branch(self, validator: PrefixFrictionValidator) -> None:
         inp = _make_input(command="git -c core.pager=cat branch --show-current")

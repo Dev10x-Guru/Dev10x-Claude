@@ -79,8 +79,9 @@ Command shapes to avoid (each trips a hook or breaks allow-rule matching):
   use jq / yq / yamllint / actionlint, or extract a `uv run --script`
   tool.
 - Never prefix git with `-P` or `--no-pager` (commonly denied as
-  friction). Use the `git nopager` alias, or run git directly — it
-  does not page non-interactively.
+  friction). Run git directly instead — it does not page
+  non-interactively, so the bare verb is already correct and needs
+  no alias (GH-1318).
 
 Prefer:
 - `Read` / `Grep` / `Glob` over `cat` / `grep` / `find` in Bash.
