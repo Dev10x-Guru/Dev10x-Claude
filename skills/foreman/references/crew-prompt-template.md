@@ -297,27 +297,27 @@ supervisor-only decision. Do not route around the gate.
 
 ```
 - Read every issue body (issue_get) and the source memo/spec BEFORE coding.
+- ORDER IS FIXED: commit → push → verify → PR. You verify a pushed
+  commit, never a dirty worktree — if you are waiting on anything and
+  have not committed, you are out of order, not busy (GH-1363).
 - One atomic commit per issue: get the message path from
   mktmp(namespace="git", prefix="commit-msg", ext=".txt"), Write the
-  message to THAT path, then `git -C {{worktree_path}} commit -F
-  <that path>`. A message written anywhere else and then copied in is
-  the `cp` prompt from the fatal-shapes block. Title
-  `<gitmoji> <TICKET> <outcome>`, 72 chars/line, no Claude co-author
-  footer. Scan changed files for
-  `# TODO` — they are instructions. NEVER leave `fixup!` commits.
-- Verify locally fully green BEFORE the PR. Push via
-  push_safe(args=["-u","origin","{{branch_name}}"]) — `pushed: true`
-  (or a legacy empty `{}`) means SUCCESS; only an `error` key or
-  `pushed: false` is a failure. Never fall back to raw `git push`.
+  message to THAT path, then `git -C {{worktree_path}} commit -F <that
+  path>`. A message written anywhere else and then copied in is the
+  `cp` prompt from the fatal-shapes block. Title `<gitmoji> <TICKET>
+  <outcome>`, 72 chars/line, no Claude co-author footer. Scan changed
+  files for `# TODO` — instructions; never leave `fixup!` commits.
+- Push via push_safe(args=["-u","origin","{{branch_name}}"]) —
+  `pushed: true` (or a legacy empty `{}`) means SUCCESS; only an
+  `error` key or `pushed: false` is a failure. Never raw `git push`.
+  Then verify locally fully green BEFORE the PR.
 - RECOVERABILITY IS A CLAIM REQUIRING EVIDENCE. Before you state
-  anywhere — heartbeat, handover comment, resumption record, final
-  report — that work "is on branch X" or "is recoverable", run
-  `git -C {{worktree_path}} ls-remote --heads origin '{{branch_name}}'`
-  and confirm it returns the ref. An edit is not a commit and a
-  commit is not a
-  push. Report what is PUSHED, and say "unpushed" or "uncommitted"
-  in as many words when that is the truth. A false recoverability
-  claim makes the next loop skip a chunk that was never started.
+  anywhere — heartbeat, handover comment, final report — that work "is
+  on branch X" or "is recoverable", run `git -C {{worktree_path}}
+  ls-remote --heads origin '{{branch_name}}'` and confirm it returns the
+  ref. An edit is not a commit and a commit is not a push. Say
+  "unpushed" or "uncommitted" in as many words when that is the truth: a
+  false claim makes the next loop skip a chunk that was never started.
 - Open the PR via create_pr(draft=false) with a JTBD story and
   full-URL `Fixes:` lines ONLY for fully delivered issues, then
   VERIFY with pr_get that `isDraft` is false; if it is still draft,
