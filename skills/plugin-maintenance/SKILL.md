@@ -32,6 +32,7 @@ allowed-tools:
   - Bash(uvx dev10x permission ensure-reads:*)
   - Bash(uvx dev10x permission ensure-scripts:*)
   - Bash(uvx dev10x permission ensure-workspace:*)
+  - Bash(uvx dev10x permission ensure-safety-keys:*)
   - Bash(uvx dev10x permission generalize:*)
   - Bash(uvx dev10x permission doctor:*)
   - Bash(uvx dev10x permission doctor anchor-worktree-roots:*)
@@ -63,8 +64,8 @@ settings and config files in shape."
 
 | Mode | Steps | When to use |
 |------|-------|-------------|
-| `bootstrap` | version-check, 2, 3, 4, 7, 8 | First-time setup; eliminate prompts on the demoed skill set without doing a full sweep |
-| `full` (default) | version-check, 1–13 | Post-upgrade; suspected permission friction; long-term maintenance |
+| `bootstrap` | version-check, 2, 3, 4, 4b, 7, 8 | First-time setup; eliminate prompts on the demoed skill set without doing a full sweep |
+| `full` (default) | version-check, 1–4, 4b, 5–13 | Post-upgrade; suspected permission friction; long-term maintenance |
 
 `bootstrap` is intentionally fast and idempotent: ensure base
 permissions, migrate any leftover legacy config files, and confirm
@@ -104,8 +105,9 @@ on the mode. Execute these `TaskCreate` calls at startup:
 2. `TaskCreate(subject="Migrate config files", activeForm="Migrating configs")`
 3. `TaskCreate(subject="Ensure workspace directories", activeForm="Registering workspace dirs")`
 4. `TaskCreate(subject="Ensure base permissions", activeForm="Ensuring base perms")`
-5. `TaskCreate(subject="Ensure script coverage", activeForm="Verifying script rules")`
-6. `TaskCreate(subject="Ensure read coverage", activeForm="Verifying Read rules")`
+5. `TaskCreate(subject="Ensure safety keys", activeForm="Ensuring safety keys")`
+6. `TaskCreate(subject="Ensure script coverage", activeForm="Verifying script rules")`
+7. `TaskCreate(subject="Ensure read coverage", activeForm="Verifying Read rules")`
 
 **Full mode:**
 
@@ -114,21 +116,22 @@ on the mode. Execute these `TaskCreate` calls at startup:
 3. `TaskCreate(subject="Migrate config files", activeForm="Migrating configs")`
 4. `TaskCreate(subject="Ensure workspace directories", activeForm="Registering workspace dirs")`
 5. `TaskCreate(subject="Ensure base permissions", activeForm="Ensuring base perms")`
-6. `TaskCreate(subject="Generalize session-specific permissions", activeForm="Generalizing perms")`
-7. `TaskCreate(subject="Enumerate MCP tool globs", activeForm="Enumerating MCP globs")`
-8. `TaskCreate(subject="Ensure script coverage", activeForm="Verifying script rules")`
-9. `TaskCreate(subject="Ensure read coverage", activeForm="Verifying Read rules")`
-10. `TaskCreate(subject="Merge worktree permissions", activeForm="Merging worktree perms")`
-11. `TaskCreate(subject="Audit permissions for friction", activeForm="Auditing permissions")`
-12. `TaskCreate(subject="Clean project files", activeForm="Cleaning project files")`
-13. `TaskCreate(subject="Run permission doctor", activeForm="Running doctor sweep")`
-14. `TaskCreate(subject="Diff user playbooks against defaults", activeForm="Diffing playbooks")`
+6. `TaskCreate(subject="Ensure safety keys", activeForm="Ensuring safety keys")`
+7. `TaskCreate(subject="Generalize session-specific permissions", activeForm="Generalizing perms")`
+8. `TaskCreate(subject="Enumerate MCP tool globs", activeForm="Enumerating MCP globs")`
+9. `TaskCreate(subject="Ensure script coverage", activeForm="Verifying script rules")`
+10. `TaskCreate(subject="Ensure read coverage", activeForm="Verifying Read rules")`
+11. `TaskCreate(subject="Merge worktree permissions", activeForm="Merging worktree perms")`
+12. `TaskCreate(subject="Audit permissions for friction", activeForm="Auditing permissions")`
+13. `TaskCreate(subject="Clean project files", activeForm="Cleaning project files")`
+14. `TaskCreate(subject="Run permission doctor", activeForm="Running doctor sweep")`
+15. `TaskCreate(subject="Diff user playbooks against defaults", activeForm="Diffing playbooks")`
 
-> ⚠ **#47 default-safety.** Step 12 (Clean) runs the safe default
+> ⚠ **#47 default-safety.** Step 13 (Clean) runs the safe default
 > only — it does NOT pass `--aggressive`, so global-duplicate
 > stripping is skipped (global→project merge is not guaranteed); it
 > is opt-in — see §11 for the evidence gate and `clean --restore`
-> recovery. Step 13 (doctor) never rewrites paths into `**` wildcards
+> recovery. Step 14 (doctor) never rewrites paths into `**` wildcards
 > (GH-715) — `**` matching is unreliable; pinned paths are kept
 > current by `update-paths` instead.
 
@@ -540,6 +543,35 @@ surfaces the drift so an upgrade cannot pass clean over it.
 
 A `shipped keys neither merged nor user-owned` block in the output is a
 plugin defect, not a user problem — report it upstream.
+
+### 4b. Ensure safety keys **[bootstrap]** (GH-1320)
+
+Seed `disableAutoMode` and `disableBypassPermissionsMode` as the
+literal string `"disable"` in every settings file that is missing
+either key. Both take ONLY that literal string — a JSON boolean
+`true` is silently ignored by Claude Code, so a settings file can
+look protected while enforcing nothing. Additive only: an existing
+value (even an invalid one) is left untouched, since overwriting it
+is a human decision, not a maintenance-pass default.
+
+1. Dry run:
+
+```bash
+uvx dev10x permission ensure-safety-keys --dry-run
+```
+
+2. Apply:
+
+```bash
+uvx dev10x permission ensure-safety-keys
+```
+
+Verify with `uvx dev10x permission doctor safety-keys` — it exits
+non-zero on any settings file where either key is absent or holds
+anything other than `"disable"`. This is a restriction, not a grant,
+so it is a different judgement from the allow-rule catalog's
+shrink-only backlog (see
+`skills/upgrade-cleanup/references/post-upgrade-verification.md` § 3).
 
 ### 5. Generalize session-specific permissions *(full only)*
 

@@ -1556,6 +1556,30 @@ def ensure_base(
 
     writable_files, skip_messages = _partition_writable(sorted(settings_files))
 
+    total_added = 0
+    changed_files: set[Path] = set()
+    per_file_added: dict[Path, int] = {}
+
+    # GH-1320: disableAutoMode / disableBypassPermissionsMode are a
+    # compliance floor, not part of the allow/deny/ask catalog below —
+    # seeded here (same writable_files, same GH-1155 guard) so every
+    # settings file ensure_base touches carries them regardless of
+    # whether the catalog itself has anything left to add, per the
+    # issue's acceptance criterion. Additive only; an invalid existing
+    # value is left for `dev10x permission doctor safety-keys` to flag.
+    from dev10x.skills.permission.safety_keys import write_safety_keys_to_file
+
+    for path in writable_files:
+        count, file_messages = write_safety_keys_to_file(path, dry_run=dry_run)
+        if count == 0:
+            continue
+        if not quiet:
+            messages.append(f"\n{path} (safety keys)")
+            messages.extend(file_messages)
+        total_added += count
+        changed_files.add(path)
+        per_file_added[path] = per_file_added.get(path, 0) + count
+
     if not quiet:
         messages.append(f"Base permissions: {len(base_permissions)} rules")
         if stale_wildcards:
@@ -1580,15 +1604,17 @@ def ensure_base(
     if not filtered and not base_denies and not base_asks:
         if not quiet:
             messages.append("All base permissions already covered by global settings.")
-        return _result(exit_code=0, messages=messages, errors=errors)
+        return _result(
+            exit_code=0,
+            messages=messages,
+            errors=errors,
+            total_added=total_added,
+            files_changed=len(changed_files),
+        )
 
     from dev10x.skills.permission.enumerate_mcp import discover_mcp_tools
 
     mcp_catalog = discover_mcp_tools()
-
-    total_added = 0
-    changed_files: set[Path] = set()
-    per_file_added: dict[Path, int] = {}
 
     for path in writable_files:
         count, file_messages = ensure_base_permissions(
