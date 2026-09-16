@@ -14,7 +14,7 @@
     {
       "id": "dry-run-before-apply",
       "name": "Dry-run Precedes Apply",
-      "description": "Every mutating uvx dev10x permission subcommand (update-paths, ensure-workspace, ensure-base, generalize, enumerate-mcp, merge-worktree, clean, doctor canonicalize/apply-deprecations/anchor-worktree-roots) runs with --dry-run and shows output to the user BEFORE the equivalent apply call runs."
+      "description": "Every mutating uvx dev10x permission subcommand (update-paths, ensure-workspace, ensure-base, ensure-safety-keys, generalize, enumerate-mcp, merge-worktree, clean, doctor canonicalize/apply-deprecations/anchor-worktree-roots) runs with --dry-run and shows output to the user BEFORE the equivalent apply call runs."
     }
   ],
   "evals": [

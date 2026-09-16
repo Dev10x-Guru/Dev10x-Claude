@@ -534,7 +534,8 @@ class TestEnsureBaseDenies:
             dry_run=False,
         )
 
-        assert result["total_added"] == 2
+        # 2 catalog rules + 2 safety keys (GH-1320)
+        assert result["total_added"] == 4
         assert result["files_changed"] == 1
         data = json.loads(home_settings.read_text())
         assert "mcp__claude_ai_Linear__get_issue" in data["permissions"]["allow"]
@@ -551,7 +552,8 @@ class TestEnsureBaseDenies:
             dry_run=False,
         )
 
-        assert result["total_added"] == 3
+        # 3 catalog rules + 2 safety keys (GH-1320)
+        assert result["total_added"] == 5
         data = json.loads(home_settings.read_text())
         assert "Bash(gh api -X DELETE:*)" in data["permissions"]["ask"]
 
@@ -568,7 +570,8 @@ class TestEnsureBaseDenies:
             dry_run=False,
         )
 
-        assert result["total_added"] == 1
+        # 1 ask rule + 2 safety keys (GH-1320)
+        assert result["total_added"] == 3
         data = json.loads(home_settings.read_text())
         assert data["permissions"]["ask"] == ["Bash(gh api -X DELETE:*)"]
 
@@ -597,7 +600,8 @@ class TestEnsureBaseDenies:
             dry_run=False,
         )
 
-        assert result["total_added"] == 2
+        # 2 allow rules (rule + home twin) + 2 safety keys (GH-1320)
+        assert result["total_added"] == 4
         allow = json.loads(settings.read_text())["permissions"]["allow"]
         assert "Bash(git log:*)" in allow  # pre-existing user rule preserved
         assert "Read(~/.claude/tools/**)" in allow
@@ -946,3 +950,97 @@ class TestGhProjectReadsAllowed:
         rules = request.getfixturevalue(shipped)
         assert "Bash(gh project:*)" not in rules
         assert "Bash(gh project *)" not in rules
+
+
+class TestEnsureBaseSeedsSafetyKeys:
+    """GH-1320: disableAutoMode / disableBypassPermissionsMode are a
+    compliance floor seeded on every settings file ensure_base touches,
+    not part of the allow/deny/ask catalog above."""
+
+    @pytest.fixture()
+    def settings(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+        monkeypatch.setattr(
+            "dev10x.skills.permission.update_paths.Path.home",
+            lambda: tmp_path / "home",
+        )
+        (tmp_path / "home" / ".claude").mkdir(parents=True)
+        path = tmp_path / "settings.local.json"
+        path.write_text(json.dumps({"permissions": {"allow": [], "deny": []}}))
+        return path
+
+    def test_seeds_both_keys_alongside_the_catalog(self, settings: Path) -> None:
+        result = update_paths.ensure_base(
+            config={"base_permissions": ["Bash(git status:*)"], "base_denies": []},
+            settings_files=[settings],
+            dry_run=False,
+        )
+
+        data = json.loads(settings.read_text())
+        assert data["disableAutoMode"] == "disable"
+        assert data["disableBypassPermissionsMode"] == "disable"
+        # 1 catalog rule + 2 safety keys
+        assert result["total_added"] == 3
+
+    def test_seeds_even_when_the_catalog_has_nothing_left_to_add(
+        self,
+        settings: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """GH-1154's dedupe-global early-return guard must not swallow the
+        safety-key pass. This is the ``if not filtered and not base_denies
+        and not base_asks`` branch: the allow tier is non-empty going in
+        (so the very-first empty-catalog return does not fire) but is
+        fully deduped against global, and no denies/asks are configured —
+        the exact shape that used to return before touching any file."""
+        monkeypatch.setattr(
+            "dev10x.skills.permission.update_paths._load_global_allow_rules",
+            lambda: ({"Bash(git status:*)"}, []),
+        )
+
+        result = update_paths.ensure_base(
+            config={"base_permissions": ["Bash(git status:*)"], "base_denies": []},
+            settings_files=[settings],
+            dry_run=False,
+            dedupe_global=True,
+        )
+
+        data = json.loads(settings.read_text())
+        assert data["disableAutoMode"] == "disable"
+        assert data["disableBypassPermissionsMode"] == "disable"
+        assert result["total_added"] == 2
+
+    def test_does_not_overwrite_an_existing_invalid_value(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "dev10x.skills.permission.update_paths.Path.home",
+            lambda: tmp_path / "home",
+        )
+        (tmp_path / "home" / ".claude").mkdir(parents=True)
+        path = tmp_path / "settings.local.json"
+        path.write_text(
+            json.dumps({"permissions": {"allow": [], "deny": []}, "disableAutoMode": True})
+        )
+
+        update_paths.ensure_base(
+            config={"base_permissions": ["Bash(git status:*)"], "base_denies": []},
+            settings_files=[path],
+            dry_run=False,
+        )
+
+        data = json.loads(path.read_text())
+        assert data["disableAutoMode"] is True
+        assert data["disableBypassPermissionsMode"] == "disable"
+
+    def test_dry_run_does_not_write_safety_keys(self, settings: Path) -> None:
+        original = settings.read_text()
+
+        update_paths.ensure_base(
+            config={"base_permissions": ["Bash(git status:*)"], "base_denies": []},
+            settings_files=[settings],
+            dry_run=True,
+        )
+
+        assert settings.read_text() == original

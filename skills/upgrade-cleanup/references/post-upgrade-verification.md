@@ -76,6 +76,15 @@ the **string** `"disable"` in every settings layer.
 `true` is silently ignored, so a boolean here reads as protection
 that is not actually in force.
 
+Run `dev10x permission doctor safety-keys` rather than reading the
+values by hand — it is read-only, checks every discovered settings
+file (not only the global one, which GH-47 makes non-authoritative
+on its own), and exits non-zero on any missing or invalid key. Seed
+a missing key with `dev10x permission ensure-safety-keys` (GH-1320);
+it only ever adds an absent key as the literal string `"disable"`
+and never overwrites an existing value, so an invalid existing value
+still needs a human decision.
+
 ## 4. Spot-check the shapes users actually type
 
 Confirm that a sanctioned command does not prompt.

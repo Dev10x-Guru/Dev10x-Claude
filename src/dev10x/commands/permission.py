@@ -308,6 +308,32 @@ def catalog_diff(*, strict: bool) -> None:
         raise SystemExit(1)
 
 
+@permission.command(name="ensure-safety-keys")
+@click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
+@click.option("--quiet", is_flag=True, help="Suppress per-file details")
+@click.option(
+    "--allow-tracked",
+    is_flag=True,
+    help="Write even when a target settings file is git-tracked (GH-1155).",
+)
+def ensure_safety_keys(*, dry_run: bool, quiet: bool, allow_tracked: bool) -> None:
+    """Seed disableAutoMode / disableBypassPermissionsMode as "disable" (GH-1320).
+
+    Additive only — an existing value (even an invalid one) is left
+    untouched; run ``dev10x permission doctor safety-keys`` to find an
+    invalid value that needs a human decision to overwrite.
+    """
+    from dev10x.skills.permission import safety_keys as mod
+
+    _run_fix(
+        mod.ensure_safety_keys,
+        needs_config=False,
+        dry_run=dry_run,
+        quiet=quiet,
+        extra={"allow_tracked": allow_tracked},
+    )
+
+
 @permission.command()
 @click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
 @click.option("--quiet", is_flag=True, help="Suppress per-file details")
@@ -1170,6 +1196,24 @@ def doctor_cross_contamination(*, cwd: str | None, quiet: bool) -> None:
 
     root = Path(cwd) if cwd else Path.cwd()
     sys.exit(_emit_result(mod.cross_contamination_for_root(root=root, quiet=quiet)))
+
+
+@doctor.command(name="safety-keys")
+@click.option("--quiet", is_flag=True, help="Suppress per-file details")
+def doctor_safety_keys(*, quiet: bool) -> None:
+    """Flag any settings file where a safety key is missing or invalid (GH-1320).
+
+    disableAutoMode / disableBypassPermissionsMode take ONLY the literal
+    string "disable" — a JSON boolean is silently ignored by Claude Code,
+    so a settings file can look protected while enforcing nothing.
+    Read-only; exits non-zero when any file has a finding.
+    """
+    from dev10x.skills.permission import safety_keys as mod
+
+    ctx = _require_settings(quiet=quiet)
+    if ctx is None:
+        return
+    sys.exit(_emit_result(mod.safety_keys_gap(settings_files=ctx.settings_files, quiet=quiet)))
 
 
 @doctor.command(name="apply-deprecations")
