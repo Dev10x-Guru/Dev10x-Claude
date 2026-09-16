@@ -43,6 +43,7 @@ import yaml
 from dev10x import subprocess_utils
 from dev10x.domain.common.allow_rule import AllowRule
 from dev10x.domain.common.baseline_catalog import load_baseline_dict
+from dev10x.domain.common.command_spellings import expand_spellings
 from dev10x.domain.common.policy import Policy, PolicyAssessment, PolicyCatalog, PolicySource
 from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
 from dev10x.skills.permission_investigator.policy_report import render_policy_report
@@ -356,7 +357,7 @@ def load_catalogued_rules(
         return CatalogRules(rules=rules, unread=tuple(unread))
 
     try:
-        config = yaml.safe_load(projects_path.read_text()) or {}
+        config = expand_spellings(yaml.safe_load(projects_path.read_text())) or {}
     except (OSError, yaml.YAMLError) as exc:
         unread.append(f"{projects_path}: {exc}")
         return CatalogRules(rules=rules, unread=tuple(unread))

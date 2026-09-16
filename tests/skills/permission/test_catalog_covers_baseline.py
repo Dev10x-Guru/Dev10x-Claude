@@ -37,6 +37,7 @@ import yaml
 
 import dev10x.skills.permission as permission_pkg
 from dev10x.domain.common.baseline_catalog import load_baseline_dict
+from dev10x.domain.common.command_spellings import expand_spellings
 from dev10x.skills.permission.baseline_coverage import (
     BACKLOG_STARTING_SIZE,
     FLAT_SECTIONS,
@@ -68,7 +69,10 @@ def _baseline() -> dict:
 
 
 def _projects() -> dict:
-    return yaml.safe_load(PROJECTS_YAML.read_text(encoding="utf-8"))
+    # Through the spelling expander, not raw YAML: since GH-1317 the flat
+    # lists are what the catalog *renders*, and comparing against the
+    # source shape would report every spelling-declared rule as unseeded.
+    return expand_spellings(yaml.safe_load(PROJECTS_YAML.read_text(encoding="utf-8")))
 
 
 def test_every_baseline_rule_is_seeded_or_explicitly_excluded() -> None:

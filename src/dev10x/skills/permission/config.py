@@ -14,6 +14,7 @@ from pathlib import Path
 
 import yaml
 
+from dev10x.domain.common.command_spellings import expand_spellings
 from dev10x.domain.common.result import Result, err, ok
 
 log = logging.getLogger(__name__)
@@ -35,4 +36,4 @@ def resolve_config(
 
 def parse_config(config_path: Path) -> dict:
     with open(config_path) as f:
-        return yaml.safe_load(f)
+        return expand_spellings(yaml.safe_load(f))
