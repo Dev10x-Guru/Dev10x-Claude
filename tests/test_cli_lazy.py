@@ -22,6 +22,7 @@ EXPECTED_SUBCOMMANDS = {
     "github-app",
     "hook",
     "init",
+    "orchestration",
     "permission",
     "platform",
     "playbook",
