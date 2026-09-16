@@ -1,18 +1,22 @@
-"""GH-1339: open work auto-advances instead of demanding a widget.
+"""GH-1339 / GH-1366: what the gate does when work remains.
 
-The gate asked for an ``AskUserQuestion`` on every turn, so a session
-holding a pending task was told to ask the supervisor about work it had
-already been told to do. Across five days of audit records a block was
-the gate's single most common outcome.
+GH-1339 ended the demand for an ``AskUserQuestion`` on every turn. A
+session holding a pending task was being told to ask the supervisor
+about work it had already been told to do, and across five days of
+audit records a block was the gate's single most common outcome.
 
-The rule that replaces it comes from the pre-collapse friction ladder,
-where ``guided`` meant "block **with a recommendation**" and ``adaptive``
-auto-selected that recommendation: a gate fires only where there is no
-recommended next action. Open work *is* the recommended next action.
+GH-1366 corrected the *direction* of that fix. A Stop hook's ``block``
+means **do not stop** — the turn continues and the steer becomes its
+next instruction. Reading "auto-advance" as "let the turn end quietly"
+produced ``block=False`` on open work, which removed the only mechanism
+that keeps an agent going; a session with real pending tasks then
+stopped at a "natural reporting point" and nothing objected.
 
-One carve-out survives an open task list, because it is not a
-confirmation prompt — a closing sentence that defers a decision in prose
-is a true question, asked badly.
+So open work continues the turn. What stops the gate firing on every
+turn is structural: GH-149 keeps a terminal ``Verify acceptance
+criteria`` task open until the supervisor signs off, so "something is
+open" is nearly always true. The discriminator is whether anything
+*besides* that gate is open.
 """
 
 from __future__ import annotations
@@ -31,6 +35,14 @@ from .conftest import DEPLETED_PLAN, PENDING_PLAN
 from .test_stop_verdict import _assistant, _text
 from .test_stop_verdict import _transcript as _write_transcript
 
+_TERMINAL_ONLY = {"tasks": [{"subject": "Verify acceptance criteria", "status": "pending"}]}
+_WORK_AND_TERMINAL = {
+    "tasks": [
+        {"subject": "Monitor CI", "status": "pending"},
+        {"subject": "Verify acceptance criteria", "status": "pending"},
+    ]
+}
+
 
 def _transcript(*, tmp_path: Path, closing: str) -> str:
     """One turn: the supervisor speaks, the agent closes with ``closing``.
@@ -48,8 +60,8 @@ def _transcript(*, tmp_path: Path, closing: str) -> str:
     )
 
 
-class TestOpenWorkEndsTheTurn:
-    def test_a_pending_task_is_not_a_reason_to_ask(
+class TestOpenWorkContinuesTheTurn:
+    def test_a_pending_task_keeps_the_turn_alive(
         self, tmp_path: Path, isolated_markers: Path
     ) -> None:
         verdict = decide(
@@ -60,33 +72,58 @@ class TestOpenWorkEndsTheTurn:
             plan=PENDING_PLAN,
         )
 
-        assert verdict.block is False
-        assert verdict.signal == StopSignal.OPEN_WORK
+        assert verdict.block is True
+        assert verdict.signal == StopSignal.CONTINUE
 
-    def test_in_progress_work_advances_too(self, tmp_path: Path, isolated_markers: Path) -> None:
+    def test_the_steer_names_the_next_task(self, tmp_path: Path, isolated_markers: Path) -> None:
+        """The plan already says what comes next, so the steer says it too."""
         verdict = decide(
             data={
                 "session_id": "adv2",
-                "transcript_path": _transcript(tmp_path=tmp_path, closing="Pushed."),
+                "transcript_path": _transcript(tmp_path=tmp_path, closing="Committed."),
             },
-            plan={"tasks": [{"subject": "Wait out CI", "status": "in_progress"}]},
+            plan=PENDING_PLAN,
         )
 
-        assert verdict.signal == StopSignal.OPEN_WORK
+        assert "Monitor CI" in verdict.reason
 
-    def test_a_phase_boundary_advances_like_any_open_work(
-        self, tmp_path: Path, isolated_markers: Path
-    ) -> None:
-        """A pending next phase is open work, and `resolve_gate` owns plan gates.
-
-        The hook deciding this a second time is the over-firing GH-1339
-        is about — a phase boundary always implies a pending phase, so
-        treating it as a hard gate would exempt the commonest shape of
-        open work from the rule.
-        """
+    def test_the_steer_never_asks(self, tmp_path: Path, isolated_markers: Path) -> None:
+        """There is no decision here to hand anyone."""
         verdict = decide(
             data={
                 "session_id": "adv3",
+                "transcript_path": _transcript(tmp_path=tmp_path, closing="Committed."),
+            },
+            plan=PENDING_PLAN,
+        )
+
+        assert "AskUserQuestion" not in verdict.reason
+
+    def test_a_progress_report_is_not_a_stopping_point(
+        self, tmp_path: Path, isolated_markers: Path
+    ) -> None:
+        """The failure GH-1366 was filed for, in its observed shape."""
+        verdict = decide(
+            data={
+                "session_id": "adv4",
+                "transcript_path": _transcript(
+                    tmp_path=tmp_path,
+                    closing="I'm at a natural reporting point. Here's where things stand.",
+                ),
+            },
+            plan=_WORK_AND_TERMINAL,
+        )
+
+        assert verdict.block is True
+        assert verdict.signal == StopSignal.CONTINUE
+
+    def test_a_phase_boundary_continues_like_any_open_work(
+        self, tmp_path: Path, isolated_markers: Path
+    ) -> None:
+        """`resolve_gate` owns plan gates; this one just keeps the turn alive."""
+        verdict = decide(
+            data={
+                "session_id": "adv5",
                 "transcript_path": _transcript(tmp_path=tmp_path, closing="Phase 3 is done."),
             },
             plan={
@@ -97,25 +134,59 @@ class TestOpenWorkEndsTheTurn:
             },
         )
 
-        assert verdict.block is False
-        assert verdict.signal == StopSignal.OPEN_WORK
+        assert verdict.signal == StopSignal.CONTINUE
+        assert "Phase 4: Execute plan" in verdict.reason
 
 
-class TestADeferralIsNotADecision:
-    """The supervisor's ruling: "shall I push?" has an obvious answer.
+class TestTheTerminalGateIsNotWork:
+    """GH-149 keeps it open, so it cannot mean "keep working"."""
 
-    An earlier cut blocked on these shapes. Pushing is forward and
-    reversible, so the answer is always yes — asking is the defect, and
-    blocking never made the agent push anyway. Removing the carve-out
-    took the last guess about English out of the gate.
-    """
-
-    def test_a_prose_deferral_no_longer_blocks(
+    def test_only_the_terminal_task_ends_the_turn(
         self, tmp_path: Path, isolated_markers: Path
     ) -> None:
         verdict = decide(
             data={
-                "session_id": "adv4",
+                "session_id": "adv6",
+                "transcript_path": _transcript(tmp_path=tmp_path, closing="Ready for sign-off."),
+            },
+            plan=_TERMINAL_ONLY,
+        )
+
+        assert verdict.block is False
+        assert verdict.signal == StopSignal.AWAITING_SUPERVISOR
+
+    def test_work_alongside_the_terminal_task_still_continues(
+        self, tmp_path: Path, isolated_markers: Path
+    ) -> None:
+        verdict = decide(
+            data={
+                "session_id": "adv7",
+                "transcript_path": _transcript(tmp_path=tmp_path, closing="Committed."),
+            },
+            plan=_WORK_AND_TERMINAL,
+        )
+
+        assert verdict.signal == StopSignal.CONTINUE
+        assert "Monitor CI" in verdict.reason
+
+    def test_the_terminal_task_is_told_apart_by_the_domain_definition(self) -> None:
+        """One definition, shared with the GH-149 PreToolUse guard."""
+        signal = task_signal(plan=_WORK_AND_TERMINAL)
+
+        assert signal.actionable_subjects == ("Monitor CI",)
+        assert signal.has_open_work is True
+        assert signal.awaits_supervisor is False
+
+
+class TestADeferralIsNotADecision:
+    """The supervisor's ruling: "shall I push?" has an obvious answer."""
+
+    def test_a_prose_deferral_does_not_change_the_verdict(
+        self, tmp_path: Path, isolated_markers: Path
+    ) -> None:
+        verdict = decide(
+            data={
+                "session_id": "adv8",
                 "transcript_path": _transcript(
                     tmp_path=tmp_path, closing="say go and I'll push it."
                 ),
@@ -123,22 +194,7 @@ class TestADeferralIsNotADecision:
             plan=PENDING_PLAN,
         )
 
-        assert verdict.block is False
-        assert verdict.signal == StopSignal.OPEN_WORK
-
-    def test_a_deferral_with_no_task_list_advances_too(
-        self, tmp_path: Path, isolated_markers: Path
-    ) -> None:
-        verdict = decide(
-            data={
-                "session_id": "adv10",
-                "transcript_path": _transcript(tmp_path=tmp_path, closing="Shall I push?"),
-            },
-            plan=None,
-        )
-
-        assert verdict.block is False
-        assert verdict.signal == StopSignal.NO_TASK_LIST
+        assert verdict.signal == StopSignal.CONTINUE
 
 
 class TestADepletedListAsksToStandDown:
@@ -148,7 +204,7 @@ class TestADepletedListAsksToStandDown:
         """Out of work is the one state where the decision is the supervisor's."""
         verdict = decide(
             data={
-                "session_id": "adv5",
+                "session_id": "adv9",
                 "transcript_path": _transcript(tmp_path=tmp_path, closing="Everything is merged."),
             },
             plan=DEPLETED_PLAN,
@@ -157,34 +213,28 @@ class TestADepletedListAsksToStandDown:
         assert verdict.block is True
         assert "stand down" in verdict.reason.lower()
 
-    def test_the_closing_sentence_does_not_change_the_verdict(
+    def test_the_surviving_gate_carries_a_recommendation(
         self, tmp_path: Path, isolated_markers: Path
     ) -> None:
-        """Depletion decides it; the prose is not consulted either way."""
+        """Pre-collapse `guided` blocked WITH a recommendation, never open-endedly."""
         verdict = decide(
             data={
-                "session_id": "adv9",
-                "transcript_path": _transcript(
-                    tmp_path=tmp_path, closing="All merged. Shall I close the milestone?"
-                ),
+                "session_id": "adv10",
+                "transcript_path": _transcript(tmp_path=tmp_path, closing="All done."),
             },
             plan=DEPLETED_PLAN,
         )
 
-        assert verdict.block is True
-        assert "stand down" in verdict.reason.lower()
+        assert "(Recommended)" in verdict.reason
+        assert "On standby" in verdict.reason
 
     def test_the_steer_sends_the_agent_back_to_the_plan_first(
         self, tmp_path: Path, isolated_markers: Path
     ) -> None:
-        """A depleted task list is not an exhausted plan.
-
-        The cheapest wrong outcome here is asking a question the plan
-        already answers, so consulting it comes before the widget.
-        """
+        """A depleted task list is not an exhausted plan."""
         verdict = decide(
             data={
-                "session_id": "adv12",
+                "session_id": "adv11",
                 "transcript_path": _transcript(
                     tmp_path=tmp_path, closing="That was the last one."
                 ),
@@ -194,43 +244,22 @@ class TestADepletedListAsksToStandDown:
         reason = verdict.reason.replace("\n", " ")
 
         assert "Re-read the plan" in reason
-        assert "do not ask" in reason
         assert "low on context is not a reason to ask" in reason
 
     def test_the_steer_tells_a_subagent_not_to_ask_the_human(
         self, tmp_path: Path, isolated_markers: Path
     ) -> None:
-        """The fallback for when `subagent_signal` misses.
-
-        It went 224 audit records without firing, and this is the exact
-        state in which the GH-1314 subagent asked a human "are we done?".
-        """
+        """The fallback for when `subagent_signal` misses."""
         verdict = decide(
             data={
-                "session_id": "adv11",
+                "session_id": "adv12",
                 "transcript_path": _transcript(tmp_path=tmp_path, closing="All four are done."),
             },
             plan=DEPLETED_PLAN,
         )
 
         assert "orchestrator" in verdict.reason
-        assert "stand down, wait for further work" in verdict.reason.replace("\n", " ")
         assert "whether you may exit" in verdict.reason
-
-    def test_the_surviving_gate_carries_a_recommendation(
-        self, tmp_path: Path, isolated_markers: Path
-    ) -> None:
-        """Pre-collapse `guided` blocked WITH a recommendation, never open-endedly."""
-        verdict = decide(
-            data={
-                "session_id": "adv6",
-                "transcript_path": _transcript(tmp_path=tmp_path, closing="All done."),
-            },
-            plan=DEPLETED_PLAN,
-        )
-
-        assert "(Recommended)" in verdict.reason
-        assert "On standby" in verdict.reason
 
 
 class TestAnAbsentListIsNotADepletedOne:
@@ -238,15 +267,13 @@ class TestAnAbsentListIsNotADepletedOne:
 
     A session without them never populates ``plan.tasks``, so emptiness
     there is the absence of a mechanism, not evidence that the work is
-    finished — `essentials.md` says so in as many words. Reading the two
-    as the same state would block every turn of every such session,
-    which is the very over-firing GH-1339 exists to end.
+    finished — `essentials.md` says so in as many words.
     """
 
-    def test_no_plan_at_all_advances(self, tmp_path: Path, isolated_markers: Path) -> None:
+    def test_no_plan_at_all_ends_the_turn(self, tmp_path: Path, isolated_markers: Path) -> None:
         verdict = decide(
             data={
-                "session_id": "adv7",
+                "session_id": "adv13",
                 "transcript_path": _transcript(tmp_path=tmp_path, closing="Committed."),
             },
             plan=None,
@@ -255,12 +282,12 @@ class TestAnAbsentListIsNotADepletedOne:
         assert verdict.block is False
         assert verdict.signal == StopSignal.NO_TASK_LIST
 
-    def test_a_plan_carrying_no_tasks_advances(
+    def test_a_plan_carrying_no_tasks_ends_the_turn(
         self, tmp_path: Path, isolated_markers: Path
     ) -> None:
         verdict = decide(
             data={
-                "session_id": "adv8",
+                "session_id": "adv14",
                 "transcript_path": _transcript(tmp_path=tmp_path, closing="Committed."),
             },
             plan={"context": {}},
@@ -274,23 +301,27 @@ class TestAnAbsentListIsNotADepletedOne:
 
 
 class TestTheRuleIsAPureFunction:
-    def test_a_depleted_list_does_not_advance(self) -> None:
-        signal = TaskSignal(has_task_list=True)
-
-        assert auto_advances(signal=signal) is False
-
-    def test_open_work_advances(self) -> None:
+    def test_actionable_work_keeps_the_turn_alive(self) -> None:
         signal = TaskSignal(open_subjects=("Monitor CI",), has_task_list=True)
 
         assert auto_advances(signal=signal) is True
 
-    def test_an_absent_list_advances(self) -> None:
-        assert auto_advances(signal=TaskSignal()) is True
+    def test_a_depleted_list_does_not(self) -> None:
+        assert auto_advances(signal=TaskSignal(has_task_list=True)) is False
+
+    def test_the_terminal_gate_alone_does_not(self) -> None:
+        signal = TaskSignal(open_subjects=("Verify acceptance criteria",), has_task_list=True)
+
+        assert auto_advances(signal=signal) is False
+        assert signal.awaits_supervisor is True
 
 
-class TestTheSignalIsLegible:
-    def test_open_work_reprs_as_a_member(self) -> None:
-        assert repr(StopSignal.OPEN_WORK) == "StopSignal.OPEN_WORK"
+class TestTheSignalsAreLegible:
+    def test_continue_reprs_as_a_member(self) -> None:
+        assert repr(StopSignal.CONTINUE) == "StopSignal.CONTINUE"
+
+    def test_awaiting_supervisor_reprs_as_a_member(self) -> None:
+        assert repr(StopSignal.AWAITING_SUPERVISOR) == "StopSignal.AWAITING_SUPERVISOR"
 
     def test_no_task_list_reprs_as_a_member(self) -> None:
         assert repr(StopSignal.NO_TASK_LIST) == "StopSignal.NO_TASK_LIST"
