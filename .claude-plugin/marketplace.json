@@ -11,7 +11,7 @@
     {
       "name": "Dev10x",
       "source": "./",
-      "version": "0.102.0.dev0",
+      "version": "0.102.0",
       "keywords": [
         "git", "commits", "pull-requests", "code-review",
         "workflow", "tasks", "JTBD", "gitmoji", "hooks",
