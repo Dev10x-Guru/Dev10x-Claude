@@ -32,14 +32,11 @@ from dev10x.hooks.stop_verdict import (
     standby_holds,
 )
 
+from .conftest import DEPLETED_PLAN
+
 _STANDBY_ANSWER = (
     'Your questions have been answered: "Anything open?"="On standby — not waiting on you".'
 )
-
-#: A task list that exists and holds nothing open. Since GH-1339 that is
-#: the state that blocks without a prose deferral — an absent plan is no
-#: longer evidence the work is finished.
-_DEPLETED = {"tasks": [{"subject": "Ship it", "status": "completed"}]}
 
 
 def _user(*, uuid: str = "u1", content: object = "go") -> dict:
@@ -137,7 +134,12 @@ class TestASubagentIsNeverBlocked:
     def test_a_subagent_transcript_ends_the_turn(
         self, tmp_path: Path, isolated_markers: Path
     ) -> None:
-        """The branch becomes reachable, which is the whole point of GH-1340."""
+        """The branch becomes reachable, which is the whole point of GH-1340.
+
+        The signal is ``SUBAGENT_PATH`` rather than ``SUBAGENT`` so the
+        audit log can show which discriminator carried it — the evidence
+        needed before the never-firing payload keys can be retired.
+        """
         nested = tmp_path / "subagents"
         nested.mkdir()
         transcript = _transcript(
@@ -146,11 +148,11 @@ class TestASubagentIsNeverBlocked:
 
         verdict = decide(
             data={"session_id": "sub2", "transcript_path": transcript},
-            plan={"tasks": [{"subject": "Ship it", "status": "completed"}]},
+            plan=DEPLETED_PLAN,
         )
 
         assert verdict.block is False
-        assert verdict.signal == StopSignal.SUBAGENT
+        assert verdict.signal == StopSignal.SUBAGENT_PATH
 
     def test_the_main_session_is_still_blocked(
         self, tmp_path: Path, isolated_markers: Path
@@ -165,7 +167,7 @@ class TestASubagentIsNeverBlocked:
 
         verdict = decide(
             data={"session_id": "main1", "transcript_path": transcript},
-            plan={"tasks": [{"subject": "Ship it", "status": "completed"}]},
+            plan=DEPLETED_PLAN,
         )
 
         assert verdict.block is True
@@ -212,7 +214,9 @@ class TestStandbyParksTheGate:
             name="spoke",
             entries=[_user(uuid="u2", content="actually, one more thing"), _closing()],
         )
-        verdict = decide(data={"session_id": "park3", "transcript_path": spoke}, plan=_DEPLETED)
+        verdict = decide(
+            data={"session_id": "park3", "transcript_path": spoke}, plan=DEPLETED_PLAN
+        )
 
         assert verdict.block is True
         assert verdict.signal == StopSignal.BLOCKED
@@ -241,7 +245,7 @@ class TestStandbyParksTheGate:
         )
 
         verdict = decide(
-            data={"session_id": "park5", "transcript_path": transcript}, plan=_DEPLETED
+            data={"session_id": "park5", "transcript_path": transcript}, plan=DEPLETED_PLAN
         )
 
         assert verdict.block is True
@@ -358,6 +362,7 @@ class TestSignalsAreLegible:
     def test_the_new_signals_repr_as_members(self) -> None:
         """The audit record is read by people; a bare value is not a branch name."""
         assert repr(StopSignal.SUBAGENT) == "StopSignal.SUBAGENT"
+        assert repr(StopSignal.SUBAGENT_PATH) == "StopSignal.SUBAGENT_PATH"
         assert repr(StopSignal.STANDBY) == "StopSignal.STANDBY"
 
 
@@ -367,7 +372,7 @@ class TestTheSteerOffersTheOption:
         transcript = _transcript(tmp_path=tmp_path, entries=[_user(), _closing()])
 
         verdict = decide(
-            data={"session_id": "steer1", "transcript_path": transcript}, plan=_DEPLETED
+            data={"session_id": "steer1", "transcript_path": transcript}, plan=DEPLETED_PLAN
         )
 
         assert "On standby" in verdict.reason
