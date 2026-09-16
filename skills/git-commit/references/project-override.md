@@ -40,14 +40,14 @@ strategies:
         release: minor
       # ... more entries
 
-# Map repos to strategies by remote URL pattern or repo name
+# Map repos to strategies by org/repo pattern
 projects:
-  # Glob patterns matched against git remote origin URL
-  - match: "*/Dev10x*"
+  # Glob patterns matched against the repo's nameWithOwner (org/repo)
+  - match_repo: "*/Dev10x*"
     strategy: semantic-release-gitmoji
-  - match: "*/app-pos*"
+  - match_repo: "*/app-pos*"
     strategy: semantic-release-gitmoji
-  - match: "*/example-backend*"
+  - match_repo: "*/example-backend*"
     strategy: semantic-release-gitmoji
 
 # Fallback when no project matches (optional)
@@ -98,17 +98,29 @@ List of match rules. Each entry:
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `match` | Yes | Glob pattern against remote origin URL |
+| `match_repo` | Yes | Glob pattern against the repo's `nameWithOwner` (`org/repo`) |
 | `strategy` | Yes | Name of a strategy defined above |
 
-Patterns are tested in order; first match wins. The match
-is checked against the output of `git remote get-url origin`.
+Patterns are tested in order; first match wins. `match:` is accepted
+as a deprecated alias for one release (ADR-0026).
+
+**The target is `org/repo`, not the origin URL** (ADR-0026). URL
+matching was protocol-dependent: a glob anchored on the host resolved
+for an HTTPS clone and silently failed on `git@github.com:org/repo.git`,
+whose only `/` precedes the org. The shipped `*/<repo>*` globs work
+unchanged against `org/repo`.
+
+Do **not** copy a glob to or from `friction.yaml`, whose `match:` is a
+directory-path glob.
 
 ## Resolution Order
 
 1. Read `<Dev10x config>/gitmoji.yaml`
-2. Get current repo's origin URL via `git remote get-url origin`
-3. Walk `projects` list — first `match` that fits selects the
+2. Get current repo's `org/repo`: `git remote get-url origin`, then
+   take the last two path segments (both SSH and HTTPS forms yield the
+   same pair). **No `origin` remote** → the `projects` list is not
+   evaluated at all; skip to step 4.
+3. Walk `projects` list — first `match_repo` that fits selects the
    strategy
 4. If no match and `default-strategy` is set, use that
 5. If still no match, check for a semantic-release config in the
@@ -155,6 +167,6 @@ strategies:
         release: none
 
 projects:
-  - match: "*/my-repo*"
+  - match_repo: "*/my-repo*"
     strategy: with-release-tags
 ```

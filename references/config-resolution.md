@@ -71,28 +71,60 @@ Shipped with the plugin. Used when no user override exists.
 
 ## Project Mapping Format
 
-Global config files (Tier 2) use a `projects` list with glob
-matching on the repo's `nameWithOwner` (e.g., `org/repo`).
-Match uses standard Unix glob syntax (`fnmatch`): `*` matches any
-string, `?` matches a single character, `[seq]` matches any character
-in *seq*.
+Global config files (Tier 2) use a `projects` list whose entries carry a
+glob. **Two addressing schemes exist, and the key name says which**
+(ADR-0026):
+
+| Key | Compared against | Files |
+|---|---|---|
+| `match_repo:` | the repo's `nameWithOwner` — `org/repo` | `playbooks/<skill>.yaml`, `settings-pr-merge.yaml`, `gitmoji.yaml` |
+| `match:` | an **absolute directory path** | `friction.yaml` |
+
+Both use standard Unix glob syntax (`fnmatch`): `*` matches any string
+— **including `/`** — `?` matches a single character, `[seq]` matches
+any character in *seq*.
+
+> **Deprecated alias.** `match:` is still accepted in a repo-addressed
+> file for one release, so an existing playbook keeps working. Rename it
+> to `match_repo:`; `dev10x config doctor` and `dev10x playbook diff`
+> report every entry still on the alias.
 
 ```yaml
 projects:
-  - match: "Dev10x-Guru/dev10x-claude"
+  - match_repo: "Dev10x-Guru/dev10x-claude"
     # config specific to this repo
 
-  - match: "org/*"
+  - match_repo: "org/*"
     # config shared across all ExampleCorp repos
 ```
 
-**Resolution within Tier 2:**
+**Resolution within Tier 2 (repo-addressed files):**
 1. Get current repo: `git remote get-url origin` → extract `owner/repo`
-2. Walk the `projects` list — first `match` glob that fits selects
-   the config block
+2. Walk the `projects` list — first `match_repo` glob that fits selects
+   the config block (`match:` is read as the deprecated alias)
 3. If no match, skip Tier 2 (fall through to Tier 3 or 4)
 
-This follows the same pattern as `gitmoji.yaml` project overrides.
+**No `origin` remote.** Step 1 has a failure case: a local-only repo, a
+clone whose remote is named something other than `origin`, or a
+detached checkout has no `owner/repo` to extract. Tier 2 is then **not
+evaluated at all** — which is a different outcome from "evaluated, no
+entry matched", and the tools say which: `dev10x config doctor` reports
+the list as NOT evaluated and names the reason. Repo-addressed Tier 2
+config cannot apply to such a checkout; move the settings to Tier 1
+(`.claude/Dev10x/`) or add an `origin` remote.
+
+### The portable `*/<repo>` form
+
+Because `fnmatch`'s `*` spans `/`, a glob written `*/<repo>` resolves
+under **both** schemes: it matches `owner/repo` with `*` absorbing the
+owner, and `/work/dx/repo` with `*` absorbing the parent directories.
+An org-form glob does not travel — `Dev10x-Guru/*` never matches a
+directory path — which is exactly the mistake the two key names now
+make visible.
+
+Treat `*/<repo>` as a convenience, not a contract: the overlap holds
+because of `fnmatch` semantics, not by design. The named keys are the
+guarantee.
 
 ## Configuration Files
 
@@ -117,7 +149,7 @@ fragments:
     # ...
 
 projects:
-  - match: "Dev10x-Guru/dev10x-claude"
+  - match_repo: "Dev10x-Guru/dev10x-claude"
     active_modes: [solo-maintainer]
     overrides:
       - play: feature
@@ -127,7 +159,7 @@ projects:
             skills: [dev10x:ticket-branch]
           # ...
 
-  - match: "example-org/*"
+  - match_repo: "example-org/*"
     active_modes: [solo-maintainer]
     overrides:
       - play: feature
@@ -142,6 +174,11 @@ matching, then Tier 3 (plugin defaults).
 | Tier | Path | Notes |
 |------|------|-------|
 | 2 only | `~/.config/Dev10x/friction.yaml` | Global, keyed by `projects[].match` dir globs |
+
+This is the one file whose `match:` is **not** an `org/repo` glob — it
+is compared against the checkout's absolute directory path, keyed by
+the git common dir so one entry covers every worktree (ADR-0018 D3).
+Copying a `Dev10x-Guru/*` glob here selects nothing.
 
 Session prefs are **not** project-local (ADR-0018 D1). `friction_level`,
 `active_modes`, `allowed_overlays`, and the `gate_*` keys live in one
@@ -165,11 +202,11 @@ role to `~/.config/Dev10x/task-index/<repo-stem>.yaml` (reached via the
 ```yaml
 # ~/.config/Dev10x/settings-pr-merge.yaml
 projects:
-  - match: "Dev10x-Guru/*"
+  - match_repo: "Dev10x-Guru/*"
     strategy: rebase
     delete_branch: true
     solo_maintainer: true
-  - match: "example-org/*"
+  - match_repo: "example-org/*"
     strategy: rebase
     delete_branch: true
     solo_maintainer: true

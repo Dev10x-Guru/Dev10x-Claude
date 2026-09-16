@@ -128,6 +128,78 @@ class TestConfigDoctor:
         assert "schema v2" in result.output
 
 
+class TestConfigDoctorProjectsLists:
+    """`projects:` addressing findings (GH-1375, ADR-0026)."""
+
+    @staticmethod
+    def _run(reports: list) -> str:
+        runner = CliRunner()
+        with (
+            patch("dev10x.commands.config.stale_legacy_paths", return_value=[]),
+            patch("dev10x.session.projects_scan.scan_projects_lists", return_value=reports),
+        ):
+            result = runner.invoke(config, ["doctor"])
+        assert result.exit_code == 0
+        return result.output
+
+    @staticmethod
+    def _report(document: dict, *, scheme, target: str | None, reason: str | None = None):
+        from dev10x.domain.project_match import evaluate_projects
+
+        return evaluate_projects(
+            document,
+            scheme=scheme,
+            source="/cfg/settings-pr-merge.yaml",
+            target=target,
+            unresolved_reason=reason,
+        )
+
+    def test_says_so_when_no_file_carries_a_list(self) -> None:
+        assert "no Tier-2 file carries a `projects:` list" in self._run([])
+
+    def test_confirms_a_matching_list(self) -> None:
+        from dev10x.domain.project_match import MatchScheme
+
+        report = self._report(
+            {"projects": [{"match_repo": ["org/*"]}]},
+            scheme=MatchScheme.REPO,
+            target="org/repo",
+        )
+        assert "1 of 1 `projects:` list(s) select this checkout" in self._run([report])
+
+    def test_reports_a_list_that_matched_nothing(self) -> None:
+        from dev10x.domain.project_match import MatchScheme
+
+        report = self._report(
+            {"projects": [{"match_repo": ["other/*"]}]},
+            scheme=MatchScheme.REPO,
+            target="org/repo",
+        )
+        output = self._run([report])
+        assert "1 `projects:` list(s) worth a look" in output
+        assert "no `match_repo:` glob matched 'org/repo'" in output
+        assert "ADR-0026" in output
+
+    def test_an_unevaluated_list_is_not_reported_as_no_match(self) -> None:
+        from dev10x.domain.project_match import MatchScheme
+
+        report = self._report(
+            {"projects": [{"match_repo": ["org/*"]}]},
+            scheme=MatchScheme.REPO,
+            target=None,
+            reason="no `origin` remote",
+        )
+        output = self._run([report])
+        assert "NOT evaluated — no `origin` remote" in output
+        assert "glob matched" not in output
+
+    def test_a_file_without_a_list_is_silent(self) -> None:
+        from dev10x.domain.project_match import MatchScheme
+
+        report = self._report({"defaults": {}}, scheme=MatchScheme.REPO, target="org/repo")
+        assert "no Tier-2 file carries a `projects:` list" in self._run([report])
+
+
 def _write_v1_friction() -> Path:
     """Seed the isolated config home with a v1-shaped friction.yaml."""
     from dev10x.domain.dev10x_paths import Dev10xConfigDir

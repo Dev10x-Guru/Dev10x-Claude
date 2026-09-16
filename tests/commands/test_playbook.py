@@ -230,6 +230,100 @@ class TestPlaybookDiffCliSkippedReporting:
         assert "ghost-skill" in result.output
 
 
+class TestPlaybookDiffCliProjectsList:
+    """GH-1375: an override addressed at another repo must not diff clean.
+
+    ``playbook diff`` located override *files* by path and never read the
+    ``projects:`` list inside them, so a block selecting nothing was
+    reported as up to date while applying to nothing.
+    """
+
+    @staticmethod
+    def _run_with(
+        *,
+        projects: list,
+        address,
+        plugin_root: Path,
+        project_root: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> object:
+        override = project_root / ".claude" / "Dev10x" / "playbooks" / "work-on.yaml"
+        document = yaml.safe_load(override.read_text())
+        document["projects"] = projects
+        override.write_text(yaml.dump(document))
+        monkeypatch.chdir(project_root)
+        monkeypatch.setattr(
+            "dev10x.session.repo_address.resolve_name_with_owner",
+            lambda **_: address,
+        )
+        return CliRunner().invoke(
+            playbook,
+            ["diff", "--plugin-root", str(plugin_root)],
+            catch_exceptions=False,
+        )
+
+    def test_matching_list_is_confirmed(
+        self, plugin_root: Path, project_root: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from dev10x.domain.common.result import ok
+
+        result = self._run_with(
+            projects=[{"match_repo": ["org/*"]}],
+            address=ok("org/repo"),
+            plugin_root=plugin_root,
+            project_root=project_root,
+            monkeypatch=monkeypatch,
+        )
+        assert "`projects:` entry 0 selects `org/repo`" in result.output
+
+    def test_non_matching_list_is_reported(
+        self, plugin_root: Path, project_root: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from dev10x.domain.common.result import ok
+
+        result = self._run_with(
+            projects=[{"match_repo": ["other/*"]}],
+            address=ok("org/repo"),
+            plugin_root=plugin_root,
+            project_root=project_root,
+            monkeypatch=monkeypatch,
+        )
+        assert "`projects:` list needs attention" in result.output
+        assert "no `match_repo:` glob matched 'org/repo'" in result.output
+
+    def test_deprecated_alias_is_reported_even_when_it_matches(
+        self, plugin_root: Path, project_root: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from dev10x.domain.common.result import ok
+
+        result = self._run_with(
+            projects=[{"match": ["org/*"]}],
+            address=ok("org/repo"),
+            plugin_root=plugin_root,
+            project_root=project_root,
+            monkeypatch=monkeypatch,
+        )
+        assert "deprecated alias" in result.output
+
+    def test_unresolved_repo_is_not_reported_as_no_match(
+        self, plugin_root: Path, project_root: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from dev10x.domain.common.result import err
+
+        result = self._run_with(
+            projects=[{"match_repo": ["org/*"]}],
+            address=err("no `origin` remote"),
+            plugin_root=plugin_root,
+            project_root=project_root,
+            monkeypatch=monkeypatch,
+        )
+        assert "NOT evaluated — no `origin` remote" in result.output
+        assert "glob matched" not in result.output
+
+    def test_override_without_a_projects_list_is_silent(self, result: object) -> None:
+        assert "`projects:`" not in result.output
+
+
 class TestPlaybookDiffCliSkillFilter:
     """``--skill`` flag limits the diff to the specified skill key."""
 
