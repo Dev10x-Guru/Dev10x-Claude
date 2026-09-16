@@ -5,6 +5,151 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.103.0 — Rules That Match What You Type, A Turn That Keeps Going
+
+Released 2026-09-16
+
+### Features
+
+- **Cover every spelling of a command from one catalog entry** — Claude Code
+  matches allow rules literally, so `dev10x permission ensure-base` and
+  `uvx dev10x permission ensure-base` are two unrelated rules. The catalog
+  hand-listed them per subcommand, which made coverage depend on whoever added
+  the entry remembering every runner — and the bare spelling, the one the docs
+  show and a human types, was the one nobody remembered. `command_spellings:`
+  renders one rule per prefix × command, folded in at the load seam so merge,
+  drift, gap and coverage all still see flat rule strings and a userspace
+  catalog predating the schema reads as behind by N rules rather than broken.
+  The foreman and watchdog read-only verbs are catalogued too; their absence in
+  every spelling had an unattended pre-flight prompting on its own heartbeat and
+  collecting seventeen unsynced per-checkout catch-alls
+  ([GH-1317](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1317))
+- **Enable PR listing without a raw `gh pr list`** — the PR family had
+  view/close/ready but no list, so listing pull requests could only go through
+  the raw CLI, which is uncatalogued and prompts on every call — enough to wedge
+  an unattended agent on a pending approval. `pr_list` mirrors `issue_list`'s
+  parameter shape and is catalogued as read-only, with an advisory
+  command-skill-map rule matching `gh-issue-list`'s posture
+  ([GH-1359](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1359))
+- **Enable milestone listing without a raw `gh api` call** — the milestone
+  family had create/close/reopen/edit but no read, so listing the roster meant
+  `gh api --paginate`, which the skill-redirect hook steers away from, leaving
+  callers nowhere to go but a broad `gh api *` catch-all grant. `milestone_list`
+  mirrors the other milestone tools and is catalogued in `base_permissions` as
+  read-only ([GH-1319](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1319))
+
+### Fixes
+
+- **Keep a session working until the plan is actually done** — a Stop hook's
+  `block` means *do not stop*, and reading "auto-advance" as "let the turn end
+  quietly" removed the only mechanism that keeps an agent going: a session with
+  real pending tasks stopped at a self-declared "natural reporting point" and
+  nothing objected. The gate now blocks on actionable work — open tasks minus
+  the terminal Verify-AC gate, the discriminator that keeps GH-149's
+  always-open task from firing it every turn — with a steer naming the next
+  task and no widget, because the plan is the authorisation. A depleted task
+  list over a dirty tree also blocks, naming the paths; it carries the
+  shared-worktree escape, since nothing at Stop time can attribute uncommitted
+  changes and telling an agent to commit files it never touched would be worse
+  than the missing commit
+  ([GH-1377](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1377),
+  [GH-1365](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1365))
+- **Keep an agent's work when its turn ends waiting** — four agents in one
+  fanout swarm ended their turns mid-lifecycle with work uncommitted while
+  waiting on a background test run, every brief carrying the anti-stall
+  prohibition verbatim. Restating the rule a third time would fail the same
+  way, so the lifecycle is now a fixed order in which the commit is step 3 and
+  verification step 5 — an agent about to wait is out of order, which is far
+  cheaper to notice than a rule recalled mid-task — and
+  `subagent-dispatch.md` is corrected at the source, since its required pipeline
+  had taught the very ordering bias the swarm acted on. `dev10x orchestration
+  stranded-work` reads a finished agent's worktree and reports work about to be
+  reclaimed unreachably; fanout Phase 4 runs it before trusting any status
+  token, DONE included
+  ([GH-1363](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1363))
+- **Enforce `disableAutoMode` / `disableBypassPermissionsMode`** — both accept
+  ONLY the literal string `"disable"`; a JSON boolean `true` is silently
+  ignored, so the control reads as configured while enforcing nothing. A prior
+  session had written the invalid boolean to 74 settings files with no error
+  surfaced anywhere. A write-time validator now fails loud on anything else,
+  `ensure_base()` seeds both keys on every settings file it touches (honoring
+  the git-tracked-settings guard), and `doctor safety-keys` reports absent or
+  invalid keys for post-upgrade verification
+  ([GH-1320](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1320))
+- **Name leaked-secret rules and narrow the matcher** — `permission clean`
+  matched bare `TOKEN=`-style substrings and printed the raw rule on a hit, so a
+  maintainer could not locate a real credential without reading plaintext values
+  in CLI output, while the detector still missed real shapes such as a URL
+  `?token=<uuid>` or a `ghp_`/`Bearer` value. Named `SecretPattern` entries
+  replace the flat indicator list, and findings carry a rule id, a redacted
+  rule and the matched span, so the value is masked before it reaches a message
+  ([GH-1312](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1312))
+- **Catch a bare-newline command chain with no separator** — two commands on
+  separate lines with no separator at all were invisible to both DX010 and
+  DX007. A prior attempt held back because blind newline counting
+  false-positives hard on legitimate multi-line quoted strings; shared
+  `strip_quoted_spans` / `strip_line_continuations` helpers mean an embedded
+  newline inside a quoted `-m` message or inline JSON is never mistaken for a
+  chain boundary, and a multi-line `if/then/fi` is not miscounted either
+  ([GH-1350](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1350))
+- **Pre-approve the Linear namespace sessions actually call** — the catalog
+  covered `mcp__claude_ai_Linear__*` but only 5 of the equivalent read ops on
+  `mcp__linear-server__*`, the namespace Dev10x sessions invoke, so 11 more had
+  accumulated as ad-hoc per-call approvals while a comment claimed parity with
+  nothing checking it. The 23 missing read ops are catalogued and a parity test
+  now pins the one documented linear-server-only exception, so a new one is a
+  conscious edit ([GH-1323](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1323))
+- **Keep `ensure-base`'s ask checker agreeing with its writer** — the writer
+  correctly leaves an ask rule alone when the target file already denies it, but
+  `compute_gap` had no deny subtraction, so a correct write was reported as a
+  failure and exited non-zero on all five checkouts carrying the `gh api`
+  mutation denies. Deny-covered rules are excluded from `missing_ask` and
+  reported separately as `skipped_denied` — "nothing covers it" and "a deny
+  covers it" call for opposite remediations, and collapsing them had already
+  produced a proposed backfill of 8 asks
+  ([GH-1366](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1366))
+- **Raise the `run_tests` default past real suite runtimes** — the 600s default
+  sat well under this repo's own full-suite runtime, so the documented
+  full-suite gate timed out on the one call it mandates and every caller reached
+  for the raw `pytest` the routing table forbids. The default is now
+  `MAX_TOOL_CALL_SECONDS`, the ceiling a larger value is clamped to anyway
+  ([GH-1331](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1331))
+- **Ground the MCP idle ceiling in documented fact** — `MAX_TOOL_CALL_SECONDS`
+  was defended by two server-crash observations with no confirmed relationship
+  to the transport's actual idle-abort window, so every downstream budget rested
+  on an inference. The documented 30-minute stdio idle timeout is now cited as
+  the source, and the two failure modes the old docstring conflated are
+  separated ([GH-1305](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1305))
+- **Stop the plugin panel understating what is installed** — the panel renders
+  `plugin.json`'s description verbatim, and that one string carries both a
+  version (maintained by the release bump) and a skill count (maintained by
+  nobody). It had drifted to 69 against 91 shipped, and a correct version beside
+  a wrong count invited trusting both — a field test certified both as current.
+  The count is corrected and guarded by the test that already owns every other
+  claim about these manifests, derived from the filesystem so adding a skill
+  fails with the new number in the message
+  ([GH-1356](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1356))
+- **Keep the ImageMagick guard reading rendered rules** — the test YAML-parsed
+  the baseline catalog directly, asserting on what the file spells rather than
+  what the group renders, and so read the migrated aliases as missing. It now
+  reads through `load_baseline_dict`, the documented chokepoint
+  ([GH-1317](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1317))
+
+### Docs
+
+- **Settle the addressing scheme behind `projects[].match`** — four global
+  config files carry a `projects:` list whose selector is called `match`, each
+  comparing it against something different: an absolute path, a
+  `nameWithOwner`, or a full origin URL. A glob correct in one file silently
+  selects nothing in another, and nothing reports the miss. Measuring it
+  corrected three parts of the original account — the collision is asymmetric
+  rather than symmetric, a URL comparison makes a host-anchored glob depend on
+  whether the clone is HTTPS or SSH, and the family is four files, not two.
+  ADR-0026 keeps `match:` for path semantics, renames the three repo-addressed
+  files to `match_repo:`, and converges `gitmoji.yaml` onto `nameWithOwner`,
+  collapsing four comparison targets to two; the rename itself is deferred to
+  GH-1375 ([GH-1344](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1344))
+
 ## 0.102.0 — A Gate That Reads the Plan, A Catalog That Reaches Settings
 
 Released 2026-09-16
