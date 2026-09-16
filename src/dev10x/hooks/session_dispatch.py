@@ -265,8 +265,14 @@ def build_stop_verdict(data: dict | None = None) -> StopVerdict | None:
     plan: dict | None = None
     if toplevel:
         summary = read_plan_summary(toplevel=toplevel)
-        candidate = summary.get("plan") if isinstance(summary, dict) else None
-        plan = candidate if isinstance(candidate, dict) else None
+        # The whole summary, not summary["plan"] (GH-1339). `Plan.to_dict`
+        # returns {"plan": <metadata>, "tasks": [...]}, so reaching for
+        # the "plan" key handed `task_signal` the metadata — which never
+        # carries tasks. The signal was therefore always empty in the
+        # field. That was survivable while the gate blocked on other
+        # grounds; now that the task list is the only thing deciding, it
+        # would make the stand-down gate unreachable.
+        plan = summary if isinstance(summary, dict) else None
 
     verdict = decide(data=data, plan=plan)
     # Attribute every outcome, not only a block (GH-1257). Retiring the

@@ -29,20 +29,38 @@ PLUGIN_LOAD_GUARD = SCRIPTS / "plugin-load-guard.sh"
 _ISOLATED_HOME = tempfile.mkdtemp(prefix="dev10x-orchestrator-home-")
 
 
-def _run(script: Path, payload: dict) -> subprocess.CompletedProcess[str]:
+def _run(script: Path, payload: dict, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(script)],
         input=json.dumps(payload),
         capture_output=True,
         text=True,
         timeout=30,
-        cwd=str(SCRIPTS.parent.parent),
+        cwd=str(cwd or SCRIPTS.parent.parent),
         env={
             "DEV10X_HOOK_AUDIT": "0",
             "PATH": "/usr/bin:/bin:/usr/local/bin",
             "HOME": _ISOLATED_HOME,
         },
     )
+
+
+def _repo_with_depleted_plan(*, tmp_path: Path) -> Path:
+    """A throwaway git repo whose plan holds nothing open.
+
+    Since GH-1339 that is the only state the Stop gate blocks on, so an
+    orchestrator test that needs a block has to supply one. Running
+    against the real checkout would make the assertion depend on
+    whatever plan happens to be on disk when the suite runs.
+    """
+    repo = tmp_path / "repo"
+    (repo / ".claude" / "session").mkdir(parents=True)
+    (repo / ".claude" / "session" / "plan.yaml").write_text(
+        "plan:\n  status: in_progress\ntasks:\n  - subject: Ship it\n    status: completed\n",
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "init", "-q", str(repo)], check=True, timeout=30)
+    return repo
 
 
 class TestSessionStartOrchestrator:
@@ -94,25 +112,21 @@ class TestSessionStopVerdict:
         )
         return str(path)
 
-    def test_a_turn_ending_on_a_decision_emits_a_block_envelope(self, tmp_path: Path) -> None:
-        """Wiring only: a block reaches stdout as an envelope.
+    def test_a_depleted_plan_emits_a_block_envelope(self, tmp_path: Path) -> None:
+        """Wiring: a block reaches stdout as a decision envelope.
 
-        The closing defers a decision in prose because that blocks
-        whatever the task list holds, and this test must not depend on
-        whichever plan happens to be on disk when the suite runs. It is
-        therefore NOT a GH-1339 regression test — it would pass against
-        the pre-GH-1339 code too. The rule itself is pinned in
-        ``test_stop_verdict_open_work``; the advance is covered at this
-        level by ``test_a_turn_with_work_left_emits_no_envelope``.
+        Driven by a depleted plan in a throwaway repo, because that is
+        now the only blocking state — and because reading the real
+        checkout's plan would make this assertion depend on whatever
+        happens to be open when the suite runs.
         """
         result = _run(
             SESSION_STOP,
             {
                 "session_id": f"verdict-block-{uuid.uuid4()}",
-                "transcript_path": self._transcript(
-                    tmp_path=tmp_path, closing="All done. Want me to file that?"
-                ),
+                "transcript_path": self._transcript(tmp_path=tmp_path, closing="All done."),
             },
+            cwd=_repo_with_depleted_plan(tmp_path=tmp_path),
         )
 
         assert result.returncode == 0
@@ -126,10 +140,9 @@ class TestSessionStopVerdict:
             SESSION_STOP,
             {
                 "session_id": f"verdict-quiet-{uuid.uuid4()}",
-                "transcript_path": self._transcript(
-                    tmp_path=tmp_path, closing="All done. Want me to file that?"
-                ),
+                "transcript_path": self._transcript(tmp_path=tmp_path, closing="All done."),
             },
+            cwd=_repo_with_depleted_plan(tmp_path=tmp_path),
         )
 
         assert "Thank you for using Dev10x" not in result.stdout

@@ -32,22 +32,27 @@ that recommendation:
 
     A gate fires only where there is no recommended next action.
 
-Open work *is* the recommended next action, so it auto-advances. Two
-states are not open work and still do not block:
+Open work *is* the recommended next action, so it auto-advances. So
+does an **absent task list**, which is not a depleted one (GH-1055):
+the task tools ship by default only on older models, so a session
+without them never populates ``plan.tasks``, and ``essentials.md`` says
+that emptiness "must not be treated as evidence of anything else".
+Conflating the two would block every turn of every such session, which
+is the very over-firing this rule ends.
 
-  - a **deferral in prose** — "shall I push?" is a true question, asked
-    badly, and reformulating it as a widget is the gate working;
-  - an **absent task list** is not a depleted one (GH-1055). The task
-    tools ship by default only on older models, so a session without
-    them never populates ``plan.tasks``; ``essentials.md`` says that
-    emptiness "must not be treated as evidence of anything else".
-    Conflating the two would block every turn of every such session,
-    which is the very over-firing this rule ends.
+That leaves exactly one blocking state: a task list that exists and is
+wholly completed. There the next move genuinely is the supervisor's,
+and the steer asks to stand down — carrying its own recommended option
+rather than an open-ended "reformulate something".
 
-That leaves one blocking state on the no-decision side: a task list
-that exists and is wholly completed. There the next move genuinely is
-the supervisor's, and the steer asks to stand down — carrying its own
-recommended option rather than an open-ended "reformulate something".
+**A deferral in prose is not a decision.** An earlier cut of this rule
+also blocked on closing shapes like "shall I push?" / "want me to…",
+reasoning that the agent had taken a decision out of the supervisor's
+hands. The supervisor's ruling is that it had not: pushing is forward
+and reversible, so the answer is always yes, and asking is the defect.
+Blocking never made the agent push — it made it render a widget about
+work it should have simply done. Removing that carve-out took the last
+guess about English out of the gate; everything left is structural.
 
 **The loop guard is not optional.** A hook that always blocks, without
 one, never lets a turn finish. Two independent guards, because the
@@ -102,22 +107,6 @@ def _diagnose(*, what: str, error: OSError | ValueError) -> None:
 #: last one. Long enough that a single continued turn cannot re-block,
 #: short enough that a later turn in the same session is still guarded.
 _REBLOCK_COOLDOWN_SECONDS = 90
-
-#: Closing shapes that defer a decision without asking one.
-#:
-#: This DOES decide the verdict, and deliberately outranks the task list
-#: (GH-1339): a deferral blocks even when work remains, because the
-#: agent has taken a decision out of the supervisor's hands rather than
-#: paused. It is the one place the gate still rests on a guess about
-#: English, which is a known weakness — the module prefers the
-#: structural task-list signal everywhere it can. Widening this pattern
-#: therefore costs more than it looks: each addition is another English
-#: shape that can veto an otherwise clean auto-advance.
-_DEFERRAL_RE = re.compile(
-    r"\b(say go|let me know|shall i|want me to|should i|"
-    r"if you(?:'d| woul)d like|do you want)\b",
-    re.IGNORECASE,
-)
 
 _ASK_TOOL = "AskUserQuestion"
 
@@ -572,58 +561,80 @@ def task_signal(*, plan: dict | None) -> TaskSignal:
     return TaskSignal(open_subjects=open_subjects, has_task_list=bool(tasks))
 
 
-def auto_advances(*, signal: TaskSignal, closing: str) -> bool:
+def auto_advances(*, signal: TaskSignal) -> bool:
     """Whether this turn may simply end, with no widget (GH-1339).
 
-    The pure rule, kept separate from :func:`decide` so it can be read
-    and tested as one sentence: a turn advances unless it is holding a
-    decision back, or the plan says the work is done.
+    The whole rule, in one sentence: a turn advances unless the plan
+    says the work is done.
+
+    It does not read the closing sentence. An earlier cut blocked on
+    deferral shapes — "shall I push?", "want me to…" — on the reasoning
+    that the agent had taken a decision out of the supervisor's hands.
+    The supervisor's ruling is that it had not: pushing is a forward
+    step and a reversible one, so the answer is always yes, and asking
+    is the defect rather than the courtesy. Blocking there never made
+    the agent push anyway — it made it render a widget about work it
+    should have simply done.
+
+    That removes the last place this gate guessed at English, which was
+    also the one weakness its own docstring kept having to apologise
+    for. What remains is structural.
     """
-    if _DEFERRAL_RE.search(closing):
-        return False
     return not signal.is_depleted
 
 
-def _reason(*, signal: TaskSignal, closing: str) -> str:
-    """The steer for a turn that really is ending on a decision.
+def _reason(*, signal: TaskSignal) -> str:
+    """The steer for the one state that is genuinely the supervisor's.
 
-    Both branches name a recommended option. Pre-collapse ``guided``
-    blocked *with* a recommendation and ``adaptive`` auto-selected it;
-    an open-ended "reformulate the open decision" is what produced
-    manufactured questions rather than progress (GH-1339).
+    Pre-collapse ``guided`` blocked *with* a recommendation and
+    ``adaptive`` auto-selected it; an open-ended "reformulate the open
+    decision" is what produced manufactured questions rather than
+    progress (GH-1339). So this names its recommended option.
+
+    The steer also spends its first words sending the reader back to
+    the plan. A depleted *task list* is not the same as an exhausted
+    *plan*, and the cheapest wrong outcome here is an agent asking a
+    question the plan already answers. Context pressure is called out
+    by name because "shall I continue?" is the commonest form of it,
+    and it is not a decision the supervisor owes an answer to.
+
+    Finally it carries a disposition for a reader that has no
+    supervisor. :func:`subagent_signal` is meant to spare subagents
+    this block entirely, but that detector has been wrong before — it
+    went 224 records without firing — and this is precisely the state
+    in which the GH-1314 subagent was observed asking a human "are we
+    done?". Naming the alternative in the text is model-side
+    instruction and so skippable, which is why it is the fallback
+    rather than the mechanism; a skippable instruction still beats none
+    when the mechanism it backs has a recorded history of missing.
     """
-    head = "⛔  This turn is ending on an unanswered decision.\n\n"
-
-    if signal.has_open_work:
-        nxt = signal.open_subjects[0]
-        return (
-            head + "The closing sentence defers a decision in prose, so it "
-            "never reached the supervisor as something answerable. Open "
-            f"work remains — {nxt!r} is next — so the decision is that "
-            "deferral alone, not whether to carry on.\n\n"
-            "Call `Dev10x:ask` to put it in an `AskUserQuestion`, with "
-            "proceeding as the `(Recommended)` option."
-        )
-
-    if not signal.has_task_list:
-        # Reached only via a deferral: without a list there is nothing to
-        # call depleted, so the agent's own question is the whole gate.
-        return (
-            head + "The closing sentence defers a decision in prose. There is "
-            "no task list to say what comes next, so nothing else can "
-            "answer it.\n\n"
-            "Call `Dev10x:ask` to put that decision in an "
-            "`AskUserQuestion` with a `(Recommended)` option."
-        )
-
     return (
-        head + "Every task on the list is complete, so the next move is the "
-        "supervisor's rather than yours.\n\n"
-        "Call `Dev10x:ask` to ask whether to stand down, offering "
-        '"Stand down — the work is complete" as the `(Recommended)` '
-        'option and "On standby — not waiting on you" alongside it. '
-        "Standby parks this gate until the supervisor speaks again; it "
-        "is not a permanent disable (GH-1314)."
+        "⛔  Every task on the list is complete, so the next move may be "
+        "the supervisor's.\n\n"
+        "**First, check whether it is actually yours.** Re-read the plan "
+        "and any disposition already given this session. If they answer "
+        "what comes next, act on it — do not ask. The supervisor wants "
+        "the work done according to the plan and the skill's "
+        "instructions, and a question they have already answered costs "
+        "them a round trip to say so again.\n\n"
+        "**Running low on context is not a reason to ask.** "
+        '"Shall I continue?" is not a decision the supervisor owes you '
+        "an answer to; carry on, or hand off per the skill's documented "
+        "wrap-up. Never spend the gate on a question you raised about "
+        "your own budget.\n\n"
+        "Only once the plan is genuinely exhausted and the remaining "
+        "choice is the supervisor's, call `Dev10x:ask` to ask whether to "
+        'stand down, offering "Stand down — the work is complete" as the '
+        '`(Recommended)` option and "On standby — not waiting on you" '
+        "alongside it. Standby parks this gate until the supervisor "
+        "speaks again; it is not a permanent disable (GH-1314).\n\n"
+        "**If you are a subagent working for an orchestrator, none of "
+        "that applies to you.** Do not render an `AskUserQuestion` at a "
+        "human — your counterparty is the orchestrator or swarm team "
+        "lead that dispatched you, and the human is not waiting on you. "
+        "Report to them instead. If they have already told you to stand "
+        "down, wait for further work rather than asking again; "
+        "otherwise ask them whether you may exit."
     )
 
 
@@ -663,9 +674,8 @@ def decide(*, data: dict, plan: dict | None, now: float | None = None) -> StopVe
         return StopVerdict(block=False, signal=StopSignal.ASKED)
 
     signal = task_signal(plan=plan)
-    closing = final_text(entries=entries)
 
-    if auto_advances(signal=signal, closing=closing):
+    if auto_advances(signal=signal):
         # Two ways to advance, kept apart so the audit log can tell a
         # plan that named a next action from one that was never there.
         return StopVerdict(
@@ -673,8 +683,4 @@ def decide(*, data: dict, plan: dict | None, now: float | None = None) -> StopVe
             signal=StopSignal.OPEN_WORK if signal.has_open_work else StopSignal.NO_TASK_LIST,
         )
 
-    return StopVerdict(
-        block=True,
-        reason=_reason(signal=signal, closing=closing),
-        signal=StopSignal.BLOCKED,
-    )
+    return StopVerdict(block=True, reason=_reason(signal=signal), signal=StopSignal.BLOCKED)
