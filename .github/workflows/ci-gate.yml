@@ -1,0 +1,205 @@
+name: CI Gate
+
+# The one check that reports on every pull request (GH-1298, ADR-0024).
+#
+# Branch protection matches a required status check by NAME, and a check
+# that a workflow-level `paths:` filter kept from running never reports at
+# all — GitHub holds it at "Expected — waiting for status to be reported"
+# and the pull request can never merge. That is why `test` and `floors`
+# could not simply be marked required: both were path-filtered, so every
+# docs-only pull request would have deadlocked.
+#
+# So the three substantive legs keep their path filtering, but at the JOB
+# level (`if:` on the `changes` verdict) rather than the workflow level. A
+# filtered-out leg now reports `skipped` instead of not reporting, and
+# `ci-gate` — no `paths:` filter, `if: always()` — aggregates them into a
+# single context that always registers.
+#
+# Skipped must not fail the gate (that is the whole point), but a gate that
+# only ever saw skips would pass vacuously. `changes` runs unconditionally
+# and is one of the dependencies, so `ci-gate-verdict.sh` can demand that at
+# least one dependency actually succeeded.
+#
+# ACTUALLY requiring `ci-gate` in branch protection is a repository-
+# configuration decision for the maintainer; ADR-0024 carries the payload
+# and the reasoning behind `strict: false` / `enforce_admins: false`.
+#
+# Folded in from `pytest-hooks.yml`, `pytest-servers.yml` and
+# `pytest-coverage-floors.yml`: `needs:` only reaches jobs in the same
+# workflow file, so the legs had to live here to be aggregated. The two
+# jobs formerly both named `test` are now `hook-tests` and `server-tests`,
+# resolving the ambiguous-context-name defect ADR-0024 records.
+#
+# No job here mints an OIDC token or reads a secret, so the GH-1226 fork
+# guard does not apply — these legs are safe to run on fork pull requests.
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      hooks: ${{ steps.filter.outputs.hooks }}
+      servers: ${{ steps.filter.outputs.servers }}
+      floors: ${{ steps.filter.outputs.floors }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: filter
+        name: Classify changed paths
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: .github/scripts/classify-ci-changes.sh
+
+  hook-tests:
+    needs: changes
+    if: needs.changes.outputs.hooks == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Run hook tests with coverage
+        run: |
+          uv run --extra dev pytest tests/hooks/ \
+            -v --tb=short \
+            -o 'addopts=' \
+            --cov=src/dev10x/hooks \
+            --cov-config=.coveragerc-hooks \
+            --cov-report=term-missing --cov-fail-under=70
+
+  server-tests:
+    needs: changes
+    if: needs.changes.outputs.servers == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Run server tests with coverage
+        run: |
+          uv run --extra dev pytest \
+            tests/mcp tests/audit tests/db tests/git tests/github \
+            tests/monitor tests/permission tests/plan tests/release \
+            tests/skill_index tests/utilities tests/test_subprocess_utils.py \
+            -v --tb=short \
+            -o 'addopts=' \
+            --cov=src/dev10x/mcp \
+            --cov=src/dev10x/audit \
+            --cov=src/dev10x/db \
+            --cov=src/dev10x/git \
+            --cov=src/dev10x/github \
+            --cov=src/dev10x/monitor \
+            --cov=src/dev10x/permission \
+            --cov=src/dev10x/plan \
+            --cov=src/dev10x/release \
+            --cov=src/dev10x/skill_index \
+            --cov=src/dev10x/utilities \
+            --cov=src/dev10x/subprocess_utils \
+            --cov-config=.coveragerc-servers \
+            --cov-report=term-missing --cov-fail-under=80
+
+  # Per-package coverage floors (GH-582). A single global fail_under=75
+  # lets a well-tested package mask a near-zero one. These per-package
+  # gates lock each package against regression.
+  #
+  # Floors are ratcheted: set a few points below the current measured
+  # coverage so trivial additions do not flake the gate, while a real
+  # drop still fails. Raise them as the coverage-debt issues land.
+  #
+  # Measured on develop (2026-06-15): commands 64%, mcp 99%.
+  # Extended 2026-07-19 (GH-834): domain 99%, validators 95%, config 96%,
+  # spec 96%, audit 92%, hooks 85%, skills 83%.
+  # The `session` package was folded into `domain/documents`, so it has
+  # no standalone floor yet — add one once it is re-extracted.
+  floors:
+    needs: changes
+    if: needs.changes.outputs.floors == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Run full suite with coverage
+        # Exclude tests/benchmarks: the startup-time gates there assert
+        # absolute timing thresholds tuned for a pinned baseline and are
+        # flaky on shared CI runners. Benchmark regressions are gated
+        # separately by pytest-bench.yml against a cached baseline.
+        run: uv run --extra dev pytest --ignore=tests/benchmarks
+
+      - name: Enforce commands floor
+        run: uv run coverage report --include='src/dev10x/commands/*' --fail-under=60
+
+      - name: Enforce mcp floor
+        run: uv run coverage report --include='src/dev10x/mcp/*' --fail-under=95
+
+      - name: Enforce domain floor
+        run: uv run coverage report --include='src/dev10x/domain/*' --fail-under=95
+
+      - name: Enforce validators floor
+        run: uv run coverage report --include='src/dev10x/validators/*' --fail-under=90
+
+      - name: Enforce config floor
+        run: uv run coverage report --include='src/dev10x/config/*' --fail-under=90
+
+      - name: Enforce spec floor
+        run: uv run coverage report --include='src/dev10x/spec/*' --fail-under=90
+
+      - name: Enforce audit floor
+        run: uv run coverage report --include='src/dev10x/audit/*' --fail-under=87
+
+      - name: Enforce hooks floor
+        run: uv run coverage report --include='src/dev10x/hooks/*' --fail-under=80
+
+      - name: Enforce skills floor
+        run: uv run coverage report --include='src/dev10x/skills/*' --fail-under=78
+
+  ci-gate:
+    # `always()` is load-bearing: without it this job is skipped whenever
+    # its dependencies skip, which reintroduces the never-reports hang it
+    # exists to prevent.
+    if: always()
+    needs: [changes, hook-tests, server-tests, floors]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require every dependency to have succeeded or skipped
+        env:
+          CI_GATE_RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: .github/scripts/ci-gate-verdict.sh
