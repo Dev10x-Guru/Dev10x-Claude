@@ -62,7 +62,10 @@ presumes a supervisor on the other end of it, and two cases have none:
   - a **subagent**, whose final message is its report to whoever
     dispatched it. One was observed echoing the no-open-work steer back
     as a status question — complying with a block it should never have
-    received;
+    received. The branch GH-1314 added for it never once fired, because
+    every discriminator it keyed on was a guess at the payload shape;
+    GH-1340 replaced the guess with the transcript layout, which is
+    observable and was captured before being relied on;
   - a session the supervisor has put **on standby**. "Are we done?" had
     no terminal answer, so confirming it only re-armed the gate next
     turn. Standby is that answer, scoped to the supervisor's next
@@ -100,9 +103,16 @@ def _diagnose(*, what: str, error: OSError | ValueError) -> None:
 #: short enough that a later turn in the same session is still guarded.
 _REBLOCK_COOLDOWN_SECONDS = 90
 
-#: Closing shapes that defer a decision without asking one. Secondary to
-#: the task-list signal — used only to sharpen the steer, never to
-#: decide the verdict.
+#: Closing shapes that defer a decision without asking one.
+#:
+#: This DOES decide the verdict, and deliberately outranks the task list
+#: (GH-1339): a deferral blocks even when work remains, because the
+#: agent has taken a decision out of the supervisor's hands rather than
+#: paused. It is the one place the gate still rests on a guess about
+#: English, which is a known weakness — the module prefers the
+#: structural task-list signal everywhere it can. Widening this pattern
+#: therefore costs more than it looks: each addition is another English
+#: shape that can veto an otherwise clean auto-advance.
 _DEFERRAL_RE = re.compile(
     r"\b(say go|let me know|shall i|want me to|should i|"
     r"if you(?:'d| woul)d like|do you want)\b",
@@ -118,13 +128,25 @@ _STANDBY_RE = re.compile(r"\bon standby\b", re.IGNORECASE)
 
 #: Payload fields that would mark a Stop as belonging to a subagent
 #: (GH-1314). ``hook_event_name`` is the documented one — the harness
-#: fires ``SubagentStop`` for a subagent — and the rest are defensive:
-#: the event reached subagent sessions despite this repo registering the
-#: orchestrator under ``Stop`` alone, so the field that actually arrives
-#: is not something to assume. ``StopSignal.SUBAGENT`` in the audit log
-#: is what turns the guess into evidence.
+#: fires ``SubagentStop`` for a subagent — and the rest were defensive
+#: guesses at whichever field actually arrives.
+#:
+#: None of them ever did: ``StopSignal.SUBAGENT`` fired 0 times in 224
+#: audit records (GH-1340). They are kept as a fallback, so a payload
+#: that one day does carry a discriminator still works, but the check
+#: that decides the question in practice is the transcript path below.
 _SUBAGENT_EVENT = "SubagentStop"
 _SUBAGENT_KEYS = ("is_subagent", "subagent", "subagent_id", "agent_id", "parent_session_id")
+
+#: The directory a subagent's transcript lives in, and its filename
+#: prefix (GH-1340). Captured from live dispatches rather than inferred:
+#: a session writes ``<project>/<session-uuid>.jsonl`` while its
+#: subagents write ``<project>/<session-uuid>/subagents/agent-<id>.jsonl``.
+#: This is the one discriminator observed to arrive, and ``decide``
+#: already reads ``transcript_path``, so it costs no new payload
+#: dependency.
+_SUBAGENT_DIR = "subagents"
+_SUBAGENT_FILE_PREFIX = "agent-"
 
 
 class StopSignal(StrEnum):
@@ -142,12 +164,19 @@ class StopSignal(StrEnum):
     apart because they answer different questions: the first says the
     plan named a next action, the second says there was no plan to read.
     Collapsing them would hide exactly the population GH-1055 is about.
+
+    ``SUBAGENT_PATH`` is separated from ``SUBAGENT`` for the same reason
+    (GH-1340). The payload-key discriminators have never fired, and the
+    only way to learn whether the transcript-layout check carries the
+    population — and so whether the old guesses can be retired — is for
+    the audit log to say which of the two matched.
     """
 
     STOP_HOOK_ACTIVE = "stop_hook_active"
     OPEN_WORK = "open_work"
     NO_TASK_LIST = "no_task_list"
     SUBAGENT = "subagent"
+    SUBAGENT_PATH = "subagent_path"
     STANDBY = "standby"
     COOLDOWN = "cooldown_marker"
     NO_TRANSCRIPT = "no_transcript"
@@ -158,8 +187,8 @@ class StopSignal(StrEnum):
         return f"StopSignal.{self.name}"
 
 
-def is_subagent(*, data: dict) -> bool:
-    """Whether this Stop belongs to a subagent rather than the session.
+def subagent_signal(*, data: dict) -> StopSignal | None:
+    """Which discriminator marks this Stop as a subagent's, or ``None``.
 
     A subagent has no supervisor to hand a widget to. Its final message
     is its report to whoever dispatched it, so blocking that message
@@ -171,10 +200,43 @@ def is_subagent(*, data: dict) -> bool:
     absent discriminator leaves the session treated as a main session,
     which is the pre-GH-1314 behaviour. Guessing the other way would
     silently disable the gate everywhere the payload shape surprises us.
+
+    The transcript path is checked because none of the payload keys has
+    ever arrived (GH-1340), so the branch below them was unreachable —
+    which is worse than absent, since it reads as coverage.
+
+    Returning *which* one matched, rather than a bool, is deliberate:
+    the audit log has to separate the transcript check from the guesses
+    it replaces, and deciding that a second time at the call site would
+    let the attribution drift from what actually matched here.
     """
     if data.get("hook_event_name") == _SUBAGENT_EVENT:
-        return True
-    return any(data.get(key) for key in _SUBAGENT_KEYS)
+        return StopSignal.SUBAGENT
+    if any(data.get(key) for key in _SUBAGENT_KEYS):
+        return StopSignal.SUBAGENT
+    if _is_subagent_transcript(path=str(data.get("transcript_path") or "")):
+        return StopSignal.SUBAGENT_PATH
+    return None
+
+
+def is_subagent(*, data: dict) -> bool:
+    """Whether this Stop belongs to a subagent rather than the session."""
+    return subagent_signal(data=data) is not None
+
+
+def _is_subagent_transcript(*, path: str) -> bool:
+    """Whether this transcript is a subagent's, by where the harness puts it.
+
+    Both halves are required. The directory alone would misread a main
+    session that merely happened to sit under one, and the prefix alone
+    would misread a project directory named after an agent.
+    """
+    if not path:
+        return False
+    transcript = Path(path)
+    return transcript.parent.name == _SUBAGENT_DIR and transcript.name.startswith(
+        _SUBAGENT_FILE_PREFIX
+    )
 
 
 @dataclass(frozen=True)
@@ -574,10 +636,13 @@ def decide(*, data: dict, plan: dict | None, now: float | None = None) -> StopVe
     if data.get("stop_hook_active"):
         return StopVerdict(block=False, signal=StopSignal.STOP_HOOK_ACTIVE)
 
-    if is_subagent(data=data):
+    subagent = subagent_signal(data=data)
+    if subagent is not None:
         # A subagent's last message is its report, not an unanswered
-        # question — there is nobody on the other end of a widget.
-        return StopVerdict(block=False, signal=StopSignal.SUBAGENT)
+        # question — there is nobody on the other end of a widget. The
+        # signal carries which discriminator matched, because that is the
+        # only way to learn whether the payload-key guesses ever fire.
+        return StopVerdict(block=False, signal=subagent)
 
     session_id = str(data.get("session_id") or "")
     if blocked_recently(session_id=session_id, now=now):

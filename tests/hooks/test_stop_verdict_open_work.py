@@ -17,7 +17,6 @@ is a true question, asked badly.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from dev10x.hooks.stop_verdict import (
@@ -29,23 +28,24 @@ from dev10x.hooks.stop_verdict import (
 )
 
 from .conftest import DEPLETED_PLAN, PENDING_PLAN
-
-
-def _assistant(*, text: str) -> dict:
-    return {
-        "type": "assistant",
-        "message": {"role": "assistant", "content": [{"type": "text", "text": text}]},
-    }
+from .test_stop_verdict import _assistant, _text
+from .test_stop_verdict import _transcript as _write_transcript
 
 
 def _transcript(*, tmp_path: Path, closing: str) -> str:
-    entries = [
-        {"type": "user", "message": {"role": "user", "content": "carry on"}},
-        _assistant(text=closing),
-    ]
-    path = tmp_path / "transcript.jsonl"
-    path.write_text("\n".join(json.dumps(entry) for entry in entries), encoding="utf-8")
-    return str(path)
+    """One turn: the supervisor speaks, the agent closes with ``closing``.
+
+    The entry shapes and the JSONL writing come from the sibling module
+    rather than being restated here — that knowledge already had three
+    copies in this package.
+    """
+    return _write_transcript(
+        tmp_path=tmp_path,
+        entries=[
+            {"type": "user", "message": {"role": "user", "content": "carry on"}},
+            _assistant(blocks=[_text(text=closing)]),
+        ],
+    )
 
 
 class TestOpenWorkEndsTheTurn:
