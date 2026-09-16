@@ -67,6 +67,7 @@ command_spellings:
       - dev10x permission ensure-ignored
       - dev10x permission record-upgrade
       - dev10x permission update-paths
+      - dev10x doctor run
       - dev10x playbook diff
       - dev10x skill count-instructions
       - dev10x config
