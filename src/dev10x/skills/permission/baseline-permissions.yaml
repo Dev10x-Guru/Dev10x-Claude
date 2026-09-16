@@ -1077,9 +1077,11 @@ invariants:
 #    `skills/upgrade-cleanup/projects.yaml`; `migrate_flat_config`
 #    reads this file solely to attach tier/group/sensitivity metadata
 #    to rules already present there, and adds no rules of its own.
-#    A group defined only here reaches no settings file. Naming one
-#    authoritative catalog is tracked on GH-1090 (needs an ADR
-#    amending ADR-0021).
+#    A group defined only here reaches no settings file. ADR-0025
+#    settles which catalog is authoritative: `projects.yaml` is, and
+#    `groups:` migrates into it carrying tier tags. Until that
+#    migration lands, `baseline_coverage.py` guards the gap — a rule
+#    added here that no seeding path can deliver fails a test.
 # 2. Tier 3 groups: opt-in via `dev10x permission doctor
 #    --enable-group=<name>`. Not added by default.
 # 3. Deprecations:

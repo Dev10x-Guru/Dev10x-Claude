@@ -158,6 +158,31 @@ def test_opt_in_groups_all_exist() -> None:
     )
 
 
+def test_enumeration_tolerates_a_catalog_without_groups() -> None:
+    # A catalog that has lost its groups block must read as "no rules
+    # declared", never raise — this guard runs in CI against whatever the
+    # file currently says, and a crash reads as infrastructure noise
+    # rather than as the catalog damage it is.
+    assert enumerate_baseline_rules(catalog={"groups": "not-a-mapping"}) == []
+
+
+def test_enumeration_skips_a_malformed_group() -> None:
+    catalog = {
+        "groups": {"broken": ["not", "a", "mapping"], "ok": {"tier": 1, "rules": ["Bash(x)"]}}
+    }
+    assert [entry.rule for entry in enumerate_baseline_rules(catalog=catalog)] == ["Bash(x)"]
+
+
+def test_enumeration_defaults_an_untagged_tier() -> None:
+    catalog = {"groups": {"untagged": {"rules": ["Bash(x)"]}}}
+    assert enumerate_baseline_rules(catalog=catalog)[0].tier == 0
+
+
+def test_folding_skips_a_malformed_keyed_block() -> None:
+    config = {"base_permissions": ["Bash(a)"], "tracker_permissions": ["not", "a", "mapping"]}
+    assert seeded_rules(config=config) == {"Bash(a)"}
+
+
 def test_seeded_rules_covers_every_tracker() -> None:
     # A per-tracker block is reachable for whichever tracker a user pinned,
     # so folding only the resolved one would report the other trackers'
