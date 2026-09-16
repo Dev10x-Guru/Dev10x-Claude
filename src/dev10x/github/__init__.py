@@ -955,6 +955,104 @@ async def pr_labels(
     )
 
 
+async def issue_labels(
+    *,
+    number: int,
+    action: str = "list",
+    labels: list[str] | None = None,
+    repo: str | None = None,
+) -> Result[dict[str, Any]]:
+    """List, add, or remove labels on an issue (GH-1322).
+
+    Mirrors ``pr_labels`` (GH-1008): one tool with an ``action``
+    selector instead of separate add/remove endpoints, on the same
+    idempotence contract — ``add`` skips labels already present and
+    ``remove`` intersects against the current set first, so clearing a
+    label that was never set is a no-op rather than a 404. That
+    idempotence is what lets a caller invoke either write
+    unconditionally instead of probing first.
+
+    Supersedes ``issue_edit(labels=...)`` for label writes: that
+    parameter's docstring claimed "replacement label list" semantics,
+    but it only ever calls ``gh issue edit --add-label`` — additive,
+    never a replace and never a remove.
+
+    Args:
+        number: Issue number.
+        action: One of ``list`` / ``add`` / ``remove``.
+        labels: Label names. Required for ``add`` and ``remove``,
+            ignored for ``list``.
+        repo: Repository (owner/repo). Auto-detected if omitted.
+
+    Returns:
+        On success: ``{"number": int, "action": str, "labels":
+        [name, ...], "changed": [name, ...]}`` where ``labels`` is the
+        set after the call and ``changed`` names only what this call
+        actually added or removed (empty when the call was a no-op).
+    """
+    if action not in PR_LABEL_ACTIONS:
+        return err(f"unknown action {action!r}; expected one of {list(PR_LABEL_ACTIONS)}")
+    if action != "list" and not labels:
+        return err(f"action {action!r} needs a non-empty 'labels' list")
+
+    repo_result = await _resolve_repo(repo)
+    if isinstance(repo_result, ErrorResult):
+        return repo_result
+    resolved_repo = str(repo_result.value)
+
+    current_result = await _current_label_names(resolved_repo=resolved_repo, pr_number=number)
+    if isinstance(current_result, ErrorResult):
+        return current_result
+    current = current_result.value
+
+    if action == "list":
+        return ok({"number": number, "action": action, "labels": current, "changed": []})
+
+    requested = list(dict.fromkeys(labels or []))
+    if action == "add":
+        changed = [name for name in requested if name not in current]
+        if not changed:
+            return ok({"number": number, "action": action, "labels": current, "changed": []})
+        result = await _gh_api_raw(
+            f"repos/{resolved_repo}/issues/{number}/labels",
+            method="POST",
+            fields={"labels": changed},
+            repo=resolved_repo,
+        )
+        if result.returncode != 0:
+            return err(result.stderr.strip())
+        return ok(
+            {
+                "number": number,
+                "action": action,
+                "labels": _label_names(_loads_or_empty(result.stdout)) or current + changed,
+                "changed": changed,
+            }
+        )
+
+    changed = [name for name in requested if name in current]
+    remaining = current
+    for name in changed:
+        result = await _gh_api_raw(
+            f"repos/{resolved_repo}/issues/{number}/labels/{name}",
+            method="DELETE",
+            repo=resolved_repo,
+        )
+        if result.returncode != 0:
+            return err(result.stderr.strip())
+        remaining = _label_names(_loads_or_empty(result.stdout)) or [
+            existing for existing in remaining if existing != name
+        ]
+    return ok(
+        {
+            "number": number,
+            "action": action,
+            "labels": remaining,
+            "changed": changed,
+        }
+    )
+
+
 async def pr_review_edit(
     *,
     pr_number: int,
@@ -1927,8 +2025,12 @@ async def issue_edit(
             heredoc/quoting issues at the subprocess boundary.
         milestone: Milestone title to assign (optional). Pass empty
             string to clear.
-        labels: Replacement label list (optional). Each entry passed
-            via ``--add-label``.
+        labels: Labels to ADD (optional). Each entry is passed via
+            ``--add-label``, which only ever adds — it never removes
+            or replaces the issue's existing labels (GH-1322). Use
+            ``issue_labels(action="remove", ...)`` to remove a label,
+            or ``issue_labels(action="list", ...)`` to read the
+            current set.
         repo: Repository (owner/repo). Auto-detected if omitted.
 
     Returns:
