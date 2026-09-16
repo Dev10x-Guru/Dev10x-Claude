@@ -1,4 +1,4 @@
-"""Sensitivity axis for the PAP (Permission Abstraction Protocol) model.
+"""Sensitivity axis for the PAP (Policy Administration Point) model.
 
 Adds an orthogonal third axis to PAP action classification:
 

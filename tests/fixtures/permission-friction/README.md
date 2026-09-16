@@ -1,7 +1,7 @@
 # Permission-friction fixtures (GH-271 Phase 0)
 
-Executable-spec fixtures for the forthcoming PAP (Permission Access
-Policy) classifier. Each row maps a real command observed in the GH-271
+Executable-spec fixtures for the forthcoming PAP (Policy Administration
+Point) classifier. Each row maps a real command observed in the GH-271
 permission-friction evidence thread to the decision the classifier
 *should* produce. Per GH-271 reflection #14, every evidence entry is
 dual-purpose: scoping input **and** test-fixture input — this directory
