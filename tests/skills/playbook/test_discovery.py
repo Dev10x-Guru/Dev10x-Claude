@@ -114,6 +114,53 @@ class TestXdgGlobalOverrides:
 
 
 class TestPluginDefaultPath:
-    def test_builds_expected_path(self, tmp_path: Path) -> None:
+    """GH-1329: a skill with no dedicated default falls back to the shared one."""
+
+    def test_returns_dedicated_path_when_it_exists(self, tmp_path: Path) -> None:
+        dedicated_dir = tmp_path / "skills" / "work-on" / "references"
+        dedicated_dir.mkdir(parents=True)
+        (dedicated_dir / "playbook.yaml").write_text("defaults: {}")
+
         result = plugin_default_path(skill_key="work-on", plugin_root=tmp_path)
-        assert result == tmp_path / "skills" / "work-on" / "references" / "playbook.yaml"
+
+        assert result == dedicated_dir / "playbook.yaml"
+
+    def test_falls_back_to_shared_playbook_default_when_dedicated_is_absent(
+        self, tmp_path: Path
+    ) -> None:
+        """work-on's real tier-3 default is the shared skills/playbook one."""
+        shared_dir = tmp_path / "skills" / "playbook" / "references"
+        shared_dir.mkdir(parents=True)
+        (shared_dir / "playbook.yaml").write_text("defaults: {}")
+
+        result = plugin_default_path(skill_key="work-on", plugin_root=tmp_path)
+
+        assert result == shared_dir / "playbook.yaml"
+
+    def test_returns_dedicated_path_when_neither_default_exists(self, tmp_path: Path) -> None:
+        """Neither default is present — report the path callers would expect."""
+        result = plugin_default_path(skill_key="ghost-skill", plugin_root=tmp_path)
+
+        assert result == tmp_path / "skills" / "ghost-skill" / "references" / "playbook.yaml"
+
+    def test_dedicated_wins_when_both_exist(self, tmp_path: Path) -> None:
+        dedicated_dir = tmp_path / "skills" / "work-on" / "references"
+        dedicated_dir.mkdir(parents=True)
+        (dedicated_dir / "playbook.yaml").write_text("defaults: {}")
+        shared_dir = tmp_path / "skills" / "playbook" / "references"
+        shared_dir.mkdir(parents=True)
+        (shared_dir / "playbook.yaml").write_text("defaults: {}")
+
+        result = plugin_default_path(skill_key="work-on", plugin_root=tmp_path)
+
+        assert result == dedicated_dir / "playbook.yaml"
+
+    def test_shared_default_itself_uses_dedicated_path(self, tmp_path: Path) -> None:
+        """The playbook skill's own default is never redirected to itself."""
+        shared_dir = tmp_path / "skills" / "playbook" / "references"
+        shared_dir.mkdir(parents=True)
+        (shared_dir / "playbook.yaml").write_text("defaults: {}")
+
+        result = plugin_default_path(skill_key="playbook", plugin_root=tmp_path)
+
+        assert result == shared_dir / "playbook.yaml"

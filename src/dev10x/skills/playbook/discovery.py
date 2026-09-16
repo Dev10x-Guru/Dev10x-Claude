@@ -80,12 +80,29 @@ def find_user_playbooks(
     return found
 
 
+SHARED_DEFAULT_RELATIVE = Path("skills") / "playbook" / "references" / "playbook.yaml"
+
+
 def plugin_default_path(*, skill_key: str, plugin_root: Path) -> Path:
     """Return the path to the plugin default playbook for ``skill_key``.
 
-    The default playbook for any skill lives at
-    ``<plugin_root>/skills/<skill_key>/references/playbook.yaml``.
-    The path is returned whether or not it exists; callers decide how to
-    handle a missing default (typically: the skill is not playbook-powered).
+    Most skills define their own default at
+    ``<plugin_root>/skills/<skill_key>/references/playbook.yaml``. Some
+    skills (e.g. ``work-on``) have no dedicated default and instead share
+    the ``skills/playbook`` skill's default (GH-1329) — for those, this
+    falls back to ``<plugin_root>/skills/playbook/references/playbook.yaml``
+    when the dedicated path does not exist.
+
+    The path returned is not a guarantee it exists: when neither the
+    dedicated nor the shared default is present on disk, the dedicated
+    path is returned so callers see the path they'd expect for that skill.
+    Callers decide how to handle a missing default (typically: the skill
+    is not playbook-powered, or the plugin root is incomplete).
     """
-    return plugin_root / "skills" / skill_key / "references" / "playbook.yaml"
+    dedicated = plugin_root / "skills" / skill_key / "references" / "playbook.yaml"
+    if dedicated.is_file():
+        return dedicated
+    shared = plugin_root / SHARED_DEFAULT_RELATIVE
+    if shared.is_file():
+        return shared
+    return dedicated

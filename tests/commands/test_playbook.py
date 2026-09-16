@@ -134,6 +134,102 @@ class TestPlaybookDiffCliNoOverrides:
         assert "No user playbook overrides found" in result.output
 
 
+class TestPlaybookDiffCliSkippedReporting:
+    """GH-1329: a skipped override must never be reported as "up to date".
+
+    ``plugin_default_path`` can still fail to resolve a default (e.g. an
+    incomplete plugin root missing even the shared ``skills/playbook``
+    fallback) — when that happens the diff must say so distinctly instead
+    of folding the skip into a false "up to date" summary.
+    """
+
+    def test_all_overrides_skipped_reports_unchecked_not_up_to_date(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # Plugin root with no default anywhere for this skill (no dedicated,
+        # no shared skills/playbook/references/playbook.yaml either).
+        plugin_root = tmp_path / "plugin"
+        (plugin_root / "skills").mkdir(parents=True)
+        project_root = tmp_path / "project"
+        override_dir = project_root / ".claude" / "Dev10x" / "playbooks"
+        override_dir.mkdir(parents=True)
+        (override_dir / "ghost-skill.yaml").write_text(yaml.dump({"overrides": []}))
+        monkeypatch.chdir(project_root)
+
+        runner = CliRunner()
+        result = runner.invoke(
+            playbook,
+            ["diff", "--plugin-root", str(plugin_root)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert "1 override(s) skipped" in result.output
+        assert "unchecked" in result.output
+        assert "up to date" not in result.output
+
+    def test_mixed_checked_and_skipped_reports_both(
+        self,
+        plugin_root: Path,
+        project_root: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # project_root already has a work-on override with findings (from the
+        # shared fixtures); add a second override with no matching default.
+        override_dir = project_root / ".claude" / "Dev10x" / "playbooks"
+        (override_dir / "ghost-skill.yaml").write_text(yaml.dump({"overrides": []}))
+        monkeypatch.chdir(project_root)
+
+        runner = CliRunner()
+        result = runner.invoke(
+            playbook,
+            ["diff", "--plugin-root", str(plugin_root)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert "override(s) have upstream changes worth reviewing" in result.output
+        assert "skipped" in result.output
+        assert "ghost-skill" in result.output
+
+    def test_mixed_up_to_date_and_skipped_reports_both(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        plugin_root = tmp_path / "plugin"
+        default_dir = plugin_root / "skills" / "clean-skill" / "references"
+        default_dir.mkdir(parents=True)
+        default_doc = {"defaults": {"feature": {"steps": [{"subject": "Step", "type": "x"}]}}}
+        (default_dir / "playbook.yaml").write_text(yaml.dump(default_doc))
+
+        project_root = tmp_path / "project"
+        override_dir = project_root / ".claude" / "Dev10x" / "playbooks"
+        override_dir.mkdir(parents=True)
+        user_doc = {
+            "overrides": [
+                {"play": "feature", "steps": [{"subject": "Step", "type": "x"}]},
+            ]
+        }
+        (override_dir / "clean-skill.yaml").write_text(yaml.dump(user_doc))
+        (override_dir / "ghost-skill.yaml").write_text(yaml.dump({"overrides": []}))
+        monkeypatch.chdir(project_root)
+
+        runner = CliRunner()
+        result = runner.invoke(
+            playbook,
+            ["diff", "--plugin-root", str(plugin_root)],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert "up to date" in result.output
+        assert "skipped" in result.output
+        assert "ghost-skill" in result.output
+
+
 class TestPlaybookDiffCliSkillFilter:
     """``--skill`` flag limits the diff to the specified skill key."""
 
