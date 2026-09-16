@@ -260,11 +260,10 @@ GIT_C_PAGER_MSG = (
     "override *before* the subcommand shifts the matched command string, so\n"
     '`Bash(git <verb>:*)` never fires and the only "don\'t ask again" option\n'
     "offered is the over-broad `git *`.\n\n"
-    "Drop the prefix and run the verb directly:\n"
-    "    {bare_command}\n\n"
-    "If you want an explicit non-paging form, use the sanctioned alias:\n"
-    "    git nopager <verb> …      (pre-approved via Bash(git nopager:*))\n"
-    "Missing it? Run: /Dev10x:git-alias-setup"
+    "Drop the prefix and run the verb directly — git does not page when\n"
+    "stdout is not a TTY, which is always the case for tool calls, so the\n"
+    "bare verb is already non-paging and needs no alias:\n"
+    "    {bare_command}"
 )
 
 GIT_C_COLOR_MSG = (
