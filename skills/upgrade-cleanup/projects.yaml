@@ -42,6 +42,53 @@ workspace_directories:
   - ~/.claude/plugins
   - ~/.config/Dev10x
 
+# Commands declared once and rendered as one `Bash(<prefix><command>:*)`
+# allow-rule per spelling (GH-1317). Claude Code's rule matching is
+# literal, so `uvx dev10x permission ensure-base` and the bare
+# `dev10x permission ensure-base` a human types are two different rules;
+# hand-listing them meant coverage depended on whoever added the entry
+# remembering every runner. The block is folded into `base_permissions`
+# at load time, so every reader downstream still sees flat rule strings.
+command_spellings:
+  # The three runners the docs, the skills and the humans all use.
+  - prefixes: ["", "uvx ", "uv run "]
+    commands:
+      - dev10x permission clean
+      - dev10x permission doctor
+      - dev10x permission ensure-base
+      - dev10x permission ensure-reads
+      - dev10x permission ensure-scripts
+      - dev10x permission ensure-workspace
+      - dev10x permission enumerate-mcp
+      - dev10x permission generalize
+      - dev10x permission init
+      - dev10x permission investigate
+      - dev10x permission merge-worktree
+      - dev10x permission ensure-ignored
+      - dev10x permission record-upgrade
+      - dev10x permission update-paths
+      - dev10x playbook diff
+      - dev10x skill count-instructions
+      - dev10x config
+      - dev10x platform
+      - dev10x init
+      - dev10x github-app
+
+  # GH-1317: the foreman/watchdog read-only verbs were absent in EVERY
+  # spelling, so an unattended pre-flight prompted on its own heartbeat
+  # and seventeen per-checkout catch-alls were accepted ad hoc to get
+  # past it. `skills/foreman/references/preflight-checklist.md` §1 names
+  # a fourth runner for these — the plugin-cache install invokes them
+  # through `--project $CLAUDE_PLUGIN_ROOT` (GH-961) — so that spelling
+  # is listed here and nowhere else.
+  - prefixes:
+      ["", "uvx ", "uv run ", "uv run --project $CLAUDE_PLUGIN_ROOT "]
+    commands:
+      - dev10x foreman probe
+      - dev10x foreman watch
+      - dev10x watchdog probe
+      - dev10x watchdog sessions
+
 # Base permissions that update-paths.py --ensure-base will add to every
 # settings.local.json if missing.  These are stable, version-independent
 # rules that every Dev10x plugin user needs.
@@ -87,29 +134,11 @@ base_permissions:
   # `permission update-paths` rewriter migrates any legacy
   # per-script rules in user settings to the new CLI form.
 
-  # --- Dev10x CLI (GH-269) ---
-  # Per-subcommand rules — never `Bash(uvx dev10x:*)` — so users can
-  # audit exactly which CLI surfaces the plugin is authorized to use.
-  - "Bash(uvx dev10x permission clean:*)"
-  - "Bash(uvx dev10x permission doctor:*)"
-  - "Bash(uvx dev10x permission ensure-base:*)"
-  - "Bash(uvx dev10x permission ensure-reads:*)"
-  - "Bash(uvx dev10x permission ensure-scripts:*)"
-  - "Bash(uvx dev10x permission ensure-workspace:*)"
-  - "Bash(uvx dev10x permission enumerate-mcp:*)"
-  - "Bash(uvx dev10x permission generalize:*)"
-  - "Bash(uvx dev10x permission init:*)"
-  - "Bash(uvx dev10x permission investigate:*)"
-  - "Bash(uvx dev10x permission merge-worktree:*)"
-  - "Bash(uvx dev10x permission ensure-ignored:*)"
-  - "Bash(uvx dev10x permission record-upgrade:*)"
-  - "Bash(uvx dev10x permission update-paths:*)"
-  - "Bash(uvx dev10x playbook diff:*)"
-  - "Bash(uvx dev10x skill count-instructions:*)"
-  - "Bash(uvx dev10x config:*)"
-  - "Bash(uvx dev10x platform:*)"
-  - "Bash(uvx dev10x init:*)"
-  - "Bash(uvx dev10x github-app:*)"
+  # --- Dev10x CLI (GH-269, GH-1317) ---
+  # Declared once each under `command_spellings` below, which renders a
+  # rule per runner prefix. Still per-subcommand — never
+  # `Bash(uvx dev10x:*)` — so users can audit exactly which CLI
+  # surfaces the plugin is authorized to use.
 
   # --- Dev10x config file access (GH-878, GH-135, GH-862) ---
   # Playbook overrides and other legacy read-only config live under

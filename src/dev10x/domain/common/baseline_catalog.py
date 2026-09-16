@@ -19,6 +19,8 @@ from pathlib import Path
 
 import yaml
 
+from dev10x.domain.common.command_spellings import expand_spellings
+
 
 def load_baseline_dict(path: Path, *, strict: bool = False) -> dict:
     """Read and YAML-parse a baseline catalog file into its top-level mapping.
@@ -26,6 +28,10 @@ def load_baseline_dict(path: Path, *, strict: bool = False) -> dict:
     ``strict=False`` (default) mirrors ``PolicyCatalog``'s tolerance: a
     missing file, a :class:`yaml.YAMLError`, or a non-mapping top-level
     value all return ``{}``.
+
+    Every ``command_spellings:`` block is folded into its rule list on
+    the way out (GH-1317), so consumers see one flat rule per spelling
+    and never the source shape that declared them.
 
     ``strict=True`` preserves ``doctor.load_catalog``'s raise-on-missing
     contract: a missing file raises :class:`FileNotFoundError`, a YAML
@@ -46,7 +52,7 @@ def load_baseline_dict(path: Path, *, strict: bool = False) -> dict:
         if strict:
             raise ValueError(f"Baseline catalog top-level value is not a mapping: {path}")
         return {}
-    return data
+    return expand_spellings(data)
 
 
 __all__ = ["load_baseline_dict"]
