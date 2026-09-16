@@ -539,6 +539,7 @@ supporting each tool:
 | `pr_review_edit` | `cli` | GH-778 | v0.86.0+ |
 | `pr_ready` | `cli` | GH-779 | v0.86.0+ |
 | `pr_close` | `cli` | GH-924 | v0.92.0+ |
+| `pr_list` | `cli` | GH-1359 | v0.103.0+ |
 | `pr_issue_comment` | `cli` | GH-205 | v0.72.0+ |
 | `request_review` | `cli` | PR #126 | v0.25.0+ |
 | `detect_base_branch` | `cli` | PR #191 | v0.30.0+ |
@@ -772,6 +773,7 @@ the MCP server is unavailable.
 | `gh issue comment` | `mcp__plugin_Dev10x_cli__issue_comment` |
 | `gh issue list` | `mcp__plugin_Dev10x_cli__issue_list` (advisory) |
 | `gh pr view` | `mcp__plugin_Dev10x_cli__pr_get` |
+| `gh pr list` | `mcp__plugin_Dev10x_cli__pr_list` (GH-1359, advisory) |
 | `gh api .../milestones POST` | `mcp__plugin_Dev10x_cli__milestone_create` |
 | `gh api .../milestones/{n} PATCH state=open` | `mcp__plugin_Dev10x_cli__milestone_reopen` |
 | `gh api .../milestones/{n} PATCH` (title/desc/state/due) | `mcp__plugin_Dev10x_cli__milestone_edit` |

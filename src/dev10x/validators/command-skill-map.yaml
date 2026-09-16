@@ -462,6 +462,25 @@ rules:
       gh issue list is read-only — advisory route to the MCP tool
       for structured responses and consistency with other list tools.
 
+  - name: gh-pr-list
+    matcher: Bash
+    patterns:
+      - gh pr list
+    except: []
+    hook_block: false
+    compensations:
+      - type: use-tool
+        tool: mcp__plugin_Dev10x_cli__pr_list
+        guardrails: structured JSON responses, state/search filtering
+        description: >
+          gh pr list works directly when needed. The MCP tool is
+          preferred because it returns structured JSON without the
+          --json flag boilerplate.
+    reason: >
+      gh pr list is read-only — advisory route to the MCP tool
+      for structured responses and consistency with other list tools
+      (GH-1359).
+
   - name: gh-milestone-create
     matcher: Bash
     patterns:

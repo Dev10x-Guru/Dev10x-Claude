@@ -1610,6 +1610,38 @@ class TestPrClose:
         assert "error" in result
 
 
+class TestPrList:
+    @pytest.mark.asyncio
+    @patch("dev10x.github.pr_list", new_callable=AsyncMock)
+    async def test_delegates_to_github_module(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = ok({"prs": [{"number": 1359}]})
+
+        result = await cli_server.pr_list(repo="o/r", state="open", limit=10, search="foo")
+
+        assert result["prs"] == [{"number": 1359}]
+        assert mock_fn.call_args.kwargs == {
+            "repo": "o/r",
+            "state": "open",
+            "limit": 10,
+            "search": "foo",
+        }
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.pr_list", new_callable=AsyncMock)
+    async def test_returns_error_on_failure(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = err("rate limit")
+
+        result = await cli_server.pr_list()
+
+        assert "error" in result
+
+
 class TestIssueClose:
     @pytest.mark.asyncio
     @patch("dev10x.github.issue_close", new_callable=AsyncMock)
