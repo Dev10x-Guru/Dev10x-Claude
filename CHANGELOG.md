@@ -5,6 +5,37 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.105.0 — No Rule That Cannot Fire
+
+Released 2026-09-17
+
+### Fixes
+
+- **Name every rule a promotion would ship inert** — GH-1337 pinned that a
+  blocking rule's literal pattern must name a `_QUICK_TOKENS` entry, and that
+  guard caught two rules the routed-CLI map had treated as live all along.
+  Nineteen advisory patterns across ten rules sit in the same state — kubectl,
+  aws-vault, playwright, the JS runners, `python3 -c`, and the rest — inert only
+  because `from_config` drops advisory rules before the engine sees them. So
+  flipping `hook_block` reads as a one-line change and silently ships a rule that
+  can never fire, which is exactly how `pytest`, `gh-pr-view` and `gh-pr-ready`
+  got where they were. Reachability is now derived once and reported as a warning
+  naming every pair, so the list refreshes on each suite run instead of rotting
+  in a doc — reported rather than asserted, because an advisory rule is under no
+  obligation to be hook-reachable
+  ([GH-1398](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1398))
+- **Stop carrying a grant into a tree nothing writes** —
+  `Read|Edit(/tmp/claude/git/**)` was dead twice over: a single leading slash
+  anchors at the settings source, so it resolved to `<working dir>/tmp/claude/…`
+  and granted nothing (GH-1325), and `bin/mktmp.sh` hardcodes `/tmp/Dev10x/`, so
+  no Dev10x code writes that path at all. Re-anchoring would have bought a live
+  grant into a directory nothing uses — moving debt rather than retiring it, so
+  the entries are deleted. The ratchet moves from a namespace to a shape: the
+  guard now covers any `/tmp/` path rule, since guarding them one name at a time
+  leaves the third undefended, and a second guard refuses a revived
+  `/tmp/claude` rule in either catalog
+  ([GH-1395](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1395))
+
 ## 0.104.0 — Gates That Actually Fire, Verdicts You Can Trust
 
 Released 2026-09-16
