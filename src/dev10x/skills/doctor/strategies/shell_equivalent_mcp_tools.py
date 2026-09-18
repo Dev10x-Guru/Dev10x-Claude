@@ -44,6 +44,13 @@ _SHELL_MARKERS = (
     ("eval",),
     ("evaluate",),
     ("execute", "tool"),
+    # GH-1403: the three shapes below are what the `jetbrains` -> `pycharm`
+    # rename stranded. They were invisible here as well as absent from the
+    # catalog — the same defect seen twice — so the markers land with the
+    # deny rules rather than after the next rename repeats it.
+    ("execute", "run"),  # execute_run_configuration
+    ("run", "notebook"),  # run_notebook_cell
+    ("build", "project"),  # runs the project's build scripts
 )
 
 # What stops being enforceable. Named rather than described, because the
