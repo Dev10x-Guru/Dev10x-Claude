@@ -25,6 +25,11 @@
       "id": "task-list-sync",
       "name": "Mode 3 Task-List Sync",
       "description": "Every detected loop lands on the session task list: TaskList is called first to reconcile, loops without coverage get TaskCreate, loops with an existing task get TaskUpdate annotation instead of a duplicate, and new tasks are inserted before any terminal Verify-AC task."
+    },
+    {
+      "id": "stand-down-option-order",
+      "name": "Mode 3 Step 5 Stand-Down Option Order",
+      "description": "At a stand-down gate the option list is derived from the open-loop sweep, never fixed in advance (GH-1404): a sweep that found actionable work leads with that concrete next action as the single (Recommended) option and demotes standby; an empty sweep leads with 'Stand down — the work is complete'. Exactly one option carries the marker and it is listed first."
     }
   ],
   "evals": [
@@ -176,6 +181,48 @@
           "check": "output_contains",
           "value": "no open loops",
           "signal": "the report states that no open loops were detected"
+        }
+      ]
+    },
+    {
+      "id": "stand-down-demotes-standby-when-work-pending",
+      "name": "Pending work leads the stand-down gate; standby is demoted",
+      "description": "GH-1404: the observed failure offered 'On standby' as option 1 in a session with a queued audit task, a PR awaiting its reviewer, and published QA awaiting sign-off. Step 5 must order from the sweep, so an actionable loop leads as the single (Recommended) option.",
+      "input": "Stop hook stand-down steer fires; the session has deferred work tracked on an issue and a PR awaiting review, and the task list is empty",
+      "assertions": [
+        {
+          "dimension": "stand-down-option-order",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "gate_uses_tool — the stand-down question is a widget, not plain-text prose"
+        },
+        {
+          "dimension": "stand-down-option-order",
+          "check": "behavioral",
+          "signal": "pending_action_leads — option 1 names the concrete next action found by the sweep and is the only option marked (Recommended)"
+        },
+        {
+          "dimension": "stand-down-option-order",
+          "check": "behavioral",
+          "signal": "standby_demoted — 'On standby — not waiting on you' is offered but is NOT option 1 and does NOT carry the (Recommended) marker"
+        }
+      ]
+    },
+    {
+      "id": "stand-down-leads-when-sweep-is-empty",
+      "name": "An empty sweep leads with stand-down",
+      "description": "The inverse branch: with nothing pending, 'Stand down — the work is complete' is the (Recommended) lead option and standby is offered alongside. Guards against over-correcting into never offering stand-down.",
+      "input": "Stop hook stand-down steer fires; the open-loop sweep finds nothing and the task list is empty",
+      "assertions": [
+        {
+          "dimension": "stand-down-option-order",
+          "check": "behavioral",
+          "signal": "stand_down_leads — 'Stand down — the work is complete' is option 1 and carries (Recommended)"
+        },
+        {
+          "dimension": "stand-down-option-order",
+          "check": "behavioral",
+          "signal": "single_recommended_marker — exactly one option carries the (Recommended) marker"
         }
       ]
     }

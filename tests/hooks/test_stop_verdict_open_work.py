@@ -262,6 +262,72 @@ class TestADepletedListAsksToStandDown:
         assert "whether you may exit" in verdict.reason
 
 
+class TestTheSteerDoesNotPrescribeAWinner:
+    """GH-1404: an empty task list is not evidence that nothing is pending.
+
+    The steer used to name stand-down as the `(Recommended)` option
+    unconditionally, while its only input was a depleted list — so work
+    parked on a tracker issue, a PR awaiting review, or a promised
+    follow-up could not reach the decision, and the one answer that
+    discards that information led the list.
+    """
+
+    def _reason_for(self, *, tmp_path: Path, session: str) -> str:
+        verdict = decide(
+            data={
+                "session_id": session,
+                "transcript_path": _transcript(tmp_path=tmp_path, closing="That is everything."),
+            },
+            plan=DEPLETED_PLAN,
+        )
+        return verdict.reason.replace("\n", " ")
+
+    def test_it_asks_for_the_sweep_before_any_offer_to_stop(
+        self, tmp_path: Path, isolated_markers: Path
+    ) -> None:
+        reason = self._reason_for(tmp_path=tmp_path, session="gh1404a")
+
+        assert "--loops" in reason
+        assert "before you offer to stop" in reason
+
+    def test_it_names_what_an_empty_task_list_cannot_see(
+        self, tmp_path: Path, isolated_markers: Path
+    ) -> None:
+        # Naming the three shapes is the point: "sweep for loops" alone
+        # does not tell the reader which evidence the gate is blind to.
+        reason = self._reason_for(tmp_path=tmp_path, session="gh1404b")
+
+        assert "tracker issue" in reason
+        assert "awaiting review" in reason
+        assert "follow-up" in reason
+
+    def test_pending_work_demotes_standby_and_stand_down(
+        self, tmp_path: Path, isolated_markers: Path
+    ) -> None:
+        reason = self._reason_for(tmp_path=tmp_path, session="gh1404c")
+
+        assert "Something is pending" in reason
+        assert "lead with that concrete next action" in reason
+
+    def test_an_empty_sweep_still_leads_with_stand_down(
+        self, tmp_path: Path, isolated_markers: Path
+    ) -> None:
+        # The inverse branch must survive, or the fix over-corrects into
+        # a gate that can never resolve.
+        reason = self._reason_for(tmp_path=tmp_path, session="gh1404d")
+
+        assert "Nothing is pending" in reason
+        assert "Stand down — the work is complete" in reason
+
+    def test_it_requires_the_recommended_marker_either_way(
+        self, tmp_path: Path, isolated_markers: Path
+    ) -> None:
+        reason = self._reason_for(tmp_path=tmp_path, session="gh1404e")
+
+        assert "recommended option leads and carries the marker" in reason
+        assert "gate bypass" in reason
+
+
 class TestAnAbsentListIsNotADepletedOne:
     """GH-1055: the task tools ship by default only on older models.
 

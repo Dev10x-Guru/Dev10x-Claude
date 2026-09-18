@@ -27,6 +27,35 @@ This blocks execution until the user responds. Options:
 This replaces soft guidance ("Use AskUserQuestion") which allows agents to
 substitute plain text instead.
 
+## The Recommended Option Leads, and Reflects State (GH-1404)
+
+Two rules bind every gate, not just the one that prompted them:
+
+1. **Exactly one option carries `(Recommended)`, and it is listed
+   first.** An option list with no marker is a gate bypass in the same
+   way plain text is: the supervisor is handed a choice with no stated
+   default, which is precisely the judgement the gate was supposed to
+   pre-digest.
+2. **Which option is recommended is computed from state, never fixed
+   in prose.** A hard-coded winner is right until the state changes and
+   then silently wrong, with nothing to detect it.
+
+GH-1404 is rule 2 failing. The stand-down gate named "Stand down — the
+work is complete" as the recommended option unconditionally, while its
+only input was an empty task list. Work parked on a tracker issue, a PR
+awaiting review, or a promised follow-up is not a task and so cannot
+reach that decision — so the gate offered to stop in a session that had
+known work outstanding, and the one answer that discards information
+led the list.
+
+**When a gate's state is not directly readable, derive it before
+offering the choice** rather than guessing in the prescription. The
+stand-down gate resolves this by running `Dev10x:ask` Mode 3's
+open-loop sweep first and ordering its options from the result:
+something pending ⇒ the concrete next action leads; nothing pending ⇒
+stand-down leads. A gate that cannot derive its state should say so in
+the question rather than assert a default it has not established.
+
 ## Checklist for Skill Authors
 
 Before submitting a skill with decision gates, verify all three:

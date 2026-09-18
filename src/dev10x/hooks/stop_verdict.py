@@ -860,6 +860,22 @@ def _reason(*, signal: TaskSignal) -> str:
     by name because "shall I continue?" is the commonest form of it,
     and it is not a decision the supervisor owes an answer to.
 
+    It also refuses to prescribe a fixed option list (GH-1404). The
+    steer used to name "Stand down — the work is complete" as the
+    `(Recommended)` option unconditionally, and an empty task list is
+    the only thing this branch can see: work deferred to a tracker
+    issue, a PR still awaiting review, a promised follow-up — none of
+    them is a task, and all of them are invisible here. Leading with an
+    offer to stop is then the one answer that loses that information.
+
+    Reading the pending work directly was considered and is not
+    available: ``metadata["status"]`` flips to ``completed`` on exactly
+    the condition that depletes the list, so it carries the same bit
+    rather than an independent one, and no other durable key records
+    work parked outside the plan. So the steer asks for the sweep that
+    *can* see it (``Dev10x:ask`` Mode 3) and orders the options from
+    its result, instead of naming a winner in advance.
+
     Finally it carries a disposition for a reader that has no
     supervisor. :func:`subagent_signal` is meant to spare subagents
     this block entirely, but that detector has been wrong before — it
@@ -871,8 +887,8 @@ def _reason(*, signal: TaskSignal) -> str:
     when the mechanism it backs has a recorded history of missing.
     """
     return (
-        "⛔  Every task on the list is complete, so the next move may be "
-        "the supervisor's.\n\n"
+        "⛔  The task list is empty. That is not the same as the plan "
+        "being finished, so the next move may be the supervisor's.\n\n"
         "**First, check whether it is actually yours.** Re-read the plan "
         "and any disposition already given this session. If they answer "
         "what comes next, act on it — do not ask. The supervisor wants "
@@ -884,12 +900,24 @@ def _reason(*, signal: TaskSignal) -> str:
         "an answer to; carry on, or hand off per the skill's documented "
         "wrap-up. Never spend the gate on a question you raised about "
         "your own budget.\n\n"
-        "Only once the plan is genuinely exhausted and the remaining "
-        "choice is the supervisor's, call `Dev10x:ask` to ask whether to "
-        'stand down, offering "Stand down — the work is complete" as the '
-        '`(Recommended)` option and "On standby — not waiting on you" '
-        "alongside it. Standby parks this gate until the supervisor "
-        "speaks again; it is not a permanent disable (GH-1314).\n\n"
+        "**Sweep for open loops before you offer to stop.** An empty "
+        "task list is all this gate can see. Work you deferred to a "
+        "tracker issue, a PR still awaiting review, a follow-up you "
+        "promised — none of those is a task, and none of them is "
+        "visible here. Run `Dev10x:ask --loops` first and let what it "
+        "finds order the options:\n\n"
+        "- **Something is pending** — lead with that concrete next "
+        "action as the `(Recommended)` option, and put standby and "
+        "stand-down after it. Offering to stop first is the one answer "
+        "that throws the information away.\n"
+        '- **Nothing is pending** — offer "Stand down — the work is '
+        'complete" as the `(Recommended)` option, with "On standby — '
+        'not waiting on you" alongside it. Standby parks this gate '
+        "until the supervisor speaks again; it is not a permanent "
+        "disable (GH-1314).\n\n"
+        "Either way the recommended option leads and carries the "
+        "marker — an unmarked option list is a gate bypass "
+        "(`.claude/rules/skill-gates.md`).\n\n"
         "**If you are a subagent working for an orchestrator, none of "
         "that applies to you.** Do not render an `AskUserQuestion` at a "
         "human — your counterparty is the orchestrator or swarm team "
