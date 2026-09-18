@@ -62,10 +62,19 @@ Determine the mode from arguments and context:
 | User says "ask that again" or "convert that to options" | Reformulate |
 | Argument `--loops` or `loops` | Open loops |
 | User says "open loops", "what's still open", "anything unanswered", "loose ends" | Open loops |
+| **Invoked from the Stop hook's stand-down steer** | **Open loops** |
 | Argument `--reinforce` or `reinforce` | Reinforce |
 
 If ambiguous, default to **Reformulate** — it is the more
 common use case.
+
+**The stand-down row is not conditional on `--loops` (GH-1404).**
+That steer prescribes the flag, but a prescription is model-side and
+so skippable — which is the weakness GH-1404 is about. Routing on the
+invocation context as well means an agent that calls this skill bare
+at that gate still reaches the Step 5 ordering rule, instead of
+landing in Reformulate and rebuilding the fixed option list the fix
+removed.
 
 ## Mode 1: Reformulate
 
@@ -173,6 +182,37 @@ Output a summary naming, for each loop: its shape, whether it
 became a new task or annotated an existing one, and whether it
 was presented as a widget. Naming the shape lets the supervisor
 spot a false positive without re-reading the session.
+
+### Step 5: Order a stand-down gate from the sweep (GH-1404)
+
+The Stop hook routes its stand-down question through this skill, so
+when this invocation was triggered by that gate, the sweep above is
+the state the option list must be built from — not a fixed
+prescription.
+
+An empty task list is the only thing the hook can see. A loop the
+sweep just found — a tracker issue holding deferred work, a PR
+awaiting review, a promised follow-up — is exactly the pending work
+that is invisible to it, which is why the sweep runs first.
+
+**REQUIRED: Call `AskUserQuestion`.** Order the options from the
+sweep result:
+
+| Sweep found | Lead option `(Recommended)` | Then |
+|---|---|---|
+| Any actionable loop | The concrete next action, named | "Stand down — the work is complete", "On standby — not waiting on you" |
+| Nothing | "Stand down — the work is complete" | "On standby — not waiting on you" |
+
+Standby parks the gate until the supervisor speaks again; it is not
+a permanent disable (GH-1314). Never offer it as the lead option
+while a loop is open — parking the gate is the one answer that
+discards what the sweep just found.
+
+Exactly one option carries `(Recommended)` and it is listed first
+(`.claude/rules/skill-gates.md`).
+
+**Subagents do not render this gate at all.** Report the sweep
+result to the orchestrator that dispatched you instead.
 
 ## Examples
 
