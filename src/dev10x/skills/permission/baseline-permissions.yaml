@@ -283,6 +283,7 @@ groups:
       - Bash(uvx dev10x permission investigate:*)
       - Bash(uvx dev10x permission merge-worktree:*)
       - Bash(uvx dev10x permission record-upgrade:*)
+      - Bash(uvx dev10x permission report:*)
       - Bash(uvx dev10x permission update-paths:*)
       - Bash(uvx dev10x doctor run:*)
       - Bash(uvx dev10x session seed:*)

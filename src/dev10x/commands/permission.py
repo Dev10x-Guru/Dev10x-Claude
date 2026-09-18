@@ -275,6 +275,31 @@ def catalog_gap(*, quiet: bool, verbose: bool) -> None:
     )
 
 
+@permission.command(name="report")
+@click.option("--days", type=int, default=0, help="Only count denials from the last N days")
+@click.option("--top", type=int, default=10, help="How many tool signatures to list")
+def report(*, days: int, top: int) -> None:
+    """Rank recorded permission denials by rule family (GH-1406).
+
+    Read-only. Turns the PermissionDenied records already in the audit
+    log into a ranked friction list, so which rules actually bite is a
+    query rather than a hand-transcribed tracker.
+
+    Denials only: an ask-rule hit or a no-match prompt reaches no hook,
+    so this is a floor on observed friction, not a census of it.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    from dev10x.audit.log_reader import iter_records
+    from dev10x.skills.permission.friction_report import build_report, format_report
+
+    since = datetime.now(UTC) - timedelta(days=days) if days > 0 else None
+    result = build_report(records=iter_records(since=since), top=top)
+    for line in format_report(result):
+        click.echo(line)
+    sys.exit(0)
+
+
 @permission.command(name="catalog-diff")
 @click.option(
     "--strict",

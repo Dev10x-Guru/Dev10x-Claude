@@ -128,10 +128,28 @@ every call — see `.claude/rules/mcp-tools.md`
 Every release invalidates path-pinned rules until maintenance re-runs.
 
 **D5 — measurement.**
-Hook block records now carry `rule_id` / `reason` (#1095).
-Settings-file prompts still have **no telemetry** — they never reach a
-hook, which is why the tracker this file came from had to be
-hand-transcribed.
+Hook block records carry `rule_id` / `reason` (#1095), and a **denial**
+also carries `tool_signature` / `rule_family` (#1406) — so
+`dev10x permission report` ranks recorded denials by family instead of
+a human retyping their terminal.
+
+Two of the three prompt paths remain unmeasurable, and the earlier
+blanket "settings-file prompts never reach a hook" was wrong about the
+third. Resolution runs `deny → ask → allow → no-match`, and PreToolUse
+fires only on what those steps already allowed:
+
+| Path | Outcome | Observable |
+|---|---|---|
+| Deny rule matches | blocked | yes — `PermissionDenied` (#1406) |
+| Ask rule matches | prompted | **no** |
+| No rule matches | prompted | **no** |
+| Allowed, then PreToolUse blocks | blocked | yes — `rule_id`/`reason` (#1095) |
+
+The two `no` rows need a prompt-shown event no documented harness hook
+provides; `permission catalog-gap` answers the weaker "what *would*
+prompt here" from the catalog instead. Read a report as a floor on
+observed friction, never a census — a family absent from it is
+unmeasured, not frictionless.
 
 ## Standing Decisions
 
