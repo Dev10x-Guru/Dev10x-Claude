@@ -936,11 +936,21 @@ ide_permissions:
   - "mcp__pycharm__rename_refactoring"
 
 # GH-1261
+#
+# GH-1403: the `jetbrains` -> `pycharm` server rename dropped two of the
+# five execution surfaces. A deny keys on a tool NAME, so a rename silently
+# narrows coverage while every remaining rule still looks correct.
+# `configure_python_interpreter` is deliberately absent: it mutates IDE
+# configuration and executes nothing itself, and every tool that would run
+# under that interpreter is already denied here.
 ide_denies:
   pycharm:
   - "mcp__pycharm__execute_terminal_command"
   - "mcp__pycharm__execute_code_on_kernel"
   - "mcp__pycharm__execute_tool"
+  - "mcp__pycharm__execute_run_configuration"
+  - "mcp__pycharm__run_notebook_cell"
+  - "mcp__pycharm__build_project"
 
 # --- Base ask rules (GH-1154) ---
 # The prompt tier. Until this key existed the catalog could express only
@@ -986,10 +996,13 @@ base_asks:
 # --- Base deny rules (GH-204) ---
 # Tracker-independent denies. Tracker-specific ones live above.
 base_denies:
-  # GH-1261
+  # GH-1261, GH-1403 — unconditional, not keyed to the pinned IDE.
   - "mcp__pycharm__execute_terminal_command"
   - "mcp__pycharm__execute_code_on_kernel"
   - "mcp__pycharm__execute_tool"
+  - "mcp__pycharm__execute_run_configuration"
+  - "mcp__pycharm__run_notebook_cell"
+  - "mcp__pycharm__build_project"
 
   # --- Privilege-escalation tier (GH-326) ---
   # `sudo` and friends are denied for ANY shape, not just the option-2
