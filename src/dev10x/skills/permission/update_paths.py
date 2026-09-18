@@ -1816,11 +1816,18 @@ def seed_worktree(
     a rule present only in ``~/.claude/settings.json`` does not cover a
     worktree whose own settings file the engine reads instead, so skipping
     it left every freshly created worktree short of the catalog (GH-1136).
+
+    The write itself is **delegated to** ``ensure_base`` (GH-1405). This
+    function used to render the catalog and call two of the three tier
+    writers itself, which made a new worktree structurally weaker than a
+    checkout: no ``base_asks`` (so curated prompts reverted to raw
+    prompts), no tracker or IDE block (so the IDE shell-equivalent denies
+    — unconditional by GH-1261 — were simply absent), no safety keys
+    (GH-1320), and no residual-gap check (GH-1136). Each omission was a
+    separate line that had to be kept in step with ``ensure_base`` and
+    none of them was; delegating removes the class rather than the four
+    instances.
     """
-    policies = migrate_flat_config(config=config)
-    rendered = render_permissions(policies=policies, home=str(Path.home()))
-    base_permissions = rendered.get("allow", [])
-    base_denies = rendered.get("deny", [])
     settings = Path(worktree_root) / ".claude" / "settings.local.json"
 
     created_fresh = not settings.exists()
@@ -1841,22 +1848,29 @@ def seed_worktree(
         except OSError as error:
             return err(f"cannot create worktree settings: {error}", path=str(settings))
 
-    if dedupe_global:
-        global_rules, _ = _load_global_allow_rules()
-        filtered = [rule for rule in base_permissions if rule not in global_rules]
-    else:
-        filtered = list(base_permissions)
+    result = ensure_base(
+        config=config,
+        settings_files=[settings],
+        dry_run=False,
+        quiet=True,
+        toplevel=str(worktree_root),
+        dedupe_global=dedupe_global,
+    )
 
-    from dev10x.skills.permission.enumerate_mcp import discover_mcp_tools
-
-    mcp_catalog = discover_mcp_tools()
-    added_allow, _ = ensure_base_permissions(settings, filtered, mcp_catalog=mcp_catalog)
-    added_deny, _ = ensure_base_denies(settings, base_denies)
+    raw_errors = result.get("errors")
+    errors = raw_errors if isinstance(raw_errors, list) else []
+    if errors:
+        return err(
+            f"worktree seeded with a residual catalog gap: {'; '.join(errors)}",
+            path=str(settings),
+            created_fresh=created_fresh,
+            added=result.get("total_added", 0),
+        )
 
     return ok(
         {
             "path": str(settings),
-            "added": added_allow + added_deny,
+            "added": result.get("total_added", 0),
             "created_fresh": created_fresh,
         }
     )
