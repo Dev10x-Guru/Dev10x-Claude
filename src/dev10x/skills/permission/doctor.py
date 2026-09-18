@@ -7,8 +7,11 @@ Three concerns this module addresses:
    ``settings`` (e.g. ``.../<ver>//skills/...``); the verbatim matcher treats
    ``//`` ≠ ``/`` so the rule never matches. The fix collapses ``//`` → ``/``
    in path contexts only (GH-918) — a ``//`` inside a quoted interpreter
-   expression such as ``perl -pe 's/…//g'`` is a regex delimiter and is left
-   alone. Version-pinned plugin paths are deliberately NOT rewritten to ``**``
+   expression such as ``perl -pe 's/…//g'`` or ``jq '.a // "d"'`` is a regex
+   delimiter or an operator and is left alone (GH-918, GH-1402), and a ``//``
+   that OPENS a path token is the filesystem-root anchor the catalog ships in
+   ``Read(//tmp/Dev10x/**)`` (GH-1401).
+   Version-pinned plugin paths are deliberately NOT rewritten to ``**``
    wildcards (GH-715) — ``**`` matching is unreliable in the permission
    engine; pinned paths are kept current by
    ``dev10x permission update-paths`` on every upgrade instead.
@@ -88,10 +91,12 @@ _PATH_TOKEN_PREFIXES = ("/", "~/", "./", "../", "$")
 # boundaries so a quoted regex body (``'s/a//g'``) never reads as a path.
 _TOKEN_BOUNDARY_CHARS = frozenset(" \t'\"(),=|;<>&")
 
-# GH-918: `//` inside a quoted interpreter expression is a regex delimiter,
-# not a path separator — collapsing it corrupts the substitution.
+# GH-918/GH-1402: `//` inside a quoted interpreter expression is an operator
+# or a regex delimiter, not a path separator — collapsing it corrupts the
+# expression. `jq` belongs here because `//` is its alternative operator
+# (`.a // "default"`), which a collapse turns into division.
 _INTERPRETER_EXPRESSION_RE = re.compile(
-    r"\b(?:perl|sed|awk|ruby)\b(?:\s+-\S+)*\s*(?P<quote>['\"])(?P<body>.*?)(?P=quote)"
+    r"\b(?:perl|sed|awk|ruby|jq)\b(?:\s+-\S+)*\s*(?P<quote>['\"])(?P<body>.*?)(?P=quote)"
 )
 
 
@@ -108,12 +113,30 @@ def _is_inside_span(position: int, spans: Iterable[tuple[int, int]]) -> bool:
     return any(start <= position < end for start, end in spans)
 
 
+def _token_start(rule: str, position: int) -> int:
+    start = position
+    while start > 0 and rule[start - 1] not in _TOKEN_BOUNDARY_CHARS:
+        start -= 1
+    return start
+
+
+def _token_at(rule: str, position: int) -> str:
+    end = position
+    while end < len(rule) and rule[end] not in _TOKEN_BOUNDARY_CHARS:
+        end += 1
+    return rule[_token_start(rule, position) : end]
+
+
 def _is_path_context(rule: str, position: int) -> bool:
     """Whether the token containing ``position`` looks like a filesystem path."""
-    token_start = position
-    while token_start > 0 and rule[token_start - 1] not in _TOKEN_BOUNDARY_CHARS:
-        token_start -= 1
-    return rule[token_start:].startswith(_PATH_TOKEN_PREFIXES)
+    token = _token_at(rule, position)
+    if not token.startswith(_PATH_TOKEN_PREFIXES):
+        return False
+    # GH-1402: a token made only of slashes is jq's alternative operator
+    # (`.a // "default"`), not a path. It passes the prefix test above
+    # because it starts with `/`, so the emptiness of the rest is what
+    # distinguishes it — a real path always names something.
+    return bool(token.strip("/"))
 
 
 def canonicalize_rule(rule: str) -> str | None:
@@ -129,6 +152,14 @@ def canonicalize_rule(rule: str) -> str | None:
     that does not start like a path is a regex delimiter, and collapsing it
     would leave a syntactically invalid rule.
 
+    A ``//`` that OPENS a path token is a filesystem-root anchor, not
+    pollution, and is left alone (GH-1401). The catalog ships
+    ``Read(//tmp/Dev10x/**)`` deliberately: a single leading slash anchors
+    at the settings source rather than at ``/``, so ``//`` is the only
+    spelling that means an absolute path. ``${CLAUDE_PLUGIN_ROOT}``
+    pollution is always *mid*-token (``.../<ver>//skills/...``), which is
+    what makes the position a sound discriminator.
+
     Version-pinned plugin paths are deliberately NOT rewritten to ``**``
     wildcards (GH-715): ``**`` matching is unreliable in the permission
     engine, so pinned paths are kept current by
@@ -141,6 +172,8 @@ def canonicalize_rule(rule: str) -> str | None:
         if _is_inside_span(position, interpreter_spans):
             return match.group(0)
         if not _is_path_context(rule, position):
+            return match.group(0)
+        if position == _token_start(rule, position):
             return match.group(0)
         return "/"
 

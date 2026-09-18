@@ -84,6 +84,42 @@ class TestCanonicalizeRule:
             "Bash(${CLAUDE_PLUGIN_ROOT}/skills/foo/scripts/bar.sh:*)"
         )
 
+    @pytest.mark.parametrize(
+        "rule",
+        [
+            "Read(//tmp/Dev10x/**)",
+            "Edit(//tmp/Dev10x/**)",
+            "Read(//tmp/claude-1000/**)",
+        ],
+    )
+    def test_preserves_leading_root_anchor(self, rule: str) -> None:
+        # GH-1401: a `//` that OPENS a path token is the filesystem-root
+        # anchor the catalog ships, not ${CLAUDE_PLUGIN_ROOT} pollution.
+        # Collapsing it silently rewrites a shipped rule into one that
+        # anchors at the settings source instead of at `/`.
+        assert doctor.canonicalize_rule(rule) is None
+
+    def test_collapses_mid_path_slash_under_a_root_anchor(self) -> None:
+        # GH-1401: the exemption is positional, so real pollution deeper in
+        # the same root-anchored path is still repaired.
+        assert doctor.canonicalize_rule("Read(//tmp/Dev10x//bin/**)") == (
+            "Read(//tmp/Dev10x/bin/**)"
+        )
+
+    @pytest.mark.parametrize(
+        "rule",
+        [
+            """Bash(jq '.a // "default"' f.json)""",
+            """Bash(jq -r '.x.y // empty')""",
+            """Bash(gh pr view --jq '.title // "untitled"')""",
+        ],
+    )
+    def test_preserves_jq_alternative_operator(self, rule: str) -> None:
+        # GH-1402: `//` is jq's alternative operator. Collapsing it to `/`
+        # turns the expression into division — a rule that still parses as
+        # a permission string but no longer means what it said.
+        assert doctor.canonicalize_rule(rule) is None
+
     def test_never_emits_double_star_wildcard(self) -> None:
         # GH-715 regression: no input should yield a `**` path wildcard.
         inputs = [
