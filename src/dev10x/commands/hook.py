@@ -6,8 +6,12 @@ import sys
 import traceback
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
+
+if TYPE_CHECKING:
+    from dev10x.hooks.permission_diagnostics import DiagnosticResult
 
 _DEBUG = os.environ.get("HOOK_DEBUG", "") != ""
 
@@ -101,21 +105,53 @@ def permission_denied() -> None:
     validator recognizes the denied command.
 
     Also runs permission diagnostics to explain *why* a pre-approved
-    tool was prompted (settings override semantics, missing rules).
+    tool was prompted (settings override semantics, missing rules), and
+    records which tool was denied so the friction can be counted rather
+    than hand-transcribed (GH-1406).
     Exit codes: 0 always (retry decision is in JSON output).
     """
+    from dev10x.domain.events.hook_event import HookEventName
+    from dev10x.hooks.audit_emit import audit_hook
     from dev10x.hooks.hook_transport import emit, read_hook_input
     from dev10x.validators import get_chain
 
-    inp = read_hook_input()
+    @audit_hook(name="permission-denied", event=HookEventName.PERMISSION_DENIED)
+    def _body() -> None:
+        inp = read_hook_input()
 
-    if inp.command:
-        result = get_chain().correct(inp=inp)
-        if result is not None:
-            emit(result)
+        if inp.command:
+            result = get_chain().correct(inp=inp)
+            if result is not None:
+                emit(result)
 
-    _run_permission_diagnostics(raw=inp.raw, cwd=inp.cwd)
-    sys.exit(0)
+        _run_permission_diagnostics(raw=inp.raw, cwd=inp.cwd)
+        sys.exit(0)
+
+    _body()
+
+
+def _record_denied_tool(*, result: DiagnosticResult) -> None:
+    """Attribute the denial to the tool that was denied (GH-1406).
+
+    Until this existed the PermissionDenied record carried only
+    wrap-phase timing — `hook`, `total_ms`, `exit_code` — so the log
+    could say a prompt happened but never which tool caused it. That is
+    why every friction tracker in this repo was assembled by a human
+    reading their own terminal. `extra` is GH-1390's slot for fields a
+    rule needs under a name of its own; `reason` alone would collapse
+    the signature and the diagnosis into one unparseable string.
+    """
+    from dev10x.hooks.audit_emit import set_decision_attribution
+    from dev10x.skills.permission.catalog_gap import rule_family
+
+    set_decision_attribution(
+        rule_id="permission-denied",
+        reason=result.diagnosis,
+        extra={
+            "tool_signature": result.tool_signature,
+            "rule_family": rule_family(result.tool_signature),
+        },
+    )
 
 
 def _run_permission_diagnostics(*, raw: dict, cwd: str) -> None:
@@ -125,6 +161,7 @@ def _run_permission_diagnostics(*, raw: dict, cwd: str) -> None:
         result = diagnose(raw=raw, cwd=cwd)
         if result is None:
             return
+        _record_denied_tool(result=result)
         message = format_diagnostic(result=result)
         if message:
             print(

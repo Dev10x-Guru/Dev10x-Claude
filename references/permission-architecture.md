@@ -21,6 +21,16 @@ Agent requests tool call
          └─ Hook can ALLOW (or not respond)
 ```
 
+**Which steps are instrumented (GH-1406).** Step 1 fires the
+`PermissionDenied` event, whose record carries `tool_signature` and
+`rule_family`; step 5's blocks carry `rule_id` / `reason` (GH-1095).
+Both are queryable via `dev10x permission report`. Steps 2 and 4 —
+the two paths that *prompt* rather than block — emit no event at all,
+so the friction a user actually sees as a prompt is not recorded
+anywhere. `dev10x permission catalog-gap` is the substitute: it
+computes which catalog rules are absent from a settings file, i.e.
+what *would* prompt here, without needing an event.
+
 Rules are evaluated `deny → ask → allow` and the **first match
 wins** — so a broad `ask` rule cannot be narrowed by a more
 specific `allow`. Source: [Claude Code permissions
