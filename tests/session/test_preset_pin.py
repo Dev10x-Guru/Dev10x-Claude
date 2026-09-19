@@ -282,10 +282,13 @@ def test_common_dir_returns_none_when_git_fails(
 ) -> None:
     """Every failure mode degrades to the basename fallback, never raises."""
 
-    def boom(self: object, *args: str, **kwargs: object) -> str:
+    def boom(*args: object, **kwargs: object) -> str:
         raise failure
 
-    monkeypatch.setattr("dev10x.domain.git_context.GitContext.run", boom)
+    # GH-1445: the lookup moved onto GitContext.common_dir, so the stub sits
+    # at the subprocess seam rather than on GitContext.run. The contract
+    # under test is unchanged.
+    monkeypatch.setattr("dev10x.domain.git_context.subprocess.check_output", boom)
 
     assert preset_pin._common_dir(cwd=None) is None
 
@@ -300,11 +303,11 @@ def test_git_lookups_are_bounded(
     """The MCP daemon serves these on the Phase-0 hot path — they must not hang."""
     seen: dict[str, object] = {}
 
-    def record(self: object, *args: str, **kwargs: object) -> str:
+    def record(*args: object, **kwargs: object) -> str:
         seen.update(kwargs)
         return stdout
 
-    monkeypatch.setattr("dev10x.domain.git_context.GitContext.run", record)
+    monkeypatch.setattr("dev10x.domain.git_context.subprocess.check_output", record)
 
     getattr(preset_pin, helper)(cwd=None)
 
@@ -322,10 +325,10 @@ def test_git_lookups_are_bounded(
 def test_bounded_toplevel_returns_none_when_git_fails(
     monkeypatch: pytest.MonkeyPatch, failure: Exception
 ) -> None:
-    def boom(self: object, *args: str, **kwargs: object) -> str:
+    def boom(*args: object, **kwargs: object) -> str:
         raise failure
 
-    monkeypatch.setattr("dev10x.domain.git_context.GitContext.run", boom)
+    monkeypatch.setattr("dev10x.domain.git_context.subprocess.check_output", boom)
 
     assert preset_pin._bounded_toplevel(cwd=None) is None
 
@@ -333,7 +336,7 @@ def test_bounded_toplevel_returns_none_when_git_fails(
 def test_bounded_toplevel_treats_empty_output_as_absent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("dev10x.domain.git_context.GitContext.run", lambda self, *a, **k: "")
+    monkeypatch.setattr("dev10x.domain.git_context.subprocess.check_output", lambda *a, **k: "")
 
     assert preset_pin._bounded_toplevel(cwd=None) is None
 

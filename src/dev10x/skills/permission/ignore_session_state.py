@@ -29,6 +29,7 @@ from typing import Literal
 
 from dev10x import subprocess_utils
 from dev10x.domain.file_locks import atomic_append_line
+from dev10x.domain.git_context import GitContext
 
 #: Relative to the repo root — the spelling `.git/info/exclude` expects.
 IGNORE_PATTERN = ".claude/Dev10x/"
@@ -101,15 +102,13 @@ def common_git_dir(*, repo_root: Path) -> Path | None:
     latter points at `<main>/.git/worktrees/<name>`, whose `info/exclude`
     git does NOT consult. The common dir is the one place a single write
     covers every worktree.
+
+    GH-1445: delegates to :attr:`GitContext.common_dir`, which asks for an
+    absolute path — this was the third hand-rolled copy of the lookup, and
+    the second to re-resolve a relative result by hand.
     """
-    result = _git("rev-parse", "--git-common-dir", cwd=repo_root)
-    if result.returncode != 0:
-        return None
-    raw = result.stdout.strip()
-    if not raw:
-        return None
-    candidate = Path(raw)
-    return candidate if candidate.is_absolute() else (repo_root / candidate).resolve()
+    common = GitContext(cwd=str(repo_root)).common_dir
+    return Path(common) if common else None
 
 
 def ensure_ignored(*, repo_root: Path, dry_run: bool = False) -> IgnoreOutcome:
