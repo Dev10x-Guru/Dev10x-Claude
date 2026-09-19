@@ -518,4 +518,435 @@ already in the repo.
   `find_fixup_target.py` and `fixes_scope.py`; all pass explicit
   `timeout=`.
 
-<!-- Phases B, C, E, G, H, I, K, L pending — appended as agents report. -->
+## Phase B — Domain Model Health
+
+The domain layer is clean on the axes that matter most. Verified across
+all 68 `domain/*.py` files and 90+ types:
+
+- **ADR-0008 holds.** Zero imports of `subprocess_utils`, `dev10x.mcp`,
+  `dev10x.commands`, `dev10x.skills`, `click` or `mcp` anywhere under
+  `domain/` — only docstring cross-references.
+- **ADR-0009 and script-domain-boundaries hold.** Zero `print()` and
+  zero `sys.exit()` under `domain/`. Every `raise` site
+  (`gate_policy.py`, `session_yaml.py`) is a malformed-input
+  `ValueError` caught and converted to `err()` at the MCP boundary
+  (`mcp/gate_query.py:357`).
+- **Every `@server.tool()` handler routes through `to_wire()`**, across
+  all twelve `mcp/*_tools.py` modules, including the 48
+  `@github_tool`-wrapped handlers — the decorator centralizes it at
+  `mcp/github_tools.py:20-49`. No bare-dict returns.
+
+Most domain types here are deliberately anemic *functional-core* value
+objects — `GateContext`, `SensitivityPattern`, `RunCandidate` are pure
+inputs to pure resolvers, matching ADR-0007 D3. Anemia is not the defect
+in this codebase; **converting a typed object to a dict mid-pipeline and
+re-parsing it by hand downstream** is.
+
+### B1. Two divergent parsers of the same plan-document shape
+
+`domain/session_document.py:81` calls `Plan.load(...).to_dict()`,
+discarding the typed `Plan`. `read_plan_identity` (`:84-105`) then walks
+the resulting dict by hand — `summary.get("plan")` → `.get("context")`
+→ `.get("tickets")` with hand-written isinstance guards — to rebuild
+`{"branch":…, "tickets":[…]}`.
+
+`PlanContext.from_dict` already exists at
+`domain/documents/session_state.py:114` and parses that same shape. Two
+independent parsers of one document can silently diverge, and this is an
+actively-evolving area (GH-812, GH-978).
+
+**Fix:** have `read_plan_identity` consult `PlanContext.from_dict`, or
+add a `Plan.identity()` method.
+**Impact: MEDIUM · Effort: S**
+
+### B2. `GateResolutionQuery.run()` is a 140-line method mixing five safety concerns
+
+`mcp/gate_query.py:229-370` performs unknown-field filtering, legacy-key
+refusal, preset/overlay resolution, the GH-805 `allowed_overlays`
+durable-mode guard, `session_adoption` staleness computation,
+`supervisor_review`/`supervisor_cleared` override logic, `GateContext`
+construction, and the `resolve_gate` call with exception→Result
+translation — in one body.
+
+Every step is safety-relevant (ADR-0022 D-2, GH-805, GH-978), and inline
+comments are currently the only thing separating them.
+
+**Fix:** extract `_resolve_overlays(...)` and
+`_resolve_supervisor_policy(...)` as named steps; `run()` becomes their
+composition. Pure refactor, verifiable against the existing gate-policy
+suite.
+**Impact: MEDIUM · Effort: M**
+
+### B3. `RunCandidate` is typed, then immediately erased
+
+`domain/watchdog.py:161` calls `.as_dict()` on every candidate before
+returning, so `_wake_reason` (`:213`) and `_wake_candidates` (`:287`)
+read facts back out with `candidate["run_dir"]` and re-parse the ISO
+timestamp with `_parse_iso` — duplicating null/format handling for no
+boundary reason, since the real `Result[dict]` boundary is only the
+final `ok(...)`.
+
+**Fix:** thread `list[RunCandidate]` through; call `.as_dict()` once at
+the boundary; move `_wake_reason` onto the type.
+**Impact: LOW · Effort: S**
+
+### B4. `PolicyCatalog` has no query surface
+
+`domain/common/policy.py:262-322` returns a plain `list[Policy]`, so
+three call sites independently filter on `policy.effect is
+PolicyEffect.ALLOW`/`DENY`
+(`skills/permission/policy_renderer.py:48`,
+`policy_catalog_migration.py:29,34`). The allow/deny partition is domain
+knowledge reimplemented per caller.
+
+**Fix:** `Policy.is_allow`/`is_deny`, or
+`PolicyCatalog.partition_by_effect`.
+**Impact: LOW · Effort: S**
+
+### B5. Path registries are an accepted exception
+
+`domain/claude_paths.py:33-157` and `dev10x_paths.py:87-261` are plain
+classes with 20+ trivial Path-returning classmethods and real caching.
+Not a defect — a deliberate single-source-of-truth Registry — but noted
+so a "N rich domain types" rollup does not overstate behavioural
+density.
+**No action.**
+
+## Phase L — Integration Patterns, Concurrency, Idiom
+
+### L1. "A write is a request, not a receipt" is documented policy, not enforced code
+
+`.claude/rules/mcp-tools.md` (GH-1099) instructs callers to re-read the
+specific field after `update_pr`, `pr_ready`, `pr_close`, `issue_*`,
+`milestone_*` and `push_safe`. In the implementation, **only `create_pr`
+does this** — `github/__init__.py:1391-1411` reads the body back and
+reports `fixes_trailer_verified`.
+
+The other ~15 write wrappers check `returncode != 0` and then build the
+success payload **from the arguments they were given**:
+`update_pr` (`:1415-1463`), `pr_ready` (`:1700-1745`), `pr_close`
+(`:1748-1797`), `milestone_close` (`:1856`), `milestone_reopen`
+(`:1931`), `milestone_edit` (`:1966`), `issue_edit` (`:2116`),
+`issue_close` (`:2193`), `issue_reopen` (`:2240`).
+
+`pr_ready` is the sharpest case and was verified directly: line 1745
+returns `{"draft": undo}`, where `undo` is the input parameter. The field
+**cannot disagree with the request**, so it carries no information about
+what GitHub did — while looking exactly like confirmation. A caller who
+does not already know the rule reads a plausible receipt for a write that
+may never have landed.
+
+**Fix:** push the re-read into the wrappers the rules doc names as
+needing it (`update_pr` body/title, `pr_ready` draft state), the way
+`create_pr` already does; or add a test asserting that a wrapper
+claiming verification performs a follow-up read, so this stops being
+tribal knowledge held in prose.
+**Impact: MEDIUM · Effort: M**
+
+### L2. One transient `gh` failure discards the whole CI wait
+
+`skills/monitor/ci_check_status.py:219-221` — `read_checks()` calls
+`_abort()` → `sys.exit(1)` on any non-zero `gh pr checks` exit whose
+stderr is not the recognized "no checks" shape. `poll_until_terminal`
+(`:593-690`) calls it through `probe_once` on **every** iteration.
+
+So a rate limit, a network blip or a token refresh at poll 30 of 40
+kills the invocation, discarding `initial_wait` plus thirty poll
+intervals, and hands the orchestrator a hard infra failure for a
+transient condition. The loop is otherwise carefully budget-clamped
+(GH-1288) and tolerates `empty`/`pending` indefinitely within budget —
+it has zero tolerance for one failed exec.
+
+**Fix:** treat a transient probe failure as "pending, retry next
+interval" with a small consecutive-failure ceiling, mirroring
+`fetch_mergeable`'s existing return-`UNKNOWN`-on-failure convention two
+functions above in the same file.
+**Impact: MEDIUM · Effort: S**
+
+### L3. No retry, backoff, circuit breaker or bulkhead at the external-call layer
+
+Timeouts are excellent and consistently applied (GH-824, and GH-1304's
+process-group kill). Everything else is absent:
+
+- **No retry/backoff.** `_gh_api_raw` and `call_slack_api`
+  (`slack_notify.py:187-225`) are single-shot. A Slack 429 is caught
+  generically with no `Retry-After` handling.
+- **No circuit breaker.** No failure-count or open/half-open state
+  anywhere.
+- **No bulkhead.** `subprocess_utils.py:222-403` has no concurrency cap,
+  and there is no `Semaphore` of any kind under `src/dev10x/`. Yet
+  `.claude/rules/mcp-tools.md` states plainly that MCP tools "run in a
+  long-lived daemon and are hit concurrently by parallel worktrees and
+  agents." Several worktrees each running `fanout`/`foreman` crews can
+  therefore launch dozens of simultaneous `gh api` subprocesses —
+  GitHub's secondary rate limits key off concurrent burst volume, and
+  the lockout would hit the whole install.
+
+This is a consistent structural choice rather than an oversight in one
+place, which is why it is one finding and not three. It matters most in
+the one mode where nobody is watching.
+
+**Fix:** a bounded shared retry helper in `subprocess_utils`, wired into
+`_gh_api_raw` and `call_slack_api`; plus an `asyncio.Semaphore` (8–16
+permits, env-configurable per the `DEV10X_MCP_*` convention) at the
+subprocess-spawn chokepoint — `subprocess_utils` already calls itself
+the Gateway to the OS boundary, so owning concurrency shaping belongs
+there alongside CWD routing and timeouts. Bound it explicitly; GH-1288's
+principle is that the transport ceiling, not caller patience, sets the
+limit.
+**Impact: MEDIUM · Effort: S (bulkhead) + M (retry)**
+
+### L4. Notification failures have no dead-letter channel
+
+`slack_notify.py:284-330` and `github/__init__.py:2799-2854`
+(`pr_notify`) return `Result.err(...)` on failure. Nothing persists the
+failed message, queues it, or writes it anywhere durable — the error
+exists only in that call's return value.
+
+In an attended session an agent surfaces it. Under `foreman`'s
+unattended overnight crews, a lost "crew stalled" or "PR ready"
+notification is silently gone unless the calling prompt checks the
+`ErrorResult` and escalates by some other route, and no such fallback
+exists in the helpers themselves. This is the one execution mode where a
+human is least likely to notice.
+
+**Fix:** an append-only failed-notification JSONL under
+`~/.config/Dev10x/` via `atomic_append_line`, so a lost signal is at
+least discoverable after the fact.
+**Impact: MEDIUM · Effort: S**
+
+### L5. `assert` guards a security-relevant classification
+
+`validators/registry.py:199-207` uses `assert` to check that each
+validator class's declared `rule_id`/`profile`/`experimental` match the
+spec it was registered with. Under `-O`/`PYTHONOPTIMIZE` those
+statements vanish, and a mismatch — which gates hook enforcement tier —
+would stop being caught. Nothing in the repo currently runs optimized,
+so this is theoretical today.
+
+**Fix:** `if not ...: raise AssertionError(...)`.
+**Impact: LOW · Effort: S**
+
+### L6. The skill-redirect router keeps two sources of truth — already mitigated
+
+`validators/skill_redirect.py:358-424` gates every command through a
+hard-coded `_QUICK_TOKENS` frozenset before the data-driven `RuleEngine`
+runs. A YAML rule naming none of those tokens can never fire, however
+correctly written. The file's own comments cite three real incidents of
+exactly this (GH-1211/1212, GH-1337).
+
+`unreachable_patterns()`, `format_unreachable_report()` and
+`test_literal_pattern_contains_a_quick_token` now guard it, which is a
+genuine mitigation. No action needed — but if a fourth incident of this
+shape appears, derive `_QUICK_TOKENS` from the literal YAML patterns at
+load time and delete the second source of truth. Regex patterns already
+opt out correctly via `_REGEX_METACHARS_RE`.
+**Impact: LOW · Effort: M (only if pursued)**
+
+### L7. Verified non-finding — CWD binding is task-local, not process-global
+
+The audit brief hypothesized that two concurrent MCP handlers from
+different worktrees could read each other's bound CWD, which would be
+HIGH. **They cannot.** `subprocess_utils.py:37` declares
+`_effective_cwd` as a `ContextVar`, and `use_cwd` (`:49-75`) brackets it
+with proper `set`/`reset` token handling. ContextVar values are
+per-asyncio-Task — each Task copies the ambient context at creation and
+mutations inside one Task are invisible to others — which is the correct
+primitive for per-request isolation in a long-lived asyncio server.
+`safe_effective_cwd` (`:114-143`) and `resolve_script_path` (`:188-219`)
+both read through the same per-task value.
+
+The module's GH-979 docstring names this exact scenario as the reason
+`ContextVar` was chosen over a module global. Recorded because a
+plausible high-severity concern being *closed* is a result worth
+keeping.
+
+## Phase E — Concurrency and Write Safety
+
+### Shared-state inventory
+
+| Path | Locked? | Atomic? | Verdict |
+|---|---|---|---|
+| `~/.config/Dev10x/friction.yaml` | **mixed** | **mixed** | **UNSAFE** — six writers lock, one does not |
+| `~/.config/Dev10x/projects.yaml` | `file_lock` | yes | safe |
+| `.claude/settings.local.json` family | `locked_json_update` throughout | yes | safe |
+| worktree settings fresh-create (`update_paths.py:1847`) | none | no | benign — guarded create, identical content |
+| `~/.config/Dev10x/task-index/<repo>.yaml` | `locked_yaml_update` | yes | safe |
+| `plan.yaml` | `file_lock` (both writers) | yes | safe |
+| rule-confidence store | `file_lock` | yes | safe |
+| `watchdog-state.json` | `file_lock` spanning read→fire→write | yes | safe, deliberately TOCTOU-proof |
+| config `.msgpack` cache | none, by design | yes | safe — regenerable per `performance.md` |
+
+### E1. `migrate_config_to_friction` writes the global config with no lock and no atomic rename
+
+**This is the audit's most serious defect.**
+`skills/permission/migrate_config.py:115-130` performs a full
+read-modify-write of `~/.config/Dev10x/friction.yaml` — the **global,
+cross-repo** durable config — using a bare `write_text`. It takes no
+lock and does not use `atomic_write_text`.
+
+Every other writer of that file locks correctly:
+`session_yaml.py:498,556,647,701` (`seed_safe_baseline_if_absent`,
+`upsert_project_prefs`, `reap_dead_projects`, `set_playbook_modes`) and
+`config_migration.py:426,501`. `upsert_project_prefs` is the write path
+behind `pin_gate_preset`, `pin_tracker`, `pin_ide` and
+`pin_supervisor_review`.
+
+A lock excludes nobody from a writer that never asks for it. Concrete
+interleaving:
+
+- **T0** — process A (`upgrade-cleanup migrate-config`) reads the whole
+  document unlocked at line 115.
+- **T1** — process B, an MCP `pin_gate_preset` from another worktree,
+  takes `file_lock`, adds its `projects[]` entry X, atomic-writes,
+  releases.
+- **T2** — process A renders its stale T0 snapshot plus its own entry Y
+  and `write_text`s it.
+
+**X is gone.** The parity check at `migrate_config.py:132-137` verifies
+only that *A's own* prefs landed, so the function reports success while
+having destroyed another repo's durable pin. The loss is
+indistinguishable from the pin never having been made. The non-atomic
+write adds a second failure: a crash mid-write truncates the config for
+every repo on the machine, not just A's.
+
+**Fix:** wrap the read-modify-write in `with file_lock(friction.path):`
+and write through `atomic_write_text`, mirroring
+`session_yaml.py:upsert_project_prefs`. The `matched()` parity check
+must move inside the same lock.
+**Impact: HIGH · Effort: S**
+
+### E2. `GitContext.toplevel`/`.branch` block the daemon's event loop, unbounded
+
+`domain/git_context.py:61-76` — `GitContext.run()` takes a `timeout`
+parameter and its docstring states the reason exactly: *"`timeout`
+bounds the call so a wedged git (a stale index.lock, an unreachable
+network remote) cannot hang a request served by the long-lived MCP
+daemon… Callers on a request path MUST pass one."*
+
+The hazard was therefore understood and fixed — on `run()`. It was
+missed on the two members the async handlers actually call.
+`toplevel` (`:37-47`) and `branch` (`:49-59`) accept no timeout at all
+and invoke `subprocess.check_output` unbounded.
+
+Those are called **synchronously inside `async def` handlers**:
+`mcp/gate_tools.py:138` (`resolve_gate`), `:184`
+(`preset_pin_status`'s callee), and `mcp/gate_query.py:168`
+(`_supervisor_cleared`). `subprocess.check_output` is blocking OS I/O;
+running it in a coroutine body rather than off-loop blocks the *whole*
+event loop.
+
+Concrete interleaving: worktree A calls `resolve_gate`; its
+`git rev-parse` wedges on a stale `.git/index.lock` or a stalled network
+mount. Every concurrent tool call from worktrees B and C sharing that
+daemon — including entirely unrelated ones — is frozen for the duration,
+with nothing to bound it.
+
+A secondary defect rides along: both properties catch only
+`CalledProcessError` and `FileNotFoundError`, so adding `timeout=`
+without widening the `except` to include `subprocess.TimeoutExpired`
+converts a hang into an unhandled exception.
+
+**Scope is wider than three call sites, and the cause is structural.**
+A follow-up sweep of all 25 non-test `GitContext(` sites found that
+`toplevel` and `branch` are `@cached_property` — which **takes no
+arguments**. There is therefore no parameter through which any caller
+could pass a timeout even if they wanted to, and all fifteen of their
+call sites are unbounded by construction:
+
+| Location | Reached from |
+|---|---|
+| `mcp/gate_tools.py:138,184`, `mcp/gate_query.py:168` | MCP handlers directly |
+| `session/service.py:70,128,151,175,209,323` | `mcp/misc_tools.py:35` imports `SessionService` |
+| `domain/documents/plan.py:53,89` | `mcp/plan_tools.py` |
+| `github/__init__.py:1317` | `create_pr` |
+| `skills/permission/update_paths.py:1437,1484` | permission MCP path |
+| `hooks/skill.py:57`, `hooks/session_dispatch.py:47` | hook processes |
+
+Conversely, the three sites that DO pass a timeout —
+`session/preset_pin.py:84,109` and `session/repo_address.py:58` — reach
+git through `.run(..., timeout=_GIT_TIMEOUT_SECONDS)`. They are the
+correct examples, not further instances of the defect.
+
+**Fix:** repair the class, not the callers. Convert `toplevel`/`branch`
+from `cached_property` to methods accepting a bounded default timeout
+(or apply a class-level default inside them), widen the `except` to
+include `subprocess.TimeoutExpired`, and every one of the fifteen
+callers is fixed at once. Then wrap the MCP-handler calls in
+`asyncio.to_thread(...)` so a bounded-but-slow git still does not stall
+the loop.
+**Impact: HIGH · Effort: M**
+
+### E3. Six standalone uv-scripts shell out with no timeout and no local constant
+
+PEP 723 scripts cannot import `dev10x.subprocess_utils`, so
+`.claude/rules/mcp-tools.md` requires each to define a local
+`_SUBPROCESS_TIMEOUT_SECONDS`. Two do it correctly —
+`skills/tts/scripts/synthesize.py:79` and
+`skills/yt-upload/scripts/upload-video.py:74`. Six do not:
+
+- `skills/gh-pr-doctor/scripts/gh-audit-check.py:21`
+- `skills/gh-pr-doctor/scripts/gh-audit-comment.py:28`
+- `skills/gh-pr-doctor/scripts/gh-unresolved-threads.py:61`
+- `skills/slack/slack-notify.py:139`
+- `skills/qa-self/scripts/upload-screenshots.py:38`
+- `skills/git-groom/scripts/mass-rewrite.py:50,187`
+
+A hung `gh` (network stall, interactive auth prompt) or a keyring daemon
+waiting on a passphrase with no TTY hangs the script indefinitely. Three
+of the six are `gh-pr-doctor`, which runs inside foreman's unattended
+night loop where a hang has no escalation path.
+
+**Fix:** add the constant and pass `timeout=` in all six.
+`mass-rewrite.py` may need a repo-size-scaled value. The dependency-pin
+guard (`bin/check-dependency-pins.py`) is the precedent for making this
+a pre-commit check rather than a convention — this class of drift is
+exactly what that guard was built for.
+**Impact: MEDIUM · Effort: S**
+
+### E4. The sidecar-naming divergence is a latent footgun, not an active defect
+
+`domain/file_locks.py:118` (`file_lock`) and `:220`
+(`locked_yaml_update`) both **append** `.lock` to the full target name
+via `_lock_path_for`. `locked_json_update` at `:190` instead calls
+`path.with_suffix(".lock")`, which **replaces** the suffix — so
+`settings.local.json` locks on `settings.local.lock`.
+
+Two writers of one path that reach for different helpers would take
+different sidecars and fail to exclude each other, silently. Phase E
+swept every locked path and found **no path currently mixes them** — the
+settings family uses `locked_json_update` consistently throughout.
+
+So this is a footgun, not a live bug: the divergence is documented in
+both docstrings and preserved deliberately for historical call-site
+compatibility. It is recorded because the failure mode is silent and the
+next writer added to an existing path is the one who pays.
+
+**Fix (optional):** have `locked_json_update` delegate to
+`_lock_path_for` behind a one-release compatibility shim that also
+locks the legacy sidecar, or add a test asserting each shared-state path
+is only ever reached through one helper.
+**Impact: LOW · Effort: M**
+
+### E5. `locked_yaml_update` destroys a malformed YAML file
+
+`domain/file_locks.py:224-234` catches `yaml.YAMLError`, sets
+`data = {}`, and on context exit atomic-writes that empty dict back over
+the file. A `friction.yaml` or task-index store that is corrupt — or
+merely half-written by the unlocked writer in E1 — is therefore
+**silently replaced with an empty document** rather than surfacing the
+parse failure.
+
+The `except` exists so a caller can recover from a garbage file, but
+recovery and destruction are being conflated: the caller is handed `{}`
+with no signal that anything was lost, and the write-back makes the loss
+permanent.
+
+**Fix:** re-raise, or preserve the unparseable content as
+`<path>.corrupt-<timestamp>` before proceeding, so the data is
+recoverable and the failure is visible.
+**Impact: MEDIUM · Effort: S**
+
+<!-- Phases C, G, H, I, K pending — appended as agents report. -->
+
+
