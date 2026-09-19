@@ -45,9 +45,30 @@ from pathlib import Path
 
 DEFAULT_TMPDIR = Path("/tmp/Dev10x/git")
 
+# GH-1414: a PEP 723 script runs isolated from the dev10x package and
+# cannot reach its bounded subprocess helpers, so the bounds are local.
+# Two are needed because the call shapes here differ by orders of
+# magnitude: the plumbing commands below are single reads, while
+# run_rebase() replays every commit on the branch.
+_SUBPROCESS_TIMEOUT_SECONDS = 30
+_REBASE_TIMEOUT_SECONDS = 900
+
 
 def run(cmd: list[str], *, check: bool = True) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, capture_output=True, text=True, check=check)
+    try:
+        return subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=check,
+            timeout=_SUBPROCESS_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        print(
+            f"'{' '.join(cmd)}' exceeded {_SUBPROCESS_TIMEOUT_SECONDS}s — treating as wedged",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 
 def get_base_sha(base_ref: str) -> str:
@@ -184,11 +205,21 @@ def run_rebase(base_sha: str, seq_editor: Path) -> None:
     env = os.environ.copy()
     env["GIT_SEQUENCE_EDITOR"] = str(seq_editor)
     env["GIT_EDITOR"] = "true"
-    result = subprocess.run(
-        ["git", "rebase", "-i", base_sha],
-        env=env,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "rebase", "-i", base_sha],
+            env=env,
+            text=True,
+            timeout=_REBASE_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        print(
+            f"Rebase exceeded {_REBASE_TIMEOUT_SECONDS}s — treating as wedged.",
+            file=sys.stderr,
+        )
+        print("  Abort:   git rebase --abort", file=sys.stderr)
+        print("  Recover: git reflog  →  git reset --hard HEAD@{n}", file=sys.stderr)
+        sys.exit(1)
     if result.returncode != 0:
         if is_rebase_in_progress():
             files = get_conflicted_files()

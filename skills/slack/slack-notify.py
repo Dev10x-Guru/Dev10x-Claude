@@ -130,15 +130,28 @@ def resolve_mentions(message: str) -> str:
     return message
 
 
+# GH-1414: a PEP 723 script runs isolated from the dev10x package and
+# cannot reach its bounded subprocess helpers, so the bound is local.
+# A keyring daemon prompting for a passphrase with no TTY attached
+# otherwise waits forever.
+_SUBPROCESS_TIMEOUT_SECONDS = 30
+
+
 def _keyring_lookup(*, service: str, key: str) -> str | None:
     if sys.platform == "darwin":
         cmd = ["security", "find-generic-password", "-s", service, "-a", key, "-w"]
     else:
         cmd = ["secret-tool", "lookup", "service", service, "key", key]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=_SUBPROCESS_TIMEOUT_SECONDS,
+        )
         return result.stdout.strip() or None
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
         return None
 
 
