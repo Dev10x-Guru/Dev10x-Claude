@@ -191,23 +191,35 @@ class ValidatorRegistry:
 
 
 def _assert_metadata_matches(*, instance: Validator, spec: ValidatorSpec) -> None:
-    """Verify class-declared metadata matches the spec — fail fast on drift."""
+    """Verify class-declared metadata matches the spec — fail fast on drift.
+
+    Raised explicitly rather than asserted (GH-1419). `-O` /
+    `PYTHONOPTIMIZE` strips `assert` statements, and what these three
+    checks guard is the enforcement tier a rule registers at
+    (`.claude/rules/hook-patterns.md` § Profile Tiers) — a mismatch
+    stripped at runtime lets a rule silently register at the wrong tier.
+    Nothing in this repo runs optimized today, so the exposure is
+    theoretical; the cost of closing it is one line per site.
+    """
     declared_rule_id = getattr(instance, "rule_id", "")
     declared_profile = getattr(instance, "profile", None)
     declared_experimental = getattr(instance, "experimental", None)
     declared_parsed = RuleId.try_parse(declared_rule_id)
-    assert declared_parsed is not None and str(declared_parsed) == spec.rule_id, (
-        f"{spec.class_name}.rule_id={declared_rule_id!r} disagrees with "
-        f"spec rule_id={spec.rule_id!r}"
-    )
-    assert declared_profile == spec.profile, (
-        f"{spec.class_name}.profile={declared_profile!r} disagrees with "
-        f"spec profile={spec.profile!r}"
-    )
-    assert declared_experimental == spec.experimental, (
-        f"{spec.class_name}.experimental={declared_experimental!r} disagrees with "
-        f"spec experimental={spec.experimental!r}"
-    )
+    if declared_parsed is None or str(declared_parsed) != spec.rule_id:
+        raise AssertionError(
+            f"{spec.class_name}.rule_id={declared_rule_id!r} disagrees with "
+            f"spec rule_id={spec.rule_id!r}"
+        )
+    if declared_profile != spec.profile:
+        raise AssertionError(
+            f"{spec.class_name}.profile={declared_profile!r} disagrees with "
+            f"spec profile={spec.profile!r}"
+        )
+    if declared_experimental != spec.experimental:
+        raise AssertionError(
+            f"{spec.class_name}.experimental={declared_experimental!r} disagrees with "
+            f"spec experimental={spec.experimental!r}"
+        )
 
 
 @dataclass
