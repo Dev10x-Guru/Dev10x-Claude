@@ -33,6 +33,7 @@ _PLUGIN_MANIFEST = _REPO_ROOT / ".claude-plugin" / "plugin.json"
 _MARKETPLACE_MANIFEST = _REPO_ROOT / ".claude-plugin" / "marketplace.json"
 _BUMPVERSION = _REPO_ROOT / ".bumpversion.toml"
 _RELEASE_SCRIPT = _REPO_ROOT / "bin" / "release.sh"
+_PYPROJECT = _REPO_ROOT / "pyproject.toml"
 
 
 def _bumpversion_files() -> set[str]:
@@ -68,6 +69,41 @@ def test_both_manifests_report_the_same_version() -> None:
         f"marketplace.json says {entry['version']!r} but plugin.json says "
         f"{plugin['version']!r} — a release must move both. Check that "
         ".bumpversion.toml still lists marketplace.json."
+    )
+
+
+def test_the_pypi_package_reports_the_plugin_version() -> None:
+    """The third file a release bumps, and the one nothing cross-checked (GH-1416).
+
+    ``.bumpversion.toml`` rewrites ``pyproject.toml``'s version alongside
+    the two manifests, but the guards above compare only the manifests to
+    each other. So a release that failed between those writes — which is
+    not hypothetical, see this module's docstring on 0.100.1 — could ship
+    a PyPI package and a plugin claiming different versions with nothing
+    to catch it.
+
+    The pair matters because the two halves reach a user by different
+    routes: the Plugins panel reads the manifest while ``uv tool install``
+    reads the package, so a supervisor can be looking at one version
+    while running the other.
+    """
+    pyproject_version = tomllib.loads(_PYPROJECT.read_text())["project"]["version"]
+    plugin_version = _load_json(_PLUGIN_MANIFEST)["version"]
+    assert pyproject_version == plugin_version, (
+        f"pyproject.toml says {pyproject_version!r} but plugin.json says "
+        f"{plugin_version!r} — a release must move both. Check that "
+        "pyproject.toml is still listed in .bumpversion.toml, and that the "
+        "release did not abort part-way through."
+    )
+
+
+def test_bumpversion_moves_the_pypi_package() -> None:
+    """The guard above only bites after a release; this one bites before it."""
+    configured = _bumpversion_files()
+    assert "pyproject.toml" in configured, (
+        "'pyproject.toml' is missing from .bumpversion.toml "
+        "[[tool.bumpversion.files]] — the PyPI package version would freeze "
+        "at the next bump while the plugin manifests moved on"
     )
 
 
