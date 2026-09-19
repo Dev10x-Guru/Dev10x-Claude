@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import ast
+import dataclasses
+import inspect
+import textwrap
 from dataclasses import dataclass
 from typing import ClassVar
 
@@ -17,6 +21,7 @@ from dev10x.validators.registry import (
     ValidatorChain,
     ValidatorRegistry,
     ValidatorSpec,
+    _assert_metadata_matches,
 )
 
 
@@ -126,6 +131,70 @@ class TestExperimentalFilter:
             experimental=False,
         )
         assert ExperimentalFilter(enabled=False).keep(spec=spec) is True
+
+
+_BASE_SPEC = ValidatorSpec(
+    module_path="tests.validators.test_registry",
+    class_name="_StubValidator",
+    rule_id="DX001",
+    profile=ProfileTier.MINIMAL,
+    experimental=False,
+)
+
+
+class TestMetadataDriftRaises:
+    """The metadata check must survive an optimized interpreter (GH-1419).
+
+    These assert on the *raise*, not on an `assert` statement, because
+    that is the whole point: under `-O` / `PYTHONOPTIMIZE` a bare
+    `assert` is stripped, and what this check guards is the enforcement
+    tier a rule registers at. A test that only proved the mismatch was
+    caught under default flags would pass equally well against the
+    stripped version.
+    """
+
+    def _spec(self, **overrides: object) -> ValidatorSpec:
+        return dataclasses.replace(_BASE_SPEC, **overrides)
+
+    def test_rule_id_drift_raises(self) -> None:
+        with pytest.raises(AssertionError, match="rule_id"):
+            _assert_metadata_matches(
+                instance=_StubValidator(),
+                spec=self._spec(rule_id="DX099"),
+            )
+
+    def test_profile_drift_raises(self) -> None:
+        with pytest.raises(AssertionError, match="profile"):
+            _assert_metadata_matches(
+                instance=_StubValidator(),
+                spec=self._spec(profile=ProfileTier.STRICT),
+            )
+
+    def test_experimental_drift_raises(self) -> None:
+        with pytest.raises(AssertionError, match="experimental"):
+            _assert_metadata_matches(
+                instance=_StubValidator(),
+                spec=self._spec(experimental=True),
+            )
+
+    def test_matching_metadata_is_accepted(self) -> None:
+        _assert_metadata_matches(instance=_StubValidator(), spec=self._spec())
+
+    def test_the_check_contains_no_assert_statement(self) -> None:
+        """`-O` strips `assert`; a regression here is invisible at runtime.
+
+        Reading the source is the only way to prove the guard survives
+        optimization without re-executing the suite under `-O`, which
+        pytest itself cannot do in-process. Parsed rather than grepped so
+        the check cannot be fooled by the word appearing in a docstring —
+        including this one.
+        """
+        tree = ast.parse(textwrap.dedent(inspect.getsource(_assert_metadata_matches)))
+        assert not any(isinstance(node, ast.Assert) for node in ast.walk(tree)), (
+            "_assert_metadata_matches must raise explicitly, not assert — "
+            "`python -O` strips assert statements and this check gates "
+            "which enforcement tier a validator registers at (GH-1419)"
+        )
 
 
 class TestValidatorRegistry:
