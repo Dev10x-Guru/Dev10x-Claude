@@ -479,6 +479,29 @@ class TestEffectiveCwd:
         assert result.stdout.strip() == "wt-branch"
 
     @pytest.mark.asyncio
+    async def test_bound_cwd_survives_the_off_loop_hop(
+        self,
+        two_repos: tuple[Path, Path],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """GH-1457: moving a git call off the loop must not lose the CWD.
+
+        `asyncio.to_thread` copies the context, so the ContextVar follows
+        it. `loop.run_in_executor` does not — swapping to one would route
+        every MCP subprocess back at the daemon's own directory, silently
+        and only in worktrees.
+        """
+        from dev10x.subprocess_utils import effective_cwd, use_cwd
+
+        main, worktree = two_repos
+        monkeypatch.chdir(main)
+
+        with use_cwd(str(worktree)):
+            seen = await asyncio.to_thread(effective_cwd)
+
+        assert seen == str(worktree)
+
+    @pytest.mark.asyncio
     async def test_use_cwd_does_not_leak_after_block(
         self,
         two_repos: tuple[Path, Path],

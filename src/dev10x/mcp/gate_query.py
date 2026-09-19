@@ -16,6 +16,7 @@ wire payload.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -304,7 +305,9 @@ class GateResolutionQuery:
         # the caller supplied session_stale explicitly.
         resolved_context = dict(accepted_context)
         if self.gate == "session_adoption" and "session_stale" not in resolved_context:
-            resolved_context["session_stale"] = _computed_session_stale(toplevel=self.toplevel)
+            resolved_context["session_stale"] = await asyncio.to_thread(
+                _computed_session_stale, toplevel=self.toplevel
+            )
 
         # supervisor_review is durable project policy (ADR-0022 D-2), so it is
         # read UNCONDITIONALLY from the prefs and a caller-supplied value is
