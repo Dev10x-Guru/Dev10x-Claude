@@ -13,10 +13,20 @@ on:
 
 jobs:
   lessons-learned:
-    # Skip analysis for draft PRs and revert PRs
+    # Skip analysis for draft PRs and revert PRs.
+    #
+    # Fork PRs are skipped too (GH-1415): this job runs
+    # claude-code-action twice, and GitHub refuses to mint an OIDC token
+    # for a fork-triggered `pull_request` run. The trigger here is
+    # `pull_request` rather than `pull_request_target`, so the API key is
+    # withheld and nothing leaks — but the job goes red on every merged
+    # fork PR, which is exactly the "trains reviewers to ignore red CI"
+    # failure .claude/rules/github-workflows.md warns about. Matches the
+    # guard on claude-code-review.yml and claude-pr-hygiene.yml.
     if: >-
       github.event.pull_request.draft == false
       && !startsWith(github.event.pull_request.title, 'Revert ')
+      && !github.event.pull_request.head.repo.fork
     runs-on: ubuntu-latest
     permissions:
       contents: write
