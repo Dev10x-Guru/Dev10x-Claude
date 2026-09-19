@@ -7,6 +7,137 @@ cross-cutting consistency, and industry best practices.
 Run via `Dev10x:project-audit` with all phases selected, twelve
 read-only agents dispatched in parallel.
 
+## Proposed milestones
+
+Prefix `ARCH` (registered in `references/milestone-naming.md`; `AUD` is
+closed/archived from the 2026-05-18 series).
+
+**ARCH-M1 — Stop losing data.** E1, E2, E5, J2. The two HIGH findings
+plus the corrupt-YAML destroyer that would erase E1's evidence. Every
+item is a concurrency defect on shared state, each has a correct
+sibling implementation to copy, and none needs a design decision.
+Ships first and alone. **Blocks nothing; nothing blocks it.**
+
+**ARCH-M2 — Close the guard gaps.** E3, J1, J3, J5, J6, L5. Six
+independent one-hour fixes, all of the form "a rule exists, one place
+escaped it". Includes two CI-safety items and the six uv-script
+timeouts. Candidate for a single bundle PR. The E3 sweep should land
+`bin/check-subprocess-timeouts.py` alongside it, mirroring
+`check-dependency-pins.py`, so the class cannot regress.
+
+**ARCH-M3 — Survive a bad night.** L1, L2, L3, L4. Resilience at the
+external-call boundary: transient-failure tolerance in the CI poll, a
+dead-letter log for notifications, a bounded retry helper, a bulkhead
+semaphore, and write-verification on the two wrappers the rules doc
+names. Scoped by the unattended `foreman` case, which is where every one
+of these costs the most. **Should follow M1** — M1 fixes the daemon
+hang that M3's semaphore would otherwise mask.
+
+**ARCH-M4 — Converge on the mechanisms that already exist.** A1, A2,
+A3, C1, F1, the `pr_get` alias, plus the low-severity naming bundle.
+Pure consistency work: migrate onto `SingletonHolder`, generalize the
+`mcp_tool` decorator, route the three `McpToolName` bypasses, extract
+`backed_up_write`, and decide `SessionStore`'s fate. **Do A2 before
+ARCH-M5's refactors** so new code lands on the generalized decorator.
+
+**ARCH-M5 — Split what has outgrown its file.** B1, B2, D2, D4. The
+`session_yaml.py` three-document split, the `update_paths.py` catalog
+split, the `GateResolutionQuery.run()` extraction, and the duplicate
+plan parser. Deliberately sequenced **before** M7: the team gets
+practice on 1,041 and 2,308 lines before attempting 2,918.
+
+**ARCH-M6 — Make the quality gates real.** G1, G2, G3, J8. Evals for
+thirteen gated skills, the soft-marker sweep, the coverage matrix this
+audit did not produce, and the `fail_under = 75` versus stated-100%
+question. J8's doc-budget items ride along.
+
+**ARCH-M7 — The work that needs an ADR first.** D1, F2, J7. Splitting
+`github/__init__.py` (XL), the `ChatProvider` extraction (only worth
+doing when a third provider or a third cross-ported bug appears), and
+designing a deprecation mechanism. **Blocked by ARCH-M5.**
+
+Blocking chain: `M1 → M3`, `M4(A2) → M5`, `M5 → M7`. M2 and M6 are
+independent and can run in parallel with anything.
+
+## Verdict
+
+This is a mature, unusually self-documenting codebase. Module docstrings
+name their patterns and cite the ADR that established them; three areas
+(ADR-0007's rule/policy split, `validators/registry.py`, the `git/`
+three-tier split) are reference-quality. The audit found **no security
+defect, no unsafe deserialization, no hardcoded secret, and no ADR
+violation in the domain layer** across 68 files.
+
+The defects it did find share one shape, and naming it is the most
+useful single output of this audit:
+
+> **Almost every finding is a path left outside a mechanism the
+> codebase already built correctly.**
+
+| Mechanism that exists and works | The path outside it |
+|---|---|
+| `file_lock` on `friction.yaml` — 6 writers | `migrate_config.py:130` — **HIGH** |
+| `GitContext.run(timeout=…)`, hazard documented | `toplevel`/`branch` — 15 callers, **HIGH** |
+| `create_pr` re-reads to verify its own write | ~15 other write wrappers |
+| `SingletonHolder` (built to stop this) | 5 hand-rolled singleton trios |
+| `@github_tool` decorator | 5 MCP modules hand-copying it |
+| `ValidatorSpec` registry | `update_paths.py`'s unformalized ops |
+| `McpToolName` (built to stop this) | 3 hand-rolled parse sites |
+| Fork guard on 3 Claude workflows | `claude-memory-review.yml` |
+| `_SUBPROCESS_TIMEOUT_SECONDS` in 2 uv-scripts | 6 others |
+| `pr_number` on 12 PR tools | `pr_get`'s `number` |
+| `evals.json` on 54 skills | 13 gated skills without one |
+
+Three findings do **not** fit that shape and need a design decision
+rather than a repair: the `github/__init__.py` split (XL, needs an ADR),
+the absent resilience primitives (retry / backoff / circuit breaker /
+bulkhead — a consistent structural choice, not an oversight), and the
+deprecation mechanism, which does not exist in any form.
+
+The practical consequence: most of this backlog needs no design work.
+Each fix has a working reference implementation a few lines away, which
+is why the milestones below are sequenced **by mechanism** rather than
+by module.
+
+## Priority matrix
+
+| # | Finding | Impact | Effort | Milestone |
+|---|---|---|---|---|
+| E1 | Unlocked global `friction.yaml` writer | HIGH | S | ARCH-M1 |
+| E2 | Unbounded `GitContext` blocks the daemon | HIGH | M | ARCH-M1 |
+| E5 | `locked_yaml_update` destroys malformed YAML | MEDIUM | S | ARCH-M1 |
+| J2 | Same as E1, best-practices view | HIGH | S | ARCH-M1 |
+| E3 | 6 uv-scripts with no subprocess timeout | MEDIUM | S | ARCH-M2 |
+| J1 | Missing fork guard on a Claude workflow | MEDIUM | S | ARCH-M2 |
+| J3 | Version-drift guard skips `pyproject.toml` | MEDIUM | S | ARCH-M2 |
+| J5 | No `permissions:` block on a workflow | LOW | S | ARCH-M2 |
+| J6 | Silent exception in permission diagnostics | LOW | S | ARCH-M2 |
+| L5 | `assert` guards hook-tier classification | LOW | S | ARCH-M2 |
+| L2 | One transient `gh` failure kills the CI wait | MEDIUM | S | ARCH-M3 |
+| L4 | Notification failures have no dead letter | MEDIUM | S | ARCH-M3 |
+| L3 | No retry / backoff / bulkhead | MEDIUM | S+M | ARCH-M3 |
+| L1 | Write wrappers do not verify their writes | MEDIUM | M | ARCH-M3 |
+| A1 | 5 hand-rolled singletons | MEDIUM | M | ARCH-M4 |
+| A2 | MCP boundary decorator not generalized | MEDIUM | L | ARCH-M4 |
+| A3 | `SessionStore` — wire it or delete it | MEDIUM | M | ARCH-M4 |
+| C1 | `McpToolName` bypassed at 3 sites | MEDIUM | S | ARCH-M4 |
+| F1 | Backup+lock idiom copy-pasted 13× | MEDIUM | M | ARCH-M4 |
+| H-census | `pr_get` parameter outlier | MEDIUM | S | ARCH-M4 |
+| B1 | Two divergent plan-document parsers | MEDIUM | S | ARCH-M5 |
+| B2 | 140-line `GateResolutionQuery.run()` | MEDIUM | M | ARCH-M5 |
+| D4 | `session_yaml.py` holds three documents | MEDIUM | M | ARCH-M5 |
+| D2 | `update_paths.py` catalog god-module | MEDIUM | L | ARCH-M5 |
+| G1 | 13 gated skills ship no evals | MEDIUM | M | ARCH-M6 |
+| G2 | Soft gate markers the rule replaced | MEDIUM | M | ARCH-M6 |
+| G3 | JTBD coverage matrix unproduced | MEDIUM | M | ARCH-M6 |
+| J8 | Doc budgets breached without override | LOW | S/M | ARCH-M6 |
+| D1 | Split `github/__init__.py` | MEDIUM | XL | ARCH-M7 |
+| J7 | No deprecation mechanism | LOW | M | ARCH-M7 |
+| F2 | Slack/GChat sibling duplication | MEDIUM | L | ARCH-M7 |
+
+Low-severity naming and hygiene items (A4, A5, A6, B3, B4, D3, D5, D6,
+E4, F3, K1) bundle into a single cleanup PR alongside ARCH-M4.
+
 ## Scope and method
 
 | Dimension | Value |
