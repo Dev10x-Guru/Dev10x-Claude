@@ -51,6 +51,7 @@ MCP-M6: Installable GitHub bot/Action
 | `GATE` | Friction gate-policy resolver (ADR-0016, GH-751) | active |
 | `SPLIT` | Core-plus-satellite plugin split (ADR-0020, GH-913) | closed (rejected) |
 | `QA` | qa-self evidence integrity & portability (2026-09-08) | active |
+| `ARCH` | Full architecture audit (2026-09-19) — patterns, archetypes, concurrency, best practices | active |
 
 When starting a new initiative that spans multiple milestones, register
 its prefix here before creating the first milestone. Pick a prefix that
