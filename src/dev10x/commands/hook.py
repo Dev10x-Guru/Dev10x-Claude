@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sys
 import traceback
@@ -14,6 +15,8 @@ if TYPE_CHECKING:
     from dev10x.hooks.permission_diagnostics import DiagnosticResult
 
 _DEBUG = os.environ.get("HOOK_DEBUG", "") != ""
+
+log = logging.getLogger(__name__)
 
 # Tools whose `tool_input.command` is a shell command and so belongs on the
 # validator chain. `Monitor` is here because its command is a Bash command in
@@ -169,9 +172,42 @@ def _run_permission_diagnostics(*, raw: dict, cwd: str) -> None:
                 file=sys.stderr,
             )
     except Exception:
+        _record_diagnostics_failure()
         if _DEBUG:
             print("[HOOK_DEBUG] permission_diagnostics raised:", file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
+
+
+def _record_diagnostics_failure() -> None:
+    """Leave a trace when the diagnostic itself breaks (GH-1418).
+
+    The traceback used to be gated behind ``HOOK_DEBUG``, so outside
+    debug mode a raised exception was entirely silent — a bad import or
+    a schema change in ``raw`` degraded the PermissionDenied diagnostic
+    to a no-op with nothing in the audit JSONL the project otherwise
+    relies on for hook observability.
+
+    ``exc_info=True`` mirrors ``mcp.resource_watcher``. The level does
+    not: that module logs at ``debug``, which is below the default
+    threshold and so would reproduce the silence this fixes. The
+    attribution is what makes it reachable from ``audit_hook_recent`` —
+    a log line alone goes wherever the handler points, which in a hook
+    subprocess may be nowhere.
+
+    Recording must not itself raise. We are already in an exception
+    handler for a best-effort diagnostic, and a failure here would
+    propagate into the hook's own exit path.
+    """
+    log.warning("permission_diagnostics raised — diagnostic degraded", exc_info=True)
+    try:
+        from dev10x.hooks.audit_emit import set_decision_attribution
+
+        set_decision_attribution(
+            rule_id="permission-diagnostics-failed",
+            reason="permission_diagnostics raised; see exc_info in the hook log",
+        )
+    except Exception:  # noqa: S110 - see docstring: recording must not raise
+        pass
 
 
 @hook.command(name="validate-edit")
