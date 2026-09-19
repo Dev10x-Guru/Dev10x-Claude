@@ -7,46 +7,213 @@ cross-cutting consistency, and industry best practices.
 Run via `Dev10x:project-audit` with all phases selected, twelve
 read-only agents dispatched in parallel.
 
+## Late phases — C, G, H, I, K (all twelve now reported)
+
+All four outstanding phases reported after the first synthesis. Two
+arrived with **direct contradictions between agents**, resolved here by
+reading the source rather than preferring either report.
+
+### Adjudication 1 — the CWD-discipline dispute
+
+One Phase H report rated `skills/merge/fixes_scope.py:223` and
+`skills/git_fixup/find_fixup_target.py:65` **HIGH**, as bare
+`subprocess.run` in importable package code. The other rated the same
+two **EXEMPT**, as dual-use modules behind uv-script shims.
+
+Resolved by checking three things directly:
+
+- `skills/monitor/ci_check_status.py` **does** carry
+  `#!/usr/bin/env -S uv run --script`. It is a genuine uv-script and is
+  exempt — so the "16 in-package files" count I produced earlier
+  overstated the problem, and the second report was right to reject it.
+- `fixes_scope.py` and `find_fixup_target.py` carry **no shebang** —
+  they open with docstrings. The first report was right about that.
+- The decisive question is reachability, which neither report settled:
+  `rg 'skills.merge'` outside the package returns **nothing**. The only
+  importer of `fixes_scope` is `skills/merge/__init__.py`, and nothing
+  under `mcp/`, `github/` or `commands/` imports `skills.merge` at all.
+
+**Verdict: latent, not live — LOW, not HIGH.** No daemon path reaches
+either module today, so no wrong-tree read can occur. The residual risk
+is real but conditional: `read_commit_messages` takes no `cwd`
+parameter at all, so it inherits ambient CWD, and one accidental import
+inside an MCP handler would make it a live defect with no compile-time
+signal. Worth a `cwd` parameter next time the file is touched; not
+worth a milestone.
+
+The HIGH rating came from assuming reachability rather than checking
+it. Recording the method, not just the answer.
+
+### Adjudication 2 — the git-common-dir dispute
+
+Phase I reported three independent implementations of "what is this
+repo's git common dir". The agent re-running Phase I initially reported
+the opposite — "verified negatives on all four duplicated-knowledge
+candidates" — then re-read the three files and **confirmed the original
+finding**, noting its own sweep had checked the higher-level
+`repo_stem`/`resolve_repo_identity` layer and missed the primitive
+underneath.
+
+Confirmed independently here: `rg 'git-common-dir' src/dev10x` returns
+exactly three call sites, using two different strategies.
+
+**The finding stands** — filed as #1445. A negative from a re-run does
+not override a positively-cited finding; it triggers a third read.
+
+### C — Value objects
+
+`McpToolName` bypasses confirmed as recorded above. Two further
+findings:
+
+- **The repo-basename fallback has three implementations**, one
+  correct. `pr_notify.py:86-90` uses `RepositoryRef.try_parse` with a
+  fallback; `slack_review_request.py:80-81` and
+  `gchat_review_request.py:105-106` each reimplement
+  `repo.split("/")[-1]` with no parse step; `github/__init__.py:2864`
+  unpacks `*repo.split("/")` into script args despite the same module
+  importing `RepositoryRef` at lines 30, 137, 161, 385-386. A malformed
+  repo string yields a silently empty basename at three of four sites.
+  **#1451 · MEDIUM · S**
+- **`scope: str` is declared eight-plus times** across the four `pin_*`
+  writers and their MCP wrappers, with the same three-line docstring
+  repeated verbatim four times (`gate_tools.py:291,359,425,467`), while
+  the enumeration is validated in exactly one place. `Tracker` and
+  `Ide` are this repo's own StrEnum template for a closed-set config
+  axis and were simply not applied. **#1452 · MEDIUM · M**
+
+Gate *presets* correctly resist the same treatment —
+`validate_pin_values` checks dynamically against loaded YAML, so a
+static enum would be wrong. The real defect there is a stale docstring:
+`gate_tools.py:288` still advertises `"strict | guided | adaptive"`
+while `gate_policy.py:159` lists both as `RETIRED_PRESET_NAMES`.
+
+### G — Coverage
+
+The matrix was produced after all. Eleven of fourteen feature areas
+score GOOD on unit and integration coverage. Three genuine gaps, all
+grep-verified rather than filename-inferred:
+
+- **`hooks/scripts/audit-wrap`** — 85 lines of bash prefixing *every*
+  entry in `hooks.json`, capturing timing and injecting
+  `DEV10X_HOOK_SPAN_ID`. **Zero tests.** It appears in the suite only
+  as a path string in an unrelated fixture. Its sibling
+  `plugin-load-guard.sh` *is* subprocess-tested in
+  `test_orchestrators.py`, so the pattern exists in-repo and this
+  script just never got it. **#1447 · HIGH · S**
+- **`commands/platform.py`** (105 LOC) — two live `sys.exit(1)`
+  branches, no `CliRunner` coverage, while the domain beneath is
+  tested. **#1448 · MEDIUM · S**
+- **`mcp/sampling_tools.py`** — `test_sampling.py` tests the *manager*,
+  never the registered `@server.tool()` wrapper. **#1448 · LOW · S**
+
+And the LOC-ratio finding: **`update_paths.py` has 0.39× test-to-source
+depth** (2,308 LOC against one 894-line test file) where the
+comparably-sized `github/__init__.py` has 2.5× across fourteen files.
+It is also the module named in three recent regression fixes — GH-918,
+GH-1401, GH-1405 — and it rewrites live user permission settings.
+**#1449 · MEDIUM · L**
+
+The agent independently hit the same false-positive trap recorded in
+G0: a naive filename check produced 44 candidates of which **39 were
+false positives**, eliminated one by one with grep before anything was
+asserted.
+
+### H — Cross-cutting consistency
+
+The headline is a negative worth recording: **every rule with an
+automated test is holding at 100%**. `to_wire()` coverage is 90 of 90
+handlers; module-scope `GitContext()` is zero; `print()` in domain code
+is zero; unbounded dependency pins are zero. Meanwhile the one rule
+with no test — "`__init__.py` is re-exports only" — is violated by
+thirteen files totalling ~5,000 lines.
+
+> Rules with a test hold. Rules without one drift. That is the single
+> most actionable sentence in this audit.
+
+One new finding: **`projects_scan.py` runs a second, hand-maintained
+copy of the glob matcher.** `project_match.py:174-177`'s docstring says
+outright that it "mirrors `_match_globs` in session_yaml.py" — a mirror
+maintained by hand, not by import, while `session_yaml.py` calls
+`_match_globs` at four internal sites. If one gains a feature and the
+other does not, `dev10x config doctor`'s scan can report "matches
+nothing" for an entry the runtime *does* match. That tool exists
+specifically to catch drift a human cannot see. **#1450 · MEDIUM · S**
+
+Also: `commands/config.py:63` and `commands/github.py:212` are the only
+2 of 20 `commands/` files that skip the `effective_cwd() or
+os.getcwd()` fallback — low risk today, filed with ARCH-M2. And
+`domain/watchdog.py:373` calls bare `subprocess.run` because ADR-0008
+forbids `domain/` importing `subprocess_utils` — a **legitimate
+exception that `cwd-discipline.md` does not document as one**, so a
+future reviewer reading that rule cold would flag correct code.
+
+### I — Coupling
+
+`domain` imports nothing outward (0 of 68 files). `skills/*` imports
+nothing up into `github`/`mcp`/`hooks`/`commands`. The layering is
+real.
+
+**One cycle, and it is the audit's cleanest HIGH:** `github/app_auth.py:26`
+imports `dev10x.commands.github_app_api` at module scope, unguarded,
+while `commands/github_app.py:23` imports back from
+`github.app_auth`. The GitHub layer reaches *up* into the CLI layer.
+`github_app_api.py` is a pure urllib client with zero `dev10x` imports
+— a leaf in the wrong package — so the fix is a file move.
+**#1444 · HIGH · S**
+
+`mcp`'s 16-module fan-out is **not** a god module: every cross-module
+import there is function-local and lazy, making it a thin composition
+root. Verified, and recorded so a future audit does not re-flag it.
+
+Three duplicated-knowledge candidates came back **clean** —
+`repo_stem`, `~/.config/Dev10x/` path layouts, and permission-rule
+string shapes are each single-owned. The fourth (git common dir) is the
+adjudicated finding above.
+
+One qualifying N+1: `pr_labels(action="remove")` issues one
+`gh api DELETE` subprocess *per label* where the `add` branch directly
+above does it in one `POST`, on the path `git-groom` runs after every
+force-push. **#1446 · MEDIUM · S**
+
+### K — Archetypes
+
+No missing archetype the domain needs, as recorded above. One addition:
+**`domain/common/policy.py:188`'s `Policy` is a fourth rule archetype
+ADR-0007 does not name**, one edit-distance from `PolicyRule` while
+being nothing like it in shape — queried and listed, never `apply()`'d.
+That is the same confusion ADR-0007 was written to prevent, recurring
+one layer down. **#1453 · MEDIUM · S**
+
+And the **missing `Document` supertype** — six document classes each
+reimplement load, lock, atomic write and round-trip. The cost is
+already documented: `settings_document.py`'s own docstring records the
+GH-825/GH-827 near-miss where the two lock helpers' different sidecars
+failed to exclude each other. **#1454 · MEDIUM · L**
+
 ## What this audit did not cover
 
-Stated plainly so a reader does not mistake silence for a clean bill.
+All twelve phases reported. The remaining gaps are narrower than the
+earlier draft of this section stated:
 
-| Phase | Status |
-|---|---|
-| A, B, D, E, F, J, K, L | Complete, agent-reported, spot-verified |
-| C | **Conducted by the orchestrator** after its agent stopped responding |
-| G | **Partial** — the JTBD coverage matrix was never produced (carried as ARCH-M6 / #1437) |
-| H | **Not received** — reassigned, no findings returned |
-| I | **Not received** — reassigned, no findings returned |
+- **Phase C was conducted by the orchestrator** before its agent
+  reported; both sets of findings are merged above.
+- **`commands/config.py:63` and `commands/github.py:212`** are noted
+  but the other 18 `commands/` files were sampled, not exhaustively
+  read.
+- **Keyword-only argument and type-annotation coverage** was sampled
+  (`github/__init__.py`'s public functions, all compliant), not
+  measured across the tree.
+- **`skills/` error-handling shape** was established by sampling ~6 of
+  94 files. The two-tier convention (Result at the public seam, plain
+  types internally) held in every sample, but is not proven repo-wide.
+- **No runtime measurement was taken.** Coverage percentages come from
+  file inventories and LOC ratios, not from a `coverage report` run;
+  the suite mutates this worktree's git HEAD, so it was deliberately
+  not run. #1437 carries the real measurement.
 
-Four of twelve dispatched agents stopped reporting. Two phases (C, and
-the completed part of G) were re-run directly; two (H, I) were
-reassigned to idle agents and did not return findings before this memo
-was written.
-
-**Concretely missing as a result:**
-
-- The **module-level import-coupling map** and any dependency cycles
-  between top-level modules (Phase I). Nothing here establishes whether
-  `src/dev10x/` has import cycles.
-- **Duplicated cross-context knowledge** beyond the two instances found
-  directly (`McpToolName` bypasses; `repo_stem` verified clean).
-- The **error-handling shape map** for `skills/`, `commands/`,
-  `github/` and `hooks/` (Phase H). ADR-0009 compliance is verified at
-  the MCP boundary and in `domain/` — the layer between them is
-  unmeasured.
-- The **`friction.yaml` reader inventory** — which readers go through
-  `config_io`/`policy_resolution`/`FrictionYamlDocument` and which
-  hand-roll `yaml.safe_load`. Given E1, the *writer* side proved to be
-  where the defect was, but the reader side remains unchecked.
-- A **confirmed count** of remaining bare `subprocess.run`/`os.getcwd`
-  in package code. A direct grep found ~16 in-package files
-  (`ci_check_status.py` ×5, `pr_notify.py` ×3) but each was not
-  individually assessed against the uv-script exemption.
-
-None of these gaps affects the findings that *are* recorded — every
-finding above was verified against the source, most of them twice. They
-affect only what else might exist.
+Every finding recorded here was verified against source, and the two
+contradicted ones were verified a third time. The gaps bound what else
+might exist; they do not weaken what is written.
 
 ## Proposed milestones
 
@@ -1354,10 +1521,3 @@ standard.
 
 This is the one gap in the audit's own coverage. It is carried into the
 backlog as a scoped ticket rather than left implicit.
-
-
-
-
-
-
-
