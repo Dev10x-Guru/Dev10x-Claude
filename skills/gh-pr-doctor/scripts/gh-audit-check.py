@@ -16,14 +16,26 @@ import sys
 
 AUDIT_MARKER = "PR Audit"
 
+# GH-1414: a PEP 723 script runs isolated from the dev10x package and
+# cannot reach its bounded subprocess helpers, so the bound is local.
+_SUBPROCESS_TIMEOUT_SECONDS = 30
+
 
 def run_gh(args: list[str]) -> str:
-    result = subprocess.run(
-        ["gh"] + args,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            ["gh"] + args,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_SUBPROCESS_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        print(
+            f"gh exceeded {_SUBPROCESS_TIMEOUT_SECONDS}s — treating as wedged",
+            file=sys.stderr,
+        )
+        return ""
     if result.returncode != 0:
         print(f"gh error: {result.stderr.strip()}", file=sys.stderr)
         return ""

@@ -28,6 +28,12 @@ import requests
 
 LINEAR_API = "https://api.linear.app/graphql"
 
+# GH-1414: a PEP 723 script runs isolated from the dev10x package and
+# cannot reach its bounded subprocess helpers, so the bound is local.
+# A keyring daemon prompting for a passphrase with no TTY attached
+# otherwise waits forever.
+_SUBPROCESS_TIMEOUT_SECONDS = 30
+
 
 def _keyring_lookup(*, service: str, key: str) -> str | None:
     if sys.platform == "darwin":
@@ -35,9 +41,15 @@ def _keyring_lookup(*, service: str, key: str) -> str | None:
     else:
         cmd = ["secret-tool", "lookup", "service", service, "key", key]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=_SUBPROCESS_TIMEOUT_SECONDS,
+        )
         return result.stdout.strip() or None
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
         return None
 
 

@@ -66,3 +66,14 @@ repos:
         language: script
         pass_filenames: false
         always_run: true
+
+      # GH-1414: a PEP 723 script cannot import dev10x.subprocess_utils,
+      # so it must bound its own subprocess calls — otherwise a stalled
+      # `gh` or a keyring daemon with no TTY hangs an unattended run
+      # until morning.
+      - id: subprocess-timeouts
+        name: uv-script subprocess calls declare a timeout
+        entry: bin/check-subprocess-timeouts.py
+        language: script
+        pass_filenames: false
+        always_run: true

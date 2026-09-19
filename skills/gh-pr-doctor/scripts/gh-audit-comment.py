@@ -19,18 +19,31 @@ import subprocess
 import sys
 from pathlib import Path
 
+# GH-1414: a PEP 723 script runs isolated from the dev10x package and
+# cannot reach its bounded subprocess helpers, so the bound is local.
+_SUBPROCESS_TIMEOUT_SECONDS = 30
+
 
 def post_comment(
     repo: str,
     pr_number: int,
     body: str,
 ) -> bool:
-    result = subprocess.run(
-        ["gh", "pr", "comment", str(pr_number), "--repo", repo, "--body", body],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "comment", str(pr_number), "--repo", repo, "--body", body],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_SUBPROCESS_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        print(
+            f"Commenting on PR #{pr_number} exceeded "
+            f"{_SUBPROCESS_TIMEOUT_SECONDS}s — treating as wedged",
+            file=sys.stderr,
+        )
+        return False
     if result.returncode != 0:
         print(
             f"Failed to comment on PR #{pr_number}: {result.stderr.strip()}",
