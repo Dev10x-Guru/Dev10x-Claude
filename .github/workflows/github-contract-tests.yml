@@ -24,6 +24,12 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# GH-1417: declared explicitly so the job cannot inherit the repository
+# default GITHUB_TOKEN scope, which may be read-write. Checking out and
+# running pytest against the live API needs nothing beyond read.
+permissions:
+  contents: read
+
 jobs:
   contract-test:
     runs-on: ubuntu-latest
