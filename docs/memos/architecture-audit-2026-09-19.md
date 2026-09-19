@@ -7,6 +7,47 @@ cross-cutting consistency, and industry best practices.
 Run via `Dev10x:project-audit` with all phases selected, twelve
 read-only agents dispatched in parallel.
 
+## What this audit did not cover
+
+Stated plainly so a reader does not mistake silence for a clean bill.
+
+| Phase | Status |
+|---|---|
+| A, B, D, E, F, J, K, L | Complete, agent-reported, spot-verified |
+| C | **Conducted by the orchestrator** after its agent stopped responding |
+| G | **Partial** — the JTBD coverage matrix was never produced (carried as ARCH-M6 / #1437) |
+| H | **Not received** — reassigned, no findings returned |
+| I | **Not received** — reassigned, no findings returned |
+
+Four of twelve dispatched agents stopped reporting. Two phases (C, and
+the completed part of G) were re-run directly; two (H, I) were
+reassigned to idle agents and did not return findings before this memo
+was written.
+
+**Concretely missing as a result:**
+
+- The **module-level import-coupling map** and any dependency cycles
+  between top-level modules (Phase I). Nothing here establishes whether
+  `src/dev10x/` has import cycles.
+- **Duplicated cross-context knowledge** beyond the two instances found
+  directly (`McpToolName` bypasses; `repo_stem` verified clean).
+- The **error-handling shape map** for `skills/`, `commands/`,
+  `github/` and `hooks/` (Phase H). ADR-0009 compliance is verified at
+  the MCP boundary and in `domain/` — the layer between them is
+  unmeasured.
+- The **`friction.yaml` reader inventory** — which readers go through
+  `config_io`/`policy_resolution`/`FrictionYamlDocument` and which
+  hand-roll `yaml.safe_load`. Given E1, the *writer* side proved to be
+  where the defect was, but the reader side remains unchecked.
+- A **confirmed count** of remaining bare `subprocess.run`/`os.getcwd`
+  in package code. A direct grep found ~16 in-package files
+  (`ci_check_status.py` ×5, `pr_notify.py` ×3) but each was not
+  individually assessed against the uv-script exemption.
+
+None of these gaps affects the findings that *are* recorded — every
+finding above was verified against the source, most of them twice. They
+affect only what else might exist.
+
 ## Proposed milestones
 
 Prefix `ARCH` (registered in `references/milestone-naming.md`; `AUD` is
