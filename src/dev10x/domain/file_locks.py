@@ -65,6 +65,17 @@ class LockTimeoutError(OSError):
     """
 
 
+class CorruptYamlError(OSError):
+    """Raised when a locked YAML store cannot be parsed (GH-1413).
+
+    Subclasses :class:`OSError` for the same reason
+    :class:`LockTimeoutError` does. Surfacing the parse failure is the
+    whole point: the caller must be able to tell "this store was empty"
+    from "this store was unreadable", because the two demand opposite
+    responses and only one of them is safe to write over.
+    """
+
+
 def _lock_path_for(path: Path) -> Path:
     return path.with_suffix(path.suffix + ".lock") if path.suffix else path.with_suffix(".lock")
 
@@ -215,6 +226,12 @@ def locked_yaml_update(
 
     Raises :class:`LockTimeoutError` when the lock cannot be acquired
     within ``timeout`` seconds. Pass ``timeout=0`` for unbounded waits.
+
+    Raises :class:`CorruptYamlError` when the store exists but does not
+    parse, leaving the file untouched (GH-1413). Treating a parse failure
+    as an empty document and writing that back is silent, permanent data
+    loss: the unreadable bytes are the only remaining evidence of what
+    the store held, and they are exactly what the write-back destroys.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     lock_fd = os.open(str(_lock_path_for(path)), os.O_CREAT | os.O_RDWR)
@@ -223,8 +240,12 @@ def locked_yaml_update(
         if path.exists():
             try:
                 data = yaml.safe_load(path.read_text()) or {}
-            except yaml.YAMLError:
-                data = {}
+            except yaml.YAMLError as exc:
+                raise CorruptYamlError(
+                    f"{path} is not valid YAML, so it cannot be updated safely — "
+                    f"the file has been left untouched. Inspect or remove it, "
+                    f"then retry. Parse error: {exc}"
+                ) from exc
         else:
             data = {}
         yield data
