@@ -12,6 +12,7 @@ also appended to the audit log and the configured ``doubt_sink`` (#754).
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -135,7 +136,7 @@ async def resolve_gate(
     from dev10x.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
-        toplevel = GitContext().toplevel
+        toplevel = await asyncio.to_thread(lambda: GitContext().toplevel)
         if toplevel is None:
             return to_wire(err("Not in a git repository"))
         return to_wire(
@@ -168,7 +169,7 @@ async def preset_pin_status(cwd: str | None = None) -> dict:
     from dev10x.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
-        return to_wire(preset_pin.preset_pin_status(cwd=cwd))
+        return to_wire(await asyncio.to_thread(preset_pin.preset_pin_status, cwd=cwd))
 
 
 def _read_supervisor_review() -> Result[dict[str, Any]]:
@@ -244,7 +245,7 @@ async def supervisor_review_status(cwd: str | None = None) -> dict:
     from dev10x.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
-        return to_wire(_read_supervisor_review())
+        return to_wire(await asyncio.to_thread(_read_supervisor_review))
 
 
 @server.tool()
@@ -264,7 +265,7 @@ async def human_review_status(cwd: str | None = None) -> dict:
     from dev10x.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
-        return to_wire(_read_supervisor_review())
+        return to_wire(await asyncio.to_thread(_read_supervisor_review))
 
 
 @server.tool()
@@ -301,7 +302,8 @@ async def pin_gate_preset(
 
     with use_cwd(cwd):
         return to_wire(
-            preset_pin.pin_preset(
+            await asyncio.to_thread(
+                preset_pin.pin_preset,
                 preset=preset,
                 overlays=list(overlays) if overlays else None,
                 gate_overrides=dict(gate_overrides) if gate_overrides else None,
@@ -333,7 +335,7 @@ async def tracker_status(cwd: str | None = None) -> dict:
     from dev10x.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
-        return to_wire(tracker_pin.tracker_status(cwd=cwd))
+        return to_wire(await asyncio.to_thread(tracker_pin.tracker_status, cwd=cwd))
 
 
 @server.tool()
@@ -369,7 +371,9 @@ async def pin_tracker(
     from dev10x.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
-        return to_wire(tracker_pin.pin_tracker(tracker=tracker, scope=scope, cwd=cwd))
+        return to_wire(
+            await asyncio.to_thread(tracker_pin.pin_tracker, tracker=tracker, scope=scope, cwd=cwd)
+        )
 
 
 @server.tool()
@@ -395,7 +399,7 @@ async def ide_status(cwd: str | None = None) -> dict:
     from dev10x.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
-        return to_wire(ide_pin.ide_status(cwd=cwd))
+        return to_wire(await asyncio.to_thread(ide_pin.ide_status, cwd=cwd))
 
 
 @server.tool()
@@ -435,7 +439,7 @@ async def pin_ide(
     from dev10x.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
-        return to_wire(ide_pin.pin_ide(ide=ide, scope=scope, cwd=cwd))
+        return to_wire(await asyncio.to_thread(ide_pin.pin_ide, ide=ide, scope=scope, cwd=cwd))
 
 
 @server.tool()
@@ -478,7 +482,10 @@ async def pin_supervisor_review(
 
     with use_cwd(cwd):
         return to_wire(
-            supervisor_review_pin.pin_supervisor_review(
-                supervisor_review=supervisor_review, scope=scope, cwd=cwd
+            await asyncio.to_thread(
+                supervisor_review_pin.pin_supervisor_review,
+                supervisor_review=supervisor_review,
+                scope=scope,
+                cwd=cwd,
             )
         )

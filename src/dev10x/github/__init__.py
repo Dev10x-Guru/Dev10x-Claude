@@ -18,6 +18,7 @@ ADR-0013 names the pattern across this module and ``subprocess_utils``.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -1314,7 +1315,7 @@ async def create_pr(
     # Assert-or-refuse against a wrong/unbound CWD (GH-873 F1) — see the
     # note above. An explicit `head=` names the branch outright, so the
     # check applies to that instead of the resolved CWD (GH-1073).
-    current_branch = head or GitContext().branch
+    current_branch = head or await asyncio.to_thread(lambda: GitContext().branch)
     if current_branch in _BASE_BRANCH_NAMES:
         if head:
             return err(
