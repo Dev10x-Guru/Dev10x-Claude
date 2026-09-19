@@ -275,6 +275,37 @@ def test_append_task_errors_on_a_non_list_tasks_key(store: Path, repo: Path) -> 
     assert "non-list" in result.error
 
 
+def test_append_task_errors_on_a_corrupt_store(store: Path, repo: Path) -> None:
+    """GH-1413: an unreadable store surfaces as err(), not as a raise."""
+    store.parent.mkdir(parents=True, exist_ok=True)
+    store.write_text("tasks:\n  - subject: 'unterminated\n")
+
+    result = task_index.append_task(entry={"subject": "X", "source": "park"}, cwd=str(repo))
+
+    assert isinstance(result, ErrorResult)
+    assert "not valid YAML" in result.error
+
+
+def test_append_task_leaves_a_corrupt_store_untouched(store: Path, repo: Path) -> None:
+    corrupt = "tasks:\n  - subject: 'unterminated\n"
+    store.parent.mkdir(parents=True, exist_ok=True)
+    store.write_text(corrupt)
+
+    task_index.append_task(entry={"subject": "X", "source": "park"}, cwd=str(repo))
+
+    assert store.read_text() == corrupt
+
+
+def test_set_session_state_errors_on_a_corrupt_store(store: Path, repo: Path) -> None:
+    store.parent.mkdir(parents=True, exist_ok=True)
+    store.write_text("branch: 'unterminated\n")
+
+    result = task_index.set_session_state(branch="feature", cwd=str(repo))
+
+    assert isinstance(result, ErrorResult)
+    assert "not valid YAML" in result.error
+
+
 def test_append_task_errors_outside_a_git_repository(no_repo: None) -> None:
     result = task_index.append_task(entry={"subject": "X", "source": "park"}, cwd="/tmp")
 

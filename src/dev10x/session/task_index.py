@@ -33,7 +33,7 @@ import yaml
 
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.file_locks import locked_yaml_update
+from dev10x.domain.file_locks import CorruptYamlError, locked_yaml_update
 from dev10x.session.preset_pin import RepoIdentity, resolve_repo_identity
 from dev10x.subprocess_utils import effective_cwd
 
@@ -198,18 +198,23 @@ def append_task(*, entry: dict[str, Any], cwd: str | None = None) -> Result[dict
 
     path = _store_path(identity)
     malformed = False
-    with locked_yaml_update(path) as data:
-        folded = _fold_legacy_forward(data=data, identity=identity, cwd=cwd)
-        data.setdefault("repo", identity["name"])
-        tasks = data.setdefault("tasks", [])
-        # Guard rather than append blindly: a hand-edited `tasks:` scalar would
-        # otherwise raise inside the lock, and an exception escaping the
-        # context manager skips the write-back, leaving the sidecar lock as the
-        # only trace of the failure.
-        malformed = not isinstance(tasks, list)
-        if not malformed:
-            tasks.append(dict(entry))
-            count = len(tasks)
+    try:
+        with locked_yaml_update(path) as data:
+            folded = _fold_legacy_forward(data=data, identity=identity, cwd=cwd)
+            data.setdefault("repo", identity["name"])
+            tasks = data.setdefault("tasks", [])
+            # Guard rather than append blindly: a hand-edited `tasks:` scalar would
+            # otherwise raise inside the lock, and an exception escaping the
+            # context manager skips the write-back, leaving the sidecar lock as the
+            # only trace of the failure.
+            malformed = not isinstance(tasks, list)
+            if not malformed:
+                tasks.append(dict(entry))
+                count = len(tasks)
+    except CorruptYamlError as exc:
+        # ADR-0009: an unreadable store is an operational failure the caller
+        # branches on, not an exception that escapes the domain boundary.
+        return err(str(exc))
 
     if malformed:
         return err(f"task index at {path} has a non-list 'tasks' key")
@@ -262,10 +267,13 @@ def set_session_state(
     identity = identity_result.value
 
     path = _store_path(identity)
-    with locked_yaml_update(path) as data:
-        folded = _fold_legacy_forward(data=data, identity=identity, cwd=cwd)
-        data.setdefault("repo", identity["name"])
-        data.update(supplied)
+    try:
+        with locked_yaml_update(path) as data:
+            folded = _fold_legacy_forward(data=data, identity=identity, cwd=cwd)
+            data.setdefault("repo", identity["name"])
+            data.update(supplied)
+    except CorruptYamlError as exc:
+        return err(str(exc))
 
     return ok(
         {
