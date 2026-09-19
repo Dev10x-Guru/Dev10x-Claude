@@ -68,49 +68,30 @@ def _common_dir(*, cwd: str | None) -> str | None:
     tree's ``.git``, whereas ``--show-toplevel`` would return the ephemeral
     worktree path.
 
-    Returns ``None`` — not an error — when git is absent, the path is not a
-    repo, ``--path-format`` is unsupported (git < 2.31), or the call exceeds
-    :data:`_GIT_TIMEOUT_SECONDS`. The caller then falls back to the stemmed
-    working-tree basename, which is a degraded but still repo-shaped key;
-    failing the pin outright would be worse. The timeout matters because both
-    public entry points are served by the long-lived MCP daemon on the
-    Phase-0 hot path, where a wedged git must not hang the request.
+    Returns ``None`` — not an error — on any failure, so the caller falls
+    back to the stemmed working-tree basename rather than failing the pin.
+    The lookup itself lives on :attr:`GitContext.common_dir` (GH-1445);
+    this stays as the seam the tests patch.
     """
-    import subprocess
-
     from dev10x.domain.git_context import GitContext
 
-    try:
-        return GitContext(cwd=cwd).run(
-            "rev-parse",
-            "--path-format=absolute",
-            "--git-common-dir",
-            timeout=_GIT_TIMEOUT_SECONDS,
-        )
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
-        log.debug("git common-dir lookup failed; falling back to basename", exc_info=exc)
-        return None
+    common = GitContext(cwd=cwd, timeout=_GIT_TIMEOUT_SECONDS).common_dir
+    if common is None:
+        log.debug("git common-dir lookup failed; falling back to basename")
+    return common
 
 
 def _bounded_toplevel(*, cwd: str | None) -> str | None:
     """Resolved working tree for ``cwd``, or ``None``, under a timeout.
 
-    Deliberately does NOT use ``GitContext.toplevel``: that is a
-    ``cached_property``, so it cannot take a bound, and both callers here sit
-    on the Phase-0 path served by the long-lived MCP daemon where a wedged
-    git must not hang the request. Same degradation contract as
-    :func:`_common_dir` — any failure is ``None``, never a raise.
+    Same degradation contract as :func:`_common_dir` — any failure is
+    ``None``, never a raise (GH-1412).
     """
-    import subprocess
-
     from dev10x.domain.git_context import GitContext
 
-    try:
-        toplevel = GitContext(cwd=cwd).run(
-            "rev-parse", "--show-toplevel", timeout=_GIT_TIMEOUT_SECONDS
-        )
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
-        log.debug("git toplevel lookup failed", exc_info=exc)
+    toplevel = GitContext(cwd=cwd, timeout=_GIT_TIMEOUT_SECONDS).toplevel
+    if toplevel is None:
+        log.debug("git toplevel lookup failed")
         return None
     return os.path.realpath(toplevel) if toplevel else None
 

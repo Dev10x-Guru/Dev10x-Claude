@@ -35,7 +35,6 @@ import dataclasses
 import json
 import logging
 import re
-import subprocess
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -43,11 +42,11 @@ from typing import Any
 
 import yaml
 
-from dev10x import subprocess_utils
 from dev10x.domain.common.allow_rule import AllowRule
 from dev10x.domain.common.baseline_catalog import load_baseline_dict
 from dev10x.domain.common.command_spellings import expand_spellings
 from dev10x.domain.common.policy import Policy, PolicyAssessment, PolicyCatalog, PolicySource
+from dev10x.domain.git_context import GitContext
 from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
 from dev10x.skills.permission_investigator.policy_report import render_policy_report
 
@@ -288,32 +287,20 @@ class WorkspaceContext:
 
 def detect_workspace(cwd: Path) -> WorkspaceContext:
     """Detect project root and (if worktree) source repo via git."""
-    try:
-        toplevel = subprocess_utils.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            cwd=str(cwd),
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip()
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    # GH-1445: both facts come from one bounded GitContext. The toplevel
+    # lookup used to be a raw unbounded subprocess three lines from the
+    # common-dir one it consolidated, which is the same defect wearing a
+    # different flag. One instance, so the pair costs one process each.
+    context = GitContext(cwd=str(cwd))
+    toplevel = context.toplevel
+    if toplevel is None:
         return WorkspaceContext(project_root=cwd)
-    try:
-        common_dir = subprocess_utils.run(
-            ["git", "rev-parse", "--git-common-dir"],
-            cwd=str(cwd),
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip()
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    common_dir = context.common_dir
+    if common_dir is None:
         return WorkspaceContext(project_root=Path(toplevel))
-    common_path = Path(common_dir)
-    if not common_path.is_absolute():
-        common_path = (Path(toplevel) / common_path).resolve()
     return WorkspaceContext(
         project_root=Path(toplevel),
-        git_common_dir=common_path,
+        git_common_dir=Path(common_dir),
     )
 
 

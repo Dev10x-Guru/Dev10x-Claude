@@ -10,6 +10,49 @@ import pytest
 doctor = pytest.importorskip("dev10x.skills.permission.doctor")
 
 
+class TestDetectWorkspace:
+    """GH-1445: the common-dir lookup is GitContext's, and may be absent."""
+
+    @staticmethod
+    def _stub(
+        monkeypatch: pytest.MonkeyPatch, *, toplevel: str | None, common_dir: str | None
+    ) -> None:
+        monkeypatch.setattr(doctor.GitContext, "toplevel", property(lambda self: toplevel))
+        monkeypatch.setattr(doctor.GitContext, "common_dir", property(lambda self: common_dir))
+
+    def test_reports_the_common_dir_when_git_supplies_one(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        self._stub(monkeypatch, toplevel=str(tmp_path), common_dir=str(tmp_path / ".git"))
+
+        workspace = doctor.detect_workspace(tmp_path)
+
+        assert workspace.project_root == tmp_path
+        assert workspace.git_common_dir == tmp_path / ".git"
+
+    def test_falls_back_to_the_toplevel_when_there_is_no_common_dir(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        self._stub(monkeypatch, toplevel=str(tmp_path), common_dir=None)
+
+        workspace = doctor.detect_workspace(tmp_path)
+
+        assert workspace.project_root == tmp_path
+        assert workspace.git_common_dir is None
+
+    def test_falls_back_to_the_cwd_outside_a_repo(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        # The toplevel lookup is now bounded too, so its failure path is a
+        # None rather than a CalledProcessError.
+        self._stub(monkeypatch, toplevel=None, common_dir=None)
+
+        workspace = doctor.detect_workspace(tmp_path)
+
+        assert workspace.project_root == tmp_path
+        assert workspace.git_common_dir is None
+
+
 class TestCanonicalizeRule:
     def test_version_pinned_path_is_not_rewritten(self) -> None:
         # GH-715: version-pinned paths must NOT be rewritten to `**`
