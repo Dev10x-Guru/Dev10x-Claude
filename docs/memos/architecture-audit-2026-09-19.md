@@ -947,6 +947,245 @@ permanent.
 recoverable and the failure is visible.
 **Impact: MEDIUM · Effort: S**
 
-<!-- Phases C, G, H, I, K pending — appended as agents report. -->
+## Phase K — Full Archetype Catalog Sweep
+
+**Result: no missing archetype that this domain needs.** Ten of fifteen
+catalogued structural archetypes are present and verified in code; two
+are correctly N/A (Template View — there is no UI layer; Money — there
+is no monetary domain); one is correctly absent (Identity Map); two are
+documented variants rather than gaps.
+
+| Archetype | Where | Verdict |
+|---|---|---|
+| Value Object | `domain/common/repository_ref.py`, `result.py` | textbook |
+| Aggregate Root | `domain/documents/plan.py:153-178` | excellent, self-describing |
+| Entity | `domain/documents/task.py` | immutable snapshot, deliberate |
+| Registry | `platform/registry.py` | correctly disambiguated from `SingletonHolder` |
+| Gateway | `subprocess_utils.py`, `github/__init__.py` | named, ADR-0013 cited |
+| Result / Either | `domain/common/result.py` | PEP-695 generic, adopted across 15+ modules |
+| Service Layer | `plan.service`, `github/` public async API | clean PoEAA shape |
+| Front Controller | `mcp/*_tools.py`, `cli.py` LazyGroup | two transports, one contract |
+| Specification | `domain/rules/` | present under domain vocabulary |
+| Plugin | the repository itself | meta but real |
+| Repository | on the aggregate + `*.service` | documented variant |
+| Layer Supertype | `ValidatorBase`, `ResultProtocol` | via protocol, not hierarchy |
+| Data Mapper | `from_dict`/`to_dict` convention | lightweight, consistent |
+| Identity Map | absent | correct — file-backed, short-lived objects |
+| Template View / Money | absent | N/A for this domain |
+
+On the business-archetype axis (Arlow & Neustadt), only three map
+directly, which is expected for developer tooling rather than a business
+application: **Policy/Rule** (`domain/common/policy.py`,
+`gate_policy.py`, `domain/rules/`), **Event**
+(`domain/events/hook_event.py`), and **Document** — where the codebase's
+own subpackage name matches the archetype exactly.
+
+### K1. "Repository" names two unrelated things
+
+The only symbol containing "Repository" is `RepositoryRef`, a GitHub
+`owner/name` value object. The actual PoEAA Repository *role* — for
+`Plan` and `Task` — has no type named for it; it lives as methods on the
+aggregate plus a `plan.service` module. A reader searching for "the
+Repository pattern" before adding a new persisted aggregate finds the
+value object and reasonably concludes they searched wrong.
+
+No functional defect; `Plan`'s docstring explains the split clearly to
+anyone who reaches the file. **Fix:** a one-line pointer in
+`domain/documents/__init__.py`.
+**Impact: LOW · Effort: S** — converges with A6; do them together.
+
+### K2. Identity Map is correctly absent
+
+Domain documents load fresh from disk per call. The classic Identity Map
+problem — several in-memory copies of one row diverging — does not arise
+in short-lived, file-backed, single-writer-per-call objects guarded by
+`file_locks`. Recorded so a future catalog pass does not file it as a
+gap.
+**No action.**
+
+## Orchestrator finding — MCP identifier parameters have three spellings
+
+`.claude/rules/mcp-tools.md` records that parameter naming "is not
+uniform across tools, which defeats agent first-call inference (GH-462
+F4 — 7 first-call validation errors in one session)", lists per-tool
+"common wrong guess" values, and defers normalization to follow-up work.
+
+A census of `mcp/github_tools.py` turns that prose into a count, and
+shows two distinct defects rather than one.
+
+| Spelling | Tools | Refers to |
+|---|---|---|
+| `pr_number` | 12 — `pr_comments:179`, `pr_comment_reply:223`, `pr_issue_comment:254`, `pr_labels:322`, `pr_review_edit:402`, `pr_ready:438`, `pr_close:469`, `ci_check_status:555`, `update_pr:740`, `merge_pr:784`, `post_summary_comment:1330`, `pr_notify:1368` | a PR |
+| `number` | 1 — `pr_get:85` | a PR |
+| `number` | 7 — `issue_get:114`, `issue_comments:130`, `issue_labels:364`, `issue_edit:859`, `issue_close:898`, `issue_reopen:930`, `issue_comment:951` | an issue |
+| `number` | 3 — `milestone_close:1215`, `milestone_reopen:1241`, `milestone_edit:1267` | a milestone |
+| `issue_id` | 2 — `create_pr:635`, `generate_commit_list:1349` | a **string** ticket ID |
+
+**Defect 1 — `pr_get` is a lone outlier.** Twelve PR tools take
+`pr_number`; the single most-called read on the surface takes `number`.
+An agent that has just called `pr_labels(pr_number=…)` and reaches for
+`pr_get` guesses wrong, which is exactly the failure GH-462 counted.
+
+**Defect 2 — `number` is overloaded across three entity types** while
+`issue_id` *looks* like a sibling of `issue_get(number=…)` but holds a
+string ticket ID, not an issue number. The two names are closest
+together precisely where they mean the most different things.
+
+**Fix:** have `pr_get` accept `pr_number` as an alias — one edit that
+removes the largest single source of first-call error. Longer term,
+accept both spellings surface-wide rather than renaming, so existing
+callers keep working; `pr_comments` already demonstrates the
+action-selector shape that keeps one tool coherent across variants.
+**Impact: MEDIUM · Effort: S (alias) / M (surface-wide)**
+
+## Phase C — Value Objects (conducted by the orchestrator)
+
+The dispatched Phase C agent did not report. The findings below were
+derived directly, so the baseline matters: `domain/common/` **already
+holds sixteen value objects** — `allow_rule`, `branch_name`,
+`commit_subject`, `mcp_tool_name`, `mktmp_path`, `repository_ref`,
+`rule_id`, `skill_name`, `ticket_id`, `tool_signature`,
+`tracker_choice`, `ide_choice`, `plugin_version`, `workspace`,
+`command_spellings`, `bash_tokens`. This codebase is not short of value
+objects. The defect worth reporting is therefore not "primitives that
+should be VOs" but **a VO that exists and is bypassed**.
+
+### C1. `McpToolName` is bypassed at the three sites it was built to retire
+
+`domain/common/mcp_tool_name.py:1-23` states its own purpose: MCP tool
+identifiers "were understood only implicitly: detection via
+`startswith("mcp__")` at five call sites, two incompatible compiled
+regexes… and ad-hoc structural splits to recover the `(server, tool)`
+parts (audit finding GH-508 — 2026-06-10). This object is the single
+authoritative parse."
+
+It supplies `is_mcp`, `is_command_token`, `is_wildcard`, `prefix` and a
+parse. Three sites still hand-roll what it owns:
+
+| Site | Bypass | Should be |
+|---|---|---|
+| `skills/permission/generalize.py:106` | `rule.startswith("mcp__")` | `is_mcp` |
+| `hooks/permission_diagnostics.py:256` | `sig.tool.startswith("mcp__")` | `is_mcp` |
+| `skills/permission/enumerate_mcp.py:332` | `full_name.split("__")` | the parse |
+
+The third is the sharpest: an ad-hoc structural split to recover
+`(server, tool)` is verbatim the defect GH-508 created the object to
+eliminate, still present in the module the docstring names.
+
+**Not violations:** `enumerate_mcp.py:206,373,376` build
+`f"mcp__plugin_Dev10x_{server_key}__"` strings, which the same docstring
+explicitly carves out — "the narrower `mcp__plugin_<x>_*` … is a
+different, plugin-specific concern and is left where it lives." A grep
+alone would misreport these three; they are correct as written.
+
+**Fix:** route the three genuine sites through `McpToolName`.
+**Impact: MEDIUM · Effort: S** — the risk is not the `startswith`
+checks, which are harmless in isolation, but `enumerate_mcp.py:332`'s
+split silently disagreeing with the canonical parse on an unusual name,
+in the module that decides which tools get permission entries.
+
+### C2. Verified negative — `repo_stem` has a single owner
+
+`repo_stem` is defined once (`domain/documents/session_yaml.py:382`) and
+imported by `session/preset_pin.py:31` and
+`domain/config_migration.py:54`. This fact keys the global
+`friction.yaml` `projects[]` entries and the task-index store path, so a
+second implementation would be a silent cross-repo mismatch. There is
+none. Recorded because it was a specific suspicion worth closing.
+
+## Phase G — Coverage (partial, conducted by the orchestrator)
+
+The dispatched Phase G agent did not report. Two of its checks were
+completed directly; the full JTBD coverage matrix was not, and is
+recorded as outstanding work below.
+
+### G0. Method note — filename matching does not measure coverage here
+
+A module-name-to-test-filename diff was run first and produced almost
+entirely false positives. This repository names tests by **behaviour**,
+not by module, so the heuristic flags covered code as uncovered:
+
+| Flagged "untested" | Actually covered by |
+|---|---|
+| `github_tools` | `tests/github/test_wrapper_contracts.py`, `tests/mcp/test_github_tool_decorator.py` |
+| `sampling_manager` | `tests/mcp/test_sampling.py` |
+| `roots_manager` | `tests/mcp/test_roots.py`, `test_roots_tools.py` |
+| `gchat_notify` | `tests/skills/gchat/test_gchat_notify_module.py` |
+| `server_cli` | `tests/mcp/test_cli_server.py` |
+
+The list was discarded rather than published. Any future coverage audit
+must grep for the module name and its public symbols across `tests/`
+before asserting a gap — a false coverage gap is worse than none,
+because it sends someone to write tests that already exist.
+
+### G1. Thirteen skills with decision gates ship no evals file
+
+`.claude/rules/skill-gates.md` states the contract for a skill with a
+decision gate as three items, all required: the `REQUIRED: Call
+AskUserQuestion` marker, the `allowed-tools:` entry, and
+`evals.json` assertions for gate enforcement. It adds: "Missing any step
+causes per-invocation approval prompts on every skill run."
+
+63 skills contain `AskUserQuestion`; 54 `evals.json` files exist. These
+thirteen gated skills have **no `evals/` directory at all**:
+
+`afk`, `git-commit-split`, `git-fixup`, `ide-normalize`, `investigate`,
+`park-discover`, `playwright`, `py-test-flaky`, `py-uv`, `qa-scope`,
+`slack`, `slack-review-request`, `ticket-scope`
+
+Spot-verified: `skills/git-fixup/` contains only `SKILL.md` and
+`scripts/`; `skills/qa-scope/` only `SKILL.md` and `references/`;
+`skills/afk/` only `SKILL.md`. Each has a live gate — `git-fixup`
+SKILL.md:97, `qa-scope` SKILL.md:244 and :325.
+
+**Fix:** add gate-enforcement assertions per `references/eval-schema.md`.
+`skill-eval-gaps.yml` already exists as a workflow — worth checking
+whether it covers this case and, if so, why these thirteen pass.
+**Impact: MEDIUM · Effort: M**
+
+### G2. Gate markers use the soft phrasing the rule was written to replace
+
+`.claude/rules/skill-gates.md` is explicit that
+`**REQUIRED: Call AskUserQuestion**` "replaces soft guidance ('Use
+AskUserQuestion') which allows agents to substitute plain text instead."
+
+Two confirmed sites still use exactly that soft form:
+`skills/qa-scope/SKILL.md:244` ("Use `AskUserQuestion` to get approval")
+and `skills/git-fixup/SKILL.md:97` ("Otherwise, use `AskUserQuestion` to
+ask"). Both are genuine execution-path gates, so both are cases the rule
+names.
+
+**Scope is not yet measured.** 119 markdown files under `skills/`
+mention `AskUserQuestion`; 58 carry the hard marker. That gap is an
+indicator, not a count — a file may hold one marked gate and one
+unmarked, and some are `references/` docs describing gates rather than
+defining them. A per-gate pass is needed before the number means
+anything.
+
+**Fix:** sweep gate sites for the soft form and convert to the mandated
+marker. The check is mechanical enough to belong in
+`skill-eval-gaps.yml` alongside G1.
+**Impact: MEDIUM · Effort: M**
+
+### G3. Outstanding — the JTBD coverage matrix was not produced
+
+Still unmeasured: clustering the ~200 merged PRs into feature areas and
+scoring each for unit / integration / behavioural coverage, and the
+LOC-ratio check for large modules with disproportionately small test
+files (`github/__init__.py` at 2,918, `update_paths.py` at 2,308,
+`commands/permission.py` at 1,419, `hooks/stop_verdict.py` at 986).
+
+Also unresolved: `pyproject.toml` sets `fail_under = 75` while CLAUDE.md
+and the global standard require 100% for new code. Which modules drag
+the number is not known, and the gate cannot enforce the stated
+standard.
+
+This is the one gap in the audit's own coverage. It is carried into the
+backlog as a scoped ticket rather than left implicit.
+
+
+
+
+
 
 
