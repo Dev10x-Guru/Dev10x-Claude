@@ -4,12 +4,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from dev10x.domain.documents.session_yaml import (
     FrictionYamlDocument,
     SessionYamlDocument,
 )
+from dev10x.domain.file_locks import LockTimeoutError, _lock_path_for
 from dev10x.domain.friction_level import FrictionLevel
 from dev10x.skills.permission import migrate_config as mod
+from tests.lock_helpers import hold_sidecar
 
 
 def _write_config(*, root: Path, content: str) -> Path:
@@ -131,6 +135,62 @@ class TestMigrateApply:
         result = mod.migrate_config_to_friction(root=tmp_path)
         assert "error" in result
         assert config_path.exists()
+
+
+class TestConcurrentWriter:
+    """GH-1411: the migration is the only friction.yaml writer that took no lock.
+
+    A lock held on the sidecar stands in for the concurrent writer — flock is
+    keyed to the open file description, so a second ``os.open`` in this process
+    contends exactly as another worktree's ``pin_gate_preset`` would.
+    """
+
+    def test_blocks_on_the_sidecar_the_other_writers_use(self, tmp_path: Path) -> None:
+        _write_config(root=tmp_path, content="friction_level: adaptive\n")
+        friction = FrictionYamlDocument(toplevel=str(tmp_path))
+        friction.path.parent.mkdir(parents=True, exist_ok=True)
+        with hold_sidecar(_lock_path_for(friction.path)):
+            with pytest.raises(LockTimeoutError):
+                mod.migrate_config_to_friction(root=tmp_path, lock_timeout=0.1)
+
+    def test_leaves_stale_files_when_the_lock_is_unavailable(self, tmp_path: Path) -> None:
+        config_path = _write_config(root=tmp_path, content="friction_level: adaptive\n")
+        friction = FrictionYamlDocument(toplevel=str(tmp_path))
+        friction.path.parent.mkdir(parents=True, exist_ok=True)
+        with hold_sidecar(_lock_path_for(friction.path)):
+            with pytest.raises(LockTimeoutError):
+                mod.migrate_config_to_friction(root=tmp_path, lock_timeout=0.1)
+        assert config_path.exists()
+
+    def test_does_not_drop_a_concurrently_written_entry(self, tmp_path: Path) -> None:
+        # An entry for a DIFFERENT repo, written while this migration was
+        # reading, must survive — the stale read-modify-write used to erase it.
+        other = tmp_path / "other-repo"
+        other.mkdir()
+        _write_config(root=tmp_path, content="friction_level: adaptive\n")
+        friction = FrictionYamlDocument(toplevel=str(tmp_path))
+        friction.path.parent.mkdir(parents=True, exist_ok=True)
+        friction.path.write_text(
+            FrictionYamlDocument.render_document(
+                FrictionYamlDocument.with_project(
+                    {},
+                    match=FrictionYamlDocument.match_globs_for(str(other)),
+                    prefs={"tracker": "github"},
+                )
+            )
+        )
+        mod.migrate_config_to_friction(root=tmp_path)
+        doc = FrictionYamlDocument(toplevel=str(tmp_path))._doc()
+        matches = [entry["match"] for entry in doc["projects"]]
+        assert FrictionYamlDocument.match_globs_for(str(other)) in matches
+        assert FrictionYamlDocument.match_globs_for(str(tmp_path)) in matches
+
+    def test_write_is_atomic(self, tmp_path: Path) -> None:
+        _write_config(root=tmp_path, content="friction_level: adaptive\n")
+        mod.migrate_config_to_friction(root=tmp_path)
+        friction = FrictionYamlDocument(toplevel=str(tmp_path))
+        leftovers = [p for p in friction.path.parent.iterdir() if p.suffix == ".tmp"]
+        assert leftovers == []
 
 
 class TestParity:

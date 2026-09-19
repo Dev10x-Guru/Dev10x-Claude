@@ -34,6 +34,7 @@ from dev10x.domain.documents.session_yaml import (
     SessionYamlDocument,
     legacy_durable_prefs,
 )
+from dev10x.domain.file_locks import LOCK_TIMEOUT_SECONDS, atomic_write_text, file_lock
 
 
 def _load_session_mapping(*, root: Path) -> dict[str, Any]:
@@ -97,13 +98,41 @@ def _parity(*, matched: dict[str, Any] | None, prefs: dict[str, Any]) -> bool:
     return all(matched.get(key) == value for key, value in prefs.items())
 
 
-def migrate_config_to_friction(*, root: Path, dry_run: bool = False) -> dict[str, Any]:
+def _render_with_project(
+    *,
+    friction: FrictionYamlDocument,
+    match: list[str],
+    prefs: dict[str, Any],
+) -> str:
+    """Render friction.yaml with this repo's entry folded in.
+
+    Shared by the preview and the write so the two cannot drift: a preview
+    built by a second copy of this call would silently stop matching what
+    the migration actually writes.
+    """
+    return FrictionYamlDocument.render_document(
+        FrictionYamlDocument.with_project(friction._doc(), match=match, prefs=prefs)
+    )
+
+
+def migrate_config_to_friction(
+    *,
+    root: Path,
+    dry_run: bool = False,
+    lock_timeout: float = LOCK_TIMEOUT_SECONDS,
+) -> dict[str, Any]:
     """Fold a repo's legacy durable prefs into friction.yaml, remove stale files.
 
     Idempotent: the ``projects[]`` entry is keyed by the repo's match globs,
     so a re-run replaces (not duplicates) it. On ``dry_run`` nothing is
     written — the planned entry and rendered file are returned for preview.
     The stale files are removed only after friction.yaml parity is confirmed.
+
+    GH-1411: friction.yaml is global, so the whole read-render-write-verify
+    cycle runs under :func:`file_lock` and lands through
+    :func:`atomic_write_text`. Raises
+    :class:`~dev10x.domain.file_locks.LockTimeoutError` rather than writing
+    unsynchronised when the lock cannot be taken.
     """
     finding = detect_legacy_config(root=root)
     if finding is None:
@@ -112,8 +141,6 @@ def migrate_config_to_friction(*, root: Path, dry_run: bool = False) -> dict[str
     prefs: dict[str, Any] = finding["durable_prefs"]
     match = FrictionYamlDocument.match_globs_for(str(root))
     friction = FrictionYamlDocument(toplevel=str(root))
-    new_doc = FrictionYamlDocument.with_project(friction._doc(), match=match, prefs=prefs)
-    content = FrictionYamlDocument.render_document(new_doc)
 
     if dry_run:
         return {
@@ -123,18 +150,23 @@ def migrate_config_to_friction(*, root: Path, dry_run: bool = False) -> dict[str
             "prefs": prefs,
             "friction_yaml": str(friction.path),
             "stale_files": finding["stale_files"],
-            "content": content,
+            "content": _render_with_project(friction=friction, match=match, prefs=prefs),
         }
 
     friction.path.parent.mkdir(parents=True, exist_ok=True)
-    friction.path.write_text(content)
-
-    matched = FrictionYamlDocument(toplevel=str(root)).matched()
-    if not _parity(matched=matched, prefs=prefs):
-        return {
-            "error": "friction.yaml parity check failed after write; stale files left in place",
-            "friction_yaml": str(friction.path),
-        }
+    with file_lock(friction.path, timeout=lock_timeout):
+        # Rendered inside the lock: a document built from a read taken
+        # outside it goes stale the moment another worktree commits.
+        atomic_write_text(
+            friction.path, _render_with_project(friction=friction, match=match, prefs=prefs)
+        )
+        matched = FrictionYamlDocument(toplevel=str(root)).matched()
+        if not _parity(matched=matched, prefs=prefs):
+            return {
+                "error": "friction.yaml parity check failed after write; "
+                "stale files left in place",
+                "friction_yaml": str(friction.path),
+            }
 
     removed: list[str] = []
     for path_str in finding["stale_files"]:
