@@ -394,6 +394,163 @@ class TestPollUntilTerminal:
         assert result["verdict"] == "green"
 
 
+class TestPollSurvivesTransientProbeFailures:
+    """GH-1420: one bad `gh` call must not discard the whole wait.
+
+    `read_checks` exits on any unrecognised non-zero exit, and the loop
+    called it on every iteration — so a rate limit at poll 30 of 40 threw
+    away `initial_wait` plus thirty intervals and reported a transient
+    condition as an infrastructure failure.
+    """
+
+    def _no_sleep(self, monkeypatch):
+        monkeypatch.setattr(_impl.time, "sleep", lambda *_a, **_k: None)
+
+    @staticmethod
+    def _scripted(outcomes: list, calls: list):
+        """`get_annotated_checks` stub replaying `outcomes` in order.
+
+        A string entry aborts the way a failed `gh` exec does; a list
+        entry is a successful read of those checks.
+        """
+
+        def stub(**_kwargs):
+            outcome = outcomes[min(len(calls), len(outcomes) - 1)]
+            calls.append(outcome)
+            if isinstance(outcome, str):
+                _impl._abort(outcome)
+            return _read(outcome)
+
+        return stub
+
+    def test_one_blip_does_not_end_the_wait(self, monkeypatch):
+        self._no_sleep(monkeypatch)
+        calls: list = []
+        monkeypatch.setattr(
+            _impl,
+            "get_annotated_checks",
+            self._scripted(
+                [
+                    [{"name": "build", "bucket": "pending"}],
+                    "gh pr checks failed (exit 1): rate limited",
+                    [{"name": "build", "bucket": "pass"}],
+                ],
+                calls,
+            ),
+        )
+        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "MERGEABLE")
+
+        result = _impl.poll_until_terminal(
+            pr_number=1, repo="o/r", initial_wait=0, poll_interval=0, max_polls=5
+        )
+
+        assert result["verdict"] == "green"
+
+    def test_a_tolerated_failure_leaves_stdout_clean(self, monkeypatch, capsys):
+        """The abort blob must not precede the real verdict on stdout.
+
+        stdout is the channel the MCP wrapper parses; two JSON objects
+        there is a parse failure, not a tolerated blip.
+        """
+        self._no_sleep(monkeypatch)
+        calls: list = []
+        monkeypatch.setattr(
+            _impl,
+            "get_annotated_checks",
+            self._scripted(
+                ["gh pr checks failed (exit 1): blip", [{"name": "b", "bucket": "pass"}]],
+                calls,
+            ),
+        )
+        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "MERGEABLE")
+
+        _impl.poll_until_terminal(
+            pr_number=1, repo="o/r", initial_wait=0, poll_interval=0, max_polls=5
+        )
+
+        assert capsys.readouterr().out == ""
+
+    def test_the_ceiling_ends_the_wait_for_real(self, monkeypatch):
+        """Tolerating a blip is the goal; outlasting an outage is not."""
+        self._no_sleep(monkeypatch)
+        calls: list = []
+        monkeypatch.setattr(
+            _impl,
+            "get_annotated_checks",
+            self._scripted(["gh pr checks failed (exit 1): down"], calls),
+        )
+        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "UNKNOWN")
+
+        with pytest.raises(SystemExit):
+            _impl.poll_until_terminal(
+                pr_number=1, repo="o/r", initial_wait=0, poll_interval=0, max_polls=10
+            )
+
+        # Fast path + the ceiling's worth of polls, and no further.
+        assert len(calls) == 1 + _impl._MAX_CONSECUTIVE_PROBE_FAILURES
+
+    def test_a_success_resets_the_failure_run(self, monkeypatch):
+        """Two blips, a good poll, two more blips is not an outage."""
+        self._no_sleep(monkeypatch)
+        calls: list = []
+        monkeypatch.setattr(
+            _impl,
+            "get_annotated_checks",
+            self._scripted(
+                [
+                    [{"name": "build", "bucket": "pending"}],
+                    "blip one",
+                    "blip two",
+                    [{"name": "build", "bucket": "pending"}],
+                    "blip three",
+                    "blip four",
+                    [{"name": "build", "bucket": "pass"}],
+                ],
+                calls,
+            ),
+        )
+        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "MERGEABLE")
+
+        result = _impl.poll_until_terminal(
+            pr_number=1, repo="o/r", initial_wait=0, poll_interval=0, max_polls=10
+        )
+
+        assert result["verdict"] == "green"
+
+    def test_a_failed_fast_path_falls_through_to_the_wait(self, monkeypatch):
+        """A blip on the first probe is the same defect as one at poll 30."""
+        self._no_sleep(monkeypatch)
+        calls: list = []
+        monkeypatch.setattr(
+            _impl,
+            "get_annotated_checks",
+            self._scripted(["blip", [{"name": "build", "bucket": "pass"}]], calls),
+        )
+        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "MERGEABLE")
+
+        result = _impl.poll_until_terminal(
+            pr_number=1, repo="o/r", initial_wait=0, poll_interval=0, max_polls=5
+        )
+
+        assert result["verdict"] == "green"
+
+    def test_no_verdict_at_all_is_reported_as_such(self, monkeypatch):
+        """Never fabricate `empty` — that reads as 'CI registered nothing'."""
+        self._no_sleep(monkeypatch)
+        calls: list = []
+        monkeypatch.setattr(
+            _impl,
+            "get_annotated_checks",
+            self._scripted(["blip"], calls),
+        )
+        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "UNKNOWN")
+
+        with pytest.raises(SystemExit):
+            _impl.poll_until_terminal(
+                pr_number=1, repo="o/r", initial_wait=0, poll_interval=0, max_polls=1
+            )
+
+
 class TestTerminalAtCallTimeFastPath:
     """GH-1088: a call made after CI finished must not pay ``initial_wait``.
 
