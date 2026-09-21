@@ -100,6 +100,16 @@ class RetryPolicy:
     max_delay: float = 8.0
     jitter: Callable[[], float] = field(default=random.random, compare=False)
 
+    def __post_init__(self) -> None:
+        # Both adopters drive this with `for attempt in range(1,
+        # attempts + 1)` and rely on the body running at least once to
+        # bind the result they return. A zero would skip the loop
+        # entirely and surface as a NameError on the trailing return —
+        # a confusing way to learn the policy was misconfigured, and
+        # one that only shows up on the call that needed the retry.
+        if self.attempts < 1:
+            raise ValueError(f"attempts must be at least 1, got {self.attempts}")
+
     def delay_for(self, *, attempt: int, retry_after: float | None = None) -> float:
         """Seconds to wait before the attempt after ``attempt`` (1-based).
 
