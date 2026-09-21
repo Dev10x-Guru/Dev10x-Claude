@@ -127,6 +127,24 @@ behind it) touches shared state, it MUST follow the write-safety model:
   `subprocess_utils`, which bounds it; standalone uv-scripts via a
   local `_SUBPROCESS_TIMEOUT_SECONDS` constant since they cannot import
   `dev10x`).
+- **Fan-out is bounded for you (GH-1422).** `async_run` holds a permit
+  from a per-event-loop `asyncio.Semaphore` for the child's whole life,
+  capped by `DEV10X_MCP_MAX_SUBPROCESSES` (default 12). Several
+  worktrees running crews could otherwise launch dozens of concurrent
+  `gh` children, and GitHub's secondary rate limits key off burst
+  volume — a lockout hits the whole install, not the worktree that
+  caused it. A new tool that goes through the Gateway inherits this;
+  one that spawns its own subprocess does not, which is another reason
+  not to.
+- **Transient external failures retry once or twice (GH-1423).**
+  `dev10x.domain.retry` holds the policy — `is_retryable`,
+  `is_retryable_status`, `RetryPolicy.delay_for` — and `_gh_api_raw`
+  and `call_slack_api` adopt it. It is pure policy, not a driver,
+  because the two paths are async-over-subprocess and sync-urllib
+  respectively. Retry 408/429/5xx and network faults only, honour
+  `Retry-After` clamped to `max_delay`, and jitter the backoff. Never
+  retry a bounded timeout of our own: GH-1288's principle is that the
+  transport ceiling sets the limit, and re-running multiplies it.
 
 ### A write is a request, not a receipt (GH-1099)
 
@@ -145,6 +163,21 @@ The branch-on-`"error"` rule above still holds; it just does not cover
 the case where nothing comes back at all. Dev10x owns no keepalive on
 that hop and cannot add one, so reconnect-on-demand is not
 implementable in this repo (GH-1072).
+
+**Three wrappers now verify themselves (GH-1424).** `create_pr`,
+`update_pr` and `pr_ready` re-read the PR and report the observed
+value, so a caller of those three does not have to. The rule above was
+prose for six releases and only `create_pr` ever implemented it; the
+sharpest miss was `pr_ready` returning `{"draft": undo}` — its own
+argument handed back, a field that could not disagree with the request
+and so confirmed nothing. Each carries a verification flag
+(`fixes_trailer_verified` / `write_verified` / `draft_verified`), a
+disagreement is an `ErrorResult` naming the PR, and an *unreadable*
+read-back warns rather than fails — being unable to check is not
+evidence the write failed. `tests/github/test_write_verification.py`
+is an AST guard, so a wrapper cannot quietly go back to building its
+payload from its own arguments. **Every other write wrapper still
+needs the caller to re-read.**
 
 The `reviewer-generic` checklist enforces both on `**/*.py` changes.
 
@@ -207,6 +240,29 @@ Behavioral caveats:
   the current set first, so clearing an unset label is a no-op rather
   than a 404), so call them unconditionally instead of probing.
 
+  `remove` issues **one `PUT` of the surviving set** rather than a
+  `DELETE` per label (GH-1446) — the old loop paid a subprocess plus an
+  HTTP round trip each time, on a path `Dev10x:git-groom` runs after
+  every force-push. Idempotence is unchanged. One property is: a `PUT`
+  is a read-modify-write, so a label added by another process between
+  the read and the write is dropped, where a per-label `DELETE` was
+  immune. The window is one round trip and the no-op guard keeps a
+  remove-nothing call from issuing a `PUT` at all — do not remove that
+  guard. `issue_labels` still uses the `DELETE` loop; it is not on a
+  hot path.
+
+- `notify_slack` and `pr_notify(action="send")` append a failed
+  notification to `~/.config/Dev10x/undelivered-notifications.jsonl`
+  (GH-1421). The error used to exist only in the call's return value,
+  which is fine when an agent surfaces it to a user and useless under
+  `foreman`'s unattended crews — the one mode where a lost "crew
+  stalled" costs most and nobody is watching. **It is a dead-letter
+  log, not a retry queue**: nothing re-sends, nothing reads the file, a
+  person greps it. `record_undelivered` never raises, because losing
+  the caller on top of the notification turns a missed message into a
+  broken crew. `pr_notify(action="prepare")` dispatches nothing and so
+  records nothing.
+
 - `issue_labels` is `pr_labels`'s issue-side counterpart (GH-1322),
   with the same idempotence contract. `issue_edit`'s `labels`
   parameter is additive-only — it calls `gh issue edit --add-label`,
@@ -221,7 +277,12 @@ Behavioral caveats:
   (GH-931). Raw `gh pr ready --undo` is hook-blocked like every other
   form, so this parameter is the only sanctioned way to un-publish —
   which is the *safe* direction when a problem surfaces after marking
-  ready. The success payload carries `draft` reflecting the new state.
+  ready. The success payload's `draft` is **read back from GitHub**
+  since GH-1424, with `draft_verified: true` alongside it; it used to
+  be the `undo` argument echoed back, which could never disagree with
+  the request. A PR still in the wrong state returns an `ErrorResult`
+  naming it, rather than a plausible receipt the caller acts on and
+  then fails to merge.
 
 - `pr_ready` must be re-run after ANY force-push (GH-958). A
   `--force-with-lease` push resets a published PR back to draft, so a
@@ -434,6 +495,19 @@ Behavioral caveats:
   exit. This is the same clamp `run_tests` and `run_node_tests` take,
   reaching the one long-running tool that had been left restating the
   budget in prose.
+
+- `ci_check_status(wait=true)` survives a transient `gh` failure
+  mid-poll (GH-1420). `read_checks` exits on any unrecognised non-zero
+  `gh pr checks` exit and the loop called it every iteration, so one
+  rate limit at poll 30 of 40 discarded `initial_wait` plus thirty
+  intervals and reported a transient condition as an infrastructure
+  failure. A failed probe is now treated as "no news": the last good
+  result is kept and the wait continues, giving up only after **three
+  consecutive** failures — tolerating a blip is the goal, outlasting an
+  outage is not, and the poll budget still bounds the whole loop. The
+  up-front fast-path probe is tolerated on the same terms. A run where
+  *every* probe failed reports that explicitly rather than reporting
+  `empty`, which would read as "CI registered no checks at all".
 
 - `ci_check_status(wait=true)` probes once before sleeping and returns
   straight away when the verdict is already terminal (GH-1088). A call
