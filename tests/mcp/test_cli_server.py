@@ -983,7 +983,7 @@ class TestPrLabelsMcp:
 
     @pytest.mark.asyncio
     @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
-    async def test_returns_error_when_the_write_fails(
+    async def test_returns_error_when_the_add_fails(
         self,
         mock_api: AsyncMock,
         mock_resolve_repo: AsyncMock,
@@ -1025,11 +1025,12 @@ class TestPrLabelsMcp:
 
     @pytest.mark.asyncio
     @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
-    async def test_returns_error_when_the_delete_fails(
+    async def test_returns_error_when_the_remove_fails(
         self,
         mock_api: AsyncMock,
         mock_resolve_repo: AsyncMock,
     ) -> None:
+        """GH-1446 made this one bulk PUT; the error still surfaces verbatim."""
         mock_api.side_effect = [
             _completed(stdout='[{"name": "review:cleared"}]'),
             _completed(returncode=1, stderr="forbidden"),

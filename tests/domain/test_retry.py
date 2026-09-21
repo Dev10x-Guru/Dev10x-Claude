@@ -131,6 +131,20 @@ class TestRetryPolicy:
 
         assert policy.delay_for(attempt=3) == pytest.approx(1.0)
 
+    @pytest.mark.parametrize("attempts", [0, -1])
+    def test_a_policy_that_would_never_run_is_refused(self, attempts: int) -> None:
+        """Both adopters bind their result inside `for attempt in range(...)`.
+
+        A zero skips the loop entirely, so the trailing return reads an
+        unbound name — a NameError on the one call that needed the retry.
+        """
+        with pytest.raises(ValueError, match="at least 1"):
+            RetryPolicy(attempts=attempts)
+
+    def test_a_single_attempt_policy_is_allowed(self) -> None:
+        """Retry disabled is a legitimate configuration, unlike zero."""
+        assert RetryPolicy(attempts=1).attempts == 1
+
     def test_default_policy_is_bounded(self) -> None:
         """GH-1288: the transport ceiling sets the limit, not patience."""
         policy = RetryPolicy()
