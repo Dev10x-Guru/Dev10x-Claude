@@ -6,8 +6,16 @@ the operating-system subprocess boundary: ``run`` / ``async_run`` /
 call surface that transparently routes to the caller's effective
 working directory (see ``_effective_cwd`` / ``use_cwd`` below). Callers
 never reach for ``subprocess.run`` directly — going through this Gateway
-keeps CWD routing, timeout handling, and output parsing in a single
-layer. ADR-0013 names the pattern here and on ``dev10x.github``.
+keeps CWD routing, timeout handling, output parsing, and concurrency
+shaping in a single layer. ADR-0013 names the pattern here and on
+``dev10x.github``.
+
+Environment variables
+---------------------
+DEV10X_MCP_MAX_SUBPROCESSES
+    Maximum number of child processes ``async_run`` will keep in flight
+    at once.  Defaults to 12.  See ``_spawn_gate`` for why the bound
+    exists.
 """
 
 from __future__ import annotations
@@ -19,10 +27,11 @@ import logging
 import os
 import signal
 import subprocess
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, MutableMapping
 from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
+from weakref import WeakKeyDictionary
 
 from dev10x.domain.cwd_resolver import set_cwd_resolver
 
@@ -77,6 +86,66 @@ def use_cwd(cwd: str | None):
 def effective_cwd() -> str | None:
     """Return the bound effective CWD or None if unbound."""
     return _effective_cwd.get()
+
+
+# GH-1422: MCP tools run in one long-lived daemon that parallel worktrees
+# and crews hit concurrently (`.claude/rules/mcp-tools.md`). Nothing capped
+# fan-out, so several worktrees running fanout/foreman crews could launch
+# dozens of simultaneous `gh` children — and GitHub's secondary rate limits
+# key off concurrent burst volume, locking out the whole install rather
+# than the offending worktree.
+_DEFAULT_MAX_CONCURRENT_SUBPROCESSES = 12
+
+_spawn_gates: MutableMapping[asyncio.AbstractEventLoop, asyncio.Semaphore] = WeakKeyDictionary()
+
+
+def _max_concurrent_subprocesses() -> int:
+    """Return the in-flight child-process ceiling (default 12)."""
+    raw = os.environ.get("DEV10X_MCP_MAX_SUBPROCESSES", "").strip()
+    try:
+        value = int(raw) if raw else _DEFAULT_MAX_CONCURRENT_SUBPROCESSES
+    except ValueError:
+        log.warning(
+            "Invalid DEV10X_MCP_MAX_SUBPROCESSES=%r, using default %d",
+            raw,
+            _DEFAULT_MAX_CONCURRENT_SUBPROCESSES,
+        )
+        return _DEFAULT_MAX_CONCURRENT_SUBPROCESSES
+    if value < 1:
+        log.warning(
+            "DEV10X_MCP_MAX_SUBPROCESSES=%r would permit no subprocesses at all, using default %d",
+            raw,
+            _DEFAULT_MAX_CONCURRENT_SUBPROCESSES,
+        )
+        return _DEFAULT_MAX_CONCURRENT_SUBPROCESSES
+    return value
+
+
+def _spawn_gate() -> asyncio.Semaphore:
+    """Return this event loop's subprocess bulkhead.
+
+    A permit is held for the child's whole life, not just the spawn, so
+    the bound is on processes in flight rather than on a spawn rate — a
+    rate cap would not stop a burst from overlapping.
+
+    Keyed per running loop rather than kept in one module global: a
+    Semaphore parks waiters as futures owned by the loop that awaited it,
+    so a gate shared across loops can hand a waiter a future the current
+    loop will never complete. The map is weak, so a finished loop's gate
+    is collected with it.
+
+    The ceiling is read once per loop. That is what makes a wedged child
+    survivable rather than fatal: GH-1412 and GH-1457 bounded and moved
+    git calls off the loop *before* this landed, so a stuck call now
+    occupies one permit until its own timeout reaps it instead of
+    holding one forever while every other caller starves.
+    """
+    loop = asyncio.get_running_loop()
+    gate = _spawn_gates.get(loop)
+    if gate is None:
+        gate = asyncio.Semaphore(_max_concurrent_subprocesses())
+        _spawn_gates[loop] = gate
+    return gate
 
 
 def _recover_process_cwd() -> None:
@@ -321,10 +390,40 @@ async def async_run(
     reaches a terminal anyway; this Gateway is for non-interactive
     commands only.
 
+    GH-1422: the call waits for a bulkhead permit before spawning, so no
+    more than ``DEV10X_MCP_MAX_SUBPROCESSES`` children are in flight at
+    once across every caller sharing this event loop. ``timeout`` bounds
+    the child's own run, not the wait for a permit — a queued call can
+    therefore take longer than its timeout to return.
+
     Args:
         input_text: Written to the child's stdin and closed. Needed by
             callers that hand a subprocess a pre-built payload rather
             than argv flags — e.g. ``gh api --input -`` (GH-1191).
+    """
+    async with _spawn_gate():
+        return await _spawn_and_communicate(
+            args=args,
+            env=env,
+            timeout=timeout,
+            cwd=cwd,
+            input_text=input_text,
+        )
+
+
+async def _spawn_and_communicate(
+    args: list[str],
+    *,
+    env: dict[str, str] | None,
+    timeout: float,
+    cwd: str | None,
+    input_text: str | None,
+) -> subprocess.CompletedProcess[str]:
+    """Launch the child and collect its output.
+
+    Split from ``async_run`` so the bulkhead permit is visibly held for
+    the whole child lifetime — spawn, communicate, and teardown — rather
+    than released at the spawn call. The caller owns the permit.
     """
     proc = await asyncio.create_subprocess_exec(
         *args,

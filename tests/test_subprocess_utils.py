@@ -303,6 +303,95 @@ class TestAsyncRun:
         assert "timed out" in result.stderr.lower()
 
 
+class TestSpawnBulkhead:
+    """GH-1422: bound the children in flight across the shared daemon.
+
+    Several worktrees running crews could launch dozens of simultaneous
+    ``gh`` processes, and GitHub's secondary rate limits key off
+    concurrent burst volume — a lockout hits the whole install, not the
+    worktree that caused it.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _fresh_gate(self, monkeypatch):
+        """Drop cached gates so a test's env override is the one read."""
+        from weakref import WeakKeyDictionary
+
+        import dev10x.subprocess_utils as su
+
+        monkeypatch.setattr(su, "_spawn_gates", WeakKeyDictionary())
+
+    @pytest.mark.parametrize(
+        "raw, expected",
+        [
+            ("", 12),
+            ("4", 4),
+            ("1", 1),
+            ("64", 64),
+            ("nonsense", 12),
+            ("0", 12),
+            ("-3", 12),
+        ],
+    )
+    def test_ceiling_resolution(self, monkeypatch, raw, expected) -> None:
+        from dev10x.subprocess_utils import _max_concurrent_subprocesses
+
+        monkeypatch.setenv("DEV10X_MCP_MAX_SUBPROCESSES", raw)
+
+        assert _max_concurrent_subprocesses() == expected
+
+    @pytest.mark.asyncio
+    async def test_in_flight_children_never_exceed_the_ceiling(self, monkeypatch) -> None:
+        import dev10x.subprocess_utils as su
+
+        monkeypatch.setenv("DEV10X_MCP_MAX_SUBPROCESSES", "2")
+        real = su._spawn_and_communicate
+        in_flight = 0
+        peak = 0
+
+        async def tracking(**kwargs):
+            nonlocal in_flight, peak
+            in_flight += 1
+            peak = max(peak, in_flight)
+            try:
+                return await real(**kwargs)
+            finally:
+                in_flight -= 1
+
+        monkeypatch.setattr(su, "_spawn_and_communicate", tracking)
+
+        await asyncio.gather(*(su.async_run(args=["sleep", "0.05"]) for _ in range(8)))
+
+        assert peak == 2
+
+    @pytest.mark.asyncio
+    async def test_a_timed_out_child_releases_its_permit(self, monkeypatch) -> None:
+        """A permit held for the child's life must survive the child dying."""
+        from dev10x.subprocess_utils import async_run
+
+        monkeypatch.setenv("DEV10X_MCP_MAX_SUBPROCESSES", "1")
+
+        timed_out = await async_run(args=["sleep", "10"], timeout=0.1)
+        # With the only permit leaked, this second call would never return.
+        recovered = await asyncio.wait_for(async_run(args=["echo", "ok"]), timeout=10)
+
+        assert timed_out.returncode == -1
+        assert recovered.stdout.strip() == "ok"
+
+    def test_each_event_loop_gets_its_own_gate(self) -> None:
+        """A gate shared across loops parks waiters on futures the current
+        loop will never complete."""
+        from dev10x.subprocess_utils import _spawn_gate
+
+        async def grab():
+            return _spawn_gate()
+
+        first = asyncio.run(grab())
+        second = asyncio.run(grab())
+
+        assert first is not second
+
+
 class TestAsyncRunReapsTheWholeTree:
     """GH-1304: killing only the direct child orphans the real work.
 
