@@ -861,8 +861,52 @@ class TestPrLabelsMcp:
 
         assert result["changed"] == ["review:cleared"]
         assert result["labels"] == ["bug"]
-        assert mock_api.call_args.kwargs["method"] == "DELETE"
-        assert mock_api.call_args.args[0] == "repos/owner/repo/issues/1/labels/review:cleared"
+        # GH-1446: one PUT of the surviving set, mirroring the add branch.
+        assert mock_api.call_args.kwargs["method"] == "PUT"
+        assert mock_api.call_args.args[0] == "repos/owner/repo/issues/1/labels"
+        assert mock_api.call_args.kwargs["fields"] == {"labels": ["bug"]}
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_removing_many_labels_costs_one_call(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        """GH-1446: the old loop paid a subprocess + round trip per label.
+
+        `Dev10x:git-groom` clears `review:cleared` after every force-push,
+        so this is a hot path, not a cold one.
+        """
+        mock_api.side_effect = [
+            _completed(stdout='[{"name": "a"}, {"name": "b"}, {"name": "c"}, {"name": "keep"}]'),
+            _completed(stdout='[{"name": "keep"}]'),
+        ]
+
+        result = await cli_server.pr_labels(pr_number=1, action="remove", labels=["a", "b", "c"])
+
+        assert result["changed"] == ["a", "b", "c"]
+        assert result["labels"] == ["keep"]
+        # One read + one write, not one read + three deletes.
+        assert mock_api.await_count == 2
+        assert mock_api.call_args.kwargs["fields"] == {"labels": ["keep"]}
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    async def test_removing_every_label_puts_an_empty_set(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.side_effect = [
+            _completed(stdout='[{"name": "a"}, {"name": "b"}]'),
+            _completed(stdout="[]"),
+        ]
+
+        result = await cli_server.pr_labels(pr_number=1, action="remove", labels=["a", "b"])
+
+        assert result["labels"] == []
+        assert mock_api.call_args.kwargs["fields"] == {"labels": []}
 
     @pytest.mark.asyncio
     @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)

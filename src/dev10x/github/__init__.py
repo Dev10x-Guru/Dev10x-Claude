@@ -30,12 +30,14 @@ from typing import Any
 
 from dev10x.domain.common.repository_ref import RepositoryRef
 from dev10x.domain.common.result import ErrorResult, Result, SuccessResult, err, ok
+from dev10x.domain.dead_letter import record_undelivered
 from dev10x.domain.pr_body import (
     fixes_references,
     has_fixes_trailer,
     job_story_error,
     normalize_pr_body,
 )
+from dev10x.domain.retry import RetryPolicy, is_retryable, retry_after_seconds
 from dev10x.github.app_auth import AppConfig, get_bot_token
 from dev10x.subprocess_utils import (
     async_run,
@@ -44,6 +46,10 @@ from dev10x.subprocess_utils import (
 )
 
 log = logging.getLogger(__name__)
+
+# GH-1423: three attempts, so a throttled call gets two more chances
+# without a caller's worst case growing past what the transport affords.
+_GH_RETRY_POLICY = RetryPolicy()
 
 # Branch names that are never a legitimate PR head — HEAD on one of these
 # when opening a PR signals a wrong/unbound working directory (GH-873 F1).
@@ -100,7 +106,35 @@ async def _gh_api_raw(
     # let a second exchange fail and silently fall through to engineer
     # credentials while the caller still reports a bot action (GH-1272).
     env = bot_env or (await _bot_env(repo=repo) if as_bot and repo else None)
-    return await async_run(args=args, timeout=timeout, env=env, input_text=body)
+
+    # GH-1423: every `gh` call used to be a single attempt, so routine
+    # throttling surfaced to the caller as a hard failure. Retry only the
+    # transient classes; a 404 or a 422 is retried zero times.
+    policy = _GH_RETRY_POLICY
+    for attempt in range(1, policy.attempts + 1):
+        result = await async_run(args=args, timeout=timeout, env=env, input_text=body)
+        if result.returncode == 0 or attempt == policy.attempts:
+            return result
+        # Our own timeout (GH-1304 returns -1 / "Process timed out") is
+        # deliberately NOT retryable: the wait was already bounded on
+        # purpose, and re-running multiplies it by `attempts` — the
+        # long-wait failure GH-1288 removed from the CI poll.
+        if result.returncode < 0 or not is_retryable(result.stderr):
+            return result
+        delay = policy.delay_for(
+            attempt=attempt,
+            retry_after=retry_after_seconds(result.stderr),
+        )
+        log.warning(
+            "gh api %s failed transiently (attempt %d/%d), retrying in %.2fs: %s",
+            endpoint,
+            attempt,
+            policy.attempts,
+            delay,
+            result.stderr.strip()[:200],
+        )
+        await asyncio.sleep(delay)
+    return result
 
 
 async def _gh_api(
@@ -934,23 +968,41 @@ async def pr_labels(
         )
 
     changed = [name for name in requested if name in current]
-    remaining = current
-    for name in changed:
-        result = await _gh_api_raw(
-            f"repos/{resolved_repo}/issues/{pr_number}/labels/{name}",
-            method="DELETE",
-            repo=resolved_repo,
-        )
-        if result.returncode != 0:
-            return err(result.stderr.strip())
-        remaining = _label_names(_loads_or_empty(result.stdout)) or [
-            existing for existing in remaining if existing != name
-        ]
+    # GH-1446: also the narrow window for the read-modify-write below. A
+    # PUT replaces the whole set, so a no-op remove that still issued one
+    # could clobber a label another writer added since `current` was read.
+    if not changed:
+        return ok({"pr_number": pr_number, "action": action, "labels": current, "changed": []})
+
+    # GH-1446: one PUT of the surviving set, mirroring the `add` branch's
+    # single POST. The old loop paid a subprocess AND an HTTP round trip
+    # per label — a real N+1, on a hot path: `Dev10x:git-groom` clears
+    # `review:cleared` after EVERY force-push (GH-1008).
+    #
+    # The idempotence contract survives: `changed` is already intersected
+    # against `current`, so a label that was never attached is absent from
+    # `remaining` and no 404 is possible.
+    #
+    # Trade-off worth knowing: unlike a per-label DELETE, a PUT is a
+    # read-modify-write, so a label added by another process between the
+    # read above and this write is dropped. The window is one round trip
+    # and the only routine writer is git-groom, but this is a lost-update
+    # shape — do not widen it by removing the `changed` guard above.
+    removing = set(changed)
+    remaining = [name for name in current if name not in removing]
+    result = await _gh_api_raw(
+        f"repos/{resolved_repo}/issues/{pr_number}/labels",
+        method="PUT",
+        fields={"labels": remaining},
+        repo=resolved_repo,
+    )
+    if result.returncode != 0:
+        return err(result.stderr.strip())
     return ok(
         {
             "pr_number": pr_number,
             "action": action,
-            "labels": remaining,
+            "labels": _label_names(_loads_or_empty(result.stdout)) or remaining,
             "changed": changed,
         }
     )
@@ -1461,7 +1513,63 @@ async def update_pr(
             return err(milestone_result.error)
         payload["milestone"] = milestone_result.value
 
+    if not fields:
+        return ok(payload)
+
+    # GH-1424: the payload used to be built entirely from the arguments,
+    # so a PATCH the transport dropped read back as a completed write
+    # (GH-1099). `.claude/rules/mcp-tools.md` names `update_pr` as needing
+    # this; only `create_pr` actually did it.
+    verified = await pr_get(number=pr_number, repo=str(repo_ref))
+    if isinstance(verified, ErrorResult):
+        payload["write_verified"] = False
+        payload["warning"] = (
+            f"PR #{pr_number} was updated but could not be read back to "
+            f"confirm the change: {verified.error}"
+        )
+        return ok(payload)
+
+    unapplied = _unapplied_pr_fields(sent=fields, observed=verified.value)
+    if unapplied:
+        return err(
+            f"PR #{pr_number} ({url}) reports {', '.join(sorted(unapplied))} "
+            f"unchanged after the update — the write did not land. Retry "
+            f"update_pr rather than assuming the PR carries the new content."
+        )
+
+    payload["write_verified"] = True
     return ok(payload)
+
+
+def _normalized_for_comparison(text: str) -> str:
+    """Compare PR text ignoring differences GitHub introduces itself.
+
+    GitHub stores bodies with CRLF line endings and may drop trailing
+    whitespace, so a byte-exact comparison against what was sent reports
+    a dropped write on every successful call.
+    """
+    return text.replace("\r\n", "\n").strip()
+
+
+def _unapplied_pr_fields(
+    *,
+    sent: dict[str, str | int | list[str]],
+    observed: dict[str, Any],
+) -> set[str]:
+    """Which of the PATCHed fields the PR does not actually carry.
+
+    ``base`` is deliberately not checked: it is reported as
+    ``baseRefName`` and a retarget can be refused server-side for
+    reasons a caller cannot act on by retrying.
+    """
+    checked = {"body": "body", "title": "title"}
+    return {
+        field
+        for field, observed_key in checked.items()
+        if field in sent
+        and _normalized_for_comparison(str(sent[field]))
+        != _normalized_for_comparison(str(observed.get(observed_key, "")))
+    }
 
 
 async def _resolve_merge_bot(
@@ -1743,7 +1851,39 @@ async def pr_ready(
         return err(result.stderr.strip() or result.stdout.strip())
 
     url = f"https://github.com/{repo_ref}/pull/{pr_number}"
-    return ok({"pr_number": pr_number, "url": url, "repo": str(repo_ref), "draft": undo})
+    payload: dict[str, Any] = {"pr_number": pr_number, "url": url, "repo": str(repo_ref)}
+
+    # GH-1424: `draft` used to be the `undo` argument echoed back, so it
+    # could never disagree with the request and carried no information
+    # about what GitHub did — while looking exactly like confirmation.
+    # A write is a request, not a receipt (GH-1099): only a fresh read
+    # settles it. GH-958 makes this load-bearing, since a force-push
+    # silently returns a published PR to draft.
+    verified = await pr_get(number=pr_number, repo=str(repo_ref))
+    if isinstance(verified, ErrorResult):
+        # The flip may well have landed; an unreadable verification is not
+        # evidence that it did not. Report the request, flagged as unread.
+        payload["draft"] = undo
+        payload["draft_verified"] = False
+        payload["warning"] = (
+            f"PR #{pr_number} draft state could not be read back to confirm "
+            f"the flip: {verified.error}"
+        )
+        return ok(payload)
+
+    observed = bool(verified.value.get("isDraft"))
+    if observed != undo:
+        wanted = "draft" if undo else "ready for review"
+        return err(
+            f"PR #{pr_number} ({url}) is still "
+            f"{'a draft' if observed else 'published'} after asking to make it "
+            f"{wanted} — the write did not land. Retry pr_ready; a merge "
+            f"attempted now fails with 'Pull Request is still a draft'."
+        )
+
+    payload["draft"] = observed
+    payload["draft_verified"] = True
+    return ok(payload)
 
 
 async def pr_close(
@@ -2847,7 +2987,20 @@ async def pr_notify(
     proc = await async_run(args=args, timeout=60)
 
     if proc.returncode != 0:
-        return err(proc.stderr.strip())
+        reason = proc.stderr.strip()
+        # GH-1421: only a failed `send` is a lost notification. `prepare`
+        # composes a message without dispatching one, so recording it
+        # would fill the log with entries nothing was ever going to
+        # deliver — and a sink full of noise is not discoverable.
+        if action == "send":
+            record_undelivered(
+                channel=channel or "(default)",
+                transport="pr_notify",
+                error=reason,
+                body=message,
+                context={"pr_number": pr_number, "repo": repo, "reviewer": reviewer},
+            )
+        return err(reason)
 
     try:
         return ok(json.loads(proc.stdout))
