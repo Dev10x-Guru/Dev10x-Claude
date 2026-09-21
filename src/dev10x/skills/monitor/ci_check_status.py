@@ -87,6 +87,8 @@ never to a zero and never to a green.
 """
 
 import argparse
+import contextlib
+import io
 import json
 import subprocess
 import sys
@@ -590,6 +592,46 @@ def probe_once(
     return compute_verdict(checks=read.checks, mergeable=mergeable, checks_source=read.source)
 
 
+# GH-1420: how many consecutive failed probes the wait absorbs before it
+# gives up. Small on purpose — tolerating a blip is the goal, outlasting a
+# real outage is not, and the poll budget already bounds the whole loop.
+_MAX_CONSECUTIVE_PROBE_FAILURES = 3
+
+
+def _probe_tolerantly(
+    *,
+    pr_number: int,
+    repo: str,
+    required_only: bool,
+) -> dict | None:
+    """Probe once, returning None instead of exiting on a failed call.
+
+    ``read_checks`` ends the process when the ``gh`` exec itself fails,
+    which is right for a single-shot read and wrong mid-poll: one rate
+    limit at poll 30 of 40 discarded ``initial_wait`` plus thirty
+    intervals and handed the caller a hard infrastructure failure for a
+    transient condition. Returning None mirrors ``fetch_mergeable``'s
+    existing ``UNKNOWN`` convention rather than inventing a second one.
+
+    The abort's stdout blob is swallowed deliberately: this script's
+    stdout is the channel the MCP wrapper parses, so a tolerated failure
+    must not leave an ``{"error": ...}`` object sitting in front of the
+    real verdict. The diagnostic is re-emitted on stderr, where the rest
+    of the poll's progress reporting already goes.
+    """
+    swallowed = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(swallowed):
+            return probe_once(pr_number=pr_number, repo=repo, required_only=required_only)
+    except SystemExit:
+        print(
+            f"[probe] transient failure, will retry: {swallowed.getvalue().strip()[:200]}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return None
+
+
 def poll_until_terminal(
     *,
     pr_number: int,
@@ -643,8 +685,12 @@ def poll_until_terminal(
     # decided. Probe before sleeping. An unregistered check set summarizes
     # as "empty", which `is_terminal` rejects, so a genuine post-push call
     # still falls through to the wait below.
-    result = probe_once(pr_number=pr_number, repo=repo, required_only=required_only)
-    if is_terminal(result=result, wait_out_pending=wait_out_pending):
+    # GH-1420: tolerated here too — a blip on the very first probe would
+    # otherwise kill the wait before it started, which is the same defect
+    # as one at poll 30. A failed fast path simply falls through to the
+    # normal wait below.
+    result = _probe_tolerantly(pr_number=pr_number, repo=repo, required_only=required_only)
+    if result is not None and is_terminal(result=result, wait_out_pending=wait_out_pending):
         print(
             f"[fast-path] verdict={result['verdict']} already terminal — not waiting",
             file=sys.stderr,
@@ -659,8 +705,28 @@ def poll_until_terminal(
     )
     time.sleep(initial_wait)
 
+    consecutive_failures = 0
     for attempt in range(1, max_polls + 1):
-        result = probe_once(pr_number=pr_number, repo=repo, required_only=required_only)
+        probed = _probe_tolerantly(pr_number=pr_number, repo=repo, required_only=required_only)
+        if probed is None:
+            # GH-1420: a failed probe is "no news", not a verdict. Keep the
+            # last good result so budget exhaustion still reports the real
+            # state, and only give up once the failures are consecutive
+            # enough to look like an outage rather than a blip.
+            consecutive_failures += 1
+            if consecutive_failures >= _MAX_CONSECUTIVE_PROBE_FAILURES:
+                _abort(
+                    f"gh pr checks failed {consecutive_failures} times in a row "
+                    f"at poll {attempt}/{max_polls} — giving up on the wait",
+                    consecutive_failures=consecutive_failures,
+                    polls_completed=attempt,
+                )
+            if attempt < max_polls:
+                time.sleep(poll_interval)
+            continue
+
+        consecutive_failures = 0
+        result = probed
         verdict = result["verdict"]
 
         print(
@@ -685,6 +751,16 @@ def poll_until_terminal(
     # Surface it as a distinct verdict so the caller can escalate (ask the
     # user, retry later) instead of reading it as a transient pending. A
     # "pending" budget-exhaustion is left as-is.
+    #
+    # GH-1420: reachable with no verdict at all only when every probe in a
+    # budget too short to hit the consecutive-failure ceiling failed. There
+    # is nothing to report, and reporting a fabricated "empty" would read
+    # as "CI registered no checks" — a different diagnosis entirely.
+    if result is None:
+        _abort(
+            f"every CI probe failed across {max_polls} poll(s) — no verdict could be read",
+            polls_completed=max_polls,
+        )
     if result["verdict"] == "empty":
         result["verdict"] = "infra_unavailable"
     return result
