@@ -27,9 +27,14 @@ def _slack_api_error(error: str, **extra: object) -> Exception:
 
 @pytest.fixture(autouse=True)
 def reset_state(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Reset module-level state so tests are isolated."""
+    """Reset module-level state so tests are isolated.
+
+    GH-1423: sleeps are made free rather than the retry disabled, so the
+    tests below still exercise the real attempt count.
+    """
     monkeypatch.setattr(mod, "_config", {})
     monkeypatch.setattr(mod, "_active_workspace", None)
+    monkeypatch.setattr(mod.time, "sleep", lambda _seconds: None)
     monkeypatch.delenv("SLACK_TOKEN", raising=False)
     monkeypatch.delenv("SLACK_SELF_USER_ID", raising=False)
 
@@ -397,6 +402,215 @@ class TestCallSlackApi:
         result = mod.call_slack_api(method="chat.postMessage", payload={}, token="t")
         assert isinstance(result, ErrorResult)
         assert "non-JSON" in result.error
+
+
+class TestNotifySlackDeadLetters:
+    """GH-1421: under foreman there is nobody to surface the error to."""
+
+    def test_a_failed_send_is_recorded(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        recorded: list[dict] = []
+        monkeypatch.setattr(mod, "record_undelivered", lambda **kwargs: recorded.append(kwargs))
+        monkeypatch.setattr(
+            mod, "send_slack_message", lambda **_: ErrorResult(error="channel_not_found")
+        )
+
+        result = mod.notify_slack(channel="#crew", message="crew stalled")
+
+        assert isinstance(result, ErrorResult)
+        assert len(recorded) == 1
+        assert recorded[0]["channel"] == "#crew"
+        assert recorded[0]["transport"] == "slack"
+        assert recorded[0]["error"] == "channel_not_found"
+        assert recorded[0]["body"] == "crew stalled"
+
+    def test_a_successful_send_records_nothing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        recorded: list[dict] = []
+        monkeypatch.setattr(mod, "record_undelivered", lambda **kwargs: recorded.append(kwargs))
+        monkeypatch.setattr(mod, "send_slack_message", lambda **_: ok("1.0"))
+
+        result = mod.notify_slack(channel="#crew", message="all good")
+
+        assert result == ok("1.0")
+        assert recorded == []
+
+    def test_the_result_contract_is_unchanged(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The sink is additive — callers still branch on the same Result."""
+        monkeypatch.setattr(mod, "record_undelivered", lambda **_: None)
+        monkeypatch.setattr(mod, "send_slack_message", lambda **_: ErrorResult(error="boom"))
+
+        assert mod.notify_slack(channel="#c", message="m") == ErrorResult(error="boom")
+
+
+class TestCallSlackApiRetries:
+    """GH-1423: routine throttling must not surface as a hard failure."""
+
+    @staticmethod
+    def _http_error(*, code: int, retry_after: str | None = None) -> Exception:
+        headers = {"Retry-After": retry_after} if retry_after else {}
+        return urllib.error.HTTPError(
+            url="https://slack.com/api/chat.postMessage",
+            code=code,
+            msg="boom",
+            hdrs=headers,
+            fp=io.BytesIO(b"detail"),
+        )
+
+    def test_a_429_is_retried_then_succeeds(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The point of the retry: a throttled call still delivers."""
+        attempts: list = []
+
+        class FakeResponse:
+            def __enter__(self_inner) -> FakeResponse:
+                return self_inner
+
+            def __exit__(self_inner, *exc: object) -> bool:
+                return False
+
+            def read(self_inner) -> bytes:
+                return b'{"ok": true, "ts": "9.9"}'
+
+        def fake_urlopen(request: object, timeout: int) -> object:
+            attempts.append(request)
+            if len(attempts) == 1:
+                raise self._http_error(code=429)
+            return FakeResponse()
+
+        monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+        result = mod.call_slack_api(method="chat.postMessage", payload={}, token="t")
+
+        assert len(attempts) == 2
+        assert result == ok({"ok": True, "ts": "9.9"})
+
+    @pytest.mark.parametrize("code", [429, 500, 503])
+    def test_transient_statuses_exhaust_the_budget(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        code: int,
+    ) -> None:
+        attempts: list = []
+
+        def fake_urlopen(request: object, timeout: int) -> object:
+            attempts.append(request)
+            raise self._http_error(code=code)
+
+        monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+        result = mod.call_slack_api(method="chat.postMessage", payload={}, token="t")
+
+        assert len(attempts) == 3
+        assert isinstance(result, ErrorResult)
+
+    @pytest.mark.parametrize("code", [400, 401, 403, 404])
+    def test_caller_fault_statuses_are_not_retried(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        code: int,
+    ) -> None:
+        attempts: list = []
+
+        def fake_urlopen(request: object, timeout: int) -> object:
+            attempts.append(request)
+            raise self._http_error(code=code)
+
+        monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+        result = mod.call_slack_api(method="chat.postMessage", payload={}, token="t")
+
+        assert len(attempts) == 1
+        assert isinstance(result, ErrorResult)
+
+    def test_a_slack_level_rejection_is_not_retried(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """`invalid_auth` is an answer, not a transport fault."""
+        attempts: list = []
+
+        class FakeResponse:
+            def __enter__(self_inner) -> FakeResponse:
+                return self_inner
+
+            def __exit__(self_inner, *exc: object) -> bool:
+                return False
+
+            def read(self_inner) -> bytes:
+                return b'{"ok": false, "error": "invalid_auth"}'
+
+        def fake_urlopen(request: object, timeout: int) -> object:
+            attempts.append(request)
+            return FakeResponse()
+
+        monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+        result = mod.call_slack_api(method="chat.postMessage", payload={}, token="t")
+
+        assert len(attempts) == 1
+        assert isinstance(result, ErrorResult)
+
+    def test_a_non_json_body_is_not_retried(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Retrying cannot make a malformed body parse."""
+        attempts: list = []
+
+        class FakeResponse:
+            def __enter__(self_inner) -> FakeResponse:
+                return self_inner
+
+            def __exit__(self_inner, *exc: object) -> bool:
+                return False
+
+            def read(self_inner) -> bytes:
+                return b"<html>gateway</html>"
+
+        def fake_urlopen(request: object, timeout: int) -> object:
+            attempts.append(request)
+            return FakeResponse()
+
+        monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+        mod.call_slack_api(method="chat.postMessage", payload={}, token="t")
+
+        assert len(attempts) == 1
+
+    def test_the_server_retry_after_hint_is_honoured(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        slept: list[float] = []
+
+        def fake_urlopen(request: object, timeout: int) -> object:
+            raise self._http_error(code=429, retry_after="4")
+
+        monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+        monkeypatch.setattr(mod.time, "sleep", slept.append)
+        mod.call_slack_api(method="chat.postMessage", payload={}, token="t")
+
+        assert slept == [4.0, 4.0]
+
+    def test_a_malformed_retry_after_falls_back_to_backoff(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        slept: list[float] = []
+
+        def fake_urlopen(request: object, timeout: int) -> object:
+            raise self._http_error(code=429, retry_after="soon-ish")
+
+        monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+        monkeypatch.setattr(mod.time, "sleep", slept.append)
+        mod.call_slack_api(method="chat.postMessage", payload={}, token="t")
+
+        assert len(slept) == 2
+        assert all(delay <= mod._SLACK_RETRY_POLICY.max_delay for delay in slept)
+
+    def test_an_unreachable_host_is_retried(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """No status at all — the call never reached Slack to be answered."""
+        attempts: list = []
+
+        def fake_urlopen(request: object, timeout: int) -> object:
+            attempts.append(request)
+            raise urllib.error.URLError("connection refused")
+
+        monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+        result = mod.call_slack_api(method="chat.postMessage", payload={}, token="t")
+
+        assert len(attempts) == 3
+        assert isinstance(result, ErrorResult)
 
 
 class TestHttpFallbackTransport:

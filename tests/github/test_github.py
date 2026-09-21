@@ -1980,12 +1980,16 @@ class TestUpdatePr:
     ) -> None:
         mock_api.return_value = _completed(stdout="{}")
 
-        result = await gh.update_pr(pr_number=42, body="new body")
+        with patch("dev10x.github.pr_get", new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = ok({"body": "new body"})
+            result = await gh.update_pr(pr_number=42, body="new body")
 
         assert isinstance(result, SuccessResult)
         assert result.value == {
             "pr_number": 42,
             "url": "https://github.com/owner/repo/pull/42",
+            # GH-1424: the write is read back, not assumed.
+            "write_verified": True,
         }
         mock_api.assert_awaited_once()
         call = mock_api.call_args

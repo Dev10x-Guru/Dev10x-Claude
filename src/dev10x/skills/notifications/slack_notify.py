@@ -22,14 +22,18 @@ import logging
 import os
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from dev10x import subprocess_utils
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.domain.dead_letter import record_undelivered
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.domain.retry import RetryPolicy, is_retryable_status
 
 if TYPE_CHECKING:
     from slack_sdk import WebClient
@@ -38,6 +42,11 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 SLACK_API_BASE = "https://slack.com/api"
+
+# GH-1423: same bound as the gh path. A notification is worth a couple of
+# extra seconds, not an unbounded wait — under foreman the caller is a
+# night-run crew nobody is watching.
+_SLACK_RETRY_POLICY = RetryPolicy()
 _HTTP_TIMEOUT_SECONDS = 30
 
 _active_workspace: str | None = None
@@ -184,6 +193,15 @@ def sdk_client(*, token: str) -> WebClient | None:
     return WebClient(token=token)
 
 
+@dataclass(frozen=True)
+class _Attempt:
+    """One Slack call's outcome, plus whether it is worth repeating."""
+
+    result: Result[dict[str, Any]]
+    transient: bool = False
+    retry_after: float | None = None
+
+
 def call_slack_api(
     *,
     method: str,
@@ -196,7 +214,36 @@ def call_slack_api(
     ``slack_sdk`` client would have sent. A Slack-level rejection
     (``{"ok": false}``) is returned as an :class:`ErrorResult` carrying
     Slack's own error code.
+
+    GH-1423: a 429 or 5xx is retried a bounded number of times, honouring
+    Slack's own ``Retry-After`` when it sends one. A Slack-level rejection
+    is a considered answer rather than a transport fault, so it is never
+    retried — ``invalid_auth`` does not become valid on the second ask.
     """
+    policy = _SLACK_RETRY_POLICY
+    for attempt in range(1, policy.attempts + 1):
+        outcome = _slack_api_once(method=method, payload=payload, token=token)
+        if not outcome.transient or attempt == policy.attempts:
+            return outcome.result
+        delay = policy.delay_for(attempt=attempt, retry_after=outcome.retry_after)
+        log.warning(
+            "Slack %s failed transiently (attempt %d/%d), retrying in %.2fs",
+            method,
+            attempt,
+            policy.attempts,
+            delay,
+        )
+        time.sleep(delay)
+    return outcome.result
+
+
+def _slack_api_once(
+    *,
+    method: str,
+    payload: dict[str, Any],
+    token: str,
+) -> _Attempt:
+    """Make one Slack call and classify its outcome for the retry loop."""
     body = {key: value for key, value in payload.items() if value is not None}
     request = urllib.request.Request(
         f"{SLACK_API_BASE}/{method}",
@@ -215,14 +262,35 @@ def call_slack_api(
             parsed = json.loads(response.read().decode())
     except urllib.error.HTTPError as ex:
         detail = ex.read().decode(errors="replace")
-        return err(f"Slack {method} failed (HTTP {ex.code}): {detail}")
+        raw_retry_after = ex.headers.get("Retry-After") if ex.headers else None
+        return _Attempt(
+            result=err(f"Slack {method} failed (HTTP {ex.code}): {detail}"),
+            transient=is_retryable_status(ex.code),
+            retry_after=_as_seconds(raw_retry_after),
+        )
     except urllib.error.URLError as ex:
-        return err(f"Slack API unreachable: {ex.reason}")
+        # No status at all — the call never reached Slack to be answered.
+        return _Attempt(result=err(f"Slack API unreachable: {ex.reason}"), transient=True)
     except json.JSONDecodeError as ex:
-        return err(f"Slack {method} returned a non-JSON response: {ex}")
+        # Slack answered with something that is not JSON. Retrying cannot
+        # make a malformed body parse, so this is terminal.
+        return _Attempt(result=err(f"Slack {method} returned a non-JSON response: {ex}"))
     if not parsed.get("ok"):
-        return err(f"Slack {method} rejected the request: {parsed.get('error', 'unknown_error')}")
-    return ok(parsed)
+        return _Attempt(
+            result=err(
+                f"Slack {method} rejected the request: {parsed.get('error', 'unknown_error')}"
+            )
+        )
+    return _Attempt(result=ok(parsed))
+
+
+def _as_seconds(raw: str | None) -> float | None:
+    """Parse a ``Retry-After`` header value, ignoring a malformed one."""
+    try:
+        return float(raw) if raw else None
+    except ValueError:
+        log.warning("Ignoring unparseable Retry-After header: %r", raw)
+        return None
 
 
 def _http_call(
@@ -346,10 +414,15 @@ def notify_slack(
     service so every caller shares the same error contract instead of
     three divergent styles. Returns ``ok(ts)`` or ``err(reason)``;
     callers own their own user-facing output formatting.
+
+    GH-1421: a failure is also appended to the dead-letter log, so a
+    message lost overnight is findable in the morning rather than
+    existing only in this call's return value. The ``Result`` contract
+    is unchanged — the sink is additive and never raises.
     """
     if workspace is not None:
         set_workspace(workspace)
-    return send_slack_message(
+    result = send_slack_message(
         channel=channel,
         message=message,
         thread_ts=thread_ts,
@@ -357,6 +430,15 @@ def notify_slack(
         reactions=reactions,
         unfurl=unfurl,
     )
+    if isinstance(result, ErrorResult):
+        record_undelivered(
+            channel=channel,
+            transport="slack",
+            error=result.error,
+            body=message,
+            context={"workspace": workspace, "thread_ts": thread_ts},
+        )
+    return result
 
 
 def upload_slack_files(
