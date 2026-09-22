@@ -65,6 +65,8 @@ def _run_filter(
     ``cross_surface`` is the OTHER surface's raw rows, which the real caller
     always supplies so a ``Re:``-keyed reply disposes of its finding across
     surfaces (GH-1002). Defaults to empty, matching a single-surface scan.
+    It goes in through ``--slurpfile``, as the script passes it, because a
+    busy PR's rows overflow a command-line argument (GH-1468).
 
     ``pr_body`` is the PR description, which the real caller also always
     supplies so a round that exists only as a body checklist refresh
@@ -73,6 +75,8 @@ def _run_filter(
     """
     fixture = tmp_path / "rows.json"
     fixture.write_text(json.dumps(rows))
+    extra = tmp_path / "extra.json"
+    extra.write_text(json.dumps(cross_surface or []))
     result = subprocess.run(
         [
             "jq",
@@ -84,9 +88,9 @@ def _run_filter(
             "--arg",
             "pr_body",
             pr_body,
-            "--argjson",
+            "--slurpfile",
             "extra",
-            json.dumps(cross_surface or []),
+            str(extra),
             str(fixture),
         ],
         capture_output=True,
