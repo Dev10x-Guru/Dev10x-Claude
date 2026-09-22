@@ -38,11 +38,16 @@ REVIEWS_RAW=$(gh api "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/reviews")
 # stay live forever. One extra API call buys the round marker.
 PR_BODY=$(gh api "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}" --jq '.body // ""')
 
+# JSON reaches jq through stdin or a file, never argv (GH-1468). Linux caps
+# one argument at 128 KiB (MAX_ARG_STRLEN), and a busy PR's comment history
+# passes that: `--argjson extra "${COMMENTS_RAW}"` failed with "Argument list
+# too long", so Check 1b could not run on the PRs that most need it.
+# `printf` is a builtin, so feeding the process substitutions execs nothing.
 COMMENTS=$(printf '%s' "${COMMENTS_RAW}" \
   | jq -f "${FILTER}" --arg src comment --arg pr_body "${PR_BODY}" \
-        --argjson extra "${REVIEWS_RAW}")
+        --slurpfile extra <(printf '%s' "${REVIEWS_RAW}"))
 REVIEWS=$(printf '%s' "${REVIEWS_RAW}" \
   | jq -f "${FILTER}" --arg src review --arg pr_body "${PR_BODY}" \
-        --argjson extra "${COMMENTS_RAW}")
+        --slurpfile extra <(printf '%s' "${COMMENTS_RAW}"))
 
-jq -n --argjson c "${COMMENTS}" --argjson r "${REVIEWS}" '$c + $r'
+printf '%s\n%s\n' "${COMMENTS}" "${REVIEWS}" | jq -s '.[0] + .[1]'
