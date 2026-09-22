@@ -265,7 +265,12 @@ def active:
 # tooling — the only exits were rewriting the reviewer's own body or
 # bypassing the gate. Union both surfaces so a keyed reply disposes of its
 # finding wherever that finding lives.
-| ([ (.[], ($extra[]?)) | reply_target_ids ] | flatten | unique) as $answered_ids
+#
+# `$extra` arrives through `--slurpfile` (GH-1468), which wraps the file's
+# document in an outer array, hence `$extra[][]`: each document, each row.
+# It used to arrive through `--argjson`, which put a whole surface on jq's
+# command line and overflowed the kernel's per-argument limit on a busy PR.
+| ([ (.[], ($extra[][]?)) | reply_target_ids ] | flatten | unique) as $answered_ids
 | [ .[]
   | select(
       ((.body // "") != "")
