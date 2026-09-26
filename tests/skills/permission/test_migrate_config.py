@@ -9,6 +9,8 @@ import pytest
 from dev10x.domain.documents.session_yaml import (
     FrictionYamlDocument,
     SessionYamlDocument,
+    match_globs_for_repo,
+    repo_stem,
 )
 from dev10x.domain.file_locks import LockTimeoutError, _lock_path_for
 from dev10x.domain.friction_level import FrictionLevel
@@ -108,7 +110,7 @@ class TestMigrateApply:
         matching = [
             entry
             for entry in doc["projects"]
-            if entry["match"] == FrictionYamlDocument.match_globs_for(str(tmp_path))
+            if entry["match"] == match_globs_for_repo(repo_name=repo_stem(tmp_path.name))
         ]
         assert len(matching) == 1
         assert matching[0]["friction_level"] == "strict"
@@ -174,7 +176,7 @@ class TestConcurrentWriter:
             FrictionYamlDocument.render_document(
                 FrictionYamlDocument.with_project(
                     {},
-                    match=FrictionYamlDocument.match_globs_for(str(other)),
+                    match=match_globs_for_repo(repo_name=repo_stem(other.name)),
                     prefs={"tracker": "github"},
                 )
             )
@@ -182,8 +184,8 @@ class TestConcurrentWriter:
         mod.migrate_config_to_friction(root=tmp_path)
         doc = FrictionYamlDocument(toplevel=str(tmp_path))._doc()
         matches = [entry["match"] for entry in doc["projects"]]
-        assert FrictionYamlDocument.match_globs_for(str(other)) in matches
-        assert FrictionYamlDocument.match_globs_for(str(tmp_path)) in matches
+        assert match_globs_for_repo(repo_name=repo_stem(other.name)) in matches
+        assert match_globs_for_repo(repo_name=repo_stem(tmp_path.name)) in matches
 
     def test_write_is_atomic(self, tmp_path: Path) -> None:
         _write_config(root=tmp_path, content="friction_level: adaptive\n")

@@ -28,7 +28,12 @@ from typing import Any
 import yaml
 
 from dev10x.domain.documents.config_yaml import ConfigYamlDocument
-from dev10x.domain.documents.friction_yaml import DURABLE_KEYS, FrictionYamlDocument
+from dev10x.domain.documents.friction_yaml import (
+    DURABLE_KEYS,
+    FrictionYamlDocument,
+    match_globs_for_repo,
+    repo_stem,
+)
 from dev10x.domain.documents.session_yaml import SessionYamlDocument, legacy_durable_prefs
 from dev10x.domain.file_locks import LOCK_TIMEOUT_SECONDS, atomic_write_text, file_lock
 
@@ -135,7 +140,7 @@ def migrate_config_to_friction(
         return {"migrated": False, "reason": "no legacy config found", "removed": []}
 
     prefs: dict[str, Any] = finding["durable_prefs"]
-    match = FrictionYamlDocument.match_globs_for(str(root))
+    match = match_globs_for_repo(repo_name=repo_stem(root.name))
     friction = FrictionYamlDocument(toplevel=str(root))
 
     if dry_run:
