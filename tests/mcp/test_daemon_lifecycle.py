@@ -7,8 +7,6 @@ test_daemon.py (PID/socket primitives) or test_wiring.py (static selection):
 - Restart-safety: second start blocked while first is alive
 - STDIO fallback integration: server.run() receives "stdio" when daemon absent
 - Deleted-CWD recovery in MCP context (subprocess_utils._recover_process_cwd)
-- StreamableHTTP concurrent tool call simulation via SessionStore backpressure
-- Parametrized session TTL exhaustion across multiple TTL values
 - Version-drift detection — DEFERRED (no production implementation yet)
 
 All tests are deterministic and fast:
@@ -16,12 +14,20 @@ All tests are deterministic and fast:
 - No real network ports are bound.
 - Real UNIX sockets are used only for HealthServer tests (localhost only,
   no network exposure).
+
+GH-1427: the StreamableHTTP-concurrency and session-TTL-exhaustion gaps
+(formerly Gap 4/5 here) exercised ``dev10x.mcp.session_store.SessionStore``,
+which was deleted as genuinely dead code — a complete, tested subsystem with
+zero runtime callers outside its own docstrings (verified: no
+``@server.tool()`` handler ever called ``get_store()``, and
+``DaemonLifecycle`` — the object it needed ``bind_to_lifecycle()`` wired
+into — was itself never instantiated outside a docstring example). Deleting
+the module removed the tests that depended on it along with it.
 """
 
 from __future__ import annotations
 
 import os
-import threading
 import time
 from pathlib import Path
 from unittest.mock import patch
@@ -37,7 +43,6 @@ from dev10x.mcp.daemon import (
     socket_file_path,
     write_pid_file,
 )
-from dev10x.mcp.session_store import SessionStore
 from dev10x.mcp.wiring import select_transport_with_daemon_fallback
 
 # ---------------------------------------------------------------------------
@@ -319,265 +324,13 @@ class TestDeletedCwdRecoveryInMcpContext:
 
 
 # ---------------------------------------------------------------------------
-# Gap 4: StreamableHTTP concurrent tool call simulation
-# ---------------------------------------------------------------------------
-
-
-class TestStreamableHttpConcurrentCalls:
-    """Simulate concurrent tool calls against a StreamableHTTP session store.
-
-    No real HTTP server is started. The tests verify that the SessionStore
-    (the state layer that StreamableHTTP uses between requests) behaves
-    correctly under concurrent load — the backpressure concern from the issue.
-
-    The production code acquires a threading.Lock() per operation; these
-    tests validate that concurrent get_or_create / update / evict calls
-    do not corrupt state, which is the primary failure mode for concurrent
-    StreamableHTTP tool calls.
-    """
-
-    def test_concurrent_sessions_created_independently(self) -> None:
-        """N concurrent clients each create a distinct session without collision."""
-        store = SessionStore(ttl=3600.0, max_sessions=100)
-        session_ids = [f"client-{i}" for i in range(20)]
-        errors: list[Exception] = []
-
-        def create_session(sid: str) -> None:
-            try:
-                entry = store.get_or_create(session_id=sid)
-                store.update(session_id=sid, last_seen=time.monotonic())
-                assert entry.session_id == sid
-            except Exception as exc:  # noqa: BLE001
-                errors.append(exc)
-
-        threads = [threading.Thread(target=create_session, args=(sid,)) for sid in session_ids]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-
-        assert errors == []
-        assert store.session_count() == len(session_ids)
-
-    def test_concurrent_updates_to_same_session_are_lossless(self) -> None:
-        """Multiple concurrent tool calls updating the same session do not lose writes."""
-        store = SessionStore(ttl=3600.0, max_sessions=100)
-        store.get_or_create(session_id="shared")
-        errors: list[Exception] = []
-        n_writers = 10
-        writes_per_writer = 50
-
-        def writer(writer_id: int) -> None:
-            try:
-                for i in range(writes_per_writer):
-                    store.update(session_id="shared", **{f"w{writer_id}": i})
-            except Exception as exc:  # noqa: BLE001
-                errors.append(exc)
-
-        threads = [threading.Thread(target=writer, args=(i,)) for i in range(n_writers)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-
-        assert errors == []
-        snap = store.snapshot(session_id="shared")
-        # Each writer's last value is present (no key lost due to race).
-        assert snap is not None
-        assert len(snap) == n_writers
-
-    def test_capacity_limit_under_concurrent_arrivals(self) -> None:
-        """When max_sessions is hit under concurrent load, eviction is safe."""
-        store = SessionStore(ttl=3600.0, max_sessions=5)
-        errors: list[Exception] = []
-
-        def arrive(sid: str) -> None:
-            try:
-                store.get_or_create(session_id=sid)
-            except Exception as exc:  # noqa: BLE001
-                errors.append(exc)
-
-        threads = [threading.Thread(target=arrive, args=(f"s{i}",)) for i in range(20)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-
-        assert errors == []
-        # After eviction the count is at most max_sessions.
-        assert store.session_count() <= 5
-
-    def test_evict_expired_safe_during_concurrent_updates(self) -> None:
-        """Calling evict_expired() while writers are active does not raise."""
-        store = SessionStore(ttl=0.01, max_sessions=100)  # very short TTL
-        errors: list[Exception] = []
-
-        def updater() -> None:
-            try:
-                for i in range(100):
-                    store.update(session_id=f"s{i % 10}", value=i)
-            except Exception as exc:  # noqa: BLE001
-                errors.append(exc)
-
-        def evictor() -> None:
-            try:
-                for _ in range(20):
-                    store.evict_expired()
-                    time.sleep(0.002)
-            except Exception as exc:  # noqa: BLE001
-                errors.append(exc)
-
-        threads = [threading.Thread(target=updater) for _ in range(3)]
-        threads.append(threading.Thread(target=evictor))
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-
-        assert errors == []
-
-
-# ---------------------------------------------------------------------------
-# Gap 5: Parametrized session TTL exhaustion
-# ---------------------------------------------------------------------------
-
-
-class TestSessionExpiryIntegration:
-    """Parametrized TTL exhaustion tests across multiple session configurations.
-
-    Complements the unit tests in test_session_store.py (which test individual
-    methods in isolation). These tests verify the full lifecycle: create →
-    idle → expire → evict, and that TTL config is respected consistently.
-    """
-
-    @pytest.mark.parametrize(
-        "ttl_seconds",
-        [0.05, 0.1, 0.2],
-    )
-    def test_session_expires_after_ttl(self, ttl_seconds: float) -> None:
-        """Sessions created but not accessed expire after the configured TTL."""
-        store = SessionStore(ttl=ttl_seconds, max_sessions=100)
-        store.get_or_create(session_id="expiring")
-
-        # Not yet expired — entry present.
-        assert store.get(session_id="expiring") is not None
-
-        # Backdate the last_active timestamp to simulate idleness.
-        store._sessions["expiring"].last_active = time.monotonic() - (ttl_seconds + 0.5)
-
-        evicted = store.evict_expired()
-        assert evicted == 1
-        assert store.get(session_id="expiring") is None
-
-    @pytest.mark.parametrize(
-        ("n_sessions", "ttl_seconds"),
-        [
-            (5, 0.05),
-            (10, 0.1),
-            (3, 0.2),
-        ],
-    )
-    def test_bulk_session_expiry_clears_all_expired(
-        self,
-        n_sessions: int,
-        ttl_seconds: float,
-    ) -> None:
-        """All idle sessions across multiple TTL configs are evicted in one pass."""
-        store = SessionStore(ttl=ttl_seconds, max_sessions=n_sessions + 10)
-        for i in range(n_sessions):
-            store.get_or_create(session_id=f"s{i}")
-
-        # Mark all as expired.
-        for sid in store.session_ids():
-            store._sessions[sid].last_active = time.monotonic() - (ttl_seconds + 1.0)
-
-        evicted = store.evict_expired()
-        assert evicted == n_sessions
-        assert store.session_count() == 0
-
-    @pytest.mark.parametrize(
-        "ttl_seconds",
-        [0.05, 0.1],
-    )
-    def test_active_sessions_survive_eviction_pass(self, ttl_seconds: float) -> None:
-        """Recently-touched sessions are not evicted during a TTL purge pass."""
-        store = SessionStore(ttl=ttl_seconds, max_sessions=100)
-        store.get_or_create(session_id="active")
-        store.get_or_create(session_id="idle")
-
-        # Expire only "idle".
-        store._sessions["idle"].last_active = time.monotonic() - (ttl_seconds + 1.0)
-
-        evicted = store.evict_expired()
-        assert evicted == 1
-        assert store.get(session_id="active") is not None
-        assert store.get(session_id="idle") is None
-
-    def test_session_revived_after_eviction_on_next_access(self) -> None:
-        """A re-used session ID after eviction creates a fresh entry."""
-        store = SessionStore(ttl=0.05, max_sessions=100)
-        first = store.get_or_create(session_id="revived")
-        store._sessions["revived"].last_active = time.monotonic() - 10
-
-        store.evict_expired()
-        assert store.get(session_id="revived") is None
-
-        # Re-access the same ID — must create a fresh entry (not raise).
-        second = store.get_or_create(session_id="revived")
-        assert second is not first
-        assert store.session_count() == 1
-
-    def test_evict_expired_auto_triggered_on_get_or_create(self) -> None:
-        """get_or_create() runs evict_expired() before checking capacity.
-
-        Verifies the internal auto-evict path: add a session, expire it, then
-        create a new one — the expired entry is gone without an explicit evict call.
-        """
-        store = SessionStore(ttl=0.05, max_sessions=100)
-        store.get_or_create(session_id="old")
-        store._sessions["old"].last_active = time.monotonic() - 10
-
-        # Creating a new session triggers internal eviction.
-        store.get_or_create(session_id="new")
-
-        assert "old" not in store.session_ids()
-        assert "new" in store.session_ids()
-
-    def test_daemon_lifecycle_stop_clears_all_active_sessions(
-        self,
-        tmp_pid_dir: Path,
-    ) -> None:
-        """Stopping the DaemonLifecycle purges sessions regardless of TTL remaining.
-
-        Verifies bind_to_lifecycle() integration: active sessions with many
-        seconds of TTL left are still cleared on daemon stop.
-        """
-        from dev10x.mcp.session_store import bind_to_lifecycle
-
-        store = SessionStore(ttl=3600.0, max_sessions=100)
-        for i in range(5):
-            store.get_or_create(session_id=f"live-{i}")
-        assert store.session_count() == 5
-
-        lifecycle = DaemonLifecycle(pid_dir=tmp_pid_dir)
-        bind_to_lifecycle(store=store, lifecycle=lifecycle)
-
-        lifecycle.start()
-        lifecycle.stop()
-
-        # All sessions gone even though TTL is 3600 s.
-        assert store.session_count() == 0
-
-
-# ---------------------------------------------------------------------------
 # Gap 6: Version-drift detection — DEFERRED
 # ---------------------------------------------------------------------------
 
 # NOTE(GH-563): Version-drift detection at SessionStart is listed as a gap in
-# the audit but has no production implementation in any of the four MCP modules
-# under test (daemon.py, transport.py, session_store.py, wiring.py).  The
+# the audit but has no production implementation in any of the three MCP
+# modules under test (daemon.py, transport.py, wiring.py).  The
 # HealthServer only answers PING → PONG; no version payload is exchanged.
-# SessionEntry.data is free-form; no version key is written by the server.
 #
 # Adding tests for behaviour that does not exist would either:
 #   (a) test the absence of version checking (trivially true, adds no value), or

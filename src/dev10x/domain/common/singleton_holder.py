@@ -12,14 +12,10 @@ Usage: construct one module-level holder seeded with a default (or
 empty), then expose thin ``get_*`` / ``set_*`` accessors that delegate
 to it::
 
-    _holder: SingletonHolder[SessionStore] = SingletonHolder(default=SessionStore())
+    _holder: SingletonHolder[SamplingManager] = SingletonHolder()
 
-    def get_store() -> SessionStore:
-        store = _holder.get()
-        if store is None:
-            store = SessionStore()
-            _holder.set(store)
-        return store
+    def get_manager() -> SamplingManager | None:
+        return _holder.get()
 
 Tests swap the instance via the holder (or the public ``set_*``
 accessor) instead of monkey-patching a bare module global.
