@@ -90,7 +90,8 @@ re-derive preset behavior in prose. The tool reads session policy
 0. **Durable posture pre-check (ADR-0019, renamed by ADR-0022 D-2).** Call
    `mcp__plugin_Dev10x_cli__supervisor_review_status()` and read
    `supervisor_review` from the response (default `required`; the
-   deprecated boolean `human_review` rides along for one release, where
+   deprecated boolean `human_review` rides along until removal in
+   `0.112.0` per the deprecation register (GH-1161, ADR-0028), where
    `required` is `true`). Do NOT read
    `~/.config/Dev10x/friction.yaml` directly or re-derive its
    first-match-wins precedence in prose — same rule this section already
@@ -339,8 +340,9 @@ of the global `~/.config/Dev10x/friction.yaml`, read via
   what lifts the park; `Dev10x:git-groom` removes it after a
   force-push, so the park comes back on rewritten history.
 
-The deprecated `human_review: true|false` spelling is still read for
-one release (`true` → `required`, `false` → `none`); an explicit
+The deprecated `human_review: true|false` spelling is still read
+until removal in `0.112.0` per the deprecation register (GH-1161,
+ADR-0028) — `true` → `required`, `false` → `none`; an explicit
 `supervisor_review` always wins over it.
 
 The legacy `review-deferred` mode string is still **read** for

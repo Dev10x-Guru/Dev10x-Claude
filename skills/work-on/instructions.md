@@ -1776,7 +1776,8 @@ the scope decision explicit so the DoD reflects it:
    not a session flag: it lives as `supervisor_review: required|none` in
    the matching `projects[]` entry of the global
    `~/.config/Dev10x/friction.yaml` (ADR-0022 D-2; the deprecated
-   `human_review: true|false` spelling is still read for one release).
+   `human_review: true|false` spelling is still read until removal in
+   `0.112.0` per the deprecation register, GH-1161, ADR-0028).
    Resolve the current value via
    `mcp__plugin_Dev10x_cli__supervisor_review_status()` (default
    `required`) — never by reading the durable file directly — and branch:
