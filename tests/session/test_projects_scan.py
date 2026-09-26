@@ -13,7 +13,6 @@ from dev10x.domain.project_match import MatchScheme, ProjectsStatus
 from dev10x.session.preset_pin import RepoIdentity
 from dev10x.session.projects_scan import (
     NO_REPO_ROOT_REASON,
-    _load_mapping,
     scan_projects_lists,
 )
 
@@ -121,15 +120,16 @@ class TestScanProjectsLists:
         assert report.unresolved_reason == NO_REPO_ROOT_REASON
 
 
-class TestLoadMapping:
-    def test_missing_file_is_none(self, tmp_path: Path) -> None:
-        assert _load_mapping(tmp_path / "absent.yaml") is None
+class TestMalformedFriction:
+    def test_malformed_friction_degrades_to_absent(self, in_repo: Path) -> None:
+        """GH-1450: routed through config_io.load_yaml, a present but
+        malformed friction.yaml degrades to an empty mapping (ABSENT
+        status) rather than raising or being silently dropped."""
+        _write(Dev10xConfigDir.friction_yaml(), "projects: [\n")
+        report = _report_for(scan_projects_lists(), name="friction.yaml")
+        assert report.status is ProjectsStatus.ABSENT
 
-    def test_malformed_yaml_is_none(self, tmp_path: Path) -> None:
-        assert _load_mapping(_write(tmp_path / "bad.yaml", "projects: [\n")) is None
-
-    def test_non_mapping_document_is_none(self, tmp_path: Path) -> None:
-        assert _load_mapping(_write(tmp_path / "list.yaml", "- a\n- b\n")) is None
-
-    def test_mapping_is_returned(self, tmp_path: Path) -> None:
-        assert _load_mapping(_write(tmp_path / "ok.yaml", "a: 1\n")) == {"a": 1}
+    def test_non_mapping_friction_degrades_to_absent(self, in_repo: Path) -> None:
+        _write(Dev10xConfigDir.friction_yaml(), "- a\n- b\n")
+        report = _report_for(scan_projects_lists(), name="friction.yaml")
+        assert report.status is ProjectsStatus.ABSENT
