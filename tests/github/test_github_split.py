@@ -145,6 +145,11 @@ AWAITING_MOVE = frozenset(
         "milestone_reopen",
         "milestone_edit",
         "milestone_list",
+        "detect_tracker",
+        "pr_detect",
+        "detect_base_branch",
+        "verify_pr_state",
+        "pre_pr_checks",
     }
 )
 
