@@ -94,7 +94,8 @@ If the invocation args include a **target commit SHA + description** (e.g.
 `/Dev10x:git-fixup abc1234 Fix null handling in phone lookup`), intent is clear —
 proceed directly in **standalone fixup** mode without asking.
 
-Otherwise, use `AskUserQuestion` to ask:
+Otherwise, **REQUIRED: Call `AskUserQuestion`** (do NOT use plain
+text) to ask:
 
 > "No review comment provided. Create a standalone fixup?"
 
