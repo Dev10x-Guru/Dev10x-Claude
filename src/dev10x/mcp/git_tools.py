@@ -8,16 +8,16 @@ from __future__ import annotations
 # `from __future__ import annotations`.
 from mcp.server.fastmcp import Context  # noqa: F401
 
-from dev10x.domain.common.result import to_wire
-from dev10x.mcp._app import server
+from dev10x.domain.common.result import Result, to_wire
+from dev10x.mcp._app import mcp_tool, server
 
 
-@server.tool()
+@mcp_tool
 async def push_safe(
     args: list[str],
     protected_branches: list[str] | None = None,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Safely push git branches, blocking --force to protected branches.
 
     Args:
@@ -46,10 +46,8 @@ async def push_safe(
         key, not on emptiness.
     """
     from dev10x import git as git_tools
-    from dev10x.subprocess_utils import use_cwd
 
-    with use_cwd(cwd):
-        return to_wire(await git_tools.push_safe(args=args, protected_branches=protected_branches))
+    return await git_tools.push_safe(args=args, protected_branches=protected_branches)
 
 
 @server.tool()
@@ -198,12 +196,12 @@ async def mass_rewrite(
     return result
 
 
-@server.tool()
+@mcp_tool
 async def start_split_rebase(
     commit_hash: str,
     base_branch: str = "develop",
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Start an interactive rebase to split a commit.
 
     Args:
@@ -215,16 +213,12 @@ async def start_split_rebase(
         Dictionary with keys: success (bool), output (str), error (str if failed)
     """
     from dev10x import git as git_tools
-    from dev10x.subprocess_utils import use_cwd
 
-    with use_cwd(cwd):
-        return to_wire(
-            await git_tools.start_split_rebase(commit_hash=commit_hash, base_branch=base_branch)
-        )
+    return await git_tools.start_split_rebase(commit_hash=commit_hash, base_branch=base_branch)
 
 
-@server.tool()
-async def next_worktree_name(base_dir: str | None = None, cwd: str | None = None) -> dict:
+@mcp_tool
+async def next_worktree_name(base_dir: str | None = None, cwd: str | None = None) -> Result[dict]:
     """Calculate the next available worktree path.
 
     Args:
@@ -236,14 +230,12 @@ async def next_worktree_name(base_dir: str | None = None, cwd: str | None = None
         Dictionary with keys: path (str)
     """
     from dev10x import git as git_tools
-    from dev10x.subprocess_utils import use_cwd
 
-    with use_cwd(cwd):
-        return to_wire(await git_tools.next_worktree_name(base_dir=base_dir))
+    return await git_tools.next_worktree_name(base_dir=base_dir)
 
 
-@server.tool()
-async def setup_aliases() -> dict:
+@mcp_tool
+async def setup_aliases() -> Result[dict]:
     """Set up global git aliases for branch comparison operations.
 
     Returns:
@@ -251,4 +243,4 @@ async def setup_aliases() -> dict:
     """
     from dev10x import git as git_tools
 
-    return to_wire(await git_tools.setup_aliases())
+    return await git_tools.setup_aliases()

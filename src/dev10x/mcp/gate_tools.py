@@ -16,10 +16,10 @@ import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from dev10x.domain.common.result import ErrorResult, Result, err, ok, to_wire
+from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.domain.documents.session_yaml import PinScope
 from dev10x.domain.file_locks import atomic_append_line
-from dev10x.mcp._app import server
+from dev10x.mcp._app import mcp_tool
 
 # Read/compute half of gate resolution (GH-840). Re-exported here so the
 # ``.dev10x/gate-policy.yaml`` constants and ``_project_overrides`` stay
@@ -111,12 +111,12 @@ async def resolve_gate_for_toplevel(
     return ok(payload)
 
 
-@server.tool()
+@mcp_tool
 async def resolve_gate(
     gate: str,
     context: dict | None = None,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Resolve a decision gate to ask/auto/skip per the session's gate policy.
 
     Args:
@@ -134,21 +134,15 @@ async def resolve_gate(
         context field, or preset.
     """
     from dev10x.domain.git_context import GitContext
-    from dev10x.subprocess_utils import use_cwd
 
-    with use_cwd(cwd):
-        toplevel = await asyncio.to_thread(lambda: GitContext().toplevel)
-        if toplevel is None:
-            return to_wire(err("Not in a git repository"))
-        return to_wire(
-            await resolve_gate_for_toplevel(
-                gate=gate, context=dict(context or {}), toplevel=toplevel
-            )
-        )
+    toplevel = await asyncio.to_thread(lambda: GitContext().toplevel)
+    if toplevel is None:
+        return err("Not in a git repository")
+    return await resolve_gate_for_toplevel(gate=gate, context=dict(context or {}), toplevel=toplevel)
 
 
-@server.tool()
-async def preset_pin_status(cwd: str | None = None) -> dict:
+@mcp_tool
+async def preset_pin_status(cwd: str | None = None) -> Result[dict]:
     """Report whether this repo already has a durable friction.yaml preset pin.
 
     Consult this BEFORE offering to remember a Phase-0 preset choice:
@@ -167,10 +161,8 @@ async def preset_pin_status(cwd: str | None = None) -> dict:
         scoped pin would write). `{"error": ...}` outside a git repo.
     """
     from dev10x.session import preset_pin
-    from dev10x.subprocess_utils import use_cwd
 
-    with use_cwd(cwd):
-        return to_wire(await asyncio.to_thread(preset_pin.preset_pin_status, cwd=cwd))
+    return await asyncio.to_thread(preset_pin.preset_pin_status, cwd=cwd)
 
 
 def _read_supervisor_review() -> Result[dict[str, Any]]:
@@ -213,8 +205,8 @@ def _read_supervisor_review() -> Result[dict[str, Any]]:
     )
 
 
-@server.tool()
-async def supervisor_review_status(cwd: str | None = None) -> dict:
+@mcp_tool
+async def supervisor_review_status(cwd: str | None = None) -> Result[dict]:
     """Report whether the supervisor reads this project's PRs (ADR-0022 D-2).
 
     The sanctioned way for a skill to read the durable `supervisor_review`
@@ -243,14 +235,11 @@ async def supervisor_review_status(cwd: str | None = None) -> dict:
         contract as `preset_pin_status` / `tracker_status`), repo_root.
         `{"error": ...}` outside a git repo.
     """
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return to_wire(await asyncio.to_thread(_read_supervisor_review))
+    return await asyncio.to_thread(_read_supervisor_review)
 
 
-@server.tool()
-async def human_review_status(cwd: str | None = None) -> dict:
+@mcp_tool
+async def human_review_status(cwd: str | None = None) -> Result[dict]:
     """Deprecated alias for `supervisor_review_status` (ADR-0022 D-2).
 
     `human_review` conflated the session supervisor with the wider team,
@@ -263,20 +252,17 @@ async def human_review_status(cwd: str | None = None) -> dict:
     Returns:
         Same as `supervisor_review_status`.
     """
-    from dev10x.subprocess_utils import use_cwd
-
-    with use_cwd(cwd):
-        return to_wire(await asyncio.to_thread(_read_supervisor_review))
+    return await asyncio.to_thread(_read_supervisor_review)
 
 
-@server.tool()
+@mcp_tool
 async def pin_gate_preset(
     preset: str,
     overlays: list[str] | None = None,
     gate_overrides: dict | None = None,
     scope: PinScope = PinScope.default(),
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Persist a Phase-0 preset choice to the global friction.yaml (GH-855).
 
     Keys the `projects[]` entry off the **repo stem** resolved from the git
@@ -299,23 +285,19 @@ async def pin_gate_preset(
         prefs. `{"error": ...}` on an unknown scope or outside a git repo.
     """
     from dev10x.session import preset_pin
-    from dev10x.subprocess_utils import use_cwd
 
-    with use_cwd(cwd):
-        return to_wire(
-            await asyncio.to_thread(
-                preset_pin.pin_preset,
-                preset=preset,
-                overlays=list(overlays) if overlays else None,
-                gate_overrides=dict(gate_overrides) if gate_overrides else None,
-                scope=scope,
-                cwd=cwd,
-            )
-        )
+    return await asyncio.to_thread(
+        preset_pin.pin_preset,
+        preset=preset,
+        overlays=list(overlays) if overlays else None,
+        gate_overrides=dict(gate_overrides) if gate_overrides else None,
+        scope=scope,
+        cwd=cwd,
+    )
 
 
-@server.tool()
-async def tracker_status(cwd: str | None = None) -> dict:
+@mcp_tool
+async def tracker_status(cwd: str | None = None) -> Result[dict]:
     """Report this repo's issue tracker, and whether it was chosen (GH-768).
 
     Consult this BEFORE asking the onboarding tracker-choice question:
@@ -333,18 +315,16 @@ async def tracker_status(cwd: str | None = None) -> dict:
         choices. `{"error": ...}` outside a git repository.
     """
     from dev10x.session import tracker_pin
-    from dev10x.subprocess_utils import use_cwd
 
-    with use_cwd(cwd):
-        return to_wire(await asyncio.to_thread(tracker_pin.tracker_status, cwd=cwd))
+    return await asyncio.to_thread(tracker_pin.tracker_status, cwd=cwd)
 
 
-@server.tool()
+@mcp_tool
 async def pin_tracker(
     tracker: str,
     scope: PinScope = PinScope.default(),
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Persist the project's issue tracker to the global friction.yaml (GH-768).
 
     `ensure-base` / `seed_worktree` then seed only that tracker's MCP
@@ -369,16 +349,12 @@ async def pin_tracker(
         outside a git repository.
     """
     from dev10x.session import tracker_pin
-    from dev10x.subprocess_utils import use_cwd
 
-    with use_cwd(cwd):
-        return to_wire(
-            await asyncio.to_thread(tracker_pin.pin_tracker, tracker=tracker, scope=scope, cwd=cwd)
-        )
+    return await asyncio.to_thread(tracker_pin.pin_tracker, tracker=tracker, scope=scope, cwd=cwd)
 
 
-@server.tool()
-async def ide_status(cwd: str | None = None) -> dict:
+@mcp_tool
+async def ide_status(cwd: str | None = None) -> Result[dict]:
     """Report this repo's IDE, and whether it was chosen (GH-1261).
 
     Consult this BEFORE asking the onboarding IDE question: `pinned:
@@ -397,18 +373,16 @@ async def ide_status(cwd: str | None = None) -> dict:
         choices. `{"error": ...}` outside a git repository.
     """
     from dev10x.session import ide_pin
-    from dev10x.subprocess_utils import use_cwd
 
-    with use_cwd(cwd):
-        return to_wire(await asyncio.to_thread(ide_pin.ide_status, cwd=cwd))
+    return await asyncio.to_thread(ide_pin.ide_status, cwd=cwd)
 
 
-@server.tool()
+@mcp_tool
 async def pin_ide(
     ide: str,
     scope: PinScope = PinScope.default(),
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Persist the project's IDE to the global friction.yaml (GH-1261).
 
     `ensure-base` then seeds that IDE's read tools as allows and its
@@ -437,18 +411,16 @@ async def pin_ide(
         git repository.
     """
     from dev10x.session import ide_pin
-    from dev10x.subprocess_utils import use_cwd
 
-    with use_cwd(cwd):
-        return to_wire(await asyncio.to_thread(ide_pin.pin_ide, ide=ide, scope=scope, cwd=cwd))
+    return await asyncio.to_thread(ide_pin.pin_ide, ide=ide, scope=scope, cwd=cwd)
 
 
-@server.tool()
+@mcp_tool
 async def pin_supervisor_review(
     supervisor_review: str,
     scope: PinScope = PinScope.default(),
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Persist the project's supervisor-review posture to friction.yaml (ADR-0022 D-2, GH-1165).
 
     The write half of `supervisor_review_status`: `Dev10x:friction-setup` /
@@ -479,14 +451,10 @@ async def pin_supervisor_review(
         git repository.
     """
     from dev10x.session import supervisor_review_pin
-    from dev10x.subprocess_utils import use_cwd
 
-    with use_cwd(cwd):
-        return to_wire(
-            await asyncio.to_thread(
-                supervisor_review_pin.pin_supervisor_review,
-                supervisor_review=supervisor_review,
-                scope=scope,
-                cwd=cwd,
-            )
-        )
+    return await asyncio.to_thread(
+        supervisor_review_pin.pin_supervisor_review,
+        supervisor_review=supervisor_review,
+        scope=scope,
+        cwd=cwd,
+    )

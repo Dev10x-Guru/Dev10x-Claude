@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from dev10x.domain.common.result import to_wire
-from dev10x.mcp._app import server
+from dev10x.domain.common.result import Result
+from dev10x.mcp._app import mcp_tool
 
 
-@server.tool()
+@mcp_tool
 async def audit_extract_session(
     jsonl_path: str,
     output_path: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Extract a Claude Code JSONL session into readable markdown.
 
     Args:
@@ -22,19 +22,17 @@ async def audit_extract_session(
     """
     from dev10x import audit
 
-    return to_wire(
-        await audit.extract_session(
-            jsonl_path=jsonl_path,
-            output_path=output_path,
-        )
+    return await audit.extract_session(
+        jsonl_path=jsonl_path,
+        output_path=output_path,
     )
 
 
-@server.tool()
+@mcp_tool
 async def audit_analyze_actions(
     transcript_path: str,
     output_path: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Analyze actions from a session transcript.
 
     Args:
@@ -46,20 +44,18 @@ async def audit_analyze_actions(
     """
     from dev10x import audit
 
-    return to_wire(
-        await audit.analyze_actions(
-            transcript_path=transcript_path,
-            output_path=output_path,
-        )
+    return await audit.analyze_actions(
+        transcript_path=transcript_path,
+        output_path=output_path,
     )
 
 
-@server.tool()
+@mcp_tool
 async def audit_analyze_permissions(
     transcript_path: str,
     settings_path: str | None = None,
     output_path: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Analyze permission friction from a session transcript.
 
     Args:
@@ -72,17 +68,15 @@ async def audit_analyze_permissions(
     """
     from dev10x import audit
 
-    return to_wire(
-        await audit.analyze_permissions(
-            transcript_path=transcript_path,
-            settings_path=settings_path,
-            output_path=output_path,
-        )
+    return await audit.analyze_permissions(
+        transcript_path=transcript_path,
+        settings_path=settings_path,
+        output_path=output_path,
     )
 
 
-@server.tool()
-async def resolve_plugin_origin(skill_paths: list[str]) -> dict:
+@mcp_tool
+async def resolve_plugin_origin(skill_paths: list[str]) -> Result[dict]:
     """Resolve which plugin repo owns each skill path (GH-816).
 
     Used by skill-audit Phase 7 to confirm the issue tracker before
@@ -100,11 +94,11 @@ async def resolve_plugin_origin(skill_paths: list[str]) -> dict:
     """
     from dev10x.domain.plugin_origin import resolve_skill_origins
 
-    return to_wire(resolve_skill_origins(skill_paths=skill_paths))
+    return resolve_skill_origins(skill_paths=skill_paths)
 
 
-@server.tool()
-async def audit_hook_log_path() -> dict:
+@mcp_tool
+async def audit_hook_log_path() -> Result[dict]:
     """Return the active audit-wrap JSONL log directory and today's log file.
 
     Resolves DEV10X_HOOK_AUDIT_DIR (default /tmp/Dev10x/hook-audit) so
@@ -116,16 +110,16 @@ async def audit_hook_log_path() -> dict:
     """
     from dev10x import audit
 
-    return to_wire(await audit.hook_log_path())
+    return await audit.hook_log_path()
 
 
-@server.tool()
+@mcp_tool
 async def audit_hook_recent(
     limit: int = 50,
     hook_name: str | None = None,
     span_id: str | None = None,
     log_path: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Return recent records from the audit-wrap JSONL log.
 
     Args:
@@ -139,11 +133,9 @@ async def audit_hook_recent(
     """
     from dev10x import audit
 
-    return to_wire(
-        await audit.hook_recent(
-            limit=limit,
-            hook_name=hook_name,
-            span_id=span_id,
-            log_path=log_path,
-        )
+    return await audit.hook_recent(
+        limit=limit,
+        hook_name=hook_name,
+        span_id=span_id,
+        log_path=log_path,
     )
