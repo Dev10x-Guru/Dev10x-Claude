@@ -16,6 +16,7 @@ data assembly live elsewhere:
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from datetime import UTC, datetime
@@ -35,6 +36,7 @@ from dev10x.hooks.session_policy import MigratePluginPermissionsRule
 from dev10x.hooks.stop_verdict import (
     StopVerdict,
     decide,
+    payload_capture,
     read_harness_version,
     record_block,
 )
@@ -331,6 +333,7 @@ def build_stop_verdict(data: dict | None = None) -> StopVerdict | None:
             "harness_version": read_harness_version(
                 transcript_path=str(data.get("transcript_path") or "")
             ),
+            **payload_capture(data=data, env=os.environ),
         },
     )
     if not verdict.block:
