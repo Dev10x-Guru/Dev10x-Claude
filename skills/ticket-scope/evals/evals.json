@@ -1,0 +1,129 @@
+{
+  "skill_name": "Dev10x:ticket-scope",
+  "eval_dimensions": [
+    {
+      "id": "scope-approval-gate",
+      "name": "Scope Approval Gate",
+      "description": "After presenting the formatted scoping document, the skill fires AskUserQuestion (Approve / Revise / More research needed / Run PoC) before saving the document or updating Linear — never a plain-text 'Approve this scope?'."
+    },
+    {
+      "id": "slack-forward-gate",
+      "name": "Slack Forward Detection Gate",
+      "description": "When a Slack thread is part of the input and slack_thread_is_forward reports high/medium confidence that the thread is a forward of an upstream thread, the skill fires AskUserQuestion (provide upstream URL / continue anyway / abort scope) instead of silently treating the thin parent as canonical."
+    }
+  ],
+  "evals": [
+    {
+      "id": "scope-gate-uses-tool",
+      "name": "Scope approval fires AskUserQuestion after the document is presented",
+      "description": "After Phase 5 formats and presents the scoping document, the skill fires AskUserQuestion per the ask-scope-approval.md call spec before Phase 6 save/Linear-update.",
+      "input": "/Dev10x:ticket-scope PAY-133 (scope document formatted and presented)",
+      "assertions": [
+        {
+          "dimension": "scope-approval-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion fires with header 'Scope Review' and options Approve/Revise/More research needed/Run PoC"
+        },
+        {
+          "dimension": "scope-approval-gate",
+          "check": "plain_text",
+          "signal": "No inline 'Approve this scoping document?' text substitutes for the tool call"
+        },
+        {
+          "dimension": "scope-approval-gate",
+          "check": "behavioral",
+          "signal": "The scope document is not saved and Linear is not updated until AskUserQuestion returns a response"
+        }
+      ]
+    },
+    {
+      "id": "revise-reprompts-with-corrections",
+      "name": "Revise re-presents a corrected scope and re-fires the gate",
+      "description": "Selecting 'Revise' applies the user's corrections and re-presents the scope document, re-firing the approval gate rather than saving the unrevised document.",
+      "input": "/Dev10x:ticket-scope PAY-133 → user selects 'Revise'",
+      "assertions": [
+        {
+          "dimension": "scope-approval-gate",
+          "check": "behavioral",
+          "signal": "No save/Linear-update call runs with the pre-revision document; the gate re-fires after revision"
+        }
+      ]
+    },
+    {
+      "id": "run-poc-offered-for-unverified-claims",
+      "name": "Run PoC is offered when the scope contains unverified claims",
+      "description": "When the scope document contains a claim the agent could not verify by reading the codebase alone, the 'Run PoC' option is present among the gate's choices.",
+      "input": "/Dev10x:ticket-scope PAY-133 (scope claims 'the plugin loads in a child session', unverified by static reading)",
+      "assertions": [
+        {
+          "dimension": "scope-approval-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion options include 'Run PoC' when the scope depends on an unverified claim"
+        }
+      ]
+    },
+    {
+      "id": "slack-forward-gate-uses-tool",
+      "name": "High/medium-confidence forward fires the Slack-forward AskUserQuestion",
+      "description": "When slack_thread_is_forward reports confidence high or medium on the parent message, the skill fires AskUserQuestion before treating the thin parent as canonical source.",
+      "input": "/Dev10x:ticket-scope (input includes a Slack thread URL; slack_thread_is_forward reports confidence=high)",
+      "assertions": [
+        {
+          "dimension": "slack-forward-gate",
+          "check": "tool_called",
+          "tool": "mcp__plugin_Dev10x_cli__slack_thread_is_forward",
+          "signal": "slack_thread_is_forward is called after the initial slack_read_thread fetch"
+        },
+        {
+          "dimension": "slack-forward-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion fires with 'Provide upstream Slack URL (Recommended)' / 'Continue with current thread anyway' / 'Abort scope'"
+        },
+        {
+          "dimension": "slack-forward-gate",
+          "check": "behavioral",
+          "signal": "Phase 2 technical research does not proceed using the thin parent thread until the gate resolves"
+        }
+      ]
+    },
+    {
+      "id": "low-confidence-forward-skips-gate",
+      "name": "Low-confidence forward proceeds without the gate",
+      "description": "When slack_thread_is_forward reports confidence=low, the skill proceeds directly to Phase 2 without firing the forward-detection gate.",
+      "input": "/Dev10x:ticket-scope (Slack thread URL present; slack_thread_is_forward reports confidence=low)",
+      "assertions": [
+        {
+          "dimension": "slack-forward-gate",
+          "check": "behavioral",
+          "signal": "AskUserQuestion is NOT called for the forward-detection dimension; Phase 2 proceeds normally"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "description": "Queries that should/should-not trigger the ticket-scope skill",
+    "should_trigger": [
+      {
+        "query": "/Dev10x:ticket-scope PAY-133",
+        "rationale": "Direct invocation to scope a Linear ticket with technical research"
+      },
+      {
+        "query": "scope this ticket before I start implementing",
+        "rationale": "Pre-implementation scoping intent — the core use case"
+      }
+    ],
+    "should_not_trigger": [
+      {
+        "query": "scope out this whole multi-ticket project with milestones",
+        "rationale": "Use Dev10x:project-scope for multi-ticket projects"
+      },
+      {
+        "query": "this is a brand new domain area, run a DDD workshop first",
+        "rationale": "Use Dev10x:ddd before scoping a new domain area"
+      }
+    ]
+  }
+}
