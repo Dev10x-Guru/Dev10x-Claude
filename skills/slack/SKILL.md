@@ -11,6 +11,7 @@ description: >
 user-invocable: true
 invocation-name: Dev10x:slack
 allowed-tools:
+  - AskUserQuestion
   - Bash(uvx dev10x skill notify slack-send:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/slack/slack-notify.py:*)
 ---

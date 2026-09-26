@@ -11,6 +11,7 @@ description: >
 user-invocable: true
 invocation-name: Dev10x:git-fixup
 allowed-tools:
+  - AskUserQuestion
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git-fixup/scripts/:*)
   - Edit(/tmp/Dev10x/git/**)

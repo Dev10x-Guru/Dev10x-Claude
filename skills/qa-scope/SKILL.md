@@ -10,6 +10,7 @@ description: >
 user-invocable: true
 invocation-name: Dev10x:qa-scope
 allowed-tools:
+  - AskUserQuestion
   - Bash(gh pr diff:*)
   - Bash(grep:*)
   - mcp__plugin_Dev10x_cli__pr_detect
