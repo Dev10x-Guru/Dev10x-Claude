@@ -684,12 +684,14 @@ class TestNotifyGchat:
         assert captured["fallback_text"] is None
 
     def test_short_circuits_on_missing_space(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mod, "record_undelivered", lambda **_: None)
         monkeypatch.setattr(mod, "resolve_space_id", lambda alias: err("no space"))
         result = mod.notify_gchat(space="bad", message="hi")
         assert isinstance(result, ErrorResult)
         assert result.error == "no space"
 
     def test_short_circuits_on_missing_credentials(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mod, "record_undelivered", lambda **_: None)
         monkeypatch.setattr(mod, "_load_config", lambda: {})
         monkeypatch.setattr(mod, "resolve_space_id", lambda alias: ok("AAAA123"))
         monkeypatch.setattr(mod, "get_sa_info", lambda: err("no key"))
@@ -698,6 +700,7 @@ class TestNotifyGchat:
         assert result.error == "no key"
 
     def test_short_circuits_on_mint_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mod, "record_undelivered", lambda **_: None)
         monkeypatch.setattr(mod, "_load_config", lambda: {})
         monkeypatch.setattr(mod, "resolve_space_id", lambda alias: ok("AAAA123"))
         monkeypatch.setattr(
@@ -727,6 +730,57 @@ class TestNotifyGchat:
         self._wire(monkeypatch, captured)
         mod.notify_gchat(space="tt-reviews", message="hi")
         assert captured["thread"] is None
+
+
+class TestNotifyGchatDeadLetters:
+    """GH-1479: under foreman there is nobody to surface the error to."""
+
+    def test_a_failed_send_is_recorded(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        recorded: list[dict] = []
+        monkeypatch.setattr(mod, "record_undelivered", lambda **kwargs: recorded.append(kwargs))
+        monkeypatch.setattr(
+            mod, "send_gchat_message", lambda **_: ErrorResult(error="space_not_found")
+        )
+
+        result = mod.notify_gchat(space="tt-reviews", message="crew stalled")
+
+        assert isinstance(result, ErrorResult)
+        assert len(recorded) == 1
+        assert recorded[0]["channel"] == "tt-reviews"
+        assert recorded[0]["transport"] == "gchat"
+        assert recorded[0]["error"] == "space_not_found"
+        assert recorded[0]["body"] == "crew stalled"
+
+    def test_a_successful_send_records_nothing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        recorded: list[dict] = []
+        monkeypatch.setattr(mod, "record_undelivered", lambda **kwargs: recorded.append(kwargs))
+        monkeypatch.setattr(mod, "send_gchat_message", lambda **_: ok("spaces/A/messages/1"))
+
+        result = mod.notify_gchat(space="tt-reviews", message="all good")
+
+        assert result == ok("spaces/A/messages/1")
+        assert recorded == []
+
+    def test_the_result_contract_is_unchanged(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The sink is additive — callers still branch on the same Result."""
+        monkeypatch.setattr(mod, "record_undelivered", lambda **_: None)
+        monkeypatch.setattr(mod, "send_gchat_message", lambda **_: ErrorResult(error="boom"))
+
+        assert mod.notify_gchat(space="tt-reviews", message="m") == ErrorResult(error="boom")
+
+    def test_cards_only_failure_records_fallback_text_as_body(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """No plain ``message`` was sent — the fallback text is the best hint."""
+        recorded: list[dict] = []
+        monkeypatch.setattr(mod, "record_undelivered", lambda **kwargs: recorded.append(kwargs))
+        monkeypatch.setattr(mod, "send_gchat_message", lambda **_: ErrorResult(error="boom"))
+
+        mod.notify_gchat(
+            space="tt-reviews", cards=[{"cardId": "c1"}], fallback_text="crew stalled"
+        )
+
+        assert recorded[0]["body"] == "crew stalled"
 
 
 class TestQualifyThreadName:
@@ -798,6 +852,96 @@ class TestRequestJson:
         mod._request_json("https://example.com", token="tok", method="DELETE")
         assert captured["method"] == "DELETE"
         assert "Content-type" not in captured["headers"]
+
+
+class TestRequestJsonRetries:
+    """GH-1479: routine throttling must not surface as a hard failure."""
+
+    @staticmethod
+    def _http_error(*, code: int, retry_after: str | None = None) -> Exception:
+        headers = {"Retry-After": retry_after} if retry_after else {}
+        return urllib.error.HTTPError(
+            url="https://chat.googleapis.com/v1/spaces/A/messages",
+            code=code,
+            msg="boom",
+            hdrs=headers,
+            fp=io.BytesIO(b"detail"),
+        )
+
+    def test_a_429_is_retried_then_succeeds(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        attempts: list = []
+
+        def fake_urlopen(req, timeout=30):  # noqa: ANN001, ANN202
+            attempts.append(req)
+            if len(attempts) == 1:
+                raise self._http_error(code=429)
+            return _FakeResponse(b'{"name": "spaces/A/messages/1"}')
+
+        monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
+        result = mod._request_json("https://example.com", token="tok")
+
+        assert len(attempts) == 2
+        assert result == ok({"name": "spaces/A/messages/1"})
+
+    @pytest.mark.parametrize("code", [408, 429, 500, 502, 503, 504])
+    def test_transient_statuses_exhaust_the_budget(
+        self, monkeypatch: pytest.MonkeyPatch, code: int
+    ) -> None:
+        attempts: list = []
+
+        def fake_urlopen(req, timeout=30):  # noqa: ANN001, ANN202
+            attempts.append(req)
+            raise self._http_error(code=code)
+
+        monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
+        result = mod._request_json("https://example.com", token="tok")
+
+        assert len(attempts) == 3
+        assert isinstance(result, ErrorResult)
+
+    @pytest.mark.parametrize("code", [400, 401, 403, 404])
+    def test_caller_fault_statuses_are_not_retried(
+        self, monkeypatch: pytest.MonkeyPatch, code: int
+    ) -> None:
+        attempts: list = []
+
+        def fake_urlopen(req, timeout=30):  # noqa: ANN001, ANN202
+            attempts.append(req)
+            raise self._http_error(code=code)
+
+        monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
+        result = mod._request_json("https://example.com", token="tok")
+
+        assert len(attempts) == 1
+        assert isinstance(result, ErrorResult)
+
+    def test_the_server_retry_after_hint_is_honoured(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        slept: list[float] = []
+
+        def fake_urlopen(req, timeout=30):  # noqa: ANN001, ANN202
+            raise self._http_error(code=429, retry_after="4")
+
+        monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
+        monkeypatch.setattr(mod.time, "sleep", slept.append)
+        mod._request_json("https://example.com", token="tok")
+
+        assert slept == [4.0, 4.0]
+
+    def test_a_network_fault_is_retried(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        attempts: list = []
+
+        def fake_urlopen(req, timeout=30):  # noqa: ANN001, ANN202
+            attempts.append(req)
+            raise urllib.error.URLError("Connection refused")
+
+        monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
+        monkeypatch.setattr(mod.time, "sleep", lambda _seconds: None)
+        result = mod._request_json("https://example.com", token="tok")
+
+        assert len(attempts) == 3
+        assert isinstance(result, ErrorResult)
 
 
 class TestPatchMessage:
