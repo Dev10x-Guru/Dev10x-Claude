@@ -80,8 +80,9 @@ mcp__plugin_Dev10x_cli__task_index_get()
 If the response has `exists: false` and no `tasks`, note "No task
 index — no local deferrals indexed" and skip to the external-sources
 step. Do NOT fall back to reading a file path by hand: the tool
-already probes the retired `.claude/Dev10x/session.yaml` location for
-one release and reports it as `legacy_read: true` with `legacy_path`.
+already probes the retired `.claude/Dev10x/session.yaml` location
+(until removal in `0.112.0` per the deprecation register, GH-1009,
+ADR-0028) and reports it as `legacy_read: true` with `legacy_path`.
 When `legacy_read` is true, add one line to the report — "carried from
 the retired `<legacy_path>`; the next park write folds it forward" —
 so a supervisor can see why the items still live in the old place.

@@ -51,8 +51,9 @@ Read overrides from a single global file:
 ~/.config/Dev10x/dod-acceptance-criteria.yaml
 ```
 
-**Read-compat fallback (one release).** When that file is absent, fall
-back to the GH-941-retired
+**Read-compat fallback (until removal in `0.112.0` per the
+deprecation register, GH-1035, ADR-0028).** When that file is absent,
+fall back to the GH-941-retired
 `~/.claude/memory/Dev10x/dod-acceptance-criteria.yaml`. When the
 fallback fires, say so in the run's output — e.g.
 `legacy_read: ~/.claude/memory/Dev10x/dod-acceptance-criteria.yaml` —

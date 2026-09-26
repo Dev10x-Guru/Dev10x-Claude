@@ -85,9 +85,12 @@ Both use standard Unix glob syntax (`fnmatch`): `*` matches any string
 any character in *seq*.
 
 > **Deprecated alias.** `match:` is still accepted in a repo-addressed
-> file for one release, so an existing playbook keeps working. Rename it
-> to `match_repo:`; `dev10x config doctor` and `dev10x playbook diff`
-> report every entry still on the alias.
+> file, per the deprecation register
+> (`src/dev10x/domain/deprecations.py`, GH-1375), so an existing
+> playbook keeps working until removal in `0.112.0`
+> ([ADR-0028](../docs/adr/0028-deprecations-carry-a-removal-version.md)).
+> Rename it to `match_repo:`; `dev10x config doctor` and
+> `dev10x playbook diff` report every entry still on the alias.
 
 ```yaml
 projects:
@@ -221,9 +224,11 @@ projects:
 | 3 | Plugin defaults (hardcoded in skill) |
 
 `Dev10x:verify-acc-dod` falls back to the GH-941-retired
-`~/.claude/memory/Dev10x/dod-acceptance-criteria.yaml` for one release
-when tier 2 is absent, and says so in its output when the fallback
-fires. That fallback is **read-only** — overrides are always written to
+`~/.claude/memory/Dev10x/dod-acceptance-criteria.yaml` when tier 2 is
+absent, and says so in its output when the fallback fires — until
+removal in `0.112.0` per the deprecation register (GH-1035,
+[ADR-0028](../docs/adr/0028-deprecations-carry-a-removal-version.md)).
+That fallback is **read-only** — overrides are always written to
 the tier-2 path above. Until GH-1035 the skill named the legacy path as
 its sole location while this table named the tier-2 one, so a
 maintainer's edits landed in a file nothing read.
