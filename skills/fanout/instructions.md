@@ -678,6 +678,13 @@ Etiquette (REQUIRED):
   orchestrator's CWD, so omitting `cwd=` pushes the wrong branch and
   opens a stray PR. `create_pr` now refuses when HEAD resolves to a
   base branch — that refusal means your `cwd=` was missing or wrong.
+- Your own sub-agents (GH-1464): a file you delegated is theirs
+  until their completion notification arrives — do not edit it
+  meanwhile. A "no live background children" notice does not mean
+  they edited nothing: run `git status` and read what landed before
+  redoing any of it, and commit their partial edits rather than
+  leaving them for teardown. See
+  `references/orchestration/grandchild-completion.md`.
 
 When a Dev10x MCP wrapper is unreachable (GH-1107 finding 1):
 - Re-run the `ToolSearch` bootstrap once. The connection can drop
@@ -757,6 +764,19 @@ it to the supervisor (a `/mcp` reconnect is user-side) rather than
 routing around the wrappers. See
 `skills/foreman/references/mcp-connectivity.md` for why this hop
 cannot be reconnected from inside the plugin.
+
+**After a `/mcp` reconnect, do not resume the stalled child
+(GH-1464).** A child spawned before the reconnect stays on the dead
+connection: resumed via SendMessage with "MCP is back, finish via the
+skill", it only spent another failed `ToolSearch` round and handed
+off. The Phase 4 resume-first rule does not apply to an MCP outage.
+Once `ToolSearch` resolves the wrappers in *your* session, either
+dispatch the finisher above, or run the remaining shipping skills
+yourself — `Skill(Dev10x:gh-pr-create)` and `Skill(Dev10x:gh-pr-merge)`
+with `cwd=<child worktree>` on every wrapper call, and
+`--repo-dir <child worktree>` on Check 1d's reconcile script. The
+second path shipped all four PRs in that run. It is not a raw-CLI
+fallback: the full nine-check gate still runs, only from your seat.
 
 **Subtask tracking.** Before dispatching the wave, create one
 subtask per item under the Phase 3 parent and mark it
@@ -1016,7 +1036,9 @@ Phase 4's job is therefore **collection**, not orchestration:
    completing the lifecycle at lower cost than a fresh
    dispatch. Use re-dispatch (new agent with PR URL inlined)
    only when the agent is no longer resumable (turn expired,
-   session ended, or agent returned BLOCKED).
+   session ended, or agent returned BLOCKED). An MCP outage is
+   the exception: a resumed child keeps its dead connection, so
+   follow § MCP-outage recovery instead (GH-1464).
    **Say what you did while it was stalled (GH-1380).** "Continue
    and finish through to PR merge" tells a worker to complete a
    lifecycle, so a worker that resumes onto a PR *you* merged

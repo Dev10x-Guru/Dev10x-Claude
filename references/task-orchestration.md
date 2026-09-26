@@ -23,6 +23,7 @@ Skills reference this index; per-pattern detail files in
 | 3 | `AskUserQuestion` for decisions | [`orchestration/decision-gates.md`](orchestration/decision-gates.md) |
 | 4 | Subagent dispatch, wave orchestration, fanout, permission-aware dispatch | [`orchestration/subagent-dispatch.md`](orchestration/subagent-dispatch.md) |
 | 4a | Subagent status protocol (DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED) | [`orchestration/subagent-status-protocol.md`](orchestration/subagent-status-protocol.md) |
+| 4b | Grandchild completion — a dispatched agent's own sub-agents | [`orchestration/grandchild-completion.md`](orchestration/grandchild-completion.md) |
 | 5 + 6 + 7 | Teams and orchestration templates | [`orchestration/teams-and-templates.md`](orchestration/teams-and-templates.md) |
 | 8 | Progress compaction for long runs | [`orchestration/compaction.md`](orchestration/compaction.md) |
 | 9 | Task reconciliation after delegation + script operations map | [`orchestration/reconciliation.md`](orchestration/reconciliation.md) |
