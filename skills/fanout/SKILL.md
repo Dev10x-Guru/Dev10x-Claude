@@ -15,6 +15,7 @@ invocation-name: Dev10x:fanout
 allowed-tools:
   - AskUserQuestion
   - Skill(Dev10x:friction-setup)
+  - Skill(Dev10x:gh-pr-create)
   - Skill(Dev10x:gh-pr-merge)
   - Skill(Dev10x:gh-pr-monitor)
   - Skill(Dev10x:gh-pr-respond)

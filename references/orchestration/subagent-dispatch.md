@@ -80,6 +80,11 @@ appears idle and may be closed prematurely.
 This pattern applies to ALL skills that launch background
 agents, not just `gh-pr-monitor`.
 
+A dispatched agent that dispatches its own sub-agents inherits
+extra rules: don't edit delegated files, read the tree after a "no
+live children" notice, and commit partial edits. See
+[`grandchild-completion.md`](grandchild-completion.md) (GH-1464).
+
 ## Background Friction Preamble (REQUIRED, GH-610)
 
 Background subagents (workflow / monitor / loop / fanout) start
