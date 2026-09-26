@@ -73,6 +73,12 @@ Policy Rule contract** with a Protocol plus an I/O-free invariant.
 
 ### The Three Archetypes (documented hierarchy)
 
+> **Amended by [ADR-0030](0030-catalog-entry-is-the-fourth-rule-archetype.md)
+> (GH-1453):** a fourth archetype, **Catalog Entry**
+> (`domain/common/policy.py::Policy`), covers declarative rule data
+> with provenance and lifecycle metadata. It is queried and listed,
+> never `apply()`'d, and it is *not* a Policy Rule despite the name.
+
 1. **Matching Rule** — declarative *data*. A pattern set plus pure
    predicates (`matches_*`). Carries no side effects and no `apply()`.
    Reach for it when behavior is fully describable in YAML and

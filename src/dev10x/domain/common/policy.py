@@ -23,6 +23,11 @@ A :class:`Policy` wraps an :class:`AllowRule` (the canonical matching
 value object) rather than reimplementing pattern matching. ``PolicyCatalog``
 parses the existing grouped catalog YAML into ``Policy`` objects, mirroring
 the missing/malformed-input tolerance of :class:`AllowRuleLoader`.
+
+Archetype: **Catalog Entry** (ADR-0030, amending ADR-0007) — queried
+and listed, never ``apply()``'d. ``Policy`` is not a
+:class:`~dev10x.domain.rules.policy_rule.PolicyRule`; the decision over
+a set of entries is :func:`dev10x.domain.common.policy_resolution.resolve_effect`.
 """
 
 from __future__ import annotations
