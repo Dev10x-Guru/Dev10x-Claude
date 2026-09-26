@@ -22,7 +22,11 @@ selection passes green. The failures surfaced only in real sessions.
 ### `mock`
 
 Tests in this class patch the API boundary (`_gh_api_raw`, `async_run`,
-`async_run_script`) and supply canned payloads. They verify:
+`async_run_script`) and supply canned payloads. Patch them on
+`dev10x.github._gateway`, the module that defines them (ADR-0027 D2):
+capability modules call `_gateway.<name>`, so a patch of the
+`dev10x.github` re-export intercepts nothing, and
+`tests/github/test_github_split.py` fails it. They verify:
 
 - Business logic (field extraction, error handling, routing)
 - Argument construction (endpoint URLs, HTTP methods, field names in

@@ -975,8 +975,9 @@ ide_denies:
 # These do NOT break the sanctioned MCP path. `milestone_create`,
 # `milestone_edit` and `milestone_reopen` do issue write-method calls  # cli-friction: allow raw-gh-api — explains why the MCP path is unaffected
 # via `_gh_api_raw` -> subprocess *inside the MCP server process*
-# (src/dev10x/github/__init__.py). Claude Code permission rules gate
-# tool calls, so no Bash-layer rule — ask or deny — can reach them.
+# (src/dev10x/github/milestones.py, through github/_gateway.py).
+# Claude Code permission rules gate tool calls, so no Bash-layer rule —
+# ask or deny — can reach them.
 #
 # KNOWN LIMITATION (inherited from the shapes these replace, not
 # introduced here): rule matching is prefix-based, so these only match
