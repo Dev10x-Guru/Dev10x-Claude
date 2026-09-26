@@ -150,6 +150,12 @@ AWAITING_MOVE = frozenset(
         "detect_base_branch",
         "verify_pr_state",
         "pre_pr_checks",
+        "PR_LABEL_ACTIONS",
+        "_loads_or_empty",
+        "_label_names",
+        "_current_label_names",
+        "pr_labels",
+        "issue_labels",
     }
 )
 
