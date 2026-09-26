@@ -37,15 +37,11 @@ import ast
 import logging
 from pathlib import Path
 
+from dev10x.repo_scan import SKIPPED_DIRS, walk_repository
+
 _logger = logging.getLogger(__name__)
 
 SCANNED_SUFFIXES = frozenset({".py"})
-# Mirrors dependency_pins.SKIPPED_DIRS: each worktree is a full checkout
-# of this same repo, so scanning them re-reports every finding once per
-# tree and lets a leftover tree fail the lint suite repo-wide.
-SKIPPED_DIRS = frozenset(
-    {".git", ".venv", "node_modules", "__pycache__", "dist", "build", "worktrees"}
-)
 
 PEP723_MARKER = "# /// script"
 
@@ -131,18 +127,7 @@ def find_unbounded_calls(*, path: Path, root: Path) -> list[str]:
 
 
 def scanned_files(root: Path) -> list[Path]:
-    # Excludes symlinks for the reason dependency_pins.scanned_files
-    # documents: Path.rglob() follows symlinked directories on this
-    # project's floor Python (3.12), so an unguarded scan could read a
-    # symlink's target or hang on a cycle.
-    return sorted(
-        path
-        for path in root.rglob("*")
-        if path.suffix in SCANNED_SUFFIXES
-        and path.is_file()
-        and not path.is_symlink()
-        and not SKIPPED_DIRS.intersection(path.relative_to(root).parts)
-    )
+    return walk_repository(root, suffixes=SCANNED_SUFFIXES)
 
 
 def scan_repository(root: Path) -> list[str]:
