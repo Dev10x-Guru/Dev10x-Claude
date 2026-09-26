@@ -77,15 +77,6 @@ class Deprecation:
 
 REGISTER: tuple[Deprecation, ...] = (
     Deprecation(
-        name="read_human_review",
-        audience=Audience.PYTHON,
-        since="0.97.0",
-        removed_in="0.107.0",
-        replacement="read_supervisor_review",
-        issue="GH-1161",
-        locations=("src/dev10x/domain/documents/session_yaml.py",),
-    ),
-    Deprecation(
         name="human_review_status",
         audience=Audience.MCP,
         since="0.97.0",
