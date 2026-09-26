@@ -41,7 +41,7 @@ class TestPrNotifyDeadLetters:
         script_present: None,
     ) -> None:
         monkeypatch.setattr(
-            gh, "async_run", _stub_run(returncode=1, stderr="slack transport down")
+            gh._gateway, "async_run", _stub_run(returncode=1, stderr="slack transport down")
         )
 
         result = await gh.pr_notify(
@@ -67,7 +67,7 @@ class TestPrNotifyDeadLetters:
         script_present: None,
     ) -> None:
         """`prepare` dispatches nothing, so nothing was lost."""
-        monkeypatch.setattr(gh, "async_run", _stub_run(returncode=1, stderr="bad args"))
+        monkeypatch.setattr(gh._gateway, "async_run", _stub_run(returncode=1, stderr="bad args"))
 
         result = await gh.pr_notify(pr_number=42, repo="o/r", action="prepare")
 
@@ -81,7 +81,9 @@ class TestPrNotifyDeadLetters:
         recorded: list[dict],
         script_present: None,
     ) -> None:
-        monkeypatch.setattr(gh, "async_run", _stub_run(returncode=0, stdout='{"ts": "1.0"}'))
+        monkeypatch.setattr(
+            gh._gateway, "async_run", _stub_run(returncode=0, stdout='{"ts": "1.0"}')
+        )
 
         result = await gh.pr_notify(pr_number=42, repo="o/r", action="send", channel="#reviews")
 
@@ -96,7 +98,7 @@ class TestPrNotifyDeadLetters:
         script_present: None,
     ) -> None:
         """The channel came from config downstream; the loss is still real."""
-        monkeypatch.setattr(gh, "async_run", _stub_run(returncode=1, stderr="down"))
+        monkeypatch.setattr(gh._gateway, "async_run", _stub_run(returncode=1, stderr="down"))
 
         await gh.pr_notify(pr_number=7, repo="o/r", action="send")
 

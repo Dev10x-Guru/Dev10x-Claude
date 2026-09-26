@@ -37,14 +37,14 @@ def resolved_repo(monkeypatch: pytest.MonkeyPatch):
     async def fake_resolve(_repo):
         return ok(RepositoryRef.parse("owner/repo"))
 
-    monkeypatch.setattr(gh, "_resolve_repo", fake_resolve)
+    monkeypatch.setattr(gh._gateway, "_resolve_repo", fake_resolve)
 
 
 class TestPrReadyVerifiesDraftState:
     @pytest.mark.asyncio
     async def test_draft_reflects_github_not_the_argument(self, resolved_repo) -> None:
         with (
-            patch("dev10x.github.async_run", new_callable=AsyncMock) as mock_run,
+            patch("dev10x.github._gateway.async_run", new_callable=AsyncMock) as mock_run,
             patch("dev10x.github.pr_get", new_callable=AsyncMock) as mock_get,
         ):
             mock_run.return_value = _completed()
@@ -58,7 +58,7 @@ class TestPrReadyVerifiesDraftState:
     @pytest.mark.asyncio
     async def test_undo_is_verified_too(self, resolved_repo) -> None:
         with (
-            patch("dev10x.github.async_run", new_callable=AsyncMock) as mock_run,
+            patch("dev10x.github._gateway.async_run", new_callable=AsyncMock) as mock_run,
             patch("dev10x.github.pr_get", new_callable=AsyncMock) as mock_get,
         ):
             mock_run.return_value = _completed()
@@ -78,7 +78,7 @@ class TestPrReadyVerifiesDraftState:
         merge, failing with 'Pull Request is still a draft'.
         """
         with (
-            patch("dev10x.github.async_run", new_callable=AsyncMock) as mock_run,
+            patch("dev10x.github._gateway.async_run", new_callable=AsyncMock) as mock_run,
             patch("dev10x.github.pr_get", new_callable=AsyncMock) as mock_get,
         ):
             mock_run.return_value = _completed()
@@ -93,7 +93,7 @@ class TestPrReadyVerifiesDraftState:
     async def test_an_unreadable_verification_warns_rather_than_fails(self, resolved_repo) -> None:
         """Not being able to check is not evidence the flip failed."""
         with (
-            patch("dev10x.github.async_run", new_callable=AsyncMock) as mock_run,
+            patch("dev10x.github._gateway.async_run", new_callable=AsyncMock) as mock_run,
             patch("dev10x.github.pr_get", new_callable=AsyncMock) as mock_get,
         ):
             mock_run.return_value = _completed()
@@ -107,7 +107,7 @@ class TestPrReadyVerifiesDraftState:
     @pytest.mark.asyncio
     async def test_a_failed_flip_never_reaches_verification(self, resolved_repo) -> None:
         with (
-            patch("dev10x.github.async_run", new_callable=AsyncMock) as mock_run,
+            patch("dev10x.github._gateway.async_run", new_callable=AsyncMock) as mock_run,
             patch("dev10x.github.pr_get", new_callable=AsyncMock) as mock_get,
         ):
             mock_run.return_value = _completed(returncode=1, stderr="no such PR")
@@ -121,7 +121,7 @@ class TestUpdatePrVerifiesTheWrite:
     @pytest.mark.asyncio
     async def test_a_landed_body_is_verified(self, resolved_repo) -> None:
         with (
-            patch("dev10x.github._gh_api_raw", new_callable=AsyncMock) as mock_api,
+            patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock) as mock_api,
             patch("dev10x.github.pr_get", new_callable=AsyncMock) as mock_get,
         ):
             mock_api.return_value = _completed()
@@ -134,7 +134,7 @@ class TestUpdatePrVerifiesTheWrite:
     @pytest.mark.asyncio
     async def test_a_dropped_body_write_is_reported(self, resolved_repo) -> None:
         with (
-            patch("dev10x.github._gh_api_raw", new_callable=AsyncMock) as mock_api,
+            patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock) as mock_api,
             patch("dev10x.github.pr_get", new_callable=AsyncMock) as mock_get,
         ):
             mock_api.return_value = _completed()
@@ -148,7 +148,7 @@ class TestUpdatePrVerifiesTheWrite:
     @pytest.mark.asyncio
     async def test_a_dropped_title_write_is_reported(self, resolved_repo) -> None:
         with (
-            patch("dev10x.github._gh_api_raw", new_callable=AsyncMock) as mock_api,
+            patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock) as mock_api,
             patch("dev10x.github.pr_get", new_callable=AsyncMock) as mock_get,
         ):
             mock_api.return_value = _completed()
@@ -175,7 +175,7 @@ class TestUpdatePrVerifiesTheWrite:
     ) -> None:
         """GitHub stores CRLF and trims — a byte comparison cries wolf."""
         with (
-            patch("dev10x.github._gh_api_raw", new_callable=AsyncMock) as mock_api,
+            patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock) as mock_api,
             patch("dev10x.github.pr_get", new_callable=AsyncMock) as mock_get,
         ):
             mock_api.return_value = _completed()
@@ -187,7 +187,7 @@ class TestUpdatePrVerifiesTheWrite:
     @pytest.mark.asyncio
     async def test_an_unreadable_verification_warns_rather_than_fails(self, resolved_repo) -> None:
         with (
-            patch("dev10x.github._gh_api_raw", new_callable=AsyncMock) as mock_api,
+            patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock) as mock_api,
             patch("dev10x.github.pr_get", new_callable=AsyncMock) as mock_get,
         ):
             mock_api.return_value = _completed()

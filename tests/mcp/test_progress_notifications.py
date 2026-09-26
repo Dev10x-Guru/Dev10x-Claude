@@ -211,7 +211,7 @@ class TestMassRewriteNotifications:
 @pytest.mark.usefixtures("stub_feature_branch", "stub_fixes_trailer_readback")
 class TestCreatePrNotifications:
     @pytest.mark.asyncio
-    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_success_emits_progress_and_info(
         self,
         mock_run: AsyncMock,
@@ -232,7 +232,7 @@ class TestCreatePrNotifications:
         assert ctx.info.await_count == 2
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_failure_logs_error(
         self,
         mock_run: AsyncMock,
@@ -251,7 +251,7 @@ class TestCreatePrNotifications:
         assert ctx.log.await_args.kwargs["level"] == "error"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_no_notifications_without_ctx(
         self,
         mock_run: AsyncMock,
