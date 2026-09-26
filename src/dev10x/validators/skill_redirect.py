@@ -207,6 +207,26 @@ def _is_safe_direct_push(command: str) -> bool:
     return all(target not in PROTECTED_BRANCHES for target in targets)
 
 
+def _is_backgrounded(*, inp: HookInput) -> bool:
+    """True when the call carries the Bash tool's ``run_in_background: true``.
+
+    GH-1456: ``watch-loop-handrolled``'s own second compensation tells the
+    caller to submit exactly this shape — a while/until/sleep loop that
+    exits once its condition holds, dispatched with
+    ``run_in_background: true`` so it never blocks the turn. The rule's
+    danger (GH-879: an interactive prompt or a blocking wait freezing an
+    unattended session) does not apply to a call that already runs
+    asynchronously — a denial here can only ever contradict the hint that
+    told the caller to write the very command being rejected. Read
+    straight from ``tool_input`` on ``raw`` rather than adding a field to
+    :class:`HookInput`, since only this one rule needs it.
+    """
+    tool_input = inp.raw.get("tool_input", {})
+    if not isinstance(tool_input, dict):
+        return False
+    return bool(tool_input.get("run_in_background"))
+
+
 def _format_correction_msg(
     *,
     label: str,
@@ -582,6 +602,8 @@ class SkillRedirectValidator(ValidatorBase):
         if rule is None:
             return None
         if rule.name == "git-push" and _is_safe_direct_push(inp.command):
+            return None
+        if rule.name == "watch-loop-handrolled" and _is_backgrounded(inp=inp):
             return None
         comp = rule.compensations[0] if rule.compensations else None
         if not comp:
