@@ -107,19 +107,23 @@ All multi-line commands live in `${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-create/scrip
    git remote get-url origin
    ```
 
-3. **Worktree check** — `verify-state.sh` reads git state from the current working
-   directory. If the session is rooted in the main repo but the branch lives in a
-   worktree, run it with `GIT_DIR` pointing to the worktree — BUT that env var
-   prefix breaks `Bash(~/.claude/skills:*)` allow-rule matching. Instead, pass
-   the worktree path as an argument when the script supports it, or use a subshell:
-   ```bash
-   # When invoking from main repo for a branch checked out in a worktree:
-   # ❌  GIT_DIR=... verify-state.sh   (env prefix breaks allow rules)
-   # ✅  Run the script from within the worktree context
-   # Note: env var prefix is still subject to permission friction. The
-   # cleanest alternative is to invoke pr:create while CWD is inside the
-   # worktree, not the main repo.
-   ```
+3. **Worktree check (GH-1466)** — the MCP tools (`verify_pr_state`,
+   `push_safe`, `create_pr`, …) run inside a long-lived server process
+   that inherits whatever CWD it was spawned in, not the session's
+   current directory. When the session is rooted in a worktree, ALWAYS
+   pass `cwd=<absolute worktree path>` explicitly on every MCP call in
+   this workflow — do not rely on the session's CWD alone. Passing an
+   explicit `cwd` is the sanctioned mechanism (GH-979); relying on
+   ambient CWD reproduces the wrong-repo/wrong-branch failure GH-1466
+   describes even when the session is genuinely rooted in the
+   worktree, because the *server's* CWD is what silently wins whenever
+   `cwd` is omitted.
+
+   The `verify-state.sh` fallback script (used only when the MCP
+   server is unavailable, see Step 1) reads git state from its own
+   process CWD instead, so the same rule applies there: run it from
+   within the worktree, never `GIT_DIR=...` (breaks
+   `Bash(~/.claude/skills:*)` allow-rule matching).
 
 ## When to Use This Skill
 
@@ -146,6 +150,10 @@ When a PR number or URL is provided as argument, switch to "update" mode:
 **Primary (MCP tool):** Call
 `mcp__plugin_Dev10x_cli__verify_pr_state` to validate branch
 state. Parse `BRANCH_NAME` and `ISSUE` from the response.
+**When the session is rooted in a worktree, pass
+`cwd=<absolute worktree path>`** (GH-1466) — see the Worktree check
+prerequisite above. The same applies to every other MCP call in this
+workflow (`push_safe`, `create_pr`, `pre_pr_checks`, …).
 
 **MCP server unavailable.** If the tool is listed as "no longer
 available" in system-reminders, STOP and ask the user to reconnect
