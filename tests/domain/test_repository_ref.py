@@ -39,3 +39,17 @@ class TestFrozen:
         ref = RepositoryRef(owner="a", name="b")
         with pytest.raises(AttributeError):
             ref.owner = "c"  # type: ignore[misc]
+
+
+class TestBasenameOr:
+    def test_parses_well_formed_repo(self) -> None:
+        assert RepositoryRef.basename_or("owner/repo-name") == "repo-name"
+
+    def test_falls_back_to_last_segment_on_malformed_repo(self) -> None:
+        assert RepositoryRef.basename_or("too/many/slashes") == "slashes"
+
+    def test_falls_back_to_whole_value_with_no_slash(self) -> None:
+        assert RepositoryRef.basename_or("no-slash") == "no-slash"
+
+    def test_uses_explicit_fallback_when_given(self) -> None:
+        assert RepositoryRef.basename_or("no-slash", fallback="default") == "default"

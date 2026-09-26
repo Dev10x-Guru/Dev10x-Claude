@@ -3013,9 +3013,14 @@ async def check_top_level_comments(
     pr_number: int,
     repo: str,
 ) -> Result[dict[str, Any]]:
+    try:
+        ref = RepositoryRef.parse(repo)
+    except ValueError as exc:
+        return err(str(exc))
     result = await async_run_script(
         "skills/gh-pr-merge/scripts/check-top-level-comments.sh",
-        *repo.split("/"),
+        ref.owner,
+        ref.name,
         str(pr_number),
     )
     if result.returncode != 0:
