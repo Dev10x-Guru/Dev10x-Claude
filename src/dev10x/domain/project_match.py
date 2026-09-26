@@ -4,8 +4,9 @@ ADR-0026 settled that ``projects[].match`` carries two incompatible
 meanings across ``~/.config/Dev10x/``: a directory-path glob in
 ``friction.yaml`` (code-backed, ADR-0018 D3) and an ``org/repo`` glob in
 every prose-resolved file. The repo-addressed side renames to
-``match_repo:``; ``match:`` stays a deprecated alias there for one
-release, because nothing rewrites a user's hand-edited config.
+``match_repo:``; ``match:`` stays a deprecated alias there until its
+removal version in :mod:`dev10x.domain.deprecations`, because nothing
+rewrites a user's hand-edited config.
 
 The rename only makes a crossed convention legible. What prevents the
 recurrence is :class:`ProjectsReport`, which keeps four outcomes apart

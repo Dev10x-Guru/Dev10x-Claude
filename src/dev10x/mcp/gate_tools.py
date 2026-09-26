@@ -199,8 +199,8 @@ def _read_supervisor_review() -> Result[dict[str, Any]]:
     return ok(
         {
             "supervisor_review": supervisor_review,
-            # Deprecated alias, emitted for one release so callers that
-            # still branch on the boolean keep working (ADR-0022 D-2).
+            # Deprecated alias, emitted until its removal version in
+            # dev10x.domain.deprecations (ADR-0022 D-2).
             "human_review": supervisor_review == SUPERVISOR_REVIEW_REQUIRED,
             "pinned": pinned,
             "repo_root": toplevel,
@@ -246,8 +246,9 @@ async def human_review_status(cwd: str | None = None) -> Result[dict]:
     """Deprecated alias for `supervisor_review_status` (ADR-0022 D-2).
 
     `human_review` conflated the session supervisor with the wider team,
-    which is why it could only ever gate `merge`. Retained for one release;
-    returns the same payload, including the boolean `human_review` key.
+    which is why it could only ever gate `merge`. Retained until its removal
+    version in `dev10x.domain.deprecations`; returns the same payload,
+    including the boolean `human_review` key.
 
     Args:
         cwd: Effective working directory (GH-979).

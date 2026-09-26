@@ -43,7 +43,7 @@ _DURABLE_KEYS = (
     "human_review",
     # ADR-0022 D-2: does the supervisor read this PR before the next step is
     # allowed? `required` | `none`. Supersedes `human_review`, which is kept
-    # above as a deprecated alias for one release.
+    # above as a deprecated alias (removal: dev10x.domain.deprecations).
     "supervisor_review",
     "protected_branches",
     # Which issue tracker this project uses, so `ensure-base` seeds that
@@ -455,7 +455,7 @@ def seed_safe_baseline_if_absent(*, path: Path | None = None) -> bool:
     return True
 
 
-#: Deprecated alias retained for one release (GH-1164). The scaffold is no
+#: Deprecated alias (GH-1164), removal in dev10x.domain.deprecations. The scaffold is no
 #: longer ``strict``-shaped, so the old name misdescribes what it writes.
 seed_strict_baseline_if_absent = seed_safe_baseline_if_absent
 
