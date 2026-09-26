@@ -765,6 +765,15 @@ completion notification arrives — never on dispatch (see
 `references/orchestration/subagent-dispatch.md` Background
 Agent Tracking).
 
+**Tag in-flight subtasks as awaiting (GH-1464).** On dispatch,
+also set `TaskUpdate(taskId, metadata={"awaiting": "subagent"})`
+and clear it (`{"awaiting": null}`) when that agent's notification
+arrives. While every open task carries the tag, the Stop verdict
+lets the turn end (`awaiting_subagents`) instead of demanding a
+continuation you cannot make — waiting in-turn is forbidden by
+`watch-loop-handrolled`, and the notification resumes you anyway.
+Without the tag the verdict re-blocked each notification turn.
+
 **Serial fallback.** When the Agent tool is unavailable or
 the user opts out (`mode: serial` playbook override),
 invoke `Skill(skill="Dev10x:work-on", args="<item-url>")` in
