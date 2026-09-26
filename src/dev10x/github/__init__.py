@@ -44,6 +44,13 @@ from dev10x.github._gateway import (
     _resolve_repo,
     _run_and_parse,
 )
+from dev10x.github.detection import (
+    detect_base_branch,
+    detect_tracker,
+    pr_detect,
+    pre_pr_checks,
+    verify_pr_state,
+)
 from dev10x.github.milestones import (
     _resolve_milestone_number,
     milestone_close,
@@ -152,22 +159,6 @@ __all__ = [
 # Branch names that are never a legitimate PR head — HEAD on one of these
 # when opening a PR signals a wrong/unbound working directory (GH-873 F1).
 _BASE_BRANCH_NAMES = frozenset({"develop", "development", "main", "master", "trunk"})
-
-
-async def detect_tracker(*, ticket_id: str) -> Result[dict[str, Any]]:
-    return await _gateway._run_and_parse(
-        "skills/gh-context/scripts/detect-tracker.sh",
-        ticket_id,
-        fallback=parse_key_value_output,
-    )
-
-
-async def pr_detect(*, arg: str) -> Result[dict[str, Any]]:
-    return await _gateway._run_and_parse(
-        "skills/gh-context/scripts/gh-pr-detect.sh",
-        arg,
-        fallback=parse_key_value_output,
-    )
 
 
 async def pr_get(
@@ -1099,62 +1090,6 @@ async def request_review(
     )
 
     return result
-
-
-async def detect_base_branch(
-    *,
-    base: str | None = None,
-    force: bool = False,
-) -> Result[dict[str, Any]]:
-    args: list[str] = []
-    if base:
-        args.extend(["--base", base])
-    if force:
-        args.append("--force")
-
-    result = await _gateway.async_run_script(
-        "skills/gh-pr-create/scripts/detect-base-branch.sh",
-        *args,
-    )
-
-    if result.returncode != 0:
-        return err(result.stderr.strip())
-
-    parsed = parse_key_value_output(result.stdout)
-    return ok(
-        {
-            "base_branch": parsed.get("BASE_BRANCH", ""),
-            "has_develop": bool(parsed.get("DEV_BRANCH", "")),
-        }
-    )
-
-
-async def verify_pr_state(*, force: bool = False) -> Result[dict[str, Any]]:
-    args: list[str] = []
-    if force:
-        args.append("--force")
-
-    return await _gateway._run_and_parse(
-        "skills/gh-pr-create/scripts/verify-state.sh",
-        *args,
-        fallback=parse_key_value_output,
-    )
-
-
-async def pre_pr_checks(*, base_branch: str | None = None) -> Result[dict[str, Any]]:
-    args: list[str] = []
-    if base_branch:
-        args.append(base_branch)
-
-    result = await _gateway.async_run_script(
-        "skills/gh-pr-create/scripts/pre-pr-checks.sh",
-        *args,
-    )
-
-    if result.returncode != 0:
-        return err(result.stderr.strip(), output=result.stdout.strip())
-
-    return ok({"success": True, "output": result.stdout.strip()})
 
 
 async def _set_pr_milestone(
