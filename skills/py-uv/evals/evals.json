@@ -1,0 +1,97 @@
+{
+  "skill_name": "Dev10x:py-uv",
+  "eval_dimensions": [
+    {
+      "id": "install-method-gate",
+      "name": "Install-Method Selection Gate",
+      "description": "When UV is not installed, the skill presents ranked install methods via AskUserQuestion (system package manager > pipx > standalone installer > curl, filtered to available prerequisites) and never executes the install command itself."
+    }
+  ],
+  "evals": [
+    {
+      "id": "install-gate-uses-tool",
+      "name": "Missing UV fires the install-method AskUserQuestion",
+      "description": "When check-uv.sh exits 1 (UV missing), the skill fetches the install docs, then presents ranked install options via AskUserQuestion rather than picking one and running it.",
+      "input": "/Dev10x:py-uv (check-uv.sh exits 1: UV not installed, pipx available)",
+      "assertions": [
+        {
+          "dimension": "install-method-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion presents ranked install methods after the WebFetch of the installation docs"
+        },
+        {
+          "dimension": "install-method-gate",
+          "check": "plain_text",
+          "signal": "No inline 'Install with pipx?' text substitutes for the tool call"
+        }
+      ]
+    },
+    {
+      "id": "install-command-never-executed",
+      "name": "The skill never executes the install command itself",
+      "description": "Regardless of which option the user picks, the skill tells the user the exact command and waits for them to run it — it never invokes an installer directly via Bash.",
+      "input": "/Dev10x:py-uv (UV missing) → user selects 'pipx install uv'",
+      "assertions": [
+        {
+          "dimension": "install-method-gate",
+          "check": "behavioral",
+          "signal": "No Bash call runs 'pipx install uv', 'curl ... | sh', or any other install command; the skill only re-runs check-uv.sh after the user confirms"
+        }
+      ]
+    },
+    {
+      "id": "options-filtered-by-prerequisite",
+      "name": "Options are filtered to available package managers",
+      "description": "An install method whose prerequisite tool (e.g., pipx, a system package manager) is not present in the detected PACKAGE_MANAGERS output is not offered as an option.",
+      "input": "/Dev10x:py-uv (UV missing, pipx NOT available, curl available)",
+      "assertions": [
+        {
+          "dimension": "install-method-gate",
+          "check": "behavioral",
+          "signal": "AskUserQuestion options exclude pipx and include only methods whose prerequisite was detected"
+        }
+      ]
+    },
+    {
+      "id": "already-installed-skips-gate",
+      "name": "UV already installed and scripts migrated skips the gate entirely",
+      "description": "When check-uv.sh exits 0, the skill reports success and stops without ever presenting the install gate.",
+      "input": "/Dev10x:py-uv (check-uv.sh exits 0)",
+      "assertions": [
+        {
+          "dimension": "install-method-gate",
+          "check": "behavioral",
+          "signal": "AskUserQuestion is NOT called; the skill reports 'UV installed, all scripts migrated' and stops"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "description": "Queries that should/should-not trigger the py-uv skill",
+    "should_trigger": [
+      {
+        "query": "/Dev10x:py-uv",
+        "rationale": "Direct invocation to check/install UV or migrate scripts"
+      },
+      {
+        "query": "set up uv for the first time on this machine",
+        "rationale": "First-time UV installation — the core use case"
+      },
+      {
+        "query": "convert this script's shebang to PEP 723",
+        "rationale": "Migration of a legacy shebang script"
+      }
+    ],
+    "should_not_trigger": [
+      {
+        "query": "uv is already installed, just run the tests",
+        "rationale": "UV already configured — no setup work needed"
+      },
+      {
+        "query": "write a new Python package with a pyproject.toml",
+        "rationale": "Standard package, not a standalone uv script"
+      }
+    ]
+  }
+}

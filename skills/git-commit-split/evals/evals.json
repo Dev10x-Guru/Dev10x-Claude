@@ -1,0 +1,85 @@
+{
+  "skill_name": "Dev10x:git-commit-split",
+  "eval_dimensions": [
+    {
+      "id": "split-strategy-gate",
+      "name": "Split Strategy Approval Gate",
+      "description": "After proposing the split boundaries in Phase 1, the skill fires AskUserQuestion (Approve split plan / Adjust boundaries / Abort) before starting the interactive rebase that begins destructive history rewriting."
+    }
+  ],
+  "evals": [
+    {
+      "id": "split-gate-uses-tool",
+      "name": "Split strategy fires AskUserQuestion before rebase starts",
+      "description": "After analyzing the monolithic commit and proposing N split boundaries, the skill fires AskUserQuestion per the ask-split-strategy.md call spec before Phase 2's interactive rebase begins.",
+      "input": "/Dev10x:git-commit-split (proposed split into 3 commits)",
+      "assertions": [
+        {
+          "dimension": "split-strategy-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion fires with header 'Split Strategy' and options Approve/Adjust/Abort before 'git rebase -i' runs"
+        },
+        {
+          "dimension": "split-strategy-gate",
+          "check": "plain_text",
+          "signal": "No inline 'Proposed split into N commits. Approve?' text substitutes for the tool call"
+        },
+        {
+          "dimension": "split-strategy-gate",
+          "check": "behavioral",
+          "signal": "git rebase -i is not started until AskUserQuestion returns a response"
+        }
+      ]
+    },
+    {
+      "id": "adjust-boundaries-reprompts",
+      "name": "Adjust boundaries re-proposes a split plan",
+      "description": "Selecting 'Adjust boundaries' re-derives the split plan from the user's correction and re-fires the gate rather than proceeding with the original plan.",
+      "input": "/Dev10x:git-commit-split → user selects 'Adjust boundaries'",
+      "assertions": [
+        {
+          "dimension": "split-strategy-gate",
+          "check": "behavioral",
+          "signal": "No rebase starts with the original (unadjusted) boundaries; the gate re-fires after the plan is revised"
+        }
+      ]
+    },
+    {
+      "id": "abort-keeps-monolithic-commit",
+      "name": "Abort leaves the original commit untouched",
+      "description": "Selecting 'Abort' stops the skill and leaves the monolithic commit as-is — no rebase or history rewrite occurs.",
+      "input": "/Dev10x:git-commit-split → user selects 'Abort'",
+      "assertions": [
+        {
+          "dimension": "split-strategy-gate",
+          "check": "behavioral",
+          "signal": "No 'git reset', 'git rebase', or 'git commit-tree' call runs after Abort"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "description": "Queries that should/should-not trigger the git-commit-split skill",
+    "should_trigger": [
+      {
+        "query": "/Dev10x:git-commit-split",
+        "rationale": "Direct invocation to split a monolithic commit into atomic commits"
+      },
+      {
+        "query": "this commit is doing too much, split it into smaller ones",
+        "rationale": "Split-commit intent — the core use case"
+      }
+    ],
+    "should_not_trigger": [
+      {
+        "query": "create a new commit for these changes",
+        "rationale": "Use Dev10x:git-commit — there is nothing to split yet"
+      },
+      {
+        "query": "clean up and reorder the commit history on this branch",
+        "rationale": "Use Dev10x:git-groom for broader history grooming"
+      }
+    ]
+  }
+}

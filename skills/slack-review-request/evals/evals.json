@@ -1,0 +1,136 @@
+{
+  "skill_name": "Dev10x:slack-review-request",
+  "eval_dimensions": [
+    {
+      "id": "unconfigured-project-gate",
+      "name": "Unconfigured-Project Channel/Mentions Gate",
+      "description": "When `prepare` returns ask=true (no project Slack config found), the skill fires AskUserQuestion to collect the channel ID and optional mentions rather than guessing or silently skipping."
+    },
+    {
+      "id": "pre-post-confirm-gate",
+      "name": "Pre-Post Confirmation Gate",
+      "description": "Before posting, the skill always fires AskUserQuestion showing the formatted message with 'Post to Slack' / 'Skip' options — the message is never sent without this confirmation, even when project config was already resolved."
+    }
+  ],
+  "evals": [
+    {
+      "id": "skip-config-no-ask-no-post",
+      "name": "skip=true from prepare ends the flow without asking or posting",
+      "description": "When the project is configured to skip Slack review requests, the skill reports the skip and stops — neither AskUserQuestion fires nor is a message posted.",
+      "input": "/Dev10x:slack-review-request --pr 42 --repo org/repo (project config: skip=true)",
+      "assertions": [
+        {
+          "dimension": "unconfigured-project-gate",
+          "check": "behavioral",
+          "signal": "AskUserQuestion is NOT called; Skill(Dev10x:slack) is NOT invoked; skill reports 'Slack notification skipped'"
+        }
+      ]
+    },
+    {
+      "id": "ask-config-gate-uses-tool",
+      "name": "ask=true fires AskUserQuestion for channel and mentions",
+      "description": "When prepare returns ask=true (no config found), the skill fires AskUserQuestion to collect a Slack channel ID and optional mentions before proceeding to Step 3.",
+      "input": "/Dev10x:slack-review-request --pr 42 --repo org/repo (no project Slack config)",
+      "assertions": [
+        {
+          "dimension": "unconfigured-project-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion asks for a Slack channel ID (required) and mentions (optional)"
+        },
+        {
+          "dimension": "unconfigured-project-gate",
+          "check": "plain_text",
+          "signal": "No inline 'What channel should I post to?' text substitutes for the tool call"
+        }
+      ]
+    },
+    {
+      "id": "decline-channel-ends-without-posting",
+      "name": "Declining to provide a channel ends the flow",
+      "description": "If the user declines to provide a channel when ask=true, the skill stops without posting.",
+      "input": "/Dev10x:slack-review-request --pr 42 --repo org/repo (ask=true) → user declines",
+      "assertions": [
+        {
+          "dimension": "unconfigured-project-gate",
+          "check": "behavioral",
+          "signal": "Skill(Dev10x:slack) is NOT invoked; no message is posted"
+        }
+      ]
+    },
+    {
+      "id": "pre-post-confirm-uses-tool",
+      "name": "Step 3 fires AskUserQuestion to confirm before posting",
+      "description": "Once the message and channel are resolved (from config or the ask=true path), the skill shows the formatted message via AskUserQuestion with 'Post to Slack' / 'Skip' options before Step 4 (send).",
+      "input": "/Dev10x:slack-review-request --pr 42 --repo org/repo (config resolved)",
+      "assertions": [
+        {
+          "dimension": "pre-post-confirm-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion shows 'Review Slack message before posting' with 'Post to Slack' / 'Skip' options"
+        },
+        {
+          "dimension": "pre-post-confirm-gate",
+          "check": "plain_text",
+          "signal": "No inline 'Post this to Slack?' text substitutes for the tool call"
+        },
+        {
+          "dimension": "pre-post-confirm-gate",
+          "check": "behavioral",
+          "signal": "Skill(Dev10x:slack) is not invoked until AskUserQuestion returns a response"
+        }
+      ]
+    },
+    {
+      "id": "skip-at-confirm-does-not-send",
+      "name": "Choosing Skip at the confirm gate does not send the message",
+      "description": "If the user chooses 'Skip' at Step 3, the skill ends without delegating to Dev10x:slack.",
+      "input": "/Dev10x:slack-review-request --pr 42 --repo org/repo → user selects 'Skip'",
+      "assertions": [
+        {
+          "dimension": "pre-post-confirm-gate",
+          "check": "behavioral",
+          "signal": "Skill(Dev10x:slack) is NOT invoked when the user selects Skip"
+        }
+      ]
+    },
+    {
+      "id": "force-flag-bypasses-approval-precheck-not-confirm-gate",
+      "name": "--force / bypass_approval_check skips only the precheck, not the confirm gate",
+      "description": "The --force flag or bypass_approval_check:true skips the human-approval precheck (e.g., re-review notifications from Dev10x:gh-pr-monitor), but Step 3's pre-post confirmation gate still fires.",
+      "input": "/Dev10x:slack-review-request --pr 42 --repo org/repo --force",
+      "assertions": [
+        {
+          "dimension": "pre-post-confirm-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion still fires at Step 3 even when --force skipped the approval precheck"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "description": "Queries that should/should-not trigger the slack-review-request skill",
+    "should_trigger": [
+      {
+        "query": "/Dev10x:slack-review-request --pr 42",
+        "rationale": "Direct invocation to post a Slack review request"
+      },
+      {
+        "query": "let the team know this PR is ready for review in Slack",
+        "rationale": "Review-notification intent — the core use case"
+      }
+    ],
+    "should_not_trigger": [
+      {
+        "query": "Slack isn't set up for this project",
+        "rationale": "No Slack configuration present — skill should not fire"
+      },
+      {
+        "query": "request review and notify the team",
+        "rationale": "Use the combined Dev10x:request-review skill, which delegates here automatically"
+      }
+    ]
+  }
+}
