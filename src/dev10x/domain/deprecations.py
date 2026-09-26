@@ -77,15 +77,6 @@ class Deprecation:
 
 REGISTER: tuple[Deprecation, ...] = (
     Deprecation(
-        name="match_globs_for",
-        audience=Audience.PYTHON,
-        since="0.92.0",
-        removed_in="0.107.0",
-        replacement="match_globs_for_repo",
-        issue="GH-855",
-        locations=("src/dev10x/domain/documents/friction_yaml.py",),
-    ),
-    Deprecation(
         name="seed_strict_baseline_if_absent",
         audience=Audience.PYTHON,
         since="0.97.0",

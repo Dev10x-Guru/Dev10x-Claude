@@ -74,6 +74,23 @@ def _normalize_toplevel(toplevel: str) -> str:
         return toplevel
 
 
+def _worktree_scoped_globs(toplevel: str) -> list[str]:
+    """Return a basename glob + exact path for ``toplevel`` (GH-855).
+
+    The legacy default an :func:`upsert_project_prefs` caller gets when it
+    passes no explicit ``match`` — worktree-scoped when ``toplevel`` is a
+    worktree path, so it re-prompts in every sibling worktree. Callers
+    pinning a *repo* should pass the repo-stem globs from
+    :func:`match_globs_for_repo` instead.
+    """
+    target = _normalize_toplevel(toplevel)
+    base = os.path.basename(target.rstrip("/"))
+    globs = [target]
+    if base:
+        globs.insert(0, f"*/{base}")
+    return globs
+
+
 def match_globs(toplevel: str, patterns: Any) -> bool:
     """Return ``True`` when ``toplevel`` matches any glob in ``patterns``.
 
@@ -212,27 +229,6 @@ class FrictionYamlDocument:
         "# set-friction`, and `dev10x session pin`. First matching projects[]\n"
         "# entry wins.\n"
     )
-
-    @staticmethod
-    def match_globs_for(toplevel: str) -> list[str]:
-        """Return the ``match`` globs for a repo: basename glob + exact path.
-
-        Mirrors the ``projects.yaml`` example shape (a forgiving ``*/repo``
-        basename glob plus the canonical absolute path so the entry resolves
-        from any worktree/checkout of the repo).
-
-        .. deprecated:: GH-855
-           ``toplevel`` inside a worktree is the *worktree* path, so this
-           emits a worktree-scoped key (``*/bl-zebra-3``) that re-prompts in
-           every sibling worktree. Prefer
-           :func:`match_globs_for_repo`, which keys off the repo stem.
-        """
-        target = _normalize_toplevel(toplevel)
-        base = os.path.basename(target.rstrip("/"))
-        globs = [target]
-        if base:
-            globs.insert(0, f"*/{base}")
-        return globs
 
     @staticmethod
     def with_project(
@@ -493,7 +489,7 @@ def upsert_project_prefs(
     root here as well, since no existing entry matches the worktree path.
     """
     target = path or Dev10xConfigDir.friction_yaml()
-    entry_match = match if match is not None else FrictionYamlDocument.match_globs_for(toplevel)
+    entry_match = match if match is not None else _worktree_scoped_globs(toplevel)
     probes = supersedes if supersedes is not None else [toplevel]
     inherit_probes = list(inherit_from) if inherit_from is not None else list(probes)
     with file_lock(target):

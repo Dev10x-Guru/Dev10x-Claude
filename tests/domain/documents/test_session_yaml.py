@@ -692,13 +692,9 @@ class TestFrictionStarterRender:
 class TestMatchGlobsFor:
     """GH-812 R4: match globs the migration keys a projects[] entry by."""
 
-    def test_returns_basename_glob_and_exact_path(self, tmp_path: Path) -> None:
-        globs = FrictionYamlDocument.match_globs_for(str(tmp_path))
-        assert globs == [f"*/{tmp_path.name}", str(tmp_path)]
-
     def test_generated_entry_matches_its_own_toplevel(self, tmp_path: Path) -> None:
         # The globs must resolve the very repo they were generated for.
-        globs = FrictionYamlDocument.match_globs_for(str(tmp_path))
+        globs = [f"*/{tmp_path.name}", str(tmp_path)]
         _write_friction(
             content=(f"projects:\n  - match: {globs!r}\n    friction_level: adaptive\n")
         )
@@ -848,8 +844,9 @@ class TestUpsertCarriesForwardDurableKeys:
             prefs={"gate_preset": "adaptive"},
             path=target,
         )
+        fresh = tmp_path / "fresh"
         assert yaml.safe_load(target.read_text())["projects"][0] == {
-            "match": FrictionYamlDocument.match_globs_for(str(tmp_path / "fresh")),
+            "match": [f"*/{fresh.name}", str(fresh)],
             "gate_preset": "adaptive",
         }
 
