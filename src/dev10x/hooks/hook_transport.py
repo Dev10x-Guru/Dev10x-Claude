@@ -57,7 +57,7 @@ def _record_attribution(*, rule_id: str, reason: str) -> None:
 
         set_decision_attribution(rule_id=rule_id, reason=reason)
     except Exception:  # pragma: no cover - telemetry must never block a hook
-        logging.getLogger(__name__).debug(
+        logging.getLogger(__name__).warning(
             "attribution recording failed; audit record falls back to its pre-GH-1095 shape",
             exc_info=True,
         )
