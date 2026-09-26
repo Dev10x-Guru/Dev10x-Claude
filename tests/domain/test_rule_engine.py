@@ -8,7 +8,7 @@ import yaml
 from dev10x.domain.common.config_io import ConfigIOError
 from dev10x.domain.documents.config_document import Config
 from dev10x.domain.rules.rule_engine import RuleEngine
-from dev10x.domain.rules.validation_rule import Compensation, Rule, is_search_command
+from dev10x.domain.rules.validation_rule import Compensation, MatchingRule, is_search_command
 
 
 class TestRuleFromYamlEntry:
@@ -26,7 +26,7 @@ class TestRuleFromYamlEntry:
         }
 
     def test_creates_rule_with_all_fields(self, entry: dict) -> None:
-        rule = Rule.from_yaml_entry(entry=entry)
+        rule = MatchingRule.from_yaml_entry(entry=entry)
 
         assert rule.name == "block-env"
         assert rule.matcher == "Edit|Write"
@@ -34,13 +34,13 @@ class TestRuleFromYamlEntry:
         assert rule.file_names == [".env"]
 
     def test_parses_compensations(self, entry: dict) -> None:
-        rule = Rule.from_yaml_entry(entry=entry)
+        rule = MatchingRule.from_yaml_entry(entry=entry)
 
         assert len(rule.compensations) == 1
         assert rule.compensations[0].skill == "Dev10x:edit"
 
     def test_defaults_for_missing_fields(self) -> None:
-        rule = Rule.from_yaml_entry(entry={"name": "minimal"})
+        rule = MatchingRule.from_yaml_entry(entry={"name": "minimal"})
 
         assert rule.matcher == "Bash"
         assert rule.hook_block is True
@@ -113,8 +113,8 @@ class TestRuleEngineFromConfig:
     def test_filters_by_hook_block(self) -> None:
         config = Config(
             rules=[
-                Rule(name="active", hook_block=True, matcher="Bash", patterns=["^git"]),
-                Rule(name="inactive", hook_block=False, matcher="Bash"),
+                MatchingRule(name="active", hook_block=True, matcher="Bash", patterns=["^git"]),
+                MatchingRule(name="inactive", hook_block=False, matcher="Bash"),
             ]
         )
 
@@ -129,13 +129,13 @@ class TestRuleEngineEvaluate:
     def engine(self) -> RuleEngine:
         return RuleEngine(
             edit_rules=[
-                Rule(
+                MatchingRule(
                     name="block-env",
                     matcher="Edit|Write",
                     file_names=[".env"],
                     message="BLOCKED: {file_path}",
                 ),
-                Rule(
+                MatchingRule(
                     name="block-secrets",
                     matcher="Edit|Write",
                     file_pattern=r".*\.secret$",
@@ -179,7 +179,7 @@ class TestRuleEngineEvaluateCommand:
     def engine(self) -> RuleEngine:
         return RuleEngine(
             command_rules=[
-                Rule(
+                MatchingRule(
                     name="block-push",
                     matcher="Bash",
                     patterns=["^git push"],
@@ -213,13 +213,13 @@ class TestSubcommandBoundary:
     def engine(self) -> RuleEngine:
         return RuleEngine(
             command_rules=[
-                Rule(
+                MatchingRule(
                     name="git-commit",
                     matcher="Bash",
                     patterns=["git commit"],
                     compensations=[Compensation(type="use-skill", skill="Dev10x:git-commit")],
                 ),
-                Rule(
+                MatchingRule(
                     name="gh-pr-create",
                     matcher="Bash",
                     patterns=["gh pr create"],
@@ -274,14 +274,14 @@ class TestGlobalOptionEvasion:
     def engine(self) -> RuleEngine:
         return RuleEngine(
             command_rules=[
-                Rule(
+                MatchingRule(
                     name="git-push",
                     matcher="Bash",
                     patterns=["git push"],
                     except_=["--force-with-lease"],
                     compensations=[Compensation(type="use-skill", skill="Dev10x:git")],
                 ),
-                Rule(
+                MatchingRule(
                     name="git-commit",
                     matcher="Bash",
                     patterns=["^git commit"],
@@ -377,7 +377,7 @@ class TestMatchPosition:
     def engine(self) -> RuleEngine:
         return RuleEngine(
             command_rules=[
-                Rule(
+                MatchingRule(
                     name="guarded-script",
                     matcher="Bash",
                     patterns=["guarded-tool.sh"],
@@ -422,7 +422,7 @@ class TestMatchPosition:
         """The opt-in must not quietly change rules that never set it."""
         engine = RuleEngine(
             command_rules=[
-                Rule(name="path-rot", matcher="Bash", patterns=["guarded-tool.sh"]),
+                MatchingRule(name="path-rot", matcher="Bash", patterns=["guarded-tool.sh"]),
             ],
         )
 
@@ -433,7 +433,7 @@ class TestMatchPosition:
     def test_unknown_match_position_fails_loud(self) -> None:
         """A typo must not silently degrade to `anywhere` and un-anchor the rule."""
         with pytest.raises(ValueError, match="not a valid MatchPosition"):
-            Rule(name="typo", matcher="Bash", patterns=["x"], match_position="invokation")
+            MatchingRule(name="typo", matcher="Bash", patterns=["x"], match_position="invokation")
 
     def test_search_tool_guard_still_covers_anywhere_rules(self) -> None:
         """The GH-210 guard is complementary, not superseded.
@@ -444,7 +444,7 @@ class TestMatchPosition:
         literal still needs the search-tool suppression.
         """
         engine = RuleEngine(
-            command_rules=[Rule(name="git-push", matcher="Bash", patterns=["git push"])],
+            command_rules=[MatchingRule(name="git-push", matcher="Bash", patterns=["git push"])],
         )
 
         assert engine.evaluate_command(command='grep -rl "git push" src/') is None

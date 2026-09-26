@@ -3,7 +3,7 @@ from __future__ import annotations
 import factory
 
 from dev10x.domain.documents.config_document import Config
-from dev10x.domain.rules.validation_rule import Compensation, Rule
+from dev10x.domain.rules.validation_rule import Compensation, MatchingRule
 
 
 class CompensationFaker(factory.Factory):
@@ -20,7 +20,7 @@ class CompensationFaker(factory.Factory):
 
 class RuleFaker(factory.Factory):
     class Meta:
-        model = Rule
+        model = MatchingRule
 
     name = factory.Faker("slug")
     patterns = factory.LazyFunction(lambda: [r"^git\s+push"])

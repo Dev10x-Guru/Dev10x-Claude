@@ -396,10 +396,3 @@ class MatchingRule:
             content_pattern=entry.get("content_pattern", ""),
             match_position=entry.get("match_position", MatchPosition.ANYWHERE),
         )
-
-
-# Deprecated alias — the Matching Rule archetype's canonical name is
-# ``MatchingRule`` (ADR-0007). ``Rule`` is retained for backward
-# compatibility with existing imports until its removal version in
-# dev10x.domain.deprecations; prefer ``MatchingRule`` in new code.
-Rule = MatchingRule
