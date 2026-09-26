@@ -122,11 +122,6 @@ PRE_SPLIT_NAMES = (
     "unresolved_threads",
 )
 
-# Names still defined in __init__.py while the phased split runs. Each
-# capability move deletes its names here; the split is done when the
-# facade defines nothing.
-AWAITING_MOVE = frozenset({"_resolve_merge_bot", "_merge_as_bot", "merge_pr"})
-
 # A facade patch is right when the code under test resolves the name
 # FROM the facade, not from a capability module. These external
 # consumers do exactly that at call time.
@@ -138,15 +133,11 @@ EXTERNAL_FACADE_LOOKUPS = frozenset(
 )
 
 
-def _parse(path: Path) -> ast.Module:
+def _parse(*, path: Path) -> ast.Module:
     return ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
 
 
-def _existing_capability_modules() -> list[str]:
-    return [name for name in CAPABILITY_MODULES if (PACKAGE_DIR / f"{name}.py").exists()]
-
-
-def _top_level_definitions(tree: ast.Module) -> set[str]:
+def _top_level_definitions(*, tree: ast.Module) -> set[str]:
     defined: set[str] = set()
     for node in tree.body:
         if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
@@ -168,8 +159,8 @@ def internal_lookups() -> dict[str, list[str]]:
     somewhere a facade patch never touches.
     """
     lookups: dict[str, list[str]] = {}
-    for module in ["__init__", *_existing_capability_modules()]:
-        for node in ast.walk(_parse(PACKAGE_DIR / f"{module}.py")):
+    for module in ["__init__", *CAPABILITY_MODULES]:
+        for node in ast.walk(_parse(path=PACKAGE_DIR / f"{module}.py")):
             if isinstance(node, ast.Attribute):
                 lookups.setdefault(node.attr, []).append(module)
             elif (
@@ -181,7 +172,7 @@ def internal_lookups() -> dict[str, list[str]]:
     return lookups
 
 
-def _facade_aliases(tree: ast.Module) -> set[str]:
+def _facade_aliases(*, tree: ast.Module) -> set[str]:
     aliases: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
@@ -207,32 +198,32 @@ def _facade_aliases(tree: ast.Module) -> set[str]:
     return aliases
 
 
-def _is_patch(func: ast.expr) -> bool:
+def _is_patch(*, func: ast.expr) -> bool:
     return (isinstance(func, ast.Name) and func.id == "patch") or (
         isinstance(func, ast.Attribute) and func.attr == "patch"
     )
 
 
-def _is_object_patch(func: ast.expr) -> bool:
+def _is_object_patch(*, func: ast.expr) -> bool:
     return isinstance(func, ast.Attribute) and (
-        func.attr == "setattr" or (func.attr == "object" and _is_patch(func.value))
+        func.attr == "setattr" or (func.attr == "object" and _is_patch(func=func.value))
     )
 
 
-def facade_patch_targets(tree: ast.Module) -> list[tuple[int, str]]:
+def facade_patch_targets(*, tree: ast.Module) -> list[tuple[int, str]]:
     """Every ``(line, name)`` a test patches directly on the facade."""
-    aliases = _facade_aliases(tree)
+    aliases = _facade_aliases(tree=tree)
     targets: list[tuple[int, str]] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call) or not node.args:
             continue
         first = node.args[0]
-        if _is_patch(node.func) and isinstance(first, ast.Constant):
+        if _is_patch(func=node.func) and isinstance(first, ast.Constant):
             dotted = str(first.value)
             if dotted.startswith("dev10x.github.") and "." not in dotted[len("dev10x.github.") :]:
                 targets.append((node.lineno, dotted[len("dev10x.github.") :]))
         elif (
-            _is_object_patch(node.func)
+            _is_object_patch(func=node.func)
             and isinstance(first, ast.Name)
             and first.id in aliases
             and len(node.args) > 1
@@ -249,7 +240,7 @@ def facade_patch_violations(
     lookups: dict[str, list[str]],
 ) -> list[str]:
     violations: list[str] = []
-    for line, name in facade_patch_targets(tree):
+    for line, name in facade_patch_targets(tree=tree):
         if (PACKAGE_DIR / f"{name}.py").exists() or (
             relative_path,
             name,
@@ -272,7 +263,7 @@ def lookups() -> dict[str, list[str]]:
 
 @pytest.fixture(scope="module")
 def init_tree() -> ast.Module:
-    return _parse(PACKAGE_DIR / "__init__.py")
+    return _parse(path=PACKAGE_DIR / "__init__.py")
 
 
 class TestFacadeShape:
@@ -283,12 +274,12 @@ class TestFacadeShape:
     def test_all_lists_exactly_the_pre_split_names(self) -> None:
         assert sorted(gh.__all__) == sorted(PRE_SPLIT_NAMES)
 
-    def test_facade_defines_only_names_awaiting_their_move(self, init_tree: ast.Module) -> None:
-        assert _top_level_definitions(init_tree) == AWAITING_MOVE
+    def test_facade_defines_nothing(self, init_tree: ast.Module) -> None:
+        assert _top_level_definitions(tree=init_tree) == set()
 
-    @pytest.mark.parametrize("module", _existing_capability_modules())
+    @pytest.mark.parametrize("module", CAPABILITY_MODULES)
     def test_capability_module_does_not_import_the_facade(self, module: str) -> None:
-        tree = _parse(PACKAGE_DIR / f"{module}.py")
+        tree = _parse(path=PACKAGE_DIR / f"{module}.py")
 
         facade_imports = [
             node.lineno
@@ -305,11 +296,9 @@ class TestFacadeShape:
 
         assert facade_imports == []
 
-    @pytest.mark.parametrize(
-        "module", [m for m in _existing_capability_modules() if m != "_gateway"]
-    )
+    @pytest.mark.parametrize("module", [m for m in CAPABILITY_MODULES if m != "_gateway"])
     def test_capability_module_reaches_dependencies_through_the_seam(self, module: str) -> None:
-        tree = _parse(PACKAGE_DIR / f"{module}.py")
+        tree = _parse(path=PACKAGE_DIR / f"{module}.py")
 
         bound_by_name = [
             f"{node.module}:{alias.name}"
@@ -339,7 +328,7 @@ class TestPatchTargetGuard:
     def test_finds_facade_patch_targets(
         self, source: str, expected: list[tuple[int, str]]
     ) -> None:
-        assert facade_patch_targets(ast.parse(source)) == expected
+        assert facade_patch_targets(tree=ast.parse(source)) == expected
 
     def test_flags_a_facade_patch_of_a_seam_dependency(
         self, lookups: dict[str, list[str]]
@@ -357,7 +346,7 @@ class TestPatchTargetGuard:
             violation
             for path in sorted(TESTS_DIR.rglob("*.py"))
             for violation in facade_patch_violations(
-                tree=_parse(path),
+                tree=_parse(path=path),
                 relative_path=str(path.relative_to(REPO_ROOT)),
                 lookups=lookups,
             )
