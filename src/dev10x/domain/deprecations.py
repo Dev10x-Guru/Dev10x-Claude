@@ -77,15 +77,6 @@ class Deprecation:
 
 REGISTER: tuple[Deprecation, ...] = (
     Deprecation(
-        name="Rule",
-        audience=Audience.PYTHON,
-        since="0.88.0",
-        removed_in="0.107.0",
-        replacement="MatchingRule",
-        issue="GH-846",
-        locations=("src/dev10x/domain/rules/validation_rule.py",),
-    ),
-    Deprecation(
         name="match_globs_for",
         audience=Audience.PYTHON,
         since="0.92.0",

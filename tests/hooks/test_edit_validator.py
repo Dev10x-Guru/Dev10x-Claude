@@ -9,13 +9,13 @@ import pytest
 import yaml
 
 from dev10x.domain.rules.rule_engine import RuleEngine
-from dev10x.domain.rules.validation_rule import Rule
+from dev10x.domain.rules.validation_rule import MatchingRule
 from dev10x.hooks.edit_validator import _build_engine, reset_engine_cache
 
 
 @pytest.fixture()
-def rule_with_pattern() -> Rule:
-    return Rule(
+def rule_with_pattern() -> MatchingRule:
+    return MatchingRule(
         name="block-env",
         file_pattern=r"\.env$",
         message="BLOCKED: {file_path}",
@@ -23,8 +23,8 @@ def rule_with_pattern() -> Rule:
 
 
 @pytest.fixture()
-def rule_with_names() -> Rule:
-    return Rule(
+def rule_with_names() -> MatchingRule:
+    return MatchingRule(
         name="block-secrets",
         file_names=["credentials.json", "secrets.yaml"],
         message="BLOCKED: sensitive file",
@@ -32,8 +32,8 @@ def rule_with_names() -> Rule:
 
 
 @pytest.fixture()
-def rule_with_prefixes() -> Rule:
-    return Rule(
+def rule_with_prefixes() -> MatchingRule:
+    return MatchingRule(
         name="block-dot-env",
         file_prefixes=[".env"],
         message="BLOCKED: env file",
@@ -41,8 +41,8 @@ def rule_with_prefixes() -> Rule:
 
 
 @pytest.fixture()
-def rule_with_substrings() -> Rule:
-    return Rule(
+def rule_with_substrings() -> MatchingRule:
+    return MatchingRule(
         name="block-secret-dirs",
         file_substrings=["/secrets/"],
         message="BLOCKED: secrets directory",
@@ -50,8 +50,8 @@ def rule_with_substrings() -> Rule:
 
 
 @pytest.fixture()
-def rule_with_content_pattern() -> Rule:
-    return Rule(
+def rule_with_content_pattern() -> MatchingRule:
+    return MatchingRule(
         name="block-eval",
         file_pattern=r"SKILL\.md$",
         content_pattern=r"\beval\b",
@@ -62,37 +62,37 @@ def rule_with_content_pattern() -> Rule:
 class TestMatchesFile:
     def test_matches_file_pattern(
         self,
-        rule_with_pattern: Rule,
+        rule_with_pattern: MatchingRule,
     ) -> None:
         assert rule_with_pattern.matches_file(file_path="/work/.env") is True
 
     def test_rejects_non_matching_pattern(
         self,
-        rule_with_pattern: Rule,
+        rule_with_pattern: MatchingRule,
     ) -> None:
         assert rule_with_pattern.matches_file(file_path="/work/main.py") is False
 
     def test_matches_file_names(
         self,
-        rule_with_names: Rule,
+        rule_with_names: MatchingRule,
     ) -> None:
         assert rule_with_names.matches_file(file_path="/work/credentials.json") is True
 
     def test_rejects_non_matching_names(
         self,
-        rule_with_names: Rule,
+        rule_with_names: MatchingRule,
     ) -> None:
         assert rule_with_names.matches_file(file_path="/work/config.json") is False
 
     def test_matches_file_prefixes(
         self,
-        rule_with_prefixes: Rule,
+        rule_with_prefixes: MatchingRule,
     ) -> None:
         assert rule_with_prefixes.matches_file(file_path="/work/.env.production") is True
 
     def test_matches_file_substrings(
         self,
-        rule_with_substrings: Rule,
+        rule_with_substrings: MatchingRule,
     ) -> None:
         assert (
             rule_with_substrings.matches_file(
@@ -105,25 +105,25 @@ class TestMatchesFile:
 class TestMatchesContent:
     def test_matches_when_no_content_pattern(
         self,
-        rule_with_pattern: Rule,
+        rule_with_pattern: MatchingRule,
     ) -> None:
         assert rule_with_pattern.matches_content(content="anything") is True
 
     def test_matches_content_pattern(
         self,
-        rule_with_content_pattern: Rule,
+        rule_with_content_pattern: MatchingRule,
     ) -> None:
         assert rule_with_content_pattern.matches_content(content="eval(code)") is True
 
     def test_rejects_non_matching_content(
         self,
-        rule_with_content_pattern: Rule,
+        rule_with_content_pattern: MatchingRule,
     ) -> None:
         assert rule_with_content_pattern.matches_content(content="safe code") is False
 
 
 class TestFormatMessage:
-    def test_formats_file_path(self, rule_with_pattern: Rule) -> None:
+    def test_formats_file_path(self, rule_with_pattern: MatchingRule) -> None:
         result = rule_with_pattern.format_message(file_path="/work/.env")
 
         assert result == "BLOCKED: /work/.env"
@@ -131,7 +131,7 @@ class TestFormatMessage:
     def test_appends_compensation_descriptions(self) -> None:
         from dev10x.domain.rules.validation_rule import Compensation
 
-        rule = Rule(
+        rule = MatchingRule(
             name="test",
             message="BLOCKED",
             compensations=[
