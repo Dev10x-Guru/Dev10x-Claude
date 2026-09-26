@@ -17,9 +17,9 @@ from typing import Any
 
 import click
 
-from dev10x.commands import github_app_api as api
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.file_locks import atomic_write_text
+from dev10x.github import app_api as api
 from dev10x.github.app_auth import AppConfig
 
 CONFIG_DIR = Dev10xConfigDir.github_bot_dir()
