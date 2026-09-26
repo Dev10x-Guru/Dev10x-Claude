@@ -136,6 +136,9 @@ AWAITING_MOVE = frozenset(
         "_resolve_repo",
         "_parse_gh_api_result",
         "_run_and_parse",
+        "generate_commit_list",
+        "post_summary_comment",
+        "pr_notify",
     }
 )
 

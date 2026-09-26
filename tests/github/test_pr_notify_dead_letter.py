@@ -13,14 +13,14 @@ from dev10x.domain.common.result import ErrorResult, SuccessResult
 @pytest.fixture
 def recorded(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
     entries: list[dict] = []
-    monkeypatch.setattr(gh, "record_undelivered", lambda **kwargs: entries.append(kwargs))
+    monkeypatch.setattr(gh.notify, "record_undelivered", lambda **kwargs: entries.append(kwargs))
     return entries
 
 
 @pytest.fixture
 def script_present(monkeypatch: pytest.MonkeyPatch) -> None:
     """`pr_notify` returns early when its uv-script is missing."""
-    monkeypatch.setattr(gh.Path, "exists", lambda _self: True)
+    monkeypatch.setattr(gh.notify.Path, "exists", lambda _self: True)
 
 
 def _stub_run(*, returncode: int, stderr: str = "", stdout: str = ""):
