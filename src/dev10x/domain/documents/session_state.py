@@ -111,16 +111,24 @@ class PlanContext:
     gathered_summary: str = ""
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> PlanContext:
-        tickets_raw = data.get("tickets", [])
-        tickets = tickets_raw if isinstance(tickets_raw, list) else [tickets_raw]
+    def from_dict(cls, data: Any) -> PlanContext:
+        if not isinstance(data, dict):
+            return cls()
         routing = data.get("routing_table", {})
         return cls(
             work_type=data.get("work_type", ""),
-            tickets=tickets,
+            tickets=cls._parse_tickets(raw=data.get("tickets", [])),
             routing_table=routing if isinstance(routing, dict) else {},
             gathered_summary=data.get("gathered_summary", ""),
         )
+
+    @staticmethod
+    def _parse_tickets(*, raw: Any) -> list[str]:
+        if isinstance(raw, str):
+            return [raw]
+        if isinstance(raw, list):
+            return [ticket for ticket in raw if isinstance(ticket, str)]
+        return []
 
 
 @dataclass(frozen=True)

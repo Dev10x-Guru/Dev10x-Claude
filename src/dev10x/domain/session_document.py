@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from dev10x.domain.claude_paths import ClaudeDir
+from dev10x.domain.documents.session_state import PlanContext
 from dev10x.domain.file_locks import atomic_write_text  # noqa: F401
 
 
@@ -95,13 +96,10 @@ def read_plan_identity(*, toplevel: str) -> dict[str, Any]:
     summary = read_plan_summary(toplevel=toplevel)
     plan = summary.get("plan") if isinstance(summary, dict) else None
     plan = plan if isinstance(plan, dict) else {}
-    context = plan.get("context")
-    context = context if isinstance(context, dict) else {}
     branch = plan.get("branch")
-    tickets = context.get("tickets")
     return {
         "branch": branch if isinstance(branch, str) else None,
-        "tickets": [t for t in tickets if isinstance(t, str)] if isinstance(tickets, list) else [],
+        "tickets": PlanContext.from_dict(data=plan.get("context")).tickets,
     }
 
 

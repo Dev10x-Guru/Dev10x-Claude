@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 
 from dev10x.domain import session_document
+from dev10x.domain.documents.session_state import PlanSummary
 from dev10x.domain.file_locks import atomic_write_text
 
 
@@ -120,6 +121,40 @@ class TestReadPlanIdentity:
             "GH-1",
             "GH-2",
         ]
+
+    @pytest.mark.parametrize(
+        "context_yaml",
+        [
+            "    tickets: [GH-1, 3, GH-2]\n",
+            "    tickets: GH-7\n",
+            "    tickets: 42\n",
+            "    work_type: feature\n",
+        ],
+    )
+    def test_agrees_with_the_plan_summary_parser(
+        self,
+        tmp_path: Path,
+        context_yaml: str,
+    ) -> None:
+        toplevel = self._write_plan(
+            tmp_path=tmp_path,
+            body="plan:\n  branch: b\n  context:\n" + context_yaml,
+        )
+        summary = PlanSummary.from_dict(
+            data=session_document.read_plan_summary(toplevel=toplevel),
+        )
+
+        identity = session_document.read_plan_identity(toplevel=toplevel)
+
+        assert identity["tickets"] == summary.context.tickets
+
+    def test_non_mapping_context_is_identity_less(self, tmp_path: Path) -> None:
+        toplevel = self._write_plan(
+            tmp_path=tmp_path,
+            body="plan:\n  branch: b\n  context: [GH-1]\n",
+        )
+
+        assert session_document.read_plan_identity(toplevel=toplevel)["tickets"] == []
 
 
 class TestAtomicWriteTextRoundtrip:
