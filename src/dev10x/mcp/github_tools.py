@@ -13,7 +13,7 @@ from mcp.server.fastmcp import Context  # noqa: F401
 
 from dev10x import github as gh
 from dev10x import subprocess_utils
-from dev10x.domain.common.result import Result, to_wire
+from dev10x.domain.common.result import Result, err, to_wire
 from dev10x.mcp._app import server
 
 
@@ -82,7 +82,12 @@ async def pr_detect(arg: str, cwd: str | None = None) -> Result[dict]:
 
 
 @github_tool
-async def pr_get(number: int, repo: str | None = None, cwd: str | None = None) -> Result[dict]:
+async def pr_get(
+    number: int | None = None,
+    pr_number: int | None = None,
+    repo: str | None = None,
+    cwd: str | None = None,
+) -> Result[dict]:
     """Get GitHub PR details (GH-267).
 
     Symmetric to ``issue_get`` — closes the ``gh pr view`` permission-
@@ -90,6 +95,13 @@ async def pr_get(number: int, repo: str | None = None, cwd: str | None = None) -
 
     Args:
         number: PR number.
+        pr_number: Alias for ``number`` (GH-1430). Every other PR tool on
+            this surface (``pr_comments``, ``pr_labels``, ``pr_ready``,
+            ``pr_close``, ``ci_check_status``, ``update_pr``, ``merge_pr``,
+            and eight more) spells this parameter ``pr_number`` — ``pr_get``
+            was the lone ``number`` outlier, and an agent that had just
+            called one of the twelve others guessed wrong on the most-called
+            read in the surface. Pass either; exactly one is required.
         repo: Repository (owner/repo). If omitted, uses current repo.
         cwd: Effective working directory (GH-979).
 
@@ -107,7 +119,10 @@ async def pr_get(number: int, repo: str | None = None, cwd: str | None = None) -
         over a raw ``gh api repos/.../pulls/N/files``, whose 30-item
         default page silently truncates a large PR.
     """
-    return await gh.pr_get(number=number, repo=repo)
+    resolved_number = number if number is not None else pr_number
+    if resolved_number is None:
+        return err("pr_get requires 'number' (or its alias 'pr_number')")
+    return await gh.pr_get(number=resolved_number, repo=repo)
 
 
 @github_tool
