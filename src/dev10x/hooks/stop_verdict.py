@@ -172,6 +172,17 @@ _SUBAGENT_FILE_PREFIX = "agent-"
 #: transcript writer rather than promised by the wire protocol.
 _ANSWER_RESULT_KEYS = ("questions", "answers")
 
+#: The task-metadata key an orchestrator sets on a task that is waiting
+#: on work it already dispatched (GH-1464). With every open task blocked
+#: on running fanout children there is nothing to continue with, and the
+#: harness delivers each child's completion notification on its own — so
+#: waiting is the correct end of the turn, and `watch-loop-handrolled`
+#: rightly forbids every way of waiting in-turn. Without a marker the
+#: verdict could not tell such a task from actionable work and re-blocked
+#: every turn. Any truthy value counts; clearing it (``None``) makes the
+#: task actionable again.
+AWAITING_KEY = "awaiting"
+
 
 class StopSignal(StrEnum):
     """Which branch of :func:`decide` produced a verdict (GH-1257).
@@ -199,6 +210,7 @@ class StopSignal(StrEnum):
     STOP_HOOK_ACTIVE = "stop_hook_active"
     CONTINUE = "continue"
     AWAITING_SUPERVISOR = "awaiting_supervisor"
+    AWAITING_SUBAGENTS = "awaiting_subagents"
     NO_TASK_LIST = "no_task_list"
     DIRTY_TREE = "dirty_tree"
     SUBAGENT = "subagent"
@@ -692,6 +704,9 @@ class TaskSignal:
     #: default is ``False`` so that "no evidence" is what an unset signal
     #: means, rather than "the work is finished".
     has_task_list: bool = False
+    #: Open tasks tagged with :data:`AWAITING_KEY` (GH-1464) — parked on
+    #: dispatched work, so not something this turn can act on.
+    awaiting_subjects: tuple[str, ...] = ()
 
     @property
     def has_open_work(self) -> bool:
@@ -710,17 +725,24 @@ class TaskSignal:
         until the supervisor signs off, so "something is open" is true of
         almost every turn and cannot, on its own, mean "keep working".
         What distinguishes the two is whether anything *other* than that
-        gate is open.
+        gate is open. A task parked on dispatched work is excluded for the
+        same reason (GH-1464): it is open, and there is nothing to do on it.
         """
         return tuple(
             subject
             for subject in self.open_subjects
             if not is_terminal_task_subject(subject=subject)
+            and subject not in self.awaiting_subjects
         )
 
     @property
     def has_actionable_work(self) -> bool:
         return bool(self.actionable_subjects)
+
+    @property
+    def awaits_dispatched_work(self) -> bool:
+        """Nothing is actionable, and something is waiting on a subagent."""
+        return not self.has_actionable_work and bool(self.awaiting_subjects)
 
     @property
     def awaits_supervisor(self) -> bool:
@@ -749,14 +771,27 @@ def task_signal(*, plan: dict | None) -> TaskSignal:
         return TaskSignal()
 
     tasks = _plan_tasks(plan=plan)
-    open_subjects = tuple(
-        str(task.get("subject", "")).strip()
+    open_tasks = [
+        task
         for task in tasks
         if task.get("status") in ("pending", "in_progress")
         and str(task.get("subject", "")).strip()
+    ]
+    open_subjects = tuple(str(task["subject"]).strip() for task in open_tasks)
+    awaiting_subjects = tuple(
+        str(task["subject"]).strip() for task in open_tasks if _is_awaiting(task=task)
     )
 
-    return TaskSignal(open_subjects=open_subjects, has_task_list=bool(tasks))
+    return TaskSignal(
+        open_subjects=open_subjects,
+        has_task_list=bool(tasks),
+        awaiting_subjects=awaiting_subjects,
+    )
+
+
+def _is_awaiting(*, task: dict) -> bool:
+    metadata = task.get("metadata")
+    return isinstance(metadata, dict) and bool(metadata.get(AWAITING_KEY))
 
 
 def auto_advances(*, signal: TaskSignal) -> bool:
@@ -806,7 +841,12 @@ def _continue_reason(*, signal: TaskSignal) -> str:
         "on, or hand off through the skill's documented wrap-up so the "
         "remaining tasks survive — never simply end mid-plan.\n\n"
         "If this task genuinely cannot proceed, say what blocks it and "
-        "pick up the next unblocked task instead of ending here."
+        "pick up the next unblocked task instead of ending here.\n\n"
+        "If it is waiting on a subagent you already dispatched, do not "
+        "poll or loop — tag it with `TaskUpdate(taskId, "
+        f'metadata={{"{AWAITING_KEY}": "subagent"}})` and end the turn. '
+        "The completion notification wakes you; clear the tag "
+        f'(`{{"{AWAITING_KEY}": null}}`) when it arrives.'
     )
 
 
@@ -993,6 +1033,13 @@ def decide(
             reason=_continue_reason(signal=signal),
             signal=StopSignal.CONTINUE,
         )
+
+    if signal.awaits_dispatched_work:
+        # Everything left is parked on subagents (GH-1464). Their
+        # notifications resume the session, so ending the turn is the
+        # only compliant move. Checked before the tree: an orchestrator
+        # mid-wave is not claiming to be done.
+        return StopVerdict(block=False, signal=StopSignal.AWAITING_SUBAGENTS)
 
     # Past here the agent is claiming to be done, which is the moment
     # the supervisor's rule applies: a clean tree is part of that claim.
