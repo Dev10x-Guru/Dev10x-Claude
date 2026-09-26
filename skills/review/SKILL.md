@@ -23,6 +23,8 @@ allowed-tools:
   - Edit(/tmp/Dev10x/review/**)
   - AskUserQuestion
   - mcp__plugin_Dev10x_cli__resolve_gate
+  - mcp__plugin_Dev10x_cli__detect_base_branch
+  - Bash(git fetch:*)
 ---
 
 # Self-Review Branch
@@ -185,9 +187,30 @@ Agent(
 
 ### Step 2: Get Branch Diff
 
-```bash
-git develop-diff
-```
+**Anchor on `origin/<base>`, not the local ref (GH-1463).**
+`git develop-diff` resolves its merge-base against the local
+`develop`, which lags `origin/develop` after any rebase-merge —
+the same hazard `Dev10x:git-groom` Phase 1 documents (GH-486,
+GH-997). Reviewing the stale local merge-base scopes the review
+to every file any previously-merged PR touched, not just this
+branch's own changes, and the failure is silent: the diff is
+larger, not empty.
+
+1. Resolve `<base>` via `mcp__plugin_Dev10x_cli__detect_base_branch`
+   rather than hardcoding `develop`.
+2. Fetch and diff against the remote ref:
+   ```bash
+   git fetch origin <base>
+   git diff origin/<base>...HEAD
+   ```
+   This is the primary path. `git develop-diff` (the bare local
+   alias) is a fallback ONLY when `origin/<base>` cannot be
+   resolved (offline, no remote configured).
+3. If `git rev-list --count <base>..origin/<base>` is non-zero,
+   surface a `base_notice`-style warning ("local <base> is N
+   commits behind origin/<base>") so a reviewer who falls back to
+   the local ref knows it is stale rather than discovering it from
+   an oversized diff.
 
 Parse the diff to extract the list of changed files with their
 change types (added, modified, deleted, renamed).
