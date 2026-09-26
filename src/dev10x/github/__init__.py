@@ -20,10 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
-import os
 import re
-import subprocess
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
@@ -37,224 +34,120 @@ from dev10x.domain.pr_body import (
     job_story_error,
     normalize_pr_body,
 )
-from dev10x.domain.retry import RetryPolicy, is_retryable, retry_after_seconds
-from dev10x.github.app_auth import AppConfig, get_bot_token
-from dev10x.subprocess_utils import (
-    async_run,
-    async_run_script,
-    parse_key_value_output,
+from dev10x.github import _gateway
+from dev10x.github._gateway import (
+    _GH_RETRY_POLICY,
+    _bot_env,
+    _detect_repo,
+    _gh_api,
+    _gh_api_raw,
+    _parse_gh_api_result,
+    _resolve_repo,
+    _run_and_parse,
 )
+from dev10x.subprocess_utils import parse_key_value_output
 
-log = logging.getLogger(__name__)
-
-# GH-1423: three attempts, so a throttled call gets two more chances
-# without a caller's worst case growing past what the transport affords.
-_GH_RETRY_POLICY = RetryPolicy()
+__all__ = [
+    # _gateway
+    "_GH_RETRY_POLICY",
+    "_bot_env",
+    "_detect_repo",
+    "_gh_api",
+    "_gh_api_raw",
+    "_parse_gh_api_result",
+    "_resolve_repo",
+    "_run_and_parse",
+    # detection
+    "detect_base_branch",
+    "detect_tracker",
+    "pr_detect",
+    "pre_pr_checks",
+    "verify_pr_state",
+    # reviews
+    "_BOT_LOGIN_RE",
+    "_MINIMIZE_CLASSIFIERS",
+    "_PR_COMMENT_ACTIONS",
+    "_REACTION_GROUP_CONTENT_TO_KEY",
+    "_list_unresolved_threads",
+    "_normalize_reaction_groups",
+    "_pr_comment_edit",
+    "_pr_comment_get",
+    "_pr_comment_list",
+    "_pr_comment_reply",
+    "_pr_comment_resolve",
+    "check_top_level_comments",
+    "is_bot_login",
+    "minimize_comments",
+    "pr_comment_edit",
+    "pr_comment_reply",
+    "pr_comments",
+    "pr_issue_comment",
+    "pr_review_edit",
+    "request_review",
+    "resolve_review_thread",
+    "unresolved_threads",
+    # labels
+    "PR_LABEL_ACTIONS",
+    "_current_label_names",
+    "_label_names",
+    "_loads_or_empty",
+    "issue_labels",
+    "pr_labels",
+    # pulls
+    "_BASE_BRANCH_NAMES",
+    "_normalized_for_comparison",
+    "_set_pr_milestone",
+    "_unapplied_pr_fields",
+    "create_pr",
+    "pr_close",
+    "pr_get",
+    "pr_list",
+    "pr_ready",
+    "update_pr",
+    # merge
+    "_merge_as_bot",
+    "_resolve_merge_bot",
+    "merge_pr",
+    # milestones
+    "_resolve_milestone_number",
+    "milestone_close",
+    "milestone_create",
+    "milestone_edit",
+    "milestone_list",
+    "milestone_reopen",
+    # issues
+    "_CLOSE_REASON_GH_VALUE",
+    "_issue_result",
+    "_resolve_comment_body",
+    "issue_close",
+    "issue_comment",
+    "issue_comment_delete",
+    "issue_comment_edit",
+    "issue_comments",
+    "issue_create",
+    "issue_edit",
+    "issue_get",
+    "issue_list",
+    "issue_reopen",
+    "triage_roster",
+    # bulk
+    "_bulk_execute",
+    "issues_bulk_create",
+    "issues_bulk_edit",
+    "milestones_bulk_create",
+    # notify
+    "generate_commit_list",
+    "post_summary_comment",
+    "pr_notify",
+]
 
 # Branch names that are never a legitimate PR head — HEAD on one of these
 # when opening a PR signals a wrong/unbound working directory (GH-873 F1).
 _BASE_BRANCH_NAMES = frozenset({"develop", "development", "main", "master", "trunk"})
 
 
-async def _detect_repo() -> str | None:
-    result = await async_run(
-        args=["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
-        timeout=10,
-    )
-    if result.returncode == 0:
-        return result.stdout.strip()
-    return None
-
-
-async def _gh_api_raw(
-    endpoint: str,
-    *,
-    method: str = "GET",
-    fields: dict[str, str | int | list[str]] | None = None,
-    jq: str | None = None,
-    repo: str | None = None,
-    as_bot: bool = False,
-    bot_env: dict[str, str] | None = None,
-    timeout: int = 30,
-) -> subprocess.CompletedProcess[str]:
-    args = ["gh", "api"]
-    if method != "GET":
-        args.extend(["-X", method])
-    if jq:
-        args.extend(["--jq", jq])
-
-    # GH-1191: `-f 'key[]=value'` only builds a JSON array on gh versions
-    # that support the bracket syntax for --raw-field. Older gh sends a
-    # literal field named `key[]`, so GitHub rejects the request with
-    # "<key> wasn't supplied" — a 422 that names the very field we passed.
-    # A JSON body on stdin is version-independent, so any payload carrying
-    # a list goes that way. Mixing is not an option: with `--input`, gh
-    # moves every field flag into the query string.
-    body: str | None = None
-    if fields and any(isinstance(value, list) for value in fields.values()):
-        body = json.dumps(fields)
-        args.extend(["--input", "-"])
-    elif fields:
-        for key, value in fields.items():
-            if isinstance(value, int):
-                args.extend(["-F", f"{key}={value}"])
-            else:
-                args.extend(["-f", f"{key}={value}"])
-    args.append(endpoint)
-
-    # An already-resolved bot_env wins: re-minting the token here would
-    # let a second exchange fail and silently fall through to engineer
-    # credentials while the caller still reports a bot action (GH-1272).
-    env = bot_env or (await _bot_env(repo=repo) if as_bot and repo else None)
-
-    # GH-1423: every `gh` call used to be a single attempt, so routine
-    # throttling surfaced to the caller as a hard failure. Retry only the
-    # transient classes; a 404 or a 422 is retried zero times.
-    policy = _GH_RETRY_POLICY
-    for attempt in range(1, policy.attempts + 1):
-        result = await async_run(args=args, timeout=timeout, env=env, input_text=body)
-        if result.returncode == 0 or attempt == policy.attempts:
-            return result
-        # Our own timeout (GH-1304 returns -1 / "Process timed out") is
-        # deliberately NOT retryable: the wait was already bounded on
-        # purpose, and re-running multiplies it by `attempts` — the
-        # long-wait failure GH-1288 removed from the CI poll.
-        if result.returncode < 0 or not is_retryable(result.stderr):
-            return result
-        delay = policy.delay_for(
-            attempt=attempt,
-            retry_after=retry_after_seconds(result.stderr),
-        )
-        log.warning(
-            "gh api %s failed transiently (attempt %d/%d), retrying in %.2fs: %s",
-            endpoint,
-            attempt,
-            policy.attempts,
-            delay,
-            result.stderr.strip()[:200],
-        )
-        await asyncio.sleep(delay)
-    return result
-
-
-async def _gh_api(
-    endpoint: str,
-    *,
-    method: str = "GET",
-    fields: dict[str, str | int | list[str]] | None = None,
-    jq: str | None = None,
-    repo: str | None = None,
-    as_bot: bool = False,
-) -> Result[dict[str, Any]]:
-    """Call ``gh api`` and enforce the Result[dict] contract centrally.
-
-    Wraps :func:`_gh_api_raw` through :func:`_parse_gh_api_result` so
-    JSON parsing and error handling live in one place rather than
-    being repeated at every call site (ADR-0009, finding I8). Callers
-    that need the raw ``CompletedProcess`` — custom GraphQL error
-    handling or ``--jq`` scalar extraction — call :func:`_gh_api_raw`
-    directly.
-    """
-    return _parse_gh_api_result(
-        await _gh_api_raw(
-            endpoint,
-            method=method,
-            fields=fields,
-            jq=jq,
-            repo=repo,
-            as_bot=as_bot,
-        )
-    )
-
-
-async def _bot_env(*, repo: str) -> dict[str, str] | None:
-    try:
-        ref = RepositoryRef.parse(repo)
-    except ValueError:
-        return None
-    canonical_repo = str(ref)
-    token = await get_bot_token(repo=canonical_repo)
-    if token is None:
-        if AppConfig.load() is not None:
-            log.warning(
-                "GitHub App auth configured but bot token exchange failed for %s — "
-                "falling back to engineer credentials. Verify the App is installed "
-                "on the repo and the private key matches the app_id.",
-                canonical_repo,
-            )
-        return None
-    return {**os.environ, "GH_TOKEN": token, "GITHUB_TOKEN": token}
-
-
-async def _resolve_repo(
-    repo: str | None,
-) -> Result[RepositoryRef]:
-    resolved = repo or await _detect_repo()
-    if not resolved:
-        return err("Could not detect repository. Provide repo parameter.")
-    try:
-        return ok(RepositoryRef.parse(resolved))
-    except ValueError as exc:
-        return err(str(exc))
-
-
-def _parse_gh_api_result(
-    result: subprocess.CompletedProcess[str],
-) -> Result[dict[str, Any]]:
-    if result.returncode != 0:
-        return err(result.stderr.strip())
-    try:
-        return ok(json.loads(result.stdout))
-    except json.JSONDecodeError:
-        return ok({"raw_output": result.stdout})
-
-
-async def _run_and_parse(
-    script: str,
-    *args: str,
-    fallback: Callable[[str], dict[str, Any]] | None = None,
-) -> Result[dict[str, Any]]:
-    """Run a ``gh``-wrapper script and parse its stdout as JSON.
-
-    Centralises the run → check-returncode → parse-JSON skeleton that was
-    duplicated across the ``async_run_script`` wrappers (GH-837), where
-    each copy had already drifted on its non-JSON fallback. On a non-zero
-    exit the stderr becomes the error. On success stdout is parsed as
-    JSON; if that fails, ``fallback`` (e.g. :func:`parse_key_value_output`)
-    is applied to the raw stdout, otherwise the raw text is wrapped under
-    ``raw_output``. Scripts that emit key=value rather than JSON pass
-    ``fallback=parse_key_value_output`` — the JSON attempt is a harmless
-    no-op for them and the fallback carries the parse.
-
-    Valid JSON that is not an *object* is rejected here (GH-993). The
-    ADR-0009 wire contract is a Mapping, and ``SuccessResult.to_dict()``
-    casts blindly — so a script emitting a bare array reached the MCP
-    boundary and died on ``dict(<list of dicts>)`` with the opaque
-    "dictionary update sequence element #0 has length 11; 2 is required".
-    Worse, an *empty* array degraded to a silent ``{}`` success, so
-    callers read "no results" instead of an error. Failing loud here
-    names the offending script instead.
-    """
-    result = await async_run_script(script, *args)
-    if result.returncode != 0:
-        return err(result.stderr.strip())
-    try:
-        payload = json.loads(result.stdout)
-    except json.JSONDecodeError:
-        if fallback is not None:
-            return ok(fallback(result.stdout))
-        return ok({"raw_output": result.stdout})
-    if not isinstance(payload, dict):
-        return err(
-            f"{script} emitted a JSON {type(payload).__name__}, expected an object; "
-            "the wire contract (ADR-0009) requires a mapping — "
-            "drop any jq '-q' unwrapping so the script emits {\"key\": ...}"
-        )
-    return ok(payload)
-
-
 async def detect_tracker(*, ticket_id: str) -> Result[dict[str, Any]]:
-    return await _run_and_parse(
+    return await _gateway._run_and_parse(
         "skills/gh-context/scripts/detect-tracker.sh",
         ticket_id,
         fallback=parse_key_value_output,
@@ -262,7 +155,7 @@ async def detect_tracker(*, ticket_id: str) -> Result[dict[str, Any]]:
 
 
 async def pr_detect(*, arg: str) -> Result[dict[str, Any]]:
-    return await _run_and_parse(
+    return await _gateway._run_and_parse(
         "skills/gh-context/scripts/gh-pr-detect.sh",
         arg,
         fallback=parse_key_value_output,
@@ -284,7 +177,7 @@ async def pr_get(
     args = [str(number)]
     if repo:
         args.append(repo)
-    return await _run_and_parse(
+    return await _gateway._run_and_parse(
         "skills/gh-context/scripts/gh-pr-get.sh",
         *args,
         fallback=parse_key_value_output,
@@ -299,7 +192,7 @@ async def issue_get(
     args = [str(number)]
     if repo:
         args.append(repo)
-    return await _run_and_parse(
+    return await _gateway._run_and_parse(
         "skills/gh-context/scripts/gh-issue-get.sh",
         *args,
         fallback=parse_key_value_output,
@@ -314,7 +207,7 @@ async def issue_comments(
     args = [str(number)]
     if repo:
         args.append(repo)
-    return await _run_and_parse(
+    return await _gateway._run_and_parse(
         "skills/gh-context/scripts/gh-issue-comments.sh",
         *args,
     )
@@ -338,7 +231,7 @@ async def issue_create(
         args.extend(["--milestone", milestone])
     if repo:
         args.extend(["--repo", repo])
-    return await _run_and_parse(
+    return await _gateway._run_and_parse(
         "skills/gh-context/scripts/gh-issue-create.sh",
         *args,
         fallback=parse_key_value_output,
@@ -353,7 +246,7 @@ async def _pr_comment_get(
 ) -> Result[dict[str, Any]]:
     if comment_id is None:
         return err("comment_id required for 'get' action")
-    result = await _gh_api(f"repos/{resolved_repo}/pulls/comments/{comment_id}")
+    result = await _gateway._gh_api(f"repos/{resolved_repo}/pulls/comments/{comment_id}")
     return result
 
 
@@ -372,7 +265,7 @@ async def _pr_comment_list(
             resolved_repo=resolved_repo,
             pr_number=pr_number,
         )
-    result = await _gh_api(
+    result = await _gateway._gh_api(
         f"repos/{resolved_repo}/pulls/{pr_number}/comments?per_page=100",
     )
     if isinstance(result, ErrorResult):
@@ -435,7 +328,7 @@ async def _list_unresolved_threads(
         "} } "
         "} } } } }"
     )
-    result = await _gh_api_raw("graphql", fields={"query": query})
+    result = await _gateway._gh_api_raw("graphql", fields={"query": query})
     if result.returncode != 0:
         return err(result.stderr.strip())
     try:
@@ -522,7 +415,7 @@ async def _pr_comment_reply(
             f"comment_id must be an integer for 'reply' "
             f"(GitHub rejects strings as in_reply_to). Got: {comment_id!r}"
         )
-    result = await _gh_api(
+    result = await _gateway._gh_api(
         f"repos/{resolved_repo}/pulls/{pr_number}/comments",
         method="POST",
         fields={"body": body, "in_reply_to": comment_id_int},
@@ -547,7 +440,7 @@ async def _pr_comment_edit(
         return err(
             f"comment_id must be an integer for 'edit' (REST comment id). Got: {comment_id!r}"
         )
-    result = await _gh_api(
+    result = await _gateway._gh_api(
         f"repos/{resolved_repo}/pulls/comments/{comment_id_int}",
         method="PATCH",
         fields={"body": body},
@@ -592,7 +485,7 @@ async def _pr_comment_resolve(
         "} }"
         for i, cid in enumerate(ids_to_resolve)
     )
-    query_result = await _gh_api_raw(
+    query_result = await _gateway._gh_api_raw(
         "graphql",
         fields={"query": f"{{ {node_fragments} }}"},
     )
@@ -639,7 +532,7 @@ async def _pr_comment_resolve(
         f"{{ thread {{ id isResolved }} }}"
         for i, tid in enumerate(thread_ids)
     )
-    result = await _gh_api_raw(
+    result = await _gateway._gh_api_raw(
         "graphql",
         fields={"query": f"mutation {{ {resolve_fragments} }}"},
     )
@@ -681,7 +574,7 @@ async def minimize_comments(
     if classifier not in _MINIMIZE_CLASSIFIERS:
         valid = ", ".join(sorted(_MINIMIZE_CLASSIFIERS))
         return err(f"Invalid classifier: {classifier!r}. Must be one of: {valid}")
-    repo_result = await _resolve_repo(repo)
+    repo_result = await _gateway._resolve_repo(repo)
     if isinstance(repo_result, ErrorResult):
         return repo_result
 
@@ -691,7 +584,7 @@ async def minimize_comments(
         f"{{ minimizedComment {{ isMinimized minimizedReason }} }}"
         for i, nid in enumerate(node_ids)
     )
-    result = await _gh_api_raw(
+    result = await _gateway._gh_api_raw(
         "graphql",
         fields={"query": f"mutation {{ {fragments} }}"},
     )
@@ -721,7 +614,7 @@ async def resolve_review_thread(
             f"{{ thread {{ id isResolved }} }}"
             for i, tid in enumerate(thread_ids)
         )
-        result = await _gh_api_raw(
+        result = await _gateway._gh_api_raw(
             "graphql",
             fields={"query": f"mutation {{ {resolve_fragments} }}"},
         )
@@ -733,7 +626,7 @@ async def resolve_review_thread(
             return err(f"Invalid JSON from GitHub API: {result.stdout[:200]}")
 
     if comment_ids:
-        repo_result = await _resolve_repo(repo)
+        repo_result = await _gateway._resolve_repo(repo)
         if isinstance(repo_result, ErrorResult):
             return repo_result
         return await _pr_comment_resolve(
@@ -755,7 +648,7 @@ async def pr_comments(
     unresolved_only: bool = False,
     repo: str | None = None,
 ) -> Result[dict[str, Any]]:
-    repo_result = await _resolve_repo(repo)
+    repo_result = await _gateway._resolve_repo(repo)
     if isinstance(repo_result, ErrorResult):
         return repo_result
 
@@ -782,7 +675,7 @@ async def pr_comment_reply(
     body: str,
     repo: str | None = None,
 ) -> Result[dict[str, Any]]:
-    repo_result = await _resolve_repo(repo)
+    repo_result = await _gateway._resolve_repo(repo)
     if isinstance(repo_result, ErrorResult):
         return repo_result
     resolved_repo = repo_result.value
@@ -795,7 +688,7 @@ async def pr_comment_reply(
             f"(GitHub rejects strings as in_reply_to). Got: {comment_id!r}"
         )
 
-    result = await _gh_api(
+    result = await _gateway._gh_api(
         f"repos/{resolved_repo}/pulls/{pr_number}/comments",
         method="POST",
         fields={"body": body, "in_reply_to": comment_id_int},
@@ -833,7 +726,7 @@ async def pr_comment_edit(
     Returns:
         On success: ``{"id": int, "body": str, "html_url": str}``.
     """
-    repo_result = await _resolve_repo(repo)
+    repo_result = await _gateway._resolve_repo(repo)
     if isinstance(repo_result, ErrorResult):
         return repo_result
     resolved_repo = repo_result.value
@@ -880,7 +773,7 @@ def _label_names(payload: Any) -> list[str]:
 
 
 async def _current_label_names(*, resolved_repo: str, pr_number: int) -> Result[list[str]]:
-    result = await _gh_api_raw(
+    result = await _gateway._gh_api_raw(
         f"repos/{resolved_repo}/issues/{pr_number}/labels",
         repo=resolved_repo,
     )
@@ -932,7 +825,7 @@ async def pr_labels(
     if action != "list" and not labels:
         return err(f"action {action!r} needs a non-empty 'labels' list")
 
-    repo_result = await _resolve_repo(repo)
+    repo_result = await _gateway._resolve_repo(repo)
     if isinstance(repo_result, ErrorResult):
         return repo_result
     resolved_repo = str(repo_result.value)
@@ -950,7 +843,7 @@ async def pr_labels(
         changed = [name for name in requested if name not in current]
         if not changed:
             return ok({"pr_number": pr_number, "action": action, "labels": current, "changed": []})
-        result = await _gh_api_raw(
+        result = await _gateway._gh_api_raw(
             f"repos/{resolved_repo}/issues/{pr_number}/labels",
             method="POST",
             fields={"labels": changed},
@@ -990,7 +883,7 @@ async def pr_labels(
     # shape — do not widen it by removing the `changed` guard above.
     removing = set(changed)
     remaining = [name for name in current if name not in removing]
-    result = await _gh_api_raw(
+    result = await _gateway._gh_api_raw(
         f"repos/{resolved_repo}/issues/{pr_number}/labels",
         method="PUT",
         fields={"labels": remaining},
@@ -1048,7 +941,7 @@ async def issue_labels(
     if action != "list" and not labels:
         return err(f"action {action!r} needs a non-empty 'labels' list")
 
-    repo_result = await _resolve_repo(repo)
+    repo_result = await _gateway._resolve_repo(repo)
     if isinstance(repo_result, ErrorResult):
         return repo_result
     resolved_repo = str(repo_result.value)
@@ -1066,7 +959,7 @@ async def issue_labels(
         changed = [name for name in requested if name not in current]
         if not changed:
             return ok({"number": number, "action": action, "labels": current, "changed": []})
-        result = await _gh_api_raw(
+        result = await _gateway._gh_api_raw(
             f"repos/{resolved_repo}/issues/{number}/labels",
             method="POST",
             fields={"labels": changed},
@@ -1086,7 +979,7 @@ async def issue_labels(
     changed = [name for name in requested if name in current]
     remaining = current
     for name in changed:
-        result = await _gh_api_raw(
+        result = await _gateway._gh_api_raw(
             f"repos/{resolved_repo}/issues/{number}/labels/{name}",
             method="DELETE",
             repo=resolved_repo,
@@ -1137,12 +1030,12 @@ async def pr_review_edit(
     Returns:
         On success: ``{"id": int, "body": str, ...}``.
     """
-    repo_result = await _resolve_repo(repo)
+    repo_result = await _gateway._resolve_repo(repo)
     if isinstance(repo_result, ErrorResult):
         return repo_result
     resolved_repo = repo_result.value
 
-    return await _gh_api(
+    return await _gateway._gh_api(
         f"repos/{resolved_repo}/pulls/{pr_number}/reviews/{review_id}",
         method="PUT",
         fields={"body": body},
@@ -1157,12 +1050,12 @@ async def pr_issue_comment(
     body: str,
     repo: str | None = None,
 ) -> Result[dict[str, Any]]:
-    repo_result = await _resolve_repo(repo)
+    repo_result = await _gateway._resolve_repo(repo)
     if isinstance(repo_result, ErrorResult):
         return repo_result
     resolved_repo = repo_result.value
 
-    result = await _gh_api(
+    result = await _gateway._gh_api(
         f"repos/{resolved_repo}/issues/{pr_number}/comments",
         method="POST",
         fields={"body": body},
@@ -1180,7 +1073,7 @@ async def request_review(
     team: bool | None = None,
     repo: str | None = None,
 ) -> Result[dict[str, Any]]:
-    repo_result = await _resolve_repo(repo)
+    repo_result = await _gateway._resolve_repo(repo)
     if isinstance(repo_result, ErrorResult):
         return repo_result
     resolved_repo = repo_result.value
@@ -1191,7 +1084,7 @@ async def request_review(
     else:
         fields["reviewers"] = reviewers
 
-    result = await _gh_api(
+    result = await _gateway._gh_api(
         f"repos/{resolved_repo}/pulls/{pr_number}/requested_reviewers",
         method="POST",
         fields=fields,
@@ -1211,7 +1104,7 @@ async def detect_base_branch(
     if force:
         args.append("--force")
 
-    result = await async_run_script(
+    result = await _gateway.async_run_script(
         "skills/gh-pr-create/scripts/detect-base-branch.sh",
         *args,
     )
@@ -1233,7 +1126,7 @@ async def verify_pr_state(*, force: bool = False) -> Result[dict[str, Any]]:
     if force:
         args.append("--force")
 
-    return await _run_and_parse(
+    return await _gateway._run_and_parse(
         "skills/gh-pr-create/scripts/verify-state.sh",
         *args,
         fallback=parse_key_value_output,
@@ -1245,7 +1138,7 @@ async def pre_pr_checks(*, base_branch: str | None = None) -> Result[dict[str, A
     if base_branch:
         args.append(base_branch)
 
-    result = await async_run_script(
+    result = await _gateway.async_run_script(
         "skills/gh-pr-create/scripts/pre-pr-checks.sh",
         *args,
     )
@@ -1270,7 +1163,7 @@ async def _resolve_milestone_number(
     if milestone.isdigit():
         return ok(int(milestone))
 
-    result = await _gh_api_raw(f"repos/{repo_ref}/milestones?state=all&per_page=100")
+    result = await _gateway._gh_api_raw(f"repos/{repo_ref}/milestones?state=all&per_page=100")
     if result.returncode != 0:
         return err(result.stderr.strip())
     try:
@@ -1307,7 +1200,7 @@ async def _set_pr_milestone(
         return err(number_result.error)
     number = number_result.value
 
-    result = await _gh_api_raw(
+    result = await _gateway._gh_api_raw(
         f"repos/{repo_ref}/issues/{pr_number}",
         method="PATCH",
         fields={"milestone": number},
@@ -1397,7 +1290,7 @@ async def create_pr(
     args.append(head or "")
     args.append(repo or "")
 
-    result = await async_run_script(
+    result = await _gateway.async_run_script(
         "skills/gh-pr-create/scripts/create-pr.sh",
         *args,
     )
@@ -1418,7 +1311,7 @@ async def create_pr(
     resolved_repo = repo
 
     if milestone is not None:
-        repo_result = await _resolve_repo(repo)
+        repo_result = await _gateway._resolve_repo(repo)
         if isinstance(repo_result, ErrorResult):
             return err(repo_result.error)
         resolved_repo = str(repo_result.value)
@@ -1477,7 +1370,7 @@ async def update_pr(
     if body is None and title is None and base_branch is None and milestone is None:
         return err("update_pr requires at least one of: body, title, base_branch, milestone")
 
-    repo_result = await _resolve_repo(repo)
+    repo_result = await _gateway._resolve_repo(repo)
     if isinstance(repo_result, ErrorResult):
         return err(repo_result.error)
     repo_ref = repo_result.value
@@ -1491,7 +1384,7 @@ async def update_pr(
         fields["base"] = base_branch
 
     if fields:
-        result = await _gh_api_raw(
+        result = await _gateway._gh_api_raw(
             f"repos/{repo_ref}/pulls/{pr_number}",
             method="PATCH",
             fields=fields,
@@ -1591,7 +1484,7 @@ async def _resolve_merge_bot(
     payload still claims the merge was the bot's.
     """
     if use_bot is None:
-        config = AppConfig.load()
+        config = _gateway.AppConfig.load()
         wants_bot = config is not None and config.merge_bot
     else:
         wants_bot = use_bot
@@ -1601,7 +1494,7 @@ async def _resolve_merge_bot(
         # --admin and --auto have no REST merge equivalent; honouring
         # them matters more than the identity the merge carries.
         return "admin/auto merge has no bot transport", None
-    bot_env = await _bot_env(repo=repo_ref)
+    bot_env = await _gateway._bot_env(repo=repo_ref)
     if bot_env is None:
         return "no installation token", None
     return None, bot_env
@@ -1634,7 +1527,7 @@ async def _merge_as_bot(
         else:
             head_ref_error = f"could not resolve head branch: {pr.error}"
 
-    result = await _gh_api_raw(
+    result = await _gateway._gh_api_raw(
         f"repos/{repo_ref}/pulls/{pr_number}/merge",
         method="PUT",
         fields=fields,
@@ -1655,7 +1548,7 @@ async def _merge_as_bot(
     branch_deleted = False
     deletion_error = head_ref_error
     if head_ref:
-        deletion = await _gh_api_raw(
+        deletion = await _gateway._gh_api_raw(
             f"repos/{repo_ref}/git/refs/heads/{head_ref}",
             method="DELETE",
             repo=repo_ref,
@@ -1742,7 +1635,7 @@ async def merge_pr(
     if strategy not in {"rebase", "squash", "merge"}:
         return err(f"Invalid merge strategy: {strategy!r}. Use rebase, squash, or merge.")
 
-    repo_result = await _resolve_repo(repo)
+    repo_result = await _gateway._resolve_repo(repo)
     if isinstance(repo_result, ErrorResult):
         return err(repo_result.error)
     repo_ref = repo_result.value
@@ -1783,7 +1676,7 @@ async def merge_pr(
     if expected_head_sha:
         args.extend(["--match-head-commit", expected_head_sha])
 
-    result = await async_run(args=args, timeout=60)
+    result = await _gateway.async_run(args=args, timeout=60)
 
     if result.returncode != 0:
         return err(result.stderr.strip() or result.stdout.strip())
@@ -1836,7 +1729,7 @@ async def pr_ready(
     Returns:
         ok({"pr_number", "url", "repo", "draft"}) on success, err(...) otherwise.
     """
-    repo_result = await _resolve_repo(repo)
+    repo_result = await _gateway._resolve_repo(repo)
     if isinstance(repo_result, ErrorResult):
         return err(repo_result.error)
     repo_ref = repo_result.value
@@ -1845,7 +1738,7 @@ async def pr_ready(
     if undo:
         args.append("--undo")
 
-    result = await async_run(args=args, timeout=30)
+    result = await _gateway.async_run(args=args, timeout=30)
 
     if result.returncode != 0:
         return err(result.stderr.strip() or result.stdout.strip())
@@ -1911,13 +1804,13 @@ async def pr_close(
     Returns:
         On success: ``{"pr_number": int, "state": "closed", "url": str}``.
     """
-    repo_result = await _resolve_repo(repo)
+    repo_result = await _gateway._resolve_repo(repo)
     if isinstance(repo_result, ErrorResult):
         return err(repo_result.error)
     repo_ref = repo_result.value
 
     if comment is not None:
-        comment_result = await _gh_api_raw(
+        comment_result = await _gateway._gh_api_raw(
             f"repos/{repo_ref}/issues/{pr_number}/comments",
             method="POST",
             fields={"body": comment},
@@ -1927,7 +1820,7 @@ async def pr_close(
         if comment_result.returncode != 0:
             return err(comment_result.stderr.strip() or comment_result.stdout.strip())
 
-    result = await async_run(
+    result = await _gateway.async_run(
         args=["gh", "pr", "close", str(pr_number), "--repo", str(repo_ref)],
         timeout=30,
     )
@@ -1984,7 +1877,7 @@ async def pr_list(
     if search:
         args.extend(["--search", search])
 
-    result = await async_run(args=args, timeout=30)
+    result = await _gateway.async_run(args=args, timeout=30)
     if result.returncode != 0:
         return err(result.stderr.strip())
     try:
@@ -1999,12 +1892,12 @@ async def milestone_close(
     number: int,
     repo: str | None = None,
 ) -> Result[dict[str, Any]]:
-    repo_result = await _resolve_repo(repo)
+    repo_result = await _gateway._resolve_repo(repo)
     if isinstance(repo_result, ErrorResult):
         return err(repo_result.error)
     repo_ref = repo_result.value
 
-    result = await _gh_api_raw(
+    result = await _gateway._gh_api_raw(
         f"repos/{repo_ref}/milestones/{number}",
         method="PATCH",
         fields={"state": "closed"},
@@ -2037,7 +1930,7 @@ async def milestone_create(
     Returns:
         On success: ``{"number": int, "title": str, "url": str}``.
     """
-    repo_result = await _resolve_repo(repo)
+    repo_result = await _gateway._resolve_repo(repo)
     if isinstance(repo_result, ErrorResult):
         return err(repo_result.error)
     repo_ref = repo_result.value
@@ -2048,7 +1941,7 @@ async def milestone_create(
     if due_on is not None:
         fields["due_on"] = due_on
 
-    result = await _gh_api_raw(
+    result = await _gateway._gh_api_raw(
         f"repos/{repo_ref}/milestones",
         method="POST",
         fields=fields,
@@ -2086,12 +1979,12 @@ async def milestone_reopen(
     Returns:
         On success: ``{"number": int, "state": "open", "url": str}``.
     """
-    repo_result = await _resolve_repo(repo)
+    repo_result = await _gateway._resolve_repo(repo)
     if isinstance(repo_result, ErrorResult):
         return err(repo_result.error)
     repo_ref = repo_result.value
 
-    result = await _gh_api_raw(
+    result = await _gateway._gh_api_raw(
         f"repos/{repo_ref}/milestones/{number}",
         method="PATCH",
         fields={"state": "open"},
@@ -2147,12 +2040,12 @@ async def milestone_edit(
     if not fields:
         return err("milestone_edit requires at least one field to change.")
 
-    repo_result = await _resolve_repo(repo)
+    repo_result = await _gateway._resolve_repo(repo)
     if isinstance(repo_result, ErrorResult):
         return err(repo_result.error)
     repo_ref = repo_result.value
 
-    result = await _gh_api_raw(
+    result = await _gateway._gh_api_raw(
         f"repos/{repo_ref}/milestones/{number}",
         method="PATCH",
         fields=fields,
@@ -2204,7 +2097,7 @@ async def milestone_list(
         path = f"repos/{{owner}}/{{repo}}/milestones?state={state}&per_page=100"
     args.append(path)
 
-    result = await async_run(args=args, timeout=30)
+    result = await _gateway.async_run(args=args, timeout=30)
     if result.returncode != 0:
         return err(result.stderr.strip())
     try:
@@ -2246,7 +2139,7 @@ async def _issue_result(
     payload: dict[str, Any] = {"number": number}
     if state is not None:
         payload["state"] = state
-    repo_result = await _resolve_repo(repo)
+    repo_result = await _gateway._resolve_repo(repo)
     if isinstance(repo_result, ErrorResult):
         payload["url"] = raw_url
     else:
@@ -2312,7 +2205,7 @@ async def issue_edit(
         args.extend(["--repo", repo])
 
     try:
-        result = await async_run(args=args, timeout=30)
+        result = await _gateway.async_run(args=args, timeout=30)
     finally:
         if body_path is not None:
             body_path.unlink(missing_ok=True)
@@ -2355,9 +2248,9 @@ async def issue_close(
         valid = ", ".join(repr(key) for key in _CLOSE_REASON_GH_VALUE)
         return err(f"reason must be one of {valid}, got: {reason!r}")
 
-    repo_result = await _resolve_repo(repo)
+    repo_result = await _gateway._resolve_repo(repo)
     if isinstance(repo_result, SuccessResult):
-        pr_probe = await _gh_api(f"repos/{repo_result.value}/issues/{number}")
+        pr_probe = await _gateway._gh_api(f"repos/{repo_result.value}/issues/{number}")
         if isinstance(pr_probe, SuccessResult) and pr_probe.value.get("pull_request") is not None:
             return err(f"{number} is a pull request; use pr_close")
 
@@ -2367,7 +2260,7 @@ async def issue_close(
     if comment is not None:
         args.extend(["--comment", comment])
 
-    result = await async_run(args=args, timeout=30)
+    result = await _gateway.async_run(args=args, timeout=30)
     if result.returncode != 0:
         return err(result.stderr.strip())
 
@@ -2398,7 +2291,7 @@ async def issue_reopen(
     if repo:
         args.extend(["--repo", repo])
 
-    result = await async_run(args=args, timeout=30)
+    result = await _gateway.async_run(args=args, timeout=30)
     if result.returncode != 0:
         return err(result.stderr.strip())
 
@@ -2478,7 +2371,7 @@ async def issue_comment(
         args.extend(["--repo", repo])
 
     try:
-        result = await async_run(args=args, timeout=30)
+        result = await _gateway.async_run(args=args, timeout=30)
     finally:
         body_path.unlink(missing_ok=True)
 
@@ -2525,7 +2418,7 @@ async def issue_comment_edit(
         return body_result
     resolved_body = body_result.value
 
-    repo_result = await _resolve_repo(repo)
+    repo_result = await _gateway._resolve_repo(repo)
     if isinstance(repo_result, ErrorResult):
         return repo_result
     canonical_repo = str(repo_result.value)
@@ -2547,7 +2440,7 @@ async def issue_comment_edit(
     ]
 
     try:
-        result = await async_run(args=args, timeout=30)
+        result = await _gateway.async_run(args=args, timeout=30)
     finally:
         body_path.unlink(missing_ok=True)
 
@@ -2585,13 +2478,13 @@ async def issue_comment_delete(
     Returns:
         On success: ``{"deleted": True, "comment_id": int}``.
     """
-    repo_result = await _resolve_repo(repo)
+    repo_result = await _gateway._resolve_repo(repo)
     if isinstance(repo_result, ErrorResult):
         return repo_result
     canonical_repo = str(repo_result.value)
 
     endpoint = f"/repos/{canonical_repo}/issues/comments/{comment_id}"
-    result = await async_run(
+    result = await _gateway.async_run(
         args=["gh", "api", "-X", "DELETE", endpoint],
         timeout=30,
     )
@@ -2648,7 +2541,7 @@ async def issue_list(
     if search:
         args.extend(["--search", search])
 
-    result = await async_run(args=args, timeout=30)
+    result = await _gateway.async_run(args=args, timeout=30)
     if result.returncode != 0:
         return err(result.stderr.strip())
     try:
@@ -2689,11 +2582,11 @@ async def triage_roster(*, repo: str | None = None) -> Result[dict[str, Any]]:
         milestone_path = "repos/{owner}/{repo}/milestones?state=open&per_page=100"
     milestone_args.append(milestone_path)
 
-    milestone_result = await async_run(args=milestone_args, timeout=30)
+    milestone_result = await _gateway.async_run(args=milestone_args, timeout=30)
     if milestone_result.returncode != 0:
         return err(milestone_result.stderr.strip())
 
-    label_result = await async_run(args=label_args, timeout=30)
+    label_result = await _gateway.async_run(args=label_args, timeout=30)
     if label_result.returncode != 0:
         return err(label_result.stderr.strip())
 
@@ -2900,7 +2793,7 @@ async def generate_commit_list(
     if base_branch:
         args.append(base_branch)
 
-    result = await async_run_script(
+    result = await _gateway.async_run_script(
         "skills/gh-pr-create/scripts/generate-commit-list.sh",
         *args,
     )
@@ -2918,13 +2811,13 @@ async def post_summary_comment(
     repo: str | None = None,
 ) -> Result[dict[str, Any]]:
     env_vars: dict[str, str] = {}
-    resolved_repo = repo or await _detect_repo()
+    resolved_repo = repo or await _gateway._detect_repo()
     if resolved_repo:
-        bot_env = await _bot_env(repo=resolved_repo)
+        bot_env = await _gateway._bot_env(repo=resolved_repo)
         if bot_env is not None:
             env_vars["GH_TOKEN"] = bot_env["GH_TOKEN"]
             env_vars["GITHUB_TOKEN"] = bot_env["GITHUB_TOKEN"]
-    result = await async_run_script(
+    result = await _gateway.async_run_script(
         "skills/gh-pr-create/scripts/post-summary-comment.sh",
         issue_id,
         summary_text,
@@ -2984,7 +2877,7 @@ async def pr_notify(
         if skip_checklist:
             args.append("--skip-checklist")
 
-    proc = await async_run(args=args, timeout=60)
+    proc = await _gateway.async_run(args=args, timeout=60)
 
     if proc.returncode != 0:
         reason = proc.stderr.strip()
@@ -3017,7 +2910,7 @@ async def check_top_level_comments(
         ref = RepositoryRef.parse(repo)
     except ValueError as exc:
         return err(str(exc))
-    result = await async_run_script(
+    result = await _gateway.async_run_script(
         "skills/gh-pr-merge/scripts/check-top-level-comments.sh",
         ref.owner,
         ref.name,
@@ -3061,7 +2954,7 @@ async def unresolved_threads(
             resolved_repo=repo,
             pr_number=pr_number,
         )
-    result = await async_run_script(
+    result = await _gateway.async_run_script(
         "skills/gh-pr-doctor/scripts/gh-unresolved-threads.py",
         "--repo",
         repo,

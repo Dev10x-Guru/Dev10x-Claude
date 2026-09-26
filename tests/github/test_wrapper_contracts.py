@@ -38,7 +38,7 @@ _PR_GET_SCRIPT = _REPO_ROOT / "skills/gh-context/scripts/gh-pr-get.sh"
 @pytest.fixture
 def mock_resolve_repo():
     with patch.object(
-        gh,
+        gh._gateway,
         "_resolve_repo",
         new_callable=AsyncMock,
         return_value=ok(RepositoryRef(owner="owner", name="repo")),
@@ -78,7 +78,7 @@ class TestCreatePrAcceptsRepo:
         assert "repo" in parameters, f"{tool_name} breaks the repo= convention"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_repo_reaches_the_create_pr_script(
         self,
         mock_run_script: AsyncMock,
@@ -125,7 +125,7 @@ class TestMergePrPinsTheVerifiedHead:
         assert "expected_head_sha" in parameters
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
     async def test_expected_head_sha_becomes_match_head_commit(
         self,
         mock_run: AsyncMock,
@@ -141,7 +141,7 @@ class TestMergePrPinsTheVerifiedHead:
         assert called_args[called_args.index("--match-head-commit") + 1] == "deadbeef"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
     async def test_flag_absent_when_no_sha_pinned(
         self,
         mock_run: AsyncMock,
@@ -154,7 +154,7 @@ class TestMergePrPinsTheVerifiedHead:
         assert "--match-head-commit" not in mock_run.call_args.kwargs["args"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
     async def test_payload_echoes_the_pinned_sha(
         self,
         mock_run: AsyncMock,
@@ -186,7 +186,7 @@ class TestCreatePrAlwaysEmitsFixes:
         return mock_run_script.call_args.args[4]
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_issue_id_alone_still_yields_a_fixes_ref(
         self,
         mock_run_script: AsyncMock,
@@ -202,7 +202,7 @@ class TestCreatePrAlwaysEmitsFixes:
         assert "1245" in self._fixes_arg(mock_run_script)
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_closes_members_become_fixes_refs(
         self,
         mock_run_script: AsyncMock,
@@ -226,7 +226,7 @@ class TestCreatePrAlwaysEmitsFixes:
         assert "1226" in fixes_arg
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_explicit_fixes_url_still_wins(
         self,
         mock_run_script: AsyncMock,
@@ -248,7 +248,7 @@ class TestCreatePrAlwaysEmitsFixes:
         assert url in self._fixes_arg(mock_run_script)
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_explicit_url_and_closes_both_survive(
         self,
         mock_run_script: AsyncMock,
@@ -272,7 +272,7 @@ class TestCreatePrAlwaysEmitsFixes:
         assert self._fixes_arg(mock_run_script) == f"{url} #1251"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_self_motivated_prose_is_not_split(
         self,
         mock_run_script: AsyncMock,

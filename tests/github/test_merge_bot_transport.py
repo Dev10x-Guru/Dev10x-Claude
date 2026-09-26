@@ -26,7 +26,7 @@ gh = pytest.importorskip("dev10x.github", reason="dev10x not installed")
 @pytest.fixture
 def mock_resolve_repo():
     with patch.object(
-        gh,
+        gh._gateway,
         "_resolve_repo",
         new_callable=AsyncMock,
         return_value=ok(RepositoryRef(owner="owner", name="repo")),
@@ -38,14 +38,14 @@ def mock_resolve_repo():
 def bot_env():
     """A resolvable installation token."""
     with patch.object(
-        gh, "_bot_env", new_callable=AsyncMock, return_value={"GH_TOKEN": "ghs_x"}
+        gh._gateway, "_bot_env", new_callable=AsyncMock, return_value={"GH_TOKEN": "ghs_x"}
     ) as mock:
         yield mock
 
 
 @pytest.fixture
 def no_bot_env():
-    with patch.object(gh, "_bot_env", new_callable=AsyncMock, return_value=None) as mock:
+    with patch.object(gh._gateway, "_bot_env", new_callable=AsyncMock, return_value=None) as mock:
         yield mock
 
 
@@ -62,7 +62,7 @@ def _completed(
 
 class TestBotTransportSelected:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_merges_through_the_rest_endpoint(
         self,
         mock_api: AsyncMock,
@@ -80,7 +80,7 @@ class TestBotTransportSelected:
         assert mock_api.call_args.kwargs["as_bot"] is True
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_payload_reports_the_bot_identity(
         self,
         mock_api: AsyncMock,
@@ -96,7 +96,7 @@ class TestBotTransportSelected:
         assert result.value["bot_fallback"] is None
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_strategy_becomes_merge_method(
         self,
         mock_api: AsyncMock,
@@ -110,7 +110,7 @@ class TestBotTransportSelected:
         assert mock_api.call_args.kwargs["fields"]["merge_method"] == "squash"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_expected_head_sha_becomes_the_sha_field(
         self,
         mock_api: AsyncMock,
@@ -127,8 +127,8 @@ class TestBotTransportSelected:
         assert mock_api.call_args.kwargs["fields"]["sha"] == "deadbeef"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.async_run", new_callable=AsyncMock)
-    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_a_refused_bot_merge_degrades_to_the_cli(
         self,
         mock_api: AsyncMock,
@@ -148,8 +148,8 @@ class TestBotTransportSelected:
         assert mock_run.call_args.kwargs["args"][:3] == ["gh", "pr", "merge"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.async_run", new_callable=AsyncMock)
-    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_merged_false_in_the_body_is_not_success(
         self,
         mock_api: AsyncMock,
@@ -170,7 +170,7 @@ class TestBotTransportSelected:
         assert "Head branch was modified" in result.value["bot_fallback"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_the_token_is_minted_once_and_threaded_through(
         self,
         mock_api: AsyncMock,
@@ -200,7 +200,7 @@ class TestBranchDeletion:
             yield mock
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_deletes_the_head_ref(
         self,
         mock_api: AsyncMock,
@@ -220,7 +220,7 @@ class TestBranchDeletion:
         assert deletion.kwargs["method"] == "DELETE"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_refused_deletion_still_reports_the_merge(
         self,
         mock_api: AsyncMock,
@@ -241,7 +241,7 @@ class TestBranchDeletion:
         assert "cannot be deleted" in result.value["branch_deletion_error"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_unresolvable_head_ref_skips_the_delete(
         self,
         mock_api: AsyncMock,
@@ -262,7 +262,7 @@ class TestFallsBackLoudly:
     """Never fail the merge — degrade to the engineer identity and say so."""
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
     async def test_no_installation_token_falls_back(
         self,
         mock_run: AsyncMock,
@@ -280,7 +280,7 @@ class TestFallsBackLoudly:
 
     @pytest.mark.parametrize("flag", ["admin", "auto"])
     @pytest.mark.asyncio
-    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
     async def test_admin_and_auto_keep_the_cli_path(
         self,
         mock_run: AsyncMock,
@@ -298,7 +298,7 @@ class TestFallsBackLoudly:
         assert "admin/auto" in result.value["bot_fallback"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
     async def test_default_is_unchanged_behaviour(
         self,
         mock_run: AsyncMock,
@@ -307,7 +307,7 @@ class TestFallsBackLoudly:
         """Opt-in: an unconfigured caller merges exactly as before."""
         mock_run.return_value = _completed(stdout="merged\n")
 
-        with patch.object(gh.AppConfig, "load", return_value=None):
+        with patch.object(gh._gateway.AppConfig, "load", return_value=None):
             result = await gh.merge_pr(pr_number=42)
 
         assert isinstance(result, SuccessResult)
@@ -317,7 +317,7 @@ class TestFallsBackLoudly:
 
 class TestDurablePreference:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_merge_bot_preference_enables_the_transport(
         self,
         mock_api: AsyncMock,
@@ -329,14 +329,14 @@ class TestDurablePreference:
         mock_api.return_value = _completed(stdout='{"merged": true}')
         config = AppConfig(app_id="1", private_key_path=Path("/k"), merge_bot=True)
 
-        with patch.object(gh.AppConfig, "load", return_value=config):
+        with patch.object(gh._gateway.AppConfig, "load", return_value=config):
             result = await gh.merge_pr(pr_number=42, delete_branch=False)
 
         assert isinstance(result, SuccessResult)
         assert result.value["merged_as"] == "bot"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.async_run", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
     async def test_explicit_false_overrides_the_preference(
         self,
         mock_run: AsyncMock,
@@ -348,7 +348,7 @@ class TestDurablePreference:
         mock_run.return_value = _completed(stdout="merged\n")
         config = AppConfig(app_id="1", private_key_path=Path("/k"), merge_bot=True)
 
-        with patch.object(gh.AppConfig, "load", return_value=config):
+        with patch.object(gh._gateway.AppConfig, "load", return_value=config):
             result = await gh.merge_pr(pr_number=42, use_bot=False)
 
         assert isinstance(result, SuccessResult)
