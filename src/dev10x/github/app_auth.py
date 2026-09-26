@@ -23,12 +23,12 @@ from pathlib import Path
 
 import yaml
 
-from dev10x.commands.github_app_api import (
+from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.github.app_api import (
     GitHubAPIError,
     create_installation_token_full,
     get_repo_installation,
 )
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
 
 try:  # PyJWT is an optional dependency; its absence surfaces as ImportError
     from jwt.exceptions import PyJWTError as _PyJWTError
@@ -103,8 +103,8 @@ async def _resolve_installation_id(
     repo: str,
     app_jwt: str,
 ) -> str | None:
-    # GH-499: resolved via an in-process HTTPS call (dev10x.commands.
-    # github_app_api) instead of shelling out to `gh api -H "Authorization:
+    # GH-499: resolved via an in-process HTTPS call (dev10x.github.
+    # app_api) instead of shelling out to `gh api -H "Authorization:
     # Bearer <jwt>"` — argv is world-visible via `ps` / `/proc/<pid>/cmdline`
     # for the life of a child process, so the JWT never touches a
     # subprocess command line.
