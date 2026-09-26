@@ -139,6 +139,12 @@ AWAITING_MOVE = frozenset(
         "generate_commit_list",
         "post_summary_comment",
         "pr_notify",
+        "_resolve_milestone_number",
+        "milestone_close",
+        "milestone_create",
+        "milestone_reopen",
+        "milestone_edit",
+        "milestone_list",
     }
 )
 
