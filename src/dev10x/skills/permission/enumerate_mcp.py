@@ -329,10 +329,14 @@ def build_capability_groups(
 
     for server_entry in servers:
         for full_name in server_entry.tools:
-            parts = full_name.split("__")
-            if len(parts) < 3:
+            # GH-1428: route through the canonical parse rather than an
+            # ad-hoc structural split — the same defect GH-508 created
+            # McpToolName to eliminate, here in the module that decides
+            # which tools get permission entries.
+            parsed = McpToolName.try_parse(full_name)
+            if parsed is None:
                 continue
-            short_name = parts[-1]
+            short_name = parsed.tool
             by_short_name.setdefault(short_name, []).append((server_entry.prefix, full_name))
 
     groups: list[CapabilityGroupEntry] = []

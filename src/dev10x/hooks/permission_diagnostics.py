@@ -26,6 +26,7 @@ from typing import Any
 
 from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.allow_rule import AllowRule, AllowRuleLoader
+from dev10x.domain.common.mcp_tool_name import McpToolName
 from dev10x.domain.common.tool_signature import ToolSignature
 from dev10x.subprocess_utils import effective_cwd
 
@@ -253,7 +254,7 @@ def _suggest_rule(*, signature: str) -> str:
     result = sig.suggest_rule()
     # For non-MCP bare names the VO returns "Tool()" which differs from the
     # original "return signature" contract — preserve the original output.
-    if paren_idx == -1 and not sig.tool.startswith("mcp__"):
+    if paren_idx == -1 and not McpToolName.is_mcp(sig.tool):
         return signature
     return result
 
