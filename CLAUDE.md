@@ -5,9 +5,8 @@ development workflows.
 
 ## Directory Layout
 
-This repo is a **single unified `Dev10x` plugin** (consolidated from 11
-separate plugin directories). All skills, hooks, and config are defined at
-the root level.
+This repo is a **single unified `Dev10x` plugin**. All skills, hooks,
+and config are defined at the root level.
 
 | Directory        | Purpose                                    |
 |------------------|--------------------------------------------|
@@ -36,26 +35,16 @@ uv run --extra dev pre-commit run --all-files  # run the canonical lint suite
 ```
 
 Linting/formatting (ruff, mypy, shellcheck) runs via `pre-commit`,
-never inline — `.pre-commit-config.yaml` is the single source of truth
-(GH-619). Skills defer to `pre-commit run` (GH-592, GH-596).
-
-MCP migration: shell scripts → MCP tools. See `.claude/rules/mcp-tools.md`.
+never inline — `.pre-commit-config.yaml` is the single source of
+truth. Skills defer to `pre-commit run`. MCP migration: shell
+scripts → MCP tools. See `.claude/rules/mcp-tools.md`.
 
 ## External Tool Declarations
 
-All skills that invoke external scripts (shell, Python, etc.) must declare
-them in SKILL.md front matter under `allowed-tools:`:
-
-```yaml
-allowed-tools:
-  - Bash(${CLAUDE_PLUGIN_ROOT}/skills/<name>/scripts/:*)
-```
-
-When a skill delegates to an `instructions.md` file, verify `allowed-tools:` in
-SKILL.md covers ALL external tool calls in both SKILL.md AND instructions.md.
-
-Missing declarations cause per-invocation approval friction — users cannot
-invoke the skill without approving tool access each time. See
+Skills that invoke external scripts must declare them in SKILL.md
+`allowed-tools:` (e.g. `Bash(${CLAUDE_PLUGIN_ROOT}/skills/<name>/scripts/:*)`),
+covering both SKILL.md and any delegated `instructions.md` — missing
+entries cause per-invocation approval friction. See
 `.claude/rules/mcp-tools.md` for MCP vs. direct script trade-offs.
 
 ## Coding Style
@@ -63,86 +52,49 @@ invoke the skill without approving tool access each time. See
 - **Python scripts**: ruff + black (line-length 99)
 - **Shell scripts**: shellcheck, `set -e`, POSIX-compatible where possible
 - **Markdown**: one sentence per line, 80-char soft wrap
-- **Data-retrieval naming**: prefer `get_*` for functions that fetch and
-  return data. Use `load_*` for reading and parsing config/catalog files
-  (`load_yaml`, `load_json`, `load_config`) and `read_*` for byte- or
-  line-level file I/O (`read_applied_version`, `read_plugin_version`) —
-  both are blessed, dominant conventions, not exceptions. Reserve
-  `fetch_*` for names carrying protocol/domain semantics (`git fetch`,
-  HTTP fetch) or documented exceptions such as `fetch_mergeable` and
-  `fetch_merged_prs` (`skills/release/collect_prs.py`). Do not
-  rename-sweep existing `load_*`/`read_*` functions to `get_*`.
+- **Data-retrieval naming**: `get_*`/`load_*`/`read_*`/`fetch_*` each
+  have a specific meaning — see `.claude/rules/naming-conventions.md`.
 
-## Rule Documentation Standards
+## Rule & Config Discipline
 
-When documenting new rules in `.claude/rules/*.md`:
-- Expand reviewer checklists with concrete checks before they accumulate as
-  lint suggestions (a new rule invites new edge cases; document them when the
-  rule lands to prevent silent divergence)
-- Document acceptable exceptions explicitly (e.g., when `sys.exit()` is OK in
-  a domain function): future consolidations need clear guidance on what violates
-  the rule vs. what is an documented exception
-- Use numbered lists in checklists (not bullets) to signal mandatory sequential
-  verification steps to reviewers
-
-### CWD Discipline (GH-979)
-
-Route subprocess/CWD access through `subprocess_utils` (`run`,
-`async_run`, `effective_cwd()`) and `GitContext()` — never bare
-`subprocess.run` / `os.getcwd()` / module-scope `GitContext()`. Standalone
-uv-scripts are exempt. Full rules: `.claude/rules/cwd-discipline.md`.
-
-### uv-Script Dependency Pins (GH-916)
-
-Every PEP 723 `# dependencies = [...]` entry and every `pyproject.toml`
-dependency array entry needs an upper bound or exact pin (e.g.
-`pyyaml>=6.0,<7`) — an unbounded requirement lets a new major release
-silently change a script's behaviour (GH-914: unbounded `mcp` broke
-both MCP servers). `requires-python` is the one exception (lower-bound
-only, by design). Enforced by `bin/check-dependency-pins.py` via
-`.pre-commit-config.yaml`. Full rules: `.claude/rules/uv-script-dependency-pins.md`.
+- **Rule documentation standards** for authoring new rules in
+  `.claude/rules/*.md`: `.claude/rules/rule-documentation-standards.md`.
+- **CWD discipline (GH-979)**: route subprocess/CWD access through
+  `subprocess_utils` / `GitContext()`, never bare `subprocess.run` /
+  `os.getcwd()` / module-scope `GitContext()`. Full rules:
+  `.claude/rules/cwd-discipline.md`.
+- **uv-script dependency pins (GH-916)**: every PEP 723 dependency
+  and `pyproject.toml` array entry needs an upper bound or exact pin
+  (`requires-python` is the one exception). Full rules:
+  `.claude/rules/uv-script-dependency-pins.md`.
 
 ## Skill Naming Convention
 
-- **Directory name**: plain feature name — `git-worktree/`, `skill-audit/`
-- **Invocation name** (`name:` in SKILL.md): `Dev10x:<feature>` — `Dev10x:git-worktree`
-- The `Dev10x:` prefix identifies this plugin's skills at invocation time
-  without cluttering the filesystem
-- See `.claude/rules/skill-naming.md` for full convention
+- **Directory name**: plain feature name — `git-worktree/`.
+  **Invocation name**: `Dev10x:<feature>` — `Dev10x:git-worktree`.
+  See `.claude/rules/skill-naming.md` for full convention.
 - **Decision Gates**: Skills with blocking user choice points MUST use
   `AskUserQuestion` tool calls (not plain text). See `.claude/rules/skill-gates.md`
 
 ## Git Conventions
 
-- **Default branch**: `develop` (PR target)
-- **Release branch**: `main` (merge from develop via release script)
-- **Branch naming**: `username/TICKET-ID/short-description`
-  (worktree: `username/TICKET-ID/worktree-name/short-description`)
+- **Default branch**: `develop` (PR target). **Release branch**: `main`.
+- **Branch naming**: `username/TICKET-ID/short-description` (worktree
+  adds `/worktree-name` before the slug).
 - **Commit format**: `<gitmoji> <TICKET-ID> <JTBD outcome>`
 - **Commit titles**: outcome-focused — "Enable X" not "Add X"
-- **Job Story voice** (REQUIRED): Third-person domain actor —
-  "**[actor] wants to** ... **so [beneficiary] can** ..." with concrete
-  roles (service writer, dealer, admin, wholesaler) — never first-person
-  ("I want to") or a faceless "the user wants to". See
-  `.claude/rules/essentials.md` and `references/git-jtbd.md`
-  § Choosing the Actor
-- **Story language**: write Job Stories, user stories, and BDD scenarios
-  in the project or ticket language. For Gherkin-derived keywords, use
-  Cucumber's official language reference:
-  https://cucumber.io/docs/gherkin/languages/
+- **Job Story voice** (REQUIRED): third-person concrete domain actor
+  — never first-person or a faceless "the user wants to". See
+  `.claude/rules/essentials.md` § Choosing the Actor.
+- **Story language**: project/ticket language; Gherkin keywords per
+  Cucumber's language reference.
 - See `references/git-commits.md`, `git-pr.md`, `git-jtbd.md`
 
-### Plugin Directory Renames
-
-When renaming a plugin directory (e.g., `plugins/old/ → plugins/new/`):
-
-1. Use `git mv` to preserve history
-2. Update `.claude-plugin/marketplace.json` reference
-3. Update all SKILL.md files that reference the old path
-4. Search codebase for hardcoded directory paths
+**Plugin directory renames**: `git mv`; update
+`.claude-plugin/marketplace.json`, every SKILL.md referencing the
+old path, and any hardcoded paths.
 
 ## Code Review
 
-Multi-agent architecture with domain-routed reviewers.
-See `.claude/rules/INDEX.md` for the routing table and
-`references/rules-architecture.md` for the full architecture.
+Multi-agent architecture with domain-routed reviewers. See
+`.claude/rules/INDEX.md` and `references/rules-architecture.md`.

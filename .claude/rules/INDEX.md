@@ -43,7 +43,7 @@ The code review system uses a **multi-agent architecture**:
 
 | Location | When loaded | Content |
 |----------|------------|---------|
-| `.claude/rules/essentials.md` | Every session | Universal conventions (~36 lines) |
+| `.claude/rules/essentials.md` | Every session | Universal conventions (line count drifts — see the file, not this table; GH-1438) |
 | `.claude/rules/skill-naming.md` | When editing `skills/**` | Skill naming conventions |
 | `.claude/rules/agents.md` | When editing `agents/**` | Plugin-distributed agent specs |
 | `.claude/rules/model-selection.md` | When editing `agents/**` or `skills/**` | Model & effort selection for agent dispatch |
