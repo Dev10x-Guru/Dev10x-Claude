@@ -13,8 +13,8 @@
 #   mktmp.sh -d <namespace> <prefix>                # create a directory
 #
 # Examples:
-#   mktmp.sh git commit-msg .txt         → /tmp/Dev10x/git/commit-msg.XXXXXXXXXXXX.txt
-#   mktmp.sh git pr-review .json         → /tmp/Dev10x/git/pr-review.XXXXXXXXXXXX.json
+#   mktmp.sh git commit-msg .txt         → /tmp/Dev10x/git/commit-msg.txt.XXXXXXXXXXXX
+#   mktmp.sh git pr-review .json         → /tmp/Dev10x/git/pr-review.json.XXXXXXXXXXXX
 #   mktmp.sh -d git groom                → /tmp/Dev10x/git/groom.XXXXXXXXXXXX/
 
 set -euo pipefail
@@ -37,12 +37,17 @@ EXT="${3:-}"
 BASEDIR="/tmp/Dev10x/$NAMESPACE"
 mkdir -p "$BASEDIR"
 
-TEMPLATE="${PREFIX}.XXXXXXXXXXXX${EXT}"
+# GH-1467: GNU mktemp accepts --dry-run/--tmpdir= and substitutes any
+# run of X's, but BSD mktemp (macOS) only recognises -d/-p/-u and only
+# substitutes a TRAILING run of X's. -d, -p, -u are common to both
+# implementations, so the X's move to the end of the template (the
+# extension now sits before the random suffix rather than after it).
+TEMPLATE="${PREFIX}${EXT}.XXXXXXXXXXXX"
 
 if $DIR_MODE; then
-    mktemp -d --tmpdir="$BASEDIR" "$TEMPLATE"
+    mktemp -d -p "$BASEDIR" "$TEMPLATE"
 elif $CREATE_FILE; then
-    mktemp --tmpdir="$BASEDIR" "$TEMPLATE"
+    mktemp -p "$BASEDIR" "$TEMPLATE"
 else
-    mktemp --dry-run --tmpdir="$BASEDIR" "$TEMPLATE"
+    mktemp -u -p "$BASEDIR" "$TEMPLATE"
 fi
