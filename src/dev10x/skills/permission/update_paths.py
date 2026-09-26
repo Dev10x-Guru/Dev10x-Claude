@@ -42,6 +42,7 @@ from dev10x.skills.permission.catalog_merge import (
     MergedCatalog,
     merge_catalogs,
 )
+from dev10x.skills.permission.backup import backed_up_write
 from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
 from dev10x.skills.permission.config import parse_config, resolve_config
 from dev10x.skills.permission.policy_catalog_migration import migrate_flat_config
@@ -224,11 +225,7 @@ def update_file(
         except json.JSONDecodeError as e:
             return 0, [f"  SKIP (invalid JSON after replacement): {e}"]
 
-        from dev10x.skills.permission.backup import create_backup
-        from dev10x.skills.permission.file_lock import locked_json_update
-
-        create_backup(path)
-        with locked_json_update(path=path) as live_data:
+        with backed_up_write(path=path) as live_data:
             live_text = json.dumps(live_data, indent=2) + "\n"
             rewritten = VERSION_PATTERN.sub(
                 lambda m: _rewrite_plugin_version_match(
@@ -291,11 +288,7 @@ def ensure_base_permissions(
         return 0, []
 
     if not dry_run:
-        from dev10x.skills.permission.backup import create_backup
-        from dev10x.skills.permission.file_lock import locked_json_update
-
-        create_backup(path)
-        with locked_json_update(path=path) as live_data:
+        with backed_up_write(path=path) as live_data:
             if "permissions" not in live_data:
                 live_data["permissions"] = {}
             if "allow" not in live_data["permissions"]:
@@ -344,11 +337,7 @@ def ensure_base_denies(
         return 0, []
 
     if not dry_run:
-        from dev10x.skills.permission.backup import create_backup
-        from dev10x.skills.permission.file_lock import locked_json_update
-
-        create_backup(path)
-        with locked_json_update(path=path) as live_data:
+        with backed_up_write(path=path) as live_data:
             if "permissions" not in live_data:
                 live_data["permissions"] = {}
             if "deny" not in live_data["permissions"]:
@@ -396,11 +385,7 @@ def ensure_base_asks(
         return 0, []
 
     if not dry_run:
-        from dev10x.skills.permission.backup import create_backup
-        from dev10x.skills.permission.file_lock import locked_json_update
-
-        create_backup(path)
-        with locked_json_update(path=path) as live_data:
+        with backed_up_write(path=path) as live_data:
             if "permissions" not in live_data:
                 live_data["permissions"] = {}
             if "ask" not in live_data["permissions"]:
@@ -670,11 +655,7 @@ def purge_dead_glob_script_rules(
         return 0, []
 
     if not dry_run:
-        from dev10x.skills.permission.backup import create_backup
-        from dev10x.skills.permission.file_lock import locked_json_update
-
-        create_backup(path)
-        with locked_json_update(path=path) as live_data:
+        with backed_up_write(path=path) as live_data:
             allow = live_data.get("permissions", {}).get("allow", [])
             live_data["permissions"]["allow"] = [
                 r for r in allow if not is_dead_glob_script_rule(r)
@@ -856,11 +837,7 @@ def ensure_read_rules(
         return 0, []
 
     if not dry_run:
-        from dev10x.skills.permission.backup import create_backup
-        from dev10x.skills.permission.file_lock import locked_json_update
-
-        create_backup(settings_path)
-        with locked_json_update(path=settings_path) as data:
+        with backed_up_write(path=settings_path) as data:
             if "permissions" not in data:
                 data["permissions"] = {}
             if "allow" not in data["permissions"]:
@@ -885,11 +862,7 @@ def ensure_script_rules(
         return 0, []
 
     if not dry_run:
-        from dev10x.skills.permission.backup import create_backup
-        from dev10x.skills.permission.file_lock import locked_json_update
-
-        create_backup(settings_path)
-        with locked_json_update(path=settings_path) as data:
+        with backed_up_write(path=settings_path) as data:
             if "permissions" not in data:
                 data["permissions"] = {}
             if "allow" not in data["permissions"]:
@@ -980,11 +953,7 @@ def collapse_legacy_upgrade_cleanup_rules(
         return 0, []
 
     if not dry_run:
-        from dev10x.skills.permission.backup import create_backup
-        from dev10x.skills.permission.file_lock import locked_json_update
-
-        create_backup(path)
-        with locked_json_update(path=path) as live_data:
+        with backed_up_write(path=path) as live_data:
             if "permissions" not in live_data:
                 live_data["permissions"] = {}
             live_data["permissions"]["allow"] = new_allow
@@ -1102,11 +1071,7 @@ def generalize_permissions(
         return 0, refusal_messages
 
     if not dry_run:
-        from dev10x.skills.permission.backup import create_backup
-        from dev10x.skills.permission.file_lock import locked_json_update
-
-        create_backup(path)
-        with locked_json_update(path=path) as live_data:
+        with backed_up_write(path=path) as live_data:
             live_allow = live_data.get("permissions", {}).get("allow", [])
             live_replacements, _live_refused = _generalizations(live_allow)
             for old, new in live_replacements:
@@ -1266,11 +1231,7 @@ def ensure_workspace_directories(
         return 0, []
 
     if not dry_run:
-        from dev10x.skills.permission.backup import create_backup
-        from dev10x.skills.permission.file_lock import locked_json_update
-
-        create_backup(path)
-        with locked_json_update(path=path) as live_data:
+        with backed_up_write(path=path) as live_data:
             if "permissions" not in live_data:
                 live_data["permissions"] = {}
             current = live_data["permissions"].get("additionalDirectories", [])

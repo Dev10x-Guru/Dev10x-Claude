@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from dev10x.skills.permission.backup import (
+    backed_up_write,
     create_backup,
     find_backups,
     find_latest_backup,
@@ -190,3 +191,56 @@ class TestRestoreReport:
         assert code == 0
         assert message == "No backups found to restore."
         assert file_a.read_text() == '{"a": "modified"}'
+
+
+class TestBackedUpWrite:
+    """GH-1429: the structural backup+locked-write guarantee."""
+
+    @pytest.fixture()
+    def settings_file(self, tmp_path: Path) -> Path:
+        path = tmp_path / "settings.local.json"
+        path.write_text(json.dumps({"permissions": {"allow": ["Bash(git log:*)"]}}) + "\n")
+        return path
+
+    def test_creates_a_backup_before_yielding_live_data(self, settings_file: Path) -> None:
+        with backed_up_write(path=settings_file) as live_data:
+            assert live_data is not None
+            assert find_backups(settings_file) != []
+            live_data["permissions"]["allow"].append("Bash(git status:*)")
+
+        assert json.loads(settings_file.read_text())["permissions"]["allow"] == [
+            "Bash(git log:*)",
+            "Bash(git status:*)",
+        ]
+
+    def test_backup_captures_pre_write_content(self, settings_file: Path) -> None:
+        with backed_up_write(path=settings_file) as live_data:
+            live_data["permissions"]["allow"].append("Bash(git status:*)")
+
+        backup = find_latest_backup(settings_file)
+        assert backup is not None
+        assert json.loads(backup.read_text())["permissions"]["allow"] == ["Bash(git log:*)"]
+
+    def test_dry_run_yields_none_and_skips_both_backup_and_write(
+        self, settings_file: Path
+    ) -> None:
+        original = settings_file.read_text()
+
+        with backed_up_write(path=settings_file, dry_run=True) as live_data:
+            assert live_data is None
+
+        assert find_backups(settings_file) == []
+        assert settings_file.read_text() == original
+
+    def test_no_write_when_dry_run_body_correctly_guards_on_none(
+        self, settings_file: Path
+    ) -> None:
+        """A caller that follows the documented ``if live_data is not
+        None:`` contract performs no mutation under dry_run."""
+        original = json.loads(settings_file.read_text())
+
+        with backed_up_write(path=settings_file, dry_run=True) as live_data:
+            if live_data is not None:  # pragma: no cover - dry_run never enters
+                live_data["permissions"]["allow"].append("should-not-appear")
+
+        assert json.loads(settings_file.read_text()) == original

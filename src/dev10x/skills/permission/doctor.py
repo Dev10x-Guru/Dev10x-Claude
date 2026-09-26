@@ -47,6 +47,7 @@ from dev10x.domain.common.baseline_catalog import load_baseline_dict
 from dev10x.domain.common.command_spellings import expand_spellings
 from dev10x.domain.common.policy import Policy, PolicyAssessment, PolicyCatalog, PolicySource
 from dev10x.domain.git_context import GitContext
+from dev10x.skills.permission.backup import backed_up_write
 from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
 from dev10x.skills.permission_investigator.policy_report import render_policy_report
 
@@ -244,19 +245,14 @@ def canonicalize_settings_file(
 
     Operates on ``permissions.allow`` and ``permissions.deny`` lists.
     Dedupes after rewriting — collisions with already-canonical rules
-    collapse silently. The write goes through ``locked_json_update`` +
-    ``create_backup`` so parallel agents cannot clobber each other's
-    rules (GH-572).
+    collapse silently. The write goes through ``backed_up_write`` so
+    parallel agents cannot clobber each other's rules (GH-572).
     """
     result = _canonicalize_in_place(json.loads(settings_path.read_text()))
     if dry_run or not result.changed:
         return result
 
-    from dev10x.skills.permission.backup import create_backup
-    from dev10x.skills.permission.file_lock import locked_json_update
-
-    create_backup(settings_path)
-    with locked_json_update(path=settings_path) as live_data:
+    with backed_up_write(path=settings_path) as live_data:
         return _canonicalize_in_place(live_data)
 
 
@@ -781,11 +777,7 @@ def apply_deprecations_to_files(
                 )
             perms[bucket] = new_rules
         if changes_in_file and not dry_run:
-            from dev10x.skills.permission.backup import create_backup
-            from dev10x.skills.permission.file_lock import locked_json_update
-
-            create_backup(path)
-            with locked_json_update(path=path) as live_data:
+            with backed_up_write(path=path) as live_data:
                 live_perms = live_data.get("permissions", {})
                 for bucket in ("allow", "deny", "ask"):
                     live_rules = live_perms.get(bucket)
@@ -826,11 +818,7 @@ def enable_group_in_files(
         for rule in added_here:
             messages.append(f"  + {rule}")
         if not dry_run:
-            from dev10x.skills.permission.backup import create_backup
-            from dev10x.skills.permission.file_lock import locked_json_update
-
-            create_backup(path)
-            with locked_json_update(path=path) as live_data:
+            with backed_up_write(path=path) as live_data:
                 live_perms = live_data.setdefault("permissions", {})
                 live_allow = live_perms.setdefault("allow", [])
                 live_allow.extend(rule for rule in rule_list if rule not in live_allow)
