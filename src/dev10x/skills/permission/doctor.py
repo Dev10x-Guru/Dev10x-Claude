@@ -917,7 +917,7 @@ def anchor_worktree_roots(
     Returns a :class:`WorktreeAnchorResult` summarising changes made (or that
     would be made on ``dry_run=True``).
     """
-    from dev10x.skills.permission.update_paths import ensure_workspace_directories
+    from dev10x.skills.permission.catalog_write import ensure_workspace_directories
 
     worktrees_parents = discover_worktrees_parents(roots)
     parent_strs = [str(p) for p in worktrees_parents]

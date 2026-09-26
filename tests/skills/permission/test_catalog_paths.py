@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from dev10x.skills.permission import (
+    catalog_load,
     catalog_paths,
     clean_project_files,
     doctor,
@@ -40,6 +41,7 @@ class TestShippedProjectsCatalog:
         # The whole point of GH-1190: a fixed parents[N] walk is correct
         # from a checkout and wrong from an installed wheel, silently.
         modules = (
+            catalog_load,
             clean_project_files,
             doctor,
             merge_worktree_permissions,

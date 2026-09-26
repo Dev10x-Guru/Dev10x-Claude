@@ -23,10 +23,10 @@ from __future__ import annotations
 
 import shutil
 from collections.abc import Generator
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, overload
 
 from dev10x.skills.permission.file_lock import locked_json_update
 
@@ -92,12 +92,27 @@ def restore_report(*, paths: list[Path]) -> tuple[int, str]:
     return 0, "\n".join(lines)
 
 
-@contextmanager
+@overload
+def backed_up_write(
+    path: Path,
+    *,
+    dry_run: Literal[False] = False,
+) -> AbstractContextManager[dict[str, Any]]: ...
+
+
+@overload
+def backed_up_write(
+    path: Path,
+    *,
+    dry_run: bool,
+) -> AbstractContextManager[dict[str, Any] | None]: ...
+
+
 def backed_up_write(
     path: Path,
     *,
     dry_run: bool = False,
-) -> Generator[dict[str, Any] | None, None, None]:
+) -> AbstractContextManager[dict[str, Any] | None]:
     """Back up ``path``, then hold its write lock — or no-op under ``dry_run``.
 
     Owns the whole "back up, then locked read-modify-write" idiom
@@ -128,8 +143,18 @@ def backed_up_write(
 
     Yields:
         The locked live JSON content as a dict, or ``None`` under
-        ``dry_run=True``.
+        ``dry_run=True``. The overloads let a caller that never passes
+        ``dry_run`` see a plain dict, so it needs no ``None`` guard.
     """
+    return _backed_up_write(path=path, dry_run=dry_run)
+
+
+@contextmanager
+def _backed_up_write(
+    *,
+    path: Path,
+    dry_run: bool,
+) -> Generator[dict[str, Any] | None, None, None]:
     if dry_run:
         yield None
         return

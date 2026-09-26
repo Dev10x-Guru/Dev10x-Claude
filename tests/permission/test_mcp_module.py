@@ -23,6 +23,8 @@ perm_mod = pytest.importorskip("dev10x.permission", reason="dev10x not installed
 from dev10x.domain.common.result import ErrorResult, SuccessResult, ok  # noqa: E402
 
 MOD = "dev10x.skills.permission.update_paths"
+# load_effective_config resolves load_config inside catalog_load (GH-1432).
+LOAD = "dev10x.skills.permission.catalog_load"
 
 
 class TestUpdatePathsInProcess:
@@ -31,7 +33,7 @@ class TestUpdatePathsInProcess:
         with (
             patch(f"{MOD}.find_config", return_value=ok(Path("/fake/config.yaml"))),
             patch(
-                f"{MOD}.load_config",
+                f"{LOAD}.load_config",
                 return_value={
                     "roots": ["/fake"],
                     "include_user_settings": True,
@@ -55,7 +57,7 @@ class TestUpdatePathsInProcess:
         with (
             patch(f"{MOD}.find_config", return_value=ok(Path("/fake/config.yaml"))),
             patch(
-                f"{MOD}.load_config",
+                f"{LOAD}.load_config",
                 return_value={
                     "roots": ["/fake"],
                     "include_user_settings": True,
@@ -106,7 +108,7 @@ class TestUpdatePathsSubCommand:
         with (
             patch("dev10x.skills.permission.update_paths.find_config"),
             patch(
-                "dev10x.skills.permission.update_paths.load_config",
+                f"{LOAD}.load_config",
                 return_value={"roots": [], "include_user_settings": False},
             ),
             patch(
@@ -123,7 +125,7 @@ def _resolved_context(*, settings_files: list[Path]) -> object:
     return (
         patch(f"{MOD}.find_config", return_value=ok(Path("/fake/config.yaml"))),
         patch(
-            f"{MOD}.load_config",
+            f"{LOAD}.load_config",
             return_value={
                 "roots": ["/fake"],
                 "include_user_settings": True,

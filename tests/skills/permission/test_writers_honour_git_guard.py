@@ -30,10 +30,30 @@ from dev10x.subprocess_utils import get_plugin_root
 
 _SRC = get_plugin_root() / "src" / "dev10x"
 
-# Parsed once at import: the two trees are byte-identical across all 13
-# parametrized cases, so parsing per case re-read ~27k lines of source for
-# no test-semantic benefit — and the waste grows with every writer added.
-_UPDATE_PATHS_TREE = ast.parse((_SRC / "skills" / "permission" / "update_paths.py").read_text())
+# The catalog operations were split out of update_paths.py by GH-1432, so
+# the writers are derived from every module of the split, merged into one
+# tree: a writer added to any of them lands in the checked set.
+_CATALOG_MODULES = (
+    "update_paths.py",
+    "catalog_load.py",
+    "catalog_rules.py",
+    "catalog_write.py",
+    "catalog_version.py",
+    "catalog_backup.py",
+)
+
+
+def _merged_catalog_tree() -> ast.Module:
+    body: list[ast.stmt] = []
+    for name in _CATALOG_MODULES:
+        body.extend(ast.parse((_SRC / "skills" / "permission" / name).read_text()).body)
+    return ast.Module(body=body, type_ignores=[])
+
+
+# Parsed once at import: the trees are byte-identical across every
+# parametrized case, so parsing per case re-read the source for no
+# test-semantic benefit — and the waste grows with every writer added.
+_UPDATE_PATHS_TREE = _merged_catalog_tree()
 _COMMANDS_TREE = ast.parse((_SRC / "commands" / "permission.py").read_text())
 
 _GUARD_NAMES = frozenset({"partition_writable", "_partition_writable"})

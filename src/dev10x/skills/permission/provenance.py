@@ -17,7 +17,7 @@ from enum import StrEnum
 from pathlib import Path
 
 from dev10x.domain.common.result import Result, err, ok
-from dev10x.skills.permission.update_paths import _load_global_allow_rules
+from dev10x.skills.permission.catalog_write import _load_global_allow_rules
 
 log = logging.getLogger(__name__)
 

@@ -10,6 +10,8 @@ from dev10x.domain.common.result import ErrorResult, SuccessResult, ok
 perm_mod = pytest.importorskip("dev10x.permission", reason="dev10x not installed")
 
 MOD_PATH = "dev10x.skills.permission.update_paths"
+# load_effective_config resolves load_config inside catalog_load (GH-1432).
+LOAD_PATH = "dev10x.skills.permission.catalog_load"
 
 
 class TestUpdatePathsInProcessRoute:
@@ -32,7 +34,7 @@ class TestUpdatePathsInProcessRoute:
     async def test_returns_success_with_change_summary(self) -> None:
         with (
             patch(f"{MOD_PATH}.find_config", return_value=ok(Path("/fake/config.yaml"))),
-            patch(f"{MOD_PATH}.load_config", return_value=self._stub_config()),
+            patch(f"{LOAD_PATH}.load_config", return_value=self._stub_config()),
             patch(f"{MOD_PATH}.find_settings_files", return_value=[Path("/fake/settings.json")]),
             patch(f"{MOD_PATH}.detect_latest_version", return_value="1.0.0"),
             patch(f"{MOD_PATH}.extract_cache_publisher", return_value="Dev10x-Guru"),
@@ -50,7 +52,7 @@ class TestUpdatePathsInProcessRoute:
     async def test_returns_error_when_cache_is_empty(self) -> None:
         with (
             patch(f"{MOD_PATH}.find_config", return_value=ok(Path("/fake/config.yaml"))),
-            patch(f"{MOD_PATH}.load_config", return_value=self._stub_config()),
+            patch(f"{LOAD_PATH}.load_config", return_value=self._stub_config()),
             patch(f"{MOD_PATH}.find_settings_files", return_value=[Path("/fake/settings.json")]),
             patch(f"{MOD_PATH}.detect_latest_version", return_value=None),
         ):
@@ -63,7 +65,7 @@ class TestUpdatePathsInProcessRoute:
     async def test_dry_run_passes_through_to_update_file(self) -> None:
         with (
             patch(f"{MOD_PATH}.find_config", return_value=ok(Path("/fake/config.yaml"))),
-            patch(f"{MOD_PATH}.load_config", return_value=self._stub_config()),
+            patch(f"{LOAD_PATH}.load_config", return_value=self._stub_config()),
             patch(f"{MOD_PATH}.find_settings_files", return_value=[Path("/fake/settings.json")]),
             patch(f"{MOD_PATH}.detect_latest_version", return_value="1.0.0"),
             patch(f"{MOD_PATH}.extract_cache_publisher", return_value=None),
@@ -185,7 +187,7 @@ class TestRunSubCommand:
     def mock_mod(self):
         with (
             patch(f"{MOD_PATH}.find_config") as find_cfg,
-            patch(f"{MOD_PATH}.load_config") as load_cfg,
+            patch(f"{LOAD_PATH}.load_config") as load_cfg,
             patch(f"{MOD_PATH}.find_settings_files") as find_sf,
         ):
             find_cfg.return_value = ok(Path("/fake/config.yaml"))
@@ -337,7 +339,7 @@ class TestRunSubCommand:
     def test_returns_error_when_no_settings_files(self) -> None:
         with (
             patch(f"{MOD_PATH}.find_config") as find_cfg,
-            patch(f"{MOD_PATH}.load_config") as load_cfg,
+            patch(f"{LOAD_PATH}.load_config") as load_cfg,
             patch(f"{MOD_PATH}.find_settings_files") as find_sf,
         ):
             find_cfg.return_value = ok(Path("/fake/config.yaml"))

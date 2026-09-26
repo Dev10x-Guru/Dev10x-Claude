@@ -46,7 +46,7 @@ def project_with_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pa
 
     fake_home = tmp_path
     monkeypatch.setattr(
-        "dev10x.skills.permission.update_paths.Path.home",
+        "dev10x.skills.permission.catalog_write.Path.home",
         classmethod(lambda cls: fake_home),
     )
     monkeypatch.setattr(

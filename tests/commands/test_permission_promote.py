@@ -30,10 +30,11 @@ def env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     project.parent.mkdir(parents=True)
     project.write_text(json.dumps({"permissions": {"allow": [READ_TOOL, DOMAIN_RULE]}}))
 
+    from dev10x.skills.permission import catalog_load
     from dev10x.skills.permission import update_paths as paths_mod
 
     monkeypatch.setattr(paths_mod, "find_config", lambda: ok(tmp_path / "config.yaml"))
-    monkeypatch.setattr(paths_mod, "load_config", lambda _path: {"roots": []})
+    monkeypatch.setattr(catalog_load, "load_config", lambda _path: {"roots": []})
     monkeypatch.setattr(paths_mod, "find_settings_files", lambda **_kw: [project])
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
     return global_settings

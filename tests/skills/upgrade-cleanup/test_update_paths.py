@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from dev10x.skills.permission import update_paths
+from dev10x.skills.permission import catalog_load, update_paths
 from dev10x.skills.permission.update_paths import (
     build_marketplaces_script_rules,
     build_script_allow_rules,
@@ -328,9 +328,9 @@ class TestInitUserspaceConfig:
         memory = tmp_path / "projects.yaml"
         userspace = tmp_path / "upgrade-cleanup-projects.yaml"
         plugin = tmp_path / "plugin-projects.yaml"
-        monkeypatch.setattr(update_paths, "MEMORY_CONFIG", memory)
-        monkeypatch.setattr(update_paths, "USERSPACE_CONFIG", userspace)
-        monkeypatch.setattr(update_paths, "PLUGIN_CONFIG", plugin)
+        monkeypatch.setattr(catalog_load, "MEMORY_CONFIG", memory)
+        monkeypatch.setattr(catalog_load, "USERSPACE_CONFIG", userspace)
+        monkeypatch.setattr(catalog_load, "PLUGIN_CONFIG", plugin)
         return memory, userspace, plugin
 
     def test_noop_when_projects_yaml_exists(self, config_paths: tuple[Path, Path, Path]) -> None:
@@ -363,7 +363,7 @@ class TestInitUserspaceConfig:
     ) -> None:
         memory, _userspace, plugin = config_paths
         plugin.write_text("plugin_cache: ~/.claude/plugins/cache/Dev10x-Guru/dev10x-claude\n")
-        monkeypatch.setattr(update_paths, "_detect_plugin_cache", lambda: "/detected/cache")
+        monkeypatch.setattr(catalog_load, "_detect_plugin_cache", lambda: "/detected/cache")
 
         result = init_userspace_config()
 

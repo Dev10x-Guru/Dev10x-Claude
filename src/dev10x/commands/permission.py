@@ -468,7 +468,7 @@ def ensure_reads(*, dry_run: bool, quiet: bool, allow_tracked: bool) -> None:
 @permission.command()
 def init() -> None:
     """Create userspace config from plugin default."""
-    from dev10x.skills.permission.update_paths import init_userspace_config
+    from dev10x.skills.permission.catalog_load import init_userspace_config
 
     sys.exit(_emit_result(init_userspace_config()))
 
@@ -722,7 +722,7 @@ def promote_plan(
     # that file since GH-1136; this command did not, so a promotion
     # dirtied the tracked file. Same shared helper, so the two commands
     # cannot drift apart again.
-    from dev10x.skills.permission.update_paths import partition_writable
+    from dev10x.skills.permission.catalog_write import partition_writable
 
     write_targets, skip_messages = partition_writable(
         [global_settings],

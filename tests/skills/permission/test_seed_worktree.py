@@ -14,8 +14,8 @@ from pathlib import Path
 import pytest
 
 from dev10x.domain.common.result import ErrorResult, SuccessResult
+from dev10x.skills.permission import catalog_write as mod
 from dev10x.skills.permission import enumerate_mcp
-from dev10x.skills.permission import update_paths as mod
 
 
 @pytest.fixture
@@ -85,7 +85,7 @@ def test_seeds_tilde_rule_with_home_twin(tmp_path: Path, monkeypatch: pytest.Mon
     """Routing through render_permissions now emits the GH-47 /home/<user>/
     twin alongside every ~/ rule (the one intended diff vs the flat shim)."""
     monkeypatch.setattr(
-        "dev10x.skills.permission.update_paths.Path.home",
+        "dev10x.skills.permission.catalog_write.Path.home",
         lambda: Path("/home/tester"),
     )
     config = {"base_permissions": ["Read(~/.claude/memory/**)"], "base_denies": []}
