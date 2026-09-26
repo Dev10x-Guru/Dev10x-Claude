@@ -26,6 +26,7 @@ from __future__ import annotations
 from typing import Any
 
 from dev10x.domain.common.result import Result, err
+from dev10x.domain.documents.session_yaml import PinScope
 from dev10x.domain.gate_policy import (
     SUPERVISOR_REVIEW_NONE,
     SUPERVISOR_REVIEW_REQUIRED,
@@ -41,7 +42,7 @@ SUPERVISOR_REVIEW_VALUES: tuple[str, ...] = (
 def pin_supervisor_review(
     *,
     supervisor_review: str,
-    scope: str = "repo",
+    scope: PinScope | str = PinScope.default(),
     cwd: str | None = None,
 ) -> Result[dict[str, Any]]:
     """Persist the project's supervisor-review posture into ``friction.yaml``.

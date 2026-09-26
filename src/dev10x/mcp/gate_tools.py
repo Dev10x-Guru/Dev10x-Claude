@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from dev10x.domain.common.result import ErrorResult, Result, err, ok, to_wire
+from dev10x.domain.documents.session_yaml import PinScope
 from dev10x.domain.file_locks import atomic_append_line
 from dev10x.mcp._app import server
 
@@ -273,7 +274,7 @@ async def pin_gate_preset(
     preset: str,
     overlays: list[str] | None = None,
     gate_overrides: dict | None = None,
-    scope: str = "repo",
+    scope: PinScope = PinScope.default(),
     cwd: str | None = None,
 ) -> dict:
     """Persist a Phase-0 preset choice to the global friction.yaml (GH-855).
@@ -289,8 +290,8 @@ async def pin_gate_preset(
         preset: Gate preset to pin (strict | guided | adaptive).
         overlays: Overlay names layered on the preset (e.g. ["solo-maintainer"]).
         gate_overrides: Per-toggle deviations, e.g. {"merge": "ask"}.
-        scope: "repo" (default — repo + all present/future worktrees),
-            "repo-only" (main checkout only), or "dir" (this directory).
+        scope: Pin scope — see ``PinScope`` (GH-1452) for the three
+            values and what each covers.
         cwd: Effective working directory (GH-979).
 
     Returns:
@@ -341,7 +342,7 @@ async def tracker_status(cwd: str | None = None) -> dict:
 @server.tool()
 async def pin_tracker(
     tracker: str,
-    scope: str = "repo",
+    scope: PinScope = PinScope.default(),
     cwd: str | None = None,
 ) -> dict:
     """Persist the project's issue tracker to the global friction.yaml (GH-768).
@@ -358,8 +359,8 @@ async def pin_tracker(
     Args:
         tracker: One of "linear", "jira", "github". An unrecognised value
             is an error, not a silent fallback to the default.
-        scope: "repo" (default — repo + all present/future worktrees),
-            "repo-only" (main checkout only), or "dir" (this directory).
+        scope: Pin scope — see ``PinScope`` (GH-1452) for the three
+            values and what each covers.
         cwd: Effective working directory (GH-979).
 
     Returns:
@@ -405,7 +406,7 @@ async def ide_status(cwd: str | None = None) -> dict:
 @server.tool()
 async def pin_ide(
     ide: str,
-    scope: str = "repo",
+    scope: PinScope = PinScope.default(),
     cwd: str | None = None,
 ) -> dict:
     """Persist the project's IDE to the global friction.yaml (GH-1261).
@@ -426,8 +427,8 @@ async def pin_ide(
         ide: "pycharm" or "none". An unrecognised value is an error,
             not a silent fallback to "none" — a typo would otherwise
             surface only as an IDE whose tools never stopped prompting.
-        scope: "repo" (default — repo + all present/future worktrees),
-            "repo-only" (main checkout only), or "dir" (this directory).
+        scope: Pin scope — see ``PinScope`` (GH-1452) for the three
+            values and what each covers.
         cwd: Effective working directory (GH-979).
 
     Returns:
@@ -445,7 +446,7 @@ async def pin_ide(
 @server.tool()
 async def pin_supervisor_review(
     supervisor_review: str,
-    scope: str = "repo",
+    scope: PinScope = PinScope.default(),
     cwd: str | None = None,
 ) -> dict:
     """Persist the project's supervisor-review posture to friction.yaml (ADR-0022 D-2, GH-1165).
@@ -468,8 +469,8 @@ async def pin_supervisor_review(
     Args:
         supervisor_review: "required" or "none". An unrecognised value is
             an error, not a silent fallback to "required".
-        scope: "repo" (default — repo + all present/future worktrees),
-            "repo-only" (main checkout only), or "dir" (this directory).
+        scope: Pin scope — see ``PinScope`` (GH-1452) for the three
+            values and what each covers.
         cwd: Effective working directory (GH-979).
 
     Returns:

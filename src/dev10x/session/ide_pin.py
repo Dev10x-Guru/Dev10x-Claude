@@ -16,7 +16,7 @@ from typing import Any
 
 from dev10x.domain.common.ide_choice import Ide, parse_ide
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.domain.documents.session_yaml import FrictionYamlDocument
+from dev10x.domain.documents.session_yaml import FrictionYamlDocument, PinScope
 from dev10x.session.preset_pin import (
     pin_project_prefs,
     probe_path,
@@ -29,7 +29,7 @@ IDE_VALUES: tuple[str, ...] = tuple(ide.value for ide in Ide)
 def pin_ide(
     *,
     ide: str,
-    scope: str = "repo",
+    scope: PinScope | str = PinScope.default(),
     cwd: str | None = None,
 ) -> Result[dict[str, Any]]:
     """Persist the project's IDE into the global ``friction.yaml``.

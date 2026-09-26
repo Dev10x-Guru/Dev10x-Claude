@@ -27,6 +27,7 @@ from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.domain.documents.session_yaml import (
     PIN_SCOPES,
     FrictionYamlDocument,
+    PinScope,
     match_globs_for_repo,
     repo_stem,
     upsert_project_prefs,
@@ -227,7 +228,7 @@ def pin_preset(
     preset: str,
     overlays: list[str] | None = None,
     gate_overrides: dict[str, str] | None = None,
-    scope: str = "repo",
+    scope: PinScope | str = PinScope.default(),
     cwd: str | None = None,
 ) -> Result[dict[str, Any]]:
     """Persist a Phase-0 preset pick into the global ``friction.yaml`` (GH-855).
@@ -242,7 +243,9 @@ def pin_preset(
     Every value is validated here rather than at the CLI, so the MCP entry
     point gets the same fail-fast guarantee (see :func:`validate_pin_values`).
     """
-    if scope not in PIN_SCOPES:
+    try:
+        scope = PinScope(scope)
+    except ValueError:
         return err(f"unknown pin scope {scope!r}; expected one of {list(PIN_SCOPES)}")
 
     invalid = validate_pin_values(preset=preset, overlays=overlays, gate_overrides=gate_overrides)
@@ -261,7 +264,7 @@ def pin_preset(
 def pin_project_prefs(
     *,
     prefs: dict[str, Any],
-    scope: str = "repo",
+    scope: PinScope | str = PinScope.default(),
     cwd: str | None = None,
 ) -> Result[dict[str, Any]]:
     """Upsert durable prefs for this repo into the global ``friction.yaml``.
@@ -273,7 +276,9 @@ def pin_project_prefs(
     behind. Nothing is ever written under a repo's ``.claude/``
     (ADR-0018).
     """
-    if scope not in PIN_SCOPES:
+    try:
+        scope = PinScope(scope)
+    except ValueError:
         return err(f"unknown pin scope {scope!r}; expected one of {list(PIN_SCOPES)}")
 
     identity_result = resolve_repo_identity(cwd=cwd)
