@@ -235,21 +235,6 @@ class SessionYamlDocument:
         """
         return _coerce_allowed_overlays(self._durable().get("allowed_overlays"))
 
-    def read_human_review(self) -> bool:
-        """Deprecated alias for :meth:`read_supervisor_review` (ADR-0022 D-2).
-
-        ``human_review``'s name conflates two different readers — the session
-        supervisor and the wider team — which is why it could only ever gate
-        ``merge``: it had no way to express "the supervisor reads it first,
-        *then* we ask the team". ``supervisor_review`` splits them.
-
-        Retained until its removal version in
-        :mod:`dev10x.domain.deprecations`.
-        ``required`` maps to ``True``, ``none`` to ``False``, preserving the
-        boolean's polarity and its unset → ``True`` safe direction.
-        """
-        return self.read_supervisor_review() == SUPERVISOR_REVIEW_REQUIRED
-
     def read_supervisor_review(self, *, data: dict[str, Any] | None = None) -> str:
         """Return whether the supervisor reads this PR first (ADR-0022 D-2).
 
