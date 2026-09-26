@@ -156,6 +156,20 @@ AWAITING_MOVE = frozenset(
         "_current_label_names",
         "pr_labels",
         "issue_labels",
+        "issue_get",
+        "issue_comments",
+        "issue_create",
+        "_issue_result",
+        "issue_edit",
+        "_CLOSE_REASON_GH_VALUE",
+        "issue_close",
+        "issue_reopen",
+        "_resolve_comment_body",
+        "issue_comment",
+        "issue_comment_edit",
+        "issue_comment_delete",
+        "issue_list",
+        "triage_roster",
     }
 )
 
