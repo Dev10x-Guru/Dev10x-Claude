@@ -552,71 +552,51 @@ def clean(
     else:
         click.echo()
 
-    total_removed = 0
-    total_kept = 0
-    files_changed = 0
-    total_secrets = 0
-    total_global_dedup = 0
+    run = mod.run_clean(
+        settings_files=settings_files,
+        global_rules=global_rules,
+        current_version=current_version,
+        base_permissions=base_permissions,
+        cache_root=cache_root,
+        dry_run=dry_run,
+        verbose=verbose,
+        skip_global_dedup=skip_global_dedup,
+    )
 
-    for path in sorted(settings_files):
-        result, messages = mod.clean_file(
-            path,
-            global_rules=global_rules,
-            current_version=current_version,
-            base_permissions=base_permissions,
-            cache_root=cache_root,
-            dry_run=dry_run,
-            verbose=verbose,
-            skip_global_dedup=skip_global_dedup,
-        )
-        if result is None:
-            click.echo(f"\n{path}")
-            for msg in messages:
+    for outcome in run.outcomes:
+        if outcome.result is None:
+            click.echo(f"\n{outcome.path}")
+            for msg in outcome.messages:
                 click.echo(msg)
             continue
-
-        has_findings = (
-            result.total_removed > 0
-            or result.leaked_secrets
-            or result.wildcard_bypasses
-            or result.allow_deny_contradictions
-            or result.ask_shadowed_by_allow
-        )
-        if has_findings:
-            if summary and result.total_removed > 0 and not result.leaked_secrets:
-                click.echo(f"{path}: {result.total_removed} removed")
-            else:
-                click.echo(f"\n{path}")
-                for msg in messages:
-                    click.echo(msg)
-            total_removed += result.total_removed
-            total_kept += len(result.kept)
-            total_secrets += len(result.leaked_secrets)
-            total_global_dedup += len(result.exact_duplicates)
-            if result.total_removed > 0:
-                files_changed += 1
+        if not outcome.has_findings:
+            continue
+        if summary and outcome.result.total_removed > 0 and not outcome.result.leaked_secrets:
+            click.echo(f"{outcome.path}: {outcome.result.total_removed} removed")
         else:
-            total_kept += len(result.kept)
+            click.echo(f"\n{outcome.path}")
+            for msg in outcome.messages:
+                click.echo(msg)
 
     click.echo()
-    if total_removed == 0:
+    if run.total_removed == 0:
         click.echo("All project files are clean.")
     else:
         verb = "Would remove" if dry_run else "Removed"
-        click.echo(f"{verb} {total_removed} rules across {files_changed} files.")
-        click.echo(f"Kept {total_kept} rules total.")
+        click.echo(f"{verb} {run.total_removed} rules across {run.files_changed} files.")
+        click.echo(f"Kept {run.total_kept} rules total.")
 
-    if total_global_dedup > 0 and not skip_global_dedup:
+    if run.total_global_dedup > 0 and not skip_global_dedup:
         click.echo(
-            f"\n⚠  WARNING: {total_global_dedup} rules removed as exact duplicates of global"
+            f"\n⚠  WARNING: {run.total_global_dedup} rules removed as exact duplicates of global"
             " rules (--aggressive). Global→project rule inheritance is NOT guaranteed when a"
             " project has its own settings.local.json (finding #47). If new permission prompts"
             " appear, recover with `dev10x permission clean --restore`."
         )
 
-    if total_secrets > 0:
+    if run.total_secrets > 0:
         click.echo(
-            f"\n⚠ Found {total_secrets} rules containing leaked secrets."
+            f"\n⚠ Found {run.total_secrets} rules containing leaked secrets."
             " Review and rotate affected credentials."
         )
 

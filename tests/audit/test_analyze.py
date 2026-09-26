@@ -112,7 +112,7 @@ class TestBuildAuditReportHookDenials:
 
 class TestAuditReportRender:
     def test_render_markdown_includes_findings_table(self, tmp_path) -> None:
-        from dev10x.audit.permissions_model import Finding
+        from dev10x.audit.friction_transcript_model import Finding
 
         report = analyze.AuditReport(
             findings=[
@@ -136,7 +136,7 @@ class TestAuditReportRender:
 
 class TestCountNuisancePatterns:
     def _missing_rule(self, *, index: int) -> object:
-        from dev10x.audit.permissions_model import Finding
+        from dev10x.audit.friction_transcript_model import Finding
 
         return Finding(
             index=index,
@@ -149,7 +149,7 @@ class TestCountNuisancePatterns:
         )
 
     def test_reclassifies_repeated_missing_rules_without_mutation(self) -> None:
-        from dev10x.audit.permissions_model import count_nuisance_patterns
+        from dev10x.audit.friction_transcript_model import count_nuisance_patterns
 
         findings = [self._missing_rule(index=i) for i in range(3)]
 
@@ -160,7 +160,7 @@ class TestCountNuisancePatterns:
         assert all(f.classification == "MISSING_RULE" for f in findings)
 
     def test_below_threshold_finding_is_unchanged(self) -> None:
-        from dev10x.audit.permissions_model import count_nuisance_patterns
+        from dev10x.audit.friction_transcript_model import count_nuisance_patterns
 
         result = count_nuisance_patterns([self._missing_rule(index=0)])
 

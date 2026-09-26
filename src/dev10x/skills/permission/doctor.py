@@ -35,7 +35,7 @@ import dataclasses
 import json
 import logging
 import re
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -619,6 +619,57 @@ class DeprecationOutcome:
         return PolicyAssessment(kind="doctor-deprecation", verdict=verdict, note=self.reason)
 
 
+def _apply_remove(
+    *, rule: str, entry: dict[str, Any], pattern: re.Pattern[str] | None, reason: str
+) -> tuple[DeprecationOutcome, str | None]:
+    return DeprecationOutcome(rule=rule, action="remove", reason=reason), None
+
+
+def _apply_canonicalize(
+    *, rule: str, entry: dict[str, Any], pattern: re.Pattern[str] | None, reason: str
+) -> tuple[DeprecationOutcome, str | None]:
+    replacement = canonicalize_rule(rule) or rule
+    outcome = DeprecationOutcome(
+        rule=rule, action="canonicalize", replacement=replacement, reason=reason
+    )
+    return outcome, replacement
+
+
+def _apply_rewrite(
+    *, rule: str, entry: dict[str, Any], pattern: re.Pattern[str] | None, reason: str
+) -> tuple[DeprecationOutcome, str | None]:
+    substitution = entry.get("replacement")
+    if substitution is None or pattern is None:
+        # Misconfigured entry (no replacement) — keep the rule.
+        return DeprecationOutcome(rule=rule, action="rewrite", reason=reason), rule
+    # Dedup: a Write(X) rewrite collapses onto an existing Edit(X).
+    rewritten = pattern.sub(substitution, rule)
+    outcome = DeprecationOutcome(rule=rule, action="rewrite", replacement=rewritten, reason=reason)
+    return outcome, rewritten
+
+
+def _apply_unknown(
+    *, rule: str, entry: dict[str, Any], pattern: re.Pattern[str] | None, reason: str
+) -> tuple[DeprecationOutcome, str | None]:
+    action = entry.get("action", "remove")
+    return DeprecationOutcome(rule=rule, action=action, reason=reason), rule
+
+
+# One handler per catalog `action` value, mirroring validators/registry.py's
+# strategy-per-concern shape (GH-1442). Each handler returns the outcome to
+# record and the replacement rule to keep (or None to drop it); the shared
+# append-and-dedup tail that used to be repeated after every branch now
+# lives once, in apply_deprecations.
+_DEPRECATION_HANDLERS: dict[
+    str,
+    Callable[..., tuple[DeprecationOutcome, str | None]],
+] = {
+    "remove": _apply_remove,
+    "canonicalize": _apply_canonicalize,
+    "rewrite": _apply_rewrite,
+}
+
+
 def apply_deprecations(
     rules: Iterable[str],
     *,
@@ -655,51 +706,14 @@ def apply_deprecations(
             continue
         action = matched_entry.get("action", "remove")
         reason = matched_entry.get("reason", "")
-        if action == "remove":
-            outcomes.append(DeprecationOutcome(rule=rule, action="remove", reason=reason))
-            continue
-        if action == "canonicalize":
-            replacement = canonicalize_rule(rule) or rule
-            outcomes.append(
-                DeprecationOutcome(
-                    rule=rule,
-                    action="canonicalize",
-                    replacement=replacement,
-                    reason=reason,
-                )
-            )
-            if replacement not in seen:
-                output.append(replacement)
-                seen.add(replacement)
-            continue
-        if action == "rewrite":
-            substitution = matched_entry.get("replacement")
-            if substitution is None or matched_pattern is None:
-                # Misconfigured entry (no replacement) — keep the rule.
-                outcomes.append(DeprecationOutcome(rule=rule, action=action, reason=reason))
-                if rule not in seen:
-                    output.append(rule)
-                    seen.add(rule)
-                continue
-            rewritten = matched_pattern.sub(substitution, rule)
-            outcomes.append(
-                DeprecationOutcome(
-                    rule=rule,
-                    action="rewrite",
-                    replacement=rewritten,
-                    reason=reason,
-                )
-            )
-            # Dedup: a Write(X) rewrite collapses onto an existing Edit(X).
-            if rewritten not in seen:
-                output.append(rewritten)
-                seen.add(rewritten)
-            continue
-        # Unknown action — keep the rule, flag the outcome.
-        outcomes.append(DeprecationOutcome(rule=rule, action=action, reason=reason))
-        if rule not in seen:
-            output.append(rule)
-            seen.add(rule)
+        handler = _DEPRECATION_HANDLERS.get(action, _apply_unknown)
+        outcome, replacement = handler(
+            rule=rule, entry=matched_entry, pattern=matched_pattern, reason=reason
+        )
+        outcomes.append(outcome)
+        if replacement is not None and replacement not in seen:
+            output.append(replacement)
+            seen.add(replacement)
     return output, outcomes
 
 

@@ -5,6 +5,16 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class RepositoryRef:
+    """A GitHub ``owner/name`` coordinate — a value object, not a Repository.
+
+    Despite the name, this carries no ``add``/``find``/persistence surface
+    and is one token away from the Fowler Repository pattern elsewhere in
+    this codebase (``dev10x.platform.registry.PlatformRepository``). It is
+    a frozen pair of strings identifying *which* repo, analogous to a URL —
+    never a collection you query. See ``domain/documents/__init__.py`` for
+    where the actual Repository role in this codebase lives.
+    """
+
     owner: str
     name: str
 

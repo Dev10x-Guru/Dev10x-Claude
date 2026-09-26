@@ -70,6 +70,30 @@ class RunCandidate:
             "newest_heartbeat": self.newest_heartbeat,
         }
 
+    def wake_reason(self, *, quota: dict[str, Any]) -> str | None:
+        """Why this candidate should be woken now, or None to leave it.
+
+        Two conditions, because "no block is active" is too strict on its
+        own (GH-1109 review). If the operator — or any unrelated session —
+        touches Claude minutes after a reset, a block opens and the paused
+        night run would otherwise stay asleep for that block's full five
+        hours, which is precisely the window this tool was built for.
+        """
+        if quota.get("block_available"):
+            return "no active block — capacity is free"
+        active = quota.get("active_block")
+        if not isinstance(active, dict):
+            return None
+        started = _parse_iso(active.get("startTime"))
+        if started is None:
+            return None
+        if started > self.last_heartbeat_at:
+            # The run was already silent when this block opened, so the
+            # block belongs to someone else and its capacity is going
+            # unused by the run that is waiting for it.
+            return "a new block opened after this run went silent"
+        return None
+
 
 def _iso(moment: datetime) -> str:
     return moment.astimezone(UTC).isoformat().replace("+00:00", "Z")
@@ -102,7 +126,7 @@ def quota_state(*, now: datetime | None = None) -> Result[dict[str, Any]]:
     Note ``block_available`` alone is NOT the whole wake condition: a
     block opened by some *other* session after the run went silent also
     means capacity the paused run could be using. :func:`wake` combines
-    the two — see :func:`_wake_reason`.
+    the two — see :meth:`RunCandidate.wake_reason`.
     """
     from dev10x.domain.usage import blocks_report
 
@@ -139,12 +163,38 @@ def find_paused_runs(
     cannot. A directory with no heartbeat files at all is skipped rather
     than reported: it has not started, so there is nothing to wake.
     """
+    # A watchdog with nowhere to look would report "nothing paused" and
+    # exit 0 forever — indistinguishable from working. Fail loud instead;
+    # a silently-never-firing timer is the exact failure class this tool
+    # exists to remove.
+    result = _find_paused_run_candidates(run_roots=run_roots, now=now, stale_after=stale_after)
+    if isinstance(result, ErrorResult):
+        return err(result.error, candidates=[], count=0)
+    candidates = result.value
+    return ok(
+        {
+            "candidates": [c.as_dict() for c in candidates],
+            "count": len(candidates),
+        }
+    )
+
+
+def _find_paused_run_candidates(
+    *,
+    run_roots: list[Path],
+    now: datetime | None = None,
+    stale_after: timedelta = DEFAULT_STALE_AFTER,
+) -> Result[list[RunCandidate]]:
+    """Typed sibling of :func:`find_paused_runs` (GH-1442).
+
+    ``find_paused_runs`` is the wire-facing entry point and must keep
+    returning a dict payload; this is the seam :func:`wake` uses to keep
+    working with :class:`RunCandidate` objects instead of re-parsing the
+    ISO timestamp back out of the dict :meth:`RunCandidate.as_dict`
+    already flattened.
+    """
     if not run_roots:
-        # A watchdog with nowhere to look would report "nothing paused"
-        # and exit 0 forever — indistinguishable from working. Fail loud
-        # instead; a silently-never-firing timer is the exact failure
-        # class this tool exists to remove.
-        return err("no run roots configured", candidates=[], count=0)
+        return err("no run roots configured")
 
     moment = now or datetime.now(UTC)
     candidates: list[RunCandidate] = []
@@ -156,12 +206,7 @@ def find_paused_runs(
             candidate = _inspect_run(run_dir=run_dir, now=moment, stale_after=stale_after)
             if candidate is not None:
                 candidates.append(candidate)
-    return ok(
-        {
-            "candidates": [c.as_dict() for c in candidates],
-            "count": len(candidates),
-        }
-    )
+    return ok(candidates)
 
 
 def _inspect_run(*, run_dir: Path, now: datetime, stale_after: timedelta) -> RunCandidate | None:
@@ -210,32 +255,6 @@ def _block_key(quota: dict[str, Any]) -> str:
     return f"gap:{stamp}"
 
 
-def _wake_reason(*, quota: dict[str, Any], candidate: dict[str, Any]) -> str | None:
-    """Why this candidate should be woken now, or None to leave it.
-
-    Two conditions, because "no block is active" is too strict on its
-    own (GH-1109 review). If the operator — or any unrelated session —
-    touches Claude minutes after a reset, a block opens and the paused
-    night run would otherwise stay asleep for that block's full five
-    hours, which is precisely the window this tool was built for.
-    """
-    if quota.get("block_available"):
-        return "no active block — capacity is free"
-    active = quota.get("active_block")
-    if not isinstance(active, dict):
-        return None
-    started = _parse_iso(active.get("startTime"))
-    last_seen = _parse_iso(candidate.get("last_heartbeat_at"))
-    if started is None or last_seen is None:
-        return None
-    if started > last_seen:
-        # The run was already silent when this block opened, so the block
-        # belongs to someone else and its capacity is going unused by the
-        # run that is waiting for it.
-        return "a new block opened after this run went silent"
-    return None
-
-
 def wake(
     *,
     run_roots: list[Path],
@@ -261,12 +280,12 @@ def wake(
         return quota
     quota_value: dict[str, Any] = quota.value
 
-    found = find_paused_runs(run_roots=run_roots, now=now, stale_after=stale_after)
+    found = _find_paused_run_candidates(run_roots=run_roots, now=now, stale_after=stale_after)
     if isinstance(found, ErrorResult):
         return found
 
     block_key = _block_key(quota_value)
-    candidates: list[dict[str, Any]] = found.value["candidates"]
+    candidates: list[RunCandidate] = found.value
     try:
         return ok(
             _wake_candidates(
@@ -286,7 +305,7 @@ def wake(
 
 def _wake_candidates(
     *,
-    candidates: list[dict[str, Any]],
+    candidates: list[RunCandidate],
     quota: dict[str, Any],
     block_key: str,
     wake_command: list[str],
@@ -311,8 +330,8 @@ def _wake_candidates(
         data = _load_latch(path)
         entries: dict[str, Any] = data.setdefault("woken", {})
         for candidate in candidates:
-            run_dir = candidate["run_dir"]
-            reason = _wake_reason(quota=quota, candidate=candidate)
+            run_dir = str(candidate.run_dir)
+            reason = candidate.wake_reason(quota=quota)
             if reason is None:
                 skipped.append({"run_dir": run_dir, "reason": "block still active"})
                 continue

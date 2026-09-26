@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from dev10x.audit.permissions_model import (
+from dev10x.audit.friction_transcript_model import (
     ToolCall,
     detect_hook_denials,
     detect_known_friction,
