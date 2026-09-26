@@ -19,7 +19,7 @@ from typing import Any
 
 import pytest
 
-_GITHUB_MODULE = Path(__file__).parents[2] / "src" / "dev10x" / "github" / "__init__.py"
+_GITHUB_MODULE = Path(__file__).parents[2] / "src" / "dev10x" / "github" / "reviews.py"
 _SKILLS_GH_CONTEXT = Path(__file__).parents[2] / "skills" / "gh-context" / "scripts"
 
 # ---------------------------------------------------------------------------
@@ -210,7 +210,7 @@ class TestGraphqlStaticContractLint:
     def test_extracts_graphql_fragments(self, graphql_fragments: list[str]) -> None:
         """At least one GraphQL fragment must be extractable from the source."""
         assert len(graphql_fragments) > 0, (
-            "No GraphQL fragments found in github/__init__.py. "
+            "No GraphQL fragments found in github/reviews.py. "
             "If the module was refactored, update the extraction logic in this test."
         )
 
@@ -249,7 +249,7 @@ class TestGraphqlStaticContractLint:
         """
         query_parts = [f for f in graphql_fragments if "reviewThreads" in f]
         assert query_parts, (
-            "No fragment containing 'reviewThreads(' found in github/__init__.py. "
+            "No fragment containing 'reviewThreads(' found in github/reviews.py. "
             "If the query was moved or renamed, update this test."
         )
         combined = " ".join(query_parts)
@@ -318,7 +318,7 @@ class TestGraphqlStaticContractLint:
         """
         inline_parts = [f for f in graphql_fragments if "PullRequestReviewComment" in f]
         assert inline_parts, (
-            "No PullRequestReviewComment inline fragment found in github/__init__.py."
+            "No PullRequestReviewComment inline fragment found in github/reviews.py."
         )
         combined = " ".join(inline_parts)
         # databaseId must be present — it is the lookup key used in GH-329 fix
