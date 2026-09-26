@@ -16,7 +16,7 @@ from dev10x.skills.notifications import gchat_notify as mod
 
 @pytest.fixture(autouse=True)
 def _reset_config_cache() -> None:
-    mod._config = None
+    mod._config_holder.reset()
 
 
 class TestResolveSpaceId:
@@ -71,7 +71,7 @@ class TestLoadConfig:
         monkeypatch.setenv("DEV10X_CONFIG_HOME", str(tmp_path))
         config_path = tmp_path / "gchat-config.yaml"  # type: ignore[operator]
         config_path.write_text("spaces:\n  tt-reviews:\n    space_id: AAAA123\n")
-        mod._config = None
+        mod._config_holder.reset()
         assert mod._load_config() == {"spaces": {"tt-reviews": {"space_id": "AAAA123"}}}
         assert mod._get_config() == {"spaces": {"tt-reviews": {"space_id": "AAAA123"}}}
 
@@ -79,7 +79,7 @@ class TestLoadConfig:
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: object
     ) -> None:
         monkeypatch.setenv("DEV10X_CONFIG_HOME", str(tmp_path))
-        mod._config = None
+        mod._config_holder.reset()
         assert mod._load_config() == {}
 
 

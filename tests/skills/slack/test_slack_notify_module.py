@@ -15,6 +15,7 @@ import urllib.request
 import pytest
 
 from dev10x.domain.common.result import ErrorResult, ok
+from dev10x.domain.common.singleton_holder import SingletonHolder
 from dev10x.skills.notifications import slack_notify as mod
 
 
@@ -32,8 +33,8 @@ def reset_state(monkeypatch: pytest.MonkeyPatch) -> None:
     GH-1423: sleeps are made free rather than the retry disabled, so the
     tests below still exercise the real attempt count.
     """
-    monkeypatch.setattr(mod, "_config", {})
-    monkeypatch.setattr(mod, "_active_workspace", None)
+    monkeypatch.setattr(mod, "_config_holder", SingletonHolder(default={}))
+    monkeypatch.setattr(mod, "_active_workspace_holder", SingletonHolder())
     monkeypatch.setattr(mod.time, "sleep", lambda _seconds: None)
     monkeypatch.delenv("SLACK_TOKEN", raising=False)
     monkeypatch.delenv("SLACK_SELF_USER_ID", raising=False)
@@ -106,8 +107,10 @@ class TestGetToken:
     ) -> None:
         monkeypatch.setattr(
             mod,
-            "_config",
-            {"workspaces": {"aperture": {"keyring_service": "custom-aperture"}}},
+            "_config_holder",
+            SingletonHolder(
+                default={"workspaces": {"aperture": {"keyring_service": "custom-aperture"}}}
+            ),
         )
         looked_up: list[str] = []
 
@@ -169,7 +172,7 @@ class TestWorkspaceConfigResolution:
         monkeypatch: pytest.MonkeyPatch,
         config: dict,
     ) -> None:
-        monkeypatch.setattr(mod, "_config", config)
+        monkeypatch.setattr(mod, "_config_holder", SingletonHolder(default=config))
         assert mod._self_user_id() == "U_DEFAULT"
         assert mod._bot_username() == "Default Bot"
         assert mod._user_groups() == {"@default-team": "<!subteam^S_DEFAULT>"}
@@ -179,7 +182,7 @@ class TestWorkspaceConfigResolution:
         monkeypatch: pytest.MonkeyPatch,
         config: dict,
     ) -> None:
-        monkeypatch.setattr(mod, "_config", config)
+        monkeypatch.setattr(mod, "_config_holder", SingletonHolder(default=config))
         mod.set_workspace("aperture")
         assert mod._self_user_id() == "U_APERTURE"
         assert mod._bot_username() == "Aperture Bot"
@@ -190,7 +193,7 @@ class TestWorkspaceConfigResolution:
         monkeypatch: pytest.MonkeyPatch,
         config: dict,
     ) -> None:
-        monkeypatch.setattr(mod, "_config", config)
+        monkeypatch.setattr(mod, "_config_holder", SingletonHolder(default=config))
         mod.set_workspace("ghost")
         assert mod._bot_username() == "Default Bot"
         assert mod._self_user_id() == "U_DEFAULT"
@@ -200,7 +203,7 @@ class TestWorkspaceConfigResolution:
         monkeypatch: pytest.MonkeyPatch,
         config: dict,
     ) -> None:
-        monkeypatch.setattr(mod, "_config", config)
+        monkeypatch.setattr(mod, "_config_holder", SingletonHolder(default=config))
         monkeypatch.setenv("SLACK_SELF_USER_ID", "U_FROM_ENV")
         mod.set_workspace("aperture")
         assert mod._self_user_id() == "U_FROM_ENV"
@@ -213,13 +216,15 @@ class TestResolveMentions:
     ) -> None:
         monkeypatch.setattr(
             mod,
-            "_config",
-            {
-                "user_groups": {"@default": "<!subteam^S_DEF>"},
-                "workspaces": {
-                    "aperture": {"user_groups": {"@aperture": "<!subteam^S_APE>"}},
-                },
-            },
+            "_config_holder",
+            SingletonHolder(
+                default={
+                    "user_groups": {"@default": "<!subteam^S_DEF>"},
+                    "workspaces": {
+                        "aperture": {"user_groups": {"@aperture": "<!subteam^S_APE>"}},
+                    },
+                }
+            ),
         )
         mod.set_workspace("aperture")
         assert mod.resolve_mentions("ping @aperture") == "ping <!subteam^S_APE>"
@@ -647,7 +652,11 @@ class TestHttpFallbackTransport:
         monkeypatch: pytest.MonkeyPatch,
         api_calls: list[dict],
     ) -> None:
-        monkeypatch.setattr(mod, "_config", {"user_groups": {"@team": "<!subteam^S1>"}})
+        monkeypatch.setattr(
+            mod,
+            "_config_holder",
+            SingletonHolder(default={"user_groups": {"@team": "<!subteam^S1>"}}),
+        )
         mod.send_slack_message(channel="C1", message="ping @team")
         assert api_calls[0]["payload"]["text"] == "ping <!subteam^S1>"
 
@@ -794,7 +803,7 @@ class TestNotifySlack:
         monkeypatch.setattr(mod, "send_slack_message", fake_send)
         result = mod.notify_slack(channel="C1", message="hi", workspace="aperture")
         assert result == ok("9.9")
-        assert mod._active_workspace == "aperture"
+        assert mod._active_workspace_holder.get() == "aperture"
         assert captured["channel"] == "C1"
         assert captured["message"] == "hi"
 
@@ -805,7 +814,7 @@ class TestNotifySlack:
         monkeypatch.setattr(mod, "send_slack_message", lambda **_: ok("1.0"))
         result = mod.notify_slack(channel="C1", message="hi")
         assert result == ok("1.0")
-        assert mod._active_workspace is None
+        assert mod._active_workspace_holder.get() is None
 
 
 class TestUvxEnvImportSmoke:

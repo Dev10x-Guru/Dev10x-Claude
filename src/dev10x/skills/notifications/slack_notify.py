@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING, Any
 
 from dev10x import subprocess_utils
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.domain.common.singleton_holder import SingletonHolder
 from dev10x.domain.dead_letter import record_undelivered
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.retry import RetryPolicy, is_retryable_status
@@ -49,8 +50,8 @@ SLACK_API_BASE = "https://slack.com/api"
 _SLACK_RETRY_POLICY = RetryPolicy()
 _HTTP_TIMEOUT_SECONDS = 30
 
-_active_workspace: str | None = None
-_config: dict | None = None
+_active_workspace_holder: SingletonHolder[str] = SingletonHolder()
+_config_holder: SingletonHolder[dict] = SingletonHolder()
 
 
 def _config_path() -> Path:
@@ -67,23 +68,24 @@ def _load_config() -> dict:
 
 
 def _get_config() -> dict:
-    global _config
-    if _config is None:
-        _config = _load_config()
-    return _config
+    config = _config_holder.get()
+    if config is None:
+        config = _load_config()
+        _config_holder.set(config)
+    return config
 
 
 def _workspace_config() -> dict:
-    if _active_workspace is None:
+    active_workspace = _active_workspace_holder.get()
+    if active_workspace is None:
         return {}
     workspaces = _get_config().get("workspaces", {}) or {}
-    return workspaces.get(_active_workspace, {}) or {}
+    return workspaces.get(active_workspace, {}) or {}
 
 
 def set_workspace(name: str | None) -> None:
     """Select an active workspace. Affects keyring service and per-workspace config."""
-    global _active_workspace
-    _active_workspace = name
+    _active_workspace_holder.set(name)
 
 
 def _resolve(key: str, default: str = "") -> str:
@@ -133,13 +135,14 @@ def _keyring_service() -> str:
     Honors ``keyring_service:`` override in the workspace config; otherwise
     falls back to ``slack-<workspace>``.
     """
-    if _active_workspace is None:
+    active_workspace = _active_workspace_holder.get()
+    if active_workspace is None:
         return "slack"
     ws = _workspace_config()
     override = ws.get("keyring_service")
     if override:
         return override
-    return f"slack-{_active_workspace}"
+    return f"slack-{active_workspace}"
 
 
 def get_token() -> Result[str]:
@@ -155,14 +158,15 @@ def get_token() -> Result[str]:
       2. SLACK_TOKEN environment variable.
       3. Default keyring at service=slack.
     """
-    if _active_workspace is not None:
+    active_workspace = _active_workspace_holder.get()
+    if active_workspace is not None:
         service = _keyring_service()
         token = _keyring_lookup(service=service, key="bot_token")
         if token:
             return ok(token)
         return err(
             f"No Slack token found in keyring for workspace "
-            f"'{_active_workspace}' (service={service})"
+            f"'{active_workspace}' (service={service})"
         )
     env_token = os.environ.get("SLACK_TOKEN")
     if env_token:

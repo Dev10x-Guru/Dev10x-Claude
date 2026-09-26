@@ -35,6 +35,7 @@ import os
 from typing import TYPE_CHECKING, Any
 
 from dev10x.domain.common.result import Result, err, ok
+from dev10x.domain.common.singleton_holder import SingletonHolder
 
 if TYPE_CHECKING:  # pragma: no cover
     from mcp.server.session import ServerSession
@@ -165,14 +166,14 @@ class SamplingManager:
         )
 
 
-# ── module-level registry ──────────────────────────────────────────
+# ── module-level registry (GH-1425) ─────────────────────────────────
 
-_manager: SamplingManager | None = None
+_holder: SingletonHolder[SamplingManager] = SingletonHolder()
 
 
 def get_manager() -> SamplingManager | None:
     """Return the currently registered :class:`SamplingManager`, or ``None``."""
-    return _manager
+    return _holder.get()
 
 
 async def request_sampling(
@@ -226,8 +227,7 @@ def wire_sampling_to_server(
 
     import mcp.types as mcp_types
 
-    global _manager
-    _manager = manager
+    _holder.set(manager)
 
     async def _on_initialized(notification: mcp_types.InitializedNotification) -> None:
         try:
