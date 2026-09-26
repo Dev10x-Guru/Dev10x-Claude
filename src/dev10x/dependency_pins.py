@@ -28,16 +28,11 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
+from dev10x.repo_scan import SKIPPED_DIRS, walk_repository
+
 _logger = logging.getLogger(__name__)
 
 SCANNED_SUFFIXES = frozenset({".py", ".toml", ".sh"})
-# `worktrees` covers `.claude/worktrees/` (agent isolation trees) and a
-# project's `.worktrees/` — each is a full checkout of this same repo, so
-# scanning them re-reports every finding once per tree and lets leftover
-# trees fail the canonical lint suite repo-wide until someone prunes them.
-SKIPPED_DIRS = frozenset(
-    {".git", ".venv", "node_modules", "__pycache__", "dist", "build", "worktrees"}
-)
 
 # A PEP 723 dependency block in this repo is always a single-line TOML
 # array comment: `# dependencies = ["pyyaml>=6.0,<7", ...]`.
@@ -207,18 +202,7 @@ def find_unbounded_pyproject_requirements(*, path: Path, root: Path) -> list[str
 
 
 def scanned_files(root: Path) -> list[Path]:
-    # Excludes symlinks: Path.rglob() follows symlinked directories on this
-    # project's floor Python (3.12 — the recurse_symlinks opt-out landed in
-    # 3.13), so an unguarded scan could read a symlink's target content
-    # (mild info-disclosure into pre-commit stderr) or hang on a cycle.
-    return sorted(
-        path
-        for path in root.rglob("*")
-        if path.suffix in SCANNED_SUFFIXES
-        and path.is_file()
-        and not path.is_symlink()
-        and not SKIPPED_DIRS.intersection(path.relative_to(root).parts)
-    )
+    return walk_repository(root, suffixes=SCANNED_SUFFIXES)
 
 
 def scan_repository(root: Path) -> list[str]:
