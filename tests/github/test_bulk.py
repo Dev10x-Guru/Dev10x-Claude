@@ -11,7 +11,7 @@ gh = pytest.importorskip("dev10x.github", reason="dev10x not installed")
 
 class TestMilestonesBulkCreate:
     @pytest.mark.asyncio
-    @patch.object(gh, "milestone_create", new_callable=AsyncMock)
+    @patch.object(gh.milestones, "milestone_create", new_callable=AsyncMock)
     async def test_creates_all_when_each_succeeds(self, mock_create: AsyncMock) -> None:
         mock_create.side_effect = [
             ok({"number": 1, "title": "M1", "url": "u1"}),
@@ -28,7 +28,7 @@ class TestMilestonesBulkCreate:
         assert mock_create.call_count == 2
 
     @pytest.mark.asyncio
-    @patch.object(gh, "milestone_create", new_callable=AsyncMock)
+    @patch.object(gh.milestones, "milestone_create", new_callable=AsyncMock)
     async def test_collects_per_entry_failures(self, mock_create: AsyncMock) -> None:
         mock_create.side_effect = [
             ok({"number": 1, "title": "M1", "url": "u1"}),
@@ -48,7 +48,7 @@ class TestMilestonesBulkCreate:
         assert result.error == "milestones_bulk_create requires at least one milestone"
 
     @pytest.mark.asyncio
-    @patch.object(gh, "milestone_create", new_callable=AsyncMock)
+    @patch.object(gh.milestones, "milestone_create", new_callable=AsyncMock)
     async def test_records_missing_title_as_failure(self, mock_create: AsyncMock) -> None:
         result = await gh.milestones_bulk_create(milestones=[{}])
         assert result.value["created"] == []
@@ -58,7 +58,7 @@ class TestMilestonesBulkCreate:
 
 class TestIssuesBulkCreate:
     @pytest.mark.asyncio
-    @patch.object(gh, "issue_create", new_callable=AsyncMock)
+    @patch.object(gh.issues, "issue_create", new_callable=AsyncMock)
     async def test_creates_all_when_each_succeeds(self, mock_create: AsyncMock) -> None:
         mock_create.side_effect = [
             ok({"number": 100, "url": "u1"}),
@@ -78,7 +78,7 @@ class TestIssuesBulkCreate:
         assert result.value["created"][1]["title"] == "I2"
 
     @pytest.mark.asyncio
-    @patch.object(gh, "issue_create", new_callable=AsyncMock)
+    @patch.object(gh.issues, "issue_create", new_callable=AsyncMock)
     async def test_collects_per_entry_failures(self, mock_create: AsyncMock) -> None:
         mock_create.side_effect = [
             err("milestone not found"),
@@ -98,7 +98,7 @@ class TestIssuesBulkCreate:
         assert result.error == "issues_bulk_create requires at least one issue"
 
     @pytest.mark.asyncio
-    @patch.object(gh, "issue_create", new_callable=AsyncMock)
+    @patch.object(gh.issues, "issue_create", new_callable=AsyncMock)
     async def test_records_missing_title_as_failure(self, mock_create: AsyncMock) -> None:
         result = await gh.issues_bulk_create(issues=[{}])
         assert result.value["created"] == []
@@ -108,7 +108,7 @@ class TestIssuesBulkCreate:
 
 class TestIssuesBulkEdit:
     @pytest.mark.asyncio
-    @patch.object(gh, "issue_edit", new_callable=AsyncMock)
+    @patch.object(gh.issues, "issue_edit", new_callable=AsyncMock)
     async def test_edits_all_when_each_succeeds(self, mock_edit: AsyncMock) -> None:
         mock_edit.side_effect = [
             ok({"number": 10, "url": "u10"}),
@@ -126,7 +126,7 @@ class TestIssuesBulkEdit:
         assert result.value["failed"] == []
 
     @pytest.mark.asyncio
-    @patch.object(gh, "issue_edit", new_callable=AsyncMock)
+    @patch.object(gh.issues, "issue_edit", new_callable=AsyncMock)
     async def test_collects_per_entry_failures(self, mock_edit: AsyncMock) -> None:
         mock_edit.side_effect = [
             err("issue locked"),
@@ -141,7 +141,7 @@ class TestIssuesBulkEdit:
         assert result.value["failed"] == [{"number": 10, "error": "issue locked"}]
 
     @pytest.mark.asyncio
-    @patch.object(gh, "issue_edit", new_callable=AsyncMock)
+    @patch.object(gh.issues, "issue_edit", new_callable=AsyncMock)
     async def test_records_missing_number_as_failure(self, mock_edit: AsyncMock) -> None:
         result = await gh.issues_bulk_edit(edits=[{"title": "x"}])
         assert result.value["edited"] == []
