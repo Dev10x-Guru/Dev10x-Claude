@@ -46,7 +46,6 @@ from dev10x.domain.documents.friction_yaml import (
     reap_dead_projects,
     repo_stem,
     seed_safe_baseline_if_absent,
-    seed_strict_baseline_if_absent,
     upsert_project_prefs,
 )
 from dev10x.domain.documents.yaml_mapping import load_yaml_mapping
@@ -386,7 +385,6 @@ __all__ = [
     "reap_dead_projects",
     "repo_stem",
     "seed_safe_baseline_if_absent",
-    "seed_strict_baseline_if_absent",
     "set_playbook_modes",
     "upsert_project_prefs",
 ]

@@ -77,18 +77,6 @@ class Deprecation:
 
 REGISTER: tuple[Deprecation, ...] = (
     Deprecation(
-        name="seed_strict_baseline_if_absent",
-        audience=Audience.PYTHON,
-        since="0.97.0",
-        removed_in="0.107.0",
-        replacement="seed_safe_baseline_if_absent",
-        issue="GH-1164",
-        locations=(
-            "src/dev10x/domain/documents/friction_yaml.py",
-            "src/dev10x/domain/documents/session_yaml.py",
-        ),
-    ),
-    Deprecation(
         name="read_human_review",
         audience=Audience.PYTHON,
         since="0.97.0",

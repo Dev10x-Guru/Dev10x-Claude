@@ -451,11 +451,6 @@ def seed_safe_baseline_if_absent(*, path: Path | None = None) -> bool:
     return True
 
 
-#: Deprecated alias (GH-1164), removal in dev10x.domain.deprecations. The scaffold is no
-#: longer ``strict``-shaped, so the old name misdescribes what it writes.
-seed_strict_baseline_if_absent = seed_safe_baseline_if_absent
-
-
 def upsert_project_prefs(
     *,
     toplevel: str,
@@ -617,6 +612,5 @@ __all__ = [
     "reap_dead_projects",
     "repo_stem",
     "seed_safe_baseline_if_absent",
-    "seed_strict_baseline_if_absent",
     "upsert_project_prefs",
 ]
