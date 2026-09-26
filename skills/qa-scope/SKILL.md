@@ -241,7 +241,8 @@ New E2E Scenarios Needed:
 Create QA sub-ticket? (y/n)
 ```
 
-Use `AskUserQuestion` to get approval:
+**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text) to get
+approval:
 - **"Create QA sub-ticket"** → proceed to Phase 5
 - **"Skip QA"** → end with summary
 - **"Edit assessment"** → let user modify before creating
@@ -322,7 +323,8 @@ New scenarios needed:
 
 #### 5.4 Ask About Assignment
 
-Use `AskUserQuestion` to ask who to assign. Offer the project's QA
+**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text) to ask
+who to assign. Offer the project's QA
 assignee when its config names one, otherwise offer the tracker's own
 candidates (team members already assigned to QA tickets) — never a
 name hardcoded here, which belongs to one deployment's staffing and
