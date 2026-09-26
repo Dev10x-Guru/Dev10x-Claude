@@ -200,7 +200,7 @@ one session). Use these shapes verbatim:
 | `pr_close` | `pr_number` | `number` (that's `issue_close`'s param name) |
 | `resolve_plugin_origin` | `skill_paths` (list of absolute paths) | singular `skill_path` |
 | `pin_gate_preset` | `preset`; optional `scope` (`repo` default / `repo-only` / `dir`) | passing a `match` or a path — the tool derives the repo stem itself; passing `gate_overrides={"supervisor_review": ...}` — it is not a per-gate toggle (absent from `_ENUM_TOGGLES`), use `pin_supervisor_review` instead (GH-1165) |
-| `supervisor_review_status` | none (optional `cwd`) | reading `friction.yaml` directly instead — the tool owns the precedence; the deprecated `human_review_status` name still answers for one release (ADR-0022 D-2) |
+| `supervisor_review_status` | none (optional `cwd`) | reading `friction.yaml` directly instead — the tool owns the precedence; the deprecated `human_review_status` name still answers until its removal version in `dev10x.domain.deprecations` (ADR-0022 D-2, ADR-0028) |
 | `pin_supervisor_review` | `supervisor_review` (`required`/`none`); optional `scope` (`repo` default / `repo-only` / `dir`) | reaching for `pin_gate_preset`'s `gate_overrides` — `supervisor_review` is a project-wide fact, not a gate toggle (GH-1165) |
 | `tracker_status` | none (optional `cwd`) | treating `pinned: false` as "no tracker" — it still reports a resolved `tracker` (the default) |
 | `pin_tracker` | `tracker` (`linear`/`jira`/`github`); optional `scope` | passing `gitlab`/`clickup` — not in v1 scope, and an unknown value errors rather than defaulting |
@@ -227,7 +227,8 @@ Behavioral caveats:
   `.claude/` it trips the self-settings consent gate that no allow rule
   suppresses, and anywhere it bypasses the file lock, so two parallel
   worktrees parking at once lose an entry. `task_index_get` reads the
-  retired path as a fallback for one release (`legacy_read: true`), and
+  retired path as a fallback until its removal version in the ADR-0028
+  register, `dev10x.domain.deprecations` (`legacy_read: true`), and
   the next append folds it forward (`folded_legacy`).
 
 - `pr_labels` carries the durable `review:cleared` signal (GH-1008).
@@ -603,7 +604,8 @@ Behavioral caveats:
   idempotent: an entry already covering the checkout is replaced, never
   duplicated. Gate the onboarding ask on `supervisor_review_status` →
   `pinned: false` — the deprecated `human_review` boolean alias (ADR-0019)
-  still counts as pinned for one release, so a repo migrated before this
+  still counts as pinned until its removal version in the ADR-0028
+  register (`dev10x.domain.deprecations`), so a repo migrated before this
   tool existed is not reported as unset. Nothing is written under a
   repo's `.claude/` (ADR-0018).
 - `resolve_gate` returns `{gate, effect (ask|auto-advance|skip),

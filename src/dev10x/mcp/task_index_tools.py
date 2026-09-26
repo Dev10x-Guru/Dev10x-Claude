@@ -20,7 +20,8 @@ async def task_index_get(cwd: str | None = None) -> Result[dict]:
 
     Replaces reading `.claude/Dev10x/session.yaml` directly. Keyed by the
     repo's git common dir, so every worktree of a repo shares one index.
-    Falls back to the retired per-checkout file for one release; when that
+    Falls back to the retired per-checkout file until its removal version
+    in `dev10x.domain.deprecations`; when that
     happens `legacy_read` is true and `legacy_path` names the file.
 
     Args:
