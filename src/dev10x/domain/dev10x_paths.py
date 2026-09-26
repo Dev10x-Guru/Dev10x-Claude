@@ -167,8 +167,9 @@ class Dev10xConfigDir:
         Keyed by the repo stem from the git **common dir**, so every worktree
         of a repo shares one index — matching the park family's "resurfaces
         next session in the same project" contract. No lazy migration: the
-        retired per-repo file is a read-only fallback for one release, folded
-        forward on first write rather than copied on path resolution.
+        retired per-repo file is a read-only fallback until its removal
+        version in :mod:`dev10x.domain.deprecations`, folded forward on
+        first write rather than copied on path resolution.
         """
         return cls._resolve("task-index", f"{repo_name}.yaml")
 

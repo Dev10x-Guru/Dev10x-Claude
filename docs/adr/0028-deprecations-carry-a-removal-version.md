@@ -1,11 +1,12 @@
 # ADR-0028: Deprecations carry a removal version
 
-- **Status:** Proposed. This needs a supervisor decision, see
-  § Decision Needed
+- **Status:** Accepted (supervisor decision, 2026-09-26: Option A,
+  the enforced register)
 - **Date:** 2026-09-26
 - **Supersedes:** none
-- **Amends:** none (would bind every "for one release" promise made
-  under ADR-0018, ADR-0022 and ADR-0026)
+- **Amends:** ADR-0018, ADR-0022 and ADR-0026: every "for one
+  release" promise they made is now a register row with a removal
+  version
 - **Related:** GH-1440, GH-1161, GH-1164, GH-1009, ADR-0026
 
 ## Context
@@ -60,69 +61,52 @@ has a different cost of removal:
    shim. But it does make develop red on a schedule. GH-1440 names
    this trade-off explicitly as one to agree rather than assume.
 
-## Decision Needed
+## Decision
 
-The evidence settles the facts above. It does **not** settle the
-policy. Whether this project accepts a build that fails on a schedule
-is a question about how the supervisor wants to spend release-day
-attention, and no measurement answers it. The options below are laid
-out for that call. This ADR stays **Proposed** until it is made.
+On 2026-09-26 the supervisor chose **Option A, the enforced
+register**, and accepted explicitly that develop goes red on a
+`.dev0` bump when a shim reaches its removal version.
 
-### Option A: Enforced register
+- `src/dev10x/domain/deprecations.py` holds `REGISTER`, one
+  `Deprecation` per shim: `name`, `audience` (`python` | `mcp` |
+  `config`), `since`, `removed_in`, `replacement`, `issue`, and the
+  `locations` that carry the shim.
+- `tests/domain/test_deprecations.py` fails once `pyproject.toml`'s
+  release (the `.devN` suffix is ignored) reaches an entry's
+  `removed_in`. The red build lands on the `.dev0` bump that opens a
+  cycle, which leaves that whole cycle for the removal.
+- The same suite fails when a file under `src/` carries a shim marker
+  (`deprecated alias`, `deprecated legacy`, `.. deprecated::`) but no
+  entry lists it, and when a listed location no longer names its
+  shim. A new shim cannot ship unregistered, and a removed one cannot
+  leave a stale row. The phrase "for one release" is banned from
+  `src/` outright.
+- Windows are stated in minor versions, per audience:
 
-- A `Deprecation` dataclass registry, for example
-  `src/dev10x/domain/deprecations.py`, with one entry per shim:
-  `name`, `audience` (`python` | `mcp` | `config`), `since`,
-  `removed_in`, `replacement`, `issue`.
-- A pytest test that fails once `pyproject.toml`'s version reaches an
-  entry's `removed_in`. A second test would fail when a
-  `deprecated`/`one release` comment in `src/` has no registry entry,
-  so new shims cannot bypass the register.
-- Removal windows stated in versions, not "releases". The windows
-  differ by audience: `python` gets 0 (remove in the same PR as the
-  rename; there is no external caller), while `mcp` and `config` get
-  N minor versions, with N for the supervisor to set.
+  | Audience | Window | Why |
+  |---|---|---|
+  | `python` | 0 | nothing outside the repo imports it; remove in the rename's own change |
+  | `mcp` | 3 | agents, skill docs and user memory call tools by name from outside the repo |
+  | `config` | 6 | a user's hand-edited key is read on machines this repo cannot see |
 
-**Pros:** A stale shim becomes a failing test instead of a forever
-shim. It also closes Problem 2, because an ADR's "for one release"
-now needs a registry row. **Cons:** develop goes red on a `.dev0` bump
-until someone removes the shim or pushes `removed_in` out. That
-extension is always one line, so a determined maintainer can defer
-forever. The value is that each deferral becomes visible.
+  A new shim counts its window from `since`. The shims that predate
+  the register count from `0.106.0`, the version it landed in, because
+  their earlier "one release" promises were never stated in versions.
+  A `python` shim with a zero window gets `removed_in` one minor
+  version out, so develop is green when the register merges and turns
+  red on the next `.dev0` bump.
+- Extending `removed_in` stays a one-line change. The test does not
+  forbid a deferral; it makes each one visible in a diff.
 
-### Option B: Documented register, reported not enforced
+### Rejected alternatives
 
-The same registry, surfaced by `dev10x config doctor` or a release
-checklist item. Nothing fails.
-
-**Pros:** It never blocks a release. The register still answers
-"what is deprecated and since when" in one place. **Cons:** It depends
-on someone reading the report. The evidence above shows nobody greps
-for GH numbers now, and a report is one more thing to not read.
-
-### Option C: Status quo, plus retire the prose
-
-Accept ad-hoc handling as adequate for a single-maintainer plugin.
-Stop writing "for one release", and write "until removed" or nothing.
-
-**Pros:** Zero machinery. It stops the docs making a promise they do
-not keep. **Cons:** Shims accumulate for good. The on-disk config
-aliases never lose their read paths.
-
-### Recommendation (for the supervisor to accept or reject)
-
-**Option A, with the `python` audience at a zero window.** Two facts
-drive this. The `python` rows have no caller outside the repo, so
-their windows protect nobody and cost reviewers a second name. And
-the `.dev0` bump puts the red build at the least disruptive point in
-the cycle. Whether that red build is acceptable at all is exactly the
-call this ADR defers.
-
-## Alternatives Considered
-
-The three options above are the alternatives. One more was rejected
-outright:
-
+- **Option B: a register that is reported, not enforced**, surfaced by
+  `dev10x config doctor` or a release checklist. Rejected because it
+  depends on someone reading the report, and the evidence above shows
+  nobody greps for GH numbers now.
+- **Option C: status quo, with the prose retired**. Rejected because
+  shims would accumulate for good, and the on-disk config aliases
+  would never lose their read paths.
 - **Python `warnings.warn(DeprecationWarning)` at each shim.** None of
   the audiences would see it. MCP responses do not carry warnings to
   the calling agent, config aliases are read inside hooks whose
@@ -131,25 +115,27 @@ outright:
 
 ## Consequences
 
-Consequences depend on the option chosen. Under any option, the
-evidence supports two points:
-
-1. New prose should stop saying "for one release". The phrase
-   measures nothing at this release cadence (Problem 1).
-2. The `python`-audience shims (`Rule`,
-   `seed_strict_baseline_if_absent`, `read_human_review`) can be
-   removed now, with callers updated in the same change. That cleanup
-   does not wait for the policy decision, but it is left for the
-   follow-up so that this PR stays decision-only.
+1. New prose stops saying "for one release" and points at the
+   register instead. The phrase measures nothing at this release
+   cadence (Problem 1).
+2. The `python`-audience shims (`Rule`, `match_globs_for`,
+   `seed_strict_baseline_if_absent`, `read_human_review`) have
+   `removed_in: 0.107.0`. The `0.107.0.dev0` bump turns develop red
+   until they are removed with their callers, or deferred in a
+   visible diff.
+3. The `mcp` rows (`human_review_status`, the `human_review` payload
+   key) come due at `0.109.0`. The `config` rows (the `human_review`
+   key, the `match:` alias, the `.claude/Dev10x/session.yaml` and
+   `memory/Dev10x/dod-acceptance-criteria.yaml` legacy reads) come
+   due at `0.112.0`.
+4. A red build on a `.dev0` bump is expected behaviour, not a
+   regression.
 
 ## Implementation Plan
 
-None until the decision is made. Once it is:
-
-1. File the implementation through `Dev10x:ticket-create`, linking
-   this ADR.
-2. Update this ADR's status to `Accepted` and record the chosen
-   option and window N.
+Shipped with GH-1440: the register, its tests, the removal versions
+above, and the source and rule docs repointed from "one release" to
+the register.
 
 ## References
 

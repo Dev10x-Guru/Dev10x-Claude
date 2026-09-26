@@ -148,7 +148,9 @@ the repo-addressed side to `match_repo:`.**
   globs (`*/tt-pos*`, `*/tiretutorv2-backend*`) keep working unchanged
   under `nameWithOwner`, so this costs no user migration.
 - `match:` in a repo-addressed file is accepted as a deprecated alias
-  for one release, so existing user playbooks keep working.
+  until its removal version in the ADR-0028 register
+  (`dev10x.domain.deprecations`), so existing user playbooks keep
+  working.
 - `*/<repo>` is documented as the **portable form** — the one spelling
   that resolves correctly under both schemes. It is the form
   `match_globs_for_repo` already generates.

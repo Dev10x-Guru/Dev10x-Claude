@@ -244,7 +244,8 @@ class SessionYamlDocument:
         ``merge``: it had no way to express "the supervisor reads it first,
         *then* we ask the team". ``supervisor_review`` splits them.
 
-        Retained for one release so un-migrated callers keep working.
+        Retained until its removal version in
+        :mod:`dev10x.domain.deprecations`.
         ``required`` maps to ``True``, ``none`` to ``False``, preserving the
         boolean's polarity and its unset → ``True`` safe direction.
         """
@@ -268,7 +269,8 @@ class SessionYamlDocument:
         Absent, unrecognised, or malformed values read as ``required``, so an
         unconfigured repo keeps oversight and every typo fails toward more of
         it. The deprecated ``human_review`` boolean is honoured as an alias
-        for one release: ``true`` → ``required``, ``false`` → ``none``. An
+        until its removal version in :mod:`dev10x.domain.deprecations`:
+        ``true`` → ``required``, ``false`` → ``none``. An
         explicit ``supervisor_review`` always wins over it.
 
         ``data`` lets a caller that has already loaded ``_durable()`` reuse
