@@ -18,7 +18,7 @@ from typing import Any
 
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.domain.common.tracker_choice import Tracker, parse_tracker
-from dev10x.domain.documents.session_yaml import FrictionYamlDocument
+from dev10x.domain.documents.session_yaml import FrictionYamlDocument, PinScope
 from dev10x.session.preset_pin import (
     pin_project_prefs,
     probe_path,
@@ -31,7 +31,7 @@ TRACKER_VALUES: tuple[str, ...] = tuple(tracker.value for tracker in Tracker)
 def pin_tracker(
     *,
     tracker: str,
-    scope: str = "repo",
+    scope: PinScope | str = PinScope.default(),
     cwd: str | None = None,
 ) -> Result[dict[str, Any]]:
     """Persist the project's tracker into the global ``friction.yaml``.

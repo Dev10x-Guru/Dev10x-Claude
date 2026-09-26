@@ -19,10 +19,13 @@ import yaml
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.documents.session_yaml import (
     DURABLE_KEYS,
+    PIN_SCOPES,
     ConfigYamlDocument,
     FrictionYamlDocument,
+    PinScope,
     SessionYamlDocument,
     legacy_durable_prefs,
+    match_globs_for_repo,
     upsert_project_prefs,
 )
 from dev10x.domain.friction_level import FrictionLevel
@@ -47,6 +50,28 @@ def _write_config(*, tmp_path: Path, content: str) -> str:
     (tmp_path / ".claude" / "Dev10x").mkdir(parents=True, exist_ok=True)
     (tmp_path / ".claude" / "Dev10x" / "config.yaml").write_text(content)
     return str(tmp_path)
+
+
+class TestPinScope:
+    def test_default_is_repo(self) -> None:
+        assert PinScope.default() is PinScope.REPO
+
+    def test_values_match_pin_scopes_tuple(self) -> None:
+        assert tuple(scope.value for scope in PinScope) == PIN_SCOPES
+
+    def test_is_a_str(self) -> None:
+        assert PinScope.DIR == "dir"
+
+    def test_coerces_from_plain_string(self) -> None:
+        assert PinScope("repo-only") is PinScope.REPO_ONLY
+
+    def test_rejects_unknown_value(self) -> None:
+        with pytest.raises(ValueError, match="'bogus' is not a valid PinScope"):
+            PinScope("bogus")
+
+    def test_accepted_by_match_globs_for_repo(self) -> None:
+        globs = match_globs_for_repo(repo_name="my-repo", scope=PinScope.REPO_ONLY)
+        assert globs == ["*/my-repo"]
 
 
 class TestPath:

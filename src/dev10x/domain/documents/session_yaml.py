@@ -25,6 +25,7 @@ import glob
 import os
 import re
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -370,11 +371,34 @@ class FrictionYamlDocument:
         return FrictionYamlDocument._MIGRATION_HEADER + body
 
 
-#: Scope of a durable preset pin (GH-855). ``repo`` — the default — covers
-#: the repo *and every present or future worktree of it*, because a preset
-#: chosen in one worktree is a statement about the repo, not about the
-#: ephemeral directory it was chosen from.
-PIN_SCOPES = ("repo", "repo-only", "dir")
+class PinScope(StrEnum):
+    """Scope of a durable pin — a preset, a tracker, an IDE, ... (GH-855, GH-1452).
+
+    ``REPO`` (the default) covers the repo *and every present or future
+    worktree of it*, because a pin chosen in one worktree is a statement
+    about the repo, not about the ephemeral directory it was chosen
+    from. ``REPO_ONLY`` pins the main checkout alone, leaving sibling
+    worktrees on ``defaults:``. ``DIR`` pins one directory, verbatim.
+
+    Was previously a bare ``scope: str`` re-declared at eight-plus call
+    sites with the same three-line docstring copy-pasted four times
+    (GH-1452) — a typo surfaced only inside :func:`match_globs_for_repo`.
+    Typing it here means a caller's typo is now a type error, or — at
+    the MCP boundary, where FastMCP derives an enum-constrained schema
+    from this annotation — a rejected call before any Python runs.
+    """
+
+    REPO = "repo"
+    REPO_ONLY = "repo-only"
+    DIR = "dir"
+
+    @classmethod
+    def default(cls) -> PinScope:
+        return cls.REPO
+
+
+#: Back-compat tuple form for callers not yet migrated to :class:`PinScope`.
+PIN_SCOPES = tuple(scope.value for scope in PinScope)
 
 _WORKTREE_SUFFIX = re.compile(r"-\d+$")
 
@@ -399,7 +423,7 @@ def match_globs_for_repo(
     *,
     repo_name: str,
     repo_root: str | None = None,
-    scope: str = "repo",
+    scope: PinScope | str = PinScope.default(),
 ) -> list[str]:
     """Return the ``friction.yaml`` ``match`` globs for a repo pin (GH-855).
 
@@ -1026,6 +1050,7 @@ __all__ = [
     "PIN_SCOPES",
     "ConfigYamlDocument",
     "FrictionYamlDocument",
+    "PinScope",
     "ReapReport",
     "SessionYamlDocument",
     "is_provably_dead",
