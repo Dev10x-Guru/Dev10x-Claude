@@ -1,0 +1,104 @@
+{
+  "skill_name": "Dev10x:ide-normalize",
+  "eval_dimensions": [
+    {
+      "id": "settings-module-gate",
+      "name": "Django settingsModule AskUserQuestion Gate",
+      "description": "When the Django settings module cannot be auto-detected from manage.py or pyproject.toml/setup.cfg, the skill fires AskUserQuestion (enter path / skip) instead of leaving the empty settingsModule entry unaddressed or guessing a value."
+    },
+    {
+      "id": "uv-sdk-gap-gate",
+      "name": "PyCharm uv-SDK FLAVOR_DATA Gap AskUserQuestion Gate",
+      "description": "When jdk.table.xml shows an SDK entry for the current worktree with FLAVOR_DATA=\"{}\" or missing UV_VENV_PATH/UV_TOOL_PATH, the skill fires AskUserQuestion (patch automatically / show manual fix / skip) before touching jdk.table.xml, since PyCharm must be closed to patch it safely."
+    }
+  ],
+  "evals": [
+    {
+      "id": "settings-module-ask-on-undetectable",
+      "name": "settingsModule gate fires when auto-detection fails",
+      "description": "An empty settingsModule value that cannot be resolved from manage.py or pyproject.toml/setup.cfg triggers the AskUserQuestion widget rather than being left blank or guessed.",
+      "input": "/Dev10x:ide-normalize",
+      "assertions": [
+        {
+          "dimension": "settings-module-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "Undetectable settingsModule fires AskUserQuestion with 'Enter the settings module path' / 'Skip' options"
+        },
+        {
+          "dimension": "settings-module-gate",
+          "check": "plain_text",
+          "signal": "No inline plain-text prompt substitutes for the widget when auto-detection fails"
+        }
+      ]
+    },
+    {
+      "id": "settings-module-no-ask-when-detected",
+      "name": "settingsModule gate does not fire when auto-detection succeeds",
+      "description": "When manage.py or pyproject.toml resolves the Django settings module, the skill fills the value directly and does not fire the gate.",
+      "input": "/Dev10x:ide-normalize",
+      "assertions": [
+        {
+          "dimension": "settings-module-gate",
+          "check": "behavioral",
+          "signal": "Auto-detected settingsModule is backfilled via Edit without calling AskUserQuestion"
+        }
+      ]
+    },
+    {
+      "id": "uv-sdk-gap-ask-before-patch",
+      "name": "uv-SDK gap gate fires before any jdk.table.xml write",
+      "description": "Detecting FLAVOR_DATA=\"{}\" or missing UV_VENV_PATH/UV_TOOL_PATH on the current worktree's SDK entry fires AskUserQuestion before any Edit touches jdk.table.xml.",
+      "input": "/Dev10x:ide-normalize",
+      "assertions": [
+        {
+          "dimension": "uv-sdk-gap-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "uv-SDK FLAVOR_DATA gap fires AskUserQuestion with patch/show/skip options before any Edit to jdk.table.xml"
+        },
+        {
+          "dimension": "uv-sdk-gap-gate",
+          "check": "plain_text",
+          "signal": "No inline plain-text confirmation substitutes for the widget on the uv-SDK gap path"
+        }
+      ]
+    },
+    {
+      "id": "uv-sdk-gap-no-ask-when-absent",
+      "name": "uv-SDK gap gate does not fire when the SDK entry is healthy",
+      "description": "When the worktree's SDK entry already carries UV_VENV_PATH/UV_TOOL_PATH and a non-empty FLAVOR_DATA, the skill reports 'not detected' and does not fire the gate.",
+      "input": "/Dev10x:ide-normalize",
+      "assertions": [
+        {
+          "dimension": "uv-sdk-gap-gate",
+          "check": "behavioral",
+          "signal": "Healthy SDK entry → summary reports 'not detected' for the uv SDK gap line; AskUserQuestion is not called"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "description": "Queries that should/should-not trigger the ide-normalize skill",
+    "should_trigger": [
+      {
+        "query": "/Dev10x:ide-normalize",
+        "rationale": "Direct invocation after creating a new worktree with a copied .idea/"
+      },
+      {
+        "query": "PyCharm crashes with ModuleNotFoundError after opening the new worktree",
+        "rationale": "Symptom of the uv-SDK FLAVOR_DATA gap this skill detects and offers to patch"
+      }
+    ],
+    "should_not_trigger": [
+      {
+        "query": "create a new worktree for GH-1234",
+        "rationale": "Worktree creation itself — use Dev10x:git-worktree; this skill runs as a retroactive follow-up"
+      },
+      {
+        "query": "the project has no .idea/ directory",
+        "rationale": "No PyCharm configuration present — nothing to normalize"
+      }
+    ]
+  }
+}
