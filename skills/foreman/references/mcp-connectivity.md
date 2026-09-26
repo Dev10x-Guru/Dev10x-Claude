@@ -18,11 +18,13 @@ What dies is the **first** hop, harness-client ↔ our-stdio-server. Our
 
 Dev10x implements no timeout, keepalive, or ping on that connection —
 `servers/cli_server.py` and `src/dev10x/mcp/` contain no transport
-liveness handling at all. The two things that look like it are not:
-`session_store.py`'s TTL is session-*storage* expiry, and
+liveness handling at all. The one thing that looks like it is not:
 `daemon.py`'s `PING`/`PONG` is a UNIX-socket probe for whether the
-daemon **process** is up. The ~1800s ceiling quoted throughout these
-docs is a number we *stay under*, never one we enforce.
+daemon **process** is up, not the harness-client transport. (GH-1427:
+`session_store.py`, the other module a reader might reach for here,
+was deleted as unwired dead code — it never carried liveness
+semantics either.) The ~1800s ceiling quoted throughout these docs is
+a number we *stay under*, never one we enforce.
 
 **Therefore "reconnect-on-demand in the wrapper layer" — the fix as
 originally specified in GH-1072 and GH-1099 ask 1 — is not
