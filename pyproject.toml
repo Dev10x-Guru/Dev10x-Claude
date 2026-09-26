@@ -70,7 +70,13 @@ addopts = "--cov=src/dev10x --cov-report=term-missing"
 source = ["src/dev10x"]
 
 [tool.coverage.report]
-fail_under = 75
+# Aggregate floor, not the per-PR standard: CLAUDE.md's 100%-for-
+# new-code rule is enforced on the diff by the test/py-test skills,
+# this gate only guards against a wholesale coverage collapse.
+# Raised from 75 to 90 (GH-1437) — measured aggregate was 93% with
+# `fail_under=75` giving 18 points of unused slack; 90 keeps ~3
+# points of headroom for normal churn while catching a real drop.
+fail_under = 90
 show_missing = true
 exclude_lines = ["if __name__", "pragma: no cover"]
 
