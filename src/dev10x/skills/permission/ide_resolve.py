@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 
 from dev10x.domain.common.ide_choice import Ide, parse_ide
-from dev10x.domain.documents.session_yaml import FrictionYamlDocument
+from dev10x.domain.documents.friction_yaml import FrictionYamlDocument
 
 log = logging.getLogger(__name__)
 

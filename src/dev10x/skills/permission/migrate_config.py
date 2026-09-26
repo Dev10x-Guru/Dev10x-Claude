@@ -27,13 +27,9 @@ from typing import Any
 
 import yaml
 
-from dev10x.domain.documents.session_yaml import (
-    DURABLE_KEYS,
-    ConfigYamlDocument,
-    FrictionYamlDocument,
-    SessionYamlDocument,
-    legacy_durable_prefs,
-)
+from dev10x.domain.documents.config_yaml import ConfigYamlDocument
+from dev10x.domain.documents.friction_yaml import DURABLE_KEYS, FrictionYamlDocument
+from dev10x.domain.documents.session_yaml import SessionYamlDocument, legacy_durable_prefs
 from dev10x.domain.file_locks import LOCK_TIMEOUT_SECONDS, atomic_write_text, file_lock
 
 

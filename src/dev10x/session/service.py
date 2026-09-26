@@ -198,8 +198,8 @@ class SessionService:
         import os
 
         from dev10x.domain.dev10x_paths import Dev10xConfigDir
-        from dev10x.domain.documents.session_yaml import (
-            ConfigYamlDocument,
+        from dev10x.domain.documents.config_yaml import ConfigYamlDocument
+        from dev10x.domain.documents.friction_yaml import (
             FrictionYamlDocument,
             seed_safe_baseline_if_absent,
         )

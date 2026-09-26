@@ -26,7 +26,7 @@ from __future__ import annotations
 from typing import Any
 
 from dev10x.domain.common.result import Result, err
-from dev10x.domain.documents.session_yaml import PinScope
+from dev10x.domain.documents.friction_yaml import PinScope
 from dev10x.domain.gate_policy import (
     SUPERVISOR_REVIEW_NONE,
     SUPERVISOR_REVIEW_REQUIRED,

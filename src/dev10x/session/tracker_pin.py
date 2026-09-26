@@ -18,7 +18,7 @@ from typing import Any
 
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.domain.common.tracker_choice import Tracker, parse_tracker
-from dev10x.domain.documents.session_yaml import FrictionYamlDocument, PinScope
+from dev10x.domain.documents.friction_yaml import FrictionYamlDocument, PinScope
 from dev10x.session.preset_pin import (
     pin_project_prefs,
     probe_path,

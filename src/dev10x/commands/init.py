@@ -13,7 +13,7 @@ from pathlib import Path
 import click
 
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.documents.session_yaml import FrictionYamlDocument
+from dev10x.domain.documents.friction_yaml import FrictionYamlDocument
 
 QUICK_START_WORKFLOWS = [
     (

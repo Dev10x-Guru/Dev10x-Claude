@@ -18,7 +18,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     root.mkdir()
     friction = tmp_path / "friction.yaml"
     monkeypatch.setattr(
-        "dev10x.domain.documents.session_yaml.Dev10xConfigDir.friction_yaml",
+        "dev10x.domain.documents.friction_yaml.Dev10xConfigDir.friction_yaml",
         classmethod(lambda cls: friction),
     )
     for module in ("dev10x.session.preset_pin", "dev10x.session.ide_pin"):
