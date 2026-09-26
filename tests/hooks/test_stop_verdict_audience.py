@@ -92,20 +92,17 @@ class TestASubagentIsNeverBlocked:
         "field",
         ["is_subagent", "subagent", "subagent_id", "agent_id", "parent_session_id"],
     )
-    def test_any_defensive_discriminator_also_counts(self, field: str) -> None:
-        """The event reached subagents despite a Stop-only registration.
+    def test_a_retired_guess_no_longer_counts(self, field: str) -> None:
+        """GH-1347: none of these ever arrived in 712 audit records.
 
-        Which field actually arrives is exactly what is not known, so a
-        single assumed key would be the same bet that failed before.
+        A key re-enters only from a captured payload, so the guesses must
+        not quietly come back as coverage.
         """
-        assert is_subagent(data={field: "a7634aca"}) is True
+        assert is_subagent(data={field: "a7634aca"}) is False
 
     def test_an_ordinary_payload_is_not_a_subagent(self) -> None:
         """Absence degrades toward the pre-GH-1314 behaviour, not past it."""
         assert is_subagent(data={"session_id": "s", "hook_event_name": "Stop"}) is False
-
-    def test_an_empty_discriminator_does_not_count(self) -> None:
-        assert is_subagent(data={"agent_id": ""}) is False
 
     def test_the_transcript_path_names_a_subagent(self) -> None:
         """GH-1340: the discriminator that actually arrives.

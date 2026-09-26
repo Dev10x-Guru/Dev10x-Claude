@@ -103,6 +103,7 @@ import json
 import re
 import sys
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -136,17 +137,18 @@ _ASK_TOOL = "AskUserQuestion"
 #: for must contain this phrase.
 _STANDBY_RE = re.compile(r"\bon standby\b", re.IGNORECASE)
 
-#: Payload fields that would mark a Stop as belonging to a subagent
-#: (GH-1314). ``hook_event_name`` is the documented one — the harness
-#: fires ``SubagentStop`` for a subagent — and the rest were defensive
-#: guesses at whichever field actually arrives.
+#: The documented payload marker of a subagent's stop (GH-1314): the
+#: harness contracts a ``SubagentStop`` event for a dispatched agent.
 #:
-#: None of them ever did: ``StopSignal.SUBAGENT`` fired 0 times in 224
-#: audit records (GH-1340). They are kept as a fallback, so a payload
-#: that one day does carry a discriminator still works, but the check
-#: that decides the question in practice is the transcript path below.
+#: GH-1314 also checked five guessed keys (``is_subagent``, ``subagent``,
+#: ``subagent_id``, ``agent_id``, ``parent_session_id``). GH-1347 retired
+#: them on the evidence: ``StopSignal.SUBAGENT`` fired 0 times in 224
+#: records (GH-1340) and the subagent branch 0 times in 488 records on a
+#: day five subagents ran to completion. A name nobody has seen arrive
+#: reads as coverage without being any. Payload keys are now captured
+#: under ``DEV10X_STOP_PAYLOAD_KEYS`` (see ``session_dispatch``), so a
+#: real discriminator is re-added from a recorded payload, not a guess.
 _SUBAGENT_EVENT = "SubagentStop"
-_SUBAGENT_KEYS = ("is_subagent", "subagent", "subagent_id", "agent_id", "parent_session_id")
 
 #: The directory a subagent's transcript lives in, and its filename
 #: prefix (GH-1340). Captured from live dispatches rather than inferred:
@@ -239,9 +241,10 @@ def subagent_signal(*, data: dict) -> StopSignal | None:
     which is the pre-GH-1314 behaviour. Guessing the other way would
     silently disable the gate everywhere the payload shape surprises us.
 
-    The transcript path is checked because none of the payload keys has
-    ever arrived (GH-1340), so the branch below them was unreachable —
-    which is worse than absent, since it reads as coverage.
+    The transcript path is checked because no payload discriminator has
+    ever arrived (GH-1340, GH-1347). It infers identity from a directory
+    layout the harness has not contracted to keep, so it is the fallback
+    until a captured payload names a field that does.
 
     Returning *which* one matched, rather than a bool, is deliberate:
     the audit log has to separate the transcript check from the guesses
@@ -250,11 +253,40 @@ def subagent_signal(*, data: dict) -> StopSignal | None:
     """
     if data.get("hook_event_name") == _SUBAGENT_EVENT:
         return StopSignal.SUBAGENT
-    if any(data.get(key) for key in _SUBAGENT_KEYS):
-        return StopSignal.SUBAGENT
     if _is_subagent_transcript(path=str(data.get("transcript_path") or "")):
         return StopSignal.SUBAGENT_PATH
     return None
+
+
+#: Opt-in flag for recording the Stop payload's shape (GH-1347).
+PAYLOAD_KEYS_FLAG = "DEV10X_STOP_PAYLOAD_KEYS"
+
+
+def payload_capture(*, data: dict, env: Mapping[str, str]) -> dict[str, str]:
+    """The payload evidence to fold into the audit record, when opted in.
+
+    GH-1347 asks for a captured payload rather than another inference.
+    Three payload guesses have already failed here (GH-1257, GH-1314,
+    GH-1336). Keys only, never values: a payload can carry the final
+    assistant message, and the audit log is not the place for it.
+    ``session_id`` is on the record so a subagent's turn can be told
+    from its parent's, which a bigger sample cannot do. That is the
+    ambiguity the 0-of-488 reading left open.
+    ``transcript_layout`` says what the path check concluded beside the
+    keys, so the two sources can be compared record by record.
+    """
+    if env.get(PAYLOAD_KEYS_FLAG, "").strip().lower() not in ("1", "true", "yes"):
+        return {}
+    return {
+        "payload_keys": ",".join(sorted(str(key) for key in data)),
+        "hook_event_name": str(data.get("hook_event_name") or ""),
+        "session_id": str(data.get("session_id") or ""),
+        "transcript_layout": (
+            "subagent"
+            if _is_subagent_transcript(path=str(data.get("transcript_path") or ""))
+            else "session"
+        ),
+    }
 
 
 def is_subagent(*, data: dict) -> bool:
