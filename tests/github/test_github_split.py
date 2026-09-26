@@ -170,6 +170,10 @@ AWAITING_MOVE = frozenset(
         "issue_comment_delete",
         "issue_list",
         "triage_roster",
+        "_bulk_execute",
+        "milestones_bulk_create",
+        "issues_bulk_create",
+        "issues_bulk_edit",
     }
 )
 
