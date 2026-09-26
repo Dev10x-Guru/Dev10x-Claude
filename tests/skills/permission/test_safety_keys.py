@@ -13,15 +13,15 @@ from pathlib import Path
 import pytest
 
 from dev10x.domain.common.result import ErrorResult, SuccessResult
+from dev10x.skills.permission import catalog_write
 from dev10x.skills.permission import safety_keys as mod
-from dev10x.skills.permission import update_paths
 
 
 @pytest.fixture(autouse=True)
 def _isolate(monkeypatch: pytest.MonkeyPatch) -> None:
     """Every settings file in these tests is untracked (GH-1155 guard is
     covered separately in TestEnsureSafetyKeysGitTrackedGuard)."""
-    monkeypatch.setattr(update_paths, "_is_git_tracked", lambda _path: False)
+    monkeypatch.setattr(catalog_write, "_is_git_tracked", lambda _path: False)
 
 
 class TestValidateSafetyKeyValue:
@@ -238,7 +238,7 @@ class TestEnsureSafetyKeysGitTrackedGuard:
         local = tmp_path / "settings.local.json"
         local.write_text("{}\n")
         monkeypatch.setattr(
-            update_paths,
+            catalog_write,
             "_is_git_tracked",
             lambda path: path.name == "settings.json",
         )
@@ -257,7 +257,7 @@ class TestEnsureSafetyKeysGitTrackedGuard:
     ) -> None:
         tracked = tmp_path / "settings.json"
         tracked.write_text("{}\n")
-        monkeypatch.setattr(update_paths, "_is_git_tracked", lambda _path: True)
+        monkeypatch.setattr(catalog_write, "_is_git_tracked", lambda _path: True)
 
         result = mod.ensure_safety_keys(
             settings_files=[tracked], dry_run=False, allow_tracked=True

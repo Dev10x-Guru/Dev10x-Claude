@@ -164,7 +164,7 @@ def ensure_safety_keys(
     `settings.json` is never rewritten in place — the rules redirect to
     its `settings.local.json` sibling instead, same as `ensure_workspace`.
     """
-    from dev10x.skills.permission.update_paths import partition_writable
+    from dev10x.skills.permission.catalog_write import partition_writable
 
     messages: list[str] = []
     errors: list[str] = []

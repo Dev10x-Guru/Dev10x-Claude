@@ -46,7 +46,7 @@ class TestLoadGlobalAllowRules:
         settings = tmp_path / ".claude" / "settings.json"
         settings.parent.mkdir(parents=True)
         monkeypatch.setattr(
-            "dev10x.skills.permission.update_paths.Path.home",
+            "dev10x.skills.permission.catalog_write.Path.home",
             lambda: tmp_path,
         )
         return settings
@@ -89,7 +89,7 @@ class TestLoadGlobalAllowRules:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setattr(
-            "dev10x.skills.permission.update_paths.Path.home",
+            "dev10x.skills.permission.catalog_write.Path.home",
             lambda: tmp_path,
         )
 
@@ -514,7 +514,7 @@ class TestEnsureBaseDenies:
     @pytest.fixture
     def home_settings(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         monkeypatch.setattr(
-            "dev10x.skills.permission.update_paths.Path.home",
+            "dev10x.skills.permission.catalog_write.Path.home",
             lambda: tmp_path / "home",
         )
         (tmp_path / "home" / ".claude").mkdir(parents=True)
@@ -584,7 +584,7 @@ class TestEnsureBaseDenies:
         merges non-destructively AND gains its resolved /home/<user>/ twin
         (GH-47) — additive over the pre-PAP flat-shim output."""
         monkeypatch.setattr(
-            "dev10x.skills.permission.update_paths.Path.home",
+            "dev10x.skills.permission.catalog_write.Path.home",
             lambda: tmp_path / "home",
         )
         (tmp_path / "home" / ".claude").mkdir(parents=True)
@@ -625,7 +625,7 @@ class TestEnsureBaseSeedsOneTracker:
     @pytest.fixture()
     def settings(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         monkeypatch.setattr(
-            "dev10x.skills.permission.update_paths.Path.home",
+            "dev10x.skills.permission.catalog_write.Path.home",
             lambda: tmp_path / "home",
         )
         (tmp_path / "home" / ".claude").mkdir(parents=True)
@@ -960,7 +960,7 @@ class TestEnsureBaseSeedsSafetyKeys:
     @pytest.fixture()
     def settings(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         monkeypatch.setattr(
-            "dev10x.skills.permission.update_paths.Path.home",
+            "dev10x.skills.permission.catalog_write.Path.home",
             lambda: tmp_path / "home",
         )
         (tmp_path / "home" / ".claude").mkdir(parents=True)
@@ -993,7 +993,7 @@ class TestEnsureBaseSeedsSafetyKeys:
         fully deduped against global, and no denies/asks are configured —
         the exact shape that used to return before touching any file."""
         monkeypatch.setattr(
-            "dev10x.skills.permission.update_paths._load_global_allow_rules",
+            "dev10x.skills.permission.catalog_write._load_global_allow_rules",
             lambda: ({"Bash(git status:*)"}, []),
         )
 
@@ -1015,7 +1015,7 @@ class TestEnsureBaseSeedsSafetyKeys:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setattr(
-            "dev10x.skills.permission.update_paths.Path.home",
+            "dev10x.skills.permission.catalog_write.Path.home",
             lambda: tmp_path / "home",
         )
         (tmp_path / "home" / ".claude").mkdir(parents=True)

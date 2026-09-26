@@ -14,6 +14,7 @@ import pytest
 
 from dev10x.domain.common.result import ErrorResult, err, ok
 from dev10x.permission import service
+from dev10x.skills.permission import catalog_load
 from dev10x.skills.permission import update_paths as up
 
 
@@ -23,7 +24,7 @@ def stub_config(monkeypatch: pytest.MonkeyPatch) -> dict:
     captured: dict = {}
     monkeypatch.setattr(up, "find_config", lambda: ok(Path("/cfg.yaml")))
     monkeypatch.setattr(
-        up,
+        catalog_load,
         "load_config",
         lambda _path: {"roots": ["/root"], "include_user_settings": True},
     )
@@ -65,7 +66,7 @@ def test_passes_through_find_config_error(monkeypatch: pytest.MonkeyPatch) -> No
 
 def test_empty_settings_files_is_not_an_error(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(up, "find_config", lambda: ok(Path("/cfg.yaml")))
-    monkeypatch.setattr(up, "load_config", lambda _path: {"roots": []})
+    monkeypatch.setattr(catalog_load, "load_config", lambda _path: {"roots": []})
     monkeypatch.setattr(up, "find_settings_files", lambda *, roots, include_user: [])
     result = service.load_permission_context()
     assert not isinstance(result, ErrorResult)
