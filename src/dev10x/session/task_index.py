@@ -39,8 +39,9 @@ from dev10x.subprocess_utils import effective_cwd
 
 log = logging.getLogger(__name__)
 
-#: Retired location, still read when the rehomed store is absent. Kept for
-#: one release so an existing checkout's parked items are not silently lost;
+#: Retired `.claude/Dev10x/session.yaml`, a deprecated legacy read path still
+#: used when the rehomed store is absent, until its removal version in
+#: dev10x.domain.deprecations, so parked items are not silently lost;
 #: `Dev10x:plugin-doctor` deletes it once parity is confirmed.
 LEGACY_RELATIVE_PATH = Path(".claude") / "Dev10x" / "session.yaml"
 

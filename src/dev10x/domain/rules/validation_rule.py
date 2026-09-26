@@ -400,6 +400,6 @@ class MatchingRule:
 
 # Deprecated alias — the Matching Rule archetype's canonical name is
 # ``MatchingRule`` (ADR-0007). ``Rule`` is retained for backward
-# compatibility with existing imports and will be removed in a future
-# release; prefer ``MatchingRule`` in new code.
+# compatibility with existing imports until its removal version in
+# dev10x.domain.deprecations; prefer ``MatchingRule`` in new code.
 Rule = MatchingRule
