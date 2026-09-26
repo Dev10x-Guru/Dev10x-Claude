@@ -222,6 +222,24 @@ class TestPlanContextFromDict:
 
         assert ctx.tickets == ["GH-1"]
 
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            (["GH-1", 3, None, "GH-2"], ["GH-1", "GH-2"]),
+            ({"GH-1": True}, []),
+            (7, []),
+            (None, []),
+        ],
+    )
+    def test_keeps_only_string_tickets(self, raw: object, expected: list[str]) -> None:
+        ctx = PlanContext.from_dict(data={"tickets": raw})
+
+        assert ctx.tickets == expected
+
+    @pytest.mark.parametrize("data", [None, "context", ["GH-1"]])
+    def test_non_mapping_context_is_empty(self, data: object) -> None:
+        assert PlanContext.from_dict(data=data) == PlanContext()
+
 
 class TestPlanSummaryFormatForDisplay:
     @pytest.fixture()
