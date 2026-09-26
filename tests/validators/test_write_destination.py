@@ -54,7 +54,7 @@ class TestBlocksWritesIntoTheWorkingTree:
             "tee docs/out.txt",
             "touch src/dev10x/new_module.py",
             # A non-value flag is skipped without consuming the next token.
-            "cp -r /tmp/scratch/dir docs/qa/dir",
+            "cp -r /tmp/scratch/dir docs/qa/dir.py",
             # -t inverts the positional rule: the flag's value is the
             # destination and every operand is a source.
             "cp -t docs/qa /tmp/scratch/recorder.py",
@@ -65,15 +65,15 @@ class TestBlocksWritesIntoTheWorkingTree:
             "install -m 644 /tmp/a.conf /work/dx/repo/etc/a.conf",
             # A writer anywhere in a pipeline still writes.
             "cat /tmp/body.md | tee docs/body.md",
-            "echo hi && cp /tmp/x docs/x",
+            "echo hi && cp /tmp/x docs/x.py",
             # A writer hidden in a command substitution still writes —
             # the same evasion DX003 already closes.
-            "out=$(cp /tmp/x docs/x)",
-            'echo "$(tee docs/x)"',
-            "result=`cp /tmp/x docs/x`",
+            "out=$(cp /tmp/x docs/x.py)",
+            'echo "$(tee docs/x.py)"',
+            "result=`cp /tmp/x docs/x.py`",
             # `..` must be normalised before comparing, or a traversal
             # that lands back inside the tree reads as outside.
-            "cp /tmp/x docs/../src/x",
+            "cp /tmp/x docs/../src/x.py",
         ],
     )
     def test_denies_destination_inside_working_tree(
@@ -101,7 +101,7 @@ class TestBlocksWritesIntoTheWorkingTree:
         self,
         validator: WriteDestinationValidator,
     ) -> None:
-        result = validator.validate(_make_input(command="cp /tmp/x docs/x"))
+        result = validator.validate(_make_input(command="cp /tmp/x docs/x.py"))
 
         assert isinstance(result, HookResult)
         assert result.rule_id == "DX017"
@@ -171,6 +171,112 @@ class TestLeavesWritesOutsideTheWorkingTreeAlone:
         result = validator.validate(_make_input(command="install --mode=644 /tmp/a /tmp/b"))
 
         assert result is None
+
+
+class TestBinaryDestinationsPassThrough:
+    """GH-1455: a binary destination is left alone regardless of location.
+
+    ``Write`` cannot produce binary content, so blocking a same-tree
+    rename of a PDF/image/archive leaves the caller with no compliant
+    path at all. Scoping by destination extension is what fixes this.
+    """
+
+    @pytest.fixture()
+    def validator(self, synthetic_root: None) -> WriteDestinationValidator:
+        return WriteDestinationValidator()
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # The reported case: a same-tree rename of an invoice PDF.
+            "mv /work/dx/repo/2026-09/a.pdf /work/dx/repo/2026-09/2026-09-03.pdf",
+            "cp /tmp/scratch/logo.png docs/assets/logo.png",
+            "cp /tmp/scratch/bundle.zip docs/dist/bundle.zip",
+            "install -m 644 /tmp/font.woff2 /work/dx/repo/static/font.woff2",
+            "tee docs/out.bin",
+            # -t/--target-directory resolve to the SOURCE's extension —
+            # still a binary here, so still passed through.
+            "cp -t docs/qa /tmp/scratch/recorder.pdf",
+        ],
+    )
+    def test_binary_destination_is_not_blocked(
+        self,
+        validator: WriteDestinationValidator,
+        command: str,
+    ) -> None:
+        assert validator.validate(_make_input(command=command)) is None
+
+    def test_a_known_text_filename_with_no_extension_is_still_blocked(
+        self,
+        validator: WriteDestinationValidator,
+    ) -> None:
+        """``Dockerfile``/``Makefile``/... are text despite carrying no dot."""
+        result = validator.validate(_make_input(command="cp /tmp/scratch/Dockerfile Dockerfile"))
+
+        assert isinstance(result, HookResult)
+
+    def test_an_unrecognised_extensionless_destination_passes_through(
+        self,
+        validator: WriteDestinationValidator,
+    ) -> None:
+        """A recursive directory copy has no single file extension to check.
+
+        The closed allowlist is a scoping choice, not a byte sniff — an
+        extensionless destination that names no known text filename is
+        out of this rule's reach either way (GH-1455).
+        """
+        result = validator.validate(_make_input(command="cp -r /tmp/scratch/dir docs/qa/dir"))
+
+        assert result is None
+
+
+class TestBlockedExtensionEnvOverrides:
+    """GH-1455 addendum: three env vars compose to adjust the allowlist."""
+
+    @pytest.fixture()
+    def validator(self, synthetic_root: None) -> WriteDestinationValidator:
+        return WriteDestinationValidator()
+
+    def test_extra_adds_a_new_blocked_extension(
+        self,
+        validator: WriteDestinationValidator,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("DEV10X_DX017_EXTRA_EXTENSIONS", "ipynb")
+        result = validator.validate(_make_input(command="cp /tmp/scratch/nb.ipynb docs/nb.ipynb"))
+
+        assert isinstance(result, HookResult)
+
+    def test_allow_removes_a_default_blocked_extension(
+        self,
+        validator: WriteDestinationValidator,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("DEV10X_DX017_ALLOW_EXTENSIONS", ".csv")
+        result = validator.validate(_make_input(command="cp /tmp/scratch/data.csv docs/data.csv"))
+
+        assert result is None
+
+    def test_blocked_replaces_the_default_list_entirely(
+        self,
+        validator: WriteDestinationValidator,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("DEV10X_DX017_BLOCKED_EXTENSIONS", ".foo")
+        # .py is in the DEFAULT list but the replacement list excludes it.
+        assert validator.validate(_make_input(command="cp /tmp/scratch/a.py docs/a.py")) is None
+        result = validator.validate(_make_input(command="cp /tmp/scratch/a.foo docs/a.foo"))
+        assert isinstance(result, HookResult)
+
+    def test_extra_composes_on_top_of_a_replacement(
+        self,
+        validator: WriteDestinationValidator,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("DEV10X_DX017_BLOCKED_EXTENSIONS", ".foo")
+        monkeypatch.setenv("DEV10X_DX017_EXTRA_EXTENSIONS", ".bar")
+        result = validator.validate(_make_input(command="cp /tmp/scratch/a.bar docs/a.bar"))
+        assert isinstance(result, HookResult)
 
 
 class TestWorkingTreeIsTheCheckoutNotTheCwd:
@@ -280,7 +386,7 @@ class TestMalformedInput:
         this reason — under-tokenizing is the dangerous direction for a
         validator that blocks.
         """
-        result = validator.validate(_make_input(command="cp /tmp/x 'docs/x"))
+        result = validator.validate(_make_input(command="cp /tmp/x 'docs/x.py"))
 
         assert isinstance(result, HookResult)
 
