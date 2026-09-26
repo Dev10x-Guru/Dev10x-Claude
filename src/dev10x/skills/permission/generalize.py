@@ -24,6 +24,7 @@ from __future__ import annotations
 import re
 
 from dev10x.domain.common.allow_rule import AllowRule
+from dev10x.domain.common.mcp_tool_name import McpToolName
 from dev10x.skills.permission.merge_worktree_permissions import generalize_permission
 
 # Over-broad: verb-blind command prefixes whose bare ``*`` grants
@@ -103,7 +104,7 @@ def generalize_rule_shape(rule: str) -> str:
     # wrapper) is accepted, but structured rule types — ``mcp__*`` tool
     # grants, ``WebFetch(...)``, ``Read(...)``, etc. — pass through
     # untouched.
-    if prefix != "Bash" and (rule.startswith("mcp__") or re.match(r"^[A-Za-z]+\(", rule)):
+    if prefix != "Bash" and (McpToolName.is_mcp(rule) or re.match(r"^[A-Za-z]+\(", rule)):
         return rule
 
     narrowed = _narrow_overbroad(inner)
