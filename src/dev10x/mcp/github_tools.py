@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import functools
-import inspect
-
 # Context is required at runtime: FastMCP evaluates tool annotations with
 # eval_str=True to detect the injected context parameter (GH-342). The
 # noqa keeps ruff from stripping it as a type-only import under
@@ -12,44 +9,15 @@ import inspect
 from mcp.server.fastmcp import Context  # noqa: F401
 
 from dev10x import github as gh
-from dev10x import subprocess_utils
 from dev10x.domain.common.result import Result, err, to_wire
-from dev10x.mcp._app import server
+from dev10x.mcp._app import mcp_tool, server
 
-
-def github_tool(fn):
-    """Wrap a GitHub handler with cwd binding + Result→dict unwrapping.
-
-    The inner ``fn`` returns a ``Result``; this decorator enters
-    ``use_cwd(kwargs["cwd"])`` and calls ``to_wire()`` at the MCP
-    boundary, so the value FastMCP actually receives is the flattened
-    wire ``dict`` — never a ``Result``.
-
-    ``functools.wraps`` preserves the inner signature so FastMCP builds
-    the correct *input* schema, but it also copies the inner ``->
-    Result[dict]`` return annotation (and sets ``__wrapped__``). Newer
-    FastMCP reads that annotation via ``inspect.signature(..., eval_str=
-    True)`` and derives an *output* schema from the ``SuccessResult |
-    ErrorResult`` union — which then rejects the flattened dict
-    ``to_wire()`` returns (GH-712, GH-713: every github tool failed
-    output-schema validation despite the underlying call succeeding).
-
-    Pin the public signature's return type to ``dict`` (matching the
-    directly-``@server.tool()`` handlers, for which no output schema is
-    derived) via an explicit ``__signature__``. ``inspect.signature``
-    honours ``__signature__`` ahead of the ``__wrapped__`` chain, so
-    this is what FastMCP sees while the inner ``fn`` keeps its honest
-    ``Result`` annotation for type-checking.
-    """
-
-    @functools.wraps(fn)
-    async def wrapper(*args, **kwargs):
-        with subprocess_utils.use_cwd(kwargs.get("cwd")):
-            result = await fn(*args, **kwargs)
-        return to_wire(result)
-
-    wrapper.__signature__ = inspect.signature(fn, eval_str=True).replace(return_annotation=dict)
-    return server.tool()(wrapper)
+#: Historical name for this module's original decorator, generalized to
+#: ``mcp_tool`` (GH-1426) and migrated onto it here so the two names stay
+#: in lockstep. Kept as an alias — not inlined to ``@mcp_tool`` below —
+#: because it is this module's own established name and existing readers
+#: (tests, the ``_tool``-suffix discovery convention) already know it.
+github_tool = mcp_tool
 
 
 @github_tool

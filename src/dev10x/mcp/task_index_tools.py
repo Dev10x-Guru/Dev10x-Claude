@@ -10,12 +10,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from dev10x.domain.common.result import to_wire
-from dev10x.mcp._app import server
+from dev10x.domain.common.result import Result
+from dev10x.mcp._app import mcp_tool
 
 
-@server.tool()
-async def task_index_get(cwd: str | None = None) -> dict:
+@mcp_tool
+async def task_index_get(cwd: str | None = None) -> Result[dict]:
     """Read the repo's park/session task index (GH-1009).
 
     Replaces reading `.claude/Dev10x/session.yaml` directly. Keyed by the
@@ -32,14 +32,12 @@ async def task_index_get(cwd: str | None = None) -> dict:
         wrapped_at. `{"error": "Not in a git repository"}` outside a repo.
     """
     from dev10x.session import task_index
-    from dev10x.subprocess_utils import use_cwd
 
-    with use_cwd(cwd):
-        return to_wire(task_index.read_index(cwd=cwd))
+    return task_index.read_index(cwd=cwd)
 
 
-@server.tool()
-async def task_index_append(entry: dict[str, Any], cwd: str | None = None) -> dict:
+@mcp_tool
+async def task_index_append(entry: dict[str, Any], cwd: str | None = None) -> Result[dict]:
     """Append one deferral entry to the repo's task index (GH-1009).
 
     The write the park family performs instead of Write/Edit-ing
@@ -58,13 +56,11 @@ async def task_index_append(entry: dict[str, Any], cwd: str | None = None) -> di
         Dictionary with keys: path, repo_name, task_count, folded_legacy.
     """
     from dev10x.session import task_index
-    from dev10x.subprocess_utils import use_cwd
 
-    with use_cwd(cwd):
-        return to_wire(task_index.append_task(entry=entry, cwd=cwd))
+    return task_index.append_task(entry=entry, cwd=cwd)
 
 
-@server.tool()
+@mcp_tool
 async def task_index_set(
     continuation_prompt: str | None = None,
     insights: list[str] | None = None,
@@ -72,7 +68,7 @@ async def task_index_set(
     tickets: list[str] | None = None,
     wrapped_at: str | None = None,
     cwd: str | None = None,
-) -> dict:
+) -> Result[dict]:
     """Write session-wrap-up state onto the repo's task index (GH-1009).
 
     Only the supplied fields are written, so refreshing the continuation
@@ -93,16 +89,12 @@ async def task_index_set(
         Dictionary with keys: path, repo_name, updated_keys, folded_legacy.
     """
     from dev10x.session import task_index
-    from dev10x.subprocess_utils import use_cwd
 
-    with use_cwd(cwd):
-        return to_wire(
-            task_index.set_session_state(
-                continuation_prompt=continuation_prompt,
-                insights=insights,
-                branch=branch,
-                tickets=tickets,
-                wrapped_at=wrapped_at,
-                cwd=cwd,
-            )
-        )
+    return task_index.set_session_state(
+        continuation_prompt=continuation_prompt,
+        insights=insights,
+        branch=branch,
+        tickets=tickets,
+        wrapped_at=wrapped_at,
+        cwd=cwd,
+    )
