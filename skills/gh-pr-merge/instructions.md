@@ -352,11 +352,18 @@ mechanically before spending judgment on the rest:
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-merge/scripts/reconcile-fixes-links.py \
-  --body-file <pr-body.txt> --base origin/<base>
+  --body-file <pr-body.txt> --base origin/<base> --repo-dir <pr-checkout>
 ```
 
 Write the PR body to a file via `mcp__plugin_Dev10x_cli__mktmp`
-first. The script prints a JSON verdict on stdout and exits
+first. Pass `--repo-dir` whenever the PR's branch is checked out
+somewhere other than your CWD — an orchestrator merging a worktree
+child's PR from the main checkout otherwise reads an empty
+`base..HEAD` and gets a false `unbacked` (GH-1464). A verdict with
+`commits_read: 0` carries a `hint` naming that cause; treat it as a
+wrong-checkout read to re-run, not as a missing commit.
+
+The script prints a JSON verdict on stdout and exits
 non-zero when any link is unbacked; `unbacked` names the specific
 issues. **Exit 1 blocks the merge** — the link would close an
 issue this PR never touched.

@@ -9,6 +9,7 @@ diff that decides that case without reasoning.
 from __future__ import annotations
 
 import json
+import subprocess
 
 import pytest
 
@@ -16,6 +17,7 @@ from dev10x.skills.merge.fixes_scope import (
     commit_ticket_ids,
     fixes_links,
     main,
+    read_commit_messages,
     reconcile_fixes_links,
 )
 
@@ -181,30 +183,96 @@ class TestCli:
         assert code == 2
         assert "error" in payload
 
+    def test_forwards_repo_dir_to_the_git_read(self, tmp_path, capsys, monkeypatch):
+        seen: dict[str, object] = {}
+
+        def _read(**kwargs):
+            seen.update(kwargs)
+            return ["GH-1 done"]
+
+        monkeypatch.setattr("dev10x.skills.merge.fixes_scope.read_commit_messages", _read)
+        body = self._write_body(tmp_path, "Fixes: GH-1\n")
+
+        main(["--body-file", str(body), "--base", "origin/develop", "--repo-dir", "/wt"])
+
+        assert seen["repo_dir"] == "/wt"
+
+    def test_an_empty_range_names_the_wrong_checkout(self, tmp_path, capsys, monkeypatch):
+        # GH-1464: read from the main checkout, a worktree PR's range is
+        # empty and every link looks unbacked. The verdict must say why.
+        monkeypatch.setattr(
+            "dev10x.skills.merge.fixes_scope.read_commit_messages",
+            lambda **kwargs: [],
+        )
+        body = self._write_body(tmp_path, "Fixes: GH-2\n")
+
+        code = main(["--body-file", str(body), "--base", "origin/main"])
+
+        payload = json.loads(capsys.readouterr().out)
+        assert code == 1
+        assert payload["commits_read"] == 0
+        assert "--repo-dir" in payload["hint"]
+
+    def test_a_non_empty_range_carries_no_hint(self, tmp_path, capsys, monkeypatch):
+        monkeypatch.setattr(
+            "dev10x.skills.merge.fixes_scope.read_commit_messages",
+            lambda **kwargs: PR_1228_COMMITS,
+        )
+        body = self._write_body(tmp_path, PR_1228_BODY)
+
+        main(["--body-file", str(body), "--base", "origin/develop"])
+
+        assert "hint" not in json.loads(capsys.readouterr().out)
+
+
+class _Result:
+    def __init__(self, *, returncode: int, stdout: str, stderr: str) -> None:
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
 
 class TestReadCommitMessages:
     def test_surfaces_a_git_failure(self, monkeypatch):
         from dev10x.skills.merge import fixes_scope
 
-        class _Result:
-            returncode = 128
-            stdout = ""
-            stderr = "fatal: bad revision"
-
-        monkeypatch.setattr(fixes_scope.subprocess, "run", lambda *a, **k: _Result())
+        failed = _Result(returncode=128, stdout="", stderr="fatal: bad revision")
+        monkeypatch.setattr(fixes_scope.subprocess, "run", lambda *a, **k: failed)
         with pytest.raises(RuntimeError, match="bad revision"):
             fixes_scope.read_commit_messages(base="origin/nope")
 
     def test_splits_commits_on_the_null_separator(self, monkeypatch):
         from dev10x.skills.merge import fixes_scope
 
-        class _Result:
-            returncode = 0
-            stdout = "GH-1 one\n\0GH-2 two\n\0"
-            stderr = ""
-
-        monkeypatch.setattr(fixes_scope.subprocess, "run", lambda *a, **k: _Result())
+        read = _Result(returncode=0, stdout="GH-1 one\n\0GH-2 two\n\0", stderr="")
+        monkeypatch.setattr(fixes_scope.subprocess, "run", lambda *a, **k: read)
         assert fixes_scope.read_commit_messages(base="origin/develop") == [
             "GH-1 one\n",
             "GH-2 two\n",
         ]
+
+
+@pytest.fixture
+def pr_checkout(tmp_path):
+    """A repo whose branch carries one ticket commit past its base."""
+    repo = tmp_path / "worktree"
+    repo.mkdir()
+    git = ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-C", str(repo)]
+    subprocess.run([*git, "init", "-q", "-b", "develop"], check=True)
+    subprocess.run([*git, "commit", "-q", "--allow-empty", "-m", "base"], check=True)
+    subprocess.run([*git, "tag", "base"], check=True)
+    subprocess.run([*git, "commit", "-q", "--allow-empty", "-m", "GH-7 ship it"], check=True)
+    return repo
+
+
+class TestReadCommitMessagesAgainstGit:
+    def test_reads_the_named_checkout_not_the_callers(self, pr_checkout, tmp_path, monkeypatch):
+        # GH-1464: the orchestrator ran this from a different checkout
+        # and got an empty range; repo_dir must win over where we sit.
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir()
+        monkeypatch.chdir(elsewhere)
+
+        messages = read_commit_messages(base="base", repo_dir=str(pr_checkout))
+
+        assert [message.strip() for message in messages] == ["GH-7 ship it"]

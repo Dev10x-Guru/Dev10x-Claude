@@ -28,8 +28,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 # Standalone-script territory: this module is also the body of
-# `skills/gh-pr-merge/scripts/reconcile-fixes-links.py`, which runs in a
-# fresh uv process whose CWD is already the checkout being merged.
+# `skills/gh-pr-merge/scripts/reconcile-fixes-links.py`, a uv-script with
+# no dependencies, so `dev10x.subprocess_utils` (whose import chain
+# needs yaml) is out of reach — the cwd-discipline exemption. That shim
+# runs wherever its caller sat, which is not necessarily the checkout
+# being merged (GH-1464): an orchestrator merging a worktree child's PR
+# from the main checkout read an empty range and reported a false
+# `unbacked`. So the repository is an explicit input instead.
 _SUBPROCESS_TIMEOUT_SECONDS = 60
 
 # `Fixes:`/`Closes:` and the rest of GitHub's closing-keyword set. Matched
@@ -214,14 +219,22 @@ def reconcile_fixes_links(
     return ScopeReconciliation(linked=linked, delivered=delivered, unbacked=unbacked)
 
 
-def read_commit_messages(*, base: str, head: str = "HEAD") -> list[str]:
-    """Full commit messages on ``head`` since ``base``.
+def read_commit_messages(
+    *,
+    base: str,
+    head: str = "HEAD",
+    repo_dir: str | None = None,
+) -> list[str]:
+    """Full commit messages on ``head`` since ``base``, read in ``repo_dir``.
 
     ``%B`` rather than ``%s`` so a batched commit's body — where its
-    non-canonical members are listed — is part of the scan.
+    non-canonical members are listed — is part of the scan. ``repo_dir``
+    defaults to the process CWD, which is only right when the caller
+    already sits in the PR's checkout.
     """
     result = subprocess.run(
         ["git", "log", "--format=%B%x00", f"{base}..{head}"],
+        cwd=repo_dir,
         capture_output=True,
         text=True,
         timeout=_SUBPROCESS_TIMEOUT_SECONDS,
@@ -239,6 +252,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--base", required=True, help="base ref, e.g. origin/develop")
     parser.add_argument("--head", default="HEAD")
     parser.add_argument(
+        "--repo-dir",
+        default=None,
+        help="checkout holding the PR branch; defaults to the current directory",
+    )
+    parser.add_argument(
         "--acknowledge",
         type=int,
         action="append",
@@ -252,7 +270,11 @@ def main(argv: list[str] | None = None) -> int:
     # to read (script-domain-boundaries.md).
     try:
         body = Path(args.body_file).read_text(encoding="utf-8")
-        messages = read_commit_messages(base=args.base, head=args.head)
+        messages = read_commit_messages(
+            base=args.base,
+            head=args.head,
+            repo_dir=args.repo_dir,
+        )
     except (OSError, RuntimeError) as exc:
         print(json.dumps({"error": str(exc)}))
         return 2
@@ -262,19 +284,36 @@ def main(argv: list[str] | None = None) -> int:
         commit_messages=messages,
         acknowledged=set(args.acknowledge),
     )
-    print(
-        json.dumps(
-            {
-                "ok": verdict.ok,
-                "linked": list(verdict.linked),
-                "delivered": list(verdict.delivered),
-                "unbacked": list(verdict.unbacked),
-                "summary": verdict.summary(),
-            },
-            indent=2,
+    report: dict[str, object] = {
+        "ok": verdict.ok,
+        "linked": list(verdict.linked),
+        "delivered": list(verdict.delivered),
+        "unbacked": list(verdict.unbacked),
+        "commits_read": len(messages),
+        "summary": verdict.summary(),
+    }
+    if verdict.unbacked and not messages:
+        report["hint"] = empty_range_hint(
+            base=args.base,
+            head=args.head,
+            repo_dir=args.repo_dir,
         )
-    )
+    print(json.dumps(report, indent=2))
     return 0 if verdict.ok else 1
+
+
+def empty_range_hint(*, base: str, head: str, repo_dir: str | None) -> str:
+    """Name the likelier cause when every link is unbacked by zero commits.
+
+    A PR with links and no commits at all is almost never what is being
+    merged — it is the range read from a checkout that is not on the PR's
+    branch (GH-1464). Saying so turns a false block into a one-line fix.
+    """
+    where = repo_dir or "the current directory"
+    return (
+        f"{base}..{head} holds no commits in {where}. If the PR branch lives"
+        " in another worktree, re-run with --repo-dir <that worktree>."
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover - exercised via the shim
