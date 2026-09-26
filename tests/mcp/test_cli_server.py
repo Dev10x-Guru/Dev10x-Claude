@@ -1607,6 +1607,38 @@ class TestPrGet:
 
         assert "error" in result
 
+    @pytest.mark.asyncio
+    @patch("dev10x.github.pr_get", new_callable=AsyncMock)
+    async def test_accepts_pr_number_alias(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        """GH-1430: pr_number is accepted like the twelve other PR tools."""
+        mock_fn.return_value = ok({"number": 42, "title": "T", "state": "OPEN"})
+
+        result = await cli_server.pr_get(pr_number=42, repo="o/r")
+
+        assert result["number"] == 42
+        assert mock_fn.call_args.kwargs == {"number": 42, "repo": "o/r"}
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.pr_get", new_callable=AsyncMock)
+    async def test_number_takes_precedence_over_alias(
+        self,
+        mock_fn: AsyncMock,
+    ) -> None:
+        mock_fn.return_value = ok({"number": 42, "title": "T", "state": "OPEN"})
+
+        await cli_server.pr_get(number=42, pr_number=999)
+
+        assert mock_fn.call_args.kwargs["number"] == 42
+
+    @pytest.mark.asyncio
+    async def test_errors_when_neither_number_nor_alias_given(self) -> None:
+        result = await cli_server.pr_get()
+
+        assert "error" in result
+
 
 class TestPrClose:
     @pytest.mark.asyncio
