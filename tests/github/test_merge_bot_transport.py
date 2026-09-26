@@ -192,7 +192,7 @@ class TestBranchDeletion:
     @pytest.fixture
     def head_ref(self):
         with patch.object(
-            gh,
+            gh.pulls,
             "pr_get",
             new_callable=AsyncMock,
             return_value=ok({"headRefName": "feature/x"}),
@@ -250,7 +250,9 @@ class TestBranchDeletion:
     ) -> None:
         mock_api.return_value = _completed(stdout='{"merged": true}')
 
-        with patch.object(gh, "pr_get", new_callable=AsyncMock, return_value=err("no such PR")):
+        with patch.object(
+            gh.pulls, "pr_get", new_callable=AsyncMock, return_value=err("no such PR")
+        ):
             result = await gh.merge_pr(pr_number=42, use_bot=True, delete_branch=True)
 
         assert isinstance(result, SuccessResult)

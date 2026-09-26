@@ -1588,7 +1588,7 @@ class TestIssueGet:
 
 class TestPrGet:
     @pytest.mark.asyncio
-    @patch("dev10x.github.pr_get", new_callable=AsyncMock)
+    @patch("dev10x.mcp.github_tools.gh.pr_get", new_callable=AsyncMock)
     async def test_delegates_to_github_module(
         self,
         mock_fn: AsyncMock,
@@ -1612,7 +1612,7 @@ class TestPrGet:
         assert mock_fn.call_args.kwargs == {"number": 42, "repo": "o/r"}
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.pr_get", new_callable=AsyncMock)
+    @patch("dev10x.mcp.github_tools.gh.pr_get", new_callable=AsyncMock)
     async def test_returns_error_on_failure(
         self,
         mock_fn: AsyncMock,
@@ -1624,7 +1624,7 @@ class TestPrGet:
         assert "error" in result
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.pr_get", new_callable=AsyncMock)
+    @patch("dev10x.mcp.github_tools.gh.pr_get", new_callable=AsyncMock)
     async def test_accepts_pr_number_alias(
         self,
         mock_fn: AsyncMock,
@@ -1638,7 +1638,7 @@ class TestPrGet:
         assert mock_fn.call_args.kwargs == {"number": 42, "repo": "o/r"}
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.pr_get", new_callable=AsyncMock)
+    @patch("dev10x.mcp.github_tools.gh.pr_get", new_callable=AsyncMock)
     async def test_number_takes_precedence_over_alias(
         self,
         mock_fn: AsyncMock,
