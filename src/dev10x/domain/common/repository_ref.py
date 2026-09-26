@@ -25,3 +25,19 @@ class RepositoryRef:
             return cls.parse(value)
         except (TypeError, ValueError):
             return None
+
+    @classmethod
+    def basename_or(cls, value: str, *, fallback: str | None = None) -> str:
+        """Return the bare repo name from an ``owner/name`` string.
+
+        Parses via :meth:`try_parse` first, so a malformed ``value`` does
+        not silently produce a wrong or empty basename (GH-1451). Falls
+        back to ``fallback`` — or the last ``/``-delimited segment when
+        ``fallback`` is omitted — only when the string does not parse.
+        """
+        ref = cls.try_parse(value)
+        if ref is not None:
+            return ref.name
+        if fallback is not None:
+            return fallback
+        return value.rsplit("/", maxsplit=1)[-1]

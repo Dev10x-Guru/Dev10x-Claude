@@ -1516,6 +1516,18 @@ class TestCheckTopLevelComments:
         assert [f["id"] for f in result["blocking"]] == [1]
         assert [f["id"] for f in result["needs_disposition"]] == [2, 3]
 
+    @pytest.mark.asyncio
+    @patch("dev10x.github.async_run_script", new_callable=AsyncMock)
+    async def test_returns_error_on_malformed_repo(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        """GH-1451: a malformed repo fails loud via RepositoryRef.parse."""
+        result = await cli_server.check_top_level_comments(pr_number=42, repo="not-a-repo")
+
+        assert "error" in result
+        mock_run.assert_not_called()
+
 
 class TestUnresolvedThreadsMcp:
     @pytest.mark.asyncio

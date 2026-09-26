@@ -24,6 +24,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from dev10x.domain.common.repository_ref import RepositoryRef
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.skills.common.jtbd import extract_jtbd, md_to_slack_bold
 from dev10x.skills.notifications._gh import GhCommandError, gh_json
@@ -78,7 +79,7 @@ def resolve_mention(
 
 
 def _repo_name(repo: str) -> str:
-    return repo.split("/")[-1]
+    return RepositoryRef.basename_or(repo)
 
 
 def format_review_message(

@@ -84,10 +84,7 @@ def split_title_jtbd(pr_title: str) -> tuple[str, str | None]:
 
 
 def _repo_name(repo: str) -> str:
-    ref = RepositoryRef.try_parse(repo)
-    if ref is not None:
-        return ref.name
-    return repo.split("/")[-1]
+    return RepositoryRef.basename_or(repo)
 
 
 def format_slack_message(
