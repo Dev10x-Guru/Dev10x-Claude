@@ -53,7 +53,7 @@ PENDING_PLAN = {"tasks": [{"subject": "Monitor CI", "status": "pending"}]}
 
 @pytest.fixture()
 def isolated_markers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Point the cooldown and standby markers at a temp dir."""
+    """Point the cooldown, standby and stand-down markers at a temp dir."""
     marker_dir = tmp_path / "markers"
     monkeypatch.setattr(
         "dev10x.hooks.stop_verdict._marker_path",
@@ -62,5 +62,9 @@ def isolated_markers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(
         "dev10x.hooks.stop_verdict._standby_path",
         lambda *, session_id: marker_dir / f"{session_id or 'unknown'}.standby",
+    )
+    monkeypatch.setattr(
+        "dev10x.hooks.stop_verdict._stand_down_path",
+        lambda *, session_id: marker_dir / f"{session_id or 'unknown'}.standdown",
     )
     return marker_dir

@@ -93,7 +93,16 @@ def read_plan_identity(*, toplevel: str) -> dict[str, Any]:
     ``[]`` so a plan-less repo reads as identity-less (and therefore stale —
     the safe direction, matching the old session.yaml semantics).
     """
-    summary = read_plan_summary(toplevel=toplevel)
+    return plan_identity(summary=read_plan_summary(toplevel=toplevel))
+
+
+def plan_identity(*, summary: object) -> dict[str, Any]:
+    """The identity half of :func:`read_plan_identity`, over a loaded summary.
+
+    Split out so a caller already holding the summary (the Stop verdict,
+    GH-1470) parses identity the same way instead of re-reading the file
+    or walking the dict by hand — the divergence GH-1434 removed.
+    """
     plan = summary.get("plan") if isinstance(summary, dict) else None
     plan = plan if isinstance(plan, dict) else {}
     branch = plan.get("branch")
@@ -111,4 +120,5 @@ __all__ = [
     "write_state",
     "read_plan_summary",
     "read_plan_identity",
+    "plan_identity",
 ]

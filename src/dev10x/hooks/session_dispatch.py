@@ -35,10 +35,13 @@ from dev10x.hooks.audit_emit import set_decision_attribution
 from dev10x.hooks.session_policy import MigratePluginPermissionsRule
 from dev10x.hooks.stop_verdict import (
     StopVerdict,
+    clear_stand_down,
     decide,
     payload_capture,
     read_harness_version,
+    read_session_start,
     record_block,
+    record_stand_down,
 )
 from dev10x.session.service import SessionService
 
@@ -284,6 +287,17 @@ def _uncommitted_paths() -> tuple[str, ...] | None:
     return tuple(line[3:].strip() for line in status.splitlines() if len(line) > 3)
 
 
+def _current_branch(*, toplevel: str) -> str | None:
+    """The checked-out branch, or ``None`` when git cannot say (GH-1470).
+
+    ``None`` skips the branch half of the plan-ownership check rather
+    than failing it: an unreadable branch is no evidence the plan is
+    someone else's. A detached ``HEAD`` names no branch either.
+    """
+    branch = GitContext(cwd=toplevel).branch
+    return None if branch in ("unknown", "HEAD") else branch
+
+
 def build_stop_verdict(data: dict | None = None) -> StopVerdict | None:
     """Decide whether this Stop should be blocked and steered (GH-1251).
 
@@ -303,7 +317,9 @@ def build_stop_verdict(data: dict | None = None) -> StopVerdict | None:
 
     toplevel = _get_toplevel()
     plan: dict | None = None
+    current_branch: str | None = None
     if toplevel:
+        current_branch = _current_branch(toplevel=toplevel)
         summary = read_plan_summary(toplevel=toplevel)
         # The whole summary, not summary["plan"] (GH-1339). `Plan.to_dict`
         # returns {"plan": <metadata>, "tasks": [...]}, so reaching for
@@ -314,7 +330,20 @@ def build_stop_verdict(data: dict | None = None) -> StopVerdict | None:
         # would make the stand-down gate unreachable.
         plan = summary if isinstance(summary, dict) else None
 
-    verdict = decide(data=data, plan=plan, dirty=_uncommitted_paths())
+    transcript_path = str(data.get("transcript_path") or "")
+    session_id = str(data.get("session_id") or "")
+    verdict = decide(
+        data=data,
+        plan=plan,
+        dirty=_uncommitted_paths(),
+        session_started=read_session_start(transcript_path=transcript_path),
+        current_branch=current_branch,
+    )
+    # decide() reads the stand-down marker and never writes it (GH-1470).
+    if verdict.record_stand_down:
+        record_stand_down(session_id=session_id, fingerprint=verdict.record_stand_down)
+    if verdict.clear_stand_down:
+        clear_stand_down(session_id=session_id)
     # Attribute every outcome, not only a block (GH-1257). Retiring the
     # cooldown marker is safe only once `stop_hook_active` is known to
     # arrive set on a continuation, and the audit log carried nothing
@@ -330,15 +359,13 @@ def build_stop_verdict(data: dict | None = None) -> StopVerdict | None:
         reason=verdict.signal,
         extra={
             "signal": verdict.signal,
-            "harness_version": read_harness_version(
-                transcript_path=str(data.get("transcript_path") or "")
-            ),
+            "harness_version": read_harness_version(transcript_path=transcript_path),
             **payload_capture(data=data, env=os.environ),
         },
     )
     if not verdict.block:
         return None
-    record_block(session_id=str(data.get("session_id") or ""))
+    record_block(session_id=session_id)
     return verdict
 
 
