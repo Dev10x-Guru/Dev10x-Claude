@@ -1,0 +1,84 @@
+{
+  "skill_name": "Dev10x:park-discover",
+  "eval_dimensions": [
+    {
+      "id": "next-steps-gate",
+      "name": "Next-Steps AskUserQuestion Gate",
+      "description": "After presenting the deferred-items report, the skill fires AskUserQuestion (resume continuation prompt / pick a task / migrate legacy TODO.md / just informational) whenever at least one source returned items — never a plain-text 'what would you like to do?'."
+    }
+  ],
+  "evals": [
+    {
+      "id": "next-steps-ask-when-items-found",
+      "name": "Next-steps gate fires when any source returns items",
+      "description": "When the task index, legacy TODO.md, code TODOs, PR bookmarks, Slack reminders, or memory notes return at least one item, the skill fires AskUserQuestion after presenting the report.",
+      "input": "/Dev10x:park-discover",
+      "assertions": [
+        {
+          "dimension": "next-steps-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "At least one deferred item found → AskUserQuestion fires with resume/pick/migrate/close options"
+        },
+        {
+          "dimension": "next-steps-gate",
+          "check": "plain_text",
+          "signal": "No inline plain-text 'what next?' substitutes for the widget when items were found"
+        }
+      ]
+    },
+    {
+      "id": "next-steps-no-ask-when-empty",
+      "name": "Next-steps gate does not fire when every source is empty",
+      "description": "When every section renders '(none)' — no task index entries, no legacy TODO, no code TODOs, no PR bookmarks, no Slack reminders, no memory notes — the skill does not fire the gate.",
+      "input": "/Dev10x:park-discover",
+      "assertions": [
+        {
+          "dimension": "next-steps-gate",
+          "check": "behavioral",
+          "signal": "All sources empty → report renders with '(none)' sections; AskUserQuestion is not called"
+        }
+      ]
+    },
+    {
+      "id": "no-shell-anti-patterns",
+      "name": "No chained/raw-CLI anti-patterns from the Commands table",
+      "description": "The skill never issues chained Bash (';'/'&&'/subshells), a bare 'cat'/'grep' in place of Read/Grep, or a raw 'gh pr view --json comments' in place of the pr_comments MCP wrapper.",
+      "input": "/Dev10x:park-discover",
+      "assertions": [
+        {
+          "dimension": "next-steps-gate",
+          "check": "behavioral",
+          "signal": "PR bookmark lookup uses mcp__plugin_Dev10x_cli__pr_detect + pr_comments, never raw gh api/gh pr view"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "description": "Queries that should/should-not trigger the park-discover skill",
+    "should_trigger": [
+      {
+        "query": "/Dev10x:park-discover",
+        "rationale": "Direct invocation to gather deferred items across all sources"
+      },
+      {
+        "query": "what's deferred from yesterday",
+        "rationale": "Session-start discovery request — the core use case"
+      },
+      {
+        "query": "any open items to pick up",
+        "rationale": "Resuming prior work — discovery request"
+      }
+    ],
+    "should_not_trigger": [
+      {
+        "query": "remember to check the retry logic later",
+        "rationale": "Writing a new deferral — use Dev10x:park-todo or Dev10x:park, not park-discover"
+      },
+      {
+        "query": "mid-session, actively implementing a feature",
+        "rationale": "No need to check deferred items during active work"
+      }
+    ]
+  }
+}
