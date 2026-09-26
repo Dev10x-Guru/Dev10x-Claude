@@ -22,12 +22,15 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from dataclasses import dataclass
 from pathlib import Path
 
 from dev10x import subprocess_utils
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.domain.common.singleton_holder import SingletonHolder
+from dev10x.domain.dead_letter import record_undelivered
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.domain.retry import RetryPolicy, is_retryable_status
 from dev10x.skills.notifications import gchat_cards
 
 log = logging.getLogger(__name__)
@@ -40,6 +43,11 @@ _JWT_GRANT = "urn:ietf:params:oauth:grant-type:jwt-bearer"
 REPLY_FALLBACK_OPTION = "REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD"
 
 _config_holder: SingletonHolder[dict] = SingletonHolder()
+
+# GH-1479: same bound as the Slack path (GH-1423) — a notification is
+# worth a couple of extra seconds, not an unbounded wait, and under
+# foreman the caller is a night-run crew nobody is watching.
+_GCHAT_RETRY_POLICY = RetryPolicy()
 
 
 def _config_path() -> Path:
@@ -264,6 +272,24 @@ def mint_chat_token() -> Result[str]:
     return mint_access_token(sa_result.value)
 
 
+@dataclass(frozen=True)
+class _Attempt:
+    """One Chat API call's outcome, plus whether it is worth repeating."""
+
+    result: Result[dict]
+    transient: bool = False
+    retry_after: float | None = None
+
+
+def _as_seconds(raw: str | None) -> float | None:
+    """Parse a ``Retry-After`` header value, ignoring a malformed one."""
+    try:
+        return float(raw) if raw else None
+    except ValueError:
+        log.warning("Ignoring unparseable Retry-After header: %r", raw)
+        return None
+
+
 def _request_json(
     url: str,
     *,
@@ -273,13 +299,54 @@ def _request_json(
     error_label: str = "Google Chat request failed",
     status_notes: dict[int, str] | None = None,
 ) -> Result[dict]:
-    """Issue one Chat API call.
+    """Issue a Chat API call, retrying a transient failure (GH-1479).
 
     ``status_notes`` appends an explanation for a specific HTTP status.
     The status is only reliably known here — re-deriving it downstream by
     matching on the formatted message would also match a code quoted
     inside the API's own response body.
+
+    Mirrors ``slack_notify.call_slack_api`` (GH-1423): a 408/429/5xx or a
+    network fault is retried a bounded number of times, honouring the
+    server's own ``Retry-After`` when it sends one. A Chat-level rejection
+    (a non-retryable HTTP status) is a considered answer rather than a
+    transport fault, so it is never retried.
     """
+    policy = _GCHAT_RETRY_POLICY
+    for attempt in range(1, policy.attempts + 1):
+        outcome = _chat_api_once(
+            url,
+            token=token,
+            payload=payload,
+            method=method,
+            error_label=error_label,
+            status_notes=status_notes,
+        )
+        if not outcome.transient or attempt == policy.attempts:
+            return outcome.result
+        delay = policy.delay_for(attempt=attempt, retry_after=outcome.retry_after)
+        log.warning(
+            "Google Chat %s %s failed transiently (attempt %d/%d), retrying in %.2fs",
+            method,
+            url,
+            attempt,
+            policy.attempts,
+            delay,
+        )
+        time.sleep(delay)
+    return outcome.result
+
+
+def _chat_api_once(
+    url: str,
+    *,
+    token: str,
+    payload: dict | None,
+    method: str,
+    error_label: str,
+    status_notes: dict[int, str] | None,
+) -> _Attempt:
+    """Make one Chat API call and classify its outcome for the retry loop."""
     data = json.dumps(payload).encode() if payload is not None else None
     headers = {"Authorization": f"Bearer {token}"}
     if data is not None:
@@ -290,14 +357,22 @@ def _request_json(
             # A successful DELETE answers 200 with an empty body, which
             # json.loads would reject.
             body = resp.read().decode()
-            return ok(json.loads(body) if body.strip() else {})
+            return _Attempt(result=ok(json.loads(body) if body.strip() else {}))
     except urllib.error.HTTPError as ex:
         detail = ex.read().decode(errors="replace")
         message = f"{error_label} (HTTP {ex.code}): {detail}"
         note = (status_notes or {}).get(ex.code)
-        return err(f"{message}\n{note}" if note else message)
+        raw_retry_after = ex.headers.get("Retry-After") if ex.headers else None
+        return _Attempt(
+            result=err(f"{message}\n{note}" if note else message),
+            transient=is_retryable_status(ex.code),
+            retry_after=_as_seconds(raw_retry_after),
+        )
     except urllib.error.URLError as ex:
-        return err(f"{urllib.parse.urlsplit(url).netloc} unreachable: {ex.reason}")
+        return _Attempt(
+            result=err(f"{urllib.parse.urlsplit(url).netloc} unreachable: {ex.reason}"),
+            transient=True,
+        )
 
 
 def _post_json(
@@ -504,14 +579,28 @@ def notify_gchat(
     Pass ``cards`` (built with ``gchat_cards``) for a formatted cardsV2
     panel, optionally alongside ``message`` so mentions still notify.
     Pass ``thread`` to reply into an existing thread (GH-1203).
+
+    GH-1479: a failure is also appended to the dead-letter log, so a
+    message lost overnight is findable in the morning rather than
+    existing only in this call's return value. The ``Result`` contract
+    is unchanged — the sink is additive and never raises.
     """
-    return send_gchat_message(
+    result = send_gchat_message(
         space=space,
         message=message,
         cards=cards,
         fallback_text=fallback_text,
         thread=thread,
     )
+    if isinstance(result, ErrorResult):
+        record_undelivered(
+            channel=space,
+            transport="gchat",
+            error=result.error,
+            body=message or fallback_text,
+            context={"thread": thread},
+        )
+    return result
 
 
 def update_gchat_message(

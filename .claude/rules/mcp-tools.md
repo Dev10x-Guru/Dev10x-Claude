@@ -252,9 +252,10 @@ Behavioral caveats:
   guard. `issue_labels` still uses the `DELETE` loop; it is not on a
   hot path.
 
-- `notify_slack` and `pr_notify(action="send")` append a failed
-  notification to `~/.config/Dev10x/undelivered-notifications.jsonl`
-  (GH-1421). The error used to exist only in the call's return value,
+- `notify_slack`, `notify_gchat`, and `pr_notify(action="send")` append
+  a failed notification to
+  `~/.config/Dev10x/undelivered-notifications.jsonl` (GH-1421,
+  GH-1479). The error used to exist only in the call's return value,
   which is fine when an agent surfaces it to a user and useless under
   `foreman`'s unattended crews — the one mode where a lost "crew
   stalled" costs most and nobody is watching. **It is a dead-letter
@@ -262,7 +263,12 @@ Behavioral caveats:
   person greps it. `record_undelivered` never raises, because losing
   the caller on top of the notification turns a missed message into a
   broken crew. `pr_notify(action="prepare")` dispatches nothing and so
-  records nothing.
+  records nothing. `notify_gchat` mirrors `notify_slack`'s retry loop
+  (`domain/retry.py`) and dead-letter call through the same shared
+  `domain/` policy modules — ADR-0029 deliberately keeps the two
+  provider transports as separate modules with no shared base class,
+  so `tests/skills/notifications/test_transport_parity.py` guards
+  against the next protocol-level fix landing on only one provider.
 
 - `issue_labels` is `pr_labels`'s issue-side counterpart (GH-1322),
   with the same idempotence contract. `issue_edit`'s `labels`
