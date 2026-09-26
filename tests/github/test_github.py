@@ -1982,7 +1982,7 @@ class TestUpdatePr:
     ) -> None:
         mock_api.return_value = _completed(stdout="{}")
 
-        with patch("dev10x.github.pr_get", new_callable=AsyncMock) as mock_get:
+        with patch("dev10x.github.pulls.pr_get", new_callable=AsyncMock) as mock_get:
             mock_get.return_value = ok({"body": "new body"})
             result = await gh.update_pr(pr_number=42, body="new body")
 

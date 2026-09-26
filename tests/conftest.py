@@ -146,7 +146,7 @@ def stub_fixes_trailer_readback() -> Generator[AsyncMock, None, None]:
     contract as ``stub_feature_branch``: the guard keeps its own
     coverage in ``TestCreatePrFixesTrailerReadback``.
     """
-    with patch("dev10x.github.pr_get", new_callable=AsyncMock) as mock_pr_get:
+    with patch("dev10x.github.pulls.pr_get", new_callable=AsyncMock) as mock_pr_get:
         mock_pr_get.return_value = ok({"body": "Story\n\nFixes: #1"})
         yield mock_pr_get
 
