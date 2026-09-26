@@ -1,5 +1,28 @@
 # Hook Implementation Patterns
 
+> **[OVERRIDE DETECTED]** — 458 lines against the 200-line rule-file
+> budget in `.claude/rules/INDEX.md` (GH-1438), the second-largest
+> unexplained breach after `mcp-tools.md`.
+>
+> **Cohesion justification.** The file reads as one contract for
+> "how does a hook get added or changed here": cross-language parity
+> (Python/shell), the direct-shebang + orchestrator dispatch pattern,
+> the Stop-verdict merge rules, the PostToolUse formatter's hunk-scope
+> contract, and the DX001-DX017 profile-tier table all answer that
+> one question, and a reviewer checking one section routinely needs
+> the rule two sections over (e.g. a new Stop feature needs both the
+> orchestrator-consolidation rule and the verdict-merge rule).
+>
+> **Conditional split plan.** If this file passes ~600 lines, or a
+> reviewer has to hold two unrelated sections in mind at once, split
+> along the seam that already exists: `hook-dispatch-patterns.md`
+> (direct-shebang/orchestrator pattern, SessionStart/Stop
+> consolidation, the Stop-verdict rules, the PostToolUse formatter
+> scope) and `hook-validator-profiles.md` (Profile Tiers, rule-ID
+> table, DX014/DX017 sensitivity detail). Do not split by
+> language (Python vs shell) — that cuts across the parity
+> guidance both halves need.
+
 Guidance for maintaining consistent implementations when hooks exist
 in multiple languages (Python and shell).
 
