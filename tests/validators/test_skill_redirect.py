@@ -952,6 +952,76 @@ class TestLoopShapesReachTheEngine:
         assert validator.validate(inp=_make_input(command="sleep 5")) is None
 
 
+def _make_backgrounded_input(*, command: str) -> BashHookInputFaker:
+    return BashHookInputFaker.build(
+        tool_name="Bash",
+        command=command,
+        raw={
+            "tool_name": "Bash",
+            "tool_input": {"command": command, "run_in_background": True},
+        },
+    )
+
+
+class TestWatchLoopBackgroundedIsNotBlocked:
+    """GH-1456: `run_in_background: true` is the hint's OWN remedy.
+
+    watch-loop-handrolled's second compensation tells the caller to
+    submit exactly an until/sleep loop that exits once its condition
+    holds, dispatched with `run_in_background: true` — so the rule's
+    danger (a prompt or a blocking wait freezing an unattended turn,
+    GH-879) cannot occur for a call already running asynchronously.
+    Denying it anyway rejected the hint's own worked example.
+    """
+
+    def test_until_sleep_loop_dispatched_in_background_is_allowed(
+        self, validator: SkillRedirectValidator
+    ) -> None:
+        inp = _make_backgrounded_input(command=UNTIL_POLL_LOOP)
+        assert validator.validate(inp=inp) is None
+
+    def test_bare_poll_loop_dispatched_in_background_is_allowed(
+        self, validator: SkillRedirectValidator
+    ) -> None:
+        inp = _make_backgrounded_input(command=BARE_POLL_LOOP)
+        assert validator.validate(inp=inp) is None
+
+    def test_foreground_loop_is_still_blocked(self, validator: SkillRedirectValidator) -> None:
+        """The exemption is scoped to the background flag, not the shape."""
+        inp = _make_input(command=UNTIL_POLL_LOOP)
+        assert validator.validate(inp=inp) is not None
+
+    def test_run_in_background_false_is_still_blocked(
+        self, validator: SkillRedirectValidator
+    ) -> None:
+        inp = BashHookInputFaker.build(
+            tool_name="Bash",
+            command=UNTIL_POLL_LOOP,
+            raw={
+                "tool_name": "Bash",
+                "tool_input": {"command": UNTIL_POLL_LOOP, "run_in_background": False},
+            },
+        )
+        assert validator.validate(inp=inp) is not None
+
+    def test_background_flag_does_not_exempt_a_different_rule(
+        self, validator: SkillRedirectValidator
+    ) -> None:
+        """Scoped to watch-loop-handrolled — not a blanket bypass (GH-1456)."""
+        inp = BashHookInputFaker.build(
+            tool_name="Bash",
+            command="git push --force origin main",
+            raw={
+                "tool_name": "Bash",
+                "tool_input": {
+                    "command": "git push --force origin main",
+                    "run_in_background": True,
+                },
+            },
+        )
+        assert validator.validate(inp=inp) is not None
+
+
 @pytest.fixture()
 def loop_block_message(validator: SkillRedirectValidator) -> str:
     result = validator.validate(inp=_make_input(command=BARE_POLL_LOOP))
