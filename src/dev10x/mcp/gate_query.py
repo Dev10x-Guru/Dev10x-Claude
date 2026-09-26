@@ -193,6 +193,133 @@ def _computed_session_stale(*, toplevel: str) -> bool:
     )
 
 
+def _partition_context(context: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    """Split caller context into GateContext fields and ignored extras.
+
+    Warn-and-ignore rather than hard-fail (GH-854 F1): a mistyped or
+    extra context key drops out and the gate resolves on the remaining
+    facts (omitted facts resolve in the safe direction) instead of
+    erroring the whole call. The dropped keys are surfaced on the wire
+    so the caller can spot a typo.
+    """
+    import dataclasses
+
+    from dev10x.domain.gate_policy import GateContext
+
+    known_fields = {field.name for field in dataclasses.fields(GateContext)}
+    ignored = sorted(set(context) - known_fields)
+    accepted = {k: v for k, v in context.items() if k in known_fields}
+    return accepted, ignored
+
+
+def _refuse_legacy_policy(inputs: dict[str, Any]) -> str | None:
+    """Return the refusal message when the config still speaks v1, else None.
+
+    GH-1162: v2 vocabulary only. `gate_preset` / `gate_overlays` are read
+    verbatim — nothing translates `friction_level` / `walk_away` /
+    `active_modes: solo-maintainer` into them any more, and nothing
+    inherits legacy overlays when `gate_overlays` is merely omitted.
+
+    A config still speaking v1 is REFUSED rather than resolved. Falling
+    back to the sole remaining baseline would read as harmless and is
+    not: a repo that pinned `friction_level: strict` would come up
+    auto-merging, so the failure mode of the tempting branch is an
+    autonomy ESCALATION on exactly the repos that asked for less. The
+    migrator (GH-1166) converts such configs; the error names it.
+    """
+    from dev10x.domain.gate_policy import legacy_config_message, legacy_policy_keys
+
+    legacy_keys = legacy_policy_keys(
+        friction_level=inputs["friction_level"],
+        walk_away=inputs["walk_away"],
+        active_modes=inputs["active_modes"],
+        gate_preset=inputs["gate_preset"],
+        gate_overlays=inputs["gate_overlays"],
+    )
+    return legacy_config_message(keys=legacy_keys) if legacy_keys else None
+
+
+def _resolve_overlays(inputs: dict[str, Any]) -> tuple[str, list[str], list[str]]:
+    """Resolve ``(preset, overlays, dropped_overlays)`` from the policy inputs.
+
+    ADR-0022 D-1: naming no posture selects the single shipped baseline.
+
+    GH-805 durable-mode guard: a repo may declare a local, gitignored
+    ``allowed_overlays`` allow-list in config.yaml. Any overlay not on it —
+    e.g. a stale ``solo-maintainer`` copied worktree-wide by post-checkout —
+    is dropped BEFORE resolution so its request_review/external_notify/merge
+    skips are never honored. Dropping only ever removes autonomy, so it can
+    never make a gate less safe. ``None`` means no allow-list (permissive).
+    """
+    from dev10x.domain.gate_policy import BASELINE_PRESET
+
+    preset = inputs["gate_preset"] or BASELINE_PRESET
+    overlays = list(inputs["gate_overlays"])
+    allowed_overlays = inputs["allowed_overlays"]
+    if allowed_overlays is None:
+        return preset, overlays, []
+    dropped = [o for o in overlays if o not in allowed_overlays]
+    kept = [o for o in overlays if o in allowed_overlays]
+    return preset, kept, dropped
+
+
+async def _resolve_session_stale(
+    *,
+    gate: str,
+    context: dict[str, Any],
+    toplevel: str,
+) -> dict[str, Any]:
+    """Fill in ``session_stale`` for session_adoption (GH-742 F1 seam).
+
+    Computed only when the caller did not supply it — unlike the
+    supervisor policy below, staleness is a per-instance fact a caller
+    may know better.
+    """
+    resolved = dict(context)
+    if gate == "session_adoption" and "session_stale" not in resolved:
+        resolved["session_stale"] = await asyncio.to_thread(
+            _computed_session_stale, toplevel=toplevel
+        )
+    return resolved
+
+
+async def _resolve_supervisor_policy(
+    *,
+    gate: str,
+    context: dict[str, Any],
+    inputs: dict[str, Any],
+    overlays: list[str],
+) -> tuple[dict[str, Any], list[str]]:
+    """Overwrite the supervisor facts from durable policy; name what was dropped.
+
+    supervisor_review is durable project policy (ADR-0022 D-2), so it is
+    read UNCONDITIONALLY from the prefs and a caller-supplied value is
+    dropped — the GH-1000 invariant, carried over from `human_review`
+    which this key renames. Honouring a supplied value would let an
+    unattended agent self-authorise past the supervisor with one wire
+    key. `supervisor_cleared` is dropped for the same reason: the
+    sign-off signal is the PR's own `review:cleared` label, read here,
+    never a fact the gate's caller gets to assert about itself.
+
+    Read from `inputs`, not a second `read_supervisor_review()` call:
+    `_durable()` is not memoised, so re-reading would re-open and
+    re-parse the same YAML on every gate resolution. (A caller passing
+    the retired `human_review` key lands in `ignored_context_fields` via
+    the unknown-field partition — it is no longer a GateContext field.)
+    """
+    from dev10x.domain.gate_policy import SOLO_OVERLAY
+
+    supplied = [key for key in ("supervisor_review", "supervisor_cleared") if key in context]
+    resolved = dict(context)
+    resolved["supervisor_review"] = inputs["supervisor_review"]
+    resolved["supervisor_cleared"] = await _supervisor_cleared(
+        gate=gate,
+        supervisor_review=inputs["supervisor_review"],
+        solo_repo=SOLO_OVERLAY in overlays,
+    )
+    return resolved, supplied
+
+
 @dataclass(frozen=True)
 class GateResolutionOutcome:
     """Read/compute result of a gate query, ready for side-effect routing.
@@ -225,8 +352,6 @@ class GateResolutionQuery:
     toplevel: str
 
     async def run(self) -> Result[GateResolutionOutcome]:
-        import dataclasses
-
         from dev10x.config.friction_presets import (
             load_shipped_overlays,
             load_shipped_presets,
@@ -234,107 +359,36 @@ class GateResolutionQuery:
         )
         from dev10x.domain.documents.session_yaml import SessionYamlDocument
         from dev10x.domain.gate_policy import (
-            BASELINE_PRESET,
-            SOLO_OVERLAY,
             GateContext,
             UnknownPresetError,
             UnknownToggleError,
-            legacy_config_message,
-            legacy_policy_keys,
             resolve_gate,
         )
 
-        known_fields = {field.name for field in dataclasses.fields(GateContext)}
-        ignored_context_fields = sorted(set(self.context) - known_fields)
-        # Warn-and-ignore rather than hard-fail (GH-854 F1): a mistyped or
-        # extra context key drops out and the gate resolves on the remaining
-        # facts (omitted facts resolve in the safe direction) instead of
-        # erroring the whole call. The dropped keys are surfaced on the wire
-        # so the caller can spot a typo.
-        accepted_context = {k: v for k, v in self.context.items() if k in known_fields}
+        accepted_context, ignored_context_fields = _partition_context(self.context)
 
         # Durable prefs are a property of the REPO, so they resolve against the
         # repo root when this worktree has no entry of its own (GH-978). The
-        # project overrides and the session_adoption staleness fallback below
-        # stay on ``self.toplevel``: the former is a git-tracked artifact of the
+        # project overrides and the session_adoption staleness fallback stay on
+        # ``self.toplevel``: the former is a git-tracked artifact of the
         # checked-out branch, the latter is per-worktree by definition.
         session_doc = SessionYamlDocument(toplevel=_policy_toplevel(self.toplevel))
         inputs = session_doc.read_gate_policy_inputs()
 
-        # GH-1162: v2 vocabulary only. `gate_preset` / `gate_overlays` are read
-        # verbatim — nothing translates `friction_level` / `walk_away` /
-        # `active_modes: solo-maintainer` into them any more, and nothing
-        # inherits legacy overlays when `gate_overlays` is merely omitted.
-        #
-        # A config still speaking v1 is REFUSED rather than resolved. Falling
-        # back to the sole remaining baseline would read as harmless and is
-        # not: a repo that pinned `friction_level: strict` would come up
-        # auto-merging, so the failure mode of the tempting branch is an
-        # autonomy ESCALATION on exactly the repos that asked for less. The
-        # migrator (GH-1166) converts such configs; the error names it.
-        legacy_keys = legacy_policy_keys(
-            friction_level=inputs["friction_level"],
-            walk_away=inputs["walk_away"],
-            active_modes=inputs["active_modes"],
-            gate_preset=inputs["gate_preset"],
-            gate_overlays=inputs["gate_overlays"],
+        refusal = _refuse_legacy_policy(inputs)
+        if refusal is not None:
+            return err(refusal)
+
+        preset, overlays, dropped_overlays = _resolve_overlays(inputs)
+
+        resolved_context = await _resolve_session_stale(
+            gate=self.gate, context=accepted_context, toplevel=self.toplevel
         )
-        if legacy_keys:
-            return err(legacy_config_message(keys=legacy_keys))
-
-        # ADR-0022 D-1: naming no posture selects the single shipped baseline.
-        preset = inputs["gate_preset"] or BASELINE_PRESET
-        overlays = list(inputs["gate_overlays"])
-
-        # GH-805 durable-mode guard: a repo may declare a local, gitignored
-        # ``allowed_overlays`` allow-list in config.yaml. Any overlay not on it —
-        # e.g. a stale ``solo-maintainer`` copied worktree-wide by post-checkout —
-        # is dropped BEFORE resolution so its request_review/external_notify/merge
-        # skips are never honored. Dropping only ever removes autonomy, so it can
-        # never make a gate less safe. ``None`` means no allow-list (permissive).
-        dropped_overlays: list[str] = []
-        allowed_overlays = inputs["allowed_overlays"]
-        if allowed_overlays is not None:
-            dropped_overlays = [o for o in overlays if o not in allowed_overlays]
-            overlays = [o for o in overlays if o in allowed_overlays]
-
-        # session_adoption keys on computed staleness (GH-742 F1 seam) unless
-        # the caller supplied session_stale explicitly.
-        resolved_context = dict(accepted_context)
-        if self.gate == "session_adoption" and "session_stale" not in resolved_context:
-            resolved_context["session_stale"] = await asyncio.to_thread(
-                _computed_session_stale, toplevel=self.toplevel
-            )
-
-        # supervisor_review is durable project policy (ADR-0022 D-2), so it is
-        # read UNCONDITIONALLY from the prefs and a caller-supplied value is
-        # dropped — the GH-1000 invariant, carried over from `human_review`
-        # which this key renames. UNCONDITIONAL unlike the session_stale seam
-        # above: session_stale is a per-instance fact a caller may know
-        # better, this is durable project policy, and honouring a supplied
-        # value would let an unattended agent self-authorise past the
-        # supervisor with one wire key. `supervisor_cleared` is dropped for
-        # the same reason: the sign-off signal is the PR's own
-        # `review:cleared` label, read here, never a fact the gate's caller
-        # gets to assert about itself.
-        #
-        # Read from `inputs`, not a second `read_supervisor_review()` call:
-        # `_durable()` is not memoised, so re-reading would re-open and
-        # re-parse the same YAML on every gate resolution.
-        # (A caller passing the retired `human_review` key lands in
-        # `ignored_context_fields` via the unknown-field partition above —
-        # it is no longer a GateContext field at all.)
-        supplied_policy = [
-            key for key in ("supervisor_review", "supervisor_cleared") if key in resolved_context
-        ]
+        resolved_context, supplied_policy = await _resolve_supervisor_policy(
+            gate=self.gate, context=resolved_context, inputs=inputs, overlays=overlays
+        )
         if supplied_policy:
             ignored_context_fields = sorted({*ignored_context_fields, *supplied_policy})
-        resolved_context["supervisor_review"] = inputs["supervisor_review"]
-        resolved_context["supervisor_cleared"] = await _supervisor_cleared(
-            gate=self.gate,
-            supervisor_review=inputs["supervisor_review"],
-            solo_repo=SOLO_OVERLAY in overlays,
-        )
 
         gate_context = GateContext(**resolved_context)
 
