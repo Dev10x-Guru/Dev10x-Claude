@@ -26,6 +26,7 @@ from pathlib import Path
 
 from dev10x import subprocess_utils
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.domain.common.singleton_holder import SingletonHolder
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.skills.notifications import gchat_cards
 
@@ -38,7 +39,7 @@ IAM_CREDENTIALS_BASE = "https://iamcredentials.googleapis.com/v1"
 _JWT_GRANT = "urn:ietf:params:oauth:grant-type:jwt-bearer"
 REPLY_FALLBACK_OPTION = "REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD"
 
-_config: dict | None = None
+_config_holder: SingletonHolder[dict] = SingletonHolder()
 
 
 def _config_path() -> Path:
@@ -55,10 +56,11 @@ def _load_config() -> dict:
 
 
 def _get_config() -> dict:
-    global _config
-    if _config is None:
-        _config = _load_config()
-    return _config
+    config = _config_holder.get()
+    if config is None:
+        config = _load_config()
+        _config_holder.set(config)
+    return config
 
 
 def resolve_space_id(alias: str) -> Result[str]:

@@ -21,12 +21,13 @@ from functools import wraps
 from typing import Any, TypeVar
 
 from dev10x.domain.audit_writer import AuditWriter
+from dev10x.domain.common.singleton_holder import SingletonHolder
 from dev10x.domain.events.hook_event import HookEventName
 from dev10x.domain.hook_telemetry import HookPhase
 
 F = TypeVar("F", bound=Callable[..., Any])
 
-_writer: AuditWriter | None = None
+_writer_holder: SingletonHolder[AuditWriter] = SingletonHolder()
 
 _REASON_MAX_CHARS = 200
 
@@ -93,19 +94,19 @@ def clear_decision_attribution() -> None:
 def _get_writer() -> AuditWriter:
     """Resolve the audit writer — the single seam touching the ``audit``
     adapter (audit memo I6). Swap via :func:`set_audit_writer` in tests."""
-    global _writer
-    if _writer is None:
+    writer = _writer_holder.get()
+    if writer is None:
         from dev10x.audit.log_reader import LogReaderAuditWriter
 
-        _writer = LogReaderAuditWriter()
-    return _writer
+        writer = LogReaderAuditWriter()
+        _writer_holder.set(writer)
+    return writer
 
 
 def set_audit_writer(writer: AuditWriter | None) -> None:
     """Inject an alternative ``AuditWriter`` (tests / alternative backends).
     Pass ``None`` to reset to the default log-backed writer."""
-    global _writer
-    _writer = writer
+    _writer_holder.set(writer)
 
 
 def audit_hook(name: str, *, event: HookEventName | str = "") -> Callable[[F], F]:

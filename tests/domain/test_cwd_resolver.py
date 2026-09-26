@@ -20,7 +20,7 @@ from dev10x.domain import cwd_resolver
 def _restore_resolver() -> Iterator[None]:
     """Save/restore the module global so tests don't leak into the
     infra-wired default (`subprocess_utils.effective_cwd`)."""
-    saved = cwd_resolver._resolver
+    saved = cwd_resolver._holder.get()
     try:
         yield
     finally:
@@ -58,4 +58,4 @@ def test_infra_import_wires_resolver() -> None:
     import dev10x.subprocess_utils as su
 
     su  # imported for its module-load wiring side effect
-    assert cwd_resolver._resolver is su.effective_cwd
+    assert cwd_resolver._holder.get() is su.effective_cwd

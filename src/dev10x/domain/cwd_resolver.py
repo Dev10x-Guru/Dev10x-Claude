@@ -22,6 +22,8 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
+from dev10x.domain.common.singleton_holder import SingletonHolder
+
 
 @runtime_checkable
 class CwdResolver(Protocol):
@@ -30,7 +32,7 @@ class CwdResolver(Protocol):
     def __call__(self) -> str | None: ...
 
 
-_resolver: CwdResolver | None = None
+_holder: SingletonHolder[CwdResolver] = SingletonHolder()
 
 
 def set_cwd_resolver(resolver: CwdResolver | None) -> None:
@@ -38,13 +40,13 @@ def set_cwd_resolver(resolver: CwdResolver | None) -> None:
 
     Pass ``None`` to reset to the unbound default.
     """
-    global _resolver
-    _resolver = resolver
+    _holder.set(resolver)
 
 
 def resolve_cwd() -> str | None:
     """Return the injected resolver's result, or ``None`` when unset."""
-    return _resolver() if _resolver is not None else None
+    resolver = _holder.get()
+    return resolver() if resolver is not None else None
 
 
 __all__ = ["CwdResolver", "resolve_cwd", "set_cwd_resolver"]
