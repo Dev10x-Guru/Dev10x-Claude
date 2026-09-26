@@ -13,7 +13,7 @@ settings output until the PAP-3 renderer replaces it.
 
 from __future__ import annotations
 
-from dev10x.domain.common.policy import Policy, PolicyEffect
+from dev10x.domain.common.policy import Policy
 from dev10x.domain.common.policy_migration import (
     BASELINE_CATALOG_PATH,
     CLAUDE_AI_MCP_GROUP,
@@ -26,12 +26,12 @@ from dev10x.domain.common.policy_migration import (
 
 def flat_allow_rules(*, policies: list[Policy]) -> list[str]:
     """Project allow policies back to the flat ``base_permissions`` list."""
-    return [p.signature for p in policies if p.effect is PolicyEffect.ALLOW]
+    return [p.signature for p in policies if p.is_allow]
 
 
 def flat_deny_rules(*, policies: list[Policy]) -> list[str]:
     """Project deny policies back to the flat ``base_denies`` list."""
-    return [p.signature for p in policies if p.effect is PolicyEffect.DENY]
+    return [p.signature for p in policies if p.is_deny]
 
 
 __all__ = [

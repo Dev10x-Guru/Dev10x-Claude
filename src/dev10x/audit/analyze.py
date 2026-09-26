@@ -7,10 +7,11 @@ shim so the skill-audit pipeline can still run analyze-permissions
 from a Bash entry point.
 
 The implementation reuses the parsers, classifiers, and writers
-defined in `dev10x.audit.permissions_model` — keeping the analysis
-logic inside the audit context (GH-244, I1 / ADR-0008) instead of
-importing up into the skills layer. This factory is the seam that lets
-MCP callers skip the subprocess hop and consume the report as data.
+defined in `dev10x.audit.friction_transcript_model` — keeping the
+analysis logic inside the audit context (GH-244, I1 / ADR-0008)
+instead of importing up into the skills layer. This factory is the
+seam that lets MCP callers skip the subprocess hop and consume the
+report as data.
 """
 
 from __future__ import annotations
@@ -19,7 +20,7 @@ import io
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from dev10x.audit.permissions_model import (
+from dev10x.audit.friction_transcript_model import (
     Finding,
     HygieneFinding,
     audit_script_hygiene,
@@ -32,7 +33,7 @@ from dev10x.audit.permissions_model import (
     propose_allow_rules,
     write_output,
 )
-from dev10x.audit.permissions_model import (
+from dev10x.audit.friction_transcript_model import (
     analyze_permissions as _analyze_permissions,
 )
 from dev10x.domain.claude_paths import ClaudeDir
@@ -81,9 +82,9 @@ def build_audit_report(
     findings = count_nuisance_patterns(findings=findings)
 
     # GH-979 (H6): when an MCP caller bound the worktree via use_cwd, default
-    # the project root to it at this seam. permissions_model.detect_known_friction
-    # applies the same effective_cwd() fallback for standalone CLI callers that
-    # pass None.
+    # the project root to it at this seam.
+    # friction_transcript_model.detect_known_friction applies the same
+    # effective_cwd() fallback for standalone CLI callers that pass None.
     extra = detect_known_friction(
         calls=calls,
         additional_dirs=additional_dirs,

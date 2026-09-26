@@ -218,6 +218,16 @@ class Policy:
         """Whether this policy participates in resolution at all."""
         return self.enabled and self.lifecycle is not PolicyLifecycle.DEPRECATED
 
+    @property
+    def is_allow(self) -> bool:
+        """True when this policy's effect is ALLOW (GH-1442)."""
+        return self.effect is PolicyEffect.ALLOW
+
+    @property
+    def is_deny(self) -> bool:
+        """True when this policy's effect is DENY (GH-1442)."""
+        return self.effect is PolicyEffect.DENY
+
     def matches(self, signature: str) -> bool:
         """Delegate matching to the wrapped :class:`AllowRule`."""
         return self.rule.matches(signature=signature)
@@ -320,6 +330,23 @@ class PolicyCatalog:
         """
         data = load_baseline_dict(Path(path), strict=False)
         return PolicyCatalog.from_baseline_dict(data, source=source)
+
+    @staticmethod
+    def partition_by_effect(policies: list[Policy]) -> dict[PolicyEffect, list[Policy]]:
+        """Group ``policies`` by their ``effect`` (GH-1442).
+
+        ``PolicyCatalog`` returns a plain ``list[Policy]`` with no query
+        surface, so callers independently filtered on
+        ``policy.effect is PolicyEffect.ALLOW``/``DENY`` at three call
+        sites. This is the one implementation for that split; a caller
+        that only needs one effect can prefer the ``Policy.is_allow`` /
+        ``Policy.is_deny`` properties instead of calling this and
+        discarding the rest.
+        """
+        partitioned: dict[PolicyEffect, list[Policy]] = {effect: [] for effect in PolicyEffect}
+        for policy in policies:
+            partitioned[policy.effect].append(policy)
+        return partitioned
 
 
 __all__ = [

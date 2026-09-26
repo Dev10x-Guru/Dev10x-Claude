@@ -17,6 +17,7 @@ from dev10x.skills.common.jtbd import extract_jtbd, md_to_slack_bold
 from dev10x.skills.notifications import gchat_cards
 from dev10x.skills.notifications._gh import (  # noqa: F401  (GhCommandError re-exported for the CLI except)
     GhCommandError,
+    gh_api_json,
     gh_json,
 )
 
@@ -154,11 +155,8 @@ def resolve_preview_url(
     a button, so nothing here is allowed to raise or retry (GH-1262).
     """
     try:
-        deployments = gh_json(
-            args=[
-                "api",
-                f"repos/{repo}/deployments?sha={head_sha}&per_page={_DEPLOYMENT_PAGE_SIZE}",
-            ]
+        deployments = gh_api_json(
+            f"repos/{repo}/deployments?sha={head_sha}&per_page={_DEPLOYMENT_PAGE_SIZE}"
         )
     except (GhCommandError, json.JSONDecodeError):
         return None
@@ -181,7 +179,7 @@ def _successful_environment_url(*, repo: str, deployment_id: Any) -> str | None:
     if deployment_id is None:
         return None
     try:
-        statuses = gh_json(args=["api", f"repos/{repo}/deployments/{deployment_id}/statuses"])
+        statuses = gh_api_json(f"repos/{repo}/deployments/{deployment_id}/statuses")
     except (GhCommandError, json.JSONDecodeError):
         return None
 

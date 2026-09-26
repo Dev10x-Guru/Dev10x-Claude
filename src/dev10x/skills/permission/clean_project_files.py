@@ -588,6 +588,92 @@ def find_settings_files(roots: list[str]) -> list[Path]:
     return unique
 
 
+@dataclass(frozen=True)
+class CleanFileOutcome:
+    """One settings file's clean-file result plus its rendered messages.
+
+    ``result`` is ``None`` when the file could not be cleaned at all
+    (mirrors :func:`clean_file`'s own ``None`` case) — ``messages`` then
+    carries the reason and no totals are aggregated for this file.
+    """
+
+    path: Path
+    messages: list[str]
+    result: RemovalResult | None
+
+    @property
+    def has_findings(self) -> bool:
+        if self.result is None:
+            return False
+        return bool(
+            self.result.total_removed > 0
+            or self.result.leaked_secrets
+            or self.result.wildcard_bypasses
+            or self.result.allow_deny_contradictions
+            or self.result.ask_shadowed_by_allow
+        )
+
+
+@dataclass
+class CleanRunResult:
+    """Aggregated outcome of cleaning every settings file in one run (GH-1442).
+
+    Extracted from ``commands/permission.py::clean()``, which used to
+    carry ~110 lines of loop-and-aggregate logic inline in the Click
+    handler — the least testable command in that file, unlike
+    ``merge_worktree`` and ``ensure_ignored`` which already delegate
+    their multi-file loops to the skill module. The Click handler now
+    only formats and prints this result.
+    """
+
+    outcomes: list[CleanFileOutcome] = field(default_factory=list)
+    total_removed: int = 0
+    total_kept: int = 0
+    files_changed: int = 0
+    total_secrets: int = 0
+    total_global_dedup: int = 0
+
+
+def run_clean(
+    *,
+    settings_files: list[Path],
+    global_rules: set[str],
+    current_version: str | None,
+    base_permissions: set[str],
+    cache_root: Path | None,
+    dry_run: bool,
+    verbose: bool,
+    skip_global_dedup: bool,
+) -> CleanRunResult:
+    """Clean every settings file and aggregate the totals."""
+    run = CleanRunResult()
+    for path in sorted(settings_files):
+        result, messages = clean_file(
+            path,
+            global_rules=global_rules,
+            current_version=current_version,
+            base_permissions=base_permissions,
+            cache_root=cache_root,
+            dry_run=dry_run,
+            verbose=verbose,
+            skip_global_dedup=skip_global_dedup,
+        )
+        outcome = CleanFileOutcome(path=path, messages=messages, result=result)
+        run.outcomes.append(outcome)
+        if result is None:
+            continue
+        if outcome.has_findings:
+            run.total_removed += result.total_removed
+            run.total_kept += len(result.kept)
+            run.total_secrets += len(result.leaked_secrets)
+            run.total_global_dedup += len(result.exact_duplicates)
+            if result.total_removed > 0:
+                run.files_changed += 1
+        else:
+            run.total_kept += len(result.kept)
+    return run
+
+
 def _restore(*, config_path: Path) -> int:
     from dev10x.skills.permission.backup import restore_report
 

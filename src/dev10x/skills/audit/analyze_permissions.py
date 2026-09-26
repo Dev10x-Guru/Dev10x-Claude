@@ -7,9 +7,10 @@
 
 Thin CLI adapter (GH-244, I1 / ADR-0008). The parsers, classifiers,
 hygiene auditor, and report writer now live in
-``dev10x.audit.permissions_model`` — the audit context owns the analysis
-logic. This module re-exports those names for backward compatibility and
-provides the ``main`` entry point used by the skill-audit Bash pipeline.
+``dev10x.audit.friction_transcript_model`` — the audit context owns the
+analysis logic. This module re-exports those names for backward
+compatibility and provides the ``main`` entry point used by the
+skill-audit Bash pipeline.
 
 Usage:
     analyze-permissions.py <transcript.md> [settings.json] [output.md]
@@ -23,7 +24,7 @@ import sys
 from dataclasses import replace
 from pathlib import Path
 
-from dev10x.audit.permissions_model import (
+from dev10x.audit.friction_transcript_model import (
     ALLOW_RULE_RE,
     CHAIN_RE,
     COMMENT_PREFIX_RE,

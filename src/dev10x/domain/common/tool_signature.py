@@ -5,7 +5,7 @@ and rule-suggestion logic (GH-543):
 
 - ``hooks/permission_diagnostics.py`` — ``extract_tool_signature`` +
   ``_suggest_rule``
-- ``audit/permissions_model.py`` — ``ToolCall.signature()``
+- ``audit/friction_transcript_model.py`` — ``ToolCall.signature()``
 - ``skills/audit/analyze_actions.py`` — ``classify_action`` +
   ``ACTION_TYPE_BY_TOOL``
 

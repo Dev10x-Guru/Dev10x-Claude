@@ -230,6 +230,30 @@ class TestPolicy:
         )
         assert policy.is_effective is expected
 
+    def test_is_allow(self) -> None:
+        policy = Policy.from_rule_str(
+            "Bash(ls:*)", tier=1, source=PolicySource.PLUGIN_DEFAULT, effect=PolicyEffect.ALLOW
+        )
+        assert policy.is_allow is True
+        assert policy.is_deny is False
+
+    def test_is_deny(self) -> None:
+        policy = Policy.from_rule_str(
+            "Bash(rm:*)", tier=1, source=PolicySource.PLUGIN_DEFAULT, effect=PolicyEffect.DENY
+        )
+        assert policy.is_deny is True
+        assert policy.is_allow is False
+
+    def test_is_allow_false_for_ask(self) -> None:
+        policy = Policy.from_rule_str(
+            "Bash(git push:*)",
+            tier=1,
+            source=PolicySource.PLUGIN_DEFAULT,
+            effect=PolicyEffect.ASK,
+        )
+        assert policy.is_allow is False
+        assert policy.is_deny is False
+
 
 class TestPolicyLifecycle:
     @pytest.mark.parametrize(
@@ -407,6 +431,43 @@ class TestPolicyCatalogLoad:
         path = self._write(tmp_path, _BASELINE)
         policies = PolicyCatalog.load(path, source=PolicySource.USER_PRIVATE)
         assert all(p.source == PolicySource.USER_PRIVATE for p in policies)
+
+
+class TestPolicyCatalogPartitionByEffect:
+    def test_groups_policies_by_effect(self) -> None:
+        allow = Policy.from_rule_str(
+            "Bash(ls:*)", tier=1, source=PolicySource.PLUGIN_DEFAULT, effect=PolicyEffect.ALLOW
+        )
+        deny = Policy.from_rule_str(
+            "Bash(sudo:*)", tier=1, source=PolicySource.PLUGIN_DEFAULT, effect=PolicyEffect.DENY
+        )
+        ask = Policy.from_rule_str(
+            "Bash(git push:*)",
+            tier=1,
+            source=PolicySource.PLUGIN_DEFAULT,
+            effect=PolicyEffect.ASK,
+        )
+
+        partitioned = PolicyCatalog.partition_by_effect([allow, deny, ask])
+
+        assert partitioned[PolicyEffect.ALLOW] == [allow]
+        assert partitioned[PolicyEffect.DENY] == [deny]
+        assert partitioned[PolicyEffect.ASK] == [ask]
+
+    def test_empty_effect_maps_to_empty_list(self) -> None:
+        allow = Policy.from_rule_str(
+            "Bash(ls:*)", tier=1, source=PolicySource.PLUGIN_DEFAULT, effect=PolicyEffect.ALLOW
+        )
+
+        partitioned = PolicyCatalog.partition_by_effect([allow])
+
+        assert partitioned[PolicyEffect.DENY] == []
+        assert partitioned[PolicyEffect.ASK] == []
+
+    def test_empty_input_yields_all_empty_lists(self) -> None:
+        partitioned = PolicyCatalog.partition_by_effect([])
+
+        assert partitioned == {effect: [] for effect in PolicyEffect}
 
     def test_load_missing_file_returns_empty(self, tmp_path: Path) -> None:
         assert PolicyCatalog.load(tmp_path / "nope.yaml") == []

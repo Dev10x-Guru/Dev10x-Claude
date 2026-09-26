@@ -1,6 +1,6 @@
 """Tests for the skills CLI adapter (GH-244, I1 / ADR-0008).
 
-The analysis logic moved to ``dev10x.audit.permissions_model``; this
+The analysis logic moved to ``dev10x.audit.friction_transcript_model``; this
 module is now a thin adapter that re-exports those names and provides
 the ``main`` entry point used by the skill-audit Bash pipeline. These
 tests cover the adapter: that it re-exports the model symbols and that
@@ -18,12 +18,12 @@ from dev10x.skills.audit import analyze_permissions as adapter
 TRANSCRIPT = "## Turn 1 [12:00:00] ASSISTANT\n\n**Tool: `Bash`**\n```\ncommand=ls -la\n```\n"
 
 
-def test_reexports_logic_from_permissions_model() -> None:
-    from dev10x.audit import permissions_model
+def test_reexports_logic_from_friction_transcript_model() -> None:
+    from dev10x.audit import friction_transcript_model
 
-    assert adapter.analyze_permissions is permissions_model.analyze_permissions
-    assert adapter.Finding is permissions_model.Finding
-    assert adapter.write_output is permissions_model.write_output
+    assert adapter.analyze_permissions is friction_transcript_model.analyze_permissions
+    assert adapter.Finding is friction_transcript_model.Finding
+    assert adapter.write_output is friction_transcript_model.write_output
     assert "main" in adapter.__all__
 
 

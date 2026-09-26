@@ -22,21 +22,32 @@ PREVIEW_URL = "https://my-app-git-feature.vercel.app"
 HEAD_SHA = "abc123"
 
 
-def wire_gh(monkeypatch: pytest.MonkeyPatch, responses: dict[str, Any]) -> list[list[str]]:
-    """Route `gh` calls by a substring of their arguments. Returns the call log."""
-    calls: list[list[str]] = []
+def wire_gh(monkeypatch: pytest.MonkeyPatch, responses: dict[str, Any]) -> list[str]:
+    """Route both `gh_json` (e.g. `pr view`) and `gh_api_json` (`gh api`)
+    calls by a substring, normalizing every call to one string in the
+    shared log so callers can assert across both (GH-1442: the `gh api`
+    endpoints moved onto the Gateway's `gh_api_json`, `pr view` did not).
+    """
+    calls: list[str] = []
 
-    def fake_gh_json(args: list[str], **kwargs: Any) -> Any:
-        calls.append(args)
-        joined = " ".join(args)
+    def _respond(*, key: str, logged: str) -> Any:
+        calls.append(logged)
         for marker, response in responses.items():
-            if marker in joined:
+            if marker in key:
                 if isinstance(response, Exception):
                     raise response
                 return response
-        raise AssertionError(f"unexpected gh call: {joined}")
+        raise AssertionError(f"unexpected gh call: {logged}")
+
+    def fake_gh_json(args: list[str], **kwargs: Any) -> Any:
+        joined = " ".join(args)
+        return _respond(key=joined, logged=joined)
+
+    def fake_gh_api_json(endpoint: str) -> Any:
+        return _respond(key=endpoint, logged=endpoint)
 
     monkeypatch.setattr(mod, "gh_json", fake_gh_json)
+    monkeypatch.setattr(mod, "gh_api_json", fake_gh_api_json)
     return calls
 
 
@@ -73,10 +84,7 @@ class TestResolvePreviewUrl:
 
         mod.resolve_preview_url(repo="org/my-app", head_sha=HEAD_SHA)
 
-        assert calls[0] == [
-            "api",
-            f"repos/org/my-app/deployments?sha={HEAD_SHA}&per_page=10",
-        ]
+        assert calls[0] == f"repos/org/my-app/deployments?sha={HEAD_SHA}&per_page=10"
 
     def test_the_status_query_names_the_deployment_it_came_from(
         self, monkeypatch: pytest.MonkeyPatch
@@ -91,7 +99,7 @@ class TestResolvePreviewUrl:
 
         mod.resolve_preview_url(repo="org/my-app", head_sha=HEAD_SHA)
 
-        assert calls[1] == ["api", "repos/org/my-app/deployments/77/statuses"]
+        assert calls[1] == "repos/org/my-app/deployments/77/statuses"
 
     def test_a_still_running_deployment_yields_nothing_yet(self, monkeypatch: pytest.MonkeyPatch):
         wire_gh(
@@ -230,7 +238,7 @@ class TestResolvePreviewUrl:
         )
 
         assert result == PREVIEW_URL
-        assert not any("deployments/1/statuses" in " ".join(c) for c in calls)
+        assert not any("deployments/1/statuses" in c for c in calls)
 
     def test_without_an_environment_the_first_deployment_that_answers_wins(
         self, monkeypatch: pytest.MonkeyPatch
@@ -466,7 +474,7 @@ class TestCmdPrepare:
         mod.cmd_prepare(SimpleNamespace(pr=42, repo="org/my-app"))
 
         assert self._output(capsys)["preview_url"] is None
-        assert not any("deployments" in " ".join(c) for c in calls)
+        assert not any("deployments" in c for c in calls)
 
     def test_a_pr_without_a_head_sha_skips_the_lookup(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -492,7 +500,7 @@ class TestCmdPrepare:
         mod.cmd_prepare(SimpleNamespace(pr=42, repo="org/my-app"))
 
         assert self._output(capsys)["preview_url"] is None
-        assert not any("deployments" in " ".join(c) for c in calls)
+        assert not any("deployments" in c for c in calls)
 
     def test_a_deployment_that_has_not_landed_yet_does_not_block_the_ping(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]

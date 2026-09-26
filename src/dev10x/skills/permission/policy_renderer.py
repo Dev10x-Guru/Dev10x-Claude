@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from dev10x.domain.common.policy import Policy, PolicyEffect
+from dev10x.domain.common.policy import Policy, PolicyCatalog, PolicyEffect
 from dev10x.domain.common.workspace import Workspace
 
 
@@ -38,15 +38,14 @@ def render_permissions(
 ) -> dict[str, list[str]]:
     """Render the ``permissions`` mapping for a settings file."""
     effective = [policy for policy in policies if policy.is_effective]
+    by_effect = PolicyCatalog.partition_by_effect(effective)
     rendered: dict[str, list[str]] = {}
     for key, effect in (
         ("allow", PolicyEffect.ALLOW),
         ("deny", PolicyEffect.DENY),
         ("ask", PolicyEffect.ASK),
     ):
-        rules = _unique(
-            rules=[policy.signature for policy in effective if policy.effect is effect]
-        )
+        rules = _unique(rules=[policy.signature for policy in by_effect[effect]])
         if twin_paths:
             rules = expand_twin_paths(rules=rules, home=home)
         if rules or key in ("allow", "deny"):
