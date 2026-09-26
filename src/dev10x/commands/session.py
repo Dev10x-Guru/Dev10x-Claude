@@ -26,10 +26,10 @@ import click
 
 from dev10x.domain.common.result import ErrorResult
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.documents.session_yaml import (
+from dev10x.domain.documents.config_yaml import set_playbook_modes
+from dev10x.domain.documents.friction_yaml import (
     PIN_SCOPES,
     FrictionYamlDocument,
-    set_playbook_modes,
     upsert_project_prefs,
 )
 from dev10x.session.preset_pin import PIN_OVERRIDE_VALUES
@@ -358,7 +358,7 @@ def reap(*, dry_run: bool) -> None:
     can be checked, so it is always kept.
     """
     from dev10x.domain.dev10x_paths import Dev10xConfigDir
-    from dev10x.domain.documents.session_yaml import (
+    from dev10x.domain.documents.friction_yaml import (
         is_provably_dead,
         project_entries,
         reap_dead_projects,

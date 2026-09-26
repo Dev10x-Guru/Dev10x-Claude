@@ -92,7 +92,7 @@ def _policy_toplevel(toplevel: str) -> str:
     repo, bare repo, wedged git) — never raises.
     """
     from dev10x.domain.common.result import ErrorResult
-    from dev10x.domain.documents.session_yaml import FrictionYamlDocument
+    from dev10x.domain.documents.friction_yaml import FrictionYamlDocument
     from dev10x.session.preset_pin import resolve_repo_identity
 
     if FrictionYamlDocument(toplevel=toplevel).matched() is not None:

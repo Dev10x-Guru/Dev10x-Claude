@@ -178,9 +178,12 @@ Readers degrade softly; no missing or malformed field raises.
 ## Readers
 
 `FrictionYamlDocument`
-(`src/dev10x/domain/documents/session_yaml.py`) owns the read —
-`read_supervisor_review()`, `read_active_modes()`, and the `matched()`
-first-match-wins lookup. Policy rules in
+(`src/dev10x/domain/documents/friction_yaml.py`) owns the file and its
+`matched()` first-match-wins lookup; `SessionYamlDocument`
+(`src/dev10x/domain/documents/session_yaml.py`) is the read facade that
+layers it over the legacy `config.yaml` (`config_yaml.py`) and exposes
+the typed readers — `read_supervisor_review()`, `read_active_modes()`.
+Policy rules in
 `src/dev10x/domain/session_rules.py` consume the parsed values and
 perform no I/O (ADR-0007 D3). `resolve_gate` is the only sanctioned
 gate consumer; `supervisor_review_status` / `pin_supervisor_review`

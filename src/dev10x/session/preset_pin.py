@@ -24,7 +24,7 @@ import os
 from typing import Any
 
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.domain.documents.session_yaml import (
+from dev10x.domain.documents.friction_yaml import (
     PIN_SCOPES,
     FrictionYamlDocument,
     PinScope,

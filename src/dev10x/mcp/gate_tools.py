@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.domain.documents.session_yaml import PinScope
+from dev10x.domain.documents.friction_yaml import PinScope
 from dev10x.domain.file_locks import atomic_append_line
 from dev10x.mcp._app import mcp_tool
 
@@ -138,7 +138,9 @@ async def resolve_gate(
     toplevel = await asyncio.to_thread(lambda: GitContext().toplevel)
     if toplevel is None:
         return err("Not in a git repository")
-    return await resolve_gate_for_toplevel(gate=gate, context=dict(context or {}), toplevel=toplevel)
+    return await resolve_gate_for_toplevel(
+        gate=gate, context=dict(context or {}), toplevel=toplevel
+    )
 
 
 @mcp_tool
@@ -170,7 +172,8 @@ def _read_supervisor_review() -> Result[dict[str, Any]]:
 
     Callers bind the effective CWD (GH-979) before invoking this.
     """
-    from dev10x.domain.documents.session_yaml import FrictionYamlDocument, SessionYamlDocument
+    from dev10x.domain.documents.friction_yaml import FrictionYamlDocument
+    from dev10x.domain.documents.session_yaml import SessionYamlDocument
     from dev10x.domain.gate_policy import SUPERVISOR_REVIEW_REQUIRED
     from dev10x.domain.git_context import GitContext
     from dev10x.mcp.gate_query import _policy_toplevel

@@ -19,7 +19,7 @@ def _write(path: Path, payload: dict) -> None:
 def friction(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     path = tmp_path / "friction.yaml"
     monkeypatch.setattr(
-        "dev10x.domain.documents.session_yaml.Dev10xConfigDir.friction_yaml",
+        "dev10x.domain.documents.friction_yaml.Dev10xConfigDir.friction_yaml",
         classmethod(lambda cls: path),
     )
     return path

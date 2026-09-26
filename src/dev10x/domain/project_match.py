@@ -186,7 +186,7 @@ def matches(pattern: str, *, target: str, scheme: MatchScheme) -> bool:
     """
     if scheme is MatchScheme.REPO:
         return fnmatch.fnmatch(target, pattern)
-    from dev10x.domain.documents.session_yaml import match_globs
+    from dev10x.domain.documents.friction_yaml import match_globs
 
     return match_globs(target, [pattern])
 

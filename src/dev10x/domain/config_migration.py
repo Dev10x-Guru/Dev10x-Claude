@@ -45,14 +45,14 @@ import yaml
 
 from dev10x.domain.common.result import Result, ok
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.documents.session_yaml import (
+from dev10x.domain.documents.config_yaml import ConfigYamlDocument
+from dev10x.domain.documents.friction_yaml import (
     DURABLE_KEYS,
-    ConfigYamlDocument,
     FrictionYamlDocument,
-    SessionYamlDocument,
     match_globs_for_repo,
     repo_stem,
 )
+from dev10x.domain.documents.session_yaml import SessionYamlDocument
 from dev10x.domain.file_locks import atomic_write_text, file_lock
 from dev10x.domain.gate_policy import (
     BASELINE_PRESET,
@@ -99,7 +99,7 @@ except ImportError:  # pragma: no cover — pure-Python PyYAML build
 def _load_document(path: Path) -> dict[str, Any]:
     """Tolerantly load a YAML mapping, degrading to ``{}`` on any failure.
 
-    Mirrors ``session_yaml._load_yaml_mapping`` rather than importing it:
+    Mirrors ``yaml_mapping.load_yaml_mapping`` rather than importing it:
     a migration that crashed on an already-corrupt store would leave the
     user with no way forward, and the *unfiltered* document is needed
     here — ``FrictionYamlDocument``'s readers drop everything outside the

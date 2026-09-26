@@ -640,7 +640,7 @@ class TestFrictionSetupNudge:
     ) -> None:
         # A failing seed write must not degrade to a silent "" (GH-886 failure
         # mode, one layer down) — the supervisor still gets the nudge.
-        from dev10x.domain.documents import session_yaml
+        from dev10x.domain.documents import friction_yaml
         from dev10x.session.service import SessionService
 
         self._isolate_config(monkeypatch=monkeypatch, tmp_path=tmp_path)
@@ -650,7 +650,7 @@ class TestFrictionSetupNudge:
         def _boom(*, path: Path | None = None) -> bool:
             raise OSError("disk full")
 
-        monkeypatch.setattr(session_yaml, "seed_strict_baseline_if_absent", _boom)
+        monkeypatch.setattr(friction_yaml, "seed_safe_baseline_if_absent", _boom)
         try:
             text = SessionService().build_friction_setup_context(toplevel=str(repo))
             assert "/Dev10x:friction-setup" in text
