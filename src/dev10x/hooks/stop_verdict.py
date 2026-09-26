@@ -99,17 +99,21 @@ only an *unanswered* widget keeps the gate quiet.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sys
 import time
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 
 from dev10x.domain.documents.plan import is_terminal_task_subject
 from dev10x.domain.file_locks import atomic_write_text
+from dev10x.domain.session_document import plan_identity
+from dev10x.domain.session_staleness import session_stale
 
 
 def _diagnose(*, what: str, error: OSError | ValueError) -> None:
@@ -136,6 +140,12 @@ _ASK_TOOL = "AskUserQuestion"
 #: widget answer that opens the turn, so the option label the steer asks
 #: for must contain this phrase.
 _STANDBY_RE = re.compile(r"\bon standby\b", re.IGNORECASE)
+
+#: A stand-down answer (GH-1470). Anchored to the answer side of the
+#: harness's ``"<question>"="<answer>"`` rendering, because unlike standby
+#: this answer outlives the turn: a question that merely mentions standing
+#: down must not silence the gate until the task list changes.
+_STAND_DOWN_RE = re.compile(r'="\s*stand(?:ing)?[\s-]+down\b', re.IGNORECASE)
 
 #: The documented payload marker of a subagent's stop (GH-1314): the
 #: harness contracts a ``SubagentStop`` event for a dispatched agent.
@@ -207,6 +217,11 @@ class StopSignal(StrEnum):
     only way to learn whether the transcript-layout check carries the
     population — and so whether the old guesses can be retired — is for
     the audit log to say which of the two matched.
+
+    ``STOOD_DOWN`` and ``FOREIGN_PLAN`` are GH-1470's two quiet endings: a
+    stand-down answer held until the task set changes, and a persisted
+    plan this session did not write. Each is its own member so the audit
+    log can say which one kept a session quiet.
     """
 
     STOP_HOOK_ACTIVE = "stop_hook_active"
@@ -214,6 +229,8 @@ class StopSignal(StrEnum):
     AWAITING_SUPERVISOR = "awaiting_supervisor"
     AWAITING_SUBAGENTS = "awaiting_subagents"
     NO_TASK_LIST = "no_task_list"
+    FOREIGN_PLAN = "foreign_plan"
+    STOOD_DOWN = "stood_down"
     DIRTY_TREE = "dirty_tree"
     SUBAGENT = "subagent"
     SUBAGENT_PATH = "subagent_path"
@@ -322,6 +339,14 @@ class StopVerdict:
     #: audit log recorded nothing but wrap-phase timing, so the
     #: question could not be answered from the field at all.
     signal: StopSignal = StopSignal.BLOCKED
+    #: A task-set fingerprint to persist as the stand-down marker, or
+    #: ``""`` for none (GH-1470). Carried on the verdict rather than
+    #: written by :func:`decide` so the rule reads markers and never
+    #: writes them; ``build_stop_verdict`` does the write.
+    record_stand_down: str = ""
+    #: The stand-down marker no longer matches the task set and should be
+    #: dropped — the task list changed, which is what re-arms the gate.
+    clear_stand_down: bool = False
 
     def to_envelope(self) -> dict:
         """Render the Claude Code Stop-hook decision payload."""
@@ -425,6 +450,74 @@ def _record_standby(*, marker: Path, boundary_id: str) -> None:
         )
     except OSError as error:
         _diagnose(what="writing the standby marker", error=error)
+
+
+def _stand_down_path(*, session_id: str) -> Path:
+    return Path("/tmp/Dev10x/stop-verdict") / f"{session_id or 'unknown'}.standdown"
+
+
+def read_stand_down(*, session_id: str) -> str | None:
+    """The task-set fingerprint the supervisor stood down on, if any (GH-1470).
+
+    Standby lasts until the supervisor speaks. Stand-down has to outlast
+    that: it is the terminal answer, and the field report is a session
+    that re-asked after each of three follow-up questions. So its
+    lifetime is keyed to the task set instead, which is what a new
+    ``TaskCreate``, a status change, or a new ``work-on`` all move.
+
+    Read-only, so :func:`decide` can consult it and stay free of writes.
+    A marker that cannot be read is no stand-down, which lets the gate
+    fire as it did before — never the direction that silences it.
+    """
+    try:
+        content = json.loads(_stand_down_path(session_id=session_id).read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError) as error:
+        _diagnose(what="reading the stand-down marker", error=error)
+        return None
+    recorded = content.get("fingerprint") if isinstance(content, dict) else None
+    return recorded if isinstance(recorded, str) and recorded else None
+
+
+def record_stand_down(*, session_id: str, fingerprint: str) -> None:
+    """Persist a stand-down answer against the task set it was given on."""
+    marker = _stand_down_path(session_id=session_id)
+    try:
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(
+            path=marker,
+            content=json.dumps({"fingerprint": fingerprint, "at": time.time()}),
+        )
+    except OSError as error:
+        _diagnose(what="writing the stand-down marker", error=error)
+
+
+def clear_stand_down(*, session_id: str) -> None:
+    """Drop a stand-down whose task set has since changed."""
+    try:
+        _stand_down_path(session_id=session_id).unlink(missing_ok=True)
+    except OSError as error:
+        _diagnose(what="clearing the stand-down marker", error=error)
+
+
+def task_fingerprint(*, plan: dict | None) -> str:
+    """A digest of the plan's task set: each task's id and status (GH-1470).
+
+    Subjects are the fallback identity for a task without an id, so a
+    hand-written plan still fingerprints. Sorted, so the order tasks are
+    persisted in cannot make an unchanged set look changed.
+    """
+    tasks = _plan_tasks(plan=plan) if isinstance(plan, dict) else []
+    members = sorted(
+        (str(task.get("id") or task.get("subject") or ""), str(task.get("status") or ""))
+        for task in tasks
+    )
+    return hashlib.sha256(json.dumps(members).encode("utf-8")).hexdigest()
+
+
+def _stood_down_this_turn(*, entries: list[dict], boundary: dict | None) -> bool:
+    return bool(_STAND_DOWN_RE.search(_turn_answers(entries=entries, boundary=boundary)))
 
 
 def _entry_id(*, entry: dict | None) -> str:
@@ -666,6 +759,85 @@ def read_harness_version(*, transcript_path: str) -> str:
         if isinstance(version, str) and version.strip():
             return version.strip()
     return UNKNOWN_HARNESS_VERSION
+
+
+def read_session_start(*, transcript_path: str) -> str | None:
+    """When this session began: its transcript's first timestamp (GH-1470).
+
+    The transcript is the one record of the session's own start that
+    the Stop hook can see — the payload carries no start time. The walk
+    is forward and stops at the first stamped entry, so it costs a few
+    lines, not the file. ``None`` means "could not tell", which leaves
+    the plan-ownership check to the branch alone.
+    """
+    if not transcript_path:
+        return None
+    try:
+        with open(transcript_path, encoding="utf-8") as handle:
+            for line in handle:
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                stamp = entry.get("timestamp") if isinstance(entry, dict) else None
+                if isinstance(stamp, str) and stamp.strip():
+                    return stamp.strip()
+    except OSError as error:
+        _diagnose(what="reading the transcript for its start", error=error)
+    except UnicodeDecodeError:
+        return None
+    return None
+
+
+def _parse_instant(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+def plan_is_foreign(
+    *,
+    plan: dict | None,
+    session_started: str | None,
+    current_branch: str | None,
+) -> bool:
+    """Whether the persisted plan belongs to some other session (GH-1470).
+
+    There is one plan per checkout, so a session that never ran
+    ``TaskCreate`` was judged against whatever an earlier session left —
+    the field report's "19/20 tasks completed" banner came from a plan on
+    ``develop`` written days before. Two tests, each only when its facts
+    are known, because an unknown fact must not manufacture silence:
+
+    - the plan's branch fails :func:`session_stale` against the current
+      branch — the same predicate the ``session_adoption`` gate uses;
+    - the plan's ``last_synced`` predates the session's start, so
+      nothing this session did has touched it.
+
+    Every task hook re-stamps both, so a plan this session is using
+    passes both on its next sync.
+    """
+    if not isinstance(plan, dict):
+        return False
+    identity = plan_identity(summary=plan)
+    if (
+        current_branch
+        and identity["branch"]
+        and session_stale(
+            recorded_branch=identity["branch"],
+            current_branch=current_branch,
+            recorded_tickets=identity["tickets"],
+        )
+    ):
+        return True
+    metadata = plan.get("plan")
+    synced = _parse_instant(metadata.get("last_synced") if isinstance(metadata, dict) else None)
+    started = _parse_instant(session_started)
+    return synced is not None and started is not None and synced < started
 
 
 def _is_user(*, entry: dict) -> bool:
@@ -986,7 +1158,9 @@ def _reason(*, signal: TaskSignal) -> str:
         'complete" as the `(Recommended)` option, with "On standby — '
         'not waiting on you" alongside it. Standby parks this gate '
         "until the supervisor speaks again; it is not a permanent "
-        "disable (GH-1314).\n\n"
+        "disable (GH-1314). A stand-down is kept until the task list "
+        "changes, so follow-up questions after it are answered plainly "
+        "(GH-1470).\n\n"
         "Either way the recommended option leads and carries the "
         "marker — an unmarked option list is a gate bypass "
         "(`.claude/rules/skill-gates.md`).\n\n"
@@ -1006,6 +1180,8 @@ def decide(
     plan: dict | None,
     dirty: tuple[str, ...] | None = None,
     now: float | None = None,
+    session_started: str | None = None,
+    current_branch: str | None = None,
 ) -> StopVerdict:
     """Return the Stop verdict for one hook invocation.
 
@@ -1018,6 +1194,10 @@ def decide(
     a subprocess — the same separation the module keeps for ``plan``.
     ``None`` means the read failed or was not attempted, which is not
     evidence of uncommitted work and so reads as clean.
+
+    ``session_started`` and ``current_branch`` arrive the same way
+    (GH-1470): they decide whether ``plan`` is this session's at all,
+    and ``None`` for either skips that half of the check.
     """
     if data.get("stop_hook_active"):
         return StopVerdict(block=False, signal=StopSignal.STOP_HOOK_ACTIVE)
@@ -1056,6 +1236,30 @@ def decide(
         # nothing about whether the work is finished.
         return StopVerdict(block=False, signal=StopSignal.NO_TASK_LIST)
 
+    if plan_is_foreign(plan=plan, session_started=session_started, current_branch=current_branch):
+        # Another session's plan is no evidence about this one (GH-1470),
+        # so it reads as the absent list it effectively is.
+        return StopVerdict(block=False, signal=StopSignal.FOREIGN_PLAN)
+
+    fingerprint = task_fingerprint(plan=plan)
+    if _stood_down_this_turn(entries=entries, boundary=boundary):
+        return StopVerdict(
+            block=False, signal=StopSignal.STOOD_DOWN, record_stand_down=fingerprint
+        )
+
+    stood_down_on = read_stand_down(session_id=session_id)
+    if stood_down_on == fingerprint:
+        return StopVerdict(block=False, signal=StopSignal.STOOD_DOWN)
+
+    verdict = _decide_on_tasks(signal=signal, dirty=dirty)
+    if stood_down_on is not None:
+        # The task set moved since the stand-down, which re-arms the gate.
+        return replace(verdict, clear_stand_down=True)
+    return verdict
+
+
+def _decide_on_tasks(*, signal: TaskSignal, dirty: tuple[str, ...] | None) -> StopVerdict:
+    """The task-list half of :func:`decide`, once the list is known to count."""
     if auto_advances(signal=signal):
         # Blocking CONTINUES the turn (GH-1366). The tree is not
         # consulted: uncommitted work mid-task is normal, and gating it
