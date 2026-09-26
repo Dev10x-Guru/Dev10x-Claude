@@ -174,16 +174,21 @@ def glob_shape_warnings(pattern: str, *, scheme: MatchScheme) -> tuple[str, ...]
 def matches(pattern: str, *, target: str, scheme: MatchScheme) -> bool:
     """Test one glob against ``target`` under ``scheme``.
 
-    Path matching mirrors ``_match_globs`` in
-    :mod:`dev10x.domain.documents.session_yaml`: each pattern is tried
-    against the full path and against the final segment, so ``*/<repo>``
-    and a bare repo name both work. Repo matching is a plain ``fnmatch``
-    against ``nameWithOwner``.
+    Path matching calls :func:`dev10x.domain.documents.session_yaml.
+    match_globs` directly (GH-1450) rather than maintaining a second,
+    hand-mirrored implementation of its semantics — each pattern is
+    tried against the full path and against the final segment, so
+    ``*/<repo>`` and a bare repo name both work. A config-drift scan
+    exists to catch a human unable to see policy drift by reading one
+    file; the detector cannot itself be a second thing that silently
+    drifts from the runtime gate-resolution path it is checking against.
+    Repo matching is a plain ``fnmatch`` against ``nameWithOwner``.
     """
     if scheme is MatchScheme.REPO:
         return fnmatch.fnmatch(target, pattern)
-    base = target.rstrip("/").rsplit("/", 1)[-1]
-    return fnmatch.fnmatch(target, pattern) or fnmatch.fnmatch(base, pattern)
+    from dev10x.domain.documents.session_yaml import match_globs
+
+    return match_globs(target, [pattern])
 
 
 def evaluate_projects(

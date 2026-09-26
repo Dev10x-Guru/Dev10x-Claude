@@ -7,20 +7,22 @@ looking correct — the failure ADR-0026 was written about.
 
 Each file is scanned under the scheme ADR-0026 assigns it:
 ``friction.yaml`` against the checkout's directory path, and the
-prose-resolved files against ``nameWithOwner``. A file that is absent,
-or that carries no ``projects:`` list, produces no finding — only a
-list that was evaluated and matched nothing, or that could not be
-evaluated at all, is worth a reader's attention.
+prose-resolved files against ``nameWithOwner``. An absent file produces
+no finding — only a list that was evaluated (present, and readable) is
+worth a reader's attention. A present-but-malformed file degrades to an
+empty mapping via the canonical
+:func:`dev10x.domain.common.config_io.load_yaml` seam (GH-1450) rather
+than a bespoke read, which reports it as carrying no ``projects:`` list
+(``ABSENT``) — the same degrade-quietly contract every other Tier-2
+reader on this seam already has.
 """
 
 from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
 
-import yaml
-
+from dev10x.domain.common.config_io import load_yaml
 from dev10x.domain.common.result import SuccessResult
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.project_match import (
@@ -34,21 +36,6 @@ from dev10x.session.repo_address import resolve_name_with_owner
 log = logging.getLogger(__name__)
 
 NO_REPO_ROOT_REASON = "not in a git repository — the checkout path is unknown"
-
-
-def _load_mapping(path: Path) -> dict[str, Any] | None:
-    """Load a YAML mapping, or ``None`` when the file is absent/unreadable.
-
-    A malformed Tier-2 file is a real condition a user can hit by hand.
-    It is logged and skipped rather than raised: the scan is a doctor
-    report over several files, and one bad file must not hide the rest.
-    """
-    try:
-        data = yaml.safe_load(path.read_text())
-    except (OSError, yaml.YAMLError) as exc:
-        log.debug("could not read %s", path, exc_info=exc)
-        return None
-    return data if isinstance(data, dict) else None
 
 
 def _repo_scheme_files() -> list[Path]:
@@ -81,11 +68,10 @@ def scan_projects_lists(*, cwd: str | None = None) -> list[ProjectsReport]:
 
     reports: list[ProjectsReport] = []
     friction = Dev10xConfigDir.friction_yaml()
-    document = _load_mapping(friction)
-    if document is not None:
+    if friction.is_file():
         reports.append(
             evaluate_projects(
-                document,
+                load_yaml(friction),
                 scheme=MatchScheme.PATH,
                 source=str(friction),
                 target=path_target,
@@ -93,12 +79,11 @@ def scan_projects_lists(*, cwd: str | None = None) -> list[ProjectsReport]:
             )
         )
     for path in _repo_scheme_files():
-        document = _load_mapping(path)
-        if document is None:
+        if not path.is_file():
             continue
         reports.append(
             evaluate_projects(
-                document,
+                load_yaml(path),
                 scheme=MatchScheme.REPO,
                 source=str(path),
                 target=repo_target,

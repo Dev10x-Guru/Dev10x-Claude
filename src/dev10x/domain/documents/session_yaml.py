@@ -156,13 +156,21 @@ def _normalize_toplevel(toplevel: str) -> str:
         return toplevel
 
 
-def _match_globs(toplevel: str, patterns: Any) -> bool:
+def match_globs(toplevel: str, patterns: Any) -> bool:
     """Return ``True`` when ``toplevel`` matches any glob in ``patterns``.
 
     Each pattern is matched against both the full resolved path (so
     ``/work/dx/**`` works) and the final path segment (so ``*/dev10x-claude``
     or a bare repo name works). ``fnmatch`` semantics — ``*`` spans ``/`` —
     keep the globs forgiving, mirroring ``projects.yaml`` matching.
+
+    This is the canonical PATH-scheme glob matcher (GH-1450) —
+    :func:`dev10x.domain.project_match.matches` calls it directly for
+    ``MatchScheme.PATH`` rather than maintaining a second, hand-mirrored
+    implementation. A config-drift scan exists specifically to catch a
+    human unable to see policy drift by reading one file; the drift
+    detector cannot itself be a second thing that can drift from the
+    runtime gate-resolution path.
     """
     if not isinstance(patterns, list):
         return False
@@ -226,7 +234,7 @@ class FrictionYamlDocument:
         if not isinstance(projects, list):
             return None
         for entry in projects:
-            if isinstance(entry, dict) and _match_globs(self.toplevel, entry.get("match")):
+            if isinstance(entry, dict) and match_globs(self.toplevel, entry.get("match")):
                 return {key: value for key, value in entry.items() if key in _DURABLE_KEYS}
         return None
 
@@ -344,7 +352,7 @@ class FrictionYamlDocument:
                 return False
             if existing.get("match") == list(match):
                 return True
-            return any(_match_globs(probe, existing.get("match")) for probe in probes)
+            return any(match_globs(probe, existing.get("match")) for probe in probes)
 
         replaced = False
         merged: list[Any] = []
@@ -492,7 +500,7 @@ def _carried_durable_prefs(*, doc: dict[str, Any], probes: list[str]) -> dict[st
         return {}
     for probe in probes:
         for entry in projects:
-            if isinstance(entry, dict) and _match_globs(probe, entry.get("match")):
+            if isinstance(entry, dict) and match_globs(probe, entry.get("match")):
                 return {key: value for key, value in entry.items() if key in _DURABLE_KEYS}
     return {}
 

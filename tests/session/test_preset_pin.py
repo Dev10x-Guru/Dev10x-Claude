@@ -83,11 +83,11 @@ def test_match_globs_for_repo_escapes_glob_metacharacters(odd_name: str) -> None
     """A checkout named `foo*` must not pin a glob matching unrelated repos."""
     globs = match_globs_for_repo(repo_name=odd_name, scope="repo")
 
-    from dev10x.domain.documents.session_yaml import _match_globs
+    from dev10x.domain.documents.session_yaml import match_globs
 
-    assert _match_globs(f"/work/{odd_name}", globs) is True
-    assert _match_globs("/work/foobar", globs) is False
-    assert _match_globs("/work/unrelated-repo", globs) is False
+    assert match_globs(f"/work/{odd_name}", globs) is True
+    assert match_globs("/work/foobar", globs) is False
+    assert match_globs("/work/unrelated-repo", globs) is False
 
 
 def test_match_globs_for_repo_requires_name() -> None:
@@ -112,16 +112,16 @@ def test_repo_scoped_globs_match_main_and_every_worktree(checkout: str) -> None:
     friction = FrictionYamlDocument(toplevel=checkout)
     assert friction  # constructed against the checkout under test
     entry = doc["projects"][0]
-    from dev10x.domain.documents.session_yaml import _match_globs
+    from dev10x.domain.documents.session_yaml import match_globs
 
-    assert _match_globs(checkout, entry["match"]) is True
+    assert match_globs(checkout, entry["match"]) is True
 
 
 def test_repo_scoped_globs_do_not_match_an_unrelated_repo() -> None:
     globs = match_globs_for_repo(repo_name="bl-zebra", scope="repo")
-    from dev10x.domain.documents.session_yaml import _match_globs
+    from dev10x.domain.documents.session_yaml import match_globs
 
-    assert _match_globs("/work/bl/bl-lion", globs) is False
+    assert match_globs("/work/bl/bl-lion", globs) is False
 
 
 # --- idempotent merge -------------------------------------------------

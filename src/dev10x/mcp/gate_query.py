@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from dev10x.domain.common.config_io import load_yaml
 from dev10x.domain.common.result import Result, err, ok
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -37,17 +38,13 @@ LEGACY_PROJECT_POLICY_RELPATH = Path(".claude") / "Dev10x" / "gate-policy.yaml"
 
 
 def _read_overrides(path: Path) -> dict[str, Any]:
-    """Read an ``overrides:`` mapping from a gate-policy file, or ``{}``."""
-    import yaml
+    """Read an ``overrides:`` mapping from a gate-policy file, or ``{}``.
 
-    if not path.exists():
-        return {}
-    try:
-        data = yaml.safe_load(path.read_text())
-    except (OSError, ValueError, yaml.YAMLError):
-        return {}
-    if not isinstance(data, dict):
-        return {}
+    Routed through the canonical ``config_io.load_yaml`` seam (GH-1450)
+    rather than a hand-rolled ``yaml.safe_load`` + except block — one of
+    27 Tier-2 config readers, most of which already go through it.
+    """
+    data = load_yaml(path, strict=False)
     overrides = data.get("overrides")
     return overrides if isinstance(overrides, dict) else {}
 
