@@ -91,7 +91,7 @@
 
 1. **Marketplace discovery:** User finds Dev10x via marketplace search
 2. **Two-command install:** `marketplace add dev10x` + `install` (plugin registration)
-3. **Skill activation:** `/Dev10x:skill-name` slash command invokes skill
+3. **Skill activation:** `/dev10x:skill-name` slash command invokes skill
 4. **Help:** `/help` shows installed skills; SKILL.md documents orchestration
 
 **Strengths:**

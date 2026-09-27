@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:gh-pr-merge",
+  "skill_name": "dev10x:gh-pr-merge",
   "eval_dimensions": [
     {
       "id": "draft-block",
@@ -9,12 +9,12 @@
     {
       "id": "unresolved-threads-block",
       "name": "Unresolved Threads Block",
-      "description": "Check 1 calls mcp__plugin_Dev10x_cli__unresolved_threads with explicit repo param. Refuses merge when any threads are unresolved. Retries once on timeout before failing."
+      "description": "Check 1 calls mcp__plugin_dev10x_cli__unresolved_threads with explicit repo param. Refuses merge when any threads are unresolved. Retries once on timeout before failing."
     },
     {
       "id": "ci-block",
       "name": "CI Failure Block",
-      "description": "Check 2 refuses merge when any gh pr checks bucket is not 'pass'. Delegates to Dev10x:gh-pr-monitor for PENDING or code-failure states. Only calls AskUserQuestion for infrastructure failures after the auto-fix loop is exhausted."
+      "description": "Check 2 refuses merge when any gh pr checks bucket is not 'pass'. Delegates to dev10x:gh-pr-monitor for PENDING or code-failure states. Only calls AskUserQuestion for infrastructure failures after the auto-fix loop is exhausted."
     },
     {
       "id": "all-checks-pass",
@@ -24,7 +24,7 @@
     {
       "id": "merge-tool",
       "name": "Merge Executed via MCP Tool",
-      "description": "Merge is executed only via mcp__plugin_Dev10x_cli__merge_pr, never via raw gh pr merge Bash invocation."
+      "description": "Merge is executed only via mcp__plugin_dev10x_cli__merge_pr, never via raw gh pr merge Bash invocation."
     },
     {
       "id": "infra-failure-gate",
@@ -47,7 +47,7 @@
       "id": "draft-pr-blocks-merge",
       "name": "Draft PR is blocked from merging",
       "description": "pr_get returns isDraft=true. Skill must refuse to merge and report that the PR must be marked ready first.",
-      "input": "/Dev10x:gh-pr-merge",
+      "input": "/dev10x:gh-pr-merge",
       "assertions": [
         {
           "dimension": "draft-block",
@@ -58,7 +58,7 @@
         {
           "dimension": "merge-tool",
           "check": "behavioral",
-          "signal": "mcp__plugin_Dev10x_cli__merge_pr is NOT called when isDraft is true"
+          "signal": "mcp__plugin_dev10x_cli__merge_pr is NOT called when isDraft is true"
         }
       ]
     },
@@ -66,12 +66,12 @@
       "id": "unresolved-threads-block-merge",
       "name": "Unresolved threads block merge",
       "description": "unresolved_threads returns 2 threads. Skill must refuse merge and name the unresolved threads.",
-      "input": "/Dev10x:gh-pr-merge",
+      "input": "/dev10x:gh-pr-merge",
       "assertions": [
         {
           "dimension": "unresolved-threads-block",
           "check": "tool_called",
-          "tool": "mcp__plugin_Dev10x_cli__unresolved_threads",
+          "tool": "mcp__plugin_dev10x_cli__unresolved_threads",
           "signal": "unresolved_threads MCP tool is called with explicit repo parameter"
         },
         {
@@ -83,21 +83,21 @@
         {
           "dimension": "merge-tool",
           "check": "behavioral",
-          "signal": "mcp__plugin_Dev10x_cli__merge_pr is NOT called when threads are unresolved"
+          "signal": "mcp__plugin_dev10x_cli__merge_pr is NOT called when threads are unresolved"
         }
       ]
     },
     {
       "id": "ci-failure-delegates-to-monitor",
       "name": "CI code failure delegates to gh-pr-monitor",
-      "description": "gh pr checks shows a lint check with bucket=fail caused by PR changes. Skill must NOT call AskUserQuestion — it must delegate to Dev10x:gh-pr-monitor.",
-      "input": "/Dev10x:gh-pr-merge",
+      "description": "gh pr checks shows a lint check with bucket=fail caused by PR changes. Skill must NOT call AskUserQuestion — it must delegate to dev10x:gh-pr-monitor.",
+      "input": "/dev10x:gh-pr-merge",
       "assertions": [
         {
           "dimension": "ci-block",
           "check": "tool_called",
           "tool": "Skill",
-          "signal": "Skill(Dev10x:gh-pr-monitor) is called for code-failure CI, not AskUserQuestion"
+          "signal": "Skill(dev10x:gh-pr-monitor) is called for code-failure CI, not AskUserQuestion"
         },
         {
           "dimension": "ci-block",
@@ -107,7 +107,7 @@
         {
           "dimension": "merge-tool",
           "check": "behavioral",
-          "signal": "mcp__plugin_Dev10x_cli__merge_pr is NOT called while CI has failing checks"
+          "signal": "mcp__plugin_dev10x_cli__merge_pr is NOT called while CI has failing checks"
         }
       ]
     },
@@ -115,7 +115,7 @@
       "id": "infra-ci-failure-gate",
       "name": "Infrastructure CI failure fires AskUserQuestion",
       "description": "CI check fails with 'Credit balance is too low' error. Skill must call AskUserQuestion with Wait/Merge-anyway/Abort options after identifying the infra cause.",
-      "input": "/Dev10x:gh-pr-merge",
+      "input": "/dev10x:gh-pr-merge",
       "assertions": [
         {
           "dimension": "infra-failure-gate",
@@ -140,26 +140,26 @@
     {
       "id": "happy-path-merge",
       "name": "All checks pass — merge executes via MCP tool",
-      "description": "All 9 checks pass. Merge must execute via mcp__plugin_Dev10x_cli__merge_pr, not raw gh pr merge.",
-      "input": "/Dev10x:gh-pr-merge",
+      "description": "All 9 checks pass. Merge must execute via mcp__plugin_dev10x_cli__merge_pr, not raw gh pr merge.",
+      "input": "/dev10x:gh-pr-merge",
       "assertions": [
         {
           "dimension": "all-checks-pass",
           "check": "tool_called",
-          "tool": "mcp__plugin_Dev10x_cli__unresolved_threads",
+          "tool": "mcp__plugin_dev10x_cli__unresolved_threads",
           "signal": "unresolved_threads MCP tool called as part of check 1"
         },
         {
           "dimension": "all-checks-pass",
           "check": "tool_called",
-          "tool": "mcp__plugin_Dev10x_cli__pr_get",
+          "tool": "mcp__plugin_dev10x_cli__pr_get",
           "signal": "pr_get MCP tool called for checks 3/4/7 (draft, mergeable, approval)"
         },
         {
           "dimension": "merge-tool",
           "check": "tool_called",
-          "tool": "mcp__plugin_Dev10x_cli__merge_pr",
-          "signal": "mcp__plugin_Dev10x_cli__merge_pr is called to execute the merge"
+          "tool": "mcp__plugin_dev10x_cli__merge_pr",
+          "signal": "mcp__plugin_dev10x_cli__merge_pr is called to execute the merge"
         },
         {
           "dimension": "merge-tool",
@@ -172,7 +172,7 @@
       "id": "fixes-scope-undelivered-blocks-merge",
       "name": "Fixes-linked scope undelivered blocks merge",
       "description": "A Fixes:-linked issue's title names a capability with no corresponding diff (new code has no non-test caller). Check 1d must refuse merge and recommend narrowing the Fixes link or splitting a follow-up issue.",
-      "input": "/Dev10x:gh-pr-merge",
+      "input": "/dev10x:gh-pr-merge",
       "assertions": [
         {
           "dimension": "fixes-scope-block",
@@ -183,7 +183,7 @@
         {
           "dimension": "merge-tool",
           "check": "behavioral",
-          "signal": "mcp__plugin_Dev10x_cli__merge_pr is NOT called when Fixes-linked scope is undelivered"
+          "signal": "mcp__plugin_dev10x_cli__merge_pr is NOT called when Fixes-linked scope is undelivered"
         }
       ]
     },
@@ -191,7 +191,7 @@
       "id": "already-merged-reports-actor-not-checklist",
       "name": "Already-merged PR is attributed, not narrated",
       "description": "pr_get returns state=MERGED with a mergedAt and mergedBy. Check 2b must report ALREADY MERGED naming the actor, and must NOT emit the nine-item pre-merge checklist — no check ran in this invocation.",
-      "input": "/Dev10x:gh-pr-merge",
+      "input": "/dev10x:gh-pr-merge",
       "assertions": [
         {
           "dimension": "already-merged-attribution",
@@ -207,7 +207,7 @@
         {
           "dimension": "merge-tool",
           "check": "behavioral",
-          "signal": "mcp__plugin_Dev10x_cli__merge_pr is NOT called for an already-merged PR"
+          "signal": "mcp__plugin_dev10x_cli__merge_pr is NOT called for an already-merged PR"
         }
       ]
     }
@@ -216,7 +216,7 @@
     "description": "Queries that should/should-not trigger the gh-pr-merge skill",
     "should_trigger": [
       {
-        "query": "/Dev10x:gh-pr-merge",
+        "query": "/dev10x:gh-pr-merge",
         "rationale": "Direct invocation — runs the full 9-check gate and merges if clean"
       },
       {
@@ -231,19 +231,19 @@
     "should_not_trigger": [
       {
         "query": "review PR #42 and leave comments",
-        "rationale": "Review intent — use Dev10x:gh-pr-review"
+        "rationale": "Review intent — use dev10x:gh-pr-review"
       },
       {
         "query": "respond to the review comments on my PR",
-        "rationale": "Responding to comments — use Dev10x:gh-pr-respond"
+        "rationale": "Responding to comments — use dev10x:gh-pr-respond"
       },
       {
         "query": "create a PR for my current branch",
-        "rationale": "PR creation — use Dev10x:gh-pr-create"
+        "rationale": "PR creation — use dev10x:gh-pr-create"
       },
       {
         "query": "check if CI is passing on my PR",
-        "rationale": "CI monitoring only — use Dev10x:gh-pr-monitor"
+        "rationale": "CI monitoring only — use dev10x:gh-pr-monitor"
       }
     ]
   }

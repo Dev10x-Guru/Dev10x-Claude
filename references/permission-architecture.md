@@ -67,11 +67,11 @@ redirects to skill equivalents with educational messages:
 
 | Allow rule | Hook blocks | Redirects to | Guardrails |
 |-----------|-------------|-------------|------------|
-| `Bash(gh pr create:*)` | `gh pr create` | `Dev10x:gh-pr-create` | Job Story, ticket linking |
-| `Bash(git push:*)` | `git push` | `Dev10x:git` | Protected branches, force-push safety |
-| `Bash(git rebase -i:*)` | `git rebase -i` | `Dev10x:git-groom` | Atomic commits, conventions |
-| `Bash(git commit -m:*)` | `git commit -m` | `Dev10x:git-commit` | Gitmoji, JTBD title, 72-char |
-| `Bash(gh pr checks:*)` | `gh pr checks --watch` | `Dev10x:gh-pr-monitor` | Failure detection, fixups |
+| `Bash(gh pr create:*)` | `gh pr create` | `dev10x:gh-pr-create` | Job Story, ticket linking |
+| `Bash(git push:*)` | `git push` | `dev10x:git` | Protected branches, force-push safety |
+| `Bash(git rebase -i:*)` | `git rebase -i` | `dev10x:git-groom` | Atomic commits, conventions |
+| `Bash(git commit -m:*)` | `git commit -m` | `dev10x:git-commit` | Gitmoji, JTBD title, 72-char |
+| `Bash(gh pr checks:*)` | `gh pr checks --watch` | `dev10x:gh-pr-monitor` | Failure detection, fixups |
 
 These allow rules are classified as `HOOK_ENABLED` in permission
 audits. Removing them degrades UX — the user sees a generic
@@ -358,7 +358,7 @@ The **hook version drift detector** (SessionStart feature
    highest-installed version.
 3. On mismatch, emits:
    *"Dev10x hooks running v0.72.0 but v0.76.0 is installed on disk.
-   Restart this session (or run `/Dev10x:upgrade-cleanup`) to activate
+   Restart this session (or run `/dev10x:upgrade-cleanup`) to activate
    shipped friction fixes, validators, and catalog improvements."*
 4. Returns an empty string when running == latest or when either
    version is unresolvable (``--plugin-dir`` dev installs bypass the

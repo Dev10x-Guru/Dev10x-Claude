@@ -1,13 +1,13 @@
 ---
-name: Dev10x:review-fix
-invocation-name: Dev10x:review-fix
+name: dev10x:review-fix
+invocation-name: dev10x:review-fix
 description: >
-  Consume structured findings from Dev10x:review and create one
-  standalone fixup! commit per finding via Dev10x:git-fixup.
-  TRIGGER when: Dev10x:review has produced a findings JSON file that
+  Consume structured findings from dev10x:review and create one
+  standalone fixup! commit per finding via dev10x:git-fixup.
+  TRIGGER when: dev10x:review has produced a findings JSON file that
   needs fixup commits.
   DO NOT TRIGGER when: no findings file exists, or addressing PR review
-  comments from external reviewers (use Dev10x:gh-pr-fixup).
+  comments from external reviewers (use dev10x:gh-pr-fixup).
 user-invocable: false
 allowed-tools:
   - Bash(git log:*)
@@ -22,18 +22,18 @@ allowed-tools:
 
 # Review Fix
 
-Consume structured findings from `Dev10x:review` and create one
+Consume structured findings from `dev10x:review` and create one
 `fixup!` commit per finding using the standalone mode of
-`Dev10x:git-fixup`.
+`dev10x:git-fixup`.
 
 ## Arguments
 
 - **findings file path** — path to the JSON findings file produced
-  by `Dev10x:review` (e.g., `/tmp/Dev10x/review/findings-abc.json`)
+  by `dev10x:review` (e.g., `/tmp/Dev10x/review/findings-abc.json`)
 
 ## When to Use
 
-- Called by `Dev10x:review` after findings are approved
+- Called by `dev10x:review` after findings are approved
 - Part of the `work-on` shipping pipeline (review → fix cycle)
 - Not intended for standalone invocation
 
@@ -95,7 +95,7 @@ For each finding:
    ```
 
    This uses the same `Standalone fixup` marker that
-   `Dev10x:git-fixup` uses, so the pre-commit hook accepts it.
+   `dev10x:git-fixup` uses, so the pre-commit hook accepts it.
 
 6. **Mark subtask completed**
 
@@ -120,7 +120,7 @@ Review fix complete:
 
 ## Finding Format (Input Contract)
 
-Reads the same JSON format produced by `Dev10x:review`:
+Reads the same JSON format produced by `dev10x:review`:
 
 ```json
 [
@@ -144,8 +144,8 @@ Optional fields: `severity`, `confidence`, `source`,
 ## Integration
 
 ```
-Dev10x:review (produces findings JSON)
-└─ Dev10x:review-fix (this skill)
+dev10x:review (produces findings JSON)
+└─ dev10x:review-fix (this skill)
    └─ git commit -F <msg-file> (one fixup! commit per finding)
 ```
 

@@ -1,5 +1,5 @@
 ---
-name: Dev10x:ticket-scope
+name: dev10x:ticket-scope
 description: >
   Scope Linear tickets with technical research and architecture design.
   Extends the base scope skill with Linear ticket integration, story
@@ -8,16 +8,16 @@ description: >
   technical approach, estimating story points, or writing acceptance
   criteria.
   DO NOT TRIGGER when: scoping non-Linear tickets, multi-ticket
-  projects (use Dev10x:project-scope), or new domain areas (use
-  Dev10x:ddd first).
+  projects (use dev10x:project-scope), or new domain areas (use
+  dev10x:ddd first).
 user-invocable: true
-invocation-name: Dev10x:ticket-scope
+invocation-name: dev10x:ticket-scope
 allowed-tools:
   - mcp__claude_ai_Linear__get_issue
   - mcp__claude_ai_Linear__list_issues
   - mcp__claude_ai_Linear__list_comments
   - mcp__claude_ai_Linear__save_comment
-  - Skill(Dev10x:jtbd)
+  - Skill(dev10x:jtbd)
   - Agent
   - WebFetch
   - Grep
@@ -30,7 +30,7 @@ allowed-tools:
 # Ticket Scope — Linear Ticket Scoping Skill
 
 Create comprehensive technical scoping documents for Linear
-tickets. Extends the base `Dev10x:scope` skill with Linear-
+tickets. Extends the base `dev10x:scope` skill with Linear-
 specific workflows (ticket fetch, comment back, story point
 estimation, acceptance criteria).
 
@@ -44,7 +44,7 @@ lives in [`instructions.md`](instructions.md).
 [`instructions.md`](instructions.md) end-to-end. The
 orchestration contract (TaskCreate calls, phase ordering,
 AskUserQuestion gates, mandatory delegations like
-`Skill(Dev10x:jtbd)` and template selection) lives there —
+`Skill(dev10x:jtbd)` and template selection) lives there —
 not in this SKILL.md. Skipping the read causes downstream
 phase bypasses (GH-26, GH-27, GH-28).
 
@@ -52,5 +52,5 @@ phase bypasses (GH-26, GH-27, GH-28).
 six TaskCreate subjects, the Phase 4b skill delegation,
 and the Phase 5.1 templates before fetching the ticket.
 If you cannot, re-read the file. Do NOT proceed to
-`mcp__plugin_Dev10x_cli__issue_get` (or any other tool)
+`mcp__plugin_dev10x_cli__issue_get` (or any other tool)
 until the read is complete.

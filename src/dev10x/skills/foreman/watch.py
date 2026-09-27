@@ -1,4 +1,4 @@
-"""Observation logic for the Dev10x:foreman overnight watcher.
+"""Observation logic for the dev10x:foreman overnight watcher.
 
 Every loop, pipeline, and poll the foreman harness needs lives behind
 the ``dev10x foreman`` CLI — never inline in a Monitor/Bash command.

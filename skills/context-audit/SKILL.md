@@ -1,5 +1,5 @@
 ---
-name: Dev10x:context-audit
+name: dev10x:context-audit
 description: >
   Audit context window utilization — CLAUDE.md files, rules, agent
   specs, references, and memories. Reports budget compliance, flags
@@ -8,9 +8,9 @@ description: >
   many rules or memories, or when sessions feel sluggish from
   context bloat.
   DO NOT TRIGGER when: auditing memory content quality (use
-  Dev10x:memory-maintenance instead).
+  dev10x:memory-maintenance instead).
 user-invocable: true
-invocation-name: Dev10x:context-audit
+invocation-name: dev10x:context-audit
 allowed-tools:
   - Read
   - Glob
@@ -22,7 +22,7 @@ allowed-tools:
   - Bash(pytest:*)
 ---
 
-# Dev10x:context-audit — Context Window Optimizer
+# dev10x:context-audit — Context Window Optimizer
 
 ## Overview
 
@@ -30,7 +30,7 @@ Every file loaded into Claude's context window consumes capacity.
 This skill audits all context sources against documented budgets,
 identifies bloat, and suggests specific pruning actions.
 
-Complements `Dev10x:memory-maintenance` (which audits memory
+Complements `dev10x:memory-maintenance` (which audits memory
 content quality) by covering the structural layer: file sizes,
 budget compliance, and cross-file redundancy.
 

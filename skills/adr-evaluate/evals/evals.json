@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:adr-evaluate",
+  "skill_name": "dev10x:adr-evaluate",
   "eval_dimensions": [
     {
       "id": "presentation-gate",
@@ -22,7 +22,7 @@
       "id": "phase3-gate-fires-with-required-options",
       "name": "Presentation gate fires with the four documented options",
       "description": "After Phase 2 synthesis, Phase 3 must block on AskUserQuestion rather than asking 'Should I proceed with this recommendation?' as prose.",
-      "input": "/Dev10x:adr-evaluate — Topic: state management approach, Options: 1/2/3 evaluated, draft ADR ready to present",
+      "input": "/dev10x:adr-evaluate — Topic: state management approach, Options: 1/2/3 evaluated, draft ADR ready to present",
       "assertions": [
         {
           "dimension": "presentation-gate",
@@ -47,7 +47,7 @@
       "id": "needs-context-status-triggers-redispatch",
       "name": "NEEDS_CONTEXT status re-dispatches only the affected advocate",
       "description": "When one advocate's trailing status line reads NEEDS_CONTEXT: <what>, that advocate alone is re-dispatched with the requested context inlined; the other advocates are not stalled or re-run.",
-      "input": "/Dev10x:adr-evaluate with 3 advocates dispatched; Option 2's advocate returns 'NEEDS_CONTEXT: ADR-014 full text'",
+      "input": "/dev10x:adr-evaluate with 3 advocates dispatched; Option 2's advocate returns 'NEEDS_CONTEXT: ADR-014 full text'",
       "assertions": [
         {
           "dimension": "advocate-status-protocol",
@@ -66,7 +66,7 @@
       "id": "blocked-status-drops-advocate-and-notes-reduced-rigor",
       "name": "BLOCKED status runs that advocacy inline and discloses reduced rigor",
       "description": "When an advocate returns BLOCKED: <reason>, the skill runs that option's advocacy from the main session instead of re-dispatching, and the final ADR draft names the reason so reviewers know that option received less independent scrutiny.",
-      "input": "/Dev10x:adr-evaluate — Option 3's advocate returns 'BLOCKED: permission denied reading migrations/'",
+      "input": "/dev10x:adr-evaluate — Option 3's advocate returns 'BLOCKED: permission denied reading migrations/'",
       "assertions": [
         {
           "dimension": "advocate-status-protocol",
@@ -85,7 +85,7 @@
       "id": "synthesis-fact-checks-or-discloses-skip",
       "name": "Synthesis fact-checks 3+ claims per advocate, or the inline-skip is explicit",
       "description": "Phase 2 either launches adr-reviewer which fact-checks at least 3 claims per advocate by reading cited files, or — when skipping the sub-agent for a simple evaluation — the skill's own synthesis still reads the cited files rather than accepting claims unverified.",
-      "input": "/Dev10x:adr-evaluate with 2 advocates, each citing 4 file:line claims",
+      "input": "/dev10x:adr-evaluate with 2 advocates, each citing 4 file:line claims",
       "assertions": [
         {
           "dimension": "fact-check-before-ranking",
@@ -102,11 +102,11 @@
   ],
   "trigger_evals": {
     "should_trigger": [
-      "/Dev10x:adr-evaluate with a topic and 2-4 competing architectural options",
+      "/dev10x:adr-evaluate with a topic and 2-4 competing architectural options",
       "Running architecture trade-off analysis needing structured multi-perspective evaluation"
     ],
     "should_not_trigger": [
-      "Creating a simple ADR with one obvious approach (use Dev10x:adr)",
+      "Creating a simple ADR with one obvious approach (use dev10x:adr)",
       "Making a code change with no architecture impact"
     ]
   }

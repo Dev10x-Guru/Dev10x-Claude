@@ -30,7 +30,7 @@ All new skills MUST use the **dimension-referenced format** established in
 
 ```json
 {
-  "skill_name": "Dev10x:example-skill",
+  "skill_name": "dev10x:example-skill",
   "eval_dimensions": [
     {
       "id": "dimension_1",
@@ -43,7 +43,7 @@ All new skills MUST use the **dimension-referenced format** established in
       "id": "eval_scenario_1",
       "name": "Scenario name",
       "description": "What this test validates",
-      "input": "/Dev10x:example-skill",
+      "input": "/dev10x:example-skill",
       "assertions": [
         {
           "dimension": "dimension_1",
@@ -152,7 +152,7 @@ Signals are **machine-detectable patterns** for regression detection:
 
 - ✓ `gate*-uses-tool`: "AskUserQuestion" appears in tool call list
 - ✓ `gate*-correct-options`: Option labels match documented list
-- ✓ `skill*-uses-tool`: "Skill(" appears in tool call list (e.g., "Skill(Dev10x:gh-pr-fixup)")
+- ✓ `skill*-uses-tool`: "Skill(" appears in tool call list (e.g., "Skill(dev10x:gh-pr-fixup)")
 - ✓ `skill*-tool-called`: Skill() tool invocation appears, not just mentioned in reasoning
 - ✗ `gate*-no-plain-text`: No inline question text before tool call
 - ✗ `no-auto-*`: Explicit user confirmation before proceeding
@@ -229,7 +229,7 @@ corresponding assertions?"
       "type": "tool_called",
       "tool": "Skill",
       "assertion": "fixup_uses_skill_tool",
-      "signal": "Skill(Dev10x:gh-pr-fixup) is called"
+      "signal": "Skill(dev10x:gh-pr-fixup) is called"
     },
     {
       "type": "tool_parameters",

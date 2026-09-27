@@ -115,7 +115,7 @@ Steps declare how they adapt under each mode:
 ```yaml
 - subject: Draft Job Story
   type: detailed
-  skills: [Dev10x:jtbd]
+  skills: [dev10x:jtbd]
   prompt: >
     Accept what the skill produces and auto-advance.
     No approval needed.
@@ -127,7 +127,7 @@ Steps declare how they adapt under each mode:
 
 - subject: Request review
   type: detailed
-  skills: [Dev10x:gh-pr-request-review]
+  skills: [dev10x:gh-pr-request-review]
   prompt: >
     Auto-assign reviewers from CODEOWNERS. No
     AskUserQuestion for reviewer selection.
@@ -174,7 +174,7 @@ When multiple active modes conflict on the same step field:
 
 Skills read the resolved prefs from the matching `projects[]` entry
 of `~/.config/Dev10x/friction.yaml` (see § Configuration). Prefer
-`mcp__plugin_Dev10x_cli__resolve_gate` over reading the file: it owns
+`mcp__plugin_dev10x_cli__resolve_gate` over reading the file: it owns
 the preset / overlay / project-pin / safety-floor precedence, and
 re-deriving that from raw keys drifts.
 

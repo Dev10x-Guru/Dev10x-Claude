@@ -156,7 +156,7 @@ def build_mode_guard_context() -> str:
 
 
 def build_friction_setup_context() -> str:
-    """Nudge unconfigured repos to run ``Dev10x:friction-setup`` (GH-886).
+    """Nudge unconfigured repos to run ``dev10x:friction-setup`` (GH-886).
 
     Seeds a ``strict`` baseline ``friction.yaml`` on first sight and nudges;
     nudges (no write) when the file exists but this repo is unmatched; empty

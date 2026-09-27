@@ -1,10 +1,10 @@
 ---
-name: Dev10x:diag-friction
+name: dev10x:diag-friction
 description: >
   Diagnose permission friction. Guide the agent toward pre-approved
   commands, simplify complex command chains, and (when no safe local
   rule fits) file an upstream issue to improve the permission
-  friction hooks. Replaces the former Dev10x:skill-reinforcement
+  friction hooks. Replaces the former dev10x:skill-reinforcement
   skill — reinforcement of skill usage is still part of the job,
   but the broader goal is reducing the friction supervisors see.
   Reads conversation context to identify the offending command,
@@ -20,7 +20,7 @@ description: >
   or the CLI command has no skill equivalent and no friction is
   observed.
 user-invocable: true
-invocation-name: Dev10x:diag-friction
+invocation-name: dev10x:diag-friction
 allowed-tools:
   - AskUserQuestion
   - Read(~/.claude/SKILLS.md)
@@ -36,18 +36,18 @@ allowed-tools:
   - Bash(dev10x permission ensure-base:*)
   - Bash(uvx dev10x permission seed-worktree:*)
   - Bash(dev10x permission seed-worktree:*)
-  - mcp__plugin_Dev10x_cli__audit_analyze_permissions
-  - mcp__plugin_Dev10x_cli__permission_catalog_gap
+  - mcp__plugin_dev10x_cli__audit_analyze_permissions
+  - mcp__plugin_dev10x_cli__permission_catalog_gap
 ---
 
-# Dev10x:diag-friction
+# dev10x:diag-friction
 
 Diagnose and reduce permission friction. Guides the agent toward
 pre-approved commands, simplifies command chains that defeat
 allow-rule matching, and points to upstream issue filing when the
 friction is structural (the hook itself needs updating).
 
-> Formerly `Dev10x:skill-reinforcement`. The skill-reinforcement
+> Formerly `dev10x:skill-reinforcement`. The skill-reinforcement
 > behavior (firm nudge toward the right Dev10x skill or MCP tool)
 > is still core to this skill — it is one slice of the broader job
 > of diagnosing why the supervisor saw a permission prompt in the
@@ -78,7 +78,7 @@ Scan the recent conversation for the CLI command that triggered
 this invocation. Look for:
 - The most recent `Bash` tool call that was rejected or approved
 - Any command the user flagged as wrong
-- If the user provided arguments (e.g., `/Dev10x:diag-friction kubectl`),
+- If the user provided arguments (e.g., `/dev10x:diag-friction kubectl`),
   use that as the command identifier
 
 Store the command string for matching.
@@ -116,7 +116,7 @@ whether the skill says to **delegate** for this case:
   to a sub-skill for that operation
 - Example: `gh api --method POST .../replies` is documented in
   `gh-pr-respond` but the skill requires VALID comments to go
-  through `Dev10x:gh-pr-fixup` — using the raw API is a violation
+  through `dev10x:gh-pr-fixup` — using the raw API is a violation
 
 If the command is a delegation bypass, treat it as a match and
 output the reinforcement pointing to the correct sub-skill.
@@ -142,7 +142,7 @@ different question.
 2. Run the catalog-gap check and read the counts by family:
 
 ```
-mcp__plugin_Dev10x_cli__permission_catalog_gap()
+mcp__plugin_dev10x_cli__permission_catalog_gap()
 ```
 
    Returns `total_missing`, `files_checked`, `clean`, and the
@@ -276,7 +276,7 @@ footgun) — do NOT recommend blanket `bypassPermissions`. The correct
 remedy is to fix the **dispatcher**, not to silence prompts:
 
 1. Prepend the canonical friction-avoidance preamble to the subagent
-   prompt (fetch via `mcp__plugin_Dev10x_cli__background_preamble`).
+   prompt (fetch via `mcp__plugin_dev10x_cli__background_preamble`).
 2. Pre-seed the subagent's `allowed_tools` with the wrappers it needs
    (`Read`, `Grep`, `Glob`, `mktmp`, `push_safe`, `create_pr`, …) so
    the preferred tool surface is actually available.
@@ -378,8 +378,8 @@ the structured decision flow used across Dev10x skills.
 1. `AskUserQuestion(questions=[{question: "Invoke <recommended-skill> now to complete the intended action?", header: "Retry", options: [{label: "Yes, invoke <skill> now (Recommended)", description: "Re-run the intended action via the correct skill"}, {label: "I'll invoke it manually later", description: "Skip for now — user will handle"}, {label: "Cancel — discard the attempted operation", description: "Do not retry"}], multiSelect: false}])`
 
 Substitute `<recommended-skill>` with the skill identified in
-Step 2 (e.g., `Dev10x:gh-pr-monitor`, `Dev10x:k8s`,
-`Dev10x:git`).
+Step 2 (e.g., `dev10x:gh-pr-monitor`, `dev10x:k8s`,
+`dev10x:git`).
 
 **Skip this gate when:**
 
@@ -399,8 +399,8 @@ rejected workflow.
 See [`references/examples.md`](references/examples.md) for five
 walkthroughs:
 
-1. **kubectl usage** — direct CLI match (`Dev10x:k8s`)
-2. **direct git push** — bypassed safety skill (`Dev10x:git`)
+1. **kubectl usage** — direct CLI match (`dev10x:k8s`)
+2. **direct git push** — bypassed safety skill (`dev10x:git`)
 3. **friction from chaining** — Step 3b audit surfaces a
    pre-approved alternative
 4. **no match found** — fallback to SKILLS.md scan

@@ -26,7 +26,7 @@ would happen on the hot path. That design was incomplete:
   *regardless of allow rules on disk*. GH-812 observed this twice in one
   day, with exact-path `Read/Write/Edit(.claude/Dev10x/session.yaml)`
   rules verified present. No `base_permissions` entry can suppress it.
-- **RC-B — skills still runtime-write the files.** `Dev10x:work-on`
+- **RC-B — skills still runtime-write the files.** `dev10x:work-on`
   Phase 0 still `Write`/`Edit`s `session.yaml` (branch/tickets identity)
   and `config.yaml` (friction choice) whenever the adoption gate reports
   `session_stale` or the friction choice changes. The provisioning hook
@@ -78,7 +78,7 @@ addressable as path globs.
 for one cycle.** When `friction.yaml` has no matching entry, the durable
 reader falls back to the legacy `.claude/Dev10x/config.yaml` (and the
 pre-split `session.yaml`) so existing repos keep working untouched.
-`Dev10x:upgrade-cleanup` / `Dev10x:plugin-doctor` fold the legacy file
+`dev10x:upgrade-cleanup` / `dev10x:plugin-doctor` fold the legacy file
 into `friction.yaml` and delete the stale `.claude/Dev10x/{session,config}.yaml`
 — tracked as follow-up, not required for correctness because of the
 fallback.
@@ -88,7 +88,7 @@ fallback.
 D2 deleted `session.yaml` in its *durable prefs / gate identity* roles, but
 the same path carried a second, unrelated payload: the park family's index of
 deferred work (`tasks`, `continuation_prompt`, `insights`, and the GH-782
-freshness stamp), written by `Dev10x:session-wrap-up`, `Dev10x:park`,
+freshness stamp), written by `dev10x:session-wrap-up`, `dev10x:park`,
 `park-todo`, `park-remind`, and `gh-pr-bookmark`, and read by
 `park-discover`. GH-1001 repointed only the durable readers and left the
 index in place as a documented exception.
@@ -117,7 +117,7 @@ per-checkout key would strand each deferral in the worktree that created it.
 Retired durable keys (`friction_level`, `active_modes`) are deliberately NOT
 carried forward: folding them in would resurrect the ambiguity GH-1001
 removed. The retired `.claude/Dev10x/session.yaml` is read as a fallback for
-one release and folded forward on the next write; `Dev10x:plugin-doctor`
+one release and folded forward on the next write; `dev10x:plugin-doctor`
 deletes it once parity is confirmed (same shape as D4).
 
 **Composition with prior ADRs.** The git-tracked `.dev10x/gate-policy.yaml`

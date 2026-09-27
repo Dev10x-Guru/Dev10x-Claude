@@ -61,7 +61,7 @@ only.
   used during incremental commit creation, with the rebase exec
   step running hooks at the end.
 - ❌ Routine standalone commits — MUST use the
-  `Dev10x:git-commit` skill, which never bypasses hooks.
+  `dev10x:git-commit` skill, which never bypasses hooks.
 - ❌ Force pushes, signing bypass, or other guardrails — out of
   scope for this skill.
 
@@ -192,7 +192,7 @@ git add -p path/to/file.py
 
 **Commit with proper message format:**
 
-Use the Dev10x:git-commit skill conventions:
+Use the dev10x:git-commit skill conventions:
 - Gitmoji prefix (new feature, refactor, bug, etc.)
 - Ticket ID from branch name
 - Concise description
@@ -347,7 +347,7 @@ git rebase --continue
 for commit in $(git log --reverse --format=%H develop..HEAD); do
   echo "=== Testing $commit ==="
   git checkout $commit
-  Skill(Dev10x:py-test path/to/tests/)
+  Skill(dev10x:py-test path/to/tests/)
   if [ $? -ne 0 ]; then
     echo "Tests failed at $commit"
     break
@@ -379,7 +379,7 @@ git log -p develop..HEAD
 **Run full test suite:**
 
 ```bash
-Skill(Dev10x:py-test path/to/tests/)
+Skill(dev10x:py-test path/to/tests/)
 ```
 
 **Run linters if skipped during split:**
@@ -391,7 +391,7 @@ git rebase --exec "pre-commit run --all-files" develop
 
 ## Commit Message Format
 
-Follow the Dev10x:git-commit skill conventions:
+Follow the dev10x:git-commit skill conventions:
 
 **Structure:**
 ```
@@ -525,10 +525,10 @@ See `references/split-commit-example.md` for a complete real-world example of sp
 ## Integration with Other Skills
 
 ```
-Dev10x:git-commit-split
-├── Uses: Dev10x:git-commit (for message formatting)
+dev10x:git-commit-split
+├── Uses: dev10x:git-commit (for message formatting)
 ├── Output: Multiple atomic commits
-└── Followed by: Dev10x:gh-pr-create
+└── Followed by: dev10x:gh-pr-create
 ```
 
 ## Success Criteria

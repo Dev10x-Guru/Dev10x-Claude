@@ -48,7 +48,7 @@ def test_entry_blocks_deterministically(settings_read_rule: dict[str, Any]):
 def test_entry_names_both_sanctioned_surfaces(settings_read_rule: dict[str, Any]):
     tools = {c.get("tool") for c in settings_read_rule["compensations"]}
     assert "Read" in tools
-    assert "mcp__plugin_Dev10x_cli__audit_analyze_permissions" in tools
+    assert "mcp__plugin_dev10x_cli__audit_analyze_permissions" in tools
 
 
 @pytest.mark.parametrize(

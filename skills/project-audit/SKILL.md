@@ -1,6 +1,6 @@
 ---
-name: Dev10x:project-audit
-invocation-name: Dev10x:project-audit
+name: dev10x:project-audit
+invocation-name: dev10x:project-audit
 description: >
   Comprehensive project-level architecture audit. Catalogs design
   patterns from multiple sources, stress-tests domain models, maps
@@ -8,9 +8,9 @@ description: >
   prioritized improvement backlog.
   TRIGGER when: user requests architecture audit, project health
   check, pattern catalog mapping, or comprehensive quality review.
-  DO NOT TRIGGER when: reviewing a single branch (use Dev10x:review),
-  scoping a single ticket (use Dev10x:ticket-scope), or running a
-  DDD workshop (use Dev10x:ddd).
+  DO NOT TRIGGER when: reviewing a single branch (use dev10x:review),
+  scoping a single ticket (use dev10x:ticket-scope), or running a
+  DDD workshop (use dev10x:ddd).
 user-invocable: true
 allowed-tools:
   - Agent
@@ -23,14 +23,14 @@ allowed-tools:
   - Bash(gh pr list:*)
   - TaskCreate
   - TaskUpdate
-  - Skill(Dev10x:project-scope)
-  - Skill(Dev10x:adr)
-  - Skill(Dev10x:ticket-create)
-  - Skill(Dev10x:git-commit)
-  - mcp__plugin_Dev10x_cli__detect_tracker
+  - Skill(dev10x:project-scope)
+  - Skill(dev10x:adr)
+  - Skill(dev10x:ticket-create)
+  - Skill(dev10x:git-commit)
+  - mcp__plugin_dev10x_cli__detect_tracker
 ---
 
-# Dev10x:project-audit — Comprehensive Architecture Audit
+# dev10x:project-audit — Comprehensive Architecture Audit
 
 ## Overview
 
@@ -45,10 +45,10 @@ prioritized improvement backlog with milestones and blocking chains.
 - Mapping delivered value (JTBD) against test coverage
 
 **Do NOT use for:**
-- Single-branch code review → `Dev10x:review`
-- Single-ticket scoping → `Dev10x:ticket-scope`
-- DDD domain modeling → `Dev10x:ddd`
-- Single-PR QA analysis → `Dev10x:qa-scope`
+- Single-branch code review → `dev10x:review`
+- Single-ticket scoping → `dev10x:ticket-scope`
+- DDD domain modeling → `dev10x:ddd`
+- Single-PR QA analysis → `dev10x:qa-scope`
 
 ## Orchestration
 
@@ -70,10 +70,10 @@ review.
 ## Arguments
 
 ```
-/Dev10x:project-audit                 # full audit (all phases)
-/Dev10x:project-audit --phases B,C,E  # selected phases only
-/Dev10x:project-audit --skip-backlog  # findings memo without tickets
-/Dev10x:project-audit --memo-only     # memo without tickets or backlog
+/dev10x:project-audit                 # full audit (all phases)
+/dev10x:project-audit --phases B,C,E  # selected phases only
+/dev10x:project-audit --skip-backlog  # findings memo without tickets
+/dev10x:project-audit --memo-only     # memo without tickets or backlog
 ```
 
 ---
@@ -96,7 +96,7 @@ Auto-detect project characteristics. Create subtasks per detection:
 6. **Existing ADRs** — scan for `docs/adrs/`, `docs/decisions/`,
    `adr/` directories.
 7. **Tracker** — detect issue tracker via
-   `mcp__plugin_Dev10x_cli__detect_tracker`.
+   `mcp__plugin_dev10x_cli__detect_tracker`.
 
 Store context as structured data for Phase 3 agent prompts.
 
@@ -169,11 +169,11 @@ After all agents return:
    the durable artifact of an expensive multi-agent audit. Left as an
    untracked working-tree file it is the most easily-lost form of work:
    any `git clean`, worktree reset, or branch switch discards it
-   silently. Immediately commit it via `Skill(Dev10x:git-commit)` so it
+   silently. Immediately commit it via `Skill(dev10x:git-commit)` so it
    lands in history regardless of whether Phase 5 runs. Do NOT end the
    skill (or proceed to the gate) with the memo uncommitted.
 7. **Draft ADR proposals** — for HIGH-impact findings that represent
-   architectural decisions, propose ADRs via `Skill(Dev10x:adr)`.
+   architectural decisions, propose ADRs via `Skill(dev10x:adr)`.
 
 **If `--memo-only`:** Commit the memo (step 6), then stop here.
 Present the memo and skip Phase 5.
@@ -192,7 +192,7 @@ Options:
 
 ## Phase 5: Create Backlog
 
-Delegate to `Skill(Dev10x:project-scope)` with the milestone
+Delegate to `Skill(dev10x:project-scope)` with the milestone
 structure from Phase 4.
 
 For each milestone:

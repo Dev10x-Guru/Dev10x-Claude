@@ -128,8 +128,8 @@ def _modes_with_overlays_folded_in(data: dict[str, Any]) -> list[str]:
 
     A repo that migrated to ``gate_preset`` + ``gate_overlays`` names its
     posture only in overlay vocabulary. Without this fold, ``resolve_gate``
-    saw solo-maintainer while ``Dev10x:verify-acc-dod``'s mode filter and
-    ``Dev10x:work-on``'s playbook ``modes:`` mapping saw nothing — one
+    saw solo-maintainer while ``dev10x:verify-acc-dod``'s mode filter and
+    ``dev10x:work-on``'s playbook ``modes:`` mapping saw nothing — one
     posture, two answers, so the "Review requested" DoD check fired red on
     a PR whose ``request_review`` gate had already resolved to ``skip``.
 

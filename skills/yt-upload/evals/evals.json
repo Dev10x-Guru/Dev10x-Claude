@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:yt-upload",
+  "skill_name": "dev10x:yt-upload",
   "eval_dimensions": [
     {
       "id": "provenance-gate",
@@ -37,7 +37,7 @@
       "id": "provenance-gate-fires-before-upload",
       "name": "Provenance gate fires before the first upload",
       "description": "A recording is handed over for publishing with no prior provenance statement in the session",
-      "input": "/Dev10x:yt-upload publish the walkthrough at /tmp/Dev10x/self-qa/gh-42/video/qa-gh-42.mp4",
+      "input": "/dev10x:yt-upload publish the walkthrough at /tmp/Dev10x/self-qa/gh-42/video/qa-gh-42.mp4",
       "assertions": [
         {
           "dimension": "provenance-gate",
@@ -62,8 +62,8 @@
     {
       "id": "prior-approval-does-not-satisfy-gate",
       "name": "A caller's review approval does not satisfy the provenance gate",
-      "description": "Invoked from Dev10x:qa-self after its Phase 4.4 Approve, which covers footage quality but not world-readability",
-      "input": "/Dev10x:yt-upload publish the approved qa-self walkthrough for GH-42",
+      "description": "Invoked from dev10x:qa-self after its Phase 4.4 Approve, which covers footage quality but not world-readability",
+      "input": "/dev10x:yt-upload publish the approved qa-self walkthrough for GH-42",
       "assertions": [
         {
           "dimension": "provenance-gate",
@@ -77,7 +77,7 @@
       "id": "narrated-take-wins",
       "name": "The narrated take is published, not the silent sibling",
       "description": "The run directory holds both qa-gh-42.mp4 and qa-gh-42-narrated.mp4",
-      "input": "/Dev10x:yt-upload publish the walkthrough from /tmp/Dev10x/self-qa/gh-42",
+      "input": "/dev10x:yt-upload publish the walkthrough from /tmp/Dev10x/self-qa/gh-42",
       "assertions": [
         {
           "dimension": "artifact-selection",
@@ -103,7 +103,7 @@
       "id": "narration-defects-block-silent-publish",
       "name": "Unrendered captions are surfaced before publishing",
       "description": "narration.json reports a non-empty unrendered list for the resolved take",
-      "input": "/Dev10x:yt-upload publish the narrated walkthrough from /tmp/Dev10x/self-qa/gh-42",
+      "input": "/dev10x:yt-upload publish the narrated walkthrough from /tmp/Dev10x/self-qa/gh-42",
       "assertions": [
         {
           "dimension": "narration-visibility",
@@ -123,7 +123,7 @@
       "id": "destination-forms-used-verbatim",
       "name": "Each destination gets its own returned form",
       "description": "The returned URLs are posted to both a Linear ticket and a GitHub PR",
-      "input": "/Dev10x:yt-upload publish the walkthrough and give me the ticket and PR markdown",
+      "input": "/dev10x:yt-upload publish the walkthrough and give me the ticket and PR markdown",
       "assertions": [
         {
           "dimension": "destination-forms",
@@ -149,7 +149,7 @@
       "id": "no-raw-gog-invocation",
       "name": "Publishing always routes through the wrapper",
       "description": "A video is uploaded end to end",
-      "input": "/Dev10x:yt-upload publish a staging walkthrough recording",
+      "input": "/dev10x:yt-upload publish a staging walkthrough recording",
       "assertions": [
         {
           "dimension": "wrapper-delegation",
@@ -169,7 +169,7 @@
       "id": "missing-scope-is-actionable",
       "name": "A grant without youtube.upload names the re-auth command",
       "description": "The stored gog grant can read YouTube but not publish to it",
-      "input": "/Dev10x:yt-upload check",
+      "input": "/dev10x:yt-upload check",
       "assertions": [
         {
           "dimension": "failure-visibility",
@@ -195,7 +195,7 @@
       "id": "unconfigured-account-does-not-guess",
       "name": "No account resolves to an actionable error, not a default",
       "description": "No --account flag, no env var, and no yt-upload.yaml entry covers this checkout",
-      "input": "/Dev10x:yt-upload check",
+      "input": "/dev10x:yt-upload check",
       "assertions": [
         {
           "dimension": "failure-visibility",
@@ -213,10 +213,10 @@
       "A bug repro recording needs an embeddable URL"
     ],
     "should_not_trigger": [
-      "Capturing the walkthrough recording itself (use Dev10x:qa-self)",
+      "Capturing the walkthrough recording itself (use dev10x:qa-self)",
       "Converting or verifying evidence files (use qa-self's own scripts)",
-      "Synthesizing narration audio (use Dev10x:tts)",
-      "Publishing a full QA evidence set to a ticket and PR (use Dev10x:qa-publish)"
+      "Synthesizing narration audio (use dev10x:tts)",
+      "Publishing a full QA evidence set to a ticket and PR (use dev10x:qa-publish)"
     ]
   }
 }

@@ -21,7 +21,7 @@ from dev10x.skills.permission import enumerate_mcp
 @pytest.fixture
 def config() -> dict:
     return {
-        "base_permissions": ["Bash(ls:*)", "Skill(Dev10x:foo)"],
+        "base_permissions": ["Bash(ls:*)", "Skill(dev10x:foo)"],
         "base_denies": ["Bash(sudo:*)"],
     }
 
@@ -70,7 +70,7 @@ def test_dedupes_against_global_when_opted_in(
     mod.seed_worktree(worktree_root=tmp_path, config=config, dedupe_global=True)
     allow = _allow(tmp_path)
     assert "Bash(ls:*)" not in allow  # already global — skipped
-    assert "Skill(Dev10x:foo)" in allow
+    assert "Skill(dev10x:foo)" in allow
 
 
 def test_create_error_is_reported(tmp_path: Path, config: dict):

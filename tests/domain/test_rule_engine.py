@@ -21,7 +21,7 @@ class TestRuleFromYamlEntry:
             "file_names": [".env"],
             "message": "Blocked: {file_path}",
             "compensations": [
-                {"type": "use-skill", "skill": "Dev10x:edit", "guardrails": "safety"}
+                {"type": "use-skill", "skill": "dev10x:edit", "guardrails": "safety"}
             ],
         }
 
@@ -37,7 +37,7 @@ class TestRuleFromYamlEntry:
         rule = MatchingRule.from_yaml_entry(entry=entry)
 
         assert len(rule.compensations) == 1
-        assert rule.compensations[0].skill == "Dev10x:edit"
+        assert rule.compensations[0].skill == "dev10x:edit"
 
     def test_defaults_for_missing_fields(self) -> None:
         rule = MatchingRule.from_yaml_entry(entry={"name": "minimal"})
@@ -75,7 +75,7 @@ class TestRuleEngineFromYaml:
                     "matcher": "Bash",
                     "hook_block": True,
                     "patterns": ["^git push"],
-                    "compensations": [{"type": "use-skill", "skill": "Dev10x:git"}],
+                    "compensations": [{"type": "use-skill", "skill": "dev10x:git"}],
                 },
                 {
                     "name": "advisory-only",
@@ -184,7 +184,7 @@ class TestRuleEngineEvaluateCommand:
                     matcher="Bash",
                     patterns=["^git push"],
                     except_=["--dry-run"],
-                    compensations=[Compensation(type="use-skill", skill="Dev10x:git")],
+                    compensations=[Compensation(type="use-skill", skill="dev10x:git")],
                 ),
             ],
         )
@@ -217,13 +217,13 @@ class TestSubcommandBoundary:
                     name="git-commit",
                     matcher="Bash",
                     patterns=["git commit"],
-                    compensations=[Compensation(type="use-skill", skill="Dev10x:git-commit")],
+                    compensations=[Compensation(type="use-skill", skill="dev10x:git-commit")],
                 ),
                 MatchingRule(
                     name="gh-pr-create",
                     matcher="Bash",
                     patterns=["gh pr create"],
-                    compensations=[Compensation(type="use-skill", skill="Dev10x:gh-pr-create")],
+                    compensations=[Compensation(type="use-skill", skill="dev10x:gh-pr-create")],
                 ),
             ],
         )
@@ -279,13 +279,13 @@ class TestGlobalOptionEvasion:
                     matcher="Bash",
                     patterns=["git push"],
                     except_=["--force-with-lease"],
-                    compensations=[Compensation(type="use-skill", skill="Dev10x:git")],
+                    compensations=[Compensation(type="use-skill", skill="dev10x:git")],
                 ),
                 MatchingRule(
                     name="git-commit",
                     matcher="Bash",
                     patterns=["^git commit"],
-                    compensations=[Compensation(type="use-skill", skill="Dev10x:git-commit")],
+                    compensations=[Compensation(type="use-skill", skill="dev10x:git-commit")],
                 ),
             ],
         )

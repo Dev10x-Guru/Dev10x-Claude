@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:playbook-maintenance",
+  "skill_name": "dev10x:playbook-maintenance",
   "eval_dimensions": [
     {
       "id": "discovery",
@@ -32,7 +32,7 @@
       "id": "no-overrides",
       "name": "No overrides found",
       "description": "User invokes skill in a project with no playbook overrides, expects clean exit message",
-      "input": "/Dev10x:playbook-maintenance",
+      "input": "/dev10x:playbook-maintenance",
       "assertions": [
         {
           "dimension": "discovery",
@@ -46,7 +46,7 @@
       "id": "detect-new-step",
       "name": "Detect new default step missing from override",
       "description": "Default playbook has a step that the user override does not, skill reports it as INFO severity",
-      "input": "/Dev10x:playbook-maintenance work-on",
+      "input": "/dev10x:playbook-maintenance work-on",
       "assertions": [
         {
           "dimension": "drift-detection",
@@ -60,7 +60,7 @@
       "id": "detect-fragment-drift",
       "name": "Detect fragment step count difference",
       "description": "Default fragment has more steps than user's shadowing fragment",
-      "input": "/Dev10x:playbook-maintenance work-on",
+      "input": "/dev10x:playbook-maintenance work-on",
       "assertions": [
         {
           "dimension": "fragment-comparison",
@@ -74,7 +74,7 @@
       "id": "intentional-divergence",
       "name": "Intentional divergence classified as INFO",
       "description": "Override uses a differently-named fragment (e.g., shipping-pipeline-solo vs shipping-pipeline), classified as INFO not MEDIUM",
-      "input": "/Dev10x:playbook-maintenance work-on",
+      "input": "/dev10x:playbook-maintenance work-on",
       "assertions": [
         {
           "dimension": "drift-detection",
@@ -88,7 +88,7 @@
       "id": "phase3-uses-decision-gate",
       "name": "Phase 3 uses AskUserQuestion for action choice",
       "description": "After presenting findings, skill must use AskUserQuestion with structured options",
-      "input": "/Dev10x:playbook-maintenance",
+      "input": "/dev10x:playbook-maintenance",
       "assertions": [
         {
           "dimension": "decision-gates",
@@ -103,7 +103,7 @@
       "id": "phase4-per-finding-gate",
       "name": "Phase 4 review-and-apply uses AskUserQuestion per finding",
       "description": "When user chooses 'Review and apply', each finding gets an AskUserQuestion gate",
-      "input": "/Dev10x:playbook-maintenance",
+      "input": "/dev10x:playbook-maintenance",
       "assertions": [
         {
           "dimension": "decision-gates",
@@ -118,7 +118,7 @@
       "id": "startup-tasks",
       "name": "Creates phase tasks at startup",
       "description": "Skill creates 4 phase tasks before any work begins",
-      "input": "/Dev10x:playbook-maintenance",
+      "input": "/dev10x:playbook-maintenance",
       "assertions": [
         {
           "dimension": "orchestration",
@@ -132,7 +132,7 @@
       "id": "specific-skill-filter",
       "name": "Filter to specific skill when argument provided",
       "description": "User passes a skill name as argument, only that skill's overrides are analyzed",
-      "input": "/Dev10x:playbook-maintenance work-on",
+      "input": "/dev10x:playbook-maintenance work-on",
       "assertions": [
         {
           "dimension": "discovery",

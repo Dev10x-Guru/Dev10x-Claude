@@ -1,5 +1,5 @@
 ---
-name: Dev10x:skill-audit
+name: dev10x:skill-audit
 description: >
   Audit a session's skill usage, compliance, and extract lessons learned.
   Default (lightweight): analyzes visible context inline and presents a
@@ -11,7 +11,7 @@ description: >
   DO NOT TRIGGER when: mid-session during active work, or user is
   asking about a specific skill's documentation.
 user-invocable: true
-invocation-name: Dev10x:skill-audit
+invocation-name: dev10x:skill-audit
 allowed-tools:
   - Agent
   - AskUserQuestion
@@ -23,23 +23,23 @@ allowed-tools:
   - Edit(/tmp/Dev10x/skill-audit/**)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/skill-audit/scripts/:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/bin/check-skill-eval-gaps.py:*)
-  - mcp__plugin_Dev10x_cli__audit_extract_session
-  - mcp__plugin_Dev10x_cli__audit_analyze_actions
-  - mcp__plugin_Dev10x_cli__audit_analyze_permissions
-  - mcp__plugin_Dev10x_cli__resolve_plugin_origin
-  - mcp__plugin_Dev10x_cli__preset_pin_status
-  - mcp__plugin_Dev10x_cli__supervisor_review_status
-  - mcp__plugin_Dev10x_cli__resolve_gate
-  - mcp__plugin_Dev10x_cli__issue_list
-  - mcp__plugin_Dev10x_cli__issue_get
+  - mcp__plugin_dev10x_cli__audit_extract_session
+  - mcp__plugin_dev10x_cli__audit_analyze_actions
+  - mcp__plugin_dev10x_cli__audit_analyze_permissions
+  - mcp__plugin_dev10x_cli__resolve_plugin_origin
+  - mcp__plugin_dev10x_cli__preset_pin_status
+  - mcp__plugin_dev10x_cli__supervisor_review_status
+  - mcp__plugin_dev10x_cli__resolve_gate
+  - mcp__plugin_dev10x_cli__issue_list
+  - mcp__plugin_dev10x_cli__issue_get
   - Bash(ls -t ~/.claude/:*)
   - Bash(wc:*)
   - Bash(git config --list:*)
   - Bash(ls ~/.config/fish/functions/:*)
   - Bash(ls ~/.claude/tools/:*)
   - Bash(find ~/.claude/skills:*)
-  - Skill(Dev10x:ticket-create)
-  - Skill(Dev10x:audit-file)
+  - Skill(dev10x:ticket-create)
+  - Skill(dev10x:audit-file)
 ---
 
 # Skill Audit

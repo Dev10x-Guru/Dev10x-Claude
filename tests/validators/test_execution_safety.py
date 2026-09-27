@@ -57,7 +57,7 @@ class TestShellWrites:
         inp = _make_input(command="echo hello > /tmp/file.txt")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "mcp__plugin_Dev10x_cli__mktmp" in result.message
+        assert "mcp__plugin_dev10x_cli__mktmp" in result.message
         assert "mktmp.sh" not in result.message
         assert result.message == SHELL_WRITE_MSG
 

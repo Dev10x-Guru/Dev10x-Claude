@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:slack-setup",
+  "skill_name": "dev10x:slack-setup",
   "eval_dimensions": [
     {
       "id": "state_detection",
@@ -31,7 +31,7 @@
     {
       "id": 1,
       "name": "preconfigured-token-keyring",
-      "prompt": "/Dev10x:slack-setup",
+      "prompt": "/dev10x:slack-setup",
       "description": "Token already in keyring, daemon running, config absent. Should auto-validate, derive fields, write config — zero AskUserQuestion calls.",
       "assertions": [
         {
@@ -57,7 +57,7 @@
     {
       "id": 2,
       "name": "token-via-argument",
-      "prompt": "/Dev10x:slack-setup xoxb-test-token",
+      "prompt": "/dev10x:slack-setup xoxb-test-token",
       "description": "Token passed as argument. Should validate via auth.test and skip the token-source prompt.",
       "assertions": [
         {
@@ -77,7 +77,7 @@
     {
       "id": 3,
       "name": "fresh-setup-no-token",
-      "prompt": "/Dev10x:slack-setup",
+      "prompt": "/dev10x:slack-setup",
       "description": "No token in keyring, env, or args. Should prompt for token source — but not for storage method when keyring daemon is running.",
       "assertions": [
         {
@@ -97,7 +97,7 @@
     {
       "id": 4,
       "name": "invalid-token-fallthrough",
-      "prompt": "/Dev10x:slack-setup",
+      "prompt": "/dev10x:slack-setup",
       "description": "Stale token in keyring returns invalid_auth. Should discard token, report diagnostic, fall through to Step 2.",
       "assertions": [
         {
@@ -117,7 +117,7 @@
     {
       "id": 5,
       "name": "self-user-id-derivation",
-      "prompt": "/Dev10x:slack-setup",
+      "prompt": "/dev10x:slack-setup",
       "description": "After auth.test ok, derives self_user_id via users.lookupByEmail using git user.email — without prompting.",
       "assertions": [
         {

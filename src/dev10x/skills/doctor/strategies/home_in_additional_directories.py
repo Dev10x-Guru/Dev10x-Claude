@@ -125,7 +125,7 @@ def _finding(*, entry: str, path: Path) -> Finding:
             "Remove the entry and keep the catalog's narrow grants "
             "(~/.claude/memory, ~/.claude/plugins, ~/.config/Dev10x). To read a "
             "settings file, use the Read tool or "
-            "mcp__plugin_Dev10x_cli__audit_analyze_permissions — neither is "
+            "mcp__plugin_dev10x_cli__audit_analyze_permissions — neither is "
             "subject to the Bash path-scope gate that prompted for this."
         ),
         data=OverreachingDirectoryRemediation(entry=entry, settings_path=str(path)),

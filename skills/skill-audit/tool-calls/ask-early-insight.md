@@ -13,7 +13,7 @@ AskUserQuestion(questions=[{
     options: [
         {label: "Select & file now (Recommended)",
          description: "Present structured selection, then delegate to "
-                      "Dev10x:audit-file via Phase 7 — no transcript "
+                      "dev10x:audit-file via Phase 7 — no transcript "
                       "extraction or wave subagents dispatched"},
         {label: "Run forensic audit",
          description: "Escalate to full transcript extraction and "
@@ -33,7 +33,7 @@ AskUserQuestion(questions=[{
 |-------------|-------------|
 | Select & file now | Create minimal task list (`Phase 0: Inline findings` + `Phase 7: Upstream reporting`). Skip Steps 0–8 and Phases 1–6. Jump directly to Phase 7 with inline findings as the scrubbed findings file. Phase 7 sub-steps A–D still run. |
 | Run forensic audit | Fall through to Step 0 (Initialize forensic task tracking) and continue the standard wave orchestration. |
-| Discard | Exit the skill; do not create wave tasks, do not delegate to `Dev10x:audit-file`. |
+| Discard | Exit the skill; do not create wave tasks, do not delegate to `dev10x:audit-file`. |
 
 The "Select & file now" branch MUST still pass through the
 Phase 7 sub-steps (collect → confirm → scrub → delegate) —

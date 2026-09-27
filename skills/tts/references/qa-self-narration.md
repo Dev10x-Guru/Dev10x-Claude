@@ -1,6 +1,6 @@
 # Narrating a qa-self walkthrough
 
-`Dev10x:qa-self` captions are already narration copy — they describe the
+`dev10x:qa-self` captions are already narration copy — they describe the
 user benefit ("One click assigns them, no Save needed"), not the assertion.
 Narration speaks those same lines and keeps the caption on screen for
 exactly as long as the speech takes.
@@ -11,7 +11,7 @@ behaves exactly as it did before this existed.
 ## 0. Clear the licence gate before capturing
 
 `Narration.prerender()` shells out to the wrapper directly, so it does not
-pass through `Dev10x:tts`'s own orchestration — the licence gate has to be
+pass through `dev10x:tts`'s own orchestration — the licence gate has to be
 resolved here or it never fires on this path. Run the check first:
 
 ```bash

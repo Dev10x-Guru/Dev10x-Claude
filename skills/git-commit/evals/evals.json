@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:git-commit",
+  "skill_name": "dev10x:git-commit",
   "eval_dimensions": [
     {
       "id": "format",
@@ -36,7 +36,7 @@
     {
       "id": 1,
       "name": "standard-feature-commit",
-      "prompt": "/Dev10x:git-commit",
+      "prompt": "/dev10x:git-commit",
       "description": "Standard feature commit on branch janusz/PAY-310/fix-flaky-tests with staged changes. Plan-sync tickets list matches the branch, so the branch-drift gate (Step 1.5) is silent. Tests full happy-path workflow.",
       "setup": {
         "branch": "janusz/PAY-310/fix-flaky-tests",
@@ -111,7 +111,7 @@
     {
       "id": 2,
       "name": "jtbd-verb-rewrite",
-      "prompt": "/Dev10x:git-commit\n\n(User selects Feature type, then provides description: \"Add Square location ID query\")",
+      "prompt": "/dev10x:git-commit\n\n(User selects Feature type, then provides description: \"Add Square location ID query\")",
       "description": "Tests JTBD enforcement — user provides implementation-focused title that should be rewritten to outcome-focused.",
       "setup": {
         "branch": "janusz/PAY-200/multi-location-routing",
@@ -142,7 +142,7 @@
     {
       "id": 3,
       "name": "no-ticket-branch",
-      "prompt": "/Dev10x:git-commit",
+      "prompt": "/dev10x:git-commit",
       "description": "Branch without standard naming convention (fix-typo-readme). Tests ticket extraction failure handling and ticketless commit format.",
       "setup": {
         "branch": "fix-typo-readme",
@@ -179,7 +179,7 @@
     {
       "id": 4,
       "name": "protected-branch-guard",
-      "prompt": "/Dev10x:git-commit",
+      "prompt": "/dev10x:git-commit",
       "description": "Attempt to commit while on develop branch. Should be blocked immediately.",
       "setup": {
         "branch": "develop",
@@ -210,7 +210,7 @@
     {
       "id": 8,
       "name": "branch-drift-detection",
-      "prompt": "Skill(Dev10x:git-commit)",
+      "prompt": "Skill(dev10x:git-commit)",
       "description": "GH-147: plan-sync context expects ticket GH-147 but HEAD has drifted to a different feature branch with no GH-147 segment. Step 1.5 must detect the mismatch and fire AskUserQuestion regardless of session policy (ALWAYS_ASK).",
       "setup": {
         "branch": "janusz/GH-200/unrelated-work",
@@ -219,16 +219,16 @@
           "tickets": ["GH-147"]
         },
         "gate_effect": "auto-advance",
-        "orchestrator": "Dev10x:work-on",
+        "orchestrator": "dev10x:work-on",
         "active_task_list": true
       },
       "dimensions": ["safety", "workflow"],
       "assertions": [
         {
           "id": "reads-plan-sync-context",
-          "text": "Calls mcp__plugin_Dev10x_cli__plan_sync_json_summary to source the expected ticket(s)",
+          "text": "Calls mcp__plugin_dev10x_cli__plan_sync_json_summary to source the expected ticket(s)",
           "check": "tool_called",
-          "signals": ["mcp__plugin_Dev10x_cli__plan_sync_json_summary"]
+          "signals": ["mcp__plugin_dev10x_cli__plan_sync_json_summary"]
         },
         {
           "id": "fires-drift-gate",
@@ -253,7 +253,7 @@
     {
       "id": 9,
       "name": "branch-drift-skipped-no-context",
-      "prompt": "/Dev10x:git-commit",
+      "prompt": "/dev10x:git-commit",
       "description": "Ad-hoc invocation outside an orchestrator: plan-sync returns no tickets. Step 1.5 must skip the drift check silently and behave identically to pre-GH-147 git-commit.",
       "setup": {
         "branch": "janusz/PAY-310/fix-flaky-tests",
@@ -279,7 +279,7 @@
     {
       "id": 12,
       "name": "batch-title-distinctiveness",
-      "prompt": "/Dev10x:git-commit use Dev10x:jtbd\n\n(Run once per branch, eight branches, each a first feature/bug commit)",
+      "prompt": "/dev10x:git-commit use dev10x:jtbd\n\n(Run once per branch, eight branches, each a first feature/bug commit)",
       "description": "GH-1225: eight tickets spanning Risk, Revenue (new value and leak), Cost (manual step and prevention), Retention, and one generated-types-only diff. The shipped release this reproduces emitted `Let <actor> <verb>` eleven times in seventeen. Titles must be derived from bucket + shape of the truth, not from the story clause, and must read as distinct real-world use cases side by side.",
       "setup": {
         "branches": [
@@ -350,7 +350,7 @@
     {
       "id": 13,
       "name": "revert-subject-rejected",
-      "prompt": "/Dev10x:git-commit\n\n(Branch re-lands a reverted feature; git suggests the default subject Revert \"Revert \"✨ EXT-8471 Let shop admins add, deactivate and reactivate employees\"\"\")",
+      "prompt": "/dev10x:git-commit\n\n(Branch re-lands a reverted feature; git suggests the default subject Revert \"Revert \"✨ EXT-8471 Let shop admins add, deactivate and reactivate employees\"\"\")",
       "description": "GH-1225: GitHub's default double-revert subject was 83 chars, carried a key from a tracker the release pipeline cannot resolve, and named no outcome. The skill must replace it with the re-land convention.",
       "setup": {
         "branch": "janusz/PROJ-725/reland-employee-roster",
@@ -382,7 +382,7 @@
     {
       "id": 5,
       "name": "long-title-enforcement",
-      "prompt": "/Dev10x:git-commit\n\n(User provides description: \"Enable automatic discovery of Square terminal devices across all dealer locations with retry\")",
+      "prompt": "/dev10x:git-commit\n\n(User provides description: \"Enable automatic discovery of Square terminal devices across all dealer locations with retry\")",
       "description": "User provides a title that exceeds 72 chars when combined with gitmoji + ticket. Tests length validation and iteration.",
       "setup": {
         "branch": "janusz/PAY-400/terminal-discovery",
@@ -413,7 +413,7 @@
     {
       "id": 6,
       "name": "auto-generate-from-context",
-      "prompt": "/Dev10x:git-commit\n\n(Session already has context from a preceding scope/investigation about the fix)",
+      "prompt": "/dev10x:git-commit\n\n(Session already has context from a preceding scope/investigation about the fix)",
       "description": "When problem and solution are already known from session context, auto-generates Steps 5-6 but STILL shows preview.",
       "setup": {
         "branch": "janusz/PAY-133/fix-motor-timeout",
@@ -439,14 +439,14 @@
     {
       "id": 7,
       "name": "unattended-orchestrated-commit",
-      "prompt": "Skill(Dev10x:git-commit)",
+      "prompt": "Skill(dev10x:git-commit)",
       "description": "When invoked by an orchestrating skill with an active task list, all interactive gates should be bypassed: auto-stage, auto-select commit type, auto-generate message, skip preview, and return control immediately.",
       "setup": {
         "branch": "janusz/PAY-500/new-feature",
         "staged_changes": false,
         "unstaged_changes": true,
         "prior_context": "Implemented new feature as part of work-on plan step. Commit type is clearly Feature (new .py files). Problem and solution known from session.",
-        "orchestrator": "Dev10x:work-on",
+        "orchestrator": "dev10x:work-on",
         "active_task_list": true
       },
       "dimensions": ["workflow"],
@@ -498,12 +498,12 @@
     {
       "id": 10,
       "name": "jtbd-title-frame-is-chosen-not-transposed",
-      "prompt": "/Dev10x:git-commit use Dev10x:jtbd",
+      "prompt": "/dev10x:git-commit use dev10x:jtbd",
       "description": "GH-1225: Step 2.5 must pick a title frame rather than transposing the 'so X can' clause word by word. A literal transposition has exactly one output shape, 'Let <beneficiary> <outcome>', which produced 11 of 17 identical-sounding titles in a release bundle. The story's beneficiary here is a system, so the trace-upward rule must also resolve it to a human role.",
       "setup": {
         "branch": "janusz/PAY-620/schema-poller-backoff",
         "staged_changes": true,
-        "prior_context": "Dev10x:jtbd returned: 'When the upstream schema changes mid-sync, the schema poller wants to back off and retry, so the schema poller can avoid hammering the vendor API.'"
+        "prior_context": "dev10x:jtbd returned: 'When the upstream schema changes mid-sync, the schema poller wants to back off and retry, so the schema poller can avoid hammering the vendor API.'"
       },
       "dimensions": ["jtbd"],
       "assertions": [
@@ -542,7 +542,7 @@
         "rationale": "Explicit intent to commit with formatting help"
       },
       {
-        "query": "/Dev10x:git-commit",
+        "query": "/dev10x:git-commit",
         "rationale": "Direct invocation"
       },
       {
@@ -577,7 +577,7 @@
       },
       {
         "query": "push this branch and create a PR",
-        "rationale": "Wants PR creation (Dev10x:gh-pr-create), not a commit"
+        "rationale": "Wants PR creation (dev10x:gh-pr-create), not a commit"
       },
       {
         "query": "what gitmoji should I use for a performance improvement?",

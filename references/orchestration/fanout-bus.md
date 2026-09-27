@@ -1,6 +1,6 @@
 # Fanout JSONL Pub/Sub Bus (v1)
 
-Sibling-to-sibling coordination protocol for `Dev10x:fanout`
+Sibling-to-sibling coordination protocol for `dev10x:fanout`
 swarm children. Lets concurrently-running agents publish and
 consume file-lock requests, conflict signals, progress
 heartbeats, and bailout notices without serialising the wave
@@ -8,11 +8,11 @@ at the first sign of drift.
 
 **Status:** v1 — append-only JSONL file per wave. No MCP server,
 no daemon. If field experience shows tail-based polling is
-insufficient, promote to `mcp__plugin_Dev10x_fanout_bus__*`
+insufficient, promote to `mcp__plugin_dev10x_fanout_bus__*`
 (see § Future Work).
 
 **Scope:** This document is referenced by the
-`Dev10x:fanout` Phase 3 dispatch prompt and consumed directly
+`dev10x:fanout` Phase 3 dispatch prompt and consumed directly
 by swarm-child agents. ADR 0004 leaves real-time coordination
 out of the native-Agent swarm baseline and points at this
 follow-up.
@@ -34,7 +34,7 @@ mechanisms compared in GH-133's issue body:
 | Orchestrator as broker | Centralised; parent stays in the loop | Adds latency; parent context fills up |
 
 JSONL wins for v1 because every Dev10x swarm child already has
-Bash + Read + Write + `mcp__plugin_Dev10x_cli__mktmp` in scope.
+Bash + Read + Write + `mcp__plugin_dev10x_cli__mktmp` in scope.
 No new tool, no server lifecycle, no protocol versioning past
 the event schema below. The file itself is the audit trail.
 
@@ -48,13 +48,13 @@ dispatching any Agent calls in that wave:
     bus.jsonl       — append-only event stream
 ```
 
-Creation goes through `mcp__plugin_Dev10x_cli__mktmp` in two
+Creation goes through `mcp__plugin_dev10x_cli__mktmp` in two
 steps (GH-385 F3). A single `mktmp` call with a slash in the
 prefix fails when the parent directory does not yet exist:
 
 ```
 # Step 1 — create the wave directory (always created)
-wave_dir = mcp__plugin_Dev10x_cli__mktmp(
+wave_dir = mcp__plugin_dev10x_cli__mktmp(
     namespace="fanout",
     prefix="<wave_id>",
     directory=True,
@@ -199,7 +199,7 @@ the bailed item in a follow-up wave.
 
 ## Orchestrator rules
 
-The orchestrator (the main `Dev10x:fanout` session) is a
+The orchestrator (the main `dev10x:fanout` session) is a
 passive consumer in v1:
 
 1. Create the bus directory and file before each wave
@@ -225,7 +225,7 @@ passive consumer in v1:
 
 ## Future work
 
-Promote to `mcp__plugin_Dev10x_fanout_bus__*` when ANY hold:
+Promote to `mcp__plugin_dev10x_fanout_bus__*` when ANY hold:
 
 - File-tailing latency causes measurable wasted parallelism
   in a real swarm run (not a synthetic benchmark)

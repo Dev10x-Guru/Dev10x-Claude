@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:memory-maintenance",
+  "skill_name": "dev10x:memory-maintenance",
   "eval_dimensions": [
     {
       "id": "discovery",
@@ -22,7 +22,7 @@
       "id": "discover-all-scopes",
       "name": "Discover memory across all scopes",
       "description": "Skill finds global, project, and plugin memory files",
-      "input": "/Dev10x:memory-maintenance",
+      "input": "/dev10x:memory-maintenance",
       "assertions": [
         {
           "dimension": "discovery",
@@ -36,7 +36,7 @@
       "id": "detect-stale-paths",
       "name": "Detect versioned plugin cache paths",
       "description": "Flags hardcoded version-specific plugin paths in memory files",
-      "input": "/Dev10x:memory-maintenance",
+      "input": "/dev10x:memory-maintenance",
       "assertions": [
         {
           "dimension": "anti-pattern-detection",
@@ -50,7 +50,7 @@
       "id": "fix-gate-uses-askuserquestion",
       "name": "Fix approval uses AskUserQuestion",
       "description": "Phase 3 uses structured gate, not plain text",
-      "input": "/Dev10x:memory-maintenance",
+      "input": "/dev10x:memory-maintenance",
       "assertions": [
         {
           "dimension": "decision-gates",

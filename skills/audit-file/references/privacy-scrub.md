@@ -96,8 +96,8 @@ Labs, not Tyrell Corp + Tyrell Subsidiary.
 
 The following CAN appear unchanged — they are already public:
 
-- Skill names with the `Dev10x:` prefix (`Dev10x:git`,
-  `Dev10x:git-commit`, …)
+- Skill names with the `dev10x:` prefix (`dev10x:git`,
+  `dev10x:git-commit`, …)
 - Hook script names that ship in this plugin
 - Public file paths inside this repo (`skills/<name>/SKILL.md`,
   `hooks/...`, `references/...`)

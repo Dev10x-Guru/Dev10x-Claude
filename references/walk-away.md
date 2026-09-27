@@ -1,7 +1,7 @@
 # Walk-Away — the `afk` overlay and the doubt sink
 
 Contract for skills running while nobody is at the keyboard.
-`Dev10x:afk` composes the walk-away posture as the baseline preset
+`dev10x:afk` composes the walk-away posture as the baseline preset
 plus `gate_overlays: [afk]`; the overlay carries
 `session_adoption: auto-advance` (trust a stale session) and
 `doubt_sink: pr-description` (route deferred decisions to the PR
@@ -63,7 +63,7 @@ Where suppressed-doubt entries land. Skills append, never overwrite.
 ### `pr-description` (default)
 
 Append to the active PR body under a dedicated header. If no PR exists
-yet, buffer the entries and flush them when `Dev10x:gh-pr-create`
+yet, buffer the entries and flush them when `dev10x:gh-pr-create`
 runs.
 
 ```markdown
@@ -82,7 +82,7 @@ pointer to a followup ticket.
 
 ### `session-bookmark`
 
-Append to the PR bookmark comment created by `Dev10x:gh-pr-bookmark`.
+Append to the PR bookmark comment created by `dev10x:gh-pr-bookmark`.
 Use for doubts that should survive session boundaries but do not
 belong in the merged PR body.
 
@@ -95,7 +95,7 @@ only when the doubt is commit-scoped, not PR-scoped.
 
 For a skill that emits `AskUserQuestion`:
 
-1. ✓ Call `mcp__plugin_Dev10x_cli__resolve_gate(gate=…)` before the
+1. ✓ Call `mcp__plugin_dev10x_cli__resolve_gate(gate=…)` before the
      gate — do NOT read a config file and classify by hand; the
      resolver owns floor / overlay / project-pin precedence, and
      re-deriving it drifts (GH-760)
@@ -104,7 +104,7 @@ For a skill that emits `AskUserQuestion`:
      recommended option, and surface the returned `record` line so a
      present supervisor can still veto
 4. ✓ Append a one-line entry to the resolved `log_to` doubt sink
-5. ✓ Log the suppression to the audit hook so `Dev10x:skill-audit`
+5. ✓ Log the suppression to the audit hook so `dev10x:skill-audit`
      can surface walk-away suppressions in the session report
 
 ## Anti-patterns
@@ -132,7 +132,7 @@ Recurring failures documented from supervisor feedback:
 
 ## Out of scope
 
-Deliberate gaps the `Dev10x:afk` skill does not close:
+Deliberate gaps the `dev10x:afk` skill does not close:
 
 - **Retroactive cancellation** of an `AskUserQuestion` already in
   flight — the overlay takes effect at the next gate

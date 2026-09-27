@@ -141,8 +141,8 @@ ${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-monitor/scripts/detect-fixup-commits.sh \
 
 **Fix:**
 1. Get the base branch from the PR
-2. Delegate squash + force-push to `Skill(Dev10x:git-groom)` — it
-   runs the autosquash rebase and pushes through `Skill(Dev10x:git)`,
+2. Delegate squash + force-push to `Skill(dev10x:git-groom)` — it
+   runs the autosquash rebase and pushes through `Skill(dev10x:git)`,
    which enforces protected-branch checks. Do NOT call
    `git autosquash-{base}` or `git push --force-with-lease` directly
    from this skill (that bypasses the wrapper guardrails — see
@@ -150,7 +150,7 @@ ${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-monitor/scripts/detect-fixup-commits.sh \
 3. Wait 60 seconds for GitHub to register new check suites
 4. Resume the Phase 1 CI monitoring loop
 
-**Note:** `Dev10x:git-groom` invokes the `git autosquash-{base}`
+**Note:** `dev10x:git-groom` invokes the `git autosquash-{base}`
 alias under the hood — a non-interactive rebase with `--autosquash`
 that matches `fixup!` commit prefixes to their target commits and
 squashes them automatically. After the force-push, all previous CI

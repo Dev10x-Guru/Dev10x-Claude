@@ -63,7 +63,7 @@ ask decisions that unblock the most downstream work first.
 **A queued decision that is never presented is an open loop.**
 Step 3 only fires when every task is blocked, so a decision
 queued in metadata can sit there indefinitely if work keeps
-finding somewhere else to advance. `Dev10x:ask --loops` sweeps
+finding somewhere else to advance. `dev10x:ask --loops` sweeps
 for exactly that shape — along with un-actioned commitments,
 unanswered supervisor questions, and unaddressed findings — and
 syncs each one to the task list. Run it before a session wraps

@@ -21,7 +21,7 @@ class TestIsActionable:
             "- Fetch the ticket before branching",
             "TaskCreate(subject='x')",
             "AskUserQuestion(questions=[...])",
-            "**MUST delegate to Dev10x:git-commit**",
+            "**MUST delegate to dev10x:git-commit**",
             "**DO NOT skip verification**",
         ],
     )
@@ -38,7 +38,7 @@ class TestIsActionable:
             "| cell1 | cell2 |",
             "> quoted text",
             "- the pattern matches when imperatives appear",
-            "name: Dev10x:git-commit",
+            "name: dev10x:git-commit",
         ],
     )
     def test_classifies_as_inactive(self, line: str) -> None:
@@ -53,7 +53,7 @@ class TestCountInstructions:
         path = tmp_path / "small.md"
         path.write_text(
             "---\n"
-            "name: Dev10x:tiny\n"
+            "name: dev10x:tiny\n"
             "---\n"
             "# Overview\n"
             "\n"
@@ -83,7 +83,7 @@ class TestCountInstructions:
 
     def test_excludes_frontmatter(self, small_skill: Path) -> None:
         report = mod.count_instructions(small_skill)
-        assert "Dev10x:tiny" not in str(report.count)
+        assert "dev10x:tiny" not in str(report.count)
 
     def test_status_ok_under_warn(self, small_skill: Path) -> None:
         report = mod.count_instructions(small_skill, warn=10, over=20)

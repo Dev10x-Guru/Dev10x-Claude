@@ -14,7 +14,7 @@ class TestParse:
     @pytest.mark.parametrize(
         "raw,server,tool",
         [
-            ("mcp__plugin_Dev10x_cli__detect_tracker", "plugin_Dev10x_cli", "detect_tracker"),
+            ("mcp__plugin_dev10x_cli__detect_tracker", "plugin_dev10x_cli", "detect_tracker"),
             ("mcp__claude_ai_Sentry__search_issues", "claude_ai_Sentry", "search_issues"),
             ("mcp__sentry__get_issue", "sentry", "get_issue"),
         ],
@@ -29,7 +29,7 @@ class TestParse:
 
     @pytest.mark.parametrize(
         "raw",
-        ["", "mcp__", "mcp__server", "Bash(ls)", "mcp__server__", "mcp__plugin_Dev10x_*"],
+        ["", "mcp__", "mcp__server", "Bash(ls)", "mcp__server__", "mcp__plugin_dev10x_*"],
     )
     def test_rejects_invalid_forms(self, raw: str) -> None:
         with pytest.raises(ValueError):
@@ -52,7 +52,7 @@ class TestIsMcp:
     @pytest.mark.parametrize(
         "value,expected",
         [
-            ("mcp__plugin_Dev10x_cli__mktmp", True),
+            ("mcp__plugin_dev10x_cli__mktmp", True),
             ("mcp__anything", True),
             ("Bash(grep mcp__ tests/)", False),
             ("", False),
@@ -64,7 +64,7 @@ class TestIsMcp:
 
 class TestIsCommandToken:
     def test_matches_full_tool_at_start(self) -> None:
-        assert McpToolName.is_command_token("mcp__plugin_Dev10x_cli__pr_get pr_number=357")
+        assert McpToolName.is_command_token("mcp__plugin_dev10x_cli__pr_get pr_number=357")
 
     @pytest.mark.parametrize(
         "value",
@@ -78,10 +78,10 @@ class TestIsWildcard:
     @pytest.mark.parametrize(
         "value,expected",
         [
-            ("mcp__plugin_Dev10x_*", True),
+            ("mcp__plugin_dev10x_*", True),
             ("mcp__claude_ai_Sentry__*", True),
-            ("mcp__plugin_Dev10x_cli__detect_tracker", False),
-            ("mcp__plugin_Dev10x_* extra", False),
+            ("mcp__plugin_dev10x_cli__detect_tracker", False),
+            ("mcp__plugin_dev10x_* extra", False),
         ],
     )
     def test_glob_shape(self, value: str, expected: bool) -> None:

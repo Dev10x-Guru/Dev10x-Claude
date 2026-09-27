@@ -1,6 +1,6 @@
 ---
-name: Dev10x:db
-invocation-name: Dev10x:db
+name: dev10x:db
+invocation-name: dev10x:db
 description: >
   Safe database query planning for Claude Code. When querying any
   database, ensures schema-first construction and read-only safety
@@ -37,7 +37,7 @@ Before writing any SQL:
    the schema files or run an `information_schema` query
 3. **Write the query** — use verified names only
 4. **Execute via engine-specific skill** — delegate to the appropriate
-   execution layer (e.g., `Dev10x:db-psql` for PostgreSQL)
+   execution layer (e.g., `dev10x:db-psql` for PostgreSQL)
 
 ## Context Discovery Convention
 
@@ -51,7 +51,7 @@ resources (in order, first match wins per resource type):
 
 ### Database configuration
 
-Handled by `Dev10x:db-psql` — see its SKILL.md for the full
+Handled by `dev10x:db-psql` — see its SKILL.md for the full
 search order. Key locations:
 
 1. `$DB_CONFIG` environment variable (explicit override)
@@ -127,4 +127,4 @@ SELECT ... FROM ... WHERE ...
 This skill provides query planning guidance. Actual query execution
 is handled by engine-specific skills:
 
-- **`Dev10x:db-psql`** — PostgreSQL via psql wrapper
+- **`dev10x:db-psql`** — PostgreSQL via psql wrapper

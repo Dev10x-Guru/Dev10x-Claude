@@ -1,5 +1,5 @@
 ---
-name: Dev10x:ask
+name: dev10x:ask
 description: >
   Surface what is still open in a session and route it where it
   survives. Reformulate plain-text decision questions into
@@ -12,7 +12,7 @@ description: >
   DO NOT TRIGGER when: agent is already using AskUserQuestion
   correctly, or the question is purely informational (no decision).
 user-invocable: true
-invocation-name: Dev10x:ask
+invocation-name: dev10x:ask
 allowed-tools:
   - AskUserQuestion
   - TaskCreate
@@ -22,9 +22,9 @@ allowed-tools:
   - Read(${CLAUDE_PLUGIN_ROOT}/.claude/rules/essentials.md)
 ---
 
-# Dev10x:ask — Structured Decision Widgets
+# dev10x:ask — Structured Decision Widgets
 
-**Announce:** "Using Dev10x:ask to surface open decisions and
+**Announce:** "Using dev10x:ask to surface open decisions and
 loops."
 
 ## Orchestration
@@ -101,7 +101,7 @@ confirmations without alternatives, optional preferences).
 
 Scan recent conversation for the plain-text question that
 triggered this invocation. If the user provided arguments
-(e.g., `/Dev10x:ask reinforce`), use the most recent
+(e.g., `/dev10x:ask reinforce`), use the most recent
 plain-text decision question as the target.
 
 ### Step 2: Read the rules
@@ -226,14 +226,14 @@ no-loops-found case.
 This skill can be referenced by other skills as a
 reinforcement mechanism:
 
-- **`Dev10x:diag-friction`** — handles CLI-to-skill
-  redirects and permission-friction diagnosis; `Dev10x:ask`
+- **`dev10x:diag-friction`** — handles CLI-to-skill
+  redirects and permission-friction diagnosis; `dev10x:ask`
   handles plain-text-to-widget redirects
-- **`Dev10x:work-on`** — can invoke `Dev10x:ask reinforce` if
+- **`dev10x:work-on`** — can invoke `dev10x:ask reinforce` if
   an agent within the work-on pipeline uses plain text for a
-  decision point, or `Dev10x:ask --loops` before the Verify-AC
+  decision point, or `dev10x:ask --loops` before the Verify-AC
   gate to catch loops that never reached the task list
-- **`Dev10x:session-wrap-up`** — run `--loops` first so nothing
+- **`dev10x:session-wrap-up`** — run `--loops` first so nothing
   open is lost at session close
 - **Skill authors** — reference this skill in SKILL.md when
   documenting decision gates as a fallback enforcement mechanism

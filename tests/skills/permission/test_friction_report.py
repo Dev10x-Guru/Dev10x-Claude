@@ -53,7 +53,7 @@ class TestBuildReport:
 
     def test_derives_family_when_the_record_lacks_one(self) -> None:
         # A hook that recorded a signature but not yet a family still ranks.
-        report = build_report(records=[_denial("mcp__plugin_Dev10x_cli__pr_get")])
+        report = build_report(records=[_denial("mcp__plugin_dev10x_cli__pr_get")])
         assert report.by_family == [("mcp", 1)]
 
     def test_recorded_family_wins_over_recomputation(self) -> None:

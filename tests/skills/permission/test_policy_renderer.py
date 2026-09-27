@@ -101,7 +101,7 @@ class TestTwinPathExpansion:
         assert expand_twin_paths(rules=rules, home=_HOME) == rules
 
     def test_pathless_rules_pass_through(self) -> None:
-        rules = ["mcp__plugin_Dev10x_cli__mktmp", "Bash(git status:*)"]
+        rules = ["mcp__plugin_dev10x_cli__mktmp", "Bash(git status:*)"]
         assert expand_twin_paths(rules=rules, home=_HOME) == rules
 
     def test_home_trailing_slash_is_normalized(self) -> None:

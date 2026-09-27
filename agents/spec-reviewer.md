@@ -6,7 +6,7 @@ description: |
   diff against the linked Linear/JIRA/GitHub ticket's acceptance
   criteria or the PR's Job Story.
 
-  Triggers: invoked by Dev10x:gh-pr-review and Dev10x:review as
+  Triggers: invoked by dev10x:gh-pr-review and dev10x:review as
   Phase 0 spec gate. Returns PASS / FAIL_SCOPE / FAIL_MISSING /
   FAIL_OVER so callers can short-circuit before fanning out to
   domain reviewers.
@@ -29,8 +29,8 @@ quality.
 
 ## When to invoke
 
-- Phase 0 of `Dev10x:review` (self-review before PR)
-- Phase 0 of `Dev10x:gh-pr-review` (external PR review)
+- Phase 0 of `dev10x:review` (self-review before PR)
+- Phase 0 of `dev10x:gh-pr-review` (external PR review)
 - Optional first pass before any multi-reviewer fanout
 
 Skip spec-reviewer when:
@@ -87,4 +87,4 @@ Body before the status line: one paragraph per finding with
 - ❌ Reading files outside the diff — caller provides full
   context inline
 - ❌ Suggesting fixes — return verdict only; the caller routes
-  to `Dev10x:review-fix` or `Dev10x:gh-pr-fixup`
+  to `dev10x:review-fix` or `dev10x:gh-pr-fixup`

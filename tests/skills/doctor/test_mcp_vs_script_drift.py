@@ -29,7 +29,7 @@ class TestDetect:
         assert finding.strategy_id == "mcp-vs-script-drift"
         assert finding.severity == "drift"
         assert finding.data is not None
-        assert finding.data.mcp_tool == "mcp__plugin_Dev10x_cli__mktmp"
+        assert finding.data.mcp_tool == "mcp__plugin_dev10x_cli__mktmp"
         assert finding.data.kind == "edit_memory"
 
     def test_skill_md_with_script_before_mcp_produces_finding(
@@ -41,7 +41,7 @@ class TestDetect:
         skill_dir.mkdir(parents=True)
         (skill_dir / "SKILL.md").write_text(
             "use the script: skills/gh-context/scripts/gh-pr-detect.sh\n"
-            "...later: mcp__plugin_Dev10x_cli__pr_detect is the MCP form\n",
+            "...later: mcp__plugin_dev10x_cli__pr_detect is the MCP form\n",
         )
 
         context = Context(plugin_cache_root=plugin_root)
@@ -62,7 +62,7 @@ class TestDetect:
             "name: Example\n"
             "allowed-tools:\n"
             "  - skills/gh-context/scripts/gh-pr-detect.sh\n"
-            "  - mcp__plugin_Dev10x_cli__pr_detect\n"
+            "  - mcp__plugin_dev10x_cli__pr_detect\n"
             "---\n",
         )
 
@@ -82,10 +82,10 @@ class TestDetect:
             "---\n"
             "name: Example\n"
             "allowed-tools:\n"
-            "  - mcp__plugin_Dev10x_cli__pr_detect\n"
+            "  - mcp__plugin_dev10x_cli__pr_detect\n"
             "---\n"
             "use the script: skills/gh-context/scripts/gh-pr-detect.sh\n"
-            "...later: mcp__plugin_Dev10x_cli__pr_detect is the MCP form\n",
+            "...later: mcp__plugin_dev10x_cli__pr_detect is the MCP form\n",
         )
 
         context = Context(plugin_cache_root=plugin_root)
@@ -102,7 +102,7 @@ class TestDetect:
         skill_dir = plugin_root / "skills" / "example"
         skill_dir.mkdir(parents=True)
         (skill_dir / "SKILL.md").write_text(
-            "use mcp__plugin_Dev10x_cli__pr_detect for PR detection.\n",
+            "use mcp__plugin_dev10x_cli__pr_detect for PR detection.\n",
         )
 
         context = Context(plugin_cache_root=plugin_root)
@@ -120,7 +120,7 @@ class TestDetect:
             skill_dir.mkdir(parents=True)
             (skill_dir / "SKILL.md").write_text(
                 "use the script: skills/gh-context/scripts/gh-pr-detect.sh\n"
-                "...later: mcp__plugin_Dev10x_cli__pr_detect is the MCP form\n",
+                "...later: mcp__plugin_dev10x_cli__pr_detect is the MCP form\n",
             )
 
         context = Context(plugin_cache_root=plugin_root)
@@ -138,7 +138,7 @@ class TestDetect:
             skill_dir.mkdir(parents=True)
             (skill_dir / "SKILL.md").write_text(
                 "use the script: skills/gh-context/scripts/gh-pr-detect.sh\n"
-                "...later: mcp__plugin_Dev10x_cli__pr_detect is the MCP form\n",
+                "...later: mcp__plugin_dev10x_cli__pr_detect is the MCP form\n",
             )
 
         context = Context(plugin_cache_root=plugin_root)
@@ -154,7 +154,7 @@ class TestDetect:
         plugin_root.mkdir()
         (plugin_root / "SKILL.md").write_text(
             "use the script: skills/gh-context/scripts/gh-pr-detect.sh\n"
-            "...later: mcp__plugin_Dev10x_cli__pr_detect is the MCP form\n",
+            "...later: mcp__plugin_dev10x_cli__pr_detect is the MCP form\n",
         )
 
         context = Context(plugin_cache_root=plugin_root)
@@ -178,7 +178,7 @@ class TestRemediate:
             evidence="memory references obsolete script ('/tmp/.../mktmp.sh')",
             proposed_fix="rewrite memory body",
             data=strategy_mod.ScriptDriftRemediation(
-                mcp_tool="mcp__plugin_Dev10x_cli__mktmp",
+                mcp_tool="mcp__plugin_dev10x_cli__mktmp",
                 kind="edit_memory",
             ),
         )
@@ -187,7 +187,7 @@ class TestRemediate:
 
         assert remediation.kind == "edit_memory"
         assert remediation.target == "/tmp/memory/old.md"
-        assert remediation.action["mcp_tool"] == "mcp__plugin_Dev10x_cli__mktmp"
+        assert remediation.action["mcp_tool"] == "mcp__plugin_dev10x_cli__mktmp"
 
     def test_skill_md_finding_maps_to_file_issue(self) -> None:
         from dev10x.skills.doctor.strategy import Finding
@@ -199,7 +199,7 @@ class TestRemediate:
             evidence="SKILL.md shows script form before MCP form",
             proposed_fix="reorder",
             data=strategy_mod.ScriptDriftRemediation(
-                mcp_tool="mcp__plugin_Dev10x_cli__pr_detect",
+                mcp_tool="mcp__plugin_dev10x_cli__pr_detect",
                 kind="file_issue",
             ),
         )

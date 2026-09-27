@@ -65,7 +65,7 @@ manifest rather than letting workers improvise raw CLI
 (GH-1214 finding 2).** A probe this session spawns is depth 1; a crew
 worker is spawned by the foreman overseer, at depth 2. Those are not
 the same surface, and one run passed this checklist 12 of 12 while the
-foreman and every worker had no `mcp__plugin_Dev10x_cli__*` at all.
+foreman and every worker had no `mcp__plugin_dev10x_cli__*` at all.
 
 So spawn the overseer FIRST, have it spawn the probe, and have the
 result travel back up — then repeat the two read-only calls from the

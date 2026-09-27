@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:session-wrap-up",
+  "skill_name": "dev10x:session-wrap-up",
   "eval_dimensions": [
     {
       "id": "task-tracking",
@@ -19,7 +19,7 @@
     {
       "id": "item-routing",
       "name": "Item Routing",
-      "description": "Offers Finish-now / Defer / Drop for each open loop; delegates Defer items to Dev10x:park via Skill() call"
+      "description": "Offers Finish-now / Defer / Drop for each open loop; delegates Defer items to dev10x:park via Skill() call"
     },
     {
       "id": "state-persistence",
@@ -37,7 +37,7 @@
       "id": "task-creation-at-startup",
       "name": "Creates 3 tasks at startup with sequential dependencies",
       "description": "Verifies REQUIRED task creation contract: Discover, Route, Summary with blocked-by chain.",
-      "input": "/Dev10x:session-wrap-up",
+      "input": "/dev10x:session-wrap-up",
       "assertions": [
         {
           "dimension": "task-tracking",
@@ -62,7 +62,7 @@
       "id": "phase1-auto-scan",
       "name": "Phase 1 auto-scan collects all loop sources",
       "description": "Verifies all 6 scan sources are checked: TaskList, git status, git diff TODOs, pr_detect, TODO.md, MEMORY.md.",
-      "input": "/Dev10x:session-wrap-up",
+      "input": "/dev10x:session-wrap-up",
       "assertions": [
         {
           "dimension": "open-loop-discovery",
@@ -79,7 +79,7 @@
         {
           "dimension": "open-loop-discovery",
           "check": "tool_called",
-          "tool": "mcp__plugin_Dev10x_cli__pr_detect",
+          "tool": "mcp__plugin_dev10x_cli__pr_detect",
           "signal": "pr_detect called with no arg to find open PR for current branch"
         },
         {
@@ -94,7 +94,7 @@
       "id": "gap-fill-gate",
       "name": "Phase 2 gap-fill uses AskUserQuestion",
       "description": "After presenting open loops, the skill must use AskUserQuestion for the free-text gap-fill — plain text is prohibited.",
-      "input": "/Dev10x:session-wrap-up",
+      "input": "/dev10x:session-wrap-up",
       "assertions": [
         {
           "dimension": "decision-gates",
@@ -113,7 +113,7 @@
       "id": "per-item-triage-gate",
       "name": "Phase 3 per-item triage uses AskUserQuestion for each item",
       "description": "For each open loop, the skill must present Finish-now / Defer / Drop via AskUserQuestion — not plain text.",
-      "input": "/Dev10x:session-wrap-up",
+      "input": "/dev10x:session-wrap-up",
       "setup": {
         "open_tasks": 2,
         "note": "Session has 2 non-completed tasks"
@@ -147,9 +147,9 @@
     },
     {
       "id": "defer-delegates-to-park",
-      "name": "Defer selection delegates to Dev10x:park via Skill()",
-      "description": "When user picks Defer, skill must call Skill(Dev10x:park) — not inline text or raw file writes.",
-      "input": "/Dev10x:session-wrap-up",
+      "name": "Defer selection delegates to dev10x:park via Skill()",
+      "description": "When user picks Defer, skill must call Skill(dev10x:park) — not inline text or raw file writes.",
+      "input": "/dev10x:session-wrap-up",
       "setup": {
         "user_choice": "Defer",
         "note": "User selects Defer for the first open item"
@@ -159,18 +159,18 @@
           "dimension": "item-routing",
           "check": "tool_called",
           "tool": "Skill",
-          "signal": "Skill(Dev10x:park) called after user picks Defer — not raw Write to TODO.md"
+          "signal": "Skill(dev10x:park) called after user picks Defer — not raw Write to TODO.md"
         },
         {
           "dimension": "item-routing",
           "check": "behavioral",
-          "signal": "Skill parameter passed to the Skill() call is Dev10x:park"
+          "signal": "Skill parameter passed to the Skill() call is dev10x:park"
         },
         {
           "dimension": "item-routing",
           "check": "behavioral",
           "value": "no-inline-defer",
-          "signal": "Skill does not write directly to .claude/TODO.md without going through Dev10x:park"
+          "signal": "Skill does not write directly to .claude/TODO.md without going through dev10x:park"
         }
       ]
     },
@@ -178,7 +178,7 @@
       "id": "state-persistence",
       "name": "Phase 3b writes ephemeral state + freshness stamp, no durable keys",
       "description": "After triage, skill persists tasks+continuation_prompt+insights plus a freshness stamp (branch/tickets/wrapped_at) to session.yaml, and does NOT write durable keys (friction_level/active_modes) — those live in config.yaml (GH-774/GH-782).",
-      "input": "/Dev10x:session-wrap-up",
+      "input": "/dev10x:session-wrap-up",
       "setup": {
         "existing_config_yaml": "friction_level: adaptive\nactive_modes: []\n",
         "note": "Durable prefs live in config.yaml; session.yaml holds only ephemeral state"
@@ -219,7 +219,7 @@
       "id": "task-list-invariant",
       "name": "Skill never leaves task list empty",
       "description": "When all items are resolved (drop/defer), a Verify AC task must be seeded before the skill completes.",
-      "input": "/Dev10x:session-wrap-up",
+      "input": "/dev10x:session-wrap-up",
       "setup": {
         "all_items_resolved": true,
         "note": "User drops or defers every item — no Finish-now selections"
@@ -241,7 +241,7 @@
     }
   ],
   "trigger_evals": {
-    "description": "Queries that should/should-not trigger Dev10x:session-wrap-up",
+    "description": "Queries that should/should-not trigger dev10x:session-wrap-up",
     "should_trigger": [
       {
         "query": "let's wrap up for today and save my progress",
@@ -263,7 +263,7 @@
     "should_not_trigger": [
       {
         "query": "let's start on https://github.com/example-org/app-pos/issues/247",
-        "rationale": "Starting new work — use Dev10x:work-on"
+        "rationale": "Starting new work — use dev10x:work-on"
       },
       {
         "query": "add a TODO: fix the retry logic here",
@@ -271,7 +271,7 @@
       },
       {
         "query": "park this idea about caching for later",
-        "rationale": "Single-item deferral — use Dev10x:park directly"
+        "rationale": "Single-item deferral — use dev10x:park directly"
       }
     ]
   }

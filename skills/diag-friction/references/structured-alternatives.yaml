@@ -1,4 +1,4 @@
-# Structured-alternatives knowledge base for Dev10x:diag-friction (GH-282).
+# Structured-alternatives knowledge base for dev10x:diag-friction (GH-282).
 #
 # When a blocked command runs inline code (python -c, sh -c, node -e,
 # perl -e, ruby -e, bash -c), diag-friction matches the embedded code

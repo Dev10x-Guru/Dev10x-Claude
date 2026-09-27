@@ -122,8 +122,8 @@ RULES: tuple[Rule, ...] = (
         ),
         message="Raw `gh pr ...` command in skill doc",
         suggestion=(
-            "Use `mcp__plugin_Dev10x_cli__pr_detect` / `pr_comments` / "
-            "`verify_pr_state` / `Skill(Dev10x:gh-pr-*)` instead"
+            "Use `mcp__plugin_dev10x_cli__pr_detect` / `pr_comments` / "
+            "`verify_pr_state` / `Skill(dev10x:gh-pr-*)` instead"
         ),
     ),
     Rule(
@@ -131,7 +131,7 @@ RULES: tuple[Rule, ...] = (
         pattern=re.compile(_CMD_START + r"gh\s+issue\s+(?:view|list|create|comment|edit|close)\b"),
         message="Raw `gh issue ...` command in skill doc",
         suggestion=(
-            "Use `mcp__plugin_Dev10x_cli__issue_get` / `issue_comments` / `issue_create` instead"
+            "Use `mcp__plugin_dev10x_cli__issue_get` / `issue_comments` / `issue_create` instead"
         ),
     ),
     Rule(
@@ -139,7 +139,7 @@ RULES: tuple[Rule, ...] = (
         pattern=re.compile(_CMD_START + r"gh\s+api\b"),
         message="Raw `gh api` command in skill doc",
         suggestion=(
-            "Use the matching `mcp__plugin_Dev10x_cli__*` tool when one exists "
+            "Use the matching `mcp__plugin_dev10x_cli__*` tool when one exists "
             "(pr_comments, pr_comment_reply, issue_get, request_review, ...)"
         ),
     ),
@@ -148,7 +148,7 @@ RULES: tuple[Rule, ...] = (
         pattern=re.compile(_CMD_START + r"gh\s+repo\s+view\b"),
         message="Raw `gh repo view` command in skill doc",
         suggestion=(
-            "Use `mcp__plugin_Dev10x_cli__pr_detect` (returns repo) or `detect_base_branch`"
+            "Use `mcp__plugin_dev10x_cli__pr_detect` (returns repo) or `detect_base_branch`"
         ),
     ),
     Rule(
@@ -157,28 +157,28 @@ RULES: tuple[Rule, ...] = (
         # commit-message pattern (still flag — the wrapper still applies).
         pattern=re.compile(_CMD_START + r"git\s+commit\b"),
         message="Raw `git commit` command in skill doc",
-        suggestion="Use `Skill(Dev10x:git-commit)` (or `Skill(Dev10x:git-fixup)` for fixups)",
+        suggestion="Use `Skill(dev10x:git-commit)` (or `Skill(dev10x:git-fixup)` for fixups)",
     ),
     Rule(
         rule_id="raw-git-push",
         pattern=re.compile(_CMD_START + r"git\s+push\b"),
         message="Raw `git push` command in skill doc",
-        suggestion="Use `Skill(Dev10x:git)` — enforces protected-branch checks",
+        suggestion="Use `Skill(dev10x:git)` — enforces protected-branch checks",
     ),
     Rule(
         rule_id="raw-git-rebase",
         pattern=re.compile(_CMD_START + r"git\s+rebase\b"),
         message="Raw `git rebase` command in skill doc",
         suggestion=(
-            "Use `Skill(Dev10x:git-groom)` for history rewrites, "
-            "`Skill(Dev10x:git)` for unattended rebases"
+            "Use `Skill(dev10x:git-groom)` for history rewrites, "
+            "`Skill(dev10x:git)` for unattended rebases"
         ),
     ),
     Rule(
         rule_id="raw-git-branch",
         pattern=re.compile(_CMD_START + r"git\s+checkout\s+-b\b"),
         message="Raw `git checkout -b` command in skill doc",
-        suggestion="Use `Skill(Dev10x:ticket-branch)` (enforces username/TICKET-ID/slug naming)",
+        suggestion="Use `Skill(dev10x:ticket-branch)` (enforces username/TICKET-ID/slug naming)",
     ),
     Rule(
         rule_id="raw-pytest",
@@ -186,7 +186,7 @@ RULES: tuple[Rule, ...] = (
             _CMD_START + r"(?:uv\s+run\s+(?:--[\w=-]+\s+)*)?(?:python\s+-m\s+)?pytest\b"
         ),
         message="Raw `pytest` invocation in skill doc",
-        suggestion="Use `Skill(Dev10x:py-test)` — enforces coverage gate",
+        suggestion="Use `Skill(dev10x:py-test)` — enforces coverage gate",
     ),
     Rule(
         rule_id="no-verify",
@@ -248,7 +248,7 @@ PROSE_RULES: tuple[Rule, ...] = (
         ),
         suggestion=(
             "The per-repo `.claude/Dev10x/config.yaml` / `session.yaml` are "
-            "retired. Read prefs via `mcp__plugin_Dev10x_cli__preset_pin_status` "
+            "retired. Read prefs via `mcp__plugin_dev10x_cli__preset_pin_status` "
             "and write them with `dev10x session set-friction` / `pin`, which "
             "lock + atomically write the global `~/.config/Dev10x/friction.yaml`. "
             "Tier-2 config moved from `~/.claude/memory/Dev10x/` to "

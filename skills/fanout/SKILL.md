@@ -1,52 +1,52 @@
 ---
-name: Dev10x:fanout
+name: dev10x:fanout
 description: >
   Process multiple independent work items as a worktree-isolated
-  swarm — each item runs the full Dev10x:work-on lifecycle inside
+  swarm — each item runs the full dev10x:work-on lifecycle inside
   its own background Agent with isolation="worktree". Honors
   dependencies, minimizes conflicts, auto-advances by default.
   TRIGGER when: 2+ independent work items need parallel processing
   (PRs, issues, tickets).
   DO NOT TRIGGER when: single task or sequential dependency chain
-  (use Dev10x:work-on); already running as a swarm child (see
+  (use dev10x:work-on); already running as a swarm child (see
   recursive-fanout guard).
 user-invocable: true
-invocation-name: Dev10x:fanout
+invocation-name: dev10x:fanout
 allowed-tools:
   - AskUserQuestion
-  - Skill(Dev10x:friction-setup)
-  - Skill(Dev10x:gh-pr-create)
-  - Skill(Dev10x:gh-pr-merge)
-  - Skill(Dev10x:gh-pr-monitor)
-  - Skill(Dev10x:gh-pr-respond)
-  - Skill(Dev10x:git)
-  - Skill(Dev10x:git-branch-prune)
-  - Skill(Dev10x:git-groom)
-  - Skill(Dev10x:py-test)
-  - Skill(Dev10x:skill-audit)
-  - Skill(Dev10x:ticket-branch)
-  - Skill(Dev10x:work-on)
+  - Skill(dev10x:friction-setup)
+  - Skill(dev10x:gh-pr-create)
+  - Skill(dev10x:gh-pr-merge)
+  - Skill(dev10x:gh-pr-monitor)
+  - Skill(dev10x:gh-pr-respond)
+  - Skill(dev10x:git)
+  - Skill(dev10x:git-branch-prune)
+  - Skill(dev10x:git-groom)
+  - Skill(dev10x:py-test)
+  - Skill(dev10x:skill-audit)
+  - Skill(dev10x:ticket-branch)
+  - Skill(dev10x:work-on)
   - Skill(test)
   - Agent
-  - Skill(skill="Dev10x:work-on")
-  - Skill(skill="Dev10x:gh-pr-respond")
-  - Skill(skill="Dev10x:gh-pr-monitor")
-  - Skill(skill="Dev10x:git-groom")
-  - Skill(skill="Dev10x:git-commit")
-  - Skill(skill="Dev10x:gh-pr-create")
-  - Skill(skill="Dev10x:ticket-branch")
-  - Skill(skill="Dev10x:gh-pr-merge")
-  - Skill(skill="Dev10x:session-wrap-up")
-  - Skill(skill="Dev10x:skill-audit")
-  - Skill(skill="Dev10x:git-branch-prune")
-  - Skill(skill="Dev10x:friction-setup")
+  - Skill(skill="dev10x:work-on")
+  - Skill(skill="dev10x:gh-pr-respond")
+  - Skill(skill="dev10x:gh-pr-monitor")
+  - Skill(skill="dev10x:git-groom")
+  - Skill(skill="dev10x:git-commit")
+  - Skill(skill="dev10x:gh-pr-create")
+  - Skill(skill="dev10x:ticket-branch")
+  - Skill(skill="dev10x:gh-pr-merge")
+  - Skill(skill="dev10x:session-wrap-up")
+  - Skill(skill="dev10x:skill-audit")
+  - Skill(skill="dev10x:git-branch-prune")
+  - Skill(skill="dev10x:friction-setup")
   - Edit(~/.claude/Dev10x/**)
   - Bash(uvx dev10x session set-friction:*)
   - Bash(dev10x session set-friction:*)
-  - mcp__plugin_Dev10x_cli__*
+  - mcp__plugin_dev10x_cli__*
 ---
 
-# Dev10x:fanout — Parallel Work Stream Orchestrator
+# dev10x:fanout — Parallel Work Stream Orchestrator
 
 Close multiple open loops in parallel while honoring
 dependencies and minimizing conflicts. Each item runs its full

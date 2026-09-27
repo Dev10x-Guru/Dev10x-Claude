@@ -6,8 +6,8 @@
 
 ## Problem
 
-PR review requests are posted to Slack today via `Dev10x:request-review`
-→ `Dev10x:slack-review-request` → `Dev10x:slack`. The team also wants the
+PR review requests are posted to Slack today via `dev10x:request-review`
+→ `dev10x:slack-review-request` → `dev10x:slack`. The team also wants the
 same review request delivered to a **Google Chat** space, in parallel with
 Slack (Slack stays as-is).
 
@@ -21,12 +21,12 @@ cache and not by replacing Slack.
   one (JTBD Job Story + linked PR title + mention).
 - Author configuration the **same way as Slack**: per-repo space + named
   group mentions (`@dev-team-fe`), resolved from a central config.
-- Standalone invocation (`Dev10x:gchat-review-request`) — the user runs it in
-  addition to `Dev10x:request-review`. NOT auto-wired into `request-review`.
+- Standalone invocation (`dev10x:gchat-review-request`) — the user runs it in
+  addition to `dev10x:request-review`. NOT auto-wired into `request-review`.
 
 ## Non-goals (YAGNI)
 
-- Wiring Google Chat into `Dev10x:request-review` orchestration.
+- Wiring Google Chat into `dev10x:request-review` orchestration.
 - Rich card (cardsV2) messages — plain text/markup only for v1.
 - Threading / reply-in-thread.
 - Advanced transport flags (file upload, message update/delete, reactions) —
@@ -69,7 +69,7 @@ of keeping the `uvx`-distributed base env lean, and the direct-HTTP-client
 approach preferred for App-JWT flows (GH-499). `google-auth` was considered
 and rejected as an unnecessary dependency for two well-understood calls.
 
-**Setup (documented in the `Dev10x:gchat` skill):**
+**Setup (documented in the `dev10x:gchat` skill):**
 
 - Create a Chat app in a Google Cloud project, publish it **privately** to the
   Workspace (not the Marketplace), and attach a service account.
@@ -88,7 +88,7 @@ the target space.
 
 ## Architecture (mirrors the Slack pair)
 
-### 1. `Dev10x:gchat` — transport (mirrors `Dev10x:slack`)
+### 1. `dev10x:gchat` — transport (mirrors `dev10x:slack`)
 
 - Resolves the SA-key JSON from the keyring (`service=gchat`, `key=sa_key`).
 - Resolves the space alias → space ID from `gchat-config.yaml`.
@@ -101,7 +101,7 @@ the target space.
 Flags mirror the Slack CLI where sensible: `--space <alias>`,
 `--message` / `--message-file`, and a `--space-id` override for ad-hoc posts.
 
-### 2. `Dev10x:gchat-review-request` (mirrors `Dev10x:slack-review-request`)
+### 2. `dev10x:gchat-review-request` (mirrors `dev10x:slack-review-request`)
 
 Flow, mirroring the Slack skill:
 
@@ -114,14 +114,14 @@ Flow, mirroring the Slack skill:
    (`src/dev10x/skills/notifications/gchat_review_request.py`) reads
    `gchat-config-code-review-requests.yaml`, resolves the space + mentions,
    fetches PR title + JTBD from the body, formats the message.
-4. **Confirm + post** — delegate to `Dev10x:gchat` to send.
+4. **Confirm + post** — delegate to `dev10x:gchat` to send.
 
 Returns `skip` / `ask` / posted, same JSON shape as the Slack prepare output
 (`{skip, ask, space, message, reason}`).
 
 ### 3. Config files (in `~/.claude/memory/Dev10x/`, same location as Slack)
 
-Kept alongside the Slack config for parity — the current `Dev10x:slack` skill
+Kept alongside the Slack config for parity — the current `dev10x:slack` skill
 still reads its config from `~/.claude/memory/Dev10x/`.
 
 `gchat-config.yaml`:

@@ -19,7 +19,7 @@ Use the Write tool to create the review JSON, then post via
    GH-181 F8 closes:
 
    ```
-   mcp__plugin_Dev10x_cli__mktmp(namespace="git", prefix="pr-review", ext=".json")
+   mcp__plugin_dev10x_cli__mktmp(namespace="git", prefix="pr-review", ext=".json")
    ```
 
    Shell fallback (only when MCP unavailable):
@@ -170,7 +170,7 @@ under the App identity.
 3. **Create the body file** via the MCP tool (MUST, not shell):
 
    ```
-   mcp__plugin_Dev10x_cli__mktmp(namespace="git", prefix="pr-review-body", ext=".md")
+   mcp__plugin_dev10x_cli__mktmp(namespace="git", prefix="pr-review-body", ext=".md")
    ```
 
    Write the restructured body to the returned path.

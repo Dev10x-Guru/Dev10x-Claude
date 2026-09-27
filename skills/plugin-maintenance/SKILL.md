@@ -1,5 +1,5 @@
 ---
-name: Dev10x:plugin-maintenance
+name: dev10x:plugin-maintenance
 description: >
   Maintain Dev10x plugin configuration — ensure base permissions,
   migrate config files, generalize session-specific allow rules,
@@ -9,14 +9,14 @@ description: >
   for first-time setup) and `full` (complete cleanup, default).
   TRIGGER when: bootstrapping a new install, after `claude plugin
   update`, when permission prompts appear unexpectedly, or when
-  `Dev10x:onboarding` / `Dev10x:upgrade-cleanup` orchestrates
+  `dev10x:onboarding` / `dev10x:upgrade-cleanup` orchestrates
   maintenance.
   DO NOT TRIGGER when: permissions are already working and no
   upgrade or bootstrap is in progress.
 user-invocable: true
-invocation-name: Dev10x:plugin-maintenance
+invocation-name: dev10x:plugin-maintenance
 allowed-tools:
-  - Skill(Dev10x:onboarding)
+  - Skill(dev10x:onboarding)
   # GH-269: Plugin maintenance now runs through the version-stable
   # `uvx dev10x` CLI. Each subcommand is enumerated explicitly (no
   # `Bash(uvx dev10x:*)` wildcard) for user trust and transparency —
@@ -45,17 +45,17 @@ allowed-tools:
   - Bash(uv tool list:*)
   - Read(~/.config/Dev10x/*)
   - Edit(~/.config/Dev10x/*)
-  - Agent(Dev10x:permission-auditor)
+  - Agent(dev10x:permission-auditor)
   - AskUserQuestion
   - TaskCreate
   - TaskUpdate
 ---
 
-# Dev10x:plugin-maintenance
+# dev10x:plugin-maintenance
 
 Single source for Dev10x plugin maintenance. Used directly, or
-orchestrated by `Dev10x:onboarding` (bootstrap mode) and
-`Dev10x:upgrade-cleanup` (full mode).
+orchestrated by `dev10x:onboarding` (bootstrap mode) and
+`dev10x:upgrade-cleanup` (full mode).
 
 **Announce:** "Using plugin-maintenance to keep Dev10x permission
 settings and config files in shape."
@@ -243,7 +243,7 @@ AskUserQuestion(questions=[{
 **Execute the chosen update(s):**
 
 - **Plugin update:** Run `claude plugin update` using the scope
-  detected in Step 3 (e.g., `claude plugin update Dev10x@Dev10x-Guru`
+  detected in Step 3 (e.g., `claude plugin update dev10x@Dev10x-Guru`
   for user-scoped installs, or with `--local` for local-scoped).
   After a successful plugin update, surface this hint:
   > **Restart required** — the running Claude session keeps the
@@ -275,7 +275,7 @@ If the user chooses to remember: write the chosen preference to
 `~/.config/Dev10x/plugin-maintenance-prefs.yaml`:
 
 ```yaml
-# Written by Dev10x:plugin-maintenance (GH-307)
+# Written by dev10x:plugin-maintenance (GH-307)
 # Valid values: both | plugin | uv | skip | ask
 update_preference: <choice>
 ```
@@ -299,11 +299,11 @@ If the command prints nothing (exit status non-zero), STOP and
 direct the user to install `uv` first:
 
 > `uv` (which provides `uvx`) is not installed. Run the
-> `Dev10x:onboarding` skill — it installs `uv` via the official
+> `dev10x:onboarding` skill — it installs `uv` via the official
 > Astral installer and verifies the plugin can drive its CLI.
 > Direct install instructions: <https://docs.astral.sh/uv/getting-started/installation/>
 
-Delegate via `Skill(Dev10x:onboarding)` and re-run this skill once
+Delegate via `Skill(dev10x:onboarding)` and re-run this skill once
 `uv` is on PATH.
 
 ## First-Time Setup
@@ -475,7 +475,7 @@ under `base_permissions:`.
 **Enumeration requirement:** All script paths and MCP tool names
 MUST be listed individually in `base_permissions`. Glob wildcards
 (e.g., `Bash(~/.claude/plugins/cache/**:*)` or
-`mcp__plugin_Dev10x_*`) cause permission friction — Claude Code
+`mcp__plugin_dev10x_*`) cause permission friction — Claude Code
 cannot pre-approve glob patterns for Bash or MCP tools, so each
 invocation triggers a manual approval prompt. When adding new
 scripts or MCP tools to the plugin, enumerate them explicitly in
@@ -600,7 +600,7 @@ uvx dev10x permission generalize
 
 ### 6. Enumerate MCP tool globs *(full only)*
 
-Claude Code does not expand `mcp__plugin_Dev10x_*` globs in allow
+Claude Code does not expand `mcp__plugin_dev10x_*` globs in allow
 rules — glob-shaped MCP rules match nothing. This step discovers
 Dev10x MCP tools and replaces any matching wildcard with the
 enumerated tool list.
@@ -780,7 +780,7 @@ Dispatch the `permission-auditor` agent to perform a comprehensive
 **Invoke:**
 
 ```
-Agent(subagent_type="Dev10x:permission-auditor",
+Agent(subagent_type="dev10x:permission-auditor",
     description="Audit permission settings",
     prompt="Audit all Claude Code permission settings for security
     gaps, overly broad rules, and friction-causing patterns.
@@ -942,7 +942,7 @@ The report distinguishes:
 To pull in upstream changes interactively, run:
 
 ```bash
-/Dev10x:playbook edit <skill> <play>
+/dev10x:playbook edit <skill> <play>
 ```
 
 To target one skill (skip the rest):

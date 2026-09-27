@@ -1,12 +1,12 @@
-# Dev10x:scope — Base Technical Scoping (Instructions)
+# dev10x:scope — Base Technical Scoping (Instructions)
 
 ## Overview
 
 Foundational scoping skill that provides reusable research and
 architecture design workflows. Not directly invocable — extended by:
 
-- `Dev10x:ticket-scope` — for scoping Linear tickets
-- `Dev10x:adr` — for creating Architecture Decision Records
+- `dev10x:ticket-scope` — for scoping Linear tickets
+- `dev10x:adr` — for creating Architecture Decision Records
 
 ## Orchestration
 
@@ -445,14 +445,14 @@ Before finalizing, check:
 
 This skill is extended by:
 
-### Dev10x:ticket-scope
+### dev10x:ticket-scope
 Adds:
 - Linear ticket integration
 - Ticket creation/updates
 - Story point estimation
 - Acceptance criteria format
 
-### Dev10x:adr
+### dev10x:adr
 Adds:
 - ADR format and numbering
 - Decision record structure
@@ -460,12 +460,12 @@ Adds:
 - Consequences documentation
 - Diagram generation workflow
 
-### Dev10x:jtbd
+### dev10x:jtbd
 Provides:
 - JTBD Job Story drafting methodology
 - Context gathering from tickets and PR diffs
 - Attended and unattended drafting modes
-- Used by extending skills (Dev10x:ticket-scope, Dev10x:work-on, pr:create)
+- Used by extending skills (dev10x:ticket-scope, dev10x:work-on, pr:create)
 
 ## Key Learnings from Practice
 

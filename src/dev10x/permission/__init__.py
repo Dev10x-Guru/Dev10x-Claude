@@ -23,7 +23,7 @@ async def catalog_gap(*, verbose: bool = False) -> Result[dict[str, Any]]:
 
     Read-only. The CLI form (``uvx dev10x permission catalog-gap``) was
     the only surface, which made it the *first* diagnostic step of
-    ``Dev10x:diag-friction`` — the skill whose whole job is diagnosing
+    ``dev10x:diag-friction`` — the skill whose whole job is diagnosing
     permission friction — a source of permission friction. On a machine
     without a ``Bash(uvx:*)`` rule that step prompts; in an unattended
     background agent a pending prompt is neither a block nor a denial,

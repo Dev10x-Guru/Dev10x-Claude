@@ -137,7 +137,7 @@ Example:
    - Reference: Existing terminal checkout tests
 
 6. **Run Tests**
-   - Command: `Skill(Dev10x:py-test src/payments/square/tests/ src/payments/square/terminal/tests/)`
+   - Command: `Skill(dev10x:py-test src/payments/square/tests/ src/payments/square/terminal/tests/)`
    - Verify: All tests pass, new bug scenario covered
 
 ---
@@ -175,7 +175,7 @@ Include `# language: <code>` when writing feature-file-style blocks.
 
 [Data shapes touched by this fix. For bug fixes, the entities are
 usually the existing types whose contracts were silently violated.
-Listing them helps `Dev10x:spec-sync` detect future drift.]
+Listing them helps `dev10x:spec-sync` detect future drift.]
 
 **Affected entities:**
 
@@ -221,7 +221,7 @@ surface.
 ## Norms
 
 [Project rules and conventions this fix MUST follow. Populated by
-the Norms / Safeguards autopopulator (`Dev10x:ticket-scope`
+the Norms / Safeguards autopopulator (`dev10x:ticket-scope`
 Phase 5).]
 
 **Auto-populated rules**:

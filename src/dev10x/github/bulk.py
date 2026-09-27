@@ -111,7 +111,7 @@ async def issues_bulk_create(
 
     Iterates issue_create per entry; collects per-issue successes
     and failures. Use for batch project scaffolding (e.g.,
-    Dev10x:project-scope creating N tickets).
+    dev10x:project-scope creating N tickets).
 
     Args:
         issues: List of dicts; each entry accepts ``title`` (required),

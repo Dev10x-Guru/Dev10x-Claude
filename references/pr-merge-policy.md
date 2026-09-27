@@ -67,7 +67,7 @@ approvals — it requires a commit push to re-trigger.
 
 ## Merge Configuration (Fanout / Work-On)
 
-When `Dev10x:fanout` or `Dev10x:work-on` orchestrate PR merges,
+When `dev10x:fanout` or `dev10x:work-on` orchestrate PR merges,
 two playbook-level fields control behavior.
 
 ### `merge_mode`

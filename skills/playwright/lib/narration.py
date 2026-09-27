@@ -1,6 +1,6 @@
 """Spoken narration for Playwright recordings, locked to the captions.
 
-``Dev10x:qa-self`` already writes narration copy — ``Annotator.say()``
+``dev10x:qa-self`` already writes narration copy — ``Annotator.say()``
 captions describe the user benefit ("One click assigns them, no Save
 needed"), which is exactly what a voice-over would say. This module turns
 that copy into audio and records WHEN each line was spoken, so the two
@@ -179,7 +179,7 @@ def default_runner(
     voice: str | None,
     lang: str | None = None,
 ) -> dict:
-    """Invoke the bundled Dev10x:tts wrapper and return its JSON payload.
+    """Invoke the bundled dev10x:tts wrapper and return its JSON payload.
 
     ``lang`` is forwarded as ``--lang`` (GH-1221). Without it the wrapper
     resolves the language-agnostic ``voice:`` key, so a pin made with
@@ -440,7 +440,7 @@ class Narration:
             )
 
     def prerender(self) -> None:
-        """Synthesize every declared line through the Dev10x:tts wrapper.
+        """Synthesize every declared line through the dev10x:tts wrapper.
 
         Idempotent (GH-1205): lines already synthesized are skipped, so
         calling this and then ``Annotator.install()`` — which the corrected

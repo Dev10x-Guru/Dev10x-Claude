@@ -50,7 +50,7 @@ led the list.
 
 **When a gate's state is not directly readable, derive it before
 offering the choice** rather than guessing in the prescription. The
-stand-down gate resolves this by running `Dev10x:ask` Mode 3's
+stand-down gate resolves this by running `dev10x:ask` Mode 3's
 open-loop sweep first and ordering its options from the result:
 something pending ⇒ the concrete next action leads; nothing pending ⇒
 stand-down leads. A gate that cannot derive its state should say so in

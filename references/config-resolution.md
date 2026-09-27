@@ -64,7 +64,7 @@ ExampleCorp repos share the same shipping pipeline).
 > `DEV10X_CONFIG_HOME`. Legacy paths under `~/.claude/memory/Dev10x/`
 > and `~/.claude/Dev10x/` are migrated lazily on first read and
 > explicitly by `dev10x config migrate` (wired into
-> `Dev10x:upgrade-cleanup` and `Dev10x:plugin-doctor`).
+> `dev10x:upgrade-cleanup` and `dev10x:plugin-doctor`).
 
 **Tier 3 — Plugin defaults** (`${CLAUDE_PLUGIN_ROOT}/skills/*/references/`):
 Shipped with the plugin. Used when no user override exists.
@@ -187,7 +187,7 @@ Session prefs are **not** project-local (ADR-0018 D1). `friction_level`,
 `active_modes`, `allowed_overlays`, and the `gate_*` keys live in one
 global file keyed by directory-path globs, so a repo's prefs cover
 every worktree by construction. Read them via
-`mcp__plugin_Dev10x_cli__resolve_gate`, which owns the precedence.
+`mcp__plugin_dev10x_cli__resolve_gate`, which owns the precedence.
 
 The retired `.claude/Dev10x/session.yaml` is not a tier: ADR-0018 D2
 removed it as a config source, and D5 moved its remaining task-index
@@ -223,7 +223,7 @@ projects:
 | 2 | `~/.config/Dev10x/dod-acceptance-criteria.yaml` |
 | 3 | Plugin defaults (hardcoded in skill) |
 
-`Dev10x:verify-acc-dod` falls back to the GH-941-retired
+`dev10x:verify-acc-dod` falls back to the GH-941-retired
 `~/.claude/memory/Dev10x/dod-acceptance-criteria.yaml` when tier 2 is
 absent, and says so in its output when the fallback fires — until
 removal in `0.112.0` per the deprecation register (GH-1035,
@@ -272,13 +272,13 @@ maintainer's edits landed in a file nothing read.
 | 2 | `~/.config/Dev10x/plugin-maintenance-prefs.yaml` |
 
 Valid values for `update_preference`: `both | plugin | uv | skip | ask`.
-When absent or set to `ask`, `Dev10x:plugin-maintenance` prompts on
+When absent or set to `ask`, `dev10x:plugin-maintenance` prompts on
 every run. Legacy path `~/.claude/memory/Dev10x/plugin-maintenance-prefs.yaml`
 is migrated lazily on first read.
 
 ### Database Connections
 
-`databases.yaml` stores named database entries for `Dev10x:db-psql`.
+`databases.yaml` stores named database entries for `dev10x:db-psql`.
 The script resolves config from multiple locations so project plugins
 (e.g., `tt:db`) are discovered automatically without symlinks.
 
@@ -305,20 +305,20 @@ command prefix and breaks allow-rule matching (see GH-448).
 
 | Skill | Config type | Tiers used |
 |-------|------------|------------|
-| `Dev10x:work-on` | playbook, session | 1, 2, 3 |
-| `Dev10x:playbook` | playbook | 1, 2, 3 |
-| `Dev10x:gh-pr-respond` | playbook | 1, 2, 3 |
-| `Dev10x:release-notes` | playbook | 1, 2, 3 |
-| `Dev10x:investigate` | playbook | 1, 2, 3 |
-| `Dev10x:gh-pr-merge` | settings | 2 |
-| `Dev10x:verify-acc-dod` | acceptance criteria | 2, 3 |
-| `Dev10x:git-commit` | gitmoji | 2, 3 |
-| `Dev10x:gh-pr-request-review` | reviewers | 2 |
-| `Dev10x:db` | schema, databases | 2 |
-| `Dev10x:db-psql` | databases | 2 |
-| `Dev10x:slack` | slack-config | 2 |
-| `Dev10x:slack-setup` | slack-config | 2 |
-| `Dev10x:slack-review-request` | slack-config | 2 |
-| `Dev10x:request-review` | reviewers, slack-config | 2 |
-| `Dev10x:fanout` | session | 1 |
-| `Dev10x:plugin-maintenance` | preferences | 2 |
+| `dev10x:work-on` | playbook, session | 1, 2, 3 |
+| `dev10x:playbook` | playbook | 1, 2, 3 |
+| `dev10x:gh-pr-respond` | playbook | 1, 2, 3 |
+| `dev10x:release-notes` | playbook | 1, 2, 3 |
+| `dev10x:investigate` | playbook | 1, 2, 3 |
+| `dev10x:gh-pr-merge` | settings | 2 |
+| `dev10x:verify-acc-dod` | acceptance criteria | 2, 3 |
+| `dev10x:git-commit` | gitmoji | 2, 3 |
+| `dev10x:gh-pr-request-review` | reviewers | 2 |
+| `dev10x:db` | schema, databases | 2 |
+| `dev10x:db-psql` | databases | 2 |
+| `dev10x:slack` | slack-config | 2 |
+| `dev10x:slack-setup` | slack-config | 2 |
+| `dev10x:slack-review-request` | slack-config | 2 |
+| `dev10x:request-review` | reviewers, slack-config | 2 |
+| `dev10x:fanout` | session | 1 |
+| `dev10x:plugin-maintenance` | preferences | 2 |

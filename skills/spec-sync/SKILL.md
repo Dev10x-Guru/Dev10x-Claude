@@ -1,20 +1,20 @@
 ---
-name: Dev10x:spec-sync
-invocation-name: Dev10x:spec-sync
+name: dev10x:spec-sync
+invocation-name: dev10x:spec-sync
 description: >
   Inverse Golden Rule path: when code is refactored without
   behaviour changes, update the canonical spec at
   docs/specs/<TICKET-ID>.md to match the new code shape.
   Regenerates Architecture / Implementation Steps / Code
   References sections, leaves Requirements / Entities / Norms /
-  Safeguards untouched. Bails to Dev10x:spec-update if it detects
+  Safeguards untouched. Bails to dev10x:spec-update if it detects
   behavioural drift.
   TRIGGER when: a structural refactor (rename, file move, signature
   change) ships and the canonical spec must be re-aligned with the
   new code shape.
-  DO NOT TRIGGER when: behaviour changes (use Dev10x:spec-update);
-  spec is missing (use Dev10x:ticket-scope); no canonical spec
-  workflow is in use (regular Dev10x:work-on applies).
+  DO NOT TRIGGER when: behaviour changes (use dev10x:spec-update);
+  spec is missing (use dev10x:ticket-scope); no canonical spec
+  workflow is in use (regular dev10x:work-on applies).
 user-invocable: true
 allowed-tools:
   - AskUserQuestion
@@ -31,7 +31,7 @@ allowed-tools:
   - TaskList
 ---
 
-# Dev10x:spec-sync — Refactor-Driven Spec Update
+# dev10x:spec-sync — Refactor-Driven Spec Update
 
 ## Overview
 
@@ -41,7 +41,7 @@ shape — that's drift, even though no behaviour changed. This
 skill detects structural drift and regenerates those sections.
 
 If behavioural drift is detected, it **refuses to proceed** and
-delegates to `Dev10x:spec-update` (the spec-first path). Per
+delegates to `dev10x:spec-update` (the spec-first path). Per
 ADR 0005, the shared `drift_detector` module (one canonical
 detector, two entry points) ensures both skills agree on what
 counts as drift.
@@ -79,7 +79,7 @@ SIDE EFFECTS:
 
 Resolve `spec_path` from `ticket_id` if not supplied:
 `docs/specs/<TICKET-ID>.md`. If missing, **STOP** and ask the
-user whether to run `Dev10x:ticket-scope` to create one.
+user whether to run `dev10x:ticket-scope` to create one.
 
 ### Step 2: Run the Drift Detector
 
@@ -93,7 +93,7 @@ dev10x spec drift docs/specs/<TICKET-ID>.md --project-root .
 Exit code `0` means no drift, `1` means structural drift only,
 `2` means behavioural drift is present; each signal line is
 printed as `[<kind>] <section>: <detail>`. The same detector is
-used by `Dev10x:spec-update` — both skills agree on what counts
+used by `dev10x:spec-update` — both skills agree on what counts
 as drift.
 
 **Gitignored spec warning.** If `docs/specs/` is listed in
@@ -110,7 +110,7 @@ let the behavioural drift slip through.
 | Report state | Action |
 |--------------|--------|
 | `not report.has_drift` | STOP — no work to do. Mark task completed. |
-| `report.has_behavioural` only | DELEGATE — `Skill("Dev10x:spec-update", ...)` and exit. |
+| `report.has_behavioural` only | DELEGATE — `Skill("dev10x:spec-update", ...)` and exit. |
 | `report.has_structural` only | PROCEED — Step 4 regenerates structural sections. |
 | Both kinds present | ASK the user (gate below) — proceed with structural-only sync, run spec-update first, or split into two steps. |
 
@@ -162,24 +162,24 @@ when both drift kinds are present. See `.claude/rules/skill-gates.md`.
 
 ## Integration Points
 
-- **`Dev10x:spec-update`** — inverse path (behaviour-first).
+- **`dev10x:spec-update`** — inverse path (behaviour-first).
   Shares `dev10x.spec.drift_detector`.
-- **`Dev10x:ticket-scope`** — creates the canonical spec.
-- **`Dev10x:gh-pr-respond`** (GH-173) — calls this skill in
+- **`dev10x:ticket-scope`** — creates the canonical spec.
+- **`dev10x:gh-pr-respond`** (GH-173) — calls this skill in
   `check_only=True` mode before applying review-comment fixups.
-- **`Dev10x:git-groom`** (GH-173) — pre-merge guard.
+- **`dev10x:git-groom`** (GH-173) — pre-merge guard.
 
 ## Anti-Patterns
 
 - ❌ Editing Requirements / Acceptance Criteria / Safeguards in
   a structural sync — those sections are owned by
-  `Dev10x:spec-update`. Touching them here causes the
+  `dev10x:spec-update`. Touching them here causes the
   contradiction the shared detector exists to prevent.
 - ❌ Skipping the post-rewrite re-run (Step 5). Without the
   re-check, the skill cannot prove the drift was actually fixed.
 - ❌ Calling this skill on a behavioural change "to update the
   spec quickly". Behavioural changes must go through
-  `Dev10x:spec-update` so the spec is updated **before** the
+  `dev10x:spec-update` so the spec is updated **before** the
   code, not after.
 
 ## References

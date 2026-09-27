@@ -3,7 +3,7 @@
 The doctor's counterpart to
 :mod:`dev10x.domain.common.accepted_findings`, and it exists for the
 same reason one release earlier: a detector that cannot be answered
-re-asks forever. ``Dev10x:plugin-doctor``'s own SKILL.md names the
+re-asks forever. ``dev10x:plugin-doctor``'s own SKILL.md names the
 consequence in its anti-patterns — "a periodic run would re-prompt for
 findings the user already chose to skip" — and that sentence is the
 whole argument against a non-interactive runner until a durable answer

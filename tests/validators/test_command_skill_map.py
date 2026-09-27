@@ -134,8 +134,8 @@ class TestGh609RoutingEntries:
 
     def test_handrolled_ci_loop_routes_to_ci_check_status(self) -> None:
         rule = _rule_by_name("ci-loop-handrolled")
-        assert "mcp__plugin_Dev10x_cli__ci_check_status" in _compensation_targets(rule)
-        assert "Dev10x:gh-pr-monitor" in _compensation_targets(rule)
+        assert "mcp__plugin_dev10x_cli__ci_check_status" in _compensation_targets(rule)
+        assert "dev10x:gh-pr-monitor" in _compensation_targets(rule)
 
     def test_cat_grep_pipeline_recognized(self) -> None:
         rule = _rule_by_name("cat-grep-pipeline")
@@ -236,7 +236,7 @@ class TestGh1052NodeBuildScripts:
     def test_routes_to_run_node_tests(self) -> None:
         rule = _rule_by_name("node-build-scripts")
         tools = {comp.get("tool") for comp in rule["compensations"]}
-        assert "mcp__plugin_Dev10x_cli__run_node_tests" in tools
+        assert "mcp__plugin_dev10x_cli__run_node_tests" in tools
 
     def test_compensation_names_the_script_parameter(self) -> None:
         rule = _rule_by_name("node-build-scripts")
@@ -316,7 +316,7 @@ class TestGh879WatchLoopEntry:
 
     def test_routes_to_ci_check_status_for_ci_shapes(self) -> None:
         rule = _rule_by_name("watch-loop-handrolled")
-        assert "mcp__plugin_Dev10x_cli__ci_check_status" in _compensation_targets(rule)
+        assert "mcp__plugin_dev10x_cli__ci_check_status" in _compensation_targets(rule)
 
     def test_alternative_names_foreman_watch(self) -> None:
         rule = _rule_by_name("watch-loop-handrolled")
@@ -435,7 +435,7 @@ class TestGh879WatchLoopEntry:
         # GH-609 also lists the 3 gh api graphql variants; GH-598 already
         # covers them via gh-review-threads-graphql → unresolved_threads.
         rule = _rule_by_name("gh-review-threads-graphql")
-        assert "mcp__plugin_Dev10x_cli__unresolved_threads" in _compensation_targets(rule)
+        assert "mcp__plugin_dev10x_cli__unresolved_threads" in _compensation_targets(rule)
 
 
 class TestNpmMonorepoBlock:
@@ -467,7 +467,7 @@ class TestNpmMonorepoBlock:
 
     def test_routes_to_run_node_tests(self) -> None:
         rule = _rule_by_name("node-tests-npm-monorepo")
-        assert "mcp__plugin_Dev10x_cli__run_node_tests" in _compensation_targets(rule)
+        assert "mcp__plugin_dev10x_cli__run_node_tests" in _compensation_targets(rule)
 
     def test_is_hook_block(self) -> None:
         assert _rule_by_name("node-tests-npm-monorepo")["hook_block"] is True
@@ -542,7 +542,7 @@ class TestGh1117ForLoopEntry:
         assert names.index(specific) < names.index("for-loop-handrolled")
 
     def test_names_diag_friction_as_related(self) -> None:
-        assert "Dev10x:diag-friction" in _rule_by_name("for-loop-handrolled")["related"]
+        assert "dev10x:diag-friction" in _rule_by_name("for-loop-handrolled")["related"]
 
 
 def _fallback_text(rule: dict[str, Any]) -> str:

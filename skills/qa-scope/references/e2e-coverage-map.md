@@ -1,7 +1,7 @@
 # E2E Coverage Map (worked example)
 
 Maps source modules to feature files, tags, step definitions, and known
-coverage gaps, so `Dev10x:qa-scope` Phase 3 can assess coverage without
+coverage gaps, so `dev10x:qa-scope` Phase 3 can assess coverage without
 searching the whole suite.
 
 **This is one project's map, kept here as a shape to copy — not yours.**

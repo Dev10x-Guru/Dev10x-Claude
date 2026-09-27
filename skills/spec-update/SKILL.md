@@ -1,21 +1,21 @@
 ---
-name: Dev10x:spec-update
-invocation-name: Dev10x:spec-update
+name: dev10x:spec-update
+invocation-name: dev10x:spec-update
 description: >
   Enforce SPDD's "fix the prompt first" Golden Rule for logic
   changes. When the user wants to change behaviour (not refactor),
   walk them through editing the canonical spec at
   docs/specs/<TICKET-ID>.md FIRST, then re-invoke
-  Dev10x:work-on to regenerate code from the updated spec. Refuses
+  dev10x:work-on to regenerate code from the updated spec. Refuses
   to proceed if the user tries to edit code directly without a
   spec update.
   TRIGGER when: requirements shift mid-implementation and the
   canonical spec exists; user describes a behaviour change for a
   ticket that already has docs/specs/<TICKET-ID>.md.
   DO NOT TRIGGER when: refactor without behavior change (use
-  Dev10x:spec-sync instead); ticket has no canonical spec (regular
-  Dev10x:work-on applies); user is creating a new spec for the
-  first time (use Dev10x:ticket-scope).
+  dev10x:spec-sync instead); ticket has no canonical spec (regular
+  dev10x:work-on applies); user is creating a new spec for the
+  first time (use dev10x:ticket-scope).
 user-invocable: true
 allowed-tools:
   - AskUserQuestion
@@ -30,7 +30,7 @@ allowed-tools:
   - TaskList
 ---
 
-# Dev10x:spec-update — Spec-First Behaviour Change
+# dev10x:spec-update — Spec-First Behaviour Change
 
 ## Overview
 
@@ -50,7 +50,7 @@ directly without first updating the spec.
 1. `TaskCreate(subject="Update spec before regenerating code",
    activeForm="Walking through spec edit")`
 
-Mark completed after Step 5 (re-invoke `Dev10x:work-on`) succeeds.
+Mark completed after Step 5 (re-invoke `dev10x:work-on`) succeeds.
 
 ## Interface Contract
 
@@ -61,11 +61,11 @@ INPUTS:
   spec_path: Path | None   — defaults to docs/specs/<TICKET-ID>.md
 
 OUTPUTS:
-  regenerated: bool — true if Dev10x:work-on ran successfully
+  regenerated: bool — true if dev10x:work-on ran successfully
 
 SIDE EFFECTS:
   - Modifies docs/specs/<TICKET-ID>.md
-  - Invokes Dev10x:work-on which may modify source files
+  - Invokes dev10x:work-on which may modify source files
 ```
 
 ## Workflow
@@ -85,7 +85,7 @@ If the file does not exist, **STOP**. Surface to the user:
 > "No canonical spec found at `docs/specs/<TICKET-ID>.md`. This
 > skill enforces spec-first behaviour changes — a missing spec
 > means there is no source of truth to update. Run
-> `Dev10x:ticket-scope` first to create one, then re-invoke
+> `dev10x:ticket-scope` first to create one, then re-invoke
 > this skill."
 
 ### Step 2: Classify the Change
@@ -96,9 +96,9 @@ Classify the change so the right path runs:
 - **Behaviour change (Recommended)** — Requirements / Acceptance
   Criteria / Job Story / Safeguards change. This skill applies.
 - **Structural refactor** — Code shape changes, behaviour stable.
-  This skill bails out and delegates to `Dev10x:spec-sync`.
+  This skill bails out and delegates to `dev10x:spec-sync`.
 - **New feature, no spec yet** — There is no spec to update. This
-  skill bails out and delegates to `Dev10x:ticket-scope`.
+  skill bails out and delegates to `dev10x:ticket-scope`.
 
 If anything other than "Behaviour change" is selected, route to
 the named skill via `Skill(...)` and exit.
@@ -126,12 +126,12 @@ modify source code, **STOP**. Refuse with:
 > the prompt, then regenerate. Editing code first creates drift
 > that the next generation pass will silently revert."
 
-### Step 5: Re-invoke `Dev10x:work-on`
+### Step 5: Re-invoke `dev10x:work-on`
 
 After the spec is saved:
 
 ```
-Skill(skill="Dev10x:work-on", args="<ticket_id>")
+Skill(skill="dev10x:work-on", args="<ticket_id>")
 ```
 
 `work-on` will pick up the updated spec and regenerate code from
@@ -140,14 +140,14 @@ landed) routes through this skill automatically.
 
 ### Step 6: Verify Code Matches Spec
 
-After regeneration, run `Dev10x:spec-sync` in **check-only mode**
+After regeneration, run `dev10x:spec-sync` in **check-only mode**
 to confirm no structural drift remains:
 
 ```
-Skill(skill="Dev10x:spec-sync", args="--check-only <ticket_id>")
+Skill(skill="dev10x:spec-sync", args="--check-only <ticket_id>")
 ```
 
-`Dev10x:spec-sync` runs `dev10x spec drift docs/specs/<TICKET-ID>.md`
+`dev10x:spec-sync` runs `dev10x spec drift docs/specs/<TICKET-ID>.md`
 under the hood — see that skill for the exit-code contract.
 
 If drift remains, surface it to the user. The session terminates
@@ -159,7 +159,7 @@ updated spec.
 This skill has **two REQUIRED `AskUserQuestion` gates**:
 
 1. **Step 2 — Change classification.** Routes between this skill,
-   `Dev10x:spec-sync`, and `Dev10x:ticket-scope`. Plain-text
+   `dev10x:spec-sync`, and `dev10x:ticket-scope`. Plain-text
    substitution would silently default to "behaviour change" and
    break the contract.
 2. **Step 4 — Per-section edit approval.** Whenever the proposed
@@ -169,23 +169,23 @@ See `.claude/rules/skill-gates.md` for the pattern.
 
 ## Integration Points
 
-- **`Dev10x:ticket-scope`** — creates the canonical spec this
+- **`dev10x:ticket-scope`** — creates the canonical spec this
   skill updates.
-- **`Dev10x:spec-sync`** — the inverse path (refactor-only).
+- **`dev10x:spec-sync`** — the inverse path (refactor-only).
   Shares the `drift_detector` module (GH-172).
-- **`Dev10x:work-on`** — invoked at Step 5 to regenerate code
+- **`dev10x:work-on`** — invoked at Step 5 to regenerate code
   from the updated spec.
-- **`Dev10x:gh-pr-respond`** — runs drift check before applying
+- **`dev10x:gh-pr-respond`** — runs drift check before applying
   fixups (GH-173). If drift is found, the user is prompted to
   invoke this skill.
-- **`Dev10x:git-groom`** — pre-merge drift check (GH-173) blocks
+- **`dev10x:git-groom`** — pre-merge drift check (GH-173) blocks
   the merge if a behaviour change shipped without a spec update.
 
 ## Anti-Patterns
 
 - ❌ Editing the spec **after** the code change (drift created,
   not fixed).
-- ❌ Skipping Step 5 — without re-invoking `Dev10x:work-on`, the
+- ❌ Skipping Step 5 — without re-invoking `dev10x:work-on`, the
   code does not yet reflect the new spec.
 - ❌ Editing only Implementation Steps without touching Job
   Story / Acceptance Criteria / Safeguards. Implementation Steps

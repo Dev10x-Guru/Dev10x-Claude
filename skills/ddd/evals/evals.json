@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:ddd",
+  "skill_name": "dev10x:ddd",
   "eval_dimensions": [
     {
       "id": "session-mode-selection",
@@ -62,7 +62,7 @@
       "id": "new-workshop-mode",
       "name": "New workshop mode scaffolds docs",
       "description": "With no docs/domain/ present, the skill selects New workshop mode, reads references/document-structure.md, and scaffolds the docs/domain/ structure before exploration.",
-      "input": "/Dev10x:ddd let's model a new pricing domain",
+      "input": "/dev10x:ddd let's model a new pricing domain",
       "assertions": [
         {
           "dimension": "session-mode-selection",
@@ -75,7 +75,7 @@
       "id": "continue-mode-ordered-load",
       "name": "Continue mode loads context in order",
       "description": "With docs/domain/model.md present, the skill selects Continue mode and reads the domain docs in the documented order before proceeding.",
-      "input": "/Dev10x:ddd continue the domain session",
+      "input": "/dev10x:ddd continue the domain session",
       "assertions": [
         {
           "dimension": "session-mode-selection",
@@ -93,7 +93,7 @@
       "id": "stress-test-mode",
       "name": "Stress-test question selects stress-test mode",
       "description": "A \"what if we add X / does Y break\" prompt selects Stress test mode and reads references/stress-test-protocol.md.",
-      "input": "/Dev10x:ddd what breaks if we add multi-currency pricing?",
+      "input": "/dev10x:ddd what breaks if we add multi-currency pricing?",
       "assertions": [
         {
           "dimension": "session-mode-selection",
@@ -106,7 +106,7 @@
       "id": "event-storming-7-layer-order",
       "name": "Event storming runs 7 layers in order",
       "description": "Exploration proceeds through the seven layers in the documented order without skipping or reordering.",
-      "input": "/Dev10x:ddd model the order fulfillment domain",
+      "input": "/dev10x:ddd model the order fulfillment domain",
       "assertions": [
         {
           "dimension": "event-storming-order",
@@ -119,7 +119,7 @@
       "id": "batched-decision-menu",
       "name": "Questions are batched into one AskUserQuestion menu",
       "description": "When the skill needs input it presents a single batched AskUserQuestion decision menu rather than asking one question at a time.",
-      "input": "/Dev10x:ddd model a new tax domain with several open choices",
+      "input": "/dev10x:ddd model a new tax domain with several open choices",
       "assertions": [
         {
           "dimension": "batched-decisions",
@@ -138,7 +138,7 @@
       "id": "decision-supersession-not-silent",
       "name": "Contradictions supersede, never silently override",
       "description": "When new information contradicts a prior decision, the skill records a NEW decision that explicitly supersedes it rather than silently changing the old one.",
-      "input": "/Dev10x:ddd revisit the money representation decision",
+      "input": "/dev10x:ddd revisit the money representation decision",
       "assertions": [
         {
           "dimension": "decision-protection",
@@ -151,7 +151,7 @@
       "id": "solo-ai-cast",
       "name": "Solo mode dispatches persona panel and devil's advocate",
       "description": "In the solo default, the persona panel runs blind event generation and the devil's advocate is dispatched before decision capture on structural changes; assumptions are tagged [ASSUMPTION].",
-      "input": "/Dev10x:ddd model the invoicing domain",
+      "input": "/dev10x:ddd model the invoicing domain",
       "assertions": [
         {
           "dimension": "solo-facilitation",
@@ -164,7 +164,7 @@
       "id": "quality-checklist-final-gate",
       "name": "Quality checklist is the terminal verification gate",
       "description": "Before ending, the skill verifies the quality checklist, including that no [ASSUMPTION] tags remain in solo mode.",
-      "input": "/Dev10x:ddd wrap up the workshop",
+      "input": "/dev10x:ddd wrap up the workshop",
       "assertions": [
         {
           "dimension": "quality-gate",
@@ -177,7 +177,7 @@
       "id": "model-tier-asked-once-batched",
       "name": "Model tier is asked once, batched with persona selection",
       "description": "Before the first AI-cast dispatch the skill asks which model tier to use for discussion agents via AskUserQuestion batched with the persona-selection confirmation, with frontier recommended and haiku carrying a naive-output warning; the choice is reused for both persona rounds and the devil's advocate without re-asking.",
-      "input": "/Dev10x:ddd model the invoicing domain",
+      "input": "/dev10x:ddd model the invoicing domain",
       "assertions": [
         {
           "dimension": "model-tier-gate",
@@ -196,7 +196,7 @@
       "id": "assumption-not-written-before-confirmation",
       "name": "[ASSUMPTION] content is not persisted before confirmation",
       "description": "When the skill makes a reasonable assumption instead of interrupting, it tags the narrative [ASSUMPTION] and does not write that content into decisions.md/model.md/glossary.md until a later batched AskUserQuestion confirms it.",
-      "input": "/Dev10x:ddd new workshop, ambiguous aggregate boundary requiring an assumption",
+      "input": "/dev10x:ddd new workshop, ambiguous aggregate boundary requiring an assumption",
       "assertions": [
         {
           "dimension": "assumption-write-guardrail",
@@ -216,7 +216,7 @@
       "id": "authz-probe-classifies-capability",
       "name": "Authorization probe classifies grant sentences including Capability",
       "description": "Adding a shareable, accountless invitation surface triggers the guided authorization probe, which classifies the grant sentence as Capability and runs the bearer-invitation sub-probes.",
-      "input": "/Dev10x:ddd continue workshop, adding a shareable accountless invitation link for guest actors",
+      "input": "/dev10x:ddd continue workshop, adding a shareable accountless invitation link for guest actors",
       "assertions": [
         {
           "dimension": "authz-probe",
@@ -241,7 +241,7 @@
       "id": "integration-probe-per-edge-contract",
       "name": "Integration probe fills one contract line per context-map edge",
       "description": "Once bounded contexts are named and someone asks about splitting into separate services, the integration probe runs and produces a distinct contract line for every context-map edge.",
-      "input": "/Dev10x:ddd continue workshop, three bounded contexts named, asking whether to split into separate services",
+      "input": "/dev10x:ddd continue workshop, three bounded contexts named, asking whether to split into separate services",
       "assertions": [
         {
           "dimension": "integration-probe",
@@ -260,7 +260,7 @@
     "description": "Queries that should/should-not trigger the ddd skill",
     "should_trigger": [
       {
-        "query": "/Dev10x:ddd",
+        "query": "/dev10x:ddd",
         "rationale": "Direct invocation — runs or continues a DDD event-storming workshop"
       },
       {
@@ -275,7 +275,7 @@
     "should_not_trigger": [
       {
         "query": "scope this ticket in the known invoicing context",
-        "rationale": "Single well-defined ticket in a known context — use Dev10x:ticket-scope"
+        "rationale": "Single well-defined ticket in a known context — use dev10x:ticket-scope"
       },
       {
         "query": "write the ADR for the already-decided money type",

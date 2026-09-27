@@ -4,7 +4,7 @@ Maps a skill *invocation name* to its on-disk directory using a scanned
 :class:`~dev10x.skill_index.catalog.SkillCatalog` as the source of truth,
 instead of constructing a path from the name. Path construction is the
 documented failure mode (GH-488 evidence #7/#11): plugin skills strip the
-namespace prefix from their directory (``Dev10x:git-commit`` lives at
+namespace prefix from their directory (``dev10x:git-commit`` lives at
 ``skills/git-commit/``) while personal skills may keep the colon in the
 directory name (``~/.claude/skills/my:daily-yt/``). An agent that builds
 ``skills/<plugin>:<name>/`` therefore exits 127. A scan-backed resolver
@@ -26,7 +26,7 @@ from dev10x.skill_index.catalog import SkillCatalog
 def feature_name(invocation_name: str) -> str:
     """Return the namespace-stripped feature name.
 
-    ``Dev10x:git-commit`` -> ``git-commit``; ``my:daily-yt`` -> ``daily-yt``;
+    ``dev10x:git-commit`` -> ``git-commit``; ``my:daily-yt`` -> ``daily-yt``;
     a bare ``park`` -> ``park``. Only the final colon-delimited segment is
     significant — the leading segment is the plugin/personal namespace that
     the directory name may or may not retain.

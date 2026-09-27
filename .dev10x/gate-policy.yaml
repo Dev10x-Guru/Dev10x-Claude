@@ -21,7 +21,7 @@
 #
 # What still guards a merge with the pin gone:
 #
-#   - `Dev10x:gh-pr-merge` runs all 9 pre-merge checks on every merge
+#   - `dev10x:gh-pr-merge` runs all 9 pre-merge checks on every merge
 #     regardless of gate policy — unresolved threads, top-level and
 #     inline review comments, Fixes-linked scope delivery, CI buckets,
 #     draft state, mergeability, working copy, fixup commits. Gate

@@ -226,7 +226,7 @@ class TestBuildInstallCheckContext:
         result = svc.build_install_check_context()
 
         assert "config folder is missing" in result
-        assert "/Dev10x:upgrade-cleanup" in result
+        assert "/dev10x:upgrade-cleanup" in result
 
     def test_guides_upgrade_on_version_mismatch(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -252,7 +252,7 @@ class TestBuildInstallCheckContext:
 
         assert "0.72.0" in result
         assert "0.71.0" in result
-        assert "/Dev10x:upgrade-cleanup" in result
+        assert "/dev10x:upgrade-cleanup" in result
 
 
 class TestBuildHookVersionDriftContext:

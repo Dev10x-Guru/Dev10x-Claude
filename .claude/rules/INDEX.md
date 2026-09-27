@@ -75,10 +75,10 @@ Always apply `references/review-checks-common.md`.
 
 | File | Topic | Loaded by | Scope |
 |------|-------|-----------|-------|
-| `git-commits.md` | Commit format, gitmoji, atomic commits | `Dev10x:git-commit` skill, PR hygiene CI | Mandatory for all commits |
-| `git-pr.md` | PR format, grooming, review feedback | `Dev10x:gh-pr-create` skill, PR hygiene CI | Mandatory for all PRs |
-| `git-jtbd.md` | Job Story format, principles, examples | `Dev10x:jtbd` skill, PR hygiene CI | Mandatory for JTBD decisions |
-| `review-guidelines.md` | Review workflow, threads, summaries | `Dev10x:gh-pr-review` skill, code review CI | Mandatory for PR reviews |
+| `git-commits.md` | Commit format, gitmoji, atomic commits | `dev10x:git-commit` skill, PR hygiene CI | Mandatory for all commits |
+| `git-pr.md` | PR format, grooming, review feedback | `dev10x:gh-pr-create` skill, PR hygiene CI | Mandatory for all PRs |
+| `git-jtbd.md` | Job Story format, principles, examples | `dev10x:jtbd` skill, PR hygiene CI | Mandatory for JTBD decisions |
+| `review-guidelines.md` | Review workflow, threads, summaries | `dev10x:gh-pr-review` skill, code review CI | Mandatory for PR reviews |
 | `review-checks-common.md` | False positives, verification | Review agent specs, code review CI | Mandatory for code review agents |
 | `eval-schema.md` | Evaluation assertions format for skills | `reviewer-skill.md` (item 19) | Decision gate validation |
 | `skill-invocation.md` | Skill() syntax, named parameters, delegation | `reviewer-skill.md` (items 8g, 9a) | Mandatory for skill reviews |
@@ -89,13 +89,13 @@ Always apply `references/review-checks-common.md`.
 | `execution-modes.md` | Structural modes, per-step mode mappings, mode precedence | `work-on` skill, `playbook` skill | Referenced, not auto-loaded |
 | `friction-levels.md` | Friction levels, gate behavior, playbook integration | `work-on` skill, `verify-acc-dod` skill | Referenced, not auto-loaded |
 | `model-tiers.md` | Model assignments, tier framework, per-project overrides | `model-selection.md` rule, playbook system | Referenced, not auto-loaded |
-| `skill-pipelines.md` | Skill composition pipelines, standalone invocation | `Dev10x:work-on` skill, pipeline documentation | Referenced, not auto-loaded |
+| `skill-pipelines.md` | Skill composition pipelines, standalone invocation | `dev10x:work-on` skill, pipeline documentation | Referenced, not auto-loaded |
 | `config-resolution.md` | 3-tier config paths, project mapping format | All playbook/settings skills | Referenced, not auto-loaded |
 | `testing-patterns.md` | Pytest fixture composition, async handlers, parametrized tests | Code reviews, test authoring | Referenced, not auto-loaded |
-| `pr-backlog-deferral.md` | Deferring non-blocking review findings to a backlog | `Dev10x:gh-pr-review` skill, code review CI | Referenced, not auto-loaded |
-| `milestone-naming.md` | Milestone naming convention, initiative prefixes (AUD-Mn vs MCP-Mn) | `Dev10x:project-scope`, `Dev10x:work-on` milestone steps | Referenced, not auto-loaded |
+| `pr-backlog-deferral.md` | Deferring non-blocking review findings to a backlog | `dev10x:gh-pr-review` skill, code review CI | Referenced, not auto-loaded |
+| `milestone-naming.md` | Milestone naming convention, initiative prefixes (AUD-Mn vs MCP-Mn) | `dev10x:project-scope`, `dev10x:work-on` milestone steps | Referenced, not auto-loaded |
 | `backpressure.md` | Two-direction backpressure architecture (action gating + friction tuning + output gates) | Review & architecture docs, code review CI | Referenced, not auto-loaded |
-| `html-artifact-reporting.md` | Optional HTML artifacts for long comparison-shaped reports; markdown stays default | `Dev10x:ddd` deliverables, foreman morning report | Referenced, not auto-loaded |
+| `html-artifact-reporting.md` | Optional HTML artifacts for long comparison-shaped reports; markdown stays default | `dev10x:ddd` deliverables, foreman morning report | Referenced, not auto-loaded |
 
 ## Agent Specs (`.claude/agents/`)
 

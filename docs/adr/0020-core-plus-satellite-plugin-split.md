@@ -54,7 +54,7 @@ that at the *distribution* layer without reversing it at the
 
 1. Users cannot install per application area — a database-only or
    comms-only user still gets the full 87-skill catalog.
-2. The single skill namespace (`Dev10x:*`) mixes unrelated areas,
+2. The single skill namespace (`dev10x:*`) mixes unrelated areas,
    inflating skill-selection context for every session.
 3. The plugin description self-reports stale counts ("69 skills" vs
    87 on disk) — a symptom of one manifest owning too much surface.
@@ -64,8 +64,8 @@ that at the *distribution* layer without reversing it at the
 
 ### Coupling constraints (measured)
 
-1. 50/87 skills invoke `mcp__plugin_Dev10x_cli__*` /
-   `mcp__plugin_Dev10x_db__*` tools. The plugin name is baked into
+1. 50/87 skills invoke `mcp__plugin_dev10x_cli__*` /
+   `mcp__plugin_dev10x_db__*` tools. The plugin name is baked into
    the MCP tool-name prefix, so moving the *servers* to a
    differently-named plugin renames ~90 tools across 50 skills.
 2. 13/14 hook scripts import the `dev10x` Python package — the
@@ -74,7 +74,7 @@ that at the *distribution* layer without reversing it at the
 3. 37/87 skills reference `${CLAUDE_PLUGIN_ROOT}`; those reaching
    into the *shared* top-level `references/` break when moved to a
    different plugin root.
-4. Skill invocation names (`Dev10x:slack`, `Dev10x:git-commit`, …)
+4. Skill invocation names (`dev10x:slack`, `dev10x:git-commit`, …)
    are hardcoded in other skills, playbooks, and user configs; the
    plugin prefix changes when a skill moves.
 
@@ -101,7 +101,7 @@ through the same marketplace.
 
 | Component | Why it stays |
 |-----------|--------------|
-| `servers/` + `src/dev10x/mcp/` | Preserves the `mcp__plugin_Dev10x_cli__*` / `db` tool prefix that 50 skills hardcode — zero tool renames |
+| `servers/` + `src/dev10x/mcp/` | Preserves the `mcp__plugin_dev10x_cli__*` / `db` tool prefix that 50 skills hardcode — zero tool renames |
 | `hooks/` + `src/dev10x/` | 13/14 hook scripts import `dev10x`; safety hooks are global, not per-area |
 | shared `references/`, `agents/` | Cross-area dependencies (orchestration patterns, review guides, reviewer/architect agents) |
 | Orchestration & session skills (work-on, fanout, foreman, park*, session-*, playbook*, afk, plan-sync, ask) | Inseparable from hooks, gate policy, and session state |
@@ -127,11 +127,11 @@ scoping (follow-up sub-issues), defaulting to core until moved.
 ### Key rules
 
 1. **Satellites depend on core.** MCP tool names are session-global,
-   so a satellite skill calling `mcp__plugin_Dev10x_cli__*` works as
+   so a satellite skill calling `mcp__plugin_dev10x_cli__*` works as
    long as core is installed. This dependency is implicit in Claude
    Code today; `plugin-doctor` gains a check that reports satellites
    installed without core.
-2. **Invocation names move with the plugin.** `Dev10x:slack` becomes
+2. **Invocation names move with the plugin.** `dev10x:slack` becomes
    `Dev10x-Comms:slack`. Each area-move PR includes the full
    cross-reference sweep (skills, playbooks, docs, command-skill
    map). No alias/compatibility layer (YAGNI) — the sweep is
@@ -247,7 +247,7 @@ Tracked as a GH-913 milestone; one sub-issue per phase.
 1. `git mv skills/{slack,slack-setup,slack-review-request,gchat,gchat-review-request}`
    → `plugins/comms/skills/`.
 2. Author `plugins/comms/agents/comms-expert.md`.
-3. JetBrains-MCP sweep of `Dev10x:slack*` / `Dev10x:gchat*`
+3. JetBrains-MCP sweep of `dev10x:slack*` / `dev10x:gchat*`
    references (skills, playbooks, docs, command-skill-map).
 4. Validate install + invocation end-to-end; document lessons.
 

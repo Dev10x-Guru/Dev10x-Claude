@@ -23,7 +23,7 @@ Implementation is tracked as QA-M2:
 
 ## Context
 
-`Dev10x:qa-self` grew a narrated-walkthrough capability incrementally:
+`dev10x:qa-self` grew a narrated-walkthrough capability incrementally:
 recording, annotation, narration, TTS routing, stitching and evidence
 verification all landed inside one skill aimed at one job (QA evidence
 for a PR). Demo and release-note video then reused the same machinery

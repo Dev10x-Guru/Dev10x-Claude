@@ -58,7 +58,7 @@ foreman subagent and every crew worker never had them at all, for a
 whole 27-hour run, while the watchdog session kept all of them
 throughout. Worker heartbeat, verbatim: "Dev10x CLI MCP server failed
 to connect this session — using documented fallbacks (gh api,
-scratchpad env file, uv run pytest, Dev10x:git skill for push)".
+scratchpad env file, uv run pytest, dev10x:git skill for push)".
 Foreman heartbeat: "MCP is still disconnected on my end, retrying
 periodically", all night.
 
@@ -110,8 +110,8 @@ failure the surface split exists to prevent.
 ### Watchdog surface loss — worse, and unrecoverable in-session (GH-1099)
 
 ~18h into the 2026-08-29/30 night run, the **top-level** session lost
-all 86 `mcp__plugin_Dev10x_cli__*` tools — pre-loaded at session
-start, not deferred — with `plugin:Dev10x:cli` listed among
+all 86 `mcp__plugin_dev10x_cli__*` tools — pre-loaded at session
+start, not deferred — with `plugin:dev10x:cli` listed among
 failed-to-connect servers. The drop followed two 5h platform quota
 pauses and long idle stretches, consistent with idle-timeout on a
 connection held across session pauses.

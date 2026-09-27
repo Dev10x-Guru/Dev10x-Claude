@@ -48,21 +48,21 @@ class TestDiscoverMcpTools:
 
     def test_discovers_both_servers(self, fake_root: Path) -> None:
         result = enumerate_mcp.discover_mcp_tools(root=fake_root)
-        assert "Dev10x_cli" in result
-        assert "Dev10x_db" in result
+        assert "dev10x_cli" in result
+        assert "dev10x_db" in result
 
     def test_cli_tools_are_fully_qualified(self, fake_root: Path) -> None:
         result = enumerate_mcp.discover_mcp_tools(root=fake_root)
-        assert "mcp__plugin_Dev10x_cli__alpha" in result["Dev10x_cli"]
-        assert "mcp__plugin_Dev10x_cli__beta" in result["Dev10x_cli"]
+        assert "mcp__plugin_dev10x_cli__alpha" in result["dev10x_cli"]
+        assert "mcp__plugin_dev10x_cli__beta" in result["dev10x_cli"]
 
     def test_db_tools_are_fully_qualified(self, fake_root: Path) -> None:
         result = enumerate_mcp.discover_mcp_tools(root=fake_root)
-        assert result["Dev10x_db"] == ["mcp__plugin_Dev10x_db__query"]
+        assert result["dev10x_db"] == ["mcp__plugin_dev10x_db__query"]
 
     def test_skips_undecorated_functions(self, fake_root: Path) -> None:
         result = enumerate_mcp.discover_mcp_tools(root=fake_root)
-        assert all("_private" not in t for t in result["Dev10x_cli"])
+        assert all("_private" not in t for t in result["dev10x_cli"])
 
     def test_missing_server_file_yields_empty_catalog(self, tmp_path: Path) -> None:
         result = enumerate_mcp.discover_mcp_tools(root=tmp_path)
@@ -103,25 +103,25 @@ class TestDecoratorShapes:
         return tmp_path
 
     def test_wrapper_decorated_handler_discovered(self, fake_root: Path) -> None:
-        tools = enumerate_mcp.discover_mcp_tools(root=fake_root)["Dev10x_cli"]
-        assert "mcp__plugin_Dev10x_cli__wrapped" in tools
+        tools = enumerate_mcp.discover_mcp_tools(root=fake_root)["dev10x_cli"]
+        assert "mcp__plugin_dev10x_cli__wrapped" in tools
 
     def test_direct_decorated_handler_discovered(self, fake_root: Path) -> None:
-        tools = enumerate_mcp.discover_mcp_tools(root=fake_root)["Dev10x_cli"]
-        assert "mcp__plugin_Dev10x_cli__direct" in tools
+        tools = enumerate_mcp.discover_mcp_tools(root=fake_root)["dev10x_cli"]
+        assert "mcp__plugin_dev10x_cli__direct" in tools
 
     @pytest.mark.parametrize("name", ["a_resource", "a_prompt", "exotic", "github_tool"])
     def test_non_tool_registrations_are_not_discovered(self, fake_root: Path, name: str) -> None:
-        tools = enumerate_mcp.discover_mcp_tools(root=fake_root)["Dev10x_cli"]
-        assert f"mcp__plugin_Dev10x_cli__{name}" not in tools
+        tools = enumerate_mcp.discover_mcp_tools(root=fake_root)["dev10x_cli"]
+        assert f"mcp__plugin_dev10x_cli__{name}" not in tools
 
     def test_new_tool_module_needs_no_second_edit(self, fake_root: Path) -> None:
         # The point of globbing: a module nobody listed is still scanned.
         (fake_root / "src" / "dev10x" / "mcp" / "gate_tools.py").write_text(
             "@server.tool()\nasync def resolve_gate() -> dict: pass\n"
         )
-        tools = enumerate_mcp.discover_mcp_tools(root=fake_root)["Dev10x_cli"]
-        assert "mcp__plugin_Dev10x_cli__resolve_gate" in tools
+        tools = enumerate_mcp.discover_mcp_tools(root=fake_root)["dev10x_cli"]
+        assert "mcp__plugin_dev10x_cli__resolve_gate" in tools
 
 
 class TestExpandRules:
@@ -130,40 +130,40 @@ class TestExpandRules:
     @pytest.fixture
     def catalog(self) -> dict[str, list[str]]:
         return {
-            "Dev10x_cli": [
-                "mcp__plugin_Dev10x_cli__alpha",
-                "mcp__plugin_Dev10x_cli__beta",
+            "dev10x_cli": [
+                "mcp__plugin_dev10x_cli__alpha",
+                "mcp__plugin_dev10x_cli__beta",
             ],
-            "Dev10x_db": ["mcp__plugin_Dev10x_db__query"],
+            "dev10x_db": ["mcp__plugin_dev10x_db__query"],
         }
 
     def test_expands_wildcard(self, catalog: dict[str, list[str]]) -> None:
-        new, removed, added = enumerate_mcp.expand_rules(["mcp__plugin_Dev10x_*"], catalog)
-        assert removed == ["mcp__plugin_Dev10x_*"]
-        assert "mcp__plugin_Dev10x_cli__alpha" in new
-        assert "mcp__plugin_Dev10x_cli__beta" in new
-        assert "mcp__plugin_Dev10x_db__query" in new
+        new, removed, added = enumerate_mcp.expand_rules(["mcp__plugin_dev10x_*"], catalog)
+        assert removed == ["mcp__plugin_dev10x_*"]
+        assert "mcp__plugin_dev10x_cli__alpha" in new
+        assert "mcp__plugin_dev10x_cli__beta" in new
+        assert "mcp__plugin_dev10x_db__query" in new
         assert len(added) == 3
 
     def test_preserves_non_mcp_rules(self, catalog: dict[str, list[str]]) -> None:
         new, _, _ = enumerate_mcp.expand_rules(
-            ["Bash(git status:*)", "mcp__plugin_Dev10x_*"], catalog
+            ["Bash(git status:*)", "mcp__plugin_dev10x_*"], catalog
         )
         assert "Bash(git status:*)" in new
 
     def test_deduplicates_already_present(self, catalog: dict[str, list[str]]) -> None:
         new, _, added = enumerate_mcp.expand_rules(
             [
-                "mcp__plugin_Dev10x_cli__alpha",
-                "mcp__plugin_Dev10x_*",
+                "mcp__plugin_dev10x_cli__alpha",
+                "mcp__plugin_dev10x_*",
             ],
             catalog,
         )
-        assert new.count("mcp__plugin_Dev10x_cli__alpha") == 1
-        assert "mcp__plugin_Dev10x_cli__alpha" not in added
+        assert new.count("mcp__plugin_dev10x_cli__alpha") == 1
+        assert "mcp__plugin_dev10x_cli__alpha" not in added
 
     def test_no_wildcards_returns_allow_unchanged(self, catalog: dict[str, list[str]]) -> None:
-        allow = ["Bash(ls:*)", "mcp__plugin_Dev10x_cli__alpha"]
+        allow = ["Bash(ls:*)", "mcp__plugin_dev10x_cli__alpha"]
         new, removed, added = enumerate_mcp.expand_rules(allow, catalog)
         assert new == allow
         assert removed == []
@@ -182,7 +182,7 @@ class TestExpandSettingsFile:
                     "permissions": {
                         "allow": [
                             "Bash(git status:*)",
-                            "mcp__plugin_Dev10x_*",
+                            "mcp__plugin_dev10x_*",
                         ]
                     }
                 },
@@ -193,7 +193,7 @@ class TestExpandSettingsFile:
 
     @pytest.fixture
     def catalog(self) -> dict[str, list[str]]:
-        return {"Dev10x_cli": ["mcp__plugin_Dev10x_cli__foo"]}
+        return {"dev10x_cli": ["mcp__plugin_dev10x_cli__foo"]}
 
     def test_dry_run_does_not_modify_file(
         self,
@@ -213,8 +213,8 @@ class TestExpandSettingsFile:
         assert count > 0
         data = json.loads(settings_file.read_text())
         allow = data["permissions"]["allow"]
-        assert "mcp__plugin_Dev10x_*" not in allow
-        assert "mcp__plugin_Dev10x_cli__foo" in allow
+        assert "mcp__plugin_dev10x_*" not in allow
+        assert "mcp__plugin_dev10x_cli__foo" in allow
 
     def test_unreadable_file_reports_skip(
         self,
@@ -261,7 +261,7 @@ class TestBuildCatalog:
         (src / "git_tools.py").write_text("@server.tool()\nasync def beta() -> dict: pass\n")
         result = enumerate_mcp.build_catalog(plugin_root_override=tmp_path)
         assert isinstance(result, SuccessResult)
-        assert result.value["Dev10x_cli"] == ["mcp__plugin_Dev10x_cli__beta"]
+        assert result.value["dev10x_cli"] == ["mcp__plugin_dev10x_cli__beta"]
 
 
 class TestEnumerateSettings:
@@ -300,7 +300,7 @@ class TestEnumerateSettings:
 
     def test_expansion_is_reported(self, tmp_path: Path, plugin_dir: Path) -> None:
         path = tmp_path / "settings.local.json"
-        path.write_text(json.dumps({"permissions": {"allow": ["mcp__plugin_Dev10x_*"]}}))
+        path.write_text(json.dumps({"permissions": {"allow": ["mcp__plugin_dev10x_*"]}}))
         result = enumerate_mcp.enumerate_settings(
             [path],
             dry_run=True,

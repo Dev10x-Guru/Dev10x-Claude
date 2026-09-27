@@ -43,10 +43,10 @@ class TestFeatureName:
     @pytest.mark.parametrize(
         ("invocation", "expected"),
         [
-            ("Dev10x:git-commit", "git-commit"),
+            ("dev10x:git-commit", "git-commit"),
             ("my:daily-yt", "daily-yt"),
             ("park", "park"),
-            ("  Dev10x:scope  ", "scope"),
+            ("  dev10x:scope  ", "scope"),
         ],
     )
     def test_strips_namespace_prefix(self, invocation: str, expected: str) -> None:
@@ -56,10 +56,10 @@ class TestFeatureName:
 class TestResolveByKey:
     def test_resolves_plugin_skill_to_real_directory(self) -> None:
         resolver = _resolver(
-            _entry(key="Dev10x:git-commit", directory="/plugin/skills/git-commit")
+            _entry(key="dev10x:git-commit", directory="/plugin/skills/git-commit")
         )
 
-        resolution = resolver.resolve(name="Dev10x:git-commit")
+        resolution = resolver.resolve(name="dev10x:git-commit")
 
         assert resolution.is_resolved
         assert resolution.directory == Path("/plugin/skills/git-commit")
@@ -75,9 +75,9 @@ class TestResolveByKey:
         assert resolution.directory == Path("/home/u/.claude/skills/my:daily-yt")
 
     def test_key_match_without_source_is_missing(self) -> None:
-        resolver = _resolver(_entry(key="Dev10x:ghost"))
+        resolver = _resolver(_entry(key="dev10x:ghost"))
 
-        resolution = resolver.resolve(name="Dev10x:ghost")
+        resolution = resolver.resolve(name="dev10x:ghost")
 
         assert resolution.is_missing
         assert resolution.directory is None
@@ -86,7 +86,7 @@ class TestResolveByKey:
 class TestResolveByName:
     def test_falls_back_to_internal_name(self) -> None:
         resolver = _resolver(
-            _entry(key="Dev10x:public", name="internal-name", directory="/p/skills/public")
+            _entry(key="dev10x:public", name="internal-name", directory="/p/skills/public")
         )
 
         resolution = resolver.resolve(name="internal-name")
@@ -97,7 +97,7 @@ class TestResolveByName:
 
 class TestResolveByFeature:
     def test_bare_feature_resolves_single_match(self) -> None:
-        resolver = _resolver(_entry(key="Dev10x:scope", directory="/p/skills/scope"))
+        resolver = _resolver(_entry(key="dev10x:scope", directory="/p/skills/scope"))
 
         resolution = resolver.resolve(name="scope")
 
@@ -158,14 +158,14 @@ class TestDedupe:
 
 class TestMissing:
     def test_unknown_name_is_missing(self) -> None:
-        resolver = _resolver(_entry(key="Dev10x:x", directory="/p/skills/x"))
+        resolver = _resolver(_entry(key="dev10x:x", directory="/p/skills/x"))
 
-        resolution = resolver.resolve(name="Dev10x:nope")
+        resolution = resolver.resolve(name="dev10x:nope")
 
         assert resolution.is_missing
 
     def test_blank_name_is_missing(self) -> None:
-        resolver = _resolver(_entry(key="Dev10x:x", directory="/p/skills/x"))
+        resolver = _resolver(_entry(key="dev10x:x", directory="/p/skills/x"))
 
         resolution = resolver.resolve(name="   ")
 
@@ -175,7 +175,7 @@ class TestMissing:
 class TestResolvedSkill:
     def test_skill_file_is_under_directory(self) -> None:
         resolved = ResolvedSkill(
-            entry=_entry(key="Dev10x:x", directory="/p/skills/x"),
+            entry=_entry(key="dev10x:x", directory="/p/skills/x"),
             directory=Path("/p/skills/x"),
         )
 
@@ -202,10 +202,10 @@ class TestResolutionFlags:
 
 class TestFromDirs:
     def test_scans_real_skill_dirs_and_resolves(self, tmp_path: Path) -> None:
-        _make_skill(tmp_path, "git-commit", _skill_md(name="Dev10x:git-commit"))
+        _make_skill(tmp_path, "git-commit", _skill_md(name="dev10x:git-commit"))
 
         resolver = SkillPathResolver.from_dirs(skill_dirs=[tmp_path])
-        resolution = resolver.resolve(name="Dev10x:git-commit")
+        resolution = resolver.resolve(name="dev10x:git-commit")
 
         assert resolution.is_resolved
         assert resolution.directory == tmp_path / "git-commit"
@@ -215,4 +215,4 @@ class TestFromDirs:
     def test_default_catalog_is_empty(self) -> None:
         resolver = SkillPathResolver()
 
-        assert resolver.resolve(name="Dev10x:anything").is_missing
+        assert resolver.resolve(name="dev10x:anything").is_missing

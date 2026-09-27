@@ -123,7 +123,7 @@ class TestParsePathRule:
             anchor=Anchor.FILESYSTEM,
         )
 
-    @pytest.mark.parametrize("rule", ["Bash(git status:*)", "Skill(Dev10x:*)", "not a rule"])
+    @pytest.mark.parametrize("rule", ["Bash(git status:*)", "Skill(dev10x:*)", "not a rule"])
     def test_ignores_a_non_path_rule(self, rule: str) -> None:
         assert parse_path_rule(rule=rule) is None
 

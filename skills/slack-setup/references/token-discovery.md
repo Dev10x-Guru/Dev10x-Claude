@@ -31,7 +31,7 @@ so even if the entry title is generic, the `xoxb-` prefix matches.
 
 ## OS Keychain (already-stored token)
 
-If the user previously ran `Dev10x:slack-setup` on this machine,
+If the user previously ran `dev10x:slack-setup` on this machine,
 the token is in the system keyring. The skill detects this in
 Step 1 — no manual lookup needed.
 

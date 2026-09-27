@@ -1,4 +1,4 @@
-# Database configuration for Dev10x:db-psql skill.
+# Database configuration for dev10x:db-psql skill.
 #
 # Place this file as databases.yaml in:
 #   ~/.config/Dev10x/databases.yaml    (global, user-level)

@@ -170,7 +170,7 @@ class TestSessionStopVerdict:
         assert result.returncode == 0
         envelope = json.loads(result.stdout)
         assert envelope["decision"] == "block"
-        assert "Dev10x:ask" in envelope["reason"]
+        assert "dev10x:ask" in envelope["reason"]
 
     def test_a_block_suppresses_the_goodbye(self, tmp_path: Path) -> None:
         """A farewell while the turn is being continued would be a lie."""
@@ -204,7 +204,7 @@ class TestSessionStopVerdict:
         assert result.returncode == 0
         envelope = json.loads(result.stdout)
         assert envelope["decision"] == "block"
-        assert "Dev10x:git-commit" in envelope["reason"]
+        assert "dev10x:git-commit" in envelope["reason"]
         # Porcelain collapses a wholly-untracked tree to its directory,
         # so this is `.claude/` rather than the plan file itself.
         assert ".claude" in envelope["reason"]
@@ -509,7 +509,7 @@ class TestModeGuardWiring:
 
 class TestFrictionSetupNudge:
     """GH-886: SessionStart detects unconfigured repos and nudges the
-    supervisor to run Dev10x:friction-setup instead of silently falling back
+    supervisor to run dev10x:friction-setup instead of silently falling back
     to a preset. Global friction.yaml absent → seed a strict baseline + note;
     present but this repo unmatched → nudge (no write); matched → silent."""
 
@@ -526,7 +526,7 @@ class TestFrictionSetupNudge:
 
         text = FrictionSetupNudgeRule(state=FrictionSetupState.SEEDED).apply()
         assert "strict" in text
-        assert "/Dev10x:friction-setup" in text
+        assert "/dev10x:friction-setup" in text
 
     def test_rule_unmatched_names_repo(self) -> None:
         from dev10x.domain.session_rules import FrictionSetupNudgeRule, FrictionSetupState
@@ -535,7 +535,7 @@ class TestFrictionSetupNudge:
             state=FrictionSetupState.UNMATCHED, repo_name="my-repo"
         ).apply()
         assert "my-repo" in text
-        assert "/Dev10x:friction-setup" in text
+        assert "/dev10x:friction-setup" in text
 
     def test_rule_matched_is_silent(self) -> None:
         from dev10x.domain.session_rules import FrictionSetupNudgeRule, FrictionSetupState
@@ -564,7 +564,7 @@ class TestFrictionSetupNudge:
             friction = Dev10xConfigDir.friction_yaml()
             assert friction.exists()
             assert "supervisor_review: required" in friction.read_text()
-            assert "/Dev10x:friction-setup" in text
+            assert "/dev10x:friction-setup" in text
         finally:
             Dev10xConfigDir.reset_cache()
 
@@ -584,7 +584,7 @@ class TestFrictionSetupNudge:
             from dev10x.domain.dev10x_paths import Dev10xConfigDir
 
             text = SessionService().build_friction_setup_context(toplevel=str(repo))
-            assert "/Dev10x:friction-setup" in text
+            assert "/dev10x:friction-setup" in text
             assert "repo" in text
             # Skip = no write: an unmatched project must not mutate friction.yaml.
             assert friction.read_text() == before
@@ -653,7 +653,7 @@ class TestFrictionSetupNudge:
         monkeypatch.setattr(friction_yaml, "seed_safe_baseline_if_absent", _boom)
         try:
             text = SessionService().build_friction_setup_context(toplevel=str(repo))
-            assert "/Dev10x:friction-setup" in text
+            assert "/dev10x:friction-setup" in text
         finally:
             from dev10x.domain.dev10x_paths import Dev10xConfigDir
 

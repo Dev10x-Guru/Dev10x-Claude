@@ -1,5 +1,5 @@
 ---
-name: Dev10x:aws-vault
+name: dev10x:aws-vault
 description: >
   Retrieve application secrets from AWS Secrets Manager and run
   strictly READ-ONLY kubectl commands via aws-vault. Handles
@@ -15,7 +15,7 @@ description: >
   etc.) — those run only under direct supervisor control in a
   separate terminal.
 user-invocable: true
-invocation-name: Dev10x:aws-vault
+invocation-name: dev10x:aws-vault
 allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/aws-vault/scripts/secrets.sh:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/aws-vault/scripts/kubectl.sh:*)

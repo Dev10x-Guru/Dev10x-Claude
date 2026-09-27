@@ -52,7 +52,7 @@ rows:
   notes: /home/janusz/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.73.0/skills/slack-review-request/scripts/slack-review-request.py
     prepare --pr <N> --repo <org>/<repo>
 - id: '#17'
-  command: DEV10X_SKIP_CMD_VALIDATION="executing Dev10x:py-test skill step 1 ..."
+  command: DEV10X_SKIP_CMD_VALIDATION="executing dev10x:py-test skill step 1 ..."
     uv run pytest src/<...>/tests/ --create-db -x --tb=short --no-header 2>&1 | tail
     -90
   tool: Bash
@@ -68,9 +68,9 @@ rows:
   notes: grep -rn "<pattern>" /work/dx/Dev10x-Claude/skills/upgrade-cleanup/projects.yaml
     ~/.claude/settings.json 2>/dev/null | head -10
 - id: '#23'
-  command: JIRA_TENANT=<org> ~/.claude/skills/dev10x:jira/scripts/jira-get.sh PROJ-6070
+  command: JIRA_TENANT=<org> ~/.claude/skills/Dev10x:jira/scripts/jira-get.sh PROJ-6070
   tool: Bash
-  notes: JIRA_TENANT=<org> ~/.claude/skills/dev10x:jira/scripts/jira-get.sh PROJ-6070
+  notes: JIRA_TENANT=<org> ~/.claude/skills/Dev10x:jira/scripts/jira-get.sh PROJ-6070
 - id: '#24'
   command: /home/janusz/.claude/plugins/marketplaces/Dev10x-Guru/skills/gh-context/scripts/gh-pr-detect.sh
     1559
@@ -147,7 +147,7 @@ rows:
 - id: '#49'
   command: gh api graphql -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){reviewThreads(first:100){nodes{isResolved}}}}}'
     -f o=<org> -f r=<repo> -F n=<PR> --jq '[.data.repository.pullRequest.reviewThreads.nodes[]|select(.isResolved==false)]|length'
-  tool: mcp__plugin_Dev10x_cli__unresolved_threads
+  tool: mcp__plugin_dev10x_cli__unresolved_threads
   notes: gh api graphql -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){reviewThreads(first:100){nodes{isResolved}}}}}'
     -f o=<org> -f r=<repo> -F n=<PR> --jq '[.data.repository.pullRequest.reviewThreads.nodes[]|select(.isResolved==false)]|length'
 - id: '#50'
@@ -155,26 +155,26 @@ rows:
   tool: Bash
   notes: find /work/<other-org> -maxdepth 5 -name supabase -type d 2>/dev/null
 - id: '#51'
-  command: mcp__plugin_Dev10x_cli__unresolved_threads
-  tool: mcp__plugin_Dev10x_cli__unresolved_threads
+  command: mcp__plugin_dev10x_cli__unresolved_threads
+  tool: mcp__plugin_dev10x_cli__unresolved_threads
   notes: 'reflection #10''s no-save anti-pattern is harmful: the validator''s concern
     (real or false-positive) costs the user a fresh prompt every invocation.'
 - id: '#52'
   command: gh api graphql -f query='query{repository(owner:"<org>",name:"<repo>"){pullRequest(number:280){reviewThreads(first:50){nodes{isResolved}}}}}'
     --jq '[...]'
-  tool: mcp__plugin_Dev10x_cli__unresolved_threads(pr_number=N, repo='org/repo')
+  tool: mcp__plugin_dev10x_cli__unresolved_threads(pr_number=N, repo='org/repo')
   notes: gh api graphql -f query='query{repository(owner:"<org>",name:"<repo>"){pullRequest(number:280){reviewThreads(first:50){nodes{isResolved}}}}}'
     --jq '[...]'
 - id: '#54'
-  command: mcp__plugin_Dev10x_cli__unresolved_threads
-  tool: mcp__plugin_Dev10x_cli__unresolved_threads
+  command: mcp__plugin_dev10x_cli__unresolved_threads
+  tool: mcp__plugin_dev10x_cli__unresolved_threads
   notes: 'Identical command to #52. Brace-expansion block fires for the 4th time on
     the same logical operation (#49 → #51 → #52 → #54). Agent still has not switched
-    to `mcp__plugin_Dev10x_cli__unresolved_threads`.'
+    to `mcp__plugin_dev10x_cli__unresolved_threads`.'
 - id: '#56'
   command: gh api -X PATCH repos/<org>/<repo>/issues/comments/<id> -f body='[addressed
     in <sha> + PR body rewrite — original finding hidden/minimized]'
-  tool: mcp__plugin_Dev10x_cli__issue_comment
+  tool: mcp__plugin_dev10x_cli__issue_comment
   notes: 'The agent is implementing the **documented user preference** from memory
     `feedback_stale_bot_comment_delete_not_bypass.md`:'
 - id: '#57'
@@ -205,7 +205,7 @@ rows:
 - id: '#65'
   command: mkdir -p /tmp/<project>-test/<project-worktree-1> && (cd /tmp/<project>-test/<project-worktree-1>
     && /work/<org>/<project>/bin/worktree-env.sh)
-  tool: mcp__plugin_Dev10x_cli__unresolved_threads
+  tool: mcp__plugin_dev10x_cli__unresolved_threads
   notes: mkdir -p /tmp/<project>-test/<project-worktree-1> && (cd /tmp/<project>-test/<project-worktree-1>
     && /work/<org>/<project>/bin/worktree-env.sh)
 - id: '#68'
@@ -383,7 +383,7 @@ rows:
     /tmp/Dev10x/bin/mktmp.sh ticket-create body2 .md
 
     /tmp/Dev10x/bin/mktmp.sh ticket-create body3 .md'
-  tool: mcp__plugin_Dev10x_cli__mktmp
+  tool: mcp__plugin_dev10x_cli__mktmp
   notes: /tmp/Dev10x/bin/mktmp.sh ticket-create body1 .md
 - id: '#114'
   command: DEV10X_AWS_VAULT_REGISTRY=/tmp/Dev10x/aws-vault/test-registry.<mktmp-id>.yaml
@@ -402,7 +402,7 @@ rows:
 - id: '#116'
   command: gh api -X PATCH "repos/<org>/<repo>/milestones/59" -f state=closed --jq
     '...'
-  tool: mcp__plugin_Dev10x_cli__milestone_close
+  tool: mcp__plugin_dev10x_cli__milestone_close
   notes: 'this matters: gh api PATCH is in the permissions.ask channel'
 - id: '#117'
   command: DJANGO_SETTINGS_MODULE=website.settings.testing_ci uv run pytest src/<org>_pos/orders/migrations/tests/test_0017_seed_payment_processors.py
@@ -481,7 +481,7 @@ rows:
 - id: '#137'
   command: gh api graphql -f query='query($owner:...){...reviewThreads(first:100){nodes{isResolved}}}'
     ... --jq '[...]'
-  tool: mcp__plugin_Dev10x_cli__unresolved_threads
+  tool: mcp__plugin_dev10x_cli__unresolved_threads
   notes: gh api graphql -f query='query($owner:...){...reviewThreads(first:100){nodes{isResolved}}}'
     ... --jq '[...]'
 - id: '#138'
@@ -514,7 +514,7 @@ rows:
 - id: '#147'
   command: gh api graphql -f query='...reviewThreads(first:100){nodes{isResolved}}...'
     ... -F number=305 --jq '[...]'
-  tool: mcp__plugin_Dev10x_cli__unresolved_threads
+  tool: mcp__plugin_dev10x_cli__unresolved_threads
   notes: gh api graphql -f query='...reviewThreads(first:100){nodes{isResolved}}...'
     ... -F number=305 --jq '[...]'
 - id: '#148'
@@ -528,11 +528,11 @@ rows:
   tool: null
   notes: uvx dev10x permission ensure-base --dry-run --summary
 - id: '#151'
-  command: grep -rl '"mcp__plugin_Dev10x_*"' /home/janusz/.claude/... /work/<org>
+  command: grep -rl '"mcp__plugin_dev10x_*"' /home/janusz/.claude/... /work/<org>
     /work/<org> /work/dx /work/wooyek --include=settings.local.json --include=settings.json
     2>/dev/null
-  tool: mcp__plugin_Dev10x_
-  notes: grep -rl '"mcp__plugin_Dev10x_*"' /home/janusz/.claude/... /work/<org> /work/<org>
+  tool: mcp__plugin_dev10x_
+  notes: grep -rl '"mcp__plugin_dev10x_*"' /home/janusz/.claude/... /work/<org> /work/<org>
     /work/dx /work/wooyek --include=settings.local.json --include=settings.json 2>/dev/null
 - id: '#152'
   command: 'mcp__claude_ai_Slack__slack_search_users(query: "...")'
@@ -759,9 +759,9 @@ rows:
   notes: cd /work/dx/.worktrees/Dev10x-Claude-1; gh pr close 355 --delete-branch --comment
     "..."
 - id: '#258'
-  command: mcp__plugin_Dev10x_cli__check_top_level_comments pr_number=357 repo="Dev10x-Guru/Dev10x-Claude"
-  tool: mcp__plugin_Dev10x_cli__check_top_level_comments
-  notes: mcp__plugin_Dev10x_cli__check_top_level_comments pr_number=357 repo="Dev10x-Guru/Dev10x-Claude"
+  command: mcp__plugin_dev10x_cli__check_top_level_comments pr_number=357 repo="Dev10x-Guru/Dev10x-Claude"
+  tool: mcp__plugin_dev10x_cli__check_top_level_comments
+  notes: mcp__plugin_dev10x_cli__check_top_level_comments pr_number=357 repo="Dev10x-Guru/Dev10x-Claude"
 - id: '#259'
   command: git develop-diff --stat
   tool: Bash
@@ -792,7 +792,7 @@ rows:
 - id: '#270'
   command: gh api graphql -f query='query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviewThreads(first:100){nodes{isResolved}}}}}'
     -f owner=<org> -f repo=<repo> -F number=<pr> --jq '[…|select(.isResolved==false)]|length'
-  tool: mcp__plugin_Dev10x_cli__unresolved_threads
+  tool: mcp__plugin_dev10x_cli__unresolved_threads
   notes: gh api graphql -f query='query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviewThreads(first:100){nodes{isResolved}}}}}'
     -f owner=<org> -f repo=<repo> -F number=<pr> --jq '[…|select(.isResolved==false)]|length'
 - id: '#272'
@@ -802,15 +802,15 @@ rows:
   tool: Bash
   notes: (real production Elastic IPs sanitized; 5432 = PostgreSQL)
 - id: '#276'
-  command: mktmp=$(mcp__plugin_Dev10x_cli__mktmp namespace="pr-scan" prefix="query"
+  command: mktmp=$(mcp__plugin_dev10x_cli__mktmp namespace="pr-scan" prefix="query"
     ext=".graphql") && echo "$mktmp" | jq -r '.path'
-  tool: mcp__plugin_Dev10x_cli__mktmp
-  notes: mktmp=$(mcp__plugin_Dev10x_cli__mktmp namespace="pr-scan" prefix="query"
+  tool: mcp__plugin_dev10x_cli__mktmp
+  notes: mktmp=$(mcp__plugin_dev10x_cli__mktmp namespace="pr-scan" prefix="query"
     ext=".graphql") && echo "$mktmp" | jq -r '.path'
 - id: '#278'
   command: /home/janusz/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.75.0/skills/gh-pr-monitor/scripts/ci-check-status.py
     --pr <pr> --repo <org>/<repo>
-  tool: mcp__plugin_Dev10x_cli__ci_check_status
+  tool: mcp__plugin_dev10x_cli__ci_check_status
   notes: /home/janusz/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.75.0/skills/gh-pr-monitor/scripts/ci-check-status.py
     --pr <pr> --repo <org>/<repo>
 - id: '#279'
@@ -827,7 +827,7 @@ rows:
 - id: '#283'
   command: /home/janusz/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.75.0/skills/gh-pr-merge/scripts/check-top-level-comments.sh
     <org> <repo> <pr>
-  tool: mcp__plugin_Dev10x_cli__check_top_level_comments
+  tool: mcp__plugin_dev10x_cli__check_top_level_comments
   notes: /home/janusz/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.75.0/skills/gh-pr-merge/scripts/check-top-level-comments.sh
     <org> <repo> <pr>
 - id: '#287'
@@ -903,7 +903,7 @@ rows:
 - id: '#315'
   command: uvx dev10x …
   tool: null
-  notes: Skill(Dev10x:slack) → "Successfully loaded skill · 2 tools allowed"
+  notes: Skill(dev10x:slack) → "Successfully loaded skill · 2 tools allowed"
 - id: '#316'
   command: gh api:*
   tool: Bash

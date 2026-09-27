@@ -106,8 +106,8 @@ def _policy_toplevel(toplevel: str) -> str:
 
 #: The durable supervisor sign-off signal (GH-1008, ADR-0022 D-5). The
 #: label already exists and is already written by
-#: ``Dev10x:gh-pr-request-review``'s two "I reviewed it" answers and
-#: removed by ``Dev10x:git-groom`` after a force-push. The gate resolver
+#: ``dev10x:gh-pr-request-review``'s two "I reviewed it" answers and
+#: removed by ``dev10x:git-groom`` after a force-push. The gate resolver
 #: only *reads* it — inventing a second channel for the same fact would
 #: leave two answers to one question.
 REVIEW_CLEARED_LABEL = "review:cleared"
@@ -125,7 +125,7 @@ async def _supervisor_cleared(*, gate: str, supervisor_review: str, solo_repo: b
     payload. "Could not confirm the supervisor read it" must never
     resolve as "the supervisor read it".
 
-    The label is per-PR-head by construction: ``Dev10x:git-groom`` removes
+    The label is per-PR-head by construction: ``dev10x:git-groom`` removes
     it after a force-push, because a sign-off covers the commits that were
     read and must not survive the rewrite that invalidated them. That is
     what makes this floor re-apply on a rewritten branch rather than

@@ -46,7 +46,7 @@ class TestCollapseLegacyUpgradeCleanupRule:
             "Bash(uv run dev10x:*)",
             "Bash(${CLAUDE_PLUGIN_ROOT}/skills/git-commit/scripts/foo.py:*)",
             "Bash(git log:*)",
-            "mcp__plugin_Dev10x_cli__update_paths",
+            "mcp__plugin_dev10x_cli__update_paths",
             "Bash(${CLAUDE_PLUGIN_ROOT}/skills/upgrade-cleanup/scripts/unknown.py:*)",
         ],
     )

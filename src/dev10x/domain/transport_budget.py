@@ -1,6 +1,6 @@
 """How long one MCP tool call may run before the transport gives up.
 
-GH-1288: the `plugin:Dev10x:cli` server died mid-session and took every
+GH-1288: the `plugin:dev10x:cli` server died mid-session and took every
 in-flight background task with it — a `run_tests` call at 18m59s and an
 unrelated `ci_check_status` started thirteen minutes later, killed in the
 same instant. A per-call timeout would have ended only the call that
@@ -28,7 +28,7 @@ instead of the verdict it waited for.
 inferred, value.** Claude Code's own MCP docs
 (https://code.claude.com/docs/en/mcp, "Idle Timeout") state the
 client-side idle-abort window defaults to 30 minutes for stdio servers
-(the `plugin:Dev10x:cli` transport here) with no per-server `timeout`
+(the `plugin:dev10x:cli` transport here) with no per-server `timeout`
 override configured in `.claude-plugin/plugin.json`, confirmed against
 the installed harness (`claude --version` → 2.1.273, i.e. past the
 2.1.203 release that extended idle-timeout coverage to stdio servers —

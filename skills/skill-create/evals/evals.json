@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:skill-create",
+  "skill_name": "dev10x:skill-create",
   "eval_dimensions": [
     {
       "id": "scaffold-pattern-gate",
@@ -22,7 +22,7 @@
       "id": "pattern-gate-fires-before-scaffold-runs",
       "name": "Pattern selection gate fires before scaffold.sh executes",
       "description": "Step 1 must call AskUserQuestion with the three pattern options before invoking scaffold.sh — not assume 'Orchestration' as a silent default.",
-      "input": "/Dev10x:skill-create \"create a skill for rotating API keys\"",
+      "input": "/dev10x:skill-create \"create a skill for rotating API keys\"",
       "assertions": [
         {
           "dimension": "scaffold-pattern-gate",
@@ -47,7 +47,7 @@
       "id": "scaffold-invocation-matches-gate-answer",
       "name": "scaffold.sh receives the pattern chosen at the gate",
       "description": "When the user selects 'Reference-based' at the gate, the subsequent scaffold.sh call passes that pattern, and the resulting skill directory carries references/ rather than scripts/.",
-      "input": "/Dev10x:skill-create \"create a skill for onboarding checklists\" — user selects 'Reference-based'",
+      "input": "/dev10x:skill-create \"create a skill for onboarding checklists\" — user selects 'Reference-based'",
       "assertions": [
         {
           "dimension": "scaffold-uses-selected-pattern",
@@ -66,7 +66,7 @@
       "id": "motd-regenerated-after-scaffold",
       "name": "MOTD/skill index is regenerated after scaffolding a new skill",
       "description": "Step 3 or Step 4 must run generate-all.sh / generate-motd.sh so the new skill appears in ~/.claude/SKILLS.md before the workflow completes.",
-      "input": "/Dev10x:skill-create \"create a skill for rotating API keys\" — scaffold and write steps complete",
+      "input": "/dev10x:skill-create \"create a skill for rotating API keys\" — scaffold and write steps complete",
       "assertions": [
         {
           "dimension": "motd-regeneration-step",

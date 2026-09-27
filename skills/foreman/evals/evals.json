@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:foreman",
+  "skill_name": "dev10x:foreman",
   "eval_dimensions": [
     {
       "id": "phase0-gates",
@@ -41,7 +41,7 @@
     {
       "id": 1,
       "name": "phase0-gates-before-spawn",
-      "prompt": "/Dev10x:foreman deliver milestones 151 152 153 overnight, I am leaving now",
+      "prompt": "/dev10x:foreman deliver milestones 151 152 153 overnight, I am leaving now",
       "description": "Tests that both Phase 0 AskUserQuestion gates and the permission pre-flight run before any Agent is spawned.",
       "expected_output": "AskUserQuestion fires for queue/model mapping and for the gate policy with `adaptive + afk` as the Recommended default (no auto-mode option); `dev10x foreman probe` is dry-run and its working shape recorded; only then is the foreman Agent spawned.",
       "dimensions": ["phase0-gates"],
@@ -87,7 +87,7 @@
     {
       "id": 2,
       "name": "watcher-is-script-only",
-      "prompt": "/Dev10x:foreman run milestone 160 unattended tonight",
+      "prompt": "/dev10x:foreman run milestone 160 unattended tonight",
       "description": "Tests that the Monitor command is exactly the foreman CLI, never an inline loop.",
       "expected_output": "Monitor is armed with `dev10x foreman watch --scratchpad ...`; no `while`, `sleep`, or pipe appears in any Monitor/Bash command.",
       "dimensions": ["script-only-watching"],
@@ -109,7 +109,7 @@
     {
       "id": 3,
       "name": "crew-prompt-completeness",
-      "prompt": "/Dev10x:foreman ship the QA-findings milestone while I sleep",
+      "prompt": "/dev10x:foreman ship the QA-findings milestone while I sleep",
       "description": "Tests that spawned worker prompts carry the full crew contract.",
       "expected_output": "The Agent prompt includes the background preamble, the ToolSearch select-query bootstrap, the anti-stall CI rule (ci_check_status with wait=true), exact named test-tool invocations, the heartbeat file protocol, and the scope-cut protocol (Fixes downgrade + commit footer reword).",
       "dimensions": ["crew-contract", "tool-surface-split"],
@@ -136,13 +136,13 @@
           "id": "toolsearch-bootstrap-present",
           "text": "Worker prompt opens the MCP surface with a ToolSearch select-query",
           "check": "output_contains",
-          "signals": ["ToolSearch", "select:mcp__plugin_Dev10x_cli__"]
+          "signals": ["ToolSearch", "select:mcp__plugin_dev10x_cli__"]
         },
         {
           "id": "no-skill-calls-in-prompt",
           "text": "Worker prompt names no Skill(...) invocations — subagents cannot call them",
           "check": "output_not_contains",
-          "signals": ["Skill(Dev10x:gh-pr-merge)", "Skill(Dev10x:gh-pr-create)", "Skill(Dev10x:git-commit)", "Skill(Dev10x:ticket-branch)"]
+          "signals": ["Skill(dev10x:gh-pr-merge)", "Skill(dev10x:gh-pr-create)", "Skill(dev10x:git-commit)", "Skill(dev10x:ticket-branch)"]
         }
       ]
     },
@@ -156,7 +156,7 @@
       "assertions": [
         {
           "id": "diag-friction-invoked",
-          "text": "Dev10x:diag-friction runs during wrap-up",
+          "text": "dev10x:diag-friction runs during wrap-up",
           "check": "tool_called",
           "signals": ["diag-friction"]
         },
@@ -205,9 +205,9 @@
     {
       "id": 6,
       "name": "worker-stops-at-pr-open",
-      "prompt": "/Dev10x:foreman ship milestone 171 overnight; the crew worker for chunk C0 just reported its PR is green and review is clear",
+      "prompt": "/dev10x:foreman ship milestone 171 overnight; the crew worker for chunk C0 just reported its PR is green and review is clear",
       "description": "Tests that the crew lifecycle stops at PR-open and the merge gate runs in the top-level session, not in the subagent.",
-      "expected_output": "The worker prompt tells the worker to stop after PR-open and forbids merging and issue closure; the watchdog re-reads live PR state and runs Skill(Dev10x:gh-pr-merge) itself before closing issues.",
+      "expected_output": "The worker prompt tells the worker to stop after PR-open and forbids merging and issue closure; the watchdog re-reads live PR state and runs Skill(dev10x:gh-pr-merge) itself before closing issues.",
       "dimensions": ["tool-surface-split"],
       "assertions": [
         {
@@ -218,9 +218,9 @@
         },
         {
           "id": "merge-gate-in-top-level",
-          "text": "The merge gate runs via Dev10x:gh-pr-merge in the top-level session",
+          "text": "The merge gate runs via dev10x:gh-pr-merge in the top-level session",
           "check": "tool_called",
-          "signals": ["Dev10x:gh-pr-merge"]
+          "signals": ["dev10x:gh-pr-merge"]
         },
         {
           "id": "no-raw-merge-fallback",

@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:gchat-review-request",
+  "skill_name": "dev10x:gchat-review-request",
   "eval_dimensions": [
     {
       "id": "decision-gates",
@@ -19,7 +19,7 @@
     {
       "id": "transport-delegation",
       "name": "Transport Delegation",
-      "description": "Sending goes through Skill(Dev10x:gchat), never a direct gchat-send CLI call"
+      "description": "Sending goes through Skill(dev10x:gchat), never a direct gchat-send CLI call"
     }
   ],
   "evals": [
@@ -27,7 +27,7 @@
       "id": "unconfigured-repo-asks-for-space",
       "name": "Unconfigured repo opens the space/mentions gate",
       "description": "Step 2 with ask=true must block on AskUserQuestion for the space alias rather than guessing a space",
-      "input": "/Dev10x:gchat-review-request for a PR in a repo absent from gchat-config-code-review-requests.yaml",
+      "input": "/dev10x:gchat-review-request for a PR in a repo absent from gchat-config-code-review-requests.yaml",
       "assertions": [
         {
           "dimension": "decision-gates",
@@ -52,7 +52,7 @@
       "id": "confirm-gate-before-posting",
       "name": "Formatted message is confirmed before it is posted",
       "description": "Step 3 must present the rendered message and block on AskUserQuestion before any send",
-      "input": "/Dev10x:gchat-review-request for a PR in a configured repo",
+      "input": "/dev10x:gchat-review-request for a PR in a configured repo",
       "assertions": [
         {
           "dimension": "decision-gates",
@@ -75,15 +75,15 @@
     },
     {
       "id": "send-delegates-to-gchat-skill",
-      "name": "Sending delegates to Dev10x:gchat",
+      "name": "Sending delegates to dev10x:gchat",
       "description": "Step 4 must invoke the transport skill so transport rules stay centralized",
-      "input": "/Dev10x:gchat-review-request with the confirmation gate answered 'Post to Google Chat'",
+      "input": "/dev10x:gchat-review-request with the confirmation gate answered 'Post to Google Chat'",
       "assertions": [
         {
           "dimension": "transport-delegation",
           "check": "tool_called",
           "tool": "Skill",
-          "signal": "skill1_uses_tool — Skill(Dev10x:gchat) is invoked as a tool call"
+          "signal": "skill1_uses_tool — Skill(dev10x:gchat) is invoked as a tool call"
         },
         {
           "dimension": "transport-delegation",
@@ -96,7 +96,7 @@
       "id": "approved-and-draft-prs-stop-early",
       "name": "Approved or draft PRs stop before the gates",
       "description": "Step 0 and Step 0.5 short-circuit without opening a gate or posting",
-      "input": "/Dev10x:gchat-review-request for a PR that is a draft, and for one already human-approved on its current HEAD",
+      "input": "/dev10x:gchat-review-request for a PR that is a draft, and for one already human-approved on its current HEAD",
       "assertions": [
         {
           "dimension": "prechecks",
@@ -119,7 +119,7 @@
       "id": "skip-configured-repo-posts-nothing",
       "name": "Repo configured with skip:true posts nothing",
       "description": "A skip=true envelope reports the skip and ends without opening any gate",
-      "input": "/Dev10x:gchat-review-request for a repo with skip: true in gchat-config-code-review-requests.yaml",
+      "input": "/dev10x:gchat-review-request for a repo with skip: true in gchat-config-code-review-requests.yaml",
       "assertions": [
         {
           "dimension": "config-resolution",
@@ -130,7 +130,7 @@
         {
           "dimension": "transport-delegation",
           "check": "behavioral",
-          "signal": "no_send_on_skip — Skill(Dev10x:gchat) is not invoked for a skip-configured repo"
+          "signal": "no_send_on_skip — Skill(dev10x:gchat) is not invoked for a skip-configured repo"
         }
       ]
     }
@@ -138,12 +138,12 @@
   "trigger_evals": {
     "should_trigger": [
       "A PR needs a Google Chat review notification posted to the team space",
-      "Direct invocation as /Dev10x:gchat-review-request with a PR number and repo"
+      "Direct invocation as /dev10x:gchat-review-request with a PR number and repo"
     ],
     "should_not_trigger": [
-      "The review request should go to Slack (use Dev10x:slack-review-request)",
-      "An arbitrary non-review message needs sending to a space (use Dev10x:gchat)",
-      "Google Chat has no configured space or service-account key yet (run Dev10x:gchat first-time setup)"
+      "The review request should go to Slack (use dev10x:slack-review-request)",
+      "An arbitrary non-review message needs sending to a space (use dev10x:gchat)",
+      "Google Chat has no configured space or service-account key yet (run dev10x:gchat first-time setup)"
     ]
   }
 }

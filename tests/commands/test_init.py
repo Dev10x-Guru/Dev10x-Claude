@@ -65,8 +65,8 @@ class TestInitNonInteractive:
 
     def test_prints_quick_start_card(self, result: object) -> None:
         assert "Next 5 commands" in result.output
-        assert "/Dev10x:git-commit" in result.output
-        assert "/Dev10x:gh-pr-create" in result.output
+        assert "/dev10x:git-commit" in result.output
+        assert "/dev10x:gh-pr-create" in result.output
 
     def test_prints_config_location(self, result: object, project: Path) -> None:
         assert str(project / ".claude" / "Dev10x") in result.output

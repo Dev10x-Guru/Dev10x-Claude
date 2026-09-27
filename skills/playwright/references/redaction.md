@@ -6,7 +6,7 @@ Requested independently by three sessions, each their top priority, and
 the argument for it is the same each time: **the existing control is a
 policy with no mechanism.**
 
-`Dev10x:yt-upload` carries a hard prohibition on production recordings,
+`dev10x:yt-upload` carries a hard prohibition on production recordings,
 enforced by an `AskUserQuestion` gate. That gate asks the operator to
 *state a judgment* — it cannot verify one. Two of the three sessions
 published recordings to unlisted URLs containing a customer name, phone,
@@ -69,7 +69,7 @@ layout that makes the evidence legible in the first place.
 
 ## What it does not do
 
-It does not make a production recording acceptable. The `Dev10x:yt-upload`
+It does not make a production recording acceptable. The `dev10x:yt-upload`
 provenance gate still fires, and still has to be answered honestly. What
 redaction changes is that the answer can now rest on a declared list at
 the top of the script rather than on a recollection of what the frames

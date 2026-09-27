@@ -26,7 +26,7 @@ and orchestration checks live in `reviewer-skill-behavior.md`.
 ## Checklist
 
 1. **SKILL.md exists** — valid YAML front matter, required fields
-2. **Naming convention** — `Dev10x:<feature>`; `invocation-name:` matches
+2. **Naming convention** — `dev10x:<feature>`; `invocation-name:` matches
 3. **Description quality** — must end with `TRIGGER` / `DO NOT TRIGGER`
 4. **Script references** — referenced scripts exist (script-based only)
 5. **Executable permissions** — mode `100755` on invoked scripts

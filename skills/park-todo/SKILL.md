@@ -1,28 +1,28 @@
 ---
-name: Dev10x:park-todo
+name: dev10x:park-todo
 description: >
   Defer work to code or session-level storage — so items resurface
   when editing nearby code or starting a new session in the same
   project, instead of being forgotten.
   TRIGGER when: deferring work to code comments or the project
   task index.
-  DO NOT TRIGGER when: deferring to Slack (use Dev10x:park-remind),
-  or routing to the best destination automatically (use Dev10x:park).
+  DO NOT TRIGGER when: deferring to Slack (use dev10x:park-remind),
+  or routing to the best destination automatically (use dev10x:park).
 user-invocable: true
-invocation-name: Dev10x:park-todo
+invocation-name: dev10x:park-todo
 allowed-tools:
   - Read
   - Edit
   - Write
   - Bash(git branch:*)
   - Bash(git rev-parse:*)
-  - mcp__plugin_Dev10x_cli__task_index_append
-  - mcp__plugin_Dev10x_cli__task_index_get
+  - mcp__plugin_dev10x_cli__task_index_append
+  - mcp__plugin_dev10x_cli__task_index_get
 ---
 
-# Dev10x:park-todo — Persistent Code/Session Deferrals
+# dev10x:park-todo — Persistent Code/Session Deferrals
 
-**Announce:** "Using Dev10x:park-todo to [add TODO/FIXME to code | append item to the task index]."
+**Announce:** "Using dev10x:park-todo to [add TODO/FIXME to code | append item to the task index]."
 
 ## Orchestration
 
@@ -41,9 +41,9 @@ Write deferred items to persistent storage where they will be
 rediscovered by humans or Claude in the right context.
 
 The canonical task index is the per-repo store behind
-`mcp__plugin_Dev10x_cli__task_index_append` (GH-85, rehomed in
+`mcp__plugin_dev10x_cli__task_index_append` (GH-85, rehomed in
 GH-1009). Every project deferral appends an entry to its `tasks:`
-list so `Dev10x:park-discover` surfaces it on the next session start.
+list so `dev10x:park-discover` surfaces it on the next session start.
 
 **Never Write/Edit the index file directly.** It used to live at
 `.claude/Dev10x/session.yaml`; ADR-0018 D5 moved it out of the repo
@@ -82,22 +82,22 @@ WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 ### 2. Project Task Index
 
 When no specific file is relevant, append to the task index's
-`tasks:` list with `source: park` so `Dev10x:park-discover`
+`tasks:` list with `source: park` so `dev10x:park-discover`
 finds it.
 
 This replaces the pre-GH-85 `.claude/TODO.md` file. The TODO
-file is still read by `Dev10x:park-discover` for back-compat,
+file is still read by `dev10x:park-discover` for back-compat,
 but new items are written to the task index.
 
 ## Task Index Append
 
-Call `mcp__plugin_Dev10x_cli__task_index_append` with one `entry`
+Call `mcp__plugin_dev10x_cli__task_index_append` with one `entry`
 object. `subject` and `source` are required — the tool rejects an
 entry without them, because an unattributed entry cannot be grouped
-in `Dev10x:park-discover`'s per-writer report:
+in `dev10x:park-discover`'s per-writer report:
 
 ```
-mcp__plugin_Dev10x_cli__task_index_append(entry={
+mcp__plugin_dev10x_cli__task_index_append(entry={
     "subject": "<one-line description>",
     "status": "pending",
     "source": "<code-todo | park>",
@@ -139,12 +139,12 @@ When invoked, auto-detect:
 
 If the user asks about **existing** deferred items (e.g., "what's deferred",
 "check for open items", "what do we have from yesterday"), invoke
-`Dev10x:park-discover` instead of this skill. This skill is for *writing*
-deferrals; `Dev10x:park-discover` is for *reading them back*.
+`dev10x:park-discover` instead of this skill. This skill is for *writing*
+deferrals; `dev10x:park-discover` is for *reading them back*.
 
 ## Used By
 
-- `Dev10x:park` — when user picks "project task index" or "inline code"
-- `Dev10x:session-wrap-up` — Phase 1 reads the task index `tasks:`
-  via `mcp__plugin_Dev10x_cli__task_index_get` for existing items
+- `dev10x:park` — when user picks "project task index" or "inline code"
+- `dev10x:session-wrap-up` — Phase 1 reads the task index `tasks:`
+  via `mcp__plugin_dev10x_cli__task_index_get` for existing items
   (and the legacy `.claude/TODO.md` for back-compat)

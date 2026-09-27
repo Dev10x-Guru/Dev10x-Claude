@@ -1,5 +1,5 @@
 ---
-name: Dev10x:git
+name: dev10x:git
 description: >
   Use before running git push or git rebase — so force-pushes to
   protected branches are blocked and non-interactive rebases run unattended
@@ -8,10 +8,10 @@ description: >
   DO NOT TRIGGER when: other git operations (commit, status, log, diff)
   that don't need push/rebase safety.
 user-invocable: true
-invocation-name: Dev10x:git
+invocation-name: dev10x:git
 allowed-tools:
-  - mcp__plugin_Dev10x_cli__push_safe
-  - Skill(Dev10x:gh-pr-monitor)
+  - mcp__plugin_dev10x_cli__push_safe
+  - Skill(dev10x:gh-pr-monitor)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git/scripts/git-rebase-groom.sh:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git/scripts/git-seq-editor.sh:*)
   - Bash(git reset --soft:*)
@@ -20,9 +20,9 @@ allowed-tools:
   - Edit(/tmp/Dev10x/git/**)
 ---
 
-**Announce:** "Using Dev10x:git to [push / groom commits]."
+**Announce:** "Using dev10x:git to [push / groom commits]."
 
-# Dev10x:git — Hardened Git Operations
+# dev10x:git — Hardened Git Operations
 
 Provides hardened scripts for safe git push and non-interactive rebase.
 Add the `allowed-tools` entries to your project's `settings.local.json`
@@ -44,7 +44,7 @@ Mark completed when done: `TaskUpdate(taskId, status="completed")`
 **Primary: MCP tool call** (no permission friction):
 
 ```
-mcp__plugin_Dev10x_cli__push_safe(args=["origin", "branch"])
+mcp__plugin_dev10x_cli__push_safe(args=["origin", "branch"])
 ```
 
 MCP calls avoid `Bash()` allow-rule matching and provide
@@ -95,7 +95,7 @@ force-push `develop`). Turning protection off entirely is
 deliberately not expressible — the shell layer has no such flag.
 
 **Solo-maintainer rule of thumb:** when a hook denial says
-`Skill: Dev10x:git`, the fix is almost always to re-invoke
+`Skill: dev10x:git`, the fix is almost always to re-invoke
 `push_safe` with the right `protected_branches` list. Reach for
 the skill's documented escape paths — not env-level bypasses —
 when the wrapper itself blocks: hook overrides live in the hook
@@ -106,7 +106,7 @@ read the returned `blocked_reason` field — it names the exact
 flag (`--force` on a protected branch, divergent ref, etc.) so
 you can adjust the call rather than escalating.
 
-**MCP server unavailable.** If `mcp__plugin_Dev10x_cli__push_safe`
+**MCP server unavailable.** If `mcp__plugin_dev10x_cli__push_safe`
 is listed as "no longer available" in system-reminders, STOP and
 ask the user to reconnect via `/mcp` or a session restart. Do NOT
 fall back to the wrapper script (blocked by
@@ -117,7 +117,7 @@ recovery path.
 ### Post-push CI monitoring (GH-117 #2)
 
 **On successful push to a branch with an open PR, the next
-action is `Skill(Dev10x:gh-pr-monitor)` — not "wait and see".**
+action is `Skill(dev10x:gh-pr-monitor)` — not "wait and see".**
 A push to a PR branch retriggers CI; failing to monitor it
 turns a deviation into an oversight.
 
@@ -150,20 +150,20 @@ distinct from `pushed: false`.
 After `push_safe` returns:
 
 1. Resolve PR state for the pushed branch via
-   `mcp__plugin_Dev10x_cli__pr_detect`.
+   `mcp__plugin_dev10x_cli__pr_detect`.
 2. If a PR exists and is OPEN, immediately invoke
-   `Skill(Dev10x:gh-pr-monitor)` so the supervisor's CI-poll
+   `Skill(dev10x:gh-pr-monitor)` so the supervisor's CI-poll
    micro-agent dispatches before the user has to ask.
 3. If no PR exists (push is the first push of a new branch),
-   skip this auto-chain — the next step is `Dev10x:gh-pr-create`
+   skip this auto-chain — the next step is `dev10x:gh-pr-create`
    in the work-on plan.
 
-When this skill is invoked from inside `Dev10x:work-on`,
+When this skill is invoked from inside `dev10x:work-on`,
 work-on's pr-continuation play moves `Monitor CI` to
 `in_progress` automatically (see work-on instructions §
 Post-push auto-advance). When invoked standalone, the user is
 responsible for the chain, but this skill's success message
-should still surface a "Next: `Skill(Dev10x:gh-pr-monitor)`"
+should still surface a "Next: `Skill(dev10x:gh-pr-monitor)`"
 hint so the next move is unambiguous.
 
 **There is no wrapper-script fallback (GH-1025).** Earlier versions of

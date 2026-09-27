@@ -425,7 +425,7 @@ def seed_safe_baseline_if_absent(*, path: Path | None = None) -> bool:
     The SessionStart detector calls this the first time it sees no global
     ``friction.yaml``. Before ADR-0022 the scaffold was ``friction_level:
     strict``, which made every gate fire until the supervisor chose a posture
-    via ``Dev10x:friction-setup`` — replacing the silent guided-preset
+    via ``dev10x:friction-setup`` — replacing the silent guided-preset
     fallback that once auto-merged a PR. With ``strict`` retired (D-1), the
     equivalent safe scaffold is the single baseline plus
     ``supervisor_review: required``: the review boundary holds, the
@@ -462,7 +462,7 @@ def upsert_project_prefs(
 ) -> Path:
     """Upsert this repo's durable gate prefs into the global ``friction.yaml`` (GH-886).
 
-    The gate axis of ``Dev10x:friction-setup``: writes a ``projects[]`` entry
+    The gate axis of ``dev10x:friction-setup``: writes a ``projects[]`` entry
     carrying ``gate_preset`` / ``gate_overlays`` / ``gate_overrides``. Only
     durable keys survive (via :meth:`FrictionYamlDocument.with_project`).
     Concurrency-safe and idempotent — an exclusive lock guards the

@@ -9,7 +9,7 @@
   },
   "plugins": [
     {
-      "name": "Dev10x",
+      "name": "dev10x",
       "source": "./",
       "version": "0.106.0.dev0",
       "keywords": [

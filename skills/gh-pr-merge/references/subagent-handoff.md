@@ -7,7 +7,7 @@ evidence.
 
 ## What went wrong
 
-In a `Dev10x:fanout` swarm (bl-zebra, 2026-08-29), three
+In a `dev10x:fanout` swarm (bl-zebra, 2026-08-29), three
 worktree-isolated workers each ran the full 9-check gate, hit
 Check 2's infrastructure override (review bots red on an
 account quota cap), and correctly returned `NEEDS_CONTEXT` —

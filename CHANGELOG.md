@@ -5,6 +5,18 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Breaking
+
+- **Install Dev10x from Claude Desktop and claude.ai** — adding the
+  `Dev10x-Guru/Dev10x-Claude` marketplace there failed with "Marketplace sync
+  failed" on every machine, because that sync requires a kebab-case plugin
+  name. The plugin is now `dev10x`: skills are `/dev10x:<name>`, MCP tools are
+  `mcp__plugin_dev10x_*`, and the install id is `dev10x@Dev10x-Guru`. Existing
+  installs must uninstall `Dev10x@Dev10x-Guru` and install the new id, then run
+  `/dev10x:upgrade-cleanup` — see `docs/installation.md` § Upgrading from the
+  `Dev10x` plugin id. Config directories (`~/.config/Dev10x` and friends) are
+  unchanged (GH-1499).
+
 ## 0.105.0 — No Rule That Cannot Fire
 
 Released 2026-09-17

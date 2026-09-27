@@ -1,16 +1,16 @@
 ---
-name: Dev10x:gh-context
-invocation-name: Dev10x:gh-context
+name: dev10x:gh-context
+invocation-name: dev10x:gh-context
 description: >
   Detect PR context (number, repo, URL, branch) from a URL, PR number,
-  or current branch — so skills like Dev10x:gh-pr-monitor always get the
+  or current branch — so skills like dev10x:gh-pr-monitor always get the
   correct target PR even in multi-worktree setups.
   TRIGGER when: resolving PR context from URL, number, or branch for
   downstream skills.
   DO NOT TRIGGER when: PR context is already known and passed explicitly.
 user-invocable: false
 allowed-tools:
-  - mcp__plugin_Dev10x_cli__*
+  - mcp__plugin_dev10x_cli__*
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-context/scripts/:*)
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
   - Bash(gh pr view:*)
@@ -18,7 +18,7 @@ allowed-tools:
   - Bash(gh api:*)
 ---
 
-# Dev10x:gh-context — GitHub CLI helpers
+# dev10x:gh-context — GitHub CLI helpers
 
 Shell script wrappers for common `gh` operations. **These operations are
 now available as first-class MCP tools** via the `Dev10x-gh` MCP server.
@@ -31,12 +31,12 @@ structured JSON responses and input validation:
 
 | Operation | MCP Tool | Replaces |
 |-----------|----------|----------|
-| Detect tracker type | `mcp__plugin_Dev10x_cli__detect_tracker(ticket_id)` | `detect-tracker.sh` |
-| Detect PR context | `mcp__plugin_Dev10x_cli__pr_detect(arg)` | `gh-pr-detect.sh` |
-| Get issue details | `mcp__plugin_Dev10x_cli__issue_get(number, repo?)` | `gh-issue-get.sh` |
-| Get issue comments | `mcp__plugin_Dev10x_cli__issue_comments(number, repo?)` | `gh-issue-comments.sh` |
-| Manage PR comments | `mcp__plugin_Dev10x_cli__pr_comments(action, ...)` | Inline `gh api` calls |
-| Request review | `mcp__plugin_Dev10x_cli__request_review(pr_number, reviewers, ...)` | Inline `gh api` calls |
+| Detect tracker type | `mcp__plugin_dev10x_cli__detect_tracker(ticket_id)` | `detect-tracker.sh` |
+| Detect PR context | `mcp__plugin_dev10x_cli__pr_detect(arg)` | `gh-pr-detect.sh` |
+| Get issue details | `mcp__plugin_dev10x_cli__issue_get(number, repo?)` | `gh-issue-get.sh` |
+| Get issue comments | `mcp__plugin_dev10x_cli__issue_comments(number, repo?)` | `gh-issue-comments.sh` |
+| Manage PR comments | `mcp__plugin_dev10x_cli__pr_comments(action, ...)` | Inline `gh api` calls |
+| Request review | `mcp__plugin_dev10x_cli__request_review(pr_number, reviewers, ...)` | Inline `gh api` calls |
 
 **Example usage in a skill:**
 

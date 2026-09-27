@@ -27,7 +27,7 @@ HOOKS --> PKG
 CLI --> PKG
 DB --> PKG
 
-COMMS ..> CLI : mcp__plugin_Dev10x_cli__*\n(implicit dependency:\ncore must be installed)
+COMMS ..> CLI : mcp__plugin_dev10x_cli__*\n(implicit dependency:\ncore must be installed)
 INFRA ..> CLI
 TEST ..> CLI
 DATA ..> DB

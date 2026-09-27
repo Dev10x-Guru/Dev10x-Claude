@@ -143,7 +143,7 @@ async def pr_labels(
 
     # GH-1446: one PUT of the surviving set, mirroring the `add` branch's
     # single POST. The old loop paid a subprocess AND an HTTP round trip
-    # per label — a real N+1, on a hot path: `Dev10x:git-groom` clears
+    # per label — a real N+1, on a hot path: `dev10x:git-groom` clears
     # `review:cleared` after EVERY force-push (GH-1008).
     #
     # The idempotence contract survives: `changed` is already intersected

@@ -5,23 +5,23 @@
 # families.yaml instead.
 
 hidden:
-  - Dev10x:jtbd
-  - Dev10x:linear
-  - Dev10x:session-tasks
-  - Dev10x:scope
-  - Dev10x:gh-context
-  - Dev10x:gh-pr-bookmark
-  - Dev10x:git
-  - Dev10x:git-alias-setup
-  - Dev10x:git-worktree
-  - Dev10x:park-todo
-  - Dev10x:park-remind
-  - Dev10x:py-uv
-  - Dev10x:playwright
-  - Dev10x:slack
-  - Dev10x:ticket-jtbd
-  - Dev10x:gh-pr-review
-  - Dev10x:report-work-weekly
+  - dev10x:jtbd
+  - dev10x:linear
+  - dev10x:session-tasks
+  - dev10x:scope
+  - dev10x:gh-context
+  - dev10x:gh-pr-bookmark
+  - dev10x:git
+  - dev10x:git-alias-setup
+  - dev10x:git-worktree
+  - dev10x:park-todo
+  - dev10x:park-remind
+  - dev10x:py-uv
+  - dev10x:playwright
+  - dev10x:slack
+  - dev10x:ticket-jtbd
+  - dev10x:gh-pr-review
+  - dev10x:report-work-weekly
   - Dev10x-py-mockito
   - example-slides
   - Dev10x-db

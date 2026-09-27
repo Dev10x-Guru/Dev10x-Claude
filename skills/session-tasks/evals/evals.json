@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:session-tasks",
+  "skill_name": "dev10x:session-tasks",
   "eval_dimensions": [
     {
       "id": "task-tracking",
@@ -37,7 +37,7 @@
       "id": "show-tasks",
       "name": "Show all current session tasks",
       "description": "User asks to see open tasks. Skill calls TaskList and formats result as a markdown table.",
-      "input": "/Dev10x:session-tasks show",
+      "input": "/dev10x:session-tasks show",
       "assertions": [
         {
           "dimension": "task-tracking",
@@ -74,7 +74,7 @@
       "id": "add-task",
       "name": "Add a new session task",
       "description": "User asks to add a task. Skill calls TaskCreate and immediately begins executing it.",
-      "input": "/Dev10x:session-tasks add 'Implement retry logic in webhook handler'",
+      "input": "/dev10x:session-tasks add 'Implement retry logic in webhook handler'",
       "assertions": [
         {
           "dimension": "task-add",
@@ -105,7 +105,7 @@
       "id": "update-task-status",
       "name": "Update task status to completed",
       "description": "User marks a task as done. Skill calls TaskUpdate with status=completed.",
-      "input": "/Dev10x:session-tasks update task-id completed",
+      "input": "/dev10x:session-tasks update task-id completed",
       "assertions": [
         {
           "dimension": "task-update",
@@ -119,7 +119,7 @@
       "id": "task-list-invariant-seeding",
       "name": "Seeds Verify AC task when all work items are completed",
       "description": "When TaskList shows all tasks completed, skill creates a 'Verify AC and close session' task before returning control.",
-      "input": "/Dev10x:session-tasks",
+      "input": "/dev10x:session-tasks",
       "setup": {
         "all_tasks_completed": true,
         "note": "All existing session tasks have status=completed"
@@ -147,7 +147,7 @@
     }
   ],
   "trigger_evals": {
-    "description": "Queries that should/should-not trigger Dev10x:session-tasks",
+    "description": "Queries that should/should-not trigger dev10x:session-tasks",
     "should_trigger": [
       {
         "query": "show me what's on my task list right now",
@@ -169,15 +169,15 @@
     "should_not_trigger": [
       {
         "query": "let's start on DEV-42, the payment retry ticket",
-        "rationale": "Starting structured work from a ticket — use Dev10x:work-on"
+        "rationale": "Starting structured work from a ticket — use dev10x:work-on"
       },
       {
         "query": "wrap up the session, I'm done for today",
-        "rationale": "Session end with triage — use Dev10x:session-wrap-up"
+        "rationale": "Session end with triage — use dev10x:session-wrap-up"
       },
       {
         "query": "park this idea about caching — I'll come back to it",
-        "rationale": "Deferring to a future session — use Dev10x:park"
+        "rationale": "Deferring to a future session — use dev10x:park"
       }
     ]
   }

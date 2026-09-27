@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:friction-setup",
+  "skill_name": "dev10x:friction-setup",
   "eval_dimensions": [
     {
       "id": "gate-enforcement",
@@ -19,7 +19,7 @@
     {
       "id": "review-policy-persist",
       "name": "Review Policy Persistence",
-      "description": "Writes the review-policy answer via mcp__plugin_Dev10x_cli__pin_supervisor_review (never a bare Write, never dev10x session pin)"
+      "description": "Writes the review-policy answer via mcp__plugin_dev10x_cli__pin_supervisor_review (never a bare Write, never dev10x session pin)"
     },
     {
       "id": "gate-axis-persist",
@@ -52,7 +52,7 @@
       "id": "review-policy-required-no-deviations",
       "name": "Configure a project with supervisor_review=required and no deviations",
       "description": "Supervisor answers Yes to the review-policy question, no overlays, keeps preset gate defaults, skips no steps. Skill writes only supervisor_review via pin_supervisor_review.",
-      "input": "/Dev10x:friction-setup",
+      "input": "/dev10x:friction-setup",
       "setup": {
         "supervisor_review_status": { "pinned": false }
       },
@@ -66,7 +66,7 @@
         {
           "dimension": "review-policy-gated",
           "check": "tool_called",
-          "tool": "mcp__plugin_Dev10x_cli__supervisor_review_status",
+          "tool": "mcp__plugin_dev10x_cli__supervisor_review_status",
           "signal": "Status checked before any AskUserQuestion fires"
         },
         {
@@ -89,7 +89,7 @@
         {
           "dimension": "review-policy-persist",
           "check": "tool_called",
-          "tool": "mcp__plugin_Dev10x_cli__pin_supervisor_review",
+          "tool": "mcp__plugin_dev10x_cli__pin_supervisor_review",
           "signal": "Persists the answer via pin_supervisor_review(value=\"required\")"
         },
         {
@@ -116,7 +116,7 @@
       "id": "review-policy-none-with-overlay-and-skip",
       "name": "Configure supervisor_review=none + solo-maintainer overlay and skip Draft Job Story",
       "description": "Supervisor answers No to the review-policy question, picks the solo-maintainer overlay, one gate deviation (merge=ask), and skips the JTBD step. Both axes are written.",
-      "input": "/Dev10x:friction-setup",
+      "input": "/dev10x:friction-setup",
       "setup": {
         "supervisor_review_status": { "pinned": false }
       },
@@ -124,7 +124,7 @@
         {
           "dimension": "review-policy-persist",
           "check": "tool_called",
-          "tool": "mcp__plugin_Dev10x_cli__pin_supervisor_review",
+          "tool": "mcp__plugin_dev10x_cli__pin_supervisor_review",
           "signal": "pin_supervisor_review(value=\"none\") called"
         },
         {
@@ -150,7 +150,7 @@
       "id": "review-policy-already-pinned-skips-ask",
       "name": "Review policy already pinned — Gate 1 does not fire",
       "description": "supervisor_review_status returns pinned: true. The skill adopts the resolved value silently, does not call AskUserQuestion for the review-policy question, and does not call pin_supervisor_review again.",
-      "input": "/Dev10x:friction-setup",
+      "input": "/dev10x:friction-setup",
       "setup": {
         "supervisor_review_status": { "pinned": true, "supervisor_review": "required" }
       },
@@ -158,7 +158,7 @@
         {
           "dimension": "review-policy-gated",
           "check": "tool_called",
-          "tool": "mcp__plugin_Dev10x_cli__supervisor_review_status",
+          "tool": "mcp__plugin_dev10x_cli__supervisor_review_status",
           "signal": "Status is still checked"
         },
         {
@@ -179,7 +179,7 @@
       "id": "dismiss-no-write",
       "name": "Dismissing the review-policy gate aborts with no write",
       "description": "Supervisor dismisses the required review-policy AskUserQuestion. Skill writes nothing and leaves the project unconfigured so the nudge fires again next session.",
-      "input": "/Dev10x:friction-setup",
+      "input": "/dev10x:friction-setup",
       "setup": {
         "supervisor_review_status": { "pinned": false },
         "review_policy_gate_dismissed": true,
@@ -220,7 +220,7 @@
     }
   ],
   "trigger_evals": {
-    "description": "Queries that should / should-not trigger Dev10x:friction-setup",
+    "description": "Queries that should / should-not trigger dev10x:friction-setup",
     "should_trigger": [
       {
         "query": "this project isn't configured for friction — set it up",
@@ -238,7 +238,7 @@
     "should_not_trigger": [
       {
         "query": "walk away, no more questions this session",
-        "rationale": "One-session walk-away toggle — use Dev10x:afk"
+        "rationale": "One-session walk-away toggle — use dev10x:afk"
       },
       {
         "query": "set up Dev10x in this brand-new project",

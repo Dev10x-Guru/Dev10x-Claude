@@ -95,7 +95,7 @@ class TestPsqlWriteRedirect:
         inp = _make_input(command=command)
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "Dev10x:db-psql" in result.message
+        assert "dev10x:db-psql" in result.message
 
     @pytest.mark.parametrize(
         "command",
@@ -115,7 +115,7 @@ class TestGitCommitRedirect:
         inp = _make_input(command='git commit -m "Enable feature X"')
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "Dev10x:git-commit" in result.message
+        assert "dev10x:git-commit" in result.message
 
     def test_blocks_git_commit_with_m_single_quotes(
         self, validator: SkillRedirectValidator
@@ -123,7 +123,7 @@ class TestGitCommitRedirect:
         inp = _make_input(command="git commit -m 'Enable feature X'")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "Dev10x:git-commit" in result.message
+        assert "dev10x:git-commit" in result.message
 
     def test_allows_git_commit_f_with_skill_temp(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="git commit -F /tmp/Dev10x/git/commit-msg.W9DryMXsQ5Aw.txt")
@@ -150,7 +150,7 @@ class TestGitCommitRedirect:
         inp = _make_input(command="git commit -F /tmp/random/msg.txt")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "Dev10x:git-commit" in result.message
+        assert "dev10x:git-commit" in result.message
 
     def test_blocks_git_commit_f_with_non_git_namespace(
         self, validator: SkillRedirectValidator
@@ -158,7 +158,7 @@ class TestGitCommitRedirect:
         inp = _make_input(command="git commit -F /tmp/Dev10x/commit/msg.knDXJdfzYnVI.txt")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "mcp__plugin_Dev10x_cli__mktmp" in result.message
+        assert "mcp__plugin_dev10x_cli__mktmp" in result.message
         assert "wrong temp file path" in result.message
 
     def test_healing_msg_suggests_git_namespace(self, validator: SkillRedirectValidator) -> None:
@@ -171,7 +171,7 @@ class TestGitCommitRedirect:
         inp = _make_input(command="git commit")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "Dev10x:git-commit" in result.message
+        assert "dev10x:git-commit" in result.message
 
     def test_allows_git_commit_fixup(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="git commit --fixup=abc1234")
@@ -189,13 +189,13 @@ class TestGhPrCreateRedirect:
         inp = _make_input(command="gh pr create --title 'Fix bug' --body 'details'")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "Dev10x:gh-pr-create" in result.message
+        assert "dev10x:gh-pr-create" in result.message
 
     def test_blocks_gh_pr_create_minimal(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="gh pr create")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "Dev10x:gh-pr-create" in result.message
+        assert "dev10x:gh-pr-create" in result.message
 
 
 class TestGitPushRedirect:
@@ -203,7 +203,7 @@ class TestGitPushRedirect:
         inp = _make_input(command="git push origin main")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "Dev10x:git" in result.message
+        assert "dev10x:git" in result.message
 
     def test_allows_git_push_force_with_lease(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="git push --force-with-lease")
@@ -216,7 +216,7 @@ class TestGitPushRedirect:
         inp = _make_input(command="git push -u origin develop")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "Dev10x:git" in result.message
+        assert "dev10x:git" in result.message
 
 
 class TestGitPushUnattendedEscapeHatch:
@@ -327,7 +327,7 @@ class TestGitPushForceSpellingsThatEvadedTheGuard:
     push, and what does it target?" by statically matching the command
     text, and each case below is a spelling that static matching missed.
 
-    Every case must produce a block, i.e. route to ``Skill(Dev10x:git)``
+    Every case must produce a block, i.e. route to ``Skill(dev10x:git)``
     rather than being waved through as the safe direct-push case.
     """
 
@@ -486,13 +486,13 @@ class TestGitRebaseRedirect:
         inp = _make_input(command="git rebase -i HEAD~3")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "Dev10x:git-groom" in result.message
+        assert "dev10x:git-groom" in result.message
 
     def test_blocks_git_rebase_interactive(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="git rebase --interactive HEAD~5")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "Dev10x:git-groom" in result.message
+        assert "dev10x:git-groom" in result.message
 
     def test_allows_git_rebase_continue(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="git rebase --continue")
@@ -510,13 +510,13 @@ class TestGhPrChecksWatchRedirect:
         inp = _make_input(command="gh pr checks --watch")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "Dev10x:gh-pr-monitor" in result.message
+        assert "dev10x:gh-pr-monitor" in result.message
 
     def test_blocks_gh_pr_checks_w(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="gh pr checks -w")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "Dev10x:gh-pr-monitor" in result.message
+        assert "dev10x:gh-pr-monitor" in result.message
 
     def test_allows_gh_pr_checks_without_watch(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="gh pr checks")
@@ -534,19 +534,19 @@ class TestGhPrMergeRedirect:
         inp = _make_input(command="gh pr merge 111 --squash --delete-branch")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "Dev10x:gh-pr-merge" in result.message
+        assert "dev10x:gh-pr-merge" in result.message
 
     def test_blocks_gh_pr_merge_minimal(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="gh pr merge")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "Dev10x:gh-pr-merge" in result.message
+        assert "dev10x:gh-pr-merge" in result.message
 
     def test_blocks_gh_pr_merge_rebase(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="gh pr merge 42 --rebase")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "Dev10x:gh-pr-merge" in result.message
+        assert "dev10x:gh-pr-merge" in result.message
 
     def test_should_run_true_for_gh_pr_merge(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="gh pr merge 111 --squash")
@@ -566,13 +566,13 @@ class TestGhPrViewRedirect:
         inp = _make_input(command="gh pr view 42 --json isDraft")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "mcp__plugin_Dev10x_cli__pr_get" in result.message
+        assert "mcp__plugin_dev10x_cli__pr_get" in result.message
 
     def test_blocks_gh_pr_view_minimal(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="gh pr view 7")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "mcp__plugin_Dev10x_cli__pr_get" in result.message
+        assert "mcp__plugin_dev10x_cli__pr_get" in result.message
 
     def test_allows_gh_pr_view_with_cli_friction_marker(
         self, validator: SkillRedirectValidator
@@ -605,19 +605,19 @@ class TestGhIssueViewRedirect:
         inp = _make_input(command="gh issue view 539 --repo Dev10x-Guru/dev10x-claude")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "mcp__plugin_Dev10x_cli__issue_get" in result.message
+        assert "mcp__plugin_dev10x_cli__issue_get" in result.message
 
     def test_blocks_gh_issue_view_with_json(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="gh issue view 42 --json title,body,state")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "mcp__plugin_Dev10x_cli__issue_get" in result.message
+        assert "mcp__plugin_dev10x_cli__issue_get" in result.message
 
     def test_blocks_gh_issue_view_minimal(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="gh issue view 10")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "mcp__plugin_Dev10x_cli__issue_get" in result.message
+        assert "mcp__plugin_dev10x_cli__issue_get" in result.message
 
     def test_mcp_message_uses_tool_label(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="gh issue view 1")
@@ -636,13 +636,13 @@ class TestGhIssueCreateRedirect:
         inp = _make_input(command="gh issue create --title 'Fix bug' --body 'Details'")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "mcp__plugin_Dev10x_cli__issue_create" in result.message
+        assert "mcp__plugin_dev10x_cli__issue_create" in result.message
 
     def test_blocks_gh_issue_create_minimal(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="gh issue create --title 'New feature'")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "mcp__plugin_Dev10x_cli__issue_create" in result.message
+        assert "mcp__plugin_dev10x_cli__issue_create" in result.message
 
     def test_mcp_message_uses_tool_label(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="gh issue create --title test")
@@ -693,13 +693,13 @@ class TestSearchToolFalsePositive:
         cmd = "/work/skills/git/scripts/git-push-safe.sh origin develop"
         result = validator.validate(inp=_make_input(command=cmd))
         assert result is not None
-        assert "mcp__plugin_Dev10x_cli__push_safe" in result.message
+        assert "mcp__plugin_dev10x_cli__push_safe" in result.message
 
     def test_bash_invocation_still_blocked(self, validator: SkillRedirectValidator) -> None:
         cmd = "bash git-push-safe.sh origin develop"
         result = validator.validate(inp=_make_input(command=cmd))
         assert result is not None
-        assert "mcp__plugin_Dev10x_cli__push_safe" in result.message
+        assert "mcp__plugin_dev10x_cli__push_safe" in result.message
 
 
 class TestQuotedAlternationIsNotAPipeline:
@@ -791,7 +791,7 @@ class TestScriptMentionVsInvocation:
     ) -> None:
         result = validator.validate(inp=_make_input(command=cmd))
         assert result is not None
-        assert "mcp__plugin_Dev10x_cli__push_safe" in result.message
+        assert "mcp__plugin_dev10x_cli__push_safe" in result.message
 
     @pytest.mark.parametrize(
         "cmd",
@@ -823,19 +823,19 @@ class TestGhPrEditRedirect:
         inp = _make_input(command="gh pr edit 203 --title '♻️ GH-90 Bundle'")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "mcp__plugin_Dev10x_cli__update_pr" in result.message
+        assert "mcp__plugin_dev10x_cli__update_pr" in result.message
 
     def test_blocks_gh_pr_edit_body(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="gh pr edit 42 --body-file /tmp/body.md")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "mcp__plugin_Dev10x_cli__update_pr" in result.message
+        assert "mcp__plugin_dev10x_cli__update_pr" in result.message
 
     def test_blocks_gh_pr_edit_label(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="gh pr edit 1 --add-label bug")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "mcp__plugin_Dev10x_cli__update_pr" in result.message
+        assert "mcp__plugin_dev10x_cli__update_pr" in result.message
 
     def test_mcp_message_uses_tool_label(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="gh pr edit 1 --title hi")
@@ -854,13 +854,13 @@ class TestGhIssueEditRedirect:
         inp = _make_input(command="gh issue edit 42 --title 'New title'")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "mcp__plugin_Dev10x_cli__issue_edit" in result.message
+        assert "mcp__plugin_dev10x_cli__issue_edit" in result.message
 
     def test_blocks_gh_issue_edit_milestone(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="gh issue edit 1 --milestone 'M2'")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "mcp__plugin_Dev10x_cli__issue_edit" in result.message
+        assert "mcp__plugin_dev10x_cli__issue_edit" in result.message
 
     def test_should_run_true_for_gh_issue_edit(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="gh issue edit 1 --title hi")
@@ -872,13 +872,13 @@ class TestGhIssueCommentRedirect:
         inp = _make_input(command="gh issue comment 42 --body 'thanks'")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "mcp__plugin_Dev10x_cli__issue_comment" in result.message
+        assert "mcp__plugin_dev10x_cli__issue_comment" in result.message
 
     def test_blocks_gh_issue_comment_body_file(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="gh issue comment 1 --body-file /tmp/c.md")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "mcp__plugin_Dev10x_cli__issue_comment" in result.message
+        assert "mcp__plugin_dev10x_cli__issue_comment" in result.message
 
 
 class TestGhMilestoneCreateRedirect:
@@ -886,13 +886,13 @@ class TestGhMilestoneCreateRedirect:
         cmd = "gh api repos/Dev10x-Guru/Dev10x-Claude/milestones --method POST -f title=M3"
         result = validator.validate(inp=_make_input(command=cmd))
         assert result is not None
-        assert "mcp__plugin_Dev10x_cli__milestone_create" in result.message
+        assert "mcp__plugin_dev10x_cli__milestone_create" in result.message
 
     def test_blocks_milestone_create_x_post(self, validator: SkillRedirectValidator) -> None:
         cmd = "gh api repos/o/r/milestones -X POST -f title=M"
         result = validator.validate(inp=_make_input(command=cmd))
         assert result is not None
-        assert "mcp__plugin_Dev10x_cli__milestone_create" in result.message
+        assert "mcp__plugin_dev10x_cli__milestone_create" in result.message
 
 
 class TestMessageContent:
@@ -900,7 +900,7 @@ class TestMessageContent:
         inp = _make_input(command="git push origin main")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "Skill(Dev10x:git)" in result.message
+        assert "Skill(dev10x:git)" in result.message
 
     def test_message_includes_guardrails(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="git push origin main")
@@ -1047,7 +1047,7 @@ class TestAlternativesMessage:
         )
 
     def test_message_names_a_tool_carrying_alternative(self, loop_block_message: str) -> None:
-        assert "mcp__plugin_Dev10x_cli__ci_check_status" in loop_block_message
+        assert "mcp__plugin_dev10x_cli__ci_check_status" in loop_block_message
 
     def test_shape_matching_rule_is_labelled_by_name(self, loop_block_message: str) -> None:
         assert "watch-loop-handrolled" in loop_block_message
@@ -1074,12 +1074,12 @@ class TestAlternativesMessage:
             comps=[
                 Compensation(type="use-alternative", description="Do the cheap thing."),
                 Compensation(
-                    type="use-skill", skill="Dev10x:gh-pr-monitor", description="Or this."
+                    type="use-skill", skill="dev10x:gh-pr-monitor", description="Or this."
                 ),
             ],
             plugin_repo="",
         )
-        assert "Invoke `Skill(Dev10x:gh-pr-monitor)`." in message
+        assert "Invoke `Skill(dev10x:gh-pr-monitor)`." in message
         assert "Do the cheap thing." in message
 
 
@@ -1116,7 +1116,7 @@ class TestBlockMessageFallback:
                 hook_block: true
                 compensations:
                   - type: {comp_type}
-                    {skill_or_tool}: Dev10x:test-skill
+                    {skill_or_tool}: dev10x:test-skill
                     guardrails: test guardrail
                     description: "{description}"
                     fallback: "{fallback}"
@@ -1178,7 +1178,7 @@ class TestBlockMessageFallback:
                     hook_block: false
                     compensations:
                       - type: use-skill
-                        skill: Dev10x:ignored
+                        skill: dev10x:ignored
             """
             )
         )
@@ -1327,7 +1327,7 @@ class TestCommandPrefixOverride:
     ) -> None:
         inp = _make_input(
             command=(
-                'DEV10X_SKIP_CMD_VALIDATION="inside Dev10x:git-commit skill: '
+                'DEV10X_SKIP_CMD_VALIDATION="inside dev10x:git-commit skill: '
                 'commit -F path validated by mktmp" git commit -F /tmp/x.txt'
             )
         )
@@ -1580,7 +1580,7 @@ class TestPytestInnerLoop:
     def test_full_coverage_form_stays_unblocked(
         self, validator: SkillRedirectValidator, command: str
     ) -> None:
-        """``Dev10x:py-test``'s documented MCP-unavailable fallback, and the
+        """``dev10x:py-test``'s documented MCP-unavailable fallback, and the
         shape that seeds a fresh worktree's virtualenv. Blocking it would
         leave such a session no sanctioned path, and is the flip GH-155
         reverted."""
@@ -1663,7 +1663,7 @@ class TestReachabilityIsDerived:
     """GH-1398: the map states intentions; only the fast path states behaviour.
 
     ``command-skill-map.yaml`` is read as authoritative — by
-    ``Dev10x:diag-friction``, by ``.claude/rules/mcp-tools.md``'s routed-CLI
+    ``dev10x:diag-friction``, by ``.claude/rules/mcp-tools.md``'s routed-CLI
     table, and by humans, GH-1211 included. Nothing in it was coupled to
     whether the hook could actually see a rule, so a false claim survived
     in three documents at once.

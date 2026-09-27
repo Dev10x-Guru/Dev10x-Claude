@@ -1,6 +1,6 @@
-# Dev10x:fanout — Parallel Work Stream Orchestrator (Instructions)
+# dev10x:fanout — Parallel Work Stream Orchestrator (Instructions)
 
-**Announce:** "Using Dev10x:fanout to process [N] work items
+**Announce:** "Using dev10x:fanout to process [N] work items
 in parallel."
 
 ## Overview
@@ -8,7 +8,7 @@ in parallel."
 This skill processes multiple independent work items
 concurrently, honoring dependency order and minimizing merge
 conflict risk. It is the multi-item counterpart to
-`Dev10x:work-on` (which handles a single work item).
+`dev10x:work-on` (which handles a single work item).
 
 **When to use fanout vs work-on:**
 - **work-on**: Single ticket, PR, or investigation. Also
@@ -47,12 +47,12 @@ resolve against. There is no friction-level question: `adaptive` is
 the sole shipped baseline (ADR-0022 D-1), so this skill must not
 offer a `strict` / `guided` / `adaptive` picker.
 
-1. Call `mcp__plugin_Dev10x_cli__supervisor_review_status()`.
+1. Call `mcp__plugin_dev10x_cli__supervisor_review_status()`.
 2. `pinned: true` — this checkout already has a posture in the
    global `~/.config/Dev10x/friction.yaml` (set by a prior
-   invocation, `Dev10x:afk`, or `Dev10x:friction-setup`). Adopt it
+   invocation, `dev10x:afk`, or `dev10x:friction-setup`). Adopt it
    silently and continue to Phase 1.
-3. `pinned: false` — delegate to `Skill(Dev10x:friction-setup)`,
+3. `pinned: false` — delegate to `Skill(dev10x:friction-setup)`,
    which owns both the blocking review-policy question and the
    locked write. Continue to Phase 1 when it returns, whatever the
    answer — a dismissal leaves the safe default
@@ -63,7 +63,7 @@ tool, not under the repo's `.claude/` tree (ADR-0018). The pin tools
 lock and atomically write (GH-827); the PreCompact hook reads the
 resolved policy to inject posture context into recovery summaries.
 
-Posture is settled once per swarm. Nested `Dev10x:work-on`
+Posture is settled once per swarm. Nested `dev10x:work-on`
 delegations skip their own Phase 0 and inherit it.
 
 ## Phase 1: Scan
@@ -78,7 +78,7 @@ gh pr list --state open --json number,title,headRefName,isDraft,mergeable
 gh issue list --state open --json number,title,labels
 ```
 
-**Issue fetching:** Use MCP `mcp__plugin_Dev10x_cli__issue_get`
+**Issue fetching:** Use MCP `mcp__plugin_dev10x_cli__issue_get`
 as the primary tool for fetching individual issue details. Fall
 back to `gh issue view` only when the MCP tool is unavailable.
 MCP calls avoid permission friction and provide structured
@@ -95,7 +95,7 @@ independently:
 | `https://github.com/{owner}/{repo}/milestone/{N}` | `scope:milestone` | Fetch milestone title, list issues |
 | `https://github.com/{owner}/{repo}/issues/{N}` | `item:issue` | Fetch specific issue |
 | `https://github.com/{owner}/{repo}/pull/{N}` | `item:pr` | Fetch specific PR |
-| `#N` or bare number | `item` | Classify per `Dev10x:work-on` Phase 1 rules |
+| `#N` or bare number | `item` | Classify per `dev10x:work-on` Phase 1 rules |
 | `PRs`, `issues` (bare keyword) | `scope` | Restrict scan to matching type (same as scope URL) |
 | Free text (anything else) | `note` | Parse intent to infer scope and work items (see below) |
 
@@ -110,7 +110,7 @@ text to infer the user's intent:
 - Determine parallelism intent (e.g., "split this into parallel
   tasks" → plan parallel processing)
 
-Classification follows `Dev10x:work-on` Phase 1 `note` handling.
+Classification follows `dev10x:work-on` Phase 1 `note` handling.
 When scope cannot be inferred, default to scanning both PRs and
 issues.
 
@@ -126,7 +126,7 @@ present, the scope restricts the default scan while specific
 items are fetched regardless of scope:
 
 ```
-/Dev10x:fanout https://github.com/org/repo/issues #42
+/dev10x:fanout https://github.com/org/repo/issues #42
 ```
 → Scan issues only (`gh issue list`) + fetch PR #42 explicitly.
 
@@ -214,13 +214,13 @@ producing merge conflicts and superseded-duplicate work that only
 surface at merge time. Keep each item on a fresh base:
 
 1. **Branch each item from a freshly-fetched `origin/<base>`.**
-   Resolve `<base>` via `mcp__plugin_Dev10x_cli__detect_base_branch`
+   Resolve `<base>` via `mcp__plugin_dev10x_cli__detect_base_branch`
    (develop → main fallback) and create the branch via
-   `Skill(Dev10x:ticket-branch)` (which already fetches and
+   `Skill(dev10x:ticket-branch)` (which already fetches and
    branches from `origin/<base>`) — never a stale local ref.
 2. **After any item merges, rebase the remaining in-flight items
    onto the new base before continuing** — via
-   `Skill(Dev10x:git-groom)` / the rebase wrapper, never raw
+   `Skill(dev10x:git-groom)` / the rebase wrapper, never raw
    `git rebase`. This generalizes the conflict-driven "later items
    rebase before continuing" rule above to *all* in-flight items,
    not only ones with a detected file overlap.
@@ -232,7 +232,7 @@ item. Once fixup commits are addressing in-progress review
 threads, a rebase rewrites the base SHAs that review-thread
 permalinks reference (`/pull/N/commits/<sha>` → 404) and destroys
 the per-comment audit trail. This is the same invariant
-`Dev10x:git-groom` enforces in **Phase 0 (refuse pre-merge groom
+`dev10x:git-groom` enforces in **Phase 0 (refuse pre-merge groom
 with open unresolved threads, GH-68 Fix E)**:
 
 - **Suppress** the re-sync for any item whose PR has an unresolved
@@ -284,13 +284,13 @@ Before processing **each** work item, execute this two-step gate:
    before proceeding. This prevents commits landing on the
    wrong branch when processing items sequentially.
    **NEVER use raw `git checkout -b`** — always delegate to
-   `Skill(skill="Dev10x:ticket-branch")` for branch creation.
+   `Skill(skill="dev10x:ticket-branch")` for branch creation.
    Raw checkout bypasses naming conventions, worktree detection,
    and base-branch validation.
 
 2. **Delegation check:** STOP and ask yourself: "Am I about to
    implement this item directly?" If yes, invoke
-   `Skill(skill="Dev10x:work-on", args="<item-url>")` instead.
+   `Skill(skill="dev10x:work-on", args="<item-url>")` instead.
    Fanout is an **orchestrator**, not an implementor.
 
 Skipping either step causes cascading errors — wrong-branch
@@ -301,15 +301,15 @@ inline implementation bypasses work-on's structured lifecycle
 ### Post-Item Delegation Verification (REQUIRED)
 
 After completing **each** work item, verify that
-`Skill(Dev10x:work-on)` was invoked for that item. If not,
+`Skill(dev10x:work-on)` was invoked for that item. If not,
 this is a compliance violation — do NOT proceed to the next
 item. The same rule applies to merge operations: each PR
-MUST use `Skill(Dev10x:gh-pr-merge)`, never raw `gh pr merge`.
+MUST use `Skill(dev10x:gh-pr-merge)`, never raw `gh pr merge`.
 
 **Post-item comment check (GH-829):** After each item's PR is
-merged, call `mcp__plugin_Dev10x_cli__pr_comments(pr_number=N)`
+merged, call `mcp__plugin_dev10x_cli__pr_comments(pr_number=N)`
 and verify zero unaddressed comments. If comments exist, invoke
-`Skill(skill="Dev10x:gh-pr-respond", args="{pr_url}")` before advancing
+`Skill(skill="dev10x:gh-pr-respond", args="{pr_url}")` before advancing
 to the next item. This catches unaddressed comments early —
 agents degrade after item 3+ and skip per-item acceptance
 criteria under auto-advance pressure. The Phase 5 enforcement
@@ -409,7 +409,7 @@ cherry-picking it onto a fresh orchestrator-side branch:
    uncommitted files in an unreachable worktree — re-dispatch
    from scratch instead.
 2. From the orchestrator worktree: create a branch from
-   `origin/<base>` via `Skill(Dev10x:ticket-branch)`, then
+   `origin/<base>` via `Skill(dev10x:ticket-branch)`, then
    `git cherry-pick <agent-sha>` (the shared object store makes
    the SHA reachable even though the branch ref is not).
 3. Resolve any conflicts, then ship the orchestrator-side branch
@@ -465,7 +465,7 @@ git -C <main-repo-root> rev-parse --show-toplevel
   recovery routes through `git -C` rather than `EnterWorktree`.
 - Non-zero, or the call prompts / is denied → the root is not
   reachable. **Downgrade to serial mode** (invoke
-  `Skill(Dev10x:work-on)` inline, sequentially — see Serial
+  `Skill(dev10x:work-on)` inline, sequentially — see Serial
   fallback below) rather than dispatching a swarm that cannot be
   recovered. Announce it: "Orchestrator runs from a sibling
   worktree and the main repo root is not reachable; using serial
@@ -479,10 +479,10 @@ recovery, below) understood as the only recovery route.
 
 **Every work item MUST be delegated to a worktree-isolated
 background `Agent` whose prompt invokes
-`Skill(Dev10x:work-on)`.** Do NOT implement issues inline in
+`Skill(dev10x:work-on)`.** Do NOT implement issues inline in
 the orchestrator session, and do NOT inline the work-on
 contract into the agent prompt — the spawned agent calls
-`Skill(Dev10x:work-on)` directly so work-on remains the
+`Skill(dev10x:work-on)` directly so work-on remains the
 single source of truth for the implementation lifecycle.
 
 **Wave-based dispatch.** Group non-conflicting items into
@@ -516,7 +516,7 @@ parent directory does not exist). Create the bus in two steps:
 
 ```
 # Step 1: Create the wave directory
-wave_dir = mcp__plugin_Dev10x_cli__mktmp(
+wave_dir = mcp__plugin_dev10x_cli__mktmp(
     namespace="fanout",
     prefix=wave_id,
     directory=True,  # always created
@@ -545,9 +545,9 @@ contracts live in
 
 **Friction-avoidance preamble (REQUIRED, GH-610):** Before building
 the prompt below, fetch the canonical preamble via
-`mcp__plugin_Dev10x_cli__background_preamble` and prepend its
+`mcp__plugin_dev10x_cli__background_preamble` and prepend its
 `preamble` text verbatim to the top of each child's prompt. Swarm
-children run a full `Dev10x:work-on` lifecycle in a fresh subagent that
+children run a full `dev10x:work-on` lifecycle in a fresh subagent that
 never saw the SessionStart friction briefing — the preamble keeps them
 off hook-tripping shapes and on MCP wrappers. Pre-seed each child's
 `allowed_tools` with `Read`, `Grep`, `Glob`, `Skill`, and the `cli`
@@ -558,7 +558,7 @@ auto-mode. See `references/orchestration/background-preamble.md`.
 `You are working as part of …` line):
 
 ```
-You are working as part of a Dev10x:fanout swarm.
+You are working as part of a dev10x:fanout swarm.
 
 Swarm context:
 - wave_id: <uuid>
@@ -584,7 +584,7 @@ Bootstrap (REQUIRED first, before Skill invocation):
    `adaptive` is the sole shipped baseline (ADR-0022 D-1), so
    this call carries the overlay, not a preset choice. It makes
    the fanout session's posture resolvable inside your
-   worktree, so Dev10x:work-on's Phase 0 finds it already
+   worktree, so dev10x:work-on's Phase 0 finds it already
    settled and asks nothing. Never
    write .claude/Dev10x/session.yaml — it is retired
    (ADR-0018) and writing under .claude/ trips the
@@ -593,7 +593,7 @@ Bootstrap (REQUIRED first, before Skill invocation):
    (see the recursive-fanout guard; GH-950).
 
 Task:
-Invoke Skill(Dev10x:work-on) with this input: <issue or PR URL>
+Invoke Skill(dev10x:work-on) with this input: <issue or PR URL>
 
 ANTI-STALL CONTRACT (highest priority — read before invoking work-on):
 
@@ -622,11 +622,11 @@ remember mid-task.
 - Step 5 runs the COMPLETE suite with coverage (GH-876 F1) — never
   only the edited-file subset, which misses regressions in unedited
   callers and the 100%-coverage gate and then fails in CI after you
-  have returned. Route through Skill(test) / Skill(Dev10x:py-test)
+  have returned. Route through Skill(test) / Skill(dev10x:py-test)
   with NO path-narrowing args.
 - After work-on returns, if the PR is open but not merged, that is
-  NOT done. Invoke Skill(Dev10x:gh-pr-monitor) and then
-  Skill(Dev10x:gh-pr-merge) to complete.
+  NOT done. Invoke Skill(dev10x:gh-pr-monitor) and then
+  Skill(dev10x:gh-pr-merge) to complete.
 - If your turn ends before the PR is merged, your final line MUST
   be NEEDS_CONTEXT (not DONE). The orchestrator will re-dispatch.
 
@@ -658,7 +658,7 @@ Sibling coordination (BEST-EFFORT — never your conflict guard):
 
 Etiquette (REQUIRED):
 - You are running concurrently with siblings. Do NOT call
-  Skill(Dev10x:fanout) recursively.
+  Skill(dev10x:fanout) recursively.
 - If you discover a file conflict with a sibling mid-work,
   use the bus to coordinate (above). If the bus does not
   resolve the conflict, pause, report via your result
@@ -673,7 +673,7 @@ Etiquette (REQUIRED):
 - Your worktree is ephemeral; assume it is destroyed if you
   make no changes.
 - CWD guard for PR creation (GH-873 F1): always pass your worktree
-  path as `cwd=` when creating a PR (via Dev10x:gh-pr-create /
+  path as `cwd=` when creating a PR (via dev10x:gh-pr-create /
   `create_pr`). The MCP daemon is shared and defaults to the
   orchestrator's CWD, so omitting `cwd=` pushes the wrong branch and
   opens a stray PR. `create_pr` now refuses when HEAD resolves to a
@@ -692,7 +692,7 @@ When a Dev10x MCP wrapper is unreachable (GH-1107 finding 1):
 - If the wrapper is still unreachable, do NOT substitute raw `gh` /
   `gh api` for it. This is not a permission question — the wrappers
   carry validation the raw call does not, and `merge_pr` /
-  `Dev10x:gh-pr-merge` in particular gate a merge on checks that
+  `dev10x:gh-pr-merge` in particular gate a merge on checks that
   cannot be re-run afterwards.
 - Do the work you CAN do without wrappers: implement, run the full
   test suite, commit, and push your branch.
@@ -712,7 +712,7 @@ Return on completion — REPORT ONLY WHAT YOU DID (GH-1380):
   answer what happened.
 - PR URL (or "no PR produced — <reason>")
 - Merge state, one of:
-  - `MERGED_BY_ME` — you ran Skill(Dev10x:gh-pr-merge) yourself.
+  - `MERGED_BY_ME` — you ran Skill(dev10x:gh-pr-merge) yourself.
     Give the merge SHA and `merged_as` from your own `merge_pr`
     result.
   - `ALREADY_MERGED` — you found it merged. Give `mergedAt` and
@@ -750,7 +750,7 @@ for the remaining shipping steps:
 Agent(subagent_type="general-purpose", model="haiku",
     description="Finish PR <n> for <item>",
     prompt="The branch is pushed and the PR is open at <url>. Run
-        Skill(Dev10x:gh-pr-merge) to gate and merge it. If the MCP
+        Skill(dev10x:gh-pr-merge) to gate and merge it. If the MCP
         wrappers are unreachable for you too, return BLOCKED — do
         not fall back to raw gh.",
     run_in_background=true)
@@ -772,7 +772,7 @@ skill", it only spent another failed `ToolSearch` round and handed
 off. The Phase 4 resume-first rule does not apply to an MCP outage.
 Once `ToolSearch` resolves the wrappers in *your* session, either
 dispatch the finisher above, or run the remaining shipping skills
-yourself — `Skill(Dev10x:gh-pr-create)` and `Skill(Dev10x:gh-pr-merge)`
+yourself — `Skill(dev10x:gh-pr-create)` and `Skill(dev10x:gh-pr-merge)`
 with `cwd=<child worktree>` on every wrapper call, and
 `--repo-dir <child worktree>` on Check 1d's reconcile script. The
 second path shipped all four PRs in that run. It is not a raw-CLI
@@ -796,27 +796,27 @@ Without the tag the verdict re-blocked each notification turn.
 
 **Serial fallback.** When the Agent tool is unavailable or
 the user opts out (`mode: serial` playbook override),
-invoke `Skill(skill="Dev10x:work-on", args="<item-url>")` in
+invoke `Skill(skill="dev10x:work-on", args="<item-url>")` in
 the orchestrator session, sequentially. This trades
 parallelism for compatibility with environments where
 background agents are disabled.
 
 ### Processing PRs
 
-For each PR, delegate to `Dev10x:work-on` with the PR URL.
+For each PR, delegate to `dev10x:work-on` with the PR URL.
 Work-on executes the pr-continuation play:
 
 1. Check out the PR branch (or work in existing worktree)
-2. If review comments exist → `Dev10x:gh-pr-respond`
+2. If review comments exist → `dev10x:gh-pr-respond`
 3. If conflicts with develop → rebase and resolve
-4. `Dev10x:git-groom` to clean commit history
+4. `dev10x:git-groom` to clean commit history
 5. Mark ready via `gh pr ready`
 6. Monitor CI — fix failures with fixup commits
 
 **Fixup race condition guard (GH-724):** Before creating any
 fixup commit for a PR that is also being monitored in Phase 4,
 verify the PR is still open via
-`mcp__plugin_Dev10x_cli__pr_detect(arg="<pr-number>")` and check
+`mcp__plugin_dev10x_cli__pr_detect(arg="<pr-number>")` and check
 the returned `state` field. If the result is not `OPEN`, the PR
 was merged by the monitor
 while you were preparing the fix. Do NOT push the fixup commit
@@ -826,12 +826,12 @@ and open a new PR instead.
 7. **Pre-merge gate (REQUIRED):** Before merging, verify ALL:
    - CI checks pass (`gh pr checks`)
    - No unaddressed review comments
-     (`mcp__plugin_Dev10x_cli__pr_comments` or
+     (`mcp__plugin_dev10x_cli__pr_comments` or
      `gh api repos/{owner}/{repo}/pulls/{N}/comments`)
    - PR is marked ready (not draft)
    - Working copy is clean
    Do NOT merge via raw `gh pr merge` — delegate to
-   `Skill(Dev10x:gh-pr-merge)` which validates all 7
+   `Skill(dev10x:gh-pr-merge)` which validates all 7
    pre-merge conditions. Raw merge bypasses review comment
    checks (GH-549 F-05).
 8. After merge → rebase any downstream items that
@@ -846,7 +846,7 @@ cycle if the review is informational only.
 
 Each issue (or parallel group of issues) is dispatched as a
 worktree-isolated background Agent per the Swarm Dispatch
-section above. The agent's `Skill(Dev10x:work-on)` invocation
+section above. The agent's `Skill(dev10x:work-on)` invocation
 runs the full lifecycle inside its isolated worktree:
 branch setup, design, implementation, code review, commit,
 PR creation, CI monitoring through merge. By the time the
@@ -861,7 +861,7 @@ in-wave merges affected them.
 
 **Note on work-on inside spawned agents.** A spawned agent
 inherits no SessionStart context (memory, plan-sync, MOTD),
-so `Dev10x:work-on`'s Phase 0 posture check would run fresh
+so `dev10x:work-on`'s Phase 0 posture check would run fresh
 each time. The skill recognises fanout-nested
 invocations via the swarm-context marker in the dispatch
 prompt and skips Phase 0 accordingly. If work-on later
@@ -875,28 +875,28 @@ that item.
 After merging any item, check if downstream items in the
 same sequential chain are affected:
 
-1. Fetch the base via `mcp__plugin_Dev10x_cli__detect_base_branch`
+1. Fetch the base via `mcp__plugin_dev10x_cli__detect_base_branch`
    to determine the merge target.
 2. For each active branch in the chain, delegate the rebase to
-   `Skill(Dev10x:git)` — its non-interactive rebase anchors on the
+   `Skill(dev10x:git)` — its non-interactive rebase anchors on the
    `<base-ref>` you pass (`origin/<base>`, the just-merged tip), and
    its `push_safe` completes the force-push with protected-branch
    safety. This is the dedicated base-advance primitive.
 3. If rebase conflicts → resolve, commit, then re-invoke
-   `Skill(Dev10x:git)` to complete the force-push.
+   `Skill(dev10x:git)` to complete the force-push.
 4. If rebase succeeds → continue processing.
 
-**Why not `Dev10x:git-groom` here (GH-658).** Post-merge rebasing
+**Why not `dev10x:git-groom` here (GH-658).** Post-merge rebasing
 needs to *advance the branch onto the new `origin/<base>` tip* —
-a base-advance, not a history cleanup. `Dev10x:git-groom` is the
+a base-advance, not a history cleanup. `dev10x:git-groom` is the
 wrong primitive for it on two counts: it fast-exits
 "Nothing to groom" for a clean single-commit branch
 (GH-776), and where it does rebase it anchors on the merge-base,
 not the advanced `origin/<base>`. Either way the dependent branch
 never picks up the just-merged base commit. Route base-advancing
-to `Skill(Dev10x:git)` (which rebases onto the ref you pass); use
-`Dev10x:git-groom` only when the downstream branch genuinely needs
-its *own* history cleaned. Invoking `Skill(Dev10x:git)` satisfies
+to `Skill(dev10x:git)` (which rebases onto the ref you pass); use
+`dev10x:git-groom` only when the downstream branch genuinely needs
+its *own* history cleaned. Invoking `Skill(dev10x:git)` satisfies
 Skill Routing Enforcement — it is not a raw `git rebase`.
 
 ### Merge Mode (GH-688)
@@ -906,11 +906,11 @@ Controls whether PRs are merged autonomously after CI passes.
 | Mode | Behavior |
 |------|----------|
 | `manual` | Mark ready, stop. User merges explicitly. |
-| `autonomous` | After CI green + no comments → invoke `Dev10x:gh-pr-merge` |
+| `autonomous` | After CI green + no comments → invoke `dev10x:gh-pr-merge` |
 | `cascade` | Autonomous + auto-rebase downstream PRs in the same fanout chain |
 
 **Resolution order** (first match wins):
-1. **Merge gate:** call `mcp__plugin_Dev10x_cli__resolve_gate(
+1. **Merge gate:** call `mcp__plugin_dev10x_cli__resolve_gate(
    gate="merge", context={})`. `effect: "auto-advance"` → default
    to `cascade`; any other effect → `manual`.
 2. **Playbook override:** `merge_mode` in the user's
@@ -918,9 +918,9 @@ Controls whether PRs are merged autonomously after CI passes.
 3. **Default:** `manual`
 
 **Cascade logic** (when merge_mode is `cascade`):
-1. Merge PR N via `Skill(Dev10x:gh-pr-merge)`
+1. Merge PR N via `Skill(dev10x:gh-pr-merge)`
 2. `git fetch origin develop`
-3. Base-advance PR N+1 onto `origin/develop` via `Skill(Dev10x:git)`
+3. Base-advance PR N+1 onto `origin/develop` via `Skill(dev10x:git)`
    (rebase onto the passed `<base-ref>` + safe force-push — same
    primitive as Post-Merge Rebase above, not a raw `git rebase`)
 4. Wait for CI (60s initial delay)
@@ -934,7 +934,7 @@ verification gate still fires to confirm final session state.
 
 **Review thread auto-resolution (GH-399 F3):** The orchestrator MAY
 auto-resolve a review thread when ALL of the following hold:
-- `mcp__plugin_Dev10x_cli__resolve_gate(gate="thread_resolution",
+- `mcp__plugin_dev10x_cli__resolve_gate(gate="thread_resolution",
   context={"author_type": "bot"})` returns `effect: "auto-advance"`.
   The resolver owns this decision — never infer it from a merge
   mode, a preset, or a Phase 0 answer.
@@ -1002,8 +1002,8 @@ free context for remaining work.
 ## Phase 4: Collect
 
 In the swarm model, each spawned agent runs the full
-`Dev10x:work-on` lifecycle inside its isolated worktree —
-including `Dev10x:gh-pr-monitor` for its own PR through to
+`dev10x:work-on` lifecycle inside its isolated worktree —
+including `dev10x:gh-pr-monitor` for its own PR through to
 merge. By the time the agent completes, its PR is either
 merged or surfaced as a failure mode in the result.
 
@@ -1049,7 +1049,7 @@ Phase 4's job is therefore **collection**, not orchestration:
    to report instead of a pipeline to reconstruct.
    **"PR created but not merged" (GH-368 F1):** If the
    agent result contains a PR URL and the trailing line is
-   `DONE` but the PR state (via `mcp__plugin_Dev10x_cli__pr_get`)
+   `DONE` but the PR state (via `mcp__plugin_dev10x_cli__pr_get`)
    shows the PR is still OPEN, downgrade the status to
    `NEEDS_CONTEXT: PR open, merge incomplete`. Apply the
    same resume-first strategy before re-dispatching.
@@ -1071,7 +1071,7 @@ Phase 4's job is therefore **collection**, not orchestration:
    agent result message may have omitted.
 5. After a full wave drains, before dispatching the next
    wave: rebase downstream conflict-chain successors onto
-   the latest develop via `Skill(Dev10x:git-groom)`.
+   the latest develop via `Skill(dev10x:git-groom)`.
 6. **Teardown the completed agent's worktree (GH-463).**
    After confirming the PR is MERGED (step 2) and the step-1
    stranded-work check is clean, run the
@@ -1084,7 +1084,7 @@ tool semantics). Polling, sleeping in a loop, or running a
 `Monitor` over the agent state is wasted context.
 
 **Serial-fallback mode.** When the swarm was skipped in
-favour of in-session `Skill(Dev10x:work-on)`, this phase
+favour of in-session `Skill(dev10x:work-on)`, this phase
 collapses to "verify each call returned successfully"
 since the lifecycle already ran inline.
 
@@ -1238,9 +1238,9 @@ monitors confirm CI green or merges complete.
 1. Call `TaskList` to show the full task list
 2. **REQUIRED: Enforce PR comment resolution for every PR
    (GH-829).** For each PR processed in this session:
-   a. Call `mcp__plugin_Dev10x_cli__pr_comments(pr_number=N)`
+   a. Call `mcp__plugin_dev10x_cli__pr_comments(pr_number=N)`
    b. If unaddressed comments exist, invoke
-      `Skill(skill="Dev10x:gh-pr-respond", args="{pr_url}")` to
+      `Skill(skill="dev10x:gh-pr-respond", args="{pr_url}")` to
       address them — do NOT skip or defer
    c. After responding, re-check with `pr_comments()` to
       confirm zero unaddressed comments remain
@@ -1325,9 +1325,9 @@ After removing worktrees, look for local `worktree-agent-*`
 branches that no longer have a checked-out worktree and were
 never pushed (no remote tracking ref).
 
-**Delegate to `Dev10x:git-branch-prune` if available:**
-When the `Dev10x:git-branch-prune` skill is present, invoke
-`Skill(skill="Dev10x:git-branch-prune")` — it runs the full
+**Delegate to `dev10x:git-branch-prune` if available:**
+When the `dev10x:git-branch-prune` skill is present, invoke
+`Skill(skill="dev10x:git-branch-prune")` — it runs the full
 classification + AskUserQuestion gate to confirm deletions.
 
 **Fallback (git-branch-prune not yet available):** For each
@@ -1363,12 +1363,12 @@ Do not add qualifiers like "independent" or "unique" to
 justify skipping — count all items processed, regardless of
 type or complexity.
 
-**REQUIRED:** Invoke `Skill(skill="Dev10x:skill-audit")` to
+**REQUIRED:** Invoke `Skill(skill="dev10x:skill-audit")` to
 analyze skill usage, compliance rates, and identify process
 improvements.
 
 **Hard self-check before marking Phase 6 complete (GH-724):**
-Verify that `Skill(Dev10x:skill-audit)` was **actually called**
+Verify that `Skill(dev10x:skill-audit)` was **actually called**
 in this session (check your tool-use history). Saving findings
 as memory notes or task descriptions is NOT a substitute —
 only a real `Skill()` invocation counts. If the call is missing,
@@ -1379,7 +1379,7 @@ invoke it now before marking this task completed.
 
 ## Pause/Resume
 
-At any pause signal, invoke `Dev10x:session-wrap-up`.
+At any pause signal, invoke `dev10x:session-wrap-up`.
 Active worktrees and in-progress PRs are bookmarked
 automatically.
 
@@ -1436,24 +1436,24 @@ notes.
 ## Recursive-Fanout Guard (GH-36)
 
 A spawned swarm child MUST NOT re-invoke
-`Skill(Dev10x:fanout)` — that would runaway-fork into a
+`Skill(dev10x:fanout)` — that would runaway-fork into a
 swarm-of-swarms. Guards in priority order:
 
 1. **Prompt etiquette (always).** Every Phase 3 agent
    prompt explicitly states "Do NOT call
-   Skill(Dev10x:fanout) recursively" (see Swarm Dispatch
+   Skill(dev10x:fanout) recursively" (see Swarm Dispatch
    template).
-2. **Skill self-check (always).** When `Dev10x:fanout`
+2. **Skill self-check (always).** When `dev10x:fanout`
    starts, scan the incoming prompt for the swarm-child
    marker — the dispatch prompt's literal `wave_id` line. If
    detected, exit with an explicit error message directing
-   the agent to use `Skill(Dev10x:work-on)` instead. The
+   the agent to use `Skill(dev10x:work-on)` instead. The
    prompt is the authoritative signal: `swarm-child` has no
    durable home since ADR-0018 retired
    `.claude/Dev10x/session.yaml`, and GH-950 picks its
    replacement store.
 3. **Hook (future, v2).** A PreToolUse hook on
-   `Skill(Dev10x:fanout)` invocations could check a
+   `Skill(dev10x:fanout)` invocations could check a
    global marker file written by the orchestrator before
    dispatch. Deferred to a follow-up ticket — prompt + skill
    self-check covers the surface today.
@@ -1480,7 +1480,7 @@ swarm-of-swarms. Guards in priority order:
   agents.** Memory, plan-sync state, and MOTD-injected
   context do not propagate into `Agent` subagents. The
   swarm dispatch prompt carries everything the child
-  needs inline. If `Dev10x:work-on` evolves to depend
+  needs inline. If `dev10x:work-on` evolves to depend
   on session-start state, the spawned agent will surface
   the gap as `BLOCKED:` and the orchestrator falls back
   to serial mode.
@@ -1489,7 +1489,7 @@ swarm-of-swarms. Guards in priority order:
 
 ### Example 1: Close all open loops
 
-**User:** `/Dev10x:fanout`
+**User:** `/dev10x:fanout`
 
 Scans repo → finds 2 draft PRs and 5 open issues.
 Classifies: PRs have no conflicts, 3 issues share files.
@@ -1498,14 +1498,14 @@ Plan: merge both PRs first (parallel), then issues in
 
 ### Example 2: Specific items
 
-**User:** `/Dev10x:fanout #42 #55 GH-10 GH-15 GH-20`
+**User:** `/dev10x:fanout #42 #55 GH-10 GH-15 GH-20`
 
 Classifies the 5 items, builds conflict graph, presents
 plan, executes.
 
 ### Example 3: PRs only
 
-**User:** `/Dev10x:fanout PRs`
+**User:** `/dev10x:fanout PRs`
 
 Scans only open PRs. Processes each to merge — mark ready,
 monitor CI, fix comments, merge. Repeats until all merged.

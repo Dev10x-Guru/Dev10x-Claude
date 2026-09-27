@@ -24,7 +24,7 @@ is not one of them, because `~/.claude` is not a registered working
 directory and the harness's path-scope gate fires regardless of any
 allow rule (GH-1140):
 
-- `mcp__plugin_Dev10x_cli__audit_analyze_permissions` — structured
+- `mcp__plugin_dev10x_cli__audit_analyze_permissions` — structured
   inspection, the default
 - `Read(~/.claude/settings.json)` — raw contents, declared in this
   skill's `allowed-tools`

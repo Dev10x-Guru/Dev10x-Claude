@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:verify-acc-dod",
+  "skill_name": "dev10x:verify-acc-dod",
   "eval_dimensions": [
     {
       "id": "criteria-resolution",
@@ -41,9 +41,9 @@
     {
       "id": 1,
       "name": "open-pr-recommends-monitor-not-complete",
-      "prompt": "/Dev10x:verify-acc-dod feature  (session: resolve_gate returns effect 'ask' for completion_signoff; all automated checks pass; PR #42 is OPEN and awaiting review)",
-      "description": "Tests that when every acceptance criterion passes but the associated PR is open/unmerged, the gate recommends 'Monitor for review' (routing to Dev10x:gh-pr-monitor) and NOT 'Work complete'.",
-      "expected_output": "AskUserQuestion fires with 'Monitor for review (Recommended)' as the first option, routing to Dev10x:gh-pr-monitor. 'Work complete' is NOT offered as the recommended option while PR #42 is unmerged.",
+      "prompt": "/dev10x:verify-acc-dod feature  (session: resolve_gate returns effect 'ask' for completion_signoff; all automated checks pass; PR #42 is OPEN and awaiting review)",
+      "description": "Tests that when every acceptance criterion passes but the associated PR is open/unmerged, the gate recommends 'Monitor for review' (routing to dev10x:gh-pr-monitor) and NOT 'Work complete'.",
+      "expected_output": "AskUserQuestion fires with 'Monitor for review (Recommended)' as the first option, routing to dev10x:gh-pr-monitor. 'Work complete' is NOT offered as the recommended option while PR #42 is unmerged.",
       "dimensions": ["merge-gated-completion", "resolver-recommendation-boundary"],
       "assertions": [
         {
@@ -54,7 +54,7 @@
         },
         {
           "id": "recommends-monitor",
-          "text": "Recommended option is 'Monitor for review' routing to Dev10x:gh-pr-monitor",
+          "text": "Recommended option is 'Monitor for review' routing to dev10x:gh-pr-monitor",
           "check": "tool_called",
           "signals": ["AskUserQuestion", "Monitor for review", "gh-pr-monitor"]
         },
@@ -69,9 +69,9 @@
     {
       "id": 2,
       "name": "auto-advance-open-pr-auto-starts-monitor",
-      "prompt": "/Dev10x:verify-acc-dod feature  (session: resolve_gate returns effect 'auto-advance' for completion_signoff, active_modes [solo-maintainer]; all checks pass; PR #42 OPEN, unmerged)",
+      "prompt": "/dev10x:verify-acc-dod feature  (session: resolve_gate returns effect 'auto-advance' for completion_signoff, active_modes [solo-maintainer]; all checks pass; PR #42 OPEN, unmerged)",
       "description": "Tests that when the resolver auto-advances the completion gate with an open/unmerged PR, the skill takes the SAME recommendation the boundary computed — auto-starting the background monitor instead of auto-completing — and the residual terminal task becomes 'Monitor PR #N for review / merge'.",
-      "expected_output": "No 'Work complete' auto-completion. Skill(Dev10x:gh-pr-monitor) is dispatched in the background; the residual task is 'Monitor PR #42 for review / merge'. No AskUserQuestion interruption.",
+      "expected_output": "No 'Work complete' auto-completion. Skill(dev10x:gh-pr-monitor) is dispatched in the background; the residual task is 'Monitor PR #42 for review / merge'. No AskUserQuestion interruption.",
       "dimensions": ["merge-gated-completion", "resolver-recommendation-boundary"],
       "assertions": [
         {
@@ -82,7 +82,7 @@
         },
         {
           "id": "dispatches-monitor",
-          "text": "Dispatches Dev10x:gh-pr-monitor in the background",
+          "text": "Dispatches dev10x:gh-pr-monitor in the background",
           "check": "tool_called",
           "signals": ["Skill", "gh-pr-monitor"]
         }
@@ -91,7 +91,7 @@
     {
       "id": 3,
       "name": "merged-pr-allows-work-complete",
-      "prompt": "/Dev10x:verify-acc-dod feature  (session: resolve_gate returns effect 'ask' for completion_signoff; all checks pass; PR #42 is MERGED)",
+      "prompt": "/dev10x:verify-acc-dod feature  (session: resolve_gate returns effect 'ask' for completion_signoff; all checks pass; PR #42 is MERGED)",
       "description": "Tests that once the PR is merged (or the work is PR-less), the gate offers/auto-selects 'Work complete' as before.",
       "expected_output": "AskUserQuestion offers 'Work complete (Recommended)' because PR #42 is merged.",
       "dimensions": ["merge-gated-completion"],
@@ -107,7 +107,7 @@
     {
       "id": 4,
       "name": "review-deferred-skips-thread-check",
-      "prompt": "/Dev10x:verify-acc-dod bugfix  (session: resolve_gate returns effect 'auto-advance' for completion_signoff, active_modes [solo-maintainer, review-deferred]; CI green, working copy clean, PR #42 OPEN; two review threads remain unresolved)",
+      "prompt": "/dev10x:verify-acc-dod bugfix  (session: resolve_gate returns effect 'auto-advance' for completion_signoff, active_modes [solo-maintainer, review-deferred]; CI green, working copy clean, PR #42 OPEN; two review threads remain unresolved)",
       "description": "Tests that with review-deferred active, the unresolved-threads and review-request checks are removed from scope (reported as skipped), so the gate resolves honestly to Monitor for review instead of staying red — and is NOT papered over as 'Work complete'.",
       "expected_output": "The 'No unresolved review threads' and 'Re-review requested' checks are reported as 'skipped (mode: review-deferred)'. Remaining checks pass, PR #42 is open → recommendation is 'Monitor for review' (background gh-pr-monitor). 'Work complete' is NOT recommended.",
       "dimensions": ["scope-deferred-review", "merge-gated-completion"],
@@ -129,7 +129,7 @@
     {
       "id": 5,
       "name": "local-only-open-pr-unions-feature-checks",
-      "prompt": "/Dev10x:verify-acc-dod local-only  (session: a local-only plan resolved 'create PR' mid-execution, so PR #42 is now OPEN and unmerged)",
+      "prompt": "/dev10x:verify-acc-dod local-only  (session: a local-only plan resolved 'create PR' mid-execution, so PR #42 is now OPEN and unmerged)",
       "description": "Tests that a local-only invocation with an open PR present re-infers from live state and executes the feature PR checks (CI passing, PR not draft, no unresolved review threads) instead of only the thin local-only checklist.",
       "expected_output": "pr_detect resolves the open PR #42; the feature check set is unioned into the local-only checks (deduped by name). The run executes 'CI passing', 'PR not draft', and 'No unresolved review threads', and reports the added checks as 'added by live-state re-inference'. The caller's 'Working copy clean' check is preserved, not duplicated.",
       "dimensions": ["live-state-reinference", "criteria-resolution"],
@@ -163,7 +163,7 @@
     {
       "id": 6,
       "name": "supervisor-review-none-skips-review-checks",
-      "prompt": "/Dev10x:verify-acc-dod bugfix  (session: resolve_gate returns effect 'auto-advance' for completion_signoff, active_modes [solo-maintainer]; supervisor_review_status reports supervisor_review 'none'; review-deferred NOT set; CI green, working copy clean, PR #42 OPEN; two review threads remain unresolved)",
+      "prompt": "/dev10x:verify-acc-dod bugfix  (session: resolve_gate returns effect 'auto-advance' for completion_signoff, active_modes [solo-maintainer]; supervisor_review_status reports supervisor_review 'none'; review-deferred NOT set; CI green, working copy clean, PR #42 OPEN; two review threads remain unresolved)",
       "description": "Tests the ADR-0019 path as renamed by ADR-0022 D-2: the durable, project-wide supervisor_review: none posture removes every check declaring requires_human_review from scope, reported as skipped (supervisor_review: none). This is the sanctioned replacement for the deprecated review-deferred mode, which targeted the retired session.yaml and so was never read back in a configured repo (GH-950). Eval 4 keeps covering the deprecated mode for back-compat.",
       "expected_output": "The 'No unresolved review threads' and 'Re-review requested' checks are reported as 'skipped (supervisor_review: none)' — resolved from the requires_human_review field in defaults.yaml, not from active_modes. Remaining checks pass, PR #42 is open → recommendation is 'Monitor for review' or the merge path. 'Work complete' is NOT papered over on the strength of the skip while the PR is unmerged.",
       "dimensions": ["scope-deferred-review", "merge-gated-completion"],
@@ -197,7 +197,7 @@
     {
       "id": 7,
       "name": "manual-checks-are-judged-not-asked",
-      "prompt": "/Dev10x:verify-acc-dod investigation  (no PR; the only default check is 'Findings documented', declared check: manual)",
+      "prompt": "/dev10x:verify-acc-dod investigation  (no PR; the only default check is 'Findings documented', declared check: manual)",
       "description": "Tests the GH-1172 single baseline: a `manual` check is converted to a `prompt` Claude evaluates from session context, on every project. There is no per-item AskUserQuestion and no friction level that would restore one.",
       "expected_output": "'Findings documented' is evaluated from session context and reported pass/fail with a brief rationale. No AskUserQuestion is fired for the manual item. No friction level is read, asked for, or defaulted.",
       "dimensions": ["single-baseline", "check-execution"],
@@ -225,7 +225,7 @@
     {
       "id": 8,
       "name": "resolver-cannot-turn-go-back-into-complete",
-      "prompt": "/Dev10x:verify-acc-dod feature  (session: resolve_gate returns effect 'auto-advance' for completion_signoff; PR #42 is MERGED but 'Working copy clean' FAILS — the tree is dirty)",
+      "prompt": "/dev10x:verify-acc-dod feature  (session: resolve_gate returns effect 'auto-advance' for completion_signoff; PR #42 is MERGED but 'Working copy clean' FAILS — the tree is dirty)",
       "description": "Tests the resolver/recommendation boundary from the failing side: the resolver decides only whether the gate fires, never which option wins. With a blocking check red, the recommendation is 'Go back' even though the PR is merged and the gate auto-advances.",
       "expected_output": "The recommendation is 'Go back' (a blocking check failed), and auto-advance takes THAT option — reporting the failing 'Working copy clean' check to the parent orchestrator. 'Work complete' is not auto-selected on the strength of the merged PR.",
       "dimensions": ["resolver-recommendation-boundary", "merge-gated-completion"],

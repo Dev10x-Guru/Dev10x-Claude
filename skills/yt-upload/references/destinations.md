@@ -102,7 +102,7 @@ sync. A **top-level** comment on such an issue never reaches Jira watchers —
 it has to be a reply.
 
 Check `list_comments` for that anchor and pass its id as `parentId` when
-posting. `Dev10x:qa-publish` does this as part of its ticket step.
+posting. `dev10x:qa-publish` does this as part of its ticket step.
 
 ## Privacy is a publishing decision, not a setting
 

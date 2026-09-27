@@ -1,5 +1,5 @@
 ---
-name: Dev10x:onboarding
+name: dev10x:onboarding
 description: >
   Guided discovery of Dev10x capabilities for new users. Interactive
   tour through skill families, git setup, PR pipeline, session
@@ -9,7 +9,7 @@ description: >
   DO NOT TRIGGER when: user already knows what skill to use, or
   is asking about a specific feature (use that skill directly).
 user-invocable: true
-invocation-name: Dev10x:onboarding
+invocation-name: dev10x:onboarding
 allowed-tools:
   - Read
   - Glob
@@ -19,11 +19,11 @@ allowed-tools:
   - TaskCreate
   - TaskUpdate
   - Skill
-  - mcp__plugin_Dev10x_cli__supervisor_review_status
-  - mcp__plugin_Dev10x_cli__pin_supervisor_review
+  - mcp__plugin_dev10x_cli__supervisor_review_status
+  - mcp__plugin_dev10x_cli__pin_supervisor_review
 ---
 
-# Dev10x:onboarding — Guided Discovery
+# dev10x:onboarding — Guided Discovery
 
 Interactive walkthrough introducing Dev10x in under 10 minutes.
 Detects existing configuration and skips already-done steps.

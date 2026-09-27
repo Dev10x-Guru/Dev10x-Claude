@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:git-groom",
+  "skill_name": "dev10x:git-groom",
   "eval_dimensions": [
     {
       "id": "target-shape-gate",
@@ -27,7 +27,7 @@
       "id": "full-restructure-gate-uses-tool",
       "name": "Full Restructure fires target-shape AskUserQuestion",
       "description": "Selecting Strategy B triggers the 5-axis target-shape gate via AskUserQuestion before any reset --soft runs",
-      "input": "/Dev10x:git-groom (Strategy B: Full restructure selected)",
+      "input": "/dev10x:git-groom (Strategy B: Full restructure selected)",
       "assertions": [
         {
           "dimension": "target-shape-gate",
@@ -51,7 +51,7 @@
       "id": "atomicity-smell-flagged",
       "name": "Detects a commit refactoring earlier same-PR code",
       "description": "When drafting commit specs, a later spec that restructures code an earlier spec just introduced is merged, not left split",
-      "input": "/Dev10x:git-groom (Full restructure; diff shows commit N adds a function later renamed in commit N+2)",
+      "input": "/dev10x:git-groom (Full restructure; diff shows commit N adds a function later renamed in commit N+2)",
       "assertions": [
         {
           "dimension": "atomicity-smell",
@@ -70,7 +70,7 @@
       "id": "reconstruction-uses-plumbing-not-porcelain",
       "name": "Reconstruction loop avoids hook-blocked commands",
       "description": "The N-commit rebuild uses git write-tree/commit-tree plumbing, never raw git commit, git commit --amend, or git rebase -i",
-      "input": "/Dev10x:git-groom (Strategy B execution phase)",
+      "input": "/dev10x:git-groom (Strategy B execution phase)",
       "assertions": [
         {
           "dimension": "hook-safe-reconstruction",
@@ -94,7 +94,7 @@
       "id": "backup-tag-and-tree-equality-before-push",
       "name": "Backup tag precedes reset; tree-equality gate precedes push",
       "description": "groom-backup-<slug> tag is created before git reset --soft, and git diff against that tag is asserted empty before git push --force-with-lease",
-      "input": "/Dev10x:git-groom (Strategy B, Phase 3 push)",
+      "input": "/dev10x:git-groom (Strategy B, Phase 3 push)",
       "assertions": [
         {
           "dimension": "tree-equality-gate",

@@ -1,5 +1,5 @@
 ---
-name: Dev10x:ide-normalize
+name: dev10x:ide-normalize
 description: >
   Normalize PyCharm .idea/ configuration after creating or copying a new git
   worktree. Fixes stale module-name references, disables ADD_CONTENT_ROOTS /
@@ -11,7 +11,7 @@ description: >
   DO NOT TRIGGER when: the project has no .idea/ directory or does not use
   PyCharm / JetBrains IDEs.
 user-invocable: true
-invocation-name: Dev10x:ide-normalize
+invocation-name: dev10x:ide-normalize
 allowed-tools:
   - Bash(find:*)
   - Bash(grep:*)
@@ -28,17 +28,17 @@ uv-SDK `FLAVOR_DATA` gap that causes crashes on first launch.
 
 ## Design Decision
 
-This is a **separate skill** rather than a step inside `Dev10x:git-worktree`
+This is a **separate skill** rather than a step inside `dev10x:git-worktree`
 for two reasons:
 
 1. **Retroactive use**: teams often create worktrees without this skill, or
    before this fix landed. A standalone skill lets them normalize existing
    worktrees without recreating them.
-2. **Separation of concerns**: `Dev10x:git-worktree` handles git mechanics.
+2. **Separation of concerns**: `dev10x:git-worktree` handles git mechanics.
    IDE configuration is a separate concern that may apply to non-worktree
    scenarios (e.g., first-time clone on a new machine).
 
-`Dev10x:git-worktree` documents this skill in its Python/uv template notes as
+`dev10x:git-worktree` documents this skill in its Python/uv template notes as
 a recommended post-checkout step.
 
 ## Orchestration
@@ -49,7 +49,7 @@ a recommended post-checkout step.
 
 Mark completed when done: `TaskUpdate(taskId, status="completed")`
 
-**Announce:** "Using Dev10x:ide-normalize to fix PyCharm .idea/ configuration."
+**Announce:** "Using dev10x:ide-normalize to fix PyCharm .idea/ configuration."
 
 ## Workflow
 

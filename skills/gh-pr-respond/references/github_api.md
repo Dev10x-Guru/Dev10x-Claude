@@ -98,7 +98,7 @@ Posts a reply to an existing review comment.
 
 **Preferred: MCP tool** (no Bash permission friction):
 ```
-mcp__plugin_Dev10x_cli__pr_comment_reply(
+mcp__plugin_dev10x_cli__pr_comment_reply(
     pr_number=42,
     comment_id=2637416290,
     body="✅ Fixed - explanation here"
@@ -218,7 +218,7 @@ gh api rate_limit
 gh api repos/{owner}/{repo}/pulls/{pr}/comments
 
 # Post reply (preferred: MCP tool)
-# mcp__plugin_Dev10x_cli__pr_comment_reply(pr_number=N, comment_id=ID, body="text")
+# mcp__plugin_dev10x_cli__pr_comment_reply(pr_number=N, comment_id=ID, body="text")
 # Fallback:
 gh api --method POST repos/{owner}/{repo}/pulls/{pr}/comments/{id}/replies -f body="text"
 

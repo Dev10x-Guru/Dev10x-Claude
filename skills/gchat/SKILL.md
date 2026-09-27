@@ -1,22 +1,22 @@
 ---
-name: Dev10x:gchat
+name: dev10x:gchat
 description: >
   Send notifications to a Google Chat space via a private Chat bot
-  (service-account app auth). Mirrors Dev10x:slack.
+  (service-account app auth). Mirrors dev10x:slack.
   TRIGGER when: sending a message to a Google Chat space.
   DO NOT TRIGGER when: posting a review request (use
-  Dev10x:gchat-review-request), or sending to Slack (use Dev10x:slack).
+  dev10x:gchat-review-request), or sending to Slack (use dev10x:slack).
 user-invocable: true
-invocation-name: Dev10x:gchat
+invocation-name: dev10x:gchat
 allowed-tools:
   - Bash(uvx dev10x skill notify gchat-send:*)
   - Bash(uvx dev10x skill notify gchat-update:*)
   - Bash(uvx dev10x skill notify gchat-delete:*)
 ---
 
-# Dev10x:gchat — Google Chat Notifications
+# dev10x:gchat — Google Chat Notifications
 
-**Announce:** "Using Dev10x:gchat to send a Google Chat notification."
+**Announce:** "Using dev10x:gchat to send a Google Chat notification."
 
 ## Orchestration
 
@@ -40,7 +40,7 @@ If no credentials are found, walk the user through setup:
    Chat API and configure a Chat app. Publish it **privately** to your
    Workspace (not the Marketplace). Attach a service account.
    A GCP project can host **only one Chat app**, and the project defines the
-   bot's identity. To get the same per-engineer setup as `Dev10x:slack`
+   bot's identity. To get the same per-engineer setup as `dev10x:slack`
    (where each engineer posts as their own personal bot), each engineer
    creates their **own project** (e.g. `gchat-<name>`) with their own Chat
    app and service account. Projects are free and the Chat API needs no
@@ -255,7 +255,7 @@ limitation when it was only a missing feature.
 app auth and is only a member of spaces it was explicitly added to, so it
 cannot see a DM or an arbitrary space at all. To *read* Chat — a thread a
 colleague linked, a DM, a space you are in — use
-[`Dev10x:gog` § Google Chat](../gog/references/chat.md), which goes
+[`dev10x:gog` § Google Chat](../gog/references/chat.md), which goes
 through your own OAuth grant.
 
 Rich cards **were** a v1 non-goal; GH-1113 lifted that — see § Formatting.

@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:gh-pr-doctor",
+  "skill_name": "dev10x:gh-pr-doctor",
   "eval_dimensions": [
     {
       "id": "task-tracking",
@@ -22,7 +22,7 @@
       "id": "task-tracking-startup",
       "name": "Startup creates all four orchestration tasks",
       "description": "Step 0 must create one TaskCreate per phase (scan, classify, create issues, post audit trail) before scanning begins.",
-      "input": "/Dev10x:gh-pr-doctor --repo owner/repo",
+      "input": "/dev10x:gh-pr-doctor --repo owner/repo",
       "assertions": [
         {
           "dimension": "task-tracking",
@@ -36,13 +36,13 @@
       "id": "announce-line-present",
       "name": "Skill opens with the announce line",
       "description": "The documented announce line must appear before Step 1 scanning starts, so the user can tell which skill produced the findings.",
-      "input": "/Dev10x:gh-pr-doctor",
+      "input": "/dev10x:gh-pr-doctor",
       "assertions": [
         {
           "dimension": "announce",
           "check": "output_contains",
-          "value": "Using Dev10x:gh-pr-doctor to",
-          "signal": "announce_line_present — Output contains 'Using Dev10x:gh-pr-doctor to audit merged PRs for unresolved review threads.'"
+          "value": "Using dev10x:gh-pr-doctor to",
+          "signal": "announce_line_present — Output contains 'Using dev10x:gh-pr-doctor to audit merged PRs for unresolved review threads.'"
         }
       ]
     },
@@ -50,7 +50,7 @@
       "id": "grouping-gate-fires-with-three-options",
       "name": "Step 2 grouping gate fires with the documented options",
       "description": "After presenting grouped findings, the skill must call AskUserQuestion with Create issues / Edit grouping / Dry run rather than proceeding straight to issue creation.",
-      "input": "/Dev10x:gh-pr-doctor finds 3 unresolved-thread groups (security, error handling, testing) across 5 merged PRs",
+      "input": "/dev10x:gh-pr-doctor finds 3 unresolved-thread groups (security, error handling, testing) across 5 merged PRs",
       "assertions": [
         {
           "dimension": "step2-grouping-gate",
@@ -75,7 +75,7 @@
       "id": "dry-run-skips-issue-creation",
       "name": "Dry run option produces no gh issue create calls",
       "description": "When the user selects 'Dry run' at the Step 2 gate, Step 3 (Create Follow-Up Issues) and Step 4 (Post Audit Trail) must not execute — only the findings summary is shown.",
-      "input": "/Dev10x:gh-pr-doctor --dry-run, user selects 'Dry run' at the gate",
+      "input": "/dev10x:gh-pr-doctor --dry-run, user selects 'Dry run' at the gate",
       "assertions": [
         {
           "dimension": "step2-grouping-gate",
@@ -92,7 +92,7 @@
     ],
     "should_not_trigger": [
       "Reviewing active draft PRs",
-      "Real-time automated PR review during an open PR (use Dev10x:gh-pr-review)"
+      "Real-time automated PR review during an open PR (use dev10x:gh-pr-review)"
     ]
   }
 }

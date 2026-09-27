@@ -1,6 +1,6 @@
 ---
-name: Dev10x:review
-invocation-name: Dev10x:review
+name: dev10x:review
+invocation-name: dev10x:review
 description: >
   Review your own branch changes before creating a PR. Reviews diff
   against base branch, runs automated checks, and produces structured
@@ -8,11 +8,11 @@ description: >
   attended (pick findings) or unattended (auto-advance to fixer) mode.
   TRIGGER when: reviewing own branch changes before PR creation, or
   self-reviewing code quality.
-  DO NOT TRIGGER when: reviewing an external PR (use Dev10x:gh-pr-review),
+  DO NOT TRIGGER when: reviewing an external PR (use dev10x:gh-pr-review),
   or no changes exist on the branch.
 user-invocable: true
 allowed-tools:
-  - Skill(Dev10x:review-fix)
+  - Skill(dev10x:review-fix)
   - Bash(git log:*)
   - Bash(git diff:*)
   - Bash(git status:*)
@@ -22,21 +22,21 @@ allowed-tools:
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
   - Edit(/tmp/Dev10x/review/**)
   - AskUserQuestion
-  - mcp__plugin_Dev10x_cli__resolve_gate
-  - mcp__plugin_Dev10x_cli__detect_base_branch
+  - mcp__plugin_dev10x_cli__resolve_gate
+  - mcp__plugin_dev10x_cli__detect_base_branch
   - Bash(git fetch:*)
 ---
 
 # Self-Review Branch
 
 Review current branch changes against the base branch, applying project
-review guidelines. Produces structured findings that `Dev10x:review-fix`
+review guidelines. Produces structured findings that `dev10x:review-fix`
 can consume to create fixup commits.
 
 ## Arguments
 
 - `--unattended` — skip finding approval, auto-advance to
-  `Dev10x:review-fix` for all actionable findings
+  `dev10x:review-fix` for all actionable findings
 - No arguments — attended mode, present findings for user approval
 
 ## When to Use
@@ -45,19 +45,19 @@ can consume to create fixup commits.
 - As the "Code review" step in the `work-on` shipping pipeline
 - When asked to review your own changes
 
-**Not for remote PR review** — use `Dev10x:gh-pr-review` to post
+**Not for remote PR review** — use `dev10x:gh-pr-review` to post
 findings to GitHub.
 
 ## No-Reviewer Auto-Skip Threshold (GH-161)
 
-Audit GH-161 caught a session where `Dev10x:review` and
+Audit GH-161 caught a session where `dev10x:review` and
 `simplify` were auto-completed with the marker
 `Auto-skipped: solo-maintainer` despite the diff touching 8+
 files including domain restructuring and a platform Registry
 split. Blanket auto-skip when nobody else reviews defeats the
 purpose of the review gate.
 
-**Threshold rule:** Call `mcp__plugin_Dev10x_cli__resolve_gate(
+**Threshold rule:** Call `mcp__plugin_dev10x_cli__resolve_gate(
 gate="request_review", context={})`. Only when it returns
 `effect: "skip"` — nobody else is being asked to look — may
 auto-skip apply at all, and then ONLY to small-surface changes.
@@ -72,7 +72,7 @@ Compute the touched-files count from
 | ≥ 8 files | Run review in `--unattended` mode; if findings
 exist, emit `AskUserQuestion` so the user retains override |
 
-Orchestrators (e.g., `Dev10x:work-on`) MUST NOT mark the
+Orchestrators (e.g., `dev10x:work-on`) MUST NOT mark the
 review task `completed` with the auto-skip marker when the
 diff exceeds the small-surface threshold. The same rule
 applies to the `simplify` step that follows review.
@@ -97,7 +97,7 @@ Never pause between steps to ask "should I continue?".
 Set sequential dependencies.
 
 **Nested-mode exemption:** When invoked as a nested skill within
-a parent orchestrator (e.g., via `Skill()` from `Dev10x:work-on`),
+a parent orchestrator (e.g., via `Skill()` from `dev10x:work-on`),
 startup task creation is optional — at most 1 summary task. The
 parent provides progress visibility. See
 `references/task-orchestration.md` § Delegated Invocation Exception.
@@ -125,11 +125,11 @@ short-circuits the rest of the pipeline.
   typo fixes, plugin-maintenance commits)
 - The diff is purely additive infra (e.g., a new agent spec file)
   where scope is self-evident
-- The caller invoked `Dev10x:review` with `--skip-spec` (reserved
+- The caller invoked `dev10x:review` with `--skip-spec` (reserved
   flag for explicit opt-out)
 
 **Pre-read inputs (controller side):** Read the linked ticket
-body (via `mcp__plugin_Dev10x_cli__issue_get` or the appropriate
+body (via `mcp__plugin_dev10x_cli__issue_get` or the appropriate
 tracker MCP) and the PR Job Story if present, plus the full
 `git develop-diff` output. Inline both into the dispatch prompt
 under `<ticket>` and `<diff>` blocks — `spec-reviewer` will not
@@ -190,13 +190,13 @@ Agent(
 **Anchor on `origin/<base>`, not the local ref (GH-1463).**
 `git develop-diff` resolves its merge-base against the local
 `develop`, which lags `origin/develop` after any rebase-merge —
-the same hazard `Dev10x:git-groom` Phase 1 documents (GH-486,
+the same hazard `dev10x:git-groom` Phase 1 documents (GH-486,
 GH-997). Reviewing the stale local merge-base scopes the review
 to every file any previously-merged PR touched, not just this
 branch's own changes, and the failure is silent: the diff is
 larger, not empty.
 
-1. Resolve `<base>` via `mcp__plugin_Dev10x_cli__detect_base_branch`
+1. Resolve `<base>` via `mcp__plugin_dev10x_cli__detect_base_branch`
    rather than hardcoding `develop`.
 2. Fetch and diff against the remote ref:
    ```bash
@@ -287,7 +287,7 @@ is that this is a genuine issue:
 | 0-49 | Low confidence | Nitpick, subjective suggestion |
 
 **Threshold filtering:** In unattended mode, only findings with
-`confidence >= 70` are passed to `Dev10x:review-fix`. Below-
+`confidence >= 70` are passed to `dev10x:review-fix`. Below-
 threshold findings are reported as INFO in the summary but not
 auto-fixed. In attended mode, all findings are presented
 regardless of confidence.
@@ -324,9 +324,9 @@ Write the findings array as JSON to the temp file path.
 - Skip presentation
 - Filter findings by confidence threshold (default: 70).
   Only pass findings with `confidence >= threshold` AND
-  severity `ERROR` or `WARNING` to `Dev10x:review-fix`
+  severity `ERROR` or `WARNING` to `dev10x:review-fix`
 - Below-threshold findings are logged as INFO in summary
-- Invoke: `Skill(skill="Dev10x:review-fix", args="<findings-file-path>")`
+- Invoke: `Skill(skill="dev10x:review-fix", args="<findings-file-path>")`
 - Auto-advance after fixer completes
 
 **Attended mode** (default):
@@ -341,7 +341,7 @@ This confirms the clean review to the user and prevents silent
 skip-through (GH-447 F5).
 
 **Unattended mode exemption (GH-760 F6):** When invoked with
-`--unattended` flag (e.g., from `Dev10x:work-on` shipping
+`--unattended` flag (e.g., from `dev10x:work-on` shipping
 pipeline), skip this gate and auto-advance. The parent
 orchestrator already approved the work plan — pausing for
 zero-findings confirmation adds friction without safety value.
@@ -355,14 +355,14 @@ zero-findings confirmation adds friction without safety value.
 **REQUIRED: Call `AskUserQuestion`** (do NOT use plain text).
 Options:
 - Fix all (Recommended) — Send all ERROR and WARNING findings to
-  `Dev10x:review-fix`
+  `dev10x:review-fix`
 - Pick findings — Review each finding and select which to fix
 - Skip — No fixes, continue with pipeline
 
 If "Pick findings": present each finding with fix/skip choice,
-collect approved findings, then invoke `Dev10x:review-fix`.
+collect approved findings, then invoke `dev10x:review-fix`.
 
-If "Fix all" or after picking: invoke `Dev10x:review-fix` with
+If "Fix all" or after picking: invoke `dev10x:review-fix` with
 the findings file path.
 
 ### Step 7: Summary
@@ -374,8 +374,8 @@ Report:
 
 ## Findings Format (Handoff Protocol)
 
-The JSON findings file is the contract between `Dev10x:review`
-and `Dev10x:review-fix`:
+The JSON findings file is the contract between `dev10x:review`
+and `dev10x:review-fix`:
 
 ```json
 [
@@ -399,21 +399,21 @@ path passed as its argument.
 
 ```
 work-on shipping pipeline
-└─ Dev10x:review          ← this skill (reviewer)
-   └─ Dev10x:review-fix   ← fixer (consumes findings)
+└─ dev10x:review          ← this skill (reviewer)
+   └─ dev10x:review-fix   ← fixer (consumes findings)
       └─ git commit fixup!  ← one fixup commit per finding
 ```
 
 Complements:
-- `Dev10x:gh-pr-review` — posts findings to GitHub (remote PRs)
-- `Dev10x:gh-pr-respond` — responds to PR review comments
+- `dev10x:gh-pr-review` — posts findings to GitHub (remote PRs)
+- `dev10x:gh-pr-respond` — responds to PR review comments
 
 ## Design Note: Future `--post-to-pr` Mode (GH-319)
 
-If `Dev10x:review` ever gains a `--post-to-pr` flag that hands off
+If `dev10x:review` ever gains a `--post-to-pr` flag that hands off
 findings to a GitHub PR review, that mode MUST default to Draft
 (PENDING) rather than submitting immediately. The self-review
 author is almost always the PR author — who should finalize the
 review as a human action, not have it auto-submitted on their
 behalf. Codify "draft-first" at design time to avoid retro-fitting
-the same gap that GH-319 addressed in `Dev10x:gh-pr-review`.
+the same gap that GH-319 addressed in `dev10x:gh-pr-review`.

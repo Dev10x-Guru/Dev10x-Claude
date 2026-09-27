@@ -3,8 +3,8 @@
 Detects projects whose `settings.local.json` already approves at
 least one Linear MCP tool — a strong signal that the project uses
 Linear as its issue tracker — but is missing the baseline Linear
-MCP allow rules shipped by `Dev10x:plugin-maintenance` /
-`Dev10x:upgrade-cleanup`.
+MCP allow rules shipped by `dev10x:plugin-maintenance` /
+`dev10x:upgrade-cleanup`.
 
 When Linear is in use, the baseline pre-approves the read+write
 subset (Group A + B in `skills/upgrade-cleanup/projects.yaml`) so
@@ -37,7 +37,7 @@ class LinearBaselineRemediation:
     def to_remediation(self, *, finding: Finding) -> Remediation:
         return Remediation(
             kind="delegate_skill",
-            target="Dev10x:upgrade-cleanup",
+            target="dev10x:upgrade-cleanup",
             action={
                 "reason": "install Linear MCP baseline allow rules",
                 "missing_tools": list(self.missing_tools),
@@ -96,7 +96,7 @@ def detect(context: Context) -> list[Finding]:
                     f"rules ({', '.join(missing[:3])}...)"
                 ),
                 proposed_fix=(
-                    "run `Dev10x:upgrade-cleanup` (or `dev10x permission "
+                    "run `dev10x:upgrade-cleanup` (or `dev10x permission "
                     "ensure-base`) to install the Linear MCP baseline shipped "
                     "in `skills/upgrade-cleanup/projects.yaml`"
                 ),
@@ -114,7 +114,7 @@ STRATEGY = Strategy(
     id="missing-linear-mcp-allow",
     description=(
         "Surface projects that approve Linear MCP tools ad-hoc but are missing "
-        "the baseline read+write subset shipped by Dev10x:upgrade-cleanup."
+        "the baseline read+write subset shipped by dev10x:upgrade-cleanup."
     ),
     detect=detect,
     remediate=remediate,

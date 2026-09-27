@@ -35,7 +35,7 @@ leg `required: false`, exactly as
 documents it should when the host marks nothing required.
 
 The cost is not that CI is unwatched — it is watched, and
-`Dev10x:gh-pr-merge` runs nine pre-merge validations against it. The
+`dev10x:gh-pr-merge` runs nine pre-merge validations against it. The
 cost is that **those validations gate nothing**. With no required
 check, GitHub merges an armed PR the instant CI settles, and that
 instant can fall between "mark ready" and the gate's first call. In
@@ -163,7 +163,7 @@ before merging.** `strict: true` forces every PR to rebase whenever
 means near-continuous forced rebases. Worse, it interacts badly with
 the review cycle: a rebase after review fixups exist rewrites the
 SHAs that review-thread permalinks reference, which
-`Dev10x:git-groom` Phase 0 and the work-on per-batch re-sync rule
+`dev10x:git-groom` Phase 0 and the work-on per-batch re-sync rule
 both go out of their way to prevent.
 
 **D-4. `enforce_admins: false`.** This is a solo-maintained
@@ -184,7 +184,7 @@ whenever `develop` moves, which on a repo merging several bundles a
 day means near-continuous forced rebases — and it interacts badly
 with the review cycle, since a rebase after review fixups exist
 rewrites the SHAs that review-thread permalinks reference, which
-`Dev10x:git-groom` Phase 0 and the work-on per-batch re-sync rule
+`dev10x:git-groom` Phase 0 and the work-on per-batch re-sync rule
 both go out of their way to prevent. `enforce_admins: false` keeps a
 deliberate escape hatch for the sole maintainer; closing it would
 make broken-CI recovery require deleting the protection rule rather
@@ -247,7 +247,7 @@ gh api repos/Dev10x-Guru/Dev10x-Claude/branches/develop/protection \
 Then, on the next PR, `ci_check_status` should report
 `required_verdict` as something other than `"empty"`, and the
 aggregator should carry `required: true`. That second signal is the
-one that matters: it is the same field `Dev10x:gh-pr-merge` Check 2
+one that matters: it is the same field `dev10x:gh-pr-merge` Check 2
 branches on, so it proves the skill can see what the host enforces.
 Verify on a **docs-only** PR specifically — that is the case the
 naive payload breaks.
@@ -275,8 +275,8 @@ from the aggregator's `needs:`, and amend this ADR to say so.
 
 **The two excluded review legs remain unenforced.** Nothing stops a
 PR merging with `claude-review` red. That is accepted: their value is
-in what they surface to the author, and `Dev10x:gh-pr-monitor`
-already routes their comments through `Dev10x:gh-pr-respond`.
+in what they surface to the author, and `dev10x:gh-pr-monitor`
+already routes their comments through `dev10x:gh-pr-respond`.
 
 **Renaming the three `Scanner unit tests` jobs becomes a
 prerequisite** for ever extending the required set to the audit

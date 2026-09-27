@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:slack",
+  "skill_name": "dev10x:slack",
   "eval_dimensions": [
     {
       "id": "first-time-setup-gate",
@@ -12,7 +12,7 @@
       "id": "setup-gate-uses-tool-when-token-missing",
       "name": "Missing token fires the first-time-setup AskUserQuestion",
       "description": "When no Slack token is found (keyring, env var, or config), the skill presents the token-storage-method choice via AskUserQuestion before writing any token or config.",
-      "input": "/Dev10x:slack --message hi --channel C123 (no Slack token configured anywhere)",
+      "input": "/dev10x:slack --message hi --channel C123 (no Slack token configured anywhere)",
       "assertions": [
         {
           "dimension": "first-time-setup-gate",
@@ -31,7 +31,7 @@
       "id": "no-token-write-before-user-choice",
       "name": "No token is stored before the user picks a method",
       "description": "The skill does not call secret-tool store or write SLACK_TOKEN to any file until the user has selected a storage method via the gate.",
-      "input": "/Dev10x:slack (no token configured)",
+      "input": "/dev10x:slack (no token configured)",
       "assertions": [
         {
           "dimension": "first-time-setup-gate",
@@ -44,7 +44,7 @@
       "id": "configured-token-skips-setup-gate",
       "name": "An already-configured token skips the setup gate entirely",
       "description": "When a Slack token is already resolvable (keyring, SLACK_TOKEN, or config file), the skill proceeds directly to sending the message without firing the setup gate.",
-      "input": "/Dev10x:slack --message hi --channel C123 (token already in keyring)",
+      "input": "/dev10x:slack --message hi --channel C123 (token already in keyring)",
       "assertions": [
         {
           "dimension": "first-time-setup-gate",
@@ -58,7 +58,7 @@
     "description": "Queries that should/should-not trigger the slack skill",
     "should_trigger": [
       {
-        "query": "/Dev10x:slack --message hi --channel C123",
+        "query": "/dev10x:slack --message hi --channel C123",
         "rationale": "Direct invocation to send a Slack notification"
       },
       {
@@ -69,11 +69,11 @@
     "should_not_trigger": [
       {
         "query": "set up the Slack bot token scopes",
-        "rationale": "Use Dev10x:slack-setup for initial workspace integration setup"
+        "rationale": "Use dev10x:slack-setup for initial workspace integration setup"
       },
       {
         "query": "post a review request for this PR",
-        "rationale": "Use Dev10x:slack-review-request, which composes the message and gate for that purpose"
+        "rationale": "Use dev10x:slack-review-request, which composes the message and gate for that purpose"
       }
     ]
   }

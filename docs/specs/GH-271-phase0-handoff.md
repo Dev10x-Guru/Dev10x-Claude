@@ -83,10 +83,10 @@ Counts: 315 evidence → 51 no-command, 91 with effect+class (69 "clean" /
 - `.claude/Dev10x/session.yaml` `insights:` — the 18 reflections distilled.
 
 ## Ship
-Solo-maintainer adaptive pipeline: `Dev10x:review --unattended` →
-`Dev10x:git-commit` → `Dev10x:gh-pr-create --unattended` →
-`Dev10x:gh-pr-monitor` → `Dev10x:git-groom` → update PR → mark ready →
-`Dev10x:gh-pr-merge` → `Dev10x:verify-acc-dod`. PR body ends with
+Solo-maintainer adaptive pipeline: `dev10x:review --unattended` →
+`dev10x:git-commit` → `dev10x:gh-pr-create --unattended` →
+`dev10x:gh-pr-monitor` → `dev10x:git-groom` → update PR → mark ready →
+`dev10x:gh-pr-merge` → `dev10x:verify-acc-dod`. PR body ends with
 `Fixes:` a GH-271 sub-issue (keep the meta-tracker open) per saved memory.
 
 ## Known issue to file

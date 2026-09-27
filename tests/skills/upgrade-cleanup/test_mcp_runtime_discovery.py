@@ -39,7 +39,7 @@ def settings_with_three_sentry_servers(tmp_path: Path) -> Path:
                         "mcp__plugin_sentry_sentry__get_issue",
                         # unrelated
                         "Bash(git status:*)",
-                        "mcp__plugin_Dev10x_cli__mktmp",
+                        "mcp__plugin_dev10x_cli__mktmp",
                     ]
                 }
             }

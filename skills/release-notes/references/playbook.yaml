@@ -4,7 +4,7 @@
 #   1. .claude/Dev10x/playbooks/release-notes.yaml (project-local)
 #   2. ~/.config/Dev10x/playbooks/release-notes.yaml (global + repo match)
 #      → fallback: ~/.claude/memory/Dev10x/playbooks/release-notes.yaml
-# Managed by Dev10x:playbook skill.
+# Managed by dev10x:playbook skill.
 #
 # Play-level `config` block holds structured settings that the
 # orchestrating skill reads to configure script args and output
@@ -20,9 +20,9 @@ fragments:
       type: epic
       prompt: >
         For each feature PR listed as "MISSING JTBDs" in the
-        collect-prs output, invoke Dev10x:jtbd in unattended mode
+        collect-prs output, invoke dev10x:jtbd in unattended mode
         with the ticket ID and PR number. Collect all drafts.
-      skills: [Dev10x:jtbd]
+      skills: [dev10x:jtbd]
     - subject: Batch approve generated JTBDs
       type: detailed
       prompt: >
@@ -77,7 +77,7 @@ defaults:
         prompt: >
           Run collect-prs.py with the repo path and configured
           ticket patterns. Parse the structured markdown output.
-        skills: [Dev10x:release-notes]
+        skills: [dev10x:release-notes]
       - fragment: jtbd-generation
       - subject: Synthesize business summary
         type: detailed
@@ -115,7 +115,7 @@ defaults:
         prompt: >
           Run collect-prs.py with the repo path. Focus on
           bugfix and hotfix categories.
-        skills: [Dev10x:release-notes]
+        skills: [dev10x:release-notes]
       - subject: Format short summary
         type: detailed
         prompt: >

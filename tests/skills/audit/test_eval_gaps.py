@@ -10,7 +10,7 @@ import pytest
 from dev10x.skills.audit import eval_gaps as mod
 
 GATED_SKILL_MD = """---
-name: Dev10x:demo
+name: dev10x:demo
 allowed-tools:
   - AskUserQuestion
   - Read
@@ -25,7 +25,7 @@ Options:
 """
 
 UNGATED_SKILL_MD = """---
-name: Dev10x:demo
+name: dev10x:demo
 allowed-tools:
   - Read
 ---
@@ -36,7 +36,7 @@ Just reads a file. No decision gates here.
 """
 
 GATED_NO_ALLOWED_TOOLS_MD = """---
-name: Dev10x:demo
+name: dev10x:demo
 allowed-tools:
   - Read
 ---
@@ -117,7 +117,7 @@ class TestCheckSkill:
 
     def test_gated_skill_with_empty_evals_is_gap(self, skills_root: Path) -> None:
         skill_dir = _write_skill(skills_root, "demo", GATED_SKILL_MD)
-        _write_evals(skill_dir, {"skill_name": "Dev10x:demo", "evals": []})
+        _write_evals(skill_dir, {"skill_name": "dev10x:demo", "evals": []})
         gap = mod.check_skill(skill_dir)
         assert gap is not None
         assert gap.classification == "EMPTY_EVALS"
@@ -127,7 +127,7 @@ class TestCheckSkill:
         _write_evals(
             skill_dir,
             {
-                "skill_name": "Dev10x:demo",
+                "skill_name": "dev10x:demo",
                 "evals": [
                     {
                         "id": "gate1",

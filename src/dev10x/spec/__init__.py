@@ -1,7 +1,7 @@
 """Spec drift detection for the SPDD pipeline (GH-172).
 
-Shared module between Dev10x:spec-update (behaviour-first) and
-Dev10x:spec-sync (refactor-first). One canonical drift detector,
+Shared module between dev10x:spec-update (behaviour-first) and
+dev10x:spec-sync (refactor-first). One canonical drift detector,
 two entry points — per ADR 0005 risk mitigation.
 """
 

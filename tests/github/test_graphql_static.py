@@ -499,5 +499,5 @@ class TestGhPrGetScriptContractLint:
         """
         assert field in gh_pr_view_json_fields, (
             f"gh-pr-get.sh must declare {field!r} in --json fields (GH-917). "
-            "Dev10x:request-review Step 1.5 reads these from pr_get."
+            "dev10x:request-review Step 1.5 reads these from pr_get."
         )

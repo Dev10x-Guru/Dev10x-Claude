@@ -8,7 +8,7 @@
 #      ~/.config/Dev10x/aws-vault/service-registry.yaml
 #
 # Maps abstract environment + service names to concrete AWS / k8s
-# artifacts. Skills (Dev10x:aws-vault and any caller that needs
+# artifacts. Skills (dev10x:aws-vault and any caller that needs
 # credentials) read this file to resolve names.
 #
 # Maintain this file when environments or services change.

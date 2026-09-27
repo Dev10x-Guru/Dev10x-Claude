@@ -6,7 +6,7 @@ version: "0.106.0.dev0"
 #   1. .claude/Dev10x/playbooks/<skill-key>.yaml (project-local)
 #   2. ~/.config/Dev10x/playbooks/<skill-key>.yaml (global + repo match)
 #      → fallback: ~/.claude/memory/Dev10x/playbooks/<skill-key>.yaml
-# Managed by Dev10x:playbook skill.
+# Managed by dev10x:playbook skill.
 #
 # Structure:
 #   fragments  — reusable step sequences (see below)
@@ -58,21 +58,21 @@ fragments:
     - subject: Commit implementation changes
       type: detailed
       prompt: >
-        Commit outstanding implementation work now so Dev10x:review
+        Commit outstanding implementation work now so dev10x:review
         has a non-empty diff to inspect — the review skills compute
         their diff from commits against base (develop-diff), not the
         working tree, so an uncommitted-only branch reviews nothing
         (GH-858 F3). Atomic commits, gitmoji + ticket ID.
         Auto-advance — do not pause after committing. No-op when the
         Implement epic already committed.
-      skills: [Dev10x:git-commit]
+      skills: [dev10x:git-commit]
     - subject: Code review
       type: detailed
       prompt: >
         Self-review the current branch to catch issues before
         creating the PR. Run with --unattended. Auto-fix all
         findings. Auto-advance without supervisor gate.
-      skills: [Dev10x:review, Dev10x:review-fix]
+      skills: [dev10x:review, dev10x:review-fix]
       modes:
         supervised:
           prompt: >
@@ -94,14 +94,14 @@ fragments:
         Stage and commit any uncommitted work from the review
         fixes. Use atomic commits with gitmoji + ticket ID.
         Auto-advance — do not pause after committing.
-      skills: [Dev10x:git-commit]
+      skills: [dev10x:git-commit]
     - subject: Create draft PR
       type: detailed
       prompt: >
         Create a draft PR immediately. The PR body and commit
         history can be refined later. Auto-advance — do not
         block on PR preview approval.
-      skills: [Dev10x:gh-pr-create]
+      skills: [dev10x:gh-pr-create]
     - subject: Monitor CI
       type: detailed
       prompt: >
@@ -111,33 +111,33 @@ fragments:
         mark the PR ready BEFORE this step via the `pr_ready` MCP
         wrapper — otherwise the monitor polls a PR that never
         produces a verdict.
-      skills: [Dev10x:gh-pr-monitor]
+      skills: [dev10x:gh-pr-monitor]
     - subject: Apply fixups to review comments
       type: epic
       prompt: >
         Address each review comment with a fixup commit. Validate
         before replying. Do not auto-resolve threads.
-      skills: [Dev10x:gh-pr-respond]
+      skills: [dev10x:gh-pr-respond]
     - subject: Groom commit history
       type: detailed
       prompt: >
         Squash fixups, reorder for logical flow, ensure each
         commit message follows gitmoji + JTBD conventions.
-      skills: [Dev10x:git-groom]
+      skills: [dev10x:git-groom]
     - subject: Update PR description
       type: detailed
       prompt: >
         Update the draft PR title and body with the final Job
         Story, linked commit list, and checklist. Mark as ready
         for review if all checks pass.
-      skills: [Dev10x:gh-pr-create]
+      skills: [dev10x:gh-pr-create]
     - subject: Request review
       type: detailed
       prompt: >
         Assign reviewers and post Slack notification per project
         config. Auto-assign from CODEOWNERS — no AskUserQuestion
         for reviewer selection.
-      skills: [Dev10x:gh-pr-request-review]
+      skills: [dev10x:gh-pr-request-review]
       modes:
         solo-maintainer:
           subject: Mark PR ready for review
@@ -150,7 +150,7 @@ fragments:
         Merge the PR after all checks pass. Use the merge
         strategy from project settings (rebase preferred to
         preserve groomed commit history).
-      skills: [Dev10x:gh-pr-merge]
+      skills: [dev10x:gh-pr-merge]
       modes:
         solo-maintainer:
           prompt: >
@@ -160,9 +160,9 @@ fragments:
     - subject: Verify acceptance criteria
       type: detailed
       prompt: >
-        Always delegate to Dev10x:verify-acc-dod skill
+        Always delegate to dev10x:verify-acc-dod skill
         regardless of mode. The skill owns its own gates.
-      skills: [Dev10x:verify-acc-dod]
+      skills: [dev10x:verify-acc-dod]
 
   # Bundled multi-issue implementation (GH-196).
   # Replaces the single "Implement changes" epic when work-on
@@ -186,7 +186,7 @@ fragments:
         (b) Implement the changes that close every batch
         member.
         (c) Delegate exactly one commit via
-        Skill(Dev10x:git-commit) — body must enumerate
+        Skill(dev10x:git-commit) — body must enumerate
         every batch member and emit one `Fixes:` line per
         ticket so each issue auto-closes on merge.
         Do NOT delegate a commit between batch members of
@@ -203,19 +203,19 @@ fragments:
       prompt: >
         Self-review changes to catch issues before pushing.
         Fix any findings before proceeding.
-      skills: [Dev10x:review, Dev10x:review-fix]
+      skills: [dev10x:review, dev10x:review-fix]
     - subject: Commit outstanding changes
       type: detailed
       prompt: >
         Stage and commit any uncommitted fixup work.
         Auto-advance — do not pause after committing.
-      skills: [Dev10x:git-commit]
+      skills: [dev10x:git-commit]
     - subject: Monitor CI
       type: detailed
       prompt: >
         Push changes and monitor CI. Fix any failures
         introduced by the fixups.
-      skills: [Dev10x:gh-pr-monitor]
+      skills: [dev10x:gh-pr-monitor]
     - subject: Groom commit history
       type: detailed
       prompt: >
@@ -223,18 +223,18 @@ fragments:
         grooming option and auto-advance. No strategy gate —
         select fixup autosquash if fixup commits exist, mass
         rewrite otherwise.
-      skills: [Dev10x:git-groom]
+      skills: [dev10x:git-groom]
     - subject: Update PR description
       type: detailed
       prompt: >
         Update the PR with final linked commits and checklist.
-      skills: [Dev10x:gh-pr-create]
+      skills: [dev10x:gh-pr-create]
     - subject: Request re-review
       type: detailed
       prompt: >
         Notify reviewers that feedback has been addressed
         and request re-review.
-      skills: [Dev10x:gh-pr-request-review]
+      skills: [dev10x:gh-pr-request-review]
       modes:
         solo-maintainer:
           subject: Mark PR ready for review
@@ -248,7 +248,7 @@ fragments:
         Merge the PR after all checks pass. Use the merge
         strategy from project settings (rebase preferred to
         preserve groomed commit history).
-      skills: [Dev10x:gh-pr-merge]
+      skills: [dev10x:gh-pr-merge]
       modes:
         solo-maintainer:
           prompt: >
@@ -258,9 +258,9 @@ fragments:
     - subject: Verify acceptance criteria
       type: detailed
       prompt: >
-        Always delegate to Dev10x:verify-acc-dod skill
+        Always delegate to dev10x:verify-acc-dod skill
         regardless of mode. The skill owns its own gates.
-      skills: [Dev10x:verify-acc-dod]
+      skills: [dev10x:verify-acc-dod]
 
 # Mode definitions — structural modes that adapt step behavior.
 # Activated via active_modes in session.yaml or project playbook.
@@ -296,7 +296,7 @@ defaults:
           Create a feature branch from develop. Skip if a matching
           branch already exists. In a worktree with a generic
           branch, create a work-specific branch.
-        skills: [Dev10x:ticket-branch]
+        skills: [dev10x:ticket-branch]
       - subject: Draft Job Story
         type: detailed
         prompt: >
@@ -304,7 +304,7 @@ defaults:
           Accept what the skill produces, use it in the session,
           and improve if needed. Auto-advance without approval,
           then write the story back to the ticket as a comment.
-        skills: [Dev10x:jtbd]
+        skills: [dev10x:jtbd]
         modes:
           solo-maintainer:
             prompt: >
@@ -374,7 +374,7 @@ defaults:
         steps:
           - subject: Run tests
             type: detailed
-            prompt: Run via Skill(Dev10x:py-test) with coverage. Fix failures.
+            prompt: Run via Skill(dev10x:py-test) with coverage. Fix failures.
             skills: [test]
           - subject: Run lint
             type: detailed
@@ -393,7 +393,7 @@ defaults:
         prompt: >
           Create a feature branch from develop. Skip if a matching
           branch already exists.
-        skills: [Dev10x:ticket-branch]
+        skills: [dev10x:ticket-branch]
       - subject: Reproduce the issue
         type: detailed
         prompt: >
@@ -435,7 +435,7 @@ defaults:
         steps:
           - subject: Run existing tests
             type: detailed
-            prompt: Run via Skill(Dev10x:py-test) with coverage. Ensure no regressions.
+            prompt: Run via Skill(dev10x:py-test) with coverage. Ensure no regressions.
             skills: [test]
           - subject: Add regression test
             type: detailed
@@ -468,7 +468,7 @@ defaults:
         prompt: >
           Batch-process remaining unaddressed comments using
           the gh-pr-respond skill.
-        skills: [Dev10x:gh-pr-respond]
+        skills: [dev10x:gh-pr-respond]
       - fragment: shipping-pipeline-continuation
 
   local-only:
@@ -482,11 +482,11 @@ defaults:
       - subject: Set up workspace
         type: detailed
         condition: if-branch-needed
-        skills: [Dev10x:ticket-branch]
+        skills: [dev10x:ticket-branch]
         prompt: >
           Create a feature branch if not already on one.
           Skip if current branch is already a feature branch.
-          Use Dev10x:ticket-branch skill — never raw git
+          Use dev10x:ticket-branch skill — never raw git
           checkout -b.
       - subject: Summarize the work from gathered context
         type: detailed
@@ -505,7 +505,7 @@ defaults:
         steps:
           - subject: Run tests
             type: detailed
-            prompt: Run via Skill(Dev10x:py-test) with coverage. Fix failures.
+            prompt: Run via Skill(dev10x:py-test) with coverage. Fix failures.
             skills: [test]
           - subject: Run lint
             type: detailed
@@ -601,32 +601,32 @@ defaults:
         prompt: >
           Create a feature branch from develop. Skip if a matching
           branch already exists.
-        skills: [Dev10x:ticket-branch]
+        skills: [dev10x:ticket-branch]
       - subject: Scope ticket with REASONS sections
         type: detailed
         prompt: >
-          Invoke Dev10x:ticket-scope. The skill renders Entities,
+          Invoke dev10x:ticket-scope. The skill renders Entities,
           Norms, and Safeguards sections inline using the
           autopopulator (`dev10x.scope.render_norms` /
           `render_safeguards`). The saved spec at
           docs/specs/<TICKET-ID>.md becomes the source of truth
           for the rest of the pipeline.
-        skills: [Dev10x:ticket-scope]
+        skills: [dev10x:ticket-scope]
       - subject: Record ADR (if architectural decision involved)
         type: detailed
         prompt: >
           When the spec introduces or changes an architectural
           boundary, an ADR is required. Skip otherwise.
-        skills: [Dev10x:adr]
+        skills: [dev10x:adr]
         condition: if-architectural
       - subject: Spec-update gate (Golden Rule)
         type: detailed
         prompt: >
           Before implementing, check whether requirements shifted
-          since the spec was saved. If yes, run Dev10x:spec-update
+          since the spec was saved. If yes, run dev10x:spec-update
           (spec-first edit) and re-enter this step. If no, proceed
           to Implement.
-        skills: [Dev10x:spec-update]
+        skills: [dev10x:spec-update]
         condition: if-requirements-shifted
       - subject: Plan the commit sequence
         type: detailed
@@ -662,11 +662,11 @@ defaults:
       - subject: Spec-sync gate before merge
         type: detailed
         prompt: >
-          Run Dev10x:spec-sync in check-only mode. Behavioural
+          Run dev10x:spec-sync in check-only mode. Behavioural
           drift blocks the pipeline (route back to spec-update).
           Structural drift triggers a regenerate-and-commit pass
           so the spec matches the final code shape.
-        skills: [Dev10x:spec-sync]
+        skills: [dev10x:spec-sync]
       - fragment: shipping-pipeline
 
 # User overrides — added when user customizes a plan.

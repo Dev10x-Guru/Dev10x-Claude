@@ -5,7 +5,7 @@ catalogued, but the ``uv run --directory <path> <cmd>`` forms were not.
 Allow-rule matching keys on the literal command string, so the
 catalogued rule never matches the ``--directory`` shape — and that is
 the shape used in the multi-worktree setups Dev10x itself encourages
-via ``Dev10x:git-worktree``.
+via ``dev10x:git-worktree``.
 
 ``catalog-gap`` cannot catch this: it compares settings files against
 the catalog, so a shape absent from *both* reads as full coverage. The

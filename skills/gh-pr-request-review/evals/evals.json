@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:gh-pr-request-review",
+  "skill_name": "dev10x:gh-pr-request-review",
   "eval_dimensions": [
     {
       "id": "request-gate",
@@ -32,12 +32,12 @@
       "id": "request-gate-resolved-first",
       "name": "request_review gate resolves before pre-flight",
       "description": "resolve_gate(request_review) is the first action; pre-flight checks and reviewer resolution do not run before it resolves.",
-      "input": "/Dev10x:gh-pr-request-review",
+      "input": "/dev10x:gh-pr-request-review",
       "assertions": [
         {
           "dimension": "request-gate",
           "check": "tool_called",
-          "tool": "mcp__plugin_Dev10x_cli__resolve_gate",
+          "tool": "mcp__plugin_dev10x_cli__resolve_gate",
           "signal": "resolve_gate(gate=\"request_review\") is called before pre-flight or reviewer resolution"
         }
       ]
@@ -46,7 +46,7 @@
       "id": "request-gate-skip-no-request",
       "name": "skip effect requests no review",
       "description": "When the gate resolves to skip (solo-maintainer / no-review), the skill prints the skip notice and stops — request_review is not called.",
-      "input": "/Dev10x:gh-pr-request-review",
+      "input": "/dev10x:gh-pr-request-review",
       "assertions": [
         {
           "dimension": "request-gate",
@@ -59,7 +59,7 @@
       "id": "request-gate-ask-fires-standby-widget",
       "name": "ask effect fires the Stand-by widget",
       "description": "When the gate resolves to ask, the skill fires the Stand-by AskUserQuestion widget (Request now / Stand-by self-review / Skip) before doing anything else.",
-      "input": "/Dev10x:gh-pr-request-review",
+      "input": "/dev10x:gh-pr-request-review",
       "assertions": [
         {
           "dimension": "request-gate",
@@ -78,7 +78,7 @@
       "id": "human-approved-head-shortcircuits",
       "name": "Human approval on current HEAD short-circuits",
       "description": "A human APPROVED review with commit.oid == headRefOid fires AskUserQuestion (Skip already-approved / Force / Cancel) instead of spamming a redundant request.",
-      "input": "/Dev10x:gh-pr-request-review",
+      "input": "/dev10x:gh-pr-request-review",
       "assertions": [
         {
           "dimension": "human-approval-shortcircuit",
@@ -92,7 +92,7 @@
       "id": "bot-approval-does-not-shortcircuit",
       "name": "Bot approvals never short-circuit human review",
       "description": "When the only approvals on the current HEAD are from bots ([bot] login / author.type==Bot), the PR is treated as unapproved by humans and the skill proceeds to request human review.",
-      "input": "/Dev10x:gh-pr-request-review",
+      "input": "/dev10x:gh-pr-request-review",
       "assertions": [
         {
           "dimension": "human-approval-shortcircuit",
@@ -105,7 +105,7 @@
       "id": "draft-pr-marked-ready-first",
       "name": "Draft PR is marked ready before requesting",
       "description": "When isDraft is true, the skill runs gh pr ready before requesting review so the request is not silently lost.",
-      "input": "/Dev10x:gh-pr-request-review",
+      "input": "/dev10x:gh-pr-request-review",
       "assertions": [
         {
           "dimension": "draft-guard",
@@ -118,13 +118,13 @@
       "id": "review-requested-via-mcp-tool",
       "name": "Review requested via the request_review MCP tool",
       "description": "When reviewers resolve, the request is issued through the request_review MCP tool, not a raw gh api call.",
-      "input": "/Dev10x:gh-pr-request-review",
+      "input": "/dev10x:gh-pr-request-review",
       "assertions": [
         {
           "dimension": "reviewer-resolution",
           "check": "tool_called",
-          "tool": "mcp__plugin_Dev10x_cli__request_review",
-          "signal": "Review is requested via mcp__plugin_Dev10x_cli__request_review, not raw gh api"
+          "tool": "mcp__plugin_dev10x_cli__request_review",
+          "signal": "Review is requested via mcp__plugin_dev10x_cli__request_review, not raw gh api"
         },
         {
           "dimension": "reviewer-resolution",
@@ -137,7 +137,7 @@
       "id": "defer-persists-nothing",
       "name": "Stand-by / defer persists nothing",
       "description": "Choosing Stand-by / defer returns cleanly without requesting review and without writing active_modes or .claude/Dev10x/session.yaml (ADR-0018, ADR-0019, GH-950).",
-      "input": "/Dev10x:gh-pr-request-review",
+      "input": "/dev10x:gh-pr-request-review",
       "assertions": [
         {
           "dimension": "defer-persists-nothing",
@@ -155,7 +155,7 @@
       "id": "standby-offers-clearance-exit",
       "name": "standby offers a supervisor-cleared exit",
       "description": "A repo configured standby:true still executes the skill: it fires the clearance AskUserQuestion rather than deferring silently, so a supervisor who has self-reviewed can clear the PR for merge or escalate to the team without re-arguing the override (GH-998).",
-      "input": "/Dev10x:gh-pr-request-review",
+      "input": "/dev10x:gh-pr-request-review",
       "assertions": [
         {
           "dimension": "defer-persists-nothing",
@@ -185,7 +185,7 @@
     "description": "Queries that should/should-not trigger the gh-pr-request-review skill",
     "should_trigger": [
       {
-        "query": "/Dev10x:gh-pr-request-review",
+        "query": "/dev10x:gh-pr-request-review",
         "rationale": "Direct invocation — resolves the gate and requests review"
       },
       {
@@ -204,11 +204,11 @@
       },
       {
         "query": "merge PR #42",
-        "rationale": "Merge intent — use Dev10x:gh-pr-merge"
+        "rationale": "Merge intent — use dev10x:gh-pr-merge"
       },
       {
         "query": "monitor CI on my PR",
-        "rationale": "CI monitoring — use Dev10x:gh-pr-monitor"
+        "rationale": "CI monitoring — use dev10x:gh-pr-monitor"
       }
     ]
   }

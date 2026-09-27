@@ -170,75 +170,75 @@ base_permissions:
   # already covers all grep invocations.
 
   # --- Dev10x MCP tools: cli server (GH-878) ---
-  - "mcp__plugin_Dev10x_cli__detect_tracker"
-  - "mcp__plugin_Dev10x_cli__pr_detect"
-  - "mcp__plugin_Dev10x_cli__issue_get"
-  - "mcp__plugin_Dev10x_cli__issue_comments"
-  - "mcp__plugin_Dev10x_cli__issue_comment_edit"
-  - "mcp__plugin_Dev10x_cli__issue_comment_delete"
-  - "mcp__plugin_Dev10x_cli__issue_create"
-  - "mcp__plugin_Dev10x_cli__pr_comments"
-  - "mcp__plugin_Dev10x_cli__pr_comment_reply"
-  - "mcp__plugin_Dev10x_cli__pr_review_comment_edit"
-  - "mcp__plugin_Dev10x_cli__request_review"
-  - "mcp__plugin_Dev10x_cli__detect_base_branch"
-  - "mcp__plugin_Dev10x_cli__verify_pr_state"
-  - "mcp__plugin_Dev10x_cli__pre_pr_checks"
-  - "mcp__plugin_Dev10x_cli__create_pr"
-  - "mcp__plugin_Dev10x_cli__generate_commit_list"
-  - "mcp__plugin_Dev10x_cli__post_summary_comment"
-  - "mcp__plugin_Dev10x_cli__pr_notify"
-  - "mcp__plugin_Dev10x_cli__push_safe"
-  - "mcp__plugin_Dev10x_cli__rebase_groom"
-  - "mcp__plugin_Dev10x_cli__create_worktree"
-  - "mcp__plugin_Dev10x_cli__mass_rewrite"
-  - "mcp__plugin_Dev10x_cli__start_split_rebase"
-  - "mcp__plugin_Dev10x_cli__next_worktree_name"
-  - "mcp__plugin_Dev10x_cli__setup_aliases"
-  - "mcp__plugin_Dev10x_cli__mktmp"
-  - "mcp__plugin_Dev10x_cli__plan_sync_set_context"
-  - "mcp__plugin_Dev10x_cli__plan_sync_json_summary"
-  - "mcp__plugin_Dev10x_cli__plan_sync_archive"
-  - "mcp__plugin_Dev10x_cli__check_top_level_comments"
-  - "mcp__plugin_Dev10x_cli__unresolved_threads"
-  - "mcp__plugin_Dev10x_cli__ci_check_status"
+  - "mcp__plugin_dev10x_cli__detect_tracker"
+  - "mcp__plugin_dev10x_cli__pr_detect"
+  - "mcp__plugin_dev10x_cli__issue_get"
+  - "mcp__plugin_dev10x_cli__issue_comments"
+  - "mcp__plugin_dev10x_cli__issue_comment_edit"
+  - "mcp__plugin_dev10x_cli__issue_comment_delete"
+  - "mcp__plugin_dev10x_cli__issue_create"
+  - "mcp__plugin_dev10x_cli__pr_comments"
+  - "mcp__plugin_dev10x_cli__pr_comment_reply"
+  - "mcp__plugin_dev10x_cli__pr_review_comment_edit"
+  - "mcp__plugin_dev10x_cli__request_review"
+  - "mcp__plugin_dev10x_cli__detect_base_branch"
+  - "mcp__plugin_dev10x_cli__verify_pr_state"
+  - "mcp__plugin_dev10x_cli__pre_pr_checks"
+  - "mcp__plugin_dev10x_cli__create_pr"
+  - "mcp__plugin_dev10x_cli__generate_commit_list"
+  - "mcp__plugin_dev10x_cli__post_summary_comment"
+  - "mcp__plugin_dev10x_cli__pr_notify"
+  - "mcp__plugin_dev10x_cli__push_safe"
+  - "mcp__plugin_dev10x_cli__rebase_groom"
+  - "mcp__plugin_dev10x_cli__create_worktree"
+  - "mcp__plugin_dev10x_cli__mass_rewrite"
+  - "mcp__plugin_dev10x_cli__start_split_rebase"
+  - "mcp__plugin_dev10x_cli__next_worktree_name"
+  - "mcp__plugin_dev10x_cli__setup_aliases"
+  - "mcp__plugin_dev10x_cli__mktmp"
+  - "mcp__plugin_dev10x_cli__plan_sync_set_context"
+  - "mcp__plugin_dev10x_cli__plan_sync_json_summary"
+  - "mcp__plugin_dev10x_cli__plan_sync_archive"
+  - "mcp__plugin_dev10x_cli__check_top_level_comments"
+  - "mcp__plugin_dev10x_cli__unresolved_threads"
+  - "mcp__plugin_dev10x_cli__ci_check_status"
   # Test runners (GH-880, #877 E3 gap 1) — the diag-friction steer target
   # for scoped py/node tests. Without these, the steered one-liner
   # (run_node_tests(runner="npm", cwd=...)) just moves the prompt.
-  - "mcp__plugin_Dev10x_cli__run_tests"
-  - "mcp__plugin_Dev10x_cli__run_node_tests"
-  - "mcp__plugin_Dev10x_cli__update_paths"
-  - "mcp__plugin_Dev10x_cli__collect_prs"
-  - "mcp__plugin_Dev10x_cli__generate_skill_index"
-  - "mcp__plugin_Dev10x_cli__audit_extract_session"
-  - "mcp__plugin_Dev10x_cli__audit_analyze_actions"
-  - "mcp__plugin_Dev10x_cli__audit_analyze_permissions"
-  - "mcp__plugin_Dev10x_cli__usage_blocks"
-  # GH-1175: read-only catalog-coverage check behind Dev10x:diag-friction
+  - "mcp__plugin_dev10x_cli__run_tests"
+  - "mcp__plugin_dev10x_cli__run_node_tests"
+  - "mcp__plugin_dev10x_cli__update_paths"
+  - "mcp__plugin_dev10x_cli__collect_prs"
+  - "mcp__plugin_dev10x_cli__generate_skill_index"
+  - "mcp__plugin_dev10x_cli__audit_extract_session"
+  - "mcp__plugin_dev10x_cli__audit_analyze_actions"
+  - "mcp__plugin_dev10x_cli__audit_analyze_permissions"
+  - "mcp__plugin_dev10x_cli__usage_blocks"
+  # GH-1175: read-only catalog-coverage check behind dev10x:diag-friction
   # Step 3a. Catalogued in the same commit that registers the tool — the
   # friction-diagnosis skill's own first step must not be a prompt.
-  - "mcp__plugin_Dev10x_cli__permission_catalog_gap"
-  # GH-1153: read-only milestone/label roster behind Dev10x:ticket-create
+  - "mcp__plugin_dev10x_cli__permission_catalog_gap"
+  # GH-1153: read-only milestone/label roster behind dev10x:ticket-create
   # Step 4. It was registered, declared in SKILL.md `allowed-tools`, and
   # listed in .claude/rules/mcp-tools.md — none of which grants anything.
   # Absent from every catalog, ensure-base could never seed it, so every
   # caller prompted. test_catalog_covers_mcp_tools.py now fails on any
   # un-catalogued read tool so this cannot recur silently.
-  - "mcp__plugin_Dev10x_cli__triage_roster"
+  - "mcp__plugin_dev10x_cli__triage_roster"
   # GH-1319: read-only milestone listing, the general-purpose counterpart
   # to triage_roster's open-milestone read. Read-only, so it belongs here
   # rather than in WRITE_TOOLS_NOT_SEEDED.
-  - "mcp__plugin_Dev10x_cli__milestone_list"
+  - "mcp__plugin_dev10x_cli__milestone_list"
   # The same GH-1153 gap, found by that new test rather than by a user
   # hitting the prompt: five more registered read-only tools had never
   # been catalogued. `record_upgrade` is deliberately absent — it writes
   # the applied-version state, and writes keep prompting (it is named in
   # the test's WRITE_TOOLS_NOT_SEEDED list).
-  - "mcp__plugin_Dev10x_cli__audit_hook_log_path"
-  - "mcp__plugin_Dev10x_cli__audit_hook_recent"
-  - "mcp__plugin_Dev10x_cli__background_preamble"
-  - "mcp__plugin_Dev10x_cli__resolve_plugin_origin"
-  - "mcp__plugin_Dev10x_cli__slack_thread_is_forward"
+  - "mcp__plugin_dev10x_cli__audit_hook_log_path"
+  - "mcp__plugin_dev10x_cli__audit_hook_recent"
+  - "mcp__plugin_dev10x_cli__background_preamble"
+  - "mcp__plugin_dev10x_cli__resolve_plugin_origin"
+  - "mcp__plugin_dev10x_cli__slack_thread_is_forward"
 
   # GH-1215: the guard added by GH-1153 scanned 5 of 12 mcp modules and
   # could not see the @github_tool decorator, so it passed green while
@@ -250,30 +250,30 @@ base_permissions:
   # resolve_gate is the headline: every skill gate has called it since
   # GH-1168, and it appears accepted-via-option-2 in three separate
   # repos' settings.local.json — once per checkout, forever.
-  - "mcp__plugin_Dev10x_cli__resolve_gate"
-  - "mcp__plugin_Dev10x_cli__preset_pin_status"
-  - "mcp__plugin_Dev10x_cli__supervisor_review_status"
-  - "mcp__plugin_Dev10x_cli__human_review_status"
-  - "mcp__plugin_Dev10x_cli__tracker_status"
+  - "mcp__plugin_dev10x_cli__resolve_gate"
+  - "mcp__plugin_dev10x_cli__preset_pin_status"
+  - "mcp__plugin_dev10x_cli__supervisor_review_status"
+  - "mcp__plugin_dev10x_cli__human_review_status"
+  - "mcp__plugin_dev10x_cli__tracker_status"
   # GH-1261
-  - "mcp__plugin_Dev10x_cli__ide_status"
-  - "mcp__plugin_Dev10x_cli__task_index_get"
-  - "mcp__plugin_Dev10x_cli__list_client_roots"
-  - "mcp__plugin_Dev10x_cli__pr_get"
+  - "mcp__plugin_dev10x_cli__ide_status"
+  - "mcp__plugin_dev10x_cli__task_index_get"
+  - "mcp__plugin_dev10x_cli__list_client_roots"
+  - "mcp__plugin_dev10x_cli__pr_get"
   # GH-1359: read-only, mirrors issue_list — no gh api fallback needed.  # cli-friction: allow raw-gh-api — names the CLI it replaces
-  - "mcp__plugin_Dev10x_cli__pr_list"
+  - "mcp__plugin_dev10x_cli__pr_list"
   # pr_labels defaults to action="list"; its add/remove writes are the
   # sanctioned path for the review:cleared signal (GH-1008) and are
   # idempotent, so skills call them unconditionally rather than probing.
-  - "mcp__plugin_Dev10x_cli__pr_labels"
+  - "mcp__plugin_dev10x_cli__pr_labels"
   # Review-pattern analysis (GH-346..GH-350). All four report only —
   # author_reference_rules is a dry run that returns rendered docs for
   # human review and writes no file.
-  - "mcp__plugin_Dev10x_cli__cluster_review_comments"
-  - "mcp__plugin_Dev10x_cli__candidate_rules_report"
-  - "mcp__plugin_Dev10x_cli__validate_candidate_patterns"
-  - "mcp__plugin_Dev10x_cli__author_reference_rules"
-  - "mcp__plugin_Dev10x_cli__rule_confidence_report"
+  - "mcp__plugin_dev10x_cli__cluster_review_comments"
+  - "mcp__plugin_dev10x_cli__candidate_rules_report"
+  - "mcp__plugin_dev10x_cli__validate_candidate_patterns"
+  - "mcp__plugin_dev10x_cli__author_reference_rules"
+  - "mcp__plugin_dev10x_cli__rule_confidence_report"
 
   # --- Plugin-mandated workflow writes (GH-1215) ---
   # These write, and are catalogued anyway for the same reason
@@ -283,34 +283,34 @@ base_permissions:
   # only route left. Leaving them uncatalogued makes the sanctioned path
   # prompt while the unsanctioned one is denied — a dead end, not a
   # safety margin.
-  - "mcp__plugin_Dev10x_cli__update_pr"
-  - "mcp__plugin_Dev10x_cli__pr_ready"
-  - "mcp__plugin_Dev10x_cli__pr_close"
-  - "mcp__plugin_Dev10x_cli__pr_issue_comment"
-  - "mcp__plugin_Dev10x_cli__pr_review_edit"
-  - "mcp__plugin_Dev10x_cli__resolve_review_thread"
-  - "mcp__plugin_Dev10x_cli__minimize_comments"
-  - "mcp__plugin_Dev10x_cli__milestone_create"
-  - "mcp__plugin_Dev10x_cli__milestone_close"
-  - "mcp__plugin_Dev10x_cli__milestone_edit"
-  - "mcp__plugin_Dev10x_cli__milestone_reopen"
-  - "mcp__plugin_Dev10x_cli__milestones_bulk_create"
-  - "mcp__plugin_Dev10x_cli__issues_bulk_create"
-  - "mcp__plugin_Dev10x_cli__issues_bulk_edit"
+  - "mcp__plugin_dev10x_cli__update_pr"
+  - "mcp__plugin_dev10x_cli__pr_ready"
+  - "mcp__plugin_dev10x_cli__pr_close"
+  - "mcp__plugin_dev10x_cli__pr_issue_comment"
+  - "mcp__plugin_dev10x_cli__pr_review_edit"
+  - "mcp__plugin_dev10x_cli__resolve_review_thread"
+  - "mcp__plugin_dev10x_cli__minimize_comments"
+  - "mcp__plugin_dev10x_cli__milestone_create"
+  - "mcp__plugin_dev10x_cli__milestone_close"
+  - "mcp__plugin_dev10x_cli__milestone_edit"
+  - "mcp__plugin_dev10x_cli__milestone_reopen"
+  - "mcp__plugin_dev10x_cli__milestones_bulk_create"
+  - "mcp__plugin_dev10x_cli__issues_bulk_create"
+  - "mcp__plugin_dev10x_cli__issues_bulk_edit"
   # issue_labels (GH-1322): same GH-1215 reasoning as pr_labels above —
   # its raw-CLI equivalent (`gh issue edit --add-label`/`--remove-label`)  # cli-friction: allow raw-gh-issue — names the CLI it replaces
   # is routed/blocked, so this wrapper is the only sanctioned route.
-  - "mcp__plugin_Dev10x_cli__issue_labels"
+  - "mcp__plugin_dev10x_cli__issue_labels"
   # The park family's only sanctioned write path (GH-1009, ADR-0018 D5).
   # Reaching the store with Write/Edit trips the self-settings consent
   # gate AND bypasses the file lock, so two parallel worktrees parking at
   # once lose an entry — the prompt here has no safe alternative to steer
   # toward.
-  - "mcp__plugin_Dev10x_cli__task_index_append"
-  - "mcp__plugin_Dev10x_cli__task_index_set"
+  - "mcp__plugin_dev10x_cli__task_index_append"
+  - "mcp__plugin_dev10x_cli__task_index_set"
 
   # --- Dev10x MCP tools: db server (GH-878) ---
-  - "mcp__plugin_Dev10x_db__query"
+  - "mcp__plugin_dev10x_db__query"
 
   # --- Temp file tree (GH-878, GH-1095, GH-1325) ---
   # mktmp writes every skill's intermediate files under /tmp/Dev10x/.
@@ -356,8 +356,10 @@ base_permissions:
   # `Bash(find:*)` does not reliably match `find <path> ... | head`
   # due to how the engine tokenizes prefixes with pipelines. Scope
   # the rule to the plugin cache so common skills (work-on,
-  # skill-audit, skill-create) can scan without a prompt.
-  - "Bash(find ~/.claude/plugins/cache/Dev10x-Guru/Dev10x:*)"
+  # skill-audit, skill-create) can scan without a prompt. Scoped to
+  # the publisher dir so both the kebab-case `dev10x` install and a
+  # legacy `Dev10x` one match (GH-1499).
+  - "Bash(find ~/.claude/plugins/cache/Dev10x-Guru:*)"
 
   # --- Common git operations ---
   - "Bash(git log:*)"
@@ -463,7 +465,7 @@ base_permissions:
 
   # --- Structured-data + safe-lookup tools (GH-308) ---
   # Read-only data-format tools and binary-existence lookups.
-  # `Dev10x:diag-friction` steers agents toward these as structured
+  # `dev10x:diag-friction` steers agents toward these as structured
   # alternatives to `python -c` / `sh -c` — their inclusion here makes
   # the recommendation actionable (invoking jq/yamllint/etc. never
   # prompts). `yq` already covered above under "YAML config parsing".
@@ -492,7 +494,7 @@ base_permissions:
   - "Bash(ssh -T git@github.com)"
 
   # --- Git aliases (GH-852, GH-853) ---
-  # All base branch aliases from Dev10x:git-alias-setup.
+  # All base branch aliases from dev10x:git-alias-setup.
   # Preserved at project level as safety anchors — they enable
   # hook feedback and branch-specific allow rules.
   - "Bash(git develop-log:*)"
@@ -667,7 +669,7 @@ base_permissions:
   - "WebFetch(domain:resend.com)"
 
   # --- Dev10x skills ---
-  - "Skill(Dev10x:*)"
+  - "Skill(dev10x:*)"
 
   # NOTE (GH-768): issue-tracker MCP rules are NOT listed here. They live
   # under `tracker_permissions:` / `tracker_denies:` at the bottom of this
@@ -819,14 +821,14 @@ tracker_permissions:
   # keeps the tracker map symmetrical (a `github` selection must not fall
   # through to Linear's block).
   github:
-  - "mcp__plugin_Dev10x_cli__issue_get"
-  - "mcp__plugin_Dev10x_cli__issue_list"
-  - "mcp__plugin_Dev10x_cli__issue_create"
-  - "mcp__plugin_Dev10x_cli__issue_edit"
-  - "mcp__plugin_Dev10x_cli__issue_close"
-  - "mcp__plugin_Dev10x_cli__issue_reopen"
-  - "mcp__plugin_Dev10x_cli__issue_comment"
-  - "mcp__plugin_Dev10x_cli__issue_comments"
+  - "mcp__plugin_dev10x_cli__issue_get"
+  - "mcp__plugin_dev10x_cli__issue_list"
+  - "mcp__plugin_dev10x_cli__issue_create"
+  - "mcp__plugin_dev10x_cli__issue_edit"
+  - "mcp__plugin_dev10x_cli__issue_close"
+  - "mcp__plugin_dev10x_cli__issue_reopen"
+  - "mcp__plugin_dev10x_cli__issue_comment"
+  - "mcp__plugin_dev10x_cli__issue_comments"
 
 # --- Tracker-keyed deny rules (GH-768) ---
 # Destructive operations that must NEVER be auto-approved, even when a

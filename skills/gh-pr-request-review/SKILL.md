@@ -1,18 +1,18 @@
 ---
-name: Dev10x:gh-pr-request-review
+name: dev10x:gh-pr-request-review
 description: >
   Request review on a GitHub PR from teams or users.
   TRIGGER when: PR is ready for review and needs reviewer assignment.
   DO NOT TRIGGER when: PR is still draft or WIP, or review was already
   requested.
 user-invocable: true
-invocation-name: Dev10x:gh-pr-request-review
+invocation-name: dev10x:gh-pr-request-review
 allowed-tools:
-  - mcp__plugin_Dev10x_cli__request_review
-  - mcp__plugin_Dev10x_cli__resolve_gate
-  - mcp__plugin_Dev10x_cli__supervisor_review_status
-  - mcp__plugin_Dev10x_cli__pr_detect
-  - mcp__plugin_Dev10x_cli__pr_labels
+  - mcp__plugin_dev10x_cli__request_review
+  - mcp__plugin_dev10x_cli__resolve_gate
+  - mcp__plugin_dev10x_cli__supervisor_review_status
+  - mcp__plugin_dev10x_cli__pr_detect
+  - mcp__plugin_dev10x_cli__pr_labels
   - Bash(gh pr view:*)
   - Bash(gh pr ready:*)
   - Bash(gh api orgs/:*)
@@ -88,7 +88,7 @@ re-derive preset behavior in prose. The tool reads session policy
 (preset + overlays) itself.
 
 0. **Durable posture pre-check (ADR-0019, renamed by ADR-0022 D-2).** Call
-   `mcp__plugin_Dev10x_cli__supervisor_review_status()` and read
+   `mcp__plugin_dev10x_cli__supervisor_review_status()` and read
    `supervisor_review` from the response (default `required`; the
    deprecated boolean `human_review` rides along until removal in
    `0.112.0` per the deprecation register (GH-1161, ADR-0028), where
@@ -102,7 +102,7 @@ re-derive preset behavior in prose. The tool reads session policy
    suppressed would never become mergeable). Print "Skipping review
    request (human_review: false)" and stop. Otherwise continue to
    step 1.
-1. Call `mcp__plugin_Dev10x_cli__resolve_gate(gate="request_review",
+1. Call `mcp__plugin_dev10x_cli__resolve_gate(gate="request_review",
    context={})`.
 2. `effect == "ask"` → **REQUIRED: Call `AskUserQuestion`** (the
    Stand-by widget below) before doing anything else.
@@ -127,7 +127,7 @@ re-derive preset behavior in prose. The tool reads session policy
 - **Request review now** — proceed to the Pre-flight checks and
   Reviewer Resolution below (the skill's normal action).
 - **Stand-by — self-review first** — hold off requesting review; run
-  a self-review pass (e.g. `Dev10x:review`) before requesting. On this
+  a self-review pass (e.g. `dev10x:review`) before requesting. On this
   choice: follow the Stand-by / Defer path below (which persists
   nothing), return without requesting review, and hand control back to
   the caller to self-review — the caller re-enters this gate afterward.
@@ -161,7 +161,7 @@ automated CI workflows) MUST NOT short-circuit human review.
    current HEAD by a human. **REQUIRED: Call `AskUserQuestion`**
    (do NOT use plain text) with options:
    - **Skip — already approved (Recommended)** — short-circuit;
-     suggest `Dev10x:gh-pr-merge` instead
+     suggest `dev10x:gh-pr-merge` instead
    - **Force request anyway** — proceed (e.g., need additional
      reviewers beyond the existing approver)
    - **Cancel** — do nothing
@@ -179,7 +179,7 @@ automated CI workflows) MUST NOT short-circuit human review.
 
 Skip this precheck when invoked with `--force` flag or when the
 caller passes `bypass_approval_check: true` (e.g., from
-`Dev10x:gh-pr-monitor` Phase 3 after fixup commits where the monitor
+`dev10x:gh-pr-monitor` Phase 3 after fixup commits where the monitor
 has already validated the state transition).
 
 ### Pre-flight: Draft State Check (GH-851 F7)
@@ -189,7 +189,7 @@ GitHub silently accepts review requests on draft PRs but does
 NOT notify the requested reviewers — the request is lost.
 
 1. Confirm PR identity via
-   `mcp__plugin_Dev10x_cli__pr_detect(arg="<pr_number_or_url>")`
+   `mcp__plugin_dev10x_cli__pr_detect(arg="<pr_number_or_url>")`
    to resolve `pr_number` and `repo`, then fetch the draft flag
    (no MCP wrapper exists for `isDraft`):
    ```bash
@@ -201,7 +201,7 @@ NOT notify the requested reviewers — the request is lost.
 ### Resolution workflow
 
 1. Detect the current repo: parse `git remote get-url origin`
-   (or call `mcp__plugin_Dev10x_cli__pr_detect` and use its
+   (or call `mcp__plugin_dev10x_cli__pr_detect` and use its
    returned `repo` field — last path segment is the repo name)
 2. Read and parse the config file using `yq`:
    `yq '.projects["REPO_NAME"]' <Dev10x config>/github-reviewers-config.yaml`
@@ -243,7 +243,7 @@ next PR after that.
 gate, call:
 
 ```
-mcp__plugin_Dev10x_cli__pr_labels(pr_number=<n>, action="list")
+mcp__plugin_dev10x_cli__pr_labels(pr_number=<n>, action="list")
 ```
 
 If `review:cleared` is in the returned `labels`, the supervisor already
@@ -281,7 +281,7 @@ teammate is pinged. Where is PR #{pr_number}?"` Options:
 **Record the clearance (GH-1008).** On either "I reviewed it" answer:
 
 ```
-mcp__plugin_Dev10x_cli__pr_labels(pr_number=<n>, action="add",
+mcp__plugin_dev10x_cli__pr_labels(pr_number=<n>, action="add",
                                   labels=["review:cleared"])
 ```
 
@@ -305,7 +305,7 @@ Then, on every branch:
 **Clearance dies when the head moves (GH-1008).** A review the
 supervisor gave applies to the commits they read, so the label is
 scoped to that head — not to the PR forever. Any force-push
-(`Dev10x:git-groom`, a conflict rebase, an amend) rewrites what is
+(`dev10x:git-groom`, a conflict rebase, an amend) rewrites what is
 under review, and the push path removes `review:cleared` so the next
 request-review invocation asks again. That is deliberate: silently
 carrying a clearance across a rewrite would let unreviewed commits
@@ -323,7 +323,7 @@ ADR-0019).** Whether the supervisor reads a project's PRs is a
 **durable project fact**, not a session flag. It lives as
 `supervisor_review: required|none` in the matching `projects[]` entry
 of the global `~/.config/Dev10x/friction.yaml`, read via
-`mcp__plugin_Dev10x_cli__supervisor_review_status()` (default
+`mcp__plugin_dev10x_cli__supervisor_review_status()` (default
 `required`):
 
 - `supervisor_review: none` → skip reviewer resolution and the review
@@ -337,7 +337,7 @@ of the global `~/.config/Dev10x/friction.yaml`, read via
   before `merge` in a solo repo, before `request_review` in a team one
   — where it **precedes** the team request rather than replacing it.
   The `review:cleared` label the two "I reviewed it" answers write is
-  what lifts the park; `Dev10x:git-groom` removes it after a
+  what lifts the park; `dev10x:git-groom` removes it after a
   force-push, so the park comes back on rewritten history.
 
 The deprecated `human_review: true|false` spelling is still read
@@ -357,7 +357,7 @@ Invoke the skill without arguments. It reads the config, detects
 the current repo, and requests review from the configured reviewers:
 
 ```
-/Dev10x:gh-pr-request-review
+/dev10x:gh-pr-request-review
 ```
 
 ### Explicit reviewers (override config)
@@ -365,12 +365,12 @@ the current repo, and requests review from the configured reviewers:
 Pass reviewer names directly to skip config lookup:
 
 ```
-mcp__plugin_Dev10x_cli__request_review(
+mcp__plugin_dev10x_cli__request_review(
     pr_number=PR_NUMBER, reviewers=["org-name/team-slug"], team=true)
 ```
 
 ```
-mcp__plugin_Dev10x_cli__request_review(
+mcp__plugin_dev10x_cli__request_review(
     pr_number=PR_NUMBER, reviewers=["user1", "user2"])
 ```
 

@@ -1,6 +1,6 @@
 """PreToolUse guard for the empty-task-list invariant (GH-681 / GH-149).
 
-A ``Dev10x:work-on`` session must never silently empty its task list: the
+A ``dev10x:work-on`` session must never silently empty its task list: the
 terminal "Verify acceptance criteria" task stays open until the supervisor
 confirms the work is shippable. This guard refuses a ``TaskUpdate`` that
 would mark the terminal task — or the last remaining open task —
@@ -62,7 +62,7 @@ def guard_decision(*, tool_input: dict, plan: Plan) -> HookResult | None:
     return HookResult(
         message=(
             f"Empty-task-list invariant (GH-149): refusing to mark the {label} "
-            f"'{violation.subject}' as {status}. A Dev10x:work-on session must keep "
+            f"'{violation.subject}' as {status}. A dev10x:work-on session must keep "
             "at least one open task until the supervisor confirms the work is "
             "shippable (PR merged, CI green, no open review comments). If the "
             "supervisor has confirmed completion, re-issue TaskUpdate with "

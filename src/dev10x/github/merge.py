@@ -152,7 +152,7 @@ async def merge_pr(
             required-review branch-protection rule the current
             account cannot satisfy (e.g. a solo maintainer who
             cannot self-approve). Gated upstream by the
-            ``Dev10x:gh-pr-merge`` Step 5 admin-override prompt;
+            ``dev10x:gh-pr-merge`` Step 5 admin-override prompt;
             the 7 non-approval checks still run first (GH-733).
         auto: Pass ``--auto`` when True — enable GitHub auto-merge
             so the PR merges once all branch-protection

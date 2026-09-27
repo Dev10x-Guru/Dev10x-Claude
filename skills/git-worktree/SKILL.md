@@ -1,5 +1,5 @@
 ---
-name: Dev10x:git-worktree
+name: dev10x:git-worktree
 description: >
   Create git worktrees for clean workspace isolation.
   Offers two modes: native EnterWorktree (switches CWD in current session)
@@ -9,11 +9,11 @@ description: >
   DO NOT TRIGGER when: work can be done on the current branch without
   isolation, or user explicitly wants to stay in the current worktree.
 user-invocable: true
-invocation-name: Dev10x:git-worktree
+invocation-name: dev10x:git-worktree
 allowed-tools:
-  - mcp__plugin_Dev10x_cli__next_worktree_name
-  - Skill(Dev10x:git)
-  - mcp__plugin_Dev10x_cli__create_worktree
+  - mcp__plugin_dev10x_cli__next_worktree_name
+  - Skill(dev10x:git)
+  - mcp__plugin_dev10x_cli__create_worktree
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/:*)
   - Bash(git worktree list:*)
   - Bash(git worktree remove:*)
@@ -32,7 +32,7 @@ Create a task at invocation, mark completed when done:
 
 Mark completed when done: `TaskUpdate(taskId, status="completed")`
 
-**Announce:** "Using Dev10x:git-worktree skill to create an isolated workspace."
+**Announce:** "Using dev10x:git-worktree skill to create an isolated workspace."
 
 ## Workflow
 
@@ -51,7 +51,7 @@ The branch name is needed by both paths. Follow project naming conventions:
 Present the two options with AskUserQuestion:
 
 - **Same session** (Recommended) — native `EnterWorktree` tool switches CWD
-  immediately; all subsequent git commands and skills (`commit`, `Dev10x:gh-pr-create`,
+  immediately; all subsequent git commands and skills (`commit`, `dev10x:gh-pr-create`,
   `branch:groom`) work without flags; worktree lives inside `.claude/worktrees/`
   (excluded from hook copies and `.gitignore`)
 - **External + new session** — worktree created at `../.worktrees/<project>-NN`
@@ -153,7 +153,7 @@ The session is now in the worktree. Resume the calling skill's next step
 worktree, prefer **absolute paths** in Bash calls — a `cd X` in one call
 does not persist to the next, so `cd subdir; <relative-path>` patterns
 break when the CWD resets between calls. For pushing, raw `git push` is
-hook-blocked on this worktree; use `Skill(Dev10x:git)` (which wraps
+hook-blocked on this worktree; use `Skill(dev10x:git)` (which wraps
 `push_safe`) instead of `git push` directly.
 
 ---
@@ -208,7 +208,7 @@ that prompts the user to remove the worktree when the new session ends.
 
 Claude Code sessions have a fixed CWD. `cd` inside a Bash call does not
 persist, so every subsequent git command would need `git -C <path>` and
-skills like `Dev10x:gh-pr-create` (whose `verify-state.sh` runs plain `git`) would fail.
+skills like `dev10x:gh-pr-create` (whose `verify-state.sh` runs plain `git`) would fail.
 
 Print this message and **stop — do not continue with ticket workflow steps**:
 
@@ -270,7 +270,7 @@ Source: [`templates/post-checkout-python-uv.sh`](./templates/post-checkout-pytho
 Copies `.env`, `development.secrets.env`, `.claude/` (excluding WIP), `.idea/`,
 and runs `uv sync`.
 
-**After creating a Python/uv worktree**, run `Dev10x:ide-normalize` to fix
+**After creating a Python/uv worktree**, run `dev10x:ide-normalize` to fix
 stale PyCharm `.idea/` module-name references, disable
 `ADD_CONTENT_ROOTS` / `ADD_SOURCE_ROOTS` flags (which conflict with editable
 installs — see [PEP 660 / PYTHONPATH conflict](../ide-normalize/references/pep660-pythonpath-conflict.md)),
@@ -344,13 +344,13 @@ Common failure causes:
 1. **PyCharm uv-SDK FLAVOR_DATA gap** — PyCharm auto-creates an SDK entry
    with empty `FLAVOR_DATA="{}"`, missing `UV_VENV_PATH` / `UV_TOOL_PATH`.
    Result: PyCharm constructs the wrong launch command. Fix: run
-   `Dev10x:ide-normalize` (Step 5) or follow the manual recipe in
+   `dev10x:ide-normalize` (Step 5) or follow the manual recipe in
    [`../ide-normalize/references/pycharm-uv-sdk-gap.md`](../ide-normalize/references/pycharm-uv-sdk-gap.md).
 
 2. **ADD_CONTENT_ROOTS / ADD_SOURCE_ROOTS injecting PYTHONPATH** — These
    run-config defaults activate `sitecustomize` bootstrappers (New Relic,
    DataDog APM, etc.) that crash under uv-managed Python. Fix: run
-   `Dev10x:ide-normalize` (Step 3) to set both flags to `false`.
+   `dev10x:ide-normalize` (Step 3) to set both flags to `false`.
    Background: [`../ide-normalize/references/pep660-pythonpath-conflict.md`](../ide-normalize/references/pep660-pythonpath-conflict.md).
 
-**Quick fix**: `Dev10x:ide-normalize` addresses both causes.
+**Quick fix**: `dev10x:ide-normalize` addresses both causes.

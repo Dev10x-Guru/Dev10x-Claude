@@ -8,12 +8,12 @@ Accepted
 
 ## Context
 
-`Dev10x:plugin-maintenance` shipped with two coexisting invocation
+`dev10x:plugin-maintenance` shipped with two coexisting invocation
 styles for its 13 maintenance steps:
 
 | Style | Example | Allow-rule shape |
 |---|---|---|
-| MCP tool call | `mcp__plugin_Dev10x_cli__update_paths(ensure_base=True, dry_run=True)` | `mcp__plugin_Dev10x_cli__update_paths` |
+| MCP tool call | `mcp__plugin_dev10x_cli__update_paths(ensure_base=True, dry_run=True)` | `mcp__plugin_dev10x_cli__update_paths` |
 | Version-pinned cache script | `~/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.74.0/skills/upgrade-cleanup/scripts/update-paths.py --dry-run` | `Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.74.0/...)` |
 
 GH-269 retired the version-pinned cache scripts in favour of a
@@ -100,18 +100,18 @@ that survive `claude plugin update`:
 
 Both are matchable by a single rule per subcommand. Neither
 embeds a plugin version. The MCP path is also stable
-(`mcp__plugin_Dev10x_cli__update_paths`) — the upgrade-rot
+(`mcp__plugin_dev10x_cli__update_paths`) — the upgrade-rot
 problem is solved equally well by all three.
 
 ## Decision
 
 - **Document `dev10x` (uv-tool-installed binary) as the preferred
-  invocation form** in `Dev10x:plugin-maintenance` and other
+  invocation form** in `dev10x:plugin-maintenance` and other
   maintenance skills, with `uvx dev10x` as the zero-install
   fallback.
-- **Recommend `uv tool install` in `Dev10x:onboarding`** so new
+- **Recommend `uv tool install` in `dev10x:onboarding`** so new
   users land on the faster path automatically; offer the same
-  recommendation in `Dev10x:plugin-doctor` when it detects only
+  recommendation in `dev10x:plugin-doctor` when it detects only
   `uvx dev10x` allow rules.
 - **Keep the MCP tool layer in place** for skills that already
   bind to it (e.g., `update_paths` is still consumed by callers
@@ -127,7 +127,7 @@ problem is solved equally well by all three.
 
 ### Positive
 
-- New invocations of `Dev10x:plugin-maintenance` save ~260 ms per
+- New invocations of `dev10x:plugin-maintenance` save ~260 ms per
   full run (~20 ms × 13 steps) once the user has run
   `uv tool install`. Small, but visible on cold sessions where
   the maintenance run is the first thing the user does.
@@ -149,8 +149,8 @@ problem is solved equally well by all three.
   fallback at the top of the workflow section. Users who skipped
   `uv tool install` still get a working command.
 - `uv tool install` adds a one-time onboarding step. Mitigated by
-  `Dev10x:onboarding` running it automatically and
-  `Dev10x:plugin-doctor` detecting the missing binary.
+  `dev10x:onboarding` running it automatically and
+  `dev10x:plugin-doctor` detecting the missing binary.
 - An editable install (`uv tool install --editable .`) pins the
   binary to a specific worktree. For everyday users we recommend
   a non-editable install from the cache; the editable form is for
@@ -168,13 +168,13 @@ problem is solved equally well by all three.
 1. **`Bash(dev10x:*)` base permission** — add to
    `skills/upgrade-cleanup/projects.yaml` so users who install
    the binary do not have to approve it manually.
-2. **`Dev10x:onboarding`** — install `dev10x` via
+2. **`dev10x:onboarding`** — install `dev10x` via
    `uv tool install` (non-editable, from the cached plugin path)
    as part of bootstrap. Document the editable variant for
    contributors.
-3. **`Dev10x:plugin-doctor`** — detect when the binary is missing
+3. **`dev10x:plugin-doctor`** — detect when the binary is missing
    from `PATH` and suggest the install command.
-4. **`Dev10x:plugin-maintenance` SKILL.md** — lead with
+4. **`dev10x:plugin-maintenance` SKILL.md** — lead with
    `dev10x permission <subcommand>`; footnote `uvx dev10x …` as
    the zero-install fallback.
 5. **MCP daemon / pre-warmed CLI** *(separate ticket)* — the 1.8 s
@@ -193,4 +193,4 @@ problem is solved equally well by all three.
   hazard); narrower allow rules reduce the blast radius.
 - Benchmark script: `/tmp/Dev10x/bench-uvx-vs-mcp.py` (one-off,
   not committed). 5 iterations per case, medians reported.
-- `Dev10x:plugin-maintenance` `skills/plugin-maintenance/SKILL.md`.
+- `dev10x:plugin-maintenance` `skills/plugin-maintenance/SKILL.md`.

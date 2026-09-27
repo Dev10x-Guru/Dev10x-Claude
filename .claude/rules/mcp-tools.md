@@ -41,12 +41,12 @@ registration:
 
 | Server | Function | MCP Name |
 |--------|----------|----------|
-| `cli` | `detect_tracker()` | `mcp__plugin_Dev10x_cli__detect_tracker` |
-| `cli` | `pr_comments()` | `mcp__plugin_Dev10x_cli__pr_comments` |
-| `cli` | `pr_comment_reply()` | `mcp__plugin_Dev10x_cli__pr_comment_reply` |
-| `cli` | `get_commit_log()` | `mcp__plugin_Dev10x_cli__get_commit_log` |
-| `cli` | `mktmp()` | `mcp__plugin_Dev10x_cli__mktmp` |
-| `db` | `list_tables()` | `mcp__plugin_Dev10x_db__list_tables` |
+| `cli` | `detect_tracker()` | `mcp__plugin_dev10x_cli__detect_tracker` |
+| `cli` | `pr_comments()` | `mcp__plugin_dev10x_cli__pr_comments` |
+| `cli` | `pr_comment_reply()` | `mcp__plugin_dev10x_cli__pr_comment_reply` |
+| `cli` | `get_commit_log()` | `mcp__plugin_dev10x_cli__get_commit_log` |
+| `cli` | `mktmp()` | `mcp__plugin_dev10x_cli__mktmp` |
+| `db` | `list_tables()` | `mcp__plugin_dev10x_db__list_tables` |
 
 ## Tool Declaration Pattern
 
@@ -232,10 +232,10 @@ Behavioral caveats:
   the next append folds it forward (`folded_legacy`).
 
 - `pr_labels` carries the durable `review:cleared` signal (GH-1008).
-  `Dev10x:gh-pr-request-review` reads it before the stand-by clearance
+  `dev10x:gh-pr-request-review` reads it before the stand-by clearance
   gate and skips asking when present; the two "I reviewed it" answers
   write it. Because a sign-off covers the commits that were read,
-  `Dev10x:git-groom` removes it after a force-push — a clearance must
+  `dev10x:git-groom` removes it after a force-push — a clearance must
   not survive the rewrite that invalidated it. Both writes are
   idempotent (`add` skips present labels, `remove` intersects against
   the current set first, so clearing an unset label is a no-op rather
@@ -243,7 +243,7 @@ Behavioral caveats:
 
   `remove` issues **one `PUT` of the surviving set** rather than a
   `DELETE` per label (GH-1446) — the old loop paid a subprocess plus an
-  HTTP round trip each time, on a path `Dev10x:git-groom` runs after
+  HTTP round trip each time, on a path `dev10x:git-groom` runs after
   every force-push. Idempotence is unchanged. One property is: a `PUT`
   is a read-modify-write, so a label added by another process between
   the read and the write is dropped, where a per-label `DELETE` was
@@ -332,7 +332,7 @@ Behavioral caveats:
   session recorded 0 of 7 across two merges, and a third closed two of
   three; both the full-URL and bare-`#N` spellings failed in the 0-of-7
   run, so the form is not the variable. Never treat a merged bundle as
-  self-closing: `Dev10x:gh-pr-monitor` Phase 3.6 reconciles each link
+  self-closing: `dev10x:gh-pr-monitor` Phase 3.6 reconciles each link
   against the issue's real state after the merge
   (`fixes_scope.reconcile_link_closure`), and a straggler is reported
   for the supervisor to confirm — not closed silently.
@@ -379,7 +379,7 @@ Behavioral caveats:
   milestone by title or number (GH-1098). Nothing on the MCP surface
   could write that field before, so a PR opened through the
   sanctioned path always had `milestone: null` and
-  `Dev10x:gh-pr-monitor` Phase 3.5 (post-merge milestone cleanup)
+  `dev10x:gh-pr-monitor` Phase 3.5 (post-merge milestone cleanup)
   silently took its skip branch on every milestone-bundle PR. The
   write goes through the `issues/{n}` endpoint — the `pulls/{n}`
   endpoint has no milestone field — so `gh pr edit --milestone` stays
@@ -396,7 +396,7 @@ Behavioral caveats:
 
 - `issue_create` / `issues_bulk_create` accept `milestone` and
   `labels`, and filing is expected to POPULATE them (GH-1102). Reach
-  them through `Dev10x:ticket-create`, whose Step 4 reads the live
+  them through `dev10x:ticket-create`, whose Step 4 reads the live
   roster via `triage_roster` and proposes a milestone plus label set;
   calling `issue_create` bare is what left 11 of 16 open issues
   unmilestoned and 10 of 13 unlabeled in the 2026-08-30 sweep. When no
@@ -486,7 +486,7 @@ Behavioral caveats:
   on the command inside it. Which steer a *PR-shaped* loop receives is a
   separate, still-open question: `gh pr view` is matched by an earlier
   rule, so such a loop gets the one-shot `pr_get` steer rather than
-  `Dev10x:gh-pr-monitor` (tracked on #1100 E21).
+  `dev10x:gh-pr-monitor` (tracked on #1100 E21).
 - `ci_check_status(wait=true)` budgets its own wait against the
   transport ceiling, and `max_polls` is a request rather than a grant
   (GH-1288). The cap used to be summed inline as `initial_wait +
@@ -758,7 +758,7 @@ forever — while looking fully wired up everywhere a reader would think
 to check.
 
 `triage_roster` was the worked example: registered, declared in
-`Dev10x:ticket-create`'s front matter, and present in the table above
+`dev10x:ticket-create`'s front matter, and present in the table above
 — and still prompting. The guard that found six more of them
 (`audit_hook_log_path`, `audit_hook_recent`, `background_preamble`,
 `resolve_plugin_origin`, `slack_thread_is_forward`, all read-only and
@@ -807,12 +807,12 @@ In SKILL.md, declare MCP tool access via `allowed-tools:`:
 
 ```yaml
 allowed-tools:
-  - mcp__plugin_Dev10x_cli__detect_tracker
-  - mcp__plugin_Dev10x_cli__pr_comments
+  - mcp__plugin_dev10x_cli__detect_tracker
+  - mcp__plugin_dev10x_cli__pr_comments
   - Bash(/path/to/script:*)
 ```
 
-Use wildcard sparingly: `mcp__plugin_Dev10x_cli__*` grants access to all cli
+Use wildcard sparingly: `mcp__plugin_dev10x_cli__*` grants access to all cli
 server tools. Prefer explicit tool names for security and clarity.
 
 ## Server Registration
@@ -842,7 +842,7 @@ the primary invocation method. MCP calls avoid permission friction
 
 ```
 # ✅ PREFERRED — MCP tool call (no permission prompt)
-mcp__plugin_Dev10x_cli__mktmp(namespace="git", prefix="msg", ext=".txt")
+mcp__plugin_dev10x_cli__mktmp(namespace="git", prefix="msg", ext=".txt")
 
 # ⚠️ FALLBACK — direct script (needs Bash allow-rule)
 /tmp/Dev10x/bin/mktmp.sh git msg .txt
@@ -854,14 +854,14 @@ protocol).
 
 ### MCP tool names cannot appear in shell scripts
 
-MCP tool names (e.g., `mcp__plugin_Dev10x_cli__mktmp`) are
+MCP tool names (e.g., `mcp__plugin_dev10x_cli__mktmp`) are
 Claude tool-call primitives. They cannot be used inside bash
 code blocks, shell scripts, or Makefiles — only via Claude's
 tool-use protocol.
 
 ```bash
 # ❌ WRONG — MCP name in a bash block (not a shell command)
-mcp__plugin_Dev10x_cli__mktmp git commit-msg .txt
+mcp__plugin_dev10x_cli__mktmp git commit-msg .txt
 
 # ✅ CORRECT — use the underlying CLI script in shell contexts
 /tmp/Dev10x/bin/mktmp.sh git commit-msg .txt
@@ -880,30 +880,30 @@ the MCP server is unavailable.
 
 | Raw CLI | MCP tool |
 |---------|----------|
-| `gh issue view` | `mcp__plugin_Dev10x_cli__issue_get` |
-| `gh issue create` | `mcp__plugin_Dev10x_cli__issue_create` |
-| `gh issue edit` | `mcp__plugin_Dev10x_cli__issue_edit` |
-| `gh issue edit --add-label` / `--remove-label` | `mcp__plugin_Dev10x_cli__issue_labels` (GH-1322) |
-| `gh issue close` | `mcp__plugin_Dev10x_cli__issue_close` |
-| `gh issue reopen` | `mcp__plugin_Dev10x_cli__issue_reopen` |
-| `gh issue comment` | `mcp__plugin_Dev10x_cli__issue_comment` |
-| `gh issue list` | `mcp__plugin_Dev10x_cli__issue_list` (advisory) |
-| `gh pr view` | `mcp__plugin_Dev10x_cli__pr_get` |
-| `gh pr list` | `mcp__plugin_Dev10x_cli__pr_list` (GH-1359, advisory) |
-| `gh api .../milestones POST` | `mcp__plugin_Dev10x_cli__milestone_create` |
-| `gh api .../milestones/{n} PATCH state=open` | `mcp__plugin_Dev10x_cli__milestone_reopen` |
-| `gh api .../milestones/{n} PATCH` (title/desc/state/due) | `mcp__plugin_Dev10x_cli__milestone_edit` |
-| `gh api .../milestones GET` | `mcp__plugin_Dev10x_cli__milestone_list` (GH-1319) |
-| `gh pr edit` | `mcp__plugin_Dev10x_cli__update_pr` |
-| `gh pr ready` | `mcp__plugin_Dev10x_cli__pr_ready` |
-| `gh pr edit --add-label` / `--remove-label` | `mcp__plugin_Dev10x_cli__pr_labels` (GH-1008) |
-| `gh pr close` | `mcp__plugin_Dev10x_cli__pr_close` (GH-924) |
-| `gh pr create` | `Dev10x:gh-pr-create` (wraps `create_pr`) |
-| `gh pr merge` | `Dev10x:gh-pr-merge` (wraps `merge_pr`) |
+| `gh issue view` | `mcp__plugin_dev10x_cli__issue_get` |
+| `gh issue create` | `mcp__plugin_dev10x_cli__issue_create` |
+| `gh issue edit` | `mcp__plugin_dev10x_cli__issue_edit` |
+| `gh issue edit --add-label` / `--remove-label` | `mcp__plugin_dev10x_cli__issue_labels` (GH-1322) |
+| `gh issue close` | `mcp__plugin_dev10x_cli__issue_close` |
+| `gh issue reopen` | `mcp__plugin_dev10x_cli__issue_reopen` |
+| `gh issue comment` | `mcp__plugin_dev10x_cli__issue_comment` |
+| `gh issue list` | `mcp__plugin_dev10x_cli__issue_list` (advisory) |
+| `gh pr view` | `mcp__plugin_dev10x_cli__pr_get` |
+| `gh pr list` | `mcp__plugin_dev10x_cli__pr_list` (GH-1359, advisory) |
+| `gh api .../milestones POST` | `mcp__plugin_dev10x_cli__milestone_create` |
+| `gh api .../milestones/{n} PATCH state=open` | `mcp__plugin_dev10x_cli__milestone_reopen` |
+| `gh api .../milestones/{n} PATCH` (title/desc/state/due) | `mcp__plugin_dev10x_cli__milestone_edit` |
+| `gh api .../milestones GET` | `mcp__plugin_dev10x_cli__milestone_list` (GH-1319) |
+| `gh pr edit` | `mcp__plugin_dev10x_cli__update_pr` |
+| `gh pr ready` | `mcp__plugin_dev10x_cli__pr_ready` |
+| `gh pr edit --add-label` / `--remove-label` | `mcp__plugin_dev10x_cli__pr_labels` (GH-1008) |
+| `gh pr close` | `mcp__plugin_dev10x_cli__pr_close` (GH-924) |
+| `gh pr create` | `dev10x:gh-pr-create` (wraps `create_pr`) |
+| `gh pr merge` | `dev10x:gh-pr-merge` (wraps `merge_pr`) |
 
 For a stale severity token in a **review body** (state=COMMENTED)
 that trips gh-pr-merge Check 1b, edit it via
-`mcp__plugin_Dev10x_cli__pr_review_edit` (GH-778) — the review-body
+`mcp__plugin_dev10x_cli__pr_review_edit` (GH-778) — the review-body
 counterpart to `pr_review_comment_edit` (inline) and
 `issue_comment_edit` (top-level).
 
@@ -916,8 +916,8 @@ no allow-rule can suppress (GH-703).
 
 | Raw command | MCP tool |
 |-------------|----------|
-| `pytest` / `uv run pytest` | `Dev10x:py-test` (wraps `run_tests`) |
-| `jest` / `yarn … test` / `npm test` / `pnpm test` / `vitest` | `mcp__plugin_Dev10x_cli__run_node_tests` |
+| `pytest` / `uv run pytest` | `dev10x:py-test` (wraps `run_tests`) |
+| `jest` / `yarn … test` / `npm test` / `pnpm test` / `vitest` | `mcp__plugin_dev10x_cli__run_node_tests` |
 
 `run_node_tests` accepts a `runner` arg (`jest` default, plus
 `vitest`/`yarn`/`npm`/`pnpm`); `jest`/`vitest` get `--coverage` when
@@ -947,7 +947,7 @@ depend on.
 ## Official GitHub MCP Server
 
 We do **not** use [`github/github-mcp-server`](https://github.com/github/github-mcp-server).
-The internal `Dev10x:cli` server is the sole GitHub surface — its
+The internal `dev10x:cli` server is the sole GitHub surface — its
 composite tools are shaped to Dev10x workflows rather than mirroring
 the REST/GraphQL primitives.
 

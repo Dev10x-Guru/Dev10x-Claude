@@ -1,7 +1,7 @@
 """Resolve which plugin — and which issue tracker — owns a skill (GH-816).
 
 Every installed plugin's skills live under ``~/.claude/plugins/``,
-regardless of which marketplace shipped them. A ``Dev10x:skill-audit``
+regardless of which marketplace shipped them. A ``dev10x:skill-audit``
 finding about a *non-Dev10x* plugin's skill therefore looks identical,
 by path, to a finding about a Dev10x skill — so Phase 7 used to file it
 at the Dev10x tracker (wrong maintainer) or drop it entirely.

@@ -7,7 +7,7 @@ not — the call returns a truncated `PARTIAL view` and an agent that
 stops there is working from part of the contract while believing it
 holds all of it.
 
-GH-1279 caught exactly that on `Dev10x:work-on`: 57% of the file went
+GH-1279 caught exactly that on `dev10x:work-on`: 57% of the file went
 unread, and the Plan Completion Gate, the pre-gate checklist and the
 merge-gated completion rule — all of which live in the tail — never
 fired. The audit's own report then made a claim about the skill that

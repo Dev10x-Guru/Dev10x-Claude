@@ -17,12 +17,12 @@ legible at a glance, which a flat numbered list cannot.
 
 ```
 Phase 4: Execute feature
-├─ 4.1  Set up workspace            → Dev10x:ticket-branch
+├─ 4.1  Set up workspace            → dev10x:ticket-branch
 ├─ 4.2  Design implementation approach
 │        ├─ Read relevant code
 │        └─ Propose approach
 ├─ 4.3  Implement changes
-└─ 4.4  Verify acceptance criteria  → Dev10x:verify-acc-dod
+└─ 4.4  Verify acceptance criteria  → dev10x:verify-acc-dod
 ```
 
 Glyph rules:
@@ -52,7 +52,7 @@ Session mode summary
 
 ## Where this applies
 
-- `Dev10x:work-on` Supervisor Approval Gate — the "Proposed
+- `dev10x:work-on` Supervisor Approval Gate — the "Proposed
   plan" block renders as a box-drawing tree (phases →
   subtasks); the Session mode summary stays bullet-indent.
 - Any skill presenting a multi-level plan, task tree, or

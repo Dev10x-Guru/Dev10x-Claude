@@ -66,7 +66,7 @@ the list — by default, a `Verify AC` task that summarizes what was
 shipped and prompts the supervisor to confirm completion before the
 session is closed.
 
-`Dev10x:work-on` already enforces this for its multi-phase plans (see
+`dev10x:work-on` already enforces this for its multi-phase plans (see
 `skills/work-on/instructions.md` § Phase 4). This rule lifts the same
 invariant to a universal contract for **every** Dev10x skill that
 mutates the task list, including standalone invocations that finish a
@@ -92,8 +92,8 @@ discrete unit while a broader plan is in flight.
 
 **Behavior when skill execution completes:**
 
-1. If a `Verify AC` task already exists (created by `Dev10x:work-on`
-   or `Dev10x:verify-acc-dod`), leave it `pending` and STOP
+1. If a `Verify AC` task already exists (created by `dev10x:work-on`
+   or `dev10x:verify-acc-dod`), leave it `pending` and STOP
 2. If no `Verify AC` task exists AND the task list would otherwise be
    empty, create one before declaring completion:
    ```
@@ -102,8 +102,8 @@ discrete unit while a broader plan is in flight.
        activeForm="Verifying AC")
    ```
 3. Never mark `Verify AC` `completed` autonomously — the supervisor
-   completes it explicitly during `Dev10x:verify-acc-dod` or
-   `Dev10x:session-wrap-up`
+   completes it explicitly during `dev10x:verify-acc-dod` or
+   `dev10x:session-wrap-up`
 
 ### When the task tools are absent (GH-1055)
 
@@ -151,8 +151,8 @@ must not treat the emptiness as evidence of anything else.
 
 | Document | Topic | Loaded by |
 |----------|-------|-----------|
-| `references/git-commits.md` | Commit format, gitmoji, atomic commits | `Dev10x:git-commit` skill |
-| `references/git-jtbd.md` | Job Story format, anti-patterns | `Dev10x:jtbd` skill |
-| `references/git-pr.md` | PR body, grooming, review feedback | `Dev10x:gh-pr-create` skill |
-| `references/review-guidelines.md` | Review workflow, threads, summaries | `Dev10x:gh-pr-review` skill |
+| `references/git-commits.md` | Commit format, gitmoji, atomic commits | `dev10x:git-commit` skill |
+| `references/git-jtbd.md` | Job Story format, anti-patterns | `dev10x:jtbd` skill |
+| `references/git-pr.md` | PR body, grooming, review feedback | `dev10x:gh-pr-create` skill |
+| `references/review-guidelines.md` | Review workflow, threads, summaries | `dev10x:gh-pr-review` skill |
 | `references/review-checks-common.md` | False positive prevention, verification | Review agent specs |

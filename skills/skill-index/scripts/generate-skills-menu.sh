@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Generate ~/.claude/.skills-menu.txt — compact terminal-friendly skill index.
-# Sourced from families.yaml and skill definitions with Dev10x: prefix invocations.
+# Sourced from families.yaml and skill definitions with dev10x: prefix invocations.
 set -euo pipefail
 
 SKILLS_MENU="${HOME}/.claude/.skills-menu.txt"

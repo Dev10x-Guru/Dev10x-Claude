@@ -1,24 +1,24 @@
 ---
-name: Dev10x:slack
+name: dev10x:slack
 description: >
   Send notifications to Slack channels with support for threads,
   file uploads, message updates, and user group mentions.
   TRIGGER when: sending messages, uploading files, or updating
   messages in Slack channels.
   DO NOT TRIGGER when: setting up Slack integration (use
-  Dev10x:slack-setup), or posting review requests (use
-  Dev10x:slack-review-request).
+  dev10x:slack-setup), or posting review requests (use
+  dev10x:slack-review-request).
 user-invocable: true
-invocation-name: Dev10x:slack
+invocation-name: dev10x:slack
 allowed-tools:
   - AskUserQuestion
   - Bash(uvx dev10x skill notify slack-send:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/slack/slack-notify.py:*)
 ---
 
-# Dev10x:slack — Slack Notifications
+# dev10x:slack — Slack Notifications
 
-**Announce:** "Using Dev10x:slack to send a Slack notification."
+**Announce:** "Using dev10x:slack to send a Slack notification."
 
 ## Orchestration
 
@@ -276,8 +276,8 @@ To discover user IDs, use MCP `slack_search_users` tool.
 ## Integration with Other Skills
 
 This script is used by:
-- **Dev10x:park-remind** — sends deferred-item DMs to yourself
-- **Dev10x:gh-pr-monitor** — posts PR review notifications
+- **dev10x:park-remind** — sends deferred-item DMs to yourself
+- **dev10x:gh-pr-monitor** — posts PR review notifications
 
 For multi-line messages, use the Write tool to create a temp file,
 then pass via `--message-file` or `$(cat /tmp/msg.txt)`. Do NOT use

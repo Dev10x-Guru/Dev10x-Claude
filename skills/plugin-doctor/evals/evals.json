@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:plugin-doctor",
+  "skill_name": "dev10x:plugin-doctor",
   "eval_dimensions": [
     {
       "id": "per-finding-gate",
@@ -22,7 +22,7 @@
       "id": "single-finding-gate-fires-with-three-options",
       "name": "A single finding opens AskUserQuestion with Apply/Skip/Defer",
       "description": "Phase 3 must present each Finding via AskUserQuestion rather than assuming Apply and proceeding.",
-      "input": "Dev10x:plugin-doctor finds 1 mcp-vs-script-drift Finding referencing a stale memory entry",
+      "input": "dev10x:plugin-doctor finds 1 mcp-vs-script-drift Finding referencing a stale memory entry",
       "assertions": [
         {
           "dimension": "per-finding-gate",
@@ -47,7 +47,7 @@
       "id": "five-plus-findings-offers-apply-all-batch-option",
       "name": "5+ findings in one strategy add an 'Apply all' batch option",
       "description": "When mcp-vs-script-drift (or any strategy) surfaces 5 or more findings, the presentation adds a batch option without dropping per-finding visibility.",
-      "input": "Dev10x:plugin-doctor finds 6 mcp-vs-script-drift Findings across different memory files",
+      "input": "dev10x:plugin-doctor finds 6 mcp-vs-script-drift Findings across different memory files",
       "assertions": [
         {
           "dimension": "batch-option-for-clusters",
@@ -66,7 +66,7 @@
       "id": "no-remediation-applied-before-gate-answered",
       "name": "No edit, delegation, or issue_create happens before the gate resolves",
       "description": "Phase 4 remediation actions must not execute until the corresponding Phase 3 AskUserQuestion gate returns 'Apply' for that specific finding.",
-      "input": "Dev10x:plugin-doctor Phase 3 gate is open and unanswered for a finding recommending an Edit to a memory file",
+      "input": "dev10x:plugin-doctor Phase 3 gate is open and unanswered for a finding recommending an Edit to a memory file",
       "assertions": [
         {
           "dimension": "no-auto-remediation",
@@ -76,7 +76,7 @@
         {
           "dimension": "no-auto-remediation",
           "check": "behavioral",
-          "signal": "no_issue_create_before_gate — mcp__plugin_Dev10x_cli__issue_create is not invoked for a 'Defer' remediation until the gate is answered"
+          "signal": "no_issue_create_before_gate — mcp__plugin_dev10x_cli__issue_create is not invoked for a 'Defer' remediation until the gate is answered"
         }
       ]
     }
@@ -88,7 +88,7 @@
       "User wants a systemic audit of intent drift"
     ],
     "should_not_trigger": [
-      "A single permission rule needs ad-hoc debugging (use Dev10x:permission-investigator)",
+      "A single permission rule needs ad-hoc debugging (use dev10x:permission-investigator)",
       "The issue is a one-off skill bug (file a ticket instead)"
     ]
   }

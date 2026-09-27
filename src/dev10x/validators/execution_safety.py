@@ -67,7 +67,7 @@ APPROVED_ABS_PREFIXES = (
 SHELL_WRITE_MSG = (
     "Use the Write/Edit tool instead of cat/echo/printf redirects.\n"
     "For multi-line commit messages: get a path with"
-    ' mcp__plugin_Dev10x_cli__mktmp(namespace="git", prefix="commit-msg",'
+    ' mcp__plugin_dev10x_cli__mktmp(namespace="git", prefix="commit-msg",'
     ' ext=".txt"),'
     " Write content to the returned path, then git commit -F <path>"
     " (GH-1318)"

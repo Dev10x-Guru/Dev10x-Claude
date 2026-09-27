@@ -126,7 +126,7 @@ class TestManifestFromSkills:
         _write_skill(
             tmp_path,
             "viewer",
-            "---\nname: Dev10x:viewer\nallowed-tools:\n  - Read\n  - Bash(git log:*)\n---\nBody",
+            "---\nname: dev10x:viewer\nallowed-tools:\n  - Read\n  - Bash(git log:*)\n---\nBody",
         )
         (entry,) = manifest_from_skills(tmp_path)
         assert (entry.surface, entry.name, entry.access) == (Surface.SKILL, "viewer", Access.READ)
@@ -136,7 +136,7 @@ class TestManifestFromSkills:
         _write_skill(
             tmp_path,
             "editor",
-            "---\nname: Dev10x:editor\nallowed-tools:\n  - Read\n  - Edit\n---\nBody",
+            "---\nname: dev10x:editor\nallowed-tools:\n  - Read\n  - Edit\n---\nBody",
         )
         (entry,) = manifest_from_skills(tmp_path)
         assert entry.access is Access.WRITE
@@ -146,7 +146,7 @@ class TestManifestFromSkills:
         _write_skill(
             tmp_path,
             "creator",
-            "---\nname: Dev10x:creator\nallowed-tools:\n  - Bash(gh pr create:*)\n---\nBody",
+            "---\nname: dev10x:creator\nallowed-tools:\n  - Bash(gh pr create:*)\n---\nBody",
         )
         (entry,) = manifest_from_skills(tmp_path)
         assert entry.access is Access.WRITE
@@ -169,7 +169,7 @@ class TestManifestFromSkills:
 
     def test_missing_allowed_tools_is_read(self, tmp_path: Path) -> None:
         # Valid frontmatter, no external tools → read-only orchestration skill.
-        _write_skill(tmp_path, "notools", "---\nname: Dev10x:notools\n---\nBody")
+        _write_skill(tmp_path, "notools", "---\nname: dev10x:notools\n---\nBody")
         (entry,) = manifest_from_skills(tmp_path)
         assert entry.access is Access.READ
 

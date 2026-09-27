@@ -94,7 +94,7 @@ def render_markdown_report(diff: PlaybookDiff) -> str:
     lines.append("")
     lines.append(
         "Customized fields are listed under each step and will **not** be"
-        " overwritten. Run `/Dev10x:playbook edit <skill> <play>` to pull"
+        " overwritten. Run `/dev10x:playbook edit <skill> <play>` to pull"
         " in upstream changes interactively, or edit the user YAML"
         " directly to add the new steps shown above."
     )

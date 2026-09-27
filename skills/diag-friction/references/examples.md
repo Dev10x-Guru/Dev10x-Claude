@@ -1,4 +1,4 @@
-# Dev10x:diag-friction examples
+# dev10x:diag-friction examples
 
 Walk-throughs for canonical scenarios (formerly the
 `skill-reinforcement` examples). SKILL.md links here to keep the
@@ -6,7 +6,7 @@ orchestration body under the size budget.
 
 ## Example 1: kubectl usage
 
-**User:** `/Dev10x:diag-friction`
+**User:** `/dev10x:diag-friction`
 (after agent ran `kubectl get pods -n staging`)
 
 **Output:**
@@ -14,19 +14,19 @@ orchestration body under the size budget.
 ## Skill Reinforcement
 
 **Command detected:** `kubectl get pods -n staging`
-**Use instead:** `/Dev10x:k8s` — Kubernetes operations via
+**Use instead:** `/dev10x:k8s` — Kubernetes operations via
 aws-vault authenticated kubectl
 
 **Why:** Direct kubectl calls bypass aws-vault authentication
 and may fail or use wrong credentials.
 
 **How to invoke:**
-Skill("Dev10x:k8s")
+Skill("dev10x:k8s")
 ```
 
 ## Example 2: direct git push
 
-**User:** `/Dev10x:diag-friction`
+**User:** `/dev10x:diag-friction`
 (after agent ran `git push origin feature-branch`)
 
 **Output:**
@@ -34,19 +34,19 @@ Skill("Dev10x:k8s")
 ## Skill Reinforcement
 
 **Command detected:** `git push origin feature-branch`
-**Use instead:** `/Dev10x:git` — Safe git push with
+**Use instead:** `/dev10x:git` — Safe git push with
 protected branch checks
 
 **Why:** Direct git push bypasses force-push protection
 on develop/main branches.
 
 **How to invoke:**
-Skill("Dev10x:git")
+Skill("dev10x:git")
 ```
 
 ## Example 3: friction from chaining (pre-approved alternative)
 
-**User:** `/Dev10x:diag-friction`
+**User:** `/dev10x:diag-friction`
 (after agent ran `git fetch origin && git checkout develop`,
 which was rejected because `Bash(git fetch origin && git ...)`
 does not match any allow-rule, while `Bash(git fetch:*)` and
@@ -73,7 +73,7 @@ chained form is not.
 
 ## Example 4: no match found
 
-**User:** `/Dev10x:diag-friction`
+**User:** `/dev10x:diag-friction`
 (after agent ran `curl https://api.example.com/health`)
 
 **Output:**
@@ -84,15 +84,15 @@ chained form is not.
 **No direct skill match found.**
 
 Available skills that might help:
-- `/Dev10x:k8s` — if checking service health in k8s
-- `/Dev10x:investigate` — if investigating a bug report
+- `/dev10x:k8s` — if checking service health in k8s
+- `/dev10x:investigate` — if investigating a bug report
 
 Check ~/.claude/SKILLS.md for the full list of available skills.
 ```
 
 ## Example 5: structural friction → file upstream
 
-**User:** `/Dev10x:diag-friction`
+**User:** `/dev10x:diag-friction`
 (after agent ran a perfectly reasonable `gh api graphql -f
 query='...'` call that the hook blocked with "use the MCP tool
 instead" — but no MCP tool exists for the specific GraphQL

@@ -1,7 +1,7 @@
 """GH-858 F3: the shipped shipping pipeline must commit implementation
 work BEFORE the code-review step.
 
-Dev10x:review computes its diff from commits against base (develop-diff),
+dev10x:review computes its diff from commits against base (develop-diff),
 not the working tree, so a branch whose implementation is still
 uncommitted would review an empty diff. The default ``shipping-pipeline``
 fragment must therefore order a commit step ahead of "Code review".

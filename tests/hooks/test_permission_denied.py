@@ -14,13 +14,13 @@ from tests.fakers import BashHookInputFaker
 class TestHookRetry:
     @pytest.fixture()
     def hook_retry(self) -> HookRetry:
-        return HookRetry(message="Use Skill(Dev10x:git-commit) instead")
+        return HookRetry(message="Use Skill(dev10x:git-commit) instead")
 
     def test_to_dict_decision(self, hook_retry: HookRetry) -> None:
         assert hook_retry.to_dict()["decision"] == "retry"
 
     def test_to_dict_message(self, hook_retry: HookRetry) -> None:
-        assert hook_retry.to_dict()["message"] == "Use Skill(Dev10x:git-commit) instead"
+        assert hook_retry.to_dict()["message"] == "Use Skill(dev10x:git-commit) instead"
 
     def test_emit_exits_zero(self, hook_retry: HookRetry) -> None:
         with pytest.raises(SystemExit) as exc_info:
@@ -37,7 +37,7 @@ class TestHookRetry:
         output = json.loads(capsys.readouterr().err)
         assert output["hookSpecificOutput"]["hookEventName"] == "PermissionDenied"
         assert output["hookSpecificOutput"]["retry"] is True
-        assert output["systemMessage"] == "Use Skill(Dev10x:git-commit) instead"
+        assert output["systemMessage"] == "Use Skill(dev10x:git-commit) instead"
 
     def test_emit_omits_system_message_when_empty(
         self,
@@ -68,7 +68,7 @@ class TestSkillRedirectCorrect:
         result = validator.correct(inp=inp)
         assert result is not None
         assert isinstance(result, HookRetry)
-        assert "Dev10x:git-commit" in result.message
+        assert "dev10x:git-commit" in result.message
 
     def test_returns_none_for_allowed_commit(self, validator) -> None:
         inp = BashHookInputFaker.build(

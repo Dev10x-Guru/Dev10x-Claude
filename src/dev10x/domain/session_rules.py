@@ -88,7 +88,7 @@ def completion_gate_recommendation(
       (GH-883) → :attr:`CompletionRecommendation.AUTO_MERGE`: there is no
       external reviewer to wait for and the adaptive contract forbids a
       manual checkpoint, so the terminal action is to auto-advance to
-      ``Dev10x:gh-pr-merge`` (whose solo-maintainer config supplies the
+      ``dev10x:gh-pr-merge`` (whose solo-maintainer config supplies the
       approval override). Without this branch the session dead-ends at
       "monitor for review" and has to improvise a manual prompt that
       violates the adaptive no-checkpoints contract. Repo policy still
@@ -98,7 +98,7 @@ def completion_gate_recommendation(
     * Otherwise the PR is open and otherwise-green →
       :attr:`CompletionRecommendation.MONITOR_REVIEW`: keep the session
       open and background-watch the PR for review / ready-to-merge via
-      ``Dev10x:gh-pr-monitor``.
+      ``dev10x:gh-pr-monitor``.
     """
     if not blocking_checks_pass:
         return CompletionRecommendation.GO_BACK
@@ -288,7 +288,7 @@ class FrictionSetupState(enum.Enum):
 
 @dataclass(frozen=True)
 class FrictionSetupNudgeRule(PolicyRule[str]):
-    """Build the SessionStart nudge to run ``Dev10x:friction-setup`` (GH-886).
+    """Build the SessionStart nudge to run ``dev10x:friction-setup`` (GH-886).
 
     Detects when a project has no explicit friction/overlay preferences and
     would otherwise *silently* fall back to a preset — the failure mode that
@@ -309,7 +309,7 @@ class FrictionSetupNudgeRule(PolicyRule[str]):
         "**⚙ Friction preferences not configured (GH-886).** No "
         "`~/.config/Dev10x/friction.yaml` existed, so a `strict` baseline was "
         "seeded — every decision gate will fire until you choose a posture. Run "
-        "`/Dev10x:friction-setup` to set this project's preset, overlays, and "
+        "`/dev10x:friction-setup` to set this project's preset, overlays, and "
         "gate/step preferences."
     )
 
@@ -322,7 +322,7 @@ class FrictionSetupNudgeRule(PolicyRule[str]):
                 "**⚙ This project has no friction preferences (GH-886).** "
                 "`~/.config/Dev10x/friction.yaml` exists but no `projects[]` entry "
                 f"matches this repo, so gate policy falls back to `defaults:`. Run "
-                f"`/Dev10x:friction-setup` to configure {target} explicitly. "
+                f"`/dev10x:friction-setup` to configure {target} explicitly. "
                 "Skipping is fine — you'll be reminded next session until you choose."
             )
         return ""

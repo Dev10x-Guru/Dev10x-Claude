@@ -19,7 +19,7 @@ class TestIsNonfunctionalMcpWildcard:
     @pytest.mark.parametrize(
         "rule",
         [
-            "mcp__plugin_Dev10x_*",
+            "mcp__plugin_dev10x_*",
             "mcp__plugin_SomePlugin_*",
         ],
     )
@@ -29,11 +29,11 @@ class TestIsNonfunctionalMcpWildcard:
     @pytest.mark.parametrize(
         "rule",
         [
-            "mcp__plugin_Dev10x_cli__mktmp",
-            "mcp__plugin_Dev10x_cli__detect_tracker",
+            "mcp__plugin_dev10x_cli__mktmp",
+            "mcp__plugin_dev10x_cli__detect_tracker",
             "Bash(gh pr view:*)",
-            "Skill(Dev10x:*)",
-            "mcp__plugin_Dev10x_cli__*",
+            "Skill(dev10x:*)",
+            "mcp__plugin_dev10x_cli__*",
         ],
     )
     def test_ignores_non_wildcard_patterns(self, rule: str) -> None:
@@ -57,8 +57,8 @@ class TestLoadGlobalAllowRules:
                 {
                     "permissions": {
                         "allow": [
-                            "mcp__plugin_Dev10x_*",
-                            "mcp__plugin_Dev10x_cli__mktmp",
+                            "mcp__plugin_dev10x_*",
+                            "mcp__plugin_dev10x_cli__mktmp",
                             "Bash(gh pr view:*)",
                         ]
                     }
@@ -68,19 +68,19 @@ class TestLoadGlobalAllowRules:
 
         effective, wildcards = _load_global_allow_rules()
 
-        assert "mcp__plugin_Dev10x_*" not in effective
-        assert "mcp__plugin_Dev10x_cli__mktmp" in effective
+        assert "mcp__plugin_dev10x_*" not in effective
+        assert "mcp__plugin_dev10x_cli__mktmp" in effective
         assert "Bash(gh pr view:*)" in effective
-        assert wildcards == ["mcp__plugin_Dev10x_*"]
+        assert wildcards == ["mcp__plugin_dev10x_*"]
 
     def test_returns_empty_when_no_wildcards(self, global_settings: Path) -> None:
         global_settings.write_text(
-            json.dumps({"permissions": {"allow": ["mcp__plugin_Dev10x_cli__mktmp"]}})
+            json.dumps({"permissions": {"allow": ["mcp__plugin_dev10x_cli__mktmp"]}})
         )
 
         effective, wildcards = _load_global_allow_rules()
 
-        assert "mcp__plugin_Dev10x_cli__mktmp" in effective
+        assert "mcp__plugin_dev10x_cli__mktmp" in effective
         assert wildcards == []
 
     def test_returns_empty_sets_when_file_missing(
@@ -115,7 +115,7 @@ class TestEnsureBasePermissionsWithWildcard:
                 {
                     "permissions": {
                         "allow": [
-                            "mcp__plugin_Dev10x_*",
+                            "mcp__plugin_dev10x_*",
                         ]
                     }
                 }
@@ -124,16 +124,16 @@ class TestEnsureBasePermissionsWithWildcard:
 
         count, _ = update_paths.ensure_base_permissions(
             settings_file,
-            ["mcp__plugin_Dev10x_cli__mktmp", "mcp__plugin_Dev10x_cli__push_safe"],
+            ["mcp__plugin_dev10x_cli__mktmp", "mcp__plugin_dev10x_cli__push_safe"],
             expand_mcp=False,
         )
 
         assert count == 3
         data = json.loads(settings_file.read_text())
         allow = data["permissions"]["allow"]
-        assert "mcp__plugin_Dev10x_cli__mktmp" in allow
-        assert "mcp__plugin_Dev10x_cli__push_safe" in allow
-        assert "mcp__plugin_Dev10x_*" not in allow
+        assert "mcp__plugin_dev10x_cli__mktmp" in allow
+        assert "mcp__plugin_dev10x_cli__push_safe" in allow
+        assert "mcp__plugin_dev10x_*" not in allow
 
     def test_removes_wildcard_even_when_no_missing_permissions(
         self,
@@ -144,8 +144,8 @@ class TestEnsureBasePermissionsWithWildcard:
                 {
                     "permissions": {
                         "allow": [
-                            "mcp__plugin_Dev10x_*",
-                            "mcp__plugin_Dev10x_cli__mktmp",
+                            "mcp__plugin_dev10x_*",
+                            "mcp__plugin_dev10x_cli__mktmp",
                         ]
                     }
                 }
@@ -154,15 +154,15 @@ class TestEnsureBasePermissionsWithWildcard:
 
         count, messages = update_paths.ensure_base_permissions(
             settings_file,
-            ["mcp__plugin_Dev10x_cli__mktmp"],
+            ["mcp__plugin_dev10x_cli__mktmp"],
             expand_mcp=False,
         )
 
         assert count == 1
         data = json.loads(settings_file.read_text())
         allow = data["permissions"]["allow"]
-        assert "mcp__plugin_Dev10x_*" not in allow
-        assert "mcp__plugin_Dev10x_cli__mktmp" in allow
+        assert "mcp__plugin_dev10x_*" not in allow
+        assert "mcp__plugin_dev10x_cli__mktmp" in allow
         assert any("non-functional" in m for m in messages)
 
 
@@ -178,11 +178,11 @@ class TestEnsureBaseExpandsStaleWildcards:
     @pytest.fixture()
     def fake_catalog(self, monkeypatch: pytest.MonkeyPatch) -> dict:
         catalog = {
-            "Dev10x_cli": [
-                "mcp__plugin_Dev10x_cli__alpha",
-                "mcp__plugin_Dev10x_cli__beta",
+            "dev10x_cli": [
+                "mcp__plugin_dev10x_cli__alpha",
+                "mcp__plugin_dev10x_cli__beta",
             ],
-            "Dev10x_db": ["mcp__plugin_Dev10x_db__query"],
+            "dev10x_db": ["mcp__plugin_dev10x_db__query"],
         }
         monkeypatch.setattr(
             "dev10x.skills.permission.enumerate_mcp.discover_mcp_tools",
@@ -195,7 +195,7 @@ class TestEnsureBaseExpandsStaleWildcards:
         settings_file: Path,
         fake_catalog: dict,
     ) -> None:
-        settings_file.write_text(json.dumps({"permissions": {"allow": ["mcp__plugin_Dev10x_*"]}}))
+        settings_file.write_text(json.dumps({"permissions": {"allow": ["mcp__plugin_dev10x_*"]}}))
 
         count, messages = update_paths.ensure_base_permissions(
             settings_file,
@@ -204,10 +204,10 @@ class TestEnsureBaseExpandsStaleWildcards:
 
         data = json.loads(settings_file.read_text())
         allow = data["permissions"]["allow"]
-        assert "mcp__plugin_Dev10x_*" not in allow
-        assert "mcp__plugin_Dev10x_cli__alpha" in allow
-        assert "mcp__plugin_Dev10x_cli__beta" in allow
-        assert "mcp__plugin_Dev10x_db__query" in allow
+        assert "mcp__plugin_dev10x_*" not in allow
+        assert "mcp__plugin_dev10x_cli__alpha" in allow
+        assert "mcp__plugin_dev10x_cli__beta" in allow
+        assert "mcp__plugin_dev10x_db__query" in allow
         # 1 wildcard removed + 3 tools added
         assert count == 4
         assert any("expanded from MCP wildcard" in m for m in messages)
@@ -222,8 +222,8 @@ class TestEnsureBaseExpandsStaleWildcards:
                 {
                     "permissions": {
                         "allow": [
-                            "mcp__plugin_Dev10x_*",
-                            "mcp__plugin_Dev10x_cli__alpha",
+                            "mcp__plugin_dev10x_*",
+                            "mcp__plugin_dev10x_cli__alpha",
                         ]
                     }
                 }
@@ -238,10 +238,10 @@ class TestEnsureBaseExpandsStaleWildcards:
         data = json.loads(settings_file.read_text())
         allow = data["permissions"]["allow"]
         # alpha kept once, beta + query added, wildcard removed
-        assert allow.count("mcp__plugin_Dev10x_cli__alpha") == 1
-        assert "mcp__plugin_Dev10x_cli__beta" in allow
-        assert "mcp__plugin_Dev10x_db__query" in allow
-        assert "mcp__plugin_Dev10x_*" not in allow
+        assert allow.count("mcp__plugin_dev10x_cli__alpha") == 1
+        assert "mcp__plugin_dev10x_cli__beta" in allow
+        assert "mcp__plugin_dev10x_db__query" in allow
+        assert "mcp__plugin_dev10x_*" not in allow
         # 1 removed + 2 expanded (alpha already present)
         assert count == 3
 
@@ -251,12 +251,12 @@ class TestEnsureBaseExpandsStaleWildcards:
         fake_catalog: dict,
     ) -> None:
         settings_file.write_text(
-            json.dumps({"permissions": {"allow": ["mcp__plugin_Dev10x_cli__alpha"]}})
+            json.dumps({"permissions": {"allow": ["mcp__plugin_dev10x_cli__alpha"]}})
         )
 
         count, _ = update_paths.ensure_base_permissions(
             settings_file,
-            base_permissions=["mcp__plugin_Dev10x_cli__alpha"],
+            base_permissions=["mcp__plugin_dev10x_cli__alpha"],
         )
 
         assert count == 0
@@ -266,7 +266,7 @@ class TestEnsureBaseExpandsStaleWildcards:
         settings_file: Path,
         fake_catalog: dict,
     ) -> None:
-        settings_file.write_text(json.dumps({"permissions": {"allow": ["mcp__plugin_Dev10x_*"]}}))
+        settings_file.write_text(json.dumps({"permissions": {"allow": ["mcp__plugin_dev10x_*"]}}))
 
         count, _ = update_paths.ensure_base_permissions(
             settings_file,
@@ -659,7 +659,7 @@ class TestEnsureBaseSeedsOneTracker:
         "tracker_permissions": {
             "linear": ["mcp__claude_ai_Linear__get_issue"],
             "jira": ["mcp__claude_ai_Atlassian_Rovo__getJiraIssue"],
-            "github": ["mcp__plugin_Dev10x_cli__issue_get"],
+            "github": ["mcp__plugin_dev10x_cli__issue_get"],
         },
         "tracker_denies": {"linear": ["mcp__claude_ai_Linear__delete_comment"]},
     }

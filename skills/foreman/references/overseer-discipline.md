@@ -79,7 +79,7 @@ role-boundary crossing that `tool-surface.md` § Why the lifecycle is
 cut at PR-open and `architecture.md` already assign elsewhere:
 
 - **Never merge a PR.** The merge gate belongs to the watchdog, the
-  only role that can invoke `Dev10x:gh-pr-merge`. An overseer that
+  only role that can invoke `dev10x:gh-pr-merge`. An overseer that
   loads `merge_pr` has the crew's gap one tier up — full autonomy,
   zero checks.
 - **Never close an issue or a milestone.** Closure is the watchdog's

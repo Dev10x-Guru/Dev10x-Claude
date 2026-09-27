@@ -1,6 +1,6 @@
 ---
-name: Dev10x:playwright
-invocation-name: Dev10x:playwright
+name: dev10x:playwright
+invocation-name: dev10x:playwright
 description: >
   Run Playwright Python scripts against ExampleCorp staging safely.
   Use when writing or executing a Playwright automation script for self-QA
@@ -14,7 +14,7 @@ allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/playwright/scripts/:*)
 ---
 
-# Dev10x:playwright
+# dev10x:playwright
 
 ## Orchestration
 
@@ -268,8 +268,8 @@ uv run --with 'playwright>=1.47,<2' python3 -m playwright install chromium
 ## Integration
 
 ```
-Dev10x:playwright
-├── Called by: Dev10x:qa-self (Phase 3 execution)
+dev10x:playwright
+├── Called by: dev10x:qa-self (Phase 3 execution)
 ├── Reads: /work/example/app-e2e/settings.secrets.env (credentials)
 ├── Scripts: run-playwright.sh (validate + inject + run)
 └── Output: /tmp/Dev10x/playwright/  (screenshots, video)

@@ -1,5 +1,5 @@
 ---
-name: Dev10x:git-groom
+name: dev10x:git-groom
 description: >
   Restructure, polish, and clean up git commit history in the current
   branch before merging. Creates atomic, well-organized commits that
@@ -7,21 +7,21 @@ description: >
   TRIGGER when: branch is ready for merge and commit history needs
   cleanup (squash fixups, reorder, reword).
   DO NOT TRIGGER when: branch has clean history already, or splitting
-  individual commits (use Dev10x:git-commit-split).
+  individual commits (use dev10x:git-commit-split).
 user-invocable: true
-invocation-name: Dev10x:git-groom
+invocation-name: dev10x:git-groom
 allowed-tools:
-  - mcp__plugin_Dev10x_cli__mass_rewrite
-  - Skill(Dev10x:git-commit-split)
-  - mcp__plugin_Dev10x_cli__rebase_groom
-  - mcp__plugin_Dev10x_cli__update_pr
+  - mcp__plugin_dev10x_cli__mass_rewrite
+  - Skill(dev10x:git-commit-split)
+  - mcp__plugin_dev10x_cli__rebase_groom
+  - mcp__plugin_dev10x_cli__update_pr
   # Phase 4 rewrites commit permalinks on both comment surfaces (GH-996):
   # inline review-thread comments and top-level PR comments each have
   # their own wrapper.
-  - mcp__plugin_Dev10x_cli__pr_comments
-  - mcp__plugin_Dev10x_cli__pr_review_comment_edit
-  - mcp__plugin_Dev10x_cli__pr_labels
-  - mcp__plugin_Dev10x_cli__issue_comment_edit
+  - mcp__plugin_dev10x_cli__pr_comments
+  - mcp__plugin_dev10x_cli__pr_review_comment_edit
+  - mcp__plugin_dev10x_cli__pr_labels
+  - mcp__plugin_dev10x_cli__issue_comment_edit
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git-groom/scripts/:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git/scripts/git-rebase-groom.sh:*)
   # Read-only Phase 1 analysis shapes (GH-997). Phase 1 prescribes these,
@@ -30,7 +30,7 @@ allowed-tools:
   - Bash(git merge-base:*)
   # Phase 1 resolves the base branch through this tool rather than
   # assuming `develop`, so it needs declaring for the same reason.
-  - mcp__plugin_Dev10x_cli__detect_base_branch
+  - mcp__plugin_dev10x_cli__detect_base_branch
   - Bash(git reset --soft:*)
   - Bash(git reset --hard groom-backup-*:*)
   - Bash(git reset HEAD:*)
@@ -41,10 +41,10 @@ allowed-tools:
   - Bash(git commit-tree:*)
   - Bash(git push --force-with-lease:*)
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
-  - mcp__plugin_Dev10x_cli__mktmp
+  - mcp__plugin_dev10x_cli__mktmp
   - Edit(/tmp/Dev10x/git/**)
   - AskUserQuestion
-  - mcp__plugin_Dev10x_cli__resolve_gate
+  - mcp__plugin_dev10x_cli__resolve_gate
 ---
 
 # Git Branch History Grooming
@@ -65,7 +65,7 @@ documented there is REQUIRED.
 
 ## Legacy script path warning (GH-97)
 
-This skill MUST be invoked via `Skill('Dev10x:git-groom')`.
+This skill MUST be invoked via `Skill('dev10x:git-groom')`.
 Direct script invocation is unsupported and the historical
 path `~/.claude/skills/dx:git/scripts/git-rebase-groom.sh`
 no longer exists (it predates the current plugin layout).

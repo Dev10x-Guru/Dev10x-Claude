@@ -10,7 +10,7 @@ Supports three friction levels:
   adaptive — allow + warning in additionalContext (future)
 
 The YAML is the single source of truth shared with
-Dev10x:diag-friction (formerly Dev10x:skill-reinforcement). User
+dev10x:diag-friction (formerly dev10x:skill-reinforcement). User
 overrides:
   ~/.config/Dev10x/diag-friction.yaml
 """
@@ -41,7 +41,7 @@ if TYPE_CHECKING:
 # An unattended agent with no human channel and no MCP server can
 # get permanently stuck: `push_safe` is unreachable, the wrapper
 # script is blocked with "use the MCP tool", and raw `git push` is
-# blocked with "use Skill(Dev10x:git)" — each block names the other
+# blocked with "use Skill(dev10x:git)" — each block names the other
 # as the remedy. This narrows the `git-push` deny (Option 1 from the
 # issue) so the ordinary, safe case — a non-force push that names an
 # explicit, non-protected branch — never needs MCP or the skill at
@@ -399,7 +399,7 @@ _QUICK_TOKENS = frozenset(
 _COMMIT_HEAL_MSG = (
     "\u26d4  `git commit` blocked — wrong temp file path.\n\n"
     "The `-F` path must be under `/tmp/Dev10x/git/`.\n"
-    "Create it with: `mcp__plugin_Dev10x_cli__mktmp("
+    "Create it with: `mcp__plugin_dev10x_cli__mktmp("
     'namespace="git", prefix="commit-msg", ext=".txt")`\n'
     "then: `git commit -F <returned-path>`\n\n"
     "If you used a different namespace (e.g. `commit` instead of "
@@ -608,7 +608,7 @@ class SkillRedirectValidator(ValidatorBase):
         comp = rule.compensations[0] if rule.compensations else None
         if not comp:
             return None
-        if comp.skill == "Dev10x:git-commit" and _WRONG_TEMP_PATH_RE.search(inp.command):
+        if comp.skill == "dev10x:git-commit" and _WRONG_TEMP_PATH_RE.search(inp.command):
             return HookResult(message=_COMMIT_HEAL_MSG)
         label = _rule_label(rule=rule)
         if comp.type == "use-alternative":

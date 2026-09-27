@@ -1,5 +1,5 @@
 ---
-name: Dev10x:memory-maintenance
+name: dev10x:memory-maintenance
 description: >
   Audit project and global memory files for stale patterns,
   version-pinned paths, contradictory instructions, and anti-patterns
@@ -11,7 +11,7 @@ description: >
   DO NOT TRIGGER when: user wants to save or recall a specific
   memory (use the auto memory system directly).
 user-invocable: true
-invocation-name: Dev10x:memory-maintenance
+invocation-name: dev10x:memory-maintenance
 allowed-tools:
   - Read
   - Glob
@@ -23,7 +23,7 @@ allowed-tools:
   - Edit
 ---
 
-# Dev10x:memory-maintenance — Memory Health Auditor
+# dev10x:memory-maintenance — Memory Health Auditor
 
 ## Overview
 

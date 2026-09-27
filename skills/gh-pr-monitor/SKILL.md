@@ -1,39 +1,39 @@
 ---
-name: Dev10x:gh-pr-monitor
+name: dev10x:gh-pr-monitor
 description: >
   Launch a background agent to monitor PR CI checks and review comments,
   automatically address issues with fixup commits, and notify team when
   ready. Use after creating a PR to automate the entire review cycle.
   TRIGGER when: PR has been created and needs CI/review monitoring.
-  DO NOT TRIGGER when: PR does not exist yet (use Dev10x:gh-pr-create
+  DO NOT TRIGGER when: PR does not exist yet (use dev10x:gh-pr-create
   first), or user wants to manually handle review comments.
 user-invocable: true
-invocation-name: Dev10x:gh-pr-monitor
+invocation-name: dev10x:gh-pr-monitor
 allowed-tools:
   - Agent
-  - Skill(Dev10x:gh-pr-respond)
-  - Skill(Dev10x:git-commit)
-  - Skill(Dev10x:git-groom)
-  - Skill(Dev10x:qa-scope)
-  - Skill(Dev10x:slack-review-request)
-  - Skill(Dev10x:ticket-jtbd)
-  - Skill(Dev10x:verify-acc-dod)
+  - Skill(dev10x:gh-pr-respond)
+  - Skill(dev10x:git-commit)
+  - Skill(dev10x:git-groom)
+  - Skill(dev10x:qa-scope)
+  - Skill(dev10x:slack-review-request)
+  - Skill(dev10x:ticket-jtbd)
+  - Skill(dev10x:verify-acc-dod)
   - AskUserQuestion
-  - mcp__plugin_Dev10x_cli__pr_notify
-  - mcp__plugin_Dev10x_cli__detect_tracker
-  - mcp__plugin_Dev10x_cli__pr_detect
+  - mcp__plugin_dev10x_cli__pr_notify
+  - mcp__plugin_dev10x_cli__detect_tracker
+  - mcp__plugin_dev10x_cli__pr_detect
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-context/scripts/:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-monitor/scripts/:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-merge/scripts/:*)
-  - mcp__plugin_Dev10x_cli__ci_check_status
-  - mcp__plugin_Dev10x_cli__check_top_level_comments
-  - mcp__plugin_Dev10x_cli__milestone_close
-  - mcp__plugin_Dev10x_cli__background_preamble
-  - mcp__plugin_Dev10x_cli__resolve_gate
+  - mcp__plugin_dev10x_cli__ci_check_status
+  - mcp__plugin_dev10x_cli__check_top_level_comments
+  - mcp__plugin_dev10x_cli__milestone_close
+  - mcp__plugin_dev10x_cli__background_preamble
+  - mcp__plugin_dev10x_cli__resolve_gate
   - Bash(gh:*)
-  - Skill(Dev10x:qa-scope)
-  - Skill(Dev10x:request-review)
-  - Skill(Dev10x:verify-acc-dod)
+  - Skill(dev10x:qa-scope)
+  - Skill(dev10x:request-review)
+  - Skill(dev10x:verify-acc-dod)
 ---
 
 # PR Review Monitor (Background Agent)
@@ -55,13 +55,13 @@ documented there are REQUIRED.
 ## Mandatory Invocation After PR Creation (GH-162)
 
 Audit GH-162 caught a session where work-on task 4.9
-"Monitor CI → delegate to `Dev10x:gh-pr-monitor`" was in the
+"Monitor CI → delegate to `dev10x:gh-pr-monitor`" was in the
 plan but never executed; the session ended immediately after
 a single inline `gh pr view` status check (turn 279) and CI
 completion was never confirmed.
 
-**Hard rule:** After `Dev10x:gh-pr-create` succeeds, the very
-next action MUST be `Skill(Dev10x:gh-pr-monitor)` — no
+**Hard rule:** After `dev10x:gh-pr-create` succeeds, the very
+next action MUST be `Skill(dev10x:gh-pr-monitor)` — no
 exceptions. Orchestrators that mark the monitor task
 `completed` without invoking the skill (e.g., via a one-off
 `gh pr view` or inline polling) commit a compliance

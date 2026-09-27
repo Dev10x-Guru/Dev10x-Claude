@@ -30,7 +30,7 @@ class FrictionLevel(StrEnum):
     def default(cls) -> FrictionLevel:
         """Internal default — matches the long-standing string fallback ("strict").
 
-        The interactive ``Dev10x:init`` prompt suggests ``guided`` for new
+        The interactive ``dev10x:init`` prompt suggests ``guided`` for new
         projects, but internal code paths (Config dataclass, YAML parse
         fallbacks) all defaulted to ``strict`` before this enum existed.
         Preserving that here keeps the type migration behaviour-neutral.
@@ -73,7 +73,7 @@ class FrictionLevel(StrEnum):
         return (
             "Session resumed with pending decisions. "
             "Re-ask each pending decision using AskUserQuestion — "
-            "invoke Dev10x:ask before advancing."
+            "invoke dev10x:ask before advancing."
         )
 
 

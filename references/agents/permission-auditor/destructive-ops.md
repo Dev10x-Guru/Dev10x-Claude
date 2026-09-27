@@ -9,9 +9,9 @@ classification key.
 
 Read the plugin's `hooks.json` and each hook script to build a
 coverage map. Also inventory skills that legitimately need
-dangerous-looking operations (e.g., `Dev10x:git` needs
+dangerous-looking operations (e.g., `dev10x:git` needs
 force-push, `update-config` needs settings writes,
-`Dev10x:gh-pr-monitor` needs `gh pr merge`).
+`dev10x:gh-pr-monitor` needs `gh pr merge`).
 
 ## Step 2: Classify each destructive operation
 

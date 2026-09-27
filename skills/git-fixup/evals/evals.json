@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:git-fixup",
+  "skill_name": "dev10x:git-fixup",
   "eval_dimensions": [
     {
       "id": "standalone-confirm-gate",
@@ -12,13 +12,13 @@
       "id": "standalone-gate-fires-without-comment-or-target",
       "name": "Standalone gate fires with no comment and no explicit target",
       "description": "Invocation with neither pr_number/comment_id nor an explicit target commit SHA + description fires AskUserQuestion before any git operation beyond the CWD check.",
-      "input": "/Dev10x:git-fixup (no comment ID, no PR, no explicit target commit)",
+      "input": "/dev10x:git-fixup (no comment ID, no PR, no explicit target commit)",
       "assertions": [
         {
           "dimension": "standalone-confirm-gate",
           "check": "tool_called",
           "tool": "AskUserQuestion",
-          "signal": "AskUserQuestion fires with options 'Yes, standalone fixup' / 'No, use /Dev10x:git-commit instead'"
+          "signal": "AskUserQuestion fires with options 'Yes, standalone fixup' / 'No, use /dev10x:git-commit instead'"
         },
         {
           "dimension": "standalone-confirm-gate",
@@ -36,7 +36,7 @@
       "id": "explicit-target-skips-gate",
       "name": "Explicit target commit + description skips the gate",
       "description": "When the invocation args include a target commit SHA and description, intent is clear and the skill proceeds directly to standalone fixup mode without asking.",
-      "input": "/Dev10x:git-fixup abc1234 Fix null handling in phone lookup",
+      "input": "/dev10x:git-fixup abc1234 Fix null handling in phone lookup",
       "assertions": [
         {
           "dimension": "standalone-confirm-gate",
@@ -49,7 +49,7 @@
       "id": "review-fixup-mode-skips-gate",
       "name": "Review fixup mode (comment ID / PR comment URL) skips the gate",
       "description": "When a comment ID or PR comment URL is provided, the skill enters review fixup mode and never fires the standalone-confirm gate.",
-      "input": "/Dev10x:git-fixup (comment_id provided)",
+      "input": "/dev10x:git-fixup (comment_id provided)",
       "assertions": [
         {
           "dimension": "standalone-confirm-gate",
@@ -60,14 +60,14 @@
     },
     {
       "id": "decline-suggests-git-commit",
-      "name": "Declining the gate suggests Dev10x:git-commit instead of falling through",
-      "description": "When the user declines the standalone-fixup confirmation, the skill suggests Dev10x:git-commit and does not create a fixup! commit.",
-      "input": "/Dev10x:git-fixup (no comment ID, no PR) → user selects 'No, use /Dev10x:git-commit instead'",
+      "name": "Declining the gate suggests dev10x:git-commit instead of falling through",
+      "description": "When the user declines the standalone-fixup confirmation, the skill suggests dev10x:git-commit and does not create a fixup! commit.",
+      "input": "/dev10x:git-fixup (no comment ID, no PR) → user selects 'No, use /dev10x:git-commit instead'",
       "assertions": [
         {
           "dimension": "standalone-confirm-gate",
           "check": "behavioral",
-          "signal": "No git commit call runs; the response points to Skill(Dev10x:git-commit)"
+          "signal": "No git commit call runs; the response points to Skill(dev10x:git-commit)"
         }
       ]
     }
@@ -76,7 +76,7 @@
     "description": "Queries that should/should-not trigger the git-fixup skill",
     "should_trigger": [
       {
-        "query": "/Dev10x:git-fixup",
+        "query": "/dev10x:git-fixup",
         "rationale": "Direct invocation to create a fixup! commit"
       },
       {
@@ -87,11 +87,11 @@
     "should_not_trigger": [
       {
         "query": "create a regular commit for these changes",
-        "rationale": "Use Dev10x:git-commit, not a fixup"
+        "rationale": "Use dev10x:git-commit, not a fixup"
       },
       {
         "query": "implement the fix, push, and reply to the review comment",
-        "rationale": "Use Dev10x:gh-pr-fixup, which wraps push + reply"
+        "rationale": "Use dev10x:gh-pr-fixup, which wraps push + reply"
       }
     ]
   }

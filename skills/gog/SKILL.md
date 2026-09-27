@@ -1,5 +1,5 @@
 ---
-name: Dev10x:gog
+name: dev10x:gog
 description: >
   Reach Google Workspace from the command line through the `gog` CLI —
   Drive, Google Chat, YouTube, Gmail, Calendar — including the OAuth setup
@@ -8,19 +8,19 @@ description: >
   TRIGGER when: reading or writing Google Workspace data from a session
   (fetching a Chat thread, listing Drive files, publishing to YouTube), or
   when a `gog auth` grant is missing, refused, or needs re-authorizing.
-  DO NOT TRIGGER when: publishing a recording (use Dev10x:yt-upload, which
+  DO NOT TRIGGER when: publishing a recording (use dev10x:yt-upload, which
   owns token borrowing and channel assertion), posting to a Chat space via
-  the notification bot (use Dev10x:gchat), or sending Slack (use
-  Dev10x:slack).
+  the notification bot (use dev10x:gchat), or sending Slack (use
+  dev10x:slack).
 user-invocable: true
-invocation-name: Dev10x:gog
+invocation-name: dev10x:gog
 allowed-tools:
   - Bash(gog:*)
 ---
 
-# Dev10x:gog — Google Workspace from the command line
+# dev10x:gog — Google Workspace from the command line
 
-**Announce:** "Using Dev10x:gog to reach Google Workspace via the gog CLI."
+**Announce:** "Using dev10x:gog to reach Google Workspace via the gog CLI."
 
 [`gog`](https://gogcli.sh) is one binary over Gmail, Calendar, Chat, Drive,
 YouTube, Docs, Sheets, Slides, People, Tasks and more. It holds the OAuth

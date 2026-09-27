@@ -18,17 +18,17 @@ from dev10x.domain.documents.friction_yaml import FrictionYamlDocument
 QUICK_START_WORKFLOWS = [
     (
         "git-commit",
-        "/Dev10x:git-commit",
+        "/dev10x:git-commit",
         "JTBD-style commit messages with gitmoji + ticket ID",
     ),
     (
         "pr-create",
-        "/Dev10x:gh-pr-create",
+        "/dev10x:gh-pr-create",
         "Draft PR with Job Story body and Fixes: link",
     ),
     (
         "review",
-        "/Dev10x:review",
+        "/dev10x:review",
         "Self-review your branch before requesting a human reviewer",
     ),
     (
@@ -38,14 +38,14 @@ QUICK_START_WORKFLOWS = [
     ),
     (
         "architecture",
-        "/Dev10x:adr",
+        "/dev10x:adr",
         "Author Architecture Decision Records with diagrams",
     ),
 ]
 
 STARTER_WORK_ON_PLAYBOOK = """# Starter work-on playbook for this project.
 #
-# Customize with /Dev10x:playbook edit work-on <play>
+# Customize with /dev10x:playbook edit work-on <play>
 # See skills/playbook/references/playbook.yaml for the full schema.
 
 # active_modes controls per-step behavior adaptations. Uncomment any
@@ -130,8 +130,8 @@ def _print_card(*, project_root: Path) -> None:
         click.echo(f"    {description}")
     click.echo("")
     click.echo(f" Config: {project_root}/.claude/Dev10x/")
-    click.echo(" Customize: /Dev10x:playbook edit work-on <play>")
-    click.echo(" Discovery: /Dev10x:onboarding")
+    click.echo(" Customize: /dev10x:playbook edit work-on <play>")
+    click.echo(" Discovery: /dev10x:onboarding")
     click.echo("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     click.echo("")
 

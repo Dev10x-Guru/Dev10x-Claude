@@ -1,10 +1,10 @@
 {
-  "skill_name": "Dev10x:fanout",
+  "skill_name": "dev10x:fanout",
   "eval_dimensions": [
     {
       "id": "phase0-gate",
       "name": "Phase 0 Posture Check",
-      "description": "Phase 0 reads the durable review posture through supervisor_review_status and delegates the ask to Dev10x:friction-setup before any work begins, so nested work-on invocations inherit a settled posture"
+      "description": "Phase 0 reads the durable review posture through supervisor_review_status and delegates the ask to dev10x:friction-setup before any work begins, so nested work-on invocations inherit a settled posture"
     },
     {
       "id": "parallel-dispatch",
@@ -16,9 +16,9 @@
     {
       "id": 1,
       "name": "phase0-posture-check",
-      "prompt": "/Dev10x:fanout GH-100 GH-101 GH-102",
+      "prompt": "/dev10x:fanout GH-100 GH-101 GH-102",
       "description": "Tests that Phase 0 settles the review posture through supervisor_review_status before dispatching any work items, delegating the ask rather than offering a friction-level picker (ADR-0022).",
-      "expected_output": "supervisor_review_status is called before any issue processing begins; an unpinned project delegates to Dev10x:friction-setup, a pinned one proceeds silently. No friction-level options are offered and no session file is written.",
+      "expected_output": "supervisor_review_status is called before any issue processing begins; an unpinned project delegates to dev10x:friction-setup, a pinned one proceeds silently. No friction-level options are offered and no session file is written.",
       "dimensions": ["phase0-gate"],
       "assertions": [
         {
@@ -29,9 +29,9 @@
         },
         {
           "id": "phase0-delegates-when-unpinned",
-          "text": "When pinned is false, the ask is delegated to Dev10x:friction-setup instead of being asked inline",
+          "text": "When pinned is false, the ask is delegated to dev10x:friction-setup instead of being asked inline",
           "check": "tool_called",
-          "signals": ["Skill", "Dev10x:friction-setup"]
+          "signals": ["Skill", "dev10x:friction-setup"]
         },
         {
           "id": "phase0-silent-when-already-pinned",

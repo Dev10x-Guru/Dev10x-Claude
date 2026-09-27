@@ -84,7 +84,7 @@ class TestBlocksATurnEndingOnADecision:
         )
 
         assert verdict.block is True
-        assert "Dev10x:ask" in verdict.reason
+        assert "dev10x:ask" in verdict.reason
 
     def test_a_done_session_still_ends_on_a_widget(
         self,

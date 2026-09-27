@@ -176,7 +176,7 @@ async def permission_catalog_gap(
     """Report catalog rules missing from each settings file (read-only).
 
     The MCP surface for `dev10x permission catalog-gap`, so
-    `Dev10x:diag-friction` Step 3a can run its coverage check without
+    `dev10x:diag-friction` Step 3a can run its coverage check without
     a `Bash(uvx:*)` allow rule (GH-1175). Answers "does this settings
     file carry the catalog?" — a non-zero `total_missing` means a
     propagation gap, not a missing rule.
@@ -214,7 +214,7 @@ async def generate_skill_index(
 async def record_upgrade(version: str | None = None) -> dict:
     """Record the currently-installed plugin version as applied.
 
-    Called by Dev10x:upgrade-cleanup after a successful run so the
+    Called by dev10x:upgrade-cleanup after a successful run so the
     SessionStart install-check stops emitting upgrade prompts.
 
     Args:

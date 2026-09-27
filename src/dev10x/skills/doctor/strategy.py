@@ -1,4 +1,4 @@
-"""Shared types for Dev10x:plugin-doctor strategies (GH-87).
+"""Shared types for dev10x:plugin-doctor strategies (GH-87).
 
 Each strategy is a thin module exporting a :class:`Strategy`
 constant. The doctor skill iterates registered strategies in

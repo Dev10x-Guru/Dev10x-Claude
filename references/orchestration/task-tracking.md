@@ -20,7 +20,7 @@ TaskUpdate(taskId, status="completed")
 ## Delegated Invocation Exception (Nested-Mode Exemption)
 
 When a skill is invoked as a subtask of a parent orchestrator (e.g.,
-`Dev10x:work-on`), internal `TaskCreate` calls MAY be skipped or
+`dev10x:work-on`), internal `TaskCreate` calls MAY be skipped or
 reduced to at most **1 summary task**. The parent orchestrator owns
 the task lifecycle and has already created tasks that track the child
 skill's progress. Duplicate task trees add clutter without value.

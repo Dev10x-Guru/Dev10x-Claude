@@ -1,5 +1,5 @@
 ---
-name: Dev10x:ticket-branch
+name: dev10x:ticket-branch
 description: >
   Create a properly named git branch for a ticket following project
   conventions (username/TICKET-ID/[worktree/]short-slug). Ensures
@@ -7,10 +7,10 @@ description: >
   detects worktrees and includes worktree name in branch.
   TRIGGER when: starting work on a ticket and need a feature branch.
   DO NOT TRIGGER when: branch already exists for this ticket, or
-  creating a worktree (use Dev10x:git-worktree which creates branches
+  creating a worktree (use dev10x:git-worktree which creates branches
   internally).
 user-invocable: true
-invocation-name: Dev10x:ticket-branch
+invocation-name: dev10x:ticket-branch
 allowed-tools:
   - Bash(git status:*)
   - Bash(git fetch:*)
@@ -199,7 +199,7 @@ Worktree (e.g., in `/work/example/.worktrees/app-pos-7`):
 
 This skill IS the project wrapper for branch creation — the raw
 `git checkout -b` calls below are the implementation, not user-facing
-guidance. Other skills MUST delegate to `Skill(Dev10x:ticket-branch)`
+guidance. Other skills MUST delegate to `Skill(dev10x:ticket-branch)`
 rather than embedding `git checkout -b` directly (see Skill Routing
 Enforcement in `skills/work-on/instructions.md`). The cli-friction
 scanner exempts this skill via the `GIT_IMPLEMENTERS` allowlist in
@@ -347,7 +347,7 @@ Create branch for PAY-100: Update customer search
 
 This skill is designed to be used standalone or as part of larger workflows:
 
-- **Dev10x:work-on**: Uses this skill for Step 4 (Create Git Branch)
+- **dev10x:work-on**: Uses this skill for Step 4 (Create Git Branch)
 - **commit:to-new-ticket**: Could use this skill to create branch before cherry-picking
 
 When integrating, pass the ticket ID and title as parameters.

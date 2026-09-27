@@ -119,15 +119,15 @@ subagent orchestrator has, and **it does not cross a session boundary**.
 ## Multi-skill applicability
 
 This protocol applies to any multi-session orchestration:
-- `Dev10x:work-on` — phases dispatch agents; session death mid-phase
+- `dev10x:work-on` — phases dispatch agents; session death mid-phase
   requires re-derive + respawn
-- `Dev10x:fanout` — spawns independent swarms; session death orphans
+- `dev10x:fanout` — spawns independent swarms; session death orphans
   swarm agents
-- `Dev10x:skill-audit` — dispatches finder and judge agents; death
+- `dev10x:skill-audit` — dispatches finder and judge agents; death
   mid-wave requires resumption
-- `Dev10x:adr-evaluate` — architect dispatch vulnerable to account
+- `dev10x:adr-evaluate` — architect dispatch vulnerable to account
   session limits
-- `Dev10x:foreman` — unattended orchestration; assumes all rules above
+- `dev10x:foreman` — unattended orchestration; assumes all rules above
 
 When updating a multi-session skill, verify:
 1. Agents are instructed to post handover comments (Rule 1)

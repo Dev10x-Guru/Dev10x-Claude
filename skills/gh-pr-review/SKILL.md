@@ -1,5 +1,5 @@
 ---
-name: Dev10x:gh-pr-review
+name: dev10x:gh-pr-review
 description: >
   Review a GitHub pull request and post findings with inline comments.
   Fetches PR diff, reads changed files, checks for interface impact,
@@ -9,16 +9,16 @@ description: >
   may be pushed as fixup! commits with reviewer consent (Step 5b/6b).
   TRIGGER when: reviewing an external PR and posting review comments.
   DO NOT TRIGGER when: reviewing own branch changes before PR creation
-  (use Dev10x:review), or PR does not exist yet.
+  (use dev10x:review), or PR does not exist yet.
 user-invocable: true
-invocation-name: Dev10x:gh-pr-review
+invocation-name: dev10x:gh-pr-review
 allowed-tools:
   - Bash(gh:*)
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
   - Bash(~/.claude/tools/gh-bot-comment.py:*)
   - Edit(/tmp/Dev10x/git/**)
-  - mcp__plugin_Dev10x_cli__pr_detect
-  - mcp__plugin_Dev10x_cli__mktmp
+  - mcp__plugin_dev10x_cli__pr_detect
+  - mcp__plugin_dev10x_cli__mktmp
   - AskUserQuestion
 ---
 
@@ -39,7 +39,7 @@ Accepts one of:
 - Reviewing any PR where you want findings posted to GitHub
 - When asked to "review PR #N" or given a PR URL
 
-**Not for self-review** — use `Dev10x:review` to review your own
+**Not for self-review** — use `dev10x:review` to review your own
 branch before creating a PR.
 
 ## Orchestration
@@ -77,13 +77,13 @@ number is given, use the current git remote origin.
 
 ### Step 2: Gather PR Context
 
-**REQUIRED first call:** `mcp__plugin_Dev10x_cli__pr_detect` to
+**REQUIRED first call:** `mcp__plugin_dev10x_cli__pr_detect` to
 resolve PR number, repo, state, base/head refs, and merge status
 in one structured response (GH-181 F4). Raw `gh pr view --json`
 is fallback only when the MCP tool is unavailable.
 
 Then run in parallel:
-1. `mcp__plugin_Dev10x_cli__pr_detect` (state, refs, merge state, labels)
+1. `mcp__plugin_dev10x_cli__pr_detect` (state, refs, merge state, labels)
 2. `gh pr diff {N}` — full diff
 3. `gh pr view {N} --json comments` — existing bot/human comments
 4. `gh api repos/{owner}/{repo}/pulls/{N}/reviews` — existing reviews
@@ -217,7 +217,7 @@ for classification criteria, examples, and list-building instructions.
 fires at ALL friction levels). Decision gate specification and per-finding mode:
 see [`tool-calls/ask-courtesy-fixup-scope.md`](tool-calls/ask-courtesy-fixup-scope.md).
 
-**After user approval:** For each approved courtesy fix, invoke `Dev10x:gh-pr-fixup`
+**After user approval:** For each approved courtesy fix, invoke `dev10x:gh-pr-fixup`
 to push the change and reply with the required "feel free to amend or drop" language.
 Do NOT auto-resolve threads. Remove courtesy-fixed findings from `author_comments`
 to avoid duplication.
@@ -337,12 +337,12 @@ From `review-guidelines.md` and `review-checks-common.md`:
 ## Integration
 
 ```
-Dev10x:gh-pr-review
+dev10x:gh-pr-review
 ├─ Standalone review of any GitHub PR
 └─ Posts findings directly to GitHub
 ```
 
 Complements:
-- `Dev10x:review` — self-review before PR creation (no GitHub posting)
-- `Dev10x:gh-pr-respond` — respond to review comments on YOUR PR
-- `Dev10x:gh-pr-triage` — validate a single review comment
+- `dev10x:review` — self-review before PR creation (no GitHub posting)
+- `dev10x:gh-pr-respond` — respond to review comments on YOUR PR
+- `dev10x:gh-pr-triage` — validate a single review comment

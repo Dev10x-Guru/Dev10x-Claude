@@ -107,7 +107,7 @@ class TestHasLeakedSecret:
         [
             "Bash(git log:*)",
             "Bash(GIT_SEQUENCE_EDITOR=: git rebase)",
-            "mcp__plugin_Dev10x_cli__detect_tracker",
+            "mcp__plugin_dev10x_cli__detect_tracker",
             # GH-1312: bare word matches on "token"/"secret" in an ordinary
             # identifier must stay silent — these are the exact false
             # positives reported in the issue.
@@ -179,7 +179,7 @@ class TestIsHookEnabled:
             "Bash(git log:*)",
             "Bash(gh pr view:*)",
             "Bash(docker compose up)",
-            "mcp__plugin_Dev10x_cli__detect_tracker",
+            "mcp__plugin_dev10x_cli__detect_tracker",
         ],
     )
     def test_rejects_non_hook_enabled_rules(self, rule: str) -> None:
@@ -216,7 +216,7 @@ class TestClassifyRules:
         "Bash(git log:*)",
         "Bash(gh pr view:*)",
         "mcp__claude_ai_Linear__*",
-        "mcp__plugin_Dev10x_*",
+        "mcp__plugin_dev10x_*",
     }
 
     def test_classifies_exact_duplicates(self) -> None:
@@ -232,7 +232,7 @@ class TestClassifyRules:
         assert result.kept == []
 
     def test_mcp_wildcards_no_longer_remove_individual_tools(self) -> None:
-        rules = ["mcp__claude_ai_Linear__get_issue", "mcp__plugin_Dev10x_cli__push"]
+        rules = ["mcp__claude_ai_Linear__get_issue", "mcp__plugin_dev10x_cli__push"]
 
         result = clean_mod.classify_rules(
             rules,
@@ -741,8 +741,8 @@ class TestAskShadowedByAllow:
         assert len(result.ask_shadowed_by_allow) == 1
 
     def test_detects_wildcard_shadow(self) -> None:
-        allow = ["mcp__plugin_Dev10x_cli__*"]
-        ask = ["mcp__plugin_Dev10x_cli__push_safe"]
+        allow = ["mcp__plugin_dev10x_cli__*"]
+        ask = ["mcp__plugin_dev10x_cli__push_safe"]
 
         result = clean_mod.classify_rules(
             allow,

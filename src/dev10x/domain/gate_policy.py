@@ -292,7 +292,7 @@ class GateResolution:
 _FLOOR_REMEDIES = {
     "supervisor_review": (
         "the supervisor reads this PR before the next step — add the "
-        "review:cleared label once they have (Dev10x:gh-pr-request-review "
+        "review:cleared label once they have (dev10x:gh-pr-request-review "
         "writes it), or set supervisor_review: none in the matching "
         "projects[] entry of ~/.config/Dev10x/friction.yaml if they do not"
     ),
@@ -648,7 +648,7 @@ def legacy_config_message(*, keys: list[str]) -> str:
         "the read-compat seam that translated them was retired in GH-1162. "
         f"Run `{MIGRATOR_COMMAND}` to convert ~/.config/Dev10x/friction.yaml "
         "(and any legacy .claude/Dev10x/config.yaml) to schema v2 — "
-        "Dev10x:upgrade-cleanup Step 1b and Dev10x:plugin-doctor Step 0 run it "
+        "dev10x:upgrade-cleanup Step 1b and dev10x:plugin-doctor Step 0 run it "
         "for you. Refusing to resolve at the baseline preset instead: a repo "
         "that pinned a stricter posture would silently gain autonomy."
     )

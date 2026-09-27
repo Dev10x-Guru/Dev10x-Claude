@@ -1,7 +1,7 @@
 # New Slack Bot Creation Guide
 
 Use this reference when the user chose "Create a new Slack Bot"
-in Step 2a of `Dev10x:slack-setup`.
+in Step 2a of `dev10x:slack-setup`.
 
 ## App Creation
 

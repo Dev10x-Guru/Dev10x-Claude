@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:qa-publish",
+  "skill_name": "dev10x:qa-publish",
   "eval_dimensions": [
     {
       "id": "gate-ordering",
@@ -9,7 +9,7 @@
     {
       "id": "delegation",
       "name": "Delegation Over Restatement",
-      "description": "Video publishing goes to Dev10x:yt-upload and conversion to qa-self's scripts, never re-implemented here"
+      "description": "Video publishing goes to dev10x:yt-upload and conversion to qa-self's scripts, never re-implemented here"
     },
     {
       "id": "verdict-honesty",
@@ -32,7 +32,7 @@
       "id": "no-publish-before-review",
       "name": "Publishing waits for the local review gate",
       "description": "Invoked directly on an old run directory with no qa-self Phase 4.4 approval in the session",
-      "input": "/Dev10x:qa-publish publish the QA evidence in /tmp/Dev10x/self-qa/gh-42 to GH-42 and its PR",
+      "input": "/dev10x:qa-publish publish the QA evidence in /tmp/Dev10x/self-qa/gh-42 to GH-42 and its PR",
       "assertions": [
         {
           "dimension": "gate-ordering",
@@ -50,15 +50,15 @@
     },
     {
       "id": "video-goes-through-yt-upload",
-      "name": "The video is published via Dev10x:yt-upload",
+      "name": "The video is published via dev10x:yt-upload",
       "description": "A full evidence set including a walkthrough recording is published",
-      "input": "/Dev10x:qa-publish publish the GH-42 QA run to the ticket and the PR",
+      "input": "/dev10x:qa-publish publish the GH-42 QA run to the ticket and the PR",
       "assertions": [
         {
           "dimension": "delegation",
           "check": "output_contains",
-          "value": "Dev10x:yt-upload",
-          "signal": "The video step delegates to Dev10x:yt-upload rather than restating upload mechanics"
+          "value": "dev10x:yt-upload",
+          "signal": "The video step delegates to dev10x:yt-upload rather than restating upload mechanics"
         },
         {
           "dimension": "delegation",
@@ -78,7 +78,7 @@
       "id": "failed-case-is-not-published-as-pass",
       "name": "A failed test case is reported as failed",
       "description": "The run's results record one FAILED case among three",
-      "input": "/Dev10x:qa-publish publish the GH-42 QA run to the ticket and the PR",
+      "input": "/dev10x:qa-publish publish the GH-42 QA run to the ticket and the PR",
       "assertions": [
         {
           "dimension": "verdict-honesty",
@@ -98,7 +98,7 @@
       "id": "destinations-get-their-own-forms",
       "name": "Ticket and PR get different embed and image forms",
       "description": "Evidence is published to both a Linear ticket and a GitHub PR",
-      "input": "/Dev10x:qa-publish publish the GH-42 QA run to the ticket and the PR",
+      "input": "/dev10x:qa-publish publish the GH-42 QA run to the ticket and the PR",
       "assertions": [
         {
           "dimension": "destination-routing",
@@ -124,7 +124,7 @@
       "id": "jira-synced-issue-gets-a-reply",
       "name": "A Jira-synced issue is answered in-thread",
       "description": "list_comments reveals a null-author sync anchor on the target issue",
-      "input": "/Dev10x:qa-publish publish the QA run to the Jira-synced ticket and the PR",
+      "input": "/dev10x:qa-publish publish the QA run to the Jira-synced ticket and the PR",
       "assertions": [
         {
           "dimension": "jira-threading",
@@ -144,7 +144,7 @@
       "id": "narrated-run-publishes-one-video",
       "name": "A narrated run publishes one take, not both",
       "description": "The run directory holds both the silent and the narrated mp4",
-      "input": "/Dev10x:qa-publish publish the narrated GH-42 QA run",
+      "input": "/dev10x:qa-publish publish the narrated GH-42 QA run",
       "assertions": [
         {
           "dimension": "delegation",
@@ -168,10 +168,10 @@
       "A finished qa-self capture should be published to Linear and GitHub"
     ],
     "should_not_trigger": [
-      "Executing the QA test cases (use Dev10x:qa-self)",
-      "Analyzing a PR for QA needs (use Dev10x:qa-scope)",
-      "Publishing a single video with no ticket write-up (use Dev10x:yt-upload)",
-      "Synthesizing narration audio (use Dev10x:tts)"
+      "Executing the QA test cases (use dev10x:qa-self)",
+      "Analyzing a PR for QA needs (use dev10x:qa-scope)",
+      "Publishing a single video with no ticket write-up (use dev10x:yt-upload)",
+      "Synthesizing narration audio (use dev10x:tts)"
     ]
   }
 }

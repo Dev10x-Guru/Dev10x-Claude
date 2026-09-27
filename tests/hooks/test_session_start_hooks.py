@@ -143,7 +143,7 @@ class TestSessionInstallCheck:
 
         ctx = build_install_check_context()
         assert "config folder is missing" in ctx
-        assert "/Dev10x:upgrade-cleanup" in ctx
+        assert "/dev10x:upgrade-cleanup" in ctx
 
     def test_guides_upgrade_on_version_mismatch(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -168,7 +168,7 @@ class TestSessionInstallCheck:
         ctx = build_install_check_context()
         assert "0.72.0" in ctx
         assert "0.71.0" in ctx
-        assert "/Dev10x:upgrade-cleanup" in ctx
+        assert "/dev10x:upgrade-cleanup" in ctx
 
     # GH-1252: the version lag and the config schema are separate facts.
     # The banner used to gate a "migrate config files" promise on a bare
@@ -242,7 +242,7 @@ class TestSessionInstallCheck:
         )
 
         ctx = build_install_check_context()
-        assert "/Dev10x:upgrade-cleanup" in ctx
+        assert "/dev10x:upgrade-cleanup" in ctx
         assert "dev10x config migrate-schema" in ctx
 
     def test_session_install_check_emits_envelope(
@@ -309,7 +309,7 @@ class TestSessionInstallCheck:
 
         assert "0.72.0" in ctx
         assert "never applied" in ctx
-        assert "/Dev10x:upgrade-cleanup" in ctx
+        assert "/dev10x:upgrade-cleanup" in ctx
 
     def test_silent_when_plugin_version_unreadable(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -375,7 +375,7 @@ class TestSessionHookVersionDrift:
         assert "0.72.0" in ctx
         assert "0.76.0" in ctx
         assert "restart" in ctx.lower()
-        assert "/Dev10x:upgrade-cleanup" in ctx
+        assert "/dev10x:upgrade-cleanup" in ctx
 
     def test_silent_when_running_version_unknown(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path

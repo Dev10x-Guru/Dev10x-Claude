@@ -7,7 +7,7 @@ GH-4's earlier "Top-5 alternatives" comment.
 
 ## Context
 
-`Dev10x:fanout` was originally documented as a parallel
+`dev10x:fanout` was originally documented as a parallel
 work-stream orchestrator, but its implementation routed all
 write-requiring work through the main session because of
 three constraints:
@@ -60,7 +60,7 @@ becomes the only remaining work.
   (`wave_id`, `siblings`, `your_item_id`, `conflict_group`,
   `shared_files_with_siblings`) plus etiquette rules, and
   instructs the agent to invoke
-  `Skill(Dev10x:work-on, <item-url>)` so work-on remains the
+  `Skill(dev10x:work-on, <item-url>)` so work-on remains the
   single source of truth for the implementation lifecycle.
 - **Phase 4** collects completion notifications, parses
   results, and rebases conflict-chain successors between
@@ -115,7 +115,7 @@ coordination (JSONL bus, MCP `fanout_bus` server, or
 - No real-time sibling coordination — file-scope drift is
   surfaced only at wave boundaries until pub/sub lands.
 - Spawned agents do not inherit SessionStart context
-  (memory, plan-sync, MOTD). `Dev10x:work-on` must
+  (memory, plan-sync, MOTD). `dev10x:work-on` must
   recognise fanout-nested invocations from the dispatch
   prompt and skip Phase 0 friction-level prompting; any
   future session-start dependency must be either inlined

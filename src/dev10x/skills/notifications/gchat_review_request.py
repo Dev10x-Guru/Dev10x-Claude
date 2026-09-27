@@ -1,6 +1,6 @@
 """Google Chat review request — resolve per-repo config and format the
 review notification. Mirrors slack_review_request.py (space where Slack
-uses channel). The `send` path delegates to the Dev10x:gchat skill, so
+uses channel). The `send` path delegates to the dev10x:gchat skill, so
 this module only implements `prepare`.
 """
 
@@ -377,7 +377,7 @@ def cmd_prepare(args: argparse.Namespace) -> None:
         envelope["reason"] = (
             f"No config found for '{repo_name}'. User should provide the "
             "space alias; mentions are optional. The card below is already "
-            "rendered — pass it to Dev10x:gchat rather than posting plain text."
+            "rendered — pass it to dev10x:gchat rather than posting plain text."
         )
 
     print(json.dumps(envelope, indent=2))

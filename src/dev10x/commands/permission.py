@@ -638,7 +638,7 @@ def clean(
     help="Override the auto-detected plugin root (checkout or installed cache).",
 )
 def enumerate_mcp(*, dry_run: bool, quiet: bool, plugin_root: str | None) -> None:
-    """Expand `mcp__plugin_Dev10x_*` wildcards into enumerated tool names.
+    """Expand `mcp__plugin_dev10x_*` wildcards into enumerated tool names.
 
     Exits non-zero when the tool catalog could not be built, so a
     discovery failure is never mistaken for "no wildcards to expand"
@@ -997,7 +997,7 @@ def investigate() -> None:
     Materialize fixtures, mutate settings with candidate rule shapes,
     and aggregate per-shape outcomes into a markdown report. The
     subagent dispatch loop that exercises each cell is orchestrated
-    from the ``Dev10x:permission-investigator`` skill.
+    from the ``dev10x:permission-investigator`` skill.
     """
 
 
@@ -1409,7 +1409,7 @@ def doctor_migrate_config(*, cwd: str | None, dry_run: bool) -> None:
 def record_upgrade(*, explicit_version: str | None) -> None:
     """Record the currently-installed plugin version as applied.
 
-    Invoked by Dev10x:upgrade-cleanup after a successful run so the
+    Invoked by dev10x:upgrade-cleanup after a successful run so the
     SessionStart install-check stays silent until the next upgrade.
     """
     from dev10x.domain.install_version import read_plugin_version, write_applied_version

@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:tts",
+  "skill_name": "dev10x:tts",
   "eval_dimensions": [
     {
       "id": "licence-gate",
@@ -32,7 +32,7 @@
       "id": "gate-fires-for-non-commercial-voice",
       "name": "Licence gate fires for a non-commercial voice",
       "description": "check reports a non-null warning and licence_accepted false, so the gate must block before any synthesis",
-      "input": "/Dev10x:tts synthesize narration with en_US-ryan-medium",
+      "input": "/dev10x:tts synthesize narration with en_US-ryan-medium",
       "assertions": [
         {
           "dimension": "licence-gate",
@@ -58,7 +58,7 @@
       "id": "gate-skipped-when-accepted",
       "name": "No re-ask once the voice is pinned and accepted",
       "description": "check reports warning null because the resolved voice carries a recorded acceptance",
-      "input": "/Dev10x:tts synthesize narration with the pinned voice",
+      "input": "/dev10x:tts synthesize narration with the pinned voice",
       "assertions": [
         {
           "dimension": "licence-gate",
@@ -72,7 +72,7 @@
       "id": "acceptance-is-persisted",
       "name": "Keeping a non-commercial voice persists the acceptance",
       "description": "Supervisor picks Keep at the licence gate; the choice must survive the session",
-      "input": "/Dev10x:tts synthesize narration with en_US-ryan-medium",
+      "input": "/dev10x:tts synthesize narration with en_US-ryan-medium",
       "assertions": [
         {
           "dimension": "preference-persistence",
@@ -92,7 +92,7 @@
       "id": "no-raw-piper-invocation",
       "name": "Synthesis always routes through the wrapper",
       "description": "Narration is synthesized for a walkthrough recording",
-      "input": "/Dev10x:tts synthesize narration for a qa-self capture",
+      "input": "/dev10x:tts synthesize narration for a qa-self capture",
       "assertions": [
         {
           "dimension": "wrapper-delegation",
@@ -118,7 +118,7 @@
       "id": "polish-routes-to-piper",
       "name": "Polish narration reaches an engine that speaks it",
       "description": "Kokoro has no Polish weights, so a Polish walkthrough must resolve a pl_PL Piper voice",
-      "input": "/Dev10x:tts synthesize Polish narration for a qa-self capture",
+      "input": "/dev10x:tts synthesize Polish narration for a qa-self capture",
       "assertions": [
         {
           "dimension": "language-routing",
@@ -138,7 +138,7 @@
       "id": "english-default-does-not-gate",
       "name": "The English default does not fire the licence gate",
       "description": "Kokoro's Apache-2.0 weights mean check returns warning null on the default English path",
-      "input": "/Dev10x:tts synthesize English narration for a qa-self capture",
+      "input": "/dev10x:tts synthesize English narration for a qa-self capture",
       "assertions": [
         {
           "dimension": "language-routing",
@@ -152,7 +152,7 @@
       "id": "missing-voice-is-actionable",
       "name": "A missing voice names the download command",
       "description": "The configured voice is not installed in the resolved voices directory",
-      "input": "/Dev10x:tts synthesize narration with an uninstalled voice",
+      "input": "/dev10x:tts synthesize narration with an uninstalled voice",
       "assertions": [
         {
           "dimension": "failure-visibility",
@@ -172,14 +172,14 @@
   "trigger_evals": {
     "should_trigger": [
       "Narration or voice-over audio is needed for a walkthrough recording",
-      "A Dev10x:qa-self capture should be narrated",
+      "A dev10x:qa-self capture should be narrated",
       "Text needs to be synthesized to speech with a local voice",
       "Narration is needed in a language other than English"
     ],
     "should_not_trigger": [
-      "Capturing the walkthrough recording itself (use Dev10x:qa-self)",
+      "Capturing the walkthrough recording itself (use dev10x:qa-self)",
       "Converting or verifying evidence files (use qa-self's own scripts)",
-      "Analyzing a PR for QA needs (use Dev10x:qa-scope)"
+      "Analyzing a PR for QA needs (use dev10x:qa-scope)"
     ]
   }
 }

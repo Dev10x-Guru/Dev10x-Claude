@@ -83,7 +83,7 @@ class TestShippedCatalog:
         [
             (Tracker.LINEAR, "mcp__claude_ai_Linear__get_issue"),
             (Tracker.JIRA, "mcp__claude_ai_Atlassian_Rovo__getJiraIssue"),
-            (Tracker.GITHUB, "mcp__plugin_Dev10x_cli__issue_get"),
+            (Tracker.GITHUB, "mcp__plugin_dev10x_cli__issue_get"),
         ],
     )
     def test_selecting_a_tracker_seeds_its_own_tools(

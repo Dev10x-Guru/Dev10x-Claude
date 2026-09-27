@@ -427,8 +427,8 @@ async def pin_supervisor_review(
 ) -> Result[dict]:
     """Persist the project's supervisor-review posture to friction.yaml (ADR-0022 D-2, GH-1165).
 
-    The write half of `supervisor_review_status`: `Dev10x:friction-setup` /
-    `Dev10x:onboarding` call this once the supervisor answers whether they
+    The write half of `supervisor_review_status`: `dev10x:friction-setup` /
+    `dev10x:onboarding` call this once the supervisor answers whether they
     read this repo's PRs, and every later gate resolution reads the answer
     back via `supervisor_review_status`. `supervisor_review` is a
     project-wide fact rather than a per-gate toggle, so it cannot be set

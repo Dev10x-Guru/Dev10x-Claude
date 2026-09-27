@@ -1,10 +1,10 @@
 {
-  "skill_name": "Dev10x:upgrade-cleanup",
+  "skill_name": "dev10x:upgrade-cleanup",
   "eval_dimensions": [
     {
       "id": "delegation",
       "name": "Correct Delegation",
-      "description": "Invokes Dev10x:plugin-maintenance in full mode after running config migrate; does NOT run maintenance steps inline"
+      "description": "Invokes dev10x:plugin-maintenance in full mode after running config migrate; does NOT run maintenance steps inline"
     },
     {
       "id": "migration",
@@ -14,19 +14,19 @@
     {
       "id": "version_record",
       "name": "Version Recording",
-      "description": "Calls mcp__plugin_Dev10x_cli__record_upgrade after a successful maintenance pass; skips if maintenance reported failures"
+      "description": "Calls mcp__plugin_dev10x_cli__record_upgrade after a successful maintenance pass; skips if maintenance reported failures"
     },
     {
       "id": "trigger_guard",
       "name": "Trigger Guard",
-      "description": "Does NOT invoke when permissions are working correctly; steers user to Dev10x:plugin-maintenance bootstrap for fast subset"
+      "description": "Does NOT invoke when permissions are working correctly; steers user to dev10x:plugin-maintenance bootstrap for fast subset"
     }
   ],
   "evals": [
     {
       "id": 1,
       "name": "post-upgrade-happy-path",
-      "prompt": "/Dev10x:upgrade-cleanup",
+      "prompt": "/dev10x:upgrade-cleanup",
       "description": "Standard post-upgrade invocation. Plugin version changed, config at legacy paths. Full maintenance pass should run and version should be recorded.",
       "setup": {
         "plugin_version_changed": true,
@@ -42,15 +42,15 @@
         },
         {
           "id": "delegates-to-plugin-maintenance-full",
-          "text": "Invokes Skill(Dev10x:plugin-maintenance) with args='full'",
+          "text": "Invokes Skill(dev10x:plugin-maintenance) with args='full'",
           "check": "tool_called",
-          "signals": ["Skill", "Dev10x:plugin-maintenance", "full"]
+          "signals": ["Skill", "dev10x:plugin-maintenance", "full"]
         },
         {
           "id": "records-upgrade-after-success",
-          "text": "Calls mcp__plugin_Dev10x_cli__record_upgrade after maintenance pass succeeds",
+          "text": "Calls mcp__plugin_dev10x_cli__record_upgrade after maintenance pass succeeds",
           "check": "tool_called",
-          "signals": ["mcp__plugin_Dev10x_cli__record_upgrade"]
+          "signals": ["mcp__plugin_dev10x_cli__record_upgrade"]
         },
         {
           "id": "no-inline-maintenance-steps",
@@ -63,7 +63,7 @@
     {
       "id": 2,
       "name": "maintenance-failure-skips-version-record",
-      "prompt": "/Dev10x:upgrade-cleanup",
+      "prompt": "/dev10x:upgrade-cleanup",
       "description": "Maintenance pass reports failures. version.yml must NOT be updated so the upgrade prompt stays visible.",
       "setup": {
         "plugin_version_changed": true,
@@ -73,9 +73,9 @@
       "assertions": [
         {
           "id": "skips-record-upgrade-on-failure",
-          "text": "Does NOT call mcp__plugin_Dev10x_cli__record_upgrade when maintenance reported failures",
+          "text": "Does NOT call mcp__plugin_dev10x_cli__record_upgrade when maintenance reported failures",
           "check": "tool_absent",
-          "signals": ["mcp__plugin_Dev10x_cli__record_upgrade"]
+          "signals": ["mcp__plugin_dev10x_cli__record_upgrade"]
         },
         {
           "id": "surfaces-failure-to-user",
@@ -88,7 +88,7 @@
     {
       "id": 3,
       "name": "already-migrated-idempotent",
-      "prompt": "/Dev10x:upgrade-cleanup",
+      "prompt": "/dev10x:upgrade-cleanup",
       "description": "Config already at XDG location. migrate step runs but is a no-op. Full pass continues normally.",
       "setup": {
         "config_at_legacy_paths": false,
@@ -106,14 +106,14 @@
           "id": "still-delegates-full-pass",
           "text": "Proceeds to delegate full maintenance pass regardless of migrate output",
           "check": "tool_called",
-          "signals": ["Skill", "Dev10x:plugin-maintenance"]
+          "signals": ["Skill", "dev10x:plugin-maintenance"]
         }
       ]
     },
     {
       "id": 4,
       "name": "no-trigger-when-permissions-working",
-      "prompt": "Skill(Dev10x:upgrade-cleanup)",
+      "prompt": "Skill(dev10x:upgrade-cleanup)",
       "description": "Orchestrator context: permissions working, no version change detected. Skill should advise user rather than running a full pass.",
       "setup": {
         "plugin_version_changed": false,
@@ -134,7 +134,7 @@
     "description": "Queries that should/should-not trigger the upgrade-cleanup skill",
     "should_trigger": [
       {
-        "query": "/Dev10x:upgrade-cleanup",
+        "query": "/dev10x:upgrade-cleanup",
         "rationale": "Direct invocation"
       },
       {
@@ -153,7 +153,7 @@
     "should_not_trigger": [
       {
         "query": "run a quick bootstrap so the demo skills work",
-        "rationale": "Bootstrap subset — use Dev10x:plugin-maintenance bootstrap instead"
+        "rationale": "Bootstrap subset — use dev10x:plugin-maintenance bootstrap instead"
       },
       {
         "query": "permissions are working fine, just want to check skill coverage",

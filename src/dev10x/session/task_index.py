@@ -2,7 +2,7 @@
 
 The park/session skills keep a local index of deferred work — park items,
 Slack-reminder pointers, PR bookmarks, and the wrap-up continuation prompt —
-so ``Dev10x:park-discover`` can surface them without scanning every write
+so ``dev10x:park-discover`` can surface them without scanning every write
 path. That index used to live at ``.claude/Dev10x/session.yaml``.
 
 ADR-0018 D2 retired that path, but only the *durable preferences* and *gate
@@ -42,7 +42,7 @@ log = logging.getLogger(__name__)
 #: Retired `.claude/Dev10x/session.yaml`, a deprecated legacy read path still
 #: used when the rehomed store is absent, until its removal version in
 #: dev10x.domain.deprecations, so parked items are not silently lost;
-#: `Dev10x:plugin-doctor` deletes it once parity is confirmed.
+#: `dev10x:plugin-doctor` deletes it once parity is confirmed.
 LEGACY_RELATIVE_PATH = Path(".claude") / "Dev10x" / "session.yaml"
 
 #: Keys the task index owns. Anything else in a legacy file belongs to the
@@ -116,7 +116,7 @@ def read_index(*, cwd: str | None = None) -> Result[dict[str, Any]]:
 
     ``legacy_read`` tells the caller the content came from the retired
     per-checkout file and has not been rehomed yet — the next write folds it
-    forward. ``Dev10x:park-discover`` surfaces this so a supervisor can see
+    forward. ``dev10x:park-discover`` surfaces this so a supervisor can see
     why an item is still living in the old place.
     """
     identity_result = _identity(cwd=cwd)

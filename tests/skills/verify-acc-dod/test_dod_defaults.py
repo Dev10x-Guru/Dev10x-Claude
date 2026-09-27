@@ -183,7 +183,7 @@ def test_resolver_recommendation_boundary_documented(skill_body: str) -> None:
     # collapse these two into one decision.
     assert "resolver decides whether the gate FIRES" in skill_body
     assert "skill decides what the gate RECOMMENDS" in skill_body
-    assert "mcp__plugin_Dev10x_cli__resolve_gate" in skill_body
+    assert "mcp__plugin_dev10x_cli__resolve_gate" in skill_body
     for effect in ("`effect: ask`", "`effect: auto-advance`", "`effect: skip`"):
         assert effect in skill_body
 

@@ -82,7 +82,7 @@ class TestRulesIgnoreProse:
     def test_frontmatter_is_ignored(self, skill_root: Path) -> None:
         skill = _write(
             skill_root / "demo" / "SKILL.md",
-            "---\nname: Dev10x:demo\nallowed-tools:\n  - Bash(git commit:*)\n---\n",
+            "---\nname: dev10x:demo\nallowed-tools:\n  - Bash(git commit:*)\n---\n",
         )
         assert mod.scan_file(skill) == []
 
@@ -148,7 +148,7 @@ class TestWriteGuardClaude:
     def test_frontmatter_is_ignored(self, skill_root: Path) -> None:
         skill = _write(
             skill_root / "demo" / "SKILL.md",
-            "---\nname: Dev10x:demo\ndesc: Write(.claude/x.yaml) in meta\n---\n\nBody.\n",
+            "---\nname: dev10x:demo\ndesc: Write(.claude/x.yaml) in meta\n---\n\nBody.\n",
         )
         rule_ids = {v.rule.rule_id for v in mod.scan_file(skill)}
         assert "write-guard-claude" not in rule_ids
@@ -180,7 +180,7 @@ class TestRetiredDurablePrefPath:
     ) -> None:
         skill = _write(
             skill_root / "demo" / "SKILL.md",
-            "---\nname: Dev10x:demo\nallowed-tools:\n" + line + "\n---\n\nBody.\n",
+            "---\nname: dev10x:demo\nallowed-tools:\n" + line + "\n---\n\nBody.\n",
         )
         rule_ids = {v.rule.rule_id for v in mod.scan_file(skill)}
         assert "retired-durable-pref-path" in rule_ids
@@ -211,7 +211,7 @@ class TestRetiredDurablePrefPath:
     def test_ignores_reads_and_mentions(self, skill_root: Path, line: str) -> None:
         skill = _write(
             skill_root / "demo" / "SKILL.md",
-            "---\nname: Dev10x:demo\nallowed-tools:\n" + line + "\n---\n\n" + line + "\n",
+            "---\nname: dev10x:demo\nallowed-tools:\n" + line + "\n---\n\n" + line + "\n",
         )
         rule_ids = {v.rule.rule_id for v in mod.scan_file(skill)}
         assert "retired-durable-pref-path" not in rule_ids
@@ -219,7 +219,7 @@ class TestRetiredDurablePrefPath:
     def test_inline_allow_silences_the_rule_in_frontmatter(self, skill_root: Path) -> None:
         skill = _write(
             skill_root / "demo" / "SKILL.md",
-            "---\nname: Dev10x:demo\nallowed-tools:\n"
+            "---\nname: dev10x:demo\nallowed-tools:\n"
             "  - Edit(.claude/Dev10x/config.yaml)  "
             "# cli-friction: allow retired-durable-pref-path — legacy fixture\n"
             "---\n",
@@ -253,7 +253,7 @@ class TestRetiredDurablePrefPath:
         """GH-941's retirement is enforced the same way ADR-0018's is (GH-1035)."""
         skill = _write(
             skill_root / "demo" / "SKILL.md",
-            "---\nname: Dev10x:demo\nallowed-tools:\n" + line + "\n---\n\n" + line + "\n",
+            "---\nname: dev10x:demo\nallowed-tools:\n" + line + "\n---\n\n" + line + "\n",
         )
         rule_ids = {v.rule.rule_id for v in mod.scan_file(skill)}
         assert "retired-durable-pref-path" in rule_ids
@@ -274,7 +274,7 @@ class TestRetiredDurablePrefPath:
     def test_ignores_gh941_reads_and_mentions(self, skill_root: Path, line: str) -> None:
         skill = _write(
             skill_root / "demo" / "SKILL.md",
-            "---\nname: Dev10x:demo\nallowed-tools:\n" + line + "\n---\n\n" + line + "\n",
+            "---\nname: dev10x:demo\nallowed-tools:\n" + line + "\n---\n\n" + line + "\n",
         )
         rule_ids = {v.rule.rule_id for v in mod.scan_file(skill)}
         assert "retired-durable-pref-path" not in rule_ids
@@ -432,7 +432,7 @@ class TestYamlScanning:
                 "      - prompt: >\n"
                 "          Were tests delegated to the test skill (not raw\n"
                 "          pytest/uv run pytest)? Were commits via\n"
-                "          Dev10x:git-commit (not raw git commit)?\n"
+                "          dev10x:git-commit (not raw git commit)?\n"
                 "      - check: gh pr checks {pr_number}\n"
             ),
         )
@@ -499,4 +499,4 @@ class TestViolationFormat:
         assert str(skill) in formatted
         assert "[raw-git-commit]" in formatted
         assert "git commit -m foo" in formatted
-        assert "Skill(Dev10x:git-commit)" in formatted
+        assert "Skill(dev10x:git-commit)" in formatted

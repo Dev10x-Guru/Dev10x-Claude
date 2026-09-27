@@ -6,7 +6,7 @@ phases enforce stay inline there; the reasoning is here.
 
 ## Disjoint scope is not disjoint files
 
-`Dev10x:fanout` is reached for "only for provably disjoint file sets",
+`dev10x:fanout` is reached for "only for provably disjoint file sets",
 and the trap is in the word *provably*. Two tickets can be unrelated in
 every way a reader checks — different milestones, different labels,
 different feature areas — and still both edit the file that every

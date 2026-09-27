@@ -27,9 +27,9 @@ class TestRun:
         monkeypatch.setattr("dev10x.hooks.base.load_hook_stdin", _boom)
         hook = _RecordingHook()
 
-        hook.run({"tool_input": {"skill": "Dev10x:x"}})
+        hook.run({"tool_input": {"skill": "dev10x:x"}})
 
-        assert hook.seen == {"tool_input": {"skill": "Dev10x:x"}}
+        assert hook.seen == {"tool_input": {"skill": "dev10x:x"}}
 
     def test_reads_stdin_when_data_is_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("dev10x.hooks.base.load_hook_stdin", lambda: {"from": "stdin"})

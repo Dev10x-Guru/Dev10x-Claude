@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:gh-pr-create",
+  "skill_name": "dev10x:gh-pr-create",
   "eval_dimensions": [
     {
       "id": "body-format",
@@ -36,7 +36,7 @@
     {
       "id": 1,
       "name": "single-commit-pr",
-      "prompt": "/Dev10x:gh-pr-create",
+      "prompt": "/dev10x:gh-pr-create",
       "description": "Single commit on branch janusz/PAY-310/fix-flaky-tests. Tests that PR title comes from commit title and body format is correct.",
       "setup": {
         "branch": "janusz/PAY-310/fix-flaky-tests",
@@ -152,7 +152,7 @@
     {
       "id": 2,
       "name": "multi-commit-pr-with-jtbd",
-      "prompt": "/Dev10x:gh-pr-create",
+      "prompt": "/dev10x:gh-pr-create",
       "description": "Multiple commits on branch. Tests that PR title is derived from JTBD 'so [beneficiary] can' clause rather than last commit title.",
       "setup": {
         "branch": "janusz/PAY-200/multi-location-routing",
@@ -214,7 +214,7 @@
     {
       "id": 3,
       "name": "update-existing-pr",
-      "prompt": "/Dev10x:gh-pr-create #312",
+      "prompt": "/dev10x:gh-pr-create #312",
       "description": "PR number passed as argument — should switch to update mode, skip branch check and push, use gh pr edit.",
       "setup": {
         "existing_pr": 312
@@ -263,7 +263,7 @@
     {
       "id": 4,
       "name": "checklist-na-detection",
-      "prompt": "/Dev10x:gh-pr-create",
+      "prompt": "/dev10x:gh-pr-create",
       "description": "PR with no migrations and no env var changes. Tests that N/A checklist items are struck through.",
       "setup": {
         "branch": "janusz/PAY-400/fix-timeout",
@@ -309,7 +309,7 @@
     {
       "id": 5,
       "name": "pre-pr-check-failure",
-      "prompt": "/Dev10x:gh-pr-create",
+      "prompt": "/dev10x:gh-pr-create",
       "description": "Pre-PR checks fail (e.g., ruff finds lint errors). Tests that workflow stops and shows error.",
       "setup": {
         "branch": "janusz/PAY-500/new-feature",
@@ -354,7 +354,7 @@
     {
       "id": 6,
       "name": "release-batch-titles-are-distinguishable",
-      "prompt": "/Dev10x:gh-pr-create",
+      "prompt": "/dev10x:gh-pr-create",
       "description": "GH-1225: a release bundle's PR titles must be distinguishable from each other, not variations on one frame. The observed failure was a 17-PR tt:safe-to-ship bundle in which 11 titles opened with 'Let', four named a system as the actor, and sibling PRs differed only by their verb. Each Job Story below is real input to title derivation; the titles produced across the batch are judged together, not one at a time.",
       "setup": {
         "batch": true,
@@ -408,7 +408,7 @@
         "rationale": "Explicit PR creation intent after completing work"
       },
       {
-        "query": "/Dev10x:gh-pr-create",
+        "query": "/dev10x:gh-pr-create",
         "rationale": "Direct invocation"
       },
       {
@@ -431,7 +431,7 @@
     "should_not_trigger": [
       {
         "query": "can you review PR #312 and leave comments?",
-        "rationale": "Wants PR review (Dev10x:gh-pr-review), not PR creation"
+        "rationale": "Wants PR review (dev10x:gh-pr-review), not PR creation"
       },
       {
         "query": "commit these changes and push the branch",
@@ -447,11 +447,11 @@
       },
       {
         "query": "respond to the review comments on my PR",
-        "rationale": "Wants Dev10x:gh-pr-respond, not create"
+        "rationale": "Wants dev10x:gh-pr-respond, not create"
       },
       {
         "query": "I need to write a job story for JIRA-789 and add it to the ticket",
-        "rationale": "Wants Dev10x:ticket-jtbd to write JTBD to a ticket, not create a PR"
+        "rationale": "Wants dev10x:ticket-jtbd to write JTBD to a ticket, not create a PR"
       }
     ]
   }

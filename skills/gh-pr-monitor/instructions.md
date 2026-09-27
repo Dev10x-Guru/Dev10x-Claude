@@ -12,7 +12,7 @@ after a recurring incident where the background haiku decided
 on its own to revert reviewer-directed code.
 
 **When to use this skill:**
-- After creating a draft PR with `/Dev10x:gh-pr-create`
+- After creating a draft PR with `/dev10x:gh-pr-create`
 - When you want to automate the PR review cycle without blocking your session
 
 ## Orchestration
@@ -46,12 +46,12 @@ sees progress without reading the agent output file.
 ## Execution Model
 
 ```
-User invokes /Dev10x:gh-pr-monitor
+User invokes /dev10x:gh-pr-monitor
     │
     └── Supervisor session IS the orchestrator (GH-68)
             │
             ├── Phase 0: JTBD Job Story check (supervisor)
-            │       └── Skill(Dev10x:ticket-jtbd) if missing
+            │       └── Skill(dev10x:ticket-jtbd) if missing
             │
             ├── Phase 0.5: Review-readiness precondition (supervisor)
             │       └── pr_get → isDraft; pr_ready if still draft
@@ -64,7 +64,7 @@ User invokes /Dev10x:gh-pr-monitor
             ├── Phase 2: Comment monitoring
             │       ├── dispatch micro-agent: haiku-thread-scan
             │       │     (read-only enumerate unresolved threads + findings)
-            │       └── supervisor invokes Skill(Dev10x:gh-pr-respond)
+            │       └── supervisor invokes Skill(dev10x:gh-pr-respond)
             │
             ├── Phase 2.5: QA scope (supervisor + Skill(qa-scope))
             ├── Phase 2.7: Re-review notification (supervisor)
@@ -90,11 +90,11 @@ delegate further. The user explicitly chose this trade-off
 
 ## Launch Instructions
 
-When the user invokes `/Dev10x:gh-pr-monitor`:
+When the user invokes `/dev10x:gh-pr-monitor`:
 
 ### Step 1: Detect PR context
 
-**Primary (MCP tool):** Call `mcp__plugin_Dev10x_cli__pr_detect`
+**Primary (MCP tool):** Call `mcp__plugin_dev10x_cli__pr_detect`
 with the PR argument (URL, bare number, or empty). Parse
 `PR_NUMBER`, `REPO`, `PR_URL`, `BRANCH` from the response.
 
@@ -172,7 +172,7 @@ ability to delegate further, and no ability to mutate state.
 **Friction-avoidance preamble (REQUIRED, GH-610):** Both micro-agents
 run in fresh subagents that never saw the SessionStart friction
 briefing. Before each dispatch, fetch the preamble via
-`mcp__plugin_Dev10x_cli__background_preamble` and prepend its
+`mcp__plugin_dev10x_cli__background_preamble` and prepend its
 `preamble` text to the micro-agent prompt below. The narrow
 `allowed_tools` lists are the pre-seeded tool surface — keep them
 explicit (do NOT widen to escape a hook block, and never recommend
@@ -200,21 +200,21 @@ run_in_background: true        # supervisor keeps working
 max_turns: 50                  # not 200 — bounded work
 description: "Poll CI for PR #{pr_number}"
 allowed_tools:
-  - mcp__plugin_Dev10x_cli__ci_check_status
+  - mcp__plugin_dev10x_cli__ci_check_status
   - SendMessage                # deliver the verdict (GH-776)
 disallowed_tools:
   - Edit, Write, NotebookEdit
   - Bash(git:*), Bash(gh pr ready:*), Bash(gh pr edit:*),
     Bash(gh pr merge:*)
   - Skill(*)                   # cannot delegate further
-  - mcp__plugin_Dev10x_cli__push_safe
-  - mcp__plugin_Dev10x_cli__update_pr
+  - mcp__plugin_dev10x_cli__push_safe
+  - mcp__plugin_dev10x_cli__update_pr
 prompt: |
   You are a CI-polling micro-agent. Your ONLY job is ONE tool call,
   then delivering its JSON verdict.
 
   1. Call:
-       mcp__plugin_Dev10x_cli__ci_check_status(
+       mcp__plugin_dev10x_cli__ci_check_status(
          pr_number={pr_number}, repo="{repo}", wait=true)
 
      The wrapper polls server-side on its own budget, kept under the
@@ -267,15 +267,15 @@ allowed_tools:
   - Bash(gh api graphql:*)
   - Bash(gh api repos/:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-merge/scripts/check-top-level-comments.sh:*)
-  - mcp__plugin_Dev10x_cli__check_top_level_comments
+  - mcp__plugin_dev10x_cli__check_top_level_comments
 disallowed_tools:
   - Edit, Write, NotebookEdit
   - Bash(git:*), Bash(gh pr ready:*), Bash(gh pr edit:*),
     Bash(gh api -X POST:*), Bash(gh api -X PATCH:*),
     Bash(gh api -X DELETE:*)
   - Skill(*)
-  - mcp__plugin_Dev10x_cli__push_safe
-  - mcp__plugin_Dev10x_cli__update_pr
+  - mcp__plugin_dev10x_cli__push_safe
+  - mcp__plugin_dev10x_cli__update_pr
 prompt: |
   You are a PR-thread-scanning micro-agent. Your ONLY job is to
   enumerate unaddressed review surfaces on PR #{pr_number} and
@@ -289,7 +289,7 @@ prompt: |
        INFO:, **[BLOCKING]**, numbered items with file:line).
        Mark as unaddressed if no top-level PR comment replies
        with `Re:` matching the finding ID.
-    3. Call mcp__plugin_Dev10x_cli__check_top_level_comments(
+    3. Call mcp__plugin_dev10x_cli__check_top_level_comments(
        repo="{repo}", pr_number={pr_number}) — do NOT eyeball
        severity yourself. It spans BOTH issue comments AND submitted
        review bodies (flagging bots by account type, known login, or
@@ -369,7 +369,7 @@ constraints into its own context and treats them with the same
 authority as user instructions:
 
 **Directives from the user's invocation arguments.** Scan the
-args passed to `/Dev10x:gh-pr-monitor` (case-insensitive) for:
+args passed to `/dev10x:gh-pr-monitor` (case-insensitive) for:
 
 - `do NOT ...` / `do not ...` (capture trailing clause up to
   newline or `.`)
@@ -381,7 +381,7 @@ args passed to `/Dev10x:gh-pr-monitor` (case-insensitive) for:
 
 Restate each matched directive verbatim at the start of the
 supervisor's monitoring plan ("Per the dispatch prompt: …"). Before
-invoking `Skill(Dev10x:git-groom)`, `Skill(Dev10x:gh-pr-respond)`,
+invoking `Skill(dev10x:git-groom)`, `Skill(dev10x:gh-pr-respond)`,
 or making any code change, re-read these directives and confirm
 the planned action does not match a prohibition. If it does,
 stop, summarise the conflict, and ask the user — never improvise
@@ -453,7 +453,7 @@ The PR body **must** start with a JTBD Job Story as its first paragraph.
 
 3. If a valid Job Story is present → skip to Phase 1.
 
-4. If missing or malformed → generate one using the `Dev10x:ticket-jtbd` skill.
+4. If missing or malformed → generate one using the `dev10x:ticket-jtbd` skill.
 
 5. After the skill completes, verify the PR body now starts with the
    Job Story.
@@ -495,13 +495,13 @@ The supervisor does not loop on CI itself.
 
 ### Primary mechanism: `ci_check_status(wait=true)` (GH-675)
 
-**Preferred — call `mcp__plugin_Dev10x_cli__ci_check_status`
+**Preferred — call `mcp__plugin_dev10x_cli__ci_check_status`
 directly with `wait=true`.** It polls **server-side** to a
 terminal verdict (`green` / `failing` / `conflicting`) with no
 Bash, no `sleep`, and no background sub-agent:
 
 ```
-mcp__plugin_Dev10x_cli__ci_check_status(
+mcp__plugin_dev10x_cli__ci_check_status(
     pr_number={pr_number}, repo="{repo}", wait=True)
 ```
 
@@ -626,12 +626,12 @@ because the supervisor's reasoning capacity is in the loop.
 
 | Failure Type | Supervisor action |
 |---|---|
-| ruff/black/isort | Run the formatter; commit via `Skill(Dev10x:git-commit)` |
-| mypy / flake8 / import errors | Apply fix; commit via `Skill(Dev10x:git-commit)` |
+| ruff/black/isort | Run the formatter; commit via `Skill(dev10x:git-commit)` |
+| mypy / flake8 / import errors | Apply fix; commit via `Skill(dev10x:git-commit)` |
 | pytest failures | Read the test + code; decide between fix and ticket; act |
 | Coverage < 100% | Add tests for uncovered lines |
-| gitlint (title > 72 chars) | Reword via `git commit --amend` or `Skill(Dev10x:git-groom)` |
-| git-history-linting (fixup! only) | Delegate to `Skill(Dev10x:git-groom)` — groom enforces its own preconditions, including the thread-open refusal (GH-68, Fix E) |
+| gitlint (title > 72 chars) | Reword via `git commit --amend` or `Skill(dev10x:git-groom)` |
+| git-history-linting (fixup! only) | Delegate to `Skill(dev10x:git-groom)` — groom enforces its own preconditions, including the thread-open refusal (GH-68, Fix E) |
 
 **Before any commit/groom**, the supervisor MUST:
 
@@ -654,19 +654,19 @@ because the supervisor's reasoning capacity is in the loop.
 branch-head change (e.g. a maintainer ran GitHub's "Update
 branch", or the local HEAD sha no longer matches what this
 monitor last observed), resolve the PR merge state via
-`mcp__plugin_Dev10x_cli__pr_get` (read `state` / `mergedAt`) —
-same pattern as `Dev10x:gh-pr-respond`'s Merge-State Check
+`mcp__plugin_dev10x_cli__pr_get` (read `state` / `mergedAt`) —
+same pattern as `dev10x:gh-pr-respond`'s Merge-State Check
 preamble — BEFORE re-dispatching `haiku-ci-poll` or delegating to
-`Dev10x:git-groom` for a rebase. If `state == "MERGED"`, stop:
+`dev10x:git-groom` for a rebase. If `state == "MERGED"`, stop:
 do not rebase or force-push a branch whose PR already merged.
 
 When `gh pr view` reports `mergeable: CONFLICTING` (and the PR is
 confirmed not merged):
 
-1. Resolve the base branch via `mcp__plugin_Dev10x_cli__pr_detect`
+1. Resolve the base branch via `mcp__plugin_dev10x_cli__pr_detect`
    (returns `baseRefName`).
 
-2. Delegate the rebase + force-push to `Skill(Dev10x:git-groom)` —
+2. Delegate the rebase + force-push to `Skill(dev10x:git-groom)` —
    it fetches the base, rebases, and runs the protected-branch
    safety checks before force-pushing. Do NOT call `git rebase` or
    `git push --force-with-lease` directly from this skill: routing
@@ -674,7 +674,7 @@ confirmed not merged):
    protected-branch guardrails (see Skill Routing Enforcement in
    `skills/work-on/instructions.md`).
 
-3. If `Dev10x:git-groom` reports unresolved conflicts, stop the
+3. If `dev10x:git-groom` reports unresolved conflicts, stop the
    monitor and report the conflicting files to the user.
 
 4. After the wrapper completes the force-push, wait 30 seconds for
@@ -720,13 +720,13 @@ gates. Loop until no unaddressed comments remain.
 2. Parse the returned JSON. If all three arrays are empty, exit
    Phase 2 and proceed to Phase 2.5.
 
-3. Invoke `Skill(Dev10x:gh-pr-respond)` in batch mode with the PR
+3. Invoke `Skill(dev10x:gh-pr-respond)` in batch mode with the PR
    URL — that skill runs in the supervisor session, has full
    reasoning + user gates, and handles validation, fixup commits,
    and reply posting:
 
    ```
-   Skill("Dev10x:gh-pr-respond", "{pr_url}")
+   Skill("dev10x:gh-pr-respond", "{pr_url}")
    ```
 
    The supervisor's BLOCKED OPERATIONS list (Step 0) is preserved
@@ -804,21 +804,21 @@ Move to Phase 2.5 when ALL of these are true:
 ## Phase 2.5: QA Scope Assessment (REQUIRES USER CONFIRMATION)
 
 This phase runs ONCE when Phase 2 completes. It delegates to the
-`Dev10x:qa-scope` skill if available.
+`dev10x:qa-scope` skill if available.
 
-1. Invoke the Dev10x:qa-scope skill:
+1. Invoke the dev10x:qa-scope skill:
    ```
-   Skill(skill="Dev10x:qa-scope", args="{pr_number}")
+   Skill(skill="dev10x:qa-scope", args="{pr_number}")
    ```
 
-   The Dev10x:qa-scope skill will:
+   The dev10x:qa-scope skill will:
    - Analyze the PR diff for QA risk (low/medium/high)
    - Check the project's e2e test directory for existing coverage
    - Present a QA assessment to the user via AskUserQuestion
 
 2. Wait for the skill to complete before proceeding to Phase 3.
 
-3. If Dev10x:qa-scope determines the change is low-risk (config-only,
+3. If dev10x:qa-scope determines the change is low-risk (config-only,
    test-only, docs-only), it will skip ticket creation automatically.
 
 **Note:** This phase only runs once per PR monitor session. If already
@@ -853,7 +853,7 @@ Format this as a Slack message suitable for posting.
 
 ### Step 3: Resolve notification gate
 
-Call `mcp__plugin_Dev10x_cli__resolve_gate(gate="external_notify",
+Call `mcp__plugin_dev10x_cli__resolve_gate(gate="external_notify",
 context={})` before posting.
 
 1. `effect == "ask"` → Fire the EXISTING `AskUserQuestion` widget
@@ -874,10 +874,10 @@ the configured channel.
 
 Example invocation:
 ```
-Skill(skill="Dev10x:slack-review-request", args="--pr {pr_number} --repo {repo} --message '@{reviewer} please take another look'")
+Skill(skill="dev10x:slack-review-request", args="--pr {pr_number} --repo {repo} --message '@{reviewer} please take another look'")
 ```
 
-The Dev10x:slack-review-request skill will:
+The dev10x:slack-review-request skill will:
 - Resolve the project's configured channel from userspace config
 - Post the message to that channel
 - Report the result back to the agent
@@ -901,7 +901,7 @@ special-case `friction_level` or `active_modes` in prose here.
 **Hard rule: Verify final PR state with the MCP tool — NEVER use
 raw `gh pr view` or `gh pr checks`.**
 
-`mcp__plugin_Dev10x_cli__verify_pr_state(pr_number={pr_number})`
+`mcp__plugin_dev10x_cli__verify_pr_state(pr_number={pr_number})`
 
 Parse `is_draft`, `state`, `review_decision`, and `checks_passing`
 from the response. Only proceed to notification if checks pass and
@@ -925,7 +925,7 @@ count resolved threads as open if it uses the REST API.
 
 ### Step 2: Resolve notification gate
 
-Call `mcp__plugin_Dev10x_cli__resolve_gate(gate="external_notify",
+Call `mcp__plugin_dev10x_cli__resolve_gate(gate="external_notify",
 context={})`.
 
 1. `effect == "ask"` → Fire the EXISTING `AskUserQuestion` widget:
@@ -947,10 +947,10 @@ If user approves, execute two delegated steps in sequence:
 **Step 3a: Request review (GitHub + Slack)**
 
 ```
-Skill(skill="Dev10x:request-review", args="--pr {pr_number} --repo {repo}")
+Skill(skill="dev10x:request-review", args="--pr {pr_number} --repo {repo}")
 ```
 
-The Dev10x:request-review skill will:
+The dev10x:request-review skill will:
 - Assign GitHub reviewers from project config
 - Post Slack review notification from project config
 - Each step may skip independently based on per-project config
@@ -1005,7 +1005,7 @@ check whether the milestone can now be closed.
    `gh pr view --json milestone`.
 2. If `open_issues == 0`, call the MCP tool:
    ```
-   mcp__plugin_Dev10x_cli__milestone_close(number=<N>)
+   mcp__plugin_dev10x_cli__milestone_close(number=<N>)
    ```
    This wraps `gh api -X PATCH repos/{repo}/milestones/{N} -f
    state=closed` — which the plugin's permission manifest blocks
@@ -1030,12 +1030,12 @@ and the bundle read as complete.
 
 Run this whenever the PR is `MERGED`, milestone or not:
 
-1. Read the merged PR's body — `mcp__plugin_Dev10x_cli__pr_get(
+1. Read the merged PR's body — `mcp__plugin_dev10x_cli__pr_get(
    number=<N>)`.
 2. Extract the closing links with
    `dev10x.skills.merge.fixes_scope.fixes_links(body)`.
 3. For each linked number, read its real state with
-   `mcp__plugin_Dev10x_cli__issue_get(number=<n>)`.
+   `mcp__plugin_dev10x_cli__issue_get(number=<n>)`.
 4. Pass the numbers and states to
    `reconcile_link_closure(body=..., issue_states=...)` and
    report `summary()`.
@@ -1058,7 +1058,7 @@ failing checks, or incomplete work that earlier phases missed.
 
 1. Invoke the verification skill:
    ```
-   Skill(skill="Dev10x:verify-acc-dod")
+   Skill(skill="dev10x:verify-acc-dod")
    ```
 
    The skill auto-detects the work type from session context and
@@ -1106,7 +1106,7 @@ directly.
   review request (Phase 3), then acceptance verification
   (Phase 4). Does NOT cover merge.
 - **Do NOT merge PRs.** Merging is the supervisor's manual
-  responsibility (or a separate `Dev10x:gh-pr-merge` invocation).
+  responsibility (or a separate `dev10x:gh-pr-merge` invocation).
 - **Phase gates**: 2.5 (QA) always fires `AskUserQuestion`. 2.7
   (re-review) and 3 (notification) each call
   `resolve_gate(gate="external_notify")` and branch on `ask` /
@@ -1119,8 +1119,8 @@ directly.
   signature, stop and ask the user. The supervisor tracks the
   retry count in its task list, not in the micro-agent.
 - **No regular force push**: Use
-  `mcp__plugin_Dev10x_cli__push_safe`. Exception: post-rebase
-  force-with-lease goes through `Skill(Dev10x:git-groom)`.
+  `mcp__plugin_dev10x_cli__push_safe`. Exception: post-rebase
+  force-with-lease goes through `Skill(dev10x:git-groom)`.
 - **Working directory**: Resolve branch via `gh pr view --json
   headRefName` — never hardcode a worktree path.
 - **Micro-agent contract (GH-68)**: `haiku-ci-poll` and
@@ -1132,24 +1132,24 @@ directly.
 
 ## Integration with Other Skills
 
-1. **Dev10x:gh-pr-create** — Use before this skill to create the draft PR
-2. **Dev10x:ticket-jtbd** — Delegated by the supervisor in Phase 0
-3. **Dev10x:gh-pr-respond** — Delegated by the supervisor for review comments (Phase 2)
-4. **Dev10x:qa-scope** — Delegated by the supervisor in Phase 2.5
-5. **Dev10x:request-review** — Delegated by the supervisor in Phase 3
-6. **Dev10x:slack-review-request** — Delegated by the supervisor in Phase 2.7
-7. **Dev10x:verify-acc-dod** — Delegated by the supervisor in Phase 4
+1. **dev10x:gh-pr-create** — Use before this skill to create the draft PR
+2. **dev10x:ticket-jtbd** — Delegated by the supervisor in Phase 0
+3. **dev10x:gh-pr-respond** — Delegated by the supervisor for review comments (Phase 2)
+4. **dev10x:qa-scope** — Delegated by the supervisor in Phase 2.5
+5. **dev10x:request-review** — Delegated by the supervisor in Phase 3
+6. **dev10x:slack-review-request** — Delegated by the supervisor in Phase 2.7
+7. **dev10x:verify-acc-dod** — Delegated by the supervisor in Phase 4
 8. **pr-notify.py** — Phase 3 helper (checklist update only)
 
 ## Delegation Pattern
 
 ```
-/Dev10x:gh-pr-monitor (supervisor session)
+/dev10x:gh-pr-monitor (supervisor session)
     │
     ├── Step 0: Load BLOCKED OPERATIONS + memory guardrails
     │
     ├── Phase 0: JTBD Job Story check
-    │       └── Skill(Dev10x:ticket-jtbd) if missing
+    │       └── Skill(dev10x:ticket-jtbd) if missing
     │
     ├── Phase 0.5: Review-readiness precondition
     │       └── pr_get → isDraft; pr_ready if still draft
@@ -1157,24 +1157,24 @@ directly.
     ├── Phase 1: CI monitoring
     │       └── Agent(haiku-ci-poll) — background, returns verdict JSON
     │       (on failing → supervisor handles in-band, may delegate
-    │        to Skill(Dev10x:git-commit) / Skill(Dev10x:git-groom))
+    │        to Skill(dev10x:git-commit) / Skill(dev10x:git-groom))
     │
     ├── Phase 2: Comment monitoring
     │       ├── Agent(haiku-thread-scan) — inline, returns surfaces JSON
-    │       └── Skill(Dev10x:gh-pr-respond) batch mode if surfaces non-empty
+    │       └── Skill(dev10x:gh-pr-respond) batch mode if surfaces non-empty
     │
     ├── Phase 2.5: QA scope
-    │       └── Skill(Dev10x:qa-scope)
+    │       └── Skill(dev10x:qa-scope)
     │
     ├── Phase 2.7: Re-review notification
     │       ├── resolve_gate(gate="external_notify")
-    │       └── Skill(Dev10x:slack-review-request)
+    │       └── Skill(dev10x:slack-review-request)
     │
     ├── Phase 3: Notification
     │       ├── resolve_gate(gate="external_notify")
-    │       ├── Skill(Dev10x:request-review)
+    │       ├── Skill(dev10x:request-review)
     │       └── pr-notify.py send (checklist-only)
     │
     └── Phase 4: Acceptance criteria
-            └── Skill(Dev10x:verify-acc-dod)
+            └── Skill(dev10x:verify-acc-dod)
 ```

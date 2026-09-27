@@ -35,7 +35,7 @@ own:
 3. **Whatever landed is yours to commit.** Sub-agents that exit
    without committing leave their changes in *your* worktree, and an
    isolated worktree is reclaimed with everything uncommitted in it
-   (GH-427, GH-1363). Commit through `Skill(Dev10x:git-commit)` before
+   (GH-427, GH-1363). Commit through `Skill(dev10x:git-commit)` before
    you report a status, and before you redo a pass inline.
 4. **A sub-agent's report is a claim, not evidence.** "Done" from a
    grandchild is checked against the tree like any other status. The

@@ -13,12 +13,12 @@ Never pause between phases.
 ### Deferral (GH-219)
 
 To **defer** an audit until later without interrupting current
-work, invoke `Dev10x:skill-audit-queue` instead. That skill
+work, invoke `dev10x:skill-audit-queue` instead. That skill
 appends a tracker task at the end of the current task list with
-a TODO to invoke `Dev10x:skill-audit`. When the supervisor
+a TODO to invoke `dev10x:skill-audit`. When the supervisor
 reaches the queued task, they invoke this skill directly.
 
-Invoking `Dev10x:skill-audit` (this skill) is a declaration that
+Invoking `dev10x:skill-audit` (this skill) is a declaration that
 the audit should run **now** — proceed directly to Strategy Selection.
 
 ### Important Rules
@@ -121,7 +121,7 @@ disposition decision (file, escalate, discard) must be explicit.
 |-------------|-------------|
 | Select & file now | Create minimal task list: `TaskCreate(subject="Phase 0: Inline findings", activeForm="Presenting findings")` followed by `TaskCreate(subject="Phase 7: Upstream reporting", activeForm="Reporting upstream")`. Jump directly to Phase 7 using the inline findings. Phase 7 sub-steps A–D still run. |
 | Run forensic audit | Fall through to Step 0 (forensic). Create the full task list and proceed with Wave 1 + Wave 2 orchestration. |
-| Discard | Exit without creating wave tasks and without invoking `Dev10x:audit-file`. |
+| Discard | Exit without creating wave tasks and without invoking `dev10x:audit-file`. |
 
 #### Why lightweight is the default (GH-436)
 
@@ -190,7 +190,7 @@ Execute these exact `TaskCreate` calls at startup:
 **Synthesis (sequential, main agent):**
 
 8. `TaskCreate(subject="Phase 6: Propose changes", description="Synthesize findings into concrete SKILL.md edits, memory updates, and process improvements", activeForm="Proposing changes")`
-9. `TaskCreate(subject="Phase 7: Upstream reporting", description="File findings as GitHub issues at the Dev10x plugin repo via Dev10x:audit-file", activeForm="Reporting upstream")`
+9. `TaskCreate(subject="Phase 7: Upstream reporting", description="File findings as GitHub issues at the Dev10x plugin repo via dev10x:audit-file", activeForm="Reporting upstream")`
 
 **Note:** Phase 4 (Permission Friction) is not in the default
 forensic task list. Add it only when the invocation explicitly
@@ -285,15 +285,15 @@ For lightweight-compatible triggers (1–5):
 
 > "I've noticed [trigger description]. You can audit this now:
 > ```
-> /Dev10x:skill-audit <description of what happened>
+> /dev10x:skill-audit <description of what happened>
 > ```
-> or queue it for later with `/Dev10x:skill-audit-queue`."
+> or queue it for later with `/dev10x:skill-audit-queue`."
 
 For forensic triggers (6–8):
 
 > "I've noticed [trigger description]. Open a new terminal and run:
 > ```
-> claude '/Dev10x:skill-audit --full <jsonl-path>'
+> claude '/dev10x:skill-audit --full <jsonl-path>'
 > ```
 > to capture these as improvements."
 
@@ -346,7 +346,7 @@ completely different project's session (GH-805).
 An explicit path means the user deliberately chose the session.
 
 **Skip this gate when the invocation turn already answered it
-(GH-127 #7).** Call `mcp__plugin_Dev10x_cli__resolve_gate(gate=
+(GH-127 #7).** Call `mcp__plugin_dev10x_cli__resolve_gate(gate=
 "session_adoption", context={})`. When it returns `effect:
 "auto-advance"` or `effect: "skip"` AND the same user message that
 invoked the skill contains an unambiguous affirmative like `go`,
@@ -418,7 +418,7 @@ current session. **STOP** and emit a redirect message:
 > consume the context window before useful analysis begins.
 > Open a **new terminal** and run:
 > ```
-> claude '/Dev10x:skill-audit --full <session-file-path>'
+> claude '/dev10x:skill-audit --full <session-file-path>'
 > ```
 
 Do NOT proceed with extraction. Do NOT ask the user if they
@@ -450,9 +450,9 @@ This is the session you are auditing.
 Locate the skills directory: `~/.claude/skills/`
 
 **Read the session's posture (GH-55 F9).** Call
-`mcp__plugin_Dev10x_cli__preset_pin_status` for `gate_overlays` and
+`mcp__plugin_dev10x_cli__preset_pin_status` for `gate_overlays` and
 `gate_overrides` out of its `prefs`, and
-`mcp__plugin_Dev10x_cli__supervisor_review_status` for
+`mcp__plugin_dev10x_cli__supervisor_review_status` for
 `supervisor_review`. Both resolve the durable policy from the global
 `~/.config/Dev10x/friction.yaml`; do not read that file, or the
 retired `.claude/Dev10x/session.yaml` (ADR-0018), yourself. When
@@ -596,7 +596,7 @@ Phase 6 alongside the other phases.
 
 **Queue time (skill-audit-queue):** Small friction/skill notes
 observed at queue time can be captured as lightweight annotations
-on the queued task. The `Dev10x:skill-audit-queue` skill accepts
+on the queued task. The `dev10x:skill-audit-queue` skill accepts
 a free-text description — use it to record the specific friction
 pattern so the full audit has prior context.
 
@@ -794,7 +794,7 @@ For each candidate, note:
 
 | Skill | Inline block (type + line count) | Suggested script path |
 |-------|----------------------------------|-----------------------|
-| `Dev10x:some-skill` | 12-line bash loop | already extracted ✓ |
+| `dev10x:some-skill` | 12-line bash loop | already extracted ✓ |
 | `some:skill` | 8-line curl + jq pipeline | `scripts/fetch-data.sh` |
 
 Also scan the session transcript for Bash tool calls that were multi-step
@@ -828,7 +828,7 @@ a new rule). Structural friction needs skill updates and/or hooks.
 | `HOOK_BLOCKED_RETRY` | `cat <<'EOF'...` or `echo >` | Hook rejects it; Claude retries anyway | Update skill to use Write + `-F` |
 | `NUISANCE_APPROVE` | Safe command prompted 3+ times | Allow rule exists but pattern doesn't match | Widen existing rule or add new one |
 | `UNNECESSARY_CD_WORKTREE` | `cd /worktree/path && command` | `cd` shifts prefix; CWD is already the worktree | Drop the `cd` — session is already there |
-| `WORKTREE_CWD_NOT_SWITCHED` | Commands run in main repo after worktree creation | Worktree creation should switch CWD | Investigate `Dev10x:git-worktree` — CWD switch may have failed |
+| `WORKTREE_CWD_NOT_SWITCHED` | Commands run in main repo after worktree creation | Worktree creation should switch CWD | Investigate `dev10x:git-worktree` — CWD switch may have failed |
 
 **Detection algorithm:**
 
@@ -871,13 +871,13 @@ a new rule). Structural friction needs skill updates and/or hooks.
    the worktree root is always redundant. Classification:
    `UNNECESSARY_CD_WORKTREE`. Fix: drop the `cd` prefix.
 
-9. **Worktree CWD not switched**: After a `Dev10x:git-worktree`
+9. **Worktree CWD not switched**: After a `dev10x:git-worktree`
    invocation in the transcript, check whether subsequent Bash
    commands target the new worktree path or still operate in the
    original repo. If commands use `cd <worktree>` or `git -C
    <worktree>` after creation, the CWD switch may have failed.
    Classification: `WORKTREE_CWD_NOT_SWITCHED`. Fix: investigate
-   `Dev10x:git-worktree` skill.
+   `dev10x:git-worktree` skill.
 
 **Output format:**
 
@@ -889,7 +889,7 @@ a new rule). Structural friction needs skill updates and/or hooks.
 | 4 | `git -C /work/myproject log` | PREFIX_POISONED_GIT_C | `-C` breaks `Bash(git log:*)` | Skill: use CWD |
 | 5 | `pytest src/` (3x) | NUISANCE_APPROVE | No matching rule | Allow: `Bash(pytest:*)` |
 | 6 | `cd /work/.worktrees/proj && pytest` | UNNECESSARY_CD_WORKTREE | CWD is already the worktree | Drop the `cd` |
-| 7 | `git -C /work/.worktrees/proj log` after worktree create | WORKTREE_CWD_NOT_SWITCHED | CWD switch failed | Fix `Dev10x:git-worktree` skill |
+| 7 | `git -C /work/.worktrees/proj log` after worktree create | WORKTREE_CWD_NOT_SWITCHED | CWD switch failed | Fix `dev10x:git-worktree` skill |
 
 **10. Wrapper discovery**: For each PREFIX_POISONED or chained
 command finding, check whether a wrapper already exists that
@@ -925,7 +925,7 @@ When wrapper exists, the primary recommendation is MEMORY_UPDATE
 - Where the wrapper lives (for reference)
 
 When no wrapper exists, propose creating one AND a memory update
-documenting it. For git aliases, reference `Dev10x:git-alias-setup`
+documenting it. For git aliases, reference `dev10x:git-alias-setup`
 as the canonical setup mechanism rather than proposing raw
 `git config` commands.
 
@@ -1031,7 +1031,7 @@ first, then route based on result:
 3. No new hook or script needed — the wrapper already solves it
 
 **2b. No wrapper exists (`CREATE_WRAPPER_ALIAS` / `CREATE_WRAPPER_SCRIPT`):**
-1. Propose creating the wrapper (alias via `Dev10x:git-alias-setup`
+1. Propose creating the wrapper (alias via `dev10x:git-alias-setup`
    or script in `~/.claude/tools/`)
 2. Propose SKILL_UPDATE replacing the toxic pattern
 3. Propose MEMORY_UPDATE documenting the new wrapper
@@ -1105,7 +1105,7 @@ scripts for redundant `uv run --script` prefixes.
 |---|---|---|---|---|
 | 1 | `tools/some-script.py` | `#!/usr/bin/env python3` | WRONG_SHEBANG | Change to uv shebang + PEP 723 |
 | 2 | `scripts/fernet-decrypt.py` | mode 644 | NOT_EXECUTABLE | `chmod +x` |
-| 3 | `Dev10x:some-skill/SKILL.md` | `uv run --script ~/.claude/tools/...` | REDUNDANT_UV_PREFIX | Drop prefix |
+| 3 | `dev10x:some-skill/SKILL.md` | `uv run --script ~/.claude/tools/...` | REDUNDANT_UV_PREFIX | Drop prefix |
 
 **Recommendations:**
 
@@ -1201,7 +1201,7 @@ Instead report: "Skill X invoked `gh pr view` directly 3 times
    For each actionable finding, before filing:
    - Search the target tracker for an existing issue — open
      **and** closed — matching the finding's skill and symptom
-     (`mcp__plugin_Dev10x_cli__issue_list` with the relevant
+     (`mcp__plugin_dev10x_cli__issue_list` with the relevant
      `skill:<name>` label, plus a keyword search on the symptom)
    - **Already open** → do not file. Record the existing issue
      number in the summary. Add a comment only when this session
@@ -1229,7 +1229,7 @@ Instead report: "Skill X invoked `gh pr view` directly 3 times
 5. **File the findings that survive both checks.**
    Iterate over the remaining findings classified as
    SKILL_UPDATE, GAP, or SKIPPED_STEP. For each:
-   - Invoke `Skill(Dev10x:ticket-create)` with:
+   - Invoke `Skill(dev10x:ticket-create)` with:
      - Title: `[<classification>] <affected skill>: <short description>`
      - Body: finding classification, affected skill, description
        of the gap/deviation, and session evidence (turn numbers)
@@ -1288,7 +1288,7 @@ Every installed plugin's skills live under `~/.claude/plugins/`, so
 the path alone does not identify the owner. Resolve it explicitly:
 
 ```
-mcp__plugin_Dev10x_cli__resolve_plugin_origin(
+mcp__plugin_dev10x_cli__resolve_plugin_origin(
     skill_paths=["<abs path per upstream-relevant finding>", ...])
 ```
 
@@ -1313,7 +1313,7 @@ findings.
 **REQUIRED: invoke `AskUserQuestion` tool** (not a plain text
 question) to ask whether to file upstream. Present the count
 of upstream-relevant findings and two options: "File issue
-(Recommended)" to delegate to `Dev10x:audit-file`, or
+(Recommended)" to delegate to `dev10x:audit-file`, or
 "Skip" to keep findings local only.
 
 If the user selects **Skip**, mark Phase 7 completed and end.
@@ -1347,7 +1347,7 @@ If the user selects **Skip**, mark Phase 7 completed and end.
 **REQUIRED before writing the findings file.** The upstream
 issue is public; the source session is treated as private by
 default. Apply the replacement table, allow-list, and 5-step
-algorithm in `Dev10x:audit-file` →
+algorithm in `dev10x:audit-file` →
 `references/privacy-scrub.md` to the findings text **before**
 writing it to the temp file.
 
@@ -1357,10 +1357,10 @@ plugin maintainers.
 
 If a finding cannot be reported without a private identifier,
 mark it `[needs-user-decision]` in the findings file and let
-`Dev10x:audit-file` Step 3 raise the `AskUserQuestion` gate.
+`dev10x:audit-file` Step 3 raise the `AskUserQuestion` gate.
 Do NOT silently include unscrubbed text.
 
-**Sub-step D: Delegate to Dev10x:audit-file (once per target repo)**
+**Sub-step D: Delegate to dev10x:audit-file (once per target repo)**
 
 For **each** repo confirmed in sub-step B2, write that repo's
 scrubbed findings to its own temp file:
@@ -1374,14 +1374,14 @@ repo, plus a `**Target repo**: <owner>/<repo>` line in the file's
 Session Context block. Then invoke:
 
 ```
-Skill(skill="Dev10x:audit-file",
+Skill(skill="dev10x:audit-file",
   args="--repo <owner>/<repo> <findings-file-path>")
 ```
 
-The `--repo` argument is **required** — `Dev10x:audit-file` files
+The `--repo` argument is **required** — `dev10x:audit-file` files
 at the repo it is given and never falls back to a default tracker.
 
-The `Dev10x:audit-file` skill handles version detection,
+The `dev10x:audit-file` skill handles version detection,
 issue body generation, and issue creation. Mark Phase 7 completed
 after every delegation returns. Report any `unresolved[]` findings
 as unfiled in the final summary rather than filing them anywhere.
@@ -1432,7 +1432,7 @@ as unfiled in the final summary rather than filing them anywhere.
   at a guessed repo wastes a maintainer's triage and loses the
   signal for the real owner.
 - **Delegation over embedding**: Phase 7 delegates issue filing to
-  `Dev10x:audit-file` rather than implementing it inline. This
+  `dev10x:audit-file` rather than implementing it inline. This
   keeps skill-audit focused on analysis and lets users who don't
   want upstream reporting skip the skill entirely.
 - **Source session is private by default**: Audit reports MUST NOT
