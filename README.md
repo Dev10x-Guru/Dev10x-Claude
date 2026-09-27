@@ -135,8 +135,14 @@ sessions usually produce shallow plans that miss dependencies.
 parent ticket or free-text description into a structured project
 with milestones, blocking relationships, and tracker integration
 (Linear, JIRA, or GitHub Issues). Each child ticket gets
-acceptance criteria, story point estimates, and clear dependency
-links so future sessions know what to build next.
+acceptance criteria, estimates, and clear dependency links so
+future sessions know what to build next.
+
+[`dev10x:estimate`](skills/estimate/SKILL.md) is the one method
+behind every estimate. It sizes implementation at agent pace and
+counts the human gates that still decide the calendar: review,
+review wait, testing and documentation. Effort and elapsed time
+are reported separately.
 
 [`dev10x:ticket-scope`](skills/ticket-scope/SKILL.md) goes
 deeper on individual tickets — technical research, architecture
@@ -216,7 +222,7 @@ review comment) is concise enough to evaluate in seconds.
 | **PR** | [`gh-pr-create`](skills/gh-pr-create/SKILL.md), [`gh-pr-review`](skills/gh-pr-review/SKILL.md), [`gh-pr-respond`](skills/gh-pr-respond/SKILL.md), [`gh-pr-monitor`](skills/gh-pr-monitor/SKILL.md), [`gh-pr-triage`](skills/gh-pr-triage/SKILL.md), [`gh-pr-fixup`](skills/gh-pr-fixup/SKILL.md), [`gh-pr-request-review`](skills/gh-pr-request-review/SKILL.md), [`gh-pr-bookmark`](skills/gh-pr-bookmark/SKILL.md), [`gh-pr-doctor`](skills/gh-pr-doctor/SKILL.md), [`gh-pr-merge`](skills/gh-pr-merge/SKILL.md), [`gh-context`](skills/gh-context/SKILL.md), [`request-review`](skills/request-review/SKILL.md), [`review`](skills/review/SKILL.md), [`review-fix`](skills/review-fix/SKILL.md) | Full PR lifecycle, domain-routed review, self-review |
 | **Tickets** | [`ticket-create`](skills/ticket-create/SKILL.md), [`ticket-branch`](skills/ticket-branch/SKILL.md), [`ticket-scope`](skills/ticket-scope/SKILL.md), [`ticket-jtbd`](skills/ticket-jtbd/SKILL.md), [`work-on`](skills/work-on/SKILL.md), [`linear`](skills/linear/SKILL.md), [`project-scope`](skills/project-scope/SKILL.md), [`investigate`](skills/investigate/SKILL.md) | Issue tracker integration, ticket scoping, bug investigation |
 | **Park** | [`park`](skills/park/SKILL.md), [`park-todo`](skills/park-todo/SKILL.md), [`park-remind`](skills/park-remind/SKILL.md), [`park-discover`](skills/park-discover/SKILL.md) | Deferred work parking |
-| **Scoping** | [`scope`](skills/scope/SKILL.md), [`jtbd`](skills/jtbd/SKILL.md), [`adr`](skills/adr/SKILL.md), [`adr-evaluate`](skills/adr-evaluate/SKILL.md), [`ddd`](skills/ddd/SKILL.md) | Architecture decisions, Job Story format, DDD workshops |
+| **Scoping** | [`scope`](skills/scope/SKILL.md), [`estimate`](skills/estimate/SKILL.md), [`jtbd`](skills/jtbd/SKILL.md), [`adr`](skills/adr/SKILL.md), [`adr-evaluate`](skills/adr-evaluate/SKILL.md), [`ddd`](skills/ddd/SKILL.md) | Architecture decisions, Job Story format, DDD workshops |
 | **QA** | [`qa-scope`](skills/qa-scope/SKILL.md), [`qa-self`](skills/qa-self/SKILL.md), [`playwright`](skills/playwright/SKILL.md), [`py-test`](skills/py-test/SKILL.md) | Test planning, self-review, browser testing, pytest runner |
 | **Session** | [`session-tasks`](skills/session-tasks/SKILL.md), [`session-wrap-up`](skills/session-wrap-up/SKILL.md), [`plan-sync`](skills/plan-sync/SKILL.md), [`fanout`](skills/fanout/SKILL.md), [`verify-acc-dod`](skills/verify-acc-dod/SKILL.md) | In-session work tracking, parallel execution, acceptance verification |
 | **DB** | [`db`](skills/db/SKILL.md), [`db-psql`](skills/db-psql/SKILL.md) | Safe database query planning and execution |

@@ -255,11 +255,15 @@ Safeguards answer: *what must always be true after this change?*
 - Log discount code validation results (code, valid/invalid reason)
 - Log discount applications (code, order, amount)
 
-### Story Points
-**8 points** (3-5 days)
+### Estimate
+**8 points** — new models, GraphQL mutations and a migration
+(produced by `dev10x:estimate`, default ranges)
 
-**Rationale:**
-- New models, repositories, services (3 points)
-- GraphQL schema + mutations (2 points)
-- Migration + validation logic (2 points)
-- Testing + feature flag rollout (1 point)
+| Line item            | Effort | Elapsed  |
+|----------------------|--------|----------|
+| Agent implementation | 3 h    | 1-2 days |
+| Human review         | 6 h    | 6 h      |
+| Review wait          | 0      | 2 days   |
+| Testing              | 2 h    | 0.5 day  |
+| Documentation        | 1 h    | 1 h      |
+| **Total**            | **12 h** | **~4-5 days** |

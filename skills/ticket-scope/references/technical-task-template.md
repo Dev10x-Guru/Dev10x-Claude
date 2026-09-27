@@ -243,11 +243,15 @@ Safeguards describe what must always be true **post-change**.]
 
 ---
 
-## Story Points
-**5 points** (1-2 days)
+## Estimate
+**5 points** — base-class change plus one refactored repository
+(produced by `dev10x:estimate`, default ranges)
 
-**Rationale:**
-- Update BaseRepository (1 point)
-- Refactor PaymentRepository (2 points)
-- Test verification and fixes (1 point)
-- Code review and adjustments (1 point)
+| Line item            | Effort | Elapsed |
+|----------------------|--------|---------|
+| Agent implementation | 1 h    | 0.5 day |
+| Human review         | 3 h    | 3 h     |
+| Review wait          | 0      | 1 day   |
+| Testing              | 0.5 h  | 1 h     |
+| Documentation        | 0 (internal-only) | 0 |
+| **Total**            | **4.5 h** | **~2 days** |

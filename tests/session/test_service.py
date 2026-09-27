@@ -119,6 +119,13 @@ class TestBuildGuidanceContext:
         result = svc.build_guidance_context()
         assert len(result) > 0
 
+    def test_real_guidance_routes_every_estimate_to_the_estimate_skill(self) -> None:
+        """GH-1495: SessionStart guidance is the one channel present in a
+        session with no scoping skill loaded, so it must carry the pointer."""
+        result = SessionService().build_guidance_context()
+        assert "/dev10x:estimate" in result
+        assert "outside a scoping skill" in result
+
 
 class TestBuildSkillsIndexContext:
     def test_empty_when_index_missing(

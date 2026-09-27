@@ -18,6 +18,7 @@ allowed-tools:
   - mcp__claude_ai_Linear__list_comments
   - mcp__claude_ai_Linear__save_comment
   - Skill(dev10x:jtbd)
+  - Skill(dev10x:estimate)
   - Agent
   - WebFetch
   - Grep

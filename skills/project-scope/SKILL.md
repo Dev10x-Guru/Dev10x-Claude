@@ -24,6 +24,7 @@ allowed-tools:
   - Bash(gh label create:*)
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
   - Skill(dev10x:ticket-create)
+  - Skill(dev10x:estimate)
   - mcp__plugin_dev10x_cli__detect_tracker
   - mcp__plugin_dev10x_cli__milestone_create
   - mcp__plugin_dev10x_cli__milestones_bulk_create
@@ -124,6 +125,11 @@ Generate the following sections:
 3. **Tickets per milestone** — title, 1-2 sentence description,
    priority, estimated complexity
 4. **Blocking chain** — which tickets block which and why
+5. **Estimate** — **REQUIRED: Call `Skill(dev10x:estimate)`** with
+   the tickets and the blocking chain. Each ticket's "estimated
+   complexity" is the skill's points plus the elapsed range. The
+   project roll-up follows the skill's § Project-level estimates,
+   with effort and elapsed reported per milestone (GH-1495).
 
 Tickets are intentionally high-level. Further refinement via
 `dev10x:ticket-scope` is expected for individual tickets.
