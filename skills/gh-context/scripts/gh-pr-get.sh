@@ -62,7 +62,8 @@ for _ in $(seq 1 "$MAX_ATTEMPTS"); do
         exit 0
     fi
 
-    UNKNOWN_FIELD=$(grep -oP 'Unknown JSON field: "\K[^"]+' "$STDERR_FILE" | head -1 || true)
+    # GH-1492: portable sed — BSD grep (macOS) has no PCRE mode.
+    UNKNOWN_FIELD=$(sed -nE 's/.*Unknown JSON field: "([^"]+)".*/\1/p' "$STDERR_FILE" | head -n 1 || true)
     if [[ -z "$UNKNOWN_FIELD" ]]; then
         break
     fi

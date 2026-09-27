@@ -61,6 +61,12 @@ if [[ -n "$MILESTONE" ]]; then
 fi
 
 URL=$("${ARGS[@]}")
-NUMBER=$(echo "$URL" | grep -oP '/issues/\K[0-9]+$')
+# GH-1492: portable sed — BSD grep (macOS) has no PCRE mode, and this runs
+# after the issue already exists, so a failure here misreports success.
+NUMBER=$(printf '%s\n' "$URL" | sed -nE 's#.*/issues/([0-9]+)$#\1#p' | tail -n 1)
+if [[ ! "$NUMBER" =~ ^[0-9]+$ ]]; then
+    echo "gh-issue-create.sh: issue created, but no issue number in gh output: $URL" >&2
+    exit 1
+fi
 
 gh issue view "$NUMBER" --repo "$REPO" --json number,title,url
