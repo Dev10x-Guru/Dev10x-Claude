@@ -186,6 +186,40 @@ class TestCleanMigratesLegacyNamespace:
         )
 
 
+class TestCleanRepairsStarPrefix:
+    """GH-1503: clean repairs `*`-before-`:*` rules in the user-scope layer."""
+
+    @pytest.fixture
+    def user_star_rules(self, project_with_clean_targets: Path) -> Path:
+        global_settings = project_with_clean_targets / ".claude" / "settings.json"
+        global_settings.write_text(
+            json.dumps(
+                {
+                    "permissions": {
+                        "allow": ["Bash(~/.claude/tools/*:*)"],
+                        "ask": ["Bash(cp * ~/.claude:*)"],
+                    }
+                }
+            )
+        )
+        return global_settings
+
+    def test_user_scope_rules_are_repaired(self, user_star_rules: Path) -> None:
+        result = CliRunner().invoke(clean, [])
+
+        assert result.exit_code == 0, result.output
+        assert json.loads(user_star_rules.read_text())["permissions"] == {
+            "allow": [],
+            "ask": ["Bash(cp * ~/.claude*)"],
+        }
+
+    def test_the_repair_is_reported(self, user_star_rules: Path) -> None:
+        result = CliRunner().invoke(clean, ["--dry-run"])
+
+        assert "Would repair 2 rules with `*` before `:*` (GH-1503)" in result.output
+        assert "ask: Bash(cp * ~/.claude:*) -> Bash(cp * ~/.claude*)" in result.output
+
+
 class TestCleanSummary:
     """`clean --summary` prints one line per changed file."""
 

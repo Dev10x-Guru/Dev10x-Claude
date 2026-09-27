@@ -610,6 +610,12 @@ def clean(
     if run.total_migrated > 0:
         verb = "Would move" if dry_run else "Moved"
         click.echo(f"{verb} {run.total_migrated} rules to the dev10x namespace (GH-1501).")
+    if run.total_star_repaired > 0:
+        verb = "Would repair" if dry_run else "Repaired"
+        click.echo(
+            f"{verb} {run.total_star_repaired} rules with `*` before `:*` (GH-1503):"
+            " allows dropped, denies and asks rewritten to the space form."
+        )
     if run.total_removed == 0:
         click.echo("All project files are clean.")
     else:

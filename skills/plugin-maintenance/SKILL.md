@@ -842,6 +842,15 @@ a legacy copy whose new spelling is already listed is pruned. The
 moves. `Dev10x` config dirs and `~/.claude/skills/Dev10x:upgrade-cleanup/`
 are left alone.
 
+**What the default repairs (GH-1503), in the same layers:** Bash
+rules with a `*` before the trailing `:*` never match and warn at
+every startup. Allows are dropped — never rewritten to the space
+form, which would widen a never-active grant into a real wildcard.
+Denies and asks are rewritten to the space form the harness suggests
+(`Bash(mv * /dev/null:*)` → `Bash(mv * /dev/null*)`), never dropped.
+Every drop and rewrite is listed; the `plugin-doctor`
+`unmatchable-star-prefix` strategy reports the same set.
+
 **Opt-in global-dedup (`--aggressive`):** Removing exact
 duplicates of global rules and rules covered by global wildcards
 requires `--aggressive`, and only after
