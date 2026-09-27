@@ -79,6 +79,15 @@ prompts or brittle command matching.
   (requires `Bash()` allow rule in skills)
 - Never `mkdir -p && script` — both methods create dirs automatically
 
+## Estimates
+
+Any estimate goes through `/dev10x:estimate`, including an ad-hoc
+"how long would it take to…?" outside a scoping skill.
+Do not fall back to a single "one engineer, N days" figure.
+The skill sizes implementation at agent pace, and it breaks out
+human review, review wait, testing and documentation, with effort
+reported separately from elapsed time.
+
 ## Key Skills for Common Tasks
 
 | Task | Skill |
@@ -88,6 +97,7 @@ prompts or brittle command matching.
 | Review PR | `/dev10x:gh-pr-review` |
 | Respond to PR review | `/dev10x:gh-pr-respond` |
 | Create branch from ticket | `/dev10x:ticket-branch` |
+| Estimate a ticket or project | `/dev10x:estimate` |
 | Create worktree | `/dev10x:git-worktree` |
 | Groom commits before merge | `/dev10x:git-groom` |
 | Push safely | `/dev10x:git` (validates protected branches) |

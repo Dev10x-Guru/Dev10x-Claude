@@ -939,6 +939,13 @@ depends on it. Implement (4.5) executes this plan; deviations are
 expected but should be reconciled back into the plan, not
 silently improvised.
 
+**Estimates (GH-1495).** Whenever the supervisor asks how long the
+plan will take, or the plan needs a size (e.g. deciding between
+Strategy A and B), call `Skill(dev10x:estimate)`. Never size the
+plan inline: the skill reports agent implementation, human review,
+review wait, testing and documentation, with effort separate from
+elapsed time.
+
 **Bug fix from Sentry + ticket:**
 
 **Evidence-first rule:** Before selecting files to edit, review

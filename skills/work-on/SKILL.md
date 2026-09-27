@@ -13,6 +13,7 @@ user-invocable: true
 invocation-name: dev10x:work-on
 allowed-tools:
   - mcp__plugin_dev10x_cli__*
+  - Skill(dev10x:estimate)
   - Skill(dev10x:friction-setup)
   - Skill(dev10x:gh-context)
   - Skill(dev10x:gh-pr-create)

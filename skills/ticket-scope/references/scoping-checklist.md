@@ -89,7 +89,8 @@ Use this checklist to ensure comprehensive scoping coverage.
 
 ## Estimation & Categorization
 
-- [ ] Story points estimated (Fibonacci)
+- [ ] Estimated via `dev10x:estimate` (points + five line items,
+      effort vs elapsed)
 - [ ] Task type categorized (business/technical/bug)
 - [ ] Release notes requirement determined
 

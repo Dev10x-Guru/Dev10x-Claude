@@ -179,24 +179,12 @@ Order steps by dependencies:
 
 ### Phase 4: Estimate Complexity
 
-#### Story Points (Fibonacci)
-
-| Points | Complexity | Duration |
-|--------|------------|----------|
-| 1 | Trivial | Hours |
-| 2 | Small | < 1 day |
-| 3 | Medium | 1-2 days |
-| 5 | Large | 2-3 days |
-| 8 | Complex | 3-5 days |
-| 13 | Epic-sized | Should be split |
-
-#### Estimation Factors
-
-- New patterns vs. following existing
-- Database migrations
-- External dependencies
-- Test complexity
-- Review/iteration cycles
+**REQUIRED: Call `Skill(dev10x:estimate)`** with the scope gathered
+in Phases 1-3 (do NOT size the ticket inline). It owns the point
+scale and the five line items (agent implementation, human review,
+review wait, testing and documentation), with effort reported
+separately from elapsed time. Put its output table in the scoping
+document under `## Estimate`. A 13 means split the ticket (GH-1495).
 
 ### Phase 4b: Draft Job Story
 
@@ -270,7 +258,7 @@ the diverged structure breaks audits and PR generation.
 - **Safeguards** (invariants & validation, distinct from Risks —
   REASONS)
 - Risks and Mitigations (rollout-only failures)
-- Story Points
+- Estimate (from `dev10x:estimate`)
 
 **REASONS coverage check:** The seven SPDD REASONS dimensions are
 Requirements, Approach, Structure, Operations, Entities, Norms,
@@ -473,11 +461,10 @@ Include `# language: <code>` when writing feature-file-style blocks.
 ## Out of Scope
 - [What we're NOT doing]
 
-## Story Points
-**[N] points**
+## Estimate
+**[N] points** — [why]
 
-Rationale:
-- [Breakdown of estimate]
+[dev10x:estimate output table: five line items, effort vs elapsed]
 ```
 
 ### Technical Task
@@ -512,8 +499,8 @@ Rationale:
 ## Acceptance Criteria
 - [ ] Technical criterion 1
 
-## Story Points
-**[N] points**
+## Estimate
+**[N] points** — [dev10x:estimate output table]
 ```
 
 ### Bug Fix
@@ -546,8 +533,8 @@ Rationale:
 - [ ] Bug no longer occurs
 - [ ] No regressions
 
-## Story Points
-**[N] points**
+## Estimate
+**[N] points** — [dev10x:estimate output table]
 ```
 
 ## Quality Checklist
@@ -571,8 +558,8 @@ Before finalizing, verify:
 - [ ] Risks identified
 
 ### Estimation
-- [ ] Story points justified
-- [ ] Complexity factors considered
+- [ ] Estimate produced by `dev10x:estimate`, not sized inline
+- [ ] All five line items present, effort separate from elapsed
 
 ### Review
 - [ ] User approved scoping

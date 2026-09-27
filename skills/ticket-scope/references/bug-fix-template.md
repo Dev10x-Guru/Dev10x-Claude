@@ -269,11 +269,15 @@ We've fixed a bug where tax-exempt customers were incorrectly charged sales tax 
 
 ---
 
-## Story Points
-**3 points** (~1 day)
+## Estimate
+**3 points** — well-understood fix plus a regression test
+(produced by `dev10x:estimate`, default ranges)
 
-**Rationale:**
-- Small code change (1 point)
-- Tests for bug scenario (1 point)
-- Testing and verification (1 point)
-- Well-understood fix, low complexity
+| Line item            | Effort | Elapsed |
+|----------------------|--------|---------|
+| Agent implementation | 0.5 h  | 2-4 h   |
+| Human review         | 1 h    | 1 h     |
+| Review wait          | 0      | 0.5-1 day |
+| Testing              | 1 h (terminal QA) | 2 h |
+| Documentation        | 0.5 h (release note) | 0.5 h |
+| **Total**            | **3 h** | **~1-2 days** |
