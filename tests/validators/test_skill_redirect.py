@@ -1659,6 +1659,49 @@ class TestEveryBlockingRuleSurvivesTheFastPath:
         )
 
 
+class TestCrossWorktreePlumbingIsSteered:
+    """GH-1496: the plumbing spelling prompts under every allow rule
+    (GH-1472), so the hook denies it with the mode self-test as the way out."""
+
+    @pytest.fixture(
+        params=[
+            "git --git-dir=/repo/.git/worktrees/wt-3 --work-tree=/wt-3 status",
+            "git --git-dir /repo/.git log --oneline -5",
+            "git --work-tree=/wt-3 diff --stat",
+        ]
+    )
+    def plumbing_input(self, request: pytest.FixtureRequest) -> BashHookInputFaker:
+        return _make_input(command=request.param)
+
+    def test_reaches_the_engine(
+        self, validator: SkillRedirectValidator, plumbing_input: BashHookInputFaker
+    ) -> None:
+        assert validator.should_run(inp=plumbing_input) is True
+
+    def test_is_denied_with_the_mode_self_test(
+        self, validator: SkillRedirectValidator, plumbing_input: BashHookInputFaker
+    ) -> None:
+        result = validator.validate(inp=plumbing_input)
+
+        assert result is not None
+        assert "git-dir-worktree-pinning" in result.message
+        assert "pwd" in result.message
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git -C /wt-3 status --short",
+            "git rev-parse --git-dir",
+        ],
+    )
+    def test_leaves_the_remaining_routes_open(
+        self, validator: SkillRedirectValidator, command: str
+    ) -> None:
+        """`git -C <other>` is the only route when pwd != the target, and
+        `rev-parse --git-dir` is a query, not a pin."""
+        assert validator.validate(inp=_make_input(command=command)) is None
+
+
 class TestReachabilityIsDerived:
     """GH-1398: the map states intentions; only the fast path states behaviour.
 

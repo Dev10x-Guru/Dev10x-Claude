@@ -371,6 +371,7 @@ def _get_config_and_engine() -> tuple[Config, RuleEngine]:
 # and "pr ready" close the same gap for gh-pr-view and gh-pr-ready, which
 # the routed-CLI map in .claude/rules/mcp-tools.md has claimed all along
 # were steered to pr_get / pr_ready — GH-1211 reasoned from that claim.
+# "--git-dir" and "--work-tree" gate git-dir-worktree-pinning (GH-1496).
 # test_literal_pattern_contains_a_quick_token pins the invariant so a new
 # blocking rule cannot ship inert.
 # The fast-path filter is intentionally broad — evaluate_command() still
@@ -393,6 +394,8 @@ _QUICK_TOKENS = frozenset(
         "pytest",
         "pr view",
         "pr ready",
+        "--git-dir",
+        "--work-tree",
     ]
 )
 

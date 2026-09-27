@@ -182,12 +182,11 @@ class TestGh1028GitDirWorktreePinning:
         rule = _rule_by_name("git-dir-worktree-pinning")
         assert not _matches_any_pattern(rule=rule, command="git -C /wt-3 status --short")
 
-    def test_is_advisory_not_blocking(self) -> None:
-        # Blocking would strand an unattended worker with no reachable
-        # alternative; the preventive fixes are the crew template and the
-        # Phase 0.4 probe. This entry is the diag-friction steer.
+    def test_is_blocking(self) -> None:
+        """GH-1496: no allow rule can cover the shape (GH-1472), so the
+        alternative to a deny is a prompt nobody answers."""
         rule = _rule_by_name("git-dir-worktree-pinning")
-        assert rule["hook_block"] is False
+        assert rule["hook_block"] is True
 
     def test_steers_to_git_c(self) -> None:
         rule = _rule_by_name("git-dir-worktree-pinning")

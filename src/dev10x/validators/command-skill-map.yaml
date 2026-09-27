@@ -592,14 +592,15 @@ rules:
       - dev10x:db
       - tt:db
 
-  # ── Advisory-only Bash rules (hook_block: false) ───────────
-
   - name: git-dir-worktree-pinning
     matcher: Bash
+    # Reaches the engine through the `--git-dir` / `--work-tree` entries
+    # in _QUICK_TOKENS (skill_redirect.py) — neither pattern names any
+    # other token, so without them the block would ship inert (GH-1496).
     patterns:
       - "git\\s+--git-dir"
       - "git\\s+--work-tree"
-    hook_block: false
+    hook_block: true
     compensations:
       - type: use-alternative
         description: >
@@ -630,12 +631,18 @@ rules:
       spawn-depth-dependent (a depth-1 probe kept it; a depth-2 crew worker
       did not), so an unconditional `git -C` mandate is denied as redundant
       at the depths where `cd` did stick. The steer is the mode self-test,
-      not a fixed spelling. Advisory rather than blocking: the preventive
-      fixes are the crew template's self-test and the Phase 0.4 pre-flight
-      probe (GH-1030); this entry is the `dev10x:diag-friction` steer for an
-      interactive agent that reaches for the plumbing shape anyway.
+      not a fixed spelling.
+
+      GH-1496 made it blocking. GH-1472 established that no allow rule can
+      cover the plumbing spelling — a `*` before `:*` is literal — so the
+      shape always prompts, and a prompt an unattended agent cannot answer
+      is worse than a deny that names the way out. `git -C <other-path>` is
+      deliberately NOT blocked: when `pwd` != the target it is the only
+      route left, and blocking it would turn a prompt into a dead end.
     related:
       - dev10x:foreman
+
+  # ── Advisory-only Bash rules (hook_block: false) ───────────
 
   - name: kubectl
     matcher: Bash

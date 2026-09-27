@@ -144,9 +144,18 @@ matches any text: `git --git-dir=* --work-tree=* status *` also
 matches `git --git-dir=a -c core.fsmonitor='<cmd>' --work-tree=b
 status`, and `~/.claude/tools/* *` matches `~/.claude/tools/../..`.
 
-The remaining step this section once prescribed — flipping
-`git-dir-worktree-pinning` to `hook_block: true` so the agent gets a
-deterministic steer instead of a prompt — is tracked in #1496.
+Since the plumbing spelling can never be allowed, the hook denies it
+instead (GH-1496): `git-dir-worktree-pinning` in
+`src/dev10x/validators/command-skill-map.yaml` is `hook_block: true`, and
+`--git-dir` / `--work-tree` are `_QUICK_TOKENS` so the rule reaches the
+engine at all.
+The deny names the sanctioned read path: `cd <path>`, then `pwd`, as two
+calls.
+If they agree, run plain `git <verb>`.
+If they differ, use `git -C <path> <verb>`.
+`git -C <other-checkout>` is deliberately left unblocked.
+It still prompts, but when `pwd` differs from the target it is the only
+route left, and a block there would be a dead end rather than a steer.
 
 | Cell | Result | Recorded |
 |------|--------|----------|
