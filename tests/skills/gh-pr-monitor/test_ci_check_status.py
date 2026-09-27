@@ -86,6 +86,23 @@ class TestComputeVerdict:
         assert result["skipping"] == 1
         assert result["total"] == 2
 
+    def test_skipping_checks_names_surfaced_on_green_verdict(self):
+        """GH-1410 Finding 2: a green verdict must not hide which named
+        checks never ran — e.g. review workflows skipped on a draft PR."""
+        checks = [
+            {"name": "build", "bucket": "pass"},
+            {"name": "claude-review", "bucket": "skipping"},
+            {"name": "hygiene-review", "bucket": "skipping"},
+        ]
+        result = compute_verdict(checks=checks)
+        assert result["verdict"] == "green"
+        assert result["skipping_checks"] == ["claude-review", "hygiene-review"]
+
+    def test_skipping_checks_empty_when_nothing_skipped(self):
+        checks = [{"name": "build", "bucket": "pass"}]
+        result = compute_verdict(checks=checks)
+        assert result["skipping_checks"] == []
+
     def test_only_skipping_returns_empty(self):
         checks = [
             {"name": "optional-1", "bucket": "skipping"},

@@ -45,6 +45,9 @@ Output (JSON):
         "pending": 2,
         "skipping": 0,
         "cancel": 0,
+        "skipping_checks": [],         # names of checks bucketed "skipping" —
+                                       # a draft PR's review workflows land
+                                       # here, not in "pass" (GH-1410 F2)
         "checks": [
             {"name": "build", "bucket": "pass", "required": True},
             {"name": "lint", "bucket": "fail", "required": False},
@@ -61,6 +64,16 @@ Verdict logic (applies to both `verdict` and `required_verdict`):
     - "infra_unavailable" → only from --wait: checks never registered across
                       the full poll budget (likely a hosted-runner/infra
                       outage), distinct from a transient "empty"/"pending"
+
+A "green" verdict does NOT mean every check ran (GH-1410 Finding 2). A
+check `github.actions` buckets as "skipped" reads here as "skipping",
+which is excluded from the verdict computation entirely — so a review
+workflow gated on `[opened, ready_for_review, synchronize]` that never
+fires because the PR is a draft lands in "skipping", not "pass", and
+the blended verdict still reports "green". Callers that need to know
+whether a *specific* check actually ran — not merely that nothing
+failed — must inspect `skipping_checks` (the names of skipped checks)
+rather than trusting `verdict` alone.
 
 Required vs advisory (GH-658): `verdict` blends required (merge-blocking)
 and advisory (non-required) checks into one signal, so a red advisory
@@ -502,6 +515,9 @@ def compute_verdict(
         "mergeable": mergeable,
         "total": len(checks),
         **counts,
+        "skipping_checks": [
+            c.get("name", "unknown") for c in checks if c.get("bucket") == "skipping"
+        ],
         "checks": [
             {
                 "name": c.get("name", "unknown"),
