@@ -137,13 +137,14 @@ def find_settings_files(
     return unique
 
 
-KNOWN_PLUGIN_DIRS = ("Dev10x", "dev10x-claude")
+KNOWN_PLUGIN_DIRS = ("dev10x", "Dev10x", "dev10x-claude")
+DEFAULT_PLUGIN_CACHE = "~/.claude/plugins/cache/Dev10x-Guru/dev10x"
 
 
 def _detect_plugin_cache() -> str:
     cache_root = ClaudeDir.plugins_cache_dir()
     if not cache_root.is_dir():
-        return "~/.claude/plugins/cache/Dev10x-Guru/Dev10x"
+        return DEFAULT_PLUGIN_CACHE
     candidates: list[Path] = []
     for org_dir in cache_root.iterdir():
         if not org_dir.is_dir():
@@ -160,7 +161,7 @@ def _detect_plugin_cache() -> str:
         print(f"Multiple plugin cache entries found: {names}")
         print(f"Using first match: {candidates[0].parent.name}/{candidates[0].name}")
         return f"~/.claude/plugins/cache/{candidates[0].parent.name}/{candidates[0].name}"
-    return "~/.claude/plugins/cache/Dev10x-Guru/Dev10x"
+    return DEFAULT_PLUGIN_CACHE
 
 
 def init_userspace_config() -> dict[str, object]:

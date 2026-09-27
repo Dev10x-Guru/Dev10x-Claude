@@ -860,13 +860,14 @@ class TestPluginLoadGuard:
         assert result.returncode == 0
         assert result.stdout.strip() == ""
 
-    def test_silent_when_plugin_disabled(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize("plugin_id", ["dev10x@Dev10x-Guru", "Dev10x@Dev10x-Guru"])
+    def test_silent_when_plugin_disabled(self, tmp_path: Path, plugin_id: str) -> None:
         marker_dir = tmp_path / "sessions"
         marker_dir.mkdir()  # dir exists, marker absent — would warn if enabled
         claude_dir = tmp_path / ".claude"
         claude_dir.mkdir()
         (claude_dir / "settings.json").write_text(
-            json.dumps({"enabledPlugins": {"Dev10x@Dev10x-Guru": False}})
+            json.dumps({"enabledPlugins": {plugin_id: False}})
         )
         result = self._run_guard(
             payload={"session_id": "s-4"}, marker_dir=marker_dir, home=tmp_path
