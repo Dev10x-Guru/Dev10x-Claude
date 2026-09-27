@@ -92,6 +92,19 @@ class AllowRule:
         return self.matches_prefix(value)
 
     @property
+    def has_literal_star_prefix(self) -> bool:
+        """True for a ``Bash(...:*)`` rule with a ``*`` before the ``:*`` (GH-1472).
+
+        Claude Code reads the text before a trailing ``:*`` as a literal
+        prefix, so such a ``*`` is a plain character: the rule can never
+        match and the harness flags it at every startup. Rewriting it to the
+        space form (``Bash(X *)``) is not a fix — there ``*`` matches any
+        text, spaces and ``..`` included, which switches on a grant that was
+        never active.
+        """
+        return self.tool == "Bash" and self.pattern.endswith(":*") and "*" in self.pattern[:-2]
+
+    @property
     def representative_value(self) -> str:
         """A concrete-ish value this rule governs, for subsumption checks.
 

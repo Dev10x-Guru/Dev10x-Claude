@@ -575,6 +575,48 @@ class TestEnsureBaseDenies:
         data = json.loads(home_settings.read_text())
         assert data["permissions"]["ask"] == ["Bash(gh api -X DELETE:*)"]
 
+    STALE_CATALOG = {
+        "base_permissions": ["Bash(git status:*)", "Bash(/tmp/Dev10x/*.py:*)"],
+        "base_denies": [],
+    }
+
+    def test_refuses_to_seed_a_star_before_colon_star(self, home_settings: Path) -> None:
+        result = update_paths.ensure_base(
+            config=self.STALE_CATALOG,
+            settings_files=[home_settings],
+            dry_run=False,
+        )
+
+        assert result["exit_code"] == 0
+        assert json.loads(home_settings.read_text())["permissions"]["allow"] == [
+            "Bash(git status:*)"
+        ]
+        assert "    - Bash(/tmp/Dev10x/*.py:*)" in result["messages"]
+
+    def test_refusal_is_silent_when_quiet(self, home_settings: Path) -> None:
+        result = update_paths.ensure_base(
+            config=self.STALE_CATALOG,
+            settings_files=[home_settings],
+            dry_run=False,
+            quiet=True,
+        )
+
+        assert not any("Refusing to seed" in m for m in result["messages"])
+
+    def test_catalog_gap_does_not_count_an_unseedable_rule(self, home_settings: Path) -> None:
+        update_paths.ensure_base(
+            config=self.STALE_CATALOG,
+            settings_files=[home_settings],
+            dry_run=False,
+        )
+
+        result = update_paths.catalog_gap(
+            config=self.STALE_CATALOG,
+            settings_files=[home_settings],
+        )
+
+        assert result["exit_code"] == 0
+
     def test_ensure_base_emits_home_twin_for_tilde_rule(
         self,
         tmp_path: Path,

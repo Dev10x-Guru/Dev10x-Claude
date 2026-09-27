@@ -258,6 +258,22 @@ def is_dead_glob_script_rule(entry: str) -> bool:
     return entry.startswith("Bash(") and "plugins/cache/" in entry and "**" in entry
 
 
+def partition_unmatchable_rules(rules: list[str]) -> tuple[list[str], list[str]]:
+    """Split ``rules`` into ``(seedable, unmatchable)`` (GH-1472).
+
+    A stale userspace catalog can still carry rules the shipped one
+    dropped; seeding them would bring back the startup warnings.
+    """
+    seedable: list[str] = []
+    unmatchable: list[str] = []
+    for rule in rules:
+        if AllowRule.parse(rule).has_literal_star_prefix:
+            unmatchable.append(rule)
+        else:
+            seedable.append(rule)
+    return seedable, unmatchable
+
+
 def verify_script_coverage(
     settings_path: Path,
     expected_rules: list[str],

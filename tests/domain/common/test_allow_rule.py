@@ -71,6 +71,33 @@ class TestMatchesPrefix:
         assert not AllowRule.parse("Bash(ls)").matches_prefix("ls -la")
 
 
+class TestHasLiteralStarPrefix:
+    @pytest.mark.parametrize(
+        "rule",
+        [
+            "Bash(/tmp/Dev10x/*.py:*)",
+            "Bash(git --git-dir=* --work-tree=* status:*)",
+            "Bash(curl -s*:*)",
+            "Bash(/home/*/.claude/tools/*:*)",
+        ],
+    )
+    def test_flags_a_star_before_the_colon_star(self, rule: str) -> None:
+        assert AllowRule.parse(rule).has_literal_star_prefix is True
+
+    @pytest.mark.parametrize(
+        "rule",
+        [
+            "Bash(git status:*)",
+            "Bash(rg --files *)",
+            "Bash(git -C *)",
+            "Read(//tmp/Dev10x/**)",
+            "mcp__plugin_Dev10x_cli__mktmp",
+        ],
+    )
+    def test_leaves_other_shapes_alone(self, rule: str) -> None:
+        assert AllowRule.parse(rule).has_literal_star_prefix is False
+
+
 class TestRepresentativeValue:
     """The inverse of matches_prefix — the narrowest thing a rule covers."""
 

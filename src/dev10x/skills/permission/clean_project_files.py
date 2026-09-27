@@ -7,6 +7,8 @@ and strips rules that are:
   - Env-prefixed session noise (GIT_SEQUENCE_EDITOR=*, DATABASE_URL=*, etc.)
   - Shell control flow fragments (do, done, fi, for, while, etc.)
   - Double-slash path typos (Read(//...), Write(//...))
+  - Bash rules with a `*` before a trailing `:*` — a literal prefix that
+    can never match (GH-1472)
 
 Also flags rules containing leaked secrets: env-var key/value pairs, known
 token prefixes (GitHub, GitLab, AWS), Bearer headers, and URL query-string
@@ -186,12 +188,14 @@ class RemovalResult:
     allow_deny_contradictions: list[tuple[str, str]] = field(default_factory=list)
     ask_shadowed_by_allow: list[tuple[str, str]] = field(default_factory=list)
     deprecated_globs: list[str] = field(default_factory=list)
+    unmatchable_prefix: list[str] = field(default_factory=list)
     kept: list[str] = field(default_factory=list)
 
     @property
     def total_removed(self) -> int:
         return (
-            len(self.exact_duplicates)
+            len(self.unmatchable_prefix)
+            + len(self.exact_duplicates)
             + len(self.old_versions)
             + len(self.stale_publisher)
             + len(self.env_noise)
@@ -375,6 +379,12 @@ def classify_rules(
         if is_wildcard_bypass(rule):
             result.wildcard_bypasses.append(rule)
 
+        # GH-1472: ahead of the base check, so a stale catalog copy that
+        # still lists one cannot keep it alive.
+        if AllowRule.parse(rule).has_literal_star_prefix:
+            result.unmatchable_prefix.append(rule)
+            continue
+
         if rule in _base:
             result.kept.append(rule)
             continue
@@ -507,6 +517,15 @@ def _format_messages(
         for ask, allow in result.ask_shadowed_by_allow:
             messages.append(f"    ask:   {ask}")
             messages.append(f"    allow: {allow}")
+
+    if result.unmatchable_prefix:
+        messages.append(
+            f"  - {len(result.unmatchable_prefix)} rules with `*` before `:*`"
+            " (literal prefix, never match)"
+        )
+        if verbose:
+            for rule in result.unmatchable_prefix:
+                messages.append(f"    {rule}")
 
     if result.exact_duplicates:
         messages.append(f"  - {len(result.exact_duplicates)} exact duplicates of global rules")

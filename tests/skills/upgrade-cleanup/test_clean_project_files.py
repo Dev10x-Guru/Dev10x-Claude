@@ -272,6 +272,44 @@ class TestClassifyRules:
         assert result.kept == []
         assert result.total_removed == 2
 
+    def test_removes_star_before_colon_star_even_when_catalogued(self) -> None:
+        rules = [
+            "Bash(/tmp/Dev10x/*.py:*)",
+            "Bash(git --git-dir=* --work-tree=* status:*)",
+            "Bash(git status:*)",
+        ]
+
+        result = clean_mod.classify_rules(
+            rules,
+            global_rules=set(),
+            current_version="0.33.0",
+            base_permissions=set(rules),
+        )
+
+        assert result.unmatchable_prefix == rules[:2]
+        assert result.kept == ["Bash(git status:*)"]
+        assert result.total_removed == 2
+
+    def test_keeps_space_form_and_path_globs(self) -> None:
+        rules = ["Bash(rg --files *)", "Read(~/.claude/memory/Dev10x/**)", "Bash(git log:*)"]
+
+        result = clean_mod.classify_rules(
+            rules,
+            global_rules=set(),
+            current_version="0.33.0",
+        )
+
+        assert result.unmatchable_prefix == []
+        assert result.kept == rules
+
+    def test_formats_unmatchable_prefix_message(self) -> None:
+        result = clean_mod.RemovalResult(unmatchable_prefix=["Bash(/tmp/Dev10x/*.py:*)"])
+
+        messages = clean_mod._format_messages(result, verbose=True)
+
+        assert "  - 1 rules with `*` before `:*` (literal prefix, never match)" in messages
+        assert "    Bash(/tmp/Dev10x/*.py:*)" in messages
+
     def test_classifies_env_noise(self) -> None:
         rules = [
             "Bash(GIT_SEQUENCE_EDITOR=: git rebase)",
