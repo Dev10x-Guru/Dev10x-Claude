@@ -103,5 +103,5 @@ This is a PyCharm bug: the IDE should populate `UV_VENV_PATH`, `UV_TOOL_PATH`,
 and `FLAVOR_DATA` when auto-creating a uv SDK entry for a worktree that already
 has a `.venv/`. No upstream fix is available as of PyCharm 2024.x.
 
-Workaround: use `Dev10x:ide-normalize` immediately after creating a new
+Workaround: use `dev10x:ide-normalize` immediately after creating a new
 worktree, before opening PyCharm against it.

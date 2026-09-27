@@ -14,10 +14,10 @@ severity) and recommended removal. These rules include:
 
 | Allow rule | Hook | Redirects to |
 |-----------|------|-------------|
-| `Bash(gh pr create:*)` | SkillRedirectValidator | `Dev10x:gh-pr-create` |
-| `Bash(git push:*)` | SkillRedirectValidator | `Dev10x:git` |
-| `Bash(git rebase -i:*)` | SkillRedirectValidator | `Dev10x:git-groom` |
-| `Bash(git commit -m:*)` | SkillRedirectValidator | `Dev10x:git-commit` |
+| `Bash(gh pr create:*)` | SkillRedirectValidator | `dev10x:gh-pr-create` |
+| `Bash(git push:*)` | SkillRedirectValidator | `dev10x:git` |
+| `Bash(git rebase -i:*)` | SkillRedirectValidator | `dev10x:git-groom` |
+| `Bash(git commit -m:*)` | SkillRedirectValidator | `dev10x:git-commit` |
 
 The auditor's reasoning: if a hook blocks the command, the allow rule
 is dead code. This reasoning is incorrect because it ignores the
@@ -60,7 +60,7 @@ Classify them as `HOOK_ENABLED`, not `DEAD_RULE`.
    provides none of this context.
 
 3. **Removing the rule degrades UX.** The user sees "Allow
-   `git push`?" instead of "Use `Skill(Dev10x:git)` — it enforces
+   `git push`?" instead of "Use `Skill(dev10x:git)` — it enforces
    protected branch checks and force-push safety." The former
    invites approval; the latter teaches the correct workflow.
 

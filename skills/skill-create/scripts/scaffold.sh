@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Generate a new skill directory with complete boilerplate.
 # Usage: scaffold.sh <skill-name> <pattern>
-#   skill-name: e.g. "my-feature" (will become Dev10x:my-feature)
+#   skill-name: e.g. "my-feature" (will become dev10x:my-feature)
 #   pattern:    script|orchestration|reference
 
 set -euo pipefail
@@ -31,7 +31,7 @@ fi
 
 mkdir -p "$SKILL_DIR"
 
-INVOCATION_NAME="Dev10x:$SKILL_NAME"
+INVOCATION_NAME="dev10x:$SKILL_NAME"
 
 generate_skill_md() {
     local allowed_tools=""

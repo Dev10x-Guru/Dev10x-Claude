@@ -34,7 +34,7 @@ Set dependencies: strategy blocked by analysis, execute blocked
 by strategy, push blocked by execute.
 
 **Nested-mode exemption:** When invoked as a nested skill within
-a parent orchestrator (e.g., via `Skill()` from `Dev10x:work-on`),
+a parent orchestrator (e.g., via `Skill()` from `dev10x:work-on`),
 startup task creation is optional — at most 1 summary task. See
 `references/task-orchestration.md` § Delegated Invocation Exception.
 
@@ -47,7 +47,7 @@ appropriate. The parent's "Full shipping pipeline" selection
 establishes *intent to groom*, not *which strategy to use*.
 
 **NEVER auto-select a grooming strategy on your own judgement.**
-Call `mcp__plugin_Dev10x_cli__resolve_gate(gate="history_rewrite",
+Call `mcp__plugin_dev10x_cli__resolve_gate(gate="history_rewrite",
 context={"destructive": <true when the only viable path is a Full
 restructure or an interactive reorder>})` and branch on `effect`.
 On `ask` you MUST present the `AskUserQuestion` gate for strategy
@@ -84,7 +84,7 @@ Reviewers who post fixups expect the SHAs they reference to
 remain reachable until they resolve their threads.
 
 **Hard rule:** When git-groom is invoked **as a nested skill from
-`Dev10x:gh-pr-monitor`** (or any other background agent), refuse
+`dev10x:gh-pr-monitor`** (or any other background agent), refuse
 to groom if any unresolved review thread exists. The supervisor's
 main session may still groom under their direct control — only
 agent-initiated grooming is blocked.
@@ -93,18 +93,18 @@ agent-initiated grooming is blocked.
 
 1. Determine the invocation context. The parent skill MUST pass
    `invoker={parent-skill-name}` in the args (e.g.,
-   `invoker=Dev10x:gh-pr-monitor`). Absent any `invoker=` arg,
+   `invoker=dev10x:gh-pr-monitor`). Absent any `invoker=` arg,
    assume the invocation is supervisor-driven and skip this
    precondition.
 
-2. If `invoker` matches `Dev10x:gh-pr-monitor` or another
+2. If `invoker` matches `dev10x:gh-pr-monitor` or another
    background-agent skill, fetch the PR and count unresolved
    threads via MCP tools:
 
-   - `mcp__plugin_Dev10x_cli__pr_detect()` → returns `pr_number`
+   - `mcp__plugin_dev10x_cli__pr_detect()` → returns `pr_number`
      (skip the precondition if no open PR exists — there are
      no permalinks to break)
-   - `mcp__plugin_Dev10x_cli__pr_comments(action="list",
+   - `mcp__plugin_dev10x_cli__pr_comments(action="list",
      pr_number=N, unresolved_only=True)` → returns the root
      comments of every unresolved thread; the count is the
      length of the returned `comments` list
@@ -123,7 +123,7 @@ agent-initiated grooming is blocked.
    The fact that fixup commits exist IS the signal that a
    reviewer is mid-conversation. Wait for thread resolution
    before grooming, or invoke git-groom from the supervisor's
-   main session (without `invoker=Dev10x:gh-pr-monitor`) if you
+   main session (without `invoker=dev10x:gh-pr-monitor`) if you
    explicitly want to override.
    ```
 
@@ -178,7 +178,7 @@ no longer matches the spec's Requirements / Acceptance Criteria
 / Safeguards sections. Squashing pre-merge would lock the
 contradiction into history.
 
-Run `Dev10x:spec-update` to fix the spec first (Golden Rule:
+Run `dev10x:spec-update` to fix the spec first (Golden Rule:
 fix the prompt, then regenerate), then re-invoke git-groom.
 
 To override (rare — only when the spec is intentionally being
@@ -188,14 +188,14 @@ retired with this merge), pass `--skip-spec-check` explicitly.
 Exit non-zero. Do NOT continue to Phase 1.
 
 **Warn on structural drift.** Allow the groom to continue, but
-surface a warning that `Dev10x:spec-sync` should run before the
+surface a warning that `dev10x:spec-sync` should run before the
 next session:
 
 ```
 WARNING: structural spec drift detected at
 docs/specs/{TICKET-ID}.md. The Architecture / Implementation
 Steps sections describe a different code shape. Consider running
-`Dev10x:spec-sync` after this merge so the next agent generating
+`dev10x:spec-sync` after this merge so the next agent generating
 from this spec gets the right file layout.
 ```
 
@@ -224,7 +224,7 @@ git log --oneline --stat origin/develop..HEAD
 Both shapes are declared in this skill's `allowed-tools`
 (`Bash(git log:*)`, `Bash(git merge-base:*)`), so they run without
 per-call approval. Substitute the detected base for `develop` —
-resolve it via `mcp__plugin_Dev10x_cli__detect_base_branch` rather
+resolve it via `mcp__plugin_dev10x_cli__detect_base_branch` rather
 than assuming.
 
 **Why `origin/<base>` and not the bare local ref:** local `develop`
@@ -236,7 +236,7 @@ the remote is unreachable; when you use them, say so and treat the
 range as provisional.
 
 For the rebase itself (Phase 3+), pass the **bare** branch name to
-`mcp__plugin_Dev10x_cli__rebase_groom` — it qualifies the name to the
+`mcp__plugin_dev10x_cli__rebase_groom` — it qualifies the name to the
 `origin/<base>` remote-tracking ref automatically and reports a
 `base_notice` when the local ref lags. `rebase_groom` requires a
 sequence file, so it is the execution wrapper, not a read-only
@@ -249,7 +249,7 @@ Any commit (rebase, amend, reset) changes all descendant SHAs. Using
 analysis-time SHAs in execution scripts will silently target wrong commits.
 
 **This phase does not violate work-on's never-self-assess rule
-(GH-997).** `Dev10x:work-on` forbids the *orchestrator* from inspecting
+(GH-997).** `dev10x:work-on` forbids the *orchestrator* from inspecting
 commit history to predict whether grooming is needed — before or after
 delegating. That prohibition is scoped to the caller, outside this
 skill. Phase 1 is the groom's own first step, and the strategy decision
@@ -589,7 +589,7 @@ git push origin <branch> --force-with-lease
 
 **CI invalidation warning:** Force push triggers new CI runs on
 the new HEAD. All previous CI results become invalid. The calling
-skill (e.g., `Dev10x:work-on`) MUST re-monitor CI after grooming
+skill (e.g., `dev10x:work-on`) MUST re-monitor CI after grooming
 completes — do not declare CI green based on pre-groom results.
 
 **REQUIRED — clear a stale review clearance (GH-1008).** A force-push
@@ -599,13 +599,13 @@ review. When an open PR exists, drop the durable clearance label after
 the push:
 
 ```
-mcp__plugin_Dev10x_cli__pr_labels(pr_number=<n>, action="remove",
+mcp__plugin_dev10x_cli__pr_labels(pr_number=<n>, action="remove",
                                   labels=["review:cleared"])
 ```
 
 The call is idempotent — on a PR that was never cleared it is a no-op,
 so run it unconditionally rather than probing first. Leaving the label
-in place would let `Dev10x:gh-pr-request-review` skip its stand-by
+in place would let `dev10x:gh-pr-request-review` skip its stand-by
 clearance gate on rewritten history, silently inheriting a sign-off
 for commits nobody reviewed.
 
@@ -630,10 +630,10 @@ the full rewrite lifecycle including reference updates.
    was rewritten (read it from the pre-rebase reflog snapshot
    captured in Phase 3).
 3. Update the PR body commit links with new hashes via the
-   `mcp__plugin_Dev10x_cli__update_pr` MCP tool (auto-permitted under
-   `mcp__plugin_Dev10x_cli__*`; pass the rebuilt body string):
+   `mcp__plugin_dev10x_cli__update_pr` MCP tool (auto-permitted under
+   `mcp__plugin_dev10x_cli__*`; pass the rebuilt body string):
    ```
-   mcp__plugin_Dev10x_cli__update_pr(pr_number=<N>, body=<rebuilt_body>)
+   mcp__plugin_dev10x_cli__update_pr(pr_number=<N>, body=<rebuilt_body>)
    ```
 4. Update the summary comment (first comment by the author) with new hashes.
 5. **Rewrite permalinks in review-thread replies (GH-68, Fix F).**
@@ -647,7 +647,7 @@ the full rewrite lifecycle including reference updates.
 
    List the thread comments via the MCP tool:
 
-   - `mcp__plugin_Dev10x_cli__pr_comments(action="list",
+   - `mcp__plugin_dev10x_cli__pr_comments(action="list",
      pr_number=N)` → returns all review-thread comments with
      `id`, `body`, etc. Filter the returned list to those whose
      body matches `/commits/[0-9a-f]{7,40}` (case-insensitive).
@@ -658,15 +658,15 @@ the full rewrite lifecycle including reference updates.
    tool — never a raw REST PATCH call:
 
    ```
-   mcp__plugin_Dev10x_cli__pr_review_comment_edit(
+   mcp__plugin_dev10x_cli__pr_review_comment_edit(
        comment_id=<id>, body=<rewritten_body>, repo="<owner>/<repo>")
    ```
 
    Top-level PR comments live on a different REST endpoint
    (`/repos/$OWNER/$REPO/issues/comments/$id`) and have their own
-   wrapper — `mcp__plugin_Dev10x_cli__issue_comment_edit`. Walk
+   wrapper — `mcp__plugin_dev10x_cli__issue_comment_edit`. Walk
    both surfaces, each through its own tool. This mirrors the
-   guidance already stated in `Dev10x:gh-pr-respond`
+   guidance already stated in `dev10x:gh-pr-respond`
    § Post-Groom SHA Refresh.
 
    If a SHA is referenced but does not appear in the
@@ -753,7 +753,7 @@ Limit title to 72 characters. Add body for complex changes.
 **Reuse git-commit's line-length validation.** Any hand-written or
 amended message during a groom (e.g. a Strategy B rebuild, or a
 `reword` in Strategy C) MUST pass the same ≤72-char title/body-line
-check that `Dev10x:git-commit` applies before staging. Skipping it
+check that `dev10x:git-commit` applies before staging. Skipping it
 lets a groom introduce a history-lint failure that only surfaces
 in CI, after the force-push.
 
@@ -945,16 +945,16 @@ git reset --hard HEAD@{n}
 
 ## Integration with Other Skills
 
-### Dev10x:git-commit-split
+### dev10x:git-commit-split
 
 When the user asks to split a specific commit mid-session (e.g. "Split
-<sha>"), invoke the `Dev10x:git-commit-split` skill rather than handling it inline.
-`Dev10x:git-commit-split` provides the canonical workflow with dependency-order
+<sha>"), invoke the `dev10x:git-commit-split` skill rather than handling it inline.
+`dev10x:git-commit-split` provides the canonical workflow with dependency-order
 guidance and commit message conventions.
 
 ```
 User: "Split 835fc34"
--> Invoke Skill(Dev10x:git-commit-split) before proceeding
+-> Invoke Skill(dev10x:git-commit-split) before proceeding
 ```
 
 ## Integration with PR Workflow

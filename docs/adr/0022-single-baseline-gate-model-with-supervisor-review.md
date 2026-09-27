@@ -72,7 +72,7 @@ Three further observations shaped the decision:
   team without a supervisor pass. Collapsing both into one boolean is
   what makes the four cells of the effect table below inexpressible.
 - **AI self-review keeps getting proposed as a third dial.** Each
-  friction discussion re-raises "should `Dev10x:review` on the agent's
+  friction discussion re-raises "should `dev10x:review` on the agent's
   own branch be gateable?" It should not, and the absence of a written
   decision is why the question recurs.
 
@@ -169,7 +169,7 @@ actor in the team rows.
 
 ### D-4: AI self-review is NOT a policy axis and always auto-advances
 
-**`Dev10x:review` on the agent's own branch always runs and always
+**`dev10x:review` on the agent's own branch always runs and always
 auto-advances. It is not gateable, not preset-dependent, not
 overlay-dependent, and not a toggle.** No configuration surface may
 expose it.
@@ -187,7 +187,7 @@ that every cell of the D-3 table starts from a reviewed branch. A
 "skip self-review" switch is a switch for shipping unreviewed code, and
 there is no posture in which that is the right default.
 
-`Dev10x:review-fix`'s downstream behaviour is likewise unchanged; the
+`dev10x:review-fix`'s downstream behaviour is likewise unchanged; the
 `autofix_confidence` weight continues to govern which findings are
 auto-sent, as it does today.
 
@@ -214,7 +214,7 @@ This preserves the GH-1000 invariant exactly:
     before gate resolution — `supervisor_review` is not an overlay and
     does not re-admit one;
   - `merge_config.solo_maintainer`, which governs the
-    `Dev10x:gh-pr-merge` approval override independently.
+    `dev10x:gh-pr-merge` approval override independently.
 
 Both must agree; either can veto. Nothing about D-1's collapse to a
 single baseline weakens this — retiring `strict` removes a posture that

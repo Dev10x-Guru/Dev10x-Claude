@@ -1,7 +1,7 @@
 """Every registered read-only MCP tool must be in the permission catalog.
 
 GH-1153: ``triage_roster`` was registered as an MCP tool, declared in
-``Dev10x:ticket-create``'s ``allowed-tools`` front matter, and listed in
+``dev10x:ticket-create``'s ``allowed-tools`` front matter, and listed in
 ``.claude/rules/mcp-tools.md`` — and still prompted on every call,
 because none of those three grants anything. Only a catalog entry does:
 ``ensure-base`` seeds settings files from ``base_permissions``, so a tool
@@ -121,14 +121,14 @@ def test_gate_tools_are_discovered() -> None:
     # resolve_gate lives in gate_tools.py, one of the seven modules the old
     # hard-coded _SERVER_FILES list never scanned — and it is called by every
     # skill gate, so its absence from the catalog cost a prompt per checkout.
-    assert "mcp__plugin_Dev10x_cli__resolve_gate" in _registered_tools()
+    assert "mcp__plugin_dev10x_cli__resolve_gate" in _registered_tools()
 
 
 def test_github_tool_wrapped_handlers_are_discovered() -> None:
     # pr_get is registered through the @github_tool wrapper, the shape the
     # old AST matcher could not see (48 of ~50 GitHub handlers use it).
-    assert "mcp__plugin_Dev10x_cli__pr_get" in _registered_tools()
+    assert "mcp__plugin_dev10x_cli__pr_get" in _registered_tools()
 
 
 def test_triage_roster_is_catalogued() -> None:
-    assert "mcp__plugin_Dev10x_cli__triage_roster" in _catalogued_rules()
+    assert "mcp__plugin_dev10x_cli__triage_roster" in _catalogued_rules()

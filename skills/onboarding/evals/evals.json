@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:onboarding",
+  "skill_name": "dev10x:onboarding",
   "eval_dimensions": [
     {
       "name": "interactive_tour",
@@ -31,7 +31,7 @@
         },
         {
           "check": "tool_called",
-          "tool": "mcp__plugin_Dev10x_cli__supervisor_review_status",
+          "tool": "mcp__plugin_dev10x_cli__supervisor_review_status",
           "assertion": "review_policy_status_checked_before_ask"
         },
         {
@@ -41,7 +41,7 @@
         },
         {
           "check": "tool_called",
-          "tool": "mcp__plugin_Dev10x_cli__pin_supervisor_review",
+          "tool": "mcp__plugin_dev10x_cli__pin_supervisor_review",
           "assertion": "review_policy_persisted"
         },
         {
@@ -73,7 +73,7 @@
       "assertions": [
         {
           "check": "tool_called",
-          "tool": "mcp__plugin_Dev10x_cli__supervisor_review_status",
+          "tool": "mcp__plugin_dev10x_cli__supervisor_review_status",
           "assertion": "review_policy_status_still_checked"
         },
         {

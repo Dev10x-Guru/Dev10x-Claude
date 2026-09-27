@@ -1,6 +1,6 @@
 """Non-interactive plugin-doctor sweep (GH-1321).
 
-``Dev10x:plugin-doctor`` is Claude-orchestrated only, so catalog health
+``dev10x:plugin-doctor`` is Claude-orchestrated only, so catalog health
 is assertable exactly when a human is present to assert it. That is how
 GH-1100's redundant-rule drift survived for months: the only detector
 was somebody noticing a prompt.

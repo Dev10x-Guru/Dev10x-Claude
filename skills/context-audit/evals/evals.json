@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:context-audit",
+  "skill_name": "dev10x:context-audit",
   "eval_dimensions": [
     {
       "name": "budget_reporting",

@@ -17,7 +17,7 @@ autonomy/gating model is too coarse, and its levers are entangled.
   was silently adopted by a new invocation and auto-merged PR #740 with
   no human review. There is no named setting between "full autonomy
   including merge" and "every gate fires".
-- **GH-743** — `Dev10x:afk` hard-codes `active_modes: [solo-maintainer]`
+- **GH-743** — `dev10x:afk` hard-codes `active_modes: [solo-maintainer]`
   as its walk-away invariant, conflating "run autonomously" with "merge
   autonomously"; it appends modes instead of reconciling them; and
   friction settings are too coarse to express "trust the plan, keep
@@ -66,7 +66,7 @@ Skills never read `friction_level`, `active_modes`, or `walk_away`.
 At each decision gate the skill calls one MCP tool:
 
 ```
-mcp__plugin_Dev10x_cli__resolve_gate(
+mcp__plugin_dev10x_cli__resolve_gate(
     gate="thread_resolution",
     context={"author_type": "bot", "destructive": false,
              "overlap_signals": 2, "confidence": 85,
@@ -330,7 +330,7 @@ zero-VALID batch). MCP tool `resolve_gate` on the `cli` server via
 Phase 2: migrate gate-heavy skills — work-on (plan/batch/strategy/
 completion), gh-pr-respond (G1–G7), gh-pr-merge, git-commit,
 gh-pr-monitor — replacing session.yaml reads with `resolve_gate` calls.
-Rewrite `Dev10x:afk` as preset composition.
+Rewrite `dev10x:afk` as preset composition.
 
 Phase 3: long-tail skills; update `references/friction-levels.md`,
 `references/execution-modes.md`, `references/walk-away.md`,

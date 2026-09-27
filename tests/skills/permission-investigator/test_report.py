@@ -142,7 +142,7 @@ class TestComputeDelta:
 
         delta = compute_delta(
             matrix=matrix,
-            base_permissions=["mcp__plugin_Dev10x_cli__detect_tracker"],
+            base_permissions=["mcp__plugin_dev10x_cli__detect_tracker"],
         )
 
         assert delta.ineffective_rules == []

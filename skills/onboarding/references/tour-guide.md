@@ -41,19 +41,19 @@ test -f Cargo.toml         # Rust project
 Dev10x organizes 75+ skills into families:
 
 Pipeline — End-to-end ticket-to-merge workflow
-  /Dev10x:work-on <ticket-url>  <- Start here for any task
+  /dev10x:work-on <ticket-url>  <- Start here for any task
 
 Git — Atomic commits with gitmoji and JTBD titles
-  /Dev10x:git-commit
+  /dev10x:git-commit
 
 PR — Full PR lifecycle with CI monitoring
-  /Dev10x:gh-pr-create -> /Dev10x:gh-pr-monitor
+  /dev10x:gh-pr-create -> /dev10x:gh-pr-monitor
 
 Session — Track work, defer items, resume later
-  /Dev10x:session-wrap-up -> /Dev10x:park-discover
+  /dev10x:session-wrap-up -> /dev10x:park-discover
 
 To see all skills: check ~/.claude/SKILLS.md
-To regenerate: /Dev10x:skill-index
+To regenerate: /dev10x:skill-index
 ```
 
 ### 2.2 Git Workflow Setup
@@ -74,7 +74,7 @@ Options:
 - Set up aliases now (Recommended) — Run git-alias-setup
 - Skip — I'll set them up later
 
-If user chooses setup: `Skill(skill="Dev10x:git-alias-setup")`
+If user chooses setup: `Skill(skill="dev10x:git-alias-setup")`
 
 ### 2.2b Permission Setup
 
@@ -131,13 +131,13 @@ keep this list in sync when the catalog's mutating groups change. -->
 Options:
 - Set up permissions now (Recommended) — approve the mutating surface
   above and run the fast bootstrap
-- Skip — I'll run `/Dev10x:upgrade-cleanup` later
+- Skip — I'll run `/dev10x:upgrade-cleanup` later
 
 **Tracker choice — ask BEFORE the bootstrap runs (GH-768).**
 `ensure-base` seeds only the chosen tracker's MCP rules, so this
 answer has to exist before the bootstrap pass, not after. Skip the
 gate entirely when
-`mcp__plugin_Dev10x_cli__tracker_status` returns `pinned: true` —
+`mcp__plugin_dev10x_cli__tracker_status` returns `pinned: true` —
 the choice is a settled workspace fact, and re-asking it on every
 bootstrap is the friction this gate exists to remove.
 
@@ -154,7 +154,7 @@ project use?" Options:
   the unconditional `github-cli` group.
 
 Persist the answer with
-`mcp__plugin_Dev10x_cli__pin_tracker(tracker="<choice>")`. It keys
+`mcp__plugin_dev10x_cli__pin_tracker(tracker="<choice>")`. It keys
 off the repo stem, so one answer covers the repo and every worktree
 of it. GitLab and ClickUp are not offered — ClickUp has no native
 skill or MCP path, and the `glab` surface is not curated yet; a user
@@ -162,7 +162,7 @@ on either should pick the tracker whose rules they actually want and
 file an issue for theirs.
 
 If user chooses setup:
-`Skill(skill="Dev10x:plugin-maintenance", args="bootstrap")`
+`Skill(skill="dev10x:plugin-maintenance", args="bootstrap")`
 
 The bootstrap pass runs only the steps a new user needs:
 migrate any leftover legacy config files, register the
@@ -171,12 +171,12 @@ Write/Edit to `/tmp/Dev10x/...` prompts despite allow-rules),
 ensure base permissions, and confirm script coverage. It skips
 the heavier post-upgrade steps (path version bumps,
 generalization, full permission audit, project-settings dedup)
-— those remain available via `/Dev10x:upgrade-cleanup` whenever
+— those remain available via `/dev10x:upgrade-cleanup` whenever
 the user wants the comprehensive sweep.
 
 ### 2.2b-2 Review Policy (ADR-0022)
 
-**Skip if:** `mcp__plugin_Dev10x_cli__supervisor_review_status()`
+**Skip if:** `mcp__plugin_dev10x_cli__supervisor_review_status()`
 returns `pinned: true` — the choice is a settled workspace fact, and
 re-asking it on every onboarding run is exactly the friction this gate
 exists to remove.
@@ -201,7 +201,7 @@ before it moves on?" Options:
 - **No — the agent ships it** — `supervisor_review=none`.
 
 Persist the answer with
-`mcp__plugin_Dev10x_cli__pin_supervisor_review(value="required"|"none")`.
+`mcp__plugin_dev10x_cli__pin_supervisor_review(value="required"|"none")`.
 It keys off the repo stem, so one answer covers the repo and every
 worktree of it — same repo-scoping as `pin_tracker` above. There is no
 `strict` / `guided` / `adaptive` preset to pick (ADR-0022 D-1);
@@ -254,13 +254,13 @@ which assistants Dev10x should target.
 ```
 The Dev10x PR pipeline automates the full shipping flow:
 
-1. /Dev10x:git-commit    — Gitmoji + JTBD commit message
-2. /Dev10x:gh-pr-create  — Draft PR with Job Story
-3. /Dev10x:gh-pr-monitor — Background CI + review monitoring
-4. /Dev10x:git-groom     — Clean commit history
-5. /Dev10x:gh-pr-respond — Address review comments
+1. /dev10x:git-commit    — Gitmoji + JTBD commit message
+2. /dev10x:gh-pr-create  — Draft PR with Job Story
+3. /dev10x:gh-pr-monitor — Background CI + review monitoring
+4. /dev10x:git-groom     — Clean commit history
+5. /dev10x:gh-pr-respond — Address review comments
 
-Or use /Dev10x:work-on <ticket> for the full pipeline.
+Or use /dev10x:work-on <ticket> for the full pipeline.
 ```
 
 ### 2.4 Session Management
@@ -268,9 +268,9 @@ Or use /Dev10x:work-on <ticket> for the full pipeline.
 ```
 Dev10x tracks your work across sessions:
 
-- /Dev10x:session-wrap-up — Save open work before closing
-- /Dev10x:park            — Defer a task to the right place
-- /Dev10x:park-discover   — Find deferred items at start
+- /dev10x:session-wrap-up — Save open work before closing
+- /dev10x:park            — Defer a task to the right place
+- /dev10x:park-discover   — Find deferred items at start
 ```
 
 ### 2.5 Customization
@@ -281,7 +281,7 @@ Dev10x tracks your work across sessions:
 Customize Dev10x behavior per project:
 
 - Playbooks: Override workflow steps
-  /Dev10x:playbook edit work-on feature
+  /dev10x:playbook edit work-on feature
 
 - Memory: Teach Dev10x about your project
 
@@ -303,9 +303,9 @@ Only runs if user chose "Explore more" or "Set up customization".
 ### If "Explore more":
 
 Show additional families:
-- Testing: `/test`, `/test:fix-flaky`, `/Dev10x:qa-scope`
-- Architecture: `/Dev10x:adr-evaluate`, `/Dev10x:scope`
-- Operations: `/Dev10x:investigate`, `/triage-sentry`
+- Testing: `/test`, `/test:fix-flaky`, `/dev10x:qa-scope`
+- Architecture: `/dev10x:adr-evaluate`, `/dev10x:scope`
+- Operations: `/dev10x:investigate`, `/triage-sentry`
 - Reports: `/work:daily`, `/work:weekly`
 
 ### If "Set up customization":

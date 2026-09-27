@@ -18,12 +18,12 @@ policy resolver). Records the supervisor decision on
 
 `review-deferred` was introduced as an **ephemeral** structural mode:
 the supervisor defers open PR review threads for one session, and
-`Dev10x:verify-acc-dod` skips the unresolved-threads and review-request
+`dev10x:verify-acc-dod` skips the unresolved-threads and review-request
 checks so the definition-of-done stays honest rather than red-but-
 ignored.
 
-Its writers — `Dev10x:gh-pr-request-review`'s Stand-by / Defer path and
-`Dev10x:work-on`'s Scope-deferred-review-threads step — appended the
+Its writers — `dev10x:gh-pr-request-review`'s Stand-by / Defer path and
+`dev10x:work-on`'s Scope-deferred-review-threads step — appended the
 mode to `active_modes` in `.claude/Dev10x/session.yaml`. ADR-0018
 retired that file. `SessionYamlDocument._durable()` now resolves:
 
@@ -33,8 +33,8 @@ retired that file. `SessionYamlDocument._durable()` now resolves:
 3. else `friction.yaml` `defaults`.
 
 So the written flag is reachable only at step 2, i.e. only in a repo
-that has **never** been configured. Once `Dev10x:friction-setup` or
-`Dev10x:afk` pins a `projects[]` entry — now the documented happy path
+that has **never** been configured. Once `dev10x:friction-setup` or
+`dev10x:afk` pins a `projects[]` entry — now the documented happy path
 — the deferral is silently dropped and `verify-acc-dod` re-runs the very
 checks the supervisor just deferred. The write also cost a self-settings
 consent prompt (an `Edit` under the repo's `.claude/`) for no effect.
@@ -73,9 +73,9 @@ projects:
 
 Three behaviours follow from the one answer:
 
-1. **Review request** — `Dev10x:gh-pr-request-review` does not assign
+1. **Review request** — `dev10x:gh-pr-request-review` does not assign
    reviewers or request review when `human_review: false`.
-2. **Definition of done** — `Dev10x:verify-acc-dod` skips the **"No
+2. **Definition of done** — `dev10x:verify-acc-dod` skips the **"No
    unresolved review threads"** and **"Review requested" /
    "Re-review requested"** checks when `human_review: false`, reporting
    them as `skipped (human_review: false)`.
@@ -142,7 +142,7 @@ never overrides a gate that withholds autonomy:
   overlay before gate resolution. `human_review` is not an overlay and
   does not re-admit one.
 - `merge_config.solo_maintainer` continues to govern the
-  `Dev10x:gh-pr-merge` approval override independently.
+  `dev10x:gh-pr-merge` approval override independently.
 
 So merge autonomy requires `human_review: false` **and** the existing
 gates to permit it. Both must agree; either can veto.

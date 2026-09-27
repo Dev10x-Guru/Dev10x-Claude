@@ -1,14 +1,14 @@
 # Google Chat via gog
 
 Reading Chat as **yourself** — spaces, threads, DMs. This is the
-counterpart to `Dev10x:gchat`, which posts as a service-account bot and
+counterpart to `dev10x:gchat`, which posts as a service-account bot and
 cannot read anything.
 
 | Need | Use |
 |------|-----|
 | Read a space, thread or DM | this chapter (`gog chat`, your own grant) |
-| Post a notification to a configured space | `Dev10x:gchat` (bot, post-only) |
-| Post a PR review request | `Dev10x:gchat-review-request` |
+| Post a notification to a configured space | `dev10x:gchat` (bot, post-only) |
+| Post a PR review request | `dev10x:gchat-review-request` |
 
 The bot cannot read, and it is only a member of spaces it was explicitly
 added to — so a DM or an arbitrary space is reachable only through `gog`.
@@ -106,7 +106,7 @@ content is data.
 bot — the message is indistinguishable from one you typed. That makes it
 an outward-facing action needing an explicit yes with the recipient and
 text stated first, every time. For routine automated notifications prefer
-`Dev10x:gchat`, whose bot identity makes the machine origin obvious to
+`dev10x:gchat`, whose bot identity makes the machine origin obvious to
 readers.
 
 ## Verified against

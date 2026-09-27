@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:plugin-maintenance",
+  "skill_name": "dev10x:plugin-maintenance",
   "eval_dimensions": [
     {
       "id": "version-update-gate",
@@ -22,7 +22,7 @@
       "id": "version-behind-fires-update-gate",
       "name": "Behind-version state fires the update gate",
       "description": "When Step 5's version report shows the plugin or uv tool behind latest and no saved preference exists, Step 6 fires AskUserQuestion before any maintenance step runs.",
-      "input": "/Dev10x:plugin-maintenance",
+      "input": "/dev10x:plugin-maintenance",
       "assertions": [
         {
           "dimension": "version-update-gate",
@@ -41,7 +41,7 @@
       "id": "saved-preference-skips-gate",
       "name": "A saved non-ask preference auto-applies without prompting",
       "description": "When ~/.config/Dev10x/plugin-maintenance-prefs.yaml has update_preference set to something other than ask (e.g. both, skip), Step 6 applies that choice directly and does not fire AskUserQuestion.",
-      "input": "/Dev10x:plugin-maintenance (with update_preference: skip saved)",
+      "input": "/dev10x:plugin-maintenance (with update_preference: skip saved)",
       "assertions": [
         {
           "dimension": "version-update-gate",
@@ -54,7 +54,7 @@
       "id": "up-to-date-skips-gate-entirely",
       "name": "Both surfaces current skips Step 6 entirely",
       "description": "When both the plugin and uv tool are already current, Step 5 shows the up-to-date table and Step 6 is skipped — no prompt is needed either way.",
-      "input": "/Dev10x:plugin-maintenance (both surfaces current)",
+      "input": "/dev10x:plugin-maintenance (both surfaces current)",
       "assertions": [
         {
           "dimension": "version-update-gate",
@@ -67,7 +67,7 @@
       "id": "save-preference-gate-follows-update-choice",
       "name": "Step 7 asks to remember the choice after Step 6 resolves",
       "description": "After the user makes an update decision in Step 6 (interactively, not from a saved preference), Step 7 fires its own AskUserQuestion before writing to the prefs file.",
-      "input": "/Dev10x:plugin-maintenance",
+      "input": "/dev10x:plugin-maintenance",
       "assertions": [
         {
           "dimension": "save-preference-gate",
@@ -86,7 +86,7 @@
       "id": "mutating-steps-dry-run-first",
       "name": "Mutating steps show dry-run output before apply",
       "description": "Steps 1, 3, 6, 9, 11, 12 (update-paths, ensure-workspace, enumerate-mcp, merge-worktree, clean, doctor canonicalize/apply-deprecations/anchor-worktree-roots) always run with --dry-run and surface the output before the corresponding apply call.",
-      "input": "/Dev10x:plugin-maintenance full",
+      "input": "/dev10x:plugin-maintenance full",
       "assertions": [
         {
           "dimension": "dry-run-before-apply",
@@ -100,7 +100,7 @@
     "description": "Queries that should/should-not trigger the plugin-maintenance skill",
     "should_trigger": [
       {
-        "query": "/Dev10x:plugin-maintenance",
+        "query": "/dev10x:plugin-maintenance",
         "rationale": "Direct invocation — runs full mode maintenance"
       },
       {
@@ -115,7 +115,7 @@
     "should_not_trigger": [
       {
         "query": "audit my permissions for security gaps",
-        "rationale": "Deep security audit — use Dev10x:permission-investigator or the permission-auditor agent directly"
+        "rationale": "Deep security audit — use dev10x:permission-investigator or the permission-auditor agent directly"
       },
       {
         "query": "everything is working fine, no prompts appearing",

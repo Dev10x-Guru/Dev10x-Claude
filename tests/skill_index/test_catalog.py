@@ -24,12 +24,12 @@ def _make_skill(root: Path, dirname: str, text: str) -> None:
 
 class TestFromDirs:
     def test_scans_and_sorts_entries(self, tmp_path: Path) -> None:
-        _make_skill(tmp_path, "zebra", _skill_md(name="Dev10x:zebra"))
-        _make_skill(tmp_path, "alpha", _skill_md(name="Dev10x:alpha"))
+        _make_skill(tmp_path, "zebra", _skill_md(name="dev10x:zebra"))
+        _make_skill(tmp_path, "alpha", _skill_md(name="dev10x:alpha"))
 
         catalog = SkillCatalog.from_dirs(skill_dirs=[tmp_path])
 
-        assert [entry.key for entry in catalog.list()] == ["Dev10x:alpha", "Dev10x:zebra"]
+        assert [entry.key for entry in catalog.list()] == ["dev10x:alpha", "dev10x:zebra"]
 
     def test_empty_when_no_skills(self, tmp_path: Path) -> None:
         assert SkillCatalog.from_dirs(skill_dirs=[tmp_path]).list() == []
@@ -37,41 +37,41 @@ class TestFromDirs:
 
 class TestList:
     def test_returns_a_copy_not_the_internal_tuple(self) -> None:
-        entry = SkillEntry(key="Dev10x:x", name="Dev10x:x")
+        entry = SkillEntry(key="dev10x:x", name="dev10x:x")
         catalog = SkillCatalog(entries=(entry,))
 
         listed = catalog.list()
-        listed.append(SkillEntry(key="Dev10x:y", name="Dev10x:y"))
+        listed.append(SkillEntry(key="dev10x:y", name="dev10x:y"))
 
         assert catalog.list() == [entry]
 
 
 class TestLookup:
     def test_finds_by_key(self) -> None:
-        entry = SkillEntry(key="Dev10x:public", name="internal-name")
+        entry = SkillEntry(key="dev10x:public", name="internal-name")
         catalog = SkillCatalog(entries=(entry,))
 
-        assert catalog.lookup(name="Dev10x:public") == entry
+        assert catalog.lookup(name="dev10x:public") == entry
 
     def test_falls_back_to_name_when_no_key_match(self) -> None:
-        entry = SkillEntry(key="Dev10x:public", name="internal-name")
+        entry = SkillEntry(key="dev10x:public", name="internal-name")
         catalog = SkillCatalog(entries=(entry,))
 
         assert catalog.lookup(name="internal-name") == entry
 
     def test_key_match_wins_over_name_match(self) -> None:
         by_key = SkillEntry(key="shared", name="other")
-        by_name = SkillEntry(key="Dev10x:other", name="shared")
+        by_name = SkillEntry(key="dev10x:other", name="shared")
         catalog = SkillCatalog(entries=(by_key, by_name))
 
         assert catalog.lookup(name="shared") == by_key
 
     def test_unknown_name_returns_none(self) -> None:
-        catalog = SkillCatalog(entries=(SkillEntry(key="Dev10x:x", name="Dev10x:x"),))
+        catalog = SkillCatalog(entries=(SkillEntry(key="dev10x:x", name="dev10x:x"),))
 
-        assert catalog.lookup(name="Dev10x:missing") is None
+        assert catalog.lookup(name="dev10x:missing") is None
 
     def test_blank_name_returns_none(self) -> None:
-        catalog = SkillCatalog(entries=(SkillEntry(key="Dev10x:x", name="Dev10x:x"),))
+        catalog = SkillCatalog(entries=(SkillEntry(key="dev10x:x", name="dev10x:x"),))
 
         assert catalog.lookup(name="   ") is None

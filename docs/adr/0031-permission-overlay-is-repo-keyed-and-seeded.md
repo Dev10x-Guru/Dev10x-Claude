@@ -175,7 +175,7 @@ This ADR adopts them as the unit of decision:
    against undercutting the `pre-commit` / `run_tests` routing.
 4. Should `global-candidate` proposals land as a GitHub issue against
    the plugin, or as a local report the supervisor reviews in
-   `Dev10x:upgrade-cleanup`?
+   `dev10x:upgrade-cleanup`?
 5. GH-1471's ledger is empty. Should implementation wait for field
    evidence, or proceed on the design above and let evidence adjust
    it?

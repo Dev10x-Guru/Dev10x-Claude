@@ -87,7 +87,7 @@ cmd_narrate() {
         exit 1
     fi
     if [[ ! -f "$vo" ]]; then
-        echo "ERROR: voice-over track $vo not found — run Dev10x:tts first" >&2
+        echo "ERROR: voice-over track $vo not found — run dev10x:tts first" >&2
         exit 1
     fi
 

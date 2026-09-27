@@ -1,6 +1,6 @@
 """Test runner module — invokes ``pytest`` via ``uv run`` from MCP.
 
-Provides a structured entry point for the ``Dev10x:py-test`` skill so
+Provides a structured entry point for the ``dev10x:py-test`` skill so
 the test gate works inside worktree sessions where ``pytest`` is not
 on PATH and the Bash PreToolUse hook blocks every direct invocation
 form (``pytest``, ``python -m pytest``, ``uv run pytest``). Because

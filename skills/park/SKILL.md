@@ -1,15 +1,15 @@
 ---
-name: Dev10x:park
+name: dev10x:park
 description: >
   Smart deferral router — saves tasks for later to the right place
   (PR, ticket, code, Slack, or the project task index) so they
   are actually rediscovered instead of being forgotten.
   TRIGGER when: a task should be saved for later instead of done now.
   DO NOT TRIGGER when: task should be done now, or specifically
-  deferring to code (use Dev10x:park-todo) or Slack (use
-  Dev10x:park-remind).
+  deferring to code (use dev10x:park-todo) or Slack (use
+  dev10x:park-remind).
 user-invocable: true
-invocation-name: Dev10x:park
+invocation-name: dev10x:park
 allowed-tools:
   - Read
   - Write
@@ -17,19 +17,19 @@ allowed-tools:
   - Bash(git branch:*)
   - Bash(git rev-parse:*)
   - Bash(git log:*)
-  - mcp__plugin_Dev10x_cli__pr_comments
-  - mcp__plugin_Dev10x_cli__pr_detect
-  - mcp__plugin_Dev10x_cli__pr_issue_comment
-  - mcp__plugin_Dev10x_cli__issue_comment_edit
-  - mcp__plugin_Dev10x_cli__mktmp
-  - mcp__plugin_Dev10x_cli__task_index_append
-  - mcp__plugin_Dev10x_cli__task_index_get
+  - mcp__plugin_dev10x_cli__pr_comments
+  - mcp__plugin_dev10x_cli__pr_detect
+  - mcp__plugin_dev10x_cli__pr_issue_comment
+  - mcp__plugin_dev10x_cli__issue_comment_edit
+  - mcp__plugin_dev10x_cli__mktmp
+  - mcp__plugin_dev10x_cli__task_index_append
+  - mcp__plugin_dev10x_cli__task_index_get
   - AskUserQuestion
 ---
 
-# Dev10x:park — Smart Deferral Router
+# dev10x:park — Smart Deferral Router
 
-**Announce:** "Using Dev10x:park to save this item for later."
+**Announce:** "Using dev10x:park to save this item for later."
 
 ## Orchestration
 
@@ -45,15 +45,15 @@ Mark completed when done: `TaskUpdate(taskId, status="completed")`
 ## Overview
 
 Route a single deferred item to the right discovery context. Can be
-invoked standalone or called by `Dev10x:session-wrap-up` for each open
+invoked standalone or called by `dev10x:session-wrap-up` for each open
 loop.
 
 Every routed deferral that has a local representation also lands as
 an entry in the per-repo task index's `tasks:` list with a `source:`
 field that names the target (GH-85). This guarantees
-`Dev10x:park-discover` can surface the item without scanning every
+`dev10x:park-discover` can surface the item without scanning every
 write path. The index is written through
-`mcp__plugin_Dev10x_cli__task_index_append` — never with Write/Edit
+`mcp__plugin_dev10x_cli__task_index_append` — never with Write/Edit
 (ADR-0018 D5; see § Task Index Append).
 
 ## Workflow
@@ -61,8 +61,8 @@ write path. The index is written through
 ### 1. Receive item
 
 Accept the item to defer. This is either:
-- Passed from `Dev10x:session-wrap-up` (structured)
-- Provided by user directly: `/Dev10x:park "item description"`
+- Passed from `dev10x:session-wrap-up` (structured)
+- Provided by user directly: `/dev10x:park "item description"`
 
 ### 2. Detect context
 
@@ -84,7 +84,7 @@ git rev-parse --show-toplevel
 
 **Open PR:**
 ```
-mcp__plugin_Dev10x_cli__pr_detect(arg="")
+mcp__plugin_dev10x_cli__pr_detect(arg="")
 ```
 
 The MCP wrapper auto-detects the PR for the current branch. Treat
@@ -96,7 +96,7 @@ Build target list based on detected context. Always available:
 
 | # | Target | When it surfaces |
 |---|--------|-----------------|
-| 1 | Project task index | Next `Dev10x:park-discover` run |
+| 1 | Project task index | Next `dev10x:park-discover` run |
 | 2 | Slack DM to self | When clearing Slack messages |
 | 3 | Create issue | When triaging backlog or planning sprint |
 
@@ -121,21 +121,21 @@ For each selected target:
 | Target | Action |
 |--------|--------|
 | Project task index | Append entry with `source: park` (see § Task Index Append) |
-| Slack DM | Invoke `Dev10x:park-remind` (which also appends `source: slack-reminder`) |
+| Slack DM | Invoke `dev10x:park-remind` (which also appends `source: slack-reminder`) |
 | Create issue | Ask user which tracker (Linear, GitHub Issues, Jira, etc.) then create the issue with the deferred item as description; also append a `source: park` entry pointing at the new issue URL |
 | Issue tracker comment | Post comment via the appropriate tracker MCP or CLI tool; also append a `source: park` entry pointing at the comment URL |
 | PR comment | Post as PR comment (simple format); also append a `source: park` entry with the PR URL |
 | PR session bookmark | Post as PR comment with rich metadata (see PR Bookmark Format below); also append a `source: pr-bookmark` entry with the PR URL + comment ID |
-| Inline TODO/FIXME | Invoke `Dev10x:park-todo` (inline mode) — ask user for file path if not provided |
-| Keep in session | Invoke `Dev10x:session-tasks` to create a TaskCreate entry |
+| Inline TODO/FIXME | Invoke `dev10x:park-todo` (inline mode) — ask user for file path if not provided |
+| Keep in session | Invoke `dev10x:session-tasks` to create a TaskCreate entry |
 
 ### 5. Task Index Append
 
 The schema for a `park`-sourced task entry mirrors the one in
-`Dev10x:park-todo` § Task Index Append:
+`dev10x:park-todo` § Task Index Append:
 
 ```
-mcp__plugin_Dev10x_cli__task_index_append(entry={
+mcp__plugin_dev10x_cli__task_index_append(entry={
     "subject": "<one-line description>",
     "status": "pending",
     "source": "<park | pr-bookmark>",
@@ -196,7 +196,7 @@ Gather this data before composing:
 1. **Session ID** — extract from the current JSONL filename
 2. **Review threads** — list root comments and their status via:
    ```
-   mcp__plugin_Dev10x_cli__pr_comments(action="list", pr_number={number})
+   mcp__plugin_dev10x_cli__pr_comments(action="list", pr_number={number})
    ```
 3. **Unaddressed comments** — filter the list result for unresolved
    root comments (where `in_reply_to_id` is null)
@@ -240,7 +240,7 @@ the body needs an intermediate file), then post it via the MCP
 wrapper:
 
 ```
-mcp__plugin_Dev10x_cli__pr_issue_comment(pr_number=<number>, body=<composed-body>)
+mcp__plugin_dev10x_cli__pr_issue_comment(pr_number=<number>, body=<composed-body>)
 ```
 
 The wrapper returns the new comment's `id` and `html_url`. Store
@@ -251,10 +251,10 @@ To **update** an existing bookmark comment instead of creating a
 new one, edit by `comment_id`:
 
 ```
-mcp__plugin_Dev10x_cli__issue_comment_edit(comment_id=<id>, body=<new-body>)
+mcp__plugin_dev10x_cli__issue_comment_edit(comment_id=<id>, body=<new-body>)
 ```
 
 ## Used By
 
-- `Dev10x:session-wrap-up` — Phase 3 calls this for each deferred item
-- `Dev10x:gh-pr-bookmark` — thin wrapper that pre-selects PR session bookmark target
+- `dev10x:session-wrap-up` — Phase 3 calls this for each deferred item
+- `dev10x:gh-pr-bookmark` — thin wrapper that pre-selects PR session bookmark target

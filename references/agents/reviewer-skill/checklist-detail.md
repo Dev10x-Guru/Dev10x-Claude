@@ -19,8 +19,8 @@ Optional: `allowed-tools:`, `user-invocable:`.
 ## 2. Naming convention
 
 Directory uses the plain name (no `dx-` prefix). `name:` MUST use the
-`Dev10x:<feature>` format. `invocation-name:` MUST match `name:`
-exactly — no shortened aliases, cross-family variants, or non-`Dev10x:`
+`dev10x:<feature>` format. `invocation-name:` MUST match `name:`
+exactly — no shortened aliases, cross-family variants, or non-`dev10x:`
 prefixes. Both fields require the prefix; see
 `.claude/rules/skill-naming.md` § `invocation-name` field.
 
@@ -77,7 +77,7 @@ Missing either is a WARNING.
 ### 8b-ii. `allowed-tools` is not a grant (GH-1153)
 
 Declaring an MCP tool here only *scopes* the skill; it pre-approves
-nothing. When a PR adds a `mcp__plugin_Dev10x_*` entry, verify the tool
+nothing. When a PR adds a `mcp__plugin_dev10x_*` entry, verify the tool
 is also in `base_permissions`
 (`skills/upgrade-cleanup/projects.yaml`) — otherwise the skill prompts
 on every invocation. `triage_roster` shipped declared-but-un-catalogued
@@ -129,7 +129,7 @@ YAML code blocks containing a `name:` field must follow
 ### 9a. Skill tool invocation syntax
 
 `Skill()` calls must use named parameters:
-`Skill(skill="Dev10x:target-name", args="...")`. See
+`Skill(skill="dev10x:target-name", args="...")`. See
 `references/skill-invocation.md`.
 
 ## 10. Reference doc consistency
@@ -187,10 +187,10 @@ Run `bin/check-skill-cli-friction.py <changed-skill-files>` and flag any
 output as CRITICAL. Common findings:
 
 - Raw `gh pr|issue|api|repo` in bash fences → must use
-  `mcp__plugin_Dev10x_cli__*` tools
+  `mcp__plugin_dev10x_cli__*` tools
 - Raw `git commit|push|rebase|checkout -b` → must delegate to the
-  matching `Skill(Dev10x:git-*)` / `Skill(Dev10x:ticket-branch)` wrapper
-- Raw `pytest` invocation → must use `Skill(Dev10x:py-test)`
+  matching `Skill(dev10x:git-*)` / `Skill(dev10x:ticket-branch)` wrapper
+- Raw `pytest` invocation → must use `Skill(dev10x:py-test)`
 - `--no-verify` anywhere → CLAUDE.md global rule, no exemption
 
 Skills that *implement* a wrapper are exempt automatically (see

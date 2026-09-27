@@ -64,8 +64,8 @@ Before raising any of these, **verify actual code**:
     verify each `<name>` directory actually exists in `skills/`. Use Glob:
     `skills/<name>/SKILL.md`. Non-existent directories are user-level skills
     — the `~/.claude/` prefix must be preserved.
-14. **`invocation-name` with non-`Dev10x:` prefix**: `invocation-name: ticket:foo`
-    alongside `name: Dev10x:ticket-foo` is valid. The `Dev10x:` prefix requirement
+14. **`invocation-name` with non-`dev10x:` prefix**: `invocation-name: ticket:foo`
+    alongside `name: dev10x:ticket-foo` is valid. The `dev10x:` prefix requirement
     applies to `name:` only — do NOT flag `invocation-name:` as a naming
     violation when `name:` is already correct.
 15. **Write-path namespace coverage** — when a `Write(/tmp/Dev10x/<ns>/**)`
@@ -124,7 +124,7 @@ Before raising any of these, **verify actual code**:
 24. **MCP tool enumeration consistency** — when a PR adds MCP tool support via
     new `mcp__plugin_*` declarations in `allowed-tools:`: (a) verify all MCP
     tools are declared in `.claude-plugin/plugin.json`, (b) verify the tool
-    naming follows `mcp__plugin_Dev10x_<server>__<function>`, (c) when a tool
+    naming follows `mcp__plugin_dev10x_<server>__<function>`, (c) when a tool
     is used in multiple skills, verify each skill's `allowed-tools` includes
     the full tool name (not a wildcard pattern unless intentional). Spot-check
     one skill per MCP server. See `.claude/rules/mcp-tools.md` for naming.

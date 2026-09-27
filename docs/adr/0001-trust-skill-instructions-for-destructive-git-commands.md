@@ -9,7 +9,7 @@ Accepted
 ## Context
 
 A permission audit of Claude Code `settings.local.json` revealed that
-the `Dev10x:git-groom` and `Dev10x:git-commit-split` skills use
+the `dev10x:git-groom` and `dev10x:git-commit-split` skills use
 destructive git commands (`git rebase -i`, `git reset --soft/--hard`,
 `git restore`) that could be wrapped in scripts and blocked at the
 hook/deny-rule level for all other contexts.
@@ -60,7 +60,7 @@ broad allow rules. Rely on the skill's documented workflow context
    sync. This coupling is fragile.
 
 4. **The groom skill is user-initiated.** It's invoked deliberately
-   via `/Dev10x:git-groom`, not autonomously by an agent. The user
+   via `/dev10x:git-groom`, not autonomously by an agent. The user
    is already in a supervised context when these commands run.
 
 5. **The skill already has safety mechanisms:**

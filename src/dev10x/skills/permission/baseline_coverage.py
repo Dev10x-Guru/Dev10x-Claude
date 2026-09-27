@@ -108,7 +108,7 @@ RULES_NOT_SEEDED: dict[str, str] = {}
 #: The triage is a security decision, not a mechanical one, which is why
 #: it is not done here. The set contains rules that grant arbitrary code
 #: execution (``npx:*``, ``pip install:*``, ``docker exec:*``,
-#: ``python3:*``), raw database access the ``Dev10x:db`` skill exists to
+#: ``python3:*``), raw database access the ``dev10x:db`` skill exists to
 #: route around (``psql:*``), tracker writes, and raw ``gh`` spellings
 #: the skill-redirect hook deliberately steers to MCP wrappers
 #: (``gh pr merge``, ``gh issue close``). Seeding those wholesale would

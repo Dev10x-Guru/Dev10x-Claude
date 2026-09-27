@@ -1,5 +1,5 @@
 ---
-name: Dev10x:gh-pr-merge
+name: dev10x:gh-pr-merge
 description: >
   Validate all pre-merge conditions and execute PR merge.
   Checks unresolved threads, CI status, draft state, mergeability,
@@ -9,22 +9,22 @@ description: >
   DO NOT TRIGGER when: PR is still draft, CI is failing, or review
   comments are unaddressed.
 user-invocable: true
-invocation-name: Dev10x:gh-pr-merge
+invocation-name: dev10x:gh-pr-merge
 allowed-tools:
   - AskUserQuestion
-  - Skill(Dev10x:gh-pr-monitor)
-  - Skill(Dev10x:gh-pr-respond)
+  - Skill(dev10x:gh-pr-monitor)
+  - Skill(dev10x:gh-pr-respond)
   - Bash(gh pr checks:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-merge/scripts/:*)
-  - mcp__plugin_Dev10x_cli__pr_detect
-  - mcp__plugin_Dev10x_cli__pr_get
-  - mcp__plugin_Dev10x_cli__unresolved_threads
-  - mcp__plugin_Dev10x_cli__pr_comments
-  - mcp__plugin_Dev10x_cli__check_top_level_comments
-  - mcp__plugin_Dev10x_cli__merge_pr
-  - mcp__plugin_Dev10x_cli__resolve_gate
-  - mcp__plugin_Dev10x_cli__ci_check_status
-  - mcp__plugin_Dev10x_cli__mktmp
+  - mcp__plugin_dev10x_cli__pr_detect
+  - mcp__plugin_dev10x_cli__pr_get
+  - mcp__plugin_dev10x_cli__unresolved_threads
+  - mcp__plugin_dev10x_cli__pr_comments
+  - mcp__plugin_dev10x_cli__check_top_level_comments
+  - mcp__plugin_dev10x_cli__merge_pr
+  - mcp__plugin_dev10x_cli__resolve_gate
+  - mcp__plugin_dev10x_cli__ci_check_status
+  - mcp__plugin_dev10x_cli__mktmp
   - Bash(gh repo view:*)
   - Bash(git status:*)
   - Bash(git log:*)
@@ -50,7 +50,7 @@ documented there are REQUIRED.
 ## Skill Wrapper is Mandatory (GH-152)
 
 **Hard rule:** Do NOT call `gh pr merge` directly. Every PR
-merge MUST go through `Skill(Dev10x:gh-pr-merge)` so the
+merge MUST go through `Skill(dev10x:gh-pr-merge)` so the
 9-check pre-merge gate (unresolved threads, top-level
 comments, inline review comments, Fixes-linked scope
 delivery, CI buckets, draft state, mergeability, working
@@ -63,6 +63,6 @@ performed inline, every other check was skipped.
 The PreToolUse hook blocks raw `gh pr merge` (extends the
 existing blocks on `git commit`, `git push`, and `git
 checkout -b`). The skill executes Step 5 via
-`mcp__plugin_Dev10x_cli__merge_pr` (GH-232) — symmetric to
+`mcp__plugin_dev10x_cli__merge_pr` (GH-232) — symmetric to
 `create_pr` / `push_safe` — so the documented flow ships
 through a structured MCP tool, not a caller-level bypass.

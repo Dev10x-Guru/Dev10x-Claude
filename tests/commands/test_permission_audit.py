@@ -85,7 +85,7 @@ class TestPermissionResolve:
         )
 
         result = runner.invoke(
-            permission, ["resolve", "Bash(git status)", "--context", "Dev10x:git"]
+            permission, ["resolve", "Bash(git status)", "--context", "dev10x:git"]
         )
         assert result.exit_code == 0
-        assert "Context:   Dev10x:git" in result.output
+        assert "Context:   dev10x:git" in result.output

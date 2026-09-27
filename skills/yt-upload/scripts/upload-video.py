@@ -424,7 +424,7 @@ def narration_defects(narration: dict | None) -> list[str]:
     the review gate is not optional and why this list must not be read as
     clearing the footage.
 
-    Reported, never enforced — same contract as the Dev10x:tts licence
+    Reported, never enforced — same contract as the dev10x:tts licence
     warning. The caller's review gate decides; the script only refuses to
     let the caller claim it did not know.
     """

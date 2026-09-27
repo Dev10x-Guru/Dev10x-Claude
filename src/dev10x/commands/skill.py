@@ -19,7 +19,7 @@ def notify() -> None:
 
     Exposes the slack-review-request prepare/send flow and the generic
     slack-notify send call as version-stable `dev10x` subcommands so the
-    `Dev10x:slack-review-request` and `Dev10x:slack` skills do not need
+    `dev10x:slack-review-request` and `dev10x:slack` skills do not need
     to embed plugin-cache paths in their documented invocations.
     """
 

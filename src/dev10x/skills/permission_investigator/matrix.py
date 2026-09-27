@@ -55,7 +55,7 @@ class RuleShape:
         body = _WILDCARD_RENDERERS[self.wildcard](relpath=fixture_relpath)
         path = f"{prefix}/{body}" if prefix else body
         if self.tool == "MCP":
-            return "mcp__plugin_Dev10x_cli__detect_tracker"
+            return "mcp__plugin_dev10x_cli__detect_tracker"
         return f"{self.tool}({path})"
 
 

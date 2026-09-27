@@ -14,7 +14,7 @@ is retained by the resolver's preset/overlay model.
 
 `friction_level` (strict / guided / adaptive) is a single global axis
 applied to every gate (`references/friction-levels.md`). The
-`Dev10x:work-on` Phase 3 plan-approval gate and all downstream
+`dev10x:work-on` Phase 3 plan-approval gate and all downstream
 decision gates resolve under the same level, which leaves one cell of
 the (plan-gate × downstream-gate) matrix unreachable (GH-678):
 
@@ -77,7 +77,7 @@ the mode does not touch them.
 `verify-acc-dod` is unaffected: it keys off `friction_level`, which
 `auto-plan` does not change.
 
-Walk-away precedence: when `walk_away: true` (`Dev10x:afk`) and
+Walk-away precedence: when `walk_away: true` (`dev10x:afk`) and
 `auto-plan` are both set, walk-away (the stronger "I am gone" signal)
 suppresses downstream non-destructive gates and logs them to the
 `doubt_sink`; `auto-plan` still auto-approves the plan gate. Full

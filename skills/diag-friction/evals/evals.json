@@ -1,6 +1,6 @@
 {
-  "skill_name": "Dev10x:diag-friction",
-  "description": "Evaluation criteria for Dev10x:diag-friction skill (formerly Dev10x:skill-reinforcement)",
+  "skill_name": "dev10x:diag-friction",
+  "description": "Evaluation criteria for dev10x:diag-friction skill (formerly dev10x:skill-reinforcement)",
   "eval_dimensions": [
     {
       "id": "command-identification",
@@ -28,7 +28,7 @@
       "id": "direct-match-kubectl",
       "name": "Direct command-skill map match (kubectl)",
       "description": "Agent used kubectl, skill identifies k8s match",
-      "input": "Agent ran 'kubectl get pods -n staging', user invoked /Dev10x:diag-friction",
+      "input": "Agent ran 'kubectl get pods -n staging', user invoked /dev10x:diag-friction",
       "assertions": [
         {
           "dimension": "command-identification",
@@ -38,7 +38,7 @@
         {
           "dimension": "command-identification",
           "check": "behavioral",
-          "signal": "recommends_correct_skill — Output recommends Dev10x:k8s as the replacement skill"
+          "signal": "recommends_correct_skill — Output recommends dev10x:k8s as the replacement skill"
         },
         {
           "dimension": "command-identification",
@@ -51,7 +51,7 @@
       "id": "no-match-fallback",
       "name": "No command-skill map match falls back to SKILLS.md scan",
       "description": "Agent used a command with no direct skill mapping",
-      "input": "Agent ran 'curl https://api.example.com/health', user invoked /Dev10x:diag-friction",
+      "input": "Agent ran 'curl https://api.example.com/health', user invoked /dev10x:diag-friction",
       "assertions": [
         {
           "dimension": "command-identification",
@@ -69,7 +69,7 @@
       "id": "user-provides-command-arg",
       "name": "User-supplied command argument is used verbatim",
       "description": "User passes command as argument to the skill",
-      "input": "User invoked '/Dev10x:diag-friction git push'",
+      "input": "User invoked '/dev10x:diag-friction git push'",
       "assertions": [
         {
           "dimension": "command-identification",
@@ -79,7 +79,7 @@
         {
           "dimension": "command-identification",
           "check": "behavioral",
-          "signal": "recommends_git_skill — Output recommends Dev10x:git as the replacement"
+          "signal": "recommends_git_skill — Output recommends dev10x:git as the replacement"
         }
       ]
     },
@@ -87,7 +87,7 @@
       "id": "follow-up-gate-after-rejection",
       "name": "Rejected command opens the Step 6 retry gate via AskUserQuestion",
       "description": "After a rejected command, skill offers follow-up via AskUserQuestion (not plain text)",
-      "input": "Agent ran 'Monitor' for CI polling, user rejected it and invoked /Dev10x:diag-friction",
+      "input": "Agent ran 'Monitor' for CI polling, user rejected it and invoked /dev10x:diag-friction",
       "assertions": [
         {
           "dimension": "follow-up-retry-gate",
@@ -99,7 +99,7 @@
           "dimension": "follow-up-retry-gate",
           "check": "tool_parameters",
           "tool": "AskUserQuestion",
-          "signal": "offers_invoke_recommended_skill — Options include invoking the recommended skill (e.g., Dev10x:gh-pr-monitor) as the Recommended choice"
+          "signal": "offers_invoke_recommended_skill — Options include invoking the recommended skill (e.g., dev10x:gh-pr-monitor) as the Recommended choice"
         },
         {
           "dimension": "follow-up-retry-gate",
@@ -159,7 +159,7 @@
       "id": "no-follow-up-when-informational",
       "name": "Informational invocation skips the Step 6 gate",
       "description": "When invoked informationally (not after a rejection), no follow-up gate is fired",
-      "input": "User invoked '/Dev10x:diag-friction kubectl' to learn the recommended skill, no prior rejection",
+      "input": "User invoked '/dev10x:diag-friction kubectl' to learn the recommended skill, no prior rejection",
       "assertions": [
         {
           "dimension": "follow-up-retry-gate",
@@ -223,14 +223,14 @@
   "trigger_evals": {
     "should_trigger": [
       "User says 'use the skills' after rejecting a bash command",
-      "User invokes /Dev10x:diag-friction explicitly",
+      "User invokes /dev10x:diag-friction explicitly",
       "User rejects a kubectl command and wants skill guidance",
       "User says 'there's a skill for that'"
     ],
     "should_not_trigger": [
       "Agent is already using skills correctly",
-      "User is asking about how to create a new skill (use Dev10x:skill-create)",
-      "User wants to list available skills (use Dev10x:skill-index)",
+      "User is asking about how to create a new skill (use dev10x:skill-create)",
+      "User wants to list available skills (use dev10x:skill-index)",
       "The CLI command has no skill or MCP equivalent"
     ]
   }

@@ -21,11 +21,11 @@ default label set.
 ### 2. Per-skill labels: `skill:<name>`
 
 One label per unique skill that appears in the findings table
-"Skill" column. The `Dev10x:` prefix is stripped — e.g., findings
-about `Dev10x:work-on` produce `skill:work-on`.
+"Skill" column. The `dev10x:` prefix is stripped — e.g., findings
+about `dev10x:work-on` produce `skill:work-on`.
 
 Color: `#1D76DB` (blue). Description:
-`Findings about the Dev10x:<name> skill`.
+`Findings about the dev10x:<name> skill`.
 
 These labels bundle all findings about the same skill so a
 maintainer can sweep them in one fixup pass when touching the
@@ -54,7 +54,7 @@ Color: `#D73A4A` (red). Description: tied to the anti-pattern.
 
 1. Parse the findings file for the unique skill names
 2. Initialize labels = `[enhancement]`
-3. Add one `skill:<name>` per unique skill (after stripping `Dev10x:`)
+3. Add one `skill:<name>` per unique skill (after stripping `dev10x:`)
 4. Scan finding descriptions + proposed fixes against the topical
    heuristic table; add each matching topical label once
 5. De-duplicate; cap at 8 labels per issue (GitHub UI noise)

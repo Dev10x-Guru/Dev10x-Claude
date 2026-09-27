@@ -65,7 +65,7 @@ class McpToolName:
 
     @classmethod
     def is_wildcard(cls, value: str) -> bool:
-        """True for a glob-shaped rule such as ``mcp__plugin_Dev10x_*``."""
+        """True for a glob-shaped rule such as ``mcp__plugin_dev10x_*``."""
         return bool(_WILDCARD_RE.match(value))
 
     @classmethod

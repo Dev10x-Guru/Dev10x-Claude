@@ -71,7 +71,7 @@ entries cause per-invocation approval friction. See
 ## Skill Naming Convention
 
 - **Directory name**: plain feature name — `git-worktree/`.
-  **Invocation name**: `Dev10x:<feature>` — `Dev10x:git-worktree`.
+  **Invocation name**: `dev10x:<feature>` — `dev10x:git-worktree`.
   See `.claude/rules/skill-naming.md` for full convention.
 - **Decision Gates**: Skills with blocking user choice points MUST use
   `AskUserQuestion` tool calls (not plain text). See `.claude/rules/skill-gates.md`

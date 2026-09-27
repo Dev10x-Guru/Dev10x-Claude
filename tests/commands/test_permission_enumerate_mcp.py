@@ -16,7 +16,7 @@ from dev10x.skills.permission import enumerate_mcp
 @pytest.fixture
 def settings_file(tmp_path: Path) -> Path:
     path = tmp_path / "settings.local.json"
-    path.write_text(json.dumps({"permissions": {"allow": ["mcp__plugin_Dev10x_*"]}}))
+    path.write_text(json.dumps({"permissions": {"allow": ["mcp__plugin_dev10x_*"]}}))
     return path
 
 
@@ -58,7 +58,7 @@ class TestEnumerateMcpCli:
         )
         assert result.exit_code == 0
         allow = json.loads(settings_file.read_text())["permissions"]["allow"]
-        assert allow == ["mcp__plugin_Dev10x_cli__beta"]
+        assert allow == ["mcp__plugin_dev10x_cli__beta"]
 
     def test_dry_run_leaves_file_untouched(
         self,

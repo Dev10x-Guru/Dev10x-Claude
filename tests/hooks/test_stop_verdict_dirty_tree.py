@@ -76,7 +76,7 @@ class TestADirtyTreeMeansNotDone:
             dirty=_DIRTY,
         )
 
-        assert "Dev10x:git-commit" in verdict.reason
+        assert "dev10x:git-commit" in verdict.reason
         assert "AskUserQuestion" not in verdict.reason
 
     def test_the_steer_carries_the_shared_worktree_escape(

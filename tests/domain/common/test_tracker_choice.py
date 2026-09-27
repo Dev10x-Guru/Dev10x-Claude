@@ -19,7 +19,7 @@ CATALOG: dict = {
     "tracker_permissions": {
         "linear": ["mcp__claude_ai_Linear__get_issue", "mcp__claude_ai_Linear__save_issue"],
         "jira": ["mcp__claude_ai_Atlassian_Rovo__getJiraIssue"],
-        "github": ["mcp__plugin_Dev10x_cli__issue_get"],
+        "github": ["mcp__plugin_dev10x_cli__issue_get"],
     },
     "tracker_denies": {"linear": ["mcp__claude_ai_Linear__delete_comment"]},
 }
@@ -59,7 +59,7 @@ class TestApplyTrackerSelection:
         merged = apply_tracker_selection(config=CATALOG, tracker=Tracker.JIRA)
         allow = merged["base_permissions"]
         assert not any(rule.startswith("mcp__claude_ai_Linear__") for rule in allow)
-        assert "mcp__plugin_Dev10x_cli__issue_get" not in allow
+        assert "mcp__plugin_dev10x_cli__issue_get" not in allow
 
     def test_tracker_denies_are_folded_in_too(self) -> None:
         merged = apply_tracker_selection(config=CATALOG, tracker=Tracker.LINEAR)
@@ -127,7 +127,7 @@ class TestPrunableRules:
         prunable = prunable_rules(config=CATALOG, tracker=Tracker.JIRA)
         assert "mcp__claude_ai_Linear__get_issue" in prunable
         assert "mcp__claude_ai_Linear__delete_comment" in prunable
-        assert "mcp__plugin_Dev10x_cli__issue_get" in prunable
+        assert "mcp__plugin_dev10x_cli__issue_get" in prunable
         assert "mcp__claude_ai_Atlassian_Rovo__getJiraIssue" not in prunable
 
     def test_rule_shared_with_the_selected_tracker_is_never_prunable(self) -> None:

@@ -1,5 +1,5 @@
 ---
-name: Dev10x:k8s
+name: dev10x:k8s
 description: >
   Kubernetes cluster operations via aws-vault authenticated kubectl.
   Check deployments, pods, logs, events, and runtime configuration
@@ -7,12 +7,12 @@ description: >
   TRIGGER when: investigating service health, comparing staging and
   production, checking restart loops or OOM kills, or verifying what
   is running versus what git says should be running.
-  DO NOT TRIGGER when: retrieving secrets (use Dev10x:aws-vault), or
+  DO NOT TRIGGER when: retrieving secrets (use dev10x:aws-vault), or
   you need to MUTATE cluster state (apply, create, delete, scale,
   exec, port-forward) — those run only under direct supervisor
   control in a separate terminal.
 user-invocable: true
-invocation-name: Dev10x:k8s
+invocation-name: dev10x:k8s
 allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/aws-vault/scripts/kubectl.sh:*)
 ---
@@ -29,7 +29,7 @@ allowed-tools:
 
 ## Prerequisites
 
-- `aws-vault` configured (see `Dev10x:aws-vault`)
+- `aws-vault` configured (see `dev10x:aws-vault`)
 - `kubectl` installed and configured with cluster contexts
 - Service registry at `~/.config/Dev10x/aws-vault/service-registry.yaml`
 
@@ -156,7 +156,7 @@ ${CLAUDE_PLUGIN_ROOT}/skills/aws-vault/scripts/kubectl.sh staging \
 Application secrets are managed in AWS Secrets Manager and injected
 into pods via external-secrets-operator or init containers. Do not
 look for credential values in k8s Secret objects directly — use
-`Dev10x:aws-vault` instead.
+`dev10x:aws-vault` instead.
 
 ### Use the service registry
 
@@ -166,5 +166,5 @@ hardcoding a context or namespace.
 
 ## Related Skills
 
-- `Dev10x:aws-vault` — secret retrieval and the kubectl wrapper
-- `Dev10x:investigate` — root-causing a reported issue end to end
+- `dev10x:aws-vault` — secret retrieval and the kubectl wrapper
+- `dev10x:investigate` — root-causing a reported issue end to end

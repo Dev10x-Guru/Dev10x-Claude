@@ -1,5 +1,5 @@
 ---
-name: Dev10x:qa-publish
+name: dev10x:qa-publish
 description: >
   Publish a finished QA run to the ticket and the PR as a readable verdict
   with a watchable video and inline screenshots — instead of raw files left
@@ -7,23 +7,23 @@ description: >
   evidence that silently claims coverage the run never had.
   TRIGGER when: a QA run has produced screenshots and a screen recording and
   the results need to reach a ticket and a PR.
-  DO NOT TRIGGER when: executing the QA test cases (use Dev10x:qa-self),
-  analyzing a PR for QA needs (use Dev10x:qa-scope), or publishing a single
-  video with no ticket write-up (use Dev10x:yt-upload directly).
+  DO NOT TRIGGER when: executing the QA test cases (use dev10x:qa-self),
+  analyzing a PR for QA needs (use dev10x:qa-scope), or publishing a single
+  video with no ticket write-up (use dev10x:yt-upload directly).
 user-invocable: true
-invocation-name: Dev10x:qa-publish
+invocation-name: dev10x:qa-publish
 allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/qa-self/scripts/:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/yt-upload/scripts/upload-video.py:*)
   - AskUserQuestion
-  - mcp__plugin_Dev10x_cli__pr_issue_comment
-  - mcp__plugin_Dev10x_cli__issue_comment_edit
-  - mcp__plugin_Dev10x_cli__pr_get
+  - mcp__plugin_dev10x_cli__pr_issue_comment
+  - mcp__plugin_dev10x_cli__issue_comment_edit
+  - mcp__plugin_dev10x_cli__pr_get
   - mcp__linear-server__list_comments
   - mcp__linear-server__save_comment
 ---
 
-# Dev10x:qa-publish — QA evidence to the ticket and the PR
+# dev10x:qa-publish — QA evidence to the ticket and the PR
 
 The composition layer over the pieces that already exist. This skill owns
 **where evidence goes and what the write-up says**; it owns no conversion,
@@ -31,9 +31,9 @@ no upload mechanics, and no capture.
 
 | Concern | Owner |
 |---|---|
-| Capture, convert, verify, local review gate | `Dev10x:qa-self` + its `scripts/` |
-| Narration audio | `Dev10x:tts` |
-| Video → shareable link | `Dev10x:yt-upload` |
+| Capture, convert, verify, local review gate | `dev10x:qa-self` + its `scripts/` |
+| Narration audio | `dev10x:tts` |
+| Video → shareable link | `dev10x:yt-upload` |
 | Screenshots → Linear assets | `qa-self/scripts/upload-screenshots.py` |
 | Verdict, destinations, threading | **this skill** |
 
@@ -67,7 +67,7 @@ Honesty rules for the write-up:
 This skill publishes to **external, append-only destinations**. It must not
 be the first thing to look at the artifacts.
 
-`Dev10x:qa-self` Phase 4.4 is that gate. When this skill is invoked without it
+`dev10x:qa-self` Phase 4.4 is that gate. When this skill is invoked without it
 having run in the current session — a direct invocation on an old run
 directory, say — run the review here instead: report each artifact's path,
 size and duration, and read the sampled frames.
@@ -78,11 +78,11 @@ leaves the machine. This blocks until the supervisor responds. Options:
 - **Approve — publish to the ticket and PR (Recommended)** — the artifacts
   show what the test cases claim.
 - **Re-capture** — something is missing, blank or unfollowable; run
-  `Dev10x:qa-self` again rather than publishing a bad take.
+  `dev10x:qa-self` again rather than publishing a bad take.
 - **Abort** — stop without publishing anything.
 
 Never publish first and ask after. Note this gate covers *this* skill's
-destinations; `Dev10x:yt-upload` still fires its own provenance gate, because
+destinations; `dev10x:yt-upload` still fires its own provenance gate, because
 approving that the footage is good is a different decision from approving that
 it may become world-readable.
 
@@ -103,7 +103,7 @@ on a ticket: an unlisted URL is readable by whoever holds it.
 
 ### 3. Publish the video
 
-**REQUIRED: delegate to `Dev10x:yt-upload`.** It owns the
+**REQUIRED: delegate to `dev10x:yt-upload`.** It owns the
 production-recording gate, the token handling, and the channel assertion — do
 not shell out to `gog` or restate upload mechanics here.
 
@@ -166,13 +166,13 @@ trustworthy**. A caveat that only casts doubt makes the artifact
 unusable.
 
 **One QA comment per PR.** A re-record produces a new YouTube id, and
-`Dev10x:yt-upload` cannot delete the superseded upload (#1206). On a
+`dev10x:yt-upload` cannot delete the superseded upload (#1206). On a
 re-record, edit the existing comment in place via
-`mcp__plugin_Dev10x_cli__issue_comment_edit` with the new
+`mcp__plugin_dev10x_cli__issue_comment_edit` with the new
 `github_markdown` — never post a second comment, or the PR ends up
 carrying poster frames that point at dead videos.
 
-`Dev10x:yt-upload` returns `thumbnail_may_404: true`: YouTube needs a
+`dev10x:yt-upload` returns `thumbnail_may_404: true`: YouTube needs a
 minute or two to generate `maxresdefault.jpg`, so a comment posted
 immediately shows a broken image. It resolves itself — do not "fix" a
 correct embed.

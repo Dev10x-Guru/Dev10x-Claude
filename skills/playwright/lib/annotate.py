@@ -1,6 +1,6 @@
 """Annotation overlay for Playwright recordings watched by humans.
 
-Imported by generated QA scripts (``Dev10x:qa-self`` Phase 2) to make a
+Imported by generated QA scripts (``dev10x:qa-self`` Phase 2) to make a
 headless recording followable: a pointer that indicates one exact
 coordinate, captions whose dwell is derived from their own length, and a
 ``click`` wrapper that fixes the point -> narrate -> act ordering.

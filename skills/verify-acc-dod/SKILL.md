@@ -1,5 +1,5 @@
 ---
-name: Dev10x:verify-acc-dod
+name: dev10x:verify-acc-dod
 description: >
   Verify that definition-of-done / acceptance criteria are met before
   closing a task list. Loads executable checks from plugin defaults,
@@ -10,19 +10,19 @@ description: >
   DO NOT TRIGGER when: mid-implementation, or task list has incomplete
   items.
 user-invocable: true
-invocation-name: Dev10x:verify-acc-dod
+invocation-name: dev10x:verify-acc-dod
 allowed-tools:
   - AskUserQuestion
-  - Skill(Dev10x:gh-pr-monitor)
+  - Skill(dev10x:gh-pr-monitor)
   - Bash(gh:*)
   - Bash(git status:*)
   - Bash(git log:*)
   - Bash(git diff:*)
-  - mcp__plugin_Dev10x_cli__pr_detect
-  - mcp__plugin_Dev10x_cli__verify_pr_state
-  - mcp__plugin_Dev10x_cli__supervisor_review_status
-  - mcp__plugin_Dev10x_cli__resolve_gate
-  - mcp__plugin_Dev10x_cli__detect_base_branch
+  - mcp__plugin_dev10x_cli__pr_detect
+  - mcp__plugin_dev10x_cli__verify_pr_state
+  - mcp__plugin_dev10x_cli__supervisor_review_status
+  - mcp__plugin_dev10x_cli__resolve_gate
+  - mcp__plugin_dev10x_cli__detect_base_branch
   - Read(~/.config/Dev10x/dod-acceptance-criteria.yaml)
   # Read-only grant on the GH-941-retired path so Step 2's one-release
   # fallback does not prompt. Deliberately no Edit grant here — writes
@@ -73,7 +73,7 @@ Two separate decisions. Neither overrides the other, and collapsing
 them is a defect:
 
 - **The resolver decides whether the gate FIRES.** Call
-  `mcp__plugin_Dev10x_cli__resolve_gate(gate="completion_signoff")` and
+  `mcp__plugin_dev10x_cli__resolve_gate(gate="completion_signoff")` and
   read `effect` — `ask` presents the widget, `auto-advance` takes the
   recommendation without interrupting, `skip` records it silently.
 - **This skill decides what the gate RECOMMENDS.** The three-way
@@ -141,7 +141,7 @@ carries durable prefs (ADR-0018, GH-854 F3).
 
 **4a. Review posture — `supervisor_review` (ADR-0022 D-2, superseding
 ADR-0019's `human_review`).** Read it via
-`mcp__plugin_Dev10x_cli__supervisor_review_status()`; absent or
+`mcp__plugin_dev10x_cli__supervisor_review_status()`; absent or
 malformed reads as `required`. Do NOT read the durable file directly —
 the tool owns the precedence. When it is `none`, drop every check
 declaring `requires_human_review: true` and report each as
@@ -195,9 +195,9 @@ Before running each check command, resolve placeholders:
 
 | Placeholder | Source |
 |-------------|--------|
-| `{pr_number}` | Current PR number (from `mcp__plugin_Dev10x_cli__pr_detect(arg="")` → `PR_NUMBER`, or session context) |
+| `{pr_number}` | Current PR number (from `mcp__plugin_dev10x_cli__pr_detect(arg="")` → `PR_NUMBER`, or session context) |
 | `{repo}` | Current repo (from `gh repo view --json nameWithOwner -q .nameWithOwner` or session context) |
-| `{base_branch}` | PR base branch from `mcp__plugin_Dev10x_cli__detect_base_branch` (`develop`→`main` fallback) — never hardcode `develop` (GH-854 F2) |
+| `{base_branch}` | PR base branch from `mcp__plugin_dev10x_cli__detect_base_branch` (`develop`→`main` fallback) — never hardcode `develop` (GH-854 F2) |
 
 If no PR exists (e.g., `local-only`), skip checks that reference
 `{pr_number}` and mark them as "skipped (no PR)".
@@ -282,10 +282,10 @@ off" is **not** terminal. Before resolving the gate, determine the PR
 state and feed it in as a gate input:
 
 1. Resolve the associated PR via
-   `mcp__plugin_Dev10x_cli__pr_detect(arg="")`. An `error` / no-PR
+   `mcp__plugin_dev10x_cli__pr_detect(arg="")`. An `error` / no-PR
    response means **PR-less** (e.g. `investigation` / `local-only`).
 2. When a PR exists, read its merge state via
-   `mcp__plugin_Dev10x_cli__verify_pr_state` (or the PR's `mergedAt`
+   `mcp__plugin_dev10x_cli__verify_pr_state` (or the PR's `mergedAt`
    field) — merged vs open.
 
 This merge signal is a **gate input, not a pass/fail check.** Do NOT
@@ -302,7 +302,7 @@ than re-deriving the matrix:
 | PR state | Blocking checks | Recommended | On auto-advance |
 |----------|-----------------|-------------|-----------------|
 | Merged / no PR | pass | **Work complete** | auto-complete |
-| Open, awaiting review | pass | **Monitor for review** (→ `Dev10x:gh-pr-monitor`, ~5 min) | auto-start monitor (background) |
+| Open, awaiting review | pass | **Monitor for review** (→ `dev10x:gh-pr-monitor`, ~5 min) | auto-start monitor (background) |
 | Any | fail / pending | **Go back** | Go back |
 
 "Blocking checks" are the automated/manual criteria above (CI, draft
@@ -316,7 +316,7 @@ complete" while an associated PR is open/unmerged.
 
 Then ask the resolver how to PRESENT it — this skill never decides
 that for itself. Call
-`mcp__plugin_Dev10x_cli__resolve_gate(gate="completion_signoff")` and
+`mcp__plugin_dev10x_cli__resolve_gate(gate="completion_signoff")` and
 branch on `effect`.
 
 ### `effect: ask`
@@ -331,7 +331,7 @@ resolved recommendation is always the first, Recommended option:
 
 *Recommendation **Monitor for review*** (open PR, otherwise green):
 - **"Monitor for review" (Recommended)** — Keep the session open;
-  dispatch `Dev10x:gh-pr-monitor` to background-watch the PR every
+  dispatch `dev10x:gh-pr-monitor` to background-watch the PR every
   ~5 min and surface review comments / ready-to-merge
 - **"Keep open (manual)"** — Leave the session open, no auto-monitor
 - **"Override — complete anyway"** — Accept the unmerged PR as done
@@ -350,7 +350,7 @@ visible:
 - **Work complete** (merged / PR-less, all checks pass) →
   auto-complete
 - **Monitor for review** (open PR, otherwise green) → dispatch
-  `Skill(Dev10x:gh-pr-monitor)` in the background and keep the
+  `Skill(dev10x:gh-pr-monitor)` in the background and keep the
   session open. The residual terminal task becomes **"Monitor PR
   #<N> for review / merge"** — do NOT auto-complete.
 - **Go back** (any check fails/pending) → report failures to the
@@ -391,17 +391,17 @@ the legacy file forward, and the next skill run recreates it.
 A green run of this skill is a **precondition** for closing the
 session — it is **not** the supervisor sign-off itself. The terminal
 "Verify acceptance criteria" task is closed only when the supervisor
-explicitly chooses "Work complete" (or runs `Dev10x:session-wrap-up`).
+explicitly chooses "Work complete" (or runs `dev10x:session-wrap-up`).
 "Checks pass" ≠ "supervisor confirmed session done": a draft/open PR
 with a pending human review can satisfy every automated check while the
 session is still live. The Decision Gate makes this concrete (GH-729):
 while the PR is open/unmerged, the recommended action is **Monitor for
-review** (→ `Dev10x:gh-pr-monitor`), never "Work complete".
+review** (→ `dev10x:gh-pr-monitor`), never "Work complete".
 
 The empty-task-list guard (`hooks/scripts/task-guard.py`, GH-149)
 enforces this: it **refuses** a `TaskUpdate` that marks the terminal
 Verify-AC task — or the last remaining open task — `completed`/`deleted`
-in a `Dev10x:work-on` session. When the supervisor has confirmed
+in a `dev10x:work-on` session. When the supervisor has confirmed
 completion, close the task with the deliberate marker so the guard
 allows it:
 
@@ -422,8 +422,8 @@ empty mid-session.
 ## Integration
 
 ```
-Dev10x:work-on → ... → Dev10x:verify-acc-dod (last step)
-Dev10x:fanout  → ... → Dev10x:verify-acc-dod (last step)
+dev10x:work-on → ... → dev10x:verify-acc-dod (last step)
+dev10x:fanout  → ... → dev10x:verify-acc-dod (last step)
 ```
 
 Callers pass the work type and let this skill handle criteria

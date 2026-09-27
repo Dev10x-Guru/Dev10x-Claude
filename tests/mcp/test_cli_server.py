@@ -879,7 +879,7 @@ class TestPrLabelsMcp:
     ) -> None:
         """GH-1446: the old loop paid a subprocess + round trip per label.
 
-        `Dev10x:git-groom` clears `review:cleared` after every force-push,
+        `dev10x:git-groom` clears `review:cleared` after every force-push,
         so this is a hot path, not a cold one.
         """
         mock_api.side_effect = [

@@ -1,4 +1,4 @@
-"""Tests for the Dev10x:yt-upload wrapper script (GH-1119).
+"""Tests for the dev10x:yt-upload wrapper script (GH-1119).
 
 The properties pinned here are the ones whose absence publishes the wrong
 thing to a URL that cannot be quietly withdrawn: single-artifact selection

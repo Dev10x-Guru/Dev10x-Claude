@@ -4,7 +4,7 @@
 sibling YAML and rewrites it whenever the cache is missing or stale. While
 ``command-skill-map.msgpack`` was tracked, every test run, hook invocation, or
 MCP call that loaded the config dirtied the working tree — so the cache was
-swept into unrelated commits (``Dev10x:git-commit`` mandates ``git add -A``)
+swept into unrelated commits (``dev10x:git-commit`` mandates ``git add -A``)
 and produced a binary rebase conflict that has no meaningful resolution,
 because the YAML is authoritative and the cache self-heals.
 

@@ -102,7 +102,7 @@ groups:
 
   git-aliases-dev10x:
     tier: 1
-    description: Aliases installed by Dev10x:git-alias-setup.
+    description: Aliases installed by dev10x:git-alias-setup.
     rules:
       - Bash(git nopager:*)
       - Bash(git nocolor:*)
@@ -227,7 +227,7 @@ groups:
       Shared scaffolding for Dev10x skills. Plugin scripts use
       `${CLAUDE_PLUGIN_ROOT}` so they survive upgrades.
     rules:
-      - Skill(Dev10x:*)
+      - Skill(dev10x:*)
       # A path rule's leading `//` anchors at the filesystem root; a
       # single `/` anchors at the settings source instead (GH-1325).
       # Edit(path) covers all file-editing tools (Write, Edit,
@@ -524,7 +524,7 @@ groups:
       # Piper reads a text file and writes a WAV — it never reaches the
       # network and never mutates anything but its own output path, so it
       # sits at the same tier as ffmpeg rather than behind a prompt. Voice
-      # models are fetched separately (see Dev10x:tts § Installing a voice),
+      # models are fetched separately (see dev10x:tts § Installing a voice),
       # which is why no download form is allowed here.
       - Bash(piper:*)
 
@@ -532,20 +532,20 @@ groups:
     tier: 3
     description: >
       Read-only surface of the gog Google CLI (https://gogcli.sh), used by
-      Dev10x:yt-upload's preflight and post-upload read-back (GH-1119) and
-      by Dev10x:gog, which runs gog directly at the Bash layer (GH-1156).
+      dev10x:yt-upload's preflight and post-upload read-back (GH-1119) and
+      by dev10x:gog, which runs gog directly at the Bash layer (GH-1156).
       Opt-in — gog is a personal tool, not a Dev10x dependency, so most
       users have nothing to grant here. Scoped to the exact subcommands
       those skills run: a blanket `Bash(gog youtube:*)` would also
       pre-approve the delete verbs, and `Bash(gog drive:*)` would
       pre-approve `gog drive delete`.
 
-      Note these rules are NOT required for Dev10x:yt-upload. Its gog calls
+      Note these rules are NOT required for dev10x:yt-upload. Its gog calls
       live inside `skills/yt-upload/scripts/upload-video.py`, and the
       permission layer only sees Bash tool invocations — not subprocess
       calls made from within a script — so the scripts glob already covers
       them. This group is for direct gog use at the Bash layer, which is
-      Dev10x:gog's entire surface.
+      dev10x:gog's entire surface.
 
       Every verb here is non-mutating. `drive audit` is the sharing-audit
       command that exists precisely to answer "who has access?" without
@@ -593,7 +593,7 @@ groups:
       `Bash(gog auth tokens export:*)` allow-rule approves ANY shape of that
       command at the shell — including an operator- or injection-supplied
       `--out` pointing anywhere writable, with no `chmod`, no shred, and no
-      cleanup. Dev10x:yt-upload's wrapper does all of that carefully, but
+      cleanup. dev10x:yt-upload's wrapper does all of that carefully, but
       the wrapper's protections are properties of `upload-video.py`, NOT of
       this permission grant: as `gog-readonly` notes, subprocess calls made
       from inside a script are never seen by the permission layer, so the
@@ -827,7 +827,7 @@ groups:
     sensitivity: mutating
     description: >
       Atlassian / JIRA ticket-management write MCP tools (GH-631).
-      Seeded by default so Dev10x:ticket-create's JIRA path — which
+      Seeded by default so dev10x:ticket-create's JIRA path — which
       dispatches a background agent that cannot answer a permission
       prompt — does not stall on ``createJiraIssue``. This
       DELIBERATELY overrides the GH-593 write-precedence default
@@ -1020,7 +1020,7 @@ deprecations:
   - pattern: '^Bash\(/tmp/claude/bin/mktmp\.sh:\*\)$'
     reason: >
       Legacy mktmp shell helper. Superseded by MCP tool
-      `mcp__plugin_Dev10x_cli__mktmp`.
+      `mcp__plugin_dev10x_cli__mktmp`.
     action: remove
   - pattern: '^Write\('
     replacement: 'Edit('
@@ -1063,7 +1063,7 @@ invariants:
       redundant and clutter the list.
 
 # ─── DOCTOR CONSUMPTION ───────────────────────────────────────────────
-# How `Dev10x:plugin-maintenance` consumes this catalog:
+# How `dev10x:plugin-maintenance` consumes this catalog:
 #
 # 1. Tier 1 + Tier 2 groups: record the INTENDED plugin-default set.
 #    They are NOT merged into base_permissions by `ensure-base`

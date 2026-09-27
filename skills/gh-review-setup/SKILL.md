@@ -1,5 +1,5 @@
 ---
-name: Dev10x:gh-review-setup
+name: dev10x:gh-review-setup
 description: >
   Guided, discovery-driven setup of Claude code-review GitHub Actions on
   any repo. Detects the stack, lets you pick independently-skippable review
@@ -9,10 +9,10 @@ description: >
   project-identifying strings copied from any source project.
   TRIGGER when: standing up Claude code review on a repo that has none, or
   adding/regenerating review automation on an existing repo.
-  DO NOT TRIGGER when: running an existing review (use Dev10x:gh-pr-review
-  or Dev10x:review), or monitoring a PR (use Dev10x:gh-pr-monitor).
+  DO NOT TRIGGER when: running an existing review (use dev10x:gh-pr-review
+  or dev10x:review), or monitoring a PR (use dev10x:gh-pr-monitor).
 user-invocable: true
-invocation-name: Dev10x:gh-review-setup
+invocation-name: dev10x:gh-review-setup
 allowed-tools:
   - AskUserQuestion
   - Bash(gh:*)
@@ -25,15 +25,15 @@ allowed-tools:
   - Edit(.claude/**)
   - Edit(references/**)
   - Edit(CLAUDE.md)
-  - mcp__plugin_Dev10x_cli__mktmp
-  - mcp__plugin_Dev10x_cli__detect_tracker
-  - mcp__plugin_Dev10x_cli__detect_base_branch
-  - mcp__plugin_Dev10x_cli__resolve_gate
+  - mcp__plugin_dev10x_cli__mktmp
+  - mcp__plugin_dev10x_cli__detect_tracker
+  - mcp__plugin_dev10x_cli__detect_base_branch
+  - mcp__plugin_dev10x_cli__resolve_gate
 ---
 
-# Dev10x:gh-review-setup — Guided Code-Review Provisioning
+# dev10x:gh-review-setup — Guided Code-Review Provisioning
 
-**Announce:** "Using Dev10x:gh-review-setup to provision Claude
+**Announce:** "Using dev10x:gh-review-setup to provision Claude
 code-review GitHub Actions on this repo."
 
 Scaffolds an opinionated-but-flexible Claude code-review pipeline. Every
@@ -108,7 +108,7 @@ pros/cons live in [`references/modules.md`](references/modules.md) and
    carries its pros/cons in the `description`.
 
 Resolve each strategy decision with
-`mcp__plugin_Dev10x_cli__resolve_gate(gate="strategy_choice",
+`mcp__plugin_dev10x_cli__resolve_gate(gate="strategy_choice",
 context={})` rather than reading session policy yourself. On
 `auto-advance`, take the recommended option and proceed — but still emit
 the tool call so the user retains override capability (per
@@ -138,13 +138,13 @@ the tool call so the user retains override capability (per
 Each run appends a structured setup record (chosen modules, strategies,
 friction) under `.claude/Dev10x/gh-review-setup/` and emits a skill-audit
 hook so the scaffolder's own defaults can be tuned over time — the same
-mechanism as `Dev10x:skill-audit`. See `instructions.md` § Phase 5.
+mechanism as `dev10x:skill-audit`. See `instructions.md` § Phase 5.
 
 ## Integration
 
 ```
-Dev10x:gh-review-setup   (provisions review automation — this skill)
-├─ Dev10x:gh-pr-review   (runs a review on a PR)
-├─ Dev10x:review         (self-review before PR)
-└─ Dev10x:gh-pr-monitor  (watches CI + review comments)
+dev10x:gh-review-setup   (provisions review automation — this skill)
+├─ dev10x:gh-pr-review   (runs a review on a PR)
+├─ dev10x:review         (self-review before PR)
+└─ dev10x:gh-pr-monitor  (watches CI + review comments)
 ```

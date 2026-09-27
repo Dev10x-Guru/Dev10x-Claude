@@ -1,5 +1,5 @@
 ---
-name: Dev10x:gh-pr-doctor
+name: dev10x:gh-pr-doctor
 description: >
   Use when merged PRs may have unresolved review threads
   accumulating as silent tech debt — so unaddressed feedback
@@ -11,17 +11,17 @@ description: >
   DO NOT TRIGGER when: reviewing active draft PRs, or as part of
   automated PR review (not designed for real-time feedback)
 user-invocable: true
-invocation-name: Dev10x:gh-pr-doctor
+invocation-name: dev10x:gh-pr-doctor
 allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-doctor/scripts/:*)
-  - mcp__plugin_Dev10x_cli__unresolved_threads
+  - mcp__plugin_dev10x_cli__unresolved_threads
   - AskUserQuestion
   - Bash(gh issue create:*)
 ---
 
-# Dev10x:gh-pr-doctor
+# dev10x:gh-pr-doctor
 
-**Announce:** "Using Dev10x:gh-pr-doctor to audit merged PRs
+**Announce:** "Using dev10x:gh-pr-doctor to audit merged PRs
 for unresolved review threads."
 
 ## Orchestration
@@ -163,5 +163,5 @@ Reports:
 
 Can be invoked standalone or as part of a maintenance workflow:
 - Run periodically to catch accumulating tech debt
-- Integrate with `Dev10x:fanout` to process findings
-- Follow up with `Dev10x:work-on` per created issue
+- Integrate with `dev10x:fanout` to process findings
+- Follow up with `dev10x:work-on` per created issue

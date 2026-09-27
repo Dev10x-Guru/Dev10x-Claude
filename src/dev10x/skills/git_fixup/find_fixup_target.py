@@ -1,6 +1,6 @@
 """Resolve fixup target commits via git blame on staged hunks.
 
-The legacy approach in ``Dev10x:git-fixup`` selected the fixup target as
+The legacy approach in ``dev10x:git-fixup`` selected the fixup target as
 the first commit on the branch (``git log --reverse | head -1``), which
 attributes fixes to commits that did not own the edited lines. When the
 fixup is reordered by ``git rebase -i --autosquash``, a later commit

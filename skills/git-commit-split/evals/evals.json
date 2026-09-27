@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:git-commit-split",
+  "skill_name": "dev10x:git-commit-split",
   "eval_dimensions": [
     {
       "id": "split-strategy-gate",
@@ -12,7 +12,7 @@
       "id": "split-gate-uses-tool",
       "name": "Split strategy fires AskUserQuestion before rebase starts",
       "description": "After analyzing the monolithic commit and proposing N split boundaries, the skill fires AskUserQuestion per the ask-split-strategy.md call spec before Phase 2's interactive rebase begins.",
-      "input": "/Dev10x:git-commit-split (proposed split into 3 commits)",
+      "input": "/dev10x:git-commit-split (proposed split into 3 commits)",
       "assertions": [
         {
           "dimension": "split-strategy-gate",
@@ -36,7 +36,7 @@
       "id": "adjust-boundaries-reprompts",
       "name": "Adjust boundaries re-proposes a split plan",
       "description": "Selecting 'Adjust boundaries' re-derives the split plan from the user's correction and re-fires the gate rather than proceeding with the original plan.",
-      "input": "/Dev10x:git-commit-split → user selects 'Adjust boundaries'",
+      "input": "/dev10x:git-commit-split → user selects 'Adjust boundaries'",
       "assertions": [
         {
           "dimension": "split-strategy-gate",
@@ -49,7 +49,7 @@
       "id": "abort-keeps-monolithic-commit",
       "name": "Abort leaves the original commit untouched",
       "description": "Selecting 'Abort' stops the skill and leaves the monolithic commit as-is — no rebase or history rewrite occurs.",
-      "input": "/Dev10x:git-commit-split → user selects 'Abort'",
+      "input": "/dev10x:git-commit-split → user selects 'Abort'",
       "assertions": [
         {
           "dimension": "split-strategy-gate",
@@ -63,7 +63,7 @@
     "description": "Queries that should/should-not trigger the git-commit-split skill",
     "should_trigger": [
       {
-        "query": "/Dev10x:git-commit-split",
+        "query": "/dev10x:git-commit-split",
         "rationale": "Direct invocation to split a monolithic commit into atomic commits"
       },
       {
@@ -74,11 +74,11 @@
     "should_not_trigger": [
       {
         "query": "create a new commit for these changes",
-        "rationale": "Use Dev10x:git-commit — there is nothing to split yet"
+        "rationale": "Use dev10x:git-commit — there is nothing to split yet"
       },
       {
         "query": "clean up and reorder the commit history on this branch",
-        "rationale": "Use Dev10x:git-groom for broader history grooming"
+        "rationale": "Use dev10x:git-groom for broader history grooming"
       }
     ]
   }

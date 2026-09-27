@@ -20,12 +20,12 @@ def validator() -> McpPrefixValidator:
 @pytest.mark.parametrize(
     "command",
     [
-        "mcp__plugin_Dev10x_cli__check_top_level_comments",
-        "mcp__plugin_Dev10x_cli__check_top_level_comments pr_number=357",
-        "mcp__plugin_Dev10x_cli__mktmp namespace=git prefix=msg ext=.txt",
-        "mcp__plugin_Dev10x_db__query 'SELECT 1'",
-        "FOO=bar mcp__plugin_Dev10x_cli__pr_get pr_number=1",
-        "FOO=bar BAZ=qux mcp__plugin_Dev10x_cli__issue_get",
+        "mcp__plugin_dev10x_cli__check_top_level_comments",
+        "mcp__plugin_dev10x_cli__check_top_level_comments pr_number=357",
+        "mcp__plugin_dev10x_cli__mktmp namespace=git prefix=msg ext=.txt",
+        "mcp__plugin_dev10x_db__query 'SELECT 1'",
+        "FOO=bar mcp__plugin_dev10x_cli__pr_get pr_number=1",
+        "FOO=bar BAZ=qux mcp__plugin_dev10x_cli__issue_get",
     ],
 )
 def test_blocks_mcp_tool_as_command(validator: McpPrefixValidator, command: str) -> None:
@@ -41,9 +41,9 @@ def test_blocks_mcp_tool_as_command(validator: McpPrefixValidator, command: str)
         "grep mcp__plugin tests/",
         'echo "mcp__foo__bar"',
         "cat file_with_mcp__name",
-        "ls /tmp/mcp__plugin_Dev10x_cli__mktmp.txt",
-        "git commit -m 'mcp__plugin_Dev10x_cli__mktmp'",
-        "FOO=bar grep mcp__plugin_Dev10x_cli__mktmp src/",
+        "ls /tmp/mcp__plugin_dev10x_cli__mktmp.txt",
+        "git commit -m 'mcp__plugin_dev10x_cli__mktmp'",
+        "FOO=bar grep mcp__plugin_dev10x_cli__mktmp src/",
     ],
 )
 def test_allows_mcp_substring_in_args(validator: McpPrefixValidator, command: str) -> None:
@@ -54,7 +54,7 @@ def test_allows_mcp_substring_in_args(validator: McpPrefixValidator, command: st
     "command",
     [
         'echo "unbalanced',
-        "mcp__plugin_Dev10x_cli__mktmp 'unterminated",
+        "mcp__plugin_dev10x_cli__mktmp 'unterminated",
     ],
 )
 def test_unbalanced_quotes_returns_none(validator: McpPrefixValidator, command: str) -> None:
@@ -78,7 +78,7 @@ def test_single_underscore_segment_not_matched(
 @pytest.mark.parametrize(
     ("command", "expected"),
     [
-        ("mcp__plugin_Dev10x_cli__mktmp", True),
+        ("mcp__plugin_dev10x_cli__mktmp", True),
         ("grep mcp__plugin tests/", True),
         ("git status", False),
         ("ls -la", False),

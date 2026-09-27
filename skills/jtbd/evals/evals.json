@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:jtbd",
+  "skill_name": "dev10x:jtbd",
   "eval_dimensions": [
     {
       "id": "attended-accept-gate",
@@ -27,7 +27,7 @@
       "id": "attended-mode-fires-gate-before-returning",
       "name": "Attended mode fires AskUserQuestion before returning a story",
       "description": "Given mode=attended, the skill drafts a story then fires AskUserQuestion (Accept/Edit/Reject) before the story is applied to any target.",
-      "input": "Dev10x:jtbd invoked with mode=attended, ticket_id=PAY-123",
+      "input": "dev10x:jtbd invoked with mode=attended, ticket_id=PAY-123",
       "assertions": [
         {
           "dimension": "attended-accept-gate",
@@ -46,7 +46,7 @@
       "id": "reject-returns-empty-string",
       "name": "Reject returns an empty string, not the discarded draft",
       "description": "When the user selects Reject at the attended-mode gate, the skill returns an empty string rather than applying the rejected draft anywhere.",
-      "input": "Dev10x:jtbd invoked with mode=attended; user selects Reject",
+      "input": "dev10x:jtbd invoked with mode=attended; user selects Reject",
       "assertions": [
         {
           "dimension": "attended-accept-gate",
@@ -59,7 +59,7 @@
       "id": "unattended-mode-returns-without-prompting",
       "name": "Unattended mode returns the draft with no AskUserQuestion",
       "description": "When invoked in unattended mode (e.g. by release-notes for a batch of missing JTBDs, or by git-commit for a title derivation), the skill returns the draft directly.",
-      "input": "Dev10x:jtbd invoked with mode=unattended, pr_number=42",
+      "input": "dev10x:jtbd invoked with mode=unattended, pr_number=42",
       "assertions": [
         {
           "dimension": "unattended-no-gate",
@@ -72,7 +72,7 @@
       "id": "empty-ticket-evidence-comes-from-qa-comment",
       "name": "An empty ticket description sends the skill to the comments and the diff",
       "description": "GH-1225: the ticket description is empty and the only measured evidence (a declined line lowering the parts subtotal) is in a QA walkthrough comment. The story must cite that, tag anything ticket-only, and name one bucket plus its runner-up.",
-      "input": "Dev10x:jtbd invoked with mode=unattended, ticket_id=PROJ-706, pr_number=1977",
+      "input": "dev10x:jtbd invoked with mode=unattended, ticket_id=PROJ-706, pr_number=1977",
       "assertions": [
         {
           "dimension": "evidence-ranking",
@@ -96,7 +96,7 @@
       "id": "system-as-actor-rejected",
       "name": "A system is never the actor or beneficiary",
       "description": "GH-1225: the ticket says 'the CRM cannot tell a shop what their staff login is'. The story must name the support rep and the shop owner, not the CRM; for a generated-types-only diff it must story the contract held, not a borrowed outcome.",
-      "input": "Dev10x:jtbd invoked with mode=unattended, ticket_id=PROJ-724, pr_number=1993",
+      "input": "dev10x:jtbd invoked with mode=unattended, ticket_id=PROJ-724, pr_number=1993",
       "assertions": [
         {
           "dimension": "trace-upward-actor",
@@ -114,7 +114,7 @@
       "id": "plumbing-pr-traces-upward-not-developer-actor",
       "name": "A dependency-bump/refactor PR traces upward instead of naming the developer",
       "description": "Given a PR that is a pure dependency bump or refactor, the drafted actor is the user-facing feature's actor/beneficiary the plumbing unblocks, never 'the developer'.",
-      "input": "Dev10x:jtbd invoked with pr_number for a dependency-bump-only PR",
+      "input": "dev10x:jtbd invoked with pr_number for a dependency-bump-only PR",
       "assertions": [
         {
           "dimension": "trace-upward-actor",
@@ -128,18 +128,18 @@
     "description": "Queries that should/should-not trigger the jtbd skill (not user-invocable — only via composing skills)",
     "should_trigger": [
       {
-        "query": "Skill(Dev10x:jtbd) invoked by Dev10x:gh-pr-create to source a missing Job Story",
+        "query": "Skill(dev10x:jtbd) invoked by dev10x:gh-pr-create to source a missing Job Story",
         "rationale": "Composed invocation from the PR creation skill — the core use case"
       },
       {
-        "query": "Skill(Dev10x:jtbd) invoked by Dev10x:release-notes in unattended mode for a batch of PRs",
+        "query": "Skill(dev10x:jtbd) invoked by dev10x:release-notes in unattended mode for a batch of PRs",
         "rationale": "Composed invocation from release-notes — unattended batch mode"
       }
     ],
     "should_not_trigger": [
       {
         "query": "write a commit message for this change",
-        "rationale": "Commit message formatting — use Dev10x:git-commit (which internally may invoke jtbd for the title, but the user-facing entry point differs)"
+        "rationale": "Commit message formatting — use dev10x:git-commit (which internally may invoke jtbd for the title, but the user-facing entry point differs)"
       },
       {
         "query": "the PR already has a Job Story in its description",

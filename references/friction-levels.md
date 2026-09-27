@@ -32,7 +32,7 @@ Three layers decide one gate, in order:
 ## Resolving a gate
 
 > Skills do **not** read config to derive whether a gate fires. Call
-> `mcp__plugin_Dev10x_cli__resolve_gate(gate=…, context=…)` and honour
+> `mcp__plugin_dev10x_cli__resolve_gate(gate=…, context=…)` and honour
 > the returned `effect`. The resolver owns floor/preset/overlay/pin
 > precedence; re-deriving it drifts (GH-760). Pass the concrete facts
 > about the instance — author type, destructiveness, blocking,
@@ -78,7 +78,7 @@ nothing else.** When a skill's invocation prompt says _"Read
 **not waivable by gate policy**. The skill's `TaskCreate` /
 `TaskUpdate` / checklist work runs unchanged.
 
-**Anti-pattern:** the agent invokes `Skill(Dev10x:gh-pr-merge)`, reads
+**Anti-pattern:** the agent invokes `Skill(dev10x:gh-pr-merge)`, reads
 the first part of `instructions.md`, and decides its autonomy licenses
 a shortcut to one `gh pr view --json mergeable,isDraft` plus a direct
 merge. The skill's pre-merge checks — unresolved threads, CI, draft
@@ -117,7 +117,7 @@ completion gate.
   conflicts requiring human judgment
 - The single Plan Completion Gate at end of plan
 - Documented gates that fire unconditionally (e.g. the merge-anyway
-  override in `Dev10x:gh-pr-merge`)
+  override in `dev10x:gh-pr-merge`)
 
 **Detection signal:** if you are about to output "Ready to proceed to
 the next step?", STOP. Skip the question and execute the step.
@@ -164,11 +164,11 @@ Which gate it floors follows repo shape (ADR-0022 D-3):
 - **`required` inserts a park; it never removes a step.** In the team
   rows it precedes the team request rather than replacing it.
 - **The `review:cleared` PR label lifts the floor** (GH-1008,
-  GH-1163). `Dev10x:gh-pr-request-review` writes it once the
-  supervisor has read the commits; `Dev10x:git-groom` removes it after
+  GH-1163). `dev10x:gh-pr-request-review` writes it once the
+  supervisor has read the commits; `dev10x:git-groom` removes it after
   a force-push, since a clearance cannot survive the rewrite that
   invalidated it.
-- Read it with `mcp__plugin_Dev10x_cli__supervisor_review_status`,
+- Read it with `mcp__plugin_dev10x_cli__supervisor_review_status`,
   write it with `pin_supervisor_review`. The gate reads it
   **unconditionally** — a `supervisor_review` key passed in a
   `resolve_gate` context lands in `ignored_context_fields` (GH-1000),
@@ -200,14 +200,14 @@ the baseline would auto-advance.
 Completion is reserved for the **merged** state; "shippable" is not
 terminal. The recommended — and, absent a floor, auto-selected —
 option follows PR merge state: **Work complete** when merged or
-PR-less, **Monitor for review** (→ `Dev10x:gh-pr-monitor`) when the PR
+PR-less, **Monitor for review** (→ `dev10x:gh-pr-monitor`) when the PR
 is open and green, **Go back** on any failing or pending check. The
 merge signal is a **gate input, not a pass/fail check** — an
 unmerged-but-green PR is the normal awaiting-review state, so a
 failing "PR merged" check would loop on "Go back" forever. The matrix
 is encoded once in
 `dev10x.domain.session_rules.completion_gate_recommendation()`, which
-`Dev10x:verify-acc-dod` and work-on's Plan Completion Gate defer to;
+`dev10x:verify-acc-dod` and work-on's Plan Completion Gate defer to;
 whether the gate *fires* is `resolve_gate(gate="completion_signoff")`.
 
 ## The other `friction_level`

@@ -1,5 +1,5 @@
 ---
-name: Dev10x:git-promote
+name: dev10x:git-promote
 description: >
   Convert existing git commits into issue tracker tickets with proper
   branch management and commit message formatting. Automates creating
@@ -8,9 +8,9 @@ description: >
   typically for tech debt fixes, bug fixes, or improvements committed
   without a ticket reference.
   DO NOT TRIGGER when: commit already has a ticket reference, or creating
-  a new ticket before committing (use Dev10x:ticket-create).
+  a new ticket before committing (use dev10x:ticket-create).
 user-invocable: true
-invocation-name: Dev10x:git-promote
+invocation-name: dev10x:git-promote
 allowed-tools:
   - Bash(git show:*)
   - Bash(git cherry-pick:*)
@@ -36,7 +36,7 @@ Mark completed when done: `TaskUpdate(taskId, status="completed")`
 
 ## Prerequisites Check
 
-**IMPORTANT:** This skill uses the `Dev10x:ticket-create` skill which supports GitHub Issues, Linear, and JIRA.
+**IMPORTANT:** This skill uses the `dev10x:ticket-create` skill which supports GitHub Issues, Linear, and JIRA.
 
 ## When to Use This Skill
 
@@ -66,11 +66,11 @@ git show <commit-hash>
 
 ### Step 3: Create Ticket
 
-Use the `Dev10x:ticket-create` skill to create a properly structured ticket from the commit.
+Use the `dev10x:ticket-create` skill to create a properly structured ticket from the commit.
 
 ### Step 4: Create Branch
 
-Use the `Dev10x:ticket-branch` skill to create a properly named branch.
+Use the `dev10x:ticket-branch` skill to create a properly named branch.
 
 ### Step 5: Cherry-pick Commit
 
@@ -90,13 +90,13 @@ Show the updated commit and verify changes.
 
 ### Step 8: Push and Create PR (Optional)
 
-Use the `Dev10x:gh-pr-create` skill to push the branch and create a PR.
+Use the `dev10x:gh-pr-create` skill to push the branch and create a PR.
 
 ## Integration with Other Skills
 
 ```
-Dev10x:git-promote
-├── Uses: Dev10x:ticket-create (Step 3)
-├── Uses: Dev10x:ticket-branch (Step 4)
-└── Uses: Dev10x:gh-pr-create (Step 8, optional)
+dev10x:git-promote
+├── Uses: dev10x:ticket-create (Step 3)
+├── Uses: dev10x:ticket-branch (Step 4)
+└── Uses: dev10x:gh-pr-create (Step 8, optional)
 ```

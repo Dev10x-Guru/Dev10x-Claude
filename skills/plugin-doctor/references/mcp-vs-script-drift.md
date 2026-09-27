@@ -21,13 +21,13 @@ The strategy detects each channel and proposes a targeted fix.
 
 | Script path | MCP tool |
 |-------------|----------|
-| `/tmp/Dev10x/bin/mktmp.sh` | `mcp__plugin_Dev10x_cli__mktmp` |
-| `.../skills/gh-context/scripts/gh-issue-get.sh` | `mcp__plugin_Dev10x_cli__issue_get` |
-| `.../skills/gh-context/scripts/gh-issue-comments.sh` | `mcp__plugin_Dev10x_cli__issue_comments` |
-| `.../skills/gh-context/scripts/gh-pr-detect.sh` | `mcp__plugin_Dev10x_cli__pr_detect` |
-| `.../skills/gh-pr-monitor/scripts/ci-check-status.py` | `mcp__plugin_Dev10x_cli__ci_check_status` |
-| `.../skills/git/scripts/git-push-safe.sh` | `mcp__plugin_Dev10x_cli__push_safe` |
-| `.../skills/gh-pr-create/scripts/create-pr.sh` | `mcp__plugin_Dev10x_cli__create_pr` |
+| `/tmp/Dev10x/bin/mktmp.sh` | `mcp__plugin_dev10x_cli__mktmp` |
+| `.../skills/gh-context/scripts/gh-issue-get.sh` | `mcp__plugin_dev10x_cli__issue_get` |
+| `.../skills/gh-context/scripts/gh-issue-comments.sh` | `mcp__plugin_dev10x_cli__issue_comments` |
+| `.../skills/gh-context/scripts/gh-pr-detect.sh` | `mcp__plugin_dev10x_cli__pr_detect` |
+| `.../skills/gh-pr-monitor/scripts/ci-check-status.py` | `mcp__plugin_dev10x_cli__ci_check_status` |
+| `.../skills/git/scripts/git-push-safe.sh` | `mcp__plugin_dev10x_cli__push_safe` |
+| `.../skills/gh-pr-create/scripts/create-pr.sh` | `mcp__plugin_dev10x_cli__create_pr` |
 
 ## Detection Heuristics
 
@@ -56,7 +56,7 @@ The strategy detects each channel and proposes a targeted fix.
    holds of one skill collapse to a single finding while two distinct
    plugins shipping a same-named skill still report separately.
 4. **Hook message scan** — read recent records via
-   `mcp__plugin_Dev10x_cli__audit_hook_recent`. Flag hook messages
+   `mcp__plugin_dev10x_cli__audit_hook_recent`. Flag hook messages
    that suggest a script path when the MCP equivalent exists.
 
 ## Remediation Map
@@ -64,7 +64,7 @@ The strategy detects each channel and proposes a targeted fix.
 | Finding source | Remediation kind | Target |
 |----------------|------------------|--------|
 | Memory | `edit_memory` | rewrite to remove literal script path |
-| Project settings | `delegate_skill` | `Dev10x:plugin-maintenance` (clean stale rules) |
+| Project settings | `delegate_skill` | `dev10x:plugin-maintenance` (clean stale rules) |
 | Plugin SKILL.md | `file_issue` | upstream PR against the SKILL.md |
 | Hook message | `file_issue` | upstream PR against the hook script |
 

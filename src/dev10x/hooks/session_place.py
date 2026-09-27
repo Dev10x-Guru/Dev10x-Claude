@@ -124,7 +124,7 @@ def session_git_aliases() -> None:
     print(f"Git aliases missing: {' '.join(missing)}")
     if present:
         print(f"Git aliases available: {' '.join(present)}")
-    print("Run the git-alias-setup skill (/Dev10x:git-alias-setup) to configure them.")
+    print("Run the git-alias-setup skill (/dev10x:git-alias-setup) to configure them.")
 
 
 __all__ = [

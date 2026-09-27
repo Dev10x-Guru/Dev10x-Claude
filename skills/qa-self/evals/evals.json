@@ -1,6 +1,6 @@
 {
-  "skill_name": "Dev10x:qa-self",
-  "description": "Evaluation criteria for Dev10x:qa-self — artifact verification before publishing, the local evidence-review gate, run-scoped capture paths, and annotated recordings",
+  "skill_name": "dev10x:qa-self",
+  "description": "Evaluation criteria for dev10x:qa-self — artifact verification before publishing, the local evidence-review gate, run-scoped capture paths, and annotated recordings",
   "eval_dimensions": [
     {
       "id": "artifact-verification",

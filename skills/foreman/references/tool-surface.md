@@ -4,7 +4,7 @@ Who can call what, and why the delivery lifecycle is cut there.
 
 ## The surface, per role
 
-| Role | Spawned as | `Skill(...)` | `mcp__plugin_Dev10x_cli__*` |
+| Role | Spawned as | `Skill(...)` | `mcp__plugin_dev10x_cli__*` |
 |---|---|---|---|
 | watchdog / orchestrator | top-level session | yes | yes (pre-loaded) |
 | foreman overseer | `Agent` subagent | **no** | only via `ToolSearch` select-query |
@@ -13,7 +13,7 @@ Who can call what, and why the delivery lifecycle is cut there.
 Two distinct facts, often conflated:
 
 1. **`Skill(...)` is unreachable from an `Agent`-spawned subagent.**
-   Observed 2026-07-30 (plugin 0.91.0): `Skill(Dev10x:gh-pr-merge)`
+   Observed 2026-07-30 (plugin 0.91.0): `Skill(dev10x:gh-pr-merge)`
    inside a worker returned "Unknown skill". Naming a skill in a
    worker prompt does not make its discipline run.
 2. **MCP wrappers ARE reachable — but they are deferred tools.**
@@ -73,7 +73,7 @@ while the supervisor can still answer a prompt (GH-1030). Evidence:
 
 The `merge` gate can legitimately be pinned to `auto-advance` (a
 solo-maintainer posture). That autonomy is only safe because
-`Dev10x:gh-pr-merge` enforces its checks — CI verdict, top-level
+`dev10x:gh-pr-merge` enforces its checks — CI verdict, top-level
 findings, unresolved inline threads, `Fixes:`-scope delivery, fixup
 detection, ancestry freshness. A worker that merges without them has
 the full autonomy and none of the guardrails: policy says "full auto
@@ -81,7 +81,7 @@ merge on CI green", execution is "merge, having checked nothing" —
 unattended, overnight, no human to catch it.
 
 Field case (GH-922): worker C0, told to merge PR #901 via
-`Skill(Dev10x:gh-pr-merge)`, could not reach it, fell back to a raw
+`Skill(dev10x:gh-pr-merge)`, could not reach it, fell back to a raw
 rebase merge the platform rejected, then to a squash merge — the
 documented rebase discipline violated, visible as one commit
 (`70f322fc`).
@@ -93,8 +93,8 @@ DOWN YOUR PEN. Do not merge.", `crew-prompt-template.md` § 7), and the
 **omission of `merge_pr` from the crew select-query** in § 2, so a
 compliant worker never loads it.
 
-`Skill(Dev10x:gh-pr-merge)` genuinely is unreachable from a subagent —
-but `mcp__plugin_Dev10x_cli__merge_pr` is NOT. It is a deferred tool
+`Skill(dev10x:gh-pr-merge)` genuinely is unreachable from a subagent —
+but `mcp__plugin_dev10x_cli__merge_pr` is NOT. It is a deferred tool
 like any other wrapper, and a subagent can load it with its own
 `ToolSearch(query="select:merge_pr")`; in the audited run one did
 exactly that and merged. Earlier revisions credited tool separation
@@ -144,7 +144,7 @@ the gate is the last place anyone sees it.
 `architecture.md` places the foreman one tier below the watchdog, as
 an `Agent`-spawned overseer. It therefore has the same constrained
 surface as the crew: it can load MCP wrappers via `ToolSearch`, and
-it cannot call `Skill(Dev10x:gh-pr-merge)` at all. Two consequences
+it cannot call `Skill(dev10x:gh-pr-merge)` at all. Two consequences
 the instructions must honor:
 
 - **Closure verification** (`issue_get` / `pr_get`) is available to
@@ -155,7 +155,7 @@ the instructions must honor:
   run's verification log turned out to be. The general form of this
   rule is `overseer-discipline.md` § No claim without an artifact.
 - **The merge gate belongs to the watchdog**, the only role that can
-  invoke `Dev10x:gh-pr-merge`. The foreman prepares the request (PR
+  invoke `dev10x:gh-pr-merge`. The foreman prepares the request (PR
   number, chunk, delivered/cut table) and relays it; the watchdog runs
   the skill — the same dumb-relay shape as the spawn-by-request
   fallback in `architecture.md`.

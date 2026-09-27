@@ -7,7 +7,7 @@ the worked example: the baseline catalog ships it *and* the broader
 :func:`dev10x.skills.permission.policy_audit._is_redundant` reports the
 explicit variant as REDUNDANT and proposes removing it — the very rule
 ``ensure-base`` re-adds on the next maintenance run. Step 4 and step 10
-of ``Dev10x:plugin-maintenance`` then fight each other on every pass.
+of ``dev10x:plugin-maintenance`` then fight each other on every pass.
 
 An acceptance is therefore a *durable answer* to a finding, not a
 weakening of the audit: the finding is still computed, still counted,

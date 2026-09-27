@@ -34,7 +34,7 @@ The merge strategy is resolved using the config resolution order
 
 Rationale for the `rebase` default: commits authored through this
 plugin already follow gitmoji + ticket + JTBD conventions enforced
-by `Dev10x:git-commit`, and `Dev10x:git-groom` produces a curated
+by `dev10x:git-commit`, and `dev10x:git-groom` produces a curated
 linear history before merge. Squashing erases that structure and
 breaks per-commit references in PR review threads. Rebase preserves
 the curated commits as-is.
@@ -105,10 +105,10 @@ Step 1." Do not jump to Step 5 (`gh pr merge` / `merge_pr`) based
 on the agent's recollection that "the checks just passed" — those
 checks belong to a sibling skill's context, not this one.
 
-**Re-invocation contract:** Every invocation of `Dev10x:gh-pr-merge`
+**Re-invocation contract:** Every invocation of `dev10x:gh-pr-merge`
 re-runs the full skill body from Step 1, including all 9 pre-merge
-checks. Check results from a prior `Dev10x:gh-pr-monitor` phase,
-prior `Dev10x:verify-acc-dod` run, or earlier invocation of this
+checks. Check results from a prior `dev10x:gh-pr-monitor` phase,
+prior `dev10x:verify-acc-dod` run, or earlier invocation of this
 same skill are NOT reusable. CI state, review comments, draft
 toggles, and force-push state can drift between invocations — the
 9 checks exist precisely to detect that drift.
@@ -150,7 +150,7 @@ bl-zebra evidence:
 three conditions above were prose the orchestrator applied by eye,
 and a report that narrates the pipeline reads exactly like one that
 reports it. Write the report and the fresh `pr_get` response to
-files (`mcp__plugin_Dev10x_cli__mktmp`) and run:
+files (`mcp__plugin_dev10x_cli__mktmp`) and run:
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-merge/scripts/audit-handoff-report.py \
@@ -192,7 +192,7 @@ Query unresolved review threads via the MCP wrapper — never raw
 GraphQL query and returns only the unresolved threads:
 
 ```
-mcp__plugin_Dev10x_cli__unresolved_threads(repo="OWNER/REPO", pr_number=NUMBER)
+mcp__plugin_dev10x_cli__unresolved_threads(repo="OWNER/REPO", pr_number=NUMBER)
 ```
 
 `unresolved_threads` requires an explicit `repo` (no CWD default);
@@ -205,12 +205,12 @@ thread carries `author_type` (`"bot"` / `"human"`). A bot-to-bot
 review cycle that has already been addressed must not block a
 walk-away merge on a supervisor prompt. So before treating an
 unresolved-thread count as a hard failure, resolve
-`mcp__plugin_Dev10x_cli__resolve_gate(gate="thread_resolution",
+`mcp__plugin_dev10x_cli__resolve_gate(gate="thread_resolution",
 context={"author_type": "bot"})`:
 
 - When its `effect == "auto-advance"` (AFK) **and every** unresolved
   thread has `author_type == "bot"`, do NOT stop here. Auto-delegate
-  to `Skill(Dev10x:gh-pr-respond)` — the same auto-remediation shape
+  to `Skill(dev10x:gh-pr-respond)` — the same auto-remediation shape
   Check 2 uses for CI failures — to address/auto-resolve the bot
   threads, then re-run Check 1.
 - Fall through to the hard stop only when **any** thread has
@@ -239,7 +239,7 @@ ${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-merge/scripts/check-top-level-comments.sh \
 Prefer the MCP wrapper over the raw script:
 
 ```
-mcp__plugin_Dev10x_cli__check_top_level_comments(repo="OWNER/REPO", pr_number=NUMBER)
+mcp__plugin_dev10x_cli__check_top_level_comments(repo="OWNER/REPO", pr_number=NUMBER)
 ```
 
 The result carries `findings`/`count` plus two severity buckets
@@ -260,7 +260,7 @@ used to miss). Both buckets must be clear before this check passes:
 **Addressed findings are matched by key (GH-907, GH-884).** A finding
 (either bucket) is "addressed" when a later comment replies to it with
 the finding's **comment id on the `Re:` line** — the documented
-`Dev10x:gh-pr-respond` format, `Re: comment <id> — …`. `top-level-comments.jq`
+`dev10x:gh-pr-respond` format, `Re: comment <id> — …`. `top-level-comments.jq`
 collects every id keyed by a reply and drops those findings from the
 result, so the reply satisfies the disposition requirement for a
 `needs_disposition` finding just as it clears a `blocking` one, and
@@ -276,7 +276,7 @@ finding. A reply still never counts as a finding itself (GH-777).
 **Minimizing a comment does NOT address it (GH-920).** This scan reads
 the REST issue-comments array, which carries no `isMinimized` field, so
 a `minimizeComment` mutation is invisible here by design.
-`Dev10x:gh-pr-respond` Gate 6 hiding is cosmetic noise reduction, not a
+`dev10x:gh-pr-respond` Gate 6 hiding is cosmetic noise reduction, not a
 disposition. When this check blocks on a finding whose comment is
 already hidden, the fix is a keyed `Re:` reply — not another
 minimization, and not a merge override.
@@ -322,7 +322,7 @@ Check 1b (`issueComments`). Query them via the MCP wrapper —
 never raw `gh api .../pulls/.../comments` (GH-598):
 
 ```
-mcp__plugin_Dev10x_cli__pr_comments(pr_number=NUMBER, action="list", unresolved_only=true)
+mcp__plugin_dev10x_cli__pr_comments(pr_number=NUMBER, action="list", unresolved_only=true)
 ```
 
 Filter for bot users with unaddressed severity markers
@@ -356,7 +356,7 @@ ${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-merge/scripts/reconcile-fixes-links.py \
   --body-file <pr-body.txt> --base origin/<base> --repo-dir <pr-checkout>
 ```
 
-Write the PR body to a file via `mcp__plugin_Dev10x_cli__mktmp`
+Write the PR body to a file via `mcp__plugin_dev10x_cli__mktmp`
 first. Pass `--repo-dir` whenever the PR's branch is checked out
 somewhere other than your CWD — an orchestrator merging a worktree
 child's PR from the main checkout otherwise reads an empty
@@ -420,8 +420,8 @@ neither actually was.
 
 **Unattended contexts: prefer the wrapper (GH-1058).** When this
 skill runs the merge gate for an unattended harness (the
-`Dev10x:foreman` watchdog, an afk session), reach for
-`mcp__plugin_Dev10x_cli__ci_check_status(wait=false)` instead of
+`dev10x:foreman` watchdog, an afk session), reach for
+`mcp__plugin_dev10x_cli__ci_check_status(wait=false)` instead of
 the raw `gh pr checks` above. It returns the same verdict off the
 Bash layer, so it cannot raise a permission prompt that nobody is
 awake to answer — the failure mode that froze a watchdog mid-night
@@ -437,7 +437,7 @@ been exhausted or the failure looks unrelated to the PR.
 **Pending CI delegation (GH-775, GH-955):** If any check is
 `PENDING` or `IN_PROGRESS`, do NOT poll inline with `sleep`
 + `gh pr checks` and do NOT ask the user. Instead, delegate
-to `Skill(Dev10x:gh-pr-monitor)` to wait for CI to complete,
+to `Skill(dev10x:gh-pr-monitor)` to wait for CI to complete,
 then retry the merge validation from Check 1. The monitor
 skill handles CI polling reliably; inline sleep loops bypass
 these guardrails. A pending check's verdict is by definition
@@ -446,7 +446,7 @@ unknown — waiting is the only correct behavior.
 **Code-failure auto-fix loop (GH-955):** If a check has
 `bucket: fail` and the failure looks caused by the PR's own
 changes (e.g., lint, type, test, coverage, formatting), do
-NOT ask the user. Delegate to `Skill(Dev10x:gh-pr-monitor)` —
+NOT ask the user. Delegate to `Skill(dev10x:gh-pr-monitor)` —
 its Phase 1 "CI Failure Handling" table maps each failure
 type to a fixup strategy (format, type annotations, test
 fixes, etc.). The monitor creates fixup commits, pushes,
@@ -486,14 +486,14 @@ prematurely).
   or wait?"
 - Options:
   - **Wait (Recommended)** — re-invoke
-    `Skill(Dev10x:gh-pr-monitor)` to retry CI, then retry
+    `Skill(dev10x:gh-pr-monitor)` to retry CI, then retry
     merge validation from Check 1
   - **Merge anyway** — user MUST supply a reason (free text
     via the `Other` notes field). Record the reason in the
     skill's task metadata
     (`TaskUpdate(taskId, metadata={"merge_override_reason":
     "<user text>", "override_check": "<check-name>",
-    "override_state": "<state>"})`) so `Dev10x:skill-audit`
+    "override_state": "<state>"})`) so `dev10x:skill-audit`
     can surface override patterns later.
   - **Abort** — cancel merge.
 
@@ -513,7 +513,7 @@ Raw `gh pr view` is hook-blocked and routes to the MCP wrapper.
 and 7 — read each field from the one response:
 
 ```
-mcp__plugin_Dev10x_cli__pr_get(number=NUMBER, repo="OWNER/REPO")
+mcp__plugin_dev10x_cli__pr_get(number=NUMBER, repo="OWNER/REPO")
 ```
 
 ### Check 2b: PR not already merged; auto-merge not silently armed (GH-848 F4)
@@ -525,7 +525,7 @@ from the same response before evaluating Checks 3/4/7:
    non-null), the PR self-merged — almost always because auto-merge
    was armed and CI went green before this gate ran. Do NOT attempt to
    merge again. **Short-circuit to post-merge verification**: confirm
-   the merge commit, then hand off to `Dev10x:verify-acc-dod`. Report
+   the merge commit, then hand off to `dev10x:verify-acc-dod`. Report
    that the merge already happened; the remaining checks are moot.
 
    **Report `ALREADY MERGED`, never the checklist (GH-1380).** The
@@ -562,7 +562,7 @@ those checks either moot (merged) or racing against the auto-merge
 path arms it on a created PR: `--auto` is reachable only through
 `merge_pr(auto=True)`, which defaults to `False` and is gated by the
 Step 5 admin/auto prompt below. `create_pr`, `create-pr.sh`, and
-`Dev10x:gh-pr-monitor` never pass it. An armed PR therefore came from
+`dev10x:gh-pr-monitor` never pass it. An armed PR therefore came from
 outside the plugin — a repo-level setting or a manual `gh pr merge
 --auto`.
 
@@ -648,7 +648,7 @@ git log --oneline origin/develop..HEAD
 
 Scan commit subjects for `fixup!` or `squash!` prefixes.
 If any exist, report that commit history must be groomed
-first (via `Dev10x:git-groom`).
+first (via `dev10x:git-groom`).
 
 ### Check 7: Review approval
 
@@ -667,7 +667,7 @@ Detect the current PR from the branch name via the MCP wrapper
 (raw `gh pr view` is hook-blocked):
 
 ```
-mcp__plugin_Dev10x_cli__pr_detect(arg="")
+mcp__plugin_dev10x_cli__pr_detect(arg="")
 ```
 
 It returns `PR_NUMBER`, `REPO`, `PR_URL`, and `BRANCH`. If no PR
@@ -733,7 +733,7 @@ check fails" table below. The merge gate below only applies once
 all 9 checks pass.
 
 **All checks pass — resolve the merge gate (ADR-0016, GH-757):**
-Call `mcp__plugin_Dev10x_cli__resolve_gate(gate="merge",
+Call `mcp__plugin_dev10x_cli__resolve_gate(gate="merge",
 context={})` before executing the merge. Do NOT special-case
 `solo_maintainer`, `friction_level`, or `active_modes` in prose
 here — the resolver reads session policy (preset + overlays,
@@ -759,7 +759,7 @@ including the solo-maintainer overlay) itself.
 auto-advances), call the MCP tool (GH-232):
 
 ```
-mcp__plugin_Dev10x_cli__merge_pr(
+mcp__plugin_dev10x_cli__merge_pr(
     pr_number=NUMBER,
     strategy="rebase",        # or "squash" / "merge" per config
     delete_branch=True,       # or False per config
@@ -829,7 +829,7 @@ silently would defeat the gate's purpose.
     `TaskUpdate(taskId, metadata={"merge_override_reason":
     "solo-maintainer required-review block",
     "override_check": "branch-protection",
-    "override_state": "BLOCKED"})` so `Dev10x:skill-audit`
+    "override_state": "BLOCKED"})` so `dev10x:skill-audit`
     can surface override patterns later.
   - **Enable auto-merge** — re-call
     `merge_pr(pr_number=NUMBER, strategy="...", auto=true,
@@ -851,14 +851,14 @@ appropriate skill for remediation:
 
 | Failed check | Remediation |
 |-------------|-------------|
-| Unresolved threads | `Dev10x:gh-pr-respond` |
+| Unresolved threads | `dev10x:gh-pr-respond` |
 | Unaddressed automated comments | Review and address findings |
 | Under-delivered Fixes scope | Narrow the `Fixes:` link or split a follow-up issue |
-| CI failing | `Dev10x:gh-pr-monitor` |
+| CI failing | `dev10x:gh-pr-monitor` |
 | Still in draft | `gh pr ready` |
 | Merge conflicts | Rebase onto base branch |
-| Dirty working copy | `Dev10x:git-commit` |
-| Fixup commits | `Dev10x:git-groom` |
+| Dirty working copy | `dev10x:git-commit` |
+| Fixup commits | `dev10x:git-groom` |
 | No approval | Request review |
 
 ### Step 6: Confirm merge
@@ -899,7 +899,7 @@ auto-fix loop is exhausted. See `references/friction-levels.md`
 - Never bypass checks even if "it looks fine" — any `PENDING`,
   `IN_PROGRESS`, or `FAILURE` (required or not) blocks the
   merge. Check 2 handles these by delegating to
-  `Dev10x:gh-pr-monitor` (pending → wait; code failure →
+  `dev10x:gh-pr-monitor` (pending → wait; code failure →
   fixup + re-check). The ALWAYS_ASK gate (GH-955, GH-730)
   only fires when the auto-fix loop is exhausted or the
   failure is clearly infrastructure-related. All
@@ -908,6 +908,6 @@ auto-fix loop is exhausted. See `references/friction-levels.md`
 - The solo-maintainer override only skips check 8 (approval),
   not the other 7 checks
 - This skill must NOT be called from background agents
-  (`Dev10x:gh-pr-monitor` explicitly forbids merge operations)
+  (`dev10x:gh-pr-monitor` explicitly forbids merge operations)
 - Always use `gh pr merge` (not `git merge`) to ensure GitHub
   records the merge event properly

@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:gh-pr-triage",
+  "skill_name": "dev10x:gh-pr-triage",
   "eval_dimensions": [
     {
       "id": "no-auto-resolve",
@@ -9,12 +9,12 @@
     {
       "id": "skill-only-entry",
       "name": "Skill-Only Entry Point",
-      "description": "Verdicts (VALID/YAGNI/INVALID/QUESTION/OUT_OF_SCOPE) appear only as the output of Skill(Dev10x:gh-pr-triage). They must NOT appear in narrative text as inline classification without a preceding Skill() call."
+      "description": "Verdicts (VALID/YAGNI/INVALID/QUESTION/OUT_OF_SCOPE) appear only as the output of Skill(dev10x:gh-pr-triage). They must NOT appear in narrative text as inline classification without a preceding Skill() call."
     },
     {
       "id": "verdict-output",
       "name": "Verdict Output Contract",
-      "description": "Each run returns exactly one verdict from the documented set. VALID returns no reply and no thread action. INVALID/QUESTION/OUT_OF_SCOPE/YAGNI post a reply via mcp__plugin_Dev10x_cli__pr_comment_reply but do not resolve the thread."
+      "description": "Each run returns exactly one verdict from the documented set. VALID returns no reply and no thread action. INVALID/QUESTION/OUT_OF_SCOPE/YAGNI post a reply via mcp__plugin_dev10x_cli__pr_comment_reply but do not resolve the thread."
     },
     {
       "id": "jtbd-scope-check",
@@ -32,12 +32,12 @@
       "id": "invalid-verdict-no-auto-resolve",
       "name": "INVALID verdict replies but does not resolve thread",
       "description": "Investigation shows the comment is factually wrong (field exists in base class). Skill must post an evidence-based reply and return INVALID. Thread must remain open.",
-      "input": "/Dev10x:gh-pr-triage https://github.com/org/repo/pull/42#discussion_r12345",
+      "input": "/dev10x:gh-pr-triage https://github.com/org/repo/pull/42#discussion_r12345",
       "assertions": [
         {
           "dimension": "no-auto-resolve",
           "check": "tool_called",
-          "tool": "mcp__plugin_Dev10x_cli__pr_comment_reply",
+          "tool": "mcp__plugin_dev10x_cli__pr_comment_reply",
           "signal": "pr_comment_reply is called to post the evidence-based reply"
         },
         {
@@ -57,7 +57,7 @@
       "id": "valid-verdict-no-reply",
       "name": "VALID verdict returns without reply or thread action",
       "description": "Investigation confirms the comment is correct. Skill must return VALID with no reply posted and no thread action taken.",
-      "input": "/Dev10x:gh-pr-triage https://github.com/org/repo/pull/42#discussion_r22222",
+      "input": "/dev10x:gh-pr-triage https://github.com/org/repo/pull/42#discussion_r22222",
       "assertions": [
         {
           "dimension": "verdict-output",
@@ -68,7 +68,7 @@
         {
           "dimension": "no-auto-resolve",
           "check": "behavioral",
-          "signal": "mcp__plugin_Dev10x_cli__pr_comment_reply is NOT called for a VALID verdict"
+          "signal": "mcp__plugin_dev10x_cli__pr_comment_reply is NOT called for a VALID verdict"
         },
         {
           "dimension": "no-auto-resolve",
@@ -81,7 +81,7 @@
       "id": "yagni-verdict-scope-mismatch",
       "name": "YAGNI verdict when commented code is out of scope for PR JTBD",
       "description": "Comment is a correct bug report, but Step 4.5 determines the commented code is speculative scope-creep not part of the PR's stated JTBD. Must return YAGNI and post a reply naming the scope mismatch.",
-      "input": "/Dev10x:gh-pr-triage https://github.com/org/repo/pull/42#discussion_r33333",
+      "input": "/dev10x:gh-pr-triage https://github.com/org/repo/pull/42#discussion_r33333",
       "assertions": [
         {
           "dimension": "jtbd-scope-check",
@@ -105,14 +105,14 @@
     {
       "id": "no-inline-classification",
       "name": "Verdicts never appear as inline text without Skill() call",
-      "description": "Parent caller (gh-pr-respond) processes 3 comments. All 3 verdicts must come from Skill(Dev10x:gh-pr-triage) tool calls, not from narrative text like 'Comment 2 is VALID'.",
-      "input": "/Dev10x:gh-pr-respond https://github.com/org/repo/pull/42",
+      "description": "Parent caller (gh-pr-respond) processes 3 comments. All 3 verdicts must come from Skill(dev10x:gh-pr-triage) tool calls, not from narrative text like 'Comment 2 is VALID'.",
+      "input": "/dev10x:gh-pr-respond https://github.com/org/repo/pull/42",
       "assertions": [
         {
           "dimension": "skill-only-entry",
           "check": "tool_called",
           "tool": "Skill",
-          "signal": "Skill(Dev10x:gh-pr-triage) is called for each comment — verdict not written inline"
+          "signal": "Skill(dev10x:gh-pr-triage) is called for each comment — verdict not written inline"
         },
         {
           "dimension": "skill-only-entry",
@@ -125,7 +125,7 @@
       "id": "startup-task-creation",
       "name": "Three phase tasks created before any work",
       "description": "Skill must create 3 TaskCreate entries at startup before fetching the comment.",
-      "input": "/Dev10x:gh-pr-triage https://github.com/org/repo/pull/42#discussion_r44444",
+      "input": "/dev10x:gh-pr-triage https://github.com/org/repo/pull/42#discussion_r44444",
       "assertions": [
         {
           "dimension": "orchestration",
@@ -146,7 +146,7 @@
     "description": "Queries that should/should-not trigger the gh-pr-triage skill",
     "should_trigger": [
       {
-        "query": "/Dev10x:gh-pr-triage https://github.com/org/repo/pull/42#discussion_r456",
+        "query": "/dev10x:gh-pr-triage https://github.com/org/repo/pull/42#discussion_r456",
         "rationale": "Direct invocation with comment URL — core standalone use case"
       },
       {
@@ -161,15 +161,15 @@
     "should_not_trigger": [
       {
         "query": "respond to all the review comments on my PR",
-        "rationale": "Full respond workflow — use Dev10x:gh-pr-respond"
+        "rationale": "Full respond workflow — use dev10x:gh-pr-respond"
       },
       {
         "query": "implement the fix for this review comment",
-        "rationale": "Fix implementation — use Dev10x:gh-pr-fixup directly"
+        "rationale": "Fix implementation — use dev10x:gh-pr-fixup directly"
       },
       {
         "query": "review this PR and post findings",
-        "rationale": "Creating a new review — use Dev10x:gh-pr-review"
+        "rationale": "Creating a new review — use dev10x:gh-pr-review"
       },
       {
         "query": "resolve the review thread at https://github.com/org/repo/pull/42#discussion_r456",

@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:park",
+  "skill_name": "dev10x:park",
   "eval_dimensions": [
     {
       "id": "target-selection-gate",
@@ -14,7 +14,7 @@
     {
       "id": "session-yaml-append-invariant",
       "name": "Every Routed Target Also Appends a session.yaml Entry (GH-85)",
-      "description": "Regardless of which external target(s) are selected, a corresponding source-tagged entry is appended to .claude/Dev10x/session.yaml tasks: so Dev10x:park-discover can surface the item without scanning every write path."
+      "description": "Regardless of which external target(s) are selected, a corresponding source-tagged entry is appended to .claude/Dev10x/session.yaml tasks: so dev10x:park-discover can surface the item without scanning every write path."
     }
   ],
   "evals": [
@@ -22,7 +22,7 @@
       "id": "target-gate-fires-with-multiselect",
       "name": "Target selection fires AskUserQuestion with multiSelect enabled",
       "description": "After context detection, the skill must present the target list via AskUserQuestion with multiSelect: true rather than picking one target automatically.",
-      "input": "/Dev10x:park \"Add order confirmation email\"",
+      "input": "/dev10x:park \"Add order confirmation email\"",
       "assertions": [
         {
           "dimension": "target-selection-gate",
@@ -41,7 +41,7 @@
       "id": "no-ticket-no-pr-omits-conditional-targets",
       "name": "No ticket ID and no open PR omits the conditional targets",
       "description": "When Step 2 finds no ticket ID in the branch name and no open PR, the gate's option list excludes 'Issue tracker comment' and 'PR comment' / 'PR session bookmark' — only the always-available targets appear.",
-      "input": "/Dev10x:park \"refactor later\" (branch has no ticket ID, no open PR)",
+      "input": "/dev10x:park \"refactor later\" (branch has no ticket ID, no open PR)",
       "assertions": [
         {
           "dimension": "conditional-target-availability",
@@ -54,7 +54,7 @@
       "id": "detected-context-includes-conditional-targets",
       "name": "Detected ticket ID and open PR add the conditional targets",
       "description": "When Step 2 detects both a ticket ID (from the branch name) and an open PR, the gate's option list includes the ticket-comment and PR-comment/bookmark targets alongside the always-available ones.",
-      "input": "/Dev10x:park \"fix flaky test\" (branch janusz/GH-42/slug, open PR #99)",
+      "input": "/dev10x:park \"fix flaky test\" (branch janusz/GH-42/slug, open PR #99)",
       "assertions": [
         {
           "dimension": "conditional-target-availability",
@@ -67,7 +67,7 @@
       "id": "every-selected-target-appends-session-yaml-entry",
       "name": "Selecting an external target still appends a session.yaml entry",
       "description": "Even when the user selects only 'Slack DM' (not the session.yaml index target itself), the skill still appends a source-tagged entry to session.yaml tasks: so park-discover can surface it.",
-      "input": "/Dev10x:park \"tell the team about this\" — user selects only Slack DM",
+      "input": "/dev10x:park \"tell the team about this\" — user selects only Slack DM",
       "assertions": [
         {
           "dimension": "session-yaml-append-invariant",
@@ -81,7 +81,7 @@
     "description": "Queries that should/should-not trigger the park skill",
     "should_trigger": [
       {
-        "query": "/Dev10x:park \"add rate limiting to the webhook endpoint\"",
+        "query": "/dev10x:park \"add rate limiting to the webhook endpoint\"",
         "rationale": "Direct invocation — defer a task for later"
       },
       {
@@ -92,11 +92,11 @@
     "should_not_trigger": [
       {
         "query": "add a TODO comment in this file for the missing null check",
-        "rationale": "Specific inline-code deferral — use Dev10x:park-todo directly"
+        "rationale": "Specific inline-code deferral — use dev10x:park-todo directly"
       },
       {
         "query": "remind me on Slack tomorrow about this",
-        "rationale": "Specific Slack-only deferral — use Dev10x:park-remind directly"
+        "rationale": "Specific Slack-only deferral — use dev10x:park-remind directly"
       }
     ]
   }

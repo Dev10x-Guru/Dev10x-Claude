@@ -8,13 +8,13 @@ instructions that survive context compaction.
 
 Actions that MUST use skill delegation (never raw CLI):
 
-1. commit → `Skill(Dev10x:git-commit)`
-2. create PR → `Skill(Dev10x:gh-pr-create)`
-3. monitor CI → `Skill(Dev10x:gh-pr-monitor)`
-4. push → `Skill(Dev10x:git)`
-5. groom → `Skill(Dev10x:git-groom)`
-6. branch → `Skill(Dev10x:ticket-branch)`
-7. verify acceptance → `Skill(Dev10x:verify-acc-dod)`
+1. commit → `Skill(dev10x:git-commit)`
+2. create PR → `Skill(dev10x:gh-pr-create)`
+3. monitor CI → `Skill(dev10x:gh-pr-monitor)`
+4. push → `Skill(dev10x:git)`
+5. groom → `Skill(dev10x:git-groom)`
+6. branch → `Skill(dev10x:ticket-branch)`
+7. verify acceptance → `Skill(dev10x:verify-acc-dod)`
 
 ## Recovery Instructions
 

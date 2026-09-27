@@ -502,7 +502,7 @@ async def triage_roster(*, repo: str | None = None) -> Result[dict[str, Any]]:
     filing flow ever populated them: a 2026-08-30 sweep found 11 of 16 open
     issues unmilestoned and 10 of 13 unlabeled, all filed through those
     wrappers. A flow cannot choose from a taxonomy it cannot see, so this
-    is the read that makes ``Dev10x:ticket-create``'s triage step possible.
+    is the read that makes ``dev10x:ticket-create``'s triage step possible.
 
     One composite call rather than separate milestone/label tools — a
     caller triaging a new ticket always wants both, and ADR-0006 shapes

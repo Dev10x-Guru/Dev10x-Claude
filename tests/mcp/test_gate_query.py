@@ -227,8 +227,8 @@ class TestSupervisorSignOffSignal:
     """The floor reads the EXISTING `review:cleared` label (GH-1163, GH-1008).
 
     No second sign-off channel is introduced: the label is already written
-    by ``Dev10x:gh-pr-request-review``'s two "I reviewed it" answers and
-    already removed by ``Dev10x:git-groom`` after a force-push. This suite
+    by ``dev10x:gh-pr-request-review``'s two "I reviewed it" answers and
+    already removed by ``dev10x:git-groom`` after a force-push. This suite
     covers the one genuinely new leg — the resolver-side read — and the
     round trip that nothing previously exercised, because until now
     nothing consumed the label at gate-resolution time.
@@ -277,7 +277,7 @@ class TestSupervisorSignOffSignal:
         self, team_repo: Path, labels: list[str]
     ) -> None:
         # The regression this ticket exists for. A sign-off covers the
-        # commits that were READ; `Dev10x:git-groom` therefore removes the
+        # commits that were READ; `dev10x:git-groom` therefore removes the
         # label after a force-push, and the floor must come back rather
         # than latching open on a branch whose history was rewritten out
         # from under the review.

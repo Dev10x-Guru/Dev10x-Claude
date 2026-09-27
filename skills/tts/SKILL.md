@@ -1,22 +1,22 @@
 ---
-name: Dev10x:tts
+name: dev10x:tts
 description: >
   Synthesize narration audio from text with a local voice — Kokoro for
   English, Piper for Polish and everything else — and lay rendered lines
   onto a timeline as a single voice-over track for muxing over a screen
   recording.
   TRIGGER when: narration or voice-over audio is needed for a walkthrough
-  recording, or a Dev10x:qa-self capture should be narrated.
-  DO NOT TRIGGER when: capturing the recording itself (use Dev10x:qa-self),
+  recording, or a dev10x:qa-self capture should be narrated.
+  DO NOT TRIGGER when: capturing the recording itself (use dev10x:qa-self),
   or converting/verifying evidence files (use qa-self's own scripts).
 user-invocable: true
-invocation-name: Dev10x:tts
+invocation-name: dev10x:tts
 allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/tts/scripts/:*)
   - AskUserQuestion
 ---
 
-# Dev10x:tts — narration, routed by language
+# dev10x:tts — narration, routed by language
 
 Turns narration copy into audio with a locally-installed voice, then places
 the rendered lines on a timeline so they can be muxed onto a recording.
@@ -177,7 +177,7 @@ switching voices re-arms the gate rather than inheriting the old consent.
 
 ## Narrating a qa-self walkthrough
 
-`Dev10x:qa-self` captions already carry narration copy. See
+`dev10x:qa-self` captions already carry narration copy. See
 [`references/qa-self-narration.md`](references/qa-self-narration.md) for
 the full recipe: declare the lines, attach `Narration` to the `Annotator`,
 build the track, mux it on.

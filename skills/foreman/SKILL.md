@@ -1,5 +1,5 @@
 ---
-name: Dev10x:foreman
+name: dev10x:foreman
 description: >
   Unattended overnight delivery of a milestone/bundle queue — a
   two-tier harness (watchdog main session + cheap foreman overseer +
@@ -11,45 +11,45 @@ description: >
   TRIGGER when: the supervisor is leaving (AFK / overnight / "ship
   these milestones while I sleep") with 1+ milestones or issue
   bundles queued for autonomous delivery.
-  DO NOT TRIGGER when: single attended bundle (use Dev10x:work-on),
-  parallel independent items while attended (use Dev10x:fanout), or
-  only the gate policy is wanted (use Dev10x:afk).
+  DO NOT TRIGGER when: single attended bundle (use dev10x:work-on),
+  parallel independent items while attended (use dev10x:fanout), or
+  only the gate policy is wanted (use dev10x:afk).
 user-invocable: true
-invocation-name: Dev10x:foreman
+invocation-name: dev10x:foreman
 allowed-tools:
   - AskUserQuestion
   - Read(~/.config/Dev10x/friction.yaml)
-  - mcp__plugin_Dev10x_cli__preset_pin_status
-  - mcp__plugin_Dev10x_cli__resolve_gate
+  - mcp__plugin_dev10x_cli__preset_pin_status
+  - mcp__plugin_dev10x_cli__resolve_gate
   - Agent
   - SendMessage
   - TaskStop
   - Bash(dev10x foreman:*)
   - Bash(uv run dev10x foreman:*)
   - ToolSearch
-  - Skill(Dev10x:afk)
-  - Skill(Dev10x:work-on)
-  - Skill(Dev10x:gh-pr-merge)
-  - Skill(Dev10x:fanout)
-  - Skill(Dev10x:diag-friction)
-  - Skill(Dev10x:skill-audit-queue)
-  - Skill(Dev10x:session-wrap-up)
-  - mcp__plugin_Dev10x_cli__issue_list
-  - mcp__plugin_Dev10x_cli__issue_get
-  - mcp__plugin_Dev10x_cli__issue_comment
-  - mcp__plugin_Dev10x_cli__issue_create
-  - mcp__plugin_Dev10x_cli__issue_close
-  - mcp__plugin_Dev10x_cli__pr_get
-  - mcp__plugin_Dev10x_cli__ci_check_status
-  - mcp__plugin_Dev10x_cli__milestone_close
-  - mcp__plugin_Dev10x_cli__background_preamble
-  - mcp__plugin_Dev10x_cli__resolve_gate
-  - mcp__plugin_Dev10x_cli__mktmp
+  - Skill(dev10x:afk)
+  - Skill(dev10x:work-on)
+  - Skill(dev10x:gh-pr-merge)
+  - Skill(dev10x:fanout)
+  - Skill(dev10x:diag-friction)
+  - Skill(dev10x:skill-audit-queue)
+  - Skill(dev10x:session-wrap-up)
+  - mcp__plugin_dev10x_cli__issue_list
+  - mcp__plugin_dev10x_cli__issue_get
+  - mcp__plugin_dev10x_cli__issue_comment
+  - mcp__plugin_dev10x_cli__issue_create
+  - mcp__plugin_dev10x_cli__issue_close
+  - mcp__plugin_dev10x_cli__pr_get
+  - mcp__plugin_dev10x_cli__ci_check_status
+  - mcp__plugin_dev10x_cli__milestone_close
+  - mcp__plugin_dev10x_cli__background_preamble
+  - mcp__plugin_dev10x_cli__resolve_gate
+  - mcp__plugin_dev10x_cli__mktmp
 ---
 
-# Dev10x:foreman — Overnight Milestone Delivery Harness
+# dev10x:foreman — Overnight Milestone Delivery Harness
 
-**Announce:** "Using Dev10x:foreman to pre-flight and run the
+**Announce:** "Using dev10x:foreman to pre-flight and run the
 unattended delivery of [queue] while you're away."
 
 The supervisor leaves the site; the foreman runs the crew; the

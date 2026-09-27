@@ -112,7 +112,7 @@ longer need a decision, so the remaining debt stays countable.
 They are recorded rather than seeded because seeding them is a
 **security decision, not a mechanical one**. The set includes rules
 granting arbitrary code execution (`npx:*`, `pip install:*`,
-`docker exec:*`, `python3:*`), raw database access the `Dev10x:db`
+`docker exec:*`, `python3:*`), raw database access the `dev10x:db`
 skill exists to route around (`psql:*`), tracker writes, and raw `gh`
 spellings the skill-redirect hook deliberately steers to MCP wrappers
 (`gh pr merge`, `gh issue close`). Shipping those wholesale would widen

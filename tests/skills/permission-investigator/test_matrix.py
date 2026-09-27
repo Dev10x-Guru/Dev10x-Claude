@@ -105,7 +105,7 @@ class TestRuleShapeRender:
 
         rendered = shape.render(fixture_relpath=fixture_relpath, user_home=home)
 
-        assert rendered.startswith("mcp__plugin_Dev10x_cli__")
+        assert rendered.startswith("mcp__plugin_dev10x_cli__")
 
 
 class TestGenerateMatrix:

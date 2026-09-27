@@ -1,4 +1,4 @@
-"""Dev10x:plugin-doctor — intent-drift diagnostic skill (GH-87).
+"""dev10x:plugin-doctor — intent-drift diagnostic skill (GH-87).
 
 The skill core is a strategy registry. Each strategy owns one
 drift category (MCP-vs-script confusion, cluster coverage, local

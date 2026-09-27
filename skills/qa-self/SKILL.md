@@ -1,15 +1,15 @@
 ---
-name: Dev10x:qa-self
+name: dev10x:qa-self
 description: >
   Execute QA test cases on staging using headless Playwright, capture
   screenshot and video evidence, upload to Linear, and post structured
   results.
   TRIGGER when: QA ticket has test cases to execute against staging
   and evidence is needed.
-  DO NOT TRIGGER when: analyzing PR for QA needs (use Dev10x:qa-scope),
+  DO NOT TRIGGER when: analyzing PR for QA needs (use dev10x:qa-scope),
   or running unit/integration tests (use test skill).
 user-invocable: true
-invocation-name: Dev10x:qa-self
+invocation-name: dev10x:qa-self
 allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/playwright/scripts/:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/qa-self/scripts/:*)

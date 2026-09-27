@@ -1,5 +1,5 @@
 ---
-name: Dev10x:slack-setup
+name: dev10x:slack-setup
 description: >
   Guide the user through setting up their Slack integration —
   create a Slack app, configure scopes, store the token in the
@@ -10,9 +10,9 @@ description: >
   TRIGGER when: setting up Slack integration for the first time, or
   reconfiguring Slack credentials.
   DO NOT TRIGGER when: Slack already configured and working, or
-  sending messages (use Dev10x:slack).
+  sending messages (use dev10x:slack).
 user-invocable: true
-invocation-name: Dev10x:slack-setup
+invocation-name: dev10x:slack-setup
 allowed-tools:
   - AskUserQuestion
   - Bash(secret-tool:*)
@@ -24,16 +24,16 @@ allowed-tools:
   - Bash(git config user.email:*)
 ---
 
-# Dev10x:slack-setup — Slack Integration Setup
+# dev10x:slack-setup — Slack Integration Setup
 
-**Announce:** "Using Dev10x:slack-setup to configure Slack integration."
+**Announce:** "Using dev10x:slack-setup to configure Slack integration."
 
 ## Arguments
 
 The skill accepts a single optional argument:
 
 ```
-/Dev10x:slack-setup [xoxb-...]
+/dev10x:slack-setup [xoxb-...]
 ```
 
 When a token is passed, skip Step 2 entirely (no token-source
@@ -203,7 +203,7 @@ is **derived first**, prompted only on derivation failure.
 | `bot_user_id` | `auth.test.user_id` | Prompt only if absent |
 | `team_id` | `auth.test.team_id` | Prompt only if absent |
 | `self_user_id` | `users.lookupByEmail?email=$(git config user.email)` against the same token | See 4b |
-| `user_groups` | `{}` (empty default — managed in `Dev10x:slack` later) | None — never prompts |
+| `user_groups` | `{}` (empty default — managed in `dev10x:slack` later) | None — never prompts |
 
 `users.lookupByEmail` call:
 
@@ -254,7 +254,7 @@ Options:
 - **Send test message to a channel** — prompts for channel ID
 - **Skip** — accept the auth.test result
 
-Delegate the actual send to `Dev10x:slack`.
+Delegate the actual send to `dev10x:slack`.
 
 ## Net Effect
 

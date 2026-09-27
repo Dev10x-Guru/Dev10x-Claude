@@ -54,7 +54,7 @@ def settings_without_linear(tmp_path: Path) -> Path:
                 "permissions": {
                     "allow": [
                         "Bash(gh pr view:*)",
-                        "mcp__plugin_Dev10x_cli__mktmp",
+                        "mcp__plugin_dev10x_cli__mktmp",
                     ]
                 }
             }
@@ -139,5 +139,5 @@ class TestMissingLinearMcpAllowRemediate:
         remediation = missing_linear_mcp_allow.remediate(finding)
 
         assert remediation.kind == "delegate_skill"
-        assert remediation.target == "Dev10x:upgrade-cleanup"
+        assert remediation.target == "dev10x:upgrade-cleanup"
         assert "missing_tools" in remediation.action

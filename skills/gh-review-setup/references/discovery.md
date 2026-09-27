@@ -6,7 +6,7 @@ read-only. Never assume a stack; detect it.
 ## Detection commands
 
 All commands run from the repo root (the session CWD). Dump output to a
-temp file (`mcp__plugin_Dev10x_cli__mktmp`) when a command's output feeds a
+temp file (`mcp__plugin_dev10x_cli__mktmp`) when a command's output feeds a
 later parse step, per the no-pipe-chains convention.
 
 ### 1. Languages / file types
@@ -53,7 +53,7 @@ Record `existing_structure: true|false` and the specific paths found.
 ### 3. Issue tracker
 
 ```
-mcp__plugin_Dev10x_cli__detect_tracker
+mcp__plugin_dev10x_cli__detect_tracker
 ```
 
 Parse `tracker` (github | linear | jira | none). Determines:
@@ -83,7 +83,7 @@ regardless.
 ### 5. Default branch
 
 ```
-mcp__plugin_Dev10x_cli__detect_base_branch
+mcp__plugin_dev10x_cli__detect_base_branch
 ```
 
 Returns the repo's base/default branch (prefers `develop`/`development`,

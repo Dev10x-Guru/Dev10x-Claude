@@ -49,7 +49,7 @@ SHIPPED = {
     "base_asks": ["Bash(gh api -X DELETE:*)"],
     "base_denies": ["Bash(sudo:*)"],
     "tracker_permissions": {
-        "github": ["mcp__plugin_Dev10x_cli__issue_close"],
+        "github": ["mcp__plugin_dev10x_cli__issue_close"],
         "linear": ["mcp__claude_ai_Linear__get_issue"],
     },
     "tracker_denies": {"linear": ["mcp__claude_ai_Linear__delete_comment"]},
@@ -86,7 +86,7 @@ def test_shipped_tracker_sections_reach_a_catalog_that_lacks_them(key: str) -> N
 def test_github_pinned_repo_receives_the_github_tracker_block() -> None:
     """The concrete GH-1249 symptom, stated as its own case."""
     merged = _merged(PRE_SECTIONS_USER)[TRACKER_ALLOW_KEY]
-    assert "mcp__plugin_Dev10x_cli__issue_close" in merged["github"]
+    assert "mcp__plugin_dev10x_cli__issue_close" in merged["github"]
 
 
 @pytest.mark.parametrize("key", USER_OWNED_KEYS)
@@ -133,7 +133,7 @@ def test_tracker_absent_from_shipped_is_carried_through() -> None:
     user = {**PRE_SECTIONS_USER, TRACKER_ALLOW_KEY: {"jira": ["mcp__x__y"]}}
     merged = _merged(user)[TRACKER_ALLOW_KEY]
     assert merged["jira"] == ["mcp__x__y"]
-    assert "mcp__plugin_Dev10x_cli__issue_close" in merged["github"]
+    assert "mcp__plugin_dev10x_cli__issue_close" in merged["github"]
 
 
 def test_ask_rules_accept_suppression() -> None:

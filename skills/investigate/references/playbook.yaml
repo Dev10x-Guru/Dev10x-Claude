@@ -1,10 +1,10 @@
-# playbook.yaml — Investigation workflow plays for Dev10x:investigate
+# playbook.yaml — Investigation workflow plays for dev10x:investigate
 # Default location: ${CLAUDE_PLUGIN_ROOT}/skills/investigate/references/playbook.yaml
 # User overrides (see references/config-resolution.md):
 #   1. .claude/Dev10x/playbooks/investigate.yaml (project-local)
 #   2. ~/.config/Dev10x/playbooks/investigate.yaml (global + repo match)
 #      → fallback: ~/.claude/memory/Dev10x/playbooks/investigate.yaml
-# Managed by Dev10x:playbook skill.
+# Managed by dev10x:playbook skill.
 #
 # Play names match mode detection in SKILL.md:
 #   standard   — Slack thread with bug report or unexpected behaviour
@@ -70,9 +70,9 @@ defaults:
         type: detailed
         prompt: >
           Create when fix is not trivial, issue affects production/staging,
-          or user requests. Delegate to Dev10x:ticket-create.
+          or user requests. Delegate to dev10x:ticket-create.
         condition: fix-warrants-ticket
-        skills: [Dev10x:ticket-create]
+        skills: [dev10x:ticket-create]
       - subject: Mention the ticket in the thread
         type: detailed
         prompt: >
@@ -85,7 +85,7 @@ defaults:
       Use when the Slack thread contains a GitHub PR link and the
       request is to review it or check its status. Parse the URL and
       read the thread for context, then delegate to
-      Dev10x:gh-pr-review.
+      dev10x:gh-pr-review.
     steps:
       - subject: Parse Slack URL
         type: detailed
@@ -100,8 +100,8 @@ defaults:
       - subject: Delegate to PR review
         type: detailed
         prompt: >
-          Invoke Dev10x:gh-pr-review skill with the PR URL and Slack
+          Invoke dev10x:gh-pr-review skill with the PR URL and Slack
           thread context. Let the review skill handle the rest.
-        skills: [Dev10x:gh-pr-review]
+        skills: [dev10x:gh-pr-review]
 
 overrides: []

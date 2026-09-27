@@ -15,15 +15,15 @@ mode" nudge (the GH-310 footgun). Parent: **GH-488** (S13 / G13 / D11).
 This file is the **single source of truth**. Dispatchers MUST prepend
 the block below verbatim to every background subagent prompt, and
 pre-seed the subagent's tool surface (see § Pre-seed). Fetch the text
-programmatically via the `mcp__plugin_Dev10x_cli__background_preamble`
+programmatically via the `mcp__plugin_dev10x_cli__background_preamble`
 tool (no Read prompt, no drift) or read this file.
 
 ## Coverage and limits
 
 | Dispatch path | How the preamble lands |
 |---------------|------------------------|
-| `Dev10x:fanout` swarm children | Inlined into the per-item agent prompt template |
-| `Dev10x:gh-pr-monitor` micro-agents | Inlined into each micro-agent prompt |
+| `dev10x:fanout` swarm children | Inlined into the per-item agent prompt template |
+| `dev10x:gh-pr-monitor` micro-agents | Inlined into each micro-agent prompt |
 | Any Dev10x skill dispatching `Agent(...)` | Prepend per `references/orchestration/subagent-dispatch.md` |
 | Built-in `Workflow` tool agents | Inline into each `agent()` prompt the script builds |
 | Built-in `/loop` iterations | Harness-owned; the loop body's dispatched skills inline it |
@@ -85,9 +85,9 @@ Command shapes to avoid (each trips a hook or breaks allow-rule matching):
 
 Prefer:
 - `Read` / `Grep` / `Glob` over `cat` / `grep` / `find` in Bash.
-- MCP wrappers and skills over raw CLI: commit → Skill(Dev10x:git-commit),
-  PR → Skill(Dev10x:gh-pr-create), push → Skill(Dev10x:git), temp files →
-  mcp__plugin_Dev10x_cli__mktmp.
+- MCP wrappers and skills over raw CLI: commit → Skill(dev10x:git-commit),
+  PR → Skill(dev10x:gh-pr-create), push → Skill(dev10x:git), temp files →
+  mcp__plugin_dev10x_cli__mktmp.
 - Git base aliases for diffs/logs: `git develop-log`, `git develop-diff`.
 - To rebase onto a base that has MOVED, use two separate Bash calls —
   `git fetch origin`, then `git rebase origin/develop` — and then
@@ -99,7 +99,7 @@ Prefer:
   success while HEAD never left stale ancestry (GH-964).
 - To squash `fixup!` commits, use the non-interactive `rebase_groom`
   MCP tool.
-- To wait for CI, call `mcp__plugin_Dev10x_cli__ci_check_status(
+- To wait for CI, call `mcp__plugin_dev10x_cli__ci_check_status(
   wait=true)` — ONE call that polls server-side on a bounded budget.
   Never hand-roll `while … gh pr checks … sleep`, through Bash or
   through the `Monitor` tool: both are permission-matched, and an
@@ -123,7 +123,7 @@ falls back to raw Bash and re-trips hooks. When constructing the
 `Agent(...)` / `agent()` call, ensure `allowed_tools` includes:
 
 - `Read`, `Grep`, `Glob`
-- `mcp__plugin_Dev10x_cli__mktmp` and the workflow's needed `cli`
+- `mcp__plugin_dev10x_cli__mktmp` and the workflow's needed `cli`
   wrappers (e.g. `push_safe`, `create_pr`, `ci_check_status`)
 - `Skill` only when the subagent is meant to delegate (monitor
   micro-agents intentionally omit it)

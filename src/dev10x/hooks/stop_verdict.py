@@ -1,9 +1,9 @@
 """Decide whether a Stop event should be blocked and steered (GH-1251).
 
 Every mechanism that enforced "do not end a turn on a decision question"
-was model-side instruction, and therefore skippable. `Dev10x:ask` owns
+was model-side instruction, and therefore skippable. `dev10x:ask` owns
 the reformulation but is invoked by hand; the GH-149 task-list invariant
-is prose in `essentials.md`; `Dev10x:session-wrap-up` runs after the
+is prose in `essentials.md`; `dev10x:session-wrap-up` runs after the
 fact. A Stop hook was already wired and could enforce none of it,
 because the orchestrator discarded every feature's return value.
 
@@ -965,7 +965,7 @@ def task_signal(*, plan: dict | None) -> TaskSignal:
     """Read the open-work signal out of a persisted plan.
 
     GH-1251 also detected a **phase boundary** — a completed phase parent
-    followed by a pending one — as the point `Dev10x:work-on` requires a
+    followed by a pending one — as the point `dev10x:work-on` requires a
     gate. GH-1339 retires it: a pending phase *is* an open task, so the
     boundary strictly implies open work and could never reach a block
     again. Keeping it would leave an unreachable branch asserting a
@@ -1077,7 +1077,7 @@ def _dirty_tree_reason(*, dirty: tuple[str, ...]) -> str:
         "says nothing about the work.\n\n"
         f"Uncommitted changes:\n\n{listed}\n\n"
         "**If these are yours, you are not done.** Commit them via "
-        "`Skill(Dev10x:git-commit)` and carry on through the rest of the "
+        "`Skill(dev10x:git-commit)` and carry on through the rest of the "
         "shipping pipeline. Do not ask whether to commit — a commit is a "
         "forward, reversible step, so the answer is always yes.\n\n"
         "**If you did not touch these files, do not commit them.** This "
@@ -1117,7 +1117,7 @@ def _reason(*, signal: TaskSignal) -> str:
     the condition that depletes the list, so it carries the same bit
     rather than an independent one, and no other durable key records
     work parked outside the plan. So the steer asks for the sweep that
-    *can* see it (``Dev10x:ask`` Mode 3) and orders the options from
+    *can* see it (``dev10x:ask`` Mode 3) and orders the options from
     its result, instead of naming a winner in advance.
 
     Finally it carries a disposition for a reader that has no
@@ -1148,7 +1148,7 @@ def _reason(*, signal: TaskSignal) -> str:
         "task list is all this gate can see. Work you deferred to a "
         "tracker issue, a PR still awaiting review, a follow-up you "
         "promised — none of those is a task, and none of them is "
-        "visible here. Run `Dev10x:ask --loops` first and let what it "
+        "visible here. Run `dev10x:ask --loops` first and let what it "
         "finds order the options:\n\n"
         "- **Something is pending** — lead with that concrete next "
         "action as the `(Recommended)` option, and put standby and "

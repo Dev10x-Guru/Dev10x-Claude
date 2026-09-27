@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:spec-update",
+  "skill_name": "dev10x:spec-update",
   "eval_dimensions": [
     {
       "name": "spec-first-enforcement",
@@ -15,11 +15,11 @@
     },
     {
       "name": "regeneration-handoff",
-      "description": "After spec is updated, skill delegates to Dev10x:work-on for code regeneration"
+      "description": "After spec is updated, skill delegates to dev10x:work-on for code regeneration"
     },
     {
       "name": "drift-verification",
-      "description": "Skill runs Dev10x:spec-sync --check-only at the end to confirm code matches spec"
+      "description": "Skill runs dev10x:spec-sync --check-only at the end to confirm code matches spec"
     }
   ],
   "evals": [
@@ -48,7 +48,7 @@
         },
         {
           "check": "skill_invoked",
-          "name": "Dev10x:work-on",
+          "name": "dev10x:work-on",
           "assertion": "regeneration-handoff"
         }
       ]
@@ -66,7 +66,7 @@
       "assertions": [
         {
           "check": "skill_invoked",
-          "name": "Dev10x:spec-sync"
+          "name": "dev10x:spec-sync"
         }
       ]
     },

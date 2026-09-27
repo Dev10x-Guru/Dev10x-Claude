@@ -1,4 +1,4 @@
-# Dev10x:playbook — Playbook Manager (Instructions)
+# dev10x:playbook — Playbook Manager (Instructions)
 
 ## Overview
 
@@ -75,7 +75,7 @@ Parse the arguments to determine the subcommand:
 | `reset [<skill> [<play>]]` | Reset | Reset overrides to defaults |
 
 If `<skill>` is ambiguous, match against both directory name and
-invocation name (e.g., `work-on` matches `Dev10x:work-on`).
+invocation name (e.g., `work-on` matches `dev10x:work-on`).
 
 ---
 
@@ -96,11 +96,11 @@ Scan all installed skill directories for `references/playbook.yaml`.
 
 | Skill | Plays | Customized? |
 |-------|-------|-------------|
-| Dev10x:work-on | 5 (feature, bugfix, pr-continuation, local-only, investigation) | feature ✎ |
+| dev10x:work-on | 5 (feature, bugfix, pr-continuation, local-only, investigation) | feature ✎ |
 | tt:e2e-debug | 2 (investigate, fix) | — |
 
-Use `/Dev10x:playbook view <skill>` to inspect plays.
-Use `/Dev10x:playbook edit <skill> <play>` to customize.
+Use `/dev10x:playbook view <skill>` to inspect plays.
+Use `/dev10x:playbook edit <skill> <play>` to customize.
 ```
 
 ---
@@ -119,14 +119,14 @@ Show plays for a specific skill, or drill into one play.
 **Play detail format:**
 
 ```
-## Dev10x:work-on → feature
+## dev10x:work-on → feature
 
 **Prompt:** Use when a ticket describes new functionality...
 
 | # | Type | Step | Skills | Children |
 |---|------|------|--------|----------|
-| 1 | detailed | Set up workspace | Dev10x:ticket-branch | — |
-| 2 | detailed | Draft Job Story | Dev10x:jtbd | — |
+| 1 | detailed | Set up workspace | dev10x:ticket-branch | — |
+| 2 | detailed | Draft Job Story | dev10x:jtbd | — |
 | 3 | epic | Design implementation approach | — | 3 children |
 |   |   | ├─ Read relevant code | — | |
 |   |   | ├─ Identify affected components | — | |
@@ -209,7 +209,7 @@ overrides:
     steps:
       - subject: Set up workspace
         type: detailed
-        skills: [Dev10x:ticket-branch]
+        skills: [dev10x:ticket-branch]
       # ... full step list
 ```
 
@@ -351,7 +351,7 @@ with all 5 plays as a reference implementation.
       → fallback: ~/.claude/memory/Dev10x/playbooks/<key>.yaml
    3. ${CLAUDE_PLUGIN_ROOT}/skills/<skill>/references/playbook.yaml
    ```
-4. The `Dev10x:playbook` skill automatically discovers your skill
+4. The `dev10x:playbook` skill automatically discovers your skill
 
 **Loading pattern for orchestration skills:**
 ```
@@ -376,7 +376,7 @@ with the plugin version. On mismatch, warn:
 
 Any orchestration skill can load its playbook using the resolution
 order above. When presenting the play to the user, it should note:
-"Customize this playbook with `/Dev10x:playbook edit <skill> <play>`."
+"Customize this playbook with `/dev10x:playbook edit <skill> <play>`."
 
 If a user asks to customize during an active session, the
 orchestrator can delegate to this skill mid-flight and then
@@ -388,28 +388,28 @@ reload the updated playbook.
 
 ### Example 1: List all playbook-powered skills
 
-**User:** `/Dev10x:playbook`
+**User:** `/dev10x:playbook`
 
 Shows all skills with `references/playbook.yaml`, their play
 counts, and customization status.
 
 ### Example 2: View work-on plays
 
-**User:** `/Dev10x:playbook view work-on`
+**User:** `/dev10x:playbook view work-on`
 
 Shows summary of all 5 plays (feature, bugfix, etc.) with
 step counts and descriptions.
 
 ### Example 3: View a specific play
 
-**User:** `/Dev10x:playbook view work-on bugfix`
+**User:** `/dev10x:playbook view work-on bugfix`
 
 Shows the full bugfix play with all steps, children, prompts,
 and skill delegations in a readable tree format.
 
 ### Example 4: Customize a play for a project
 
-**User:** `/Dev10x:playbook edit work-on feature`
+**User:** `/dev10x:playbook edit work-on feature`
 
 1. Shows current feature play (10 steps)
 2. User selects "Add step"
@@ -439,5 +439,5 @@ defaults:
         prompt: Either implement a fix or document findings.
 ```
 
-Then `/Dev10x:playbook view app-e2e-debug investigate` works
+Then `/dev10x:playbook view app-e2e-debug investigate` works
 automatically — no changes to this skill needed.

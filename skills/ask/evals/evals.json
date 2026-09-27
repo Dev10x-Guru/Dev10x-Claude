@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:ask",
+  "skill_name": "dev10x:ask",
   "eval_dimensions": [
     {
       "id": "reformulate-gate",
@@ -37,7 +37,7 @@
       "id": "reformulate-mode-fires-askuserquestion",
       "name": "Reformulate mode calls AskUserQuestion instead of repeating text",
       "description": "Given a recent plain-text decision question, Mode 1 Step 3 must call AskUserQuestion with header/options extracted from that question — not restate it as prose.",
-      "input": "/Dev10x:ask (previous turn asked in plain text: 'Should I fix this with a retry wrapper or by increasing the timeout?')",
+      "input": "/dev10x:ask (previous turn asked in plain text: 'Should I fix this with a retry wrapper or by increasing the timeout?')",
       "assertions": [
         {
           "dimension": "reformulate-gate",
@@ -56,7 +56,7 @@
       "id": "more-than-four-questions-batch-sequentially",
       "name": "More than 4 extracted questions batch into sequential AskUserQuestion calls",
       "description": "When Step 1 finds more than 4 qualifying questions in the scanned turns, Step 3 must issue multiple AskUserQuestion calls (max 4 questions each) rather than dropping the overflow or cramming them into one oversized call.",
-      "input": "/Dev10x:ask (6 qualifying plain-text decision questions found in the last 15 turns)",
+      "input": "/dev10x:ask (6 qualifying plain-text decision questions found in the last 15 turns)",
       "assertions": [
         {
           "dimension": "reformulate-gate",
@@ -69,7 +69,7 @@
       "id": "reinforce-mode-outputs-message-with-no-gate",
       "name": "Reinforce mode outputs the structured message without opening a tool gate",
       "description": "Mode 2 is a reinforcement nudge, not a decision point — it must output the structured reinforcement message (citing skill-gates.md and essentials.md) without calling AskUserQuestion, since there is no supervisor choice to block on.",
-      "input": "/Dev10x:ask reinforce",
+      "input": "/dev10x:ask reinforce",
       "assertions": [
         {
           "dimension": "mode-detection",
@@ -87,7 +87,7 @@
       "id": "skip-purely-informational-question",
       "name": "Informational questions are skipped, not reformulated",
       "description": "A question asking for a file path or free-text input has no discrete alternatives to choose between, so Step 1 must exclude it from reformulation and Step 4 must report it as skipped with a reason.",
-      "input": "/Dev10x:ask (recent turns contain only 'What's the file path for the new migration?')",
+      "input": "/dev10x:ask (recent turns contain only 'What's the file path for the new migration?')",
       "assertions": [
         {
           "dimension": "skip-non-decision-questions",
@@ -106,7 +106,7 @@
       "id": "open-loops-mode-detects-all-four-shapes",
       "name": "Open-loops mode detects non-question loop shapes",
       "description": "Mode 3 Step 1 must surface loops that were never question-shaped — an un-actioned agent commitment and a surfaced-but-unaddressed finding — not just the decision questions Mode 1 scans for.",
-      "input": "/Dev10x:ask --loops (session contains an unanswered supervisor question, an 'I'll add a regression test once the fix lands' commitment whose fix already landed, a decision queued in task metadata, and a review finding that was reported and scrolled past)",
+      "input": "/dev10x:ask --loops (session contains an unanswered supervisor question, an 'I'll add a regression test once the fix lands' commitment whose fix already landed, a decision queued in task metadata, and a review finding that was reported and scrolled past)",
       "assertions": [
         {
           "dimension": "open-loop-detection",
@@ -125,7 +125,7 @@
       "id": "detected-loops-reach-the-task-list",
       "name": "Detected loops are persisted as tasks, reconciled against existing ones",
       "description": "Mode 3 Step 2 must call TaskList before writing, then TaskCreate for loops with no coverage and TaskUpdate for loops that already have a task — persistence is what makes a loop survive the exchange.",
-      "input": "/Dev10x:ask --loops (two loops have no corresponding task; one loop already has a related open task)",
+      "input": "/dev10x:ask --loops (two loops have no corresponding task; one loop already has a related open task)",
       "assertions": [
         {
           "dimension": "task-list-sync",
@@ -150,7 +150,7 @@
       "id": "non-decision-loops-do-not-open-a-gate",
       "name": "Commitment and finding loops become tasks without a widget",
       "description": "Mode 3 Step 3 batches only decision-shaped loops into AskUserQuestion. A commitment or finding has no discrete alternatives, so presenting it as a widget would manufacture a decision that does not exist.",
-      "input": "/Dev10x:ask --loops (session contains only an un-actioned commitment and an unaddressed review finding — no deferred decisions, no unanswered choice questions)",
+      "input": "/dev10x:ask --loops (session contains only an un-actioned commitment and an unaddressed review finding — no deferred decisions, no unanswered choice questions)",
       "assertions": [
         {
           "dimension": "task-list-sync",
@@ -169,7 +169,7 @@
       "id": "no-loops-found-writes-nothing",
       "name": "A clean session produces no tasks and no widget",
       "description": "When every question was answered and every commitment executed, Mode 3 must report 'no open loops detected' and stop — inventing a loop to justify the invocation is the failure mode.",
-      "input": "/Dev10x:ask --loops (session has no open loops of any shape)",
+      "input": "/dev10x:ask --loops (session has no open loops of any shape)",
       "assertions": [
         {
           "dimension": "open-loop-detection",
@@ -230,9 +230,9 @@
   "trigger_evals": {
     "should_trigger": [
       "Supervisor sees a plain-text decision question that should have been an AskUserQuestion widget",
-      "/Dev10x:ask reinforce after an agent asks a plain-text decision question",
-      "/Dev10x:ask \"Should we use polling or webhooks?\" to convert a specific quoted question",
-      "/Dev10x:ask --loops to sweep the session for open loops before wrapping up",
+      "/dev10x:ask reinforce after an agent asks a plain-text decision question",
+      "/dev10x:ask \"Should we use polling or webhooks?\" to convert a specific quoted question",
+      "/dev10x:ask --loops to sweep the session for open loops before wrapping up",
       "Supervisor asks what is still open, unanswered, or outstanding in the session"
     ],
     "should_not_trigger": [

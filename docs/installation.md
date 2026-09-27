@@ -15,11 +15,11 @@
 
 | Tool | Used by |
 |------|---------|
-| [PostgreSQL client (`psql`)](https://www.postgresql.org/download/) | `Dev10x:db-psql` — database queries |
+| [PostgreSQL client (`psql`)](https://www.postgresql.org/download/) | `dev10x:db-psql` — database queries |
 | Linux: [`libsecret` (`secret-tool`)](https://gitlab.gnome.org/GNOME/libsecret); macOS: Keychain (built-in) | Keyring lookups for DB DSNs, Slack tokens, Linear API keys |
-| [`ffmpeg`](https://ffmpeg.org/download.html) | `Dev10x:qa-self` — video evidence conversion |
-| [ImageMagick](https://imagemagick.org/script/download.php) (`convert`) | `Dev10x:qa-self` — screenshot conversion |
-| [Playwright](https://playwright.dev/python/docs/intro#installing-playwright) | `Dev10x:playwright` — browser QA (auto-installed via `uv`) |
+| [`ffmpeg`](https://ffmpeg.org/download.html) | `dev10x:qa-self` — video evidence conversion |
+| [ImageMagick](https://imagemagick.org/script/download.php) (`convert`) | `dev10x:qa-self` — screenshot conversion |
+| [Playwright](https://playwright.dev/python/docs/intro#installing-playwright) | `dev10x:playwright` — browser QA (auto-installed via `uv`) |
 | [`bump-my-version`](https://github.com/callowayproject/bump-my-version#installation) | `bin/release.sh` — plugin releases |
 
 > **Python dependencies** are handled automatically. Scripts use
@@ -34,14 +34,36 @@ the in-session `/plugin` slash commands are unreliable for install):
 
 ```bash
 claude plugin marketplace add Dev10x-Guru/dev10x-claude
-claude plugin install Dev10x@Dev10x-Guru
+claude plugin install dev10x@Dev10x-Guru
 ```
 
 Update to the latest version:
 
 ```bash
-claude plugin update Dev10x@Dev10x-Guru
+claude plugin update dev10x@Dev10x-Guru
 ```
+
+The same marketplace also installs in **Claude Desktop** and on
+claude.ai: add `Dev10x-Guru/Dev10x-Claude` as a marketplace URL.
+
+### Upgrading from the `Dev10x` plugin id (GH-1499)
+
+The plugin was renamed from `Dev10x` to kebab-case `dev10x`, because
+claude.ai / Claude Desktop marketplace sync rejects any other name.
+Claude Code treats that as a different plugin, so an existing install
+does not pick up the rename on `update`. Switch once:
+
+```bash
+claude plugin marketplace update Dev10x-Guru
+claude plugin uninstall dev10x@Dev10x-Guru
+claude plugin install dev10x@Dev10x-Guru
+```
+
+Then run `/dev10x:upgrade-cleanup` so the permission catalog seeds the
+new `Skill(dev10x:*)` and `mcp__plugin_dev10x_*` allow rules. Skills
+are now invoked as `/dev10x:<name>`; rules still spelled
+`mcp__plugin_dev10x_*` or `Skill(dev10x:*)` in your settings no longer
+match anything and can be deleted.
 
 ### Install the develop (pre-release) version
 
@@ -50,7 +72,7 @@ To test the latest develop branch before it's released:
 ```bash
 claude plugin marketplace remove Dev10x-Guru
 claude plugin marketplace add Dev10x-Guru/dev10x-claude#develop
-claude plugin install Dev10x@Dev10x-Guru
+claude plugin install dev10x@Dev10x-Guru
 ```
 
 Switch back to stable releases:
@@ -58,7 +80,7 @@ Switch back to stable releases:
 ```bash
 claude plugin marketplace remove Dev10x-Guru
 claude plugin marketplace add Dev10x-Guru/dev10x-claude
-claude plugin install Dev10x@Dev10x-Guru
+claude plugin install dev10x@Dev10x-Guru
 ```
 
 ## Option B: Manual clone
@@ -81,7 +103,7 @@ from it:
 
 ```bash
 claude plugin marketplace add ~/.claude/plugins/Dev10x
-claude plugin install Dev10x@Dev10x-Guru
+claude plugin install dev10x@Dev10x-Guru
 ```
 
 Update manually with:
@@ -108,7 +130,7 @@ Start a new Claude Code session and check that skills are loaded:
 ```bash
 claude
 # Inside the session, type:
-/Dev10x:skill-index
+/dev10x:skill-index
 ```
 
 You should see a skills reference listing all available commands.

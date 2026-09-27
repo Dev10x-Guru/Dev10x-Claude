@@ -21,7 +21,7 @@ After loading Step 1's checks, probe live state and **union** the
 richer check set in when a PR exists:
 
 1. Resolve the associated PR via
-   `mcp__plugin_Dev10x_cli__pr_detect(arg="")`. (This is the same
+   `mcp__plugin_dev10x_cli__pr_detect(arg="")`. (This is the same
    probe the PR-Merge-State section runs — resolve it once and reuse
    the result; an `error` / no-PR response means PR-less.)
 2. If an **open** PR exists **and** the caller's `work_type` is a

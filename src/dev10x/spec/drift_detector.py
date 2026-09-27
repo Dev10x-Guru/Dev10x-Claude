@@ -5,18 +5,18 @@ Two flavors of drift, classified per ADR 0005:
 * **Structural drift** — class/function names, file paths, signatures
   changed in the code but not in the spec's
   ``## Architecture`` / ``## Implementation Steps`` sections.
-  ``Dev10x:spec-sync`` regenerates only structural sections to
+  ``dev10x:spec-sync`` regenerates only structural sections to
   match.
 
 * **Behavioural drift** — requirements / acceptance criteria /
-  safeguards no longer match the code's contract. ``Dev10x:spec-sync``
-  refuses to proceed and delegates to ``Dev10x:spec-update``.
+  safeguards no longer match the code's contract. ``dev10x:spec-sync``
+  refuses to proceed and delegates to ``dev10x:spec-update``.
 
 The detector is intentionally heuristic — perfect classification
 requires AST + semantic analysis, which is out of scope here. It
 errs on the side of flagging anything ambiguous as
 ``DriftKind.BEHAVIOURAL`` so the caller bails to the more careful
-``Dev10x:spec-update`` path.
+``dev10x:spec-update`` path.
 """
 
 from __future__ import annotations
@@ -30,8 +30,8 @@ from pathlib import Path
 class DriftKind(StrEnum):
     """Classification of one drift signal.
 
-    ``STRUCTURAL`` may be auto-fixed by ``Dev10x:spec-sync``.
-    ``BEHAVIOURAL`` requires ``Dev10x:spec-update`` (spec-first
+    ``STRUCTURAL`` may be auto-fixed by ``dev10x:spec-sync``.
+    ``BEHAVIOURAL`` requires ``dev10x:spec-update`` (spec-first
     edit + regenerate). ``NONE`` is the only "no drift" signal
     callers should treat as "all good".
     """

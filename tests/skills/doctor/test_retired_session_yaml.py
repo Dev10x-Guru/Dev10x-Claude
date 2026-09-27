@@ -175,7 +175,7 @@ class TestRemediation:
         remediation = STRATEGY.remediate(finding)
 
         assert remediation.kind == "delegate_skill"
-        assert remediation.target == "Dev10x:plugin-maintenance"
+        assert remediation.target == "dev10x:plugin-maintenance"
 
     def test_it_carries_the_path_to_remove(self, tmp_path: Path) -> None:
         finding = detect(_checkout(tmp_path, session_yaml=_CONTRADICTORY))[0]

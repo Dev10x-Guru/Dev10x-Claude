@@ -3,7 +3,7 @@
 Retired by ADR-0018 in favour of the global
 :mod:`dev10x.domain.documents.friction_yaml`, and still read as a
 one-cycle migration fallback. Also home to the playbook axis of
-``Dev10x:friction-setup`` (:func:`set_playbook_modes`), which writes a
+``dev10x:friction-setup`` (:func:`set_playbook_modes`), which writes a
 per-skill playbook rather than a session document. Split out of
 ``session_yaml.py`` by GH-1431.
 """
@@ -21,7 +21,7 @@ from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.documents.yaml_mapping import load_yaml_mapping
 from dev10x.domain.file_locks import atomic_write_text, file_lock
 
-#: Synthetic active-mode name under which ``Dev10x:friction-setup`` records
+#: Synthetic active-mode name under which ``dev10x:friction-setup`` records
 #: per-step skips it chose. The resolver honors step ``skip`` actions from any
 #: active mode's ``mode_extensions`` (references/execution-modes.md resolution
 #: 3b/3d), so a project-scoped step skip needs no new plumbing.
@@ -87,7 +87,7 @@ def set_playbook_modes(
     skip_steps: list[str] | None = None,
     home: Path | None = None,
 ) -> Path:
-    """Write the playbook axis of ``Dev10x:friction-setup`` to a global playbook (GH-886).
+    """Write the playbook axis of ``dev10x:friction-setup`` to a global playbook (GH-886).
 
     Persists ``active_modes`` (the modes the supervisor enabled) into
     ``~/.config/Dev10x/playbooks/<skill>.yaml`` — the tier-2 project playbook the

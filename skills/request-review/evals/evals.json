@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:request-review",
+  "skill_name": "dev10x:request-review",
   "eval_dimensions": [
     {
       "id": "transport-resolution",
@@ -21,7 +21,7 @@
     {
       "id": 1,
       "name": "chat-only-repo-reaches-its-transport",
-      "prompt": "/Dev10x:request-review --pr 42 --repo org/wonka-docs",
+      "prompt": "/dev10x:request-review --pr 42 --repo org/wonka-docs",
       "description": "GH-1308: the repo is named only in the Google Chat config. Before the fix, Step 3 was hardcoded to Slack and a Chat-only team had no supported path through this skill — the observed session passed the transport as a free-text argument and the agent substituted the sibling skill on its own.",
       "setup": {
         "gchat_config_names_repo": true,
@@ -34,10 +34,10 @@
       "assertions": [
         {
           "id": "delegates-to-gchat",
-          "text": "Delegates to Dev10x:gchat-review-request, the transport whose config names the repo",
+          "text": "Delegates to dev10x:gchat-review-request, the transport whose config names the repo",
           "check": "tool_called",
           "signals": [
-            "Dev10x:gchat-review-request"
+            "dev10x:gchat-review-request"
           ]
         },
         {
@@ -45,7 +45,7 @@
           "text": "Does NOT invoke the Slack sibling — its config does not name this repo",
           "check": "command_absent",
           "signals": [
-            "Dev10x:slack-review-request"
+            "dev10x:slack-review-request"
           ]
         },
         {
@@ -61,7 +61,7 @@
     {
       "id": 2,
       "name": "both-configs-name-the-repo",
-      "prompt": "/Dev10x:request-review --pr 42 --repo org/dual-transport",
+      "prompt": "/dev10x:request-review --pr 42 --repo org/dual-transport",
       "description": "Mirroring review requests into Slack and Chat is a legitimate configuration, so Step 3 must not assume exactly one transport.",
       "setup": {
         "gchat_config_names_repo": true,
@@ -76,8 +76,8 @@
           "text": "Invokes both sibling skills rather than picking one",
           "check": "tool_called",
           "signals": [
-            "Dev10x:slack-review-request",
-            "Dev10x:gchat-review-request"
+            "dev10x:slack-review-request",
+            "dev10x:gchat-review-request"
           ]
         }
       ]
@@ -85,7 +85,7 @@
     {
       "id": 3,
       "name": "no-config-fires-the-transport-gate",
-      "prompt": "/Dev10x:request-review --pr 42 --repo org/unconfigured",
+      "prompt": "/dev10x:request-review --pr 42 --repo org/unconfigured",
       "description": "Neither config names the repo. The skill must ask where the request should go rather than failing into silence or guessing a transport.",
       "setup": {
         "gchat_config_names_repo": false,
@@ -128,7 +128,7 @@
     {
       "id": 4,
       "name": "bot-approval-does-not-short-circuit",
-      "prompt": "/Dev10x:request-review --pr 42 --repo org/repo",
+      "prompt": "/dev10x:request-review --pr 42 --repo org/repo",
       "description": "GH-128: only a bot has approved the current HEAD. A bot approval must not satisfy the human-review requirement, so the skill proceeds to request review rather than offering to merge.",
       "setup": {
         "reviews": [
@@ -157,7 +157,7 @@
     {
       "id": 5,
       "name": "human-approval-on-head-fires-the-merge-gate",
-      "prompt": "/Dev10x:request-review --pr 42 --repo org/repo",
+      "prompt": "/dev10x:request-review --pr 42 --repo org/repo",
       "description": "A human has approved the current HEAD, so pinging reviewers again is noise. The skill must ask rather than silently short-circuiting.",
       "setup": {
         "reviews": [
@@ -187,7 +187,7 @@
     "description": "Queries that should/should-not trigger the request-review skill",
     "should_trigger": [
       {
-        "query": "/Dev10x:request-review",
+        "query": "/dev10x:request-review",
         "rationale": "Direct invocation"
       },
       {
@@ -202,11 +202,11 @@
     "should_not_trigger": [
       {
         "query": "assign @alice as reviewer, no notification needed",
-        "rationale": "GitHub assignment only — use Dev10x:gh-pr-request-review directly"
+        "rationale": "GitHub assignment only — use dev10x:gh-pr-request-review directly"
       },
       {
         "query": "post a message to the team channel about the outage",
-        "rationale": "General chat post, unrelated to a review request — use Dev10x:slack or Dev10x:gchat"
+        "rationale": "General chat post, unrelated to a review request — use dev10x:slack or dev10x:gchat"
       },
       {
         "query": "the PR is still a draft, hold off",

@@ -479,7 +479,7 @@ async def pr_list(
 
     Wraps ``gh pr list ... --json
     number,title,state,headRefName,isDraft,mergedAt,url``, mirroring
-    :func:`issue_list`'s shape. `Dev10x:diag-friction` filed this after
+    :func:`issue_list`'s shape. `dev10x:diag-friction` filed this after
     finding no ``pr_list`` MCP tool and no ``gh pr list`` rule in
     ``command-skill-map.yaml`` — listing PRs had nowhere to go but raw
     ``gh pr list``, uncatalogued and prompting on every call.

@@ -1,5 +1,5 @@
 ---
-name: Dev10x:investigate
+name: dev10x:investigate
 description: >
   Root-cause a bug report, question, or unexpected behaviour from a
   Slack thread — posts a technical reply with GitHub links and creates
@@ -9,18 +9,18 @@ description: >
   DO NOT TRIGGER when: no Slack URL provided, issue already root-caused,
   or user wants to investigate without posting a reply.
 user-invocable: true
-invocation-name: Dev10x:investigate
+invocation-name: dev10x:investigate
 allowed-tools:
   - AskUserQuestion
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/investigate/scripts/parse-slack-url.sh:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/investigate/scripts/reply.sh:*)
-  - Skill(skill="Dev10x:ticket-create")
-  - Skill(skill="Dev10x:gh-pr-review")
+  - Skill(skill="dev10x:ticket-create")
+  - Skill(skill="dev10x:gh-pr-review")
 ---
 
-# Dev10x:investigate
+# dev10x:investigate
 
-**Announce:** "Using Dev10x:investigate to investigate [brief description of the issue]."
+**Announce:** "Using dev10x:investigate to investigate [brief description of the issue]."
 
 ## Orchestration
 
@@ -66,7 +66,7 @@ Given a Slack thread URL, read the report, root-cause it in the codebase,
 post a technical reply with GitHub links, and optionally create a Linear ticket.
 
 **PR review requests:** When the Slack thread contains a GitHub PR link and the
-request is to review it or check its status, invoke `Dev10x:gh-pr-review` with
+request is to review it or check its status, invoke `dev10x:gh-pr-review` with
 the PR URL instead of following Steps 3–6. Steps 1–2 (parse URL, read thread)
 still apply to get context before delegating.
 
@@ -149,7 +149,7 @@ Create a ticket when:
 - The issue affects users in production or staging
 - The user asks for one (e.g. "scope a ticket")
 
-Invoke `Dev10x:ticket-create` skill with the gathered context.
+Invoke `dev10x:ticket-create` skill with the gathered context.
 
 ### Step 8 — Mention the Ticket in the Thread
 

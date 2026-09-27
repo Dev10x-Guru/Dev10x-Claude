@@ -1,5 +1,5 @@
 ---
-name: Dev10x:ticket-create
+name: dev10x:ticket-create
 description: >
   Create an issue tracker ticket (GitHub issue, Linear, or JIRA) with
   proper formatting, description structure, and labels. Accepts title,
@@ -7,10 +7,10 @@ description: >
   description with Root Cause, Solution, and Files Changed sections.
   Returns the created ticket ID.
   TRIGGER when: a new ticket needs to be created for tracking work.
-  DO NOT TRIGGER when: ticket already exists (use Dev10x:ticket-scope
+  DO NOT TRIGGER when: ticket already exists (use dev10x:ticket-scope
   to enrich it), or user wants to update an existing ticket.
 user-invocable: true
-invocation-name: Dev10x:ticket-create
+invocation-name: dev10x:ticket-create
 allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-context/scripts/:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/ticket-create/scripts/:*)
@@ -21,8 +21,8 @@ allowed-tools:
   - mcp__claude_ai_Linear__list_projects
   - Bash(secret-tool lookup:*)
   - Bash(curl:*atlassian.net*)
-  - mcp__plugin_Dev10x_cli__detect_tracker
-  - mcp__plugin_Dev10x_cli__triage_roster
+  - mcp__plugin_dev10x_cli__detect_tracker
+  - mcp__plugin_dev10x_cli__triage_roster
 ---
 
 # Create Issue Tracker Ticket
@@ -48,7 +48,7 @@ Determine which tracker to use. Priority:
 
 1. **Explicit argument** — user specifies `--github`, `--linear`, or `--jira`
 2. **detect_tracker MCP tool** — if a ticket prefix is available (from branch
-   name), call `mcp__plugin_Dev10x_cli__detect_tracker` to match the project's
+   name), call `mcp__plugin_dev10x_cli__detect_tracker` to match the project's
    tracker
 3. **Repo default** — if no prefix, check autolinks to determine project's
    primary tracker. GitHub Issues if no autolinks exist.
@@ -78,7 +78,7 @@ Use this skill when:
 
 ### Anti-pattern: Bypassing the wrapper (GH-156)
 
-**Do NOT call `mcp__plugin_Dev10x_cli__issue_create` (or any
+**Do NOT call `mcp__plugin_dev10x_cli__issue_create` (or any
 tracker MCP `save_issue` / `gh issue create`) directly when
 creating a new ticket.** Audit GH-156 caught 5 follow-up tickets
 created via raw `issue_create` calls; the resulting tickets
@@ -88,12 +88,12 @@ that this skill enforces.
 The raw MCP tool is a low-level primitive — this skill is the
 project wrapper that adds structured description formatting,
 milestone/label triage, and tracker-detection. Always reach for
-`Skill(Dev10x:ticket-create)` first; the skill's Step 5 will
+`Skill(dev10x:ticket-create)` first; the skill's Step 5 will
 dispatch the appropriate MCP tool internally.
 
-**This binds every filing path (GH-1102).** `Dev10x:audit-file`,
-`Dev10x:work-on` follow-up filing, `Dev10x:diag-friction` upstream
-filing, and `Dev10x:foreman` crew filing all route here rather than
+**This binds every filing path (GH-1102).** `dev10x:audit-file`,
+`dev10x:work-on` follow-up filing, `dev10x:diag-friction` upstream
+filing, and `dev10x:foreman` crew filing all route here rather than
 calling `issue_create` bare — otherwise each one re-invents (or
 skips) Step 4 and the backlog goes back to needing sweeps. A caller
 that already knows the milestone and labels still routes through
@@ -185,7 +185,7 @@ the milestone convention both exist; filing simply ignored them, and
 the cost landed on periodic manual restructure sweeps.
 
 **Step 4a — read the live roster.** Call
-`mcp__plugin_Dev10x_cli__triage_roster(repo="$REPO")`. It returns
+`mcp__plugin_dev10x_cli__triage_roster(repo="$REPO")`. It returns
 `milestones` (open only, with descriptions) and `labels` (name +
 description). Do NOT work from a hardcoded list — a stale table is
 how the taxonomy drifted out of use in the first place.
@@ -195,7 +195,7 @@ against the returned roster:
 
 | Signal in the ticket | Label to propose |
 |----------------------|------------------|
-| Names a skill (`Dev10x:fanout`, `gh-pr-create`, …) | the matching `skill:*` label |
+| Names a skill (`dev10x:fanout`, `gh-pr-create`, …) | the matching `skill:*` label |
 | Permission prompt / allow-rule gap | `permission-friction` |
 | Error swallowed or surfaced without diagnostics | `silent-failure` |
 | Raw git/gh used where a wrapper is required | `routing-bypass` |
@@ -279,7 +279,7 @@ because the `mcp-atlassian-write` baseline group has not synced to
 your `settings.json` (see the troubleshooting note under the JIRA
 section below), create inline too — a background agent cannot
 answer that prompt. Prefer fixing the sync gap via
-`Dev10x:plugin-maintenance` over leaning on this fallback long-term.
+`dev10x:plugin-maintenance` over leaning on this fallback long-term.
 
 **Nested invocation:** When invoked from a background agent
 (e.g., from `project-scope`'s Phase 3 agent), skip the
@@ -325,7 +325,7 @@ If a `project` parameter was provided by the caller, resolve the
 project UUID first via `list_projects(team: "TEAM_UUID")` — never
 pass a display name (name matching is exact and fails silently).
 After creation, verify linkage with `get_issue(id)` and confirm
-`projectId` matches the expected UUID. See `Dev10x:linear`
+`projectId` matches the expected UUID. See `dev10x:linear`
 § Project Assignment.
 
 ```
@@ -341,7 +341,7 @@ mcp__claude_ai_Linear__save_issue(
 **JIRA:**
 
 Create via the Atlassian MCP `createJiraIssue` tool, mirroring the
-GitHub/Linear branches above. The `Dev10x:jira` skill ships only
+GitHub/Linear branches above. The `dev10x:jira` skill ships only
 read / search / update / comment / link scripts — it has **no create
 path** — so the Atlassian MCP is the JIRA-creation surface (GH-631):
 
@@ -371,11 +371,11 @@ unattended without stalling on a permission prompt.
 approval, the `mcp-atlassian-write` baseline group has not reached
 your live `settings.json` yet — that is a seed/sync gap, not the
 intended design. Re-apply base permissions with
-`Dev10x:plugin-maintenance` (or run `Dev10x:upgrade-cleanup`, which
+`dev10x:plugin-maintenance` (or run `dev10x:upgrade-cleanup`, which
 invokes it in full mode), then retry. See Step 5's inline-creation
 exception for a stopgap while the sync gap persists.
 
-> Team-specific IDs are documented in the tracker skill (`Dev10x:linear`, `Dev10x:jira`).
+> Team-specific IDs are documented in the tracker skill (`dev10x:linear`, `dev10x:jira`).
 
 ### Step 6: Return Ticket Information
 

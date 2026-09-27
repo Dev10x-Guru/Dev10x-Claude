@@ -1,5 +1,5 @@
 ---
-name: Dev10x:plan-sync
+name: dev10x:plan-sync
 description: >
   Reconcile persisted plan file with in-session task list.
   Detects divergences, recreates missing tasks, and updates
@@ -9,15 +9,15 @@ description: >
   DO NOT TRIGGER when: no plan file exists or task list is
   already in sync with the current session work.
 user-invocable: true
-invocation-name: Dev10x:plan-sync
+invocation-name: dev10x:plan-sync
 allowed-tools:
   - TaskCreate
   - TaskList
   - TaskUpdate
   - Read
-  - mcp__plugin_Dev10x_cli__plan_sync_set_context
-  - mcp__plugin_Dev10x_cli__plan_sync_json_summary
-  - mcp__plugin_Dev10x_cli__plan_sync_archive
+  - mcp__plugin_dev10x_cli__plan_sync_set_context
+  - mcp__plugin_dev10x_cli__plan_sync_json_summary
+  - mcp__plugin_dev10x_cli__plan_sync_archive
 ---
 
 # Plan Sync — Reconcile Persisted Plan with Session State
@@ -84,17 +84,17 @@ TaskCreate(subject=<from plan>, description=<from plan>,
 
 For status mismatches, trust the session state (it's more
 recent) and update the plan file via:
-`mcp__plugin_Dev10x_cli__plan_sync_set_context(args=["last_reconciled=<timestamp>"])`
+`mcp__plugin_dev10x_cli__plan_sync_set_context(args=["last_reconciled=<timestamp>"])`
 
 ### Step 5: Update Plan Context (Optional)
 
 If the caller passes context arguments, store them:
 
-`mcp__plugin_Dev10x_cli__plan_sync_set_context(args=["work_type=feature", "tickets=[\"GH-482\"]", "routing_table={...}"])`
+`mcp__plugin_dev10x_cli__plan_sync_set_context(args=["work_type=feature", "tickets=[\"GH-482\"]", "routing_table={...}"])`
 
 ### Step 6: Archive (if all complete)
 
 If all tasks in both plan and session are completed:
-`mcp__plugin_Dev10x_cli__plan_sync_archive()`
+`mcp__plugin_dev10x_cli__plan_sync_archive()`
 
 Report: "Plan archived. All tasks completed."

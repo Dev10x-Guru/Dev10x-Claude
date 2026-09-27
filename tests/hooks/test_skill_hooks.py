@@ -21,11 +21,11 @@ class TestSkillTmpdir:
         result = runner.invoke(
             cli,
             ["hook", "skill", "tmpdir"],
-            input=json.dumps({"tool_input": {"skill": "Dev10x:git-commit"}}),
+            input=json.dumps({"tool_input": {"skill": "dev10x:git-commit"}}),
         )
 
         assert result.exit_code == 0
-        assert Path("/tmp/Dev10x/Dev10x-git-commit").exists()
+        assert Path("/tmp/Dev10x/dev10x-git-commit").exists()
 
     def test_sanitizes_colon_to_dash(self, runner: CliRunner) -> None:
         result = runner.invoke(
@@ -75,7 +75,7 @@ class TestSkillMetrics:
             ["hook", "skill", "metrics"],
             input=json.dumps(
                 {
-                    "tool_input": {"skill": "Dev10x:git-commit"},
+                    "tool_input": {"skill": "dev10x:git-commit"},
                     "session_id": "sess-abc",
                 }
             ),
@@ -101,7 +101,7 @@ class TestSkillMetrics:
             ["hook", "skill", "metrics"],
             input=json.dumps(
                 {
-                    "tool_input": {"skill": "Dev10x:review"},
+                    "tool_input": {"skill": "dev10x:review"},
                     "session_id": "sess-xyz",
                 }
             ),
@@ -111,7 +111,7 @@ class TestSkillMetrics:
         lines = metrics_files[0].read_text().strip().splitlines()
         assert len(lines) == 1
         entry = json.loads(lines[0])
-        assert entry["skill"] == "Dev10x:review"
+        assert entry["skill"] == "dev10x:review"
         assert entry["session"] == "sess-xyz"
         assert "timestamp" in entry
 
@@ -129,7 +129,7 @@ class TestSkillMetrics:
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
 
         payload = json.dumps(
-            {"tool_input": {"skill": "Dev10x:git-commit"}, "session_id": "sess-1"}
+            {"tool_input": {"skill": "dev10x:git-commit"}, "session_id": "sess-1"}
         )
         runner.invoke(cli, ["hook", "skill", "metrics"], input=payload)
         runner.invoke(cli, ["hook", "skill", "metrics"], input=payload)
@@ -137,7 +137,7 @@ class TestSkillMetrics:
         metrics_files = list((tmp_path / ".claude" / "projects" / "_metrics").glob("*.jsonl"))
         lines = metrics_files[0].read_text().splitlines()
         assert len(lines) == 2
-        assert all(json.loads(line)["skill"] == "Dev10x:git-commit" for line in lines)
+        assert all(json.loads(line)["skill"] == "dev10x:git-commit" for line in lines)
 
     def test_exits_silently_without_skill(
         self,
@@ -159,7 +159,7 @@ class TestSkillMetrics:
         result = runner.invoke(
             cli,
             ["hook", "skill", "metrics"],
-            input=json.dumps({"tool_input": {"skill": "Dev10x:git-commit"}}),
+            input=json.dumps({"tool_input": {"skill": "dev10x:git-commit"}}),
         )
 
         assert result.exit_code == 0
@@ -193,7 +193,7 @@ class TestSkillMetrics:
             ["hook", "skill", "metrics"],
             input=json.dumps(
                 {
-                    "tool_input": {"skill": "Dev10x:git-commit"},
+                    "tool_input": {"skill": "dev10x:git-commit"},
                     "session_id": "sess-prune",
                 }
             ),

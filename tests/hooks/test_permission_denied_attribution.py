@@ -57,7 +57,7 @@ def test_records_the_diagnosis_as_the_reason() -> None:
     [
         ("Bash(gh pr view 42)", "gh"),
         ("Bash(git status)", "git"),
-        ("mcp__plugin_Dev10x_cli__pr_get", "mcp"),
+        ("mcp__plugin_dev10x_cli__pr_get", "mcp"),
         ("Read(/etc/hosts)", "read"),
         ("Edit(/tmp/x)", "edit"),
     ],

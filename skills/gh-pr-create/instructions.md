@@ -36,14 +36,14 @@ appropriate reason). This preserves supervisor visibility into
 the full workflow.
 
 **Unattended mode:** When this skill is invoked by an
-orchestrating skill (e.g., `Dev10x:work-on`, `Dev10x:git-promote`,
+orchestrating skill (e.g., `dev10x:work-on`, `dev10x:git-promote`,
 `test:fix-flaky`) and the orchestrator has already approved the
 work plan, all interactive decision gates are bypassed:
 - PR preview gate → skip (orchestrator already approved the plan)
 - Title → auto-generate from commit(s) (single-commit: use
   title; multi-commit: derive from JTBD "so [beneficiary] can" clause)
 - Job Story → auto-generate inline for simple changes; reuse
-  session context for complex ones (skip full `Dev10x:jtbd` skill)
+  session context for complex ones (skip full `dev10x:jtbd` skill)
 - Pre-PR checks → still run (safety gate, not interactive)
 - Browser open → skip
 - Next steps → return control to orchestrator immediately
@@ -55,8 +55,8 @@ high-level progress.
 
 Detection: unattended mode activates when **both** conditions
 are met:
-1. The skill is invoked via `Skill(Dev10x:gh-pr-create)` (not
-   directly by the user via `/Dev10x:gh-pr-create`)
+1. The skill is invoked via `Skill(dev10x:gh-pr-create)` (not
+   directly by the user via `/dev10x:gh-pr-create`)
 2. The caller is executing a plan step with an active task
    list (i.e., an orchestrating skill like `work-on`)
 
@@ -148,7 +148,7 @@ When a PR number or URL is provided as argument, switch to "update" mode:
 ### Step 1: Verify Current State and Extract Ticket
 
 **Primary (MCP tool):** Call
-`mcp__plugin_Dev10x_cli__verify_pr_state` to validate branch
+`mcp__plugin_dev10x_cli__verify_pr_state` to validate branch
 state. Parse `BRANCH_NAME` and `ISSUE` from the response.
 **When the session is rooted in a worktree, pass
 `cwd=<absolute worktree path>`** (GH-1466) — see the Worktree check
@@ -232,7 +232,7 @@ The Actor frame is one option among four, not the default. Reach for it
 when the *role* is the news; when the outcome is the news, the Outcome
 or Prevention frame says more in the same width. For commit titles the
 same choice is made from the ROI bucket and the shape of the change —
-see `Dev10x:git-commit` Step 2.5, whose shape table and title checks
+see `dev10x:git-commit` Step 2.5, whose shape table and title checks
 (generated-only diffs, sibling PRs, revert and re-land subjects) apply
 to PR titles as well.
 
@@ -266,7 +266,7 @@ before generating a new one.
 
 Call the MCP tool with the ISSUE extracted from the branch name:
 
-`mcp__plugin_Dev10x_cli__detect_tracker(ticket_id="$ISSUE")`
+`mcp__plugin_dev10x_cli__detect_tracker(ticket_id="$ISSUE")`
 
 Parse `tracker` and `fixes_url` from the response.
 
@@ -306,8 +306,8 @@ If none found, generate a Job Story:
 - **For simple/trivial fixes** (flaky tests, typos, single-line changes):
   generate the Job Story inline in
   `**When** / **[actor] wants to** / **so [beneficiary] can**`
-  format without invoking the full `Dev10x:jtbd` skill.
-- **For features, bug fixes, and multi-commit PRs**: follow the `Dev10x:jtbd`
+  format without invoking the full `dev10x:jtbd` skill.
+- **For features, bug fixes, and multi-commit PRs**: follow the `dev10x:jtbd`
   base skill workflow:
   1. Gather context (ticket, parent ticket, diff)
   2. Identify the situation (who, trigger, current pain)
@@ -322,7 +322,7 @@ the issue tracker reference.
 
 **Generate commit list (for preview before PR creation):**
 
-`mcp__plugin_Dev10x_cli__generate_commit_list(pr_number="PLACEHOLDER")`
+`mcp__plugin_dev10x_cli__generate_commit_list(pr_number="PLACEHOLDER")`
 
 **NEVER call `generate-commit-list.sh` directly** — use the MCP tool
 above. The script is an internal implementation detail.
@@ -357,7 +357,7 @@ mypy, and pytest. Exits on first failure.
 **STOP on failure (REQUIRED):**
 
 If `pre-pr-checks.sh` exits non-zero, or
-`mcp__plugin_Dev10x_cli__pre_pr_checks` returns
+`mcp__plugin_dev10x_cli__pre_pr_checks` returns
 `{"error": "..."}` or any non-success structure:
 
 1. STOP the PR creation workflow immediately
@@ -387,7 +387,7 @@ remote and local refs diverged. Recovery required
 
 Verification before `create_pr`:
 
-1. Run `mcp__plugin_Dev10x_cli__push_safe` (or the wrapper
+1. Run `mcp__plugin_dev10x_cli__push_safe` (or the wrapper
    script) and confirm a non-error return.
 2. Sanity-check the remote ref with
    `git ls-remote --heads origin <branch>` — local HEAD SHA
@@ -421,7 +421,7 @@ repo differs from the base repo), pass the fork owner via the
 summary comment, and notify flow.
 
 ```
-mcp__plugin_Dev10x_cli__create_pr(
+mcp__plugin_dev10x_cli__create_pr(
     title=..., job_story=..., issue_id=...,
     head_repo="<fork-owner>",   # e.g. "octocat"
 )
@@ -463,10 +463,10 @@ don't apply to this PR, then update the PR body with strikethroughs:
 **Update PR body:** Call the `update_pr` MCP tool. It wraps the
 REST PATCH endpoint internally (avoiding the `gh pr edit` GraphQL
 Projects-classic deprecation that exits 1 on success — GH-41) and
-is auto-permitted under `mcp__plugin_Dev10x_cli__*`:
+is auto-permitted under `mcp__plugin_dev10x_cli__*`:
 
 ```
-mcp__plugin_Dev10x_cli__update_pr(
+mcp__plugin_dev10x_cli__update_pr(
     pr_number=<N>,
     body=<updated_body>,
 )
@@ -504,13 +504,13 @@ Next steps:
 ## Important Notes
 
 - **DO NOT use raw `git push` or `gh pr create` commands.**
-  Always use `Skill(Dev10x:git)` for push and the MCP tool
-  `mcp__plugin_Dev10x_cli__create_pr` (or the `create-pr.sh`
+  Always use `Skill(dev10x:git)` for push and the MCP tool
+  `mcp__plugin_dev10x_cli__create_pr` (or the `create-pr.sh`
   script as fallback) for PR creation. Raw commands bypass
   protected branch checks and body formatting. Audit sessions
   GH-448 and GH-446 confirmed this regression pattern.
 - Create PRs as drafts initially — **exception:** when
-  `mcp__plugin_Dev10x_cli__supervisor_review_status()` reports
+  `mcp__plugin_dev10x_cli__supervisor_review_status()` reports
   `supervisor_review: "none"`, pass `draft=False` to `create_pr` so the
   PR is immediately ready-for-review. Nobody reads this project's PRs
   before merge, so leaving the PR draft just adds a manual flip step
@@ -518,7 +518,7 @@ Next steps:
   file to answer this — that tool owns the precedence, exactly as
   `resolve_gate` owns the rest of the gate policy (ADR-0022 D-2).
 - **Auto-merge warning at creation (GH-848 F4).** Call
-  `mcp__plugin_Dev10x_cli__resolve_gate(gate="merge", context={})`.
+  `mcp__plugin_dev10x_cli__resolve_gate(gate="merge", context={})`.
   When it returns `effect: "auto-advance"` — or auto-merge is already
   armed on the PR — the PR will merge itself on green, so say so
   plainly in the creation summary: "This PR is on an auto-merge path:
@@ -542,7 +542,7 @@ Next steps:
 - Handle existing PR case gracefully
 - Link to issue tracker ticket in PR body (when FIXES_URL is available)
 - **PR body starts with the Job Story** — sourced from ticket description,
-  ticket comments, or generated fresh using the `Dev10x:jtbd` base skill.
+  ticket comments, or generated fresh using the `dev10x:jtbd` base skill.
 - **PR body contains the checklist** — Job Story + separator + commit
   list + issue tracker link + separator + checklist.
 - Open PR in browser for immediate review
@@ -552,6 +552,6 @@ Next steps:
 This skill is designed to be used standalone or as part of larger workflows:
 
 - **ticket:work-on**: Could add an optional final step to create PR when work is done
-- **Dev10x:git-promote**: Uses this skill for Push and Create PR
+- **dev10x:git-promote**: Uses this skill for Push and Create PR
 - **test:fix-flaky**: Uses this skill for Create PR
 - **Standalone usage**: User manually invokes when ready to create PR

@@ -1,21 +1,21 @@
 ---
-name: Dev10x:permission-investigator
+name: dev10x:permission-investigator
 description: >
   Materialize a fixture, mutate settings with candidate rule shapes,
   and dispatch subagents to record which shapes the permission engine
   auto-approves vs prompts. Aggregates results into a markdown matrix
   and computes a delta against the rule shapes shipped by
-  Dev10x:plugin-maintenance.
+  dev10x:plugin-maintenance.
   TRIGGER when: permission prompts persist after plugin-maintenance
   cleanup, or new rule shapes need empirical validation before being
   shipped in projects.yaml.
   DO NOT TRIGGER when: a single rule needs ad-hoc debugging — write
   it to settings and reload instead.
 user-invocable: true
-invocation-name: Dev10x:permission-investigator
+invocation-name: dev10x:permission-investigator
 allowed-tools:
   - Bash(uv run dev10x:*)
-  - mcp__plugin_Dev10x_cli__issue_create
+  - mcp__plugin_dev10x_cli__issue_create
   - Agent(general-purpose)
   - AskUserQuestion
   - TaskCreate
@@ -29,7 +29,7 @@ Empirically tests which permission rule shapes Claude Code's
 engine auto-approves vs prompts on. Mutates settings, dispatches
 a subagent in a fresh session per cell, records outcomes, and
 produces a markdown matrix plus a delta report against the rules
-currently shipped by `Dev10x:plugin-maintenance`.
+currently shipped by `dev10x:plugin-maintenance`.
 
 > **Why this exists:** The engine matches rule strings literally
 > against the prompt-displayed path. `~/`, `/home/<user>/`, and
@@ -143,7 +143,7 @@ When the user picks "File upstream issue", invoke the issue
 creation MCP tool with the report body:
 
 ```
-mcp__plugin_Dev10x_cli__issue_create(
+mcp__plugin_dev10x_cli__issue_create(
   title="Permission Pattern Investigator: <date> drift report",
   body=<contents of report.md>,
   labels=["permission-friction", "from-investigator"],

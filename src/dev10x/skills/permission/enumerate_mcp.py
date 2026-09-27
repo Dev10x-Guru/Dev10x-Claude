@@ -1,6 +1,6 @@
 """Enumerate MCP tool glob patterns in settings files.
 
-Claude Code's permission system does not expand `mcp__plugin_Dev10x_*`
+Claude Code's permission system does not expand `mcp__plugin_dev10x_*`
 globs — the rule must name each tool explicitly. When a settings file
 contains a glob-shaped MCP allow rule, every MCP call still triggers a
 manual approval prompt because the glob silently matches nothing.
@@ -61,8 +61,8 @@ from dev10x.domain.plugin_root import resolve_plugin_root
 # convention with teeth: a new wrapper keeps the suffix, or widens both
 # matchers in the same commit.
 _SERVER_GLOBS: dict[str, tuple[str, str]] = {
-    "Dev10x_cli": ("src/dev10x/mcp", "*_tools.py"),
-    "Dev10x_db": ("src/dev10x/mcp", "server_db.py"),
+    "dev10x_cli": ("src/dev10x/mcp", "*_tools.py"),
+    "dev10x_db": ("src/dev10x/mcp", "server_db.py"),
 }
 
 
@@ -187,9 +187,9 @@ def discover_mcp_tools(*, root: Path | None = None) -> dict[str, list[str]]:
     Example key/value::
 
         {
-            "Dev10x_cli": [
-                "mcp__plugin_Dev10x_cli__detect_tracker",
-                "mcp__plugin_Dev10x_cli__pr_detect",
+            "dev10x_cli": [
+                "mcp__plugin_dev10x_cli__detect_tracker",
+                "mcp__plugin_dev10x_cli__pr_detect",
                 ...
             ],
         }
@@ -203,7 +203,7 @@ def discover_mcp_tools(*, root: Path | None = None) -> dict[str, list[str]]:
         if not names:
             continue
         server_key = server.split("_", 1)[1] if "_" in server else server
-        prefix = f"mcp__plugin_Dev10x_{server_key}__"
+        prefix = f"mcp__plugin_dev10x_{server_key}__"
         catalog[server] = sorted(f"{prefix}{name}" for name in names)
     return catalog
 
@@ -365,8 +365,8 @@ def build_capability_groups(
 def _matches_wildcard(rule: str, catalog: dict[str, list[str]]) -> list[str] | None:
     """Return enumerated tools if `rule` is a Dev10x MCP wildcard, else None.
 
-    - `mcp__plugin_Dev10x_*` matches every server in the catalog
-    - `mcp__plugin_Dev10x_cli_*` matches only the cli server
+    - `mcp__plugin_dev10x_*` matches every server in the catalog
+    - `mcp__plugin_dev10x_cli_*` matches only the cli server
     """
     if not McpToolName.is_wildcard(rule):
         return None
@@ -374,10 +374,10 @@ def _matches_wildcard(rule: str, catalog: dict[str, list[str]]) -> list[str] | N
     matched: list[str] = []
     for server, tools in catalog.items():
         server_key = server.split("_", 1)[1] if "_" in server else server
-        server_specific = f"mcp__plugin_Dev10x_{server_key}_*"
+        server_specific = f"mcp__plugin_dev10x_{server_key}_*"
         if rule == server_specific:
             return list(tools)
-        if rule.startswith("mcp__plugin_Dev10x_") and "_cli" not in rule and "_db" not in rule:
+        if rule.startswith("mcp__plugin_dev10x_") and "_cli" not in rule and "_db" not in rule:
             matched.extend(tools)
     return matched or None
 
@@ -502,20 +502,20 @@ def build_catalog(*, plugin_root_override: Path | None = None) -> Result[dict[st
 WRITE_TOOLS_NOT_SEEDED: frozenset[str] = frozenset(
     {
         # Writes the applied-version state that upgrade-cleanup reads back.
-        "mcp__plugin_Dev10x_cli__record_upgrade",
+        "mcp__plugin_dev10x_cli__record_upgrade",
         # Lands a merge — the least reversible action in the pipeline.
-        "mcp__plugin_Dev10x_cli__merge_pr",
+        "mcp__plugin_dev10x_cli__merge_pr",
         # Rewrite durable project policy in ~/.config/Dev10x/friction.yaml;
         # changing a repo's gate posture is a supervisor decision.
-        "mcp__plugin_Dev10x_cli__pin_gate_preset",
-        "mcp__plugin_Dev10x_cli__pin_tracker",
-        "mcp__plugin_Dev10x_cli__pin_supervisor_review",
-        "mcp__plugin_Dev10x_cli__pin_ide",
+        "mcp__plugin_dev10x_cli__pin_gate_preset",
+        "mcp__plugin_dev10x_cli__pin_tracker",
+        "mcp__plugin_dev10x_cli__pin_supervisor_review",
+        "mcp__plugin_dev10x_cli__pin_ide",
         # Spends the client's tokens on an LLM completion.
-        "mcp__plugin_Dev10x_cli__request_sampling",
+        "mcp__plugin_dev10x_cli__request_sampling",
         # Appends to the review-rule feedback store that
         # rule_confidence_report ranks from.
-        "mcp__plugin_Dev10x_cli__record_rule_feedback",
+        "mcp__plugin_dev10x_cli__record_rule_feedback",
     }
 )
 

@@ -33,7 +33,7 @@ if [ -f "$REPO_ROOT/.pre-commit-config.yaml" ] && command -v pre-commit >/dev/nu
         exit 1
     }
     echo "✅ Pre-commit checks passed."
-    echo "ℹ️  Tests run separately via Skill(Dev10x:py-test) in shipping pipeline."
+    echo "ℹ️  Tests run separately via Skill(dev10x:py-test) in shipping pipeline."
     exit 0
 fi
 
@@ -59,4 +59,4 @@ echo "  [3/3] MyPy type check..."
 mypy src || { echo "❌ MyPy check failed. Fix type errors."; exit 1; }
 
 echo "✅ All pre-PR static checks passed!"
-echo "ℹ️  Tests are run separately via Skill(Dev10x:py-test) in the shipping pipeline."
+echo "ℹ️  Tests are run separately via Skill(dev10x:py-test) in the shipping pipeline."

@@ -4,7 +4,7 @@
     {
       "name": "design-approval-gate",
       "description": "Design approval gate uses AskUserQuestion, not plain text",
-      "setup": "/Dev10x:scope Implement payment reconciliation",
+      "setup": "/dev10x:scope Implement payment reconciliation",
       "checks": [
         {"type": "tool_called", "tool": "AskUserQuestion", "assertion": "gate1_uses_tool", "signal": "Design approval uses AskUserQuestion"},
         {"type": "behavioral", "assertion": "no_auto_resolve", "signal": "User interaction is required at the design gate"}
@@ -13,7 +13,7 @@
     {
       "name": "background-exploration-launch",
       "description": "Background exploration launches before task creation",
-      "setup": "/Dev10x:scope Add webhook support to the API",
+      "setup": "/dev10x:scope Add webhook support to the API",
       "checks": [
         {"type": "tool_called", "tool": "Agent", "assertion": "explore_launched", "signal": "Explore agent dispatched before tasks"},
         {"type": "tool_called", "tool": "TaskCreate", "assertion": "tasks_created", "signal": "Tasks created after exploration launch"}
@@ -22,7 +22,7 @@
     {
       "name": "design-it-twice-agents",
       "description": "Three competing design agents dispatched concurrently",
-      "setup": "/Dev10x:scope Design a notification system",
+      "setup": "/dev10x:scope Design a notification system",
       "checks": [
         {"type": "tool_called", "tool": "Agent", "assertion": "three_design_agents", "signal": "Three design agents with competing constraints"},
         {"type": "behavioral", "assertion": "agents_concurrent", "signal": "Agents dispatched in a single tool-call block"}
@@ -31,12 +31,12 @@
   ],
   "trigger_evals": {
     "should_trigger": [
-      "/Dev10x:scope Implement payment reconciliation",
-      "/Dev10x:scope Add webhook support to the API"
+      "/dev10x:scope Implement payment reconciliation",
+      "/dev10x:scope Add webhook support to the API"
     ],
     "should_not_trigger": [
-      "/Dev10x:project-scope PAY-662",
-      "/Dev10x:ticket-scope PAY-662"
+      "/dev10x:project-scope PAY-662",
+      "/dev10x:ticket-scope PAY-662"
     ]
   }
 }

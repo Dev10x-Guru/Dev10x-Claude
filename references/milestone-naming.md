@@ -63,7 +63,7 @@ Close a milestone as soon as its `open_issues` count reaches 0.
 A milestone with no open issues in `open` state pollutes the active
 list and creates confusion about what is in flight.
 
-Use `mcp__plugin_Dev10x_cli__milestone_close` (not raw `gh api`)
+Use `mcp__plugin_dev10x_cli__milestone_close` (not raw `gh api`)
 to close milestones — the plugin wraps the REST call with proper
 permission handling.
 
@@ -75,5 +75,5 @@ list. Apply the prefix only to new milestones going forward.
 
 ## Reference
 
-- MCP tool: `mcp__plugin_Dev10x_cli__milestone_close`
+- MCP tool: `mcp__plugin_dev10x_cli__milestone_close`
 - MCP tools table: `.claude/rules/mcp-tools.md`

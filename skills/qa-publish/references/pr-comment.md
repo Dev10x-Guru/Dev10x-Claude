@@ -20,7 +20,7 @@ reviewer would reasonably have concluded the money rows were part of the
 change under review.
 
 Every existing gate passed. `verify-evidence.py`, the `qa-self` § 4.4
-evidence review, and the `Dev10x:yt-upload` provenance gate all ask *is
+evidence review, and the `dev10x:yt-upload` provenance gate all ask *is
 the artifact well-formed* and *is the data synthetic*. **None asks: is
 this configuration representative.** That is the gap this section fills.
 
@@ -81,17 +81,17 @@ capture defects only a human watching could catch (#1204). Each
 re-record produces a **new YouTube id**.
 
 Posting a new comment each time leaves a PR carrying several comments
-whose poster frames point at superseded videos, and `Dev10x:yt-upload`
+whose poster frames point at superseded videos, and `dev10x:yt-upload`
 cannot delete the old uploads (#1206), so they stay live indefinitely.
 
 This is the same "the tool creates state it cannot clean up" shape as
 #1206 and #1207 — and edit-in-place is the one destination where the
 cleanup is actually available. Hence: one QA comment per PR, edited via
-`mcp__plugin_Dev10x_cli__issue_comment_edit`.
+`mcp__plugin_dev10x_cli__issue_comment_edit`.
 
 ## The poster frame 404s briefly
 
-`Dev10x:yt-upload` returns `thumbnail_may_404: true`. YouTube takes a
+`dev10x:yt-upload` returns `thumbnail_may_404: true`. YouTube takes a
 minute or two to generate `maxresdefault.jpg`, so a PR comment posted
 immediately shows a broken image. It resolves itself — do not "fix" a
 correct embed, and do not switch to a lower-resolution thumbnail to

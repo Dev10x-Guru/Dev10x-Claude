@@ -32,13 +32,13 @@ completion and directory listings.
 
 ## Invocation Name (SKILL.md `name:` field)
 
-Use the `Dev10x:<feature-name>` format in the SKILL.md front matter.
+Use the `dev10x:<feature-name>` format in the SKILL.md front matter.
 
 **Good:**
 ```yaml
-name: Dev10x:git-worktree
-name: Dev10x:skill-audit
-name: Dev10x:park
+name: dev10x:git-worktree
+name: dev10x:skill-audit
+name: dev10x:park
 ```
 
 **Bad:**
@@ -49,10 +49,10 @@ name: skill-audit
 
 *Why?* This is an intentional **branding decision**. Claude Code
 auto-constructs `<PluginName>:<dir-name>` identifiers for the
-system-reminder listing (e.g., `Dev10x:git-commit`), so the prefix
+system-reminder listing (e.g., `dev10x:git-commit`), so the prefix
 is technically redundant for skill resolution. However, we include
 it explicitly in `name:` for:
-- **Brand consistency** — the `Dev10x:` prefix is visible in MOTD
+- **Brand consistency** — the `dev10x:` prefix is visible in MOTD
   listings and `Skill()` invocations across all projects
 - **Collision avoidance** — explicit prefix prevents ambiguity when
   multiple plugins define similarly-named skills
@@ -62,6 +62,16 @@ it explicitly in `name:` for:
 Note: official plugins (superpowers, svelte, hookify) omit the
 prefix and rely on auto-construction. Our explicit prefix is a
 deliberate divergence for branding.
+
+**The prefix is lowercase (GH-1499).** It must equal the plugin
+`name` in `.claude-plugin/plugin.json`, and claude.ai / Claude
+Desktop marketplace sync rejects a plugin name that is not
+kebab-case — the old `Dev10x` spelling made the marketplace
+uninstallable there ("Marketplace sync failed"). `claude plugin
+validate .` warns on a non-kebab name; treat that warning as a
+blocker. The product name in prose and the `Dev10x` config
+directories (`~/.config/Dev10x`, `.claude/Dev10x`, `/tmp/Dev10x`)
+are unaffected.
 
 ## Suffix Encodes Execution Shape (GH-217)
 
@@ -130,19 +140,19 @@ Skills use family prefixes for tab-completion discoverability:
 
 | Directory         | Invocation name      |
 |-------------------|----------------------|
-| `park/`           | `Dev10x:park`            |
-| `park-todo/`      | `Dev10x:park-todo`       |
-| `park-remind/`    | `Dev10x:park-remind`     |
-| `park-discover/`  | `Dev10x:park-discover`   |
-| `session-tasks/`  | `Dev10x:session-tasks`   |
-| `session-wrap-up/`| `Dev10x:session-wrap-up`  |
-| `ticket-branch/`  | `Dev10x:ticket-branch`   |
-| `ticket-create/`  | `Dev10x:ticket-create`   |
-| `ticket-jtbd/`    | `Dev10x:ticket-jtbd`     |
-| `ticket-scope/`   | `Dev10x:ticket-scope`    |
+| `park/`           | `dev10x:park`            |
+| `park-todo/`      | `dev10x:park-todo`       |
+| `park-remind/`    | `dev10x:park-remind`     |
+| `park-discover/`  | `dev10x:park-discover`   |
+| `session-tasks/`  | `dev10x:session-tasks`   |
+| `session-wrap-up/`| `dev10x:session-wrap-up`  |
+| `ticket-branch/`  | `dev10x:ticket-branch`   |
+| `ticket-create/`  | `dev10x:ticket-create`   |
+| `ticket-jtbd/`    | `dev10x:ticket-jtbd`     |
+| `ticket-scope/`   | `dev10x:ticket-scope`    |
 
-Other skills use the full directory name: `Dev10x:git-worktree`,
-`Dev10x:skill-audit`, `Dev10x:skill-create`.
+Other skills use the full directory name: `dev10x:git-worktree`,
+`dev10x:skill-audit`, `dev10x:skill-create`.
 
 ## `invocation-name` field
 
@@ -150,12 +160,12 @@ Other skills use the full directory name: `Dev10x:git-worktree`,
 skills available for invocation. By default it MUST match `name:`:
 
 ```yaml
-name: Dev10x:git-commit
-invocation-name: Dev10x:git-commit
+name: dev10x:git-commit
+invocation-name: dev10x:git-commit
 ```
 
 The `invocation-name:` MUST match `name:` — no exceptions. Both
-fields carry the `Dev10x:` prefix for brand consistency.
+fields carry the `dev10x:` prefix for brand consistency.
 
 ## Eval Criteria Files
 
@@ -164,14 +174,14 @@ Eval criteria define measurable dimensions and test scenarios for skills.
 **Structure:** Place all evals in `skills/<feature-name>/evals/evals.json`
 - Directory name: plain feature name (no `Dev10x-` prefix)
 - Filename: fixed as `evals.json` (not `Dev10x-evals.json`)
-- Inside file: `skill_name` field MUST use `Dev10x:` prefix
+- Inside file: `skill_name` field MUST use `dev10x:` prefix
 
 **Schema:** See `references/eval-criteria.md` for full structure.
 
 **Example:**
 ```json
 {
-  "skill_name": "Dev10x:git-commit",
+  "skill_name": "dev10x:git-commit",
   "eval_dimensions": [...],
   "evals": [...]
 }
@@ -183,7 +193,7 @@ They do not require executable permissions or script references.
 ## Rationale Summary
 
 - **Directory**: plain name → clean filesystem, no redundant prefix
-- **Invocation**: `Dev10x:` prefix → branding + namespace isolation
+- **Invocation**: `dev10x:` prefix → branding + namespace isolation
 - **`invocation-name:`**: required on every skill, matches `name:` by default
 - **Families**: prefix groups for tab-completion discoverability
 - **Evals**: structured JSON placed in fixed directory with prefixed `skill_name`

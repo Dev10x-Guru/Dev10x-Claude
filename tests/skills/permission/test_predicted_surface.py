@@ -23,7 +23,7 @@ from dev10x.skills.permission.friction_report import (
     predict_surfaces,
 )
 
-CATALOG_ALLOW = ["Bash(git status:*)", "Bash(gh pr view:*)", "mcp__plugin_Dev10x_cli__pr_get"]
+CATALOG_ALLOW = ["Bash(git status:*)", "Bash(gh pr view:*)", "mcp__plugin_dev10x_cli__pr_get"]
 CATALOG_ASK = ["Bash(gh api -X DELETE:*)"]
 
 
@@ -50,7 +50,7 @@ class TestPredictSurface:
     def test_no_match_is_catalog_allow_the_file_neither_allows_nor_denies(
         self, surface: PredictedSurface
     ) -> None:
-        assert surface.no_match == ["mcp__plugin_Dev10x_cli__pr_get"]
+        assert surface.no_match == ["mcp__plugin_dev10x_cli__pr_get"]
 
     def test_ask_rules_are_keyed_by_provenance(self, surface: PredictedSurface) -> None:
         assert surface.ask == {

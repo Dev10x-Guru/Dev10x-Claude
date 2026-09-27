@@ -337,7 +337,7 @@ class TestExpandStaleWildcards:
     def test_disabled_returns_empty(self) -> None:
         assert (
             _expand_stale_wildcards(
-                stale_wildcards=["mcp__plugin_Dev10x_*"],
+                stale_wildcards=["mcp__plugin_dev10x_*"],
                 existing=set(),
                 enabled=False,
             )
@@ -355,23 +355,23 @@ class TestExpandStaleWildcards:
         )
 
     def test_expands_wildcard_into_catalog_tools_not_already_present(self) -> None:
-        catalog = {"cli": ["mcp__plugin_Dev10x_cli__issue_get", "mcp__plugin_Dev10x_cli__pr_get"]}
+        catalog = {"cli": ["mcp__plugin_dev10x_cli__issue_get", "mcp__plugin_dev10x_cli__pr_get"]}
         with patch(
             "dev10x.skills.permission.enumerate_mcp._matches_wildcard",
-            return_value=["mcp__plugin_Dev10x_cli__issue_get", "mcp__plugin_Dev10x_cli__pr_get"],
+            return_value=["mcp__plugin_dev10x_cli__issue_get", "mcp__plugin_dev10x_cli__pr_get"],
         ):
             expanded = _expand_stale_wildcards(
-                stale_wildcards=["mcp__plugin_Dev10x_*"],
-                existing={"mcp__plugin_Dev10x_cli__issue_get"},
+                stale_wildcards=["mcp__plugin_dev10x_*"],
+                existing={"mcp__plugin_dev10x_cli__issue_get"},
                 enabled=True,
                 catalog=catalog,
             )
-        assert expanded == ["mcp__plugin_Dev10x_cli__pr_get"]
+        assert expanded == ["mcp__plugin_dev10x_cli__pr_get"]
 
     def test_empty_catalog_returns_empty(self) -> None:
         assert (
             _expand_stale_wildcards(
-                stale_wildcards=["mcp__plugin_Dev10x_*"],
+                stale_wildcards=["mcp__plugin_dev10x_*"],
                 existing=set(),
                 enabled=True,
                 catalog={},
@@ -383,16 +383,16 @@ class TestExpandStaleWildcards:
         with (
             patch(
                 "dev10x.skills.permission.enumerate_mcp.discover_mcp_tools",
-                return_value={"cli": ["mcp__plugin_Dev10x_cli__issue_get"]},
+                return_value={"cli": ["mcp__plugin_dev10x_cli__issue_get"]},
             ),
             patch(
                 "dev10x.skills.permission.enumerate_mcp._matches_wildcard",
-                return_value=["mcp__plugin_Dev10x_cli__issue_get"],
+                return_value=["mcp__plugin_dev10x_cli__issue_get"],
             ),
         ):
             expanded = _expand_stale_wildcards(
-                stale_wildcards=["mcp__plugin_Dev10x_*"],
+                stale_wildcards=["mcp__plugin_dev10x_*"],
                 existing=set(),
                 enabled=True,
             )
-        assert expanded == ["mcp__plugin_Dev10x_cli__issue_get"]
+        assert expanded == ["mcp__plugin_dev10x_cli__issue_get"]

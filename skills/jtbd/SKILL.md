@@ -1,6 +1,6 @@
 ---
-name: Dev10x:jtbd
-invocation-name: Dev10x:jtbd
+name: dev10x:jtbd
+invocation-name: dev10x:jtbd
 description: >
   Pure JTBD story drafting skill. Gathers context from issue tracker
   tickets, parent tickets, and PR diffs to craft a situation-driven Job
@@ -8,11 +8,11 @@ description: >
   with no side effects.
   TRIGGER when: drafting a JTBD Job Story for a ticket, PR, or release.
   DO NOT TRIGGER when: Job Story already exists on the target, or writing
-  commit messages (use Dev10x:git-commit).
+  commit messages (use dev10x:git-commit).
 user-invocable: false
 allowed-tools:
   - AskUserQuestion
-  - Skill(Dev10x:gh-context)
+  - Skill(dev10x:gh-context)
   - Bash(gh pr view:*)
   - Bash(gh pr diff:*)
   - Bash(gh pr list:*)
@@ -24,7 +24,7 @@ allowed-tools:
   - Bash(curl:*atlassian.net*)
 ---
 
-# Dev10x:jtbd — Pure Job Story Drafting
+# dev10x:jtbd — Pure Job Story Drafting
 
 ## Orchestration
 
@@ -81,7 +81,7 @@ Pick exactly one bucket, and record the rejected runner-up in one line —
 that line is usually the release-note angle a salesperson would lead with.
 The bucket says where the money is; it does not dictate the sentence shape.
 `Prevent stale plans from reaching new worktrees` is Cost money in a
-prevention sentence (see `Dev10x:git-commit` Step 2.5).
+prevention sentence (see `dev10x:git-commit` Step 2.5).
 
 Engineering value is always secondary. A refactor or dependency
 bump that ships no business outcome should be either (a) the
@@ -141,11 +141,11 @@ Collect information from available sources in parallel. Skip sources
 the caller already provided via the `context` parameter.
 
 **A. PR details (if `pr_number` provided):**
-- Call `mcp__plugin_Dev10x_cli__pr_get(number=PR_NUMBER)` for the
+- Call `mcp__plugin_dev10x_cli__pr_get(number=PR_NUMBER)` for the
   PR title, body, head branch, and metadata
-- Call `mcp__plugin_Dev10x_cli__pr_detect(arg=str(PR_NUMBER))` if
+- Call `mcp__plugin_dev10x_cli__pr_detect(arg=str(PR_NUMBER))` if
   the PR number was supplied without repo context
-- Fetch the diff via `Skill(Dev10x:gh-context)` (or the project's
+- Fetch the diff via `Skill(dev10x:gh-context)` (or the project's
   PR-diff helper) — raw `gh pr diff` is hook-blocked in skill docs
 
 **B. Issue ticket (if `ticket_id` provided):**
@@ -396,27 +396,27 @@ if unclear (attended mode) or make best effort (unattended mode).
 This skill is designed to be composed by other skills:
 
 ### Ticket write layer
-The write layer. Invokes `Dev10x:jtbd` in attended mode, then writes the
+The write layer. Invokes `dev10x:jtbd` in attended mode, then writes the
 approved story to a target (PR description, issue tracker ticket).
 
 ### PR creation skill
-Sources an existing story or invokes `Dev10x:jtbd` to generate one. The
+Sources an existing story or invokes `dev10x:jtbd` to generate one. The
 story becomes the first paragraph of the PR body.
 
 ### Ticket work-on skill
-Invokes `Dev10x:jtbd` in attended mode using ticket context already
+Invokes `dev10x:jtbd` in attended mode using ticket context already
 gathered. If approved, prepends the story to the ticket description.
 
 ### Ticket scoping skill
-Invokes `Dev10x:jtbd` in attended mode. The approved story is included
+Invokes `dev10x:jtbd` in attended mode. The approved story is included
 in the scoping document under a `## Job Story` section.
 
 ### Release-notes skill
-Invokes `Dev10x:jtbd` in **unattended** mode for PRs missing a story.
+Invokes `dev10x:jtbd` in **unattended** mode for PRs missing a story.
 The caller batches multiple drafts and presents them all for approval.
 
 ### Commit skill
-Invokes `Dev10x:jtbd` in **unattended** mode and derives the commit title
+Invokes `dev10x:jtbd` in **unattended** mode and derives the commit title
 from the story's ROI bucket and the shape of the change (new value, leak,
 prevention, manual step, owner's choice, contract) — never by transposing
 the "so X can" clause into an imperative, which yields one frame for every
@@ -427,7 +427,7 @@ The clause is the **input** to that title, not a template for it
 schema poller") upward to the human role that actually benefits, exactly
 as the trace-upward rule requires of the story itself, or pick a frame
 with no actor slot. PR titles follow the same rules — see
-`Dev10x:gh-pr-create` § Title Frames.
+`dev10x:gh-pr-create` § Title Frames.
 
 ### PR monitor skill
 Delegates to the ticket write layer when a PR is missing its Job Story.

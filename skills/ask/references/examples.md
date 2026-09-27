@@ -1,4 +1,4 @@
-# Dev10x:ask — Examples
+# dev10x:ask — Examples
 
 Walkthroughs for each mode. See `SKILL.md` for the mode-detection
 table and the orchestration contract.
@@ -9,7 +9,7 @@ table and the orchestration contract.
 "Should I fix this with a retry wrapper or by increasing the
 timeout? The retry approach is more resilient but adds complexity."
 
-**Invocation:** `/Dev10x:ask`
+**Invocation:** `/dev10x:ask`
 
 **Result:** Calls `AskUserQuestion` with:
 ```
@@ -24,7 +24,7 @@ options:
 
 ## Example 2: Reinforce the convention
 
-**Invocation:** `/Dev10x:ask reinforce`
+**Invocation:** `/dev10x:ask reinforce`
 
 **Result:** Outputs the reinforcement message from
 [`reinforcement-message.md`](reinforcement-message.md), citing the
@@ -32,7 +32,7 @@ specific rules and correct pattern.
 
 ## Example 3: Convert a quoted question
 
-**Invocation:** `/Dev10x:ask "Should we use polling or webhooks?"`
+**Invocation:** `/dev10x:ask "Should we use polling or webhooks?"`
 
 **Result:** Calls `AskUserQuestion` with:
 ```
@@ -55,10 +55,10 @@ options:
    — the fix landed three turns ago, no test exists.
 3. A `git-groom` strategy decision was queued in task metadata
    under the Batched Decision Queue pattern and never presented.
-4. `Dev10x:review` surfaced an N+1 query in `quotes/service.py`
+4. `dev10x:review` surfaced an N+1 query in `quotes/service.py`
    that was noted and then scrolled past.
 
-**Invocation:** `/Dev10x:ask --loops`
+**Invocation:** `/dev10x:ask --loops`
 
 **Result:** One `TaskList` call to find existing coverage, then:
 
@@ -79,7 +79,7 @@ each loop so the supervisor can spot a false positive.
 
 ## Example 5: No open loops found
 
-**Invocation:** `/Dev10x:ask --loops` in a session where every
+**Invocation:** `/dev10x:ask --loops` in a session where every
 question was answered and every commitment was executed.
 
 **Result:** No `TaskCreate`, no `TaskUpdate`, and — importantly —

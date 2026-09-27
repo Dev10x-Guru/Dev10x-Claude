@@ -43,7 +43,7 @@ Set sequential dependencies: draft blocked by gather, review blocked
 by draft, create blocked by review.
 
 **Nested-mode exemption:** When invoked as a nested skill within
-a parent orchestrator (e.g., via `Skill()` from `Dev10x:work-on`),
+a parent orchestrator (e.g., via `Skill()` from `dev10x:work-on`),
 the four startup tasks above are condensed into **exactly one**
 summary task — not zero. The parent's task list provides phase
 visibility; the nested summary task makes the commit step itself
@@ -62,7 +62,7 @@ orchestrator with no record that the commit step ran.
 **Decision gates in nested mode:** ALL `AskUserQuestion` gates
 documented below are skipped only when **both** unattended-mode
 conditions in the next paragraph are met (invoked via
-`Skill(Dev10x:git-commit)` AND the parent has an active task
+`Skill(dev10x:git-commit)` AND the parent has an active task
 list). When in doubt — for example, when called from a script
 or one-off invocation with no parent task list — default to
 **attended mode** and fire all gates. "Nested" alone does not
@@ -78,8 +78,8 @@ and approve" in unattended mode), still create the task via
 visibility into the full workflow.
 
 **Unattended mode:** When this skill is invoked by an
-orchestrating skill (e.g., `Dev10x:work-on`, `test:fix-flaky`,
-`Dev10x:git-promote`) and the orchestrator has already approved
+orchestrating skill (e.g., `dev10x:work-on`, `test:fix-flaky`,
+`dev10x:git-promote`) and the orchestrator has already approved
 the work plan, all interactive decision gates are bypassed:
 - Staging → auto-stage all changes
 - Commit type → auto-select from context
@@ -90,8 +90,8 @@ the work plan, all interactive decision gates are bypassed:
 
 Detection: unattended mode activates when **both** conditions
 are met:
-1. The skill is invoked via `Skill(Dev10x:git-commit)` (not
-   directly by the user via `/Dev10x:git-commit`)
+1. The skill is invoked via `Skill(dev10x:git-commit)` (not
+   directly by the user via `/dev10x:git-commit`)
 2. The caller is executing a plan step with an active task
    list (i.e., an orchestrating skill like `work-on`)
 
@@ -133,7 +133,7 @@ points. In unattended mode, these gates are skipped:
 **One commit scope per invocation.** If a second unrelated change
 surfaces mid-flow (e.g., during staging review, the agent spots an
 incidental edit in a different module), finish the current
-invocation first, then re-invoke `Dev10x:git-commit` for the new
+invocation first, then re-invoke `dev10x:git-commit` for the new
 scope. Do NOT extend the in-flight invocation to cover multiple
 scopes.
 
@@ -141,9 +141,9 @@ scopes.
 hook denies a raw `git commit -F <path>` you reached for mid-flow
 because a second scope appeared, the correct response is to:
 
-1. Complete the current `Dev10x:git-commit` invocation with the
+1. Complete the current `dev10x:git-commit` invocation with the
    original scope.
-2. Re-invoke `Skill(Dev10x:git-commit)` for the new scope.
+2. Re-invoke `Skill(dev10x:git-commit)` for the new scope.
 
 **Do NOT reach for env-level hook bypasses as a workaround.** Hook
 overrides live in the hook layer, not at the skill caller — see
@@ -219,7 +219,7 @@ git status --porcelain
 ```
 
 **No-PR-workflow escape (GH-57):** Before applying the base-branch
-block, call `mcp__plugin_Dev10x_cli__supervisor_review_status()`.
+block, call `mcp__plugin_dev10x_cli__supervisor_review_status()`.
 Skip the develop/main/master block only when it reports BOTH
 `supervisor_review: "none"` and `pinned: true` — a single-author
 project with no PR workflow, deliberately recorded in the durable
@@ -233,7 +233,7 @@ retired (ADR-0018) and the tool owns the precedence (ADR-0022 D-2).
 - ❌ If on develop/main/master AND the escape does not apply →
   Error: "Cannot commit directly to develop/main/master.
   Create a feature branch first, or record this repo as having no
-  PR workflow with `Dev10x:friction-setup` (supervisor_review:
+  PR workflow with `dev10x:friction-setup` (supervisor_review:
   none) if it is single-author."
 - ❌ If no changes → Error: "No changes to commit"
 - ✅ If staged changes exist → Continue
@@ -253,15 +253,15 @@ reflog archaeology.
 **Source the expected ticket from plan-sync context:**
 
 ```
-mcp__plugin_Dev10x_cli__plan_sync_json_summary()
+mcp__plugin_dev10x_cli__plan_sync_json_summary()
 ```
 
 Read `plan.context.tickets` from the response. If the call returns
 an empty dict, the `tickets` list is missing, or the list is
 empty, **skip this step entirely** — no orchestrator is tracking
 expected work, so drift cannot be detected. This preserves
-backward compatibility for ad-hoc `/Dev10x:git-commit`
-invocations outside `Dev10x:work-on`.
+backward compatibility for ad-hoc `/dev10x:git-commit`
+invocations outside `dev10x:work-on`.
 
 **Compare against current HEAD:**
 
@@ -316,11 +316,11 @@ git rev-parse --verify <expected-branch>
 
 - **Switch back to expected branch** — run `git checkout
   <expected-branch>` and stop the skill. The orchestrator (or
-  user) re-invokes `Dev10x:git-commit` after the checkout. Do
+  user) re-invokes `dev10x:git-commit` after the checkout. Do
   NOT auto-resume — the working tree state on the expected
   branch may differ and Step 1's status check must re-run.
 - **Archive stale plan** (shown instead of switch when branch
-  is gone) — call `mcp__plugin_Dev10x_cli__plan_sync_archive()`
+  is gone) — call `mcp__plugin_dev10x_cli__plan_sync_archive()`
   and proceed to Step 2 on the current branch.
 - **Continue on current branch** — proceed to Step 2. The
   ticket ID extracted in Step 2 will reflect the actual branch,
@@ -366,19 +366,19 @@ fi
 ### Step 2.5: Optional JTBD Title Derivation
 
 This step activates when **any** of these conditions are met:
-- **Explicit request:** User passes "use Dev10x:jtbd" (or similar) in `/Dev10x:git-commit` args
+- **Explicit request:** User passes "use dev10x:jtbd" (or similar) in `/dev10x:git-commit` args
 - **First commit:** Ticket ID extracted, zero commits ahead of develop, and
   commit type is Feature (✨) or Bug (🐛)
 
 **Flow:**
-1. Invoke the `Dev10x:jtbd` base skill in **unattended** mode with `ticket_id`.
+1. Invoke the `dev10x:jtbd` base skill in **unattended** mode with `ticket_id`.
    The returned story carries one ROI bucket and an evidence rank (see
-   `Dev10x:jtbd` § Guiding Principle and § Step 1).
+   `dev10x:jtbd` § Guiding Principle and § Step 1).
 2. Derive the title from the **bucket and the shape of the truth**, never by
    transposing the "so [beneficiary] can" clause into an imperative.
    Transposing a fixed-shape clause yields a fixed-shape title; a release of
    17 PRs derived that way read `Let <actor> <verb>` eleven times (GH-1225).
-   The same rules govern PR titles — `Dev10x:gh-pr-create` § Title Frames
+   The same rules govern PR titles — `dev10x:gh-pr-create` § Title Frames
    names four PR-title frames (Outcome, Prevention, Actor, Subject); they
    map onto the shape table below, and the Actor frame is only available
    for a human role.
@@ -733,7 +733,7 @@ Suggestion: Split into two lines or shorten:
 ### Step 9: Resolve Preview Gate and Confirm
 
 **REQUIRED (ADR-0016, GH-757):** Call
-`mcp__plugin_Dev10x_cli__resolve_gate(gate="artifact_preview",
+`mcp__plugin_dev10x_cli__resolve_gate(gate="artifact_preview",
 context={})` before deciding whether to show the preview.
 Do NOT branch on unattended/attended mode, `friction_level`, or
 `active_modes` for this step — the resolver reads session
@@ -836,7 +836,7 @@ the commit body if it deviates from the staged set.
 Audit GH-157 caught a session where manual `git reset HEAD` +
 selective `git add` set an irreversible boundary that the skill
 inherited without confirmation — remediation required invoking
-`Dev10x:git-commit-split` from scratch.
+`dev10x:git-commit-split` from scratch.
 
 **Hard rule: NEVER stage individual files by name** (e.g.,
 `git add file1.py file2.py`) to PICK files into a commit.
@@ -851,7 +851,7 @@ captured incidentally while editing `skills/`), prefer **one of**
 the following over selective `git add`:
 
 1. **Commit the unrelated paths first.** Re-invoke
-   `Skill(Dev10x:git-commit)` for the unrelated change with
+   `Skill(dev10x:git-commit)` for the unrelated change with
    its own message, then return to this commit with a clean
    working tree. This is the default — keep commits atomic by
    *time*, not by `git add` argument lists.
@@ -894,7 +894,7 @@ Options:
 **Use Write tool + `-F` to preserve formatting (hookify blocks heredocs):**
 
 1. **REQUIRED:** Create a temp file via mktmp MCP tool:
-   `mcp__plugin_Dev10x_cli__mktmp(namespace='git',
+   `mcp__plugin_dev10x_cli__mktmp(namespace='git',
    prefix='commit-msg', ext='.txt')`
    Store the returned `path` value.
    **Fallback** (if MCP unavailable):
@@ -941,7 +941,7 @@ fi
 
 **Error recovery:** If the hook blocks the commit, you are
 likely using a non-mktmp path or running outside the skill
-context. Restart via `Skill(Dev10x:git-commit)` with no args.
+context. Restart via `Skill(dev10x:git-commit)` with no args.
 Do NOT attempt to bypass hooks with `python3 subprocess` or
 `--no-verify`.
 
@@ -958,13 +958,13 @@ Commit created successfully!
 Next steps:
 1. Continue working
 2. Create another commit
-3. Create PR (/Dev10x:gh-pr-create)
+3. Create PR (/dev10x:gh-pr-create)
 
 What would you like to do? (1/2/3/done)
 ```
 
 **If 3 (Create PR):**
-- Use `Dev10x:gh-pr-create` skill
+- Use `dev10x:gh-pr-create` skill
 - PR title will use this commit message
 
 ## Important Notes
@@ -992,10 +992,10 @@ What would you like to do? (1/2/3/done)
 ## Integration with Other Skills
 
 ```
-Dev10x:git-commit
+dev10x:git-commit
 ├── Used during development workflow
 ├── Output: Properly formatted commit
-└── Can be followed by: Dev10x:gh-pr-create
+└── Can be followed by: dev10x:gh-pr-create
 ```
 
 ## Example Usage
@@ -1004,7 +1004,7 @@ Dev10x:git-commit
 
 **User request:**
 ```
-/Dev10x:git-commit
+/dev10x:git-commit
 ```
 
 **Current branch:** `janusz/PAY-310/fix-flaky-tests`
@@ -1034,7 +1034,7 @@ Dev10x:git-commit
 
 **User request:**
 ```
-/Dev10x:git-commit
+/dev10x:git-commit
 ```
 
 **Current branch:** `janusz/PAY-133/fix-motor-timeout`
@@ -1063,7 +1063,7 @@ Dev10x:git-commit
 
 **User request:**
 ```
-/Dev10x:git-commit
+/dev10x:git-commit
 ```
 
 **Current branch:** `feature/improve-search` (no ticket ID)
@@ -1086,7 +1086,7 @@ Dev10x:git-commit
 
 **User request:**
 ```
-/Dev10x:git-commit
+/dev10x:git-commit
 ```
 
 **Current branch:** `fix-typo-in-readme`
@@ -1131,7 +1131,7 @@ Dev10x:git-commit
 **"Cannot commit to develop/main/master":**
 - Error and stop
 - Suggest: Create feature branch first, or record the repo as
-  having no PR workflow via `Dev10x:friction-setup`
+  having no PR workflow via `dev10x:friction-setup`
   (`supervisor_review: none`) for single-author repos (GH-57)
 
 **"Title too long":**

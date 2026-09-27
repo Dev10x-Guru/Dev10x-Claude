@@ -1,4 +1,4 @@
-"""Strategy registry for Dev10x:plugin-doctor (GH-87).
+"""Strategy registry for dev10x:plugin-doctor (GH-87).
 
 ``load_strategies`` is a **Plugin loader** (Fowler PoEAA): module
 paths act as configuration and each module is bound late, collecting

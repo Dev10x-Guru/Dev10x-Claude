@@ -1,5 +1,5 @@
 ---
-name: Dev10x:git-alias-setup
+name: dev10x:git-alias-setup
 description: >
   Set up git aliases that reduce permission friction by wrapping
   $(git merge-base ...) subshells into stable command prefixes.
@@ -7,15 +7,15 @@ description: >
   permission friction from subshell-based git commands.
   DO NOT TRIGGER when: aliases already configured (check git config).
 user-invocable: true
-invocation-name: Dev10x:git-alias-setup
+invocation-name: dev10x:git-alias-setup
 allowed-tools:
-  - mcp__plugin_Dev10x_cli__setup_aliases
+  - mcp__plugin_dev10x_cli__setup_aliases
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git-alias-setup/scripts/git-alias-setup.sh)
 ---
 
-**Announce:** "Using Dev10x:git-alias-setup to configure branch-comparison aliases."
+**Announce:** "Using dev10x:git-alias-setup to configure branch-comparison aliases."
 
-# Dev10x:git-alias-setup — Git Alias Configuration
+# dev10x:git-alias-setup — Git Alias Configuration
 
 Configures global git aliases that wrap `$(git merge-base ...)` subshells.
 Without these aliases, commands like `git log $(git merge-base develop HEAD)..HEAD`

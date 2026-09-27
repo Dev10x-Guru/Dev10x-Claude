@@ -3,9 +3,9 @@ name: adr-reviewer
 description: |
   Synthesize arguments from architect agents into ranked ADR options.
   Fact-checks claims against the actual codebase. Used by
-  Dev10x:adr-evaluate skill during the synthesis phase.
+  dev10x:adr-evaluate skill during the synthesis phase.
 
-  Triggers: invoked by Dev10x:adr-evaluate skill only
+  Triggers: invoked by dev10x:adr-evaluate skill only
 tools: Glob, Grep, Read
 model: sonnet
 color: cyan

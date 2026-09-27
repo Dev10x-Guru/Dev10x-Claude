@@ -46,7 +46,7 @@ regardless of session mode.
 
 ### After User Approval
 
-For each approved courtesy fix, invoke `Dev10x:gh-pr-fixup` to
+For each approved courtesy fix, invoke `dev10x:gh-pr-fixup` to
 implement the change, create the `fixup!` commit, push, and reply
 in the thread. The reply MUST be framed as a courtesy — include
 the phrase "feel free to amend or drop" so the author retains

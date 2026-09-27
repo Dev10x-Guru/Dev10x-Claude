@@ -1,24 +1,24 @@
 ---
-name: Dev10x:session-wrap-up
+name: dev10x:session-wrap-up
 description: >
   Capture and route unfinished work at session end — so nothing is
   lost when the session closes.
   TRIGGER when: session ending, user says "wrap up" / "pause" / "done
   for today", or too many open loops pile up.
   DO NOT TRIGGER when: mid-session active work with manageable task
-  list, or starting new work (use Dev10x:work-on).
+  list, or starting new work (use dev10x:work-on).
 user-invocable: true
-invocation-name: Dev10x:session-wrap-up
+invocation-name: dev10x:session-wrap-up
 allowed-tools:
-  - mcp__plugin_Dev10x_cli__pr_detect
-  - mcp__plugin_Dev10x_cli__task_index_append
-  - mcp__plugin_Dev10x_cli__task_index_get
-  - mcp__plugin_Dev10x_cli__task_index_set
+  - mcp__plugin_dev10x_cli__pr_detect
+  - mcp__plugin_dev10x_cli__task_index_append
+  - mcp__plugin_dev10x_cli__task_index_get
+  - mcp__plugin_dev10x_cli__task_index_set
 ---
 
-# Dev10x:session-wrap-up — Session End Orchestrator
+# dev10x:session-wrap-up — Session End Orchestrator
 
-**Announce:** "Using Dev10x:session-wrap-up to capture open loops
+**Announce:** "Using dev10x:session-wrap-up to capture open loops
 before closing this session."
 
 ## Mandatory Invocation Triggers (GH-163)
@@ -26,7 +26,7 @@ before closing this session."
 Audit GH-163 caught a session that wound down with CI still
 unconfirmed, 5 newly-created follow-up issues unlinked to the
 parent ticket, no plan-sync archive, and no parking note —
-`Dev10x:session-wrap-up` matched every trigger but was never
+`dev10x:session-wrap-up` matched every trigger but was never
 invoked, and the parent orchestrator marked its wrap-up task
 `completed` without a `Skill()` call.
 
@@ -38,12 +38,12 @@ invoked, and the parent orchestrator marked its wrap-up task
   and the user is stepping away
 - Open loops (PRs awaiting review, deferred tasks, unfiled
   follow-ups) exist with no plan-sync archive
-- Orchestrators (`Dev10x:work-on`, `Dev10x:fanout`) reach the
+- Orchestrators (`dev10x:work-on`, `dev10x:fanout`) reach the
   plan completion gate with non-empty pending tasks
 
 **Anti-pattern (PROHIBITED):** Marking a "Session wrap-up" or
 "Park items" task `completed` in an orchestrator's task list
-without calling `Skill(Dev10x:session-wrap-up)` first. The task
+without calling `Skill(dev10x:session-wrap-up)` first. The task
 completion is the side effect of the skill running — not a
 substitute for running it.
 
@@ -97,7 +97,7 @@ session (lines starting with `+` that contain TODO or FIXME).
 
 ### 1d. Open PRs
 
-Call `mcp__plugin_Dev10x_cli__pr_detect(arg="")` (no arg) — the
+Call `mcp__plugin_dev10x_cli__pr_detect(arg="")` (no arg) — the
 tool auto-detects the PR for the current branch and returns
 `pr_number`, `repo`, `pr_url`, and `branch`. Treat an `error`
 response (no PR for branch) as "no open PR" rather than a
@@ -108,7 +108,7 @@ needed.
 session is **not** complete — "shippable / handed off to review" is
 not terminal. When a detected PR is unmerged, the right deferral is
 a **"Monitor PR #<N> for review / merge"** task (owned by
-`Dev10x:gh-pr-monitor`), not a passive "Verify AC and close". This
+`dev10x:gh-pr-monitor`), not a passive "Verify AC and close". This
 mirrors `verify-acc-dod`'s merge-gated Decision Gate and keeps the
 task-list invariant (GH-149) pointed at the real remaining work.
 
@@ -159,13 +159,13 @@ For each open loop, **REQUIRED: Call `AskUserQuestion`**
 
 **Options:**
 - **Finish now** — keep as session task, continue working
-- **Defer** — invoke `Dev10x:park` for target selection
+- **Defer** — invoke `dev10x:park` for target selection
 - **Drop** — remove, no longer needed
 
 If the user picks "Finish now" for any item, pause the wrap-up and
 let them work. When they return, resume from where they left off.
 
-If the user picks "Defer", invoke `Dev10x:park` with the item.
+If the user picks "Defer", invoke `dev10x:park` with the item.
 
 If the user picks "Drop", mark the task as completed via `TaskUpdate`
 and move on.
@@ -173,12 +173,12 @@ and move on.
 ## PR Reminder Format
 
 When deferring an item by posting a reminder comment on an open PR,
-use this standard prefix so `Dev10x:park-discover` §2f can discover it:
+use this standard prefix so `dev10x:park-discover` §2f can discover it:
 
 ```markdown
 🔖 **Session bookmark**
 
-This is an automated self-reminder left by `Dev10x:session-wrap-up` for the
+This is an automated self-reminder left by `dev10x:session-wrap-up` for the
 PR author to pick up in a future session.
 
 **Current state:** <brief summary of where the PR stands>
@@ -189,7 +189,7 @@ PR author to pick up in a future session.
 ```
 
 The `🔖 **Session bookmark**` prefix on the first line is required —
-`Dev10x:park-discover` scans for this exact pattern when checking open
+`dev10x:park-discover` scans for this exact pattern when checking open
 PRs for deferred work.
 
 ## Phase 3b: Session State Persistence (GH-917, GH-782)
@@ -205,7 +205,7 @@ left off. Write it through the MCP tools — never with Write/Edit
    from `TaskList` with `source: session-wrap-up`, one call per
    task:
    ```
-   mcp__plugin_Dev10x_cli__task_index_append(entry={
+   mcp__plugin_dev10x_cli__task_index_append(entry={
        "subject": "Implement fix",
        "status": "pending",
        "source": "session-wrap-up",
@@ -228,7 +228,7 @@ left off. Write it through the MCP tools — never with Write/Edit
    below — this is `park-discover`'s input, not the
    `session_adoption` gate's identity). Steps 2–4 are one call:
    ```
-   mcp__plugin_Dev10x_cli__task_index_set(
+   mcp__plugin_dev10x_cli__task_index_set(
        continuation_prompt="<one paragraph>",
        insights=["<lesson>"],
        branch="<current git branch>",
@@ -237,7 +237,7 @@ left off. Write it through the MCP tools — never with Write/Edit
    )
    ```
    Only the fields you pass are written, so this cannot blank the
-   `tasks:` appended in step 1. `Dev10x:park-discover` reads these
+   `tasks:` appended in step 1. `dev10x:park-discover` reads these
    keys to classify each carried entry as **live** (branch matches,
    or a ticket overlaps the resuming session) or **stale** (identity
    mismatch, or an old `wrapped_at`) — see that skill's *Staleness
@@ -260,7 +260,7 @@ stale-mode bug.
 of them still lives here:
 
 - The `branch:` / `tickets:` written in step 4 above stay. Their
-  consumer is `Dev10x:park-discover`, which classifies each carried
+  consumer is `dev10x:park-discover`, which classifies each carried
   entry live-or-stale against them. Dropping the stamp reintroduces
   the GH-782 bug where a months-old `tasks:` list resurfaces as
   current.
@@ -272,11 +272,11 @@ of them still lives here:
 
 **Integration with `/clear`:** After persisting, inform the user:
 "Session state saved. To resume after `/clear`, invoke
-`Dev10x:work-on` — it will detect the saved state and offer to
+`dev10x:work-on` — it will detect the saved state and offer to
 continue."
 
 > **Rehomed in GH-1009 (ADR-0018 D5).** This phase — and the `park`
-> family and `Dev10x:gh-pr-bookmark` — used to Write/Edit the task
+> family and `dev10x:gh-pr-bookmark` — used to Write/Edit the task
 > index at `.claude/Dev10x/session.yaml`. GH-1001 left that in place
 > as a documented exception pending a destination decision; GH-1009
 > made it, because a Write/Edit under a project's `.claude/` trips
@@ -287,7 +287,7 @@ continue."
 > The retired path is read until removal in `0.112.0` per the
 > deprecation register (GH-1009,
 > [ADR-0028](../../docs/adr/0028-deprecations-carry-a-removal-version.md)),
-> then deleted by `Dev10x:plugin-doctor`.
+> then deleted by `dev10x:plugin-doctor`.
 
 ## Phase 4: Summary
 
@@ -313,6 +313,6 @@ If the user has many items (>5), offer batch operations:
 
 ## Used By
 
-- Invoked directly by user: `/Dev10x:session-wrap-up`
+- Invoked directly by user: `/dev10x:session-wrap-up`
 - Can be suggested by Claude when detecting session-end signals
   (e.g., user says "that's it for today", "let's wrap up")

@@ -7,7 +7,7 @@ in both directions — a verdict and an ``{"error": ...}`` blob alike — so
 a CI consumer parses one channel and never sees empty stdout on failure,
 the ``ci_check_status`` shape.
 
-**This is a CI check, not a periodic sweep.** ``Dev10x:plugin-doctor``
+**This is a CI check, not a periodic sweep.** ``dev10x:plugin-doctor``
 lists "running periodically" among its anti-patterns because a repeat
 run re-prompts for findings the user already dismissed. That objection
 is about re-prompting a person, and it is answered here twice over: this

@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:skill-audit",
+  "skill_name": "dev10x:skill-audit",
   "eval_dimensions": [
     {
       "id": "path-resolution",
@@ -29,19 +29,19 @@
     {
       "id": "target-tracker-gate",
       "name": "Target Tracker Gate",
-      "description": "Phase 7 resolves each offending skill's owning plugin via resolve_plugin_origin and confirms the destination repo with an AskUserQuestion gate before delegating to Dev10x:audit-file (GH-816)"
+      "description": "Phase 7 resolves each offending skill's owning plugin via resolve_plugin_origin and confirms the destination repo with an AskUserQuestion gate before delegating to dev10x:audit-file (GH-816)"
     }
   ],
   "evals": [
     {
       "id": 1,
       "name": "confirmation-gate-uses-tool",
-      "prompt": "/Dev10x:skill-audit",
+      "prompt": "/dev10x:skill-audit",
       "description": "Tests that Step 1.1 confirmation gate uses AskUserQuestion tool (not plain text) when path is auto-resolved.",
       "setup": {
         "cwd": "a worktree with recent session JSONL files",
         "explicit_path": "not provided",
-        "invocation": "/Dev10x:skill-audit"
+        "invocation": "/dev10x:skill-audit"
       },
       "dimensions": ["confirmation-gate"],
       "assertions": [
@@ -98,11 +98,11 @@
     {
       "id": 2,
       "name": "explicit-path-skips-gate",
-      "prompt": "/Dev10x:skill-audit /path/to/session.jsonl",
+      "prompt": "/dev10x:skill-audit /path/to/session.jsonl",
       "description": "Tests that Step 1.1 gate is skipped when an explicit JSONL path is provided.",
       "setup": {
         "explicit_path": "/path/to/session.jsonl",
-        "invocation": "/Dev10x:skill-audit /path/to/session.jsonl"
+        "invocation": "/dev10x:skill-audit /path/to/session.jsonl"
       },
       "dimensions": ["confirmation-gate"],
       "assertions": [
@@ -118,13 +118,13 @@
     {
       "id": 3,
       "name": "early-insight-gate-fires",
-      "prompt": "/Dev10x:skill-audit why did you merge with unhandled review https://github.com/Dev10x-Guru/Dev10x-Claude/pull/111",
-      "description": "Tests that Phase 0 fires when the user asks a narrow, transcript-evident question. The gate must present findings inline, call AskUserQuestion with three options, and on 'Select & file now' route to Dev10x:audit-file without dispatching wave subagents.",
+      "prompt": "/dev10x:skill-audit why did you merge with unhandled review https://github.com/Dev10x-Guru/Dev10x-Claude/pull/111",
+      "description": "Tests that Phase 0 fires when the user asks a narrow, transcript-evident question. The gate must present findings inline, call AskUserQuestion with three options, and on 'Select & file now' route to dev10x:audit-file without dispatching wave subagents.",
       "setup": {
         "explicit_path": "not provided",
         "narrow_question": "why did you merge with unhandled review <PR-URL>",
         "evidence_in_context": true,
-        "invocation": "/Dev10x:skill-audit why did you merge with unhandled review https://github.com/Dev10x-Guru/Dev10x-Claude/pull/111"
+        "invocation": "/dev10x:skill-audit why did you merge with unhandled review https://github.com/Dev10x-Guru/Dev10x-Claude/pull/111"
       },
       "dimensions": ["early-insight-gate"],
       "assertions": [
@@ -164,16 +164,16 @@
           "check": "tool_not_called_before",
           "tool": "Agent",
           "before_tool": "Skill",
-          "before_args_contain": "Dev10x:audit-file",
+          "before_args_contain": "dev10x:audit-file",
           "signal": "Phase 7 reporting fires without prior Wave 1/Wave 2 Agent() calls"
         },
         {
           "id": "phase0_routes_to_audit_report",
-          "text": "Select & file now delegates to Dev10x:audit-file",
+          "text": "Select & file now delegates to dev10x:audit-file",
           "check": "tool_called",
           "tool": "Skill",
-          "args_contain": "Dev10x:audit-file",
-          "signal": "Phase 7 sub-step D invokes Dev10x:audit-file with the inline findings"
+          "args_contain": "dev10x:audit-file",
+          "signal": "Phase 7 sub-step D invokes dev10x:audit-file with the inline findings"
         },
         {
           "id": "phase0_multiselect_false",
@@ -187,13 +187,13 @@
     {
       "id": 4,
       "name": "early-insight-gate-skipped-when-broad",
-      "prompt": "/Dev10x:skill-audit",
+      "prompt": "/dev10x:skill-audit",
       "description": "Tests that Phase 0 is skipped (falls through to Step 0) when no narrow question is provided. Default full-wave behavior must remain unchanged.",
       "setup": {
         "explicit_path": "not provided",
         "narrow_question": "none",
         "evidence_in_context": false,
-        "invocation": "/Dev10x:skill-audit"
+        "invocation": "/dev10x:skill-audit"
       },
       "dimensions": ["early-insight-gate", "audit-execution"],
       "assertions": [
@@ -216,12 +216,12 @@
     {
       "id": 5,
       "name": "target-tracker-gate-confirms-destination",
-      "prompt": "/Dev10x:skill-audit the polish skill from the impeccable plugin skipped its documented confirmation step",
+      "prompt": "/dev10x:skill-audit the polish skill from the impeccable plugin skipped its documented confirmation step",
       "description": "Tests that Phase 7 resolves the offending skill's owning plugin and confirms the destination tracker before filing, so a finding about a non-Dev10x plugin does not land at the Dev10x repo (GH-816).",
       "setup": {
         "explicit_path": "not provided",
         "offending_skill_path": "~/.claude/plugins/cache/impeccable/impeccable/1.3.0/skills/polish/SKILL.md",
-        "invocation": "/Dev10x:skill-audit the polish skill from the impeccable plugin skipped its documented confirmation step"
+        "invocation": "/dev10x:skill-audit the polish skill from the impeccable plugin skipped its documented confirmation step"
       },
       "dimensions": ["target-tracker-gate"],
       "assertions": [
@@ -229,7 +229,7 @@
           "id": "origin_resolution_called",
           "text": "Phase 7 sub-step A1 calls resolve_plugin_origin with the offending skill path",
           "check": "tool_called",
-          "tool": "mcp__plugin_Dev10x_cli__resolve_plugin_origin",
+          "tool": "mcp__plugin_dev10x_cli__resolve_plugin_origin",
           "signal": "Origin is resolved from the path, not assumed from the session's plugin"
         },
         {
@@ -254,11 +254,11 @@
         },
         {
           "id": "audit_file_receives_repo",
-          "text": "Delegation to Dev10x:audit-file carries the confirmed --repo argument",
+          "text": "Delegation to dev10x:audit-file carries the confirmed --repo argument",
           "check": "tool_called",
           "tool": "Skill",
           "args_contain": "--repo",
-          "signal": "Phase 7 sub-step D passes the confirmed repo to Dev10x:audit-file"
+          "signal": "Phase 7 sub-step D passes the confirmed repo to dev10x:audit-file"
         },
         {
           "id": "gate_not_auto_advanced",

@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:permission-investigator",
+  "skill_name": "dev10x:permission-investigator",
   "eval_dimensions": [
     {
       "id": "phase3-disposition-gate",
@@ -22,7 +22,7 @@
       "id": "non-empty-delta-fires-disposition-gate",
       "name": "A non-empty delta fires AskUserQuestion before any report action",
       "description": "When `dev10x permission investigate delta` reports at least one ineffective rule shape, the skill must ask before filing or discarding the report.",
-      "input": "/Dev10x:permission-investigator (delta finds 2 ineffective rule shapes)",
+      "input": "/dev10x:permission-investigator (delta finds 2 ineffective rule shapes)",
       "assertions": [
         {
           "dimension": "phase3-disposition-gate",
@@ -38,7 +38,7 @@
         {
           "dimension": "phase3-disposition-gate",
           "check": "behavioral",
-          "signal": "mcp__plugin_Dev10x_cli__issue_create is NOT called before the gate resolves"
+          "signal": "mcp__plugin_dev10x_cli__issue_create is NOT called before the gate resolves"
         }
       ]
     },
@@ -46,12 +46,12 @@
       "id": "file-upstream-choice-invokes-issue-create",
       "name": "Selecting 'File upstream issue' invokes issue_create with the report body",
       "description": "When the user selects the recommended option, the skill invokes the issue-creation MCP tool with the matrix/delta report as the body, labeled permission-friction and from-investigator.",
-      "input": "/Dev10x:permission-investigator — user selects 'File upstream issue'",
+      "input": "/dev10x:permission-investigator — user selects 'File upstream issue'",
       "assertions": [
         {
           "dimension": "phase3-disposition-gate",
           "check": "tool_called",
-          "tool": "mcp__plugin_Dev10x_cli__issue_create",
+          "tool": "mcp__plugin_dev10x_cli__issue_create",
           "signal": "issue_create is invoked with labels including permission-friction and from-investigator, body from report.md"
         }
       ]
@@ -60,7 +60,7 @@
       "id": "empty-delta-skips-gate-entirely",
       "name": "Empty delta skips Phase 3's AskUserQuestion entirely",
       "description": "When the delta report finds zero ineffective rule shapes, Phase 3 proceeds directly to Phase 4 without firing AskUserQuestion.",
-      "input": "/Dev10x:permission-investigator (delta finds 0 ineffective rule shapes)",
+      "input": "/dev10x:permission-investigator (delta finds 0 ineffective rule shapes)",
       "assertions": [
         {
           "dimension": "empty-delta-skips-gate",
@@ -73,7 +73,7 @@
       "id": "restore-runs-after-discard",
       "name": "Restore still runs after the user picks Discard",
       "description": "Even when the user selects Discard at the Phase 3 gate, Phase 4 restore runs — settings are never left mutated.",
-      "input": "/Dev10x:permission-investigator — user selects 'Discard'",
+      "input": "/dev10x:permission-investigator — user selects 'Discard'",
       "assertions": [
         {
           "dimension": "restore-always-runs",
@@ -87,7 +87,7 @@
       "id": "restore-runs-on-phase-failure",
       "name": "Restore runs even when an earlier phase errors",
       "description": "If Phase 1 or Phase 2 fails partway through (e.g., a subagent probe errors), Phase 4 restore still executes rather than leaving mutated settings in place.",
-      "input": "/Dev10x:permission-investigator (Phase 2 cell dispatch errors mid-matrix)",
+      "input": "/dev10x:permission-investigator (Phase 2 cell dispatch errors mid-matrix)",
       "assertions": [
         {
           "dimension": "restore-always-runs",
@@ -101,7 +101,7 @@
     "description": "Queries that should/should-not trigger the permission-investigator skill",
     "should_trigger": [
       {
-        "query": "/Dev10x:permission-investigator",
+        "query": "/dev10x:permission-investigator",
         "rationale": "Direct invocation — runs the full matrix investigation"
       },
       {
@@ -116,7 +116,7 @@
       },
       {
         "query": "run plugin maintenance to fix my permissions",
-        "rationale": "Standard cleanup pass — use Dev10x:plugin-maintenance"
+        "rationale": "Standard cleanup pass — use dev10x:plugin-maintenance"
       }
     ]
   }

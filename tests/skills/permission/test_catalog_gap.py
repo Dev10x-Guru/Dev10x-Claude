@@ -15,7 +15,7 @@ from dev10x.skills.permission.catalog_gap import compute_gap, format_gap_report,
 @pytest.fixture
 def config() -> dict:
     return {
-        "base_permissions": ["Bash(ls:*)", "Skill(Dev10x:foo)"],
+        "base_permissions": ["Bash(ls:*)", "Skill(dev10x:foo)"],
         "base_denies": ["Bash(sudo:*)"],
     }
 
@@ -40,8 +40,8 @@ def _allow(path: Path) -> list[str]:
 @pytest.mark.parametrize(
     ("rule", "expected"),
     [
-        ("mcp__plugin_Dev10x_cli__pr_get", "mcp"),
-        ("Skill(Dev10x:git-commit)", "skill"),
+        ("mcp__plugin_dev10x_cli__pr_get", "mcp"),
+        ("Skill(dev10x:git-commit)", "skill"),
         ("Read(~/.claude/plugins/**)", "read"),
         ("Bash(git develop-log:*)", "git"),
         ("Bash(gh pr view:*)", "gh"),
@@ -103,7 +103,7 @@ def test_malformed_json_is_a_gap_not_a_pass(settings_file: Path):
 def test_report_groups_counts_by_family(settings_file: Path):
     gap = compute_gap(
         path=settings_file,
-        base_permissions=["Bash(git log:*)", "Bash(git show:*)", "Skill(Dev10x:foo)"],
+        base_permissions=["Bash(git log:*)", "Bash(git show:*)", "Skill(dev10x:foo)"],
         base_denies=[],
     )
     report = "\n".join(format_gap_report(gap))
@@ -239,7 +239,7 @@ def test_dedupe_global_opt_in_restores_old_behaviour(
     )
     allow = _allow(settings_file)
     assert "Bash(ls:*)" not in allow
-    assert "Skill(Dev10x:foo)" in allow
+    assert "Skill(dev10x:foo)" in allow
     # The residual check measures what the run intended to write, so opting
     # into dedupe does not then fail on the rules it was told to skip.
     assert result["exit_code"] == 0

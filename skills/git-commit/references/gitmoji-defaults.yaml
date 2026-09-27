@@ -1,4 +1,4 @@
-# Default gitmoji-to-type mapping for Dev10x:git-commit.
+# Default gitmoji-to-type mapping for dev10x:git-commit.
 #
 # This file ships with the plugin and is used when no project
 # override exists in <Dev10x config>/gitmoji.yaml.

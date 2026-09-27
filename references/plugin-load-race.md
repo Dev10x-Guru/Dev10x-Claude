@@ -1,7 +1,7 @@
 # Plugin Silently Skipped at Session Start (GH-874)
 
 A Claude Code session can start **without the Dev10x plugin loaded**:
-no `Dev10x:*` skills, no `mcp__plugin_Dev10x_*` tools, and no plugin
+no `dev10x:*` skills, no `mcp__plugin_dev10x_*` tools, and no plugin
 hooks firing (chained `;`/`&&` Bash commands pass unvalidated). No
 error is surfaced anywhere — the user discovers it only when a skill
 invocation fails, and must run `/plugin reload` to recover. It recurs.
@@ -60,7 +60,7 @@ genuine config/packaging defect):
    a Claude Code auto-update or a concurrent session's marketplace
    auto-update landing near the session start corroborates the race.
 5. **Config sanity** — global `~/.claude/settings.json` has
-   `"Dev10x@Dev10x-Guru": true` (correct casing), and no project-scope
+   `"dev10x@Dev10x-Guru": true` (correct casing), and no project-scope
    `enabledPlugins` mis-cased key shadows it (a separate, known failure
    mode). If those are clean, the transient race is the remaining
    explanation.

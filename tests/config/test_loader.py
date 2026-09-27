@@ -45,7 +45,7 @@ def minimal_yaml_content() -> dict:
                 "compensations": [
                     {
                         "type": "use-skill",
-                        "skill": "Dev10x:git",
+                        "skill": "dev10x:git",
                         "description": "Use the git skill",
                     }
                 ],
@@ -78,7 +78,7 @@ class TestParseYaml:
 
         comp = result.rules[0].compensations[0]
         assert comp.type == "use-skill"
-        assert comp.skill == "Dev10x:git"
+        assert comp.skill == "dev10x:git"
 
     def test_defaults_for_empty_yaml(self, yaml_path: Path) -> None:
         yaml_path.write_text("")

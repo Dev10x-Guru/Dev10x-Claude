@@ -77,7 +77,7 @@ class TestDispatcherBlocking:
             command='git commit -m "Enable new feature"',
         )
         assert result.returncode == 2
-        assert "Dev10x:git-commit" in result.stderr
+        assert "dev10x:git-commit" in result.stderr
 
     def test_allows_commit_with_skill_temp_f_flag(self) -> None:
         result = _run_hook(

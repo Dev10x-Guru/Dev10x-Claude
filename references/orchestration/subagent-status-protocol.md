@@ -106,7 +106,7 @@ override the recipient when constructing the prompt.
 **A subagent orchestrator has no named roster at all (GH-965).**
 `Agent(..., name=...)` fails from inside an agent — *"teammates
 cannot spawn teammates"* — so a nested orchestrator (e.g.
-`Dev10x:foreman`) addresses its workers only by the raw `agentId`
+`dev10x:foreman`) addresses its workers only by the raw `agentId`
 from the spawn result. That is the *less* durable handle: names
 survive an agent's completion, an `agentId` does not survive a
 session death (below). Plan to respawn, not to message.

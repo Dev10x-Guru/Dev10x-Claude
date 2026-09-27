@@ -4,8 +4,8 @@
 # Used by:
 #   - skill_redirect.py (Bash PreToolUse hook)
 #   - validate-edit-write.py (Edit|Write PreToolUse hook)
-#   - Dev10x:diag-friction (skill — advisory only;
-#     formerly Dev10x:skill-reinforcement)
+#   - dev10x:diag-friction (skill — advisory only;
+#     formerly dev10x:skill-reinforcement)
 #
 # Per-project override: place a custom version at:
 #   ~/.config/Dev10x/diag-friction.yaml
@@ -82,10 +82,10 @@ rules:
     hook_block: true
     compensations:
       - type: use-skill
-        skill: Dev10x:git-commit
+        skill: dev10x:git-commit
         guardrails: gitmoji prefix, JTBD outcome title, 72-char limit
         fallback: >
-          If Skill(Dev10x:git-commit) fails, apply guardrails manually:
+          If Skill(dev10x:git-commit) fails, apply guardrails manually:
           (1) prefix with gitmoji, (2) include ticket ID from branch,
           (3) keep title under 72 chars, (4) use -F with temp file
           (not -m), (5) add Fixes: footer.
@@ -100,7 +100,7 @@ rules:
       extraction from branch name, and 72-char line limit
       enforcement.
     related:
-      - Dev10x:git-groom
+      - dev10x:git-groom
 
   - name: gh-pr-create
     matcher: Bash
@@ -110,10 +110,10 @@ rules:
     hook_block: true
     compensations:
       - type: use-skill
-        skill: Dev10x:gh-pr-create
+        skill: dev10x:gh-pr-create
         guardrails: Job Story body, ticket linking, commit list, summary comment
         fallback: >
-          If Skill(Dev10x:gh-pr-create) fails, apply guardrails manually:
+          If Skill(dev10x:gh-pr-create) fails, apply guardrails manually:
           (1) start body with JTBD Job Story, (2) add Fixes: issue URL,
           (3) create as draft (--draft), (4) include commit list.
     reason: >
@@ -128,11 +128,11 @@ rules:
     hook_block: true
     compensations:
       - type: use-skill
-        skill: Dev10x:gh-pr-merge
+        skill: dev10x:gh-pr-merge
         guardrails: 9 pre-merge checks (unresolved threads, CI, draft, mergeability, working copy, fixup commits, approval, Fixes-linked scope, branch protection)
         fallback: >
           The skill's Step 5 executes the merge via
-          `mcp__plugin_Dev10x_cli__merge_pr` (GH-232) — symmetric
+          `mcp__plugin_dev10x_cli__merge_pr` (GH-232) — symmetric
           to `create_pr` / `push_safe`. Do NOT bypass this with
           `DEV10X_SKIP_CMD_VALIDATION=true gh pr merge ...`; that
           flag is reserved for transient MCP-unavailability
@@ -153,12 +153,12 @@ rules:
     hook_block: true
     compensations:
       - type: use-skill
-        skill: Dev10x:git
+        skill: dev10x:git
         guardrails: protected branch checks, force-push safety
         fallback: >
           Re-invoke the skill with the right parameters before
           escalating. The MCP form is
-          `mcp__plugin_Dev10x_cli__push_safe(args=["origin","BRANCH"])`
+          `mcp__plugin_dev10x_cli__push_safe(args=["origin","BRANCH"])`
           and the `protected_branches` parameter overrides the
           default `[main, develop]` block list per call. Solo
           maintainers pushing to develop pass
@@ -183,8 +183,8 @@ rules:
       is never blocked — see
       references/mcp-unavailable-escape-hatch.md.
     related:
-      - Dev10x:git-commit
-      - Dev10x:git-groom
+      - dev10x:git-commit
+      - dev10x:git-groom
 
   - name: git-rebase-interactive
     matcher: Bash
@@ -195,10 +195,10 @@ rules:
     hook_block: true
     compensations:
       - type: use-skill
-        skill: Dev10x:git-groom
+        skill: dev10x:git-groom
         guardrails: atomic commits, convention enforcement, non-interactive rebase
         fallback: >
-          If Skill(Dev10x:git-groom) fails, run rebase manually with
+          If Skill(dev10x:git-groom) fails, run rebase manually with
           GIT_SEQUENCE_EDITOR=true to auto-accept the default sequence,
           then fixup any out-of-order commits.
     reason: >
@@ -214,10 +214,10 @@ rules:
     hook_block: true
     compensations:
       - type: use-skill
-        skill: Dev10x:gh-pr-monitor
+        skill: dev10x:gh-pr-monitor
         guardrails: failure detection, fixup commits, re-monitoring after push
         fallback: >
-          If Skill(Dev10x:gh-pr-monitor) fails, monitor manually:
+          If Skill(dev10x:gh-pr-monitor) fails, monitor manually:
           (1) poll gh pr checks until all pass, (2) fix any failures,
           (3) mark PR ready with gh pr ready.
     reason: >
@@ -239,7 +239,7 @@ rules:
     hook_block: true
     compensations:
       - type: use-tool
-        tool: mcp__plugin_Dev10x_cli__pr_get
+        tool: mcp__plugin_dev10x_cli__pr_get
         guardrails: structured responses, no Bash permission friction
         description: >
           If the MCP server is unavailable, use gh pr view directly
@@ -269,7 +269,7 @@ rules:
     hook_block: true
     compensations:
       - type: use-tool
-        tool: mcp__plugin_Dev10x_cli__issue_close
+        tool: mcp__plugin_dev10x_cli__issue_close
         guardrails: structured responses, no Bash permission friction
         description: >
           If the MCP server is unavailable, use gh issue close N
@@ -291,7 +291,7 @@ rules:
     hook_block: true
     compensations:
       - type: use-tool
-        tool: mcp__plugin_Dev10x_cli__issue_reopen
+        tool: mcp__plugin_dev10x_cli__issue_reopen
         guardrails: structured responses, no Bash permission friction
         description: >
           If the MCP server is unavailable, use gh issue reopen N
@@ -319,7 +319,7 @@ rules:
     hook_block: true
     compensations:
       - type: use-tool
-        tool: mcp__plugin_Dev10x_cli__issue_get
+        tool: mcp__plugin_dev10x_cli__issue_get
         guardrails: structured responses, no Bash permission friction
         description: >
           If the MCP server is unavailable, use gh issue view directly
@@ -341,7 +341,7 @@ rules:
     hook_block: true
     compensations:
       - type: use-tool
-        tool: mcp__plugin_Dev10x_cli__issue_create
+        tool: mcp__plugin_dev10x_cli__issue_create
         guardrails: structured responses, no Bash permission friction
         description: >
           If the MCP server is unavailable, use gh issue create directly
@@ -365,7 +365,7 @@ rules:
     hook_block: true
     compensations:
       - type: use-tool
-        tool: mcp__plugin_Dev10x_cli__update_pr
+        tool: mcp__plugin_dev10x_cli__update_pr
         guardrails: structured responses, no Bash permission friction
         description: >
           If the MCP server is unavailable, use gh pr edit directly
@@ -389,7 +389,7 @@ rules:
     hook_block: true
     compensations:
       - type: use-tool
-        tool: mcp__plugin_Dev10x_cli__pr_ready
+        tool: mcp__plugin_dev10x_cli__pr_ready
         guardrails: structured responses, no Bash permission friction
         description: >
           Covers both directions: omit `undo` to publish a draft, pass
@@ -415,7 +415,7 @@ rules:
     hook_block: true
     compensations:
       - type: use-tool
-        tool: mcp__plugin_Dev10x_cli__issue_edit
+        tool: mcp__plugin_dev10x_cli__issue_edit
         guardrails: structured responses, no Bash permission friction
         description: >
           If the MCP server is unavailable, use gh issue edit directly
@@ -435,7 +435,7 @@ rules:
     hook_block: true
     compensations:
       - type: use-tool
-        tool: mcp__plugin_Dev10x_cli__issue_comment
+        tool: mcp__plugin_dev10x_cli__issue_comment
         guardrails: structured responses, body written to temp file safely
         description: >
           Use the MCP tool. If the MCP server is unavailable, the
@@ -462,7 +462,7 @@ rules:
     hook_block: false
     compensations:
       - type: use-tool
-        tool: mcp__plugin_Dev10x_cli__issue_list
+        tool: mcp__plugin_dev10x_cli__issue_list
         guardrails: structured JSON responses, label/milestone/search filtering
         description: >
           gh issue list works directly when needed. The MCP tool is
@@ -480,7 +480,7 @@ rules:
     hook_block: false
     compensations:
       - type: use-tool
-        tool: mcp__plugin_Dev10x_cli__pr_list
+        tool: mcp__plugin_dev10x_cli__pr_list
         guardrails: structured JSON responses, state/search filtering
         description: >
           gh pr list works directly when needed. The MCP tool is
@@ -500,7 +500,7 @@ rules:
     hook_block: true
     compensations:
       - type: use-tool
-        tool: mcp__plugin_Dev10x_cli__milestone_create
+        tool: mcp__plugin_dev10x_cli__milestone_create
         guardrails: structured responses, no raw gh api POST in transcripts
         description: >
           If the MCP server is unavailable, the raw gh api POST is the
@@ -520,7 +520,7 @@ rules:
     hook_block: true
     compensations:
       - type: use-tool
-        tool: mcp__plugin_Dev10x_cli__milestone_edit
+        tool: mcp__plugin_dev10x_cli__milestone_edit
         guardrails: structured responses, no raw gh api PATCH in transcripts
         description: >
           Use milestone_reopen for a plain state=open re-open, or
@@ -548,7 +548,7 @@ rules:
     hook_block: true
     compensations:
       - type: use-tool
-        tool: mcp__plugin_Dev10x_cli__push_safe
+        tool: mcp__plugin_dev10x_cli__push_safe
         guardrails: structured responses, protected branch checks, no Bash friction
         description: >
           If the MCP server is unavailable, use raw git push with manual
@@ -574,7 +574,7 @@ rules:
     hook_block: true
     compensations:
       - type: use-skill
-        skill: Dev10x:db-psql
+        skill: dev10x:db-psql
         guardrails: SQL validation, SELECT-only enforcement
         fallback: >
           Writes are not the agent's to run. Print the SQL and ask the
@@ -586,10 +586,10 @@ rules:
       psql rule below is advisory and therefore cannot enforce the
       SELECT-only contract that project CLAUDE.md files rely on. CREATE is
       deliberately absent — `CREATE EXTENSION` in local setup made it noisy.
-      This rule is the Dev10x:diag-friction steer; the enforcing gate is
+      This rule is the dev10x:diag-friction steer; the enforcing gate is
       the DX004 sql-safety validator, which runs at every profile tier.
     related:
-      - Dev10x:db
+      - dev10x:db
       - tt:db
 
   # ── Advisory-only Bash rules (hook_block: false) ───────────
@@ -614,7 +614,7 @@ rules:
               argument instead of two. No allow rule can cover it: a
               `*` before `:*` is literal, and the space form would also
               match `-c <cmd>` (GH-1472) — so it prompts. Route mutating
-              verbs to Dev10x:git / Dev10x:git-groom.
+              verbs to dev10x:git / dev10x:git-groom.
 
           Never `cd <path>; <cmd>` as a recovery — chaining is blocked, and
           for an unattended agent that prompt is another silent wedge.
@@ -632,10 +632,10 @@ rules:
       at the depths where `cd` did stick. The steer is the mode self-test,
       not a fixed spelling. Advisory rather than blocking: the preventive
       fixes are the crew template's self-test and the Phase 0.4 pre-flight
-      probe (GH-1030); this entry is the `Dev10x:diag-friction` steer for an
+      probe (GH-1030); this entry is the `dev10x:diag-friction` steer for an
       interactive agent that reaches for the plumbing shape anyway.
     related:
-      - Dev10x:foreman
+      - dev10x:foreman
 
   - name: kubectl
     matcher: Bash
@@ -645,12 +645,12 @@ rules:
     hook_block: false
     compensations:
       - type: use-skill
-        skill: Dev10x:k8s
+        skill: dev10x:k8s
     reason: >
       Direct kubectl calls bypass aws-vault authentication and
       may use wrong credentials or target wrong cluster.
     related:
-      - Dev10x:aws-vault
+      - dev10x:aws-vault
 
   - name: gh-pr-review
     matcher: Bash
@@ -659,7 +659,7 @@ rules:
     hook_block: false
     compensations:
       - type: use-skill
-        skill: Dev10x:gh-pr-review
+        skill: dev10x:gh-pr-review
     reason: >
       Direct gh pr review skips structured review checklist and
       domain-specific agent routing.
@@ -672,12 +672,12 @@ rules:
     hook_block: false
     compensations:
       - type: use-skill
-        skill: Dev10x:db-psql
+        skill: dev10x:db-psql
     reason: >
       Direct psql calls bypass SQL validation hooks and may
       accidentally execute write operations.
     related:
-      - Dev10x:db
+      - dev10x:db
       - tt:db
 
   - name: aws-vault
@@ -688,7 +688,7 @@ rules:
     hook_block: false
     compensations:
       - type: use-skill
-        skill: Dev10x:aws-vault
+        skill: dev10x:aws-vault
     reason: >
       Direct aws CLI calls bypass credential management and
       environment-specific profile selection.
@@ -701,7 +701,7 @@ rules:
     hook_block: false
     compensations:
       - type: use-skill
-        skill: Dev10x:slack
+        skill: dev10x:slack
     reason: >
       Direct Slack API calls bypass token management and
       structured message formatting.
@@ -715,7 +715,7 @@ rules:
     hook_block: false
     compensations:
       - type: use-skill
-        skill: Dev10x:playwright
+        skill: dev10x:playwright
     reason: >
       Direct playwright calls skip CF Access header injection
       and credential management for staging environments.
@@ -727,7 +727,7 @@ rules:
     hook_block: true
     compensations:
       - type: use-tool
-        tool: mcp__plugin_Dev10x_cli__run_tests
+        tool: mcp__plugin_dev10x_cli__run_tests
         guardrails: >
           routes off the Bash layer; resolves the project's dependency
           extra itself; `args` takes the same narrowing you just typed
@@ -759,14 +759,14 @@ rules:
       Scoped to the NARROW shape on purpose. The generic `pytest` rule
       below stays advisory, which keeps the full-coverage form
       (`uv run --extra dev pytest --cov --cov-report=term-missing`)
-      unblocked: that is `Dev10x:py-test`'s documented fallback for a
+      unblocked: that is `dev10x:py-test`'s documented fallback for a
       session with no MCP server, and it is the shape that seeds a fresh
       worktree's virtualenv. Blocking it would leave such a session with
       no sanctioned path at all. It also keeps GH-155's recursion out of
       reach — the flip reverted there hard-blocked the form the skill
       itself ran.
     related:
-      - Dev10x:py-test
+      - dev10x:py-test
 
   - name: pytest
     matcher: Bash
@@ -777,10 +777,10 @@ rules:
     hook_block: false
     compensations:
       - type: use-skill
-        skill: Dev10x:py-test
+        skill: dev10x:py-test
         guardrails: 100% coverage gate, concise pass/fail summaries, cwd-aware uv run wrapping
         fallback: >
-          If Skill(Dev10x:py-test) is unavailable, run pytest with coverage
+          If Skill(dev10x:py-test) is unavailable, run pytest with coverage
           (`pytest --cov --cov-report=term-missing`) and verify 100%
           coverage on changed files manually.
     reason: >
@@ -789,7 +789,7 @@ rules:
       pytest calls before commits/PR with no coverage verification.
 
       Advisory only (hook_block: false) — the hard-block flipped in
-      GH-155 broke Dev10x:py-test itself, which internally invokes
+      GH-155 broke dev10x:py-test itself, which internally invokes
       `uv run pytest --cov ...` and hit the same hook recursively.
       Restoring advisory behavior pending the skill-context-aware
       hook protocol (GH-271 Phase 8).
@@ -805,7 +805,7 @@ rules:
     hook_block: true
     compensations:
       - type: use-tool
-        tool: mcp__plugin_Dev10x_cli__run_node_tests
+        tool: mcp__plugin_dev10x_cli__run_node_tests
         guardrails: routes off the Bash layer; --prefix/-C/-w DIR maps to the tool's cwd= param
         description: >
           Run the scoped monorepo test through the MCP wrapper instead:
@@ -835,7 +835,7 @@ rules:
       `node-tests` rule so first-match-wins routes the monorepo shape to the
       block while plain `npm test` / `jest` / `yarn test` stay advisory.
     related:
-      - Dev10x:diag-friction
+      - dev10x:diag-friction
 
   - name: node-tests
     matcher: Bash
@@ -851,7 +851,7 @@ rules:
     hook_block: false
     compensations:
       - type: use-tool
-        tool: mcp__plugin_Dev10x_cli__run_node_tests
+        tool: mcp__plugin_dev10x_cli__run_node_tests
         guardrails: routes off the Bash layer, sidesteps the brace-expansion core-harness block
         fallback: >
           If the run_node_tests MCP tool is unavailable, reload the MCP
@@ -880,7 +880,7 @@ rules:
     hook_block: false
     compensations:
       - type: use-tool
-        tool: mcp__plugin_Dev10x_cli__run_node_tests
+        tool: mcp__plugin_dev10x_cli__run_node_tests
         guardrails: routes off the Bash layer; script= names the package.json script
         description: >
           Run the build/check script through the MCP wrapper instead:
@@ -926,14 +926,14 @@ rules:
     hook_block: false
     compensations:
       - type: use-skill
-        skill: Dev10x:gh-pr-fixup
+        skill: dev10x:gh-pr-fixup
     reason: >
       PR comment replies for VALID review comments must go through
       the fixup skill's push+reply atomic workflow. Raw gh api
       replies bypass fixup commit creation and thread management.
     related:
-      - Dev10x:gh-pr-respond
-      - Dev10x:gh-pr-triage
+      - dev10x:gh-pr-respond
+      - dev10x:gh-pr-triage
 
   - name: gh-review-threads-graphql
     matcher: Bash
@@ -946,10 +946,10 @@ rules:
     hook_block: false
     compensations:
       - type: use-tool
-        tool: mcp__plugin_Dev10x_cli__unresolved_threads
+        tool: mcp__plugin_dev10x_cli__unresolved_threads
         guardrails: structured unresolved-thread results, no raw graphql
       - type: use-tool
-        tool: mcp__plugin_Dev10x_cli__pr_comments
+        tool: mcp__plugin_dev10x_cli__pr_comments
         guardrails: structured comment list, no raw pulls/comments REST
     reason: >
       Raw `gh api graphql` for review threads recurs across heredoc,
@@ -959,8 +959,8 @@ rules:
       they run the reviewThreads query and return structured results
       without the friction (GH-598).
     related:
-      - Dev10x:gh-pr-merge
-      - Dev10x:gh-pr-review
+      - dev10x:gh-pr-merge
+      - dev10x:gh-pr-review
 
   - name: sentry-api
     matcher: Bash
@@ -969,7 +969,7 @@ rules:
     hook_block: false
     compensations:
       - type: use-skill
-        skill: Dev10x:investigate
+        skill: dev10x:investigate
     reason: >
       The investigate skill combines Sentry, codebase search,
       and Slack thread context for structured root-cause analysis.
@@ -1038,7 +1038,7 @@ rules:
     hook_block: false
     compensations:
       - type: use-tool
-        tool: mcp__plugin_Dev10x_cli__mktmp
+        tool: mcp__plugin_dev10x_cli__mktmp
         guardrails: structured response, no Bash permission friction
         description: >
           Call the MCP tool with namespace, prefix, ext, and (optional)
@@ -1052,8 +1052,8 @@ rules:
       not-pre-created semantics introduced by GH-39, and lives in
       the routing table for skills.
     related:
-      - Dev10x:git-commit
-      - Dev10x:gh-pr-create
+      - dev10x:git-commit
+      - dev10x:gh-pr-create
 
   - name: ci-loop-handrolled
     matcher: Bash
@@ -1065,14 +1065,14 @@ rules:
     hook_block: true
     compensations:
       - type: use-tool
-        tool: mcp__plugin_Dev10x_cli__ci_check_status
+        tool: mcp__plugin_dev10x_cli__ci_check_status
         guardrails: server-side poll with wait=true, structured verdict
         description: >
           Call ci_check_status(wait=true) for a single server-side poll
           that returns a structured pass/fail/unknown verdict — no
           bespoke loop needed.
       - type: use-skill
-        skill: Dev10x:gh-pr-monitor
+        skill: dev10x:gh-pr-monitor
         guardrails: failure detection, fixup commits, re-monitor after push
         description: >
           Watching review comments, approval, or merge state rather
@@ -1102,7 +1102,7 @@ rules:
       exactly this loop and stalled on a Yes/No; the wrapper now takes
       `wait_for`, so the compensation is executable in that case too.
     related:
-      - Dev10x:gh-pr-monitor
+      - dev10x:gh-pr-monitor
 
   - name: watch-loop-handrolled
     matcher: Bash
@@ -1146,7 +1146,7 @@ rules:
           and invoke the bare script path (approve it once by its exact
           path — no folder-wide rule can match, GH-1472).
       - type: use-tool
-        tool: mcp__plugin_Dev10x_cli__ci_check_status
+        tool: mcp__plugin_dev10x_cli__ci_check_status
         guardrails: single server-side poll, structured verdict
         description: >
           When the loop is CI-shaped, ci_check_status(wait=true)
@@ -1200,8 +1200,8 @@ rules:
       mentioning `gh pr view`. The defect is the loop, not the command
       inside it.
     related:
-      - Dev10x:foreman
-      - Dev10x:gh-pr-monitor
+      - dev10x:foreman
+      - dev10x:gh-pr-monitor
 
   # Placed AFTER ci-loop-handrolled and watch-loop-handrolled: this is the
   # general loop case, and `;\s*do\b` also matches their shapes. First-match-
@@ -1242,7 +1242,7 @@ rules:
       (the harness fans them out), and the supervisor sees one approval
       scope per command rather than one opaque approval for the loop.
     related:
-      - Dev10x:diag-friction
+      - dev10x:diag-friction
 
   - name: cat-grep-pipeline
     matcher: Bash
@@ -1360,7 +1360,7 @@ rules:
       bounded by the run directory, which is what makes the narrow
       script rule sufficient.
     related:
-      - Dev10x:qa-self
+      - dev10x:qa-self
 
   - name: settings-file-read
     matcher: Bash
@@ -1370,7 +1370,7 @@ rules:
     hook_block: true
     compensations:
       - type: use-tool
-        tool: mcp__plugin_Dev10x_cli__permission_catalog_gap
+        tool: mcp__plugin_dev10x_cli__permission_catalog_gap
         guardrails: read-only catalog coverage per settings file, no path-scope gate
         description: >
           Use permission_catalog_gap for "does this settings file carry
@@ -1379,7 +1379,7 @@ rules:
           JSON, and a non-zero total_missing names a propagation gap
           rather than a missing rule.
       - type: use-tool
-        tool: mcp__plugin_Dev10x_cli__audit_analyze_permissions
+        tool: mcp__plugin_dev10x_cli__audit_analyze_permissions
         guardrails: friction analysis over a session transcript
         description: >
           Use audit_analyze_permissions to analyse the friction a
@@ -1417,7 +1417,7 @@ rules:
       Reads of `~/.config/Dev10x/*.yaml` and of repo paths are
       unaffected — that directory IS registered.
     related:
-      - Dev10x:diag-friction
+      - dev10x:diag-friction
 
   - name: fish-interactive-abbr
     matcher: Bash

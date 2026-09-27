@@ -7,7 +7,7 @@ Linear.
 **Use when:**
 - A QA ticket (e.g., QA-xxx) has test cases ready to execute
 - You need to verify a feature works on staging before closing a ticket
-- `Dev10x:qa-scope` has created a QA sub-ticket and tests need running
+- `dev10x:qa-scope` has created a QA sub-ticket and tests need running
 
 **Do NOT use when:**
 - The test requires real hardware (e.g., Square Terminal pairing)
@@ -55,7 +55,7 @@ Options:
 
 ## Prerequisites
 
-- Linear ticket with test cases (from `Dev10x:qa-scope` or manual)
+- Linear ticket with test cases (from `dev10x:qa-scope` or manual)
 - Headless Playwright: `uv run --with playwright python3 -m playwright install chromium`
 
 ## Workflow
@@ -133,7 +133,7 @@ worktree, so the usual objection to `-C` (it shifts the allow-rule prefix
 for a path that is already the CWD) does not apply.
 
 **Three verdicts, not two (GH-1236).** Match the distinction
-`Dev10x:qa-scope` Phase 3.0 already draws:
+`dev10x:qa-scope` Phase 3.0 already draws:
 
 | Verdict | When | Action |
 |---------|------|--------|
@@ -543,7 +543,7 @@ Full recipe, timing model and the licence gate:
 [`skills/tts/references/qa-self-narration.md`](../tts/references/qa-self-narration.md).
 
 **Redact anything that must not reach the recording.** The
-`Dev10x:yt-upload` provenance gate asks the operator to *state* that no
+`dev10x:yt-upload` provenance gate asks the operator to *state* that no
 production data is on screen — it cannot verify it, and "I recognised
 the fixture from sampled frames" does not generalise. Declare the list
 once, at the top:
@@ -1143,7 +1143,7 @@ files fail to load.
 **When the walkthrough also has to reach a PR**, Linear-hosted assets
 are not enough: `uploads.linear.app` 401s for anyone on GitHub, and
 GitHub strips the iframe a player would need. Delegate to
-`Dev10x:yt-upload` for a shareable link rather than restating upload
+`dev10x:yt-upload` for a shareable link rather than restating upload
 mechanics here — it owns the production-recording gate, the token
 handling, and the per-destination embed forms:
 
@@ -1159,15 +1159,15 @@ invocation cannot skip them.
 
 **The 4.4 gate does not carry over to YouTube.** Approving *that the
 footage is good* is a different decision from approving *that it may
-become world-readable to any link-holder*, so `Dev10x:yt-upload` fires
+become world-readable to any link-holder*, so `dev10x:yt-upload` fires
 its own provenance gate. That is by design — do not try to satisfy it
 with 4.4's answer.
 
-**Publishing to a PR is `Dev10x:qa-publish`, not something to assemble
+**Publishing to a PR is `dev10x:qa-publish`, not something to assemble
 here.** For a full write-up to both a ticket and a PR — verdict,
 threaded Jira-synced comment, per-destination screenshots — use
-`Dev10x:qa-publish`, which composes this skill's scripts with
-`Dev10x:yt-upload`.
+`dev10x:qa-publish`, which composes this skill's scripts with
+`dev10x:yt-upload`.
 
 It also owns two rules that are easy to miss when reaching for the PR by
 hand (GH-1213): the PR comment must **lead** with a caveat whenever the
@@ -1265,8 +1265,8 @@ If tests are blocked, leave in current status and note the blocker.
 ## Integration with Other Skills
 
 ```
-Dev10x:qa-self
-├── Prereq: Dev10x:qa-scope (creates the QA ticket with test cases)
+dev10x:qa-self
+├── Prereq: dev10x:qa-scope (creates the QA ticket with test cases)
 ├── Uses: Linear MCP (read ticket, post results)
 ├── Scripts:
 │   ├── upload-screenshots.py (upload images & video to Linear)

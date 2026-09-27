@@ -14,9 +14,9 @@ Patterns for writing comprehensive tests for `src/dev10x/validators/*.py`.
 
 ```python
 @pytest.mark.parametrize("command", [
-    "mcp__plugin_Dev10x_cli__mktmp",
-    "mcp__plugin_Dev10x_cli__mktmp namespace=git",
-    "FOO=bar mcp__plugin_Dev10x_cli__pr_get pr_number=1",
+    "mcp__plugin_dev10x_cli__mktmp",
+    "mcp__plugin_dev10x_cli__mktmp namespace=git",
+    "FOO=bar mcp__plugin_dev10x_cli__pr_get pr_number=1",
 ])
 def test_blocks_mcp_tool_as_command(validator, command):
     result = validator.validate(inp=_make_input(command=command))

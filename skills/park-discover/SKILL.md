@@ -1,5 +1,5 @@
 ---
-name: Dev10x:park-discover
+name: dev10x:park-discover
 description: >
   Gather deferred items across all sources — so nothing is missed
   when starting a session or picking up where you left off.
@@ -8,21 +8,21 @@ description: >
   DO NOT TRIGGER when: mid-session active work with no need to check
   deferred items.
 user-invocable: true
-invocation-name: Dev10x:park-discover
+invocation-name: dev10x:park-discover
 allowed-tools:
   - Read
   - Grep
   - Bash(git branch:*)
   - Bash(git log:*)
-  - mcp__plugin_Dev10x_cli__pr_detect
-  - mcp__plugin_Dev10x_cli__pr_comments
-  - mcp__plugin_Dev10x_cli__task_index_get
+  - mcp__plugin_dev10x_cli__pr_detect
+  - mcp__plugin_dev10x_cli__pr_comments
+  - mcp__plugin_dev10x_cli__task_index_get
   - mcp__claude_ai_Slack__slack_search_public_and_private
 ---
 
-# Dev10x:park-discover — Gather Deferred Items
+# dev10x:park-discover — Gather Deferred Items
 
-**Announce:** "Using Dev10x:park-discover to check all deferral sources."
+**Announce:** "Using dev10x:park-discover to check all deferral sources."
 
 ## Orchestration
 
@@ -43,13 +43,13 @@ Invoke this skill when the user asks about existing deferred items:
 - "what do we have to pick up"
 - "check for deferrals"
 
-Do NOT use for writing new deferrals — use `Dev10x:park-todo` or
-`Dev10x:park` instead.
+Do NOT use for writing new deferrals — use `dev10x:park-todo` or
+`dev10x:park` instead.
 
 ## Substrate
 
 The canonical store for deferred work is the per-repo task index
-behind `mcp__plugin_Dev10x_cli__task_index_get` (GH-85, rehomed out
+behind `mcp__plugin_dev10x_cli__task_index_get` (GH-85, rehomed out
 of `.claude/Dev10x/session.yaml` by GH-1009 / ADR-0018 D5). It is
 keyed by the repo's git common dir, so one index serves every
 worktree of a repo. Every writer in the park/session family appends a
@@ -58,11 +58,11 @@ names the writer:
 
 | `source:` value     | Written by                          |
 |---------------------|-------------------------------------|
-| `manual`            | `Dev10x:park` (target: TODO)        |
-| `code-todo`         | `Dev10x:park-todo` (inline mode)    |
-| `slack-reminder`    | `Dev10x:park-remind`                |
-| `pr-bookmark`       | `Dev10x:park` (target: PR bookmark) |
-| `session-wrap-up`   | `Dev10x:session-wrap-up` Phase 3b   |
+| `manual`            | `dev10x:park` (target: TODO)        |
+| `code-todo`         | `dev10x:park-todo` (inline mode)    |
+| `slack-reminder`    | `dev10x:park-remind`                |
+| `pr-bookmark`       | `dev10x:park` (target: PR bookmark) |
+| `session-wrap-up`   | `dev10x:session-wrap-up` Phase 3b   |
 
 External sources (Slack DMs, PR comments) remain as the
 authoritative content; the index carries a pointer
@@ -74,7 +74,7 @@ report can link out.
 ### 1. Read the task index (primary source)
 
 ```
-mcp__plugin_Dev10x_cli__task_index_get()
+mcp__plugin_dev10x_cli__task_index_get()
 ```
 
 If the response has `exists: false` and no `tasks`, note "No task
@@ -98,9 +98,9 @@ Extract three sections from the response:
 - `insights:` — a list of lessons / decisions the prior
   session carried forward. Surface each item verbatim.
 
-**Staleness classification (GH-782).** `Dev10x:session-wrap-up`
+**Staleness classification (GH-782).** `dev10x:session-wrap-up`
 stamps the index with `branch`, `tickets`, and `wrapped_at` via
-`mcp__plugin_Dev10x_cli__task_index_set`; all three come back in the
+`mcp__plugin_dev10x_cli__task_index_set`; all three come back in the
 `task_index_get` response.
 Classify the carried `continuation_prompt:` / `tasks:` /
 `insights:` before presenting them, using the same rule as the
@@ -115,7 +115,7 @@ Present live entries as actionable. Present stale entries under a
 separate **Stale carryover (verify before resuming)** heading so
 months-old, already-shipped items are surfaced for pruning rather
 than re-offered as current work. Do not delete them — flagging is
-enough; the user (or a later `Dev10x:park` write) decides.
+enough; the user (or a later `dev10x:park` write) decides.
 
 ### 2. Read legacy `.claude/TODO.md` (back-compat)
 
@@ -144,25 +144,25 @@ git log --oneline origin/develop..HEAD
 ```
 
 Only flag TODOs introduced on the current branch as actionable;
-the rest are tech-debt notes for `Dev10x:project-audit`.
+the rest are tech-debt notes for `dev10x:project-audit`.
 
 ### 4. Open PR bookmark comments
 
 Detect the PR for the current branch via the MCP wrapper:
 
 ```
-mcp__plugin_Dev10x_cli__pr_detect(arg="")
+mcp__plugin_dev10x_cli__pr_detect(arg="")
 ```
 
 If a PR is found, fetch its comments via the MCP wrapper:
 
 ```
-mcp__plugin_Dev10x_cli__pr_comments(action="list", pr_number=<number>)
+mcp__plugin_dev10x_cli__pr_comments(action="list", pr_number=<number>)
 ```
 
 Filter for comments whose body starts with
 `🔖 **Session bookmark**` (the standard marker set by
-`Dev10x:session-wrap-up`). Include the matched comments under
+`dev10x:session-wrap-up`). Include the matched comments under
 **PR Session Bookmarks**.
 
 Skip silently when `pr_detect` returns `{"error": ...}` — that
@@ -171,7 +171,7 @@ means no PR for the current branch, not a failure.
 ### 5. Slack DM reminders
 
 Search Slack for self-reminders from the park-remind bot. The
-`🔖` emoji is the standard prefix from `Dev10x:park-remind`:
+`🔖` emoji is the standard prefix from `dev10x:park-remind`:
 
 ```
 mcp__claude_ai_Slack__slack_search_public_and_private(
@@ -284,12 +284,12 @@ documented friction class in GH-85:
 | `grep -rn 'TODO' src/`                      | `Grep(pattern='TODO', path='src')`          |
 | `date +%Y-%m-%d; git branch ...; basename` | Single Bash call per command                |
 | `$(git rev-parse --show-toplevel)`          | Pass an absolute path to Read directly      |
-| `gh pr view N --json comments --jq ...`     | `mcp__plugin_Dev10x_cli__pr_comments(...)` |
+| `gh pr view N --json comments --jq ...`     | `mcp__plugin_dev10x_cli__pr_comments(...)` |
 
 Every Bash invocation in this skill is a single command — no
 `;` chaining, no `&&`, no subshells, no inline scripts.
 
 ## Used By
 
-- `Dev10x:park-todo` — redirects here when user asks to review/check
+- `dev10x:park-todo` — redirects here when user asks to review/check
   deferrals instead of write them

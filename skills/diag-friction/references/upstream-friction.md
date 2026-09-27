@@ -44,7 +44,7 @@ Add an "Upstream issue" section to the Step 4 output:
 Do NOT auto-file the issue. The user decides whether the
 friction is genuinely structural or a one-off and approves
 the `gh issue create` call manually (or via the existing
-`Dev10x:ticket-create` skill if available).
+`dev10x:ticket-create` skill if available).
 
 ## When to omit
 

@@ -1,7 +1,7 @@
 """Persist the project's supervisor-review posture (ADR-0022 D-2, GH-1165).
 
-The write half of the review-boundary fact: `Dev10x:friction-setup` /
-`Dev10x:onboarding` call :func:`pin_supervisor_review` once, and every gate
+The write half of the review-boundary fact: `dev10x:friction-setup` /
+`dev10x:onboarding` call :func:`pin_supervisor_review` once, and every gate
 resolution reads the answer back through
 :func:`dev10x.mcp.gate_tools.supervisor_review_status` (which already
 existed before this module, GH-1161/PR #1176 — this adds the missing

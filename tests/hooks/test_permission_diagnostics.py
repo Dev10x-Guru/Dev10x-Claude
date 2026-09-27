@@ -38,10 +38,10 @@ class TestExtractToolSignature:
 
     def test_mcp_tool(self) -> None:
         raw = {
-            "tool_name": "mcp__plugin_Dev10x_cli__mktmp",
+            "tool_name": "mcp__plugin_dev10x_cli__mktmp",
             "tool_input": {"namespace": "git"},
         }
-        assert extract_tool_signature(raw=raw) == "mcp__plugin_Dev10x_cli__mktmp"
+        assert extract_tool_signature(raw=raw) == "mcp__plugin_dev10x_cli__mktmp"
 
     def test_empty_tool_name(self) -> None:
         assert extract_tool_signature(raw={"tool_name": "", "tool_input": {}}) is None
@@ -92,20 +92,20 @@ class TestMatchesRule:
 
     def test_mcp_exact_match(self) -> None:
         assert _matches_rule(
-            signature="mcp__plugin_Dev10x_cli__mktmp",
-            rule="mcp__plugin_Dev10x_cli__mktmp",
+            signature="mcp__plugin_dev10x_cli__mktmp",
+            rule="mcp__plugin_dev10x_cli__mktmp",
         )
 
     def test_mcp_wildcard_match(self) -> None:
         assert _matches_rule(
-            signature="mcp__plugin_Dev10x_cli__mktmp",
-            rule="mcp__plugin_Dev10x_cli__*",
+            signature="mcp__plugin_dev10x_cli__mktmp",
+            rule="mcp__plugin_dev10x_cli__*",
         )
 
     def test_mcp_wildcard_different_server(self) -> None:
         assert not _matches_rule(
-            signature="mcp__plugin_Dev10x_db__query",
-            rule="mcp__plugin_Dev10x_cli__*",
+            signature="mcp__plugin_dev10x_db__query",
+            rule="mcp__plugin_dev10x_cli__*",
         )
 
     def test_different_tool_types(self) -> None:
@@ -116,8 +116,8 @@ class TestMatchesRule:
 
     def test_rule_without_parens(self) -> None:
         assert _matches_rule(
-            signature="mcp__plugin_Dev10x_cli__mktmp",
-            rule="mcp__plugin_Dev10x_*",
+            signature="mcp__plugin_dev10x_cli__mktmp",
+            rule="mcp__plugin_dev10x_*",
         )
 
     def test_non_mcp_rule_without_parens(self) -> None:
@@ -136,7 +136,7 @@ class TestMatchesRule:
 class TestSuggestRule:
     def test_mcp_tool_suggests_server_wildcard(self) -> None:
         assert (
-            _suggest_rule(signature="mcp__plugin_Dev10x_cli__mktmp") == "mcp__plugin_Dev10x_cli__*"
+            _suggest_rule(signature="mcp__plugin_dev10x_cli__mktmp") == "mcp__plugin_dev10x_cli__*"
         )
 
     def test_bash_command_suggests_prefix_wildcard(self) -> None:
@@ -186,7 +186,7 @@ class TestDiagnose:
     @pytest.fixture()
     def mcp_raw(self) -> dict:
         return {
-            "tool_name": "mcp__plugin_Dev10x_cli__mktmp",
+            "tool_name": "mcp__plugin_dev10x_cli__mktmp",
             "tool_input": {"namespace": "git"},
         }
 
@@ -285,7 +285,7 @@ class TestDiagnose:
     ) -> None:
         project_local = settings_dir / "settings.local.json"
         project_local.write_text(
-            json.dumps({"permissions": {"allow": ["mcp__plugin_Dev10x_cli__*"]}})
+            json.dumps({"permissions": {"allow": ["mcp__plugin_dev10x_cli__*"]}})
         )
 
         monkeypatch.setattr(
@@ -301,7 +301,7 @@ class TestDiagnose:
 
         result = diagnose(raw=mcp_raw, cwd=str(tmp_path))
         assert result is not None
-        assert result.matches[0].matching_rule == "mcp__plugin_Dev10x_cli__*"
+        assert result.matches[0].matching_rule == "mcp__plugin_dev10x_cli__*"
 
     def test_fix_suggestion_when_shadowed(
         self,

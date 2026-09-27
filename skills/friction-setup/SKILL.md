@@ -1,5 +1,5 @@
 ---
-name: Dev10x:friction-setup
+name: dev10x:friction-setup
 description: >
   Guide the supervisor through the one question the model needs — does the
   supervisor read the PR before the next step is allowed? — via a blocking
@@ -12,13 +12,13 @@ description: >
   user says "configure friction", "set up autonomy", "friction setup", or
   wants to change a project's review posture deliberately.
   DO NOT TRIGGER when: only flipping walk-away mode for one session (use
-  Dev10x:afk), or bootstrapping a brand-new install (use dev10x init --setup).
+  dev10x:afk), or bootstrapping a brand-new install (use dev10x init --setup).
 user-invocable: true
-invocation-name: Dev10x:friction-setup
+invocation-name: dev10x:friction-setup
 allowed-tools:
   - AskUserQuestion
-  - mcp__plugin_Dev10x_cli__supervisor_review_status
-  - mcp__plugin_Dev10x_cli__pin_supervisor_review
+  - mcp__plugin_dev10x_cli__supervisor_review_status
+  - mcp__plugin_dev10x_cli__pin_supervisor_review
   - Bash(uvx dev10x session pin:*)
   - Bash(dev10x session pin:*)
   - Bash(uvx dev10x session set-friction:*)
@@ -27,9 +27,9 @@ allowed-tools:
   - Bash(dev10x session set-playbook:*)
 ---
 
-**Announce:** "Using Dev10x:friction-setup to configure this project's friction preferences."
+**Announce:** "Using dev10x:friction-setup to configure this project's friction preferences."
 
-# Dev10x:friction-setup — Guided per-project friction setup
+# dev10x:friction-setup — Guided per-project friction setup
 
 Walks the supervisor through the single review-policy question (ADR-0022) —
 plus the existing solo-vs-team overlay and any per-gate deviations — and
@@ -43,7 +43,7 @@ plus the existing solo-vs-team overlay and any per-gate deviations — and
 
 `adaptive` is the sole shipped baseline preset (ADR-0022 D-1) — there is no
 preset to choose, so nothing here asks for one. All writes go through
-`mcp__plugin_Dev10x_cli__pin_supervisor_review` / `dev10x session pin` /
+`mcp__plugin_dev10x_cli__pin_supervisor_review` / `dev10x session pin` /
 `set-playbook`, which lock + atomically write (GH-827 / ADR-0011) — this
 skill never edits the YAML with the Write tool. Nothing is written under the
 repo's `.claude/`, so Claude Code's self-settings gate never fires (GH-812).
@@ -66,7 +66,7 @@ persist step returns (or `pending` with a note if the supervisor dismisses).
 
 ### Gate 1 — Review policy (REQUIRED, gated on `pinned: false`)
 
-Call `mcp__plugin_Dev10x_cli__supervisor_review_status()` first. This is the
+Call `mcp__plugin_dev10x_cli__supervisor_review_status()` first. This is the
 **first-pick condition** (mirrors `preset_pin_status` for the old preset
 gate): only when it returns `pinned: false` does the question below fire.
 `pinned: true` means a `projects[]` entry already answers this for the repo
@@ -127,7 +127,7 @@ never appear in `gate_overrides`.
 any optional play steps for this project?" Options:
 
 - **None (Recommended)** — run every play step.
-- **Draft Job Story (JTBD)** — skip the `Dev10x:jtbd` step in the work-on play.
+- **Draft Job Story (JTBD)** — skip the `dev10x:jtbd` step in the work-on play.
 
 Selected steps become `--skip-step "<subject>"` on `set-playbook`; any enabled
 overlay that is also a structural mode becomes `--mode <name>`.
@@ -141,7 +141,7 @@ was dismissed, do NOT run any write.
 
 1. Review-policy write **only if Gate 1 actually asked** (i.e.
    `supervisor_review_status` returned `pinned: false` and the supervisor
-   answered): `mcp__plugin_Dev10x_cli__pin_supervisor_review(value=
+   answered): `mcp__plugin_dev10x_cli__pin_supervisor_review(value=
    "required"|"none")`. Skip this call entirely when Gate 1 was skipped
    because the repo was already pinned — there is nothing new to persist.
 2. Gate-axis write **only if Gate 2, 3, or 4 produced a real overlay,
@@ -177,5 +177,5 @@ was dismissed, do NOT run any write.
   picker any more (ADR-0022 D-1) — do not reintroduce one.
 - **Recording non-deviations.** Only gates that differ from the baseline
   belong in `gate_overrides`; copying the whole preset in defeats the point.
-- **Confusing with `Dev10x:afk`.** `afk` flips one session to walk-away;
+- **Confusing with `dev10x:afk`.** `afk` flips one session to walk-away;
   this skill sets a *durable, per-project* posture.

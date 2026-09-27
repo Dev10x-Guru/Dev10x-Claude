@@ -150,7 +150,7 @@ class TestPolicyParser:
 |-------------|-------------|----------------|
 | GitHub (`gh` CLI, MCP) | Your GitHub token | PR payloads |
 | Linear (MCP) | Your Linear OAuth session | Issues |
-| JIRA (`Dev10x:jira`) | API token | Issues |
+| JIRA (`dev10x:jira`) | API token | Issues |
 
 ## Children
 """

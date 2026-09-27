@@ -1,5 +1,5 @@
 ---
-name: Dev10x:audit-file
+name: dev10x:audit-file
 description: >
   File skill-audit findings as a GitHub issue at the plugin repo that
   owns the offending skill. Invoked by skill-audit Phase 7 with the
@@ -8,19 +8,19 @@ description: >
   DO NOT TRIGGER when: no audit findings exist, or user wants to review
   findings before filing.
 user-invocable: true
-invocation-name: Dev10x:audit-file
+invocation-name: dev10x:audit-file
 allowed-tools:
   - AskUserQuestion
   - Read(/tmp/Dev10x/skill-audit/**)
   - Edit(/tmp/Dev10x/skill-audit/**)
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
-  - Skill(Dev10x:ticket-create)
+  - Skill(dev10x:ticket-create)
   - Bash(ls ~/.claude/plugins/cache/:*)
   - Bash(gh issue create:*)
   - Bash(gh label list:*)
   - Bash(gh label create:*)
-  - mcp__plugin_Dev10x_cli__issue_list
-  - mcp__plugin_Dev10x_cli__issue_get
+  - mcp__plugin_dev10x_cli__issue_list
+  - mcp__plugin_dev10x_cli__issue_get
 ---
 
 # Audit Report — File Findings Upstream
@@ -30,7 +30,7 @@ and file it at the plugin repo that owns the offending skill.
 
 ## When to Use
 
-- Delegated by `Dev10x:skill-audit` Phase 7 after the user
+- Delegated by `dev10x:skill-audit` Phase 7 after the user
   approves upstream reporting **and** confirms the destination
   tracker at the Phase 7 sub-step B2 gate
 - Can also be invoked standalone with a findings file
@@ -43,10 +43,10 @@ Two arguments:
    Required when the caller resolved a destination. Skills from
    every installed plugin live under `~/.claude/plugins/`, so the
    owner cannot be inferred here — the caller resolves it via
-   `mcp__plugin_Dev10x_cli__resolve_plugin_origin` and confirms it
+   `mcp__plugin_dev10x_cli__resolve_plugin_origin` and confirms it
    with the user.
 2. Path to a findings markdown file produced by
-   `Dev10x:skill-audit`.
+   `dev10x:skill-audit`.
 
 **Target repo resolution:**
 
@@ -182,8 +182,8 @@ Dev10x plugin finding.
 
 Use the primary skill name (most findings) as the title anchor:
 
-- Single skill: `skill-audit findings: Dev10x:{skill}`
-- Multiple skills: `skill-audit findings: Dev10x:{skill} (+N)`
+- Single skill: `skill-audit findings: dev10x:{skill}`
+- Multiple skills: `skill-audit findings: dev10x:{skill} (+N)`
 
 ### Step 6: Write body to temp file
 
@@ -206,7 +206,7 @@ Apply the resolution algorithm in
 
 1. Start with `enhancement`
 2. Add one `skill:<name>` per unique skill referenced in the
-   findings table (strip the `Dev10x:` prefix; fictionalized names
+   findings table (strip the `dev10x:` prefix; fictionalized names
    only — see Step 3)
 3. Scan finding descriptions + proposed fixes against the topical
    heuristic table in `references/labels.md` § 3; add each matching
@@ -269,7 +269,7 @@ unlabelled one is merely harder to bundle.
 
 ### Step 9: File the issue
 
-Delegate to `Dev10x:ticket-create` — never use raw `gh issue create`.
+Delegate to `dev10x:ticket-create` — never use raw `gh issue create`.
 Write the title as the first line of the temp file (followed by a
 blank line and the body) to avoid permission friction from special
 characters in the args string. Pass the comma-separated label set
@@ -277,7 +277,7 @@ derived in Step 7 **only when Step 8 confirmed every label exists
 and is applicable**:
 
 ```
-Skill(skill="Dev10x:ticket-create",
+Skill(skill="dev10x:ticket-create",
   args="--repo {TARGET_REPO} --body-file {temp-file-path} --label {LABELS}")
 ```
 
@@ -285,7 +285,7 @@ When Step 8 hit any failure above, omit the `--label` flag and
 rely on the in-body "Suggested labels" line instead:
 
 ```
-Skill(skill="Dev10x:ticket-create",
+Skill(skill="dev10x:ticket-create",
   args="--repo {TARGET_REPO} --body-file {temp-file-path}")
 ```
 

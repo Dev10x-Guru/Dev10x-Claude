@@ -18,7 +18,7 @@ All evals live in `skills/<feature>/evals/evals.json`:
 
 ```json
 {
-  "skill_name": "Dev10x:example",
+  "skill_name": "dev10x:example",
   "eval_dimensions": [
     {
       "id": "dimension-id",
@@ -30,7 +30,7 @@ All evals live in `skills/<feature>/evals/evals.json`:
     {
       "id": 1,
       "name": "scenario-name",
-      "prompt": "/Dev10x:example <args>",
+      "prompt": "/dev10x:example <args>",
       "description": "High-level scenario",
       "setup": { /* env setup */ },
       "dimensions": ["dimension-ids"],
@@ -85,7 +85,7 @@ All evals live in `skills/<feature>/evals/evals.json`:
 
 Dimensions are orthogonal quality axes (not sequential steps). Examples:
 
-**Dev10x:work-on** (6 dimensions):
+**dev10x:work-on** (6 dimensions):
 - `classify` — input type identification (URL, ID, free text)
 - `gather` — parallel subagent context gathering
 - `plan` — task list generation with mandatory elements
@@ -93,7 +93,7 @@ Dimensions are orthogonal quality axes (not sequential steps). Examples:
 - `task-structure` — 4 phase-level tasks + dependencies
 - `workspace` — early workspace decision (main repo vs. worktree)
 
-**Dev10x:git-commit** (5 dimensions):
+**dev10x:git-commit** (5 dimensions):
 - `format` — gitmoji + ticket + description pattern
 - `jtbd` — outcome-focus verb enforcement
 - `extraction` — ticket ID from branch name
@@ -123,8 +123,8 @@ Aim for **5–6 examples each** (should_trigger, should_not_trigger).
 ## Scenario Best Practices
 
 1. **Concrete + Representative** — Use real-world prompts
-   - ✅ `/Dev10x:work-on https://github.com/org/repo/issues/42`
-   - ❌ `/Dev10x:work-on test`
+   - ✅ `/dev10x:work-on https://github.com/org/repo/issues/42`
+   - ❌ `/dev10x:work-on test`
 
 2. **One dimension per scenario** — Scenarios focus on specific quality axis
    - Don't test all dimensions in one scenario
@@ -158,7 +158,7 @@ Before submitting eval PR:
 - [ ] Signals are observable (output, commands, tool calls)
 - [ ] Scenario setup reflects real-world conditions
 - [ ] No hardcoded file paths (use patterns like `~/.claude/projects/**/*`)
-- [ ] `skill_name` uses `Dev10x:` prefix
+- [ ] `skill_name` uses `dev10x:` prefix
 - [ ] File placed in `skills/<feature>/evals/evals.json`
 
 ## Evolution

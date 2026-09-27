@@ -1,14 +1,14 @@
 ---
-name: Dev10x:db-psql
+name: dev10x:db-psql
 description: >
   Safe read-only psql wrapper for Claude Code. Provides db.sh with
   SQL validation hook so database queries are safe and auditable.
   Configure databases in databases.yaml with env var or keyring backends.
   TRIGGER when: executing SQL against configured databases.
-  DO NOT TRIGGER when: planning queries (use Dev10x:db), or working
+  DO NOT TRIGGER when: planning queries (use dev10x:db), or working
   with non-database tasks.
 user-invocable: true
-invocation-name: Dev10x:db-psql
+invocation-name: dev10x:db-psql
 allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/db-psql/scripts/db.sh:*)
 ---
@@ -18,8 +18,8 @@ GH-127 #1 — `${CLAUDE_PLUGIN_ROOT}` is expanded by Claude Code at
 runtime to the resolved cache path. User settings that pin the
 absolute path (`/home/<user>/.claude/plugins/cache/.../db.sh:*`)
 or omit the tilde will not match this rule. Run
-`Dev10x:plugin-maintenance` (mode: full) or
-`Dev10x:upgrade-cleanup` to refresh pinned/absolute paths in
+`dev10x:plugin-maintenance` (mode: full) or
+`dev10x:upgrade-cleanup` to refresh pinned/absolute paths in
 `settings.local.json` to the current plugin version via
 `update-paths`, which runs on every upgrade. Paths are NOT
 rewritten to `**` wildcards (GH-715) — `**` matching is unreliable
@@ -167,6 +167,6 @@ Never attempt to bypass the safety checks.
 
 ## Integration
 
-- Uses **`Dev10x:db`** for query planning and schema discovery
+- Uses **`dev10x:db`** for query planning and schema discovery
 - Project-specific skills (e.g., `tt:db`) provide `databases.yaml`
   with aliases and schema references

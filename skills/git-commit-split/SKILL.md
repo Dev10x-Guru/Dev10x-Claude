@@ -1,5 +1,5 @@
 ---
-name: Dev10x:git-commit-split
+name: dev10x:git-commit-split
 description: >
   Split monolithic git commits into atomic, cohesive commits following
   Clean Architecture principles. Uses interactive rebase to separate
@@ -9,13 +9,13 @@ description: >
   TRIGGER when: a commit contains mixed concerns that should be separate
   atomic commits.
   DO NOT TRIGGER when: commits are already atomic, or grooming history
-  without splitting (use Dev10x:git-groom).
+  without splitting (use dev10x:git-groom).
 user-invocable: true
-invocation-name: Dev10x:git-commit-split
+invocation-name: dev10x:git-commit-split
 allowed-tools:
   - AskUserQuestion
-  - Skill(Dev10x:py-test)
-  - mcp__plugin_Dev10x_cli__start_split_rebase
+  - Skill(dev10x:py-test)
+  - mcp__plugin_dev10x_cli__start_split_rebase
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git-commit-split/scripts/:*)
 ---
 
@@ -52,7 +52,7 @@ dependency. Do NOT improvise an equivalent manually:
 
 - ❌ `git reset HEAD~N` + selective `git add` + N × `git commit -F`
 - ❌ `git rebase -i HEAD~N` with `edit` directives, hand-edited
-- ✅ `Skill(Dev10x:git-commit-split)` — single entry point
+- ✅ `Skill(dev10x:git-commit-split)` — single entry point
 
 If you catch yourself reaching for `git reset HEAD` to "manually
 group" staged files into separate commits, STOP and invoke this

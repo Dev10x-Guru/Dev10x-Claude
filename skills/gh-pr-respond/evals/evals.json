@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:gh-pr-respond",
+  "skill_name": "dev10x:gh-pr-respond",
   "eval_dimensions": [
     {
       "id": "decision-gates",
@@ -41,7 +41,7 @@
     {
       "id": 1,
       "name": "single-comment-invalid-verdict",
-      "prompt": "/Dev10x:gh-pr-respond https://github.com/org/repo/pull/42#discussion_r12345",
+      "prompt": "/dev10x:gh-pr-respond https://github.com/org/repo/pull/42#discussion_r12345",
       "description": "Single comment mode where triage returns INVALID verdict. Tests Gate 1 (Step 1b thread resolution), Gate 6 (Step 1c hide obsolete), and Gate 2 (Step 3 offer to continue). All must use AskUserQuestion.",
       "setup": {
         "mode": "A (single)",
@@ -110,8 +110,8 @@
           "text": "In single mode, minimize_comments is invoked after a successful resolve_review_thread — Gate 6 never silently skips when the thread was resolved",
           "check": "tool_called",
           "signals": [
-            "mcp__plugin_Dev10x_cli__resolve_review_thread",
-            "mcp__plugin_Dev10x_cli__minimize_comments",
+            "mcp__plugin_dev10x_cli__resolve_review_thread",
+            "mcp__plugin_dev10x_cli__minimize_comments",
             "AskUserQuestion"
           ]
         }
@@ -120,7 +120,7 @@
     {
       "id": 2,
       "name": "batch-mode-full-flow",
-      "prompt": "/Dev10x:gh-pr-respond https://github.com/org/repo/pull/42",
+      "prompt": "/dev10x:gh-pr-respond https://github.com/org/repo/pull/42",
       "description": "Batch mode with 4 comments (2 VALID, 2 INVALID). Tests Gate 3 (batch approval), Gate 4 (thread resolution), Gate 5 (post-response continuation), and Gate 6 (hide obsolete). All must use AskUserQuestion.",
       "setup": {
         "mode": "B (batch)",
@@ -207,8 +207,8 @@
           "text": "minimize_comments is invoked after a successful resolve_review_thread call — Gate 6 never silently skips when threads were resolved",
           "check": "tool_called",
           "signals": [
-            "mcp__plugin_Dev10x_cli__resolve_review_thread",
-            "mcp__plugin_Dev10x_cli__minimize_comments",
+            "mcp__plugin_dev10x_cli__resolve_review_thread",
+            "mcp__plugin_dev10x_cli__minimize_comments",
             "AskUserQuestion"
           ]
         },
@@ -238,7 +238,7 @@
     {
       "id": 3,
       "name": "single-comment-valid-no-remaining",
-      "prompt": "/Dev10x:gh-pr-respond https://github.com/org/repo/pull/42#discussion_r99999",
+      "prompt": "/dev10x:gh-pr-respond https://github.com/org/repo/pull/42#discussion_r99999",
       "description": "Single comment mode where triage returns VALID and no remaining comments exist. Gate 1 should NOT fire (VALID skips resolution ask). Gate 2 should NOT fire (no remaining comments). Tests that gates are skipped appropriately.",
       "setup": {
         "mode": "A (single)",
@@ -262,7 +262,7 @@
         },
         {
           "id": "delegates-to-fixup",
-          "text": "Delegates VALID comment to Dev10x:gh-pr-fixup",
+          "text": "Delegates VALID comment to dev10x:gh-pr-fixup",
           "check": "transcript_contains",
           "signals": ["gh-pr-fixup", "fixup"]
         },
@@ -277,7 +277,7 @@
     {
       "id": 4,
       "name": "batch-mode-body-only-review",
-      "prompt": "/Dev10x:gh-pr-respond https://github.com/org/repo/pull/42#pullrequestreview-789",
+      "prompt": "/dev10x:gh-pr-respond https://github.com/org/repo/pull/42#pullrequestreview-789",
       "description": "Batch mode where the review has no inline comments but a body with structured findings (e.g., '1 blocking issue found' with bullet items). Tests that individual findings are parsed from the body and triaged independently, not treated as one opaque comment.",
       "setup": {
         "mode": "B (batch)",
@@ -296,9 +296,9 @@
         },
         {
           "id": "triages-each-finding",
-          "text": "Each parsed finding is triaged independently via Dev10x:gh-pr-triage",
+          "text": "Each parsed finding is triaged independently via dev10x:gh-pr-triage",
           "check": "tool_called",
-          "signals": ["Dev10x:gh-pr-triage", "2 triage calls"]
+          "signals": ["dev10x:gh-pr-triage", "2 triage calls"]
         },
         {
           "id": "presents-findings-in-table",
@@ -325,11 +325,11 @@
     "description": "Queries that should/should-not trigger the gh-pr-respond skill",
     "should_trigger": [
       {
-        "query": "/Dev10x:gh-pr-respond https://github.com/example-org/app-pos/pull/1164",
+        "query": "/dev10x:gh-pr-respond https://github.com/example-org/app-pos/pull/1164",
         "rationale": "Direct invocation with PR URL — batch mode"
       },
       {
-        "query": "/Dev10x:gh-pr-respond https://github.com/example-org/app-pos/pull/1164#discussion_r1847293456",
+        "query": "/dev10x:gh-pr-respond https://github.com/example-org/app-pos/pull/1164#discussion_r1847293456",
         "rationale": "Direct invocation with specific comment — single mode"
       },
       {
@@ -341,7 +341,7 @@
         "rationale": "Review-scoped batch request with review URL"
       },
       {
-        "query": "/Dev10x:gh-pr-respond 1164",
+        "query": "/dev10x:gh-pr-respond 1164",
         "rationale": "Direct invocation with PR number only"
       },
       {
@@ -352,15 +352,15 @@
     "should_not_trigger": [
       {
         "query": "review this PR and leave comments: https://github.com/org/repo/pull/42",
-        "rationale": "Wants to CREATE review comments (Dev10x:gh-pr-review), not respond to existing ones"
+        "rationale": "Wants to CREATE review comments (dev10x:gh-pr-review), not respond to existing ones"
       },
       {
         "query": "create a fixup commit for the review comment about missing validation on line 42",
-        "rationale": "Wants Dev10x:gh-pr-fixup directly, not the orchestrating respond skill"
+        "rationale": "Wants dev10x:gh-pr-fixup directly, not the orchestrating respond skill"
       },
       {
         "query": "check if there are any new review comments on my PR",
-        "rationale": "Monitoring/checking (Dev10x:gh-pr-monitor), not responding"
+        "rationale": "Monitoring/checking (dev10x:gh-pr-monitor), not responding"
       },
       {
         "query": "resolve all the review threads on PR #42",
@@ -368,11 +368,11 @@
       },
       {
         "query": "triage the review comment at https://github.com/org/repo/pull/42#discussion_r123 — is it valid?",
-        "rationale": "Wants triage only (Dev10x:gh-pr-triage), not the full respond workflow"
+        "rationale": "Wants triage only (dev10x:gh-pr-triage), not the full respond workflow"
       },
       {
         "query": "create a PR for my current branch with the review changes",
-        "rationale": "Wants PR creation (Dev10x:gh-pr-create), not responding to reviews"
+        "rationale": "Wants PR creation (dev10x:gh-pr-create), not responding to reviews"
       }
     ]
   }

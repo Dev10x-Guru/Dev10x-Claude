@@ -1,5 +1,5 @@
 ---
-name: Dev10x:release-notes
+name: dev10x:release-notes
 description: >
   Generate JTBD-driven release notes from git commits between releases.
   Playbook-powered workflow with configurable ticket patterns, output
@@ -9,10 +9,10 @@ description: >
   DO NOT TRIGGER when: writing individual commit messages, or updating
   documentation unrelated to releases.
 user-invocable: true
-invocation-name: Dev10x:release-notes
+invocation-name: dev10x:release-notes
 allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/release-notes/scripts/collect-prs.py:*)
-  - mcp__plugin_Dev10x_cli__collect_prs
+  - mcp__plugin_dev10x_cli__collect_prs
   - Bash(gh pr view:*)
   - Bash(gh pr list:*)
   - Bash(gh release edit:*)
@@ -25,7 +25,7 @@ allowed-tools:
   - mcp__claude_ai_Slack__slack_send_message_draft
   - mcp__claude_ai_Slack__slack_read_channel
   - mcp__claude_ai_Slack__slack_search_public
-  - mcp__plugin_Dev10x_cli__mktmp
+  - mcp__plugin_dev10x_cli__mktmp
   - AskUserQuestion
   - TaskCreate
   - TaskUpdate
@@ -129,7 +129,7 @@ git log <from_tag>..<to_tag> --no-merges --format="### %s%n%n%b%n---"
 
 For feature PRs listed as "MISSING JTBDs":
 
-1. Invoke `Dev10x:jtbd` in unattended mode with ticket ID and PR number
+1. Invoke `dev10x:jtbd` in unattended mode with ticket ID and PR number
 2. Collect all drafts
 3. Present as a batch for user approval:
 
@@ -212,7 +212,7 @@ to a temp file and use the Slack posting mechanism. For GitHub, use
 ## Arguments
 
 ```
-/Dev10x:release-notes [--play release|hotfix] [--from TAG] [--to TAG]
+/dev10x:release-notes [--play release|hotfix] [--from TAG] [--to TAG]
 ```
 
 - `--play`: Which playbook play to use (default: `release`)

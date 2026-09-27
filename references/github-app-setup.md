@@ -159,7 +159,7 @@ github_app:
    the call is covered by `pull_requests: write`; on an actual issue
    it needs `issues: write`. Grant only the first and you get a bot
    that comments fine on PRs and returns 403 on issues, with nothing
-   in the response explaining the difference. `Dev10x:gh-pr-review`
+   in the response explaining the difference. `dev10x:gh-pr-review`
    Transport B routes merged or oversize reviews through this
    endpoint, so the gap is reachable in normal use.
 

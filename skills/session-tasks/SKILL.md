@@ -1,19 +1,19 @@
 ---
-name: Dev10x:session-tasks
+name: dev10x:session-tasks
 description: >
   Track in-session work items — so open loops are visible and triageable
   before session end without losing track of parallel work.
   TRIGGER when: managing in-session task tracking, viewing open loops,
   or adding work items mid-session.
   DO NOT TRIGGER when: starting structured work from inputs (use
-  Dev10x:work-on), or wrapping up a session (use Dev10x:session-wrap-up).
+  dev10x:work-on), or wrapping up a session (use dev10x:session-wrap-up).
 user-invocable: true
-invocation-name: Dev10x:session-tasks
+invocation-name: dev10x:session-tasks
 ---
 
-# Dev10x:session-tasks — In-Session Task Tracking
+# dev10x:session-tasks — In-Session Task Tracking
 
-**Announce:** "Using Dev10x:session-tasks to [show/add/update] session tasks."
+**Announce:** "Using dev10x:session-tasks to [show/add/update] session tasks."
 
 ## Orchestration
 
@@ -95,6 +95,6 @@ lands as a TODO under the existing plan.
 
 ## Used By
 
-- `Dev10x:park` — when user picks "keep for this session"
-- `Dev10x:session-wrap-up` — Phase 1 auto-scan reads the task list
-- `Dev10x:verify-acc-dod` — owns the `Verify AC` task completion
+- `dev10x:park` — when user picks "keep for this session"
+- `dev10x:session-wrap-up` — Phase 1 auto-scan reads the task list
+- `dev10x:verify-acc-dod` — owns the `Verify AC` task completion

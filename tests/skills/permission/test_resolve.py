@@ -33,8 +33,8 @@ class TestResolveReport:
 
     def test_context_is_echoed(self, tmp_path: Path) -> None:
         layer = _flat_layer(tmp_path, allow=["Bash(git status:*)"])
-        lines = resolve_report(signature="Bash(git status)", context="Dev10x:git", user_path=layer)
-        assert "Context:   Dev10x:git" in lines
+        lines = resolve_report(signature="Bash(git status)", context="dev10x:git", user_path=layer)
+        assert "Context:   dev10x:git" in lines
 
     def test_unscoped_context_label(self, tmp_path: Path) -> None:
         layer = _flat_layer(tmp_path, allow=["Bash(git status:*)"])

@@ -22,9 +22,9 @@ Reason from the map entry (if available).
 For MCP tools, add: "Call this as an MCP tool call, NOT as a
 Bash command. MCP tool names are tool interface identifiers,
 never shell executables. Example:
-`mcp__plugin_Dev10x_cli__mktmp(namespace='git',
+`mcp__plugin_dev10x_cli__mktmp(namespace='git',
 prefix='commit-msg', ext='.txt')` — not
-`mcp__plugin_Dev10x_cli__mktmp git commit-msg .txt`."
+`mcp__plugin_dev10x_cli__mktmp git commit-msg .txt`."
 
 ## 5. Pre-approved alternatives
 

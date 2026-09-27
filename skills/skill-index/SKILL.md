@@ -1,5 +1,5 @@
 ---
-name: Dev10x:skill-index
+name: dev10x:skill-index
 description: >
   Generate a family-grouped, adaptive-density skill index.
   Scans local skills and all installed plugins, groups by
@@ -10,10 +10,10 @@ description: >
   DO NOT TRIGGER when: viewing the existing skill index, or editing
   individual skills.
 user-invocable: true
-invocation-name: Dev10x:skill-index
+invocation-name: dev10x:skill-index
 allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/skill-index/scripts/generate-all.sh:*)
-  - mcp__plugin_Dev10x_cli__generate_skill_index
+  - mcp__plugin_dev10x_cli__generate_skill_index
   - Read(~/.claude/SKILLS.md)
   - Read(~/.claude/.skills-menu.txt)
 ---

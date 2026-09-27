@@ -8,14 +8,14 @@ The Skill tool REQUIRES named parameters: `skill=` and `args=`.
 
 **Correct:**
 ```python
-Skill(skill="Dev10x:audit-file", args="path/to/findings.json")
-Skill(skill="Dev10x:gh-pr-create", args="--title 'My PR'")
+Skill(skill="dev10x:audit-file", args="path/to/findings.json")
+Skill(skill="dev10x:gh-pr-create", args="--title 'My PR'")
 ```
 
 **Incorrect (positional arguments — runtime error):**
 ```python
-Skill(Dev10x:audit-file, args="path/to/findings.json")
-Skill("Dev10x:gh-pr-create", "--title 'My PR'")
+Skill(dev10x:audit-file, args="path/to/findings.json")
+Skill("dev10x:gh-pr-create", "--title 'My PR'")
 ```
 
 ## Invocation Name Lookup
@@ -25,8 +25,8 @@ When a skill delegates to another skill via `Skill()`:
 1. **Use the `name:` field** from the target skill's SKILL.md, not
    the directory name or `invocation-name:` alias.
    - Directory: `skills/audit-file/`
-   - SKILL.md `name:`: `Dev10x:audit-file` ✓
-   - Bash invocation: `Skill(skill="Dev10x:audit-file", ...)`
+   - SKILL.md `name:`: `dev10x:audit-file` ✓
+   - Bash invocation: `Skill(skill="dev10x:audit-file", ...)`
 
 2. **Alias handling**: If the skill defines `invocation-name:`, both
    names work at CLI/skill invocation, but the `name:` is the
@@ -68,7 +68,7 @@ Skill tool invocation error: missing required parameter 'skill'
 
 **Skill not found:**
 ```
-Skill 'Dev10x:nonexistent' not registered
+Skill 'dev10x:nonexistent' not registered
 ```
 
 → Verify the skill's `name:` field in its SKILL.md; check spelling.

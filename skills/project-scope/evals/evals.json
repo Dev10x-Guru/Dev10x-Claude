@@ -4,7 +4,7 @@
     {
       "name": "linear-ticket-input",
       "description": "Given a Linear ticket URL, fetches context and scopes project",
-      "setup": "/Dev10x:project-scope https://linear.app/team/issue/PAY-662/adr-mcp",
+      "setup": "/dev10x:project-scope https://linear.app/team/issue/PAY-662/adr-mcp",
       "checks": [
         {"type": "tool_called", "tool": "mcp__claude_ai_Linear__get_issue", "assertion": "fetches_parent", "signal": "Fetches the parent ticket"},
         {"type": "tool_called", "tool": "AskUserQuestion", "assertion": "gate2_uses_tool", "signal": "Presents structure for approval"},
@@ -15,17 +15,17 @@
     {
       "name": "free-text-input",
       "description": "Given free text, asks for tracker and creates parent ticket",
-      "setup": "/Dev10x:project-scope Build a payment reconciliation system with 3 phases",
+      "setup": "/dev10x:project-scope Build a payment reconciliation system with 3 phases",
       "checks": [
         {"type": "tool_called", "tool": "AskUserQuestion", "assertion": "gate1_uses_tool", "signal": "Asks which tracker to use"},
-        {"type": "tool_called", "tool": "Skill", "assertion": "delegates_ticket_create", "signal": "Creates parent ticket via Dev10x:ticket-create"},
+        {"type": "tool_called", "tool": "Skill", "assertion": "delegates_ticket_create", "signal": "Creates parent ticket via dev10x:ticket-create"},
         {"type": "tool_called", "tool": "AskUserQuestion", "assertion": "gate2_uses_tool", "signal": "Presents structure for approval"}
       ]
     },
     {
       "name": "decision-gates-enforced",
       "description": "All three gates use AskUserQuestion, not plain text",
-      "setup": "/Dev10x:project-scope PAY-662",
+      "setup": "/dev10x:project-scope PAY-662",
       "checks": [
         {"type": "tool_called", "tool": "AskUserQuestion", "assertion": "gate2_uses_tool", "signal": "Structure approval uses AskUserQuestion"},
         {"type": "tool_called", "tool": "AskUserQuestion", "assertion": "gate3_uses_tool", "signal": "Project entity gate uses AskUserQuestion"},
@@ -35,14 +35,14 @@
   ],
   "trigger_evals": {
     "should_trigger": [
-      "/Dev10x:project-scope PAY-662",
-      "/Dev10x:project-scope https://linear.app/team/issue/PAY-662/adr-mcp",
-      "/Dev10x:project-scope Build a multi-phase payment system"
+      "/dev10x:project-scope PAY-662",
+      "/dev10x:project-scope https://linear.app/team/issue/PAY-662/adr-mcp",
+      "/dev10x:project-scope Build a multi-phase payment system"
     ],
     "should_not_trigger": [
-      "/Dev10x:ticket-scope PAY-662",
-      "/Dev10x:ticket-create Fix the login bug",
-      "/Dev10x:adr Should we use microservices?"
+      "/dev10x:ticket-scope PAY-662",
+      "/dev10x:ticket-create Fix the login bug",
+      "/dev10x:adr Should we use microservices?"
     ]
   }
 }

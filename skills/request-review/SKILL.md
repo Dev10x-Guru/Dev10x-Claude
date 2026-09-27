@@ -1,25 +1,25 @@
 ---
-name: Dev10x:request-review
+name: dev10x:request-review
 description: >
   Request PR review — assigns GitHub reviewers and posts the team's
   chat notification (Slack, Google Chat, or both) in one command.
-  Delegates to Dev10x:gh-pr-request-review, Dev10x:slack-review-request
-  and Dev10x:gchat-review-request.
+  Delegates to dev10x:gh-pr-request-review, dev10x:slack-review-request
+  and dev10x:gchat-review-request.
   TRIGGER when: PR is ready for review and needs both GitHub reviewer
   assignment and a chat notification.
   DO NOT TRIGGER when: PR is draft/WIP, or only need GitHub assignment
-  without a notification (use Dev10x:gh-pr-request-review directly).
+  without a notification (use dev10x:gh-pr-request-review directly).
 user-invocable: true
-invocation-name: Dev10x:request-review
+invocation-name: dev10x:request-review
 allowed-tools:
   - Read
   - AskUserQuestion
-  - mcp__plugin_Dev10x_cli__pr_detect
-  - mcp__plugin_Dev10x_cli__pr_get
-  - mcp__plugin_Dev10x_cli__pr_issue_comment
-  - Skill(Dev10x:gh-pr-request-review)
-  - Skill(Dev10x:slack-review-request)
-  - Skill(Dev10x:gchat-review-request)
+  - mcp__plugin_dev10x_cli__pr_detect
+  - mcp__plugin_dev10x_cli__pr_get
+  - mcp__plugin_dev10x_cli__pr_issue_comment
+  - Skill(dev10x:gh-pr-request-review)
+  - Skill(dev10x:slack-review-request)
+  - Skill(dev10x:gchat-review-request)
 ---
 
 ## Orchestration
@@ -41,7 +41,7 @@ Mark completed when done: `TaskUpdate(taskId, status="completed")`
 Use the MCP tool to detect PR number and repo:
 
 ```
-mcp__plugin_Dev10x_cli__pr_detect(arg="$ARG")
+mcp__plugin_dev10x_cli__pr_detect(arg="$ARG")
 ```
 
 Parse `PR_NUMBER`, `REPO`, `PR_URL` from the returned dict.
@@ -57,7 +57,7 @@ approvals (e.g., `claude[bot]`, `github-actions[bot]`) MUST
 NOT short-circuit the human review request.
 
 ```
-mcp__plugin_Dev10x_cli__pr_get(number={PR_NUMBER}, repo="{REPO}")
+mcp__plugin_dev10x_cli__pr_get(number={PR_NUMBER}, repo="{REPO}")
 ```
 
 Read `reviewDecision`, `reviews`, and `headRefOid` from the
@@ -76,7 +76,7 @@ Decision logic (operates on the human-filtered review list):
   HEAD. **REQUIRED: Call `AskUserQuestion`** (do NOT use plain
   text):
   - **Skip — merge instead (Recommended)** — short-circuit
-    review request and offer to invoke `Dev10x:gh-pr-merge`
+    review request and offer to invoke `dev10x:gh-pr-merge`
   - **Force request anyway** — proceed to Step 2 with all
     reviewers (e.g., user wants additional eyes)
   - **Cancel** — do nothing
@@ -90,7 +90,7 @@ Decision logic (operates on the human-filtered review list):
   so the rationale is visible.
 
 Skip this precheck when invoked with `--force` or when the
-caller is `Dev10x:gh-pr-monitor` Phase 3 with explicit
+caller is `dev10x:gh-pr-monitor` Phase 3 with explicit
 `bypass_approval_check: true` (re-review request after fixups
 where the monitor has already validated state).
 
@@ -99,7 +99,7 @@ where the monitor has already validated state).
 Delegate to the GitHub reviewer assignment skill:
 
 ```
-Skill("Dev10x:gh-pr-request-review", args="--pr {PR_NUMBER} --repo {REPO}")
+Skill("dev10x:gh-pr-request-review", args="--pr {PR_NUMBER} --repo {REPO}")
 ```
 
 This skill reads `<Dev10x config>/github-reviewers-config.yaml`,
@@ -121,8 +121,8 @@ the `/` in `{REPO}`):
 
 | Transport | Config file | Delegate to |
 |-----------|-------------|-------------|
-| Slack | `~/.config/Dev10x/slack-config-code-review-requests.yaml` | `Dev10x:slack-review-request` |
-| Google Chat | `~/.config/Dev10x/gchat-config-code-review-requests.yaml` | `Dev10x:gchat-review-request` |
+| Slack | `~/.config/Dev10x/slack-config-code-review-requests.yaml` | `dev10x:slack-review-request` |
+| Google Chat | `~/.config/Dev10x/gchat-config-code-review-requests.yaml` | `dev10x:gchat-review-request` |
 
 A missing file counts as "does not name the repo". Then:
 
@@ -137,8 +137,8 @@ A missing file counts as "does not name the repo". Then:
   chosen skill, which will ask for the channel or space itself.
 
 ```
-Skill("Dev10x:slack-review-request", args="--pr {PR_NUMBER} --repo {REPO}")
-Skill("Dev10x:gchat-review-request", args="--pr {PR_NUMBER} --repo {REPO}")
+Skill("dev10x:slack-review-request", args="--pr {PR_NUMBER} --repo {REPO}")
+Skill("dev10x:gchat-review-request", args="--pr {PR_NUMBER} --repo {REPO}")
 ```
 
 Each skill resolves its own config, formats the message, confirms with
@@ -153,7 +153,7 @@ summary — name the transport that was actually used.
 Post a review request comment on the PR mentioning assigned reviewers:
 
 ```
-mcp__plugin_Dev10x_cli__pr_issue_comment(
+mcp__plugin_dev10x_cli__pr_issue_comment(
     pr_number={PR_NUMBER},
     repo="{REPO}",
     body="Ready for review @reviewer1 @reviewer2",
@@ -185,12 +185,12 @@ name the repo is not reported at all — it was never in play.
 - Either transport may skip independently of the other — the same
   wording applies within Step 3
 - Each sub-skill uses its own config file — no combined config needed
-- This skill is invoked by `Dev10x:gh-pr-monitor` Phase 3 and
-  directly by users via `/Dev10x:request-review`
+- This skill is invoked by `dev10x:gh-pr-monitor` Phase 3 and
+  directly by users via `/dev10x:request-review`
 
 ## See Also
 
-- `Dev10x:gh-pr-request-review` — GitHub reviewer assignment
-- `Dev10x:slack-review-request` — Slack notification
-- `Dev10x:gchat-review-request` — Google Chat notification
-- `Dev10x:gh-pr-monitor` — calls this skill in Phase 3
+- `dev10x:gh-pr-request-review` — GitHub reviewer assignment
+- `dev10x:slack-review-request` — Slack notification
+- `dev10x:gchat-review-request` — Google Chat notification
+- `dev10x:gh-pr-monitor` — calls this skill in Phase 3

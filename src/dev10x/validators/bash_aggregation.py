@@ -75,7 +75,7 @@ The intent is almost always "inspect N files / N directories" — use:
 For aggregation/summarization, pre-read the inputs via Glob + Read and
 let the model aggregate in-context — no shell loop required.
 
-If a dedicated skill exists for your intent (e.g., `Dev10x:project-audit`
+If a dedicated skill exists for your intent (e.g., `dev10x:project-audit`
 for codebase context detection), delegate to that skill instead."""
 
 

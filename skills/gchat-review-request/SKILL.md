@@ -1,19 +1,19 @@
 ---
-name: Dev10x:gchat-review-request
+name: dev10x:gchat-review-request
 description: >
   Post a Google Chat review request for a PR using per-repo config
-  (space, mentions). Mirrors Dev10x:slack-review-request. Invoked
-  standalone or delegated to by Dev10x:request-review.
+  (space, mentions). Mirrors dev10x:slack-review-request. Invoked
+  standalone or delegated to by dev10x:request-review.
   TRIGGER when: a PR needs a Google Chat review notification.
   DO NOT TRIGGER when: Google Chat is not configured, or posting to Slack
-  (use Dev10x:slack-review-request).
+  (use dev10x:slack-review-request).
 user-invocable: true
-invocation-name: Dev10x:gchat-review-request
+invocation-name: dev10x:gchat-review-request
 allowed-tools:
   - Bash(uvx dev10x skill notify gchat-review-prepare:*)
   - Bash(gh pr view:*)
   - AskUserQuestion
-  - Skill(Dev10x:gchat)
+  - Skill(dev10x:gchat)
 ---
 
 # Google Chat Review Request
@@ -78,7 +78,7 @@ the URL as a line in the message instead, rather than losing it.
 ### Step 0: Approval-state precheck
 
 Skip the ping if the PR is already human-approved on its current HEAD (bot
-approvals do not count). Mirror `Dev10x:slack-review-request` Step 0:
+approvals do not count). Mirror `dev10x:slack-review-request` Step 0:
 
 ```bash
 gh pr view {pr_number} --repo {repo} --json reviewDecision,reviews,headRefOid  # cli-friction: allow raw-gh-pr — review-state precheck
@@ -93,7 +93,7 @@ approved" and stop. Skip this precheck when invoked with `--force`.
 If the PR is still a draft, do NOT post the review request — a draft is not
 ready for review.
 Report that the PR must be marked ready first (via
-`Dev10x:gh-pr-request-review` / `gh pr ready`) and stop.
+`dev10x:gh-pr-request-review` / `gh pr ready`) and stop.
 Skip this check when invoked with `--force`.
 
 ### Step 1: Prepare
@@ -141,17 +141,17 @@ by hand on this path.
 
 ### Step 4: Send
 
-Delegate to `Skill(Dev10x:gchat)` — write the message to a temp file and pass it:
+Delegate to `Skill(dev10x:gchat)` — write the message to a temp file and pass it:
 
-`Skill(skill="Dev10x:gchat", args="--space {space} --message-file {temp_file}")`
+`Skill(skill="dev10x:gchat", args="--space {space} --message-file {temp_file}")`
 
 When `card` is non-null, write that JSON to a second temp file and pass
 both halves so the mentions still notify:
 
-`Skill(skill="Dev10x:gchat", args="--space {space} --message-file {temp_file} --card-file {card_file} --fallback-text {fallback_text}")`
+`Skill(skill="dev10x:gchat", args="--space {space} --message-file {temp_file} --card-file {card_file} --fallback-text {fallback_text}")`
 
 **NEVER** call the CLI `gchat-send` directly from here — delegate to the
-`Dev10x:gchat` skill so transport rules stay centralized.
+`dev10x:gchat` skill so transport rules stay centralized.
 
 Report success: space alias and returned message name.
 

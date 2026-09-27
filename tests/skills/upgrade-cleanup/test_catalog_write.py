@@ -70,11 +70,11 @@ class TestEnsureBasePermissions:
         assert messages and "SKIP" in messages[0]
 
     def test_removes_nonfunctional_mcp_wildcard(self, settings_file: Path) -> None:
-        _write_settings(settings_file, allow=["mcp__plugin_Dev10x_*"])
+        _write_settings(settings_file, allow=["mcp__plugin_dev10x_*"])
         count, _ = ensure_base_permissions(settings_file, [], expand_mcp=False)
         assert count == 1
         data = json.loads(settings_file.read_text())
-        assert "mcp__plugin_Dev10x_*" not in data["permissions"]["allow"]
+        assert "mcp__plugin_dev10x_*" not in data["permissions"]["allow"]
 
 
 class TestEnsureBaseDenies:

@@ -114,7 +114,7 @@ class TestBuildPromotionPlan:
                 "mcp__claude_ai_Slack__send_message",  # write
                 "mcp__claude_ai_HubSpot__tool_guidance",  # unknown
                 "mcp__claude_ai_Linear__get_issue",  # already global
-                "mcp__plugin_Dev10x_cli__pr_get",  # plugin → skipped
+                "mcp__plugin_dev10x_cli__pr_get",  # plugin → skipped
                 "mcp__claude_ai_Slack__*",  # wildcard → skipped
                 "mcp__onlyone",  # malformed prefix → skipped
                 "Bash(ls:*)",  # non-mcp → skipped

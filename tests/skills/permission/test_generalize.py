@@ -74,7 +74,7 @@ class TestWellShaped:
         [
             "Bash(git log:*)",
             "Bash(docker compose up:*)",
-            "mcp__plugin_Dev10x_cli__detect_tracker",
+            "mcp__plugin_dev10x_cli__detect_tracker",
         ],
     )
     def test_unchanged(self, rule: str) -> None:

@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:spec-sync",
+  "skill_name": "dev10x:spec-sync",
   "eval_dimensions": [
     {
       "name": "structural-drift-detection",
@@ -7,7 +7,7 @@
     },
     {
       "name": "behavioural-bail",
-      "description": "Skill refuses to proceed on behavioural drift and delegates to Dev10x:spec-update"
+      "description": "Skill refuses to proceed on behavioural drift and delegates to dev10x:spec-update"
     },
     {
       "name": "preserve-source-of-truth-sections",
@@ -66,7 +66,7 @@
       "assertions": [
         {
           "check": "skill_invoked",
-          "name": "Dev10x:spec-update",
+          "name": "dev10x:spec-update",
           "assertion": "behavioural-bail"
         }
       ]

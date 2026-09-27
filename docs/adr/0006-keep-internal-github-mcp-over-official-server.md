@@ -9,7 +9,7 @@ Accepted
 ## Context
 
 The Dev10x plugin ships an internal MCP server (`servers/cli_server.py`,
-registered as `mcp__plugin_Dev10x_cli__*`) that exposes 41 tools wrapping
+registered as `mcp__plugin_dev10x_cli__*`) that exposes 41 tools wrapping
 `gh` CLI, local git, and Dev10x-specific workflow primitives. GitHub
 publishes an official MCP server at
 [github/github-mcp-server](https://github.com/github/github-mcp-server)
@@ -46,12 +46,12 @@ server and drop the internal one (or layer over it)?
 
 - `.claude/rules/mcp-tools.md` — naming and return-shape contracts
 - `references/permission-architecture.md` — allow-rule shapes for
-  `mcp__plugin_Dev10x_cli__*`
+  `mcp__plugin_dev10x_cli__*`
 - The friction-reduction objective of the internal MCP layer
 
 ## Decision
 
-We will **keep the internal `Dev10x:cli` MCP server as the sole
+We will **keep the internal `dev10x:cli` MCP server as the sole
 GitHub surface** and **not adopt** `github/github-mcp-server` —
 neither as a replacement nor as an adapter layer underneath our
 tools.
@@ -118,7 +118,7 @@ replace by design.
 
 ### Capability the official server has and we don't (≈8 areas)
 
-Net-new functionality not currently in `Dev10x:cli`.
+Net-new functionality not currently in `dev10x:cli`.
 
 | Capability | Official tools |
 |---|---|
@@ -135,7 +135,7 @@ Net-new functionality not currently in `Dev10x:cli`.
 
 ### Alternative 1: Full replacement
 
-Drop `Dev10x:cli` GitHub tools, depend on
+Drop `dev10x:cli` GitHub tools, depend on
 `github/github-mcp-server` for the GitHub surface.
 
 **Pros:**
@@ -203,7 +203,7 @@ two-auth-paths costs are paid every session.
 
 ### Alternative 4: Stay internal, add capabilities as Dev10x-shaped tools
 
-Keep `Dev10x:cli` as the sole GitHub surface. When a new GitHub
+Keep `dev10x:cli` as the sole GitHub surface. When a new GitHub
 capability is needed, add a composite tool to the internal server
 shaped to the workflow (not the REST endpoint).
 

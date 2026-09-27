@@ -25,8 +25,8 @@ class TestStr:
         assert str(sig) == "Edit(/src/main.py)"
 
     def test_mcp_returns_tool_name_only(self) -> None:
-        sig = ToolSignature(tool="mcp__plugin_Dev10x_cli__detect_tracker", value="ignored")
-        assert str(sig) == "mcp__plugin_Dev10x_cli__detect_tracker"
+        sig = ToolSignature(tool="mcp__plugin_dev10x_cli__detect_tracker", value="ignored")
+        assert str(sig) == "mcp__plugin_dev10x_cli__detect_tracker"
 
     def test_fallback_renders_empty_parens(self) -> None:
         sig = ToolSignature(tool="AskUserQuestion", value="")
@@ -52,11 +52,11 @@ class TestBuild:
 
     def test_mcp_ignores_command_and_path(self) -> None:
         sig = ToolSignature.build(
-            tool_name="mcp__plugin_Dev10x_cli__pr_get",
+            tool_name="mcp__plugin_dev10x_cli__pr_get",
             command="ignored",
             file_path="also_ignored",
         )
-        assert str(sig) == "mcp__plugin_Dev10x_cli__pr_get"
+        assert str(sig) == "mcp__plugin_dev10x_cli__pr_get"
 
     def test_fallback_tool_gets_empty_value(self) -> None:
         sig = ToolSignature.build(tool_name="Glob")
@@ -104,12 +104,12 @@ class TestFromHookInput:
 
     def test_mcp_returns_tool_name(self) -> None:
         raw = {
-            "tool_name": "mcp__plugin_Dev10x_cli__issue_get",
+            "tool_name": "mcp__plugin_dev10x_cli__issue_get",
             "tool_input": {},
         }
         result = ToolSignature.from_hook_input(raw)
         assert result is not None
-        assert str(result) == "mcp__plugin_Dev10x_cli__issue_get"
+        assert str(result) == "mcp__plugin_dev10x_cli__issue_get"
 
     def test_fallback_tool_returns_empty_parens(self) -> None:
         raw = {"tool_name": "Glob", "tool_input": {}}
@@ -149,8 +149,8 @@ class TestSuggestRule:
         assert sig.suggest_rule() == expected
 
     def test_mcp_suggests_server_wildcard(self) -> None:
-        sig = ToolSignature(tool="mcp__plugin_Dev10x_cli__detect_tracker", value="")
-        assert sig.suggest_rule() == "mcp__plugin_Dev10x_cli__*"
+        sig = ToolSignature(tool="mcp__plugin_dev10x_cli__detect_tracker", value="")
+        assert sig.suggest_rule() == "mcp__plugin_dev10x_cli__*"
 
     def test_mcp_single_segment_returns_wildcard(self) -> None:
         # "mcp__only".rfind("__") == 3 > 0, so prefix is "mcp", result is "mcp__*"
@@ -208,7 +208,7 @@ class TestClassifyAction:
         assert sig.classify_action() == "Other"
 
     def test_mcp_tool_not_in_map_returns_other(self) -> None:
-        sig = ToolSignature(tool="mcp__plugin_Dev10x_cli__detect_tracker", value="")
+        sig = ToolSignature(tool="mcp__plugin_dev10x_cli__detect_tracker", value="")
         assert sig.classify_action() == "Other"
 
 

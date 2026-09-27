@@ -50,7 +50,7 @@ class RetiredSessionYamlRemediation:
     def to_remediation(self, *, finding: Finding) -> Remediation:
         return Remediation(
             kind="delegate_skill",
-            target="Dev10x:plugin-maintenance",
+            target="dev10x:plugin-maintenance",
             action={
                 "operation": "remove-retired-session-yaml",
                 "path": self.session_path,

@@ -28,7 +28,7 @@ raw CLI commands to skill wrappers:
    `git rebase -i`, `gh pr checks --watch`) and emits a systemMessage
    pointing to the correct skill.
 
-2. **`Dev10x:diag-friction`** — a manually-invoked skill that reads
+2. **`dev10x:diag-friction`** — a manually-invoked skill that reads
    `command-skill-map.yaml` (12 command families) and outputs a
    reinforcement message when the user notices the agent used CLI
    instead of a skill.
@@ -72,7 +72,7 @@ command-skill-map.yaml (single source of truth)
        │   └── reads YAML at import time, caches in module scope
        │       └── enforcement depends on friction_level config
        │
-       └── Dev10x:diag-friction (manual skill)
+       └── dev10x:diag-friction (manual skill)
            └── reads same YAML for pattern matching + message formatting
 ```
 
@@ -100,7 +100,7 @@ config:
   friction_level: guided
 
 mappings:
-  - skill: Dev10x:git-commit
+  - skill: dev10x:git-commit
     description: Properly formatted git commit with gitmoji and ticket reference
     patterns:
       - "git commit"
@@ -114,12 +114,12 @@ mappings:
       extraction, and 72-char line limit enforcement.
     guardrails: gitmoji prefix, JTBD outcome title, 72-char limit
     fallback_instructions: >
-      If Skill(Dev10x:git-commit) fails, apply these guardrails
+      If Skill(dev10x:git-commit) fails, apply these guardrails
       manually: (1) use gitmoji prefix, (2) include ticket ID from
       branch name, (3) keep title under 72 chars, (4) use -F flag
       with temp file, not -m.
     related:
-      - Dev10x:git-groom
+      - dev10x:git-groom
 ```
 
 New fields vs current `command-skill-map.yaml`:
@@ -136,13 +136,13 @@ New fields vs current `command-skill-map.yaml`:
 2. PreToolUse hook fires, `skill_redirect.py` loads YAML
 3. Pattern matches `git commit`, `hook_block: true`
 4. Friction level = `strict` → hard deny (exit 2)
-5. systemMessage: "Use Skill(Dev10x:git-commit) instead"
-6. Agent retries with `Skill(Dev10x:git-commit)`
+5. systemMessage: "Use Skill(dev10x:git-commit) instead"
+6. Agent retries with `Skill(dev10x:git-commit)`
 
 #### Flow 2: Guided mode — skill fails
 
 1. Agent calls `Bash(git commit -m "Add feature")`
-2. Hook blocks → agent tries `Skill(Dev10x:git-commit)`
+2. Hook blocks → agent tries `Skill(dev10x:git-commit)`
 3. Skill fails (e.g., MCP server timeout)
 4. Agent retries raw command → hook blocks again
 5. This time systemMessage includes `fallback_instructions`
@@ -172,7 +172,7 @@ New fields vs current `command-skill-map.yaml`:
 |-----------|----------|---------------|
 | `Validator` protocol | `hooks/scripts/bash_validators/_base.py` | SkillRedirectValidator implements this |
 | `HookInput`, `HookResult` | `hooks/scripts/bash_validators/_types.py` | Standard hook I/O types |
-| `Dev10x:diag-friction` | `skills/diag-friction/` | Reads same YAML for manual reinforcement |
+| `dev10x:diag-friction` | `skills/diag-friction/` | Reads same YAML for manual reinforcement |
 
 ## Alternatives Considered
 
@@ -298,7 +298,7 @@ Consolidate into YAML with configurable enforcement levels.
 
 ### Phase 4: Migration
 
-1. Update `Dev10x:diag-friction` to read from new location
+1. Update `dev10x:diag-friction` to read from new location
 2. Remove hardcoded patterns from old skill YAML
 3. Update documentation and rules files
 

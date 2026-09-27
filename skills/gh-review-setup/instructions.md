@@ -1,4 +1,4 @@
-# Dev10x:gh-review-setup — Instructions
+# dev10x:gh-review-setup — Instructions
 
 Provision Claude code-review GitHub Actions on any repo. Five phases:
 Discover → Pick modules → Strategy decisions → Scaffold → Verify & hand off.
@@ -26,7 +26,7 @@ Collect:
    `.claude/rules/INDEX.md`, `references/rules/`, `CLAUDE.md`,
    `docs/adr/`? Existing structure means *augment*, not overwrite.
 3. **Issue tracker** — GitHub Issues / Linear / JIRA via
-   `mcp__plugin_Dev10x_cli__detect_tracker`. Determines whether PR
+   `mcp__plugin_dev10x_cli__detect_tracker`. Determines whether PR
    hygiene's `Fixes:` rule applies and which URL shape it uses. No
    tracker → hygiene defaults **off**.
 4. **Review API-key secret** — does the chosen review secret exist

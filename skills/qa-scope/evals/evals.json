@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:qa-scope",
+  "skill_name": "dev10x:qa-scope",
   "eval_dimensions": [
     {
       "id": "sub-ticket-approval-gate",
@@ -17,7 +17,7 @@
       "id": "sub-ticket-gate-uses-tool",
       "name": "Sub-ticket approval fires AskUserQuestion",
       "description": "After the assessment is presented, AskUserQuestion fires with 'Create QA sub-ticket' / 'Skip QA' / 'Edit assessment' options rather than the inline 'Create QA sub-ticket? (y/n)' prompt shown in the assessment template.",
-      "input": "/Dev10x:qa-scope (assessment presented: QA regression ticket recommended)",
+      "input": "/dev10x:qa-scope (assessment presented: QA regression ticket recommended)",
       "assertions": [
         {
           "dimension": "sub-ticket-approval-gate",
@@ -36,7 +36,7 @@
       "id": "skip-qa-does-not-create-ticket",
       "name": "Skip QA ends the flow without creating a ticket",
       "description": "Selecting 'Skip QA' ends the skill with a summary; no Linear create_issue call is made.",
-      "input": "/Dev10x:qa-scope → user selects 'Skip QA'",
+      "input": "/dev10x:qa-scope → user selects 'Skip QA'",
       "assertions": [
         {
           "dimension": "sub-ticket-approval-gate",
@@ -49,7 +49,7 @@
       "id": "existing-qa-ticket-checked-before-create",
       "name": "Existing QA tickets are checked before creating a duplicate",
       "description": "Before Phase 5 ticket creation, the skill searches for existing QA sub-tickets under the parent ticket via list_issues and avoids creating a duplicate when one already covers the area.",
-      "input": "/Dev10x:qa-scope (approved) — an existing on-hold QA-202 sub-ticket covers the same domain",
+      "input": "/dev10x:qa-scope (approved) — an existing on-hold QA-202 sub-ticket covers the same domain",
       "assertions": [
         {
           "dimension": "sub-ticket-approval-gate",
@@ -68,7 +68,7 @@
       "id": "assignment-gate-uses-tool",
       "name": "Assignee selection fires AskUserQuestion",
       "description": "After the QA sub-ticket is created, AskUserQuestion asks who to assign, offering the project's configured QA assignee or the tracker's candidates — never a hardcoded name.",
-      "input": "/Dev10x:qa-scope (QA sub-ticket created)",
+      "input": "/dev10x:qa-scope (QA sub-ticket created)",
       "assertions": [
         {
           "dimension": "assignment-gate",
@@ -89,7 +89,7 @@
     "description": "Queries that should/should-not trigger the qa-scope skill",
     "should_trigger": [
       {
-        "query": "/Dev10x:qa-scope",
+        "query": "/dev10x:qa-scope",
         "rationale": "Direct invocation to analyze a PR for QA needs"
       },
       {
@@ -100,7 +100,7 @@
     "should_not_trigger": [
       {
         "query": "run the QA test cases on staging",
-        "rationale": "Executing QA — use Dev10x:qa-self, not qa-scope"
+        "rationale": "Executing QA — use dev10x:qa-self, not qa-scope"
       },
       {
         "query": "this PR only touches internal config, no user-facing change",

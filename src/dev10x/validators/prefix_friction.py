@@ -302,7 +302,7 @@ GIT_C_COLOR_MSG = (
     "If color genuinely leaks (e.g. `color.ui=always` in config), use the\n"
     "sanctioned alias:\n"
     "    git nocolor <verb> …      (pre-approved via Bash(git nocolor:*))\n"
-    "Missing it? Run: /Dev10x:git-alias-setup"
+    "Missing it? Run: /dev10x:git-alias-setup"
 )
 
 GIT_C_HOOKSPATH_MSG = (
@@ -325,7 +325,7 @@ GIT_C_CONFIG_MSG = (
     "If the override is unnecessary, drop it:\n"
     "    {bare_command}\n\n"
     "If you need it repeatedly, provision a stable, pre-approvable alias:\n"
-    "    /Dev10x:git-alias-setup    (e.g. `git <name>` → Bash(git <name>:*))"
+    "    /dev10x:git-alias-setup    (e.g. `git <name>` → Bash(git <name>:*))"
 )
 
 GIT_C_EDITOR_MSG = (
@@ -338,10 +338,10 @@ GIT_C_EDITOR_MSG = (
     "  • For interactive / autosquash rebases, use the pre-approved aliases\n"
     "    (they bake in `GIT_SEQUENCE_EDITOR=true`) or the grooming skill:\n"
     "        git autosquash-develop      (or -main / -master / -trunk)\n"
-    "        Dev10x:git-groom            (non-interactive history cleanup)\n\n"
+    "        dev10x:git-groom            (non-interactive history cleanup)\n\n"
     "Drop the prefix and run:\n"
     "    {bare_command}\n\n"
-    "Missing the aliases? Run: /Dev10x:git-alias-setup"
+    "Missing the aliases? Run: /dev10x:git-alias-setup"
 )
 
 CD_GIT_CHAIN_MSG = (
@@ -397,7 +397,7 @@ ENV_PREFIX_MSG = (
     "     unusable unattended, GH-964)\n"
     "  \u2022 For rebase --continue, no env prefix is needed:\n"
     "      git rebase --continue\n\n"
-    "If aliases are missing, run: /Dev10x:git-alias-setup"
+    "If aliases are missing, run: /dev10x:git-alias-setup"
 )
 
 REDIRECT_THEN_POSITIONAL_MSG = (
@@ -475,7 +475,7 @@ MERGE_BASE_MSG = (
     "    git {{branch}}-log       \u2014 log since diverging from branch\n"
     "    git {{branch}}-diff      \u2014 diff since diverging from branch\n"
     "    git {{branch}}-rebase    \u2014 interactive rebase onto branch\n\n"
-    "If aliases are missing, run: /Dev10x:git-alias-setup"
+    "If aliases are missing, run: /dev10x:git-alias-setup"
 )
 
 

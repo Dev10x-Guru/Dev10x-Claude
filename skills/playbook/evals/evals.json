@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:playbook",
+  "skill_name": "dev10x:playbook",
   "eval_dimensions": [
     {
       "id": "subcommand-routing",
@@ -41,8 +41,8 @@
     {
       "id": "list-no-args",
       "name": "List playbook-powered skills",
-      "description": "User invokes /Dev10x:playbook with no arguments, expects summary table of all playbook-powered skills",
-      "input": "/Dev10x:playbook",
+      "description": "User invokes /dev10x:playbook with no arguments, expects summary table of all playbook-powered skills",
+      "input": "/dev10x:playbook",
       "assertions": [
         {
           "dimension": "discovery",
@@ -61,8 +61,8 @@
     {
       "id": "view-skill-plays",
       "name": "View plays for a specific skill",
-      "description": "User invokes /Dev10x:playbook view work-on, expects list of all plays",
-      "input": "/Dev10x:playbook view work-on",
+      "description": "User invokes /dev10x:playbook view work-on, expects list of all plays",
+      "input": "/dev10x:playbook view work-on",
       "assertions": [
         {
           "dimension": "subcommand-routing",
@@ -81,8 +81,8 @@
     {
       "id": "view-specific-play",
       "name": "View a specific play with fragment markers",
-      "description": "User invokes /Dev10x:playbook view work-on feature, expects play tree with [FRAGMENT] markers for fragment references",
-      "input": "/Dev10x:playbook view work-on feature",
+      "description": "User invokes /dev10x:playbook view work-on feature, expects play tree with [FRAGMENT] markers for fragment references",
+      "input": "/dev10x:playbook view work-on feature",
       "assertions": [
         {
           "dimension": "subcommand-routing",
@@ -108,7 +108,7 @@
       "id": "edit-uses-decision-gate",
       "name": "Edit subcommand uses AskUserQuestion",
       "description": "Edit flow must use AskUserQuestion for operation selection",
-      "input": "/Dev10x:playbook edit work-on feature",
+      "input": "/dev10x:playbook edit work-on feature",
       "assertions": [
         {
           "dimension": "decision-gates",
@@ -130,7 +130,7 @@
       "id": "reset-confirms",
       "name": "Reset subcommand confirms before deleting",
       "description": "Reset must confirm with user before removing overrides",
-      "input": "/Dev10x:playbook reset work-on feature",
+      "input": "/dev10x:playbook reset work-on feature",
       "assertions": [
         {
           "dimension": "decision-gates",
@@ -145,7 +145,7 @@
       "id": "per-skill-file-isolation",
       "name": "Per-skill file isolation",
       "description": "Overrides are stored in per-skill files, not a shared file",
-      "input": "/Dev10x:playbook edit work-on feature",
+      "input": "/dev10x:playbook edit work-on feature",
       "assertions": [
         {
           "dimension": "file-management",
@@ -159,7 +159,7 @@
       "id": "fragment-expansion",
       "name": "Fragment references resolve correctly",
       "description": "When resolving a play for execution, fragment references are expanded into their constituent steps",
-      "input": "/Dev10x:playbook view work-on feature --expanded",
+      "input": "/dev10x:playbook view work-on feature --expanded",
       "assertions": [
         {
           "dimension": "fragment-resolution",
@@ -179,7 +179,7 @@
       "id": "missing-fragment-error",
       "name": "Missing fragment produces clear error",
       "description": "Pre-condition: the feature play references a nonexistent fragment name. Expects a clear error rather than silent skip.",
-      "input": "/Dev10x:playbook view work-on feature",
+      "input": "/dev10x:playbook view work-on feature",
       "assertions": [
         {
           "dimension": "fragment-resolution",
@@ -193,7 +193,7 @@
       "id": "fragment-condition-override",
       "name": "Fragment condition override propagates",
       "description": "When a fragment reference carries a condition, it is applied to all expanded steps",
-      "input": "/Dev10x:playbook view work-on local-only --expanded",
+      "input": "/dev10x:playbook view work-on local-only --expanded",
       "assertions": [
         {
           "dimension": "fragment-resolution",
@@ -207,7 +207,7 @@
       "id": "circular-fragment-error",
       "name": "Circular fragment reference is detected",
       "description": "Pre-condition: fragment A references fragment B which references fragment A. Resolution stops at depth 3 and shows a clear error.",
-      "input": "/Dev10x:playbook view work-on feature",
+      "input": "/dev10x:playbook view work-on feature",
       "assertions": [
         {
           "dimension": "fragment-resolution",

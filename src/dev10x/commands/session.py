@@ -211,7 +211,7 @@ def set_friction(
 ) -> None:
     """Write this project's gate preferences into the global friction.yaml.
 
-    The gate axis of ``Dev10x:friction-setup``: upserts a ``projects[]`` entry
+    The gate axis of ``dev10x:friction-setup``: upserts a ``projects[]`` entry
     keyed by the repo's dir-path globs. Only deviations are written — omit an
     axis to leave it on the baseline. Idempotent: re-running replaces the entry.
 
@@ -326,7 +326,7 @@ def pin(
 def set_playbook(*, skill: str, modes: tuple[str, ...], skip_steps: tuple[str, ...]) -> None:
     """Write playbook active-modes / step skips into the global playbooks dir.
 
-    The playbook axis of ``Dev10x:friction-setup``: records ``active_modes`` (and
+    The playbook axis of ``dev10x:friction-setup``: records ``active_modes`` (and
     any per-step ``skip`` actions) into ``~/.config/Dev10x/playbooks/<skill>.yaml``,
     reusing the execution-modes resolver — no core plumbing change.
     """

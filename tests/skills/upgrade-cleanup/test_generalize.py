@@ -31,7 +31,7 @@ class TestGeneralizePermission:
             "Bash(git log:*)",
             "Bash(gh pr view:*)",
             "Bash(/tmp/Dev10x/bin/mktmp.sh:*)",
-            "mcp__plugin_Dev10x_*",
+            "mcp__plugin_dev10x_*",
         ],
     )
     def test_leaves_stable_permissions_unchanged(self, entry: str) -> None:

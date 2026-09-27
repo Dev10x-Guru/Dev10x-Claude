@@ -1,5 +1,5 @@
 ---
-name: Dev10x:afk
+name: dev10x:afk
 description: >
   Walk-away mode — compose the walk-away gate policy so long-running
   sessions do not stall on re-strategy or confirmation gates. Writes
@@ -12,18 +12,18 @@ description: >
   bundle work, fanout swarm, overnight implementation), or user says
   "walk away" / "afk" / "headless" / "no more questions".
   DO NOT TRIGGER when: actively pair-programming, scoping a new
-  ticket (use Dev10x:ticket-scope), or session is already complete.
+  ticket (use dev10x:ticket-scope), or session is already complete.
 user-invocable: true
-invocation-name: Dev10x:afk
+invocation-name: dev10x:afk
 allowed-tools:
-  - mcp__plugin_Dev10x_cli__preset_pin_status
+  - mcp__plugin_dev10x_cli__preset_pin_status
   - Bash(uvx dev10x session set-friction:*)
   - Bash(dev10x session set-friction:*)
 ---
 
-# Dev10x:afk — Walk-Away Mode
+# dev10x:afk — Walk-Away Mode
 
-**Announce:** "Using Dev10x:afk to compose the walk-away gate policy for this session."
+**Announce:** "Using dev10x:afk to compose the walk-away gate policy for this session."
 
 Sets the session gate policy to the walk-away posture so the agent
 does not re-litigate a decision the supervisor already made. It does
@@ -86,8 +86,8 @@ because the policy already matches).
 Invoke this skill at the start of a session where the supervisor
 will be unavailable for hours. Typical entry points:
 
-- `Dev10x:afk` then `Dev10x:work-on bundle <milestone-url>`
-- `Dev10x:afk` then `Dev10x:fanout` over a queue of tickets
+- `dev10x:afk` then `dev10x:work-on bundle <milestone-url>`
+- `dev10x:afk` then `dev10x:fanout` over a queue of tickets
 - Resuming an unattended run after compaction — the policy survives
   in `friction.yaml` and is re-read on the next Phase 0
 
@@ -95,7 +95,7 @@ will be unavailable for hours. Typical entry points:
 
 ### Step 1: Read the existing policy
 
-Call `mcp__plugin_Dev10x_cli__preset_pin_status` — it reads this
+Call `mcp__plugin_dev10x_cli__preset_pin_status` — it reads this
 checkout's `projects[]` entry out of the global
 `~/.config/Dev10x/friction.yaml` and returns:
 
@@ -161,7 +161,7 @@ uvx dev10x session set-friction --preset adaptive --overlay afk
 - Repeat `--gate-override <toggle>=<value>` once per override carried
   forward from Step 2 rule 4.
 - The entry is keyed off this checkout's path, so a run inside a
-  worktree configures that worktree. Use `Dev10x:friction-setup`
+  worktree configures that worktree. Use `dev10x:friction-setup`
   (`dev10x session pin`) instead when the supervisor wants a posture
   that spans the repo and every future worktree of it (GH-855).
 - The command is idempotent — a re-run replaces this checkout's entry
@@ -231,10 +231,10 @@ solo / auto-merge-approved contexts.
 
 ## Anti-Patterns
 
-- **Calling `Dev10x:afk` mid-flight to silence an active prompt** —
+- **Calling `dev10x:afk` mid-flight to silence an active prompt** —
   this skill sets session policy, it does not retroactively cancel a
   pending `AskUserQuestion`. Answer the prompt first, then invoke
-  `Dev10x:afk` to change how the next gate resolves.
+  `dev10x:afk` to change how the next gate resolves.
 - **Adding `solo-maintainer` to make afk "more autonomous"** — afk
   and solo-maintainer are orthogonal. If you want auto-merge, that is
   the `adaptive` base or the `solo-maintainer` overlay, chosen

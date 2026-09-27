@@ -1,8 +1,8 @@
 ---
-name: Dev10x:upgrade-cleanup
+name: dev10x:upgrade-cleanup
 description: >
   Post-upgrade cleanup entry point — delegates to
-  `Dev10x:plugin-maintenance` in `full` mode. Updates plugin
+  `dev10x:plugin-maintenance` in `full` mode. Updates plugin
   version paths, ensures base permissions, migrates config files
   (including global playbook overrides from
   ~/.claude/memory/Dev10x/playbooks/ to ~/.config/Dev10x/playbooks/,
@@ -17,32 +17,32 @@ description: >
   fix permission friction.
   DO NOT TRIGGER when: permissions are working correctly, or
   you only need a fast bootstrap subset (use
-  `Dev10x:plugin-maintenance bootstrap` instead).
+  `dev10x:plugin-maintenance bootstrap` instead).
 user-invocable: true
-invocation-name: Dev10x:upgrade-cleanup
+invocation-name: dev10x:upgrade-cleanup
 allowed-tools:
   - Skill
-  - mcp__plugin_Dev10x_cli__record_upgrade
+  - mcp__plugin_dev10x_cli__record_upgrade
   - Bash(dev10x config migrate:*)
   - Bash(dev10x config migrate-schema:*)
 ---
 
-# Dev10x:upgrade-cleanup
+# dev10x:upgrade-cleanup
 
 Top-level entry point for post-upgrade maintenance. The
-implementation lives in `Dev10x:plugin-maintenance`; this skill
+implementation lives in `dev10x:plugin-maintenance`; this skill
 is a thin orchestrator that runs the **full** maintenance pass.
 
 ## Why a separate skill
 
-`Dev10x:upgrade-cleanup` and `Dev10x:onboarding` share the same
+`dev10x:upgrade-cleanup` and `dev10x:onboarding` share the same
 underlying maintenance logic but call it with different intent:
 
 | Caller | Mode | Focus |
 |--------|------|-------|
-| `Dev10x:onboarding` | `bootstrap` | Eliminate friction on the demoed skill set out of the box |
-| `Dev10x:upgrade-cleanup` (this skill) | `full` | Comprehensive post-upgrade hygiene |
-| Direct invocation of `Dev10x:plugin-maintenance` | either | Manual control |
+| `dev10x:onboarding` | `bootstrap` | Eliminate friction on the demoed skill set out of the box |
+| `dev10x:upgrade-cleanup` (this skill) | `full` | Comprehensive post-upgrade hygiene |
+| Direct invocation of `dev10x:plugin-maintenance` | either | Manual control |
 
 Keeping `upgrade-cleanup` as a named entry point preserves the
 discoverability users expect after running `claude plugin update`,
@@ -79,7 +79,7 @@ apply.
 Step 2 — delegate to the maintenance skill in `full` mode:
 
 ```
-Skill(skill="Dev10x:plugin-maintenance", args="full")
+Skill(skill="dev10x:plugin-maintenance", args="full")
 ```
 
 The maintenance skill creates its own task list and runs
@@ -156,7 +156,7 @@ so the SessionStart install-check stays silent until the next
 upgrade:
 
 ```
-mcp__plugin_Dev10x_cli__record_upgrade()
+mcp__plugin_dev10x_cli__record_upgrade()
 ```
 
 The MCP tool reads the version from
@@ -183,7 +183,7 @@ does not prompt.
 
 ## Configuration
 
-See `Dev10x:plugin-maintenance` for `projects.yaml` location
+See `dev10x:plugin-maintenance` for `projects.yaml` location
 and base-permission semantics. Post-GH-215 the userspace config
 path is `~/.config/Dev10x/upgrade-cleanup-projects.yaml`. Old
 files at `~/.claude/skills/Dev10x:upgrade-cleanup/projects.yaml`

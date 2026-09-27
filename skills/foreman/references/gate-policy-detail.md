@@ -14,7 +14,7 @@ posture, and the supervisor opts *out*, not in.
 Check the global `~/.config/Dev10x/friction.yaml` (ADR-0018; the
 per-repo `.claude/Dev10x/config.yaml` is retired and holds nothing
 durable). Read the matching `projects[]` entry, or call
-`mcp__plugin_Dev10x_cli__preset_pin_status` and verify with a
+`mcp__plugin_dev10x_cli__preset_pin_status` and verify with a
 `resolve_gate` probe.
 
 **If a policy already covers this checkout** (`gate_preset` /
@@ -25,11 +25,11 @@ adopted in `DECISIONS.md` and continue to 0.4.
 
 ## Step 3 — composing the policy
 
-Invoke `Skill(Dev10x:afk)` to compose the chosen policy — it is
+Invoke `Skill(dev10x:afk)` to compose the chosen policy — it is
 read-before-write, so it is a no-op when the durable config already
 matches. For `guided + afk`, set `gate_preset: guided` and let the
 `afk` overlay ride on top — see `../../references/friction-levels.md`
-and the `Dev10x:afk` § Relationship to Presets and Overlays.
+and the `dev10x:afk` § Relationship to Presets and Overlays.
 
 ## `human_review` outranks the preset on the merge gate (GH-1056)
 
@@ -63,7 +63,7 @@ So resolve it here, in Phase 0.3, while the supervisor is present —
 and prove it in Phase 0.4 with the merge-gate dry-run
 ([`preflight-checklist.md`](preflight-checklist.md) item 8). Setting
 `human_review: false` is a real decision about the repo, not a
-formality: it also makes `Dev10x:verify-acc-dod` skip its
+formality: it also makes `dev10x:verify-acc-dod` skip its
 unresolved-threads and review-requested checks. If humans genuinely do
 review this repo, the honest composition is `guided + afk` with merges
 held for morning.

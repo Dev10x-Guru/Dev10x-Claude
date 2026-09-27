@@ -7,7 +7,7 @@ omits them unless the user opts in.
 
 132 files across `skills/`, `src/`, `.claude/`, `references/` and
 `agents/` mandate `TaskCreate`. Exactly one acknowledged it might be
-absent, and its answer was to stop: `Dev10x:work-on`, the plugin's main
+absent, and its answer was to stop: `dev10x:work-on`, the plugin's main
 orchestrator, refused to run at all on a default session of the models
 it will most often meet.
 

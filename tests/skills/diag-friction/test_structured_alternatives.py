@@ -44,7 +44,7 @@ class TestKnowledgeBaseSchema:
     def test_canonical_use_cases_are_present(self, kb_data: dict) -> None:
         tools_by_use_case = {entry["use_case"]: entry["tool"] for entry in kb_data["alternatives"]}
         # The GH-271 evidence #55 motivating cases — these MUST stay
-        # in the catalog so /Dev10x:diag-friction can surface them.
+        # in the catalog so /dev10x:diag-friction can surface them.
         assert any("jq" == tool for tool in tools_by_use_case.values())
         assert any("yq" == tool for tool in tools_by_use_case.values())
         assert any("yamllint" == tool for tool in tools_by_use_case.values())

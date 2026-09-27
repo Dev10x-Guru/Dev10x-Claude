@@ -182,7 +182,7 @@ class SessionService:
         ).apply()
 
     def build_friction_setup_context(self, *, toplevel: str | None = _UNSET) -> str:  # type: ignore[assignment]
-        """Return a nudge to run ``Dev10x:friction-setup`` for unconfigured repos (GH-886).
+        """Return a nudge to run ``dev10x:friction-setup`` for unconfigured repos (GH-886).
 
         Probes the global ``friction.yaml``: absent → seed the safe baseline
         and nudge; present but this repo unmatched → nudge (no write); matched →
@@ -258,7 +258,7 @@ class SessionService:
         if state.needs_bootstrap:
             return (
                 "Dev10x config folder is missing at ~/.config/Dev10x.\n"
-                "Run `/Dev10x:upgrade-cleanup` to bootstrap the userspace install."
+                "Run `/dev10x:upgrade-cleanup` to bootstrap the userspace install."
             )
         lines: list[str] = []
         if state.needs_upgrade:
@@ -267,7 +267,7 @@ class SessionService:
             lines.append(
                 f"Dev10x plugin {plugin} is installed but upgrade-cleanup was last "
                 f"run for {applied}.\n"
-                "Run `/Dev10x:upgrade-cleanup` to refresh permissions."
+                "Run `/dev10x:upgrade-cleanup` to refresh permissions."
             )
         pending = schema_v2_pending()
         if pending:
@@ -301,7 +301,7 @@ class SessionService:
             return ""
         return (
             f"Dev10x hooks running v{running} but v{latest} is installed on disk.\n"
-            "Restart this session (or run `/Dev10x:upgrade-cleanup`) to activate "
+            "Restart this session (or run `/dev10x:upgrade-cleanup`) to activate "
             "shipped friction fixes, validators, and catalog improvements."
         )
 

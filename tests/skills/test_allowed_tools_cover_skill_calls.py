@@ -9,8 +9,8 @@ closest tooling (`test_catalog_covers_mcp_tools.py`,
 `bin/check-skill-cli-friction.py`) covers MCP tools and raw CLI
 friction, not delegation.
 
-`Dev10x:gchat-review-request` was the worked example — its Step 4 had
-called `Skill(Dev10x:gchat)` undeclared since the skill shipped,
+`dev10x:gchat-review-request` was the worked example — its Step 4 had
+called `Skill(dev10x:gchat)` undeclared since the skill shipped,
 inside the same plugin whose notification friction GH-1308 exists to
 reduce.
 
@@ -81,7 +81,7 @@ def _canonical(*, target: str, plugin_skills: set[str]) -> str:
     """Resolve a bare name the way a reader would.
 
     Prose and ASCII diagrams write ``Skill(qa-scope)`` where the
-    invocation is really ``Dev10x:qa-scope``. Taking those literally
+    invocation is really ``dev10x:qa-scope``. Taking those literally
     would have this guard demand a declaration for a skill that does
     not exist — worse than no guard, because the fix it asks for is
     wrong. A bare name matching a directory under ``skills/`` is this
@@ -89,7 +89,7 @@ def _canonical(*, target: str, plugin_skills: set[str]) -> str:
     """
     if ":" in target:
         return target
-    return f"Dev10x:{target}" if target in plugin_skills else target
+    return f"dev10x:{target}" if target in plugin_skills else target
 
 
 def _invoked(*, bodies: list[Path], own_name: str) -> set[str]:
@@ -116,7 +116,7 @@ def _undeclared(*, skill_md: Path, bodies: list[Path]) -> set[str]:
         # A wildcard grant covers whatever it covers; this guard is
         # about silence, not about narrowing an explicit choice.
         return set()
-    own_name = f"Dev10x:{skill_md.parent.name}"
+    own_name = f"dev10x:{skill_md.parent.name}"
     plugin_skills = _plugin_skill_names()
     canonical_declarations = {
         _canonical(target=name, plugin_skills=plugin_skills) for name in declared
@@ -149,7 +149,7 @@ def test_the_guard_sees_the_delegation_surface() -> None:
     prevent for MCP tools (GH-1215).
     """
     total = sum(
-        len(_invoked(bodies=bodies, own_name=f"Dev10x:{skill_md.parent.name}"))
+        len(_invoked(bodies=bodies, own_name=f"dev10x:{skill_md.parent.name}"))
         for skill_md, bodies in _skill_documents()
     )
 

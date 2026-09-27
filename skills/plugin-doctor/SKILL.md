@@ -1,5 +1,5 @@
 ---
-name: Dev10x:plugin-doctor
+name: dev10x:plugin-doctor
 description: >
   Diagnose drift between user intent and observed agent behavior in
   Dev10x sessions. Runs pluggable strategies that each detect one
@@ -12,10 +12,10 @@ description: >
   cleanup, notices the agent reaching for shell-script fallbacks
   instead of MCP tools, or wants a systemic audit of intent drift.
   DO NOT TRIGGER when: a single permission rule needs ad-hoc
-  debugging (use Dev10x:permission-investigator) or the issue is a
+  debugging (use dev10x:permission-investigator) or the issue is a
   one-off skill bug (file a ticket instead).
 user-invocable: true
-invocation-name: Dev10x:plugin-doctor
+invocation-name: dev10x:plugin-doctor
 allowed-tools:
   - Read
   - Write
@@ -25,15 +25,15 @@ allowed-tools:
   - AskUserQuestion
   - TaskCreate
   - TaskUpdate
-  - mcp__plugin_Dev10x_cli__audit_hook_recent
-  - mcp__plugin_Dev10x_cli__issue_create
+  - mcp__plugin_dev10x_cli__audit_hook_recent
+  - mcp__plugin_dev10x_cli__issue_create
   - Bash(dev10x config doctor:*)
   - Bash(dev10x config migrate:*)
   - Bash(dev10x config migrate-schema:*)
   - Bash(dev10x doctor run:*)
 ---
 
-# Dev10x:plugin-doctor — Intent Drift Diagnostic (GH-87)
+# dev10x:plugin-doctor — Intent Drift Diagnostic (GH-87)
 
 Surfaces systemic drift across settings, memories, hook messages,
 and skill docs that no single permission rule can fix. The skill
@@ -47,11 +47,11 @@ change.
 
 | Existing | Scope | Limitation |
 |----------|-------|-----------|
-| `Dev10x:permission-investigator` | Rule shape mutation matrix | Doesn't read memories or doc drift |
-| `Dev10x:plugin-maintenance` | Ensures permissions present | Doesn't diagnose why intent breaks |
-| `Dev10x:memory-maintenance` | Memory consolidation | Doesn't link drift to permission friction |
+| `dev10x:permission-investigator` | Rule shape mutation matrix | Doesn't read memories or doc drift |
+| `dev10x:plugin-maintenance` | Ensures permissions present | Doesn't diagnose why intent breaks |
+| `dev10x:memory-maintenance` | Memory consolidation | Doesn't link drift to permission friction |
 
-`Dev10x:plugin-doctor` orchestrates these as remediation targets — it
+`dev10x:plugin-doctor` orchestrates these as remediation targets — it
 diagnoses, then delegates concrete edits.
 
 ## Orchestration
@@ -68,7 +68,7 @@ diagnoses, then delegates concrete edits.
 Before strategy detection, run `dev10x config doctor` to report
 any legacy Dev10x config files still living under `~/.claude/`.
 If files are found, offer to run `dev10x config migrate` (or
-delegate to `Dev10x:upgrade-cleanup` which migrates as Step 1).
+delegate to `dev10x:upgrade-cleanup` which migrates as Step 1).
 
 ```
 Bash("dev10x config doctor")
@@ -140,9 +140,9 @@ one strategy, offer "Apply all in this strategy" as a batch option.
 Each remediation either:
 
 - Edits a memory file in place (use `Edit`)
-- Delegates to `Dev10x:plugin-maintenance` for settings changes
-- Delegates to `Dev10x:memory-maintenance` for memory restructuring
-- Files an upstream issue via `mcp__plugin_Dev10x_cli__issue_create`
+- Delegates to `dev10x:plugin-maintenance` for settings changes
+- Delegates to `dev10x:memory-maintenance` for memory restructuring
+- Files an upstream issue via `mcp__plugin_dev10x_cli__issue_create`
   when the drift originates in the plugin itself
 
 Never auto-apply across strategies — each Finding is its own gate.

@@ -4,7 +4,7 @@ MCP tool identifiers (``mcp__<server>__<tool>``) are Claude tool-call
 primitives. They cannot be executed as shell commands. Agents sometimes
 paste them into Bash with arguments appended, e.g.::
 
-    mcp__plugin_Dev10x_cli__check_top_level_comments pr_number=357
+    mcp__plugin_dev10x_cli__check_top_level_comments pr_number=357
 
 This validator detects that anti-pattern — the command's first executable
 token IS an MCP identifier — and hard-blocks it with a steering message

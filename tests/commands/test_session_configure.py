@@ -1,6 +1,6 @@
 """Tests for `dev10x session set-friction` / `set-playbook` (GH-886).
 
-These are the persistence writers the ``Dev10x:friction-setup`` skill invokes
+These are the persistence writers the ``dev10x:friction-setup`` skill invokes
 on genuine completion of the guided walk. Both write only to the global
 ``~/.config/Dev10x`` tree (isolated to a tmp home by the autouse conftest
 fixture), never under a repo's ``.claude/`` — so no self-settings gate fires.

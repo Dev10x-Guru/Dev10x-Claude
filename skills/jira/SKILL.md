@@ -1,12 +1,12 @@
 ---
-name: Dev10x:jira
+name: dev10x:jira
 description: Use when querying, linking, or fetching JIRA issues — so credentials, hook-safe curl patterns, and hierarchy gotchas are always at hand
 user-invocable: false
 allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/jira/scripts/:*)
 ---
 
-**Announce:** "Using Dev10x:jira to [purpose]."
+**Announce:** "Using dev10x:jira to [purpose]."
 
 ## Prerequisites
 
@@ -45,7 +45,7 @@ pre-approved via `allowed-tools`.
 update, and comment — there is intentionally no `jira-create.sh`.
 JIRA issue **creation** goes through the Atlassian MCP
 `mcp__claude_ai_Atlassian__createJiraIssue` tool (pre-approved via
-the `mcp-atlassian-write` baseline group). `Dev10x:ticket-create`'s
+the `mcp-atlassian-write` baseline group). `dev10x:ticket-create`'s
 JIRA branch calls it directly; see that skill's Step 5.
 
 ## Tenant Wrapper Pattern

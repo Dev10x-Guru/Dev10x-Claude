@@ -421,9 +421,9 @@ class TestPlanSetContext:
     def test_sets_nested_key(self) -> None:
         plan = Plan(metadata={})
 
-        plan.set_context(key="routing.commit", value="Skill(Dev10x:git-commit)")
+        plan.set_context(key="routing.commit", value="Skill(dev10x:git-commit)")
 
-        assert plan.metadata["context"]["routing"]["commit"] == "Skill(Dev10x:git-commit)"
+        assert plan.metadata["context"]["routing"]["commit"] == "Skill(dev10x:git-commit)"
 
     def test_parses_json_list(self) -> None:
         plan = Plan(metadata={})

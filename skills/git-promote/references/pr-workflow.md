@@ -16,8 +16,8 @@ The workflow automatically:
 
 Original fish function for reference. The raw `git push` and
 `gh pr create` calls below are historical — modern invocations
-must route through `Skill(Dev10x:git)` (push) and
-`Skill(Dev10x:gh-pr-create)` (PR creation) per the Skill Routing
+must route through `Skill(dev10x:git)` (push) and
+`Skill(dev10x:gh-pr-create)` (PR creation) per the Skill Routing
 Enforcement table in `skills/work-on/instructions.md`. See the
 "Bash Equivalent" section below for the wrapper-based form.
 
@@ -59,14 +59,14 @@ maps to one wrapper invocation, not a raw command):
 
 1. Extract metadata in-process: read the latest commit message and
    parse the ticket ID from `git symbolic-ref --short HEAD`.
-2. Push the branch via `Skill(Dev10x:git)` — it enforces protected
+2. Push the branch via `Skill(dev10x:git)` — it enforces protected
    branch rules and `--set-upstream` semantics. Do NOT invoke
    `git push --set-upstream origin <branch>` directly here.
-3. Create the draft PR via `Skill(Dev10x:gh-pr-create)` with title,
+3. Create the draft PR via `Skill(dev10x:gh-pr-create)` with title,
    body referencing the Linear issue, and `--unattended` if running
    without supervision. The skill handles `gh pr create`,
    checklist-comment posting, and the final `gh pr view --web`
-   handoff via `mcp__plugin_Dev10x_cli__create_pr`.
+   handoff via `mcp__plugin_dev10x_cli__create_pr`.
 
 Routing through these skills preserves gitmoji/JTBD validation,
 protected-branch checks, and the JTBD-driven PR body — all of which

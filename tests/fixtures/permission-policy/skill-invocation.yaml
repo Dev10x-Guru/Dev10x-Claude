@@ -7,7 +7,7 @@
 surface: skill-invocation
 cases:
   - id: "routing/git-commit"
-    input: "Skill(Dev10x:git-commit)"
+    input: "Skill(dev10x:git-commit)"
     sensitivity: benign
     effect: allow
     source_tier: plugin-default
@@ -23,7 +23,7 @@ cases:
     notes: Test-runner wrapper; the routed form of pytest execution.
 
   - id: "routing/gh-pr-merge"
-    input: "Skill(Dev10x:gh-pr-merge)"
+    input: "Skill(dev10x:gh-pr-merge)"
     sensitivity: benign
     effect: allow
     source_tier: plugin-default
@@ -32,7 +32,7 @@ cases:
       skill (pre-merge checks + merge gate), not at invocation time.
 
   - id: "routing/aws-vault"
-    input: "Skill(Dev10x:aws-vault)"
+    input: "Skill(dev10x:aws-vault)"
     sensitivity: secret
     effect: ask
     source_tier: user-private
@@ -41,7 +41,7 @@ cases:
       any lookup, including read-only ones.
 
   - id: "routing/db"
-    input: "Skill(Dev10x:db)"
+    input: "Skill(dev10x:db)"
     sensitivity: pii
     effect: allow
     source_tier: plugin-default
@@ -50,7 +50,7 @@ cases:
       seeding, and writes are refused inside the skill (DX004).
 
   - id: "routing/session-wrap-up"
-    input: "Skill(Dev10x:session-wrap-up)"
+    input: "Skill(dev10x:session-wrap-up)"
     sensitivity: benign
     effect: allow
     source_tier: plugin-default

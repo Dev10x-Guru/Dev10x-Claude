@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:git-branch-prune",
+  "skill_name": "dev10x:git-branch-prune",
   "eval_dimensions": [
     {
       "id": "deletion_gate_enforcement",
@@ -27,7 +27,7 @@
       "id": "mixed-branch-list-happy-path",
       "name": "Mixed branch list — all categories present",
       "description": "Repo has branches in all four categories; gate fires once with full categorized list",
-      "input": "/Dev10x:git-branch-prune",
+      "input": "/dev10x:git-branch-prune",
       "assertions": [
         {
           "dimension": "deletion_gate_enforcement",
@@ -59,7 +59,7 @@
       "id": "never-pushed-worktree-branches",
       "name": "Never-pushed worktree branches (no upstream)",
       "description": "Fanout session left worktree-agent-* branches with no upstream; tip IS ancestor of base → Category B",
-      "input": "/Dev10x:git-branch-prune with worktree-agent-* branches present",
+      "input": "/dev10x:git-branch-prune with worktree-agent-* branches present",
       "assertions": [
         {
           "dimension": "category_classification",
@@ -79,7 +79,7 @@
       "id": "live-worktree-branch-protected",
       "name": "Branch checked out in live worktree is skipped",
       "description": "A branch whose tip matches a live worktree HEAD is never classified for deletion",
-      "input": "/Dev10x:git-branch-prune when a branch is checked out in another worktree",
+      "input": "/dev10x:git-branch-prune when a branch is checked out in another worktree",
       "assertions": [
         {
           "dimension": "live_worktree_safety",
@@ -99,7 +99,7 @@
       "id": "skip-all-exit-path",
       "name": "User selects Skip all deletions",
       "description": "When user picks Skip, no branches are deleted and skill exits cleanly",
-      "input": "/Dev10x:git-branch-prune then user selects Skip",
+      "input": "/dev10x:git-branch-prune then user selects Skip",
       "assertions": [
         {
           "dimension": "deletion_gate_enforcement",
@@ -118,7 +118,7 @@
       "git-branch-prune"
     ],
     "should_not_trigger": [
-      "Groom commit history on current branch (use Dev10x:git-groom)",
+      "Groom commit history on current branch (use dev10x:git-groom)",
       "Remove a specific worktree (use git worktree remove directly)",
       "Squash or rebase commits"
     ]

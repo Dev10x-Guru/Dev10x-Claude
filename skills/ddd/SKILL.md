@@ -1,6 +1,6 @@
 ---
-name: Dev10x:ddd
-invocation-name: Dev10x:ddd
+name: dev10x:ddd
+invocation-name: dev10x:ddd
 description: >
   Run or continue a DDD Event Storming workshop to explore, model, and
   stress-test domain architecture.
@@ -11,7 +11,7 @@ description: >
   add goods pricing". Always use before ticket-scope when the feature area
   is new or crosses bounded context boundaries.
   DO NOT TRIGGER when: implementing code within a well-understood domain, or
-  scoping a ticket in a known bounded context (use Dev10x:ticket-scope).
+  scoping a ticket in a known bounded context (use dev10x:ticket-scope).
 user-invocable: true
 allowed-tools:
   - TaskCreate

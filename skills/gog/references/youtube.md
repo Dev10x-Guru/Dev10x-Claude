@@ -1,10 +1,10 @@
 # YouTube via gog
 
 Reading channels, videos, playlists and comments — and the one thing gog
-cannot do, which is why `Dev10x:yt-upload` exists.
+cannot do, which is why `dev10x:yt-upload` exists.
 
 **Publishing a recording is not this chapter's job.** Use
-`Dev10x:yt-upload`, which owns the provenance gate, artifact selection,
+`dev10x:yt-upload`, which owns the provenance gate, artifact selection,
 channel assertion, token borrowing and the shred-on-exit guarantee. This
 chapter is the gog surface underneath it.
 

@@ -1,5 +1,5 @@
 {
-  "skill_name": "Dev10x:git-worktree",
+  "skill_name": "dev10x:git-worktree",
   "eval_dimensions": [
     {
       "id": "mode_selection",
@@ -31,7 +31,7 @@
     {
       "id": 1,
       "name": "same-session-enter-worktree",
-      "prompt": "/Dev10x:git-worktree",
+      "prompt": "/dev10x:git-worktree",
       "description": "User chooses Same Session mode for ticket GH-42. Skill must call EnterWorktree and resume workflow inside the new worktree.",
       "setup": {
         "repo": "example-org/app-pos",
@@ -70,7 +70,7 @@
     {
       "id": 2,
       "name": "external-worktree-hands-off",
-      "prompt": "/Dev10x:git-worktree",
+      "prompt": "/dev10x:git-worktree",
       "description": "User chooses External+New Session mode. Skill must create the worktree, install SessionEnd hook, print the hand-off message, and STOP.",
       "setup": {
         "repo": "example-org/app-pos",
@@ -109,7 +109,7 @@
     {
       "id": 3,
       "name": "post-checkout-hook-missing",
-      "prompt": "/Dev10x:git-worktree",
+      "prompt": "/dev10x:git-worktree",
       "description": "Python/uv project has no post-checkout hook. Skill must detect project type, propose Template A, and require approval before writing.",
       "setup": {
         "repo": "example-org/app-pos",
@@ -142,7 +142,7 @@
     {
       "id": 4,
       "name": "branch-naming-from-git-log",
-      "prompt": "/Dev10x:git-worktree GH-100 enable-caching",
+      "prompt": "/dev10x:git-worktree GH-100 enable-caching",
       "description": "Skill detects the current user's username from existing branch patterns in git branch -a and constructs a properly formatted branch name.",
       "setup": {
         "repo": "example-org/app-pos",
@@ -176,7 +176,7 @@
     "description": "Queries that should/should-not trigger the git-worktree skill",
     "should_trigger": [
       {
-        "query": "/Dev10x:git-worktree",
+        "query": "/dev10x:git-worktree",
         "rationale": "Direct invocation"
       },
       {
@@ -203,7 +203,7 @@
       },
       {
         "query": "I'm already in a worktree, let's commit these changes",
-        "rationale": "Already isolated — use Dev10x:git-commit instead"
+        "rationale": "Already isolated — use dev10x:git-commit instead"
       }
     ]
   }

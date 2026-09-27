@@ -89,22 +89,22 @@ class TestRenderPolicyReport:
 
 class TestSkillContextGating:
     def test_context_scoped_policy_applies_only_in_its_context(self) -> None:
-        policy = _policy(rule="Bash(git push:*)", context="Dev10x:git")
+        policy = _policy(rule="Bash(git push:*)", context="dev10x:git")
         signature = "Bash(git push origin main)"
         assert (
-            resolve_effect(policies=[policy], signature=signature, context="Dev10x:git")
+            resolve_effect(policies=[policy], signature=signature, context="dev10x:git")
             == PolicyEffect.ALLOW
         )
         assert resolve_effect(policies=[policy], signature=signature) is None
         assert (
-            resolve_effect(policies=[policy], signature=signature, context="Dev10x:review") is None
+            resolve_effect(policies=[policy], signature=signature, context="dev10x:review") is None
         )
 
     def test_unscoped_policy_applies_in_any_context(self) -> None:
         policy = _policy(rule="Bash(git status:*)")
         signature = "Bash(git status)"
         assert (
-            resolve_effect(policies=[policy], signature=signature, context="Dev10x:git")
+            resolve_effect(policies=[policy], signature=signature, context="dev10x:git")
             == PolicyEffect.ALLOW
         )
         assert resolve_effect(policies=[policy], signature=signature) == PolicyEffect.ALLOW

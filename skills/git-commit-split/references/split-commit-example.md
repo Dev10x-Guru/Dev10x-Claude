@@ -12,7 +12,7 @@ the full justification. The exception only covers intermediate
 commits during an active `git rebase -i`; hooks run via
 `git rebase --exec "pre-commit run --all-files"` once the
 rebase completes. Do **not** copy these snippets into routine
-commit flows — use the `Dev10x:git-commit` skill instead, which
+commit flows — use the `dev10x:git-commit` skill instead, which
 respects hooks.
 
 ## Original Commit
@@ -283,7 +283,7 @@ b2038670 ✨ PAY-314 Add as_dict decorator to collections module
 **Run tests for all commits:**
 
 ```bash
-Skill(Dev10x:py-test src/app_pos/orders/returns/tests/ -v)
+Skill(dev10x:py-test src/app_pos/orders/returns/tests/ -v)
 ```
 
 **Result:** 118 passed, all tests passing
@@ -293,7 +293,7 @@ Skill(Dev10x:py-test src/app_pos/orders/returns/tests/ -v)
 ```bash
 for commit in $(git log --reverse --format=%H develop..HEAD); do
   git checkout $commit
-  Skill(Dev10x:py-test src/app_pos/orders/returns/tests/)
+  Skill(dev10x:py-test src/app_pos/orders/returns/tests/)
 done
 ```
 

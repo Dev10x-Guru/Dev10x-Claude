@@ -12,7 +12,7 @@ session.
 
 ## Building the options
 
-Call `mcp__plugin_Dev10x_cli__resolve_plugin_origin` with the
+Call `mcp__plugin_dev10x_cli__resolve_plugin_origin` with the
 absolute skill paths of the upstream-relevant findings. It returns:
 
 - `targets[]` — one entry per distinct destination, each with
@@ -25,7 +25,7 @@ Build one option per detected target (label = the `repo`), plus a
 manual-entry option. Mark a single detected target as
 `(Recommended)`. When two or more targets are detected, set
 `multiSelect: true` so the user confirms each destination — one
-`Dev10x:audit-file` delegation runs per confirmed repo.
+`dev10x:audit-file` delegation runs per confirmed repo.
 
 ## Call spec
 
@@ -60,8 +60,8 @@ AskUserQuestion(questions=[{
 
 | User choice | Next action |
 |-------------|-------------|
-| A detected repo | Delegate to `Dev10x:audit-file` with `--repo <owner>/<repo>` and only the findings whose `skill_paths` resolved to that repo. |
-| Two or more detected repos | One `Dev10x:audit-file` delegation per repo, each with that repo's subset of findings. Never batch findings for repo A into repo B's issue. |
+| A detected repo | Delegate to `dev10x:audit-file` with `--repo <owner>/<repo>` and only the findings whose `skill_paths` resolved to that repo. |
+| Two or more detected repos | One `dev10x:audit-file` delegation per repo, each with that repo's subset of findings. Never batch findings for repo A into repo B's issue. |
 | Enter a different repo | Ask for `owner/repo` as free text, then delegate with that value. |
 | Skip | Mark Phase 7 completed; file nothing. |
 

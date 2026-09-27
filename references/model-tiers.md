@@ -56,11 +56,11 @@ explicitly per task tier:
 
 | Skill | Phase | Model | Tier |
 |-------|-------|-------|------|
-| `Dev10x:work-on` | Phase 2 (gather) | haiku | Gather |
-| `Dev10x:gh-pr-monitor` | CI polling | haiku | Monitor |
-| `Dev10x:gh-pr-monitor` | Long CI (>10 min) | sonnet | Analyze |
-| `Dev10x:skill-audit` | Wave 1+2 (5 phases) | sonnet | Analyze |
-| `Dev10x:adr-evaluate` | Architect advocates | opus | Design |
+| `dev10x:work-on` | Phase 2 (gather) | haiku | Gather |
+| `dev10x:gh-pr-monitor` | CI polling | haiku | Monitor |
+| `dev10x:gh-pr-monitor` | Long CI (>10 min) | sonnet | Analyze |
+| `dev10x:skill-audit` | Wave 1+2 (5 phases) | sonnet | Analyze |
+| `dev10x:adr-evaluate` | Architect advocates | opus | Design |
 
 ## Per-Project Model Overrides
 
@@ -79,7 +79,7 @@ overrides:
       - subject: Code review
         type: detailed
         model: sonnet          # Override: use sonnet instead of opus
-        skills: [Dev10x:review, Dev10x:review-fix]
+        skills: [dev10x:review, dev10x:review-fix]
 ```
 
 When present, `model:` overrides the default model for agent
@@ -96,11 +96,11 @@ fragments:
     - subject: Code review
       type: detailed
       model: sonnet
-      skills: [Dev10x:review, Dev10x:review-fix]
+      skills: [dev10x:review, dev10x:review-fix]
     - subject: Monitor CI
       type: detailed
       model: haiku
-      skills: [Dev10x:gh-pr-monitor]
+      skills: [dev10x:gh-pr-monitor]
 ```
 
 ### Override Resolution Order
@@ -120,11 +120,11 @@ fragments:
     - subject: Code review
       type: detailed
       model: sonnet
-      skills: [Dev10x:review, Dev10x:review-fix]
+      skills: [dev10x:review, dev10x:review-fix]
     - subject: Monitor CI
       type: detailed
       model: haiku
-      skills: [Dev10x:gh-pr-monitor]
+      skills: [dev10x:gh-pr-monitor]
 ```
 
 **Quality-critical project** (prefer stronger models):

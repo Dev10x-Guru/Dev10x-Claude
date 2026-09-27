@@ -79,7 +79,7 @@ and naming conventions.
 ## Adding a new skill
 
 1. Create `skills/<name>/SKILL.md` with frontmatter
-2. Use `Dev10x:<name>` as the invocation name
+2. Use `dev10x:<name>` as the invocation name
 3. Declare external tools in `allowed-tools:` frontmatter
 4. Add scripts under `skills/<name>/scripts/` if needed
 5. Run `claude plugin validate` to check structure

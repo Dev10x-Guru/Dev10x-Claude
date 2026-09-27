@@ -28,29 +28,29 @@ def _skill_md(
 
 class TestParseSkillFrontmatter:
     def test_invocation_name_is_preferred_key(self):
-        text = _skill_md(name="Dev10x:git-commit", invocation="Dev10x:git-commit")
+        text = _skill_md(name="dev10x:git-commit", invocation="dev10x:git-commit")
         entry = parse_skill_frontmatter(text=text)
-        assert entry == SkillEntry(key="Dev10x:git-commit", name="Dev10x:git-commit")
+        assert entry == SkillEntry(key="dev10x:git-commit", name="dev10x:git-commit")
 
     def test_falls_back_to_name_when_no_invocation_name(self):
-        text = _skill_md(name="Dev10x:park")
+        text = _skill_md(name="dev10x:park")
         entry = parse_skill_frontmatter(text=text)
         assert entry is not None
-        assert entry.key == "Dev10x:park"
-        assert entry.name == "Dev10x:park"
+        assert entry.key == "dev10x:park"
+        assert entry.name == "dev10x:park"
 
     def test_invocation_name_overrides_differing_name(self):
-        text = _skill_md(name="internal-name", invocation="Dev10x:public")
+        text = _skill_md(name="internal-name", invocation="dev10x:public")
         entry = parse_skill_frontmatter(text=text)
         assert entry is not None
-        assert entry.key == "Dev10x:public"
+        assert entry.key == "dev10x:public"
         assert entry.name == "internal-name"
 
     @pytest.mark.parametrize(
         "text",
         [
             "no front matter here\njust prose",
-            "---\nname: Dev10x:x\ndescription: unterminated front matter",
+            "---\nname: dev10x:x\ndescription: unterminated front matter",
             "---\n: : : not valid yaml :\n  - broken\n---\nbody",
             "---\n- just\n- a\n- list\n---\nbody",
         ],
@@ -70,26 +70,26 @@ class TestParseSkillFrontmatter:
         assert parse_skill_frontmatter(text=text) is None
 
     def test_trailing_comment_stripped_from_key(self):
-        text = _skill_md(name="Dev10x:thing", invocation="Dev10x:thing # legacy")
+        text = _skill_md(name="dev10x:thing", invocation="dev10x:thing # legacy")
         entry = parse_skill_frontmatter(text=text)
         assert entry is not None
-        assert entry.key == "Dev10x:thing"
+        assert entry.key == "dev10x:thing"
 
     def test_invocation_name_that_reduces_to_empty_key_returns_none(self):
-        text = '---\nname: Dev10x:x\ninvocation-name: "#only-a-comment"\n---\nbody'
+        text = '---\nname: dev10x:x\ninvocation-name: "#only-a-comment"\n---\nbody'
         assert parse_skill_frontmatter(text=text) is None
 
     def test_source_path_is_preserved(self):
         path = Path("/skills/x/SKILL.md")
-        entry = parse_skill_frontmatter(text=_skill_md(name="Dev10x:x"), source=path)
+        entry = parse_skill_frontmatter(text=_skill_md(name="dev10x:x"), source=path)
         assert entry is not None
         assert entry.source == path
 
 
 class TestExtractFrontMatter:
     def test_returns_mapping(self):
-        assert extract_front_matter(text=_skill_md(name="Dev10x:x")) == {
-            "name": "Dev10x:x",
+        assert extract_front_matter(text=_skill_md(name="dev10x:x")) == {
+            "name": "dev10x:x",
             "description": "x",
         }
 
@@ -104,38 +104,38 @@ class TestScanSkillDirs:
         (skill_dir / "SKILL.md").write_text(text, encoding="utf-8")
 
     def test_returns_entries_sorted_by_key(self, tmp_path: Path):
-        self._make_skill(tmp_path, "zebra", _skill_md(name="Dev10x:zebra"))
-        self._make_skill(tmp_path, "alpha", _skill_md(name="Dev10x:alpha"))
-        self._make_skill(tmp_path, "mid", _skill_md(name="Dev10x:mid"))
+        self._make_skill(tmp_path, "zebra", _skill_md(name="dev10x:zebra"))
+        self._make_skill(tmp_path, "alpha", _skill_md(name="dev10x:alpha"))
+        self._make_skill(tmp_path, "mid", _skill_md(name="dev10x:mid"))
 
         entries = scan_skill_dirs(skill_dirs=[tmp_path])
         assert [entry.key for entry in entries] == [
-            "Dev10x:alpha",
-            "Dev10x:mid",
-            "Dev10x:zebra",
+            "dev10x:alpha",
+            "dev10x:mid",
+            "dev10x:zebra",
         ]
 
     def test_directory_without_skill_md_is_skipped(self, tmp_path: Path):
         (tmp_path / "empty").mkdir()
-        self._make_skill(tmp_path, "real", _skill_md(name="Dev10x:real"))
+        self._make_skill(tmp_path, "real", _skill_md(name="dev10x:real"))
 
         entries = scan_skill_dirs(skill_dirs=[tmp_path])
-        assert [entry.key for entry in entries] == ["Dev10x:real"]
+        assert [entry.key for entry in entries] == ["dev10x:real"]
 
     def test_placeholder_skill_excluded_from_scan(self, tmp_path: Path):
-        self._make_skill(tmp_path, "good", _skill_md(name="Dev10x:good"))
+        self._make_skill(tmp_path, "good", _skill_md(name="dev10x:good"))
         self._make_skill(tmp_path, "tmpl", _skill_md(name="my-skill-name"))
 
         entries = scan_skill_dirs(skill_dirs=[tmp_path])
-        assert [entry.key for entry in entries] == ["Dev10x:good"]
+        assert [entry.key for entry in entries] == ["dev10x:good"]
 
     def test_multiple_dirs_merged_and_sorted(self, tmp_path: Path):
         local = tmp_path / "local"
         plugin = tmp_path / "plugin"
         local.mkdir()
         plugin.mkdir()
-        self._make_skill(local, "b", _skill_md(name="Dev10x:b"))
-        self._make_skill(plugin, "a", _skill_md(name="Dev10x:a"))
+        self._make_skill(local, "b", _skill_md(name="dev10x:b"))
+        self._make_skill(plugin, "a", _skill_md(name="dev10x:a"))
 
         entries = scan_skill_dirs(skill_dirs=[local, plugin])
-        assert [entry.key for entry in entries] == ["Dev10x:a", "Dev10x:b"]
+        assert [entry.key for entry in entries] == ["dev10x:a", "dev10x:b"]
