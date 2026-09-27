@@ -27,6 +27,7 @@ creates these `TaskCreate` calls before dispatching any micro-agent:
 
 1. `TaskCreate(subject="Detect PR context and launch agent", activeForm="Detecting PR context")`
 2. `TaskCreate(subject="Check JTBD Job Story (Phase 0)", activeForm="Checking Job Story")`
+2b. `TaskCreate(subject="Confirm PR is ready for review (Phase 0.5)", activeForm="Confirming review readiness")`
 3. `TaskCreate(subject="Monitor CI checks (Phase 1)", activeForm="Monitoring CI")`
 4. `TaskCreate(subject="Address review comments (Phase 2)", activeForm="Addressing comments")`
 5. `TaskCreate(subject="Assess QA scope (Phase 2.5)", activeForm="Assessing QA scope")`
@@ -51,6 +52,9 @@ User invokes /Dev10x:gh-pr-monitor
             │
             ├── Phase 0: JTBD Job Story check (supervisor)
             │       └── Skill(Dev10x:ticket-jtbd) if missing
+            │
+            ├── Phase 0.5: Review-readiness precondition (supervisor)
+            │       └── pr_get → isDraft; pr_ready if still draft
             │
             ├── Phase 1: CI monitoring
             │       ├── dispatch micro-agent: haiku-ci-poll
@@ -456,6 +460,35 @@ The PR body **must** start with a JTBD Job Story as its first paragraph.
 
 ---
 
+## Phase 0.5: Review-Readiness Precondition (GH-1410 Finding 1)
+
+A repository whose review workflows gate on
+`on.pull_request.types: [opened, ready_for_review, synchronize]`
+never runs them against a draft PR. Every later phase in this
+skill — CI monitoring, fixup handling, notification, verification —
+can complete successfully on a drafted PR that no reviewer, human or
+bot, ever saw. This phase exists so that outcome cannot happen
+silently.
+
+1. `pr_get(number={pr_number})` and read `isDraft`.
+2. If `isDraft == false` → proceed to Phase 1.
+3. If `isDraft == true` → call
+   `pr_ready(pr_number={pr_number})`, then re-read `pr_get` and
+   confirm `isDraft == false`.
+4. If the PR still reports `isDraft == true` after `pr_ready` — the
+   host refused or the write did not land (writes are requests, not
+   receipts, per `.claude/rules/mcp-tools.md`) — this is
+   `BLOCKED: pr-still-draft`. Stop and surface it; do not proceed to
+   CI monitoring on a PR review workflows will skip.
+
+This does not replace Finding 2's payload-level guard (see Phase 1's
+**Interpret verdict** table, `skipping_checks`) — a PR can be marked
+ready here and still have an unrelated check legitimately skip later.
+This phase only closes the specific gap where the *entire monitor run*
+never observed the PR in a reviewable state.
+
+---
+
 ## Phase 1: CI Monitoring (server-side wait, preferred)
 
 The supervisor does not loop on CI itself.
@@ -545,6 +578,17 @@ drives the next action:
 | `conflicting`   | Rebase onto base branch (see Conflict Handling) |
 | `empty`         | Re-dispatch ci-poll after 60s — GitHub hasn't registered checks yet |
 | `timeout`       | Micro-agent hit the 50-turn cap. Re-dispatch with note "session #2"; if it times out twice, surface to user |
+
+**A `green` verdict does not mean every check ran (GH-1410 Finding
+2).** A check bucketed `skipping` is excluded from the verdict
+computation entirely, so a review workflow that never fired — most
+commonly because the PR was still a draft (see Phase 0.5) — reads as
+`green` exactly like one that ran and passed. Before treating `green`
+as "reviewed", read the `skipping_checks` array in the verdict JSON
+(names of every skipped check) and confirm none of them is a review
+gate this PR needed. This is a payload-level guard independent of
+Phase 0.5 — Phase 0.5 catches the whole-run case; this catches a
+single unexpectedly-skipped check later in the same run.
 
 **Pending verdict is impossible** at this layer — the micro-agent's
 contract is "loop until verdict ≠ pending". If the supervisor ever
@@ -1106,6 +1150,9 @@ directly.
     │
     ├── Phase 0: JTBD Job Story check
     │       └── Skill(Dev10x:ticket-jtbd) if missing
+    │
+    ├── Phase 0.5: Review-readiness precondition
+    │       └── pr_get → isDraft; pr_ready if still draft
     │
     ├── Phase 1: CI monitoring
     │       └── Agent(haiku-ci-poll) — background, returns verdict JSON
