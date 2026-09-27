@@ -29,6 +29,7 @@ DEFAULT_STRATEGY_MODULES: tuple[str, ...] = (
     "dev10x.skills.doctor.strategies.retired_session_yaml",
     "dev10x.skills.doctor.strategies.shell_equivalent_mcp_tools",
     "dev10x.skills.doctor.strategies.read_deny_phantom",
+    "dev10x.skills.doctor.strategies.legacy_plugin_namespace",
 )
 
 _STRATEGY_MARKER = "STRATEGY"
