@@ -1,7 +1,6 @@
 """Tests for catalog_load.py: cache-path publisher extraction, settings-file
 discovery, and userspace-config bootstrap (GH-1432, GH-1449)."""
 
-import json
 from pathlib import Path
 
 import pytest
@@ -21,10 +20,32 @@ class TestExtractCachePublisher:
             ("~/.claude/plugins/cache/Dev10x-Guru/Dev10x", "Dev10x-Guru"),
             ("~/.claude/plugins/cache/WooYek/Dev10x", "WooYek"),
             ("~/.claude/plugins/cache/Dev10x-Guru/dev10x-claude", "Dev10x-Guru"),
+            ("~/.claude/plugins/cache/Dev10x-Guru/dev10x", "Dev10x-Guru"),
         ],
     )
     def test_extracts_publisher(self, plugin_cache: str, expected: str) -> None:
         assert extract_cache_publisher(plugin_cache) == expected
+
+
+class TestDetectPluginCache:
+    """GH-1499: the kebab-case ``dev10x`` cache dir is found and is the default."""
+
+    @pytest.fixture
+    def cache_root(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+        root = tmp_path / "cache"
+        monkeypatch.setattr(catalog_load.ClaudeDir, "plugins_cache_dir", lambda: root)
+        return root
+
+    def test_defaults_to_kebab_case_without_cache(self, cache_root: Path) -> None:
+        assert catalog_load._detect_plugin_cache() == "~/.claude/plugins/cache/Dev10x-Guru/dev10x"
+
+    def test_defaults_to_kebab_case_with_empty_cache(self, cache_root: Path) -> None:
+        cache_root.mkdir()
+        assert catalog_load._detect_plugin_cache() == "~/.claude/plugins/cache/Dev10x-Guru/dev10x"
+
+    def test_finds_kebab_case_install(self, cache_root: Path) -> None:
+        (cache_root / "Dev10x-Guru" / "dev10x").mkdir(parents=True)
+        assert catalog_load._detect_plugin_cache() == "~/.claude/plugins/cache/Dev10x-Guru/dev10x"
 
     def test_returns_none_for_invalid_path(self) -> None:
         assert extract_cache_publisher("/no/cache/here") is None

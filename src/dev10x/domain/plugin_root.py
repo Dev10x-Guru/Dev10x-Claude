@@ -32,8 +32,8 @@ from dev10x.domain.common.plugin_version import PluginVersion
 
 PLUGIN_MANIFEST_RELPATH = Path(".claude-plugin") / "plugin.json"
 
-# Marketplace installs have used both directory names over time.
-KNOWN_PLUGIN_DIRS: tuple[str, ...] = ("Dev10x", "dev10x-claude")
+# Marketplace installs have used every one of these directory names (GH-1499).
+KNOWN_PLUGIN_DIRS: tuple[str, ...] = ("dev10x", "Dev10x", "dev10x-claude")
 
 
 def is_plugin_root(path: Path) -> bool:

@@ -59,6 +59,16 @@ class TestLatestInstalledRoot:
         assert resolved is not None
         assert resolved.name == "0.1.0"
 
+    @pytest.mark.parametrize("plugin_dir_name", ["dev10x", "Dev10x", "dev10x-claude"])
+    def test_every_known_plugin_dir_name_resolves(
+        self,
+        tmp_path: Path,
+        plugin_dir_name: str,
+    ) -> None:
+        _make_plugin_root(tmp_path / "cache" / "Dev10x-Guru" / plugin_dir_name / "1.0.0")
+        resolved = latest_installed_root(cache_dir=tmp_path / "cache")
+        assert resolved == tmp_path / "cache" / "Dev10x-Guru" / plugin_dir_name / "1.0.0"
+
     def test_unknown_plugin_dir_name_is_ignored(self, tmp_path: Path) -> None:
         _make_plugin_root(tmp_path / "cache" / "Pub" / "some-other-plugin" / "1.0.0")
         assert latest_installed_root(cache_dir=tmp_path / "cache") is None

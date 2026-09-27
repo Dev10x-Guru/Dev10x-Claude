@@ -44,7 +44,7 @@ SESSION_ID=$(
 # the plugin to false, stay silent. Best-effort grep; fail-open.
 SETTINGS="${HOME:-}/.claude/settings.json"
 if [ -f "$SETTINGS" ] &&
-    grep -Eq '"Dev10x@Dev10x-Guru"[[:space:]]*:[[:space:]]*false' "$SETTINGS" 2>/dev/null; then
+    grep -Eq '"[Dd]ev10x@Dev10x-Guru"[[:space:]]*:[[:space:]]*false' "$SETTINGS" 2>/dev/null; then
     exit 0
 fi
 
