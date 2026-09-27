@@ -71,7 +71,8 @@ class CatalogGap:
         return len(self.missing_allow) + len(self.missing_deny) + len(self.missing_ask)
 
 
-def _existing_rules(path: Path) -> tuple[set[str], set[str], set[str], str | None]:
+def existing_rules(path: Path) -> tuple[set[str], set[str], set[str], str | None]:
+    """Return ``(allow, deny, ask, unreadable_reason)`` for a settings file."""
     try:
         data = json.loads(path.read_text())
     except OSError as error:
@@ -117,7 +118,7 @@ def compute_gap(
     nothing to do" from "did not look" (GH-1215).
     """
     asks = list(base_asks or [])
-    allow, deny, ask, unreadable = _existing_rules(path)
+    allow, deny, ask, unreadable = existing_rules(path)
     if unreadable is not None:
         return CatalogGap(
             path=path,

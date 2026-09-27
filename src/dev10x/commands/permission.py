@@ -275,10 +275,30 @@ def catalog_gap(*, quiet: bool, verbose: bool) -> None:
     )
 
 
+def _report_predicted() -> None:
+    from dev10x.skills.permission.friction_report import (
+        format_predicted_surface,
+        predict_surfaces,
+    )
+
+    ctx = _require_settings()
+    if ctx is None:
+        return
+    surfaces = predict_surfaces(config=ctx.config, settings_files=ctx.settings_files)
+    for line in format_predicted_surface(surfaces):
+        click.echo(line)
+    sys.exit(0)
+
+
 @permission.command(name="report")
 @click.option("--days", type=int, default=0, help="Only count denials from the last N days")
 @click.option("--top", type=int, default=10, help="How many tool signatures to list")
-def report(*, days: int, top: int) -> None:
+@click.option(
+    "--predicted",
+    is_flag=True,
+    help="Predict what WOULD prompt in each checkout instead of counting denials",
+)
+def report(*, days: int, top: int, predicted: bool) -> None:
     """Rank recorded permission denials by rule family (GH-1406).
 
     Read-only. Turns the PermissionDenied records already in the audit
@@ -287,7 +307,13 @@ def report(*, days: int, top: int) -> None:
 
     Denials only: an ask-rule hit or a no-match prompt reaches no hook,
     so this is a floor on observed friction, not a census of it.
+    `--predicted` covers those two paths from settings instead (GH-1408):
+    what would prompt if run, never what did.
     """
+    if predicted:
+        _report_predicted()
+        return
+
     from datetime import UTC, datetime, timedelta
 
     from dev10x.audit.log_reader import iter_records

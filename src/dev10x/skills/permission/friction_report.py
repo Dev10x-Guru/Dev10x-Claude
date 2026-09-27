@@ -36,9 +36,12 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
-from dev10x.skills.permission.catalog_gap import rule_family
+from dev10x.skills.permission.catalog_gap import existing_rules, rule_family
+from dev10x.skills.permission.catalog_write import render_catalog
+from dev10x.skills.permission.provenance import classify_provenance
 
 PERMISSION_DENIED_HOOK = "permission-denied"
 
@@ -132,8 +135,8 @@ def format_report(report: FrictionReport) -> list[str]:
             "",
             "That means none were LOGGED, not that none happened: ask-rule",
             "hits and no-match prompts reach no hook and are unmeasurable",
-            "here (GH-1406). Check `dev10x permission catalog-gap` for the",
-            "rules that WOULD prompt in this checkout.",
+            "here (GH-1406). Run `dev10x permission report --predicted` for",
+            "the catalogued rules that WOULD prompt in each checkout.",
         ]
 
     lines = [f"Permission denials recorded: {report.total}", ""]
@@ -162,6 +165,105 @@ def format_report(report: FrictionReport) -> list[str]:
             "Denials only. A prompt from an ask rule or from no rule matching",
             "reaches no hook, so it is absent here by construction — this is a",
             "floor on observed friction, not a census of it.",
+        ]
+    )
+    return lines
+
+
+@dataclass(frozen=True)
+class PredictedSurface:
+    """What WOULD prompt in one checkout, derived from settings (GH-1408).
+
+    ``no_match`` holds catalog allow rules the file neither allows nor
+    denies; ``ask`` holds the file's own ask rules, keyed by provenance.
+    """
+
+    path: Path
+    no_match: list[str] = field(default_factory=list)
+    ask: dict[str, list[str]] = field(default_factory=dict)
+    unreadable: str | None = None
+
+    @property
+    def ask_rules(self) -> list[str]:
+        return [rule for rules in self.ask.values() for rule in rules]
+
+    @property
+    def total(self) -> int:
+        return len(self.no_match) + len(self.ask_rules)
+
+
+def predict_surface(
+    *,
+    path: Path,
+    base_permissions: list[str],
+    base_asks: list[str],
+) -> PredictedSurface:
+    """Predict the prompt surface for one settings file (tier 2 of GH-1406).
+
+    A rule the file denies is left out: it blocks rather than prompts.
+    """
+    allow, deny, ask, unreadable = existing_rules(path)
+    if unreadable is not None:
+        return PredictedSurface(path=path, unreadable=unreadable)
+
+    catalog_asks = set(base_asks)
+    by_origin: dict[str, list[str]] = {}
+    for rule in sorted(ask):
+        origin = classify_provenance(rule, base_rules=catalog_asks, global_rules=set())
+        by_origin.setdefault(origin.value, []).append(rule)
+
+    return PredictedSurface(
+        path=path,
+        no_match=[rule for rule in base_permissions if rule not in allow and rule not in deny],
+        ask=by_origin,
+    )
+
+
+def predict_surfaces(
+    *,
+    config: dict,
+    settings_files: list[Path],
+) -> list[PredictedSurface]:
+    """Render the catalog once, then predict every settings file."""
+    catalog = render_catalog(config=config, toplevel=None, quiet=True)
+    return [
+        predict_surface(path=path, base_permissions=catalog.allow, base_asks=catalog.ask)
+        for path in sorted(settings_files)
+    ]
+
+
+def format_predicted_surface(surfaces: list[PredictedSurface]) -> list[str]:
+    """Render predicted surfaces, ranked by the same families as denials."""
+    lines = [
+        "PREDICTED prompt surface — what WOULD prompt, not what did (GH-1408).",
+        "",
+    ]
+    families: Counter[str] = Counter()
+    for surface in surfaces:
+        lines.append(str(surface.path))
+        if surface.unreadable is not None:
+            lines.append(f"  WARNING: {surface.unreadable} — could not predict")
+            continue
+        ask_origins = ", ".join(f"{len(rules)} {origin}" for origin, rules in surface.ask.items())
+        lines.append(
+            f"  {len(surface.no_match)} no-match / {len(surface.ask_rules)} ask"
+            + (f" ({ask_origins})" if ask_origins else "")
+        )
+        families.update(rule_family(rule) for rule in [*surface.no_match, *surface.ask_rules])
+
+    total = sum(families.values())
+    if total:
+        lines.extend(["", "By rule family:"])
+        for family, count in families.most_common():
+            lines.append(f"  {count:>5}  ({100 * count / total:5.1f}%)  {family}")
+
+    lines.extend(
+        [
+            "",
+            "Prediction, not evidence. It covers only rules the catalog names or",
+            "the file already asks about; a command neither mentions prompts too",
+            "and is invisible here. Counts say what would prompt IF run, never",
+            "how often it was.",
         ]
     )
     return lines

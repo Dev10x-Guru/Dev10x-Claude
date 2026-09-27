@@ -12,6 +12,7 @@ is loaded by :mod:`dev10x.skills.permission.catalog_load`. Split out of
 
 import json
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 
 from dev10x.domain.claude_paths import ClaudeDir
@@ -694,6 +695,46 @@ def _apply_ide_block(
     ]
 
 
+@dataclass(frozen=True)
+class RenderedCatalog:
+    """The catalog as it would be seeded into one checkout."""
+
+    allow: list[str]
+    deny: list[str]
+    ask: list[str]
+    unmatchable: list[str]
+    messages: list[str]
+
+
+def render_catalog(
+    *,
+    config: dict,
+    toplevel: str | None,
+    quiet: bool,
+) -> RenderedCatalog:
+    """Fold the tracker and IDE blocks in, then render the three tiers."""
+    config, tracker_messages = _apply_tracker_block(
+        config=config,
+        toplevel=toplevel,
+        quiet=quiet,
+    )
+    config, ide_messages = _apply_ide_block(
+        config=config,
+        toplevel=toplevel,
+        quiet=quiet,
+    )
+    policies = migrate_flat_config(config=config)
+    rendered = render_permissions(policies=policies, home=str(Path.home()))
+    allow, unmatchable = partition_unmatchable_rules(rendered.get("allow", []))
+    return RenderedCatalog(
+        allow=allow,
+        deny=rendered.get("deny", []),
+        ask=rendered.get("ask", []),
+        unmatchable=unmatchable,
+        messages=[*tracker_messages, *ide_messages],
+    )
+
+
 def ensure_base(
     *,
     config: dict,
@@ -714,34 +755,18 @@ def ensure_base(
     file for months while reporting success. Same opt-in posture as
     ``clean --aggressive``.
     """
-    messages: list[str] = []
     errors: list[str] = []
-
-    config, tracker_messages = _apply_tracker_block(
-        config=config,
-        toplevel=toplevel,
-        quiet=quiet,
-    )
-    messages.extend(tracker_messages)
-
-    config, ide_messages = _apply_ide_block(
-        config=config,
-        toplevel=toplevel,
-        quiet=quiet,
-    )
-    messages.extend(ide_messages)
-
-    policies = migrate_flat_config(config=config)
-    rendered = render_permissions(policies=policies, home=str(Path.home()))
-    base_permissions, unmatchable = partition_unmatchable_rules(rendered.get("allow", []))
-    base_denies = rendered.get("deny", [])
-    base_asks = rendered.get("ask", [])
+    catalog = render_catalog(config=config, toplevel=toplevel, quiet=quiet)
+    messages = list(catalog.messages)
+    base_permissions = catalog.allow
+    base_denies = catalog.deny
+    base_asks = catalog.ask
     if not base_permissions and not base_denies and not base_asks:
         messages.append("No base_permissions, base_denies or base_asks defined in config.")
         return _result(exit_code=0, messages=messages, errors=errors)
 
     messages.extend(_catalog_drift_messages(drift=drift, quiet=quiet))
-    messages.extend(_unmatchable_rule_messages(unmatchable=unmatchable, quiet=quiet))
+    messages.extend(_unmatchable_rule_messages(unmatchable=catalog.unmatchable, quiet=quiet))
 
     global_rules, stale_wildcards = _load_global_allow_rules()
     if dedupe_global:
@@ -957,27 +982,12 @@ def catalog_gap(
     """
     from dev10x.skills.permission.catalog_gap import compute_gap, format_gap_report
 
-    messages: list[str] = []
-    config, tracker_messages = _apply_tracker_block(
-        config=config,
-        toplevel=toplevel,
-        quiet=quiet,
-    )
-    messages.extend(tracker_messages)
-
-    config, ide_messages = _apply_ide_block(
-        config=config,
-        toplevel=toplevel,
-        quiet=quiet,
-    )
-    messages.extend(ide_messages)
-
-    policies = migrate_flat_config(config=config)
-    rendered = render_permissions(policies=policies, home=str(Path.home()))
-    base_permissions, unmatchable = partition_unmatchable_rules(rendered.get("allow", []))
-    base_denies = rendered.get("deny", [])
-    base_asks = rendered.get("ask", [])
-    messages.extend(_unmatchable_rule_messages(unmatchable=unmatchable, quiet=quiet))
+    catalog = render_catalog(config=config, toplevel=toplevel, quiet=quiet)
+    messages = list(catalog.messages)
+    base_permissions = catalog.allow
+    base_denies = catalog.deny
+    base_asks = catalog.ask
+    messages.extend(_unmatchable_rule_messages(unmatchable=catalog.unmatchable, quiet=quiet))
 
     if not quiet:
         messages.append(
