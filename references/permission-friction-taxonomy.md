@@ -146,8 +146,10 @@ fires only on what those steps already allowed:
 | Allowed, then PreToolUse blocks | blocked | yes — `rule_id`/`reason` (#1095) |
 
 The two `no` rows need a prompt-shown event no documented harness hook
-provides; `permission catalog-gap` answers the weaker "what *would*
-prompt here" from the catalog instead. Read a report as a floor on
+provides; `permission report --predicted` (#1408) answers the weaker
+"what *would* prompt here" from the catalog and each file's own ask
+rules instead, ranked by the same families and labelled as a
+prediction. Read a report as a floor on
 observed friction, never a census — a family absent from it is
 unmeasured, not frictionless.
 

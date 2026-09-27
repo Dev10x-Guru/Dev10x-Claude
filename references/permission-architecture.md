@@ -27,8 +27,9 @@ Agent requests tool call
 Both are queryable via `dev10x permission report`. Steps 2 and 4 —
 the two paths that *prompt* rather than block — emit no event at all,
 so the friction a user actually sees as a prompt is not recorded
-anywhere. `dev10x permission catalog-gap` is the substitute: it
-computes which catalog rules are absent from a settings file, i.e.
+anywhere. `dev10x permission report --predicted` (GH-1408) is the
+substitute: per checkout it lists catalog allow rules the file neither
+allows nor denies (step 4) and the file's own ask rules (step 2), i.e.
 what *would* prompt here, without needing an event.
 
 Rules are evaluated `deny → ask → allow` and the **first match

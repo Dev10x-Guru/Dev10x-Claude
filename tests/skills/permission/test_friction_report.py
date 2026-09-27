@@ -80,7 +80,7 @@ class TestFormatReport:
     def test_empty_report_says_unmeasured_not_frictionless(self) -> None:
         text = "\n".join(format_report(build_report(records=[])))
         assert "not that none happened" in text
-        assert "catalog-gap" in text
+        assert "report --predicted" in text
 
     def test_lists_families_with_shares(self) -> None:
         records = [_denial("Bash(gh pr view)", family="gh")] * 2
