@@ -13,7 +13,10 @@ and strips rules that are:
 Before any of that, every file — and every settings layer ``clean`` does
 not otherwise touch, via ``migration_layers`` — has its pre-rename
 ``Dev10x`` rule spellings carried to ``dev10x`` (GH-1501). Deny and ask
-rules are rewritten, never dropped; see ``legacy_namespace``.
+rules are rewritten, never dropped; see ``legacy_namespace``. The same
+pass repairs `*`-before-`:*` Bash rules in every list (GH-1503): an allow
+is dropped, a deny or ask is rewritten to the space form; see
+``star_prefix``.
 
 Also flags rules containing leaked secrets: env-var key/value pairs, known
 token prefixes (GitHub, GitLab, AWS), Bearer headers, and URL query-string
@@ -51,6 +54,7 @@ from dev10x.skills.permission.legacy_namespace import (
     NamespaceMigration,
     migrate_legacy_namespace,
 )
+from dev10x.skills.permission.star_prefix import StarPrefixRepair, repair_star_prefix
 
 MEMORY_CONFIG = Dev10xConfigDir.projects_yaml()
 USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
@@ -200,6 +204,11 @@ class RemovalResult:
     unmatchable_prefix: list[str] = field(default_factory=list)
     kept: list[str] = field(default_factory=list)
     namespace_migration: NamespaceMigration = field(default_factory=NamespaceMigration)
+    star_prefix_repair: StarPrefixRepair = field(default_factory=StarPrefixRepair)
+
+    @property
+    def repaired(self) -> bool:
+        return self.namespace_migration.changed or self.star_prefix_repair.changed
 
     @property
     def total_removed(self) -> int:
@@ -454,13 +463,13 @@ def clean_file(
     except json.JSONDecodeError as e:
         return None, [f"  SKIP (invalid JSON): {e}"]
 
-    data, migration = migrate_legacy_namespace(data)
+    data, migration, star_repair = _repair(data)
     perms = data.get("permissions", {})
     allow_list: list[str] = perms.get("allow", [])
     deny_list: list[str] = perms.get("deny", [])
     ask_list: list[str] = perms.get("ask", [])
 
-    if not allow_list and not migration.changed:
+    if not allow_list and not migration.changed and not star_repair.changed:
         return RemovalResult(), []
 
     result = classify_rules(
@@ -474,28 +483,36 @@ def clean_file(
         skip_global_dedup=skip_global_dedup,
     )
     result.namespace_migration = migration
+    result.star_prefix_repair = star_repair
 
     has_findings = (
         result.total_removed > 0
         or result.wildcard_bypasses
         or result.allow_deny_contradictions
         or result.ask_shadowed_by_allow
-        or migration.changed
+        or result.repaired
     )
     if not has_findings:
         return result, []
 
-    if not dry_run and (result.total_removed > 0 or migration.changed):
+    if not dry_run and (result.total_removed > 0 or result.repaired):
         _write(path=path, kept_allow=result.kept if result.total_removed > 0 else None)
 
     messages = _format_messages(result, verbose=verbose)
     return result, messages
 
 
-def _write(*, path: Path, kept_allow: list[str] | None) -> None:
-    """Back up ``path``, then apply the namespace migration and any pruning.
+def _repair(data: dict) -> tuple[dict, NamespaceMigration, StarPrefixRepair]:
+    """The rule rewrites every layer gets, whether or not it is pruned."""
+    migrated, migration = migrate_legacy_namespace(data)
+    repaired, star_repair = repair_star_prefix(migrated)
+    return repaired, migration, star_repair
 
-    The migration is re-derived from the live document inside the lock
+
+def _write(*, path: Path, kept_allow: list[str] | None) -> None:
+    """Back up ``path``, then apply the rule repairs and any pruning.
+
+    The repairs are re-derived from the live document inside the lock
     rather than written from the snapshot read above, so a concurrent
     writer's unrelated keys survive.
     """
@@ -504,9 +521,9 @@ def _write(*, path: Path, kept_allow: list[str] | None) -> None:
 
     create_backup(path)
     with locked_json_update(path=path) as live_data:
-        migrated, _ = migrate_legacy_namespace(live_data)
+        repaired, _, _ = _repair(live_data)
         live_data.clear()
-        live_data.update(migrated)
+        live_data.update(repaired)
         if kept_allow is not None:
             live_data["permissions"]["allow"] = kept_allow
 
@@ -516,24 +533,25 @@ def migrate_file(
     *,
     dry_run: bool = False,
 ) -> tuple[RemovalResult | None, list[str]]:
-    """Migrate legacy rule spellings in a layer ``clean`` does not prune (GH-1501).
+    """Repair rules in a layer ``clean`` does not prune (GH-1501, GH-1503).
 
     User-scope settings and project ``settings.json`` files are shared or
     committed, so ``clean``'s redundancy pruning stays away from them —
-    but a stale ``Dev10x`` deny there stops guarding just the same.
+    but a stale ``Dev10x`` deny or an unmatchable ``*:*`` ask there stops
+    guarding just the same.
     """
     try:
         data = json.loads(path.read_text())
     except json.JSONDecodeError as e:
         return None, [f"  SKIP (invalid JSON): {e}"]
 
-    _, migration = migrate_legacy_namespace(data)
-    result = RemovalResult(namespace_migration=migration)
-    if not migration.changed:
+    _, migration, star_repair = _repair(data)
+    result = RemovalResult(namespace_migration=migration, star_prefix_repair=star_repair)
+    if not result.repaired:
         return result, []
     if not dry_run:
         _write(path=path, kept_allow=None)
-    return result, _format_migration(migration)
+    return result, [*_format_migration(migration), *_format_star_repair(star_repair)]
 
 
 def namespace_migration_layers(*, settings_files: list[Path]) -> list[Path]:
@@ -569,12 +587,24 @@ def _format_migration(migration: NamespaceMigration) -> list[str]:
     ]
 
 
+def _format_star_repair(repair: StarPrefixRepair) -> list[str]:
+    if not repair.changed:
+        return []
+    return [
+        f"  - {repair.count} rules with `*` before `:*` repaired (GH-1503)",
+        *(f"    {line}" for line in repair.describe()),
+    ]
+
+
 def _format_messages(
     result: RemovalResult,
     *,
     verbose: bool = False,
 ) -> list[str]:
-    messages: list[str] = _format_migration(result.namespace_migration)
+    messages: list[str] = [
+        *_format_migration(result.namespace_migration),
+        *_format_star_repair(result.star_prefix_repair),
+    ]
 
     if result.leaked_secrets:
         messages.append(f"  ⚠ LEAKED SECRETS ({len(result.leaked_secrets)}):")
@@ -715,7 +745,7 @@ class CleanFileOutcome:
             or self.result.wildcard_bypasses
             or self.result.allow_deny_contradictions
             or self.result.ask_shadowed_by_allow
-            or self.result.namespace_migration.changed
+            or self.result.repaired
         )
 
 
@@ -738,6 +768,7 @@ class CleanRunResult:
     total_secrets: int = 0
     total_global_dedup: int = 0
     total_migrated: int = 0
+    total_star_repaired: int = 0
 
 
 def run_clean(
@@ -785,7 +816,8 @@ def _record(*, run: CleanRunResult, outcome: CleanFileOutcome) -> None:
     run.total_secrets += len(result.leaked_secrets)
     run.total_global_dedup += len(result.exact_duplicates)
     run.total_migrated += result.namespace_migration.count
-    if result.total_removed > 0 or result.namespace_migration.changed:
+    run.total_star_repaired += result.star_prefix_repair.count
+    if result.total_removed > 0 or result.repaired:
         run.files_changed += 1
 
 

@@ -159,6 +159,8 @@ __all__ = [
     "LEGACY_PLUGIN_ID",
     "NamespaceMigration",
     "PluginIdMove",
+    "RULE_LISTS",
+    "RuleList",
     "RuleMove",
     "current_spelling",
     "migrate_legacy_namespace",
