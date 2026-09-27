@@ -10,6 +10,11 @@ and strips rules that are:
   - Bash rules with a `*` before a trailing `:*` — a literal prefix that
     can never match (GH-1472)
 
+Before any of that, every file — and every settings layer ``clean`` does
+not otherwise touch, via ``migration_layers`` — has its pre-rename
+``Dev10x`` rule spellings carried to ``dev10x`` (GH-1501). Deny and ask
+rules are rewritten, never dropped; see ``legacy_namespace``.
+
 Also flags rules containing leaked secrets: env-var key/value pairs, known
 token prefixes (GitHub, GitLab, AWS), Bearer headers, and URL query-string
 tokens. Findings name the matched rule (with the credential VALUE redacted),
@@ -42,6 +47,10 @@ from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.plugin_identity import PLUGIN_NAMES
 from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
 from dev10x.skills.permission.config import parse_config, resolve_config
+from dev10x.skills.permission.legacy_namespace import (
+    NamespaceMigration,
+    migrate_legacy_namespace,
+)
 
 MEMORY_CONFIG = Dev10xConfigDir.projects_yaml()
 USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
@@ -190,6 +199,7 @@ class RemovalResult:
     deprecated_globs: list[str] = field(default_factory=list)
     unmatchable_prefix: list[str] = field(default_factory=list)
     kept: list[str] = field(default_factory=list)
+    namespace_migration: NamespaceMigration = field(default_factory=NamespaceMigration)
 
     @property
     def total_removed(self) -> int:
@@ -444,12 +454,13 @@ def clean_file(
     except json.JSONDecodeError as e:
         return None, [f"  SKIP (invalid JSON): {e}"]
 
+    data, migration = migrate_legacy_namespace(data)
     perms = data.get("permissions", {})
     allow_list: list[str] = perms.get("allow", [])
     deny_list: list[str] = perms.get("deny", [])
     ask_list: list[str] = perms.get("ask", [])
 
-    if not allow_list:
+    if not allow_list and not migration.changed:
         return RemovalResult(), []
 
     result = classify_rules(
@@ -462,26 +473,100 @@ def clean_file(
         ask_rules=ask_list if ask_list else None,
         skip_global_dedup=skip_global_dedup,
     )
+    result.namespace_migration = migration
 
     has_findings = (
         result.total_removed > 0
         or result.wildcard_bypasses
         or result.allow_deny_contradictions
         or result.ask_shadowed_by_allow
+        or migration.changed
     )
     if not has_findings:
         return result, []
 
-    if not dry_run and result.total_removed > 0:
-        from dev10x.skills.permission.backup import create_backup
-        from dev10x.skills.permission.file_lock import locked_json_update
-
-        create_backup(path)
-        with locked_json_update(path=path) as live_data:
-            live_data["permissions"]["allow"] = result.kept
+    if not dry_run and (result.total_removed > 0 or migration.changed):
+        _write(path=path, kept_allow=result.kept if result.total_removed > 0 else None)
 
     messages = _format_messages(result, verbose=verbose)
     return result, messages
+
+
+def _write(*, path: Path, kept_allow: list[str] | None) -> None:
+    """Back up ``path``, then apply the namespace migration and any pruning.
+
+    The migration is re-derived from the live document inside the lock
+    rather than written from the snapshot read above, so a concurrent
+    writer's unrelated keys survive.
+    """
+    from dev10x.skills.permission.backup import create_backup
+    from dev10x.skills.permission.file_lock import locked_json_update
+
+    create_backup(path)
+    with locked_json_update(path=path) as live_data:
+        migrated, _ = migrate_legacy_namespace(live_data)
+        live_data.clear()
+        live_data.update(migrated)
+        if kept_allow is not None:
+            live_data["permissions"]["allow"] = kept_allow
+
+
+def migrate_file(
+    path: Path,
+    *,
+    dry_run: bool = False,
+) -> tuple[RemovalResult | None, list[str]]:
+    """Migrate legacy rule spellings in a layer ``clean`` does not prune (GH-1501).
+
+    User-scope settings and project ``settings.json`` files are shared or
+    committed, so ``clean``'s redundancy pruning stays away from them —
+    but a stale ``Dev10x`` deny there stops guarding just the same.
+    """
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError as e:
+        return None, [f"  SKIP (invalid JSON): {e}"]
+
+    _, migration = migrate_legacy_namespace(data)
+    result = RemovalResult(namespace_migration=migration)
+    if not migration.changed:
+        return result, []
+    if not dry_run:
+        _write(path=path, kept_allow=None)
+    return result, _format_migration(migration)
+
+
+def namespace_migration_layers(*, settings_files: list[Path]) -> list[Path]:
+    """Settings layers that carry rules but that ``clean`` does not scan.
+
+    The user-scope pair, plus the committed ``settings.json`` beside each
+    project ``settings.local.json`` ``clean`` found.
+    """
+    candidates = [
+        ClaudeDir.settings_json(),
+        ClaudeDir.settings_local_json(),
+        *(path.parent / "settings.json" for path in settings_files),
+    ]
+    seen = {path.resolve() for path in settings_files}
+    layers: list[Path] = []
+    for candidate in candidates:
+        if not candidate.is_file():
+            continue
+        resolved = candidate.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        layers.append(resolved)
+    return layers
+
+
+def _format_migration(migration: NamespaceMigration) -> list[str]:
+    if not migration.changed:
+        return []
+    return [
+        f"  - {migration.count} rules moved to the dev10x namespace (GH-1501)",
+        *(f"    {line}" for line in migration.describe()),
+    ]
 
 
 def _format_messages(
@@ -489,7 +574,7 @@ def _format_messages(
     *,
     verbose: bool = False,
 ) -> list[str]:
-    messages: list[str] = []
+    messages: list[str] = _format_migration(result.namespace_migration)
 
     if result.leaked_secrets:
         messages.append(f"  ⚠ LEAKED SECRETS ({len(result.leaked_secrets)}):")
@@ -630,6 +715,7 @@ class CleanFileOutcome:
             or self.result.wildcard_bypasses
             or self.result.allow_deny_contradictions
             or self.result.ask_shadowed_by_allow
+            or self.result.namespace_migration.changed
         )
 
 
@@ -651,6 +737,7 @@ class CleanRunResult:
     files_changed: int = 0
     total_secrets: int = 0
     total_global_dedup: int = 0
+    total_migrated: int = 0
 
 
 def run_clean(
@@ -663,8 +750,9 @@ def run_clean(
     dry_run: bool,
     verbose: bool,
     skip_global_dedup: bool,
+    migration_layers: list[Path] | None = None,
 ) -> CleanRunResult:
-    """Clean every settings file and aggregate the totals."""
+    """Clean every settings file, migrate every other layer, and aggregate."""
     run = CleanRunResult()
     for path in sorted(settings_files):
         result, messages = clean_file(
@@ -677,20 +765,28 @@ def run_clean(
             verbose=verbose,
             skip_global_dedup=skip_global_dedup,
         )
-        outcome = CleanFileOutcome(path=path, messages=messages, result=result)
-        run.outcomes.append(outcome)
-        if result is None:
-            continue
-        if outcome.has_findings:
-            run.total_removed += result.total_removed
-            run.total_kept += len(result.kept)
-            run.total_secrets += len(result.leaked_secrets)
-            run.total_global_dedup += len(result.exact_duplicates)
-            if result.total_removed > 0:
-                run.files_changed += 1
-        else:
-            run.total_kept += len(result.kept)
+        _record(run=run, outcome=CleanFileOutcome(path=path, messages=messages, result=result))
+    for path in migration_layers or []:
+        result, messages = migrate_file(path, dry_run=dry_run)
+        _record(run=run, outcome=CleanFileOutcome(path=path, messages=messages, result=result))
     return run
+
+
+def _record(*, run: CleanRunResult, outcome: CleanFileOutcome) -> None:
+    run.outcomes.append(outcome)
+    result = outcome.result
+    if result is None:
+        return
+    if not outcome.has_findings:
+        run.total_kept += len(result.kept)
+        return
+    run.total_removed += result.total_removed
+    run.total_kept += len(result.kept)
+    run.total_secrets += len(result.leaked_secrets)
+    run.total_global_dedup += len(result.exact_duplicates)
+    run.total_migrated += result.namespace_migration.count
+    if result.total_removed > 0 or result.namespace_migration.changed:
+        run.files_changed += 1
 
 
 def _restore(*, config_path: Path) -> int:

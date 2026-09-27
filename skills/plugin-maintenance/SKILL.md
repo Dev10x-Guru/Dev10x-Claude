@@ -832,6 +832,16 @@ uvx dev10x permission clean
 - Shell control flow fragments (`do`, `done`, `fi`, …)
 - Double-slash path typos (`Read(//work/...)`)
 
+**What the default migrates (GH-1501), in every layer — the
+user-scope pair and each project `settings.json` too:**
+`Dev10x:`-namespaced skill rules, `mcp__plugin_Dev10x_…` rules and the
+`Dev10x@Dev10x-Guru` `enabledPlugins` id move to the post-rename
+`dev10x` spelling. Deny and ask rules are rewritten, never dropped;
+a legacy copy whose new spelling is already listed is pruned. The
+`plugin-doctor` `legacy-plugin-namespace` strategy reports the same
+moves. `Dev10x` config dirs and `~/.claude/skills/Dev10x:upgrade-cleanup/`
+are left alone.
+
 **Opt-in global-dedup (`--aggressive`):** Removing exact
 duplicates of global rules and rules covered by global wildcards
 requires `--aggressive`, and only after

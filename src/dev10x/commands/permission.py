@@ -567,12 +567,13 @@ def clean(
 
     base_permissions = set(config.get("base_permissions", []))
     settings_files = mod.find_settings_files(roots=config.get("roots", []))
+    migration_layers = mod.namespace_migration_layers(settings_files=settings_files)
 
-    if not settings_files:
+    if not settings_files and not migration_layers:
         click.echo("No project settings files found.")
         return
 
-    click.echo(f"Scanning {len(settings_files)} files")
+    click.echo(f"Scanning {len(settings_files) + len(migration_layers)} files")
     if dry_run:
         click.echo("(dry run — no files will be modified)\n")
     else:
@@ -587,6 +588,7 @@ def clean(
         dry_run=dry_run,
         verbose=verbose,
         skip_global_dedup=skip_global_dedup,
+        migration_layers=migration_layers,
     )
 
     for outcome in run.outcomes:
@@ -605,6 +607,9 @@ def clean(
                 click.echo(msg)
 
     click.echo()
+    if run.total_migrated > 0:
+        verb = "Would move" if dry_run else "Moved"
+        click.echo(f"{verb} {run.total_migrated} rules to the dev10x namespace (GH-1501).")
     if run.total_removed == 0:
         click.echo("All project files are clean.")
     else:
