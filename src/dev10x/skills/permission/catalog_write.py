@@ -31,6 +31,7 @@ from dev10x.skills.permission.catalog_rules import (
     build_user_skill_script_rules,
     collapse_legacy_upgrade_cleanup_rule,
     is_dead_glob_script_rule,
+    partition_unmatchable_rules,
     scan_plugin_scripts,
     scan_user_skill_scripts,
     verify_read_coverage,
@@ -732,7 +733,7 @@ def ensure_base(
 
     policies = migrate_flat_config(config=config)
     rendered = render_permissions(policies=policies, home=str(Path.home()))
-    base_permissions = rendered.get("allow", [])
+    base_permissions, unmatchable = partition_unmatchable_rules(rendered.get("allow", []))
     base_denies = rendered.get("deny", [])
     base_asks = rendered.get("ask", [])
     if not base_permissions and not base_denies and not base_asks:
@@ -740,6 +741,7 @@ def ensure_base(
         return _result(exit_code=0, messages=messages, errors=errors)
 
     messages.extend(_catalog_drift_messages(drift=drift, quiet=quiet))
+    messages.extend(_unmatchable_rule_messages(unmatchable=unmatchable, quiet=quiet))
 
     global_rules, stale_wildcards = _load_global_allow_rules()
     if dedupe_global:
@@ -890,6 +892,17 @@ def ensure_base(
     )
 
 
+def _unmatchable_rule_messages(*, unmatchable: list[str], quiet: bool) -> list[str]:
+    if not unmatchable or quiet:
+        return []
+    messages = [
+        f"  Refusing to seed {len(unmatchable)} catalog rule(s) with a `*` before"
+        " `:*` — they can never match (GH-1472). Update your catalog copy:"
+    ]
+    messages.extend(f"    - {rule}" for rule in unmatchable)
+    return messages
+
+
 def _residual_gap_errors(
     *,
     settings_files: list[Path],
@@ -961,9 +974,10 @@ def catalog_gap(
 
     policies = migrate_flat_config(config=config)
     rendered = render_permissions(policies=policies, home=str(Path.home()))
-    base_permissions = rendered.get("allow", [])
+    base_permissions, unmatchable = partition_unmatchable_rules(rendered.get("allow", []))
     base_denies = rendered.get("deny", [])
     base_asks = rendered.get("ask", [])
+    messages.extend(_unmatchable_rule_messages(unmatchable=unmatchable, quiet=quiet))
 
     if not quiet:
         messages.append(

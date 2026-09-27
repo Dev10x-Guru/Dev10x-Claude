@@ -611,12 +611,10 @@ rules:
               `-C`: a `-C` whose path already equals CWD is denied as
               redundant, so the "always pin" habit backfires here.
             • pwd != the path → `git -C <worktree-path> <verb> ...`. One
-              argument instead of two, and the catalog seeds it per verb
-              (e.g. `Bash(git -C * log:*)`) for the nine read-only verbs.
-              GH-1268: this claim used to be aspirational — no `git -C`
-              rule was catalogued at all, so the steer pointed at a shape
-              that prompted. Mutating verbs are deliberately absent; route
-              those to Dev10x:git / Dev10x:git-groom.
+              argument instead of two. No allow rule can cover it: a
+              `*` before `:*` is literal, and the space form would also
+              match `-c <cmd>` (GH-1472) — so it prompts. Route mutating
+              verbs to Dev10x:git / Dev10x:git-groom.
 
           Never `cd <path>; <cmd>` as a recovery — chaining is blocked, and
           for an unattended agent that prompt is another silent wedge.
@@ -1145,8 +1143,8 @@ rules:
           and exits 127, e.g. inside a plugin-repo checkout (GH-947).
           For bespoke conditions, wrap the
           loop in a PEP 723 uv-shebang script under ~/.claude/tools/
-          (covered by the standard Bash(~/.claude/tools/*:*) allow
-          rule) and invoke the bare script path.
+          and invoke the bare script path (approve it once by its exact
+          path — no folder-wide rule can match, GH-1472).
       - type: use-tool
         tool: mcp__plugin_Dev10x_cli__ci_check_status
         guardrails: single server-side poll, structured verdict

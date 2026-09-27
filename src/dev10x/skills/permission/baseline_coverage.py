@@ -192,7 +192,6 @@ UNTRIAGED_BACKLOG: frozenset[str] = frozenset(
         "Bash(gzip *)",
         "Bash(base64:*)",
         "Bash(curl -fsSL:*)",
-        "Bash(curl -s*:*)",
         "Bash(curl -si:*)",
         "Bash(curl -sI:*)",
         "Bash(which *)",

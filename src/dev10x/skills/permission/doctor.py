@@ -62,9 +62,9 @@ CATALOG_PATH = Path(__file__).resolve().parent / "baseline-permissions.yaml"
 # exemptions therefore consult BOTH rather than picking a winner here.
 PROJECTS_CATALOG_PATH = shipped_projects_catalog()
 
-# A `/home/*/`-rooted rule is a deliberate catalog twin (GH-47): a `~/`
-# rule does not match a session that spells the path `/home/<user>/`, so
-# `ensure-base` seeds both spellings. Such a rule can never start with
+# A `/home/*/`-rooted rule was a catalog twin (GH-47) until GH-1472
+# dropped it from the catalog; copies survive in user settings until
+# `permission clean` removes them. Such a rule can never start with
 # the resolved home directory, so the home-prefix exemption below misses
 # it — and a path rooted at an arbitrary user's home cannot be
 # project-scoped by construction, so it is never contamination.

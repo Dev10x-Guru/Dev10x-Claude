@@ -37,8 +37,9 @@ include_user_settings: true
 # `Read`/`Edit`/`Write` patterns are gitignore patterns — `**` crosses
 # directories, `*` stays inside one segment, and the leading token picks
 # the anchor: `//` the filesystem root, `~/` the home directory, a lone
-# `/` the settings source. A `Bash()` rule is a literal command prefix
-# where `**` is two characters. Enumerate by intent, collapse by
+# `/` the settings source. In a `Bash(X:*)` rule the text before `:*` is
+# a literal command prefix where `*` and `**` are plain characters
+# (GH-1472). Enumerate by intent, collapse by
 # redundancy: one tree rule replaces a per-subdirectory list, and no
 # rule is widened to absorb a neighbour it was not granted for.
 # Enforced by tests/skills/permission/test_path_rule_anchors.py.
@@ -113,18 +114,16 @@ base_permissions:
   # --- Plugin infrastructure (GH-274, GH-101, GH-426) ---
   - "Bash(/tmp/Dev10x/bin/mktmp.sh:*)"
 
-  # --- Arbitrary-code escape destinations (GH-370) ---
-  # GH-308 steers agents to extract inline probes into /tmp/Dev10x/*.py
-  # or ~/.claude/tools/*.py. Write is already permitted; without these,
-  # executing the extracted script prompts again (GH-271 #192, #215).
-  - "Bash(/tmp/Dev10x/*.py:*)"
-  - "Bash(/tmp/Dev10x/**/*.py:*)"
-  - "Bash(/tmp/Dev10x/*.sh:*)"
-  - "Bash(/tmp/Dev10x/**/*.sh:*)"
-  - "Bash(~/.claude/tools/*:*)"
-  - "Bash(~/.claude/tools/*.py:*)"
-  - "Bash(~/.claude/tools/*.sh:*)"
-  - "Bash(/home/*/.claude/tools/*:*)"
+  # GH-1472: no Bash rule here may put a `*` before a trailing `:*`.
+  # The text before `:*` is a literal prefix, so that `*` is a plain
+  # character — the rule never matches and Claude Code flags it at every
+  # startup. Do not "fix" one by switching to the space form
+  # (`Bash(X *)`): there `*` matches any text, `..` and `-c` included, so
+  # the rule would grant far more than it ever did. The GH-370 escape
+  # folders (/tmp/Dev10x/*.py, ~/.claude/tools/*), the /home/*/ twins and
+  # the cross-worktree git and `uv run --directory` spellings were all
+  # this shape and were dropped. Enforced by
+  # tests/skills/permission/test_catalog_rule_shapes.py.
 
   # --- Plugin scripts (GH-471) ---
   # Per-script Bash rules are NO LONGER listed here. They previously used
@@ -357,10 +356,8 @@ base_permissions:
   # `Bash(find:*)` does not reliably match `find <path> ... | head`
   # due to how the engine tokenizes prefixes with pipelines. Scope
   # the rule to the plugin cache so common skills (work-on,
-  # skill-audit, skill-create) can scan without a prompt. Two forms
-  # — some sessions normalize `~`, others use the literal `/home/<user>`.
+  # skill-audit, skill-create) can scan without a prompt.
   - "Bash(find ~/.claude/plugins/cache/Dev10x-Guru/Dev10x:*)"
-  - "Bash(find /home/*/.claude/plugins/cache/Dev10x-Guru/Dev10x:*)"
 
   # --- Common git operations ---
   - "Bash(git log:*)"
@@ -393,62 +390,13 @@ base_permissions:
   - "Bash(identify:*)"
 
   # --- Read-only cross-worktree git spellings (GH-1135, GH-1268) ---
-  # An agent in a worktree that needs ANOTHER checkout's state has two
-  # spellings available: the preferred `git -C <path> <verb>` and the
-  # plumbing `git --git-dir=<repo>/.git --work-tree=<repo> <verb>`.
-  #
-  # GH-1268: until this block seeded the `-C` form, only the plumbing
-  # form was covered — so `git-dir-worktree-pinning` steered agents to a
-  # shape with no rule behind it while the shape it deprecates was
-  # pre-approved. The catalog-gap report could not see the contradiction,
-  # because a rule that was never seeded cannot be reported missing. Both
-  # spellings are now covered, symmetrically, on the same nine verbs.
-  #
-  # Read-only verbs ONLY — mutating verbs stay routed to Dev10x:git /
-  # Dev10x:git-groom. This is why the `-C` rules below are verb-scoped
-  # rather than the harness's verb-blind `Bash(git -C:*)`, which would
-  # also grant `git -C <path> push --force`.
-  #
-  # These rules cover `-C` with a path ARGUMENT (cross-worktree reads).
-  # They do not sanction `git -C <cwd>` — a `-C` whose path already
-  # equals the CWD is redundant and shifts the command prefix for no
-  # gain (GH-97, GH-760 F5). `git-dir-worktree-pinning`'s two-mode
-  # compensation is what decides which spelling applies; these rules
-  # only ensure the cross-worktree branch of it can land.
-  #
-  # Both plumbing orderings are covered because agents emit both.
-  # Whether a mid-path `*` matches at all is the open question these
-  # rules depend on (ADR-0021, GH-925 F2); the permission-investigator
-  # matrix now carries a `mid_path_star` cell to settle it. If the cell
-  # reports PROMPTED, the shape is un-allow-listable and
-  # `git-dir-worktree-pinning` flips to `hook_block: true`.
-  - "Bash(git -C * status:*)"
-  - "Bash(git -C * log:*)"
-  - "Bash(git -C * rev-parse:*)"
-  - "Bash(git -C * diff:*)"
-  - "Bash(git -C * branch:*)"
-  - "Bash(git -C * worktree list:*)"
-  - "Bash(git -C * ls-files:*)"
-  - "Bash(git -C * show:*)"
-  - "Bash(git -C * merge-base:*)"
-  - "Bash(git --git-dir=* --work-tree=* status:*)"
-  - "Bash(git --git-dir=* --work-tree=* log:*)"
-  - "Bash(git --git-dir=* --work-tree=* rev-parse:*)"
-  - "Bash(git --git-dir=* --work-tree=* diff:*)"
-  - "Bash(git --git-dir=* --work-tree=* branch:*)"
-  - "Bash(git --git-dir=* --work-tree=* worktree list:*)"
-  - "Bash(git --git-dir=* --work-tree=* ls-files:*)"
-  - "Bash(git --git-dir=* --work-tree=* show:*)"
-  - "Bash(git --git-dir=* --work-tree=* merge-base:*)"
-  - "Bash(git --git-dir * --work-tree * status:*)"
-  - "Bash(git --git-dir * --work-tree * log:*)"
-  - "Bash(git --git-dir * --work-tree * rev-parse:*)"
-  - "Bash(git --git-dir * --work-tree * diff:*)"
-  - "Bash(git --git-dir * --work-tree * branch:*)"
-  - "Bash(git --git-dir * --work-tree * worktree list:*)"
-  - "Bash(git --git-dir * --work-tree * ls-files:*)"
-  - "Bash(git --git-dir * --work-tree * show:*)"
-  - "Bash(git --git-dir * --work-tree * merge-base:*)"
+  # GH-1472 settled the open question this block depended on (ADR-0021,
+  # GH-925 F2): a mid-path `*` before `:*` is a literal character, so
+  # all 27 rules that stood here (`git -C * <verb>:*` and both plumbing
+  # orderings) never matched. They were dropped rather than rewritten to
+  # the space form, where `*` would also match `-c core.fsmonitor=<cmd>`
+  # and turn a read into arbitrary execution. A cross-worktree read
+  # prompts, as it always did; prefer running from the target checkout.
 
   # --- Python project tooling (GH-20) ---
   # PEP 723 shebangs (#!/usr/bin/env -S uv run --script) execute
@@ -459,17 +407,10 @@ base_permissions:
   - "Bash(uv run --extra dev pytest:*)" # cli-friction: allow raw-pytest — base allow rule for plugin-maintenance, not a skill doc
   - "Bash(uv run ruff:*)"
   - "Bash(uv run dev10x:*)"
-  # GH-1248: the `--directory` forms of the same three commands. Allow-rule
-  # matching keys on the literal command string, so the plain forms above do
-  # not match a `uv run --directory <path> …` invocation — and that is the
-  # shape used in the multi-worktree setups Dev10x itself encourages via
-  # Dev10x:git-worktree. Same failure mode as GH-1189 (`uv add`) and GH-1149
-  # (bare `pre-commit run`): a family catalogued in one shape while users type
-  # another, with `catalog-gap` reporting 0 missing because it compares
-  # against the catalog rather than against what people run.
-  - "Bash(uv run --directory * pytest:*)" # cli-friction: allow raw-pytest — base allow rule for plugin-maintenance, not a skill doc
-  - "Bash(uv run --directory * mypy:*)"
-  - "Bash(uv run --directory * ruff:*)"
+  # GH-1248 added `uv run --directory * <tool>:*` forms here; GH-1472
+  # dropped them — the `*` before `:*` is literal, so they never matched.
+  # The DX007 prefix-friction validator already strips `--directory <p>`
+  # and re-matches the inner command against the plain rules above.
   # GH-1189: `uv lock`, `uv sync`, `uv build`, `uv tool`, `uv pip *` and
   # `uv run *` were all catalogued; `uv add` was not, so a crew worker
   # adding a dependency prompted on an unattended night run while

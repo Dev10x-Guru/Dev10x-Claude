@@ -8,9 +8,13 @@
 #   - Use `${CLAUDE_PLUGIN_ROOT}/...` for plugin-script rules. Never paste
 #     resolved cache paths (e.g. `/plugins/cache/Dev10x-Guru/Dev10x/0.71.0/`)
 #     — those rot on every plugin upgrade. Do NOT rewrite them to a
-#     `**` wildcard either (GH-715): a `Bash()` rule is matched as a
-#     literal command prefix, so `**` is just two characters there.
-#     That is a fact about `Bash()` only — `Read`/`Edit`/`Write` rules
+#     `**` wildcard either (GH-715): in the colon form `Bash(X:*)` the
+#     text before `:*` is a literal command prefix, so any `*` or `**`
+#     there is just characters and the rule never matches (GH-1472 —
+#     Claude Code flags such rules at startup). In the space form
+#     `Bash(X *)` a `*` IS a wildcard that matches any text, `..` and
+#     extra flags included — so never "fix" a colon rule by converting
+#     it. That is a fact about `Bash()` only — `Read`/`Edit`/`Write` rules
 #     are gitignore patterns whose `**` does cross directories
 #     (GH-1325). Keep pinned paths current with
 #     `dev10x permission update-paths`, which runs on every upgrade.
@@ -242,21 +246,9 @@ groups:
       - "Bash(${CLAUDE_PLUGIN_ROOT}/hooks/scripts/**)"
       - "Bash(${CLAUDE_PLUGIN_ROOT}/skills/**)"
       - "Bash(${CLAUDE_PLUGIN_ROOT}/lib/**)"
-      # GH-370: documented arbitrary-code escape destinations. When an
-      # agent follows GH-308 steering and extracts an inline probe into
-      # /tmp/Dev10x/<id>.py or ~/.claude/tools/<name>.py, the Write
-      # permission already exists — but executing the result prompts
-      # again. Same trust model as ${CLAUDE_PLUGIN_ROOT}/skills above.
-      - "Bash(/tmp/Dev10x/*.py:*)"
-      - "Bash(/tmp/Dev10x/**/*.py:*)"
-      - "Bash(/tmp/Dev10x/*.sh:*)"
-      - "Bash(/tmp/Dev10x/**/*.sh:*)"
-      - "Bash(~/.claude/tools/*:*)"
-      - "Bash(~/.claude/tools/*.py:*)"
-      - "Bash(~/.claude/tools/*.sh:*)"
-      # Twin absolute-path form — some sessions normalize ~, others use
-      # the literal /home/<user> (GH-271 evidence #192, #215).
-      - "Bash(/home/*/.claude/tools/*:*)"
+      # The GH-370 escape-folder rules (`/tmp/Dev10x/*.py:*`,
+      # `~/.claude/tools/*:*` and twins) were dropped by GH-1472: a `*`
+      # before `:*` is literal, so they never matched.
 
   dev10x-cli:
     tier: 1
@@ -338,7 +330,6 @@ groups:
       - Bash(gzip *)
       - Bash(base64:*)
       - Bash(curl -fsSL:*)
-      - Bash(curl -s*:*)
       - Bash(curl -si:*)
       - Bash(curl -sI:*)
       - Bash(which *)
@@ -646,21 +637,17 @@ groups:
   kubernetes-readonly:
     tier: 3
     description: >
-      kubectl read-only inspection. Namespace-scoped wildcards because
-      real-world usage always passes `-n <namespace>`. Excludes
+      kubectl read-only inspection. Excludes
       apply/delete/patch/exec/scale/rollout/edit/create — those mutate
       cluster state and must stay prompted. `port-forward`, `proxy`,
       `exec`, and `cp` intentionally excluded (escape hatches / arbitrary
-      code).
+      code). The `kubectl -n * <verb>:*` forms were dropped (GH-1472):
+      a `*` before `:*` is literal, so they never matched.
     rules:
       - Bash(kubectl get:*)
-      - Bash(kubectl -n * get:*)
       - Bash(kubectl describe:*)
-      - Bash(kubectl -n * describe:*)
       - Bash(kubectl logs:*)
-      - Bash(kubectl -n * logs:*)
       - Bash(kubectl top:*)
-      - Bash(kubectl -n * top:*)
       - Bash(kubectl explain:*)
       - Bash(kubectl api-resources:*)
       - Bash(kubectl api-versions:*)

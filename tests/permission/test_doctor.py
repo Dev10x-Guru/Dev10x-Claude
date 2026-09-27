@@ -355,16 +355,12 @@ class TestCrossContamination:
         )
         assert findings == []
 
-    def test_shipped_catalog_home_glob_rules_are_not_flagged(self, tmp_path: Path) -> None:
-        project = tmp_path / "p"
-        project.mkdir()
-        workspace = doctor.WorkspaceContext(project_root=project)
+    def test_shipped_catalog_carries_no_home_glob_bash_rule(self) -> None:
+        # GH-1472: `Bash(/home/*/...:*)` never matches — the `*` is literal.
         home_glob_rules = [
             rule for rule in doctor.catalogued_rules() if rule.startswith("Bash(/home/*/")
         ]
-        assert home_glob_rules, "the catalog is expected to ship /home/*/ twins"
-        findings = doctor.detect_cross_contamination(home_glob_rules, workspace=workspace)
-        assert findings == []
+        assert home_glob_rules == []
 
 
 class TestCatalogueLoadVisibility:
