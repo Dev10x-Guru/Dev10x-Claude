@@ -5,6 +5,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.106.0 — One Name Every Marketplace Accepts, Wrappers That Check Their Own Work
+
+Released 2026-09-28
+
 ### Breaking
 
 - **Install Dev10x from Claude Desktop and claude.ai** — adding the
@@ -15,7 +19,209 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   installs must uninstall `Dev10x@Dev10x-Guru` and install the new id, then run
   `/dev10x:upgrade-cleanup` — see `docs/installation.md` § Upgrading from the
   `Dev10x` plugin id. Config directories (`~/.config/Dev10x` and friends) are
-  unchanged (GH-1499).
+  unchanged. Plugin-root and catalog lookups scan both cache dir names, so an
+  existing install keeps resolving through the switch
+  ([GH-1499](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1499))
+- **Keep your Dev10x-era denies guarding after the rename** — rules written
+  against the old name (`Skill(Dev10x:*)`, `mcp__plugin_Dev10x_*`, the old
+  `enabledPlugins` id) match nothing after GH-1499, and a deny that matches
+  nothing still reads as present. `permission clean` now rewrites every legacy
+  spelling in place across every settings layer, never shrinking a deny, and
+  `plugin-doctor`'s `legacy-plugin-namespace` strategy flags an un-migrated
+  deny/ask as critical
+  ([GH-1501](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1501))
+
+### Features
+
+- **Estimate at agent pace plus the human gates** — estimates came from three
+  places that disagreed, and everything else fell back to one engineer at human
+  pace: over-estimating the mechanical part and under-estimating review, review
+  wait, testing and docs. The new `dev10x:estimate` skill is the single method
+  (points with 13 = split, five line items, effort reported apart from elapsed);
+  `ticket-scope`, `project-scope` and `work-on` delegate to it, SessionStart
+  points at it, and a test pins every consumer to it
+  ([GH-1495](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1495))
+- **Count permission friction instead of retyping it** — every friction tracker
+  so far was a human reading their own terminal. Denials now record
+  `tool_signature` and `rule_family`, `dev10x permission report` ranks them, and
+  `permission report --predicted` estimates which catalog rules would prompt in
+  a checkout from state already on disk — labelled a prediction and a floor,
+  never a census
+  ([GH-1406](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1406),
+  [GH-1408](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1408))
+- **Keep one crew's burst from throttling every worktree** — nothing capped
+  subprocess fan-out in the shared MCP daemon, so parallel crews could trip
+  GitHub's secondary rate limits for the whole install. `async_run` now holds a
+  per-loop semaphore permit for each child's life
+  (`DEV10X_MCP_MAX_SUBPROCESSES`, default 12)
+  ([GH-1422](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1422))
+- **Fail the build when a deprecation outlives its window** — "for one release"
+  measured nothing at this cadence. ADR-0028 is accepted: every shim carries a
+  removal version in `dev10x.domain.deprecations`, a shim past it turns the
+  suite red, and four expired shims (`Rule`, `match_globs_for`,
+  `seed_strict_baseline_if_absent`, `read_human_review`) are retired
+  ([GH-1440](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1440))
+
+### Fixes
+
+- **Report what GitHub did, not what was asked for** — `pr_ready` returned
+  `{"draft": undo}`, its own argument, which can never disagree with the
+  request. `create_pr`, `update_pr` and `pr_ready` now read the PR back and
+  report the observed value (`draft_verified` / `write_verified`); gh and Slack
+  calls retry 408/429/5xx with jittered backoff; failed notifications land in a
+  dead-letter log; `pr_labels` remove is one `PUT`. Google Chat gets the same
+  retry and dead-letter, with a parity test guarding both providers
+  ([GH-1424](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1424),
+  [GH-1423](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1423),
+  [GH-1421](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1421),
+  [GH-1446](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1446),
+  [GH-1479](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1479))
+- **Keep one wedged git call from freezing every worktree** — `GitContext`'s
+  cached `toplevel`/`branch` could not take a timeout, and a sync git call
+  inside a coroutine blocks the daemon's single loop. Git reads are now bounded
+  by default, `common_dir` has one implementation, and twelve async handlers
+  run git off-loop, with an AST guard against regressions
+  ([GH-1412](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1412),
+  [GH-1457](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1457),
+  [GH-1445](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1445))
+- **Never lose a pin or a whole config to a race or a typo** — the config
+  migration did an unlocked read-modify-write of the global `friction.yaml`,
+  erasing a concurrent pin while its parity check passed; and
+  `locked_yaml_update` replaced an unparseable file with an empty one,
+  destroying the only evidence of what it held. Both are fixed: the migration
+  locks and writes atomically, and a corrupt file raises `CorruptYamlError` and
+  is left untouched
+  ([GH-1411](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1411),
+  [GH-1413](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1413))
+- **Make every `*`-before-`:*` rule fire, or go** — a `*` before the trailing
+  `:*` is literal, so 39 shipped catalog allows never matched and warned at
+  every startup, and user denies of that shape (the `~/.claude` write-guard,
+  the `rm -rf` ask) guarded nothing. The catalogs drop them, `permission clean`
+  prunes allows and rewrites denies/asks to the form the harness suggests, and
+  cross-worktree `git --git-dir … --work-tree …` reads — which no allow rule can
+  cover — are now blocked with a steer instead of stalling on a prompt
+  ([GH-1472](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1472),
+  [GH-1503](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1503),
+  [GH-1496](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1496))
+- **Give every checkout the catalog it should have** — `seed_worktree`
+  re-implemented part of `ensure_base` and left new worktrees without asks,
+  tracker/IDE blocks and the unconditional IDE denies; it now delegates. The
+  `jetbrains` → `pycharm` rename had stranded `execute_run_configuration`,
+  `run_notebook_cell` and `build_project` outside the deny list; they are denied
+  and a guard pins the pair. `canonicalize` no longer collapses a leading `//`
+  or jq's `//` operator
+  ([GH-1405](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1405),
+  [GH-1403](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1403),
+  [GH-1401](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1401),
+  [GH-1402](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1402))
+- **Stop the Stop gate misreading the session** — the stand-down gate always
+  recommended quitting on an empty task list, even with work parked on a PR or
+  tracker; it now orders options from a `dev10x:ask` open-loop sweep. A
+  stand-down answer persists until the task list changes, a plan from another
+  branch or session no longer blocks, and a task tagged `awaiting` lets an
+  orchestrator wait out a dispatched wave instead of being forced to loop
+  ([GH-1404](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1404),
+  [GH-1470](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1470),
+  [GH-1464](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1464),
+  [GH-1434](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1434))
+- **Keep CI verdicts honest** — a transient `gh` failure mid-poll no longer
+  discards the whole wait (three strikes, then report "no verdict"),
+  `gh-pr-monitor` confirms a PR is not draft before trusting green and names
+  skipped checks, and Check 1b no longer dies with "Argument list too long" on
+  a PR with a long comment history
+  ([GH-1420](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1420),
+  [GH-1410](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1410),
+  [GH-1468](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1468))
+- **Work on macOS** — `gh-issue-create.sh` used `grep -P`, so every created
+  issue reported as failed and bulk callers filed duplicates; `mktmp.sh` used
+  GNU-only `mktemp` flags and returned a literal `.XXXXXXXXXXXX.` path. Both are
+  POSIX now, with a guard banning `grep -P` in shipped scripts
+  ([GH-1492](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1492),
+  [GH-1467](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1467))
+- **Review and merge from the right checkout** — `dev10x:review` anchors on
+  `origin/<base>` so a lagging local develop no longer inflates the diff (36
+  files vs 15), Check 1d reads commits from the PR's own worktree via
+  `--repo-dir`, and `gh-pr-create` tells callers to pass `cwd` on every MCP call
+  ([GH-1463](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1463),
+  [GH-1464](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1464),
+  [GH-1466](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1466))
+- **Let hooks steer instead of dead-ending** — DX017 now blocks only text/source
+  destinations, so a same-tree binary rename has a path; `watch-loop-handrolled`
+  lets through a `run_in_background` loop, the very shape it recommends
+  ([GH-1455](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1455),
+  [GH-1456](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1456))
+- **Fail loud where failures used to vanish** — six PEP 723 scripts (three run
+  by foreman overnight) had unbounded subprocesses and are now bounded with a
+  pre-commit guard; a failed permission diagnostic or hook attribution logs at
+  warning and lands in the audit log; validator tier checks survive `-O`; a
+  release that fails mid-bump can no longer ship mismatched PyPI and plugin
+  versions; `RetryPolicy(attempts=0)` is refused
+  ([GH-1414](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1414),
+  [GH-1418](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1418),
+  [GH-1459](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1459),
+  [GH-1419](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1419),
+  [GH-1416](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1416),
+  [GH-1423](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1423))
+- **Small surface fixes** — `pr_get` accepts `pr_number` like the twelve other
+  PR tools; `claude-memory-review` skips fork PRs instead of going red on every
+  merge; `github-contract-tests` declares read-only permissions
+  ([GH-1430](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1430),
+  [GH-1415](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1415),
+  [GH-1417](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1417))
+
+### Refactoring
+
+- **Split the 3,000-line GitHub facade by capability** — per ADR-0027,
+  `github/__init__.py` is now re-exports only, with `_gateway`, `pulls`,
+  `merge`, `reviews`, `issues`, `labels`, `milestones`, `bulk`, `detection` and
+  `notify` modules and a patch-target guard so a test cannot patch a name the
+  code no longer looks up there
+  ([GH-1439](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1439),
+  [GH-1478](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1478))
+- **Clear the 2026-09-19 architecture audit backlog** — `update_paths.py` and
+  `session_yaml.py` split into owning modules; one `mcp_tool` boundary
+  decorator; `backed_up_write` makes backup-before-write structural;
+  `SingletonHolder` for five hand-rolled singletons; `PinScope` enum;
+  `McpToolName` and `RepositoryRef` used where they were bypassed; the drift
+  detector calls the real matcher; the GitHub layer no longer imports the CLI
+  package; the dead `SessionStore` is deleted
+  ([GH-1425](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1425)–[GH-1433](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1433),
+  [GH-1442](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1442),
+  [GH-1444](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1444),
+  [GH-1450](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1450)–[GH-1452](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1452),
+  [GH-1460](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1460))
+- **Raise the test floor to what is measured** — coverage `fail_under` 75 → 90
+  (measured 93%); new tests for `audit-wrap`, the platform CLI and the PR write
+  tools' wire payloads; gated skills gained the evals and `AskUserQuestion`
+  declarations their own rule requires; `DEV10X_STOP_PAYLOAD_KEYS=1` records
+  the Stop payload shape instead of guessing at it
+  ([GH-1437](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1437),
+  [GH-1447](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1447),
+  [GH-1448](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1448),
+  [GH-1449](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1449),
+  [GH-1435](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1435),
+  [GH-1436](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1436),
+  [GH-1347](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1347))
+
+### Docs
+
+- **Record the architecture audit and its decisions** — the audit memo with its
+  coverage gaps and ARCH milestone order; ADR-0029 (no shared chat-provider
+  base), ADR-0030 (Catalog Entry archetype) and a "no forced Document base"
+  decision accepted; ADR-0031/0032/0033 proposed for repo-keyed worktree
+  overlays, an afk-silenceable stand-down gate, and a disposable test-DB
+  wrapper; over-budget docs brought back in line
+  ([GH-1441](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1441),
+  [GH-1453](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1453),
+  [GH-1454](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1454),
+  [GH-1313](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1313),
+  [GH-1348](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1348),
+  [GH-1324](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1324),
+  [GH-1438](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1438))
+- **Recover a swarm after an MCP reconnect** — `fanout` no longer resumes a
+  child that lost its wrappers, and children treat delegated files as the
+  sub-agent's until its notification lands
+  ([GH-1464](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1464))
 
 ## 0.105.0 — No Rule That Cannot Fire
 
