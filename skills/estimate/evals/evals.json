@@ -68,6 +68,42 @@
           "signal": "Implementation lines are sized in hours at agent pace; the estimate does not read '1-1.5 weeks, one engineer'"
         }
       ]
+    },
+    {
+      "id": "ad-hoc-question-follows-method",
+      "name": "An ad-hoc question with no scoping skill loaded follows the method",
+      "description": "A prose question with no ticket ID and no scoping skill in play still yields the five-line estimate, reached via this skill's trigger or the SessionStart pointer (GH-1495 AC4).",
+      "input": "what would it take to add a --json flag to the dev10x permission doctor command?",
+      "assertions": [
+        {
+          "dimension": "line-items",
+          "check": "rubric",
+          "signal": "The answer separates agent implementation from human review, review wait, testing and documentation"
+        },
+        {
+          "dimension": "effort-vs-elapsed",
+          "check": "rubric",
+          "signal": "The answer gives effort and elapsed time as separate figures"
+        },
+        {
+          "dimension": "agent-baseline",
+          "check": "plain_text",
+          "signal": "No 'one engineer, N days' figure answers the question"
+        }
+      ]
+    },
+    {
+      "id": "thirteen-points-splits",
+      "name": "An epic-sized change gets a split, not a number",
+      "description": "When sizing reaches 13 points the skill recommends decomposition and proposes the parts instead of planning on one figure.",
+      "input": "/dev10x:estimate a single ticket that rewrites the permission catalog, every hook and plugin-doctor in one change",
+      "assertions": [
+        {
+          "dimension": "agent-baseline",
+          "check": "rubric",
+          "signal": "The output recommends splitting the ticket and names the parts, rather than a single 13-point estimate to plan on"
+        }
+      ]
     }
   ],
   "trigger_evals": {

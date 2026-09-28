@@ -138,6 +138,13 @@ Estimate — <ticket or project>          Points: <n> (<why>)
 Basis: <calibrated from … | defaults>. Assumptions: <reviewer, CI time, QA need>.
 ```
 
+## Subagents
+
+SessionStart guidance does not reach a dispatched subagent, so the
+always-present pointer to this skill is absent there. A skill that
+asks a subagent for an estimate must inline this method or tell the
+subagent to Read this file — never assume it already knows it.
+
 ## Anti-patterns
 
 | Anti-pattern | Why it misleads | Instead |
