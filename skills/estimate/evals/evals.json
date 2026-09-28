@@ -1,0 +1,148 @@
+{
+  "skill_name": "dev10x:estimate",
+  "eval_dimensions": [
+    {
+      "id": "method-loaded",
+      "name": "Shared Method Loaded",
+      "description": "The estimate is produced after reading references/estimation.md, not from Claude's default estimation."
+    },
+    {
+      "id": "line-items",
+      "name": "Human Gates Broken Out",
+      "description": "Agent implementation, human review, review wait, testing and documentation each appear as their own line item, with a zero stated rather than a row omitted."
+    },
+    {
+      "id": "effort-vs-elapsed",
+      "name": "Effort and Elapsed Reported Separately",
+      "description": "Every estimate reports hands-on effort and calendar elapsed time as distinct figures; review wait contributes elapsed time only."
+    },
+    {
+      "id": "agent-pace",
+      "name": "Agent-Pace Implementation",
+      "description": "Implementation is sized at agent pace; no 'one engineer, N weeks' human-pace framing appears."
+    },
+    {
+      "id": "project-rollup",
+      "name": "Critical-Path Roll-up",
+      "description": "Project estimates sum effort but derive elapsed time from the blocking chain and reviewer capacity, not by summing ticket elapsed times."
+    }
+  ],
+  "evals": [
+    {
+      "id": "ticket-level-estimate",
+      "name": "Ticket-level estimate breaks out the human gates",
+      "description": "A single-ticket estimate reads the shared method and returns the five line items with effort and elapsed columns.",
+      "input": "/dev10x:estimate GH-1495",
+      "assertions": [
+        {
+          "dimension": "method-loaded",
+          "check": "tool_called",
+          "value": "Read",
+          "signal": "Read is called on references/estimation.md before any number is produced"
+        },
+        {
+          "dimension": "line-items",
+          "check": "rubric",
+          "signal": "The output table has rows for Agent implementation, Human review, Review wait, Testing and Documentation"
+        },
+        {
+          "dimension": "effort-vs-elapsed",
+          "check": "rubric",
+          "signal": "The table has separate Effort and Elapsed columns, and Review wait has an elapsed value but no effort value"
+        },
+        {
+          "dimension": "agent-pace",
+          "check": "plain_text",
+          "signal": "No phrasing such as 'one engineer', 'developer-days' or 'N weeks of coding' sizes the implementation"
+        }
+      ]
+    },
+    {
+      "id": "project-level-estimate",
+      "name": "Project-level estimate rolls up along the critical path",
+      "description": "A milestone of several tickets with a blocking chain is estimated per ticket, then rolled up with summed effort and critical-path elapsed time.",
+      "input": "How long will the Codex port release R1 take? It has four tickets: two independent adapters, then an integration ticket blocked by both, then docs.",
+      "assertions": [
+        {
+          "dimension": "method-loaded",
+          "check": "tool_called",
+          "value": "Read",
+          "signal": "Read is called on references/estimation.md"
+        },
+        {
+          "dimension": "project-rollup",
+          "check": "rubric",
+          "signal": "Total effort is the sum of ticket efforts, while total elapsed follows the adapter -> integration -> docs chain with the two adapters counted once, in parallel"
+        },
+        {
+          "dimension": "project-rollup",
+          "check": "rubric",
+          "signal": "The output names which human gate dominates elapsed time"
+        },
+        {
+          "dimension": "agent-pace",
+          "check": "plain_text",
+          "signal": "The answer is not a single human-pace figure like '1-1.5 weeks, one engineer'"
+        }
+      ]
+    },
+    {
+      "id": "ad-hoc-question-follows-method",
+      "name": "An ad-hoc question outside a scoping skill follows the method",
+      "description": "A prose question with no ticket and no scoping skill loaded still yields the line-item estimate, via this skill's trigger or the SessionStart pointer.",
+      "input": "what would it take to add a --json flag to the dev10x permission doctor command?",
+      "assertions": [
+        {
+          "dimension": "line-items",
+          "check": "rubric",
+          "signal": "The answer separates agent implementation from review, review wait, testing and documentation"
+        },
+        {
+          "dimension": "effort-vs-elapsed",
+          "check": "rubric",
+          "signal": "The answer gives effort and elapsed time as separate figures"
+        }
+      ]
+    },
+    {
+      "id": "thirteen-points-splits",
+      "name": "An epic-sized item gets a split recommendation, not a number",
+      "description": "When the sizing reaches 13 points, the skill recommends decomposition instead of committing to a figure.",
+      "input": "/dev10x:estimate (a ticket that rewrites the whole permission catalog, hooks and doctor in one change)",
+      "assertions": [
+        {
+          "dimension": "agent-pace",
+          "check": "rubric",
+          "signal": "The output recommends splitting the ticket and proposes the parts, rather than giving a single 13-point estimate to plan on"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "description": "Queries that should/should-not trigger the estimate skill",
+    "should_trigger": [
+      {
+        "query": "how long will this ticket take?",
+        "rationale": "Direct duration question about a unit of work"
+      },
+      {
+        "query": "what would it take to port Dev10x to Codex?",
+        "rationale": "Ad-hoc sizing question with no scoping skill loaded"
+      },
+      {
+        "query": "/dev10x:estimate PAY-133",
+        "rationale": "Direct invocation"
+      }
+    ],
+    "should_not_trigger": [
+      {
+        "query": "how much time did I spend on PAY-133 last week?",
+        "rationale": "Time already spent is a work report, not an estimate"
+      },
+      {
+        "query": "scope this ticket before I start implementing",
+        "rationale": "Full scoping belongs to dev10x:ticket-scope, which applies the same method in its Phase 4"
+      }
+    ]
+  }
+}

@@ -95,6 +95,7 @@ Always apply `references/review-checks-common.md`.
 | `pr-backlog-deferral.md` | Deferring non-blocking review findings to a backlog | `dev10x:gh-pr-review` skill, code review CI | Referenced, not auto-loaded |
 | `milestone-naming.md` | Milestone naming convention, initiative prefixes (AUD-Mn vs MCP-Mn) | `dev10x:project-scope`, `dev10x:work-on` milestone steps | Referenced, not auto-loaded |
 | `backpressure.md` | Two-direction backpressure architecture (action gating + friction tuning + output gates) | Review & architecture docs, code review CI | Referenced, not auto-loaded |
+| `estimation.md` | Agent-built work estimates: line items, effort vs elapsed, scale, roll-up | `dev10x:estimate`, `dev10x:ticket-scope`, `dev10x:project-scope`, `dev10x:work-on`, SessionStart guidance | Referenced, not auto-loaded |
 | `html-artifact-reporting.md` | Optional HTML artifacts for long comparison-shaped reports; markdown stays default | `dev10x:ddd` deliverables, foreman morning report | Referenced, not auto-loaded |
 
 ## Agent Specs (`.claude/agents/`)
