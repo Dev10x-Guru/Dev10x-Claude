@@ -1,0 +1,150 @@
+{
+  "skill_name": "dev10x:review-pack",
+  "eval_dimensions": [
+    {
+      "id": "gate-enforcement",
+      "name": "Decision Gates Use AskUserQuestion",
+      "description": "The unconfigured-host and pre-send gates fire as AskUserQuestion tool calls, never plain text"
+    },
+    {
+      "id": "pack-structure",
+      "name": "Five Sections In Order",
+      "description": "The pack carries what changed, every surface, a 60-second test recipe, what is verified, and the judgement calls"
+    },
+    {
+      "id": "hosting",
+      "name": "Reviewer Access Without Public Hosting",
+      "description": "Images live beside the pack in a private evidence repo, referenced by relative path, with one pack link in the PR body"
+    },
+    {
+      "id": "delegation",
+      "name": "Delegation Over Restatement",
+      "description": "Capture, narration and upload go to qa-self, tts and yt-upload rather than hand-rolled code"
+    },
+    {
+      "id": "video-fallback",
+      "name": "Stated External Fallback",
+      "description": "A video piece is dropped only for an external failure, after one retry, with the reason stated in the description and the caption"
+    }
+  ],
+  "evals": [
+    {
+      "id": "no-evidence-repo-asks",
+      "name": "Unconfigured evidence repo triggers the hosting gate",
+      "description": "No review-pack.yaml exists and the pack has screenshots",
+      "input": "/dev10x:review-pack build the review pack for this PR",
+      "assertions": [
+        {
+          "dimension": "gate-enforcement",
+          "check": "tool_called",
+          "value": "AskUserQuestion",
+          "signal": "The hosting gate fires before any screenshot is committed anywhere"
+        },
+        {
+          "dimension": "hosting",
+          "check": "output_not_contains",
+          "value": "gist.github.com",
+          "signal": "No gist is offered as a fallback host"
+        }
+      ]
+    },
+    {
+      "id": "unchecked-gate-asks",
+      "name": "An unchecked pre-send item blocks the review request",
+      "description": "E2E was not executed on this branch",
+      "input": "/dev10x:review-pack the PR is ready, send it for review",
+      "assertions": [
+        {
+          "dimension": "gate-enforcement",
+          "check": "tool_called",
+          "value": "AskUserQuestion",
+          "signal": "The pre-send gate fires before dev10x:request-review is invoked"
+        },
+        {
+          "dimension": "gate-enforcement",
+          "check": "behavioral",
+          "value": "gate-before-request-review",
+          "signal": "No review request is made while a box is unchecked and unanswered"
+        }
+      ]
+    },
+    {
+      "id": "pack-has-five-sections",
+      "name": "The pack follows the template",
+      "description": "A UI change with configured evidence repo",
+      "input": "/dev10x:review-pack build the pack for the settings page PR",
+      "assertions": [
+        {
+          "dimension": "pack-structure",
+          "check": "output_contains",
+          "value": "Test it yourself in 60 seconds",
+          "signal": "The test recipe section is present"
+        },
+        {
+          "dimension": "pack-structure",
+          "check": "output_contains",
+          "value": "Where I need your judgement",
+          "signal": "The judgement-calls section is present"
+        },
+        {
+          "dimension": "hosting",
+          "check": "output_contains",
+          "value": "](../evidence/",
+          "signal": "Images are referenced by relative path beside the pack"
+        }
+      ]
+    },
+    {
+      "id": "video-delegates",
+      "name": "A time-based change gets a delegated, narrated video",
+      "description": "The change is a redirect after save",
+      "input": "/dev10x:review-pack build the pack for the redirect-after-save PR",
+      "assertions": [
+        {
+          "dimension": "delegation",
+          "check": "output_contains",
+          "value": "dev10x:yt-upload",
+          "signal": "The video is published through yt-upload"
+        },
+        {
+          "dimension": "delegation",
+          "check": "output_not_contains",
+          "value": "gog auth tokens export",
+          "signal": "No upload mechanics are hand-rolled"
+        }
+      ]
+    },
+    {
+      "id": "tts-quota-fallback",
+      "name": "Narration dropped for quota is stated",
+      "description": "dev10x:tts fails twice with a quota error",
+      "input": "/dev10x:review-pack record the walkthrough video",
+      "assertions": [
+        {
+          "dimension": "video-fallback",
+          "check": "output_contains",
+          "value": "No narration",
+          "signal": "The pack caption names the missing narration and the reason"
+        },
+        {
+          "dimension": "video-fallback",
+          "check": "behavioral",
+          "value": "single-retry",
+          "signal": "The failing piece is retried once, not looped and not skipped silently"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "should_trigger": [
+      "Make this PR easy to review",
+      "Build a review pack before requesting human review",
+      "The PR is about to leave draft and needs screenshots for the reviewer"
+    ],
+    "should_not_trigger": [
+      "Execute QA test cases on staging (use dev10x:qa-self)",
+      "Publish a QA verdict to the ticket (use dev10x:qa-publish)",
+      "Assign reviewers and ping chat (use dev10x:request-review)"
+    ]
+  }
+}
