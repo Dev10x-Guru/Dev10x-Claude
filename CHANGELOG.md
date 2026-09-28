@@ -5,6 +5,26 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.107.0 — A Review Pack Instead of a Checkout
+
+Released 2026-09-28
+
+### Features
+
+- **Let a reviewer see and test a PR without checking it out** — a human
+  reviewer used to get a diff and a commit list, then had to clone, install,
+  seed data and click around to see the change. The evidence pipeline
+  (`qa-self`, `tts`, `yt-upload`, `qa-publish`) produced the pieces, but
+  nothing said what a reviewer-facing pack must contain, where it may live so
+  a private repo still renders it, or when it is ready to send. The new
+  `dev10x:review-pack` skill fixes the five sections and their order, requires
+  a narrated `qa-self` video for any change that happens over time, hosts the
+  pack in a private evidence repo named in `review-pack.yaml`, and links it
+  once at the top of the PR body. A failing video piece is tried once, then
+  the pack ships without it and says why. Two gates — no evidence repo
+  configured, and the pre-send checklist — block before anything goes out
+  ([GH-1507](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1507))
+
 ## 0.106.0 — One Name Every Marketplace Accepts, Wrappers That Check Their Own Work
 
 Released 2026-09-28
