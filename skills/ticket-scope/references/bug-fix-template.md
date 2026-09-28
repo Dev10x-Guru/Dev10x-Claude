@@ -269,11 +269,17 @@ We've fixed a bug where tax-exempt customers were incorrectly charged sales tax 
 
 ---
 
-## Story Points
-**3 points** (~1 day)
+## Estimate
+**3 points** (Medium) — method: `references/estimation.md`
 
-**Rationale:**
-- Small code change (1 point)
-- Tests for bug scenario (1 point)
-- Testing and verification (1 point)
-- Well-understood fix, low complexity
+| Line item | Effort | Elapsed | Notes |
+|-----------|--------|---------|-------|
+| Agent implementation | 2 h | 2 h | Small fix + regression tests, root cause known |
+| Human review | 30 min | — | Payment amount path |
+| Review wait | — | 0-1 day | Team pickup time |
+| Testing | 30 min | 30 min CI | One live terminal checkout with a tax-exempt customer |
+| Documentation | 10 min | — | Release note above |
+| **Total** | **~3 h** | **1-2 days** | |
+
+**Assumptions:** a Square sandbox terminal is available for the live
+check — the agent cannot run that step itself.

@@ -79,6 +79,16 @@ prompts or brittle command matching.
   (requires `Bash()` allow rule in skills)
 - Never `mkdir -p && script` — both methods create dirs automatically
 
+## Estimates (GH-1495)
+
+Any time you estimate how long work will take — a ticket, a project,
+a release, or an ad-hoc "what would it take to…?" — use
+`/dev10x:estimate` (method: `references/estimation.md` in the plugin).
+Never default to "one engineer, N weeks" at human pace. Size
+implementation at agent pace, then add separate lines for human
+review, review wait, testing and docs, and report effort and elapsed
+time separately.
+
 ## Key Skills for Common Tasks
 
 | Task | Skill |
@@ -92,3 +102,4 @@ prompts or brittle command matching.
 | Groom commits before merge | `/dev10x:git-groom` |
 | Push safely | `/dev10x:git` (validates protected branches) |
 | Audit this session | `/dev10x:skill-audit` |
+| Estimate a ticket, project or change | `/dev10x:estimate` |

@@ -243,11 +243,16 @@ Safeguards describe what must always be true **post-change**.]
 
 ---
 
-## Story Points
-**5 points** (1-2 days)
+## Estimate
+**5 points** (Large) — method: `references/estimation.md`
 
-**Rationale:**
-- Update BaseRepository (1 point)
-- Refactor PaymentRepository (2 points)
-- Test verification and fixes (1 point)
-- Code review and adjustments (1 point)
+| Line item | Effort | Elapsed | Notes |
+|-----------|--------|---------|-------|
+| Agent implementation | Half a day | Half a day | BaseRepository + PaymentRepository refactor, test fixes |
+| Human review | 2 h | — | Wide diff, behaviour must not change |
+| Review wait | — | 1 day | Team pickup time |
+| Testing | 0 | 30 min CI | Existing suite covers it; no manual QA |
+| Documentation | 0 | — | Internal refactor, no user-facing docs |
+| **Total** | **~6 h** | **2-3 days** | |
+
+**Assumptions:** full test suite green on develop before starting.

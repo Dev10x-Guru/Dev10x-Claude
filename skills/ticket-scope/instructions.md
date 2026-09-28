@@ -179,24 +179,21 @@ Order steps by dependencies:
 
 ### Phase 4: Estimate Complexity
 
-#### Story Points (Fibonacci)
+**REQUIRED: Read
+[`references/estimation.md`](../../references/estimation.md)
+and estimate with it** (GH-1495). It is the single Dev10x method,
+shared with `dev10x:estimate`, `dev10x:project-scope` and
+`dev10x:work-on`; this phase carries no scale of its own. Do NOT
+size the ticket as one engineer coding at human pace.
 
-| Points | Complexity | Duration |
-|--------|------------|----------|
-| 1 | Trivial | Hours |
-| 2 | Small | < 1 day |
-| 3 | Medium | 1-2 days |
-| 5 | Large | 2-3 days |
-| 8 | Complex | 3-5 days |
-| 13 | Epic-sized | Should be split |
+The estimate records:
 
-#### Estimation Factors
-
-- New patterns vs. following existing
-- Database migrations
-- External dependencies
-- Test complexity
-- Review/iteration cycles
+- **Story points** on the method's agent-pace Fibonacci scale —
+  13 still means split the ticket
+- **Line items** — agent implementation, human review, review wait,
+  testing, documentation — each with effort and elapsed time
+- **Assumptions** — reviewer availability, CI time, live-system
+  access
 
 ### Phase 4b: Draft Job Story
 
@@ -270,7 +267,7 @@ the diverged structure breaks audits and PR generation.
 - **Safeguards** (invariants & validation, distinct from Risks —
   REASONS)
 - Risks and Mitigations (rollout-only failures)
-- Story Points
+- Estimate (points + line-item table, `references/estimation.md`)
 
 **REASONS coverage check:** The seven SPDD REASONS dimensions are
 Requirements, Approach, Structure, Operations, Entities, Norms,
@@ -473,11 +470,10 @@ Include `# language: <code>` when writing feature-file-style blocks.
 ## Out of Scope
 - [What we're NOT doing]
 
-## Story Points
-**[N] points**
-
-Rationale:
-- [Breakdown of estimate]
+## Estimate
+**[N] points** — ticket-level table from references/estimation.md
+(agent implementation, human review, review wait, testing,
+documentation; effort and elapsed), plus assumptions
 ```
 
 ### Technical Task
@@ -512,8 +508,8 @@ Rationale:
 ## Acceptance Criteria
 - [ ] Technical criterion 1
 
-## Story Points
-**[N] points**
+## Estimate
+**[N] points** — ticket-level table from references/estimation.md
 ```
 
 ### Bug Fix
@@ -546,8 +542,8 @@ Rationale:
 - [ ] Bug no longer occurs
 - [ ] No regressions
 
-## Story Points
-**[N] points**
+## Estimate
+**[N] points** — ticket-level table from references/estimation.md
 ```
 
 ## Quality Checklist
@@ -571,8 +567,9 @@ Before finalizing, verify:
 - [ ] Risks identified
 
 ### Estimation
-- [ ] Story points justified
-- [ ] Complexity factors considered
+- [ ] Estimated with references/estimation.md, not human pace
+- [ ] Review wait, testing and docs each have a line item
+- [ ] Effort and elapsed time reported separately
 
 ### Review
 - [ ] User approved scoping

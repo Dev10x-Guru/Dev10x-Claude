@@ -124,6 +124,17 @@ Generate the following sections:
 3. **Tickets per milestone** — title, 1-2 sentence description,
    priority, estimated complexity
 4. **Blocking chain** — which tickets block which and why
+5. **Estimate roll-up** — per milestone and for the project
+
+**Estimated complexity uses the shared Dev10x method (GH-1495).**
+Read [`references/estimation.md`](../../references/estimation.md)
+before sizing — it is the same scale `dev10x:ticket-scope` and
+`dev10x:estimate` apply. Write each ticket's cell as points plus
+elapsed range (e.g. `3 pts · 1-2 days`), sized for agent
+implementation plus human review, review wait, testing and docs —
+never as one engineer at human pace. The roll-up sums effort but
+takes elapsed time from the blocking chain above, since parallel
+agents do not add up while review queues do.
 
 Tickets are intentionally high-level. Further refinement via
 `dev10x:ticket-scope` is expected for individual tickets.

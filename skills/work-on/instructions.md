@@ -1147,6 +1147,17 @@ plan gate in those cases.
 `AskUserQuestion` — do not write a document, create a plan file,
 or use Claude Code's built-in plan mode.
 
+### Estimating the Plan (GH-1495)
+
+When the supervisor asks how long the plan — or any step, ticket,
+or bundle in it — will take, answer with the shared Dev10x method in
+[`references/estimation.md`](../../references/estimation.md): agent
+implementation plus human review, review wait, testing and docs,
+with effort and elapsed time separate. Resolve review wait from the
+`supervisor_review` posture already read in Phase 0. Never answer
+with a one-engineer, human-pace figure. The estimate is information,
+not a gate — it does not change which steps the plan contains.
+
 ### Session Mode Summary (GH-189)
 
 **REQUIRED: Display the resolved session mode** immediately

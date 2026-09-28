@@ -89,7 +89,8 @@ Use this checklist to ensure comprehensive scoping coverage.
 
 ## Estimation & Categorization
 
-- [ ] Story points estimated (Fibonacci)
+- [ ] Estimated with `references/estimation.md` (agent-pace points,
+      human-gate line items, effort vs elapsed)
 - [ ] Task type categorized (business/technical/bug)
 - [ ] Release notes requirement determined
 

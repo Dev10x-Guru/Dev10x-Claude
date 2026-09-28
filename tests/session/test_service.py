@@ -119,6 +119,12 @@ class TestBuildGuidanceContext:
         result = svc.build_guidance_context()
         assert len(result) > 0
 
+    def test_real_guidance_routes_estimates_to_dev10x_method(self) -> None:
+        result = SessionService().build_guidance_context()
+
+        assert "/dev10x:estimate" in result
+        assert "references/estimation.md" in result
+
 
 class TestBuildSkillsIndexContext:
     def test_empty_when_index_missing(

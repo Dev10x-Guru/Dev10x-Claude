@@ -31,6 +31,17 @@
         {"type": "tool_called", "tool": "AskUserQuestion", "assertion": "gate3_uses_tool", "signal": "Project entity gate uses AskUserQuestion"},
         {"type": "behavioral", "assertion": "no_auto_resolve", "signal": "User interaction is required at each gate"}
       ]
+    },
+    {
+      "name": "estimated-complexity-uses-shared-method",
+      "description": "The estimated-complexity column and the milestone roll-up follow references/estimation.md (GH-1495)",
+      "setup": "/dev10x:project-scope Port Dev10x to Codex in two releases",
+      "checks": [
+        {"type": "tool_called", "tool": "Read", "assertion": "reads_estimation_method", "signal": "Read is called on references/estimation.md before tickets are sized"},
+        {"type": "behavioral", "assertion": "cell_points_plus_elapsed", "signal": "Each ticket's estimated complexity reads as points plus an elapsed range, e.g. '3 pts · 1-2 days'"},
+        {"type": "behavioral", "assertion": "rollup_follows_critical_path", "signal": "Milestone roll-up sums effort but takes elapsed time from the blocking chain, not from summing ticket elapsed times"},
+        {"type": "plain_text", "assertion": "no_human_pace_total", "signal": "No 'N weeks, one engineer' figure sizes the project"}
+      ]
     }
   ],
   "trigger_evals": {

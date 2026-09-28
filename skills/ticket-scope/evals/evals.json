@@ -7,6 +7,11 @@
       "description": "After presenting the formatted scoping document, the skill fires AskUserQuestion (Approve / Revise / More research needed / Run PoC) before saving the document or updating Linear — never a plain-text 'Approve this scope?'."
     },
     {
+      "id": "shared-estimation-method",
+      "name": "Shared Estimation Method",
+      "description": "Phase 4 sizes the ticket with references/estimation.md — agent-pace points plus human review, review wait, testing and docs line items with effort and elapsed — never with a human-pace duration (GH-1495)."
+    },
+    {
       "id": "slack-forward-gate",
       "name": "Slack Forward Detection Gate",
       "description": "When a Slack thread is part of the input and slack_thread_is_forward reports high/medium confidence that the thread is a forward of an upstream thread, the skill fires AskUserQuestion (provide upstream URL / continue anyway / abort scope) instead of silently treating the thin parent as canonical."
@@ -61,6 +66,30 @@
           "check": "tool_called",
           "tool": "AskUserQuestion",
           "signal": "AskUserQuestion options include 'Run PoC' when the scope depends on an unverified claim"
+        }
+      ]
+    },
+    {
+      "id": "phase4-estimate-uses-shared-method",
+      "name": "Phase 4 estimate follows the shared method",
+      "description": "The scoping document's Estimate section is produced after reading references/estimation.md and breaks out the human gates.",
+      "input": "/dev10x:ticket-scope PAY-133 (reaching Phase 4: Estimate Complexity)",
+      "assertions": [
+        {
+          "dimension": "shared-estimation-method",
+          "check": "tool_called",
+          "tool": "Read",
+          "signal": "Read is called on references/estimation.md during Phase 4"
+        },
+        {
+          "dimension": "shared-estimation-method",
+          "check": "behavioral",
+          "signal": "The Estimate section has rows for agent implementation, human review, review wait, testing and documentation, with separate effort and elapsed columns"
+        },
+        {
+          "dimension": "shared-estimation-method",
+          "check": "plain_text",
+          "signal": "No '3-5 days' style human-duration figure stands in for the estimate"
         }
       ]
     },
