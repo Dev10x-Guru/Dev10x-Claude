@@ -121,24 +121,62 @@ Generate the following sections:
 
 1. **Executive summary** — 1-2 paragraphs describing the project goal
    and approach
-2. **Milestones** — named phases with goals and ordering
+2. **Milestones** — named by outcome, with goals and dependencies
+   (see Milestone rules below)
 3. **Tickets per milestone** — title, 1-2 sentence description,
-   priority, estimated complexity
+   priority, estimated complexity — **only for startable work**
+   (see Ticket gating below)
 4. **Blocking chain** — which tickets block which and why
 5. **Estimate** — **REQUIRED: Call `Skill(dev10x:estimate)`** with
-   the tickets and the blocking chain. Each ticket's "estimated
-   complexity" is the skill's points plus the elapsed range. The
-   project roll-up follows the skill's § Project-level estimates,
-   with effort and elapsed reported per milestone (GH-1495).
+   the created tickets and the blocking chain. Each ticket's
+   "estimated complexity" is the skill's points plus the elapsed
+   range. The project roll-up follows the skill's § Project-level
+   estimates, with effort and elapsed reported per milestone
+   (GH-1495). **Roll up only tickets that will be created.** A
+   milestone with no tickets gets an indicative range, labelled
+   provisional, and stays out of the totals — a sum that mixes
+   scoped tickets with guesses reads as a commitment nobody made.
 
 Tickets are intentionally high-level. Further refinement via
 `dev10x:ticket-scope` is expected for individual tickets.
+
+**Milestone rules (GH-1509):**
+
+- **No ordinal prefixes.** Never name a milestone `M0 …`,
+  `Phase 2 …`, or `1. …`. Numbers in names make milestones hard to
+  split or merge: every later title has to be renamed. Name each
+  milestone by its outcome.
+- **Ordering is a dependency, not a number.** Each milestone's
+  description carries a `Depends on: <milestone name>` line, and
+  tickets carry `blocks` / `blockedBy`.
+- Descriptions follow
+  [`references/milestone-description.md`](references/milestone-description.md).
+- A namespace or initiative prefix is fine; a sequence number after
+  it is not. The rule forbids encoding *sequence* in a name, not
+  namespacing.
+
+**Ticket gating (GH-1509):** Create tickets only for work that is
+fully known and can start now, in sequence or in parallel.
+
+- A milestone that sits behind a spike, investigation, or go/no-go
+  decision gets **no tickets**. Its description carries a summary,
+  code references, open questions, and a "how to scope this
+  milestone" guide, per the reference above. Ticket creation for it
+  is left to a later refinement session.
+- **A go/no-go spike decides the downstream milestones too.** Its
+  acceptance criteria must include deciding the fate of each
+  milestone that depends on it — keep, reshape, or drop — not only
+  whether the approach is viable.
+
+Ticketing work that a spike can still reshape produces tickets that
+are rewritten or closed after the spike, and an estimate that counts
+them.
 
 ### 2.2 Present for Approval
 
 **REQUIRED: Call `AskUserQuestion`** (do NOT use plain text, call spec: [ask-scope-approval.md](./tool-calls/ask-scope-approval.md)).
 This blocks execution until the user responds. Options:
-- Approve (Recommended) — Create milestones and tickets as shown
+- Approve (Recommended) — Create all milestones, and tickets for startable work, as shown
 - Revise — I have corrections to the structure
 - More research needed — Need to explore additional areas
 
@@ -156,7 +194,8 @@ compact summary.
 
 1. Compose the agent prompt with:
    - Tracker type and configuration (team UUID, project UUID)
-   - The full approved scope (milestones, tickets, blocking chain)
+   - The full approved scope (milestones with their descriptions,
+     tickets, blocking chain)
    - Creation instructions from Phase 3 below
    - Verification instructions from Phase 4 below
 
@@ -219,12 +258,20 @@ create the parent ticket using the executive summary as description.
 
 **If ticket reference:** Use the fetched ticket as parent.
 
-### 3.3 Create Project Entity (Optional)
+### 3.3 Create Project Entity
 
-**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text, call spec: [ask-project-entity.md](./tool-calls/ask-project-entity.md)).
-This blocks execution until the user responds. Options:
+**When the planned milestones require a project entity, create it —
+do not ask.** That is Linear with milestones: Linear milestones belong
+to a project, so offering "Skip" would offer a structure that cannot
+be created.
+
+**Otherwise — REQUIRED: Call `AskUserQuestion`** (do NOT use plain
+text, call spec: [ask-project-entity.md](./tool-calls/ask-project-entity.md))
+— JIRA and GitHub Issues with or without milestones, and Linear with
+no milestones planned. This blocks execution until the user responds.
+Options:
 - Create project entity (Recommended) — Enables roadmap views and project tracking
-- Skip — Just milestones and tickets, no project entity
+- Skip — No project entity; milestones (if any) and tickets only
 
 **After creating or selecting a project**, resolve its UUID
 immediately via `list_projects(team: "TEAM_UUID")` and store
@@ -237,6 +284,11 @@ See `dev10x:linear` § Project Assignment for the full pattern.
 Check for existing milestones by name before creating to avoid
 duplicates — call `mcp__plugin_dev10x_cli__issue_list` with a
 `milestone:` filter, or query directly via the tracker API.
+
+Create every approved milestone, including those with no tickets.
+Pass the description built from
+[`references/milestone-description.md`](references/milestone-description.md),
+with its `Depends on:` line, so the ordering survives in the tracker.
 
 **GitHub Issues:** Call `mcp__plugin_dev10x_cli__milestones_bulk_create`
 once with the full list. The wrapper iterates `milestone_create`
@@ -330,7 +382,8 @@ Re-fetch all created entities to verify:
 Present a summary with:
 - Parent ticket link
 - Project entity link (if created)
-- Milestone list with ticket counts
+- Milestone list with ticket counts and `Depends on:` lines;
+  milestones with no tickets yet are marked provisional
 - Blocking chain visualization
 - Links to all created tickets
 

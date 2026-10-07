@@ -6,7 +6,7 @@ AskUserQuestion(questions=[{
     header: "Scope Review",
     options: [
         {label: "Approve (Recommended)",
-         description: "Create milestones and tickets as shown"},
+         description: "Create all milestones, and tickets for startable work, as shown"},
         {label: "Revise",
          description: "I have corrections to the structure"},
         {label: "More research needed",
