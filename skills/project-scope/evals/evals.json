@@ -24,12 +24,33 @@
     },
     {
       "name": "decision-gates-enforced",
-      "description": "All three gates use AskUserQuestion, not plain text",
-      "setup": "/dev10x:project-scope PAY-662",
+      "description": "Gates use AskUserQuestion, not plain text; the project-entity gate fires only for a scope with no milestones",
+      "setup": "/dev10x:project-scope PAY-662 (scope with tickets but no milestones)",
       "checks": [
         {"type": "tool_called", "tool": "AskUserQuestion", "assertion": "gate2_uses_tool", "signal": "Structure approval uses AskUserQuestion"},
-        {"type": "tool_called", "tool": "AskUserQuestion", "assertion": "gate3_uses_tool", "signal": "Project entity gate uses AskUserQuestion"},
+        {"type": "tool_called", "tool": "AskUserQuestion", "assertion": "gate3_uses_tool", "signal": "Project entity gate uses AskUserQuestion when no milestones are planned"},
         {"type": "behavioral", "assertion": "no_auto_resolve", "signal": "User interaction is required at each gate"}
+      ]
+    },
+    {
+      "name": "linear-milestones-require-project",
+      "description": "On Linear, a scope with milestones creates the project entity without offering Skip (GH-1509)",
+      "setup": "/dev10x:project-scope https://linear.app/team/issue/PAY-662/adr-mcp",
+      "checks": [
+        {"type": "tool_called", "tool": "mcp__claude_ai_Linear__save_project", "assertion": "creates_project_for_milestones", "signal": "Project entity is created because milestones are planned"},
+        {"type": "behavioral", "assertion": "no_skip_project_offer", "signal": "The project-entity gate is not presented when milestones are planned"}
+      ]
+    },
+    {
+      "name": "unnumbered-milestones-gated-tickets",
+      "description": "Milestones carry no ordinal prefixes and tickets are created only for startable work (GH-1509)",
+      "setup": "/dev10x:project-scope Replace graphene with strawberry; a spike must decide feasibility first",
+      "checks": [
+        {"type": "behavioral", "assertion": "no_ordinal_milestone_names", "signal": "No milestone title starts with M0/M1, Phase N, or a number"},
+        {"type": "behavioral", "assertion": "depends_on_in_descriptions", "signal": "Milestone descriptions carry a 'Depends on:' line for ordering"},
+        {"type": "behavioral", "assertion": "no_tickets_behind_spike", "signal": "Milestones behind the spike get no tickets; their descriptions carry summary, code references, open questions, and a how-to-scope guide"},
+        {"type": "behavioral", "assertion": "spike_decides_downstream", "signal": "The spike's acceptance criteria decide keep/reshape/drop for each downstream milestone"},
+        {"type": "behavioral", "assertion": "provisional_estimate_excluded", "signal": "The roll-up sums created tickets only; downstream milestones show a range labelled provisional"}
       ]
     }
   ],
