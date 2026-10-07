@@ -23,16 +23,37 @@ nothing.
 Create a **Desktop app** OAuth client. Do not reuse an existing web
 client.
 
-## 2. Use the two-step remote flow, not the browser flow
+## 2. Run the loopback flow in the background
 
 **Symptom:** `context deadline exceeded`, every time, on a flow that
 works when run by hand in a terminal.
 
-Claude Code backgrounds any command still running at 120s. The loopback
-browser flow waits for a human to finish consent, which reliably exceeds
-that, so the process is backgrounded and the callback never lands.
+Claude Code caps a foreground command at 120s. The loopback browser flow
+waits for a human to finish consent, which reliably exceeds that, so a
+foreground run is cut off before the callback lands.
 
-`--remote` splits the wait across two short commands:
+Start it with the Bash tool's `run_in_background: true` and a generous
+`--timeout` instead:
+
+```bash
+gog auth add <email> --services <service> --force-consent --timeout 15m
+```
+
+- The listener on `127.0.0.1:<port>/oauth2/callback` stays up past the
+  foreground cap, so the callback lands and the browser shows success.
+- Read the consent URL from the task's output file and hand it to the
+  user, in case the browser does not open on its own.
+- The task-completion notification is the signal that the grant is
+  stored. There is no copy-paste step.
+
+This is the default for an attended session — a human at a browser on
+the same machine.
+
+### When to fall back to `--remote`
+
+Use the two-step flow when the browser cannot reach this machine's
+loopback (a headless or truly remote host), or when the consent URL must
+be hand-edited before opening it (trap 4):
 
 ```bash
 # 1 — prints the consent URL and exits immediately
@@ -42,8 +63,12 @@ gog auth add <email> --services <service> --force-consent --remote --step 1
 gog auth add <email> --remote --step 2 --auth-url '<redirect URL>'
 ```
 
-This is the documented path for agent sessions, not a fallback. It also
-makes trap 4 fixable, because the URL is printed rather than opened.
+**Warn the user before step 1:** after consent the browser lands on a
+`127.0.0.1` page that fails to load. That is by design — nothing is
+listening, because step 1 already exited. The user must copy the full URL
+out of the address bar and paste it back; a "done" with no URL leaves
+step 2 nothing to exchange. People read the connection error as failure,
+so say this up front, not after.
 
 `--manual` is the browserless sibling (paste the redirect URL); `--remote`
 is the one to reach for, since step 1 exits cleanly rather than holding
@@ -126,9 +151,14 @@ gog auth services    # supported services and their scopes
 Exit code `4` means auth, specifically — branch on it rather than
 pattern-matching the message, which reads much like a not-found.
 
+**An expired refresh token does not reliably exit `4`.** On v0.38.3 an
+`invalid_grant` was observed exiting `1`, the generic error code. So a
+`1` whose message names `invalid_grant` is an auth failure too; do not
+read it as "not auth" because the code is not `4`.
+
 `gog auth doctor` is the first call when a command that worked yesterday
-returns `4` today: an expired or revoked refresh token and a missing
-keyring backend produce similar surface errors.
+fails today: an expired or revoked refresh token and a missing keyring
+backend produce similar surface errors.
 
 ## Tokens
 
@@ -145,6 +175,9 @@ returned JSON.
 
 ## Verified against
 
-`gog v0.34.1 (4747fb05)`. Re-check on upgrade: whether
-`include_granted_scopes` becomes configurable (trap 4), and whether
-`--remote --step` keeps its two-step shape (trap 2).
+`gog v0.38.3 (612dc488)` for trap 2 and the `invalid_grant` exit code;
+the other traps were last verified on `gog v0.34.1 (4747fb05)`. Re-check
+on upgrade: whether `include_granted_scopes` becomes configurable
+(trap 4), whether `--timeout` still governs the loopback listener and
+`--remote --step` keeps its two-step shape (trap 2), and whether
+`invalid_grant` starts exiting `4`.
