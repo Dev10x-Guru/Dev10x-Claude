@@ -515,6 +515,14 @@ Behavioral caveats:
   up-front fast-path probe is tolerated on the same terms. A run where
   *every* probe failed reports that explicitly rather than reporting
   `empty`, which would read as "CI registered no checks at all".
+  A probe whose `gh` call hits its 30s subprocess timeout is tolerated
+  the same way (GH-1518). This is the one bounded exception to "never
+  retry a bounded timeout of our own": the next poll was already
+  scheduled, so nothing is re-run that the loop would not have run
+  anyway. Because a timed-out probe costs seconds the poll count never
+  budgeted, the loop also holds a wall-clock deadline (the poll budget
+  plus 60s grace, still under the 1080s cap), so alternating timeouts
+  end the wait on time instead of outliving the transport.
 
 - `ci_check_status(wait=true)` probes once before sleeping and returns
   straight away when the verdict is already terminal (GH-1088). A call

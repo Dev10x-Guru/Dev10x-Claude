@@ -613,6 +613,10 @@ def probe_once(
 # real outage is not, and the poll budget already bounds the whole loop.
 _MAX_CONSECUTIVE_PROBE_FAILURES = 3
 
+# GH-1518: headroom on the wall-clock deadline for ordinary probe latency.
+# The default budget (990s) plus this stays under the 1080s subprocess cap.
+_DEADLINE_GRACE_SECONDS = 60
+
 
 def _probe_tolerantly(
     *,
@@ -642,6 +646,16 @@ def _probe_tolerantly(
     except SystemExit:
         print(
             f"[probe] transient failure, will retry: {swallowed.getvalue().strip()[:200]}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return None
+    except subprocess.TimeoutExpired as exc:
+        # GH-1518: a `gh` call that outlives its subprocess timeout raises
+        # rather than exiting, so it slipped past the SystemExit arm above
+        # and ended the whole wait with a traceback.
+        print(
+            f"[probe] gh timed out after {exc.timeout}s, will retry: {exc.cmd}",
             file=sys.stderr,
             flush=True,
         )
@@ -719,10 +733,26 @@ def poll_until_terminal(
         file=sys.stderr,
         flush=True,
     )
+    # GH-1518: a tolerated probe can burn a full subprocess timeout that the
+    # poll count never budgeted for, so the count alone no longer bounds the
+    # wait. Hold the loop to the wall-clock budget the count was sized for.
+    deadline = (
+        time.monotonic()
+        + initial_wait
+        + poll_interval * max(max_polls - 1, 0)
+        + _DEADLINE_GRACE_SECONDS
+    )
     time.sleep(initial_wait)
 
     consecutive_failures = 0
     for attempt in range(1, max_polls + 1):
+        if attempt > 1 and time.monotonic() >= deadline:
+            print(
+                f"[poll {attempt}/{max_polls}] wall-clock budget spent — ending the wait",
+                file=sys.stderr,
+                flush=True,
+            )
+            break
         probed = _probe_tolerantly(pr_number=pr_number, repo=repo, required_only=required_only)
         if probed is None:
             # GH-1420: a failed probe is "no news", not a verdict. Keep the
