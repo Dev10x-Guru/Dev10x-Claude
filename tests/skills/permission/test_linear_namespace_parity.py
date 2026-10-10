@@ -28,7 +28,7 @@ import dev10x.skills.permission as permission_pkg
 from dev10x.skills.permission.catalog_paths import CATALOG_RELPATH
 
 PERMISSION_DIR = Path(permission_pkg.__file__).resolve().parent
-REPO_ROOT = PERMISSION_DIR.parents[3]
+REPO_ROOT = PERMISSION_DIR.parents[4]
 PROJECTS_YAML = REPO_ROOT / CATALOG_RELPATH
 
 CLAUDE_AI_PREFIX = "mcp__claude_ai_Linear__"

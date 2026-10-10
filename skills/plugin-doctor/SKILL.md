@@ -40,7 +40,7 @@ and skill docs that no single permission rule can fix. The skill
 is composed of **strategies** — small detectors, each owning one
 drift category. Strategies share a common interface so adding a
 new one requires only a new file under
-`src/dev10x/skills/doctor/strategies/`; the skill core does not
+`src/dev10x/core/skills/doctor/strategies/`; the skill core does not
 change.
 
 ## Why a separate skill
@@ -90,7 +90,7 @@ Set sequential dependencies. Mark each completed when done.
 ### Phase 1: Load strategies
 
 The plugin ships a default strategy catalog under
-`src/dev10x/skills/doctor/strategies/`. Each strategy module
+`src/dev10x/core/skills/doctor/strategies/`. Each strategy module
 exports a `Strategy` dataclass:
 
 ```python
@@ -179,7 +179,7 @@ not the periodic run this skill's anti-patterns forbid.
 
 Adding a new strategy:
 
-1. Drop a module under `src/dev10x/skills/doctor/strategies/`
+1. Drop a module under `src/dev10x/core/skills/doctor/strategies/`
 2. Export `Strategy` per the interface above
 3. Add the module path to `strategies.yaml`
 

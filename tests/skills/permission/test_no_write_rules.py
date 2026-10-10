@@ -24,7 +24,7 @@ import yaml
 import dev10x.skills.permission as permission_pkg
 from dev10x.skills.permission import doctor
 
-REPO_ROOT = Path(permission_pkg.__file__).resolve().parents[4]
+REPO_ROOT = Path(permission_pkg.__file__).resolve().parents[5]
 CATALOG = Path(permission_pkg.__file__).parent / "baseline-permissions.yaml"
 PROJECTS_YAML = REPO_ROOT / "skills" / "upgrade-cleanup" / "projects.yaml"
 SKILLS_DIR = REPO_ROOT / "skills"

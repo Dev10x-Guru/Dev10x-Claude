@@ -18,7 +18,7 @@ from dev10x.domain.common.allow_rule import AllowRule
 from dev10x.skills.permission.catalog_paths import CATALOG_RELPATH
 
 PERMISSION_DIR = Path(permission_pkg.__file__).resolve().parent
-REPO_ROOT = PERMISSION_DIR.parents[3]
+REPO_ROOT = PERMISSION_DIR.parents[4]
 CATALOGS = (
     REPO_ROOT / CATALOG_RELPATH,
     PERMISSION_DIR / "baseline-permissions.yaml",

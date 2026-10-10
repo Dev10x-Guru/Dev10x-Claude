@@ -50,7 +50,7 @@ from dev10x.skills.permission.enumerate_mcp import (
     discover_mcp_tools,
 )
 
-REPO_ROOT = Path(permission_pkg.__file__).resolve().parents[4]
+REPO_ROOT = Path(permission_pkg.__file__).resolve().parents[5]
 PROJECTS_YAML = REPO_ROOT / "skills" / "upgrade-cleanup" / "projects.yaml"
 MCP_DIRS = (
     REPO_ROOT / "src" / "dev10x" / "mcp",

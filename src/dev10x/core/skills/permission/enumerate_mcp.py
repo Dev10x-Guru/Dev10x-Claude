@@ -128,7 +128,7 @@ def plugin_root() -> Path:
     must also work from an installed wheel use
     :func:`resolve_plugin_root` (GH-919).
     """
-    return Path(__file__).resolve().parents[4]
+    return Path(__file__).resolve().parents[5]
 
 
 def _parse_tool_names(server_file: Path) -> list[str]:

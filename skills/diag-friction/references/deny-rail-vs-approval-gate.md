@@ -52,7 +52,7 @@ Two consequences follow, and they pull in opposite directions:
   "the rule did not literally match" is not authorization.
 - **For the supervisor writing the rules:** a deny that names only
   `git checkout --` leaves the equivalent spelling open. Dev10x's shipped
-  baseline (`src/dev10x/skills/permission/baseline-permissions.yaml`)
+  baseline (`src/dev10x/core/skills/permission/baseline-permissions.yaml`)
   allows both — the rail is a user-level decision, not a plugin default —
   so a supervisor who wants it must deny **both** spellings.
 

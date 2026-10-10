@@ -427,7 +427,7 @@ base_permissions:
   # says to call it directly, never via `uv run`. Only the discouraged
   # `uv run` shape was catalogued here, so the form users are told to use
   # prompted in every project. The rule exists in
-  # src/dev10x/skills/permission/baseline-permissions.yaml (build-tools
+  # src/dev10x/core/skills/permission/baseline-permissions.yaml (build-tools
   # tier), but that catalog is read by `permission resolve/audit/doctor`
   # and never by the ensure-base write path — a rule present only there
   # reaches no settings file. Global settings happened to carry it, which
@@ -439,7 +439,7 @@ base_permissions:
   # unattended foreman run while `catalog-gap` reported 0 missing. The
   # filed diagnosis blamed `prefix:*` matcher semantics; the verifiable
   # cause is narrower and is GH-1149 a second time — `Bash(cp /tmp:*)`
-  # exists ONLY in src/dev10x/skills/permission/baseline-permissions.yaml
+  # exists ONLY in src/dev10x/core/skills/permission/baseline-permissions.yaml
   # (file-ops tier), which `permission resolve/audit/doctor` read and the
   # `ensure-base` write path never does. A rule present only there reaches
   # no settings file, and under GH-47 the project file wins, so a global

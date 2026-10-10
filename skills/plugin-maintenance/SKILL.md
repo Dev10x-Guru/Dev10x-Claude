@@ -886,7 +886,7 @@ of friction not covered by the other steps:
   are NOT rewritten to `**` wildcards (GH-715) — `**` matching is
   unreliable; `update-paths` (step 1) keeps pinned paths current instead.
 - **Catalog deprecations** — `action: remove` entries from
-  `src/dev10x/skills/permission/baseline-permissions.yaml` (e.g., legacy
+  `src/dev10x/core/skills/permission/baseline-permissions.yaml` (e.g., legacy
   `/tmp/claude/bin/mktmp.sh:*`) are dropped. No shipped entry rewrites a
   path to a `**` wildcard (GH-715).
 - **Cross-contamination** — rules whose absolute paths point outside

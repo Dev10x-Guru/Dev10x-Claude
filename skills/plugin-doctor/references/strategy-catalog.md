@@ -2,7 +2,7 @@
 
 The doctor ships with a base catalog of strategies, each owning
 one drift category. Strategies are pluggable: adding a new
-strategy file under `src/dev10x/skills/doctor/strategies/` and
+strategy file under `src/dev10x/core/skills/doctor/strategies/` and
 registering it in `strategies.yaml` is enough — no skill-core
 changes required.
 
@@ -53,7 +53,7 @@ class Remediation:
 
 ## Adding a Strategy
 
-1. Create `src/dev10x/skills/doctor/strategies/<id>.py`
+1. Create `src/dev10x/core/skills/doctor/strategies/<id>.py`
 2. Export a module-level `STRATEGY: Strategy` constant
 3. Add the module path to `strategies.yaml` under `enabled:`
 4. Add tests under `tests/skills/doctor/strategies/test_<id>.py`
