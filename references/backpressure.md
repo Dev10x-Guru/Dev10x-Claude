@@ -32,7 +32,7 @@ Bash / file-write / MCP call and BLOCK unsafe actions before they
 execute. This is the strongest and most distinctive backpressure surface
 in the plugin.
 
-**14 validators DX001–DX014** (`src/dev10x/validators/`):
+**14 validators DX001–DX014** (`src/dev10x/core/validators/`):
 
 | Rule ID | Validator | What it gates |
 |---------|-----------|---------------|
@@ -156,5 +156,5 @@ Meta-control
 | `.claude/rules/skill-gates.md` | Decision gate pattern, ALWAYS_ASK marking |
 | `.claude/rules/performance.md` | CLI startup baseline, benchmark profiling |
 | `references/permission-architecture.md` | Permission → hook execution order |
-| `src/dev10x/validators/` | Validator implementations |
+| `src/dev10x/core/validators/` | Validator implementations |
 | `hooks/hooks.json` | Hook entry points |

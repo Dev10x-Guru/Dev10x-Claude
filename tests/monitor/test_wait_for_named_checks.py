@@ -17,7 +17,7 @@ from dev10x.skills.monitor.ci_check_status import (
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _HOOKS = _REPO_ROOT / "hooks" / "hooks.json"
-_MAP = _REPO_ROOT / "src" / "dev10x" / "validators" / "command-skill-map.yaml"
+_MAP = _REPO_ROOT / "src" / "dev10x" / "core" / "validators" / "command-skill-map.yaml"
 
 _BOT_LEGS = ["claude-review", "hygiene-review"]
 

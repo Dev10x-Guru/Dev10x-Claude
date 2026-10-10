@@ -51,7 +51,7 @@ agent with no one to ask.
 An unattended agent with committed, verified work and no MCP
 server reachable is not stuck for the single most common
 operation — pushing an ordinary feature branch. The `git-push`
-hook rule (`src/dev10x/validators/command-skill-map.yaml`) already
+hook rule (`src/dev10x/core/validators/command-skill-map.yaml`) already
 lets a **non-force push that names an explicit, non-protected
 branch** through directly, with no skill or MCP call required:
 
@@ -125,4 +125,4 @@ the agent hits the hook while trying a wrapper or raw CLI, the
 block message reminds them to ask the user to reconnect rather
 than reach for `DEV10X_SKIP_CMD_VALIDATION`.
 
-See `src/dev10x/validators/skill_redirect.py:MCP_UNAVAILABLE_HINT`.
+See `src/dev10x/core/validators/skill_redirect.py:MCP_UNAVAILABLE_HINT`.

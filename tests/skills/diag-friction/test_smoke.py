@@ -32,7 +32,7 @@ from dev10x.skills.audit import cli_friction as cli_friction_mod  # noqa: E402
 # ── Paths to canonical data files ────────────────────────────────────────────
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
-_MAP_PATH = _REPO_ROOT / "src" / "dev10x" / "validators" / "command-skill-map.yaml"
+_MAP_PATH = _REPO_ROOT / "src" / "dev10x" / "core" / "validators" / "command-skill-map.yaml"
 _SA_PATH = _REPO_ROOT / "skills" / "diag-friction" / "references" / "structured-alternatives.yaml"
 _SKILL_MD_PATH = _REPO_ROOT / "skills" / "diag-friction" / "SKILL.md"
 

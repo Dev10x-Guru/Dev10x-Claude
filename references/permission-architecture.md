@@ -146,7 +146,7 @@ status`, and `~/.claude/tools/* *` matches `~/.claude/tools/../..`.
 
 Since the plumbing spelling can never be allowed, the hook denies it
 instead (GH-1496): `git-dir-worktree-pinning` in
-`src/dev10x/validators/command-skill-map.yaml` is `hook_block: true`, and
+`src/dev10x/core/validators/command-skill-map.yaml` is `hook_block: true`, and
 `--git-dir` / `--work-tree` are `_QUICK_TOKENS` so the rule reaches the
 engine at all.
 The deny names the sanctioned read path: `cd <path>`, then `pwd`, as two
@@ -169,7 +169,7 @@ execution and a total rule bypass. Protection for these does **not**
 rely on a permission deny-rule (which is unreliable: it does not
 suppress the option-2 UI footgun and does not reliably merge
 global→project). Instead, the `DX003` execution-safety validator
-(`src/dev10x/validators/execution_safety.py`, `MINIMAL` profile) runs
+(`src/dev10x/core/validators/execution_safety.py`, `MINIMAL` profile) runs
 on **every** Bash call and blocks inline code (`bash -c`, `python3 -c`)
 and untrusted absolute script paths, steering to the Write-tool /
 uv-script pattern or an approved dir (`~/.claude/{tools,skills,hooks}/`,

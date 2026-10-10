@@ -74,6 +74,6 @@ for segment in segments:
 
 ## Reference Implementation
 
-See `src/dev10x/validators/execution_safety.py` (DX003) for a complete
+See `src/dev10x/core/validators/execution_safety.py` (DX003) for a complete
 example covering short-flag clusters, separate tokens, safe-form exclusion,
 and pipe awareness.

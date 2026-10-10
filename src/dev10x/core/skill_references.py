@@ -17,7 +17,7 @@ from dev10x.repo_scan import walk_repository
 REFERENCE = re.compile(r"(?<![\w.-])[Dd]ev10x:([a-z0-9][a-z0-9-]*[a-z0-9])(?![\w-])")
 SCANNED_SUFFIXES = (".md", ".yaml", ".yml", ".json", ".py", ".sh")
 SCANNED_DIRS = ("skills", "docs", "references", "agents", "commands")
-SCANNED_FILES = ("src/dev10x/validators/command-skill-map.yaml",)
+SCANNED_FILES = ("src/dev10x/core/validators/command-skill-map.yaml",)
 
 
 def references_in(*, text: str) -> list[str]:
