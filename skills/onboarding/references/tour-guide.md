@@ -114,7 +114,7 @@ Approving the bootstrap pre-approves these STATE-CHANGING actions
     uvx dev10x permission clean / ensure-* (edits your settings.json)
 
 Full read-only + mutating catalog:
-  src/dev10x/skills/permission/baseline-permissions.yaml
+  src/dev10x/core/skills/permission/baseline-permissions.yaml
   skills/upgrade-cleanup/projects.yaml  (tracker MCP rules)
 ```
 

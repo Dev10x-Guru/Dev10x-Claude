@@ -41,7 +41,7 @@ from dev10x.skills.permission.path_rule_anchors import (
 )
 
 PERMISSION_DIR = Path(permission_pkg.__file__).resolve().parent
-REPO_ROOT = PERMISSION_DIR.parents[3]
+REPO_ROOT = PERMISSION_DIR.parents[4]
 BASELINE_YAML = PERMISSION_DIR / "baseline-permissions.yaml"
 PROJECTS_YAML = REPO_ROOT / CATALOG_RELPATH
 

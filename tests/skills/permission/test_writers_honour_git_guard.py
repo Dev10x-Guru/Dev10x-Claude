@@ -46,7 +46,7 @@ _CATALOG_MODULES = (
 def _merged_catalog_tree() -> ast.Module:
     body: list[ast.stmt] = []
     for name in _CATALOG_MODULES:
-        body.extend(ast.parse((_SRC / "skills" / "permission" / name).read_text()).body)
+        body.extend(ast.parse((_SRC / "core" / "skills" / "permission" / name).read_text()).body)
     return ast.Module(body=body, type_ignores=[])
 
 

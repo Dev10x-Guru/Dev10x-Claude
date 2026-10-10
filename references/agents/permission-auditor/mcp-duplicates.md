@@ -22,7 +22,7 @@ in the settings file because neither rule looks wrong on its own.
 ## Detection
 
 Run the `mcp-horizontal-duplicates` doctor strategy, registered in
-`src/dev10x/skills/doctor/registry.py`.
+`src/dev10x/core/skills/doctor/registry.py`.
 
 ## Per-finding report steps
 

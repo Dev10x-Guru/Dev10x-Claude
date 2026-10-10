@@ -37,9 +37,9 @@ from dev10x.domain.common.policy import (
     PolicySource,
 )
 
-# src/dev10x/core/domain/common/policy_migration.py -> src/dev10x/skills/permission/
+# src/dev10x/core/domain/common/policy_migration.py -> src/dev10x/core/skills/permission/
 BASELINE_CATALOG_PATH = (
-    Path(__file__).parents[3] / "skills" / "permission" / "baseline-permissions.yaml"
+    Path(__file__).parents[2] / "skills" / "permission" / "baseline-permissions.yaml"
 )
 
 CLAUDE_AI_MCP_GROUP = "claude-ai-mcp"

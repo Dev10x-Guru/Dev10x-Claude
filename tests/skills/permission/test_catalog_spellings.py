@@ -19,7 +19,7 @@ from dev10x.domain.common.command_spellings import SPELLINGS_KEY, expand_spellin
 from dev10x.skills.permission.catalog_paths import CATALOG_RELPATH
 
 PERMISSION_DIR = Path(permission_pkg.__file__).resolve().parent
-REPO_ROOT = PERMISSION_DIR.parents[3]
+REPO_ROOT = PERMISSION_DIR.parents[4]
 BASELINE_YAML = PERMISSION_DIR / "baseline-permissions.yaml"
 PROJECTS_YAML = REPO_ROOT / CATALOG_RELPATH
 

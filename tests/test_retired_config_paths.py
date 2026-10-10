@@ -65,7 +65,7 @@ def _scanned_files() -> list[Path]:
 class TestRetiredMemoryPathInSource:
     def test_scan_covers_the_module_that_regressed(self) -> None:
         """Fail loud if the glob stops reaching the GH-1045 defect site."""
-        discovery = _REPO_ROOT / "src" / "dev10x" / "skills" / "playbook" / "discovery.py"
+        discovery = _REPO_ROOT / "src" / "dev10x" / "core" / "skills" / "playbook" / "discovery.py"
         assert discovery in _scanned_files()
 
     def test_no_unmarked_retired_path_in_source(self) -> None:

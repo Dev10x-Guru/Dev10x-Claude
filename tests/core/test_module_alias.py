@@ -191,6 +191,26 @@ class TestMovedPackages:
             ("dev10x.mcp.strict_args", "dev10x.core.mcp.strict_args"),
             ("dev10x.mcp.gate_tools", "dev10x.core.mcp.gate_tools"),
             ("dev10x.mcp.gate_query", "dev10x.core.mcp.gate_query"),
+            ("dev10x.skills.playbook", "dev10x.core.skills.playbook"),
+            ("dev10x.skills.playbook.discovery", "dev10x.core.skills.playbook.discovery"),
+            ("dev10x.skills.doctor", "dev10x.core.skills.doctor"),
+            (
+                "dev10x.skills.doctor.strategies.ask_shadows_allow",
+                "dev10x.core.skills.doctor.strategies.ask_shadows_allow",
+            ),
+            ("dev10x.skills.permission", "dev10x.core.skills.permission"),
+            (
+                "dev10x.skills.permission.update_paths",
+                "dev10x.core.skills.permission.update_paths",
+            ),
+            (
+                "dev10x.skills.permission_investigator",
+                "dev10x.core.skills.permission_investigator",
+            ),
+            (
+                "dev10x.skills.permission_investigator.matrix",
+                "dev10x.core.skills.permission_investigator.matrix",
+            ),
         ],
     )
     def test_old_path_is_the_moved_module(self, old: str, new: str) -> None:

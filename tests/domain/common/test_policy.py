@@ -487,7 +487,7 @@ class TestPolicyCatalogPartitionByEffect:
         # GH-271 pipeline can consume it directly.
         baseline = (
             Path(__file__).resolve().parents[3]
-            / "src/dev10x/skills/permission/baseline-permissions.yaml"
+            / "src/dev10x/core/skills/permission/baseline-permissions.yaml"
         )
         policies = PolicyCatalog.load(baseline)
         assert len(policies) > 50
