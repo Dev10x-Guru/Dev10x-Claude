@@ -48,7 +48,7 @@ class SessionService:
 
     @staticmethod
     def _default_plugin_root() -> Path:
-        return Path(__file__).parents[3]
+        return Path(__file__).parents[4]
 
     def build_reload_context(self, *, toplevel: str | None = _UNSET) -> str:  # type: ignore[assignment]
         """Return the session-reload additionalContext string.
