@@ -16,6 +16,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from dev10x.core.paths import skill_script
 from dev10x.skills.doctor.strategy import (
     Context,
     Finding,
@@ -72,13 +73,19 @@ class ScriptDriftRemediation:
 
 SCRIPT_TO_MCP: dict[str, str] = {
     "/tmp/Dev10x/bin/mktmp.sh": "mcp__plugin_dev10x_cli__mktmp",
-    "skills/gh-context/scripts/gh-issue-get.sh": "mcp__plugin_dev10x_cli__issue_get",
-    "skills/gh-context/scripts/gh-issue-comments.sh": "mcp__plugin_dev10x_cli__issue_comments",
-    "skills/gh-context/scripts/gh-issue-create.sh": "mcp__plugin_dev10x_cli__issue_create",
-    "skills/gh-context/scripts/gh-pr-detect.sh": "mcp__plugin_dev10x_cli__pr_detect",
-    "skills/gh-pr-monitor/scripts/ci-check-status.py": "mcp__plugin_dev10x_cli__ci_check_status",
-    "skills/git/scripts/git-push-safe.sh": "mcp__plugin_dev10x_cli__push_safe",
-    "skills/gh-pr-create/scripts/create-pr.sh": "mcp__plugin_dev10x_cli__create_pr",
+    skill_script(skill="gh-context", rel="gh-issue-get.sh"): "mcp__plugin_dev10x_cli__issue_get",
+    skill_script(
+        skill="gh-context", rel="gh-issue-comments.sh"
+    ): "mcp__plugin_dev10x_cli__issue_comments",
+    skill_script(
+        skill="gh-context", rel="gh-issue-create.sh"
+    ): "mcp__plugin_dev10x_cli__issue_create",
+    skill_script(skill="gh-context", rel="gh-pr-detect.sh"): "mcp__plugin_dev10x_cli__pr_detect",
+    skill_script(
+        skill="gh-pr-monitor", rel="ci-check-status.py"
+    ): "mcp__plugin_dev10x_cli__ci_check_status",
+    skill_script(skill="git", rel="git-push-safe.sh"): "mcp__plugin_dev10x_cli__push_safe",
+    skill_script(skill="gh-pr-create", rel="create-pr.sh"): "mcp__plugin_dev10x_cli__create_pr",
 }
 
 
