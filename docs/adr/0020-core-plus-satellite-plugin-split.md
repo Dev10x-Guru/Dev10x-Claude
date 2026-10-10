@@ -4,7 +4,10 @@ Date: 2026-08-04
 
 ## Status
 
-Rejected (2026-08-04)
+Rejected (2026-08-04). Superseded by
+[ADR-0034](0034-staged-plugin-split-restructure-first.md) (2026-10-10),
+which keeps this scan's findings and stages the split so the single
+plugin keeps working at every step.
 
 ### Rejection rationale
 

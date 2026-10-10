@@ -1,0 +1,61 @@
+@startuml component-architecture
+!theme plain
+top to bottom direction
+title Staged plugin split (ADR-0034)
+
+package "Stage A — one plugin, dev10x (no user-visible change)" {
+  package "src/dev10x (one PyPI package)" {
+    [dev10x.core] as CORE
+    [dev10x.qa] as QA
+    [dev10x.infra] as INFRA
+    [dev10x.db] as DB
+    [dev10x.comm] as COMM
+    [dev10x.skillmgmt] as SKILLMGMT
+    [dev10x.tasks] as TASKS
+    [dev10x.scoping] as SCOPING
+    [dev10x.coding] as CODING
+  }
+  [cli MCP server\nregister() per namespace\nmcp~__plugin_dev10x_cli~__*] as CLI
+  [hooks + config fragments\nkeyed by future plugin] as FRAG
+  [dev10x skill rename\n+ user-config migration] as RENAME
+}
+
+QA --> CORE
+INFRA --> CORE
+DB --> CORE
+COMM --> CORE
+SKILLMGMT --> CORE
+TASKS --> CORE
+SCOPING --> CORE
+CODING --> CORE
+CLI --> CORE
+FRAG --> CORE
+RENAME --> CORE
+
+package "Stage B — extraction, one plugin at a time" {
+  [dev10x (core)\nkeeps name, MCP servers, hooks] as KEEP
+  [B1 QA] as P1
+  [B2 infrastructure] as P2
+  [B3 databases] as P3
+  [B4 communication] as P4
+  [B5 skill management] as P5
+  [B6 task management] as P6
+  [B7 tickets + scoping] as P7
+  [B9 coding] as P9
+}
+
+P1 ..> KEEP
+P2 ..> KEEP
+P3 ..> KEEP
+P4 ..> KEEP
+P5 ..> KEEP
+P6 ..> KEEP
+P7 ..> KEEP
+P9 ..> KEEP
+
+note bottom of KEEP
+  B8: core is finalized in place (what remains
+  under the dev10x name). Each move runs the
+  rename tool for its own skills only.
+end note
+@enduml
