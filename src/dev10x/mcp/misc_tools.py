@@ -117,7 +117,7 @@ async def slack_thread_is_forward(
         Dictionary with keys: is_forward (bool), confidence (str),
         signals (list[str]), upstream_hints (list[str]).
     """
-    from dev10x.utilities import slack as slack_helper
+    from dev10x.core.utilities import slack as slack_helper
 
     return to_wire(
         await slack_helper.slack_thread_is_forward(

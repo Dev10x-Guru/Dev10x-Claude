@@ -21,10 +21,9 @@ dev10x.commands.spec -> dev10x.spec.drift_detector
 dev10x.hooks.audit_emit -> dev10x.audit.log_reader
 dev10x.hooks.task_plan_sync -> dev10x.plan.service
 dev10x.mcp.gate_query -> dev10x.github
+dev10x.mcp.misc_tools -> dev10x.core.utilities.slack
 dev10x.mcp.misc_tools -> dev10x.runner
 dev10x.mcp.misc_tools -> dev10x.skill_index
-dev10x.mcp.misc_tools -> dev10x.utilities
-dev10x.mcp.misc_tools -> dev10x.utilities.slack
 dev10x.mcp.server_cli -> dev10x.mcp.audit_tools
 dev10x.mcp.server_cli -> dev10x.mcp.git_tools
 dev10x.mcp.server_cli -> dev10x.mcp.github_tools

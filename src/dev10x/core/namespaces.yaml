@@ -13,6 +13,7 @@ namespaces:
   dev10x.commands: core
   dev10x.config: core
   dev10x.core: core
+  dev10x.core.utilities.slack: comm
   dev10x.db: db
   dev10x.dependency_pins: core
   dev10x.dependency_sweep: core
@@ -59,5 +60,6 @@ namespaces:
   dev10x.subprocess_timeouts: core
   dev10x.subprocess_utils: core
   dev10x.tasks: tasks
-  dev10x.utilities: comm
+  dev10x.utilities: core
+  dev10x.utilities.slack: comm
   dev10x.validators: core
