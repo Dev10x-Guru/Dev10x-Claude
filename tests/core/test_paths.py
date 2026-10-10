@@ -11,7 +11,7 @@ from dev10x.subprocess_utils import get_plugin_root
 
 SCRIPT_LITERAL = re.compile(r"^skills/[^/]+/scripts/")
 RESOLVER = Path("core") / "paths.py"
-GUARDED_PACKAGES = ["github"]
+GUARDED_PACKAGES = ["github", "git"]
 
 
 def _src_root() -> Path:

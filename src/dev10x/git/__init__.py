@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from dev10x.core.paths import skill_script
 from dev10x.domain.common.branch_name import BranchName
 from dev10x.domain.common.result import Result, SuccessResult, err, ok
 from dev10x.domain.documents.session_yaml import SessionYamlDocument
@@ -113,7 +114,7 @@ async def push_safe(
     for pb in _resolve_protected_branches(protected_branches) or []:
         cmd_args.extend(["--protected", pb])
 
-    return await _run_git_script("skills/git/scripts/git-push-safe.sh", *cmd_args)
+    return await _run_git_script(skill_script(skill="git", rel="git-push-safe.sh"), *cmd_args)
 
 
 def qualify_base_ref(base_ref: str, *, remote_exists: bool) -> str:
@@ -169,7 +170,7 @@ async def _resolve_groom_base(base_ref: str) -> tuple[str, str | None]:
 async def rebase_groom(*, seq_path: str, base_ref: str) -> Result[dict[str, Any]]:
     effective_ref, notice = await _resolve_groom_base(base_ref)
     result = await _run_git_script(
-        "skills/git/scripts/git-rebase-groom.sh",
+        skill_script(skill="git", rel="git-rebase-groom.sh"),
         seq_path,
         effective_ref,
         conflict_aware=True,
@@ -208,7 +209,7 @@ async def create_worktree(
         path = name_result.value["path"]
 
     return await _run_git_script(
-        "skills/git-worktree/scripts/create-worktree.sh",
+        skill_script(skill="git-worktree", rel="create-worktree.sh"),
         path,
         branch,
         base or "",
@@ -217,7 +218,7 @@ async def create_worktree(
 
 async def mass_rewrite(*, config_path: str) -> Result[dict[str, Any]]:
     result = await async_run_script(
-        "skills/git-groom/scripts/mass-rewrite.py",
+        skill_script(skill="git-groom", rel="mass-rewrite.py"),
         config_path,
     )
 
@@ -236,7 +237,7 @@ async def start_split_rebase(
     base_branch: str = "develop",
 ) -> Result[dict[str, Any]]:
     result = await async_run_script(
-        "skills/git-commit-split/scripts/start-split-rebase.sh",
+        skill_script(skill="git-commit-split", rel="start-split-rebase.sh"),
         commit_hash,
         base_branch,
     )
@@ -254,7 +255,7 @@ async def next_worktree_name(*, base_dir: str | None = None) -> Result[dict[str,
     wt_args = [base_dir] if base_dir else []
 
     result = await async_run_script(
-        "skills/git-worktree/scripts/next-worktree-name.sh",
+        skill_script(skill="git-worktree", rel="next-worktree-name.sh"),
         *wt_args,
     )
 
@@ -266,7 +267,7 @@ async def next_worktree_name(*, base_dir: str | None = None) -> Result[dict[str,
 
 async def setup_aliases() -> Result[dict[str, Any]]:
     result = await async_run_script(
-        "skills/git-alias-setup/scripts/git-alias-setup.sh",
+        skill_script(skill="git-alias-setup", rel="git-alias-setup.sh"),
     )
 
     if result.returncode != 0:
