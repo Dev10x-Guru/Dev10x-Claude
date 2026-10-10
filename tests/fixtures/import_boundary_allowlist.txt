@@ -4,9 +4,6 @@
 dev10x.commands.foreman -> dev10x.skills.foreman.watch
 dev10x.commands.github -> dev10x.github.learn_loop
 dev10x.commands.github -> dev10x.github.rule_authoring
-dev10x.commands.github_app -> dev10x.github.app_api
-dev10x.commands.github_app -> dev10x.github.app_auth
-dev10x.commands.github_app_api -> dev10x.github.app_api
 dev10x.commands.hook -> dev10x.audit
 dev10x.commands.orchestration -> dev10x.skills.orchestration.stranded_work
 dev10x.commands.orchestration -> dev10x.skills.orchestration.subagent_protocol
@@ -33,4 +30,3 @@ dev10x.mcp.server_cli -> dev10x.mcp.release_tools
 dev10x.mcp.server_cli -> dev10x.mcp.task_index_tools
 dev10x.mcp.server_db -> dev10x.db
 dev10x.skills.monitor.pr_notify -> dev10x.skills.notifications.slack_notify
-dev10x.skills.notifications._gh -> dev10x.github

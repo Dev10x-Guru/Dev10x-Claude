@@ -58,7 +58,7 @@ def gh_api_json(endpoint: str) -> Any:
     :func:`gh_json`'s contract so existing `except (GhCommandError,
     json.JSONDecodeError)` call sites need no change.
     """
-    from dev10x.github import _gh_api_raw
+    from dev10x.core.github._gateway import _gh_api_raw
 
     result = asyncio.run(_gh_api_raw(endpoint, timeout=_GH_TIMEOUT_SECONDS))
     if result.returncode != 0:

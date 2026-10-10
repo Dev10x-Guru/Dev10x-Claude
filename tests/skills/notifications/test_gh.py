@@ -70,14 +70,16 @@ def test_forwards_explicit_cwd(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 class TestGhApiJson:
-    """GH-1442: `gh api` calls route through dev10x.github's shared Gateway."""
+    """GH-1442: `gh api` calls route through the shared Gateway in dev10x.core (GH-1536)."""
 
     def test_returns_parsed_json_on_success(self) -> None:
         completed = subprocess.CompletedProcess(
             args=["gh", "api", "repos/o/r"], returncode=0, stdout='{"ok": true}', stderr=""
         )
         with patch(
-            "dev10x.github._gh_api_raw", new_callable=AsyncMock, return_value=completed
+            "dev10x.core.github._gateway._gh_api_raw",
+            new_callable=AsyncMock,
+            return_value=completed,
         ) as mock_api:
             assert _gh.gh_api_json("repos/o/r") == {"ok": True}
         mock_api.assert_awaited_once_with("repos/o/r", timeout=_gh._GH_TIMEOUT_SECONDS)
@@ -86,6 +88,10 @@ class TestGhApiJson:
         completed = subprocess.CompletedProcess(
             args=["gh", "api", "repos/o/r"], returncode=1, stdout="", stderr="boom"
         )
-        with patch("dev10x.github._gh_api_raw", new_callable=AsyncMock, return_value=completed):
+        with patch(
+            "dev10x.core.github._gateway._gh_api_raw",
+            new_callable=AsyncMock,
+            return_value=completed,
+        ):
             with pytest.raises(_gh.GhCommandError, match="boom"):
                 _gh.gh_api_json("repos/o/r")

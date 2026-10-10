@@ -123,18 +123,21 @@ PRE_SPLIT_NAMES = (
 )
 
 # A facade patch is right when the code under test resolves the name
-# FROM the facade, not from a capability module. These external
-# consumers do exactly that at call time.
-EXTERNAL_FACADE_LOOKUPS = frozenset(
-    {
-        # skills/notifications/_gh.py: `from dev10x.github import _gh_api_raw`
-        ("tests/skills/notifications/test_gh.py", "_gh_api_raw"),
-    }
-)
+# FROM the facade, not from a capability module. Add a
+# (test path, name) pair here when an external consumer does that.
+EXTERNAL_FACADE_LOOKUPS: frozenset[tuple[str, str]] = frozenset()
+
+# GH-1536: the gateway lives in dev10x.core; dev10x/github/_gateway.py is
+# its alias shim, so the guards read the real source.
+MOVED_MODULES = {"_gateway": REPO_ROOT / "src" / "dev10x" / "core" / "github" / "_gateway.py"}
 
 
 def _parse(*, path: Path) -> ast.Module:
     return ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+
+
+def _module_path(*, module: str) -> Path:
+    return MOVED_MODULES.get(module, PACKAGE_DIR / f"{module}.py")
 
 
 def _top_level_definitions(*, tree: ast.Module) -> set[str]:
@@ -160,7 +163,7 @@ def internal_lookups() -> dict[str, list[str]]:
     """
     lookups: dict[str, list[str]] = {}
     for module in ["__init__", *CAPABILITY_MODULES]:
-        for node in ast.walk(_parse(path=PACKAGE_DIR / f"{module}.py")):
+        for node in ast.walk(_parse(path=_module_path(module=module))):
             if isinstance(node, ast.Attribute):
                 lookups.setdefault(node.attr, []).append(module)
             elif (
@@ -279,7 +282,7 @@ class TestFacadeShape:
 
     @pytest.mark.parametrize("module", CAPABILITY_MODULES)
     def test_capability_module_does_not_import_the_facade(self, module: str) -> None:
-        tree = _parse(path=PACKAGE_DIR / f"{module}.py")
+        tree = _parse(path=_module_path(module=module))
 
         facade_imports = [
             node.lineno
@@ -298,7 +301,7 @@ class TestFacadeShape:
 
     @pytest.mark.parametrize("module", [m for m in CAPABILITY_MODULES if m != "_gateway"])
     def test_capability_module_reaches_dependencies_through_the_seam(self, module: str) -> None:
-        tree = _parse(path=PACKAGE_DIR / f"{module}.py")
+        tree = _parse(path=_module_path(module=module))
 
         bound_by_name = [
             f"{node.module}:{alias.name}"
