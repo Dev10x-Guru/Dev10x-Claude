@@ -4,6 +4,10 @@ Exercises two or more simulated concurrent writers against the
 task-plan-sync hook to verify the file_lock around the
 load→mutate→save cycle prevents data loss when worktrees or
 parallel agents fire TaskCreate hooks simultaneously.
+
+The writers run in ``sandbox_repo`` (GH-1514): run in the checkout
+under test, they and the old cleanup fixture rewrote and then deleted
+that checkout's live task mirror.
 """
 
 from __future__ import annotations
@@ -13,44 +17,12 @@ import os
 import subprocess
 from pathlib import Path
 
-import pytest
-
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 HOOK = _REPO_ROOT / "hooks" / "scripts" / "task-plan-sync.py"
 
 
-def _plan_path() -> Path:
-    toplevel = subprocess.check_output(
-        ["git", "rev-parse", "--show-toplevel"],
-        text=True,
-    ).strip()
-    return Path(toplevel) / ".claude" / "session" / "plan.yaml"
-
-
-def _cleanup_plan() -> None:
-    plan = _plan_path()
-    if plan.exists():
-        plan.unlink()
-    lock = plan.with_suffix(plan.suffix + ".lock")
-    if lock.exists():
-        lock.unlink()
-    session_dir = plan.parent
-    if session_dir.exists():
-        try:
-            session_dir.rmdir()
-        except OSError:
-            pass
-
-
-@pytest.fixture(autouse=True)
-def _clean_plan():
-    _cleanup_plan()
-    yield
-    _cleanup_plan()
-
-
 class TestParallelTaskCreate:
-    def test_concurrent_writers_preserve_all_tasks(self) -> None:
+    def test_concurrent_writers_preserve_all_tasks(self, sandbox_repo: Path) -> None:
         writers = list(range(1, 9))
         processes: list[tuple[int, subprocess.Popen[str]]] = []
         for task_id in writers:
@@ -68,6 +40,7 @@ class TestParallelTaskCreate:
                 stderr=subprocess.PIPE,
                 text=True,
                 env={**os.environ},
+                cwd=sandbox_repo,
             )
             proc.stdin.write(payload)
             proc.stdin.close()
@@ -84,6 +57,7 @@ class TestParallelTaskCreate:
             capture_output=True,
             text=True,
             timeout=10,
+            cwd=sandbox_repo,
         )
         plan = json.loads(summary.stdout)
         ids = sorted(int(t["id"]) for t in plan["tasks"])

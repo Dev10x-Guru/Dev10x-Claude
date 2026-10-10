@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -13,71 +15,73 @@ from dev10x.hooks.task_plan_sync import _tool_outcome
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 HOOK = _REPO_ROOT / "hooks" / "scripts" / "task-plan-sync.py"
 
+# GH-1514: every hook run used to target the checkout running the tests,
+# and the cleanup fixture unlinked that checkout's live
+# `.claude/session/plan.yaml` (and TestArchive its `archive/`). A full
+# suite run inside an active work-on session wiped the task mirror the
+# Stop hook reads, which then reported "the task list is empty" while
+# the harness still held open tasks. Each test now gets its own repo.
+_SANDBOX: Path | None = None
+
+
+def _sandbox() -> Path:
+    assert _SANDBOX is not None, "plan_sandbox fixture did not run"
+    return _SANDBOX
+
+
+@pytest.fixture(autouse=True)
+def plan_sandbox(sandbox_repo: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    monkeypatch.setattr(sys.modules[__name__], "_SANDBOX", sandbox_repo)
+    return sandbox_repo
+
+
+def _plan_path() -> Path:
+    return _sandbox() / ".claude" / "session" / "plan.yaml"
+
 
 def _run_hook(
     *,
     payload: dict | None = None,
     env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    import os
-
-    run_env = {**os.environ, **(env or {})}
-    stdin_data = json.dumps(payload or {})
     return subprocess.run(
         [str(HOOK)],
-        input=stdin_data,
+        input=json.dumps(payload or {}),
         capture_output=True,
         text=True,
         timeout=10,
-        env=run_env,
+        env={**os.environ, **(env or {})},
+        cwd=_sandbox(),
     )
 
 
-def _plan_files(tmp_path: Path) -> list[Path]:
-    """Find plan.yaml in any .claude/session/ under CWD (the git repo)."""
-    toplevel = subprocess.check_output(
-        ["git", "rev-parse", "--show-toplevel"],
+def _run_hook_raw(*, stdin: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [str(HOOK)],
+        input=stdin,
+        capture_output=True,
         text=True,
-    ).strip()
-    plan_path = Path(toplevel) / ".claude" / "session" / "plan.yaml"
-    if plan_path.exists():
-        return [plan_path]
-    return []
+        timeout=10,
+        env=os.environ.copy(),
+        cwd=_sandbox(),
+    )
 
 
-def _read_plan_yaml(tmp_path: Path) -> dict:
-    files = _plan_files(tmp_path=tmp_path)
+def _plan_files() -> list[Path]:
+    return [_plan_path()] if _plan_path().exists() else []
+
+
+def _read_plan_yaml() -> dict:
+    files = _plan_files()
     assert len(files) == 1, f"Expected 1 plan file, found {len(files)}"
     result = subprocess.run(
         [str(HOOK), "--json-summary"],
         capture_output=True,
         text=True,
         timeout=10,
+        cwd=_sandbox(),
     )
     return json.loads(result.stdout)
-
-
-def _cleanup_plan() -> None:
-    toplevel = subprocess.check_output(
-        ["git", "rev-parse", "--show-toplevel"],
-        text=True,
-    ).strip()
-    plan_path = Path(toplevel) / ".claude" / "session" / "plan.yaml"
-    if plan_path.exists():
-        plan_path.unlink()
-    session_dir = plan_path.parent
-    if session_dir.exists():
-        try:
-            session_dir.rmdir()
-        except OSError:
-            pass
-
-
-@pytest.fixture(autouse=True)
-def _clean_plan():
-    _cleanup_plan()
-    yield
-    _cleanup_plan()
 
 
 class TestTheOutcomeSeam:
@@ -120,7 +124,7 @@ class TestTaskCreate:
             },
         )
         assert result.returncode == 0
-        assert len(_plan_files(tmp_path=None)) == 1
+        assert len(_plan_files()) == 1
 
     def test_task_added_to_plan(self) -> None:
         _run_hook(
@@ -133,7 +137,7 @@ class TestTaskCreate:
                 "tool_result": "Task #3 created successfully: Build feature",
             },
         )
-        plan = _read_plan_yaml(tmp_path=None)
+        plan = _read_plan_yaml()
         assert len(plan["tasks"]) == 1
         task = plan["tasks"][0]
         assert task["id"] == "3"
@@ -157,7 +161,7 @@ class TestTaskCreate:
                 "tool_response": {"task": {"id": "1", "subject": "payload capture canary"}},
             },
         )
-        plan = _read_plan_yaml(tmp_path=None)
+        plan = _read_plan_yaml()
         assert len(plan["tasks"]) == 1
         assert plan["tasks"][0]["id"] == "1"
         assert plan["tasks"][0]["subject"] == "payload capture canary"
@@ -171,7 +175,7 @@ class TestTaskCreate:
                 "tool_response": {"task": {"id": 7}},
             },
         )
-        plan = _read_plan_yaml(tmp_path=None)
+        plan = _read_plan_yaml()
         assert plan["tasks"][0]["id"] == "7"
 
     def test_a_response_without_a_task_creates_nothing(self) -> None:
@@ -184,7 +188,7 @@ class TestTaskCreate:
             },
         )
         assert result.returncode == 0
-        assert _plan_files(tmp_path=None) == []
+        assert _plan_files() == []
 
     def test_plan_metadata_initialized(self) -> None:
         _run_hook(
@@ -194,7 +198,7 @@ class TestTaskCreate:
                 "tool_result": "Task #1 created successfully: First task",
             },
         )
-        plan = _read_plan_yaml(tmp_path=None)
+        plan = _read_plan_yaml()
         assert "plan" in plan
         assert "created_at" in plan["plan"]
         assert "branch" in plan["plan"]
@@ -211,7 +215,7 @@ class TestTaskCreate:
                 "tool_result": "Task #2 created successfully: Epic task",
             },
         )
-        plan = _read_plan_yaml(tmp_path=None)
+        plan = _read_plan_yaml()
         assert plan["tasks"][0]["metadata"]["type"] == "epic"
         assert plan["tasks"][0]["metadata"]["skills"] == ["test"]
 
@@ -223,7 +227,7 @@ class TestTaskCreate:
         }
         _run_hook(payload=payload)
         _run_hook(payload=payload)
-        plan = _read_plan_yaml(tmp_path=None)
+        plan = _read_plan_yaml()
         assert len(plan["tasks"]) == 1
 
     def test_multiple_tasks(self) -> None:
@@ -235,7 +239,7 @@ class TestTaskCreate:
                     "tool_result": f"Task #{i} created successfully: Task {i}",
                 },
             )
-        plan = _read_plan_yaml(tmp_path=None)
+        plan = _read_plan_yaml()
         assert len(plan["tasks"]) == 3
         assert [t["id"] for t in plan["tasks"]] == ["1", "2", "3"]
 
@@ -260,7 +264,7 @@ class TestTaskUpdate:
                 "tool_result": "Updated task #1 status",
             },
         )
-        plan = _read_plan_yaml(tmp_path=None)
+        plan = _read_plan_yaml()
         task = next(t for t in plan["tasks"] if t["id"] == "1")
         assert task["status"] == "in_progress"
         assert "started_at" in task
@@ -273,7 +277,7 @@ class TestTaskUpdate:
                 "tool_result": "Updated task #1 status",
             },
         )
-        plan = _read_plan_yaml(tmp_path=None)
+        plan = _read_plan_yaml()
         task = next(t for t in plan["tasks"] if t["id"] == "1")
         assert task["status"] == "completed"
         assert "completed_at" in task
@@ -286,7 +290,7 @@ class TestTaskUpdate:
                 "tool_result": "Updated task #1 status",
             },
         )
-        plan = _read_plan_yaml(tmp_path=None)
+        plan = _read_plan_yaml()
         assert len(plan["tasks"]) == 1
         assert plan["tasks"][0]["id"] == "2"
 
@@ -298,7 +302,7 @@ class TestTaskUpdate:
                 "tool_result": "Updated task #1 subject",
             },
         )
-        plan = _read_plan_yaml(tmp_path=None)
+        plan = _read_plan_yaml()
         task = next(t for t in plan["tasks"] if t["id"] == "1")
         assert task["subject"] == "Renamed task"
 
@@ -323,7 +327,7 @@ class TestTaskUpdate:
                 "tool_result": "Updated task #5 metadata",
             },
         )
-        plan = _read_plan_yaml(tmp_path=None)
+        plan = _read_plan_yaml()
         task = next(t for t in plan["tasks"] if t["id"] == "5")
         assert task["metadata"]["type"] == "epic"
         assert task["metadata"]["color"] == "blue"
@@ -338,39 +342,39 @@ class TestTaskUpdate:
                     "tool_result": f"Updated task #{i} status",
                 },
             )
-        plan = _read_plan_yaml(tmp_path=None)
+        plan = _read_plan_yaml()
         assert plan["plan"]["status"] == "completed"
         assert "completed_at" in plan["plan"]
 
 
 class TestEdgeCases:
-    def test_empty_stdin(self) -> None:
-        import os
+    @pytest.mark.parametrize("stdin", ["", "{invalid json}"], ids=["empty", "malformed"])
+    def test_unreadable_stdin_exits_cleanly(self, stdin: str) -> None:
+        assert _run_hook_raw(stdin=stdin).returncode == 0
 
-        result = subprocess.run(
-            [str(HOOK)],
-            input="",
-            capture_output=True,
-            text=True,
-            timeout=10,
-            env=os.environ.copy(),
+    @pytest.mark.parametrize("stdin", ["", "{invalid json}"], ids=["empty", "malformed"])
+    def test_unreadable_stdin_writes_no_plan(self, stdin: str) -> None:
+        _run_hook_raw(stdin=stdin)
+
+        assert _plan_files() == []
+
+    def test_lost_in_progress_task_is_restored_by_the_hook(self) -> None:
+        """GH-1514 end to end: a mirror missing the task heals on its update."""
+        _seed_task(task_id=1)
+
+        _run_hook(
+            payload={
+                "tool_name": "TaskUpdate",
+                "tool_input": {"taskId": "9", "status": "in_progress"},
+                "tool_result": "Updated task #9 status",
+            },
         )
-        assert result.returncode == 0
-        assert len(_plan_files(tmp_path=None)) == 0
 
-    def test_malformed_json(self) -> None:
-        import os
-
-        result = subprocess.run(
-            [str(HOOK)],
-            input="{invalid json}",
-            capture_output=True,
-            text=True,
-            timeout=10,
-            env=os.environ.copy(),
-        )
-        assert result.returncode == 0
-        assert len(_plan_files(tmp_path=None)) == 0
+        plan = _read_plan_yaml()
+        assert [(t["id"], t["status"]) for t in plan["tasks"]] == [
+            ("1", "pending"),
+            ("9", "in_progress"),
+        ]
 
     def test_missing_tool_result(self) -> None:
         _run_hook(
@@ -380,7 +384,7 @@ class TestEdgeCases:
                 "tool_result": "",
             },
         )
-        assert len(_plan_files(tmp_path=None)) == 0
+        assert len(_plan_files()) == 0
 
     def test_unknown_tool_name(self) -> None:
         _run_hook(
@@ -390,7 +394,7 @@ class TestEdgeCases:
                 "tool_result": "",
             },
         )
-        assert len(_plan_files(tmp_path=None)) == 0
+        assert len(_plan_files()) == 0
 
     def test_update_nonexistent_task(self) -> None:
         _run_hook(
@@ -408,7 +412,7 @@ class TestEdgeCases:
             },
         )
         assert result.returncode == 0
-        plan = _read_plan_yaml(tmp_path=None)
+        plan = _read_plan_yaml()
         assert len(plan["tasks"]) == 1
         assert plan["tasks"][0]["status"] == "pending"
 
@@ -420,7 +424,7 @@ class TestEdgeCases:
                 "tool_result": "Task #1 created successfully: First",
             },
         )
-        plan1 = _read_plan_yaml(tmp_path=None)
+        plan1 = _read_plan_yaml()
         synced1 = plan1["plan"]["last_synced"]
 
         _run_hook(
@@ -430,7 +434,7 @@ class TestEdgeCases:
                 "tool_result": "Updated task #1 status",
             },
         )
-        plan2 = _read_plan_yaml(tmp_path=None)
+        plan2 = _read_plan_yaml()
         synced2 = plan2["plan"]["last_synced"]
         assert synced2 >= synced1
 
@@ -438,14 +442,13 @@ class TestEdgeCases:
 def _run_cli(
     *args: str,
 ) -> subprocess.CompletedProcess[str]:
-    import os
-
     return subprocess.run(
         [str(HOOK), *args],
         capture_output=True,
         text=True,
         timeout=10,
         env=os.environ.copy(),
+        cwd=_sandbox(),
     )
 
 
@@ -464,14 +467,14 @@ class TestSetContext:
         _seed_task()
         result = _run_cli("--set-context", "work_type=feature")
         assert result.returncode == 0
-        plan = _read_plan_yaml(tmp_path=None)
+        plan = _read_plan_yaml()
         assert plan["plan"]["context"]["work_type"] == "feature"
 
     def test_stores_json_value(self) -> None:
         _seed_task()
         result = _run_cli("--set-context", 'tickets=["GH-1","GH-2"]')
         assert result.returncode == 0
-        plan = _read_plan_yaml(tmp_path=None)
+        plan = _read_plan_yaml()
         assert plan["plan"]["context"]["tickets"] == ["GH-1", "GH-2"]
 
     def test_stores_dict_value(self) -> None:
@@ -481,13 +484,13 @@ class TestSetContext:
             'routing_table={"commit":"Skill(git-commit)"}',
         )
         assert result.returncode == 0
-        plan = _read_plan_yaml(tmp_path=None)
+        plan = _read_plan_yaml()
         assert plan["plan"]["context"]["routing_table"]["commit"] == "Skill(git-commit)"
 
     def test_preserves_existing_tasks(self) -> None:
         _seed_task()
         _run_cli("--set-context", "work_type=bugfix")
-        plan = _read_plan_yaml(tmp_path=None)
+        plan = _read_plan_yaml()
         assert len(plan["tasks"]) == 1
         assert plan["tasks"][0]["subject"] == "Task 1"
 
@@ -500,7 +503,7 @@ class TestSetContext:
             "gathered_summary=Working on plan persistence",
         )
         assert result.returncode == 0
-        plan = _read_plan_yaml(tmp_path=None)
+        plan = _read_plan_yaml()
         assert plan["plan"]["context"]["work_type"] == "feature"
         assert plan["plan"]["context"]["tickets"] == ["GH-482"]
         assert plan["plan"]["context"]["gathered_summary"] == "Working on plan persistence"
@@ -508,7 +511,7 @@ class TestSetContext:
     def test_creates_plan_if_none_exists(self) -> None:
         result = _run_cli("--set-context", "work_type=investigation")
         assert result.returncode == 0
-        plan = _read_plan_yaml(tmp_path=None)
+        plan = _read_plan_yaml()
         assert plan["plan"]["context"]["work_type"] == "investigation"
 
     def test_invalid_argument_exits_with_error(self) -> None:
@@ -518,24 +521,6 @@ class TestSetContext:
 
 
 class TestArchive:
-    @pytest.fixture(autouse=True)
-    def clean_archive_dir(self) -> None:
-        """Clean archive directory before each test to prevent leakage."""
-        toplevel = subprocess.check_output(
-            ["git", "rev-parse", "--show-toplevel"],
-            text=True,
-        ).strip()
-        archive_dir = Path(toplevel) / ".claude" / "session" / "archive"
-        if archive_dir.exists():
-            import shutil
-
-            shutil.rmtree(archive_dir)
-        yield
-        if archive_dir.exists():
-            import shutil
-
-            shutil.rmtree(archive_dir)
-
     def test_archives_completed_plan(self) -> None:
         _seed_task()
         _run_hook(
@@ -548,28 +533,45 @@ class TestArchive:
         result = _run_cli("--archive")
         assert result.returncode == 0
         assert "Archived plan to" in result.stdout
-        assert len(_plan_files(tmp_path=None)) == 0
+        assert len(_plan_files()) == 0
 
     def test_archive_creates_archive_directory(self) -> None:
         _seed_task()
-        toplevel = subprocess.check_output(
-            ["git", "rev-parse", "--show-toplevel"],
-            text=True,
-        ).strip()
-        archive_dir = Path(toplevel) / ".claude" / "session" / "archive"
+        archive_dir = _sandbox() / ".claude" / "session" / "archive"
         _run_cli("--archive")
-        assert archive_dir.exists()
-        archives = list(archive_dir.glob("plan-*.yaml"))
-        assert len(archives) == 1
-        # Cleanup
-        for f in archives:
-            f.unlink()
-        archive_dir.rmdir()
+        assert len(list(archive_dir.glob("plan-*.yaml"))) == 1
 
     def test_archive_without_plan_exits_cleanly(self) -> None:
         result = _run_cli("--archive")
         assert result.returncode == 0
         assert "No plan file" in result.stdout
+
+
+class TestLiveCheckoutIsolation:
+    """GH-1514: running these tests must never touch the checkout's own plan."""
+
+    @staticmethod
+    def _live_session_state() -> tuple[bytes | None, list[str]]:
+        session = _REPO_ROOT / ".claude" / "session"
+        plan = session / "plan.yaml"
+        archive = session / "archive"
+        return (
+            plan.read_bytes() if plan.exists() else None,
+            sorted(p.name for p in archive.glob("*")) if archive.exists() else [],
+        )
+
+    def test_hook_and_archive_leave_the_live_session_untouched(self) -> None:
+        before = self._live_session_state()
+
+        _seed_task()
+        _run_cli("--archive")
+
+        assert self._live_session_state() == before
+
+    def test_hook_writes_into_the_sandbox(self) -> None:
+        _seed_task()
+
+        assert _plan_path().exists()
 
 
 class TestYamlRoundtrip:
@@ -581,7 +583,7 @@ class TestYamlRoundtrip:
                 "tool_result": "Task #1 created successfully: YAML test",
             },
         )
-        files = _plan_files(tmp_path=None)
+        files = _plan_files()
         assert len(files) == 1
         content = files[0].read_text()
         assert content.startswith("plan:\n")
@@ -595,7 +597,7 @@ class TestYamlRoundtrip:
                 "tool_result": "Task #1 created successfully: Location test",
             },
         )
-        files = _plan_files(tmp_path=None)
+        files = _plan_files()
         assert len(files) == 1
         assert ".claude/session/plan.yaml" in str(files[0])
 
@@ -612,6 +614,7 @@ class TestYamlRoundtrip:
             capture_output=True,
             text=True,
             timeout=10,
+            cwd=_sandbox(),
         )
         assert result.returncode == 0
         data = json.loads(result.stdout)

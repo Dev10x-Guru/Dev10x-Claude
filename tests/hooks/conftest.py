@@ -21,6 +21,7 @@ between tests, which is the problem a shared fixture solves.
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -49,6 +50,28 @@ DEPLETED_PLAN = {"tasks": [{"subject": "Ship it", "status": "completed"}]}
 
 #: A task list with work still on it — the state that auto-advances.
 PENDING_PLAN = {"tasks": [{"subject": "Monitor CI", "status": "pending"}]}
+
+
+@pytest.fixture()
+def sandbox_repo(tmp_path: Path) -> Path:
+    """A throwaway git repo for tests that run the task-plan-sync hook.
+
+    The hook writes ``<toplevel>/.claude/session/plan.yaml``. Run with no
+    ``cwd`` it resolves the checkout running the tests, and cleanup then
+    deletes that checkout's live task mirror (GH-1514). Pass this repo as
+    ``cwd`` to every hook subprocess instead.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    for args in (
+        ["init", "-q", "-b", "develop"],
+        ["config", "user.email", "t@example.com"],
+        ["config", "user.name", "Test"],
+        ["config", "commit.gpgsign", "false"],
+        ["commit", "-q", "--allow-empty", "-m", "init"],
+    ):
+        subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True)
+    return repo
 
 
 @pytest.fixture()

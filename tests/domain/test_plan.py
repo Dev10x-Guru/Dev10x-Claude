@@ -374,6 +374,75 @@ class TestPlanHandleTaskUpdate:
         assert len(plan.tasks) == 2
 
 
+class TestPlanHealsUnknownTaskIds:
+    """GH-1514: an update for a task the mirror lost must re-add it while open.
+
+    Once the mirror loses tasks the harness still holds, updates for them
+    used to be dropped, so the Stop hook saw zero open tasks and reported
+    the list empty mid-plan. An update that leaves the task open restores
+    it; completing or deleting an unknown task stays a no-op.
+    """
+
+    @pytest.fixture()
+    def plan(self) -> Plan:
+        return Plan(metadata={"status": "in_progress"}, tasks=[])
+
+    @pytest.mark.parametrize(
+        ("tool_input", "status"),
+        [
+            ({"taskId": "7", "status": "in_progress"}, TaskStatus.IN_PROGRESS),
+            ({"taskId": "7", "status": "pending"}, TaskStatus.PENDING),
+            ({"taskId": "7", "metadata": {"awaiting": "subagent"}}, TaskStatus.PENDING),
+        ],
+    )
+    def test_open_update_restores_the_task(
+        self, plan: Plan, tool_input: dict, status: TaskStatus
+    ) -> None:
+        plan.handle_task_update(tool_input=tool_input)
+
+        assert [(t.id, t.status) for t in plan.tasks] == [("7", status)]
+
+    def test_restored_task_keeps_the_update_metadata(self, plan: Plan) -> None:
+        plan.handle_task_update(tool_input={"taskId": "7", "metadata": {"awaiting": "subagent"}})
+
+        assert plan.tasks[0].metadata == {"awaiting": "subagent"}
+
+    def test_restored_task_uses_a_given_subject(self, plan: Plan) -> None:
+        plan.handle_task_update(
+            tool_input={"taskId": "7", "status": "in_progress", "subject": "Merge PR"}
+        )
+
+        assert plan.tasks[0].subject == "Merge PR"
+
+    def test_restored_task_without_subject_is_named_by_id(self, plan: Plan) -> None:
+        plan.handle_task_update(tool_input={"taskId": "7", "status": "in_progress"})
+
+        assert plan.tasks[0].subject == "Task #7"
+
+    @pytest.mark.parametrize("status", ["completed", "deleted"])
+    def test_closing_an_unknown_task_is_a_no_op(self, plan: Plan, status: str) -> None:
+        plan.handle_task_update(tool_input={"taskId": "7", "status": status})
+
+        assert plan.tasks == []
+
+    @pytest.mark.parametrize(
+        "tool_input",
+        [
+            {"taskId": "7", "subject": "Renamed"},
+            {"taskId": "7", "metadata": {"note": "done earlier"}},
+            {"taskId": "7", "metadata": {"awaiting": None}},
+            {"taskId": "7", "status": "bogus", "metadata": {"awaiting": "subagent"}},
+        ],
+        ids=["subject-only", "plain-metadata", "awaiting-cleared", "invalid-status"],
+    )
+    def test_update_that_does_not_prove_the_task_open_is_a_no_op(
+        self, plan: Plan, tool_input: dict
+    ) -> None:
+        plan.handle_task_update(tool_input=tool_input)
+
+        assert plan.tasks == []
+
+
 class TestPlanCheckAllCompleted:
     def test_marks_plan_completed_when_all_tasks_done(self) -> None:
         plan = Plan(
