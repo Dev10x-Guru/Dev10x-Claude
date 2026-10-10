@@ -10,6 +10,7 @@ import json
 import re
 from typing import Any
 
+from dev10x.core.paths import skill_script
 from dev10x.domain.common.repository_ref import RepositoryRef
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.github import _gateway
@@ -619,7 +620,7 @@ async def check_top_level_comments(
     except ValueError as exc:
         return err(str(exc))
     result = await _gateway.async_run_script(
-        "skills/gh-pr-merge/scripts/check-top-level-comments.sh",
+        skill_script(skill="gh-pr-merge", rel="check-top-level-comments.sh"),
         ref.owner,
         ref.name,
         str(pr_number),
@@ -663,7 +664,7 @@ async def unresolved_threads(
             pr_number=pr_number,
         )
     result = await _gateway.async_run_script(
-        "skills/gh-pr-doctor/scripts/gh-unresolved-threads.py",
+        skill_script(skill="gh-pr-doctor", rel="gh-unresolved-threads.py"),
         "--repo",
         repo,
         "--limit",

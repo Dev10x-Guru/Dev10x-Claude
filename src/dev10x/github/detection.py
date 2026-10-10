@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from dev10x.core.paths import skill_script
 from dev10x.domain.common.result import Result, err, ok
 from dev10x.github import _gateway
 from dev10x.subprocess_utils import parse_key_value_output
@@ -15,7 +16,7 @@ from dev10x.subprocess_utils import parse_key_value_output
 
 async def detect_tracker(*, ticket_id: str) -> Result[dict[str, Any]]:
     return await _gateway._run_and_parse(
-        "skills/gh-context/scripts/detect-tracker.sh",
+        skill_script(skill="gh-context", rel="detect-tracker.sh"),
         ticket_id,
         fallback=parse_key_value_output,
     )
@@ -23,7 +24,7 @@ async def detect_tracker(*, ticket_id: str) -> Result[dict[str, Any]]:
 
 async def pr_detect(*, arg: str) -> Result[dict[str, Any]]:
     return await _gateway._run_and_parse(
-        "skills/gh-context/scripts/gh-pr-detect.sh",
+        skill_script(skill="gh-context", rel="gh-pr-detect.sh"),
         arg,
         fallback=parse_key_value_output,
     )
@@ -41,7 +42,7 @@ async def detect_base_branch(
         args.append("--force")
 
     result = await _gateway.async_run_script(
-        "skills/gh-pr-create/scripts/detect-base-branch.sh",
+        skill_script(skill="gh-pr-create", rel="detect-base-branch.sh"),
         *args,
     )
 
@@ -63,7 +64,7 @@ async def verify_pr_state(*, force: bool = False) -> Result[dict[str, Any]]:
         args.append("--force")
 
     return await _gateway._run_and_parse(
-        "skills/gh-pr-create/scripts/verify-state.sh",
+        skill_script(skill="gh-pr-create", rel="verify-state.sh"),
         *args,
         fallback=parse_key_value_output,
     )
@@ -75,7 +76,7 @@ async def pre_pr_checks(*, base_branch: str | None = None) -> Result[dict[str, A
         args.append(base_branch)
 
     result = await _gateway.async_run_script(
-        "skills/gh-pr-create/scripts/pre-pr-checks.sh",
+        skill_script(skill="gh-pr-create", rel="pre-pr-checks.sh"),
         *args,
     )
 
