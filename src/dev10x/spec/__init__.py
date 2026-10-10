@@ -1,22 +1,16 @@
-"""Spec drift detection for the SPDD pipeline (GH-172).
+"""Re-export of ``dev10x.core.spec`` at its pre-ADR-0034 path (GH-1537).
 
-Shared module between dev10x:spec-update (behaviour-first) and
-dev10x:spec-sync (refactor-first). One canonical drift detector,
-two entry points — per ADR 0005 risk mitigation.
+Every ``dev10x.spec.<name>`` resolves to the same module object as
+``dev10x.core.spec.<name>``; see ``dev10x.core.module_alias``.
 """
 
-from __future__ import annotations
+from typing import TYPE_CHECKING
 
-from dev10x.spec.drift_detector import (
-    DriftKind,
-    DriftReport,
-    DriftSignal,
-    detect_drift,
-)
+from dev10x.core.module_alias import alias_package
 
-__all__ = [
-    "DriftKind",
-    "DriftReport",
-    "DriftSignal",
-    "detect_drift",
-]
+if TYPE_CHECKING:
+    from dev10x.core.spec import DriftKind, DriftReport, DriftSignal, detect_drift
+
+alias_package(old=__name__, new="dev10x.core.spec")
+
+__all__ = ["DriftKind", "DriftReport", "DriftSignal", "detect_drift"]

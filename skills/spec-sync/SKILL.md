@@ -186,6 +186,6 @@ when both drift kinds are present. See `.claude/rules/skill-gates.md`.
 
 - ADR 0005 — SPDD pipeline rationale (canonical detector,
   two entry points)
-- `src/dev10x/spec/drift_detector.py` — shared module
+- `src/dev10x/core/spec/drift_detector.py` — shared module
 - `references/skill-pipelines.md` — Structured Spec Pipeline
   (added in GH-175)

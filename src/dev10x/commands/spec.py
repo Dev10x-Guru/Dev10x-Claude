@@ -26,7 +26,7 @@ def drift(*, spec_path: Path, project_root: Path | None) -> None:
     Exit codes: 0 = no drift, 1 = structural drift only,
     2 = behavioural drift present.
     """
-    from dev10x.spec.drift_detector import detect_drift
+    from dev10x.core.spec.drift_detector import detect_drift
 
     resolved_root = project_root if project_root is not None else Path.cwd()
     report = detect_drift(spec_path=spec_path, project_root=resolved_root)
