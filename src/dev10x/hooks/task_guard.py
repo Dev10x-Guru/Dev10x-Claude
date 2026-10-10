@@ -26,6 +26,7 @@ import json
 import os
 import sys
 
+from dev10x.core.plan_mirror import read_plan_mirror
 from dev10x.domain.documents.plan import Plan, get_plan_path, get_toplevel
 from dev10x.domain.events.hook_input import HookResult
 from dev10x.hooks.hook_transport import emit
@@ -94,7 +95,7 @@ def cmd_hook() -> None:
     if not toplevel:
         sys.exit(0)
 
-    plan = Plan.load(path=get_plan_path(toplevel=toplevel))
+    plan = read_plan_mirror(path=get_plan_path(toplevel=toplevel)).to_plan()
     result = guard_decision(tool_input=tool_input, plan=plan)
     if result is not None:
         emit(result)

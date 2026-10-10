@@ -22,12 +22,12 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+from dev10x.core.plan_mirror import read_plan_summary
 from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.documents.session_state import SessionState
 from dev10x.domain.git_context import GitContext
 from dev10x.domain.session_document import (
     plan_path_for_toplevel,
-    read_plan_summary,
     state_path_for_toplevel,
     write_state,
 )
