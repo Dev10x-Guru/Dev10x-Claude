@@ -115,6 +115,9 @@ class TestMovedPackages:
             ("dev10x.platform.registry", "dev10x.core.platform.registry"),
             ("dev10x.utilities", "dev10x.core.utilities"),
             ("dev10x.utilities.slack", "dev10x.core.utilities.slack"),
+            ("dev10x.github._gateway", "dev10x.core.github._gateway"),
+            ("dev10x.github.app_auth", "dev10x.core.github.app_auth"),
+            ("dev10x.github.app_api", "dev10x.core.github.app_api"),
         ],
     )
     def test_old_path_is_the_moved_module(self, old: str, new: str) -> None:

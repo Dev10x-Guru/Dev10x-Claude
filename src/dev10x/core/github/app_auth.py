@@ -1,0 +1,218 @@
+"""GitHub App authentication for posting agent-generated content.
+
+Loads an opt-in App configuration from the Dev10x config directory
+(``~/.config/Dev10x/github-bot/github-app.yaml`` on Linux/macOS,
+``%APPDATA%/Dev10x/github-bot/github-app.yaml`` on Windows, or via
+``DEV10X_CONFIG_HOME`` override) and mints short-lived installation
+tokens for the configured repository. The tokens are cached per-repo
+until shortly before their expiry.
+
+When configuration is absent, malformed, or the token exchange
+fails, ``get_bot_token`` returns ``None`` so callers can fall back
+to the engineer's ``gh auth`` token without raising.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import time
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+
+import yaml
+
+from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.github.app_api import (
+    GitHubAPIError,
+    create_installation_token_full,
+    get_repo_installation,
+)
+
+try:  # PyJWT is an optional dependency; its absence surfaces as ImportError
+    from jwt.exceptions import PyJWTError as _PyJWTError
+except ImportError:  # pragma: no cover - exercised only without PyJWT installed
+    _PyJWTError = ()  # type: ignore[assignment, misc]
+
+log = logging.getLogger(__name__)
+
+DEFAULT_CONFIG_PATH = Dev10xConfigDir.github_app_yaml()
+
+
+@dataclass(frozen=True)
+class AppConfig:
+    app_id: str
+    private_key_path: Path
+    installation_id: str | None = None
+    merge_bot: bool = False
+
+    @classmethod
+    def load(cls, *, path: Path | None = None) -> AppConfig | None:
+        config_path = path or DEFAULT_CONFIG_PATH
+        if not config_path.is_file():
+            return None
+        try:
+            data = yaml.safe_load(config_path.read_text()) or {}
+        except (OSError, yaml.YAMLError):
+            return None
+        block = data.get("github_app") or {}
+        if not block.get("enabled", True):
+            return None
+        app_id = block.get("app_id")
+        key_path = block.get("private_key_path")
+        if not app_id or not key_path:
+            return None
+        installation_raw = block.get("installation_id")
+        return cls(
+            app_id=str(app_id),
+            private_key_path=Path(str(key_path)).expanduser(),
+            installation_id=str(installation_raw) if installation_raw else None,
+            merge_bot=bool(block.get("merge_bot", False)),
+        )
+
+
+@dataclass
+class _CachedToken:
+    token: str
+    expires_at: float
+
+
+_TOKEN_CACHE: dict[str, _CachedToken] = {}
+
+
+def _create_app_jwt(*, app_id: str, private_key: str) -> str:
+    import jwt
+
+    now = int(time.time())
+    payload = {"iat": now - 30, "exp": now + 540, "iss": app_id}
+    return jwt.encode(payload, private_key, algorithm="RS256")
+
+
+def _parse_expires_at(raw: str | None) -> float:
+    if not raw:
+        return time.time() + 3600
+    try:
+        return datetime.fromisoformat(raw).timestamp()
+    except ValueError:
+        return time.time() + 3600
+
+
+async def _resolve_installation_id(
+    *,
+    repo: str,
+    app_jwt: str,
+) -> str | None:
+    # GH-499: resolved via an in-process HTTPS call (dev10x.github.
+    # app_api) instead of shelling out to `gh api -H "Authorization:
+    # Bearer <jwt>"` — argv is world-visible via `ps` / `/proc/<pid>/cmdline`
+    # for the life of a child process, so the JWT never touches a
+    # subprocess command line.
+    try:
+        payload = await asyncio.to_thread(
+            get_repo_installation,
+            jwt_token=app_jwt,
+            repo=repo,
+        )
+    except GitHubAPIError as exc:
+        log.warning("GitHub App installation lookup failed for repo=%s: %s", repo, exc)
+        return None
+    try:
+        return str(payload["id"])
+    except (KeyError, TypeError):
+        return None
+
+
+async def _exchange_for_installation_token(
+    *,
+    installation_id: str,
+    app_jwt: str,
+) -> tuple[str, float] | None:
+    # GH-499: exchanged via an in-process HTTPS call — see
+    # _resolve_installation_id. Never log the JWT or the minted token.
+    try:
+        data = await asyncio.to_thread(
+            create_installation_token_full,
+            jwt_token=app_jwt,
+            installation_id=int(installation_id),
+        )
+    except (GitHubAPIError, ValueError) as exc:
+        log.warning(
+            "GitHub App token exchange failed for installation_id=%s: %s",
+            installation_id,
+            exc,
+        )
+        return None
+    token = data.get("token")
+    if not token:
+        return None
+    return token, _parse_expires_at(data.get("expires_at"))
+
+
+async def get_bot_token(
+    *,
+    repo: str,
+    config: AppConfig | None = None,
+) -> str | None:
+    """Return an installation token for ``repo``, or ``None`` on failure.
+
+    Callers should treat ``None`` as a signal to fall back to the
+    engineer's existing ``gh auth`` credentials.
+    """
+    cached = _TOKEN_CACHE.get(repo)
+    if cached is not None:
+        if cached.expires_at - 60 > time.time():
+            return cached.token
+        _TOKEN_CACHE.pop(repo, None)
+
+    cfg = config if config is not None else AppConfig.load()
+    if cfg is None:
+        return None
+
+    try:
+        private_key = cfg.private_key_path.read_text()
+    except OSError as exc:
+        log.warning(
+            "GitHub App private key unreadable at %s: %s",
+            cfg.private_key_path,
+            exc,
+        )
+        return None
+
+    try:
+        app_jwt = _create_app_jwt(app_id=cfg.app_id, private_key=private_key)
+    except (_PyJWTError, ImportError, ValueError, TypeError) as exc:
+        log.warning(
+            "GitHub App JWT creation failed for app_id=%s: %s",
+            cfg.app_id,
+            exc,
+        )
+        return None
+
+    installation_id = cfg.installation_id or await _resolve_installation_id(
+        repo=repo,
+        app_jwt=app_jwt,
+    )
+    if installation_id is None:
+        log.warning(
+            "GitHub App installation-id resolution failed for repo=%s app_id=%s",
+            repo,
+            cfg.app_id,
+        )
+        return None
+
+    exchanged = await _exchange_for_installation_token(
+        installation_id=installation_id,
+        app_jwt=app_jwt,
+    )
+    if exchanged is None:
+        log.warning(
+            "GitHub App token exchange failed for repo=%s installation_id=%s",
+            repo,
+            installation_id,
+        )
+        return None
+
+    token, expires_at = exchanged
+    _TOKEN_CACHE[repo] = _CachedToken(token=token, expires_at=expires_at)
+    return token

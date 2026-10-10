@@ -1,6 +1,6 @@
-"""Compatibility re-export — the client lives in ``dev10x.github.app_api`` (GH-1444)."""
+"""Compatibility re-export — the client lives in ``dev10x.core.github.app_api`` (GH-1444)."""
 
-from dev10x.github.app_api import (
+from dev10x.core.github.app_api import (
     API_ROOT,
     GitHubAPIError,
     create_installation_token,

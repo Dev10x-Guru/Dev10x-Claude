@@ -123,6 +123,7 @@ jobs:
             --cov=src/dev10x/release \
             --cov=src/dev10x/skill_index \
             --cov=src/dev10x/core/utilities \
+            --cov=src/dev10x/core/github \
             --cov=src/dev10x/core/subprocess_utils \
             --cov-config=.coveragerc-servers \
             --cov-report=term-missing --cov-fail-under=80
