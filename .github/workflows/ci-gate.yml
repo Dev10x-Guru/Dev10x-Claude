@@ -169,7 +169,7 @@ jobs:
         run: uv run coverage report --include='src/dev10x/mcp/*' --fail-under=95
 
       - name: Enforce domain floor
-        run: uv run coverage report --include='src/dev10x/domain/*' --fail-under=95
+        run: uv run coverage report --include='src/dev10x/core/domain/*' --fail-under=95
 
       - name: Enforce validators floor
         run: uv run coverage report --include='src/dev10x/validators/*' --fail-under=90
