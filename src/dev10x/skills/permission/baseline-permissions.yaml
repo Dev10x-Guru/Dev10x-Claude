@@ -148,7 +148,7 @@ groups:
       # workers must never wedge on a prompt no one is present to answer,
       # so these must not be seeded into ask/deny — see the shipped
       # accepted-findings catalog in
-      # src/dev10x/domain/common/accepted_findings.py.
+      # src/dev10x/core/domain/common/accepted_findings.py.
       "git branch":
         - "-d"
         - "-D"

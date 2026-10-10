@@ -107,7 +107,7 @@ def latest_installed_root(*, cache_dir: Path | None = None) -> Path | None:
 
 def _checkout_root() -> Path | None:
     """Walk up from this module to a repo checkout or editable install."""
-    candidate = Path(__file__).resolve().parents[3]
+    candidate = Path(__file__).resolve().parents[4]
     return candidate if is_plugin_root(candidate) else None
 
 

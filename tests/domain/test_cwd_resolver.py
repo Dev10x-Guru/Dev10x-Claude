@@ -47,7 +47,12 @@ def test_git_context_does_not_import_subprocess_utils() -> None:
     """Regression guard for the N21 inversion: domain/git_context must
     not import the infra module directly."""
     source = (
-        Path(__file__).resolve().parents[2] / "src" / "dev10x" / "domain" / "git_context.py"
+        Path(__file__).resolve().parents[2]
+        / "src"
+        / "dev10x"
+        / "core"
+        / "domain"
+        / "git_context.py"
     ).read_text()
     assert "from dev10x.subprocess_utils import" not in source
     assert "import dev10x.subprocess_utils" not in source

@@ -102,8 +102,8 @@ REGISTER: tuple[Deprecation, ...] = (
         replacement="supervisor_review",
         issue="GH-1161",
         locations=(
-            "src/dev10x/domain/documents/session_yaml.py",
-            "src/dev10x/domain/documents/friction_yaml.py",
+            "src/dev10x/core/domain/documents/session_yaml.py",
+            "src/dev10x/core/domain/documents/friction_yaml.py",
         ),
     ),
     Deprecation(
@@ -113,7 +113,7 @@ REGISTER: tuple[Deprecation, ...] = (
         removed_in="0.112.0",
         replacement="match_repo",
         issue="GH-1375",
-        locations=("src/dev10x/domain/project_match.py",),
+        locations=("src/dev10x/core/domain/project_match.py",),
     ),
     Deprecation(
         name=".claude/Dev10x/session.yaml",
@@ -125,7 +125,7 @@ REGISTER: tuple[Deprecation, ...] = (
         locations=(
             "src/dev10x/session/task_index.py",
             "src/dev10x/mcp/task_index_tools.py",
-            "src/dev10x/domain/dev10x_paths.py",
+            "src/dev10x/core/domain/dev10x_paths.py",
         ),
     ),
     Deprecation(

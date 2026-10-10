@@ -153,7 +153,7 @@ def _default_plugin_root() -> Path | None:
         candidate = Path(env_root)
         if candidate.is_dir():
             return candidate
-    walk_up = Path(__file__).resolve().parent.parent.parent.parent
+    walk_up = Path(__file__).resolve().parents[4]
     if (walk_up / ".claude-plugin" / "plugin.json").is_file():
         return walk_up
     return None
